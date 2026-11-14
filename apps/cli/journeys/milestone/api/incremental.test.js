@@ -284,7 +284,7 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
     await api.close();
     const legacy = new DatabaseSync(boardFile);
     // A board from before these indexes carries an older user_version; only that makes an open migrate (#1047).
-    try { legacy.exec('DROP INDEX event_item_id_event_id; DROP INDEX verdict_item_id_verdict_id; PRAGMA user_version = 1;'); }
+    try { legacy.exec('DROP INDEX event_item_id_event_id; DROP INDEX verdict_item_id_verdict_id; PRAGMA user_version = 0;'); }
     finally { legacy.close(); }
     // This positive migration control uses a private database; branch code cannot repair
     // persistent indexes on the repository-shared board by supplying isMain: true.

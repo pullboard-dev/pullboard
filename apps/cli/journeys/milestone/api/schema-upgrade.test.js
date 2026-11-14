@@ -20,7 +20,7 @@ test('[A5, A6] main source upgrades an older shared board from an installed copy
   mkdirSync(installed);
   copyPackageFiles(sourceRoot, installed);
   const olderInstalled = new DatabaseSync(dbFile);
-  olderInstalled.exec('ALTER TABLE item DROP COLUMN item_files; PRAGMA user_version = 1');
+  olderInstalled.exec('ALTER TABLE item DROP COLUMN item_files; PRAGMA user_version = 0');
   olderInstalled.close();
   const installedRun = spawnSync(process.execPath, [join(installed, 'apps/cli/pullboard.js'), 'shout', 'app', 'board upgrade', '--json'], {
     cwd: repo, env: box.env, encoding: 'utf8',
@@ -32,7 +32,7 @@ test('[A5, A6] main source upgrades an older shared board from an installed copy
   migratedInstalled.close();
 
   const older = new DatabaseSync(dbFile);
-  older.exec('ALTER TABLE item DROP COLUMN item_files; PRAGMA user_version = 1');
+  older.exec('ALTER TABLE item DROP COLUMN item_files; PRAGMA user_version = 0');
   older.close();
   const upgraded = runFixture(repo, 'shout', 'app', 'board upgrade', '--json');
   assert.equal(upgraded.status, 0, upgraded.stderr + upgraded.stdout);
@@ -44,7 +44,7 @@ test('[A5, A6] main source upgrades an older shared board from an installed copy
   const linked = futureWorktree(fixture);
 
   const olderAgain = new DatabaseSync(dbFile);
-  olderAgain.exec('ALTER TABLE item DROP COLUMN item_files; PRAGMA user_version = 1');
+  olderAgain.exec('ALTER TABLE item DROP COLUMN item_files; PRAGMA user_version = 0');
   olderAgain.close();
   const mainCodeFromWorktree = spawnSync(process.execPath, [join(repo, 'apps/cli/pullboard.js'), 'join', 'app', '--family', 'codex', '--model', FIXTURE_MODEL, '--json'], {
     cwd: linked, env: box.env, encoding: 'utf8',
@@ -61,7 +61,7 @@ test('[A5, A6] main source upgrades an older shared board from an installed copy
     ...box.env, GIT_DIR: linkedGitDir, GIT_WORK_TREE: linked, GIT_COMMON_DIR: commonGitDir,
   };
   const olderForHook = new DatabaseSync(dbFile);
-  olderForHook.exec('ALTER TABLE item DROP COLUMN item_files; PRAGMA user_version = 1');
+  olderForHook.exec('ALTER TABLE item DROP COLUMN item_files; PRAGMA user_version = 0');
   olderForHook.close();
   const mainFromHook = spawnSync(process.execPath, [join(repo, 'apps/cli/pullboard.js'), 'shout', 'app', 'board upgrade', '--json'], {
     cwd: linked, env: inheritedLinked, encoding: 'utf8',
