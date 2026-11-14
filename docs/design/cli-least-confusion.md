@@ -2,7 +2,7 @@
 
 Status: a proposal for the person. Nothing here is built.
 
-Pullboard has 103 top-level commands today. A new person cannot tell which ones are theirs. This page cuts the top level to eleven commands, moves the rest under one `admin` word, and puts every report under `stats`.
+Pullboard has 105 top-level commands today. A new person cannot tell which ones are theirs. This page cuts the top level to eleven commands, moves the rest under one `admin` word, and puts every report under `stats`.
 
 ## The shape
 
@@ -29,7 +29,9 @@ Every command that `pullboard help --all` prints, with its new place. The docs t
 | `capacity` | folded into stats | `pullboard stats capacity` | A report view. |
 | `check` | moved under admin | `pullboard admin check` | Group: gate. |
 | `claim` | moved under admin | `pullboard admin claim` | Group: work. |
+| `compact` | moved under admin | `pullboard admin compact` | Group: this machine. |
 | `companion` | moved under admin | `pullboard admin companion` | Group: items. |
+| `contribute` | moved under admin | `pullboard admin contribute` | Group: gate. |
 | `decisions` | folded into stats | `pullboard stats decisions` | A report view. |
 | `digest` | folded into stats | `pullboard stats digest` | A report view. |
 | `doctor` | moved under admin | `pullboard admin doctor` | Group: this machine. |

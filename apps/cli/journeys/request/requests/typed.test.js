@@ -10,6 +10,8 @@ import {
   after,
   test,
 } from 'node:test';
+import { diagnosisBrief } from '../../../../../packages/items/index.js';
+import { parseDiagnosis } from '../../../../../packages/items/index.js';
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { fixtureBoard } from '../../../tests/fixtures/board.js';
@@ -122,8 +124,10 @@ test('reopen and reroute completion bind actual coordinator lifecycle and exact 
   store.reopen(board,item,{agentId:'coordinator',note:'Correct the frozen criterion'});const reopened=board.lastEvent.event_id;
   const reroute=store.fileTypedRequest(board,{agentId:agent,verb:'reroute',itemId:item,cause:'routing-assignment',route:'mid'});
   // A light route needs a recorded diagnosis first (light-route diagnosis rule, e3ff15e335).
-  store.appendFact(board,item,{agentId:'coordinator',kind:'diagnosis',text:'Files: web/a.js Change: update the named function Test case: test/routed.test.js checks its behavior'});
-  store.editItem(board,item,{agentId:'coordinator',route:'light'});const wrong=board.lastEvent.event_id;
+  const diagnosis='Files: web/a.js Change: update the named function Test case: test/routed.test.js checks its behavior';
+  store.appendFact(board,item,{agentId:'coordinator',kind:'diagnosis',text:diagnosis});
+  // A strong item keeps its brief when diagnosed, so the lowering edit carries the diagnosis brief itself.
+  store.editItem(board,item,{agentId:'coordinator',route:'light',brief:diagnosisBrief(parseDiagnosis(diagnosis))});const wrong=board.lastEvent.event_id;
   assert.throws(()=>store.answerTypedRequests(board,{agentId:'coordinator',answers:[{requestId:reroute,outcome:'done',eventId:wrong}]}),{code:'REQUEST_NOT_ACTED'});
   store.editItem(board,item,{agentId:'coordinator',route:'mid'});const routed=board.lastEvent.event_id;
   assert.deepEqual(store.answerTypedRequests(board,{agentId:'coordinator',answers:[{requestId:reopen,outcome:'done',eventId:reopened},{requestId:reroute,outcome:'done',eventId:routed}]}).map(row=>row.status),['done','done']);

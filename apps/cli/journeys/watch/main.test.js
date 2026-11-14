@@ -451,14 +451,15 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
     'a waiting review is announced once');
   assert.ok(kinds.includes('accept') && kinds.includes('reject'), 'the verdicts print as events too');
   const recorded = events(box).slice(before);
-  const observations = new Set(['fact', 'usage', 'activity-delivered']);
+  // api_stall observes a slow board API under host load, not a move the watch fixture makes [C7].
+  const observations = new Set(['fact', 'usage', 'activity-delivered', 'api_stall']);
   // The second rejection at this route also records its automatic escalation as a distinct move.
   assert.deepEqual(recorded.filter(event => !observations.has(event.event_kind)).map(event => event.event_kind), [
     'add', 'milestone_placed', 'check-baseline', 'hold_item', 'add', 'milestone_placed', 'claim',
     'unhold_item', 'check_accept', 'release',
-    // A pull submit records no renew; the pulled receipt's proofs come with its submit, and the accepting verify records one more [C7].
-    'claim', 'proof-run', 'proof-run', 'submit', 'join', 'reserve', 'proof-run', 'accept',
-    'claim', 'proof-run', 'proof-run', 'submit', 'reserve', 'reject', 'escalate',
+    // A pull submit renews the claim before its gate proofs; the accepting verify reuses those proofs and records none of its own [C7].
+    'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'join', 'reserve', 'accept',
+    'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'reserve', 'reject', 'escalate',
   ], 'only the explicit moves, rejection escalation, native placements, the baseline with the hold it sets and the acceptance that lifts it, and submit proofs were recorded');
   const allFacts = recorded.filter(event => event.event_kind === 'fact');
   const texts = allFacts.map(event => JSON.parse(event.event_detail).text);
@@ -468,8 +469,9 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   assert.equal(texts.filter(text => /^Gate job \S+ green at /u.test(text)).length, 2, 'each submission records its green gate job');
   // A green pulled submission also detaches its review comparison, which records its own facts as it runs (#7267) [V4,C7].
   const comparisons = texts.filter(text => text.startsWith('Review comparison: '));
-  assert.equal(allFacts.length - comparisons.length, 5, 'only the gate job notes, review comparison facts and the accepting verify shadow are recorded');
-  assert.equal(shadows.length, 1, 'the accepting verify records one tier-1 shadow');
+  // The accepting verify reuses the submit proof and records no proof run, so no tier-1 shadow either [C7].
+  assert.equal(allFacts.length - comparisons.length, 4, 'only the gate job notes and review comparison facts are recorded');
+  assert.equal(shadows.length, 0, 'a reused submit proof records no tier-1 shadow');
   for (const event of shadows) {
     const fact = JSON.parse(event.event_detail);
     assert.equal(fact.kind, 'measurement');
@@ -490,9 +492,9 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   const proofs = recorded.filter(event => event.event_kind === 'proof-run');
   const receipts = proofs.map(event => JSON.parse(event.event_detail).receipt);
   assert.deepEqual(receipts.map(receipt => [receipt.item, receipt.commit]), [
-    [added.item_id, firstCommit], [added.item_id, firstCommit], [added.item_id, firstCommit],
+    [added.item_id, firstCommit], [added.item_id, firstCommit],
     [waiting.item_id, secondCommit], [waiting.item_id, secondCommit],
-  ], 'the two pulled submits record two proofs each, and the accepting verify records one more');
+  ], 'the two pulled submits record two proofs each; the accepting verify reuses them and records none');
   for (let index = 0; index < proofs.length; index++) {
     assert.equal(proofs[index].event_by, receipts[index].seat, 'each proof belongs to its executing seat');
     assert.equal(proofs[index].item_id, receipts[index].item, 'each proof belongs to its checked item');
