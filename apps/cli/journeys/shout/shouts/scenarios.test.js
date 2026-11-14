@@ -241,7 +241,7 @@ scenario('picking an agent filters the feed and addresses the composer, and its 
       const r = await read();
       assert.deepEqual([r.to, r.placeholder, r.chip], ['web-1', 'Shout to web-1 (Test Model)', 'to web-1 (Test Model)×']);
     });
-    await When("the chip's x is pressed", () => chrome.stable(`(${q('#shout-to-chip [data-to-clear]')}.click(), true)`));
+    await When("the chip's x is pressed", () => chrome.click(q('#shout-to-chip [data-to-clear]')));
     await Then('the composer returns to the coordinator', async () => {
       await chrome.waitFor(`${q('#shout-to-chip')}.hidden`);
       const r = await read();
