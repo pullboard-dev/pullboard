@@ -456,9 +456,9 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
   assert.deepEqual(recorded.filter(event => !observations.has(event.event_kind)).map(event => event.event_kind), [
     'add', 'milestone_placed', 'check-baseline', 'hold_item', 'add', 'milestone_placed', 'claim',
     'unhold_item', 'check_accept', 'release',
-    // A pull submit records no renew; the pulled receipt's proofs come with its submit, and the accepting verify records one more [C7].
-    'claim', 'proof-run', 'proof-run', 'submit', 'join', 'reserve', 'proof-run', 'accept',
-    'claim', 'proof-run', 'proof-run', 'submit', 'reserve', 'reject', 'escalate',
+    // A pull submit renews the claim before its gate proofs; the accepting verify reuses those proofs and records none of its own [C7].
+    'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'join', 'reserve', 'accept',
+    'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'reserve', 'reject', 'escalate',
   ], 'only the explicit moves, rejection escalation, native placements, the baseline with the hold it sets and the acceptance that lifts it, and submit proofs were recorded');
   const allFacts = recorded.filter(event => event.event_kind === 'fact');
   const texts = allFacts.map(event => JSON.parse(event.event_detail).text);
