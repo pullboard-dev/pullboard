@@ -29,7 +29,7 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
 <div class="body">
 <header class="top">
   <div class="top-tier">
-    <button class="menubtn" id="menu-btn" type="button" aria-expanded="false" aria-controls="mdrawer"><span class="bars" aria-hidden="true"></span>Menu<span class="badge" id="menu-rulings" title="Rulings on this board"></span></button>
+    <button class="menubtn" id="menu-btn" type="button" aria-expanded="false" aria-controls="mdrawer"><span class="bars" aria-hidden="true"><i></i><i></i><i></i></span>Menu<span class="badge" id="menu-rulings" title="Rulings on this board"></span></button>
     <div class="side-top">
     <span class="brand" id="side-toggle" title="Pullboard"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" d="M8 7h35a6 6 0 0 1 6 6v7H8a5 5 0 0 1-5-5v-3a5 5 0 0 1 5-5Z"/><rect width="56" height="14" x="3" y="25" fill="var(--accent)" rx="5"/><path fill="currentColor" d="M8 43h35a6 6 0 0 1 6 6v8H8a5 5 0 0 1-5-5v-4a5 5 0 0 1 5-5Z"/></svg><span>Pullboard</span></span>
     <button class="switch-btn" id="proj-switch" type="button" aria-expanded="false" aria-controls="side-body" title="Switch project"><span id="proj-name">Projects</span><span class="badge" id="proj-rulings" title="Rulings on this board"></span><small aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg></small></button>

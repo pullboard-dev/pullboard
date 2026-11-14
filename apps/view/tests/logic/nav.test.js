@@ -16,6 +16,7 @@ import { sharedRowHtml } from '../../src/logic/component.js';
 import { pageRenderScript } from '../../src/io/page/render.js';
 import { pageScriptPart2 } from '../../index.js';
 import { pageScriptPart4 } from '../../index.js';
+import { menuScript } from '../../src/io/page/menu.js';
 import { runInNewContext } from 'node:vm';
 import { placeQuery } from '../../src/logic/nav.js';
 import { readPlaceQuery } from '../../src/logic/nav.js';
@@ -304,9 +305,8 @@ test('clause 2: Menu opens a drawer from the left with the project, agents and p
   assert.match(css, /:root\[data-nav\] \.mdrawer \{ position: fixed; top: 0; bottom: 0; left: 0;[^}]*animation: mslide/u, 'the drawer slides in from the left');
 
   // The page's script: Menu opens it and the pick closes it.
-  const stub = new Proxy({}, { get: () => function stub() { return {}; } });
-  const script = pageScriptPart4(stub);
-  const start = script.indexOf('function setMenu('), end = script.indexOf('/** Open or close the project list');
+  const script = menuScript();
+  const start = script.indexOf('const setMenu'), end = script.indexOf("document.addEventListener('click'");
   assert.ok(start >= 0 && end > start, 'the page script carries the drawer');
   const nodes = { mveil: { hidden: true }, mdrawer: { hidden: true }, 'menu-btn': { expanded: null, setAttribute(name, value) { this.expanded = value; } } };
   const context = { $: (id) => nodes[id] };
@@ -315,9 +315,9 @@ test('clause 2: Menu opens a drawer from the left with the project, agents and p
   assert.deepEqual([nodes.mveil.hidden, nodes.mdrawer.hidden, nodes['menu-btn'].expanded], [false, false, 'true'], 'Menu shows the veil and the drawer');
   context.setMenu(false);
   assert.deepEqual([nodes.mveil.hidden, nodes.mdrawer.hidden, nodes['menu-btn'].expanded], [true, true, 'false'], 'closing hides both');
-  assert.ok(script.includes("if (event.target.closest('#menu-btn')) { setMenu($('mdrawer').hidden); return; }"), 'Menu toggles the drawer');
-  assert.ok(script.includes("const picked = event.target.closest('#mdrawer [data-tab], #mdrawer [data-needs-list]');") && script.includes("if (picked && !picked.dataset.later) { setMenu(false); picked.dataset.later = '1';"), 'a page or Rulings picked in the drawer closes it at once, and the pick follows on the next turn');
-  assert.ok(script.includes("if (event.target.closest('#mveil')) { setMenu(false); return; }"), 'the dimmed page closes it');
+  assert.ok(script.includes("if (event.target.closest('#menu-btn')) { event.stopPropagation(); setMenu($('mdrawer').hidden); return; }"), 'Menu toggles the drawer');
+  assert.ok(script.includes("const picked = event.target.closest('#mdrawer [data-tab], #mdrawer [data-needs-list]');") && script.includes("event.stopPropagation(); setMenu(false); picked.dataset.later = '1';"), 'a page or Rulings picked in the drawer closes it at once, and the pick follows on the next turn');
+  assert.ok(script.includes("if (event.target.closest('#mveil')) { event.stopPropagation(); setMenu(false); return; }"), 'the dimmed page closes it');
 });
 
 test('clause 2: Items has no sign-in banner, summary panel or in-page toolbar above its list; filters and New item live in the strip [N26]', () => {
