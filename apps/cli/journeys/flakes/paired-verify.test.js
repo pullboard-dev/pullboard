@@ -3,6 +3,7 @@ import { flakyProject } from '../../../../packages/git/tests/fixtures/flakes.js'
 import { targetRuns } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { privateBuilder } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { commitCandidate } from '../../../../packages/git/tests/fixtures/flakes.js';
+import { settledCommit } from '../../../../packages/git/tests/fixtures/flakes.js';
 import { checkedItem } from '../../../../packages/git/tests/fixtures/flakes.js';
 import assert from 'node:assert/strict';
 import { symlinkSync } from 'node:fs';
@@ -27,7 +28,7 @@ for (const linkedTemp of [false, true]) test(linkedTemp
   commitCandidate(builder, 'chore: controlled review candidate');
   const submitted = await builder.call('submit', String(id));
   assert.equal(submitted.code, 0, 'the fixture submits with a real green proof before its external failure is enabled');
-  const head = (await box.call('show', String(id))).document.item_commit;
+  const head = await settledCommit(box, id);
   writeFileSync(box.counter, ''); writeFileSync(box.counter + '.mode', 'paired');
   const reviewer = privateBuilder(box);
   reviewer.git('checkout', '-q', '--detach', head);

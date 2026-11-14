@@ -177,17 +177,17 @@ export function withPlaceQuery(search, pairs) {
  * shipped; Activity a person filter; Cost its Today, 7 days and 30 days window; Pipeline its 15m, 30m, 1h and 3h window. A page with nothing to control gets nothing. Each control carries data-page-ctl,
  * the hook the page's one handler reads, and the state each one shows is the state the address holds.
  *
- * @param {{ tab?: string|null, state?: string, shouts?: string, questions?: number, shipped?: boolean, by?: string|null, people?: string[], activity?: string, counts?: Record<string, number>|null, win?: number, writable?: boolean, costWindow?: string }} [place]
+ * @param {{ tab?: string|null, state?: string, shouts?: string, questions?: number, shoutCounts?: { you: number, all: number }|null, shipped?: boolean, by?: string|null, people?: string[], activity?: string, counts?: Record<string, number>|null, win?: number, writable?: boolean, costWindow?: string }} [place]
  * @returns {string}
  */
-export function pageControlsHtml({ tab = null, state = 'active', lane = null, lanes = [], itemsView = 'list', shouts = 'all', questions = undefined, shipped = false, by = null, people = [], activity = 'all', counts = null, win = 24, writable = true, costWindow = '7d', window = '1h' } = {}) {
+export function pageControlsHtml({ tab = null, state = 'active', lane = null, lanes = [], itemsView = 'list', shouts = 'all', questions = undefined, shoutCounts = null, shipped = false, by = null, people = [], activity = 'all', counts = null, win = 24, writable = true, costWindow = '7d', window = '1h' } = {}) {
   const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const seg = (label, kind, current, options) => '<span class="ctl-seg" role="group" aria-label="' + label + '">' + options.map(([value, name, count]) => '<button type="button" data-page-ctl="' + kind + '" data-value="' + value + '"' +  (value === current ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + (kind === 'shouts' ? ' data-shout-filter="' + value + '"' : '') + '>' + name + (count === undefined ? '' : '<b>' + count + '</b>') + '</button>').join('') + '</span>';
   const select = (label, kind, current, options) => '<select class="sel" data-page-ctl="' + kind + '" aria-label="' + label + '">' + options.map(([value, name]) => '<option value="' + esc(value) + '"' + (value === current ? ' selected' : '') + '>' + esc(name) + '</option>').join('') + '</select>';
   if (tab === 'items') return seg('Show', 'state', state, [['active', 'Open'], ['building', 'Building'], ['verify', 'In review'], ['all', 'All'], ...(state === 'ids' ? [['ids', 'From Pipeline']] : [])])
     + (lanes.length > 1 ? select('Lane', 'lane', lane || '', lanes.map(({ value, label, count }) => [value, (value ? label : 'All lanes') + (count === null || count === undefined || !value ? '' : ' · ' + count)])) : '')
     + seg('View', 'view', itemsView === 'pipeline' ? 'pipeline' : 'list', [['list', 'List'], ['pipeline', 'Pipeline']]) + (writable ? '<button class="new" type="button" data-page-ctl="new">New item</button>' : '');
-  if (tab === 'shouts') return seg('Shouts', 'shouts', ['you', 'questions', 'all'].includes(shouts) ? shouts : '', [['you', 'For you'], ['questions', 'Questions', questions], ['all', 'All']]);
+  if (tab === 'shouts') return seg('Shouts', 'shouts', ['you', 'questions', 'all'].includes(shouts) ? shouts : '', [['you', 'For you', shoutCounts?.you], ['questions', 'Questions', questions], ['all', 'All', shoutCounts?.all]]);
   if (tab === 'roadmap') return '<button class="sel" type="button" data-page-ctl="shipped" aria-pressed="' + Boolean(shipped) + '">' + (shipped ? 'Hide shipped' : 'Show shipped') + '</button>';
   if (tab === 'cost') return seg('Window', 'costwindow', costWindow, [['today', 'Today'], ['7d', '7 days'], ['30d', '30 days']]);
   if (tab === 'pipeline') return '<span class="ctl-lbl">Window</span>' + seg('Window', 'window', ['15m', '30m', '3h'].includes(window) ? window : '1h', [['15m', '15m'], ['30m', '30m'], ['1h', '1h'], ['3h', '3h']]);
