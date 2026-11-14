@@ -81,6 +81,7 @@ export { TEST_TIERS_FILE, generateTestTiers, formatTestTiers, writeTestTiers } f
 
 export { reviewCitations, citedReceiptsNote, citedReceipts, landingRunFiles } from './src/io/once.js';
 export { redGateScope, redGateReport, runnerErrors } from './src/io/red.js';
+export { pushOnlyTests } from './src/io/test/push-only.js';
 export { requireTestTierAccount, requireSealedSkips, hasTestTiers, generateTestTiersAt, selectTestTiers, testTierProofFiles, testTierCommand, testTierCheckCommand, testTierReport } from './src/io/test/tier/selection.js';
 export { testRunPhaseClock } from './src/io/test/run/phases.js';
 

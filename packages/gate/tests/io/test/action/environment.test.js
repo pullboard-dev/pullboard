@@ -52,3 +52,23 @@ test('#4380 clause 3: identical declared environment still reuses the same key [
     assert.deepEqual(await keysUnder(fx, env), await keysUnder(fx, { ...env }));
   } finally { fx.done(); }
 });
+
+test('#7639 clause 1: per-job harness paths and gate slot variables do not change the key, so two workers on one tree share it [C7]', async () => {
+  const fx = fixture();
+  try {
+    const base = await keysUnder(fx);
+    const perJob = [
+      ['PULLBOARD_BROWSER_REFUSAL_FILE', '/tmp/job-a/refusal.json', '/tmp/job-b/refusal.json'],
+      ['PULLBOARD_GATE_SLOT_HELD', 'lease-a', 'lease-b'],
+      ['PULLBOARD_GATE_SLOT_POOL', '/tmp/pool-a', '/tmp/pool-b'],
+      ['PULLBOARD_GATE_SLOT_TOKEN', 'token-a', 'token-b'],
+      ['PULLBOARD_BROWSER_SLOT_HELD', '1', '2'],
+      ['PULLBOARD_RUNTIME_CAPTURE_DIR', '/tmp/capture-a', '/tmp/capture-b'],
+    ];
+    for (const [name, first, second] of perJob) {
+      const [one, two] = [await keysUnder(fx, { [name]: first }), await keysUnder(fx, { [name]: second })];
+      assert.deepEqual(one, two, `${name} differs per job and must not key a result`);
+      assert.deepEqual(one, base, `${name} set must key the same as unset`);
+    }
+  } finally { fx.done(); }
+});
