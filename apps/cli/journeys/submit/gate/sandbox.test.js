@@ -121,24 +121,33 @@ test('a sandbox-blocked gate asks the person [I1,C7]', async (t) => {
     put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', affectedTests: 'node --test' }));
     seedGraph(box);
     box = builderRepo(box);
-    const added = await coordinatorLocal(box, 'add', 'build', 'Sandbox check', '--check', command);
+    // The pulled gate runs the frozen check in the runner's clone with a scrubbed environment, so each diagnostic is committed with the source; a check run here reads the environment first [C7,#7725].
+    const fileCheck = 'node -e "const f=require(\'node:fs\');console.error(process.env.BLOCKED_DIAGNOSTIC??f.readFileSync(\'diag.txt\',\'utf8\'));process.exit(Number(process.env.BLOCKED_EXIT||f.readFileSync(\'exit.txt\',\'utf8\')))"';
+    const added = await coordinatorLocal(box, 'add', 'build', 'Sandbox check', '--check', fileCheck);
     assert.equal(added.code, 0, added.err);
     assert.equal((await runLocal(box, 'claim', '1')).code, 0);
     put(box.root, 'src/a.js', 'export const value = 2;\n');
-    commitAll(box, 'feat(core): update selected source [G1]');
     const outside = join(box.dir, 'outside.txt');
-    box.env.BLOCKED_DIAGNOSTIC = `Error: EACCES: permission denied, open '${outside}'`;
+    /** Stage the check's diagnostic and exit code in this checkout's environment and in a new commit. */
+    function stage(diagnostic, exit, message) {
+      box.env.BLOCKED_DIAGNOSTIC = diagnostic;
+      if (exit === undefined) delete box.env.BLOCKED_EXIT; else box.env.BLOCKED_EXIT = exit;
+      put(box.root, 'diag.txt', diagnostic);
+      put(box.root, 'exit.txt', exit ?? '1');
+      commitAll(box, message);
+    }
+    stage(`Error: EACCES: permission denied, open '${outside}'`, undefined, 'feat(core): update selected source [G1]');
     blocked(await runLocal(box, 'check', '1', '--yes'), 'open');
-    // A pulled submit queues its frozen check with the gate; the sandbox refusal is the settled gate receipt's failing part [C7,#7725].
+    // A pulled submit queues its frozen check with the gate; the sandbox refusal is the settled gate receipt's failing part.
     const run = (...args) => runLocal(box, ...args);
     blocked(await submitWithEnv(t, box, run), 'open');
     const log = resolve(box.root, box.git('rev-parse', '--git-path', 'pullboard-submit.log.check.log'));
     assert.ok(readFileSync(log, 'utf8').includes(outside), 'the exact refused path remains in the raw log');
-    box.env.BLOCKED_DIAGNOSTIC = 'AssertionError [ERR_ASSERTION]: ordinary assertion';
+    stage('AssertionError [ERR_ASSERTION]: ordinary assertion', undefined, 'feat(core): stage an ordinary failure [G1]');
     const ordinary = await submitWithEnv(t, box, run);
     assert.equal(ordinary.code, 1);
     assert.doesNotMatch(ordinary.err, /SANDBOX_BLOCKED/u);
-    box.env.BLOCKED_EXIT = '0';
+    stage('AssertionError [ERR_ASSERTION]: ordinary assertion', '0', 'feat(core): stage a passing check [G1]');
     assert.equal((await submitWithEnv(t, box, run)).code, 0, 'the unchanged check can pass when the operation is allowed');
     const item = JSON.parse((await coordinatorLocal(box, 'show', '1', '--json')).out);
     /** Run the actual private checker with only these fixture diagnostics in its child environment. */
