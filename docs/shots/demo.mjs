@@ -383,7 +383,7 @@ else {
   try {
     const clockShim = join(base, 'fixed-clock.mjs');
     await writeFile(clockShim, `const NativeDate = Date;\nconst fixed = NativeDate.parse(process.env.PULLBOARD_DEMO_NOW || ${JSON.stringify(FIXED_TIME)});\nclass FixedDate extends NativeDate { constructor(...args) { super(...(args.length ? args : [fixed])); } static now() { return fixed; } }\nglobalThis.Date = FixedDate;\n`);
-    const env = { ...isolatedEnv(join(base, '.pullboard-home'), clockShim), PULLBOARD_DEMO_NOW: FIXED_TIME, PULLBOARD_FIXTURE_ADD_DISTINCT: '1', TMPDIR: base, TMP: base, TEMP: base };
+    const env = { ...isolatedEnv(join(base, '.pullboard-home'), clockShim), PULLBOARD_DEMO_NOW: FIXED_TIME, PULLBOARD_FIXTURE_ADD_DISTINCT: '1', PULLBOARD_CLAIM_BEATER: '0', TMPDIR: base, TMP: base, TEMP: base };
     if (tourOnly) {
       await recordTour(env);
     } else {
