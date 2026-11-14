@@ -30,6 +30,13 @@ const { landProject, itemWorktree, submitItem, acceptItem, moveMainPastSubmit } 
 
 test('a landing reopen carries the exact failing assertion [C7,B22]', async () => {
   const box = landProject();
+  // The default shape: no affectedTests, so the landing gate runs the whole suite and sees the red file, as in land/red-returns [C7].
+  const configPath = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  delete config.affectedTests;
+  writeFileSync(configPath, JSON.stringify(config, null, 2));
+  box.git(box.repo, 'commit', '-q', '-am', 'chore: the init default has no affectedTests');
+  box.git(box.repo, 'push', '-q', 'origin', 'main');
   const gate = join(box.dir, 'land-gate.cjs');
   const source = readFileSync(gate, 'utf8');
   writeFileSync(gate, source.replace("console.log('  error: fixture behavior is red');", "console.log('  error: fixture behavior is red'); console.log('  expected: 7'); console.log('  actual: 9');"));
