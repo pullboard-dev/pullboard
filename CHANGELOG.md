@@ -4,6 +4,8 @@ Notable changes to Pullboard, for people using it. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+Restructure for speed: runners pull their work from the board, landing runs as a runner job, the code is laid out in cells, and a seat never waits. A board now works from any machine that can reach it, a seat can hold several items at once, and the view opens a large board in seconds.
+
 ### Added
 
 - Runners pull their work. A runner serves jobs from the board's queue by capability, renews a lease while it works and posts a signed receipt; only the runner holding a job's lease can post its result. `pullboard runner serve` runs gate, test, landing and main-check jobs, `--once` runs a single job, `runner install-serve` installs it as a service, and `runner drain` stops a runner taking new jobs (#3429, #5467, #5468, #5469, #5689, #5690, #5721, #5732, #5735, #5758, #5777, #5623, #6063).
