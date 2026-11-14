@@ -29,6 +29,7 @@ import {
   openSnapshotChrome,
   closeSnapshotChrome,
 } from '../../../tests/fixtures/cockpit/harness.js';
+import { pressTab } from '../../../tests/fixtures/cockpit/stable.js';
 
 test('older history says it is still loading until the stream completes [N26,H5]', { timeout: 120_000 }, async (t) => { // budget: hang ceiling for one real board, 43 CLI runs and one owned Chrome, not a throughput assertion.
   const executable = chromeExecutable();
@@ -81,7 +82,7 @@ export async function createTransport({ onUpdate }) {
     assert.equal(await chrome.stable(`data.project.shouts.some(shout => shout.shout_text.includes('The oldest shout'))`), false, 'the oldest shout is not among the forty on hand');
     assert.equal(reads.some((path) => /\/shouts\/\d+$/.test(path)), false, 'no older shout was requested before Shouts opens');
     // Streaming: the feed ends in the line, with how far along it is, and its end reads ten older shouts at a time.
-    await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
+    await pressTab(chrome, 'shouts');
     await chrome.waitFor(`${note('shouts')} === 'Older shouts are still loading (30%).'`);
     await chrome.click(`document.querySelector('[data-shout-thread="none"]')`);
     await chrome.waitFor('!!document.querySelector("#feed .sx-th")');
@@ -95,7 +96,7 @@ export async function createTransport({ onUpdate }) {
     assert.equal(await chrome.stable('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), true, 'no sideways scroll at 390px');
 
     // Activity: the same line; its end asks the transport for the board again, and the count moves in place.
-    await chrome.click(`document.querySelector('[data-tab="activity"]')`);
+    await pressTab(chrome, 'activity');
     await chrome.waitFor(`${note('activity')} === 'Older activity is still loading (30%).'`);
     await chrome.stable(`(() => { const read = refresh; window.__pages = 0; refresh = (...args) => { if (new Error().stack.includes('historyNextPage')) window.__pages += 1; return read(...args); }; return true; })()`);
     await chrome.stable(`document.querySelector('[data-history-note="activity"]').scrollIntoView({ block: 'end' })`);
@@ -105,7 +106,7 @@ export async function createTransport({ onUpdate }) {
 
     // An item's thread ends its history with the line.
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
-    await chrome.click(`document.querySelector('[data-tab="items"]')`);
+    await pressTab(chrome, 'items');
     await chrome.click(`document.querySelector('#chain [data-item]')`);
     if (await chrome.stable("(more => !!more && more.getAttribute('aria-expanded') !== 'true')(document.querySelector('#detail [data-item-panel-history]'))")) await chrome.click("document.querySelector('#detail [data-item-panel-history]')");
     await chrome.waitFor(`${note('item')} === 'Older entries are still loading (75%).'`);
@@ -115,7 +116,7 @@ export async function createTransport({ onUpdate }) {
     await chrome.waitFor(`document.querySelectorAll('[data-history-note]').length === 0`);
     await chrome.stable('render()');
     for (const tab of ['shouts', 'activity', 'items']) {
-      await chrome.click(`document.querySelector('[data-tab="${tab}"]')`);
+      await pressTab(chrome, `${tab}`);
       assert.equal(await chrome.stable(`document.querySelectorAll('[data-history-note]').length`), 0, `${tab} reads as complete`);
     }
     assert.deepEqual(chrome.exceptions, []);

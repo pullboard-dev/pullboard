@@ -20,6 +20,7 @@ import {
   closeSnapshotChrome,
   press,
 } from '../../../tests/fixtures/cockpit/harness.js';
+import { pressTab } from '../../../tests/fixtures/cockpit/stable.js';
 import {
   openRoadmapChrome,
   watchRoadmapPress,
@@ -42,7 +43,7 @@ test('a refresh between pointer down and up preserves a roadmap release click [N
     await chrome.waitFor('data?.project?.milestones?.length === 8');
     for (const width of [375,1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height:900, deviceScaleFactor:1, mobile:false });
-      await press(chrome, "document.querySelector('[data-tab=roadmap]')");
+      await pressTab(chrome, 'roadmap');
       const key = 'm:0.8.7';
       trace = await watchRoadmapPress(chrome, key);
       const message = `roadmap refresh while pointer held ${width}`;
@@ -99,7 +100,7 @@ test('a release jump on a phone leaves its heading below the top bar [N26]', { t
     await chrome.waitFor('data?.project?.milestones?.length === 12');
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 1, mobile: false });
     await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
-    await press(chrome, "document.querySelector('[data-tab=roadmap]')");
+    await pressTab(chrome, 'roadmap');
     await chrome.stable(`(() => {
       window.__roadmapJump = [];
       const observer = new MutationObserver(records => {
@@ -178,7 +179,7 @@ test('the release chevron lines up with its title [N26]', { timeout: 90_000 }, a
   try {
     chrome = await openRoadmapChrome(executable, view.link.href, profile);
     await chrome.waitFor('data?.project?.milestones?.length === 3');
-    await press(chrome, "document.querySelector('[data-tab=roadmap]')");
+    await pressTab(chrome, 'roadmap');
     await chrome.waitFor("!document.querySelector('[data-pane=roadmap]').hidden && document.querySelector('[data-key=\"shipped\"] > .milestone-head')");
     for (const width of [1280, 375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });

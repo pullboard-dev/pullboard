@@ -39,6 +39,7 @@ import {
   press,
 } from '../../tests/fixtures/cockpit/harness.js';
 import { assertFirstStateDelay } from '../../tests/fixtures/cockpit/stable.js';
+import { pressTab } from '../../tests/fixtures/cockpit/stable.js';
 
 
 test('wait references stay on one line and link to every prerequisite at phone and desktop widths [N26]', { timeout: 90_000 }, async (t) => {
@@ -60,7 +61,7 @@ test('wait references stay on one line and link to every prerequisite at phone a
     await chrome.waitFor("typeof data === 'object' && !!data?.project");
     await assertFirstStateDelay(chrome, t);
     // Pages open on the Dashboard and draw only the chosen tab, so click Items as a person would.
-    await click('[data-tab="items"]');
+    await pressTab(chrome, 'items');
     await chrome.waitFor("view.tab === 'items' && !document.querySelector('[data-pane=items]').hidden");
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -79,9 +80,9 @@ test('wait references stay on one line and link to every prerequisite at phone a
       assert.equal(list.detail, 'by #1', `${width}: the Blocked row names a prerequisite`);
 
       await click('#chain [data-item="3"] .t');
-      await chrome.waitFor("!!document.querySelector('#detail .kv dd.waits-on')");
+      await chrome.waitFor("!!document.querySelector('#detail .ip-row.waits-on')");
       const detail = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-        const waits=document.querySelector('#detail .kv dd.waits-on');
+        const waits=document.querySelector('#detail .ip-row.waits-on');
         const units=[...waits.querySelectorAll('.wait-unit')];
         return {height:waits.getBoundingClientRect().height,lineHeight:parseFloat(getComputedStyle(waits).lineHeight),unitWhiteSpaces:units.map(unit=>getComputedStyle(unit).whiteSpace),unitY:units.map(unit=>unit.getBoundingClientRect().y),
           links:[...waits.querySelectorAll('a.ref[data-go]')].map(link=>link.dataset.go)};
@@ -94,7 +95,7 @@ test('wait references stay on one line and link to every prerequisite at phone a
       t.diagnostic(`${width}px detail wait links share y=${detail.unitY[0]}`);
       for (const [id, title] of [['1', 'Prerequisite one'], ['2', 'Prerequisite two']]) {
         await click('#chain [data-item="3"] .t');
-        await chrome.waitFor("!!document.querySelector('#detail .kv dd.waits-on')");
+        await chrome.waitFor("!!document.querySelector('#detail .ip-row.waits-on')");
         await click(`#detail .waits-on [data-go="item:${id}"]`);
         await chrome.waitFor(`document.querySelector('#detail h2').textContent.includes(${JSON.stringify(title)})`);
       }
