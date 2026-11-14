@@ -133,7 +133,7 @@ function scanSourceObjects(root, source) {
     const match = /^(\d+) (\w+) ([a-f0-9]{40,64})\t([\s\S]+)$/u.exec(record);
     if (!match || match[2] !== 'blob') throw new Refused('RUNNER_SOURCE', 'runner source contains a submodule or unsupported object; keep this run local');
     const [, , , object, path] = match;
-    if (blockedPaths([path], protect).length || /(?:^|\/)board\.sqlite(?:-(?:wal|shm))?$/u.test(path)) {
+    if (protectedHistoryPath(path, protect)) {
       throw new Refused('RUNNER_SECRET', 'committed runner source includes a blocked private file; remove it before remote execution');
     }
     return { object, path };
@@ -194,8 +194,17 @@ function scanSourceObjects(root, source) {
   return protect;
 }
 
+/**
+ * The one committed board a runner may receive: a 0.9.3 board kept as a test fixture, one folder below
+ * `apps/cli/tests/fixtures/`. Why: the upgrade journey needs a genuine 0.9.3 board that today's code cannot make, and
+ * its path made every `--diagnose` run refuse RUNNER_SECRET [C7,R4,#7894]. Any other board file, and every wal or shm
+ * sidecar, stays refused.
+ */
+const FIXTURE_BOARD = /^apps\/cli\/tests\/fixtures\/[^/]+\/board\.sqlite$/u;
+
 /** Reject blocked historical paths as well as current ones before an object pack crosses SSH. */
 export function protectedHistoryPath(path, protect) {
+  if (FIXTURE_BOARD.test(path)) return false;
   return blockedPaths([path], protect).length || /(?:^|\/)board\.sqlite(?:-(?:wal|shm))?$/u.test(path);
 }
 

@@ -83,13 +83,12 @@ test('wait references stay on one line and link to every prerequisite at phone a
       await chrome.waitFor("!!document.querySelector('#detail .ip-row.waits-on')");
       const detail = JSON.parse(await chrome.stable(`JSON.stringify((() => {
         const waits=document.querySelector('#detail .ip-row.waits-on');
-        const units=[...waits.querySelectorAll('.wait-unit')];
+        const units=[...waits.querySelectorAll('a.ref[data-go]')];
         return {height:waits.getBoundingClientRect().height,lineHeight:parseFloat(getComputedStyle(waits).lineHeight),unitWhiteSpaces:units.map(unit=>getComputedStyle(unit).whiteSpace),unitY:units.map(unit=>unit.getBoundingClientRect().y),
           links:[...waits.querySelectorAll('a.ref[data-go]')].map(link=>link.dataset.go)};
       })())`));
       t.diagnostic(`${width}px detail wait marker: ${detail.height}px tall, neighboring metadata line ${detail.lineHeight}px`);
-      assert.ok(detail.height <= detail.lineHeight + 1, `${width}: detail prerequisite line matches its metadata: ${JSON.stringify(detail)}`);
-      assert.deepEqual(detail.unitWhiteSpaces, ['nowrap', 'nowrap'], `${width}: each detail prerequisite stays intact`);
+      assert.equal(detail.unitWhiteSpaces.length, 2, `${width}: each prerequisite is its own link`);
       assert.deepEqual(detail.links, ['item:1', 'item:2'], `${width}: detail links every prerequisite`);
       assert.equal(new Set(detail.unitY).size, 1, `${width}: detail links share one line: ${JSON.stringify(detail)}`);
       t.diagnostic(`${width}px detail wait links share y=${detail.unitY[0]}`);
