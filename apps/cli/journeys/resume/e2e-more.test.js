@@ -141,7 +141,7 @@ test('pullboard suggests no timed wait: next steps end at work or end-your-turn 
   (await box.runLocal(box.repo, 'hold', 'web', '--reason', 'G1 is changing'));
   assert.match((await box.runLocal(box.web, 'resume')).out, /next: pullboard next; take work in another lane, or end your turn if none is offered/);
   const agents = readFileSync(join(box.repo, 'AGENTS.md'), 'utf8');
-  assert.match(agents, /If it prints "nothing for this seat: end your turn", end your turn/);
+  assert.match(agents, /Never wait: submit and move on/); // AGENTS.md is now the short worker loop; it no longer quotes the idle line.
   assert.doesNotMatch(agents, /--wait 9/);
   assert.doesNotMatch(agents, /--wait 30/);
 });
