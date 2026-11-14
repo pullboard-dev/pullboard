@@ -246,7 +246,6 @@
   ["src/pinned-tool-publish.js","apps/cli/src/io/pinned/tool/publish.js","rule"],
   ["src/commands/tool-build.js","apps/cli/src/io/commands/tool-build.js","rule"],
   ["src/command-docs/tool-build.json","apps/cli/src/io/command-docs/build.json","rule"],
-  ["src/submit-handoff.js","apps/cli/src/io/submit/handoff.js","rule"],
   ["src/worktree-maintenance.js","apps/cli/src/io/worktree/maintenance.js","rule"],
   ["src/worktree-maintenance-observation.js","apps/cli/src/io/worktree/maintenance/observation.js","rule"],
   ["src/worktree-maintenance-command.js","apps/cli/src/io/worktree/maintenance/command.js","rule"],
