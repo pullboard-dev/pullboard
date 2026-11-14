@@ -60,6 +60,28 @@ const SOURCES = sources();
 const ALL_TEXT = SOURCES.map(source => source.text).join('\n');
 
 /**
+ * The import path a name is destructured from by a lazy import: `const { NAME } = await import('x')`, or one slot of
+ * `const [{ NAME }, { OTHER }] = await Promise.all([import('x'), import('y')])`.
+ *
+ * Why: a cell that loads its dependency lazily still creates jobs with a constant it does not declare.
+ * @param {string} name
+ * @param {string} text
+ * @returns {RegExpExecArray | null} a match whose group 1 is the import path
+ */
+function lazyImport(name, text) {
+  const single = new RegExp(`\\{[^}]*\\b${name}\\b[^}]*\\} = await import\\('([^']+)'\\)`, 'u').exec(text);
+  if (single) return single;
+  const many = /const \[([^\]]*)\] = await Promise\.all\(\[([^\]]*)\]\)/gu;
+  for (const match of text.matchAll(many)) {
+    const slots = match[1].match(/\{[^}]*\}/gu) ?? [];
+    const paths = [...match[2].matchAll(/import\('([^']+)'\)/gu)];
+    const at = slots.findIndex(slot => new RegExp(`\\b${name}\\b`, 'u').test(slot));
+    if (at >= 0 && paths[at]) return /** @type {RegExpExecArray} */ ([paths[at][0], paths[at][1]]);
+  }
+  return null;
+}
+
+/**
  * The string value of an exported constant as the given source sees it: declared in that file, or in the file it
  * imports the name from.
  *
@@ -73,7 +95,7 @@ function constant(name, from) {
   const declared = new RegExp(`(?:export )?const ${name} = '([^']+)'`, 'u');
   const own = declared.exec(from.text);
   if (own) return own[1];
-  const imported = new RegExp(`(?:import|export) \\{[^}]*\\b${name}\\b[^}]*\\} from '([^']+)'`, 'u').exec(from.text);
+  const imported = new RegExp(`(?:import|export) \\{[^}]*\\b${name}\\b[^}]*\\} from ['"]([^'"]+)['"]`, 'u').exec(from.text) ?? lazyImport(name, from.text);
   assert.ok(imported, `${from.path} declares or imports the constant ${name}`);
   const target = relative(ROOT, join(ROOT, from.path, '..', imported[1])).split(sep).join('/');
   const source = SOURCES.find(entry => entry.path === target || entry.path === `${target}.js` || entry.path === `${target}/index.js`);

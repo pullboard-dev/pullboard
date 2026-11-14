@@ -286,8 +286,10 @@ function element(id) {
     querySelectorAll: () => [],
     querySelector: () => null,
     prepend() {},
-    // The notch preview appends its veil and panel to the body (4f9646d478), and reaches it from its notch's document.
+    // The notch preview appends its veil and panel to the body and listens on the element and its document [#6651].
     append() {},
+    contains: () => false,
+    removeEventListener() {},
     replaceWith() {},
   };
 }
@@ -384,11 +386,12 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
     hidden: false,
     getElementById: (id) => (known.has(id) ? node(id) : null),
     // The palette builds its overlay at load: a created element is a plain node the page may append and listen on.
-    createElement: () => element('created'),
+    createElement: () => Object.assign(element('created'), { ownerDocument: document }),
     querySelector: () => null,
     querySelectorAll: (selector) => (selector === '[data-ago]' ? [...elements.values()].flatMap(ageNodes) : []),
     addEventListener: (type, listener) => { if (type === 'click') clicks.push(listener); },
   };
+  document.body.ownerDocument = document;
   // The body starts with the classes its markup gives it, as at first paint.
   for (const name of (/<body class="([^"]*)">/.exec(html)?.[1] ?? '').split(' ').filter(Boolean)) document.body.classList.add(name);
   let release = () => {};

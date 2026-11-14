@@ -330,18 +330,18 @@ async function rawRequest(state, path, { method = 'GET', body, allowMissing = fa
     let requestSignal;
     for (let attempt = 0; ; attempt += 1) {
       try {
-        requestSignal ??= signal ? AbortSignal.any([signal, AbortSignal.timeout(io?.relayTimeoutMs ?? 10000)]) : AbortSignal.timeout(io?.relayTimeoutMs ?? 10000); // budget: original per-request transport ceiling, shared by a replacement GET.
+        requestSignal ??= (ceiling => signal ? AbortSignal.any([signal, AbortSignal.timeout(ceiling)]) : AbortSignal.timeout(ceiling))(Math.max(1, Math.min(io?.relayTimeoutMs ?? 10000, (io?.relayDeadlineAt ?? Infinity) - Date.now()))); // budget: original per-request transport ceiling, shared by a replacement GET; a paused baseline cuts it to io.relayDeadlineAt.
         response = await relayFetch(origin + path, {
           method, redirect: 'error', signal: requestSignal,
           headers: { 'x-pullboard-engine': String(ENGINE_VERSION), ...(token ? { authorization: 'Bearer ' + token } : {}), ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...(initialBaseline ? { 'if-none-match': '*' } : {}) },
           ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         });
-        break;
+        if (io) delete io.relayDeadlineAt; break; // An answer ends the short wait of a paused baseline.
       } catch (error) {
         if (signal?.aborted) throw new Refused('OAUTH_CANCELLED', 'GitHub device sign-in was cancelled; no board was linked');
         // A stale cached connection reports ECONNRESET or EPIPE across supported Node runtimes. Only a read may try once more.
         if (method === 'GET' && attempt === 0 && ['ECONNRESET', 'EPIPE'].includes(transportFailure(error)) && requestSignal && !requestSignal.aborted) continue;
-        const refusal = new Refused('RELAY_UNAVAILABLE', `the relay ${state.url} did not answer (${transportFailure(error)} after ${Date.now() - startedAt} ms on ${method} ${path.split('?')[0]}); read the local board offline, then retry this move when the relay is reachable`);
+        const refusal = new Refused('RELAY_UNAVAILABLE', `the relay ${state.url} did not answer (${transportFailure(error)} after ${Date.now() - startedAt} ms on ${method} ${path.split('?')[0]}); read the local board offline, then retry this move when the relay is reachable${state.baselinePause ? `; this board's baseline upload is paused (${state.baselinePause.code}), so it waits for the relay and commands do not` : ''}`);
         refusal.transportFailure = transportFailure(error);
         throw refusal;
       }
@@ -1026,7 +1026,7 @@ export async function syncRelay(root, io) {
         }
       } else if (error.code === 'AUTH_REQUIRED') {
         if (!orderedMoveCommand(io)) reportExpiredSignIn(state, io);
-      } else if (!(orderedMoveCommand(io) && (baselineNotAccepted(state) || (await io.outboxPolicy()).outboxQueueable(state, error, null, io)) && transientRelayFailure(error))) io.err(`pullboard: ${error.message}; run pullboard status to see pending uploads`);
+      } else if (!(orderedMoveCommand(io) && (baselineNotAccepted(state) || (await io.outboxPolicy()).outboxQueueable(state, error, null, io)) && transientRelayFailure(error))) io.err(`pullboard: ${error.message}; ${error.code === 'RELAY_ACTOR' && error.next ? error.next : 'run pullboard status to see pending uploads'}`);
       return { linked: true, board: state.board, url: state.url, sequence: state.sequence,
         behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state, io.openBoard)) + Number(Boolean(state.snapshot || state.checkpoint)) + (state.outbox?.moves?.length ?? 0),
         recovery: recoverySummary(state), ...io.outboxFields(state),
@@ -1292,7 +1292,7 @@ export async function relayOn(root, address, io, { session, credential, quiet = 
   const file = linkFile(root);
   // A clone whose pullboard.json names another board joins that board instead of linking a second one [E12].
   const joining = await (await import('./relay/join.js')).joinNamedBoardIfAny(root, file, { linked: Boolean(loadLink(file)), url: relayOrigin(address || DEFAULT_RELAY), repository, signIn: (url) => deviceSignIn(url, io), openBoard: io.openBoard }, io);
-  if (joining) return joining;
+  if (joining) return joining; (await import('./relay/board-size.js')).requireBoardFitsRelay(repoInfo(root).commonDir); // Too large a board refuses before anything changes [#7777].
   const { nameBoardInConfig } = await import('./relay/config.js');
   return locked(file, async () => {
     let state = loadLink(file);

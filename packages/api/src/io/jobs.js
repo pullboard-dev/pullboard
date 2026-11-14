@@ -252,7 +252,7 @@ export function boardQueueMode(db, wanted) {
  * lapse, and the token the claim returns is what authenticates that runner's renewals and receipt.
  *
  * With a reserve (gate.jobReserve), the claim takes the highest priority class first and keeps each class its reserved
- * share of the runner's `jobs` slots; with none, landing jobs first, then test runs, then the rest, each by age (claimableJobs) [C7].
+ * share of the runner's `jobs` slots; with none, pre-push gate shards first (#7790), then landing jobs, test runs and the rest, each by age (claimableJobs) [C7].
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {{ runner: string, capabilities?: string[], kinds?: string[] | null, now?: number, leaseMs?: number, reserve?: Record<string, number> | null }} request

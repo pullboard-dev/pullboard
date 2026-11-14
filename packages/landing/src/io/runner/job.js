@@ -16,6 +16,11 @@ import { amendLandingRegistries } from '../derive.js';
 export const LANDING_JOB_KIND = 'land';
 // Budget: a landing whose push keeps finding trunk moved tries this many tips, then hands the job back as trunk-busy.
 const PUSH_ATTEMPTS = 5;
+/**
+ * The newest land payload shape this runner's code understands (packages/api's LAND_PAYLOAD_SHAPE is what the board writes).
+ * A job of a newer shape is refused, never pushed without the options this code never learned (#7791).
+ */
+export const LANDING_PAYLOAD_SHAPE = 2;
 const TRUNK_CACHE = 'refs/pullboard/landing/trunk';
 export const IDENTITY = ['-c', 'user.name=Pullboard', '-c', 'user.email=landing@pullboard.invalid', '-c', 'core.hooksPath=/dev/null'];
 // A push into the board host's own checkout updates its checked-out trunk and work tree, and refuses if that tree is dirty.
@@ -225,13 +230,13 @@ async function deriveMerged(root, { base, badges }) {
 
 /**
  * Find which merged items turn the check red: merge them again one at a time on the base, checking each step, and drop
- * each one whose merge turns it red. HEAD ends on the base plus the clean items, a tree the last step checked green.
+ * each one whose merge turns it red; each red item keeps its own failure, so a sibling's red never names another item's files. HEAD ends on the base plus the clean items, a tree the last step checked green.
  * Why: 0.9.3's landing returned only the red item; the clean ones beside it stay accepted, or land under separate publish.
  */
 async function isolateReds(root, { base, trunk, pending, check, renew, payload }) {
   must(root, ['checkout', '-q', '--detach', '--force', base]);
   must(root, ['clean', '-q', '-fd']);
-  const kept = [], red = [], guards = new Map();
+  const kept = [], red = [], guards = new Map(), details = new Map();
   let detail = null;
   for (const entry of pending) {
     const before = must(root, ['rev-parse', 'HEAD']);
@@ -243,11 +248,12 @@ async function isolateReds(root, { base, trunk, pending, check, renew, payload }
     if (result?.ok) { kept.push(entry.id); continue; }
     red.push(entry.id);
     if (result?.guard) guards.set(entry.id, result.guard);
-    detail ??= `#${entry.id}: ${result?.detail ?? 'the landing check failed'}`;
+    details.set(entry.id, `#${entry.id}: ${result?.detail ?? 'the landing check failed'}`);
+    detail ??= details.get(entry.id);
     must(root, ['reset', '-q', '--hard', before]);
     must(root, ['clean', '-q', '-fd']);
   }
-  return { kept, red, detail, guards };
+  return { kept, red, detail, details, guards };
 }
 
 /**
@@ -282,6 +288,10 @@ function firstMerges(root, base, tip, pending) {
  */
 export async function runLandingJob(payload, { workdir, checks = null, renew = () => true, attempts = PUSH_ATTEMPTS, pushOptions = () => [], env = process.env, diagnose = null }) {
   const { remote, trunk, expect, items } = payload;
+  if (Number.isSafeInteger(payload.shape) && payload.shape > LANDING_PAYLOAD_SHAPE) {
+    // A plain coded error: this cell takes no kernel import, and the runner releases the job with this message, which names the code.
+    throw Object.assign(new Error(`[LANDING_PAYLOAD_VERSION] land job payload shape ${payload.shape} is newer than this runner's code (shape ${LANDING_PAYLOAD_SHAPE}); next: update this runner's pullboard checkout and restart it`), { name: 'Refused', code: 'LANDING_PAYLOAD_VERSION' });
+  }
   // A job carrying a ledger proof runs only its misses on the merged tree; the module loads only then, off the worker bundle [P7].
   const phases = [];
   const check = checks ?? await landingCheck(payload, env, phases);
@@ -340,7 +350,7 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
         : { kept: [], red: [pending[0].id], detail: `#${pending[0].id}: ${result?.detail ?? 'the landing check failed'}`, guards: new Map(result?.guard ? [[pending[0].id, result.guard]] : []) };
       if (!found) return done('lease-lost', { detail: 'the job\'s lease moved to another runner during its culprit search' });
       receipt.detail ??= result?.detail ?? 'the landing check failed';
-      for (const id of found.red) giveBack(id, 'red', found.red.length === 1 && found.detail ? found.detail : `#${id} turns the merged tree red: ${found.detail ?? result?.detail}`, found.guards?.get(id));
+      for (const id of found.red) giveBack(id, 'red', found.red.length === 1 && found.detail ? found.detail : `#${id} turns the merged tree red: ${found.details?.get(id) ?? found.detail ?? result?.detail}`, found.guards?.get(id));
       // Per-item landing, the default, lands the clean rest as separate publish does; perItem false lands nothing red [C7,#2901].
       if (found.red.length && ((!separate && payload.perItem === false) || found.kept.length === 0)) return done('red');
       pending = pending.filter(entry => found.kept.includes(entry.id));
@@ -379,7 +389,9 @@ export async function takeLandingJob({ call, runner, capabilities = [], workdir,
       return Boolean(renewed.renewed);
     } catch { return false; }
   };
-  const receipt = await runLandingJob(claim.payload, { workdir, checks, renew, env, diagnose, pushOptions: () => permit ? permitPushOptions(permit) : [] });
+  // What a big job moved out of its payload (a large proof) is read back from the job's request, which only its holder reads [#7766].
+  const moved = Array.isArray(claim.payload?.requested) && claim.payload.requested.length ? (await call({ action: 'request', job, runner, token }))?.request?.land : null;
+  const receipt = await runLandingJob(moved ? { ...claim.payload, ...moved } : claim.payload, { workdir, checks, renew, env, diagnose, pushOptions: () => permit ? permitPushOptions(permit) : [] });
   try {
     const posted = await call({ action: 'receipt', job, runner, token, receipt });
     return { job, receipt, recorded: Boolean(posted.recorded) };

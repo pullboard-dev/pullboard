@@ -84,8 +84,8 @@ test('a landing log names each gate it opened, its selected files and whether it
 test('the live snapshot reads every runner and each running gate or landing from the real board and leases [C7,N26]', t => {
   const { common, resources, claimedAt } = liveFixture(t);
   const sources = readLiveRunners({ roots: [{ commonDir: common }], now: Date.now(), resources, configured: [{ host: 'mini-3' }], openBoardReadOnly: store.openBoardReadOnly });
-  assert.deepEqual(sources.runners.map(runner => [runner.host, runner.holders.length]), [['mini-3', 0], ['mini-1', 1], ['mini-2', 1]],
-    'every configured runner, idle or not, and every runner holding a lease');
+  assert.deepEqual(sources.runners.map(runner => [runner.host, runner.holders.length]), [['mini-3', 0], ['mini-1', 1], ['mini-2', 1], ['aux-9', 0]],
+    'every configured runner, idle or not, every runner holding a lease and every runner that ran a job');
   assert.deepEqual(sources.jobs.map(job => [job.kind, job.item, job.runner, job.files, job.progress]), [['test', 5774, 'aux-9', FILES.slice(0, 2), { finished: 1, failures: 1 }]]);
   assert.equal(sources.jobs[0].claimedAt, claimedAt, 'a pulled job runs since its current claim step');
   assert.deepEqual(sources.landings.map(landing => [landing.batch, landing.items, landing.label, landing.selected, landing.files]), [[BATCH, [1196], 'candidate', 3, FILES]],
