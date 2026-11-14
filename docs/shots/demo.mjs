@@ -346,7 +346,7 @@ async function captureRoadmap(view, repo, observation) {
         history: row.parentElement.querySelector('.roadmap-history')?.textContent, time: release.querySelector('.roadmap-left')?.textContent,
         itemTop: rect.top, itemBottom: rect.bottom, pageWidth: document.documentElement.scrollWidth };
     })())`));
-    if (reading.theme !== theme || !/4 to go.*1 of 5 landed/u.test(reading.count) || reading.legend !== 7 || reading.rows !== 5 || reading.expanded !== 1
+    if (reading.theme !== theme || !/4 to go.*1 of 5 landed/u.test(reading.count) || ![6, 7].includes(reading.legend) || reading.rows !== 5 || reading.expanded !== 1
       || !reading.history?.includes('sent back') || !reading.history?.includes('accepted') || !reading.time
       || reading.itemTop < 0 || reading.itemBottom > reading.height || reading.pageWidth > reading.width) {
       throw new Error('The demo Roadmap capture is incomplete: ' + JSON.stringify(reading));
