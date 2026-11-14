@@ -163,10 +163,12 @@ test('the view shows a move as it happens [N26,A2]', { timeout: 120_000 }, async
     t.diagnostic(`the claim appeared ${latency} ms after the board recorded it`);
     assert.ok(latency <= 2_000, `the claim appears ${latency} ms after the board recorded it`); // budget: declared by #545's frozen criterion: a move appears within 2000 ms.
     // What the page read for it came after the move, and the stream it follows stayed open.
-    // The move is on the open item, so the page also reads that item's detail again (#548).
+    // The move is on the open item, so the page also reads that item's detail again (#548). A state read answered from the
+    // build before the move is read again once the build that holds it lands (82da0e6b69, #6850), and the Dashboard reads
+    // the events it has not yet held.
     const moveReads = sent(chrome, before);
     assert.ok(moveReads.some((line) => /^GET \/api\/v1\/boards\/[^/]+\/state$/.test(line)), `the page reread public state for the move: ${JSON.stringify(moveReads)}`);
-    assert.ok(moveReads.every((line) => /^GET \/api\/v1\/boards(?:\/[^/]+\/(?:state|shouts\/\d+|items\/\d+))?$/.test(line)), `the page read the board for the move: ${JSON.stringify(moveReads)}`);
+    assert.ok(moveReads.every((line) => /^GET \/api\/v1\/boards(?:\/[^/]+\/(?:state|events|shouts\/\d+|items\/\d+))?$/.test(line)), `the page read the board for the move: ${JSON.stringify(moveReads)}`);
     assert.equal(streamReads(chrome).length, 1, 'the page kept the one stream it opened');
     assert.equal(await chrome.stable("document.querySelector('#live').textContent"), '', 'the live line says the page is live');
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
@@ -187,7 +189,9 @@ test('the view catches up with a delta after a move [N26,A2]', { timeout: 120_00
     /** The since cursor of each state read the page made from a request mark on, null for a full read. */
     const reads = (from) => chrome.requests.slice(from).filter((request) => /^https?:/.test(request.url) && /^\/api\/v1\/boards\/[^/]+\/state$/.test(new URL(request.url).pathname))
       .map((request) => new URL(request.url).searchParams.get('since'));
-    assert.deepEqual(reads(mark), [String(held)], `the page asked once what changed since the event it held, and read no full state: ${JSON.stringify(reads(mark))}`);
+    // A read answered from the build before the move is repeated once the build with it lands (82da0e6b69, #6850); each one is a delta.
+    const first = reads(mark);
+    assert.ok(first.length >= 1 && first.length <= 2 && first.every((since) => since !== null) && first[0] === String(held), `the page asked what changed since the event it held, and read no full state: ${JSON.stringify(first)}`);
     assert.equal(await chrome.stable('data.project.items.find((item) => item.id === 1).status'), 'claimed', 'the item shows the move');
     // The delta's result is the page's next base: the move after it asks from the claim on.
     const claimed = (await boardOf(view, alpha.repo)).events[0].event_id;
@@ -195,7 +199,8 @@ test('the view catches up with a delta after a move [N26,A2]', { timeout: 120_00
     await box.inProcess(alpha.repo, 'add', 'web', 'After the delta', '--specs', 'G1', '--criterion', 'renders');
     await chrome.waitFor('!!document.querySelector(\'#chain [data-item="2"]\')', 15_000); // budget: hang ceiling for the new item to arrive.
     await liveReady(chrome);
-    assert.deepEqual(reads(again), [String(claimed)], `the next catch-up asks from the state the delta made: ${JSON.stringify(reads(again))}`);
+    const next = reads(again);
+    assert.ok(next.length >= 1 && next.length <= 2 && next.every((since) => since !== null) && next[0] === String(claimed), `the next catch-up asks from the state the delta made: ${JSON.stringify(next)}`);
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
   } finally {
     await close();
@@ -291,6 +296,8 @@ test('an older answer for a board opened again is not drawn over a newer one [N2
     await box.inProcess(alpha.repo, 'add', 'web', 'Newer', '--specs', 'G1', '--criterion', 'renders');
     await page.run(`view.root = ${JSON.stringify(alpha.repo)}; refresh()`);
     const titles = () => JSON.parse(page.run('JSON.stringify(data.project.items.map((item) => item.title).sort())'));
+    // A read answers from the last build, which may not hold the move yet (82da0e6b69, #6850); the page reads again, as its stream has it do.
+    for (let again = 0; again < 20 && titles().length < 2; again++) await page.run('refresh()');
     assert.deepEqual(titles(), ['Newer', 'Older'], 'the newer answer shows both items');
     page.run('__releaseOlder()');
     await older;
