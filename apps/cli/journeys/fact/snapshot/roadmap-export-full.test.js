@@ -58,11 +58,11 @@ test('the export asks for the full board [N26,A2]', { timeout: 90_000 }, // budg
       await settled(chrome, "document.body.classList.contains('snapshot') && !!data?.project && snapshotReplay.index === snapshotReplay.events.length && view.item === 1 && !!document.querySelector('#detail .tl')");
       const opened = await chrome.stable(`(() => {
         const detail = document.querySelector('#detail');
-        const part = (name) => [...detail.querySelectorAll('h3')].find((heading) => heading.textContent === name)?.parentElement;
+        const part = (name) => [...detail.querySelectorAll('.ip-lbl')].find((label) => label.textContent === name)?.closest('section');
         return {
           title: detail.querySelector('h2').innerText,
-          criterion: part('Done when')?.querySelector('.item-panel-expand-text').innerText ?? null,
-          verdicts: [...detail.querySelectorAll('#item-panel-panel-verdicts .verdict')].reverse().map((verdict) => [verdict.classList.contains('yes') ? 'ACCEPT' : 'REJECT', verdict.querySelector('.note').textContent]),
+          criterion: part('Done when')?.querySelector('.ip-cl .t').innerText ?? null,
+          verdicts: [...detail.querySelectorAll('.item-panel-verdicts .verdict')].reverse().map((verdict) => [verdict.classList.contains('yes') ? 'ACCEPT' : 'REJECT', verdict.querySelector('.note').textContent]),
           moves: [...detail.querySelectorAll('.tl > li:not(.tl-fact)')].map((move) => move.dataset.timelineKind).reverse(), // a row folds its placement's event id, so it counts once
           facts: [...detail.querySelectorAll('.tl > .tl-fact .tl-body')].map((fact) => fact.textContent).filter((text) => !/^(?:Tier-1 shadow for gate receipt|Review comparison: |Gate job gate:|Not a duplicate of #)/u.test(text)),
         };

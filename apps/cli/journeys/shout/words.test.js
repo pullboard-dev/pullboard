@@ -199,7 +199,7 @@ test('clause 1: native board kinds, names, reasons and sentinel notices read pla
     assert.doesNotMatch(detail, forbidden, 'item timeline and verdict contain plain visible labels');
     assert.match(detail, /Keep \[MY_CODE\] in this quoted review note\./u, 'reviewer words remain exact');
     assert.match(await chrome.stable('document.querySelector("#detail [data-item-panel-panel=history]").textContent'), /Measured the native example|measurement/iu, 'the genuine measurement has a sentence in the item history');
-    assert.equal(await chrome.stable('document.querySelector("#detail .verdict.no [title=BEHAVIOR_MISMATCH]")?.title'), 'BEHAVIOR_MISMATCH', 'the exact reason survives as a tooltip');
+    assert.equal(await chrome.stable('document.querySelector("#detail .item-panel-latest.sentback [title=BEHAVIOR_MISMATCH]")?.title'), 'BEHAVIOR_MISMATCH', 'the exact reason survives as a tooltip');
     await tab(chrome, 'activity');
     // The redesigned Activity page draws its waterfall and journey charts inline (#6916); their labels and hover text carry the same plain-word rule.
     await chrome.waitFor('document.querySelectorAll("#activity svg text").length > 0');

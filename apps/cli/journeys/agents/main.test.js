@@ -130,7 +130,7 @@ test('the agents panel says what each agent holds [N26]', async () => {
     for (const agent of agents) assert.ok(!agent.text.includes(agent.path), `${agent.id}'s path is not in the text`);
 
     await page.click({ go: 'item:1' });
-    assert.match(page.show('detail'), /<h2><span class="id">#1<\/span>Header<\/h2>/, 'a held item opens on the Items tab');
+    assert.match(page.show('detail'), /<span class="id">#1<\/span>[^]*<h2>Header<\/h2>/, 'a held item opens on the Items tab');
   } finally {
     await view.stop();
   }

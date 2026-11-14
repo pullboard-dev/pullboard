@@ -85,7 +85,7 @@ function pageScript() {
     requestAnimationFrame(rows);
     const feedback = (sample) => sample.kind === 'tab'
       ? document.querySelector('.tab.on')?.dataset.tab === sample.tab && visible(document.querySelector('.tab.on'))
-      : visible(document.querySelector('#detail h2')) && new RegExp('#' + sample.item + '(?!\\d)').test(document.querySelector('#detail h2').textContent);
+      : visible(document.querySelector('#detail h2')) && new RegExp('#' + sample.item + '(?!\\d)').test(document.querySelector('#detail .item-panel-head').textContent);
     const drawn = (sample) => sample.kind !== 'tab' || (typeof view === 'object' && view.tab === sample.tab
       && visible(document.querySelector('[data-pane="' + sample.tab + '"]')) && [...document.querySelectorAll(sample.target)].some(visible));
     addEventListener('mousedown', (event) => {
