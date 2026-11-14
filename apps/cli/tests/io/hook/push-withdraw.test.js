@@ -38,13 +38,13 @@ test('clause 1: a gate that throws or is interrupted by SIGINT or SIGTERM withdr
     const clock = { at: 1_000_000 }, signals = new EventEmitter(), exits = [];
     const { db, seams } = gateOn(t, clock);
     let release;
-    const wait = () => new Promise(resolve => { release = resolve; });
+    const wait = () => release ? Promise.reject(new Error('stop')) : new Promise(resolve => { release = resolve; });
     const running = awaitAndWithdraw({}, NAMES, { ...seams, wait, pollMs: 0, exit: exitCode => exits.push(exitCode), signals });
     while (!signals.listenerCount(signal) || !release) await new Promise(resolve => setImmediate(resolve));
     signals.emit(signal);
     assert.deepEqual(exits, [code]);
     assert.deepEqual(steps(db), ['done', 'done', 'done'], `${signal} ends every shard`);
-    release(); await running.catch(() => {});
+    release(); await assert.rejects(running, /stop/u);
     assert.equal(signals.listenerCount(signal), 0, 'the handlers are removed');
   }
   const clock = { at: 5 }, { db, seams } = gateOn(t, clock);
