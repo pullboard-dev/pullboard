@@ -391,14 +391,18 @@ export function suiteProven(files, results) {
 /**
  * The board ledger's hits a pulled job named for this run, and a landing's main reds (fail rows at main), as `file\0inputKey\0context` keys
  * mapped to 'reused' or 'main red'; empty when none or unreadable, so every file runs. Why a file: the hits ride in the job [P7,CD2].
+ * `account` is true when the hit list says the run owes a test account (a pulled gate proof writes `account: true`): then a
+ * hit is reused only on a stored green with its outcomes, since the gate refuses a file it cannot account for [C7,#7937].
  */
 function ledgerHitKeys(env) {
   const keys = new Map();
+  let account = false;
   try {
-    const { contexts, files, mainRed = [] } = JSON.parse(readFileSync(env[LEDGER_HITS_ENV], 'utf8'));
+    const { contexts, files, mainRed = [], account: owed = false } = JSON.parse(readFileSync(env[LEDGER_HITS_ENV], 'utf8'));
+    account = owed === true;
     for (const [list, kind] of [[mainRed, 'main red'], [files, 'reused']]) for (const [file, inputKey, context] of list) if (typeof contexts[context] === 'string') keys.set(`${file}\0${inputKey}\0${contexts[context]}`, kind);
   } catch { /* No hit list: nothing is reused from the ledger. */ }
-  return keys;
+  return { keys, account };
 }
 
 /** The repository path of a file selector, or null when it is not a path inside the root. */
@@ -455,15 +459,18 @@ export async function planTestActions(root, args, { fullSuite, landing = false, 
   const account = [];
   const reusedTestOutcomes = [];
   const run = [];
-  const hits = recordOnly ? new Map() : ledgerHitKeys(env);
+  const { keys: hits, account: owed } = recordOnly ? { keys: new Map(), account: false } : ledgerHitKeys(env);
   for (const file of selectors) {
     // The ledger proved this file at this inputKey and context class, or main fails it at that identical key: a landing charges that red to main, never runs it [P7,CD2].
-    const hit = file.key && hits.get(`${file.path}\0${file.inputKey}\0${digest(file.context)}`); if (hit) {
+    // A run that owes a test account takes a proved hit only through a stored green below, whose outcomes are its account [C7,#7937].
+    const hit = file.key && hits.get(`${file.path}\0${file.inputKey}\0${digest(file.context)}`); if (hit === 'main red' || hit && !owed) {
       account.push(reusedAccount(store, file));
       results.set(file.path, { status: 'pass', source: 'ledger' });
       write(`# ${hit} ${file.inputKey} from ledger (${file.path})\n`);
       continue;
     }
+    // A store reuse, or an owed-account ledger hit, stands only on a stored green with its per-case outcomes; with none
+    // the file runs, since the gate refuses a file it cannot account for (TEST_SELECTION_UNVERIFIED) [C7,#7937].
     const entry = recordOnly ? null : reusableResult(store, file.key);
     const outcomes = entry && testResultOutcomes(entry);
     if (!entry || !outcomes || entry.file !== file.path || entry.inputKey !== file.inputKey
@@ -471,7 +478,7 @@ export async function planTestActions(root, args, { fullSuite, landing = false, 
     account.push(reusedAccount(store, file));
     reusedTestOutcomes.push(...outcomes);
     results.set(file.path, { status: 'pass', source: 'reused', key: entry.key, currentKey: file.key });
-    write(`# reused ${entry.key} from ${entry.stage} ${entry.commit} (${file.path})\n`);
+    write(hit ? `# ${hit} ${file.inputKey} from ledger (${file.path})\n` : `# reused ${entry.key} from ${entry.stage} ${entry.commit} (${file.path})\n`);
     write(`# result-origin ${JSON.stringify(entry.origin)}\n`);
     write(`${entry.tap.lines.join('\n')}\n# pass ${entry.tap.counts.passed}\n# fail ${entry.tap.counts.failed}\n# skipped ${entry.tap.counts.skipped}\n`);
   }
