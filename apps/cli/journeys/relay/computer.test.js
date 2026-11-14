@@ -20,7 +20,12 @@ import { readFileSync } from 'node:fs';
 async function refusedCoordinatorAdd(device, lane, title) {
   const since = new Date().toISOString();
   const added = await device.cli('add', lane, title);
-  assert.equal(added.code, 0, 'a linked board applies the move locally at once, then settles it with the relay');
+  // A computer that already knows the hold refuses at once; one with a stale board settles it with the relay later [#7939].
+  if (added.code !== 0) {
+    const message = `${added.failure} ${added.stderr} ${JSON.stringify(added.document?.error ?? added.document)}`;
+    assert.match(message, /COORDINATOR_HELD/u);
+    return { code: 'COORDINATOR_HELD', message };
+  }
   const status = await device.cli('status');
   assert.equal(status.code, 0, status.failure);
   const refused = (status.document.relay.outboxRefusals ?? []).filter(entry => entry.queuedAt >= since).at(-1);
@@ -42,6 +47,12 @@ test('linked computers use person-given names in coordinator holds and devices [
   assert.equal(taken.document.previous, 'Writing desk');
   const first = await refusedCoordinatorAdd(box, box.lane, 'Former coordinator is refused');
   assert.match(first.message, /Travel laptop/u);
+  // Following the takeover step answers the refusal: no RELAY_OUTBOX_REFUSED line is left for it [#7939].
+  assert.equal((await box.cli('takeover')).code, 0);
+  const answered = await box.cli('status');
+  assert.equal(answered.code, 0, answered.failure);
+  assert.deepEqual((answered.document.relay.outboxRefusals ?? []).filter(entry => entry.code === 'COORDINATOR_HELD'), [], 'the takeover clears the held refusals');
+  assert.equal((await other.cli('takeover')).code, 0);
   for (const [device, expected] of [[box, 'Travel laptop'], [other, 'Writing desk']]) {
     const roster = await device.cli('relay', 'devices');
     assert.equal(roster.code, 0);

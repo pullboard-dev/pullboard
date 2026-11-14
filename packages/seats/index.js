@@ -59,6 +59,7 @@ export {
   stampCoordinatorHolder,
   coordinatorHolder,
   requireCoordinatorHold,
+  requireKnownCoordinatorHold,
   takeCoordinator,
 } from './src/io/hold.js';
 export {
