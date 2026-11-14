@@ -451,7 +451,8 @@ test('watch --work announces a claimable item and a review left waiting [A2,N26]
     'a waiting review is announced once');
   assert.ok(kinds.includes('accept') && kinds.includes('reject'), 'the verdicts print as events too');
   const recorded = events(box).slice(before);
-  const observations = new Set(['fact', 'usage', 'activity-delivered']);
+  // api_stall observes a slow board API under host load, not a move the watch fixture makes [C7].
+  const observations = new Set(['fact', 'usage', 'activity-delivered', 'api_stall']);
   // The second rejection at this route also records its automatic escalation as a distinct move.
   assert.deepEqual(recorded.filter(event => !observations.has(event.event_kind)).map(event => event.event_kind), [
     'add', 'milestone_placed', 'check-baseline', 'hold_item', 'add', 'milestone_placed', 'claim',
