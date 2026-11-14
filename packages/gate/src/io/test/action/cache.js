@@ -450,6 +450,7 @@ export async function planTestActions(root, args, { fullSuite, landing = false, 
     store = testResultStore(root, gitEnv);
     selectors = selectors.map((selector, at) => ({ selector, path: paths[at], ...keys.get(paths[at]) }));
   } catch { return keep; }
+  write('# CTX ' + JSON.stringify(selectors[0].context) + '\n');
   const stage = env[TEST_STAGE_ENV] || (landing ? 'land' : fullSuite ? 'gate' : 'focused');
   const results = new Map();
   const account = [];
