@@ -92,7 +92,8 @@ catch(error) { console.log(JSON.stringify({code:error.code,message:error.message
     const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
       cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 5_000 }); // budget: a missing 60ms private deadline is a bounded failure, not an immortal test.
     assert.equal(result.status, 0, result.context);
-    assert.match(result.stdout, runnerOnly ? /runner.only/iu : /no local capacity/iu);
+    // Runner-only GUI work that no runner can host refuses with the GUI wording since f076993d37.
+    assert.match(result.stdout, runnerOnly ? /no registered runner has a GUI session/iu : /no local capacity/iu);
     assert.match(result.stdout, new RegExp(HOST + '-drop', 'u'));
   }
 });

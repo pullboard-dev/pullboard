@@ -13,7 +13,7 @@ const calls = [
     rows: [{ id: 'G1', kind: 'spec', text: 'Keep one.', items: [10] }, { id: 'G2', kind: 'spec', text: 'Keep two.', items: [11] }] },
   { kind: 'decision', id: 7, ref: 'coordinator', text: 'Which wording ships?', at: '2026-11-02T00:00:00Z' },
   { kind: 'sentinel-draft', id: 's1', ref: 'file-size', check: 'node checks.js', directory: '.', every: 'hourly', owner: 'coordinator', at: '2026-11-03T00:00:00Z' },
-  { kind: 'agent-approved', id: 'G3', agent: 'Corey Olson', approvedAt: '2026-11-04T00:00:00Z', commit: 'a'.repeat(40) },
+  { kind: 'agent-approved', id: 'G3', agent: 'Sample Approver', approvedAt: '2026-11-04T00:00:00Z', commit: 'a'.repeat(40) },
   { kind: 'draft', count: 4 },
 ];
 const project = { holds: [], items: [], spec: [{ id: 'G3', text: 'Keep three.', gate: 'test/g3.test.js' }] };

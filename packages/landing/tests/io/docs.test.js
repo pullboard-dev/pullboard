@@ -40,7 +40,7 @@ function temporaryRepository() {
 test('a stale generated document is regenerated and amended into the merge before its gate [B3,C7]', { timeout: 120000 }, () => { // budget: one real archive extraction, one generator run and one amend.
   const dir = temporaryRepository();
   try {
-    writeFileSync(join(dir, 'apps', 'cli', 'src', 'logic', 'help', 'additions.js'), `${readFileSync(join(dir, 'apps', 'cli', 'src', 'logic', 'help', 'additions.js'), 'utf8')}// stale generated documentation\n`);
+    writeFileSync(join(dir, 'apps', 'cli', 'src/logic/help/additions.js'), `${readFileSync(join(dir, 'apps', 'cli', 'src/logic/help/additions.js'), 'utf8')}// stale generated documentation\n`);
     writeFileSync(join(dir, 'README.md'), `${readFileSync(join(dir, 'README.md'), 'utf8')}\nLanding fixture source change.\n`);
     git(dir, 'commit', '-q', '-am', 'docs: stale shared documentation');
     const merge = git(dir, 'rev-parse', 'HEAD');
@@ -66,10 +66,10 @@ test('a current generated document leaves the merge unchanged [B3,C7]', { timeou
       git(dir, 'commit', '-q', '-m', 'docs: regenerate shared documentation');
     }
     const merge = git(dir, 'rev-parse', 'HEAD');
-    const before = readFileSync(join(dir, 'apps', 'cli', 'src', 'logic', 'help', 'additions.js'), 'utf8');
+    const before = readFileSync(join(dir, 'apps', 'cli', 'src/logic/help/additions.js'), 'utf8');
     amendLandingEngines(dir);
     assert.equal(git(dir, 'rev-parse', 'HEAD'), merge, 'a current merge is not amended');
-    assert.equal(readFileSync(join(dir, 'apps', 'cli', 'src', 'logic', 'help', 'additions.js'), 'utf8'), before, 'current documentation keeps its bytes');
+    assert.equal(readFileSync(join(dir, 'apps', 'cli', 'src/logic/help/additions.js'), 'utf8'), before, 'current documentation keeps its bytes');
     assert.equal(git(dir, 'status', '--porcelain'), '', 'a current merge leaves the tree clean');
   } finally {
     rmSync(dir, { recursive: true, force: true });
