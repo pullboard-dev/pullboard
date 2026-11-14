@@ -1,6 +1,5 @@
 /** An upgraded install replaces the relay sender an older pullboard started, and doctor and recover name it [H21,H16,C7]. */
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
@@ -18,6 +17,7 @@ import { ENGINE_VERSION } from '../../../../packages/state/light.js';
 import { SENDER_WORKER } from '../../index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { spawnSenderChild } from '../../tests/fixtures/relay/sender.js';
 
 /**
  * A live sender process the way an older pullboard leaves one: it holds the machine's claim and keeps it fresh, and
@@ -35,7 +35,7 @@ async function runningSender(t, home, engine) {
     setInterval(() => utimesSync(pid, new Date(), new Date()), 500);
     setTimeout(() => process.exit(0), 60000);
     process.stdout.write('claimed\\n');`;
-  const child = spawn(process.execPath, ['-e', script], { stdio: ['ignore', 'pipe', 'ignore'] });
+  const child = spawnSenderChild(['-e', script], { stdio: ['ignore', 'pipe', 'ignore'] });
   const exited = new Promise(resolve => child.once('exit', (code, signal) => resolve({ code, signal })));
   t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); });
   const claimed = await new Promise(resolve => {
@@ -95,7 +95,7 @@ test('clause 1: an older engine record is replaced, a current one is left runnin
 test('clause 1: this version\'s sender records its engine with its claim [H21,H16,C7]', async t => {
   await withHome(t, async home => {
     // No board waits, so the real sender claims, finds nothing to send and exits.
-    const child = spawn(process.execPath, [SENDER_WORKER], { cwd: home, stdio: 'ignore', env: { ...process.env, PULLBOARD_HOME: home } });
+    const child = spawnSenderChild([SENDER_WORKER], { cwd: home, stdio: 'ignore', env: { ...process.env, PULLBOARD_HOME: home } });
     const code = await new Promise((resolve, reject) => { child.once('exit', resolve); child.once('error', reject); });
     assert.equal(code, 0);
     assert.equal(readFileSync(senderFiles().engine, 'utf8'), `${child.pid} ${ENGINE_VERSION}\n`);
