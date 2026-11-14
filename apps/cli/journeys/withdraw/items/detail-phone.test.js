@@ -131,7 +131,7 @@ test("item detail merges API facts and moves in one responsive timeline [B33,B29
     const target = JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const detail = document.querySelector('#detail'), fact = document.querySelector('#detail #fact-${replacement.id}');
       const box = fact.getBoundingClientRect(), panel = detail.getBoundingClientRect();
-      return { item: view.item, id: fact.id, text: document.querySelector('#detail h2')?.textContent,
+      return { item: view.item, id: fact.id, text: document.querySelector('#detail .item-panel-head .id')?.textContent + document.querySelector('#detail h2')?.textContent,
         page: document.documentElement.scrollTop, detail: detail.scrollTop,
         visible: box.top >= panel.top && box.bottom <= panel.bottom };
     })())`));
@@ -208,7 +208,7 @@ test('list rows hold their shape: one-line titles end in an ellipsis, every row 
       // The same state wears the same chip in the item's detail as in its row.
       for (const row of rows) {
         await chrome.click(`document.querySelector('#chain .row[data-item="${row.id}"]')`);
-        await chrome.waitFor(`document.querySelector('#detail h2')?.textContent.startsWith('#${row.id}')`);
+        await chrome.waitFor(`document.querySelector('#detail .item-panel-head .id')?.textContent === '#${row.id}'`);
         // A chip's colour eases in on the row just opened; read the paint once the transitions have settled.
         await chrome.waitFor("document.getAnimations().every((animation) => animation.playState !== 'running')");
         // The approved panel's chip names the stage only; the row keeps the detail and the seat.

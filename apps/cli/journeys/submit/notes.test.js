@@ -71,7 +71,7 @@ test('long timeline notes expand in place and hashes show twelve characters with
     assert.match(await chrome.stable(`document.querySelector(${JSON.stringify(noteSelector + ' .tl-body')}).textContent`), /Line 8: the complete note remains available after expansion/u);
     // The history lists other hashes too (claim base, frozen bar); this journey checks the one for the submitted commit.
     const timelineHash = `#detail .tl button.hash-copy[data-copy="${commit}"]`;
-    assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(timelineHash)}).textContent`), commit.slice(0, 7));
+    assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(timelineHash)}).textContent`), commit.slice(0, 12));
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(timelineHash)}).title`), commit);
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(timelineHash)}).dataset.copy`), commit);
     await chrome.stable(`(() => { const button = document.querySelector(${JSON.stringify(timelineHash)}); window.__titles = []; new MutationObserver(() => window.__titles.push(button.title)).observe(button, { attributes: true, attributeFilter: ['title'] }); return true; })()`);
@@ -95,7 +95,7 @@ test('long timeline notes expand in place and hashes show twelve characters with
     await chrome.waitFor('view.item === 1 && !!document.querySelector("#detail [data-copy]")');
     // The item panel's header names the submitted commit beside the item's status.
     const itemHash = '#detail .item-panel-head .ip-who [data-copy]';
-    assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(itemHash)}).textContent`), commit.slice(0, 7));
+    assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(itemHash)}).textContent`), commit.slice(0, 12));
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(itemHash)}).title`), commit);
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(itemHash)}).dataset.copy`), commit);
     await chrome.stable(`(() => { const button = document.querySelector(${JSON.stringify(itemHash)}); window.__titles = []; new MutationObserver(() => window.__titles.push(button.title)).observe(button, { attributes: true, attributeFilter: ['title'] }); return true; })()`);

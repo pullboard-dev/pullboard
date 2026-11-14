@@ -57,7 +57,7 @@ test('a sent-back item shows why first [N26]', async () => {
     assert.ok(detail.indexOf('<p class="ip-lbl">Done when</p>') > 0, 'the criterion is shown in the Done when section');
     assert.match(top, /item-panel-latest sentback/);
     assert.match(top, /<span class="ip-chip x" title="BEHAVIOR_MISMATCH">Behavior did not match<\/span>/);
-    const verdictHash = `at <button class="hash-copy" type="button" title="${verdict.commit}" aria-label="Copy full hash ${verdict.commit}" data-copy="${verdict.commit}"><code class="inline sha" title="${verdict.commit}">${verdict.commit.slice(0, 7)}</code></button>`;
+    const verdictHash = `at <button class="hash-copy" type="button" title="${verdict.commit}" aria-label="Copy full hash ${verdict.commit}" data-copy="${verdict.commit}"><code class="inline sha" title="${verdict.commit}">${verdict.commit.slice(0, 12)}</code></button>`;
     assert.ok(top.includes('coordinator') && top.toLowerCase().includes(time.toLowerCase()) && top.includes(verdictHash), "who sent it back, at the person's local time, and at which commit");
     assert.ok(top.includes('no &lt;b&gt;greeting&lt;/b&gt; on the page\nsecond line of the note'), 'the full note, escaped, before the criterion');
     assert.ok(!detail.includes('<b>greeting</b>'), 'the note cannot inject markup');

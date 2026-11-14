@@ -197,7 +197,7 @@ export function itemPanelHtml(model, h) {
     test: '<path d="M6 2.5h4M7 2.5v4L3.5 12.5a1 1 0 0 0 .9 1.5h7.2a1 1 0 0 0 .9-1.5L9 6.5v-4"/>', x: '<path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/>',
   };
   /** A short hash that copies the whole one. */
-  const copy = full => '<button class="hash-copy" type="button" title="' + esc(full) + '" aria-label="Copy full hash ' + esc(full) + '" data-copy="' + esc(full) + '"><code class="inline sha" title="' + esc(full) + '">' + esc(String(full).slice(0, 7)) + '</code></button>';
+  const copy = full => '<button class="hash-copy" type="button" title="' + esc(full) + '" aria-label="Copy full hash ' + esc(full) + '" data-copy="' + esc(full) + '"><code class="inline sha" title="' + esc(full) + '">' + esc(String(full).slice(0, 12)) + '</code></button>';
   const WORD = { ok: 'Proven', run: 'Run green', no: 'Not run' };
   const STAGE = { Verified: 'l', Ready: 'rd', Building: 'b', 'In review': 'r', Landed: 'l', Merged: 'l', Landing: 'l', Blocked: 'g', Held: 'h', Withdrawn: 'g', Gate: 'gt' };
   const sec = (label, cap, body, link = '') => '<section class="ip-sec"><div class="ip-shd"><p class="ip-lbl">' + esc(label) + '</p>' + (cap ? '<span class="ip-cap">' + cap + '</span>' : '') + link + '</div>' + body + '</section>';

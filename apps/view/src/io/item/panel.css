@@ -62,6 +62,7 @@
 .ip-cl:hover { background: var(--surface-2); }
 .ip-cl .n { color: var(--ink-faint); font: var(--text-xs) var(--mono); }
 .ip-cl .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ip-cl:not(.open) .t * { white-space: nowrap; }
 .ip-cl .k { color: var(--ink-faint); font-size: var(--text-2xs); }
 .ip-cl .pv { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--text-xs); white-space: nowrap; }
 .ip-cl .pv.ok { color: var(--accent-strong); font-weight: 600; }
@@ -109,7 +110,7 @@
 .item-panel-history-list.expanded .ip-full { display: block; }
 .item-panel-history-list.expanded .ip-hrs { display: none; }
 /* The opened item's panel owns its inset and ground; the lane shout and New item stay as quiet buttons under it. */
-.detail:has(> .item-panel) { padding: 0; background: var(--ground); }
+.detail:has(> #detail > .item-panel) { padding: 0; background: var(--ground); }
 .item-panel .links { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-5); }
 .item-panel .links button { min-height: 28px; padding: 0 var(--space-4); border: var(--border); border-radius: var(--radius-xs); background: var(--surface); color: var(--ink-muted); font: 500 var(--text-xs) var(--sans); cursor: pointer; }
 .item-panel .links button:hover { color: var(--ink); }

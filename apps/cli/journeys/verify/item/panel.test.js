@@ -136,7 +136,7 @@ test('the item panel presents native verdicts, checks, files and newest-first hi
       assert.equal(shown.briefClamp, '3');
       assert.deepEqual(shown.clauses, [['1', '', 'Proven', 'pv ok']], 'a passed item proves its clause');
       assert.equal(shown.clauseCaption, '1 of 1 proven');
-      assert.ok(shown.sha.some(([text, full, title, label]) => text === fullCommit.slice(0, 7) && full === fullCommit
+      assert.ok(shown.sha.some(([text, full, title, label]) => text === fullCommit.slice(0, 12) && full === fullCommit
         && title === fullCommit && label === `Copy full hash ${fullCommit}`), 'the short SHA retains its full hover and copy value');
       assert.deepEqual(shown.check, [[standardCheck, 'apps/cli/journeys/verify/item/panel.test.js']], 'the check is its test file, with the whole command on hover');
       assert.equal(shown.checkCaption, 'passes with no failures · red on main');
@@ -150,10 +150,7 @@ test('the item panel presents native verdicts, checks, files and newest-first hi
       assert.equal(await chrome.stable("document.querySelector('#detail .item-panel-latest').classList.contains('expanded')"), true);
       await press(chrome, "document.querySelector('#detail .item-panel-latest [data-item-panel-more]')");
       assert.equal(await chrome.stable("document.querySelector('#detail .item-panel-latest').classList.contains('expanded')"), false);
-      await press(chrome, "document.querySelector('#detail .item-panel-expand [data-item-panel-more]')");
-      assert.equal(await chrome.stable("document.querySelector('#detail .item-panel-expand').classList.contains('expanded')"), true);
-      await press(chrome, "document.querySelector('#detail .item-panel-expand [data-item-panel-more]')");
-      assert.equal(await chrome.stable("document.querySelector('#detail .item-panel-expand').classList.contains('expanded')"), false);
+      assert.equal(await chrome.stable("document.querySelector('#detail .item-panel-expand [data-item-panel-more]')"), null, 'a short brief has nothing to expand');
       await press(chrome, "document.querySelector('#detail [data-item-clause]')");
       assert.equal(await chrome.stable("document.querySelector('#detail [data-item-clause]').classList.contains('open')"), true, 'a click opens the clause evidence in place');
       await press(chrome, "document.querySelector('#detail [data-item-clause]')");

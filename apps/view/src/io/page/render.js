@@ -491,11 +491,11 @@ function render({ tab: switching = false } = {}) {
     const baseline = item.checkBaseline;
     const baselineLabel = baseline?.result === 'red' ? 'red on main' : baseline?.result === 'green' ? 'green on main' : baseline?.result === 'pending' ? 'pending on main' : 'no baseline on main';
     const verdict = item.verdict;
-    const model = itemPanelModel(item, { now: Date.now(), esc, name: (seat) => String(seat), stage: stageOfItem(item, p, gatedOf(item), '').stage,
+    const model = itemPanelModel(item, { now: Date.now(), esc, name: (seat) => String(seat), stage: item.status === 'withdrawn' ? 'Withdrawn' : stageOfItem(item, p, gatedOf(item), '').stage,
       milestone: (p.milestones || []).find(milestone => milestone.items?.some(entry => entry.id === item.id))?.name,
       reason: (code) => activityWords({ cause: code }).label, brief: briefCopyOf(item.brief), note: verdict ? visibleVerdictNote(verdict.reason, verdict.note) : '', files: panelFiles(item.brief || ''),
       baseline: { label: baselineLabel, warn: baseline?.warning === 'CRITERION_PROVES_NOTHING' }, historyOpen: view.historyOpen?.has(JSON.stringify([view.root, view.item])) === true });
-    return itemPanelHtml(model, { esc, rich: (text) => rich(text, titles), hash: hashButton, width: Math.max(0, (($('detail').clientWidth || 0) - 58)), overlap: overlapHtml(data.claimOverlaps, item.id), marks: itemStageMarks(item, p).filter(mark => !/aria-label="Sent back/u.test(mark)).join(''), inline: (text) => inline(text, titles), timeline: item.thread ? timeline(item, { newestFirst: true }) : '', title: rich(item.title, titles),
+    return itemPanelHtml(model, { esc, rich: (text) => rich(text, titles), hash: hashButton, width: Math.max(0, (($('detail').clientWidth || 0) - 58)), overlap: overlapHtml(data.claimOverlaps, item.id), marks: itemStageMarks(item, p).filter(mark => !/aria-label="(?:Sent back|Withdrawn)/u.test(mark)).join(''), inline: (text) => inline(text, titles), timeline: item.thread ? timeline(item, { newestFirst: true }) : '', title: rich(item.title, titles),
       note: verdict ? inline(visibleVerdictNote(verdict.reason, verdict.note), titles) : '' });
   };
   /** The brief without its Files section, whose paths the panel lists as rows. */
