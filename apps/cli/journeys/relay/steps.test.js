@@ -1,6 +1,6 @@
 /** A relay refusal's next step is a command the person can run, and running it resolves the refusal [C7,H17]. */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import {
   chmodSync,
   existsSync,
@@ -45,13 +45,17 @@ test('IMPORT_NOT_EMPTY on relay join names a command the person runs, and runnin
   mkdirSync(home, { mode: 0o700 });
   const env = { ...box.env, HOME: home, PULLBOARD_HOME: join(home, '.pullboard'), PULLBOARD_MACHINE_HOME: join(scratch, 'machine'),
     PATH: [bin, box.env.PATH, '/usr/bin', '/bin'].join(':') };
-  const sh = (cwd, command, extra = {}) => spawnSync('sh', ['-c', command], { cwd, env: { ...env, ...extra }, encoding: 'utf8' });
-  assert.equal(sh(scratch, `git clone --bare "${box.root}" project.git`).status, 0);
-  assert.equal(sh(scratch, `git clone "${bare}" first && git -C first remote set-url origin git@github.com:fixture/repository.git`).status, 0);
+  // Asynchronous: the fixture relay answers from this process, so a blocking spawn would starve it and the join would time out.
+  const sh = (cwd, command, extra = {}) => new Promise(done => {
+    execFile('sh', ['-c', command], { cwd, env: { ...env, ...extra }, encoding: 'utf8', timeout: 60000 },
+      (failure, stdout, stderr) => done({ status: failure ? (typeof failure.code === 'number' ? failure.code : 1) : 0, stdout, stderr }));
+  });
+  assert.equal((await sh(scratch, `git clone --bare "${box.root}" project.git`)).status, 0);
+  assert.equal((await sh(scratch, `git clone "${bare}" first && git -C first remote set-url origin git@github.com:fixture/repository.git`)).status, 0);
   // A shell that declares a model gives the new board a seat, so the clone's board is not empty.
   const first = join(scratch, 'first');
-  assert.equal(sh(first, 'pullboard init', { PULLBOARD_MODEL: FIXTURE_MODEL }).status, 0);
-  const refused = sh(first, `pullboard relay join ${code} --url ${box.origin} --json`, { PULLBOARD_MODEL: FIXTURE_MODEL });
+  assert.equal((await sh(first, 'pullboard init', { PULLBOARD_MODEL: FIXTURE_MODEL })).status, 0);
+  const refused = await sh(first, `pullboard relay join ${code} --url ${box.origin} --json`, { PULLBOARD_MODEL: FIXTURE_MODEL });
   assert.notEqual(refused.status, 0, 'a clone whose board holds work is refused');
   const { error } = JSON.parse(refused.stdout);
   assert.equal(error.code, 'IMPORT_NOT_EMPTY');
@@ -59,7 +63,7 @@ test('IMPORT_NOT_EMPTY on relay join names a command the person runs, and runnin
   assert.doesNotMatch(error.next, /coordinator/u, 'the person is not sent to the coordinator for a person-only command');
   assert.equal(refusalDocument(Object.assign(new Error(error.message), { code: error.code, next: error.next }), { caller: 'person' }).error.next, error.next,
     'the person-facing refusal keeps the command');
-  const followed = sh(scratch, error.next.slice(PERSON_RUNS.length) + ' --json');
+  const followed = await sh(scratch, error.next.slice(PERSON_RUNS.length) + ' --json');
   assert.equal(followed.status, 0, `following the step joins: ${error.next} ${followed.stdout} ${followed.stderr} ${JSON.stringify(box.calls.slice(-6).map(call => call.method + ' ' + call.path))}`);
 });
 
