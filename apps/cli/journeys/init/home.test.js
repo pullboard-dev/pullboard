@@ -215,6 +215,8 @@ function seedCapacityHistory(box, repo) {
       startedAt: new Date(clock - HOUR / 4).toISOString(), updatedAt: new Date(clock).toISOString(),
     } });
     clock = now;
+    // Live seats are counted from presence heartbeats, so the finish forecast needs two beating seats.
+    for (const agentId of [builder, reviewer]) store.heartbeatSeat(board, agentId);
     for (let index = 0; index < 3; index++) store.addItem(board, { by: 'coordinator', lane: 'web',
       title: `Remaining work ${index}`, route: 'strong', brief: `Files: web/remaining-${index}.js` });
     for (const agentId of [builder, reviewer]) store.appendFact(board, adopted[0].id, {

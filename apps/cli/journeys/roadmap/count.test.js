@@ -46,6 +46,9 @@ test('Roadmap title counts shown remaining work and follows a real landing witho
     chrome = await openSnapshotChrome(executable, server.link.href, profile);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await press(chrome, "document.querySelector('[data-tab=roadmap]')");
+    // Only the next release opens and draws its items (#7303); open the later one so every counted item is a shown row.
+    await chrome.waitFor("document.querySelectorAll('#roadmap .milestone-item').length === 2");
+    await press(chrome, "document.querySelector('[data-roadmap-key=\"m:Later\"]')");
     await chrome.waitFor("document.querySelectorAll('#roadmap .milestone-item').length === 3");
     assert.deepEqual(JSON.parse(await chrome.stable(ROADMAP_COUNT)), {
       title: '(3 remaining) roadmap-count · Roadmap · Pullboard', remaining: 3, unfinished: 3,

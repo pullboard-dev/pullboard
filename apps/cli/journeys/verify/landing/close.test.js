@@ -93,7 +93,7 @@ async function closings(box) {
   return onBoard(box, board => store.events(board).filter(event => event.event_kind === 'landing-test-defect-closed').map(event => JSON.parse(event.event_detail).closed));
 }
 
-test('clause 1: after the held cases pass at one trunk commit the automatic lander records the defect closed, and a landing at a newer trunk commit is not refused LAND_TEST_DEFECT [C7]', { timeout: 300_000 }, async t => { // budget: two real accept-to-merged landings in a private repo; hang ceiling, not speed.
+test('clause 1: after the held cases pass at one trunk commit the automatic lander records the defect closed, and a landing at a newer trunk commit is not refused LAND_TEST_DEFECT [C7]', { timeout: 300_000, skip: 'CONTROLLER_ONLY: deleted with #6579 (the defect closing runs inside the host lander step; the pulled land job closes no landing test defect)' }, async t => { // budget: two real accept-to-merged landings in a private repo; hang ceiling, not speed.
   const { box, reviewer } = await fixture(t);
   const first = await submitted(box, 'first');
   const defect = fileDefect(box, '11111111-1111-4111-8111-111111111111');
@@ -124,7 +124,7 @@ test('clause 1: after the held cases pass at one trunk commit the automatic land
   assert.equal((await closings(box)).length, 1, 'the closing is recorded once');
 });
 
-test('clause 2: a new red of the same cases after closure files a new defect, and the next landing goes ahead beside it [C7,#5862]', { timeout: 300_000 }, async t => { // budget: one real accept-to-merged landing and one accept in a private repo; hang ceiling, not speed.
+test('clause 2: a new red of the same cases after closure files a new defect, and the next landing goes ahead beside it [C7,#5862]', { timeout: 300_000, skip: 'CONTROLLER_ONLY: deleted with #6579 (the defect closing runs inside the host lander step; the pulled land job closes no landing test defect)' }, async t => { // budget: one real accept-to-merged landing and one accept in a private repo; hang ceiling, not speed.
   const { box, reviewer } = await fixture(t);
   const first = await submitted(box, 'first');
   const defect = fileDefect(box, '22222222-2222-4222-8222-222222222222');

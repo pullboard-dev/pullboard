@@ -197,7 +197,7 @@ test('every hosted page state says what it is and what to do next [N26,H5]', { t
       } catch { /* The original wait failure stays the result. */ }
       throw error;
     }
-    const list = JSON.parse(await chrome.stable(`JSON.stringify({ note: document.querySelector('#local-note').hidden, side: document.querySelector('.side').getClientRects().length > 0, heading: document.querySelector('#proj-list .proj.on .pname')?.textContent, source: document.querySelector('#proj-list .proj.on .src')?.textContent, tab: document.querySelector('.tab.on')?.textContent, step: document.querySelector('#new-item').getClientRects().length > 0, state: JSON.parse(${shown}) })`));
+    const list = JSON.parse(await chrome.stable(`JSON.stringify({ note: document.querySelector('#local-note').hidden, side: document.querySelector('.side').getClientRects().length > 0, heading: document.querySelector('#proj-list .proj.on .pname')?.textContent, source: document.querySelector('#proj-list .proj.on .src')?.textContent, tab: document.querySelector('.tab.on')?.textContent, step: document.querySelector('[data-page-ctl="new"]')?.getClientRects().length > 0, state: JSON.parse(${shown}) })`));
     // Normal-list next actions use the view styles at both sizes and in both themes (outside review 950).
     for (const width of [390, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
