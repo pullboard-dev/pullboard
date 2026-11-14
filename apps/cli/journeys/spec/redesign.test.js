@@ -68,7 +68,7 @@ test('clause 1: Rulings lists only rows waiting for a ruling; clause 2: tabs kee
     assert.equal(anatomy.headingSize, '12.5px');
     assert.equal(anatomy.sections, 2);
     assert.match(anatomy.choice, /Rulings2/u);
-    assert.equal(anatomy.title, '2 drafts');
+    assert.equal(anatomy.title, '2 spec rows waiting for a ruling; the top bar counts the calls only you can make', '1e76f95cc4 words the Rulings tab title');
     assert.equal(await chrome.stable('document.querySelectorAll("[data-section-approve]").length'), 0, 'group headers carry no Approve all');
     await chrome.click('document.querySelector("[data-rows=\'spec:approved\']")');
     await chrome.waitFor('document.querySelector(\'#spec-list [data-row="spec:G2"]\')');
@@ -84,7 +84,7 @@ test('clause 1: Rulings lists only rows waiting for a ruling; clause 2: tabs kee
         buttons: [...node.querySelectorAll('.spec-detail-actions button')].map(button => button.textContent.trim()) };
     })())`));
     assert.equal(detail.sections, 1);
-    assert.equal(detail.size, '17px');
+    assert.equal(detail.size, '12.5px', 'detail title is 12.5px sans since ea98f47cbb');
     assert.match(detail.text, /Proved by/u);
     assert.match(detail.text, /Cited by/u);
     assert.match(detail.text, /#1 Citing native item/u);
