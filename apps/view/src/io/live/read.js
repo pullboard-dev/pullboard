@@ -20,6 +20,8 @@ const LOG_TAIL_BYTES = 1024 * 1024;
 const LANDING_RECORDS = 40;
 // Budget: a gating record older than a day is a batch that stopped without saying so, never a running gate.
 const GATING_STALE_MS = 24 * 3_600_000;
+// A runner that ran a job in the last day is a runner of this board, idle or not.
+const RUNNER_SEEN_MS = 24 * 3_600_000;
 
 /** The last bytes of a file as text, or '' when it cannot be read. */
 export function readTail(file, bytes = LOG_TAIL_BYTES) {
@@ -62,6 +64,20 @@ export function readPushedRunners(file, configured = []) {
 /** Parse a JSON column, or null when it is not JSON. */
 function parsed(text) {
   try { return JSON.parse(text); } catch { return null; }
+}
+
+/**
+ * The runners that ran this board's pulled jobs in the last day, by name without the per-session suffix: the local runner
+ * that ran every gate shows on the runner card even while it holds no lease and no job is live (#7763).
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - A board, read-only.
+ * @param {number} now
+ * @returns {string[]}
+ */
+export function readRecentJobRunners(db, now) {
+  const kinds = PULLED_KINDS.map(() => '?').join(', ');
+  return [...new Set(db.prepare(`SELECT DISTINCT job_lease_owner AS owner FROM job WHERE job_kind IN (${kinds}) AND job_lease_owner IS NOT NULL AND job_updated > ?`)
+    .all(...PULLED_KINDS, now - RUNNER_SEEN_MS).map(row => String(row.owner).replace(/-[0-9a-f]{6}$/u, '')))];
 }
 
 /**
@@ -183,7 +199,10 @@ export function readLiveRunners({ roots, now, resources, configured = [], openBo
     try {
       db = openBoardReadOnly(file);
       const hasJobs = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'job'").get();
-      if (hasJobs) jobs.push(...readPulledJobs(db, now));
+      if (hasJobs) {
+        jobs.push(...readPulledJobs(db, now));
+        for (const host of readRecentJobRunners(db, now)) if (!runners.some(runner => runner.host === host)) runners.push({ host, unavailable: false, holders: [] });
+      }
       const log = readTail(join(commonDir, 'pullboard', 'automatic-landing', 'worker.log'));
       if (hasJobs) landings.push(...readGatingLandings(db, { now, log, busyBatches }));
       fileTimes = { ...readFileTimes(commonDir), ...fileTimes };

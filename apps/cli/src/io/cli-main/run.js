@@ -164,6 +164,8 @@ async function runMain(argv, streams) {
     io.loadProcessPorts = undefined;
   };
   io.hookWorker = streams.hookWorker;
+  /** In-process tests widen the native hook's 2 s worker budget so a loaded machine cannot fake a timeout (#7800); the binary never sets it. */
+  io.hookTimeoutMs = streams.hookTimeoutMs;
   // In-process tests replace the detached audit launch; production always starts apps/cli/src/io/landing/audit.js.
   io.nudgeMainAudit = streams.nudgeMainAudit;
   /** Bind recursive CLI operations to this process root's native provider. */
