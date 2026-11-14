@@ -924,11 +924,12 @@ export function reportRunaway(board, { job, kind, attempts, detail }) {
 }
 
 /**
- * A land job whose push failed leaves its items accepted: offer the landing again, up to LAND_PUSH_RETRIES times, and
- * past that note each item and shout the coordinator the named refusal LAND_PUSH_FAILED. Why: the job was marked done
- * and nothing offered the items again, so an accepted item waited landing for good (#7791).
+ * A land job whose push failed, or whose proof ran past its deadline, leaves its items accepted: offer the landing again,
+ * up to LAND_PUSH_RETRIES times, and past that note each item and shout the coordinator the named refusal
+ * (LAND_PUSH_FAILED, or LAND_PROOF_TIMEOUT). Why: the job was marked done and nothing offered the items again, so an
+ * accepted item waited landing for good (#7791); a proof that never ended did the same with its lease renewed forever (#7820).
  */
-function retryFailedPush(board, job, named, receipt) {
+function retryFailedLanding(board, job, named, receipt, { code, what, next }) {
   const waiting = [...named].filter(id => { const item = store.getItem(board, id); return item?.item_status === 'verified' && !item.item_merged_commit; });
   if (!waiting.length) return;
   const detail = String(receipt.detail ?? 'no detail recorded').trim();
@@ -938,9 +939,9 @@ function retryFailedPush(board, job, named, receipt) {
     try { again = reofferLandingJob(board.db, job); } catch { again = null; }
   }
   const tail = again ? `offered land job ${again.id} (retry ${again.retry} of ${LAND_PUSH_RETRIES})`
-    : `LAND_PUSH_FAILED after ${tries + 1} tries; next: fix the trunk push, then pullboard land`;
-  for (const id of waiting) store.appendFact(board, id, { agentId: 'coordinator', kind: 'note', text: `Land job ${job} push-failed: ${detail}; ${tail}`.slice(0, 900) });
-  if (!again) store.persistShout(board, { from: 'coordinator', to: 'coordinator', text: `LAND_PUSH_FAILED: land job ${job} could not push trunk (${detail.slice(0, 200)}); ${waiting.map(id => `#${id}`).join(' ')} stay accepted; next: fix the trunk push, then pullboard land`.slice(0, 600) });
+    : `${code} after ${tries + 1} tries; next: ${next}`;
+  for (const id of waiting) store.appendFact(board, id, { agentId: 'coordinator', kind: 'note', text: `Land job ${job} ${what}: ${detail}; ${tail}`.slice(0, 900) });
+  if (!again) store.persistShout(board, { from: 'coordinator', to: 'coordinator', text: `${code}: land job ${job} ${what} (${detail.slice(0, 200)}); ${waiting.map(id => `#${id}`).join(' ')} stay accepted; next: ${next}`.slice(0, 600) });
 }
 
 /**
@@ -959,7 +960,8 @@ export function applyLandingReceipt(board, { job, receipt }) {
   const returned = receipt ? returnLandedReds(board, job, named, receipt, offered.payload?.publish === 'separate') : [];
   // A red's failing cases become observations after the items go back, once per receipt (the job's receipt applies once) [C7,H16].
   if (receipt?.red) { try { recordLandedRed(board, { job, receipt, item: returned[0] ?? null }); } catch { /* a diagnostic that cannot record leaves the red as it was */ } }
-  if (receipt?.outcome === 'push-failed') retryFailedPush(board, job, named, receipt);
+  if (receipt?.outcome === 'push-failed') retryFailedLanding(board, job, named, receipt, { code: 'LAND_PUSH_FAILED', what: 'push-failed', next: 'fix the trunk push, then pullboard land' });
+  if (receipt?.outcome === 'proof-timeout') retryFailedLanding(board, job, named, receipt, { code: 'LAND_PROOF_TIMEOUT', what: 'proof ran past its deadline', next: 'find the slow or stuck test file on the runner, then pullboard land' });
   if (receipt?.outcome !== 'landed' || !SHA.test(receipt.trunk ?? '')) return { applied: returned.length > 0, outcome: String(receipt?.outcome ?? 'unknown'), returned };
   const waivers = new Map((offered.payload?.waivers ?? []).map(waiver => [waiver.id, waiver]));
   const waived = (Array.isArray(receipt.waived) ? receipt.waived : []).map(row => {

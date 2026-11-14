@@ -11,6 +11,9 @@ import { RUNNER_POLICY_FILE } from '../../../../sandbox/light.js';
 import { runnerPolicyRecord } from '../../../../sandbox/light.js';
 import { amendLandingEngines } from '../derive.js';
 import { amendLandingRegistries } from '../derive.js';
+import { proofLimitMs } from './deadline.js';
+import { timeoutDetail } from './deadline.js';
+import { watchDeadline } from './deadline.js';
 
 /** The board's landing job kind, as packages/api offers it. */
 export const LANDING_JOB_KIND = 'land';
@@ -128,19 +131,29 @@ const FAILED_CASE = /^\s*(?:not ok \d+|\u2716 )/u;
 /**
  * Run one check command in the merged tree; exit 0 is green. Its red names the command and its first failing case with
  * the lines after it, so the item's builder reads which case failed, as 0.9.3's landing told them [P7].
+ * A `deadline` ({ at, ms }, or null) that passes first stops the command's process tree and returns `timeout: true`, never a red [C7,#7820].
  */
-export function commandCheck(argv) {
+export function commandCheck(argv, { deadline = null } = {}) {
   return ({ root }) => new Promise(resolve => {
     // An enclosing node --test run's context never reaches the project's check, which then reports as its own run.
     const { NODE_TEST_CONTEXT, ...env } = process.env;
     const child = spawn(argv[0], argv.slice(1), { cwd: root, stdio: ['ignore', 'pipe', 'pipe'], env });
     const named = argv.at(-1).slice(0, 200);
-    let output = '';
+    let output = '', settled = false;
+    const clear = watchDeadline(child, deadline, limitMs => {
+      if (settled) return undefined;
+      settled = true;
+      const result = { ok: false, timeout: true, detail: timeoutDetail(`check ${named}`, limitMs, output) };
+      return () => resolve(result);
+    });
     const keep = chunk => { if (output.length < 200_000) output += chunk.toString('utf8'); };
     child.stdout.on('data', keep);
     child.stderr.on('data', keep);
-    child.on('error', error => resolve({ ok: false, detail: `${named}: ${String(error.message).slice(0, 300)}` }));
+    child.on('error', error => { clear(); if (!settled) { settled = true; resolve({ ok: false, detail: `${named}: ${String(error.message).slice(0, 300)}` }); } });
     child.on('close', (code, signal) => {
+      clear();
+      if (settled) return;
+      settled = true;
       if (code === 0) return resolve({ ok: true, detail: null });
       const lines = output.split('\n');
       const at = lines.findIndex(line => FAILED_CASE.test(line));
@@ -179,21 +192,26 @@ function landingGuards(payload, phases) {
  */
 async function landingCheck(payload, env, phases = null) {
   const prove = payload.proof || payload.deferred ? (await import('./proof.js')).ledgerProofCheck : null;
+  // One deadline for the whole check, set when it starts: every command and the proof stop their trees when it passes (#7820).
+  const limit = proofLimitMs(payload, env);
+  let deadlineAt = null;
+  const deadline = () => deadlineAt === null || limit === null ? null : { at: deadlineAt, ms: limit };
   return async context => {
+    if (limit !== null) deadlineAt = Date.now() + limit;
     const merged = new Set(context.items);
     const files = (payload.proof?.files ?? []).filter(file => existsSync(join(context.root, file)));
     // role: which of the item's own check and the job's proof a red came from, so a paired rerun uses that command's runner.
     // The board's staticChecks guard runs on the merged tree before any test; its red returns the item that turned it red [C7,#7492].
-    const staticGuard = payload.staticChecks ? (await import('./static.js')).staticGuardCheck(payload.staticChecks, commandCheck) : null;
+    const staticGuard = payload.staticChecks ? (await import('./static.js')).staticGuardCheck(payload.staticChecks, argv => commandCheck(argv, { deadline })) : null;
     const guard = staticGuard && (context => timed(phases, 'static checks', () => staticGuard(context)));
-    const parts = [['check', landingGuards(payload, phases)], ...(guard ? [['check', guard]] : []), ...payload.items.filter(entry => merged.has(entry.id) && typeof payload.checks?.[entry.id] === 'string').map(entry => ['check', commandCheck(['sh', '-c', payload.checks[entry.id]])]),
-      ...(payload.check ? [['proof', commandCheck(payload.check)]] : []),
-      ...(prove && files.length ? [['proof', prove({ ...payload.proof, files }, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [] })]] : [])];
+    const parts = [['check', landingGuards(payload, phases)], ...(guard ? [['check', guard]] : []), ...payload.items.filter(entry => merged.has(entry.id) && typeof payload.checks?.[entry.id] === 'string').map(entry => ['check', commandCheck(['sh', '-c', payload.checks[entry.id]], { deadline })]),
+      ...(payload.check ? [['proof', commandCheck(payload.check, { deadline })]] : []),
+      ...(prove && files.length ? [['proof', prove({ ...payload.proof, files }, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [], deadline })]] : [])];
     // Files an item's submit deferred to this landing run on the merged tree once their item is in it; a red returns the item [C7].
     const deferred = payload.deferred && typeof payload.deferred.runner === 'string' ? payload.deferred : null;
     if (deferred && prove) for (const entry of payload.items.filter(row => merged.has(row.id))) {
       const owed = (deferred.files?.[String(entry.id)] ?? []).filter(file => existsSync(join(context.root, file)));
-      if (owed.length) parts.push(['proof', prove({ runner: deferred.runner, files: owed, ledger: null }, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [] })]);
+      if (owed.length) parts.push(['proof', prove({ runner: deferred.runner, files: owed, ledger: null }, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [], deadline })]);
     }
     // Affected tests no submit proved (contracts main gained since, deferred journeys) run on the tree being checked [C7,#7378].
     const contractPart = payload.contracts ? (await import('./contracts.js')).contractCheck(payload, env) : null;
@@ -204,7 +222,7 @@ async function landingCheck(payload, env, phases = null) {
       if (result?.proof) proof = result.proof;
       if (result?.contracts) contracts = result.contracts;
       if (result?.waived?.length) waived = result.waived;
-      if (!result?.ok) return { ok: false, detail: result?.detail ?? 'the landing check failed', role, ...(result?.guard ? { guard: result.guard } : {}), ...(typeof result?.output === 'string' ? { output: result.output } : {}), ...(proof ? { proof } : {}), ...(contracts ? { contracts } : {}) };
+      if (!result?.ok) return { ok: false, detail: result?.detail ?? 'the landing check failed', role, ...(result?.timeout ? { timeout: true } : {}), ...(result?.guard ? { guard: result.guard } : {}), ...(typeof result?.output === 'string' ? { output: result.output } : {}), ...(proof ? { proof } : {}), ...(contracts ? { contracts } : {}) };
     }
     return { ok: true, detail: null, ...(waived ? { waived } : {}), ...(proof ? { proof } : {}), ...(contracts ? { contracts } : {}) };
   };
@@ -247,6 +265,7 @@ async function isolateReds(root, { base, trunk, pending, check, renew, payload }
     const derived = await deriveMerged(root, { base, badges: payload.badges });
     admitTrunk(root, { trunk, base });
     const result = derived ? { ok: false, detail: derived } : await check({ root, base, items: [...kept, entry.id], renew });
+    if (result?.timeout) return { timeout: result.detail };
     if (result?.ok) { kept.push(entry.id); continue; }
     red.push(entry.id);
     if (result?.guard) guards.set(entry.id, result.guard);
@@ -283,7 +302,7 @@ function firstMerges(root, base, tip, pending) {
  * @param {{ workdir: string, checks?: (context: { root: string, base: string, items: number[], renew: () => Promise<boolean> | boolean }) => Promise<{ ok: boolean, detail?: string | null }> | { ok: boolean, detail?: string | null },
  *   renew?: () => boolean | Promise<boolean>, diagnose?: Function | null, attempts?: number, pushOptions?: () => string[], env?: NodeJS.ProcessEnv }} options - env: the proof's environment, a pulled job's so its ledger context key matches the gate's; pushOptions: the current lease's landing permit as git push options.
  * `diagnose` (from the runner's handler setup, since packages never import apps) reads a red's failing cases and pairs them: ({ root, base, output, role, flakes, head, tree }) => the receipt's `red` record, or null.
- * @returns {Promise<{ kind: string, outcome: 'landed' | 'conflict' | 'red' | 'item-moved' | 'trunk-busy' | 'lease-lost' | 'push-failed',
+ * @returns {Promise<{ kind: string, outcome: 'landed' | 'conflict' | 'red' | 'item-moved' | 'trunk-busy' | 'lease-lost' | 'push-failed' | 'proof-timeout',
  *   expect: string, base: string | null, trunk: string | null, landed: number[], already: number[], attempts: number, moved: string[], detail: string | null,
  *   returned: { id: number, reason: 'red' | 'conflict', detail: string }[] }>} returned: the items the board sends back to their builders, or parks
  *   under separate publish (payload.publish), as 0.9.3's landing did; a red outcome lands nothing.
@@ -341,6 +360,8 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     if (result?.contracts) receipt.contracts = result.contracts;
     // A proof red only in tests the person waived lands waived, not green; the receipt names each waiver [#655].
     if (result?.ok && result.waived?.length) receipt.waived = result.waived;
+    // A check that ran past its deadline is no red: nothing is returned to a builder, and the board offers the landing again [C7,#7820].
+    if (result?.timeout) return done('proof-timeout', { detail: result.detail });
     if (!result?.ok) {
       // The red's failing cases, and their paired reruns when the offer turned reruns on, are read while the merged tree is still checked out [C7,H16].
       if (!receipt.red && typeof diagnose === 'function' && payload.flakes && typeof result?.output === 'string') {
@@ -351,6 +372,7 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
       const found = pending.length > 1 ? await isolateReds(root, { base, trunk, pending, check, renew, payload })
         : { kept: [], red: [pending[0].id], detail: `#${pending[0].id}: ${result?.detail ?? 'the landing check failed'}`, guards: new Map(result?.guard ? [[pending[0].id, result.guard]] : []) };
       if (!found) return done('lease-lost', { detail: 'the job\'s lease moved to another runner during its culprit search' });
+      if (found.timeout) return done('proof-timeout', { detail: found.timeout });
       receipt.detail ??= result?.detail ?? 'the landing check failed';
       for (const id of found.red) giveBack(id, 'red', found.red.length === 1 && found.detail ? found.detail : `#${id} turns the merged tree red: ${found.details?.get(id) ?? found.detail ?? result?.detail}`, found.guards?.get(id));
       // Per-item landing, the default, lands the clean rest as separate publish does; perItem false lands nothing red [C7,#2901].

@@ -655,7 +655,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   };
   /** Run a handled kind's handler under a lease the caller keeps, and post its result as the receipt. */
   const runHandled = async (claim, held, workCache, name, renew) => {
-    let receipt;
+    let receipt, environment = null;
     // A land job's proof runs under the same environment a gate job does, so its ledger context key matches the gate's [P7].
     liveEnvironments.add(name);
     try {
@@ -665,13 +665,21 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
         claim = { ...claim, payload: { ...claim.payload, ...asked?.request?.land } };
       }
       // The runner's own install rides as PULLBOARD_RUNNER_TOOLS, as a gate job's does, so a proof's trusted step judges a non-Pullboard fixture the same way (#7816).
-      receipt = await handlers[claim.kind](claim, { cache: workCache, renew, env: { ...jobEnvironment(cache, name, claim.job).env, PULLBOARD_RUNNER_TOOLS: RUNNER_TOOLS } });
+      environment = jobEnvironment(cache, name, claim.job);
+      receipt = await handlers[claim.kind](claim, { cache: workCache, renew, env: { ...environment.env, PULLBOARD_RUNNER_TOOLS: RUNNER_TOOLS } });
     } catch (error) {
       // A handler that could not run (a fetch, a full disk) is an infrastructure wait: hand the job back, never a red receipt.
       say(`releasing ${claim.job}: ${error?.message ?? error}`);
       await reliably({ action: 'release', ...held, reason: String(error?.message ?? error) }).catch(refusal => { if (refusal.code !== 'JOB_LEASE_MOVED') throw refusal; });
       return { outcome: 'released' };
-    } finally { liveEnvironments.delete(name); }
+    } finally {
+      // Whatever the handler ended with, a proof that timed out included, nothing it started outlives it: processes naming its environment folder (a test's home and tmp) end before the receipt posts; never the landing checkout, which a runner may run its own code from (#7820).
+      if (environment) {
+        const survivors = await reapJob(claim.job, undefined, { folder: environment.folder, graceMs: reapMs }).catch(() => []);
+        if (survivors.length) say(`killed ${survivors.length} leftover process(es) of ${claim.job}: ${survivors.join(' ')}`);
+      }
+      liveEnvironments.delete(name);
+    }
     try {
       await reliably({ action: 'receipt', ...held, receipt });
       say(`posted ${claim.job}: ${receipt?.outcome ?? 'done'}`);
