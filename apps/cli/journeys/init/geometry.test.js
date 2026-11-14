@@ -23,6 +23,7 @@ import {
   pickProject,
   press,
 } from '../../tests/fixtures/cockpit/harness.js';
+import { pressTab } from '../../tests/fixtures/cockpit/stable.js';
 
 test('the view shows what is new once after an upgrade [N26]', async () => {
   const executable = chromeExecutable();
@@ -50,7 +51,7 @@ test('the view shows what is new once after an upgrade [N26]', async () => {
       /** Wait for this document's actual board state and script, including after a server restart. */
       const ready = async (version, root) => {
         await chrome.waitFor(`!window.__oldUpgradeDocument && typeof data === 'object' && data?.project?.releaseNotes?.version === ${JSON.stringify(version)} && data.project.root === ${JSON.stringify(root)}`);
-        await chrome.click("document.querySelector('[data-tab=items]')");
+        await pressTab(chrome, 'items');
         await chrome.waitFor(`document.querySelector('#chain .row')`);
       };
       await ready('0.8.4', alpha.repo);

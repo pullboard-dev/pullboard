@@ -20,6 +20,7 @@ import {
   openSnapshotChrome,
   closeSnapshotChrome,
 } from '../../tests/fixtures/cockpit/harness.js';
+import { pressTab } from '../../tests/fixtures/cockpit/stable.js';
 
 /** Import ordered native event-shaped fixture records, leaving mutable items visibly open. */
 function seedWindows(box, demo) {
@@ -75,7 +76,7 @@ test('window overview renders canonical seeded values, directions, shares and mi
     await chrome.send('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
     await chrome.send('Page.navigate',{url:server.link.href});
     await chrome.waitFor('!!data?.project && !!document.querySelector("[data-tab=activity]")');
-    await chrome.click('document.querySelector("[data-tab=activity]")'); // the two-hour comparison lives on Activity
+    await pressTab(chrome, 'activity'); // the two-hour comparison lives on Activity
     await chrome.waitFor('document.querySelector("#activity-compare .window-comparison") && data.project.statsComparison.available');
     const result=JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const c=data.project.statsComparison, root=document.querySelector('#activity-compare .window-comparison');

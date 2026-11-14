@@ -24,7 +24,6 @@ import {
   startView,
   element,
   openPage,
-  agentEntries,
   itemRow,
   chromeExecutable,
   openSnapshotChrome,
@@ -45,8 +44,10 @@ test('ages stay true while the board is quiet [N26]', async () => {
     const ages = () => ({
       row: /<time data-ago="[^"]+">([^<]*)<\/time>/.exec(itemRow(page.show('chain'), 1))?.[1],
       needs: /<span class="needs-age"><time data-ago="[^"]+">([^<]*)<\/time>/.exec(page.show('needs'))?.[1],
-      agent: agentEntries(page.show('agents')).find((agent) => agent.id === 'web-1')?.age,
-      shout: /<time class="conversation-time" data-ago="[^"]+" title="[^"]*">([^<]*)<\/time>/.exec(page.show('feed'))?.[1],
+      // The agents rail is one line per agent (#6844); its age is the line's own <time>.
+      agent: /data-agent="web-1"[^>]*>[^]*?<time[^>]*>([^<]*)<\/time>/.exec(page.show('agents'))?.[1],
+      // A shout row names its age in the row's right edge (#7572).
+      shout: /<span class="sx-r1">(?:<span class="sx-act">[^<]*<\/span>)?<time data-ago="[^"]+">([^<]*)<\/time>/.exec(page.show('feed'))?.[1],
     });
     assert.deepEqual(ages(), { row: 'now', needs: 'now', agent: 'now', shout: 'now' });
     const rebuilds = () => ['chain', 'needs', 'agents', 'feed'].map((id) => page.element(id).writes);
@@ -55,7 +56,7 @@ test('ages stay true while the board is quiet [N26]', async () => {
     // Three hours pass, nothing on the board changes, and the minute timer fires.
     page.run('const D = Date; globalThis.Date = class extends D { constructor(...a) { super(...(a.length ? a : [D.now() + 3 * 3600e3])); } static now() { return D.now() + 3 * 3600e3; } };');
     page.run('tickAges()');
-    assert.deepEqual(ages(), { row: '3h', needs: '3h', agent: '3h', shout: '3h ago' }, 'a shout says how long ago in words');
+    assert.deepEqual(ages(), { row: '3h', needs: '3h', agent: '3h', shout: '3h' }, 'a shout row says how long ago');
     assert.deepEqual(rebuilds(), before, 'each age moved where it stands; nothing was rebuilt');
   } finally {
     await view.stop();
@@ -72,7 +73,8 @@ test('times say which day they were [N26]', async () => {
   try {
     const days = (html) => [...html.matchAll(/<h4 class="day">([^<]*)<\/h4>|<div class="day-rule" role="separator"><span>([^<]*)<\/span><\/div>/g)].map((match) => match[1] ?? match[2]);
     // A shout says how long ago it was, with its clock time on hover.
-    const ages = (html) => [...html.matchAll(/<time class="conversation-time" data-ago="[^"]+" title="([^"]*)">([^<]*)<\/time>/g)].map((match) => [match[2], match[1]]);
+    // The one-line rows (#7572): today's row says its age; an earlier row says its date.
+    const ages = (html) => [...html.matchAll(/<span class="sx-r1">(?:<span class="sx-act">[^<]*<\/span>)?<time[^>]*>([^<]*)<\/time>/g)].map((match) => match[1]);
     const times = (html) => [...html.matchAll(/<time>([^<]*)<\/time>/g)].map((match) => match[1]);
     const bare = (list) => list.length > 0 && list.every((time) => /^\d{1,2}:\d\d [AP]M$/.test(time));
 
@@ -83,13 +85,14 @@ test('times say which day they were [N26]', async () => {
     // The redesigned Activity (#6916) groups rows by hour card and draws no day headings or <time> clocks, so the day-name and
     // bare-clock assertions on it have no equivalent; the hour card names its hour and a row says its age.
     assert.deepEqual(days(now.show('feed')), [], 'shouts from today need no rule above them');
-    assert.deepEqual(ages(now.show('feed')).map(([age, clock]) => [age, /^\d{1,2}:\d\d [AP]M$/.test(clock)]), [['now', true]], 'a shout from today says now, its clock time on hover');
+    assert.deepEqual(ages(now.show('feed')), ['now'], 'a shout from today says now');
     assert.ok(bare(times(now.show('detail'))), 'a history from today shows bare times');
 
     const tomorrow = await openPage(view, { later: 1 });
     await tomorrow.click({ tab: 'shouts' });
     await tomorrow.click({ tab: 'activity' });
-    assert.deepEqual(days(tomorrow.show('feed')), ['Yesterday']);
+    assert.deepEqual(ages(tomorrow.show('feed')), [], 'a shout from an earlier day leaves the rows and folds under Earlier (#7572)');
+    assert.match(tomorrow.show('feed'), /Earlier/);
 
     const weekday = new Date().toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
     const date = new Date().toLocaleDateString([], { month: 'short', day: 'numeric' });
@@ -97,8 +100,7 @@ test('times say which day they were [N26]', async () => {
     await later.click({ tab: 'shouts' });
     await later.click({ tab: 'items' });
     await later.click({ tab: 'activity' });
-    assert.deepEqual(days(later.show('feed')), [weekday], 'two days on, the feed names the day');
-    assert.deepEqual(ages(later.show('feed')).map(([age, clock]) => [age, new RegExp(`^${date} \\d{1,2}:\\d\\d [AP]M$`).test(clock)]), [['2d ago', true]], 'a shout says how long ago, with its date and time on hover');
+    assert.deepEqual(ages(later.show('feed')), [], 'a shout from two days ago stays folded under Earlier');
     const history = times(later.show('detail'));
     assert.ok(history.length >= 6 && history.every((time) => new RegExp(`^${date} \\d{1,2}:\\d\\d [AP]M$`).test(time)), `the history dates every move including its proof receipt and each note: ${history}`);
 

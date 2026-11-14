@@ -53,15 +53,16 @@ test('a sent-back reason reads once [N26]', { timeout: 90_000 }, async () => {
         await chrome.waitFor(`document.querySelector('#detail h2')?.textContent.includes('${title}')`);
         const rendered = JSON.parse(await chrome.stable(`JSON.stringify({
           row: [...document.querySelectorAll('#chain .row[data-item="${id}"] .meta :is(.item-reason, .why)')].map((part) => part.textContent).join(' '),
-          card: document.querySelector('#detail .sentback .verdict .note')?.textContent,
-          reason: document.querySelector('#detail .sentback .verdict b')?.textContent,
-          reasonCode: document.querySelector('#detail .sentback .verdict b [title]')?.title,
+          // The item panel draws the latest verdict as a Sent back card (logic/panel/item.js, f62f4d8462): a chip, then the note.
+          card: document.querySelector('#detail .ip-verdict.sentback .ip-vn.note')?.textContent,
+          reason: document.querySelector('#detail .ip-verdict.sentback .ip-chip')?.textContent,
+          reasonCode: document.querySelector('#detail .ip-verdict.sentback .ip-chip')?.title,
         })`));
         const fit = JSON.parse(await chrome.stable(`JSON.stringify((() => { const why = document.querySelector('#chain .row[data-item="${id}"] .meta .item-reason'), style = getComputedStyle(why), meta = why.parentElement.getBoundingClientRect(); return { ellipsis: style.textOverflow === 'ellipsis' && style.overflow === 'hidden' && style.whiteSpace === 'nowrap', inside: why.getBoundingClientRect().right <= meta.right + 1, cut: why.scrollWidth > why.clientWidth }; })())`));
         assert.deepEqual([fit.ellipsis, fit.inside], [true, true], `${width}px item #${id}: the reason ends inside its line and an ellipsis marks any cut`);
         assert.equal(rendered.row, expectedRow, `${width}px item #${id}: the row shows the readable reason once`);
         assert.equal(rendered.card, expectedCard, `${width}px item #${id}: the card removes only a duplicated leading code`);
-        assert.equal(rendered.reason, 'Sent back · Behavior did not match', `${width}px item #${id}: the card retains its verdict heading`);
+        assert.equal(rendered.reason, 'Behavior did not match', `${width}px item #${id}: the card retains its verdict chip`);
         assert.equal(rendered.reasonCode, 'BEHAVIOR_MISMATCH', `${width}px item #${id}: the raw verdict reason remains in its tooltip`);
       }
     }

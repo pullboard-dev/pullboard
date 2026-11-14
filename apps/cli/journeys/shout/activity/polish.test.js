@@ -57,13 +57,14 @@ test('Activity keeps shout words light, questions and item chips clear, and work
     for (const width of [1280, 375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 700 });
       await chrome.waitFor('innerWidth === ' + width);
-      const state = JSON.parse(await chrome.stable('JSON.stringify((() => { const rows=[...' + shoutRows + ']; return { overflow:document.documentElement.scrollWidth>innerWidth, shouts:rows.filter(row=>row.querySelector(".act-chip")?.textContent==="Shout").map(row=>{const q=row.querySelector(".ph");return {text:q.textContent,fact:row.querySelector(".fa").textContent,literalElements:q.querySelectorAll("*").length,ellipsis:getComputedStyle(q).textOverflow}}), claim:(()=>{const row=document.querySelector("#activity .act-row[data-row=\\"1\\"]");return row?{ph:row.querySelector(".ph").textContent,fa:row.querySelector(".fa").textContent,chip:row.querySelector(".act-chip").textContent}:null})() }; })())'));
+      const state = JSON.parse(await chrome.stable('JSON.stringify((() => { const rows=[...' + shoutRows + ']; return { overflow:document.documentElement.scrollWidth>innerWidth, shouts:rows.filter(row=>row.querySelector(".act-chip")?.textContent==="Shout").map(row=>{const q=row.querySelector(".ph");return {text:q.textContent,fact:row.querySelector(".fa").textContent,literalElements:q.querySelectorAll("*:not(a.ref)").length,ellipsis:getComputedStyle(q).textOverflow}}), claim:(()=>{const row=document.querySelector("#activity .act-row[data-row=\\"1\\"]");return row?{ph:row.querySelector(".ph").textContent,fa:row.querySelector(".fa").textContent,chip:row.querySelector(".act-chip").textContent}:null})() }; })())'));
       assert.equal(state.overflow, false, width + ': Activity has no horizontal overflow');
       const agent = state.shouts.find(row => /^from web-1/u.test(row.fact));
       const coordinator = state.shouts.find(row => /^from coordinator/u.test(row.fact));
       assert.ok(agent && coordinator, 'both native messages render: ' + JSON.stringify(state.shouts));
       assert.match(agent.fact, /to coordinator/u);
       for (const row of [agent, coordinator]) {
+        // A cited #N is a linked reference by design [N38]; any other element would be literal markup made real.
         assert.equal(row.literalElements, 0, 'literal agent markup never becomes an element');
         assert.ok(row.text.includes(words.trim()), 'the full native words remain in the DOM');
         assert.equal(row.ellipsis, 'ellipsis', width + ': the quote is one line with an ellipsis');
