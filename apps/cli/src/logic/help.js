@@ -46,7 +46,7 @@ const HELP_EXAMPLES = {
   'milestone pin': 'pullboard milestone pin "0.7.0" 13 --reason "the release notes need it first"',
   'milestone sink': 'pullboard milestone sink "0.7.0" 12 --reason "waits on a design answer"',
   'milestone lift': 'pullboard milestone lift "0.7.0" 12,13',
-  runner: 'pullboard runner add studio --slots 2 --browser 1', 'runner add': 'pullboard runner add studio --slots 2 --browser 1',
+  runner: 'pullboard runner add you@build-host --slots 2 --browser 1', 'runner add': 'pullboard runner add you@build-host --slots 2 --browser 1',
   edit: 'pullboard edit 12 --brief "Add the upload page"', release: 'pullboard release 12 --reason BLOCKED',
   land: 'pullboard land',
   map: 'pullboard map',
@@ -218,7 +218,7 @@ const PERSON_SET_KIND = Object.freeze({ 'budget.dailyUsd': 'usd', 'budget.totalU
 function settingFormHelp(commands) {
   return Object.fromEntries(SETTING_FORMS.filter((form) => !commands[`settings ${form}`]).map((form) => [`settings ${form}`, Object.freeze({
     usages: [`pullboard settings ${form} ${PERSON_SET_KIND[form] ? PERSON_SET_USAGE[PERSON_SET_KIND[form]][0] : ['landing.pool', 'gate.runnersOnly', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'inspection.clauses'].includes(form) ? 'on|off' : form === 'workers.budget' ? '<spend>/day|week' : form === 'runnerRates' ? '<runner> <price> <months> <watts> <kwhPrice>' : '<n>'}`], flags: [`${WHY_FLAG} — ${WHY_EXPLANATION}`],
-    example: `pullboard settings ${form} ${PERSON_SET_KIND[form] ? PERSON_SET_USAGE[PERSON_SET_KIND[form]][1] : ['landing.pool', 'gate.runnersOnly', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'inspection.clauses'].includes(form) ? 'on' : form === 'workers.budget' ? '40/day' : form === 'runnerRates' ? 'studio.local 1200 36 85 0.14' : '2'}`, notes: [],
+    example: `pullboard settings ${form} ${PERSON_SET_KIND[form] ? PERSON_SET_USAGE[PERSON_SET_KIND[form]][1] : ['landing.pool', 'gate.runnersOnly', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'inspection.clauses'].includes(form) ? 'on' : form === 'workers.budget' ? '40/day' : form === 'runnerRates' ? 'build-host.local 1200 36 85 0.14' : '2'}`, notes: [],
   })]));
 }
 
