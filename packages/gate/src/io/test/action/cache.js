@@ -457,13 +457,16 @@ export async function planTestActions(root, args, { fullSuite, landing = false, 
   const run = [];
   const hits = recordOnly ? new Map() : ledgerHitKeys(env);
   for (const file of selectors) {
-    // The ledger proved this file at this inputKey and context class, or main fails it at that identical key: a landing charges that red to main, never runs it [P7,CD2].
-    const hit = file.key && hits.get(`${file.path}\0${file.inputKey}\0${digest(file.context)}`); if (hit) {
+    // Main fails this file at this identical inputKey and context class: a landing charges that red to main, never runs it [P7,CD2].
+    const hit = file.key && hits.get(`${file.path}\0${file.inputKey}\0${digest(file.context)}`); if (hit === 'main red') {
       account.push(reusedAccount(store, file));
       results.set(file.path, { status: 'pass', source: 'ledger' });
       write(`# ${hit} ${file.inputKey} from ledger (${file.path})\n`);
       continue;
     }
+    // A reuse, from the ledger or this store, stands only on a stored green with its per-case outcomes: they are the
+    // file's test account. A ledger hit with no such entry here runs, since the gate refuses a file it cannot account
+    // for (TEST_SELECTION_UNVERIFIED) and a resubmit would only reuse more [C7,#7937].
     const entry = recordOnly ? null : reusableResult(store, file.key);
     const outcomes = entry && testResultOutcomes(entry);
     if (!entry || !outcomes || entry.file !== file.path || entry.inputKey !== file.inputKey
@@ -471,7 +474,7 @@ export async function planTestActions(root, args, { fullSuite, landing = false, 
     account.push(reusedAccount(store, file));
     reusedTestOutcomes.push(...outcomes);
     results.set(file.path, { status: 'pass', source: 'reused', key: entry.key, currentKey: file.key });
-    write(`# reused ${entry.key} from ${entry.stage} ${entry.commit} (${file.path})\n`);
+    write(hit ? `# ${hit} ${file.inputKey} from ledger (${file.path})\n` : `# reused ${entry.key} from ${entry.stage} ${entry.commit} (${file.path})\n`);
     write(`# result-origin ${JSON.stringify(entry.origin)}\n`);
     write(`${entry.tap.lines.join('\n')}\n# pass ${entry.tap.counts.passed}\n# fail ${entry.tap.counts.failed}\n# skipped ${entry.tap.counts.skipped}\n`);
   }
