@@ -98,7 +98,8 @@ async function affectedBatch(t, { stableBadges = false, inline = false, waive = 
   assert.equal(outcome.code, 0, outcome.out + outcome.err);
   const landing = await settleLand(box, JSON.parse(outcome.out));
   t.diagnostic(JSON.stringify({ receipt: landing.landJob.receipt, messages: outcome.err }));
-  if (waive && !opaque) {
+  // The pulled land job judges the merged tree by its own affected contracts, never the gate's output, so an opaque inline gate no longer hides the failure from the waiver [C7,V4].
+  if (waive) {
     assert.deepEqual(landing.landed, [item], 'an exact live waiver covers only the accounted affected failure');
     assert.equal(landing.batch.state, 'landed');
     assert.notEqual(box.git(box.repo, 'rev-parse', 'main'), main);
@@ -140,6 +141,6 @@ test('clause 1: a generated affected phase retains exact person waiver accountin
   await affectedBatch(t, { stableBadges: true, inline: true, waive: true });
 });
 
-test('clause 1: an opaque inline gate remains unaccounted despite an affected waiver [C7,V4]', async t => {
+test('clause 1: an opaque inline gate cannot hide an affected failure from the landing contracts and its waiver [C7,V4]', async t => {
   await affectedBatch(t, { stableBadges: true, inline: true, waive: true, opaque: true });
 });
