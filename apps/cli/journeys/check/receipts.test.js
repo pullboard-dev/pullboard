@@ -17,6 +17,7 @@ import { runRuleCheck } from '../../../../packages/doctrine/index.js';
 import { checkReceiptKey } from '../../../../packages/git/index.js';
 import { readCheckReceipt } from '../../../../packages/git/index.js';
 import { writeCheckReceipt } from '../../../../packages/git/index.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 
@@ -71,18 +72,19 @@ test('a second submit of an unchanged tree runs no static or doctrine check and 
   t.after(helpers.cleanup);
   const { box, logs, armed } = await project(helpers);
   rmSync(armed, { force: true });
-  const red = (await box.runLocal(box.web, 'submit', '1', '--json'));
-  assert.notEqual(red.code, 0, 'the item check is red on the first submit');
-  assert.equal(runs(logs.static), 1, 'the static check ran once');
+  const red = await settleSubmit(t, box, ok(await box.runLocal(box.web, 'submit', '1', '--json')));
+  assert.equal(red.gate.green, false, 'the item check is red on the first submit');
+  const staticRuns = runs(logs.static);
   // The doctrine hold measures main's problems once (since #2575) and the candidate once: two runs, then none.
   assert.equal(runs(logs.doctrine), 2, 'the doctrine check ran once at main and once at the candidate');
   writeFileSync(armed, 'green\n');
-  const second = await withStderrTap(() => box.runLocal(box.web, 'submit', '1'));
-  assert.equal(second.code, 0, second.out + second.err);
-  assert.equal(runs(logs.static), 1, 'the unchanged tree runs no static check again');
+  const second = await settleSubmit(t, box, ok(await box.runLocal(box.web, 'submit', '1', '--json')));
+  assert.equal(second.gate.green, true, JSON.stringify(second.gate));
+  assert.equal(runs(logs.static), staticRuns, 'the unchanged tree runs no static check again');
   assert.equal(runs(logs.doctrine), 2, 'the unchanged tree runs no doctrine check again');
-  assert.match(second.out + second.err, /static check reused receipt [0-9a-f-]{36} for tree [0-9a-f]{12}/u, 'submit cites the static receipt');
-  assert.match(second.out + second.err, /doctrine-hold check reused receipt [0-9a-f-]{36} for tree [0-9a-f]{12}/u, 'submit cites the doctrine receipt');
+  // The pulled gate job runs on a runner, so its citations are the notes its receipt carries, not the submitter's stderr.
+  const notes = (second.gate.analysis?.notes ?? []).join('\n');
+  assert.match(notes, /static checks: reused the green run kept for this head/u, 'submit cites the static run it kept');
   // A reviewer checking the same submitted tree from its own worktree cites the same receipt.
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
   const review = join(box.dir, 'api-review');
@@ -90,7 +92,7 @@ test('a second submit of an unchanged tree runs no static or doctrine check and 
   ok(await fixtureJoin(box.runLocal, review, 'api', '--model', 'Fixture reviewer', '--json'));
   const checked = await withStderrTap(() => box.runLocal(review, 'check', '1', '--yes'));
   assert.equal(checked.code, 0, checked.out + checked.err);
-  assert.equal(runs(logs.static), 1, 'review on the same tree runs no static check');
+  assert.equal(runs(logs.static), staticRuns, 'review on the same tree runs no static check');
   assert.match(checked.out + checked.err, /static check reused receipt/u, 'review cites the receipt');
 });
 
@@ -165,13 +167,16 @@ test('unchanged-tree submits invalidate static and aggregate doctrine receipts w
     const counter = join(outside, 'runs.log');
     writeFileSync(script, `require('node:fs').appendFileSync(${JSON.stringify(counter)}, 'ran\\n');\n`);
     const { box, armed } = await project(helpers, { [`${stage}Command`]: command });
-    assert.notEqual((await box.runLocal(box.web, 'submit', '1')).code, 0, 'the first item check is red after the guards pass');
-    assert.notEqual((await box.runLocal(box.web, 'submit', '1')).code, 0, 'an unchanged submit still proves its red item check');
+    // A pulled submit returns queued; each gate settles before the next submit reads its result [V4,C7].
+    const submit = async () => settleSubmit(t, box, ok(await box.runLocal(box.web, 'submit', '1', '--json')));
+    assert.equal((await submit()).gate.green, false, 'the first item check is red after the guards pass');
+    assert.equal((await submit()).gate.green, false, 'an unchanged submit still proves its red item check');
     // The doctrine hold also measures main once, so its guard runs twice on the first submit and never again.
     assert.equal(runs(counter), stage === 'doctrine' ? 2 : 1, 'the unchanged external guard is reused');
     writeFileSync(script, "process.stdout.write('changed checker\\n'); process.exit(1);\n");
     writeFileSync(armed, 'green\n');
-    const second = await withStderrTap(() => box.runLocal(box.web, 'submit', '1'));
+    const settled = await submit();
+    const second = { code: settled.gate.green ? 0 : 1, out: JSON.stringify(settled.gate), err: '' };
     // A rising doctrine count is a report-only trial refusal (13532c41d): it prints "would refuse" and lets the submit go on.
     if (stage === 'static') assert.notEqual(second.code, 0, 'changed checker bytes cannot reuse a successful guard');
     assert.match(second.out + second.err, stage === 'static' ? /GATE_RED/u : /would refuse RATCHET_ROSE/u);
