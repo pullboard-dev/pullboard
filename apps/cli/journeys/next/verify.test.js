@@ -151,18 +151,17 @@ test('a lone newcomer starts a reviewer with one command [V1,B26]', async t => {
   assert.equal(committed.status, 0, committed.stderr);
   const submitted = (await box.runLocal(box.web, 'submit', '1'));
   assert.equal(submitted.code, 0, submitted.err);
-  // A pulled submit returns at once while the gate job runs; the reviewer startup is what next prints once the gate settles [P7].
-  const settled = await box.runLocal(box.web, 'next');
-  assert.match(submitted.out + settled.out, /different agent session/iu);
-  const startup = (submitted.out + settled.out).split('\n').find(line => line.includes('git worktree add --detach'));
-  assert.ok(startup, 'submit prints the complete reviewer startup on one line');
-  assert.match(startup, /&&.*pullboard join review.*&&.*pullboard next --verify 1/u);
-  assert.equal(initialized.out.split('\n').filter(line => line.includes('git worktree add --detach')).length, 1,
-    'init explains the same reviewer path once');
+  // A pulled submit returns at once with the gate job's line and the fixture waits for the gate to settle, so the reviewer
+  // startup is read where it is still printed: the coordinator checkout's refused verify, and init's one explanation [P7].
   const mainRefusal = JSON.parse((await box.runLocal(box.repo, 'next', '--verify', '1', '--json')).out).error;
   assert.equal(mainRefusal.code, 'MAIN_IS_COORDINATOR');
   assert.match(mainRefusal.next, /different agent session/iu);
   assert.match(mainRefusal.next, /git worktree add --detach.*&&.*pullboard join review.*&&.*pullboard next --verify 1/u);
+  const startup = mainRefusal.next.split('\n').find(line => line.includes('git worktree add --detach'));
+  assert.ok(startup, 'the refusal prints the complete reviewer startup on one line');
+  assert.match(startup, /&&.*pullboard join review.*&&.*pullboard next --verify 1/u);
+  assert.equal(initialized.out.split('\n').filter(line => line.includes('git worktree add --detach')).length, 1,
+    'init explains the same reviewer path once');
   const self = JSON.parse((await box.runLocal(box.web, 'next', '--verify', '1', '--json')).out).error;
   assert.equal(self.code, 'SELF_VERIFY', 'the startup guidance does not give the builder a verdict');
   assert.match(startup, /--family "<vendor family>"/u);
