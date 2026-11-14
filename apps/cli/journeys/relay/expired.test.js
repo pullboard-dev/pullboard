@@ -501,7 +501,7 @@ test('a deleted-copy pending move survives interrupted cleanup and is returned o
   const savedCursor = captured.document.beforeCleanup.cursor;
   assert.equal(captured.document.beforeCleanup.firstCount, 1,
     'the pending native move is durable before link cleanup can be interrupted');
-  const next = await box.cliLocal('add', box.lane, 'new work after interrupted deletion cleanup');
+  const next = await box.cliLocal('add', box.lane, 'unrelated roadmap planning after the relay copy went away', '--not-duplicate-of', '2 different local work');
   assert.equal(next.code, 0, 'a fresh invocation completes cleanup and different local work: ' + JSON.stringify(next));
   const repeated = await box.cliLocal('add', box.lane, firstTitle);
   assert.equal(repeated.code, 0, 'the interrupted original command receives its retained native outcome');
@@ -513,7 +513,7 @@ test('a deleted-copy pending move survives interrupted cleanup and is returned o
   const marker = JSON.parse(readFileSync(join(box.root, '.git', 'pullboard', 'relay-deleted.json'), 'utf8'));
   assert.equal(JSON.stringify(marker).includes(state.token), false, 'the deletion notice retains no bearer credential');
   assert.equal(marker.recovered, undefined, 'reporting the original outcome consumes its recovery pointer');
-  assert.equal((await box.cliLocal('add', box.lane, firstTitle)).code, 0);
+  assert.equal((await box.cliLocal('add', box.lane, firstTitle, '--not-duplicate-of', '2 an intentional new copy')).code, 0);
   const later = await box.cliLocal('export');
   assert.equal(later.document.tables.item.filter(row => row.item_title === firstTitle).length, 2,
     'after reporting the retained outcome, the same command can intentionally make new local work');
