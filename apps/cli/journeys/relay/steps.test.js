@@ -60,7 +60,7 @@ test('IMPORT_NOT_EMPTY on relay join names a command the person runs, and runnin
   assert.equal(refusalDocument(Object.assign(new Error(error.message), { code: error.code, next: error.next }), { caller: 'person' }).error.next, error.next,
     'the person-facing refusal keeps the command');
   const followed = sh(scratch, error.next.slice(PERSON_RUNS.length) + ' --json');
-  assert.equal(followed.status, 0, `following the step joins: ${followed.stdout} ${followed.stderr}`);
+  assert.equal(followed.status, 0, `following the step joins: ${error.next} ${followed.stdout} ${followed.stderr} ${JSON.stringify(box.calls.slice(-6).map(call => call.method + ' ' + call.path))}`);
 });
 
 test('ACCOUNT_STORAGE_LIMIT names relay off in an unneeded project, and running it leaves the board working [C7,H17]', async t => {
