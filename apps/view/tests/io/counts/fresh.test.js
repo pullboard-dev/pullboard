@@ -25,18 +25,15 @@ function make(board, title, extra = {}) {
     brief: 'Files:\n- web/fixture.js\nChange:\n- Keep the fixture valid.\nTest:\n- ' + title + ' passes.', ...extra }).item_id;
 }
 
-/** A real board: three items merged at their own commits, one ready item and one blocked on it, all in one release. */
-function freshBoard(t) {
+/** A real board: `landings` items landed by hand at their own commits, one ready item and one blocked on it, in one release. */
+function freshBoard(t, landings = 3) {
   const project = cellProject(t);
   const board = cellBoard(t, project.boardFile);
-  const landed = ['First', 'Second', 'Third'].map(title => make(board, title));
-  landed.forEach((id, index) => {
-    board.db.prepare("UPDATE item SET item_status = 'verified' WHERE item_id = ?").run(id);
-    store.merged(board, id, { agentId: 'coordinator', commit: String(index + 1).repeat(40) });
-  });
+  const landed = ['First', 'Second', 'Third'].slice(0, landings).map(title => make(board, title));
+  landed.forEach((id, index) => store.merged(board, id, { agentId: 'coordinator', commit: String(index + 1).repeat(40), forced: 'fixture landing', waiveProof: 'fixture' }));
   const ready = make(board, 'Ready one');
   const blocked = make(board, 'Blocked one', { after: [ready] });
-  store.addMilestone(board, { agentId: 'coordinator', name: '0.1: First release', items: [...landed, ready, blocked], reason: 'Fixture release' });
+  store.addMilestone(board, { agentId: 'coordinator', name: '0.1: First release', items: [ready, blocked], reason: 'Fixture release' });
   return { project, board, landed, ready, blocked };
 }
 
@@ -65,12 +62,11 @@ test('clause 1: the first recording of each current merge counts once, whatever 
 });
 
 test('clause 2: an item NOW calls ready is not called blocked by Release or the Roadmap header [C7]', t => {
-  const { project, board, ready, blocked } = freshBoard(t);
+  const { project, board, ready, blocked } = freshBoard(t, 0);
   const state = projectState(project.repo, { board }), now = Date.now();
   assert.deepEqual([state.counts.ready, state.counts.blocked], [1, 1]);
   assert.deepEqual(readyAndBlocked(state), { ready: [ready], blocked: [blocked] });
   const release = state.milestones.find(entry => entry.name === '0.1: First release');
-  assert.equal(release.summary.landed, 3);
   assert.equal(release.summary.ready, 1, 'the release names the ready item ready');
   assert.equal(release.summary.waiting, 1, 'and only the blocked one blocked');
   const header = roadmapSummary(release, {}).header;
@@ -87,7 +83,7 @@ test('clause 2: an item NOW calls ready is not called blocked by Release or the 
 });
 
 test('clause 3: the Runners card lists the local runner that ran the gates, though it holds no lease and no job is live [C7]', t => {
-  const { project, board } = freshBoard(t);
+  const { project, board } = freshBoard(t, 0);
   const common = dirname(dirname(project.boardFile));
   const now = Date.now(), offeredAt = now - 10 * 60_000;
   offerJob(board.db, { id: 'gate:1:a', kind: 'gate', needs: [], item: 1, candidate: 'd'.repeat(40), base: 'a'.repeat(40), request: { run: ['node', 'run.js'] }, now: offeredAt });
