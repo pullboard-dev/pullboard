@@ -97,6 +97,8 @@ export function serviceFiles(root = REPO, entry = SERVICE_ENTRY) {
       const before = code.slice(Math.max(0, string.start - 24), string.start);
       const isData = URL_BEFORE.test(before) && URL_AFTER.test(code.slice(string.end, string.end + 40));
       if (!isData && !IMPORT_BEFORE.test(before)) continue;
+      // A string joined to another (`import('./stale-' + 'test-sweep.js')`) is half a specifier: a computed load the module declares and keeps out of the closure.
+      if (/^\s*\+/u.test(code.slice(string.end, string.end + 8))) continue;
       const specifier = string.text;
       if (specifier.startsWith('node:')) continue;
       if (isData && (specifier.includes('${') || /\.[cm]?js$/u.test(specifier))) continue;
