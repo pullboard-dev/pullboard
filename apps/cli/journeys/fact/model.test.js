@@ -31,11 +31,11 @@ async function declaring(box, model, ...args) {
 
 test('clause 1: a strong seat whose session declares a mid model is offered the mid item, never the strong one, through next [B13]', async () => {
   const { box, strong, mid } = strongSeatWithWork();
-  const next = await declaring(box, 'claude-sonnet-5-5', 'next', '--json');
+  const next = await declaring(box, 'fixture-mid-model', 'next', '--json');
   assert.equal(next.code, 0, next.out + next.err);
   const offered = JSON.parse(next.out);
   assert.equal(offered.item?.item_id ?? offered.id, mid, `next must offer the mid item, not strong #${strong}: ${next.out}`);
-  const whoami = JSON.parse((await declaring(box, 'claude-sonnet-5-5', 'whoami', '--json')).out);
+  const whoami = JSON.parse((await declaring(box, 'fixture-mid-model', 'whoami', '--json')).out);
   assert.equal(whoami.route, 'mid', 'the caller route is the declared model\'s route');
 });
 
