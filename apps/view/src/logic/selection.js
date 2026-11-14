@@ -1,7 +1,7 @@
 /** Select and order the Items view from explicit observations, without reading browser or board globals. */
 export function selectItemsView({ items, query = '', matchedIds = [], readyIds = [], stateById, state, lane, pipeline = false,
   dashboardList = null, dashboardNext = [], selectedId = null, currentBoard = true, adding = false, addressDetail = null,
-  tab = 'items', snapshot = false, ids = [] }) {
+  tab = 'items', snapshot = false, ids = [], finished = null }) {
   const matched = new Set(matchedIds);
   const named = new Set(ids);
   const ready = new Set(readyIds);
@@ -37,8 +37,10 @@ export function selectItemsView({ items, query = '', matchedIds = [], readyIds =
           : value === 'landed' ? mergedOf(item)
             : value === 'sent-back' ? ['open', 'claimed'].includes(item.status) && item.verdict?.decision === 'REJECT'
               : value === 'ids' ? named.has(item.id) : stateOf(item) === value);
+  // An open-first state left its verified items out; their count joins Verified and All until they load (#6697).
+  const unloaded = !selectedLane && Number.isSafeInteger(finished?.verified) ? finished.verified : 0;
   const stateOptions = Object.entries(names).map(([value, label]) => ({
-    value, label, count: matching.filter(inLane).filter(inState(value)).length,
+    value, label, count: matching.filter(inLane).filter(inState(value)).length + (value === 'verified' || value === 'all' ? unloaded : 0),
   }));
   const inView = pipeline ? matching.filter(item => item.status !== 'withdrawn') : matching.filter(inState(state));
   const laneCounts = [...inView.reduce((counts, item) => counts.set(item.lane, (counts.get(item.lane) || 0) + 1), new Map())]
@@ -51,7 +53,7 @@ export function selectItemsView({ items, query = '', matchedIds = [], readyIds =
     : dashboardList === 'review' && state === 'verify'
       ? (a.since || a.updatedAt).localeCompare(b.since || b.updatedAt)
       : b.updatedAt.localeCompare(a.updatedAt));
-  const finishedUnderAll = !shown.length && items.length > 0 && items.every(item => stateOf(item) === 'verified')
+  const finishedUnderAll = !shown.length && (items.length > 0 ? items.every(item => stateOf(item) === 'verified') : unloaded > 0)
     && tab === 'items' && !pipeline && state === 'active' && !selectedLane && !query && !snapshot;
   const nextSelectedId = currentBoard && !adding && !(tab === 'items' && addressDetail !== null && addressDetail !== 'pipeline')
     && !items.some(item => item.id === selectedId) ? shown[0]?.id ?? null : selectedId;
