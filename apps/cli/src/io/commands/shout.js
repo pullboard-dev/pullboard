@@ -57,7 +57,7 @@ export async function run(io, { first, second, rest, values }) {
   // A replaced seat is refused before the shout-kind rule: AGENT_REPLACED is the answer, not COORDINATOR_STATUS_FACT (#1764).
   const retired = handoffMoveProblem(board, personShout(io, me) ? store.PERSON : me.id, 'shout', [{ item: values.item === undefined ? undefined : Number(values.item) }]);
   if (retired) throw retired;
-  requireCoordinatorShoutPurpose({ from: personShout(io, me) ? store.PERSON : me.id, to, kind: values.kind });
+  requireCoordinatorShoutPurpose({ from: personShout(io, me) ? store.PERSON : me.id, to, kind: values.kind ?? (values.decision ? 'decision' : undefined) });
   refuseRestatedReport(board, { from: personShout(io, me) ? store.PERSON : me.id, to, kind: values.kind, text, item: values.item, decision: values.decision, evidence });
   const id = await ordered(ctx, board, 'shout', [{ from: personShout(io, me) ? store.PERSON : me.id, to, text, ...(values.item !== undefined ? { item: Number(values.item) } : {}), lanes: laneNames(ctx.config), decision: Boolean(values.decision), ...(options !== undefined ? { options } : {}), ...(effects === undefined ? {} : { effects }), ...(values.kind === undefined ? {} : { kind: values.kind }), ...(values.clause === undefined ? {} : { clause: values.clause }), ...(values.news ? { news: true } : {}), evidence }]);
   io.result?.({ id, decision: Boolean(values.decision), ...(ruling ? { ruling } : {}) });

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { crossLaneFixture } from '../../tests/fixtures/e2e.js';
 
 /** Read required flag groups, keeping mutually exclusive alternatives together. */
 function requiredFlags(usage) {
@@ -53,4 +54,35 @@ test('an unjoined worktree gets a model-bearing join instruction [O3]', async (c
   const refused = await box.runLocal(unjoined, 'claim', '1');
   assert.equal(refused.code, 1, refused.err);
   assert.match(refused.err, /\[NOT_JOINED\].*run pullboard join <lane> --model "<model name>"/);
+});
+
+/** Split a help example into the words a shell would hand the command, honouring double quotes. */
+function words(example) {
+  return [...example.matchAll(/"([^"]*)"|(\S+)/gu)].map((found) => found[1] ?? found[2]).slice(1);
+}
+
+test('no help example is a placeholder word [O3,C7]', async () => {
+  const { help$HELP: HELP } = await import('../../index.js');
+  for (const [name, declaration] of Object.entries(HELP.commands)) {
+    const example = declaration.example.replace(/\btest-value\b/gu, '');
+    assert.doesNotMatch(example, /(?:^|[\s"\[])value(?:$|[\s"\]])/u, `${name}: "${declaration.example}" still has the placeholder word "value"`);
+  }
+});
+
+test('the examples that need no existing item run as written on a fresh board [O3,C7]', async (context) => {
+  const { help$HELP: HELP } = await import('../../index.js');
+  const box = crossLaneFixture(context);
+  for (const name of ['shout', 'milestone', 'search', 'blueprint', 'settings']) {
+    const ran = await box.runLocal(box.repo, ...words(HELP.commands[name].example));
+    assert.equal(ran.code, 0, `${name}: ${HELP.commands[name].example}\n${ran.out}${ran.err}`);
+  }
+  // The decision form of shout, as the printed usage gives it, works for a worker seat with no --kind.
+  const web = box.seat('help-web', 'web', box.session);
+  const usage = HELP.commands.shout.usages.find((line) => line.includes('--decision'));
+  assert.match(usage, /pullboard shout \[<to>\] <text> --decision/u);
+  const asked = await box.runAsLocal(box.session, web.root, 'shout', 'Which release goes first?', '--decision');
+  assert.equal(asked.code, 0, asked.out + asked.err);
+  assert.match(asked.out, /asked coordinator for a decision as #\d+/u);
+  const coordinator = await box.runLocal(box.repo, 'shout', 'Which release goes first?', '--decision');
+  assert.equal(coordinator.code, 0, coordinator.out + coordinator.err);
 });
