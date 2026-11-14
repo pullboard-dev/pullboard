@@ -13,6 +13,7 @@ import {
 } from '../../../tests/fixtures/e2e.js';
 import { captureCommandInProcess } from '../../../tests/fixtures/process.js';
 import { main } from '../../../tests/fixtures/native.js';
+import { settleLand } from '../../../tests/fixtures/land/settle.js';
 import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 
 /** Run actual submit, review and landing against one private repository whose candidate renames a tracked file. */
@@ -68,8 +69,10 @@ async function fixture(t, { recorded = false } = {}) {
 test('landing refuses a candidate that renames a tracked file with no path-map entry, naming the file and the shard [C7]', async t => {
   const box = await fixture(t);
   const refused = await box.runLocal(box.repo, 'land', '--json');
-  assert.equal(refused.code, 1, refused.err + refused.out);
-  const error = JSON.parse(refused.out).error;
+  assert.equal(refused.code, 0, refused.err + refused.out);
+  const { receipt } = (await settleLand(box, JSON.parse(refused.out))).landJob;
+  console.log(JSON.stringify(receipt));
+  const error = receipt;
   assert.equal(error.code, 'LAND_MOVE_UNRECORDED');
   assert.match(error.message, /web\/old-name\.txt -> web\/new-name\.txt/u);
   assert.match(error.message, /packages\/codemap\/data\/plan\/path-map\/untangle\.json/u);
