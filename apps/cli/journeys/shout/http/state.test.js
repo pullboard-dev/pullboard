@@ -297,9 +297,13 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
   });
   const servedState = await fetchFresh(servedUrl.origin + box.path + '/state', { headers: { 'x-pullboard-key': servedUrl.searchParams.get('k') } });
   assert.equal(servedState.status, 200);
-  // Land retry notes keep landing on the thread while the fixture's trunk push fails (b9093a3767), so only the fact tally may differ between the two reads.
-  const untallied = (items) => items.map((item) => ({ ...item, counts: { ...item.counts, facts: 0 } }));
-  assert.deepEqual(untallied((await servedState.json()).state.items), untallied(summaryState.document.state.items), 'pullboard serve sends the same summaries');
+  // Land retry notes keep landing on the thread while the fixture's trunk push fails (b9093a3767), so each read's fact tally drops those notes
+  // and nothing else; two reads of one item must still agree on its own facts.
+  const landNote = (entry) => entry.type === 'fact' && /^Land job \S+ push-failed: /u.test(entry.text ?? '');
+  const ownFacts = (items, full) => items.map((item) => ({ ...item, counts: { ...item.counts, facts: item.counts.facts - full.get(item.id).thread.filter(landNote).length } }));
+  const servedFull = await fetchFresh(servedUrl.origin + box.path + '/state?detail=full', { headers: { 'x-pullboard-key': servedUrl.searchParams.get('k') } });
+  const servedFulls = new Map((await servedFull.json()).state.items.map((item) => [item.id, item]));
+  assert.deepEqual(ownFacts((await servedState.json()).state.items, servedFulls), ownFacts(summaryState.document.state.items, fulls), 'pullboard serve sends the same summaries');
   let pagePort;
   const pageHandler = createLocalApiHandler({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, secret: 'page-fixture-secret', getPort: () => pagePort, runCommand: main, projects: () => [{ root: box.root, name: 'HTTP fixture' }] });
   const page = createServer(pageHandler);
