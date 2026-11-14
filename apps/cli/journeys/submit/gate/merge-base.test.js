@@ -21,6 +21,7 @@ import {
 import {
   coordinatorLocal,
   runLocal,
+  submitSettled,
 } from './local.js';
 import {
   fileFixtureItem,
@@ -69,7 +70,7 @@ test('affected submit includes branch changes made before the item claim [V4,C7,
   assert.equal((await runLocal(box, 'claim', '1')).code, 0);
   put(box.root, 'src/other.js', 'export const other = false;\n');
   commitAll(box, 'feat(core): source after claim [G1]');
-  const refused = await runLocal(box, 'submit', '1');
+  const refused = await submitSettled(t, box, (...args) => runLocal(box, ...args));
   assert.equal(refused.code, 1, refused.out || refused.err);
   assert.match(refused.err + refused.out, /GATE_RED/u);
   assert.match(refused.err, /affected tests:.*test\/a\.test\.js/u);
@@ -118,7 +119,7 @@ for (const mode of ['deleted source', 'topic parent', 'merge commit']) {
     assert.equal(standalone.status, 1, 'the unchanged importer detects the source regression');
     assert.match(standalone.stdout, mode === 'deleted source' ? /ERR_MODULE_NOT_FOUND/u : /ERR_ASSERTION/u);
     rmSync(marker, { force: true });
-    const refused = await runLocal(box, 'submit', '1');
+    const refused = await submitSettled(t, box, (...args) => runLocal(box, ...args));
     assert.equal(refused.code, 1, refused.out || refused.err);
     assert.match(refused.err + refused.out, /GATE_RED/u);
     assert.match(refused.err, /affected tests:.*test\/a\.test\.js/u);

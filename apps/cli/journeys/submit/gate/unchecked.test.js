@@ -22,6 +22,7 @@ import {
 import {
   coordinatorLocal,
   runLocal,
+  submitSettled,
 } from './local.js';
 import {
   privateRepo,
@@ -48,9 +49,9 @@ test('submit without a frozen check reports no item check and still runs affecte
   commitAll(box, 'feat(core): update selected source [G1]');
   const marker = join(box.dir, 'without-check.log');
   box.env.AFFECTED_MARKER = marker;
-  const result = await runLocal(box, 'submit', '1', '--json');
+  const result = await submitSettled(t, box, (...args) => runLocal(box, ...args));
   assert.equal(result.code, 0, result.err);
-  const receipt = JSON.parse(result.out);
+  const receipt = result.receipt;
   assert.match(receipt.gate.report, /no item check/u);
   assert.equal(receipt.gate.check.checked, false);
   assert.equal(receipt.gate.full, false);
@@ -70,7 +71,7 @@ test('a red frozen item check refuses submit before affected tests run [V4,C7,V1
   put(box.root, 'src/a.js', 'export const value = 2;\n');
   commitAll(box, 'feat(core): update selected source [G1]');
   box.env.CHECK_REFUSE = '1';
-  const refused = await runLocal(box, 'submit', '1');
+  const refused = await submitSettled(t, box, (...args) => runLocal(box, ...args));
   assert.equal(refused.code, 1, refused.out);
   assert.match(refused.err + refused.out, /GATE_RED/u);
   assert.match(refused.err, /item check red/u);
@@ -146,7 +147,7 @@ for (const mode of ['topic parent', 'merge commit']) {
     assert.equal(standalone.status, 1, 'the unchanged importer detects the merged source regression');
     assert.match(standalone.stdout, /ERR_ASSERTION/u);
     rmSync(marker);
-    const refused = await runLocal(box, 'submit', '1');
+    const refused = await submitSettled(t, box, (...args) => runLocal(box, ...args));
     assert.equal(refused.code, 1, refused.out || refused.err);
     assert.match(refused.err + refused.out, /GATE_RED/u);
     assert.match(refused.err, /affected tests:.*test\/a\.test\.js/u);
