@@ -1199,8 +1199,8 @@ async function readRoadmap(chrome) {
               chip: paint(word), dot: getComputedStyle(row.querySelector('.dot')).backgroundColor,
               button: row.matches('button,[role="button"]'), tip: row.title, title: [...(title.querySelector('.milestone-title') ?? title).childNodes].slice(1).map((node) => node.textContent).join(''), // the id and title share .milestone-title (10d605f572)
               lines: Math.round(title.getBoundingClientRect().height / parseFloat(style.lineHeight)),
-              // Since b83469ff53 the title's ellipsis is set on .milestone-title, inside .t beside the after-chips.
-              cut: clip.scrollWidth > clip.clientWidth, ellipsis: style.textOverflow === 'ellipsis' && style.whiteSpace === 'nowrap' && style.overflow === 'hidden',
+              // Since b83469ff53 the title's ellipsis is set on .milestone-title, inside .t beside the after-chips; since be3d0c2d76 .t is a block, so the inline span never overflows and the cut shows on .t.
+              cut: [clip, title].some((node) => node.scrollWidth > node.clientWidth), ellipsis: style.textOverflow === 'ellipsis' && style.whiteSpace === 'nowrap' && style.overflow === 'hidden',
             };
           }),
         };
