@@ -205,6 +205,7 @@ async function runMain(argv, streams) {
     // A malformed machine settings file is an ordinary refusal, JSON under --json, not a thrown Refused [N2].
     try { target = remote.remoteBoard(); } catch (error) {
       if (!(error instanceof Refused)) throw error;
+      await io.prepareRefusal();
       io.refusal(error);
       io.flush(1);
       return 1;
