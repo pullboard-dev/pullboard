@@ -1,5 +1,7 @@
 /** pullboard relay recover reaches a second computer that was already linked and caught up before it (#7776) [B26,H16,H17]. */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import test from 'node:test';
 import {
   parkedBoard,
@@ -16,7 +18,8 @@ test('clause 1: a computer linked and synced before the parked move reads it on 
   assert.equal(recovered.code, 0, recovered.failure);
   const there = await other.cli('export');
   assert.equal(there.code, 0, there.failure);
-  assert.ok(JSON.stringify(there.document).includes(big), 'the parked move reaches the already-linked computer on its next sync');
+  const linkOf = JSON.parse(readFileSync(join(other.root, '.git', 'pullboard', 'relay.json'), 'utf8'));
+  assert.ok(JSON.stringify(there.document).includes(big), 'DEBUG ' + JSON.stringify({ epoch: linkOf.checkpointEpoch, sequence: linkOf.sequence, mine: JSON.parse(readFileSync(box.linkFile, 'utf8')).checkpointEpoch, status: (await other.cli('status')).document.relay }));
   assert.ok(shoutTexts(there.document).includes('small after the big move'), 'no history is lost');
   const again = await other.cli('export');
   assert.equal(again.code, 0, again.failure);
