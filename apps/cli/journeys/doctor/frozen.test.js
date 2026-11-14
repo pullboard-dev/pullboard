@@ -30,6 +30,7 @@ import {
   SSH_SHELL_MARKERS,
 } from "../../../../packages/kernel/index.js";
 import { assertSpecCorrectionRefreezesCitations } from "../../tests/fixtures/refreeze.js";
+import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const TEMP_DIRS = [];
