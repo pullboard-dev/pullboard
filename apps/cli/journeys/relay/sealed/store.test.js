@@ -235,7 +235,7 @@ test('[A4,H7] a bounded large sealed snapshot is independent of the smaller move
   assert.deepEqual(box.clientOpen(uploaded.body.state.sealed, 'snapshot', 0), document);
   const oversizeMove = await box.call(box.path + '/moves', { method: 'POST', body: { sequence: 1, sealed: box.clientSeal(document, 'move', 1) } });
   assert.equal(oversizeMove.status, 400);
-  assert.equal(oversizeMove.body.error.code, 'BAD_REQUEST');
+  assert.equal(oversizeMove.body.error.code, 'MOVE_TOO_LARGE'); // the structured size refusal, #6707
   assert.deepEqual((await box.call(box.path + '/events?after=0')).body.events, []);
   const packageInfo = JSON.parse(readFileSync(resolve(import.meta.dirname, '../../../../../package.json'), 'utf8'));
   assert.equal(packageInfo.files.some((entry) => entry === 'relay' || entry.startsWith('relay/')), false);
