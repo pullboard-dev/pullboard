@@ -3780,7 +3780,7 @@
   "apps/cli/journeys/export/team/access.test.js": {
     "model": 1
   },
-  "apps/cli/journeys/verify/team/repair.test.js": {
+  "apps/cli/journeys/verify/team/repair/pushed.test.js": {
     "raw-board": 1
   },
   "packages/runners/tests/io/source/cache.test.js": {
