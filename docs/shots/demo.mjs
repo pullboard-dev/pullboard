@@ -329,8 +329,8 @@ async function captureRoadmap(view, repo, observation) {
     const row = release?.querySelector('.milestone-item[data-roadmap-key="i:#1"]');
     const fields = [...(row?.parentElement.querySelectorAll('.roadmap-detail dt') || [])].map(node => node.textContent.trim());
     return row?.getAttribute('aria-expanded') === 'true' && ['Criterion', 'Agents', 'History', 'Release'].every(name => fields.includes(name))
-      && !!release.querySelector('.roadmap-estimate')?.textContent;
-  })()`, 'the expanded item fields and current time feedback');
+      && !!release.querySelector('.roadmap-left')?.textContent;
+  })()`, 'the expanded item fields and the release count');
   const readings = [];
   for (const theme of ['light', 'dark']) {
     await view.evaluate(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}; localStorage.setItem('pb.theme', ${JSON.stringify(theme)})`);
@@ -343,7 +343,7 @@ async function captureRoadmap(view, repo, observation) {
         count: release.querySelector('.roadmap-left')?.textContent, legend: release.querySelectorAll('[data-summary-state]').length,
         rows: release.querySelectorAll('.milestone-item').length, expanded: release.querySelectorAll('.milestone-item[aria-expanded="true"]').length,
         fields: [...row.parentElement.querySelectorAll('.roadmap-detail dt')].map(node => node.textContent.trim()),
-        history: row.parentElement.querySelector('.roadmap-history')?.textContent, time: release.querySelector('.roadmap-estimate')?.textContent,
+        history: row.parentElement.querySelector('.roadmap-history')?.textContent, time: release.querySelector('.roadmap-left')?.textContent,
         itemTop: rect.top, itemBottom: rect.bottom, pageWidth: document.documentElement.scrollWidth };
     })())`));
     if (reading.theme !== theme || !/4 to go.*1 of 5 landed/u.test(reading.count) || reading.legend !== 6 || reading.rows !== 5 || reading.expanded !== 1
