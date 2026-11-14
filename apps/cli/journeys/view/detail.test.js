@@ -166,10 +166,10 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
       await chrome.waitFor("[...document.querySelectorAll('#detail .tl-fact .tl-body')].some((fact) => fact.textContent === 'The farewell was checked after it opened.')", 15_000); // budget: hang-only ceiling for the page's 3-second board poll and one detail read.
       assert.deepEqual(readSet(await chrome.stable('window.__pbReads')), ['items/1', 'items/2', 'items/2', 'items?q=zeppelin'], 'only the changed item is read again');
 
-      // The pipeline counts each stage from the summaries, with no further read.
-      await press(chrome, "document.querySelector('[data-items-view=\"pipeline\"]')");
-      await chrome.waitFor("!!document.querySelector('#pipeline [data-stage-count=\"building\"]')");
-      const stages = await chrome.stable("Object.fromEntries([...document.querySelectorAll('#pipeline [data-stage-count]')].map((count) => [count.dataset.stageCount, count.textContent]))");
+      // The Pipeline tab (its own tab since bc76548477) counts each stage from the summaries, with no further read.
+      await press(chrome, "document.querySelector('[data-tab=pipeline]')");
+      await chrome.waitFor("!!document.querySelector('#insights-pipeline [data-stage-count=\"building\"]')");
+      const stages = await chrome.stable("Object.fromEntries([...document.querySelectorAll('#insights-pipeline [data-stage-count]')].map((count) => [count.dataset.stageCount, count.textContent]))");
       assert.deepEqual(stages, { blocked: '0', ready: '0', building: '1', 'in-review': '1', verified: '1', landing: '0', merged: '0' });
       assert.deepEqual(readSet(await chrome.stable('window.__pbReads')), ['items/1', 'items/2', 'items/2', 'items?q=zeppelin']);
       assert.deepEqual(chrome.exceptions, [], 'the live view opens items without browser exceptions');
