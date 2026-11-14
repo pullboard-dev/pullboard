@@ -186,7 +186,9 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
     const staleVerdicts = pendingMerges.filter(item => item.item_verdict_state);
     const decisionSections = isMain ? coordinatorDecisionSections(board, ctx) : null;
     const { shouts = [], ...decisions } = decisionSections ?? {};
-    const needsState = resumeNeeds(root, { board, config: ctx.config, includeRigorUndrafted: me.id === COORDINATOR });
+    // Only the main checkout's text card and the JSON result carry the person's needs; a seat's text card skips the
+    // spec blame and board reads they cost, which is what lets SessionStart finish inside its 2 s timeout [I6].
+    const needsState = isMain || json || me.id === COORDINATOR ? resumeNeeds(root, { board, config: ctx.config, includeRigorUndrafted: me.id === COORDINATOR }) : null;
     let proofStatsFallback;
     const flow = decisionSections ? proofStats(board, { now: ctx.clock.now().getTime(),
       /** Keep the cold-path notice in text and JSON without changing the statistics object. */
@@ -198,7 +200,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
       me,
       health: recordedHealthFindings(board),
       all,
-      needsYou: personNeeds(needsState),
+      needsYou: needsState ? personNeeds(needsState) : [],
       ...(me.id === COORDINATOR ? { rigor: { undrafted: needsState.rigorUndrafted, ...(needsState.rigorNotice ? { notice: needsState.rigorNotice } : {}) } } : {}),
       ...(decisionSections ? { ...decisions, ...(diagnostics ? verifiedMergeGroups(root, pendingMerges, shouts, ctx.clock.now().getTime()) : {}),
         flow, ...(proofStatsFallback ? { proofStatsFallback } : {}) } : {}),

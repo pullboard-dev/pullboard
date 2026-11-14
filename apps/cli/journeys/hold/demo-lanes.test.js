@@ -30,7 +30,7 @@ import {
 
 /** Release a completed real hold refresh at the next pointer aim, reproducing the captured late console scroll. */
 test('a finished lane hold does not scroll after the next press is aimed [N26,C7]', {
-  timeout: 60_000, // budget: bound a hung real browser journey, not the duration of a successful request.
+  timeout: 120_000, // budget: bound a hung real browser journey, not the duration of a successful request; a loaded runner takes over a minute.
 }, async (t) => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the late action scroll control');
@@ -39,17 +39,18 @@ test('a finished lane hold does not scroll after the next press is aimed [N26,C7
   project(box, 'other-late-hold-demo');
   box.run(demo.repo, 'add', 'web', 'Hold control', '--specs', 'G1', '--criterion', 'the next press remains where it was aimed');
   box.run(demo.repo, 'shout', 'person', 'Should the hold control ship?', '--decision');
-  // The captured desktop journey follows phone and desktop shouts; keep that real feed tall enough to scroll.
+  // The captured desktop journey follows phone and desktop shouts; the compact shout rows left the page short, so each earlier shout runs long to keep that real feed tall enough to scroll.
   for (const text of ['Phone shout 375', 'Phone answer 375', 'Phone shout 1280', 'Phone answer 1280']) {
     box.run(demo.repo, 'shout', 'web', text);
   }
-  for (let index = 0; index < 8; index++) box.run(demo.web, 'shout', 'all', 'Earlier board discussion ' + index);
+  for (let index = 0; index < 8; index++) box.run(demo.web, 'shout', 'all', 'Earlier board discussion ' + index + ' ' + 'the hold control keeps the next press steady. '.repeat(7));
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-late-hold-'));
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, 'about:blank', profile);
-    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    // A short desktop window: the compact shout rows (#7572) fit the page into the old 900 px height, so only a shorter window keeps the real feed scrollable.
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 560, deviceScaleFactor: 1, mobile: false });
     // Keep this one real refresh under test control; every HTTP response and render remains real (#622).
     await allowLiveHold(chrome);
     await chrome.send('Page.navigate', { url: view.link.href });
@@ -67,11 +68,14 @@ test('a finished lane hold does not scroll after the next press is aimed [N26,C7
         await new Promise(resolve => { window.__lateHold.finish = resolve; });
         window.__lateHold.completed = true;
       };
+      // A state read after a board change answers from the last build, and the stream announces the build that catches up (#6850), so the live updates must run again for the hold to draw.
+      window.__liveHold.held = false;
       document.querySelector('#hold-lane').value = 'web';
       document.querySelector('#hold-reason').value = 'Keep the next press steady';
       document.querySelector('#hold-form').requestSubmit();
     })()`);
-    await chrome.waitFor('window.__lateHold.ready && !!document.querySelector("#lanes [data-release=web]")');
+    // The hold draws once the build that catches up is announced and read, which a loaded runner takes longer than ten seconds to do (#6850).
+    await chrome.waitFor('window.__lateHold.ready && !!document.querySelector("#lanes [data-release=web]")', 60_000); // budget: hang ceiling for the announced catch-up build, not its duration.
     const geometry = JSON.parse(await chrome.stable(`JSON.stringify({ height: innerHeight,
       pageHeight: document.documentElement.scrollHeight, scrollY,
       console: document.querySelector('#console').getBoundingClientRect().toJSON(),
