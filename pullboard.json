@@ -308,7 +308,9 @@
         "apps/cli/journeys/shout/prose.test.js",
         "apps/cli/journeys/shout/references.test.js",
         "apps/cli/journeys/shout/rows.test.js",
-        "apps/cli/journeys/shout/journeys/search-ages.test.js", "apps/cli/journeys/shout/journeys/search-capture.test.js", "apps/cli/journeys/shout/journeys/search-fixture.js",
+        "apps/cli/journeys/shout/journeys/search-ages.test.js",
+        "apps/cli/journeys/shout/journeys/search-capture.test.js",
+        "apps/cli/journeys/shout/journeys/search-fixture.js",
         "apps/cli/journeys/shout/shouts.test.js",
         "apps/cli/journeys/shout/shouts/",
         "apps/cli/journeys/shout/shouts/redesign.test.js",
@@ -423,5 +425,18 @@
     "releaseGone": false,
     "releaseCooldownMinutes": 30,
     "perSeat": 5
+  },
+  "protect": {
+    "blocked": [
+      ".env",
+      ".env.*",
+      "*.env",
+      ".envrc"
+    ],
+    "allowed": [
+      ".env.example",
+      "apps/cli/tests/fixtures/upgrade-093/board.sqlite"
+    ],
+    "secrets": true
   }
 }

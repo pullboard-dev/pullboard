@@ -568,6 +568,8 @@ function readProjection(state, root, preparedFlow, refreshFlow, isMain, observed
     const overlaps = claimOverlaps(items, recordedClaimWorktrees(items, store.listAgents(board), board));
     return Object.fromEntries([...overlaps].filter(([, value]) => value.overlaps.length || value.outOfScope.length));
   }, isMain, boardOpeners);
+  // The hero's four-hour window moves with the read clock, so a cached build is restamped, never served stale.
+  if (state.dashboardRecent) projection.dashboardRecent = { ...state.dashboardRecent, since: observedAt - 4 * 3_600_000, until: observedAt };
   if (state.capacityForecast) projection.capacityForecast = capacityAtRead(state.capacityForecast, observedAt);
   if (refreshFlow && comparisonHistory) projection.statsComparison = compareFlowWindows(comparisonHistory, { now: observedAt, windowMinutes: 120, complete: true });
   if (refreshFlow && preparedFlow) {

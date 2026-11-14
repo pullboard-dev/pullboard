@@ -19,6 +19,8 @@ import { writeStep } from '../../../../../packages/jobs/index.js';
 import { PULLED } from '../../../../../packages/drive/index.js';
 import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
+import { fileBudgetField } from './file-limit.js';
+import { fileLimitEnv } from './file-limit.js';
 
 /** The job kind of a pulled test run; the board records its receipt and applies nothing, since the caller reads it. */
 export const TEST_JOB_KIND = 'test';
@@ -34,7 +36,7 @@ const CASES = 100;
  * candidate's own focused runner in the candidate checkout and prints one receipt line with the run's output tail and
  * its failing cases, read by main's TAP reader. Why main's reader: it is the one the gate trusts to name cases.
  */
-const testJobEntry = (GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, OUTCOME_PREFIX, DIAGNOSTICS) => `import { spawnSync } from 'node:child_process';
+export const testJobEntry = (GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, OUTCOME_PREFIX, DIAGNOSTICS) => `import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
@@ -54,6 +56,9 @@ const started = performance.now();
 // The job's main names the base the candidate's import graph forks from, so its key analysis parses only what changed [C7,#6672].
 const env = { ...process.env, ${JSON.stringify(PULLED_JOB_ENV)}: '1', PULLBOARD_TEST_PRIOR: input.main };
 delete env.NODE_TEST_CONTEXT;
+// A job that names a file budget (pullboard test --no-file-limit) runs under it; any other job's limits are the runner's own [C7].
+${fileLimitEnv.toString()}
+Object.assign(env, fileLimitEnv(input));
 // A review comparison names its run id, so the test runner frames each case's outcome under it [V4,C7].
 const runId = typeof input.runId === 'string' && /^[a-f0-9-]{36}$/u.test(input.runId) ? input.runId : null;
 if (runId) env.${TIMING_RUN_ID_ENV} = runId;
@@ -130,17 +135,25 @@ function shellWord(value) {
 }
 
 /**
+ * The data a test job carries into its entry. `fileBudgetMs` is the file budget the runner gives this job's files
+ * (set by --no-file-limit); a job without it carries no such field and runs under the runner's own limits [C7].
+ */
+export function testJobData({ main, commit, command, files, runId = null, fileBudgetMs = null }) {
+  return { main, source: commit, command, files, ...(runId ? { runId } : {}), ...(fileBudgetMs ? { fileBudgetMs } : {}) };
+}
+
+/**
  * Pin a commit under refs/pullboard/test and offer one test job for it. Returns the job id and the pinned ref.
  * Why a ref: the trunk remote serves only reachable commits, and an agent's commit is reachable from nothing else yet.
  */
-async function offerTestJob(ctx, { item, commit, main, command, files, runId = null }) {
+async function offerTestJob(ctx, { item, commit, main, command, files, runId = null, fileBudgetMs = null }) {
   const { root } = ctx.info;
   const [{ offerJob }, { GATE_NEEDS, GATE_RECEIPT, gateJobRun }, { PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX }, { FAILURE_DIAGNOSTICS_SOURCE }] = await Promise.all([import('../../../../../packages/api/index.js'), import('../submit/pull.js'),
     import('../../../../../packages/gate/index.js'), import('../../../../../packages/kernel/index.js')]);
   const tag = randomBytes(6).toString('hex');
   const ref = `refs/pullboard/test/${tag}`;
   git(root, ['update-ref', ref, commit]);
-  const request = { run: gateJobRun(), input: { main, entry: testJobEntry(GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX, FAILURE_DIAGNOSTICS_SOURCE), data: { main, source: commit, command, files, ...(runId ? { runId } : {}) } }, commits: [main] };
+  const request = { run: gateJobRun(), input: { main, entry: testJobEntry(GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX, FAILURE_DIAGNOSTICS_SOURCE), data: testJobData({ main, commit, command, files, runId, fileBudgetMs }) }, commits: [main] };
   const job = withBoard(ctx, board => offerJob(board.db, { id: `test:${commit.slice(0, 12)}:${tag}`, kind: TEST_JOB_KIND, priority: 'interactive', needs: GATE_NEEDS,
     item: item === undefined ? null : Number(item), candidate: commit, base: main, request }));
   // With no registered runners this machine is its own runner, as a pull submit makes it: otherwise the job waits unclaimed [P7,C7].
@@ -226,11 +239,11 @@ export async function probeTestAt(ctx, { commit, file, say }) {
  * which a local pull runner never claims, so `verify --compare` and the background comparison stopped under pull [V4,C7].
  *
  * @param {object} ctx
- * @param {{ item: number, commit: string, main: string, command: string, files: string[], runId: string, say?: (line: string) => void }} fields
+ * @param {{ item: number, commit: string, main: string, command: string, files: string[], runId: string, say?: (line: string) => void, fileBudgetMs?: number | null }} fields
  * @returns {Promise<{ job: string, runner: string | null, green: boolean, output: string, outcomes: { file: string, name: string, passed: boolean, skipped: boolean }[] | null }>}
  */
-export async function runPulledComparison(ctx, { item, commit, main, command, files, runId, say }) {
-  return runJobFor(ctx, { item, commit, main, command, files, runId }, { say });
+export async function runPulledComparison(ctx, { item, commit, main, command, files, runId, say, fileBudgetMs = null }) {
+  return runJobFor(ctx, { item, commit, main, command, files, runId, fileBudgetMs }, { say });
 }
 
 /**
@@ -356,7 +369,7 @@ export async function runPulledTests(ctx, { agent, item, files, values, knownRed
   if (!commit || !main) throw new Refused('TEST_SNAPSHOT', 'this checkout has no commit or no accepted main to test against; commit the work and run pullboard test again');
   const started = Date.now();
   const command = `${config.affectedTests.trimEnd()} ${paths.map(path => shellWord('./' + path)).join(' ')}`;
-  const ran = await runJobFor(ctx, { item, commit, main, command, files: paths }, { agent, say, testRun: values['test-run'] });
+  const ran = await runJobFor(ctx, { item, commit, main, command, files: paths, ...(fileBudgetField(values).fileBudgetMs ? { fileBudgetMs: fileBudgetField(values).fileBudgetMs } : {}) }, { agent, say, testRun: values['test-run'] });
   const summary = retainTestOutput(root, ran.output);
   // A runner's TAP names a case's file by the runner's own work folder; a failure is shown by the repo path the seat named [C7].
   for (const row of summary.failures) {
