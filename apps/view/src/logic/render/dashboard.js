@@ -140,7 +140,7 @@ export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 
   const longest = quiet.length ? span(Math.max(...quiet.map(agent => m.now - agent.last))) : '';
   const axis = new Date(m.start).toLocaleTimeString(locale, { timeZone, hour: 'numeric', minute: '2-digit' })+' → now';
   const legend = '<span class="dash-legend"><span><i class="build"></i>building</span><span><i class="review"></i>reviewing</span><span><i class="idle"></i>idle</span><span><i class="back"></i>sent back</span><span><i class="landed"></i>landed</span><span><i class="shout"></i>shout</span></span>';
-  const agents = section('Agents', 'dash-agentsec', label('Agents', open(num(m.totals.working), 'building', { cls: 'dash-pill', title: 'Agents at work' })+' · 4 h'),
+  const agents = section('Agents', 'dash-agentsec', label('Agents', open(num(m.totals.working), 'building', { cls: 'dash-pill', title: 'Agents at work' })+' · 4 h'+(m.totals.joined ? ' · '+num(m.totals.joined)+' joined' : '')),
     '<div class="dash-card dash-agents">'+landingMarks
     + '<div class="dash-scroll"><table class="dash-agt"><thead><tr><th>Agent</th><th>'+esc(axis)+'</th><th>Now</th><th class="r hide">Build</th><th class="r hide">Review</th><th class="r hide">Idle</th><th class="r hide">Shouts</th></tr></thead>'
     + '<tbody>'+group('Building', building, 'building')+group('Reviewing', reviewers, 'review')+'</tbody>'
