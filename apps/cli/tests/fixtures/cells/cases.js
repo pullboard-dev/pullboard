@@ -31,6 +31,9 @@ function board(t) {
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
   writeFileSync(join(box.repo, 'SPEC.md'), readFileSync(join(box.repo, 'SPEC.md'), 'utf8') + '\n- C7 [approved, must] Checks run. | gate: review\n- D3 [approved, must] One doctrine applies. | gate: review\n');
   writeFileSync(join(box.repo, 'DOCTRINE.md'), readFileSync(join(box.repo, 'DOCTRINE.md'), 'utf8') + '\n- CD64 [approved, must] Cells restructure leaf first. | gate: review\n');
+  // The generated cut bars name the plan script; it must exist on the board's main, or add refuses BAR_PATH_MISSING (d875eec3c3).
+  mkdirSync(join(box.repo, 'packages/codemap/src/io/cells/scripts'), { recursive: true });
+  writeFileSync(join(box.repo, 'packages/codemap/src/io/cells/scripts/plan.js'), '// Stand-in for the plan script the cut bars name.\n');
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: private cut filing board [C7,D3]');
   return box;
