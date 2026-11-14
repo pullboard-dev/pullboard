@@ -18,6 +18,8 @@ export function withProjectGitTimeout(root, work, { timeoutMs = PROJECT_GIT_TIME
   if (typeof root !== 'string' || !root || !Number.isSafeInteger(timeoutMs) || timeoutMs < 1) throw new TypeError('project Git reads need a root and positive timeout');
   const parent = projectReads.getStore();
   const bound = Math.min(timeoutMs, parent?.timeoutMs ?? timeoutMs);
+  // A nested read of the same root belongs to the outer retry; retrying inside it multiplied the attempts (3 x 3 x 5 s) past the discovery bound [C7].
+  if (parent?.root === root) return projectReads.run({ root, timeoutMs: bound, last: parent.last }, work);
   // A read that timed out under load (an API restart, a busy disk) tries again before the project is skipped; the last try says so [C7].
   for (let attempt = 1; ; attempt += 1) {
     try { return projectReads.run({ root, timeoutMs: bound, last: attempt >= PROJECT_GIT_ATTEMPTS }, work); }
