@@ -463,7 +463,7 @@ test('[B26] agent markers and agent worktrees cannot decide rows; only the coord
   assert.equal(sourceRow(box, SPEC_FILE, 'G1').status, 'approved');
 });
 
-test('[B26,S18,S19] stale row text refuses apply without changing any approved row', async function staleApplyIsAtomic() {
+test('[B26,S18,S19] stale row text is held while a fresh decision applies, and the stale row is never written [B2]', async function staleApplyIsAtomic() {
   const box = await project();
   for (const id of ['G1', 'G2']) {
     const approved = await command(box, box.root, 'spec', 'approve', id, '--json');
@@ -474,11 +474,10 @@ test('[B26,S18,S19] stale row text refuses apply without changing any approved r
   writeFileSync(source, edited);
   const beforeApply = readFileSync(source, 'utf8');
   const refused = await command(box, box.root, 'spec', 'apply', '--json');
-  assert.notEqual(refused.status, 0, `${refused.stdout}${refused.stderr}`);
-  const document = JSON.parse(refused.stdout);
-  assert.ok(document.error, 'stale decision refusal stays a structured CLI refusal');
-  assert.equal(readFileSync(source, 'utf8'), beforeApply, 'the stale check prevents partial writes to SPEC.md');
-  assert.equal(sourceRow(box, SPEC_FILE, 'G1').status, 'draft', 'even the earlier valid decision is not applied first');
+  assert.equal(refused.status, 0, `${refused.stdout}${refused.stderr}`);
+  assert.deepEqual(JSON.parse(refused.stdout).held.map((held) => held.id), ['G2'], 'the stale decision is held and named');
+  assert.notEqual(readFileSync(source, 'utf8'), beforeApply, 'the fresh decision is written');
+  assert.equal(sourceRow(box, SPEC_FILE, 'G1').status, 'approved', 'the fresh decision applies');
   assert.equal(sourceRow(box, SPEC_FILE, 'G2').status, 'draft');
   assert.equal(sourceRow(box, SPEC_FILE, 'G2').text, 'Someone edited this row after approval.');
 });
