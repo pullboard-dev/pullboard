@@ -38,7 +38,7 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
 /** Open the board file the way the store does: a live pulled gate job writes it, so a raw handle waits out a lock instead of failing at once [C7]. */
-function openRawBoard(file, options) {
+function openRawBoard(file, options = {}) {
   const db = new DatabaseSync(file, options);
   db.exec('PRAGMA busy_timeout = 30000');
   return db;
