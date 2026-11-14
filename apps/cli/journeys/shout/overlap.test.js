@@ -80,7 +80,8 @@ test('a delayed prior shout cannot clear a newer person answer [N26,H5,C7]', {
     assert.ok(captureArmed, 'the native shout composer observer arms');
     barrier = await holdPriorShoutResponse(chrome, PRIOR);
 
-    const beginPrior = "(()=>{const to=document.querySelector('#shout-to'),field=document.querySelector('#shout-text');"
+    // Opening the conversation selects its pending question as an answer; the prior shout must be a plain one, so leave answer mode first.
+    const beginPrior = "(()=>{if(view.answering)answer(null);const to=document.querySelector('#shout-to'),field=document.querySelector('#shout-text');"
       + "to.value='web';to.dispatchEvent(new Event('input',{bubbles:true}));to.dispatchEvent(new Event('change',{bubbles:true}));"
       + "field.value=" + JSON.stringify(PRIOR) + ";field.dispatchEvent(new Event('input',{bubbles:true}));"
       + "field.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('#shout-form').requestSubmit();})()";
@@ -180,7 +181,8 @@ test('a delayed prior shout cannot turn a newer answer into a plain shout [N26,H
     assert.ok(captureArmed, 'the native shout composer observer arms');
     barrier = await holdPriorShoutResponse(chrome, PRIOR);
 
-    const beginPrior = "(()=>{const to=document.querySelector('#shout-to'),field=document.querySelector('#shout-text');"
+    // Opening the conversation selects its pending question as an answer; the prior shout must be a plain one, so leave answer mode first.
+    const beginPrior = "(()=>{if(view.answering)answer(null);const to=document.querySelector('#shout-to'),field=document.querySelector('#shout-text');"
       + "to.value='web';to.dispatchEvent(new Event('input',{bubbles:true}));to.dispatchEvent(new Event('change',{bubbles:true}));"
       + "field.value=" + JSON.stringify(PRIOR) + ";field.dispatchEvent(new Event('input',{bubbles:true}));"
       + "field.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('#shout-form').requestSubmit();})()";
