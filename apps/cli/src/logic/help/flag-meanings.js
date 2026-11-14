@@ -194,6 +194,7 @@ export const FLAG_MEANINGS = Object.freeze({
   '--gate-receipt': ['--gate-receipt <id>', 'the native gate receipt that proves the work'],
   'tool-build --gate-receipt': ['--gate-receipt <native-full-gate-id>', 'the full gate run that proves the build'],
   '--forced': ['--forced "<why>"', 'records hand-landed work as landed without a verify, with the reason'],
+  '--waive-proof': ['--waive-proof "<why>"', 'with --forced, records the landing without a passing receipt for the item tip, with the reason'],
   '--off': 'lifts the hold',
   '--receipt': 'produces fresh native landing evidence',
   '--claims': 'keeps beating while the seat holds a claim or a queued gate',
