@@ -5,6 +5,8 @@ import assert from 'node:assert/strict';
 import {
   mkdirSync,
   readFileSync,
+  realpathSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
@@ -141,4 +143,17 @@ test('clause 1: a census file is green only from its own pass record; a red shar
   const outcomes = [{ file: 'a.test.js', name: 'one', passed: true, skipped: false }];
   const rows = Object.fromEntries(shardRows({ ...base, status: 'red', outcomes }, 'abc').map(row => [row.file, row.status]));
   assert.deepEqual(rows, { 'a.test.js': 'green', 'b.test.js': 'no-result' });
+});
+
+test('clause 1: a census run from a seat worktree, where .git is a file, writes its rows under the shared git dir without --out [C7]', async () => {
+  const box = e2e.project('true');
+  const { io, lines, dispatcher } = census(box);
+  const seat = join(box.dir, 'seat');
+  box.git(box.repo, 'worktree', 'add', '--detach', seat);
+  assert.equal(statSync(join(seat, '.git')).isFile(), true, 'a worktree keeps a .git file, not a folder');
+  const code = await runCensus(io, { info: { root: seat } }, {}, { shards: 1, run: dispatcher([]) });
+  assert.equal(code, 1, 'the red fixture file still makes the census red');
+  const out = lines.find(line => line.includes('rows go to')).split('rows go to ')[1];
+  assert.equal(out.startsWith(join(realpathSync(box.repo), '.git', 'pullboard', 'census')), true, out);
+  assert.equal(readFileSync(out, 'utf8').trim().split('\n').length, 3);
 });

@@ -16,6 +16,7 @@ import { testsNeedGui } from '../../../../../packages/gate/index.js';
 import { LANDING_COLLECT_ALL_ENV } from '../../../../../packages/landing/index.js';
 import { LANDING_SHARD_ENV } from '../../../../../packages/gate/index.js';
 import { formatTestOutcomes } from '../../../../../packages/gate/index.js';
+import { checkoutCommonDir } from '../../../../../packages/git/index.js';
 import { headCommit } from '../../../../../packages/git/index.js';
 import { fileKey } from '../../../../../packages/landing/index.js';
 import { planLandingShards } from '../../../../../packages/landing/index.js';
@@ -98,7 +99,7 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run } 
   const sha = cleanHead(root);
   const files = (await trackedTests(root)).filter(file => !prefixes.length || prefixes.some(prefix => file.startsWith(prefix.replace(/^\.\//u, ''))));
   if (!files.length) throw new Refused('NO_TEST_FILE', 'no tracked test files match this census', 'run the census from a repository checkout, with path prefixes that name tracked test files');
-  const out = resolve(root, values.out ?? join('.git', 'pullboard', 'census', `${storeName(sha.slice(0, 10), '.jsonl')}`));
+  const out = resolve(root, values.out ?? join(checkoutCommonDir(root) ?? join(root, '.git'), 'pullboard', 'census', `${storeName(sha.slice(0, 10), '.jsonl')}`));
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, '');
   // A pull board offers each shard as a job; the landing path's in-process controller custody is never taken (#7602).
