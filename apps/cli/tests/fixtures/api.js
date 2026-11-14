@@ -261,6 +261,10 @@ export function apiHttpFixture(t) {
 /** Serve this fixture's explicit project, avoiding any registry outside its private home. */
 export async function apiHttpBox(t, { includeMissing = false, onStateBuild, additionalProjects = [] } = {}) {
   const box = apiHttpFixture(t);
+  // The in-process API runs the merge hook on this process's PATH, whose first pullboard is the test runner's refusal shim; put the fixture's real one first, restored at teardown.
+  const previousPath = process.env.PATH;
+  process.env.PATH = box.env.PATH;
+  t.after(() => { process.env.PATH = previousPath; });
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, onStateBuild, projects: () => [...(includeMissing ? [{ root: join(box.dir, 'gone'), name: 'Missing fixture' }] : []), { root: box.root, name: 'HTTP fixture' }, ...additionalProjects] });
   t.after(() => api.close());
   const url = new URL(api.url);
