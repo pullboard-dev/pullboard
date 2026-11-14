@@ -13,6 +13,8 @@ import { test } from 'node:test';
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
+import { failingParts } from '../../../../../packages/api/index.js';
+import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
 
@@ -42,7 +44,7 @@ function race(box, first, second, id) {
   return Promise.all([one(first), one(second)]);
 }
 
-test('a red gate refuses submit [V4]', async () => {
+test('a red gate refuses submit [V4]', async t => {
   const box = project();
   writeFileSync(join(box.repo, 'RED'), 'red');
   box.git(box.repo, 'add', 'RED');
@@ -51,9 +53,13 @@ test('a red gate refuses submit [V4]', async () => {
   assert.equal((await box.runIn(box.web, 'claim', '1')).code, 0);
   const item = `${box.web}-item-1`;
   assert.equal(commitFile(box, item, 'web/red.html', 'candidate', 'feat(web): red gate witness [G1]').status, 0);
-  const refused = await box.runIn(item, 'submit', '1');
-  assert.equal(refused.code, 1);
-  assert.match(refused.err, /GATE_RED/);
+  // A pulled submit queues its gate; the red receipt keeps the item out of review and is the refusal the builder reads [V4,C7,#7725].
+  const queued = await box.runIn(item, 'submit', '1', '--json');
+  assert.equal(queued.code, 0, queued.err + queued.out);
+  const settled = await settleSubmit(t, { repo: box.repo, env: box.env, run: box.runIn }, JSON.parse(queued.out));
+  assert.equal(settled.gate.green, false);
+  assert.match(failingParts({ status: 1, gate: settled.gate }).join('\n'), /proof (?:failed|exited)|check exited/);
+  assert.equal(JSON.parse((await box.runIn(box.repo, 'show', '1', '--json')).out).item_status, 'claimed');
 });
 
 test('verify runs at the submitted commit, against the criterion frozen at claim [V3, V7, V9, V19]', async () => {
