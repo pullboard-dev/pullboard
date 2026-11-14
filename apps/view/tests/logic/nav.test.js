@@ -332,7 +332,24 @@ test('clause 2: Items has no sign-in banner, summary panel or in-page toolbar ab
   const strip = pageControlsHtml({ tab: 'items', lane: 'core', lanes, itemsView: 'pipeline' });
   assert.match(strip, /<select class="sel" data-page-ctl="lane" aria-label="Lane">.*<option value="core" selected>core · 605<\/option>/u, 'the lane filter is in the strip, with its counts');
   assert.match(strip, /data-page-ctl="view" data-value="pipeline" class="on" aria-pressed="true">Pipeline/u, 'List and Pipeline are in the strip');
-  assert.match(strip, /data-page-ctl="new">New item/u, 'New item is in the strip');
+  assert.match(strip, /data-page-ctl="new" aria-label="New item">New item/u, 'New item is in the strip');
+});
+
+test('clause 1: the strip\'s #new-item is the only New item on the page, and Shouts and Activity draw no in-page filter the strip holds [N26,#6721]', () => {
+  const html = shell(false);
+  assert.equal([...html.matchAll(/id="new-item"/gu)].length, 0, 'the shell draws no New item of its own; the strip fills it in');
+  assert.equal([...pageControlsHtml({ tab: 'items' }).matchAll(/id="new-item"/gu)].length, 1, 'the strip draws one #new-item');
+  assert.equal([...pageControlsHtml({ tab: 'items' }).matchAll(/New item/gu)].length, 2, 'its one control, with the accessible name');
+  assert.match(pageControlsHtml({ tab: 'items' }), /<button class="new" id="new-item" type="button" data-page-ctl="new" aria-label="New item">/u);
+  const css = composeViewStyles();
+  for (const [name, wide] of [['.sx-mfilters', '#shouts-pane #feed > .sx-mfilters'], ['.act-mfilters', null]]) {
+    assert.ok(css.includes(name + ' { display: none; }'), `${name} is hidden at every width the strip shows`);
+    const shown = [...css.matchAll(new RegExp('@media \\(max-width: (\\d+)px\\) \\{[^@]*?' + name.replace('.', '\\.') + '[^{]*\\{ display: (?:flex|inline-flex)', 'gu'))].map((m) => Number(m[1]));
+    assert.ok(shown.length > 0 && shown.every((width) => width <= 900), `${name} shows only at 900 px and narrower, where the strip is hidden or cut off: ${shown}`);
+    if (wide) assert.ok(css.includes(wide + ' { display: none; }'), `${wide} is hidden on wide pages`);
+  }
+  assert.match(pageControlsHtml({ tab: 'shouts' }), /data-shout-filter="you"/u, 'the strip holds the Shouts filter');
+  assert.match(pageControlsHtml({ tab: 'activity' }), /data-value="landed"/u, 'the strip holds the Activity filters');
 });
 
 test('clause 1: Items rows are one card of mockup-shaped rows at the mockup\'s fixed row height [N26]', () => {
