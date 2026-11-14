@@ -250,6 +250,8 @@ test('case study counts a moved body separately from its remaining forwarding sh
   put(root, 'packages/a/src/core/a.js', 'export const a = 1;\n');
   put(root, 'packages/a/index.js', 'export { a } from "./src/core/a.js";\n');
   put(root, 'src/a.js', 'export * from "../packages/a/src/core/a.js";\n');
+  // The inventory reads tracked files only, so the moved body must be staged for the shim's import edge to resolve [C7].
+  runFixtureGit(['add', '.'], { cwd: root });
   const structure = structureMetrics(root);
   assert.equal(structure.cells.completed, 1);
   assert.equal(structure.lints.shims, 1, 'completed move does not erase its shim debt');
