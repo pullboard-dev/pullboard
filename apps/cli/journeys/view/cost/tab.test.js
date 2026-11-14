@@ -300,6 +300,8 @@ test('clause 1: the private view shows its last twenty native landings; a public
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    // A window under 900 px shows the Menu drawer and hides the Insights button (dcf117ebc6, #6725), so open it at desktop width.
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1800, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor("data?.project && (ensureFinished(data.project), data.project.items.some(item => item.id === 1))");
     const nativeBuilder = JSON.parse(await chrome.stable("JSON.stringify(data.project.agents.find(agent => agent.agent_lane === 'web'))"));
     assert.equal(nativeBuilder.family, nativeVendor, 'the actual private API keeps the canonical native vendor');

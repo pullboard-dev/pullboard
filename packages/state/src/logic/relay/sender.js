@@ -123,6 +123,9 @@ export function operationIntent(operation, args) {
       return options;
     }
     delete options.freeze;
+    // The computer's own gate waits and N are read again on a retry, and are not a different intent (#7775).
+    delete options.gateWaits;
+    delete options.seatCap;
     delete options.frozen;
     delete options.freezeError;
     return options;

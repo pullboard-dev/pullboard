@@ -95,8 +95,24 @@ export function claimsPerSeat(board, perSeat = null) {
   return { n, how: `N = clamp(1, 5, floor(${slots} free ${runners === null ? 'local cores' : 'runner slots'} / ${seats} live seats)) = ${n}; claims.perSeat overrides it` };
 }
 
+/**
+ * The two machine-local facts a claim's cap reads, sealed into the claim so every computer replays it alike (#7775):
+ * which of the seat's live claims wait on their own gate here, and the N this computer sizes. A pulled gate's job
+ * and the runner slots live only on the computer that submitted, so a replay elsewhere could not see them.
+ */
+export function claimAdmission(board, id, agentId, perSeat = null) {
+  const gateWaits = board.db.prepare("SELECT item_id FROM item WHERE item_owner = ? AND item_status = 'claimed' AND item_id != ? ORDER BY item_id")
+    .all(agentId, id).map(row => row.item_id).filter(item => awaitingGateOrReview(board, itemById(board, item)));
+  return { gateWaits, seatCap: claimsPerSeat(board, perSeat).n };
+}
+
+/** A claim's gate waits: the sealed list when the claim carries one, else this computer's own gate records. */
+function waitsOnGate(board, gateWaits, itemId) {
+  return Array.isArray(gateWaits) ? gateWaits.includes(itemId) : awaitingGateOrReview(board, itemById(board, itemId));
+}
+
 /** Build the original claim guards once; only a successful preflight captures source bytes. */
-function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, reviewSkipped = null, reviewPolicy = 'any', familyPolicy = 'off', submitAdmission = null, submitOutcome = null, adoptCorrection = false, refreshPolicy = false, reworkRoutingPolicy = null, itemFolder = false, buildBudgetMinutes = 30, routeCap = null, perSeat = null }, { reviewerChecks, reviewReleaseCooldown, foreignBlockers }) {
+function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, reviewSkipped = null, reviewPolicy = 'any', familyPolicy = 'off', submitAdmission = null, submitOutcome = null, adoptCorrection = false, refreshPolicy = false, reworkRoutingPolicy = null, itemFolder = false, buildBudgetMinutes = 30, routeCap = null, perSeat = null, gateWaits = null, seatCap = null }, { reviewerChecks, reviewReleaseCooldown, foreignBlockers }) {
   const admission = checkedSubmitAdmission(board, id, agentId, submitAdmission);
   const outcome = checkedSubmitOutcome(board, id, agentId, submitOutcome, admission);
   if (adoptCorrection && (board.executionEngineVersion ?? ENGINE_VERSION) < AUTOMATIC_DISPATCH_ENGINE) {
@@ -208,12 +224,13 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
         const modern = (board.executionEngineVersion ?? ENGINE_VERSION) >= ITEM_FOLDER_ENGINE;
         if (modern && !isRenewal(found)) {
           const held = board.db.prepare("SELECT item_id, item_parent_id, item_verdict, item_built_by FROM item WHERE item_owner = ? AND item_status = 'claimed' AND item_lease_until > ? AND item_id != ?")
-            .all(agentId, now(board), id).filter(row => !awaitingGateOrReview(board, itemById(board, row.item_id)));
+            .all(agentId, now(board), id).filter(row => !waitsOnGate(board, gateWaits, row.item_id));
           if (held.length >= 10) return new Refused('ONE_CLAIM', 'you already hold ten live claims; submit or release one before claiming another');
           // An item-folder claim may sit beside N-1 other top-level claims, N sized by the board (#6262).
           if (itemFolder === true && found.item_parent_id === null && !isRework(found)) {
             const top = held.filter(row => row.item_parent_id === null && !isRework(row));
-            const { n, how } = claimsPerSeat(board, perSeat);
+            const { n, how } = !Number.isSafeInteger(perSeat) && Number.isSafeInteger(seatCap) && seatCap >= 1
+              ? { n: seatCap, how: `the claiming computer sized N = ${seatCap}; claims.perSeat overrides it` } : claimsPerSeat(board, perSeat);
             seatN = n;
             if (top.length >= n) return new Refused('ONE_CLAIM', `you already hold ${top.map(row => `#${row.item_id}`).join(', ')}; a seat holds up to ${n} (${how}); submit or release one first (child items are free)`);
           }
@@ -227,7 +244,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
                AND NOT (COALESCE(item_verdict, '') = 'REJECT' AND COALESCE(item_built_by, '') = ?)`,
           )
           .all(agentId, now(board), id, agentId)
-          .find(row => !awaitingGateOrReview(board, itemById(board, row.item_id)));
+          .find(row => !waitsOnGate(board, gateWaits, row.item_id));
         return other ? new Refused('ONE_CLAIM', `you already hold #${other.item_id}; submit or release it first (child items are free)`) : null;
       },
       rowsInForce: (found) => {

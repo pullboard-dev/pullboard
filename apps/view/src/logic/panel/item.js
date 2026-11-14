@@ -258,7 +258,7 @@ export function itemPanelHtml(model, h) {
       return '<div class="ip-row ip-fr file item-file" data-file="' + esc(path) + '" title="' + esc(path) + '">' + icon(ICON.file) + '<span class="p"><span class="dir">' + esc(slash < 0 ? '' : path.slice(0, slash + 1)) + '</span>' + esc(path.slice(slash + 1)) + '</span></div>';
     }).join('') + '</details>' : '') + '</div>');
   }
-  if (h.waits) out += sec('Waits on', '', '<div class="ip-card"><div class="ip-row waits-on">' + h.waits + '</div></div>');
+  if (h.waits) out += sec('Blocked by', '', '<div class="ip-card"><div class="ip-row waits-on">' + h.waits + '</div></div>');
   if (h.refs) out += sec('Referenced code', '', '<div class="ip-card ip-bc">' + h.refs + '</div>');
   if (model.history.length) {
     const rows = model.history.slice(0, 6);

@@ -252,6 +252,10 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "journey",
     "reason": "needs: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
   },
+  "apps/cli/journeys/shout/journeys/needs.test.js": {
+    "kind": "journey",
+    "reason": "needs-calls: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
+  },
   "apps/cli/journeys/milestone/newcomer.test.js": {
     "kind": "journey",
     "reason": "newcomer: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"

@@ -109,15 +109,15 @@ export function createRelayPagesHandler({ directory, now, authorize, withJournal
       }
       if (req.method === 'POST' && route[4] === 'publish') {
         const body = await readApiBody(req);
-        only(body, ['root', 'initialOnly']);
+        only(body, ['root', 'initialOnly', 'recovery']);
         const reference = pageReference(body.root);
-        if (reference.bytes > PAGE_BYTES || body.initialOnly !== undefined && typeof body.initialOnly !== 'boolean') throw new Refused('BAD_PAGE', 'Publish a bounded sealed root for this upload.');
+        if (reference.bytes > PAGE_BYTES || body.initialOnly !== undefined && typeof body.initialOnly !== 'boolean' || body.recovery !== undefined && typeof body.recovery !== 'boolean') throw new Refused('BAD_PAGE', 'Publish a bounded sealed root for this upload.');
         const saved = withPages(id, who, (journal, pages) => {
           const snapshot = pages.publish(route[3], principal, reference, (root, bytes) => quota.change(id, principal, journal.snapshotDelta(root.sequence, bytes),
-            () => journal.saveSnapshot(root.sequence, bytes, principal, { apiVersion: 2, pageBytes: root.bytes, initialOnly: body.initialOnly === true })));
+            () => journal.saveSnapshot(root.sequence, bytes, principal, { apiVersion: 2, pageBytes: root.bytes, initialOnly: body.initialOnly === true, recovery: body.recovery === true })));
           pages.prune([reference.id]);
           quota.clear(id);
-          return { root: snapshotPageRoot(snapshot), sequence: snapshot.sequence, sender: snapshot.sender, storage: quota.usage(id) };
+          return { root: snapshotPageRoot(snapshot), sequence: snapshot.sequence, sender: snapshot.sender, ...(snapshot.epoch ? { epoch: snapshot.epoch } : {}), storage: quota.usage(id) };
         });
         return reply(res, 200, { apiVersion: 2, state: saved });
       }

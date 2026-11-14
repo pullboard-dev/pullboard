@@ -20,6 +20,15 @@ const ADD_EXAMPLE = ['pullboard lane add web --owns src/web', 'pullboard spec dr
   'pullboard add web "Upload page" --specs G1'].join('\n');
 
 const HELP_EXAMPLES = {
+  // Real words, so a pasted example does what it says; each runs on a fresh board in help/examples.test.js (#7755).
+  shout: 'pullboard shout all "Main is green; pull before you start"',
+  withdraw: 'pullboard withdraw 12 "duplicate of #9"',
+  search: 'pullboard search "upload page"',
+  test: 'pullboard test --affected',
+  trace: 'pullboard trace 12 --since 2h',
+  sweep: 'pullboard sweep --run "npx eslint ." --check "npx eslint {file}" --dry-run',
+  blueprint: 'pullboard blueprint add web-app',
+  settings: 'pullboard settings gateSlots 2',
   'settings line': `pullboard settings line reviewsFirst on --reason "reviews are waiting" --window '{"windowMinutes":60}'`,
   'spec approve': 'pullboard spec approve G1',
   'spec decline': 'pullboard spec decline G1 --reason "The requirement needs revision"',
@@ -41,7 +50,7 @@ const HELP_EXAMPLES = {
   status: 'pullboard status', view: 'pullboard view', digest: 'pullboard digest --out briefing.md', mcp: 'pullboard mcp', flow: 'pullboard flow replay --json', stats: 'pullboard stats --since 2026-10-08', log: 'pullboard log 12', ledger: 'pullboard ledger',
   relay: 'pullboard relay on --all', 'relay recover': 'pullboard relay recover --skip 12', sync: 'pullboard sync',
   'lane add': 'pullboard lane add web --owns apps/web/', lane: 'pullboard lane add web --owns apps/web/',
-  queue: 'pullboard queue', roadmap: 'pullboard roadmap', rigor: 'pullboard rigor', 'rigor quality': 'pullboard rigor quality --rule silent-catch', 'rigor draft': 'pullboard rigor draft "refusal:MERGE_LOST" "Merges keep every hunk" --check "node bin/checks/merges.js" --red 0123456 --green 89abcde', milestone: 'pullboard milestone add "0.7.0" --items 12,13',
+  queue: 'pullboard queue', roadmap: 'pullboard roadmap', rigor: 'pullboard rigor', 'rigor quality': 'pullboard rigor quality --rule silent-catch', 'rigor draft': 'pullboard rigor draft "refusal:MERGE_LOST" "Merges keep every hunk" --check "node bin/checks/merges.js" --red 0123456 --green 89abcde', milestone: 'pullboard milestone add "0.7.0"',
   'milestone order': 'pullboard milestone order "0.7.0" 13,12 --reason "the release notes need it first"',
   'milestone pin': 'pullboard milestone pin "0.7.0" 13 --reason "the release notes need it first"',
   'milestone sink': 'pullboard milestone sink "0.7.0" 12 --reason "waits on a design answer"',
