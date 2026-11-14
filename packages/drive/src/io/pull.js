@@ -634,8 +634,14 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     let receipt;
     // A land job's proof runs under the same environment a gate job does, so its ledger context key matches the gate's [P7].
     liveEnvironments.add(name);
-    try { receipt = await handlers[claim.kind](claim, { cache: workCache, renew, env: jobEnvironment(cache, name, claim.job).env }); }
-    catch (error) {
+    try {
+      // A payload that names what moved to the job's request (a big proof) gets it back before the handler runs (#7766).
+      if (Array.isArray(claim.payload?.requested) && claim.payload.requested.length) {
+        const asked = await reliably({ action: 'request', ...held });
+        claim = { ...claim, payload: { ...claim.payload, ...asked?.request?.land } };
+      }
+      receipt = await handlers[claim.kind](claim, { cache: workCache, renew, env: jobEnvironment(cache, name, claim.job).env });
+    } catch (error) {
       // A handler that could not run (a fetch, a full disk) is an infrastructure wait: hand the job back, never a red receipt.
       say(`releasing ${claim.job}: ${error?.message ?? error}`);
       await reliably({ action: 'release', ...held, reason: String(error?.message ?? error) }).catch(refusal => { if (refusal.code !== 'JOB_LEASE_MOVED') throw refusal; });

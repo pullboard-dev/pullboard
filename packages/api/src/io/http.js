@@ -492,7 +492,8 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false, body
         const initial = await adapter.events(board, after, who, eventLimit(url.searchParams.get('limit')));
         const warnings = await warningsFor(board, who);
         const eventLogVersion = await adapter.eventLogVersion?.(board, who);
-        return json(res, 200, { events: initial, ...(eventLogVersion === undefined ? {} : { eventLogVersion }),
+        const checkpointEpoch = await adapter.checkpointEpoch?.(board, who);
+        return json(res, 200, { events: initial, ...(eventLogVersion === undefined ? {} : { eventLogVersion }), ...(checkpointEpoch ? { checkpointEpoch } : {}),
           ...(warnings.length ? { warning: warnings[0], ...(warnings.length > 1 ? { warnings: warnings.slice(1) } : {}) } : {}) });
       }
       if (req.method === 'POST' && route[2] === 'moves') {
