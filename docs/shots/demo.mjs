@@ -458,7 +458,7 @@ else {
           }
           await view.viewport(1440, 900);
           await view.evaluate("document.documentElement.dataset.theme='light'; localStorage.setItem('pb.theme','light'); document.querySelector('[data-tab=\"shouts\"]').click()");
-          await view.waitFor("!document.querySelector('#shouts-pane').hidden && document.querySelectorAll('#feed .sx-th').length >= 1 && document.querySelector('#feed').textContent.includes('can continue while #3 waits')", 'the demo shout threads');
+          await view.waitFor("(() => { const fold = document.querySelector('#feed [data-fold=\"earlier\"][aria-expanded=\"false\"]'); if (fold) fold.click(); return !document.querySelector('#shouts-pane').hidden && document.querySelectorAll('#feed .sx-th').length >= 1 && document.querySelector('#feed').textContent.includes('can continue while #3 waits'); })()", 'the demo shout threads, with the Earlier fold open');
           for (const theme of THEMES) {
             await paintTheme(view, theme);
             await view.screenshot(join(OUTPUT, `shouts-${theme}.png`));
