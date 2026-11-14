@@ -26,7 +26,7 @@ export function activityPageHtml(flow, ui, { width = 740, leftKnown = true, newe
   const dur = ms => { const m = Math.max(1, Math.round(ms / MIN)); return m >= 60 ? Math.floor(m / 60) + 'h ' + (m % 60) + 'm' : m + 'm'; };
   const ago = ms => { const m = Math.max(0, Math.round((now - ms) / MIN)); return m < 60 ? m + 'm ago' : Math.floor(m / 60) + 'h ' + (m % 60) + 'm'; };
   const KIND = { landed: ['l', 'Landed'], sentback: ['x', 'Sent back'], held: ['h', 'Held'], blocked: ['g', 'Blocked'], pending: ['r', 'Pending review'], ruling: ['ru', 'Ruling'],
-    shout: ['g', 'Shout'], building: ['b', 'Building'], review: ['r', 'In review'], ready: ['rd', 'Ready'], sentinel: ['g', 'Sentinel'], gate: ['gt', 'Gate'], landing: ['l', 'Landing'] };
+    shout: ['g', 'Shout'], building: ['b', 'Building'], review: ['r', 'In review'], ready: ['rd', 'Ready'], withdrawn: ['x', 'Withdrawn'], sentinel: ['g', 'Sentinel'], gate: ['gt', 'Gate'], landing: ['l', 'Landing'] };
   const SEG = { ready: 'rd', build: 'b', blk: 'g', gate: 'gt', pend: 'r', rev: 'r', land: 'l', held: 'h' };
   const FILTERS = [['all', 'All'], ['landed', 'Landed'], ['sentback', 'Sent back'], ['held', 'Held'], ['blocked', 'Blocked'], ['pending', 'Pending review'], ['ruling', 'Rulings'], ['shout', 'Shouts']];
   const STAGE_COLOR = { ready: 'ready', building: 'building', gate: 'gate', pending: 'review', landing: 'merged' };
@@ -118,7 +118,7 @@ export function activityPageHtml(flow, ui, { width = 740, leftKnown = true, newe
   const quoted = text => '“' + String(text ?? '').split(/(#\d+)/u).map(part => /^#\d+$/u.test(part) ? '<a class="ref" href="' + esc(itemHref(part.slice(1))) + '" data-go="item:' + part.slice(1) + '">' + part + '</a>' : esc(part)).join('') + '”';
   const rowHtml = (entry, withTitle) => {
     const [cls, label] = KIND[entry.kind] ?? ['g', entry.kind];
-    const line1 = withTitle ? (entry.id !== null ? '<span class="id">#' + entry.id + '</span>' : '') + (entry.quote ? quoted(entry.quote) : esc(entry.title || (entry.kind === 'ruling' ? 'A ruling for you' : 'A message')))
+    const line1 = withTitle ? (entry.id !== null ? '<span class="id">#' + entry.id + '</span>' : '') + (entry.quote ? quoted(entry.quote) : esc(entry.title || (entry.kind === 'ruling' ? 'A ruling for you' : entry.id !== null ? 'This item' : 'A message')))
       : entry.quote ? quoted(entry.quote) : entry.kind === 'landed' ? 'on main' : esc(entry.fact.split(' · ')[0]);
     const line2 = withTitle ? esc(entry.fact) : entry.quote ? esc(entry.fact) : entry.fact.includes(' · ') ? esc(entry.fact.split(' · ').slice(1).join(' · ')) : '';
     return '<div class="act-row' + (entry.id !== null ? ' has' : '') + '"' + (entry.id !== null ? ' data-row="' + entry.id + '"' : '') + '><span class="t">' + (withTitle ? ago(entry.at) : clockShort(entry.at)) + '</span>' + chip(cls, label) + '<span class="ph">' + line1 + '</span><span class="fa">' + line2 + '</span></div>';
