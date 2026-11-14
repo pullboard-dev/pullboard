@@ -88,8 +88,8 @@ test('Spec, Doctrine and Activity use one measured toggle with real choices and 
         await press(chrome, 'document.querySelector("[data-tab=' + pane + ']")');
         await chrome.waitFor('!document.querySelector("[data-pane=' + pane + ']").hidden && !!document.querySelector(' + JSON.stringify(selector + ' [' + attribute + ']') + ')');
         await press(chrome, 'document.querySelector(' + JSON.stringify(selector + ' [' + attribute + '="' + selected + '"]') + ')');
-        // Move the real pointer off the track so no option is measured under a hover; the Search box is not a resting place.
-        await chrome.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 2, y: 2 });
+        // Press the open page's own tab so the real pointer rests off the track and no option is measured under a hover.
+        await press(chrome, 'document.querySelector("[data-tab=' + pane + ']")');
         await chrome.stable('new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))');
         const actual = await measureControl(chrome, selector);
         console.log('PULLBOARD_SEG_MEASURE ' + JSON.stringify({ width, pane, actual }));
