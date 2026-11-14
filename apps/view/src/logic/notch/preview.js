@@ -171,7 +171,8 @@ export function notchPreview(notch, read, { html = notchPreviewHtml, delay = 160
   const inside = target => Boolean(target && (panel.contains(target) || (notch.contains(target) && widget(target))));
   const place = () => {
     const box = notch.getBoundingClientRect && notch.getBoundingClientRect();
-    if (box && panel.style) panel.style.setProperty('--notch-bottom', Math.round(box.bottom) + 'px');
+    // The page's one runtime stylesheet carries the notch's bottom edge; no element is styled inline.
+    if (box && typeof geometry === 'function') { panel.setAttribute('data-geo', 'notch-panel'); veil.setAttribute('data-geo', 'notch-panel'); geometry('notch-panel', { '--notch-bottom': Math.round(box.bottom) + 'px' }); }
   };
   const paint = () => {
     const on = open !== null;
