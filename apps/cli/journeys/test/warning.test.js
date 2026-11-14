@@ -72,7 +72,7 @@ test('clause 2: pullboard test from a clean checkout prints no uncommitted-chang
   assert.equal(added.code, 0, added.err);
   assert.equal((await box.runLocal(box.web, 'claim', '1')).code, 0);
   // Process-level case: as above, only the real process stderr could carry the notice, so a clean run is read there.
-  const ran = box.run(box.web, 'test', 'test/green.test.js');
+  const ran = box.run(`${box.web}-item-1`, 'test', 'test/green.test.js');
   assert.equal(ran.code, 0, ran.err);
   assert.doesNotMatch(ran.err, /uncommitted changes|TEST_UNCOMMITTED/u);
   assert.match(`${ran.out}${ran.err}`, /queued test run/u, 'a clean tree is queued, not refused');
