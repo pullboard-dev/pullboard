@@ -12,7 +12,7 @@ import { onBoard } from '../../../tests/fixtures/land/board.js';
 import { runFixtureChildAsync } from '../../../tests/fixtures/child.js';
 import { waitForCondition } from '../../../tests/fixtures/runner/holders.js';
 import * as store from '../../../../../packages/store/index.js';
-import { automaticLandingDirectory } from '../../../../../packages/landing/index.js';
+import { automaticLandingDirectory } from '../../../../../packages/landing/src/io/automatic/scheduler.js';
 import { joinFixtureSeat } from '../../../tests/fixtures/testkit.js';
 
 const BIN = new URL('../../../pullboard.js', import.meta.url).pathname;
