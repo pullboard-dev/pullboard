@@ -33,7 +33,7 @@ function fixture(t) {
   return { root: repo.root, scratch };
 }
 
-/** The board's ledger hits for every file, as a controller's recorded green run would make them, written to a hit file. */
+/** The board's ledger hits for every file, as a controller's recorded green run makes them, written as a pulled gate proof writes them. */
 async function ledgerHitFile(fx) {
   const written = [], selectors = FILES.map(file => `./${file}`);
   await planTestActions(fx.root, selectors, { fullSuite: false, listFiles: () => selectors, write: text => written.push(text),
@@ -41,7 +41,7 @@ async function ledgerHitFile(fx) {
   const ledger = phaseLedger(written.join(''), { status: 0 });
   assert.ok(ledger?.files.length === FILES.length, `the controller's plan keyed every file: ${written.join('').slice(0, 2000)}`);
   const hits = join(fx.scratch, 'hits.json');
-  writeFileSync(hits, JSON.stringify({ contexts: ledger.contexts, files: ledger.files.map(row => row.slice(0, 3)), omitted: 0 }));
+  writeFileSync(hits, JSON.stringify({ contexts: ledger.contexts, files: ledger.files.map(row => row.slice(0, 3)), omitted: 0, account: true }));
   return hits;
 }
 

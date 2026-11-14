@@ -1,4 +1,4 @@
-/** A pulled gate or shard job carries the board ledger's hits; its runner reuses a hit only on a stored green with outcomes [P7,CD2,C7]. */
+/** A pulled gate or shard job carries the board ledger's hits, and its runner reuses a proven file with an empty store [P7,CD2]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
@@ -42,7 +42,7 @@ function postGate(board, job, ledger) {
     receipt: { version: 1, status: 1, gate: { source: HEAD, green: false, phases: [{ role: 'proof', status: 1, failures: [{ file: RED, name: 'a failing case' }], ledger }] } } }, { mode: 'pull', now: 3 });
 }
 
-test('clause 1: a pulled gate carries the ledger hits a controller proved, and a runner with no stored outcome for a hit runs it [P7,CD2,C7]', { timeout: 180_000 }, // budget: two files' import closures keyed at HEAD three times.
+test('clause 1: a pulled gate on a runner with an empty store reuses a file the controller proved at the same inputKey and runs only the rest [P7,CD2]', { timeout: 180_000 }, // budget: two files' import closures keyed at HEAD three times.
 async t => {
   const scratch = privateFixtureFiles('pullboard-ledger-hits-').root;
   t.after(() => rmSync(scratch, { recursive: true, force: true }));
@@ -59,11 +59,15 @@ async t => {
   const hitFile = join(scratch, 'hits.json');
   writeFileSync(hitFile, JSON.stringify(hits));
 
-  // A runner with an empty store holds no outcome for GREEN, so the hit runs rather than reach the gate unaccounted
-  // (TEST_SELECTION_UNVERIFIED); a stored green backs the hit (packages/gate/tests/io/test/action/account.test.js) [C7,#7937].
+  // A runner with an empty store and the job's hit list reuses GREEN and runs only RED.
   const ran = await plan(cleanEnv(join(scratch, 'runner'), { PULLBOARD_LEDGER_HITS: hitFile }));
-  assert.doesNotMatch(ran.text, /from ledger \(/u, ran.text.slice(0, 2000));
-  assert.deepEqual(ran.args, [GREEN, RED].map(file => `./${file}`), 'a hit with no stored outcome runs');
+  assert.match(ran.text, new RegExp(`# reused [0-9a-f]{64} from ledger \\(${GREEN.replaceAll('.', '\\.')}\\)`), ran.text.slice(0, 2000));
+  assert.deepEqual(ran.args, [`./${RED}`], 'only the miss runs');
+
+  // A pulled gate proof owes a test account (account: true): with no stored outcome for GREEN here, the hit runs [C7,#7937].
+  writeFileSync(hitFile, JSON.stringify({ ...hits, account: true }));
+  const owed = await plan(cleanEnv(join(scratch, 'owed'), { PULLBOARD_LEDGER_HITS: hitFile }));
+  assert.deepEqual(owed.args, [GREEN, RED].map(file => `./${file}`), 'an owed account never reuses a hit without its outcomes');
 
   // A hit under another context class is a miss: both files run.
   writeFileSync(hitFile, JSON.stringify({ ...hits, contexts: hits.contexts.map(() => 'f'.repeat(64)) }));
