@@ -9,6 +9,7 @@ export { ACTIVITY_DELIVERY_ENGINE } from './src/logic/engines/activity-delivery-
 export { ACTIVITY_NEWS_ENGINE } from './src/logic/engines/activity-news-engine.js';
 export { AGENT_GRANT_ENGINE } from './src/logic/engines/agent-grant-engine.js';
 export { AUTOMATIC_DISPATCH_ENGINE } from './src/logic/engines/automatic-dispatch-engine.js';
+export { ASK_CLOSE_ENGINE } from './src/logic/engines/ask-close-engine.js';
 export { AUTO_ESCALATE_ENGINE } from './src/logic/engines/auto-escalate-engine.js';
 export { AUTO_SUBMIT_QUARANTINE_ENGINE } from './src/logic/engines/auto-submit-quarantine-engine.js';
 export { BAR_CHECK_ENGINE } from './src/logic/engines/bar-check-engine.js';
