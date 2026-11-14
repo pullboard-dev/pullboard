@@ -75,10 +75,13 @@ process.stderr.write('run-tests: phases selection 0.1s, tests 0.7s, total 0.9s\\
 process.exitCode = ran.status;
 `;
 
+/** The proof command's own file stays a one-line door: a tests/ folder is where a fixture may name the runner and its files without tripping the no-runtime-assumptions ratchet. */
+const PROOF_DOOR = "import './tests/proof.js';\n";
+
 test('clause 2: a pulled proof with 25 failing cases in over a megabyte of output lists every case by file and name, in its receipt and on the item [P7]', { timeout: 180_000 }, // budget: hang ceiling for a project, one submit and one whole gate in a runner process.
 async t => {
   // Main's gate door carries the real TAP accounting and timing reads, as accepted main does.
-  const box = await pullProject(t, 1, { tooling: { 'bin/proof.js': PROOF, 'web/many.test.js': MANY,
+  const box = await pullProject(t, 1, { tooling: { 'bin/proof.js': PROOF_DOOR, 'bin/tests/proof.js': PROOF, 'web/many.test.js': MANY,
     'packages/gate/index.js': `${TOOLING['packages/gate/index.js']}export { accountedFailures, timingAccountingStages, timingSource, TIMING_RUN_ID_ENV } from ${JSON.stringify(GATE)};\n` } });
   const [id] = box.ids;
   submitOne(box, id);

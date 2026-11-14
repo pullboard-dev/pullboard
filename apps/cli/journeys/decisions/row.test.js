@@ -463,7 +463,7 @@ test('[B26] agent markers and agent worktrees cannot decide rows; only the coord
   assert.equal(sourceRow(box, SPEC_FILE, 'G1').status, 'approved');
 });
 
-test('[B26,S18,S19] stale row text refuses apply without changing any approved row', async function staleApplyIsAtomic() {
+test('[B26,S18,S19] stale row text is held while a fresh decision applies, and the stale row is never written [B2]', async function staleApplyIsAtomic() {
   const box = await project();
   for (const id of ['G1', 'G2']) {
     const approved = await command(box, box.root, 'spec', 'approve', id, '--json');
@@ -474,11 +474,10 @@ test('[B26,S18,S19] stale row text refuses apply without changing any approved r
   writeFileSync(source, edited);
   const beforeApply = readFileSync(source, 'utf8');
   const refused = await command(box, box.root, 'spec', 'apply', '--json');
-  assert.notEqual(refused.status, 0, `${refused.stdout}${refused.stderr}`);
-  const document = JSON.parse(refused.stdout);
-  assert.ok(document.error, 'stale decision refusal stays a structured CLI refusal');
-  assert.equal(readFileSync(source, 'utf8'), beforeApply, 'the stale check prevents partial writes to SPEC.md');
-  assert.equal(sourceRow(box, SPEC_FILE, 'G1').status, 'draft', 'even the earlier valid decision is not applied first');
+  assert.equal(refused.status, 0, `${refused.stdout}${refused.stderr}`);
+  assert.deepEqual(JSON.parse(refused.stdout).held.map((held) => held.id), ['G2'], 'the stale decision is held and named');
+  assert.notEqual(readFileSync(source, 'utf8'), beforeApply, 'the fresh decision is written');
+  assert.equal(sourceRow(box, SPEC_FILE, 'G1').status, 'approved', 'the fresh decision applies');
   assert.equal(sourceRow(box, SPEC_FILE, 'G2').status, 'draft');
   assert.equal(sourceRow(box, SPEC_FILE, 'G2').text, 'Someone edited this row after approval.');
 });
@@ -648,4 +647,33 @@ test('a same-text gate change makes an approval stale everywhere [S1,B26]', asyn
     assert.equal(applied.status, 0, applied.stderr);
     assert.equal(sourceRow(box, SPEC_FILE, 'G1').status, 'approved');
   }
+});
+
+test('spec apply writes a fresh decision and holds a stale one, failing only when nothing applied [B2]', async () => {
+  const box = await project();
+  for (const id of ['G1', 'G2']) {
+    const approval = await command(box, box.root, 'spec', 'approve', id, '--json');
+    assert.equal(approval.status, 0, approval.stderr);
+  }
+  const file = join(box.root, SPEC_FILE);
+  writeFileSync(file, readFileSync(file, 'utf8').replace('Approve this row. | gate: true', 'Approve this row. | gate: false'));
+  const changed = readFileSync(file, 'utf8');
+
+  const applied = await command(box, box.root, 'spec', 'apply', '--json');
+  assert.equal(applied.status, 0, `${applied.stdout}${applied.stderr}`);
+  assert.equal(sourceRow(box, SPEC_FILE, 'G2').status, 'approved', 'the fresh decision is written');
+  assert.equal(sourceRow(box, SPEC_FILE, 'G1').status, 'draft', 'the stale row is left as it was');
+  assert.ok(readFileSync(file, 'utf8').includes('gate: false'), 'the changed row text is untouched');
+  const result = JSON.parse(applied.stdout);
+  assert.deepEqual(result.held.map((held) => held.id), ['G1']);
+  assert.match(result.held[0].next, /ask the person to approve G1's current row again/u, 'the held row names its next step');
+  const shown = await command(box, box.root, 'spec', 'show', 'G1', '--json');
+  assert.match(JSON.parse(shown.stdout).row.stage, /STALE/u, 'the stale decision stays pending');
+
+  const again = await command(box, box.root, 'spec', 'apply', '--json');
+  assert.equal(again.status, 1, 'nothing applied and one row held exits non-zero');
+  assert.equal(JSON.parse(again.stdout).error.code, 'STALE_ROW_DECISION');
+  assert.match(again.stdout, /G1/u);
+  assert.match(again.stdout, /approve G1's current row again/u);
+  assert.ok(readFileSync(file, 'utf8').includes('gate: false') && changed.includes('gate: false'));
 });
