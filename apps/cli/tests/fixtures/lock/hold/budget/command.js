@@ -12,7 +12,7 @@ import { cpus } from 'node:os';
 import { loadavg } from 'node:os';
 import { freemem } from 'node:os';
 import { createE2eHelpers } from '../../../e2e.js';
-import { settlePulledJobs } from '../../../e2e.js';
+import { settleSubmit } from '../../../submit/settle.js';
 import { runFixtureChild } from '../../../child.js';
 import { fixtureJoin } from '../../../testkit.js';
 
@@ -43,8 +43,6 @@ function command(box, bin, cwd, label, ...args) {
   const env = { ...box.env, PULLBOARD_LOCK_BUDGET_COMMAND: label };
   const result = runFixtureChild(process.execPath, ['--import', PRELOAD, bin, ...args], { cwd, env, encoding: 'utf8' });
   assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
-  // Under pull dispatch submit returns before its gate settles; wait so the next command sees the submitted item (e8f5582942).
-  settlePulledJobs(cwd, args, env);
   assert.doesNotMatch(result.stderr, /LOCK_BUDGET_OBSERVER_UNAVAILABLE/u);
   return result.stdout;
 }
@@ -92,7 +90,9 @@ export async function assertCommandHoldBudget(t) {
     box.git(box.web, 'add', '-A');
     box.git(box.web, 'commit', '-q', '-m', 'feat(web): fixture source for hold budget [G1]');
     const commit = box.git(box.web, 'rev-parse', 'HEAD');
-    command(box, e2e.BIN, box.web, 'submit', 'submit', id, '--no-next');
+    // Under pull dispatch submit returns before its gate settles (e8f5582942): wait on the runner's receipt so verify sees a submitted item.
+    const queued = JSON.parse(command(box, e2e.BIN, box.web, 'submit', 'submit', id, '--no-next', '--json'));
+    await settleSubmit(t, { repo: box.web, env: box.env, run: box.run }, queued, { deadlineMs: 120_000 });
     box.git(box.repo, 'switch', '-q', '--detach', commit);
     try {
       command(box, e2e.BIN, box.repo, 'verify', 'verify', id, 'accept', '--as', 'coordinator', '--no-next', '--note', 'Private timing fixture only');
