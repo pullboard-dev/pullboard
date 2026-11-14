@@ -1448,7 +1448,7 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .set-groups { display: grid; gap: var(--space-5); margin-top: var(--space-5); }
 .set-sect { min-width: 0; }
 .set-group { background: var(--surface); border: var(--border); border-radius: var(--radius-card); overflow: hidden; }
-.set { display: grid; grid-template-columns: minmax(0, 1fr) auto 28px; gap: 0 var(--space-5); align-items: center; height: 64px; padding: 0 var(--space-5); }
+.set { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 var(--space-5); align-items: center; height: 64px; padding: 0 var(--space-5); }
 .set.has-copy { grid-template-columns: minmax(0, 1fr) auto 28px; }
 .set + .set { border-top: var(--border); }
 .set .name { min-width: 0; }

@@ -136,6 +136,8 @@ test('a local relay-health Rulings entry is an inspection with no release or hol
     await chrome.stable(`(() => {
       globalThis.builderCalls = ${JSON.stringify([call])};
       personNeeds = () => builderCalls;
+      // The page reads the person's rulings once per board state, so a fresh state makes it read the injected builder (#6851).
+      data.project = { ...data.project };
       render();
       return true;
     })()`);
