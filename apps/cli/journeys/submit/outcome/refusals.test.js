@@ -15,7 +15,7 @@ describe('pulled submit refusals keep file identity and the exact assertion guar
     const { gate, failures } = await pulledSubmit(t, box);
     assert.equal(gate.green, false, 'the pulled gate receipt is red');
     assert.ok(failures.length >= 2);
-    assert.ok(failures.every(row => row.file === null), 'neither title arbitrarily selects the first file');
+    assert.ok(failures.every(row => row.file === null), 'neither title arbitrarily selects the first file ' + JSON.stringify(failures));
     assert.ok(failures.every(row => row.name === 'shared failure [G1]'));
     assert.equal((await submittedProof(box)), null);
   });
