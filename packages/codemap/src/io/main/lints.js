@@ -1,11 +1,11 @@
-import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { cellLintReport } from '../cell/lints.js';
 import { cellLintBaseline } from '../cell/lint/ratchet.js';
 import { Refused } from '../../../../kernel/index.js';
 import { gitSpawnSync } from '../../../../git/index.js';
+import { mkdtempSync } from 'node:fs';
+import { scratchBase } from '../../../../kernel/light.js';
 
 const MAIN_REFS = ['refs/heads/main', 'refs/remotes/origin/main'];
 
@@ -31,7 +31,7 @@ export function mainCommit(root) {
  */
 export function mainCellLintReport(root, parsers, commit = mainCommit(root)) {
   if (!commit) return null;
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-main-lints-'));
+  const directory = mkdtempSync(join(scratchBase(), 'pullboard-main-lints-'));
   try {
     const checkout = join(directory, 'main');
     const cloned = gitRun(root, ['clone', '--quiet', '--shared', '--no-checkout', '--', root, checkout]);
