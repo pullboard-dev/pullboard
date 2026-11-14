@@ -8,6 +8,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import test from 'node:test';
+import { DatabaseSync } from 'node:sqlite';
+import { waitForState } from '../../tests/fixtures/check-baseline.js';
 import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
 
 const LANE = 'fixture-build';
@@ -79,6 +81,17 @@ async function claimSubmitClaim({ box, seat, items: [first, second] }) {
   assert.equal(again.code, 0, again.failure);
 }
 
+/** One item's status on this computer's own board file, read without a command. */
+function localStatus(box, id) {
+  const db = new DatabaseSync(join(box.root, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
+  try { return db.prepare('SELECT item_status FROM item WHERE item_id = ?').get(id)?.item_status; } finally { db.close(); }
+}
+
+/** Wait until the first item's gate has finished on this computer, so its submit is recorded before boards compare. */
+async function gateFinished(box, id) {
+  await waitForState(() => localStatus(box, id) !== 'claimed', `the gate for #${id} finished`);
+}
+
 /** Each item's status and holder on one computer's board. */
 function states(exported, items) {
   return items.map(id => {
@@ -90,13 +103,15 @@ function states(exported, items) {
 test('clause 1: claim, submit and claim again while the relay is down end alike on both computers and match an unlinked board [C7,B26,H16]', async t => {
   const unlinked = await seatBoard(t, false);
   await claimSubmitClaim(unlinked);
+  await gateFinished(unlinked.box, unlinked.items[0]);
   const expected = states((await unlinked.box.cliLocal('export')).document, unlinked.items);
-  assert.deepEqual(expected.map(([, status]) => status), ['claimed', 'claimed'], 'unlinked, the seat holds both items');
+  assert.deepEqual(expected.map(([, status]) => status), ['submitted', 'claimed'], 'unlinked, the first item is submitted and the seat holds the second');
 
   const linked = await seatBoard(t, true);
   await linked.box.stopRelay();
   await claimSubmitClaim(linked);
   await linked.box.restartRelay();
+  await gateFinished(linked.box, linked.items[0]);
   const drained = await step('status up', () => linked.box.cli('status'));
   assert.equal(drained.code, 0, drained.failure);
   assert.equal(drained.document.relay.outbox, undefined, 'the outbox drains');
