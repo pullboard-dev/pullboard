@@ -8,7 +8,10 @@ import { main } from '../../../tests/fixtures/native.js';
 
 test('a seat idling in next --wait sees a mid-wait shout once and returns on a shout naming an item [B3,N2]', async t => {
   const box = await fixture(t);
-  const target = box.add('Review request that arrives while the seat idles', { lane: 'docs' });
+  // A shout ends the wait only on work this seat can act on (4faff55b5e), so the item waits in the seat's own lane behind a claimed one.
+  const blocker = box.add('Claimed work the review request follows');
+  box.claim(blocker);
+  const target = box.add('Review request that arrives while the seat idles', { after: [blocker] });
   const actor = box.seats.actor;
   const plain = 'routing note: stand by for the coordinator, nothing to act on yet';
   const asking = `please review #${target} now`;
