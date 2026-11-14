@@ -37,7 +37,7 @@ test('a landing reopen carries the exact failing assertion [C7,B22]', async () =
   box.env.LAND_SUPPRESS_RED = '1';
   submitItem(box, entry, 'RED\n');
   acceptItem(box, entry);
-  delete box.env.LAND_SUPPRESS_RED;
+  box.env.LAND_SUPPRESS_RED = '0'; // the pulled gate reads a mirrored switch file; '0' turns suppression off there too
   // The submit ran with its red suppressed; move main so the landing runs its own gate instead of reusing that receipt (#3685).
   moveMainPastSubmit(box);
   const base = box.git(box.repo, 'rev-parse', 'main');
