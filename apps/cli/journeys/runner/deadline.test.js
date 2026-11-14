@@ -84,10 +84,11 @@ test('disabled local capacity and runner-only work refuse by name at the runner 
     const box = fixture();
     const settings = JSON.parse(readFileSync(box.settingsFile, 'utf8'));
     writeFileSync(box.settingsFile, JSON.stringify({ ...settings, gateSlots: runnerOnly ? 1 : 0, browserSlots: runnerOnly ? 1 : 0 }));
+    // gui is off for the runner-only pass: f076993d37 refuses a GUI run no runner hosts with its own GUI message, so this pass keeps the deadline refusal.
     const module = pathToFileURL(join(import.meta.dirname, '../../../../packages/gate/index.js')).href;
     const source = `import {withGateSlot} from ${JSON.stringify(module)};
 ${executionServicesSource(module)}
-try { await withGateSlot(${JSON.stringify(box.repo)},()=>{throw Error('disabled execution ran')},{ executionServices,browser:true,gui:true,runnerOnly:${runnerOnly},agent:'deadline-refusal'}); process.exitCode=9; }
+try { await withGateSlot(${JSON.stringify(box.repo)},()=>{throw Error('disabled execution ran')},{ executionServices,browser:true,gui:${!runnerOnly},runnerOnly:${runnerOnly},agent:'deadline-refusal'}); process.exitCode=9; }
 catch(error) { console.log(JSON.stringify({code:error.code,message:error.message})); process.exitCode=error.code==='RUNNER_WAIT_DEADLINE'?0:8; }`;
     const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
       cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 5_000 }); // budget: a missing 60ms private deadline is a bounded failure, not an immortal test.
