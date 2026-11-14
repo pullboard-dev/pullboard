@@ -31,7 +31,10 @@ test('a roadmap summary card separates its counts, legend and forecast at phone 
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor("data?.project?.milestones?.some(milestone => milestone.name === 'Capacity')");
     const live = JSON.parse(await chrome.stable("JSON.stringify(data.project.milestones.find(milestone => milestone.name === 'Capacity'))"));
-    assert.deepEqual(live.summary, actual.summary, 'the initial card input is the summary from the real API');
+    // The page splits the API's waiting items into ready and blocked by the Dashboard's NOW definition (6648c0eb6b, #7763), so every other count matches the API and ready plus waiting equals the API's waiting.
+    const { ready, waiting, ...liveRest } = live.summary, { waiting: apiWaiting, ...apiRest } = actual.summary;
+    assert.deepEqual(liveRest, apiRest, 'the initial card input is the summary from the real API');
+    assert.equal(ready + waiting, apiWaiting, 'the page splits the API waiting count into ready and blocked');
     await press(chrome, "document.querySelector('[data-tab=roadmap]')");
     await chrome.waitFor("document.querySelector('[data-key=\"m:Capacity\"] .milestone-head')");
     // The completion estimate names a part of day in the browser's zone, so pin it; the machine's zone shifts at DST.
