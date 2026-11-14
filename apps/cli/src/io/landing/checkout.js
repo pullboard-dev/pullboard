@@ -50,3 +50,20 @@ export function trunkCheckedOut(remote, root, trunk) {
   if (listed.status !== 0) return false;
   return listed.stdout.split(/\n\n+/u).some(block => !/^bare$/mu.test(block) && block.split('\n').includes(`branch ${trunk}`));
 }
+
+/**
+ * Doctor's finding for a trunk remote that is a non-bare checkout on this host with trunk checked out but without
+ * receive.denyCurrentBranch=updateInstead set on it, or null. Why: an ssh trunk whose login takes only plain git
+ * commands rejects the lander's custom receive-pack, so the repo itself must allow the push into its checkout (#7952).
+ *
+ * @param {string | null} remote - The trunk remote of record.
+ * @param {string} root - The main checkout, which a relative remote resolves from.
+ * @param {string} trunk - The trunk ref, like refs/heads/main.
+ */
+export function trunkUpdateInsteadProblem(remote, root, trunk) {
+  if (!remote || !trunkCheckedOut(remote, root, trunk)) return null;
+  const path = localPath(remote, root);
+  if (tryGit(path, ['config', '--get', 'receive.denyCurrentBranch']).stdout.trim() === 'updateInstead') return null;
+  return { code: 'TRUNK_UPDATEINSTEAD', message: `the trunk ${remote} is a checkout with ${trunk.replace(/^refs\/heads\//u, '')} checked out, and it lacks receive.denyCurrentBranch=updateInstead, so a plain push into it is refused`,
+    next: `run git -C ${JSON.stringify(path)} config receive.denyCurrentBranch updateInstead` };
+}

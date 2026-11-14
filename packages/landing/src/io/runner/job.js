@@ -31,6 +31,8 @@ export const IDENTITY = ['-c', 'user.name=Pullboard', '-c', 'user.email=landing@
 // A push into the board host's own checkout updates its checked-out trunk and work tree, and refuses if that tree is dirty.
 export const INTO_CHECKOUT = '--receive-pack=git -c receive.denyCurrentBranch=updateInstead receive-pack';
 const NO_PUSH_OPTIONS = /does not support push options/u;
+// An ssh trunk remote whose login accepts only plain git commands rejects the custom --receive-pack (#7952).
+const CUSTOM_REFUSED = /unrecognized command|command not allowed|not allowed to run|restricted shell/iu;
 const CHECKED_OUT = /refusing to update checked out branch|branch is currently checked out/u;
 const DIRTY_CHECKOUT = /Working directory has (?:unstaged|staged) changes|Could not update working tree/u;
 
@@ -38,7 +40,9 @@ const DIRTY_CHECKOUT = /Working directory has (?:unstaged|staged) changes|Could 
  * Push the landed tip with compare-and-swap, carrying the job's landing permit as push options for the trunk guard
  * (#5848). A remote with no guard may not take push options at all; the push then goes again without them. A remote
  * that refuses because trunk is checked out there takes the push into its checkout, as payload.checkout asks, since an
- * offer can miss a checkout it cannot see (#7951).
+ * offer can miss a checkout it cannot see (#7951). A remote whose login refuses that custom receive-pack (an ssh shell
+ * limited to plain git commands) gets one plain push instead, which lands when the trunk repo sets
+ * receive.denyCurrentBranch=updateInstead itself (#7952).
  */
 export function pushTrunk(root, { payload, trunk, base, remote, source = 'HEAD', options = [] }) {
   const send = (into, extra) => tryGit(root, ['push', '--porcelain', '--quiet', ...(into ? [INTO_CHECKOUT] : []), ...extra, `--force-with-lease=${trunk}:${base}`, remote, `${source}:${trunk}`]);
@@ -46,8 +50,10 @@ export function pushTrunk(root, { payload, trunk, base, remote, source = 'HEAD',
     const pushed = send(into, options.flatMap(option => ['-o', option]));
     return options.length && pushed.status !== 0 && NO_PUSH_OPTIONS.test(pushed.stderr) ? send(into, []) : pushed;
   };
+  const words = result => `${result.stderr}\n${result.stdout}`;
   const pushed = push(Boolean(payload.checkout));
-  return !payload.checkout && pushed.status !== 0 && CHECKED_OUT.test(`${pushed.stderr}\n${pushed.stdout}`) ? push(true) : pushed;
+  const into = !payload.checkout && pushed.status !== 0 && CHECKED_OUT.test(words(pushed)) ? push(true) : pushed;
+  return (payload.checkout || into !== pushed) && into.status !== 0 && CUSTOM_REFUSED.test(words(into)) ? push(false) : into;
 }
 
 /**
