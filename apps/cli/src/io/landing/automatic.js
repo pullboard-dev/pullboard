@@ -75,7 +75,7 @@ export function wakeIo(root, { schemaDiagnostics } = {}) {
     openBoard: (...args) => { const board = nativeBoard.openBoard(...args); board.db.exec(`PRAGMA busy_timeout = ${LANDING_BOARD_BUSY_MS}`); return board; },
     nativeBoardPorts: (...args) => nativeBoard.nativeBoardPorts(...args),
     outboxPolicy: () => ({ acknowledgedOperations: outbox.ACKNOWLEDGED_OPERATIONS, outboxQueueable: outbox.outboxQueueable }),
-    // Every lander line carries its time, so a batch's phases read back from worker.log [C7].
+    // Every lander line carries its time, so a batch's phases read back from its log [C7].
     say: (...parts) => console.log(new Date().toISOString(), ...parts), err: (...parts) => console.error(new Date().toISOString(), ...parts) };
 }
 
@@ -188,7 +188,7 @@ async function wakeOnce(root, { land, wait, pollMs, now, backoff, onBackoff, mar
     }
     if (HELD_TRUNK_REFUSALS.has(error.code)) {
       held = error.code;
-      // The held refusal names what holds the trunk, so a stale hold reads back from worker.log (#3761).
+      // The held refusal names what holds the trunk, so a stale hold reads back from the lander's log (#3761).
       console.log(new Date().toISOString(), `landing held: ${error.message}`);
     }
     else if (retryableLandingRefusal(error.code)) refused = true;

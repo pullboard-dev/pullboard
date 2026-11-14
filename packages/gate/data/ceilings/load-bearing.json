@@ -300,9 +300,6 @@
     "daemon-loop": 1,
     "state-file": 3
   },
-  "packages/landing/src/io/automatic/scheduler.js": {
-    "state-file": 1
-  },
   "packages/landing/src/io/smoke.js": {
     "state-file": 7
   },
