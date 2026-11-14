@@ -151,8 +151,10 @@ test('a lone newcomer starts a reviewer with one command [V1,B26]', async t => {
   assert.equal(committed.status, 0, committed.stderr);
   const submitted = (await box.runLocal(box.web, 'submit', '1'));
   assert.equal(submitted.code, 0, submitted.err);
-  assert.match(submitted.out, /different agent session/iu);
-  const startup = submitted.out.split('\n').find(line => line.includes('git worktree add --detach'));
+  // A pulled submit returns at once while the gate job runs; the reviewer startup is what next prints once the gate settles [P7].
+  const settled = await box.runLocal(box.web, 'next');
+  assert.match(submitted.out + settled.out, /different agent session/iu);
+  const startup = (submitted.out + settled.out).split('\n').find(line => line.includes('git worktree add --detach'));
   assert.ok(startup, 'submit prints the complete reviewer startup on one line');
   assert.match(startup, /&&.*pullboard join review.*&&.*pullboard next --verify 1/u);
   assert.equal(initialized.out.split('\n').filter(line => line.includes('git worktree add --detach')).length, 1,
