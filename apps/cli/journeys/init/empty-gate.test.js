@@ -16,7 +16,7 @@ test('init in a repo with no test runner says the gate is empty and prints the g
   const root = join(box.dir, 'no-runner');
   mkdirSync(join(root, 'src'), { recursive: true });
   box.git(root, 'init', '-q', '-b', 'main');
-  writeFileSync(join(root, 'src', 'app.py'), 'print(1)\n');
+  writeFileSync(join(root, 'src/app.py'), 'print(1)\n');
   const initialized = await box.runLocal(root, 'init');
   assert.equal(initialized.code, 0, initialized.err || initialized.out);
   assert.equal(JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8')).gate, '', 'no command was invented');

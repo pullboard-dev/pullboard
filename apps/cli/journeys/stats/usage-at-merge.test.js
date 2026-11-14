@@ -45,7 +45,7 @@ function fixture(t) {
   };
   /** Close an item the way the coordinator's command layer does, from a shell that has no session of the seat. */
   const close = async (operation, id) => {
-    if (operation === 'merged') store.merged(board, id, { agentId: 'coordinator', commit: project.git(project.repo, 'rev-parse', 'HEAD'), forced: 'landed by hand around the gate' });
+    if (operation === 'merged') store.merged(board, id, { agentId: 'coordinator', commit: project.git(project.repo, 'rev-parse', 'HEAD'), forced: 'landed by hand around the gate', waiveProof: 'the fixture records no receipt' });
     else store.withdraw(board, id, { agentId: 'coordinator', reason: 'withdrawn with unfinished work' });
     await checkpointAfterMove(ctx, board, { agent: 'coordinator', item: id, operation }, { ordered, environment: {} });
   };

@@ -310,7 +310,7 @@ test('a raw full-suite run takes a machine gate slot [Q4]', async () => {
       let followingGate;
       try {
         await waitFor(() => events(box).includes('full-suite-holder start'), 'the fixture gate to hold its only machine slot');
-        fullRun = add(launchTestRunner(box, suiteRoot, args, marker, releaseProbe));
+        fullRun = add(launchTestRunner(box, suiteRoot, args, marker, releaseProbe, { PULLBOARD_LANDING_RUN: '1' }));
         const outcome = await waitFor(() => { // budget: hang ceiling for the raw runner to announce its actual queue state; no throughput claim.
           if (fullRun.stderrText.includes('waiting for a gate slot:')) return 'waiting';
           if (existsSync(marker)) return 'ran';
