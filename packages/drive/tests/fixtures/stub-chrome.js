@@ -12,11 +12,12 @@ export const alive = pid => { try { process.kill(pid, 0); return true; } catch {
 
 /**
  * Start a stub whose command line names `profile` after `flag`; `orphaned` leaves it parentless, as a killed serve's job does.
+ * `env` adds environment variables, which the orphaned stub keeps, as a local runner keeps its TMPDIR.
  * `closed` settles once the stub is gone, because it holds the pipe the test reads its pid from.
  */
-export async function stub(profile, orphaned = false, flag = '--user-data-dir=') {
+export async function stub(profile, orphaned = false, flag = '--user-data-dir=', env = {}) {
   const arg = `${flag}${profile}`;
-  const child = orphaned ? spawn(process.execPath, ['-e', LAUNCHER], { stdio: ['ignore', 'pipe', 'ignore'], env: { PATH: process.env.PATH, STUB_CODE: STUB, STUB_ARG: arg } })
+  const child = orphaned ? spawn(process.execPath, ['-e', LAUNCHER], { stdio: ['ignore', 'pipe', 'ignore'], env: { PATH: process.env.PATH, STUB_CODE: STUB, STUB_ARG: arg, ...env } })
     : spawn(process.execPath, ['-e', STUB, '--', arg], { detached: true, stdio: ['ignore', 'pipe', 'ignore'] });
   const launched = orphaned ? once(child, 'exit') : null, closed = once(child, 'close');
   const [first] = await once(child.stdout, 'data');

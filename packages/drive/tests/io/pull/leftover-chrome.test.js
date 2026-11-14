@@ -82,3 +82,23 @@ test('#7813 clause 1: a runner start kills orphaned processes naming its work fo
   assert.equal(alive(alien.pid), true, 'a process naming another runner cache survives');
   assert.equal(alive(live.pid), true, "a process with a live parent, another serve's job, survives");
 });
+
+test('#7819 clause 1: the environment words of a process count only when asked, and a sibling job folder never matches [C7]', async () => {
+  const rows = async environment => (environment
+    ? ' 31 1 node /l/pull/land/apps/cli/pullboard.js runner local TMPDIR=/c/env/job-1/tmp/x\n 32 1 node /l/pull/land/apps/cli/pullboard.js view TMPDIR=/c/env/job-10/tmp/x\n'
+    : ' 31 1 node /l/pull/land/apps/cli/pullboard.js runner local\n 32 1 node /l/pull/land/apps/cli/pullboard.js view\n');
+  assert.deepEqual(await pathProcesses('/c/env/job-1', { rows }), []);
+  assert.deepEqual(await pathProcesses('/c/env/job-1', { rows, environment: true }), [31]);
+});
+
+test('#7819 clause 1: the sweep after a job ends removes an orphaned local runner that names only the land clone and carries the job folder in its environment [C7]', async t => {
+  const { root } = privateFixtureFiles('pullboard-leftover-');
+  const mine = join(root, 'env', 'job-1'), other = join(root, 'env', 'job-2'), land = join(root, 'land', 'apps', 'cli', 'pullboard.js');
+  mkdirSync(join(mine, 'tmp'), { recursive: true }); mkdirSync(join(other, 'tmp'), { recursive: true });
+  const stubs = [await stub(land, true, '', { TMPDIR: join(mine, 'tmp') }), await stub(land, true, '', { TMPDIR: join(other, 'tmp') })];
+  t.after(() => { rmSync(root, { recursive: true, force: true }); for (const { pid } of stubs) try { process.kill(pid, 'SIGKILL'); } catch { /* gone */ } });
+  const found = await reapJob('job-1', undefined, { folder: mine, graceMs: 300 });
+  assert.deepEqual(found, [stubs[0].pid]);
+  await stubs[0].closed;
+  assert.equal(alive(stubs[1].pid), true, "a process whose environment names another job's folder is never touched");
+});

@@ -10,25 +10,32 @@ const GRACE_MS = 2_000;
  * Why the command line: macOS withholds the environment of Google Chrome, so the PULLBOARD_RUNNER_JOB marker never shows
  * on it, but its --user-data-dir sits in the job's own temp folder; 46 Chrome processes leaked this way (#7811).
  * `orphans` keeps only processes whose parent is init, so a sibling serve's live job is never touched.
+ * `environment` also reads each process's environment words after its command line: a local runner or view a test started
+ * names only the land clone, but its TMPDIR sits in the job's env folder, so it is found at the job's end (#7819).
  *
  * @param {string | string[]} folder - Each is matched with a trailing separator, so work-0 never matches work-01.
- * @param {{ orphans?: boolean, rows?: () => Promise<string> }} [options] - rows: the `ps -ax -ww -o pid=,ppid=,command=` text; default the real one.
+ * @param {{ orphans?: boolean, environment?: boolean, rows?: (environment: boolean) => Promise<string> }} [options] - rows: the `ps -ax -ww -o pid=,ppid=,command=` text (with environment words when asked); default the real one.
  * @returns {Promise<number[]>}
  */
-export async function pathProcesses(folder, { orphans = false, rows = psRows } = {}) {
+export async function pathProcesses(folder, { orphans = false, environment = false, rows = psRows } = {}) {
   const inside = [folder].flat().map(one => (one.endsWith(sep) ? one : one + sep));
-  return (await rows()).split('\n').flatMap(row => {
+  return (await rows(environment)).split('\n').flatMap(row => {
     const found = /^\s*(\d+)\s+(\d+)\s(.*)$/u.exec(row);
     if (!found || Number(found[1]) === process.pid || (orphans && Number(found[2]) !== 1)) return [];
     return inside.some(one => found[3].includes(one)) ? [Number(found[1])] : [];
   });
 }
 
-/** The process table as `pid ppid command` rows; empty when ps fails. */
-function psRows() {
-  return new Promise(resolve => {
-    execFile('ps', ['-ax', '-ww', '-o', 'pid=,ppid=,command='], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }, (error, stdout) => resolve(error ? '' : String(stdout)));
-  });
+/** The process table as `pid ppid command` rows, each followed by its environment words when asked; empty when ps fails. */
+async function psRows(environment = false) {
+  // macOS ps takes -E and procps takes the BSD word e; whichever the host refuses fails at once and the other is tried.
+  for (const flag of environment ? ['-E', 'e'] : [null]) {
+    const text = await new Promise(resolve => {
+      execFile('ps', ['-ax', '-ww', ...(flag ? [flag] : []), '-o', 'pid=,ppid=,command='], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }, (error, stdout) => resolve(error ? '' : String(stdout)));
+    });
+    if (text) return text;
+  }
+  return '';
 }
 
 /**
