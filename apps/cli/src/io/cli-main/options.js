@@ -69,6 +69,7 @@ const OPTIONS = {
   gate: { type: 'string' },
   'gate-receipt': { type: 'string' },
   forced: { type: 'string' },
+  'waive-proof': { type: 'string' },
   receipt: { type: 'boolean' },
   aim: { type: 'boolean' },
   doctrine: { type: 'boolean' },
