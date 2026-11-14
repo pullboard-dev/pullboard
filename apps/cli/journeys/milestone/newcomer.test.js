@@ -66,9 +66,9 @@ test('a new project reviews inherited defaults and files new work in its first b
       await press(chrome, 'document.querySelector("#doctrine-chips [data-rows=\\"doctrine:decide\\"]")');
       assert.equal(await chrome.stable('document.querySelector("#doctrine-chips [data-rows=\\"doctrine:decide\\"] b").textContent'), '0', `${width}: untouched template rules are not decisions waiting`);
       assert.equal(await chrome.stable('document.querySelectorAll("#doctrine-list .srow").length'), 0, `${width}: no inherited rule appears among the person\'s calls`);
-      const defaults = await chrome.stable('document.querySelector("#doctrine-chips [data-rows=\\"doctrine:defaults\\"]")?.textContent');
-      // The phone tab words shorten To review to Review under 900 px (b0bed6ea95); wider screens keep To review.
-      assert.match(defaults ?? '', width < 900 ? /^Review\d+$/ : /^To review\d+$/, `${width}: inherited rules have the shorter To review label`);
+      const defaults = await chrome.stable('document.querySelector("#doctrine-chips [data-rows=\\"doctrine:defaults\\"]")?.innerText');
+      // The phone tab words shorten To review to Review under 700 px (b0bed6ea95), so the rendered text is read, not both spans' text; wider screens keep To review.
+      assert.match(defaults ?? '', width <= 700 ? /^Review\s*\d+$/ : /^To review\s*\d+$/, `${width}: inherited rules have the shorter To review label`);
       await press(chrome, 'document.querySelector("#doctrine-chips [data-rows=\\"doctrine:defaults\\"]")');
       assert.deepEqual(JSON.parse(await chrome.stable('JSON.stringify([...document.querySelectorAll("#doctrine-list .srow")].map(row => row.dataset.row.slice(9)))')),
         JSON.parse(await chrome.stable('JSON.stringify(data.project.practice.filter(row => row.origin === "standard").map(row => row.id))')), `${width}: every inherited default remains available to review`);
