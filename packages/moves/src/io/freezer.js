@@ -9,6 +9,7 @@ import { createHash } from 'node:crypto';
 import { loadDoctrine } from '../../../doctrine/index.js';
 import { agentDoctrine } from '../../../doctrine/index.js';
 import { foreignNodeOptions } from '../../../gate/index.js';
+import { committedReader } from '../../../git/index.js';
 import { headCommit } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { verifiedPasskeyRowDecision } from '../../../person/index.js';
@@ -24,6 +25,8 @@ import { barCoverageCommand } from '../../../verify/index.js';
 import { barCoverageForPolicy } from '../../../verify/index.js';
 import { barReadiness } from '../../../verify/index.js';
 import { barReadinessRequired } from '../../../verify/index.js';
+import { namedTestHashes } from '../../../verify/index.js';
+import { wording } from '../../../verify/index.js';
 import { machineVerification } from '../../../verify/index.js';
 import { liveCriterionSpec } from '../../../doctrine/index.js';
 import { mainCriterionFacts } from '../../../doctrine/index.js';
@@ -77,8 +80,14 @@ export function criterionFreezer({ root, isMain, config: checkoutConfig }, { cap
     const coverageCommit = legacy?.commit ?? (signed?.coverage ? sourcePolicy?.commit ?? mainPolicy(root).commit : null);
     const coverage = signed?.coverage ? barCoverageForPolicy(root, item, signed.coverage, { commit: coverageCommit, config: legacy ? config : policyAt(root, coverageCommit).config }) : null;
     const machine = board ? machineVerification(board, item) : null;
-    if (!legacy && !machine && !coverage) return frozen;
-    const text = JSON.stringify({ ...JSON.parse(frozen.text), ...(machine ? { machineVerification: machine } : {}), ...(coverage ? { sourceCheck: item.item_check, check: barCoverageCommand(item.item_check, coverage), barCoverage: coverage, barRevision: signed.revision } : {}), ...(legacy ? { policy: legacy } : {}) });
+    // The named test files' content hashes come from accepted main at claim, and a bar already frozen keeps exactly the
+    // hashes it has through every later recompute, so a landing on main never moves the digest; only a refreeze or a
+    // changed criterion hashes again [C7,V4].
+    const fresh = captureVerifyPolicy || !prior || wording(prior.criterion) !== wording(JSON.parse(frozen.text).criterion);
+    const testHashes = namedTestHashes({ item_frozen: frozen.text }, fresh ? committedReader(root, sourcePolicy?.commit ?? headCommit(root)) : () => null, fresh ? {} : prior.testHashes ?? {});
+    const hashed = Object.keys(testHashes).length > 0;
+    if (!legacy && !machine && !coverage && !hashed) return frozen;
+    const text = JSON.stringify({ ...JSON.parse(frozen.text), ...(hashed ? { testHashes } : {}), ...(machine ? { machineVerification: machine } : {}), ...(coverage ? { sourceCheck: item.item_check, check: barCoverageCommand(item.item_check, coverage), barCoverage: coverage, barRevision: signed.revision } : {}), ...(legacy ? { policy: legacy } : {}) });
     return { text, digest: createHash('sha256').update(text).digest('hex') };
   };
 }

@@ -1335,3 +1335,19 @@ export function refuseGrafts(root) {
   const file = gitPath(root, 'info/grafts');
   if (existsSync(file)) throw new Refused('GIT_GRAFTS', `lane checks cannot trust history while ${file} exists; ask the coordinator to remove the graft file before retrying`);
 }
+
+/**
+ * A reader of repository files as committed at one commit.
+ * Why: the frozen test hashes cover committed content, never a dirty working file, read the same way at claim and at submit [C7,V4].
+ *
+ * @param {string} root a checkout of the repository
+ * @param {string | null} commit the commit to read; null reads nothing
+ * @returns {(path: string) => string | null} file text, or null when the file is absent at that commit
+ */
+export function committedReader(root, commit) {
+  return path => {
+    if (!commit) return null;
+    const shown = tryGit(root, ['show', `${commit}:${path}`]);
+    return shown.status === 0 ? shown.stdout : null;
+  };
+}
