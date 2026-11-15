@@ -84,7 +84,7 @@ export function writeTestManifest(root, { out = TEST_MANIFEST_FILE, times } = {}
 export function runManifestCommand(args, { times } = {}) {
   const at = args.indexOf('--out');
   const out = at >= 0 ? args[at + 1] : TEST_MANIFEST_FILE;
-  const rest = args.filter((arg, index) => index !== at && index !== at + 1);
+  const rest = at >= 0 ? args.filter((arg, index) => index !== at && index !== at + 1) : args;
   if (rest.some(arg => arg.startsWith('-')) || rest.length > 1 || (at >= 0 && !out)) {
     return { status: 1, stdout: '', stderr: 'usage: node packages/gate/src/io/test/scripts/manifest.js [--out file] [project-root]\n' };
   }
