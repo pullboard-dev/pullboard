@@ -33,6 +33,11 @@ import { claimRefreshStart } from '../main/red/refresh/flight.js';
 import { AGENT_SESSION_IDS } from '../../../../kernel/index.js';
 import { scanRidesRunner } from '../scan.js';
 import { trunkRemote } from '../../../../config/index.js';
+import { fencedHopEnabled } from '../../../../config/index.js';
+import { hopFenceRef } from '../land/fence.js';
+import { hopFenceObject } from '../land/fence.js';
+import { hopFencePrevious } from '../land/fence.js';
+import { hopFenceRefusal } from '../land/fence.js';
 
 /** Name the remote a landing pushes the trunk to: the trunk branch's own remote, else origin [B3]. */
 function landingRemoteName(root, branch) {
@@ -219,7 +224,7 @@ export async function publish(state) {
     const alreadyPushed = tryGit(batch.root, ['ls-remote', remote, batch.branch]).stdout.split(/\s+/u)[0] === batch.tip;
     if (!alreadyPushed) {
       await timedPhase(state.say, 'lease check', () => state.checkLeaseNow());
-      const pushed = await timedPhase(state.say, 'push', () => tryGit(pushRoot, ['push', remote, `HEAD:${batch.branch}`]));
+      const pushed = await timedPhase(state.say, 'push', () => pushTrunkThroughFence(pushRoot, { remote, branch: batch.branch, base: batch.base, hop: fencedHopEnabled() ? batch.hop : undefined }));
       if (pushed.status !== 0) throw pushRefused(pushed.stderr || pushed.stdout);
     }
     await save(state, { state: 'pushed' });
@@ -235,6 +240,36 @@ export async function publish(state) {
   await finishLanding(state, { earlier: AUTOMATIC_EARLIER, steps: { moveMain: () => { if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]); }, refreshMainReds: () => refreshPublishedMainReds(state, batch.base) } });
   state.say(`landed ${state.batch.items.map((entry) => `#${entry.id}`).join(', ')} at ${state.batch.tip}`);
   return state.batch;
+}
+
+/**
+ * Point the remote's hop fence ref at this epoch, only from the epoch before it, so a new hop owner shuts out the one it replaced [C7,#8275].
+ * The hop row's compare-and-set gave this owner the epoch; the fence carries it to the remote trunk lives on. Fencing the epoch the ref already holds is a no-op.
+ */
+export function fenceHop(root, { remote, item, epoch }) {
+  const ref = hopFenceRef(item);
+  const next = hopFenceObject(root, { item, epoch });
+  // No '+' on the refspec: a forced refspec skips the lease, and the lease is the fence.
+  const pushed = tryGit(root, ['push', '--atomic', '--quiet', `--force-with-lease=${ref}:${hopFencePrevious(root, { item, epoch })}`, remote, `${next}:${ref}`]);
+  if (pushed.status !== 0) throw hopFenceRefusal(root, { remote, item, epoch }, pushed);
+  return next;
+}
+
+/**
+ * Push trunk from the batch base to its tip in one atomic push that also checks the hop fence ref still holds this hop's epoch.
+ * Why atomic with two leases: a stale owner's push must leave trunk exactly where it was, so the fence and trunk move together or not at all [C7,#8275].
+ * With no hop (gate.fencedHop off) it is the plain push the landing has always made.
+ *
+ * @param {string} root - The checkout whose HEAD (or `tip`) is pushed.
+ * @param {{ remote: string, branch: string, base: string, tip?: string, hop?: { item: number, epoch: number } }} options
+ */
+export function pushTrunkThroughFence(root, { remote, branch, base, tip = 'HEAD', hop }) {
+  if (!hop) return tryGit(root, ['push', remote, `${tip}:${branch}`]);
+  const ref = hopFenceRef(hop.item);
+  const fence = hopFenceObject(root, hop);
+  const pushed = tryGit(root, ['push', '--atomic', `--force-with-lease=${ref}:${fence}`, `--force-with-lease=${branch}:${base}`, remote, `${fence}:${ref}`, `${tip}:${branch}`]);
+  if (pushed.status !== 0 && tryGit(root, ['ls-remote', remote, ref]).stdout.split(/\s+/u)[0] !== fence) throw hopFenceRefusal(root, { remote, ...hop }, pushed);
+  return pushed;
 }
 
 /** Whether this project lands in two tiers: on the local trunk at once, and on the remote only through publish (#801). */
