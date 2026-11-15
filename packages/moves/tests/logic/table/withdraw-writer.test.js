@@ -1,15 +1,16 @@
-/** @pullboard-world-pin reads the recorded withdraw history fixture to replay each withdrawal through the store withdraw writer. The store withdraw writer agrees with the withdraw table on every replayed move [C7,#8273]. */
+/** @pullboard-world-pin reads the recorded withdraw history fixture to drive the store withdraw writer with it. The store withdraw writer agrees with the withdraw table on every replayed move [C7,#8273]. */
+/** @pullboard-test-input packages/moves/tests/fixtures/table/withdraw-history.json */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { boardWithdrawEngine } from '../../../../moves/index.js';
-import { readWithdrawRecords } from '../../../../moves/index.js';
-import { runTable } from '../../../../moves/index.js';
-import { withdraw } from '../../../index.js';
-import { cellBoard } from '../../fixtures/cell.js';
+import { boardWithdrawEngine } from '../../../index.js';
+import { readWithdrawRecords } from '../../../index.js';
+import { runTable } from '../../../index.js';
+import { withdraw } from '../../../../store/index.js';
+import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
 
-const HISTORY = JSON.parse(readFileSync(new URL('../../../../moves/tests/fixtures/table/withdraw-history.json', import.meta.url), 'utf8'));
+const HISTORY = JSON.parse(readFileSync(new URL('../../fixtures/table/withdraw-history.json', import.meta.url), 'utf8'));
 const STAMP = '2026-01-01T00:00:00.000Z';
 
 /** The recorded events on a scratch in-memory board, read the way the replay reads them. */
