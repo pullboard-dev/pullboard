@@ -6,27 +6,12 @@ import { mkdirSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { compiledIn } from '../../fixtures/parse-store.js';
 import { packageFiles } from '../../../src/io/package/files.js';
 import { withPackageListing } from '../../../src/io/package/files.js';
-
-const PARSER = new URL('../../../src/io/module/parser.js', import.meta.url).href;
-
-/** Parse one source in a fresh process that keeps results (as a short controller does) and return its compile count. */
-function compiledIn(scratch, source) {
-  const script = `const { createRunnerModuleParser, keepParserResults, runnerModuleParserCompileCount } = await import(${JSON.stringify(PARSER)});
-keepParserResults();
-const parser = createRunnerModuleParser();
-const [row] = parser.parse([${JSON.stringify(source)}]);
-parser.close();
-process.stdout.write(JSON.stringify({ count: runnerModuleParserCompileCount(), imports: row.imports }));`;
-  const child = spawnSync(process.execPath, ['--input-type=module', '-e', script], { env: { ...process.env, PULLBOARD_SCRATCH: scratch }, encoding: 'utf8' });
-  assert.equal(child.status, 0, child.stderr);
-  return JSON.parse(child.stdout);
-}
 
 test('a later short controller reuses stored compiler rows, and a malformed or shared store compiles again [C7]', t => {
   const scratch = privateFixtureFiles('pullboard-parse-store-').root;
