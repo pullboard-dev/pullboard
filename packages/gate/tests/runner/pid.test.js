@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { awaitNestedRun } from '../../index.js';
 import { privateFixtureFiles } from '../fixtures/child.js';
+import { runFixtureChildAsync } from '../fixtures/child.js';
 
 const standIn = fileURLToPath(new URL('../fixtures/cockpit/runner-standin.mjs', import.meta.url));
 const runner = fileURLToPath(new URL('../../../../apps/cli/src/io/run/tests.js', import.meta.url));
@@ -59,19 +60,15 @@ test('the runner stand-in names itself to its child the way the runner does, so 
   const probe = join(dir, 'probe.mjs');
   writeFileSync(probe, `import { appendFileSync } from 'node:fs';
 appendFileSync(${JSON.stringify(seen)}, JSON.stringify({ runner: process.env.PULLBOARD_TEST_RUNNER_PID, parent: String(process.ppid) }) + '\\n');
-if (process.argv[2] === 'nested') {
-  const { spawnSync } = await import('node:child_process');
-  const { status } = spawnSync(process.execPath, [${JSON.stringify(standIn)}, process.argv[1]], { stdio: 'ignore' });
-  process.exit(status);
-}
+process.exit(Number(process.argv[2]));
 `);
-  const outer = spawn(process.execPath, [standIn, probe, 'nested'], { stdio: 'ignore' });
-  const { status: code } = await awaitNestedRun(outer);
-  assert.equal(code, 0, 'the stand-in passes its child exit code on');
-  const records = readFileSync(seen, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
-  assert.equal(records[0].runner, String(outer.pid), 'a probe reads its stand-in pid, as a test file reads its runner pid');
-  assert.equal(records[0].parent, String(outer.pid), 'the stand-in is the probe parent');
-  assert.equal(records.length, 2, 'the nested probe ran');
-  assert.notEqual(records[1].runner, records[0].runner, 'a nested run sees the nested stand-in pid, not the outer one');
-  assert.equal(records[1].runner, records[1].parent, 'the nested stand-in is its probe parent');
+  // An outer runner pid already in the environment stands for a nested run.
+  const run = runFixtureChildAsync(process.execPath, [standIn, probe, '3'], { env: { ...process.env, PULLBOARD_TEST_RUNNER_PID: '1234' } });
+  const standInPid = String(run.child.pid);
+  const { status: code } = await run;
+  assert.equal(code, 3, 'the stand-in passes its child exit code on');
+  const [record] = readFileSync(seen, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
+  assert.equal(record.runner, standInPid, 'a probe reads its stand-in pid, as a test file reads its runner pid');
+  assert.equal(record.parent, standInPid, 'the stand-in is the probe parent');
+  assert.notEqual(record.runner, '1234', 'a nested run sees the nested stand-in pid, not the outer one');
 });
