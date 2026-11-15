@@ -11,6 +11,8 @@ import {
 
 test('a refused runner checkout names its failed Git step and stderr [C6,C7]', { concurrency: true }, async t => {
   const modes = ['lock', 'missing', 'large', 'filesystem', 'index', 'custom-filesystem'];
-  // Each mode owns its homes, stand-in and controller, so the six round trips overlap instead of queueing.
-  await Promise.all(modes.map(mode => t.test(mode, child => sourceSetupFailureFixture(child, { cli, git, runThroughGate, gateResult }, mode))));
+  // Each mode owns its homes, stand-in and controller; two overlap at a time, since six at once starve each other.
+  for (let first = 0; first < modes.length; first += 2) {
+    await Promise.all(modes.slice(first, first + 2).map(mode => t.test(mode, child => sourceSetupFailureFixture(child, { cli, git, runThroughGate, gateResult }, mode))));
+  }
 });
