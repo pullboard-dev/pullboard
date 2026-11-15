@@ -61,34 +61,22 @@ export function currentGitAdapter() {
   return adapters.getStore() ?? realGitAdapter;
 }
 
+export function needAdapter(adapter) {
+  const method = ['spawnSync', 'execFileSync', 'spawn'].find(name => typeof adapter?.[name] !== 'function');
+  if (method) throw new TypeError(`Git adapter needs ${method}`);
+}
+export { adapters, selections };
+
 /** Select an implementation for one call chain; concurrent and nested work cannot change its peers. */
 export function withGitAdapter(adapter, work) {
-  for (const method of ['spawnSync', 'execFileSync', 'spawn']) {
-    if (typeof adapter?.[method] !== 'function') throw new TypeError(`Git adapter needs ${method}`);
-  }
+  needAdapter(adapter);
   const forced = selections.getStore()?.audit || process.env.PULLBOARD_ADAPTER_AUDIT === '1';
   return adapters.run(forced ? realGitAdapter : adapter, work);
 }
 
-/**
- * Select an implementation for the rest of the current async chain, for a test fixture that cannot wrap the test body.
- *
- * Why: a fixture runs inside the test function, so `withGitAdapter`'s callback shape is out of reach; node:test runs each
- * test in its own async scope, so the choice ends with that test. An audit still forces real Git.
- */
-export function enterGitAdapter(adapter) {
-  for (const method of ['spawnSync', 'execFileSync', 'spawn']) {
-    if (typeof adapter?.[method] !== 'function') throw new TypeError(`Git adapter needs ${method}`);
-  }
-  const forced = selections.getStore()?.audit || process.env.PULLBOARD_ADAPTER_AUDIT === '1';
-  adapters.enterWith(forced ? realGitAdapter : adapter);
-}
-
 /** Contract suites explicitly exercise both implementations even during an audit. */
 export function withGitContractAdapter(adapter, work) {
-  for (const method of ['spawnSync', 'execFileSync', 'spawn']) {
-    if (typeof adapter?.[method] !== 'function') throw new TypeError(`Git adapter needs ${method}`);
-  }
+  needAdapter(adapter);
   return adapters.run(adapter, work);
 }
 
