@@ -547,9 +547,12 @@ export function submitTableReplay(root, replay = replayReport) {
   return ({ root: tree, changed }) => replayChangedTables(tree, { changed, replay, boardFile: boardFilePath(repoInfo(root).commonDir) });
 }
 
+/** The runner app's timed-shell entry, handed to the gate because the gate package names no app path [C7]. */
+const TIMED_SHELL = fileURLToPath(new URL('../../../../runner/src/io/shell.js', import.meta.url));
+
 /** Pass the runner's accepted selection into the controller's gate entry point without replanning locally. */
 export function runSubmitGateWithRunnerPlan(runSubmitGate, root, config, runnerPlan, options) {
-  return runSubmitGate(root, config, { tableReplay: submitTableReplay(root), ...options, ...runnerPlan });
+  return runSubmitGate(root, config, { tableReplay: submitTableReplay(root), timedShell: TIMED_SHELL, ...options, ...runnerPlan });
 }
 
 /** Sum sequential worker intervals only when every attempted run has complete measurements. */
