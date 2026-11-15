@@ -13,6 +13,7 @@ import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { statSync } from 'node:fs';
@@ -106,6 +107,19 @@ export function settlePulledJobs(cwd, args, env) {
   }
 }
 
+/** The pids of the background views a sandbox's commands started, from the session files in its private Pullboard home. */
+function sandboxViewPids(dir) {
+  const home = join(dir, 'pullboard-home');
+  let names = [];
+  try { names = readdirSync(home).filter(name => /^view-\d+\.json$/u.test(name)); } catch { return []; }
+  return names.flatMap(name => {
+    try {
+      const pid = Number(JSON.parse(readFileSync(join(home, name), 'utf8')).pid);
+      return Number.isSafeInteger(pid) && pid > 1 && pid !== process.pid ? [pid] : [];
+    } catch { return []; }
+  });
+}
+
 /** Create isolated real-repository helpers for one parallel end-to-end test file. */
 export function createE2eHelpers() {
   const sandboxes = [];
@@ -115,8 +129,12 @@ export function createE2eHelpers() {
    * to 30 s for it to stop; the 1 s budget failed pending-refreeze with ENOTEMPTY (#3192).
    */
   const cleanup = () => {
+    // A background view an in-process init started is this process's own child, and the test file cannot end while it runs [C7].
+    const views = sandboxes.flatMap(sandboxViewPids);
+    for (const pid of views) { try { process.kill(pid, 'SIGTERM'); } catch { /* it has exited */ } }
     // Every runner is signalled before any is awaited, so five sandboxes cost one stop, not five [C7].
     stopFixtureLocalRunners(sandboxes.map(dir => join(dir, 'machine-home')));
+    for (const pid of views) { try { process.kill(pid, 'SIGKILL'); } catch { /* it has stopped */ } }
     for (const dir of sandboxes) {
       stopComparisonWorkers(dir);
       const deadline = Date.now() + 30_000;

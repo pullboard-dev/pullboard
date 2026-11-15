@@ -103,3 +103,24 @@ export function manifestRows(inputs) {
     return { file, kind, because, specs, unproven: specs.length === 0, cost: { ms }, spawns };
   }).sort((a, b) => (a.file < b.file ? -1 : 1)));
 }
+
+export const TIME_TOLERANCE = 0.25;
+
+/**
+ * The runtime to record per file: the measured time when it is new or has moved more than the tolerance, else the recorded one.
+ * Why: a gate run's times jitter, so an unchanged file keeps its row byte for byte and only a real change rewrites it [C7].
+ *
+ * @param {Record<string, number>} recorded milliseconds already in the manifest, by file
+ * @param {Record<string, number>} measured latest measured milliseconds, by file
+ * @param {number} [tolerance] relative change that counts as real
+ * @returns {Record<string, number>} the milliseconds to record, by file, sorted keys
+ */
+export function settleTimes(recorded, measured, tolerance = TIME_TOLERANCE) {
+  const out = {};
+  for (const file of [...new Set([...Object.keys(recorded), ...Object.keys(measured)])].sort()) {
+    const was = recorded[file], now = Object.hasOwn(measured, file) ? Math.round(measured[file]) : undefined;
+    if (now === undefined) out[file] = was;
+    else out[file] = was === undefined || Math.abs(now - was) > was * tolerance ? now : was;
+  }
+  return out;
+}
