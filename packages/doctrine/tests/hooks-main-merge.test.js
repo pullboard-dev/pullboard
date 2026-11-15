@@ -11,7 +11,7 @@ import { runFixtureChild } from "../../gate/tests/fixtures/child.js";
 import { runFixtureGit } from "../../gate/tests/fixtures/child.js";
 import { defaults } from "../../config/index.js";
 
-const { nativeFixture, stagedCoordinatorPolicyConflict } = hookFixtures({ runFixtureChild, runFixtureGit, defaults });
+const { nativeCommit, nativeFixture, stagedCoordinatorPolicyConflict } = hookFixtures({ runFixtureChild, runFixtureGit, defaults });
 
 
 

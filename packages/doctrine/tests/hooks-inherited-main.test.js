@@ -10,7 +10,7 @@ import { runFixtureChild } from "../../gate/tests/fixtures/child.js";
 import { runFixtureGit } from "../../gate/tests/fixtures/child.js";
 import { defaults } from "../../config/index.js";
 
-const { nativeFixture } = hookFixtures({ runFixtureChild, runFixtureGit, defaults });
+const { nativeCommit, nativeFixture } = hookFixtures({ runFixtureChild, runFixtureGit, defaults });
 
 
 
