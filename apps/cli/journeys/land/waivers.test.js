@@ -21,7 +21,8 @@ after(e2e.cleanup);
 const { sandbox, project, commitFile, BIN } = e2e;
 const { FILES, landProject, verifiedFour } = makeLandProjectFixtures({ sandbox, project, commitFile });
 
-test('land holds a flake without retries and person waivers cover every failure at the exact tree [B3,R3]', () => {
+// land now only offers the runner land job (the host batch and its bisect are deleted, 9069644c61); the pulled waiver cases are land/waiver-pull.test.js.
+test('land holds a flake without retries and person waivers cover every failure at the exact tree [B3,R3]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, () => {
   const box = landProject();
   const entries = verifiedFour(box, { flaky: [0, 1] });
   const base = box.git(box.repo, 'rev-parse', 'HEAD');
@@ -79,7 +80,7 @@ test('land holds a flake without retries and person waivers cover every failure 
   assert.equal(calls(box).length, beforeHook, 'expired proof is refused without rerunning the red gate');
 });
 
-test('a waiver after an early-stopped gate runs the gate again [C7,V4]', async (t) => {
+test('a waiver after an early-stopped gate runs the gate again [C7,V4]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, async (t) => {
   for (const mode of ['early green', 'early red', 'unaccounted', 'complete']) await t.test(`${mode} keeps the exact landing proof [C7,V4]`, () => {
     const box = landProject();
     const gate = join(box.dir, 'land-gate.cjs');

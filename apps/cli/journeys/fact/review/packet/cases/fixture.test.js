@@ -111,6 +111,8 @@ test('clause 1: a clause case defined in a fixture file is mapped from a gate ru
   // A pulled submit returns queued; settle its gate before reading the result [V4,C7].
   const submitted = await settleSubmit(t, { repo: box.repo, env: box.env, run: box.runLocal }, JSON.parse((await ok(box, builder, 'submit', String(id), '--no-next', '--json')).out));
   assert.equal(submitted.gate.green, true, 'the fixture gate is green');
+  // A pulled gate's receipt posts on the board host, which holds no checkout; the first review read builds and stores the packet [V4,C7].
+  await ok(box, box.repo, 'show', String(id), '--review');
   const packet = JSON.parse(readFileSync(join(box.repo, '.git', 'pullboard', 'review-packets', String(id), `${head}.json`), 'utf8'));
   const [greeting, legacy] = packet.clauses;
   const cited = (clause, name, source) => clause.runs.find(run => run.test === name && run.why === 'test cites the clause'

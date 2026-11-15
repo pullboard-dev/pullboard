@@ -10,7 +10,8 @@ import {
   marks,
 } from '../../../../tests/fixtures/init/shards.js';
 
-test('a landing shard whose runner is killed mid-shard reruns locally [C7,V4]', { timeout: 170_000 }, async (t) => { // budget: one killed-runner landing on a fresh fixture.
+// The killed runner is the SSH stand-in, which rode the controller transport deleted with the dispatcher (1e1a9586af).
+test('a landing shard whose runner is killed mid-shard reruns locally [C7,V4]', { timeout: 170_000, skip: 'CONTROLLER_ONLY: deleted with #7526' }, async (t) => { // budget: one killed-runner landing on a fresh fixture.
   const box = fixture();
   t.after(() => rmSync(box.dir, { recursive: true, force: true }));
   // A runner killed mid-shard: its shard reruns locally with a named line and the gate stays green.

@@ -77,7 +77,8 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
         // on a wide screen and a phone alike (#6614).
         const top = r.theme.bar;
         assert.ok(Math.abs(middle(r.theme.box) - middle(top)) <= 2 && r.theme.box.left >= top.left && r.theme.box.right <= top.right, `${at}: the account control sits centred in the top bar: ${JSON.stringify(r.theme)}`);
-        assert.ok(top.top <= 0.5 && r.theme.side.top >= top.bottom - 1, `${at}: the top tier first, the tabs under it: ${JSON.stringify(r.theme)}`);
+        // Under 900px the strip is gone and the menu drawer holds the tabs (dcf117ebc6), so only a wide screen has tabs to sit under the bar.
+        assert.ok(top.top <= 0.5 && (width < 900 ? r.theme.side.width === 0 : r.theme.side.top >= top.bottom - 1), `${at}: the top tier first, the tabs under it on a wide screen: ${JSON.stringify(r.theme)}`);
         if (width === 375) continue;
         // In the project list: a project is its name and what it holds, what needs the person first in the warning
         // colour; no count pills; the project shown a quiet neutral tint, no coloured edge.
