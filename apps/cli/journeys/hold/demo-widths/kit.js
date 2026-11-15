@@ -129,6 +129,8 @@ export function demoWidthTest(only, phase = 'both') {
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('[data-tab=items]')");
     await chrome.waitFor("document.readyState === 'complete' && !document.body.classList.contains('loading')");
+    // The Menu button's ruling badge fills in once the board loads and widens the button, so press it only after the count shows.
+    await chrome.waitFor("!!document.querySelector('#menu-rulings')?.textContent.trim()");
     await pressTab(chrome, 'items');
     await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('#chain .row')");
     if (pages) await assertFirstStateDelay(chrome, t);
