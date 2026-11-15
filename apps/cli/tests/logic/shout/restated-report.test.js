@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/cli packages/kernel packages/store packages/kernel packages/store */
+/** @pullboard-test-input source-cell apps/cli packages/kernel packages/store */
 /** A coordinator shout that only restates a submit or verdict the board recorded is refused naming the event; integration evidence is validated [C7,B22]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
