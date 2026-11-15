@@ -9,7 +9,6 @@ import { runFixtureChild } from '../child.js';
 import { executionServicesSource } from '../gate/execution.js';
 import { HOST } from './ssh.js';
 import { installSshStandIn } from './ssh.js';
-import { preparedRunner } from './prepared.js';
 import { fixtureAdd } from '../testkit.js';
 
 /** Register the pull journey for `count` concurrent pulled jobs: one file each keeps every file under its time budget. */
@@ -20,10 +19,10 @@ export function definePullJourney(count) {
   const box = helpers.project('true');
   const added = fixtureAdd(box.run, box.repo, 'web', 'Pull witness', '--specs', 'G1', '--criterion', 'a pulled job finishes', '--json');
   assert.equal(added.code, 0, added.err || added.out);
-  const bin = join(box.dir, 'ssh-bin');
-  const { worker, home, machineHome } = preparedRunner();
+  const bin = join(box.dir, 'ssh-bin'), worker = join(box.dir, 'worker');
+  const home = join(box.dir, 'runner-home'), machineHome = join(home, '.pullboard');
   const requests = join(box.dir, 'requests.jsonl');
-  for (const directory of [bin, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(directory, { recursive: true });
+  for (const directory of [bin, worker, home, machineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(directory, { recursive: true });
   installSshStandIn({ bin, worker, home, machineHome, requests, nodeCommand: process.execPath });
   const gate = pathToFileURL(join(import.meta.dirname, '../../../../../packages/gate/index.js')).href;
   const runners = pathToFileURL(join(import.meta.dirname, '../../../../../packages/runners/index.js')).href;

@@ -25,7 +25,8 @@ import { createE2eHelpers } from '../e2e.js';
 import { runFixtureChild } from '../child.js';
 import { runFixtureChildAsync } from '../child.js';
 import { installSshStandIn } from './ssh.js';
-import { preparedRunner } from './prepared.js';
+import { privateFixtureFiles } from '../child.js';
+import { preparedRunner } from '../../../../../packages/runners/tests/fixtures/prepared.js';
 import { HOST } from './ssh.js';
 import { executionServicesSource } from '../gate/execution.js';
 import { waitForCondition } from './holders.js';
@@ -61,7 +62,7 @@ function project(t) {
 /** A controlled transport with a real native startup owner; health requests still execute the pinned worker. */
 function transport(t, mode) {
   const box = project(t), bin = join(box.dir, 'ssh-bin'), root = join(box.dir, 'remote-root');
-  const { worker, home, machineHome } = preparedRunner();
+  const { worker, home, machineHome } = preparedRunner(() => privateFixtureFiles('pullboard-prepared-runner-').root);
   for (const path of [bin, root]) mkdirSync(path, { recursive: true });
   const requests = join(box.dir, 'requests.jsonl');
   const probeReplies = join(box.dir, 'job-probe-replies.jsonl');

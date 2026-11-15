@@ -5,7 +5,6 @@ import {
   rmSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
 
 /** What a runner keeps between jobs: its keyed caches and cloned repos, each rebuilt from its key if lost. */
 const KEPT = new Set(['cache', 'repos']);
@@ -27,11 +26,12 @@ function clearFolder(folder, keep = new Set()) {
  * Why: each case used to make its own worker and home, so every case paid a cold first trip (about 34 s) that the
  * runner's shared caches (#8233) could only help across jobs of one runner; one runner per process warms once.
  *
+ * @param {() => string} newRoot Makes the runner's private root folder; called once per process, by a shared fixture helper.
  * @returns {{ worker: string, home: string, machineHome: string, uses: number }} Folders to give installSshStandIn.
  */
-export function preparedRunner() {
+export function preparedRunner(newRoot) {
   if (!prepared) {
-    const root = privateFixtureFiles('pullboard-prepared-runner-').root;
+    const root = newRoot();
     prepared = { root, worker: join(root, 'worker'), home: join(root, 'remote-home'), machineHome: join(root, 'remote-home', '.pullboard') };
     process.on('exit', () => { try { rmSync(root, { recursive: true, force: true }); } catch { /* the temporary folder sweep takes it */ } });
     builds++;

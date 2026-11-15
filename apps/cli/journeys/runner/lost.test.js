@@ -13,7 +13,8 @@ import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { HOST } from '../../tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../tests/fixtures/runner/ssh.js';
-import { preparedRunner } from '../../tests/fixtures/runner/prepared.js';
+import { privateFixtureFiles } from '../../tests/fixtures/child.js';
+import { preparedRunner } from '../../../../packages/runners/tests/fixtures/prepared.js';
 import { initializeRunnerRecovery } from '../../../../packages/resources/index.js';
 
 /** Build a real private project and a private SSH executable; no configured machine host is contacted. */
@@ -21,7 +22,7 @@ function fixture(t, { dropFirst = true } = {}) {
   const e2e = createE2eHelpers(); t.after(e2e.cleanup);
   const box = e2e.project('true');
   const bin = join(box.dir, 'transport-bin');
-  const { worker, home, machineHome } = preparedRunner();
+  const { worker, home, machineHome } = preparedRunner(() => privateFixtureFiles('pullboard-prepared-runner-').root);
   for (const folder of [bin, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(folder, { recursive: true });
   const requests = join(box.dir, 'requests.jsonl'), starts = join(box.dir, 'starts.jsonl');
   installSshStandIn({ bin, worker, home, machineHome, requests, starts, dropFirst, nodeCommand: process.execPath });

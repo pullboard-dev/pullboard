@@ -18,7 +18,8 @@ import { createE2eHelpers } from '../e2e.js';
 import { runFixtureChild } from '../child.js';
 import { HOST } from './ssh.js';
 import { installSshStandIn } from './ssh.js';
-import { preparedRunner } from './prepared.js';
+import { privateFixtureFiles } from '../child.js';
+import { preparedRunner } from '../../../../../packages/runners/tests/fixtures/prepared.js';
 import { initializeRunnerRecovery } from '../../../../../packages/resources/index.js';
 import { recordRunnerFailure } from '../../../../../packages/resources/index.js';
 import {
@@ -49,7 +50,7 @@ export function runnerProbeRecoveryTests(failureCounts = [1, 99]) {
       const e2e = createE2eHelpers(); t.after(e2e.cleanup);
       const box = e2e.project('true');
       const bin = join(box.dir, 'health-bin');
-      const { worker, home, machineHome } = preparedRunner();
+      const { worker, home, machineHome } = preparedRunner(() => privateFixtureFiles('pullboard-prepared-runner-').root);
       for (const directory of [bin, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(directory, { recursive: true });
       const requests = join(box.dir, 'requests.jsonl');
       installSshStandIn({ bin, worker, home, machineHome, requests, nodeCommand: process.execPath, healthFailures: failures });
@@ -127,7 +128,7 @@ export function runnerInstallerRecoveryTests({ workerFirstCases = [false, true],
       const e2e = createE2eHelpers(); t.after(e2e.cleanup);
       const box = e2e.project('true');
       const bin = join(box.dir, 'launch-bin'), deferred = join(box.dir, 'deferred-command'), frame = join(box.dir, 'deferred-frame');
-      const { worker, home, machineHome } = preparedRunner();
+      const { worker, home, machineHome } = preparedRunner(() => privateFixtureFiles('pullboard-prepared-runner-').root);
       for (const directory of [bin, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(directory, { recursive: true });
       installSshStandIn({ bin, worker, home, machineHome, requests: join(box.dir, 'requests.jsonl'), nodeCommand: process.execPath, deferFirstWorker: deferred, deferredFrame: frame });
       const runner = { host: HOST, slots: 1, browser: 0, node: process.execPath };
