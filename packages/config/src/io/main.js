@@ -66,6 +66,8 @@ export function defaults() {
     worktrees: 'beside',
     worktreeMaintenance: maintenanceSettings.maintenanceDefaults(),
     verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true, failBefore: false, frozenTests: false },
+    // Off by default: toolingPin refuses an unsigned or edited pin file only when pin.signed is true [#8038].
+    pin: { signed: false },
     review: { starveMinutes: 5, independence: 'off', excludeEarlierHolders: false },
     // Vendor spellings: canonical family -> alias names; never inferred [#1762].
     families: {},
@@ -172,6 +174,10 @@ function merge(base, raw) {
       : raw.submit && typeof raw.submit === 'object' && !Array.isArray(raw.submit)
         ? { ...base.submit, ...raw.submit }
         : raw.submit,
+    pin: raw.pin === undefined ? base.pin
+      : raw.pin && typeof raw.pin === 'object' && !Array.isArray(raw.pin)
+        ? { ...base.pin, ...raw.pin }
+        : raw.pin,
   };
 }
 
@@ -408,6 +414,7 @@ export function configProblems(config) {
   }
   if (config.claim?.returnToBoard !== undefined && typeof config.claim.returnToBoard !== 'boolean') problems.push('"claim.returnToBoard" is a boolean; true gives a red or refused queued gate back to the board for any free seat');
   if (!Array.isArray(config.claim?.barTestFiles) || !config.claim.barTestFiles.length || config.claim.barTestFiles.some(pattern => typeof pattern !== 'string' || !pattern || /[\[\]{}\\:\p{Cc}]/u.test(pattern) || pattern.startsWith('/') || pattern.split('/').includes('..'))) problems.push('claim.barTestFiles is a nonempty list of project test-path globs using *, ** or ?');
+  if (typeof config.pin?.signed !== 'boolean') problems.push('"pin.signed" is true or false; true refuses an unsigned or edited tooling pin file');
   if (typeof config.check?.install !== 'string') problems.push('"check.install" is an install command string');
   const timeout = typeof config.check?.timeout === 'string' ? CHECK_TIMEOUT_RE.exec(config.check.timeout) : null;
   const timeoutMs = timeout ? Number(timeout[1]) * CHECK_TIMEOUT_MS[timeout[2]] : NaN;

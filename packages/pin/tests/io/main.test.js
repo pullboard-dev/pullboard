@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fixtureProjectPolicy } from '../../../../apps/cli/tests/fixtures/testkit.js';
 import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureExecFile } from '../../../../apps/cli/tests/fixtures/child.js';
@@ -163,6 +164,10 @@ test('clause 2: [C7] an edited or unsigned tooling pin file is refused before an
   writeToolingPin(repo, landed);
   const file = join(repo, '.git', 'pullboard', 'tooling-pin.json');
   const pin = JSON.parse(readFileSync(file, 'utf8'));
+  writeFileSync(file, `${JSON.stringify({ ...pin, tree: treeOf(repo, old) })}\n`);
+  assert.equal(toolingPin(repo).tree, treeOf(repo, old), 'pin.signed is off by default, so the pin file is read as written');
+  writeFileSync(file, `${JSON.stringify(pin)}\n`);
+  fixtureProjectPolicy(repo, { config: { pin: { signed: true } } });
   writeFileSync(file, `${JSON.stringify({ ...pin, tree: treeOf(repo, old) })}\n`);
   assert.throws(() => toolingPin(repo), { code: 'PIN_TOOLING_UNSIGNED' });
   assert.throws(() => toolingFor(repo, old), { code: 'PIN_TOOLING_UNSIGNED' });

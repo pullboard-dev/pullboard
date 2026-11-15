@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { isAbsolute } from 'node:path';
 import { resolve } from 'node:path';
 import { gitExecFileSync } from '../../../git/light.js';
+import { CONFIG_FILE } from '../../../kernel/browser.js';
 import { Refused } from '../../../kernel/light.js';
 import { treeOf } from './main.js';
 import { isObjectId } from '../logic/names.js';
@@ -47,6 +48,18 @@ function pinKey(file) {
 const pinSignature = (key, tree, commit) => createHmac('sha256', key).update(`PBPIN 1\n${tree}\n${commit}`).digest('hex');
 
 /**
+ * Whether this repository asks for a signed pin file: the pin.signed setting, off when the repo has no config. Read straight from the config file: the pin cell may not import the config cell.
+ *
+ * Why: the refusal is new, so it stays off until the landing signs every pin it writes and an upgrade signs the old one.
+ *
+ * @param {string} repo - Any checkout of the repository.
+ * @returns {boolean}
+ */
+function signedPinRequired(repo) {
+  try { return JSON.parse(readFileSync(join(repo, CONFIG_FILE), 'utf8')).pin?.signed === true; } catch { return false; }
+}
+
+/**
  * Record the tooling pin for a landing: the tree of the landed commit.
  *
  * Why: the landing is the one moment trunk's tooling changes, so it is the one writer; the write is atomic
@@ -68,7 +81,8 @@ export function writeToolingPin(repo, commit) {
 }
 
 /**
- * Read the tooling pin, or null when no landing has written one yet; an unsigned or edited pin file is refused.
+ * Read the tooling pin, or null when no landing has written one yet; with pin.signed on, an unsigned or edited
+ * pin file is refused.
  *
  * @param {string} repo - Any checkout of the repository.
  * @returns {{ tree: string, commit: string } | null} The pin.
@@ -80,6 +94,7 @@ export function toolingPin(repo) {
   try { pin = JSON.parse(readFileSync(file, 'utf8')); }
   catch { throw new Refused('PIN_TOOLING_CORRUPT', `The tooling pin file ${file} is unreadable; delete it and the next landing rewrites it.`); }
   if (!isObjectId(pin?.tree)) throw new Refused('PIN_TOOLING_CORRUPT', `The tooling pin file ${file} holds no tree id; delete it and the next landing rewrites it.`);
+  if (!signedPinRequired(repo)) return { tree: pin.tree, commit: pin.commit };
   const expected = existsSync(`${file}.key`) && isObjectId(pin.commit) ? pinSignature(pinKey(file), pin.tree, pin.commit) : '';
   const given = String(pin.signature ?? '');
   if (!expected || given.length !== expected.length || !timingSafeEqual(Buffer.from(given), Buffer.from(expected))) {
