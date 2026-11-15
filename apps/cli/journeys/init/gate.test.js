@@ -186,13 +186,13 @@ test('a repo without package.json is told a gate that fits it [C7,B26]', async (
   box.git(root, 'add', '-A');
   box.git(root, 'commit', '-q', '-m', 'chore: set up the no-manifest board');
 
-  const added = fixtureAdd(box.run, root, 'app', 'No-manifest newcomer change',
+  const added = await fixtureAdd(box.runLocal, root, 'app', 'No-manifest newcomer change',
     '--criterion', 'the result file is present', '--check', 'test -f app/result.txt', '--json');
   assert.equal(added.code, 0, added.err || added.out);
   const id = String(JSON.parse(added.out).item.item_id);
   const worktree = join(box.dir, 'app-agent');
   box.git(root, 'worktree', 'add', '-q', '-b', 'app/one', worktree);
-  const joined = fixtureJoin(box.run, worktree, 'app', '--route', 'strong');
+  const joined = await fixtureJoin(box.runLocal, worktree, 'app', '--route', 'strong');
   assert.equal(joined.code, 0, joined.err || joined.out);
   const claimed = await box.runLocal(worktree, 'claim', id, '--json');
   assert.equal(claimed.code, 0, claimed.err || claimed.out);
@@ -232,11 +232,11 @@ test('a repo without package.json is told a gate that fits it [C7,B26]', async (
   const configuredWorktree = join(box.dir, 'configured-app-agent');
   box.git(root, 'worktree', 'add', '-q', '-b', 'app/chosen', configuredWorktree, 'main');
   // 1388ce262a: an item frozen under the empty gate refuses its claim once the gate policy changes, so the chosen gate gets a fresh item.
-  const refiled = fixtureAdd(box.run, root, 'app', 'Chosen-gate newcomer change',
+  const refiled = await fixtureAdd(box.runLocal, root, 'app', 'Chosen-gate newcomer change',
     '--criterion', 'the result file is present', '--check', 'test -f app/result.txt', '--not-duplicate-of', `${id} refiled under the chosen gate`, '--json');
   assert.equal(refiled.code, 0, refiled.err || refiled.out);
   const configuredId = String(JSON.parse(refiled.out).item.item_id);
-  const configuredJoin = fixtureJoin(box.run, configuredWorktree, 'app', '--route', 'strong');
+  const configuredJoin = await fixtureJoin(box.runLocal, configuredWorktree, 'app', '--route', 'strong');
   assert.equal(configuredJoin.code, 0, configuredJoin.err || configuredJoin.out);
   const configuredClaim = await box.runLocal(configuredWorktree, 'claim', configuredId, '--json');
   assert.equal(configuredClaim.code, 0, configuredClaim.err || configuredClaim.out);
