@@ -61,7 +61,7 @@ function pinMerged(root, { remote, job, options = [] }) {
  *
  * @param {{ runner: string, files: string[], ledger?: object | null }} proof
  * @param {{ job: string, remote: string, cores: number, gate: { run: string[], entry: string },
- *   offer: (request: { merged: string, plan: { runner: string, files: string[], cores: number }, gate: { run: string[], entry: string, commits: string[] } }) => Promise<{ sharded: boolean, shards: string[] }> | { sharded: boolean, shards: string[] },
+ *   offer: (request: { merged: string, ref: string, plan: { runner: string, files: string[], cores: number }, gate: { run: string[], entry: string, commits: string[] } }) => Promise<{ sharded: boolean, shards: string[] }> | { sharded: boolean, shards: string[] },
  *   receipts: (shards: string[]) => Promise<{ job: string, posted: object | null }[]> | { job: string, posted: object | null }[],
  *   pushOptions?: () => string[], pollMs?: number, wait?: (ms: number) => Promise<void>, now?: () => number,
  *   deadline?: () => { at: number, ms: number } | null }} shard
@@ -76,7 +76,7 @@ export function shardedProofCheck(proof, shard, local) {
     const pinned = pinMerged(context.root, { remote, job, options: pushOptions() });
     if (!pinned.ok) return local(context);
     let offered;
-    try { offered = await offer({ merged, plan: { runner: proof.runner, files: proof.files, cores }, gate: { run: gate.run, entry: gate.entry, commits: [context.base] } }); } catch { return local(context); }
+    try { offered = await offer({ merged, ref: landingRef(job), plan: { runner: proof.runner, files: proof.files, cores }, gate: { run: gate.run, entry: gate.entry, commits: [context.base] } }); } catch { return local(context); }
     if (!offered?.sharded || !Array.isArray(offered.shards) || !offered.shards.length) return local(context);
     const posted = new Map(), total = offered.shards.length;
     const counts = { files: proof.files.length, reused: 0, ran: proof.files.length, shards: total };

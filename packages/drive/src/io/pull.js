@@ -65,6 +65,8 @@ const RUNNER_TOOLS = fileURLToPath(new URL('../../../../', import.meta.url));
 /** The release tags every store refresh fetches, which proofs that unpack an old release read. */
 const RELEASE_TAGS = '+refs/tags/v*:refs/tags/v*';
 const SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+// The ref a land job pins its merged commit under on the trunk remote (packages/landing's landingRef).
+const LANDING_REF = /^refs\/pullboard\/landing\/[\w.-]{1,200}$/u;
 /** The line a gate job prints its receipt on; apps/cli's submit writes the same prefix into the job it offers. */
 export const GATE_RECEIPT = 'PULLBOARD_GATE_RECEIPT ';
 // Budget: a gate receipt line stays under the board's 64 KiB receipt limit; a longer line is output, not a receipt.
@@ -157,10 +159,19 @@ async function objectStore(git, cache) {
  *
  * @returns {Promise<string | null>} null once the commit is present, else why it is not.
  */
-async function fetchCommit(git, store, trunk, commit, pack = null) {
+async function fetchCommit(git, store, trunk, commit, pack = null, ref = null) {
   if (!SHA.test(String(commit ?? ''))) return `the job names no commit (${commit})`;
   if ((await git.run(store, ['cat-file', '-e', `${commit}^{commit}`])).status === 0) return null;
   if (typeof trunk !== 'string' || !trunk) return 'the board named no trunk remote';
+  // A land shard's merged commit is on no branch, only under its landing ref: take that ref, and the commit with it [C7,#7818].
+  if (typeof ref === 'string' && LANDING_REF.test(ref)) {
+    const viaRef = await git.fetchTrunk(store, trunk, [`+${ref}:refs/pullboard/fetched-ref`, RELEASE_TAGS]);
+    if (viaRef.status === 0 && (await git.run(store, ['cat-file', '-e', `${commit}^{commit}`])).status === 0) {
+      await git.run(store, ['update-ref', `refs/pullboard/fetched/${commit}`, commit]);
+      await pruneFetched(git, store);
+      return null;
+    }
+  }
   // A cold store takes the trunk's shared cached pack first, so N runners on one commit cost one pack-objects (#5932);
   // the fetch below then has the commit as a have and only adds release tags.
   if (pack && (await git.run(store, ['for-each-ref', '--count=1', 'refs/pullboard/fetched/', 'refs/remotes/trunk/'])).stdout === '') await fromPack(git, store, commit, pack);
@@ -252,12 +263,12 @@ async function pruneFetched(git, store, keep = FETCHED_REFS) {
  * @param {string} commit
  * @param {string} name
  * @param {string[]} [also]
- * @param {{ main?: string | null, pack?: ((commit: string) => Promise<{ file: string } | null>) | null, git?: PullGit | null }} [options] - main: the
+ * @param {{ ref?: string | null, main?: string | null, pack?: ((commit: string) => Promise<{ file: string } | null>) | null, git?: PullGit | null }} [options] - main: the
  *   commit the primary's main branch names; default none. pack: a shared trunk pack a cold store takes before fetching.
- *   git: the Git launches the caller hands in, since drive launches no git of its own [C7].
+ *   git: the Git launches the caller hands in, since drive launches no git of its own [C7]; ref: the landing ref a land shard's candidate sits under, fetched by name when the commit is absent [#7818].
  * @returns {Promise<{ ok: true, folder: string, primary: string, reused: boolean } | { ok: false, reason: string }>}
  */
-export async function checkoutCandidate(cache, trunk, commit, name, also = [], { main = null, pack = null, exclusive = work => work(), git = null } = {}) {
+export async function checkoutCandidate(cache, trunk, commit, name, also = [], { main = null, pack = null, exclusive = work => work(), git = null, ref = null } = {}) {
   if (!git) return { ok: false, reason: 'this runner was given no git launcher; pass serveRunner its git option' };
   if (!SHA.test(String(commit ?? ''))) return { ok: false, reason: `the job names no commit (${commit})` };
   if (typeof trunk !== 'string' || !trunk) return { ok: false, reason: 'the board named no trunk remote' };
@@ -278,7 +289,7 @@ export async function checkoutCandidate(cache, trunk, commit, name, also = [], {
   const absent = wanted.filter((_, index) => !present[index]);
   if (absent.length) {
     const missing = await exclusive(async () => {
-      for (const one of absent) { const reason = await fetchCommit(git, store, trunk, one, pack); if (reason) return reason; }
+      for (const one of absent) { const reason = await fetchCommit(git, store, trunk, one, pack, one === commit ? ref : null); if (reason) return reason; }
       return null;
     });
     if (missing) return { ok: false, reason: missing };
@@ -741,7 +752,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   /** Fetch, run and report one claimed argv job while runClaim renews its lease; isLost reads whether the lease moved. */
   const runHeld = async (claim, trunk, slot, held, isLost, whenLost, claimedAt = Date.now(), self = () => null, known = () => {}) => {
     // A job offered with no run carries its argv and stdin in its request, which only the claim's holder reads [P7].
-    let run = claim.run ?? [], input = null, also = claim.base ? [claim.base] : [], named = null, timed = false;
+    let run = claim.run ?? [], input = null, also = claim.base ? [claim.base] : [], named = null, timed = false, ref = null;
     const requestStart = Date.now();
     if (!run.length) {
       let asked;
@@ -753,6 +764,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
         input = JSON.stringify(request.input ?? null);
         named = Array.isArray(request.input?.data?.files) ? request.input.data.files.length : null;
         also = [...new Set([...also, ...(Array.isArray(request.commits) ? request.commits : [])])];
+        ref = typeof request.ref === 'string' ? request.ref : null;
         // A gate frozen with exclusive check timing holds the runner: nothing else is claimed from here until it ends [C7,#8187].
         timed = request.input?.data?.checkTiming === true;
         if (timed) exclusive = claim.job;
@@ -764,7 +776,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const gate = input !== null;
     const name = `${claim.job.replace(/[^A-Za-z0-9._-]/gu, '-')}-${claim.attempt}`;
     // Each slot reuses its own folder: concurrent jobs never share one, and only the shared object store's writes take turns.
-    const checkout = await checkoutCandidate(cache, trunk, claim.candidate, `${folders}-${slot}`, also, { main: claim.base ?? null, pack, exclusive: serially, git });
+    const checkout = await checkoutCandidate(cache, trunk, claim.candidate, `${folders}-${slot}`, also, { main: claim.base ?? null, pack, exclusive: serially, git, ref });
     if (!checkout.ok || !run.length) {
       // A candidate this runner cannot fetch is an infrastructure wait: hand the job back, never a red receipt.
       const reason = checkout.ok ? 'the job names nothing to run' : checkout.reason; say(`releasing ${claim.job}: ${reason}`);
