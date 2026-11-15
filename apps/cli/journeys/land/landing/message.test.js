@@ -24,11 +24,8 @@ import { settleLand } from '../../../tests/fixtures/land/settle.js';
 import { verifySettled } from '../../../tests/fixtures/submit/settle.js';
 
 const e2e = createE2eHelpers();
-const projects = [];
-after(async () => {
-  for (const box of projects) await drainComparisons(box);
-  e2e.cleanup();
-});
+// Cleanup stops comparison workers still running, so the file exits without waiting on them [C7,#8011].
+after(e2e.cleanup);
 
 /** Await the fixture's actual diagnostic child result before another phase uses its files or removes its repository. */
 async function drainComparisons(box, signal) {
@@ -65,7 +62,6 @@ async function localProject({ batch = false } = {}) {
     return run(cwd, ...args);
   };
   const project = { ...box, repo, runLocal: command };
-  projects.push(project);
   return project;
 }
 

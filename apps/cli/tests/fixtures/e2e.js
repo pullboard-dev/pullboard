@@ -29,6 +29,7 @@ import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { SSH_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { fetchFresh } from './http.js';
 import { stopFixtureLocalRunner } from './runner/local-stop.js';
+import { stopComparisonWorkers } from './runner/comparisons.js';
 import { reviveFixtureLocalRunner } from './runner/local-start.js';
 import { runnerSwitchedEnv } from './runner/switches.js';
 import { runCliInProcess } from './process.js';
@@ -115,6 +116,7 @@ export function createE2eHelpers() {
   const cleanup = () => {
     for (const dir of sandboxes) {
       stopFixtureLocalRunner(join(dir, 'machine-home'));
+      stopComparisonWorkers(dir);
       const deadline = Date.now() + 30_000;
       for (;;) {
         try { rmSync(dir, { recursive: true, force: true }); break; }
