@@ -478,8 +478,6 @@ test('Chrome startup waits past the old timeout, retries once, and reports final
   const profile = join(dir, 'slow-profile');
   mkdirSync(profile);
   const attempts = join(dir, 'slow-attempts');
-  // The stand-in publishes its port after this delay; the helper must outwait it, however long, so a short one proves the same wait [N26].
-  const publishDelayMs = 3_100;
   const delayed = join(dir, 'delayed-chrome');
   writeFileSync(delayed, `#!/usr/bin/env node
 const { readFileSync, writeFileSync, writeSync, mkdirSync } = require('node:fs');
@@ -494,13 +492,13 @@ setTimeout(() => {
   mkdirSync(profile, { recursive: true });
   writeFileSync(join(profile, 'DevToolsActivePort'), '9333\\n/devtools/browser/fake\\n');
   setInterval(() => {}, 1000);
-}, ${publishDelayMs});
+}, 10_100);
 `);
   chmodSync(delayed, 0o755);
   const started = Date.now();
   const chrome = await startSnapshotChrome(delayed, profile);
   try {
-    assert.ok(Date.now() - started >= publishDelayMs - 100, 'the helper waits for the stand-in to publish DevToolsActivePort'); // budget: the stand-in publishes after publishDelayMs.
+    assert.ok(Date.now() - started > 10_000, 'the helper waits beyond its former ten-second limit'); // budget: the stand-in publishes DevToolsActivePort after 10,100 ms.
     assert.equal(chrome.port, '9333');
     assert.equal(readFileSync(attempts, 'utf8'), '2', 'the failed first launch is retried exactly once');
   } finally {
