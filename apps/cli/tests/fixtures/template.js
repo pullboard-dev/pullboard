@@ -17,6 +17,8 @@ import { readlinkSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { basename } from 'node:path';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
@@ -78,6 +80,16 @@ function settleDatabases(root) {
   return true;
 }
 
+/**
+ * Whether git tracks this file of the live project. Why: a tracked file's committed blob holds the sandbox path and cannot
+ * be rewritten, so its working copy keeps that path too; rewriting it would show as a change the hooks then refuse.
+ */
+function tracked(box, rel) {
+  if (rel === '.git' || rel.startsWith('.git/') || rel.includes('/.git/')) return false;
+  const file = join(box.dir, rel);
+  return box.tryGit(dirname(file), 'ls-files', '--error-unmatch', '--', basename(file)).status === 0;
+}
+
 /** Snapshot a freshly built project into a template, or null when it holds something a copy cannot carry. */
 function snapshot(box, built) {
   if (!settleDatabases(box.dir)) return null;
@@ -92,7 +104,7 @@ function snapshot(box, built) {
   for (const { rel, abs, stat } of walk(root)) {
     if (stat.isSymbolicLink() && readlinkSync(abs).includes(box.dir)) return drop(root);
     if (!stat.isFile() && !stat.isDirectory() && !stat.isSymbolicLink()) return drop(root); // A socket or pipe cannot be copied.
-    if (stat.isFile() && readFileSync(abs).includes(needle)) hits.push(rel);
+    if (stat.isFile() && readFileSync(abs).includes(needle) && !tracked(box, rel)) hits.push(rel);
   }
   const fields = {};
   for (const [key, value] of Object.entries(built)) if (typeof value === 'string' && value.startsWith(`${box.dir}/`) && box[key] !== value) fields[key] = value.slice(box.dir.length + 1);
