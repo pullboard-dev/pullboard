@@ -52,6 +52,7 @@ import {
   seedPersonSigning,
   seedUsage,
 } from '../../../../../packages/gate/tests/fixtures/seeds.js';
+import { FIXTURE_MODEL } from '../../../../cli/tests/fixtures/testkit.js';
 import { seedTypedRequests } from './requests.js';
 import { seedSourceAdvance } from '../../../../../packages/landing/tests/fixtures/relay/parity/advance.js';
 import { seedNativeTrain } from '../../../../../packages/landing/tests/fixtures/relay/parity/train.js';
@@ -127,6 +128,10 @@ export async function exerciseOperationParity({ root, origin, token, boardId, la
     await seedCoordinatorAuthority(context);
     await seedRehome(context);
     await seedUsage(context);
+    // The coordinator usage move names no item; its receipt is the native event the oracle compares.
+    await tracking.exercise('recordCoordinatorUsage', () => store.recordCoordinatorUsage(board, { agentId: 'coordinator', session: 'parity-coordinator-session',
+      observedAt: board.clock.now().getTime(), records: [{ model: FIXTURE_MODEL, inputTokens: null, outputTokens: null, wallMs: 0,
+        knownInputTokens: 0, knownOutputTokens: 0, unknownReasons: ['native-session-unavailable'] }] }));
     await seedHandoff(context);
     await seedPersonSigning(context);
     const missing = tracking.missing(MOVE_OPERATIONS);
