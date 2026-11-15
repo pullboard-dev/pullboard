@@ -3,6 +3,7 @@ import { legacyFlakeObservations } from '../logic/ratchet.js';
 import { flakeRatchet } from '../logic/ratchet.js';
 import { pairedFlakeObservations } from '../logic/ratchet.js';
 import { ratchetBoundary } from './boundary.js';
+import { warmRatchetBoundary } from './boundary.js';
 import { repairedAt } from './boundary.js';
 import { backfillPairs } from './boundary.js';
 import { eventHistory } from './history.js';
@@ -24,7 +25,6 @@ import {
   addItem,
   atomic,
   getItem,
-  listAgents,
   logEvent,
 } from "../../../store/index.js";
 import { GATE_RUN_ENGINE } from "../../../state/light.js";
@@ -85,11 +85,11 @@ export function flakeQuarantines(board) {
       ...(detail.engine >= QUARANTINE_CORE_ENGINE ? { nativeCore: true } : {}), ...(detail.ledger === true ? { ledger: true } : {}),
       ...(detail.engine >= AUTO_SUBMIT_QUARANTINE_ENGINE && detail.autoSubmit === true ? { autoSubmit: true } : {}) });
   }
-  const nativeRuns = [...latest.values()].some(entry => entry.nativeCore) ? gateRuns(board) : [];
+  const index = [...latest.values()].some(entry => entry.nativeCore) ? indexOutcomes(board, gateRuns(board)) : new Map();
   return [...latest.values()].map(entry => {
-    const state = getItem(board, entry.item).item_status;
-    const clean = entry.nativeCore && !entry.autoSubmit ? cleanRunRelease(nativeRuns, entry) : null;
     const item = getItem(board, entry.item);
+    const state = item.item_status;
+    const clean = entry.nativeCore && !entry.autoSubmit ? cleanRunRelease(index, entry) : null;
     const lifted = entry.autoSubmit ? Boolean(item.item_merged_commit) : state === 'verified' || (!entry.nativeCore || entry.ledger) && state === 'withdrawn' || clean?.releasedAt !== null && clean?.releasedAt !== undefined;
     const closing = lifted ? (entry.autoSubmit
       ? board.db.prepare("SELECT MAX(event_id) AS id FROM event WHERE item_id = ? AND event_kind='merged'")
@@ -168,17 +168,46 @@ function submitDiagnostic(run) {
   return run.kind === 'check' && run.proof?.submitPhase === 'diagnostic' && run.proof.frozenDigest === null;
 }
 
+const OUTCOME_INDEXES = new WeakMap();
+
+/**
+ * Index every structured run's per-test outcomes by test identity, so each quarantine reads only the runs that name its
+ * test. The index is kept per connection and extended by the runs since: a run is frozen, so a kept prefix never
+ * changes, and a prefix whose last run is no longer the same object (a rollback, a refold) is indexed again [C7].
+ * Why: each quarantine scanned every run and searched its outcomes, 125 ms per read on 10,000 runs.
+ */
+function indexOutcomes(board, runs) {
+  const known = OUTCOME_INDEXES.get(board.db);
+  const reuse = known && known.count <= runs.length && (known.count === 0 || runs[known.count - 1] === known.last);
+  const kept = reuse ? known : { count: 0, last: null, byTest: new Map() };
+  for (const run of runs.slice(kept.count)) {
+    if (!structuredRun(run)) continue;
+    const first = new Set();
+    for (const row of run.testOutcomes) {
+      const key = testKey(row.file, row.name);
+      if (first.has(key)) continue;
+      first.add(key);
+      let list = kept.byTest.get(key);
+      if (!list) kept.byTest.set(key, list = []);
+      list.push({ eventId: run.eventId, id: run.id, outcome: row });
+    }
+  }
+  kept.count = runs.length;
+  kept.last = runs.at(-1) ?? null;
+  OUTCOME_INDEXES.set(board.db, kept);
+  return kept.byTest;
+}
+
 /** Count one identity's actual consecutive verdicts; missing, skipped and duplicate runs add nothing. */
-function cleanRunRelease(runs, entry) {
+function cleanRunRelease(index, entry) {
   let count = 0;
   const seen = new Set();
-  for (const run of runs) {
-    if (run.eventId <= entry.eventId || seen.has(run.id) || !structuredRun(run)) continue;
-    seen.add(run.id);
-    const outcome = run.testOutcomes.find(row => row.file === entry.file && row.name === entry.name);
-    if (!outcome || outcome.skipped) continue;
+  for (const { eventId, id, outcome } of index.get(testKey(entry.file, entry.name)) ?? []) {
+    if (eventId <= entry.eventId || seen.has(id)) continue;
+    seen.add(id);
+    if (outcome.skipped) continue;
     count = outcome.passed ? count + 1 : 0;
-    if (count === 20) return { count, releasedAt: run.eventId };
+    if (count === 20) return { count, releasedAt: eventId };
   }
   return { count, releasedAt: null };
 }
@@ -335,7 +364,7 @@ function gateRunValue(board, { agentId, receipt }) {
   }
   if (Object.hasOwn(receipt ?? {}, 'environment') && (board.executionEngineVersion ?? ENGINE_VERSION) < LANDING_ENVIRONMENT_ENGINE) throw new Refused('ENGINE_VERSION', `gate environments require engine ${LANDING_ENVIRONMENT_ENGINE}`);
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < GATE_RUN_ENGINE) throw new Refused('ENGINE_VERSION', `gate runs require engine ${GATE_RUN_ENGINE}; upgrade Pullboard`);
-  if (!listAgents(board).some(agent => agent.agent_id === agentId)) throw new Refused('NOT_JOINED', 'join this board before recording a gate run');
+  if (!board.db.prepare('SELECT 1 FROM agent WHERE agent_id = ?').get(agentId)) throw new Refused('NOT_JOINED', 'join this board before recording a gate run');
   const value = runReceipt(receipt);
   if (value.version === 2 && value.proof.seat !== agentId) throw new Refused('GATE_RUN_UNBOUND', 'a native test outcome must be recorded by the seat that executed its proof');
   return value;
@@ -452,6 +481,8 @@ export function warmFlakeHistory(board) {
   if (board.db.isTransaction !== false) return;
   gateRunEvents(board);
   flakeEvents(board);
+  warmRatchetBoundary(board);
+  if (board.db.prepare("SELECT 1 FROM event WHERE event_kind = 'test-quarantine' LIMIT 1").get()) indexOutcomes(board, gateRuns(board));
 }
 
 /** File one owner-lane repair when two actual verdicts name the same test and immutable tree. */
