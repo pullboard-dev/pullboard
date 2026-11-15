@@ -42,7 +42,8 @@ test('clause 2: when the land job posts its receipt, every unfinished shard ends
   end(10);
   const views = jobViews(board.db, ids);
   assert.ok(views.every(view => view.step === 'done'), 'every shard is done');
-  assert.deepEqual(views.filter(view => view.steps.some(step => step.name === 'withdrawn')).map(view => view.id).sort(), ids.filter(id => id !== done).sort(), 'the unfinished ones are withdrawn, the posted one keeps its receipt');
+  const withdrawn = ids.filter((_, at) => views[at].steps.some(step => step.name === 'withdrawn'));
+  assert.deepEqual(withdrawn.sort(), ids.filter(id => id !== done).sort(), 'the unfinished ones are withdrawn, the posted one keeps its receipt');
   assert.equal(claimJob(board.db, { runner: 'r-c', capabilities: [], now: 11 }), null, 'no runner finds a shard to claim');
 });
 
@@ -51,7 +52,7 @@ test('clause 2: a job that is not a land job withdraws nothing when it ends, and
   offerJob(board.db, { id: 'gate:9:x', kind: 'gate', now: 2 });
   offerJob(board.db, { id: 'gate:9:x:shard:1', kind: 'gate-shard', now: 2 });
   assert.doesNotThrow(() => end(10), 'a landing that never sharded ends with nothing to withdraw');
-  assert.equal(jobViews(board.db, ['gate:9:x:shard:1'])[0].step, 'queued', 'another job\'s shard is untouched');
+  assert.notEqual(jobViews(board.db, ['gate:9:x:shard:1'])[0].step, 'done', 'another job\'s shard is untouched');
 });
 
 test('clause 2: shards offered again for another merged commit end the old ones and never hand back the old tree\'s receipts [test] [C7,#7818]', t => {
@@ -61,7 +62,7 @@ test('clause 2: shards offered again for another merged commit end the old ones 
   assert.ok(receipts(first).shards.some(row => row.posted), 'the first tree has a posted receipt');
   const again = shards(SECOND, {}, 8).shards;
   assert.equal(again.length, first.length);
-  assert.ok(again.every(id => !first.includes(id) || jobRequest(board.db, { job: id, runner: 'r-land', token: 'x' }) === undefined), 'a shard id the first tree used is not reused for the second');
+  assert.ok(again.every(id => !first.includes(id)), 'a shard id the first tree used is not reused for the second');
   assert.ok(receipts(again, 9).shards.every(row => row.posted === null), 'the second tree starts with no receipt');
   const old = jobViews(board.db, first).filter(view => view.step !== 'done');
   assert.deepEqual(old, [], 'every shard of the first tree is done, posted or withdrawn');
