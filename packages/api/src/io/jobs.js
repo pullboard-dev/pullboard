@@ -464,7 +464,7 @@ export function jobRequest(db, { job, runner, token }) {
 const MAX_LAND_SHARDS = 32;
 const PROOF_FILE = /^(?!\/)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r]{1,4096}$/u;
 const FULL_SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
-// The ref a land job pins its merged commit under on the trunk remote, which its shards' runners fetch (packages/landing's landingRef).
+// The ref a land job pins its merged commit under on the trunk remote, which its shards' runners pull; packages/landing's landingRef names it.
 const LAND_REF = /^refs\/pullboard\/landing\/[\w.-]{1,200}$/u;
 
 /**
