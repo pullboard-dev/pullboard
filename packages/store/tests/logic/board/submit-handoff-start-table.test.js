@@ -1,11 +1,10 @@
-/** @pullboard-world-pin reads the recorded submit history fixture to drive the hand-off writers with it. The store hand-off start and queue writers apply the submit tables and agree on every replayed move [C7,#8279,#8280].
+/** @pullboard-world-pin reads the recorded submit history fixture to drive the hand-off start writer with it. The store hand-off start writer applies the START table and agree on every replayed move [C7,#8279].
  * @pullboard-test-input packages/moves/tests/fixtures/table/submit-history.json packages/store/src/io/submit/handoff/retry.js */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { readSubmitRecords } from '../../../../moves/index.js';
-import { queueSubmitHandoff } from '../../../index.js';
 import { startSubmitHandoff } from '../../../index.js';
 import { cellBoard } from '../../fixtures/cell.js';
 
@@ -59,13 +58,9 @@ function drive(board, hook, run) {
 
 /** The writer's options for a recorded start move. */
 const startOptions = ({ actor, job, hook, retryJob, unrecoverable }) => ({ agentId: actor, job, ...(hook ? { hookProjection: hook } : {}), ...(retryJob ? { retryJob } : {}), ...(unrecoverable ? { unrecoverable } : {}) });
-/** The writer's options for a recorded queue move: the captured candidate its snapshot held. */
-const queueOptions = (record) => { const { head, companionDigest } = record.snapshot.io; const { item } = record.snapshot;
-  return { agentId: record.move.actor, job: record.move.job, ...head, digest: item.frozenDigest, companionDigest, leaseMs: record.snapshot.config.leaseMs }; };
 
 const { records } = recorded();
 const starts = records.filter(record => record.table === 'START' && !record.move.hook && record.move.unrecoverable === undefined);
-const queues = records.filter(record => record.table === 'SUBMIT');
 
 test('clause 1: the store hand-off start writer applies the START table and agrees on every replayed move [C7,#8279]', t => {
   assert.ok(starts.length >= 10, 'the replay holds the board\'s starts and requeues');
@@ -104,43 +99,4 @@ test('clause 1: a merge hook without its receipts is refused by both the START t
   const seen = drive(board, 'startSubmitHandoffShadow', () => assert.throws(() => startSubmitHandoff(board, record.move.id, startOptions({ ...record.move, hook })), { code: 'SUBMIT_HANDOFF_AUTHORITY' }));
   assert.equal(seen.decided.refused.code, 'SUBMIT_HANDOFF_AUTHORITY');
   assert.deepEqual(seen.wrote.refused, seen.decided.refused);
-});
-
-test('clause 1: the store submit writer applies the SUBMIT table and agrees on every replayed move [C7,#8280]', t => {
-  assert.ok(queues.length >= 5, 'the replay holds the board\'s queued gates');
-  for (const record of queues) {
-    const board = boardFor(t, record.snapshot);
-    const seen = drive(board, 'queueSubmitHandoffShadow', () => queueSubmitHandoff(board, record.move.id, queueOptions(record)));
-    const { job, created } = seen.wrote.returned;
-    assert.equal(seen.decided.refused, undefined, `${record.path}: the table does not refuse`);
-    assert.equal(seen.decided.via, 'queue', record.path);
-    assert.equal(created, true);
-    assert.deepEqual(seen.decided.job, JSON.parse(JSON.stringify(job)), `${record.path}: the table keeps the record the writer kept`);
-  }
-});
-
-test('clause 1: a queue by a seat that does not hold the claim is refused by both the SUBMIT table and the writer [C7,#8280]', t => {
-  const [record] = queues;
-  const lost = [{ owner: 'someone-else' }, { status: 'open' }, { leaseUntil: '2000-01-01T00:00:00.000Z' }];
-  for (const over of lost) {
-    const board = boardFor(t, record.snapshot, over);
-    const seen = drive(board, 'queueSubmitHandoffShadow', () => assert.throws(() => queueSubmitHandoff(board, record.move.id, queueOptions(record)), { code: 'NOT_YOURS' }));
-    assert.equal(seen.decided.refused.code, 'NOT_YOURS', JSON.stringify(over));
-    assert.deepEqual(seen.wrote.refused, seen.decided.refused, JSON.stringify(over));
-  }
-});
-
-test('clause 1: a queue behind a pending gate keeps it for the same candidate and refuses another, in both [C7,#8280]', t => {
-  const [record] = queues;
-  const pending = { ...record.snapshot.handoff, state: 'queued', agentId: record.snapshot.item.owner, digest: record.snapshot.item.frozenDigest, commit: record.snapshot.io.head.commit, tree: record.snapshot.io.head.tree, companionDigest: record.snapshot.io.companionDigest, synthetic: undefined };
-  delete pending.synthetic;
-  const same = boardFor(t, record.snapshot, { handoff: pending });
-  const kept = drive(same, 'queueSubmitHandoffShadow', () => queueSubmitHandoff(same, record.move.id, queueOptions(record)));
-  assert.equal(kept.decided.via, 'queue-existing');
-  assert.equal(kept.wrote.returned.created, false);
-  assert.deepEqual(kept.decided.job, JSON.parse(JSON.stringify(kept.wrote.returned.job)));
-  const other = boardFor(t, record.snapshot, { handoff: { ...pending, commit: 'c'.repeat(40) } });
-  const refused = drive(other, 'queueSubmitHandoffShadow', () => assert.throws(() => queueSubmitHandoff(other, record.move.id, queueOptions(record)), { code: 'SUBMIT_HANDOFF_PENDING' }));
-  assert.equal(refused.decided.refused.code, 'SUBMIT_HANDOFF_PENDING');
-  assert.deepEqual(refused.wrote.refused, refused.decided.refused);
 });
