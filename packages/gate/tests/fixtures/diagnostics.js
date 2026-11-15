@@ -4,7 +4,7 @@ import {
   rmSync,
   statSync,
 } from 'node:fs';
-import { runFixtureChild as spawnSync } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild as spawnSync } from './child.js';
 import {
   join,
   resolve,
