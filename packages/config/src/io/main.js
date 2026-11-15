@@ -65,7 +65,7 @@ export function defaults() {
     reviewLease: '30m',
     worktrees: 'beside',
     worktreeMaintenance: maintenanceSettings.maintenanceDefaults(),
-    verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true },
+    verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true, failBefore: false },
     review: { starveMinutes: 5, independence: 'off', excludeEarlierHolders: false },
     // Explicit vendor spellings: canonical family -> declared alias names. Never inferred from a model [#1762].
     families: {},
@@ -355,6 +355,9 @@ export function configProblems(config) {
   }
   if (typeof config.verify?.inspectClauses !== 'boolean') {
     problems.push('"verify.inspectClauses" is true or false');
+  }
+  if (typeof config.verify?.failBefore !== 'boolean') {
+    problems.push('"verify.failBefore" is true or false');
   }
   if (notPlain(config.families)
     || Object.entries(config.families).some(([name, aliases]) => !name.trim() || name.length > 80

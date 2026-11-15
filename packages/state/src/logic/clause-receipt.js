@@ -48,6 +48,14 @@ export function clauseReceiptProblem(item, { gateFiles, baseRows, baseCommit }) 
  * @param {{ gateFiles: Set<string>, baseRows: object[], outcomes: object[], head: string, baseCommit: string | null }} run - Files the gate ran, recorded base rows, the gate's head rows and both commits.
  * @returns {string[]} Note texts for the item's thread.
  */
+/**
+ * The fail-before refusal, only when verify.failBefore is on; otherwise null, so submit never asks for base runs [C7].
+ * Separate from clauseReceiptProblem so the setting gates this refusal alone.
+ */
+export function failBeforeProblem(enabled, item, proof) {
+  return enabled === true ? clauseReceiptProblem(item, proof) : null;
+}
+
 export function clauseReceiptNotes(item, thread, { gateFiles, baseRows, outcomes, head, baseCommit }) {
   const held = clauseReceipts(thread);
   const notes = [];

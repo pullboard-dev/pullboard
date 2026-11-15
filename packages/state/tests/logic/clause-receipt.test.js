@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { clauseReceiptNotes } from '../../index.js';
 import { clauseReceiptProblem } from '../../index.js';
 import { clauseReceipts } from '../../index.js';
+import { failBeforeProblem } from '../../index.js';
 
 const FILE = 'packages/x/tests/a.test.js';
 const BASE = 'b'.repeat(40), HEAD = 'c'.repeat(40);
@@ -32,4 +33,15 @@ test('clause 3: the receipt is one thread note, stored once, and the show lines 
   assert.deepEqual(clauseReceiptNotes(item, thread, run), [], 'a held receipt is not written twice');
   assert.deepEqual(clauseReceipts(thread).map(receipt => receipt.number), [1]);
   assert.deepEqual(clauseReceiptNotes(item, [], { ...run, outcomes: [row('x', false)] }), [], 'red at head leaves no receipt');
+});
+
+test('clause 1: with verify.failBefore unset or false, no fail-before refusal is raised [C7]', () => {
+  assert.equal(failBeforeProblem(undefined, item, proof([])), null);
+  assert.equal(failBeforeProblem(false, item, proof([])), null);
+});
+
+test('clause 2: with verify.failBefore true, a [test] clause without a failing base run is refused [C7]', () => {
+  assert.match(failBeforeProblem(true, item, proof([]))?.message ?? '', /zero tests ran at base/u);
+  assert.match(failBeforeProblem(true, item, proof([row('x', true)]))?.message ?? '', /no recorded run that fails on an assertion/u);
+  assert.equal(failBeforeProblem(true, item, proof([row('x', false, { failure: 'assertion' })])), null);
 });
