@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/receipt/tests/registry.json */
 /** Two registered tests that prove the same claim are flagged by ID, and the receipt cell's own records pass [C7,U148]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -7,7 +7,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../fixtures/child.js';
 import { duplicateClaims } from '../../../index.js';
 import { requireUniqueClaims } from '../../../index.js';
 
