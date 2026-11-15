@@ -16,7 +16,6 @@
   ["src/relay-outbox-undo.js","packages/outbox/src/logic/undo.js","seed"],
   ["src/relay-outbox.js","packages/outbox/src/io/relay.js","seed"],
   ["src/relay-sender-worker.js","packages/outbox/src/io/relay/worker.js","seed"],
-  ["test/relay-checkpoint.test.js","packages/outbox/tests/io/relay/relay-checkpoint.test.js","seed"],
   ["test/relay-outbox-format.test.js","packages/outbox/tests/io/relay.test.js","seed"],
   ["test/relay-outbox-guard.test.js","packages/outbox/tests/io/relay/guard.test.js","seed"],
   ["test/relay-outbox-undo.test.js","packages/outbox/tests/io/relay/undo.test.js","seed"]

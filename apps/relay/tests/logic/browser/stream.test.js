@@ -8,6 +8,9 @@ import { clearBrowserReadFailure } from '../../../index.js';
 import { noticeLines } from '../../../index.js';
 import { reconcileOwnedRequests } from '../../../index.js';
 import { rememberOwnedRequestId } from '../../../index.js';
+import { RELAY_FAULT_WORDS } from '../../../index.js';
+import { relayFailureText } from '../../../index.js';
+import { relayFault } from '../../../index.js';
 import { storedOwnedRequestState } from '../../../index.js';
 
 /** Build a finite standards-shaped stream response for a deterministic transport probe. */
@@ -237,4 +240,26 @@ test('phone degradation and durable queued notices remain local to each board [H
   assert.deepEqual(noticeLines({ available: [{ id: 'a' }], paired: new Map([['a', paired.get('a')]]), degradedBoards, queuedRequests }), []);
   queuedRequests.set('a', null);
   assert.match(noticeLines({ available: [{ id: 'a' }], paired: new Map([['a', paired.get('a')]]), degradedBoards, queuedRequests })[0], /count unavailable/u, 'unreadable device storage cannot claim zero pending requests');
+});
+
+test('each of the four relay faults reads as one plain next step and never as a raw code [H5,H17]', () => {
+  const faults = [
+    ['relay down', new TypeError('Failed to fetch'), 'down', /wait/iu],
+    ['relay down, older browser', new Error('network error'), 'down', /wait/iu],
+    ['slow relay that then asks for a newer snapshot', { code: 'SNAPSHOT_REQUIRED', message: 'fetch the latest sealed state, then resume.' }, 'behind', /wait/iu],
+    ['503', Object.assign(new Error('The relay did not answer. Sign in again or retry.'), { code: 'RELAY_UNAVAILABLE' }), 'trouble', /wait/iu],
+    ['stale engine', Object.assign(new Error('This browser reads engine 3. Upgrade this browser client.'), { code: 'ENGINE_VERSION' }), 'version', /reload this page/iu],
+    ['stale engine in a bracketed message', new Error('[ENGINE_VERSION] upgrade the browser client'), 'version', /reload this page/iu],
+  ];
+  for (const [name, error, fault, step] of faults) {
+    assert.equal(relayFault(error), fault, name);
+    const words = relayFailureText(error);
+    assert.equal(words, RELAY_FAULT_WORDS[fault], name);
+    assert.match(words, step, name + ' names its next step');
+    assert.match(words, /relay|page/iu, name + ' names the relay, not pullboard view');
+    assert.doesNotMatch(words, /\[[A-Z_]+\]|Failed to fetch|network error|pullboard view/u, name + ' keeps raw words out');
+  }
+  assert.doesNotMatch(RELAY_FAULT_WORDS.down + RELAY_FAULT_WORDS.trouble + RELAY_FAULT_WORDS.behind, /reload/iu, 'only a new version asks for a reload');
+  assert.equal(relayFault(new Error('Sign in again to read this board.')), null, 'a refusal that is no fault keeps its own sentence');
+  assert.equal(relayFailureText(new Error('[AUTH_REQUIRED] Sign in again to read this board.')), 'Sign in again to read this board.', 'a leading code is dropped');
 });

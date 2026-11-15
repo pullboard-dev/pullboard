@@ -148,7 +148,7 @@ export async function diagnose(state, failures, gate) {
       // Awaited, so the landing lease keeps its heartbeat during the runner run [C7].
       return runProfiledShellAsync(state.batch.root, `${runner} ${quote(file)}`, {
       waitMs: lease.waitMs, artifactDirectory: dirname(state.batch.logPath), artifactPrefix: 'diagnostic', persistLog: true, pipefail: true, gateLease: lease,
-    }); }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing: true, browser: true, agent: 'coordinator', kind: 'land-diagnostic', onWait: state.onWait });
+    }); }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing: true, browser: true, agent: 'coordinator', kind: 'land-diagnostic', item: 'landing batch', onWait: state.onWait });
     if (tiered) requireTestTierAccount(result, [file]);
     if (headCommit(state.batch.root) !== commit || headTree(state.batch.root) !== tree || !isClean(state.batch.root)) {
       throw new Refused('LAND_SOURCE_CHANGED', `the landing source changed during its whole-file diagnostic; inspect ${result.logPath} before adopting`);

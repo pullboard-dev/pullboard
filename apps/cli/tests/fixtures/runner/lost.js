@@ -123,7 +123,7 @@ import {existsSync} from 'node:fs';
 const cancellation=new AbortController();let readyAt=null;
 const watch=${abortAfterReady} ? setInterval(()=>{if(readyAt===null&&existsSync(${JSON.stringify(box.record)}))readyAt=Date.now();
 if(readyAt!==null&&Date.now()-readyAt>=28000)cancellation.abort();},100):null;
-try{await runOnRunnerAsync(process.cwd(),'true',{runner:${JSON.stringify(box.runner)},signal:cancellation.signal});console.log(JSON.stringify({unexpectedSuccess:true}));}
+try{await runOnRunnerAsync(process.cwd(),'true',{runner:${JSON.stringify(box.runner)},metadata:{item:'fixture',kind:'remote-command'},signal:cancellation.signal});console.log(JSON.stringify({unexpectedSuccess:true}));}
 catch(error){console.log(JSON.stringify({name:error.name,code:error.code,message:error.message,diagnostic:error.diagnostic}));}
 finally{clearInterval(watch);}`;
   const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source], {

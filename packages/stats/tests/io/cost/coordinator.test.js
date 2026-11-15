@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { FIXTURE_MODEL } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+import { COORDINATOR_USAGE_ENGINE } from '../../../../state/light.js';
 import { recordCoordinatorUsage } from '../../../src/io/cost.js';
 
 const RECORDS = [{ model: FIXTURE_MODEL, inputTokens: 9, outputTokens: 4, wallMs: 0, knownInputTokens: 9, knownOutputTokens: 4,
@@ -37,4 +38,10 @@ test('repeating a payload changes nothing and a changed payload refuses USAGE_CH
   assert.deepEqual(b.db.prepare('SELECT * FROM board_meta').all(), before);
   assert.equal(b.events.length, 1);
   assert.throws(() => recordCoordinatorUsage(b, { session: 's-1', records: [{ ...RECORDS[0], outputTokens: 5, knownOutputTokens: 5 }], observedAt: 5 }), { code: 'USAGE_CHANGED' });
+});
+
+test('recording below the coordinator usage engine refuses ENGINE_VERSION and stores nothing [C7]', () => {
+  const b = { ...board(), executionEngineVersion: COORDINATOR_USAGE_ENGINE - 1 };
+  assert.throws(() => recordCoordinatorUsage(b, { session: 's-1', records: RECORDS, observedAt: 5 }), { code: 'ENGINE_VERSION' });
+  assert.equal(b.db.prepare('SELECT COUNT(*) AS n FROM board_meta').get().n, 0);
 });

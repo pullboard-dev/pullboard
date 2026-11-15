@@ -1,8 +1,10 @@
 /** A seat with board.url set moves a served board through POST /moves and opens no board.sqlite [P7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { apiHttpBox } from '../../fixtures/api.js';
@@ -67,7 +69,7 @@ async function remoteSeats(t) {
   const add = async (title) => (await served(box, box.root, 'add', 'app', title, '--specs', 'G1', '--criterion', 'Move it by URL', '--brief', FIXTURE_BRIEF)).item.item_id;
   /** The served board's summary row for one item. */
   const row = async (id) => (await box.call(`${box.path}/state`)).document.state.items.find((entry) => entry.id === id);
-  return { box, builder, verifier, clone, run, add, row };
+  return { box, builder, verifier, clone, machine, run, add, row };
 }
 
 // Budget: how long the served host's local runner has to pull and settle one gate job; a hang ceiling only.
@@ -162,4 +164,19 @@ onRemoteSeats(async (seats) => {
   assert.equal(JSON.parse(json.stdout).error.code, local.code, '--json carries the same refusal code');
   assert.equal((await seats.row(id)).status, 'claimed', 'the refused move left the served board as it was');
   assert.equal(cloneBoard(seats.clone), false, 'a refused move opened no local board');
+}));
+
+test('a claim by a seat joined by URL opens no item folder on the board host [C7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board, one join and one claim, not a throughput claim.
+onRemoteSeats(async (seats) => {
+  const id = await seats.add('Remote folderless item');
+  const own = (...args) => runCliInProcess(args, { cwd: seats.clone, env: { ...seats.box.env, PULLBOARD_MACHINE_HOME: seats.machine, PULLBOARD_AGENT: '' } });
+  const joined = await own('join', 'app', '--model', FIXTURE_MODEL, '--route', 'strong', '--json');
+  assert.equal(joined.status, 0, joined.stdout + joined.stderr);
+  const claimed = await own('claim', String(id), '--json');
+  assert.equal(claimed.status, 0, claimed.stdout + claimed.stderr);
+  assert.equal(JSON.parse(claimed.stdout).itemFolder, undefined, 'the claim result names no item folder');
+  assert.equal((await seats.row(id)).status, 'claimed', 'the claim reached the served board');
+  const folders = readdirSync(dirname(seats.box.root)).filter((name) => name.endsWith(`-item-${id}`));
+  assert.deepEqual(folders, [], 'no item folder appeared beside the board host checkout');
+  assert.equal(cloneBoard(seats.clone), false, 'the claim opened no local board');
 }));
