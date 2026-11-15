@@ -1,4 +1,5 @@
 import { commandPhaseSnapshot } from '../../../../../packages/link/index.js';
+import { phaseTime } from '../../../../../packages/gate/tests/fixtures/phase.js';
 import {
   AGENT_SHELL_MARKERS,
   SSH_SHELL_MARKERS,
@@ -226,7 +227,8 @@ export { childResult as relayFixtureChild };
  * fixture once used, a loaded machine kept the test process busy enough that browser replies queued past their
  * deadlines (#955, #979). A case that needs a faster poll passes pollMs by name and says why.
  */
-export async function relayClientFixture(t, { cliChildren, coordinatorModel, accountStorageBytes, moveBodyBytes, pollMs = 200, host = '127.0.0.1' } = {}) {
+export async function relayClientFixture(t, o) { return phaseTime('setup:relayClientFixture', () => relayClientFixture0(t, o)); }
+async function relayClientFixture0(t, { cliChildren, coordinatorModel, accountStorageBytes, moveBodyBytes, pollMs = 200, host = '127.0.0.1' } = {}) {
   const scratch = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-relay-cleanup-')));
   const root = join(scratch, 'repo');
   const home = join(scratch, 'home');

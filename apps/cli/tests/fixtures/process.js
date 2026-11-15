@@ -1,5 +1,6 @@
 /** Awaited production CLI calls with isolated output and serialized process-global environment [C7,A1]. */
 import { Readable } from 'node:stream';
+import { phaseAdd } from '../../../../packages/gate/tests/fixtures/phase.js';
 import { main } from './native.js';
 import { HOOK_WORKER } from '../../index.js';
 import { launchRelaySender } from '../../index.js';
@@ -21,7 +22,12 @@ function restoreEnvironment(saved) {
 export function captureCommandInProcess(command, argv, { cwd = process.cwd(), env, input = '', personChannel } = {}) {
   const args = [...argv];
   const environment = env === undefined ? undefined : { ...env };
+  const __t = performance.now();
   const run = pending.then(async () => {
+    const __s = performance.now();
+    try { return await run0(); } finally { phaseAdd(`cli-inproc:${args[0]}`, performance.now() - __s); phaseAdd('cli-inproc-queue', __s - __t); }
+  });
+  const run0 = async () => {
     const saved = { ...process.env };
     const directory = process.cwd();
     const exitCode = process.exitCode;
@@ -40,7 +46,7 @@ export function captureCommandInProcess(command, argv, { cwd = process.cwd(), en
       if (process.cwd() !== directory) process.chdir(directory);
       process.exitCode = exitCode;
     }
-  });
+  };
   pending = run.then(() => undefined, () => undefined);
   return run;
 }

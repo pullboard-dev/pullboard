@@ -25,6 +25,12 @@ import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { assertShortInit } from '../../tests/fixtures/shortinit.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
+import { phaseMark as __pm } from '../../../../packages/gate/tests/fixtures/phase.js';
+import { phaseAdd as __pa } from '../../../../packages/gate/tests/fixtures/phase.js';
+import { beforeEach as __be } from 'node:test';
+import { afterEach as __ae } from 'node:test';
+__pm('loaded');
+let __t0 = 0; __be(() => { __t0 = performance.now(); }); __ae((t) => { __pa(`test:${t.name.slice(0, 50)}`, performance.now() - __t0); });
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);

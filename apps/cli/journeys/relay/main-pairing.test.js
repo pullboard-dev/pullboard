@@ -23,6 +23,12 @@ import { runRelayOnAll } from '../../tests/fixtures/relay/auth.js';
 import { registerSecondProject } from '../../tests/fixtures/relay/auth.js';
 import { fixture } from '../../tests/fixtures/relay/auth.js';
 import { login } from '../../tests/fixtures/relay/auth.js';
+import { phaseMark as __pm } from '../../../../packages/gate/tests/fixtures/phase.js';
+import { phaseAdd as __pa } from '../../../../packages/gate/tests/fixtures/phase.js';
+import { beforeEach as __be } from 'node:test';
+import { afterEach as __ae } from 'node:test';
+__pm('loaded');
+let __t0 = 0; __be(() => { __t0 = performance.now(); }); __ae((t) => { __pa(`test:${t.name.slice(0, 50)}`, performance.now() - __t0); });
 
 test('a cancel during pairing keeps the links and stops pairing cleanly [H5,N26]', async (t) => {
   await t.test('cancellation before the first link remains a no-link outcome', async (t) => {

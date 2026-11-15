@@ -1,4 +1,6 @@
 /** Shared real CLI, Git and SQLite dispatch setup [N2,V1,B3]. */
+import { phaseTime } from '../../../../../packages/gate/tests/fixtures/phase.js';
+import { phaseAdd } from '../../../../../packages/gate/tests/fixtures/phase.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import {
@@ -28,7 +30,8 @@ import { submitFixture } from '../board/submit.js';
 import { runFixtureGit } from '../child.js';
 
 /** Run the actual command parser and operation pipeline against this fixture's clock. */
-export async function cli(box, cwd, args, hooks = {}) {
+export async function cli(box, cwd, args, hooks = {}) { return phaseTime(`cli-take:${args[0]}`, () => cli0(box, cwd, args, hooks)); }
+async function cli0(box, cwd, args, hooks = {}) {
   let out = '', err = '';
   const code = await main([...args, '--json'], { ...hooks, cwd, clock: box.clock,
     stdout: { isTTY: false, write: part => { out += part; } },
@@ -53,7 +56,8 @@ async function cleanupFixture(directory, board, original) {
  * The fixture leaves gate.runnerDispatch unpinned, so it is pull, and turns the local runner off: next restarts a dead local runner
  * while a gate job waits (#6556) and a fixture must never start a real process [P7].
  */
-export async function fixture(t, { route = 'strong', family = 'off', policy = 'any', files = {}, mainRed = false, perSeat = null } = {}) {
+export async function fixture(t, o) { return phaseTime('setup:take-fixture', () => fixture0(t, o)); }
+async function fixture0(t, { route = 'strong', family = 'off', policy = 'any', files = {}, mainRed = false, perSeat = null } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-next-take-')));
   const root = join(directory, 'repo');
   mkdirSync(root);
@@ -97,6 +101,7 @@ export async function fixture(t, { route = 'strong', family = 'off', policy = 'a
   // @pullboard-board-file journey: share the durable board initialized by the real CLI and selected by its worktree dispatch.
   const board = openBoard(file, clock, { gitRoot: root });
   const seats = {};
+  const __w = performance.now();
   for (const [name, lane, parent, vendor] of [
     ['actor', 'web', 'fixture-A', 'Family Alpha'], ['builder', 'web', 'fixture-P', 'Family Alpha'],
     ['sibling', 'review', 'fixture-P', 'Family Beta'], ['sameFamily', 'review', 'fixture-Q', 'Family Alpha'],
@@ -108,6 +113,7 @@ export async function fixture(t, { route = 'strong', family = 'off', policy = 'a
     seats[name] = { id, path, lane };
     heartbeatSeat(board, id);
   }
+  phaseAdd('setup:take-seats', performance.now() - __w);
   const config = loadConfig(root);
   const box = { root, file, board, clock, seats, config, git, advance: ms => { at += ms; } };
   /** File an ordinary runnable item; tests never prefilter a candidate list for next. */
@@ -147,6 +153,6 @@ export async function fixture(t, { route = 'strong', family = 'off', policy = 'a
     assert.equal(result.error, undefined, JSON.stringify(result));
     return result;
   };
-  t.after(() => cleanupFixture(directory, board, original));
+  t.after(() => phaseTime('cleanup:take', () => cleanupFixture(directory, board, original)));
   return box;
 }
