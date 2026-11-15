@@ -51,19 +51,44 @@ function isolateMachine(t) {
   return directory;
 }
 
-/** Build a real repository holding this checkout's tooling plus a cells plan, committed on main. */
-function toolingRepo(t) {
-  const root = temporaryRepository(t, 'accepted-identity-repo-');
-  const files = execFileSync('git', ['-C', REPO, 'ls-files', '-z', 'packages', 'apps', 'package.json'], { encoding: 'utf8' }).split('\0').filter(Boolean);
+/** The checker's own tooling folders: the pinned fingerprint hashes exactly these, so a fixture needs no more to carry the pinned checker. */
+const CHECKER_PATHS = ['packages/codemap', 'packages/kernel', 'packages/git', 'packages/gate/src'];
+
+/** List this checkout's tracked files under some paths, skipping any that are gone from the working tree. */
+function trackedFiles(...paths) {
+  return execFileSync('git', ['-C', REPO, 'ls-files', '-z', ...paths], { encoding: 'utf8' }).split('\0').filter(file => file && existsSync(join(REPO, file)));
+}
+
+/** Copy tracked files from this checkout into a folder. */
+function copyFiles(root, files) {
   for (const file of files) {
-    if (!existsSync(join(REPO, file))) continue;
     mkdirSync(dirname(join(root, file)), { recursive: true });
     cpSync(join(REPO, file), join(root, file));
   }
+}
+
+/**
+ * Build a real repository holding the checker's tooling plus a cells plan, committed on main.
+ * Why only the checker folders: the producer's census parses every file in this tree, and the whole checkout cost it
+ * about 95 s a case; the pinned fingerprint covers only these folders, so the identity under test is unchanged.
+ */
+function toolingRepo(t) {
+  const root = temporaryRepository(t, 'accepted-identity-repo-');
+  copyFiles(root, trackedFiles(...CHECKER_PATHS, 'package.json'));
   writeFileSync(join(root, 'packages/codemap/data/plan/cells.json'), '{}\n');
   git(root, 'add', '-A');
   git(root, 'commit', '-q', '-m', 'fixture');
   return { root, commit: git(root, 'rev-parse', 'HEAD').trim() };
+}
+
+/** A runnable copy of this checkout's code (no tests) with one checker file changed: what a candidate that edits the gate runs. */
+function modifiedToolingCopy(t, note) {
+  const copy = temporaryDirectory('accepted-identity-copy-');
+  t.after(() => rmSync(copy, { recursive: true, force: true }));
+  copyFiles(copy, trackedFiles('packages', 'apps', 'package.json').filter(file => !file.includes('/tests/')));
+  const checker = join(copy, 'packages/codemap/src/io/module/imports.js');
+  writeFileSync(checker, `${readFileSync(checker, 'utf8')}\n// ${note}\n`);
+  return copy;
 }
 
 /** Wait for the detached producer to exit, then read its ready record if it published one. */
@@ -90,12 +115,7 @@ test('clause 1: nudgeAcceptedCells treats a ready record whose checker differs f
 test('clause 2: a producer nudged from a modified tooling copy records the pinned commit\'s checker and preloads [C7]', { timeout: 590_000 }, async t => {
   isolateMachine(t);
   const { root, commit } = toolingRepo(t);
-  const copy = temporaryDirectory('accepted-identity-copy-');
-  t.after(() => rmSync(copy, { recursive: true, force: true }));
-  for (const dir of ['packages', 'apps']) cpSync(join(root, dir), join(copy, dir), { recursive: true });
-  writeFileSync(join(copy, 'package.json'), readFileSync(join(root, 'package.json')));
-  const checker = join(copy, 'packages/codemap/src/io/module/imports.js');
-  writeFileSync(checker, `${readFileSync(checker, 'utf8')}\n// modified tooling copy\n`);
+  const copy = modifiedToolingCopy(t, 'modified tooling copy');
   const identity = acceptedCellsIdentity(root, commit, { pinned: true }), key = acceptedInventoryKey(identity);
   assert.equal(toolingIsPinned(root, commit), true, 'this checkout carries the pinned tooling');
   const child = await nudgeAcceptedCells(root, pathToFileURL(join(copy, 'apps/cli/src/io/landing/audit.js')), commit);
@@ -108,21 +128,10 @@ test('clause 2: a producer nudged from a modified tooling copy records the pinne
   assert.equal(readAcceptedCells(root, commit).descriptor?.checker, identity.checker);
 });
 
-/** Copy the fixture's tooling into a fresh folder and change one checker file, as a candidate that edits the gate does. */
-function modifiedToolingCopy(t, root) {
-  const copy = temporaryDirectory('accepted-identity-candidate-');
-  t.after(() => rmSync(copy, { recursive: true, force: true }));
-  for (const dir of ['packages', 'apps']) cpSync(join(root, dir), join(copy, dir), { recursive: true });
-  writeFileSync(join(copy, 'package.json'), readFileSync(join(root, 'package.json')));
-  const checker = join(copy, 'packages/codemap/src/io/module/imports.js');
-  writeFileSync(checker, `${readFileSync(checker, 'utf8')}\n// candidate changes the checker\n`);
-  return copy;
-}
-
 test('a gate whose own checker files differ from the pinned main gets the inventory its cells-inventory job built from the pinned tooling, never a pending stop [C7]', { timeout: 590_000 }, async t => {
   const machine = isolateMachine(t);
   const { root, commit } = toolingRepo(t);
-  const copy = modifiedToolingCopy(t, root);
+  const copy = modifiedToolingCopy(t, 'candidate changes the checker');
   const boards = temporaryDirectory('accepted-identity-board-');
   t.after(() => rmSync(boards, { recursive: true, force: true }));
   const pinned = acceptedCellsIdentity(root, commit, { pinned: true });
