@@ -96,7 +96,9 @@ test('the item projector matches the full projection [A2,N26]', async () => {
   stopFixtureLocalRunner(join(box.dir, 'machine-home'));
   const file = join(p.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: reads the projection from the board the CLI children wrote
-  const board = openBoard(file);
+  // Both projections read one fixed clock, so the dashboard's four-hour window and pace rows cannot move between the two reads [C7].
+  const at = Date.now();
+  const board = openBoard(file, { now: () => new Date(at) });
   try {
     const all = store.listItems(board, { all: true });
     const status = new Map(all.map((item) => [item.item_id, item.item_status]));
