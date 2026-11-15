@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { closeBoard } from '../../../index.js';
 import { events } from '../../../index.js';
 import { register } from '../../../index.js';
-import { openKitBoard } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+import { openKitBoard } from '../../fixtures/cell.js';
 import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
 
 /** Count the evidence a write would change: events and stored proof counters. */

@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { fixtureJoin } from './testkit.js';
-import { withFixtureBoard } from './testkit.js';
+import { withFixtureBoard } from './board.js';
 import { getItem } from '../../../../packages/store/index.js';
 import { verify } from '../../../../packages/store/index.js';
 import { fixtureProjectPolicy } from './testkit.js';
