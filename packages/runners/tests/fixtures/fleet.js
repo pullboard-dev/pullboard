@@ -16,7 +16,7 @@ import {
   resolve,
 } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { copyPackageFiles } from '../../index.js';
+import { copyRunnerPackage } from './package.js';
 import { selectedTestResults } from '../../../gate/index.js';
 import { testActionKeys } from '../../../gate/index.js';
 import { testResultStore } from '../../../gate/index.js';
@@ -42,7 +42,7 @@ export async function fleetTestResultReuse(t, { composition = false } = {}) {
   const homeB = join(directory, 'machine-b');
   const homeC = join(directory, 'machine-c');
   for (const folder of [repo, bin, worker, controller, homeA, homeB, homeC, join(repo, 'test'), join(repo, 'lib')]) mkdirSync(folder, { recursive: true });
-  copyPackageFiles(SOURCE, repo);
+  copyRunnerPackage(SOURCE, repo);
   const shippedManifest = JSON.parse(readFileSync(join(repo, 'package.json'), 'utf8'));
   writeFileSync(join(repo, 'package.json'), JSON.stringify({ ...shippedManifest, name: 'fleet-cache-fixture', private: true, type: 'module' }) + '\n');
   writeFileSync(join(repo, 'lib', 'value.js'), 'export const value = 1;\n');

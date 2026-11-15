@@ -35,6 +35,7 @@ import { relative } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { copyPackageFiles } from '../../../index.js';
+import { copyRunnerPackage } from '../../fixtures/package.js';
 import { packageFiles } from '../../../index.js';
 import { toolSourcePath } from '../../../index.js';
 
@@ -100,7 +101,7 @@ test('the private closure compiler preserves V8 edges and refusals without execu
 test('a loaded controller refuses changed private compiler bytes before an optional rescan [C7,P3]', async t => {
   const f = fixture(t);
   const installed = join(f.directory, 'installed');
-  copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), installed);
+  copyRunnerPackage(resolve(import.meta.dirname, '../../../../..'), installed);
   const snapshot = await import(pathToFileURL(join(installed, 'packages/runners/src/io/tooling/snapshot.js')).href);
   const loaded = snapshot.captureRunnerTooling(installed);
   for (const file of ['packages/runners/src/io/module/parser.js', 'packages/runners/src/io/module/parser/worker.js']) {
@@ -118,7 +119,7 @@ test('a loaded controller refuses changed private compiler bytes before an optio
 test('a private compiler startup failure refuses instead of supplying an empty closure [C7,P3]', t => {
   const f = fixture(t);
   const installed = join(f.directory, 'installed');
-  copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), installed);
+  copyRunnerPackage(resolve(import.meta.dirname, '../../../../..'), installed);
   writeFileSync(join(installed, 'packages/runners/src/io/module/parser/worker.js'), 'this is not valid module syntax {\n');
   const script = `import assert from 'node:assert/strict';
 const {createRunnerModuleParser}=await import(${JSON.stringify(pathToFileURL(join(installed, 'packages/runners/src/io/module/parser.js')).href)});
@@ -137,7 +138,7 @@ test('a private compiler cannot replace a requested import with a forged empty r
   const f = fixture(t);
   const installed = join(f.directory, 'installed');
   const marker = join(f.directory, 'forged-reply-prepared');
-  copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), installed);
+  copyRunnerPackage(resolve(import.meta.dirname, '../../../../..'), installed);
   writeFileSync(join(installed, 'packages/runners/src/io/module/parser/worker.js'), `import {existsSync,writeFileSync,renameSync} from 'node:fs';
 import {join} from 'node:path';
 const directory=process.argv[2];
@@ -166,7 +167,7 @@ test('a compiler swap restored before its reply cannot erase a real import [C7,P
   const f = fixture(t);
   const installed = join(f.directory, 'installed');
   const marker = join(f.directory, 'swapped-compiler-executed');
-  copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), installed);
+  copyRunnerPackage(resolve(import.meta.dirname, '../../../../..'), installed);
   const worker = join(installed, 'packages/runners/src/io/module/parser/worker.js');
   const original = readFileSync(worker, 'utf8');
   const forged = `import {existsSync,readFileSync,writeFileSync,renameSync} from 'node:fs';
@@ -425,7 +426,7 @@ test('a warmed derived snapshot still refuses newly selected symlinks outside it
 function controllerFixture(t) {
   const f = fixture(t);
   const installed = join(f.directory, 'installed');
-  copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), installed);
+  copyRunnerPackage(resolve(import.meta.dirname, '../../../../..'), installed);
   return { ...f, installed };
 }
 
@@ -445,7 +446,7 @@ test('controller provider freshness follows its real package composition, not un
 test('committed tooling binds literal Unicode blobs and ignores filtered working bytes before SSH [C7,P3]', t => {
   const box = cellSandbox(t);
   const installed = join(box.dir, 'tooling'), project = join(box.dir, 'project');
-  copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), installed);
+  copyRunnerPackage(resolve(import.meta.dirname, '../../../../..'), installed);
   mkdirSync(project);
   writeFileSync(join(project, 'README.md'), 'Private committed source.\n');
   writeFileSync(join(installed, 'apps/runner/src/io/scripts/[literal]*.js'), '\ufeffexport const value = "café 🚀";\n');
