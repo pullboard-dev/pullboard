@@ -27,10 +27,10 @@ import { cellSeat } from '../../../../fixtures/cell.js';
  * @returns {{ project: object, web: string, board: object, seat: object, id: number, job: string, commit: string, tree: string }}
  */
 function runningGate(t) {
-  const project = cellProject(t, { real: true, gate: 'true', config: { submit: { handoff: true } } });
+  const project = cellProject(t, { gate: 'true', config: { submit: { handoff: true } } });
   const web = join(project.dir, 'web');
   project.git(project.repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
-  const board = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: web });
+  const board = cellBoard(t, project.boardFile, undefined, { gitRoot: web });
   const seat = cellSeat(board, { lane: 'web', path: web });
   const id = cellItem(board, { lane: 'web', title: 'Gate current source', specIds: ['G1'], route: 'strong',
     criterion: 'The candidate passes.', check: 'true' }).item_id;

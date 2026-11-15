@@ -50,7 +50,7 @@ export function boardHandlerPorts({ isMain }) {
 
 /** A fixture project's registry entry and its board's persistent id. */
 function fixtureBoard(t) {
-  const project = cellProject(t, { real: true });
+  const project = cellProject(t, {});
   const board = openCellBoard(project.boardFile);
   try { return { project, entry: { root: project.repo, name: 'fixture', project: 'fixture', added: '2026-11-12' }, id: boardId(board) }; } finally { closeCellBoard(board); }
 }

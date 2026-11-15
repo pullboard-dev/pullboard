@@ -20,7 +20,7 @@ const owner = { after: cleanup => cleanups.push(cleanup) };
 
 /** Build a real committed test graph and run the actual planned command against a recording runner. */
 function plannedFiles(changed, { tiers = false, proof = null, mandatory = [], stale = false, full = false, moved = false } = {}) {
-  const box = cellProject(owner, { real: true, gate: 'true' });
+  const box = cellProject(owner, { gate: 'true' });
   const packageFile = join(box.repo, 'package.json');
   const packageData = existsSync(packageFile) ? JSON.parse(readFileSync(packageFile, 'utf8')) : {};
   writeFileSync(packageFile, JSON.stringify({ ...packageData, type: 'module' }));

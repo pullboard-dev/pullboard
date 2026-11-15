@@ -24,7 +24,7 @@ function receipt(item, digest, seat, { green, failures = [], shadow } = {}) {
 }
 
 test('clause 2: tier 1 judges reachable failures, static or check failures and unreachable failures apart [V4]', () => {
-  assert.deepEqual(tier1Shadow({ real: true }).verdict, 'green');
+  assert.deepEqual(tier1Shadow({}).verdict, 'green');
   assert.equal(tier1Shadow({ real: false, failures: [failure], reachable: ['test/near.test.js'] }).verdict, 'red');
   const far = tier1Shadow({ real: false, failures: [failure], reachable: ['test/other.test.js'] });
   assert.equal(far.verdict, 'green');
