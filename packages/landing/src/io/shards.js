@@ -78,6 +78,8 @@ export const LANDING_SHARD_ENV = 'PULLBOARD_LANDING_SHARD';
 export const LANDING_FILE_TIMES_ENV = 'PULLBOARD_LANDING_FILE_TIMES';
 /** Prefix of the per-file wall-time lines a shard prints for its orchestrator. */
 export const FILE_TIME_LINE = '# landing-file-ms ';
+/** Prefix of the per-file exit-code lines a shard prints, so a reader judges a file whose case outcomes were voided [C7,#8303]. */
+export const FILE_EXIT_LINE = '# landing-file-exit ';
 /** Snapshot actual registered capacity without registering hosts or changing machine settings. */
 export function releaseExecutors(settings = loadMachineSettings()) {
   const local = localRunnerDescriptor(settings.gateSlots, settings.browserSlots > 0, guiSession());
@@ -620,17 +622,31 @@ export async function runLandingShards({ root, runner, files, args = [], count, 
     files: merged };
 }
 
-/** Print this shard's per-file wall times for its orchestrator; a missing record prints nothing. */
+/** Print this shard's per-file wall times and exit codes for its orchestrator; a missing record prints nothing. */
 export function printShardFileTimes(path, write = text => process.stdout.write(text)) {
   if (!path || !existsSync(path)) return;
-  const times = {};
-  for (const line of readFileSync(path, 'utf8').split('\n')) {
+  for (const line of shardFileLines(readFileSync(path, 'utf8'))) write(`${line}\n`);
+}
+
+/**
+ * The time and exit lines for a shard's file-time record, one JSON row per file process. Why the exit code: one
+ * cancelled case voids a run's case outcomes, and a file's own exit still says whether it passed [C7,#8303].
+ *
+ * @param {string} record
+ * @returns {string[]}
+ */
+export function shardFileLines(record) {
+  const times = {}, exits = {};
+  for (const line of String(record).split('\n')) {
     try {
-      const { file, ms } = JSON.parse(line);
+      const { file, ms, code } = JSON.parse(line);
       if (typeof file === 'string' && Number.isFinite(ms)) times[fileKey(file)] = Math.max(times[fileKey(file)] ?? 0, ms);
+      // A file that ran twice passed only if every run did, so the worst code stands.
+      if (typeof file === 'string' && Number.isInteger(code) && code >= 0) exits[fileKey(file)] = Math.max(exits[fileKey(file)] ?? 0, code);
     } catch { /* A torn last line from a killed file process carries no time. */ }
   }
-  for (const [file, ms] of Object.entries(times)) write(`${FILE_TIME_LINE}${Math.round(ms)} ${file}\n`);
+  return [...Object.entries(times).map(([file, ms]) => `${FILE_TIME_LINE}${Math.round(ms)} ${file}`),
+    ...Object.entries(exits).map(([file, code]) => `${FILE_EXIT_LINE}${code} ${file}`)];
 }
 
 /** Supply landing policy and release orchestration ports without adding higher imports to their consumers. */

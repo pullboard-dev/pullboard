@@ -9228,6 +9228,28 @@
       ],
       "coveredBy": "packages/outbox/tests/io/relay/replies.test.js",
       "because": "a recovered descriptor with no durable receipt stays pending and is never taken as an outcome, and a mismatched ciphertext is not a reply, in the outbox cell against a stand-in relay"
+    },
+    {
+      "file": "apps/cli/journeys/relay/client/order.test.js",
+      "specs": [
+        "H16",
+        "H3",
+        "V1",
+        "V17"
+      ],
+      "coveredBy": "packages/moves/tests/engine.test.js",
+      "because": "a future engine move is refused before the cursor advances and leaves every replica unchanged, with the engine-version and upgrade wording, proven in the moves cell"
+    },
+    {
+      "file": "apps/cli/journeys/relay/client/claims/later.test.js",
+      "specs": [
+        "H16",
+        "H3",
+        "V1",
+        "V17"
+      ],
+      "coveredBy": "apps/cli/journeys/relay/client/claims.test.js",
+      "because": "the same ten-round paired claim loop as the kept golden replica race, run over item ids eleven to twenty; the race and its refusal receipts are proven once"
     }
   ]
 }
