@@ -32,10 +32,14 @@ function validEntry(entry) {
 let engine;
 const leaseTable = () => engine ??= leaseEngine({ leaseMs: LANDING_LEASE_MS, valid: validEntry });
 
-/** Run one lease move through the table over the queue and the board's clock and lineage; a refusal throws as the same code and words. */
+/**
+ * Run one lease move through the table over the queue and the board's clock and lineage; a refusal throws as the same code and words.
+ * Why the wall-clock fallback: the landing guardian reads the queue through a bare `{ db }` with no clock, and the table rewrite threw there
+ * (swallowed as "nothing to renew"), so the guardian never renewed a heartbeat [C7,#5770].
+ */
 function leaseMove(board, state, move, over = {}) {
   const { rules, table } = leaseTable();
-  const snapshot = { lease: structuredClone(state), now: board.clock.now().getTime(), lineage: 'lineage' in over ? over.lineage : coordinatorHolder(board)?.lineage ?? null,
+  const snapshot = { lease: structuredClone(state), now: (board.clock?.now() ?? new Date()).getTime(), lineage: 'lineage' in over ? over.lineage : coordinatorHolder(board)?.lineage ?? null,
     modern: (board.executionEngineVersion ?? ENGINE_VERSION) >= LANDING_LOCAL_LEASE_ENGINE, shared: true, legacyShared: false, heartbeat: null, ...over };
   const answer = runTable(table, rules, snapshot, move);
   if (answer.refused) throw new Refused(answer.refused.code, answer.refused.message);
