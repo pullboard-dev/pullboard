@@ -26,6 +26,9 @@ test('a green pulled gate is submitted while the coordinator checkout is detache
   offerJob(board.db, { id: job, kind: 'gate', needs: [], item: item.item_id, candidate: head, base: head, now: 1,
     request: { run: ['true'], input: { data: {} }, submit: { agentId: seat.id, digest: held.item_frozen_digest, tree, files: [] } } });
   const lease = claimJob(board.db, { runner: 'r-detached', capabilities: [], now: 2 });
+  // Every CLI command in the primary on its branch retains that trunk, as cli-main/run.js does before a verify detaches it.
+  const branch = runFixtureGit(['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: repo.root });
+  runFixtureGit(['config', '--local', 'pullboard.trunk', branch], { cwd: repo.root });
   // Every verify in the primary checkout switches it to the submitted commit; another item's gate can finish meanwhile.
   runFixtureGit(['switch', '-q', '--detach', head], { cwd: repo.root });
   const posted = boardJobQueueCall(board, { action: 'receipt', job, runner: 'r-detached', token: lease.token,
