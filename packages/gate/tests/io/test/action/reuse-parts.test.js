@@ -96,3 +96,14 @@ test('red: a red receipt wins over a green, is never reusable, and a worker requ
     assert.equal(testResultDigest({ inputKey: pass.inputKey, context: pass.context }), pass.key, 'the receipt key is the input key under its context');
   } finally { fx.done(); }
 });
+
+test('environment: a material language change re-keys a file under the same input key, so another environment never reuses a green [C7,V4]', async () => {
+  const fx = fixture();
+  try {
+    const commit = fx.commit();
+    const keysWith = async LANG => testActionKeys(fx.root, { commit, env: { PATH: process.env.PATH, LANG, PULLBOARD_TEST_RESULT_STORE: fx.root + '/.store' }, maintain: false, files: [PROBE] });
+    const [plain, other] = [await keysWith('C.UTF-8'), await keysWith('cache-material-language')];
+    assert.equal(other.get(PROBE).inputKey, plain.get(PROBE).inputKey, 'the files are the same');
+    assert.notEqual(other.get(PROBE).key, plain.get(PROBE).key, 'the environment is part of the result key');
+  } finally { fx.done(); }
+});
