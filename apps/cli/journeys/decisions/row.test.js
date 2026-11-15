@@ -153,8 +153,10 @@ async function project({ spec = BASE_SPEC, doctrine = BASE_DOCTRINE } = {}) {
   mkdirSync(join(root, 'web'));
   writeFileSync(join(root, SPEC_FILE), spec);
   writeFileSync(join(root, DOCTRINE_FILE), doctrine);
+  // Git plumbing, which runs no hook: this commit is setup, and the pre-commit and commit-msg hooks each launched a Node child (#8362).
   box.git(root, 'add', '-A');
-  box.git(root, 'commit', '-q', '-m', 'chore: set up row decision fixture');
+  const seed = box.git(root, 'commit-tree', box.git(root, 'write-tree').trim(), '-m', 'chore: set up row decision fixture').trim();
+  box.git(root, 'update-ref', 'HEAD', seed);
   const fixture = { ...box, root };
   fixture.web = await addWorktree(fixture, 'web', 'web/one');
   return fixture;
