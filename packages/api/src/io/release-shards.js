@@ -52,10 +52,13 @@ export function offerReleaseShards(db, { release, head, base, mode, gate, shards
 export function releaseParticipationShards(db, { release, head, tree, shards }) {
   return shards.map((part, index) => {
     const view = jobView(db, shardJobId(release, index));
-    const claimed = typeof view?.leaseOwner === 'string' && view.leaseOwner !== '';
-    const posted = [...(view?.steps ?? [])].reverse().find(step => step.name === 'receipt')?.payload?.receipt;
+    const step = [...(view?.steps ?? [])].reverse().find(row => row.name === 'receipt')?.payload;
+    // A finished job holds no lease, so the runner that posted its receipt is the one that claimed it.
+    const holder = [view?.leaseOwner, step?.runner].find(name => typeof name === 'string' && name !== '') ?? null;
+    const claimed = holder !== null;
+    const posted = step?.receipt;
     const green = posted?.status === 0 && posted?.gate?.green === true;
-    return { shard: `${index + 1}/${shards.length}`, files: [...part.files].sort(), executor: claimed ? view.leaseOwner : null, head: claimed ? head : null, tree: claimed ? tree : null,
+    return { shard: `${index + 1}/${shards.length}`, files: [...part.files].sort(), executor: holder, head: claimed ? head : null, tree: claimed ? tree : null,
       command: claimed ? createHash('sha256').update(part.command).digest('hex') : null, green, complete: posted !== undefined, cleanupVerified: posted?.gate?.cleanupVerified === true };
   });
 }
