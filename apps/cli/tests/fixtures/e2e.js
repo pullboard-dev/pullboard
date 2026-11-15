@@ -57,7 +57,9 @@ export function parityText(text, dir) {
     .replace(/\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z/gu, '<time>')
     .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gu, '<uuid>')
     .replace(/\b[0-9a-f]{7,64}\b/gu, '<hex>')
-    .replace(/\b\d+(?:\.\d+)? ?(?:ms|s)\b/gu, '<duration>');
+    .replace(/\b\d+(?:\.\d+)? ?(?:ms|s)\b/gu, '<duration>')
+    .replace(/(gate:\d+:<hex>):[0-9a-z]+/gu, '$1:<job>')
+    .replace(/\(pid \d+\)/gu, '(pid <pid>)');
 }
 
 /**
@@ -70,7 +72,9 @@ function parityRecord({ dir, env, cwd, args, result }) {
   let board = null;
   const common = runFixtureChild('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd, env, encoding: 'utf8' });
   const file = common.status === 0 ? join(common.stdout.trim(), 'pullboard', 'board.sqlite') : null;
-  if (file && existsSync(file)) {
+  // A command that hands a gate job on finishes its board writes when a runner posts the receipt, at no fixed moment after it
+  // returns, so its own record carries no board state; the next call's record compares the settled board instead.
+  if (file && existsSync(file) && !(result.code === 0 && JOB_OFFERING.has(args[0]))) {
     // @pullboard-board-file journey: a read-only look at the rows the command wrote, for the parity check.
     const db = new DatabaseSync(file, { readOnly: true });
     try {
