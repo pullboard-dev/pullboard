@@ -35,7 +35,7 @@ function boardFor(t, record) {
   const { item, actor, history } = record.snapshot;
   const sql = board.db;
   const stamp = '2026-01-01T00:00:00.000Z';
-  const guards = sql.prepare("SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'machine%'").all();
+  // The fixture files items in states no move reached, so the scratch board keeps none of the machine guards.
   for (const { name } of sql.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'machine%'").all()) sql.exec(`DROP TRIGGER "${name}"`);
   const seat = (id, route) => sql.prepare('INSERT OR IGNORE INTO agent (agent_id, agent_lane, agent_path, agent_route, agent_created_at) VALUES (?, ?, ?, ?, ?)').run(id, 'core', `/seat/${id}`, route ?? 'strong', stamp);
   seat('coordinator', 'strong');
@@ -54,7 +54,6 @@ function boardFor(t, record) {
   if (item.status === 'submitted') sql.prepare('UPDATE item SET item_review_by = ?, item_review_until = ? WHERE item_id = ?').run(item.reviewer, FAR, item.id);
   if (item.status === 'submitted') sql.prepare('INSERT INTO event (event_id, event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?, ?)')
     .run(Math.max(0, ...history.map(e => e.id)) + 1, stamp, item.reviewer, 'reserve', item.id, JSON.stringify({ reviewer: item.reviewer, until: FAR }));
-  for (const { sql: guard } of guards) sql.exec(guard);
   return board;
 }
 
