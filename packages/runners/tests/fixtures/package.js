@@ -3,7 +3,7 @@ import { copyPackageFiles } from '../../index.js';
 import { packageFiles } from '../../index.js';
 
 /** Folders no fixture worker reads: docs, skills, the two apps the runner never loads, and the archived board history. */
-const NOT_NEEDED = /^(?:docs|skills|apps\/view|apps\/relay|packages\/state\/data)\//u;
+const NOT_NEEDED = /^(?:docs|skills|apps\/view|apps\/relay|packages\/state\/data|packages\/codemap\/data|packages\/gate\/data)\//u;
 
 /**
  * Copy the shipped package into a private directory, minus the folders a fixture never reads.
