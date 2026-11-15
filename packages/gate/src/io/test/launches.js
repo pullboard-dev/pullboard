@@ -16,6 +16,14 @@ import { walk } from '../scan.js';
 const BASELINE_URL = new URL('../../../data/baselines/cli-launches.json', import.meta.url);
 const JOURNEY = /^(?:apps|packages)\/.*\.test\.[cm]?js$/u; // every test file, journeys included; the fixture kit that holds the one spawn seam is not a test file
 const MESSAGE = 'launches the CLI or a node child process; call runCliInProcess or captureCommandInProcess from apps/cli/tests/fixtures/process.js';
+/**
+ * The same advice for a test inside a packages/ cell. apps/cli/tests/fixtures/process.js is a CLI entry in another cell, so the
+ * cross-cell import rule refuses it there; the fix that passes is a helper in the cell's own tests/fixtures/ folder.
+ */
+function messageFor(path) {
+  const cell = /^packages\/([^/]+)\/tests\//u.exec(path)?.[1];
+  return cell ? `launches the CLI or a node child process; run the work in this process with a helper in packages/${cell}/tests/fixtures/ (a cell test may import its own cell, not apps/cli/tests/fixtures/process.js)` : MESSAGE;
+}
 /** Direct child-process calls; a launch only when the call names node or the CLI entry (git, sh and tar calls are not). */
 const SPAWN = /(?<![\w$])(?:(?:[\w$]+\s*\.\s*)?(?:spawnSync|execFileSync|execFile|execSync|spawn|fork)|runFixtureChild|runFixtureChildAsync|startFixtureChild|runFixtureExecFile|runFixtureExec)\s*\(/gu;
 /** Node or the CLI named in the call's text: a `node` string or the CLI entry file. */
@@ -56,7 +64,7 @@ export function cliLaunchSites(source, path) {
   const { code } = lex(source);
   const found = [];
   /** Record one site at an offset of the source. */
-  const add = (at, target) => found.push({ path, line: lineAt(source, at), kind: 'launch', target, text: MESSAGE });
+  const add = (at, target) => found.push({ path, line: lineAt(source, at), kind: 'launch', target, text: messageFor(path) });
   for (const at of spawnSites(source, code, 0, code.length)) {
     const open = code.indexOf('(', at);
     const close = closingAt(code, open);
