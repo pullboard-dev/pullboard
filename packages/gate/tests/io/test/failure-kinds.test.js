@@ -21,7 +21,8 @@ async function collect(files) {
   try {
     for await (const event of run({ files: Object.keys(files).map(name => join(box.root, name)) })) {
       collector.observe(event);
-      if (event.type === 'test:fail' && !event.data.name.includes(' ')) throw new Error(String(event.data.details.error.cause?.stack ?? event.data.details.error.message).slice(0, 1500) + JSON.stringify(Object.keys(process.env).filter(k => /NODE|PULL/u.test(k))));
+      if (event.type === 'test:stderr' || event.type === 'test:stdout') (globalThis.dbg ??= []).push(event.data.message);
+      if (event.type === 'test:fail' && !event.data.name.includes(' ')) throw new Error(String(globalThis.dbg.join('|')).slice(0, 2500) + String(process.env.NODE_OPTIONS));
       if (event.type === 'test:summary') count = event.data.counts.tests;
     }
   } finally {
