@@ -54,7 +54,7 @@ export function gateJob(box) {
 export function word(value) { return `'${value.replaceAll("'", "'\\''")}'`; }
 
 /** Build a native project whose frozen check waits for a real release file, not a timing margin. */
-export function fixture(t, { enabled = true, result = 'green', companion = false, cells = false, firstFolder = false } = {}) {
+export function fixture(t, { enabled = true, result = 'green', companion = false, cells = false, firstFolder = false, perSeat = firstFolder ? 2 : null } = {}) {
   const helpers = createE2eHelpers();
   const isolated = helpers.sandbox();
   // Isolate admission before init and commit hooks, as well as the nested queued worker.
@@ -85,8 +85,9 @@ export function fixture(t, { enabled = true, result = 'green', companion = false
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   // A cells refusal can return the item to a plain claim before the test claims its second build, so a cells seat holds two.
   const cellsPolicy = cells ? { lanes: { ...config.lanes, web: { ...config.lanes.web, owns: ['web/', 'src/', 'packages/codemap/data/plan/'] } }, claims: { releaseGone: false, releaseCooldownMinutes: 30, ...config.claims, perSeat: 2 } } : {};
-  // A first-folder seat claims its second build beside the first [B5]; the journey projects pin one claim per seat otherwise.
-  const twoClaims = firstFolder && !cells ? { claims: { ...config.claims, perSeat: 2 } } : {};
+  // A first-folder seat claims its second build beside the first, and a journey that holds several builds names its cap [B5];
+  // the journey projects pin one claim per seat otherwise.
+  const twoClaims = perSeat && !cells ? { claims: { ...config.claims, perSeat } } : {};
   writeFileSync(configFile, JSON.stringify({ ...config, submit: { handoff: enabled }, ...cellsPolicy, ...twoClaims }, null, 2) + '\n');
   if (cells) {
     mkdirSync(join(box.repo, 'packages/codemap/data/plan'), { recursive: true });
