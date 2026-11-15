@@ -1,5 +1,3 @@
-/** @pullboard-world-pin: clause 3 reads this repo's own committed tree to count what the scoped walk parses. */
-/** @pullboard-test-input source-tree */
 /** First-trip result keys parse only what the test and the runner reach, and keep the exact key [C7,#8140]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -8,7 +6,6 @@ import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { runFixtureGit } from '../../fixtures/child.js';
 import { temporaryRepository } from '../../../../store/tests/fixtures/submit.js';
@@ -16,8 +13,6 @@ import { scopedTestClosures } from '../../../src/io/affected/tests.js';
 import { testClosures } from '../../../src/io/affected/tests.js';
 import { testActionKeys } from '../../../src/io/test/action/cache.js';
 import { TEST_RESULT_STORE_ENV } from '../../../src/io/test/store.js';
-
-const ROOT = fileURLToPath(new URL('../../../../..', import.meta.url));
 
 /** A committed repository: test -> mid -> leaf, plus a module nothing reaches that does not even compile. */
 function repository(t) {
@@ -60,12 +55,15 @@ test('clause 2: a change to a reached module changes the result key, and a chang
   assert.notEqual(await chainKey(t, box.root), before, 'a reachable module changes the key');
 });
 
-test('clause 3: on this tree the scoped walk parses neither the unrelated tests nor most of the tree [C7,#8140]', () => {
-  const file = 'packages/gate/tests/io/affected/keyless.test.js';
+test('clause 3: the walk parses the runner entry and its reach, and no unrelated test or module [C7,#8140]', t => {
+  const box = repository(t);
+  box.put('src/run.js', "import './harness.js';\n");
+  box.put('src/harness.js', 'export const harness = 1;\n');
+  for (let at = 0; at < 30; at += 1) box.put(`src/other${at}.js`, `export const other = ${at};\n`);
+  box.put('test/other.test.js', "import '../src/other0.js';\n");
+  box.commit();
   const probe = {};
-  const scoped = scopedTestClosures(ROOT, 'HEAD', [file], ['apps/cli/src/io/run/tests.js', 'packages/gate/src/io/run-tests.js'], probe);
-  assert.ok(scoped.closures.get(file).files, 'the closure is complete');
-  const tests = probe.parsed.filter(path => /\.test\.js$/u.test(path));
-  assert.ok(tests.length <= 5, `only tests the walk reaches are parsed, saw ${tests.length}`);
-  assert.ok(!probe.parsed.includes('packages/gate/tests/io/affected/tests.test.js'), 'an unrelated test file is never parsed');
+  const scoped = scopedTestClosures(box.root, 'HEAD', ['test/chain.test.js'], ['src/run.js'], probe);
+  assert.deepEqual(scoped.reach(['src/run.js']), ['src/harness.js', 'src/run.js']);
+  assert.deepEqual([...probe.parsed].sort(), ['src/harness.js', 'src/leaf.js', 'src/mid.js', 'src/run.js', 'test/chain.test.js']);
 });
