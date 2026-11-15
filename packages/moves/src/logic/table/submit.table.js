@@ -129,7 +129,7 @@ const DEFS = {};
 /** Register a guard's rule once under its row id: it holds when the guard's refusal condition does not. */
 function row(o) {
   DEFS[o.id] = { says: o.rule, holds: (s, m) => !o.refuses(s, m) };
-  return { id: o.id, requires: o.id, code: o.code, message: o.message, next: o.next, ...(o.recordsOutcome ? { recordsOutcome: true } : {}), ...(o.io ? { io: true } : {}), ...(o.deferred ? { deferred: true } : {}) };
+  return { id: o.id, requires: o.id, code: o.code, message: o.message, next: o.next, ...(o.codeOf ? { codeOf: o.codeOf } : {}), ...(o.recordsOutcome ? { recordsOutcome: true } : {}), ...(o.io ? { io: true } : {}), ...(o.deferred ? { deferred: true } : {}) };
 }
 const guard = (id, code, rule, refuses, message, extra = {}) => row({ id, code, rule, refuses, message, next: extra.next ?? SUBMIT_NEXT[code] ?? SUBMIT_NEXT.USAGE, ...extra });
 /** A rule the shell decides with io: the row only orders it and passes its refusal through. */

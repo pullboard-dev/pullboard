@@ -222,6 +222,17 @@ async function inProcessResult(root, env, args, observedSnapshotUploads, initial
 export { childResult as relayFixtureChild };
 
 /**
+ * Run a childResult-style command line in this process: `[CLI, ...args, '--json']` becomes the in-process `args`.
+ * Why: a real child costs a full Node start per call, seconds on a loaded runner; callers that need only the answer
+ * keep their argv and environment exactly and skip the process [C7].
+ */
+export function relayFixtureCommand(root, env, argv) {
+  const args = argv.slice(1);
+  if (args.at(-1) === '--json') args.pop();
+  return inProcessResult(root, env, args);
+}
+
+/**
  * Start an isolated board and authorized loopback relay; a null coordinatorModel keeps its initial identity unknown.
  * The relay polls each live stream at its production 200 ms. Each poll opens the board journals, and at the 10 ms this
  * fixture once used, a loaded machine kept the test process busy enough that browser replies queued past their
