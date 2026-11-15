@@ -1,5 +1,7 @@
 /** The move registry's next steps, without the freezer and selection that the cell index also loads [C7]. */
 import { withMoveNextSteps as withRegistrySteps } from './src/io/registry.js';
+/** The submit family's tables, for the store's submit writers to run [C7,#8271]. */
+export { submitEngine } from './src/logic/table/submit.table.js';
 export { MOVE_REGISTRY, MOVE_OPERATIONS, minimumMoveEngine, declaredMoveActor } from './src/io/registry.js';
 
 /**
