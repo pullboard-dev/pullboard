@@ -226,7 +226,7 @@ describe('code references in shouts and facts [B23,N26]', { concurrency: true },
     mkdirSync(join(alpha.web, 'web'), { recursive: true });
     const sourceText = ['const localOnlyFixture = 42;', ...Array.from({ length: 99 }, (_, index) => `export const row${index + 1} = ${index + 1};`)].join('\n') + '\n';
     writeFileSync(join(alpha.web, 'web', 'reference.js'), sourceText);
-    await buildLocal(box, alpha, 1, 'submitted.txt');
+    await buildLocal(box, alpha, 1, 'submitted.txt', { queued: true });
     const sha = box.git(alpha.web, 'rev-parse', 'HEAD');
     const ref = `web/reference.js:1-100@${sha}`;
     await box.inProcess(alpha.web, 'fact', '1', 'note', 'review the source block', '--ref', ref);
@@ -284,6 +284,8 @@ describe('code references in shouts and facts [B23,N26]', { concurrency: true },
       await view.stop();
     }
 
+    // The submitted item's gate ran beside the browser checks; settle it before the board is exported.
+    box.settled(alpha.repo, 1);
     const snapshotDir = mkdtempSync(join(box.dir, 'relay-snapshot-'));
     const exported = await exportView(alpha.repo, snapshotDir, { runCommand: nativeTestMain });
     const exportedFiles = [];
