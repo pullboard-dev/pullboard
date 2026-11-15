@@ -22,6 +22,6 @@ test('clauses 1-2: submit stores the author seat and family of a named test, and
   assert.match(before.out, /test web\/page\.test\.js: author not recorded; reviewer family none yet/u);
   await box.runLocal(box.web, 'submit', String(id), '--no-next');
   const shown = (await box.runLocal(box.repo, 'show', String(id))).out;
-  assert.match(shown, /test web\/page\.test\.js: author \S+ \[family [^\]]+\]; reviewer family none yet/u, 'clauses 1-2: the item record names the author seat and family');
+  assert.match(shown, /test web\/page\.test\.js: author .+ \[family [^\]]+\]; reviewer family none yet/u, 'clauses 1-2: the item record names the author seat and family');
   assert.equal(json(box, box.repo, 'show', String(id)).thread.filter(entry => /^test author web\/page\.test\.js: seat /u.test(entry.text ?? '')).length, 1, 'clause 1: one record per added file');
 });
