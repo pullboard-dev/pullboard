@@ -18,7 +18,8 @@ import {
   resolve,
 } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { test } from 'node:test';
+import { describe } from 'node:test';
+import { it } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import {
   fixtureChildMessage,
@@ -42,6 +43,11 @@ import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { startFixtureLocalRunner } from '../../tests/fixtures/runner/local-start.js';
 import { whenRunnerSettles } from '../../tests/fixtures/runner/local-start.js';
 import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
+
+/** Cases are collected, then run concurrently: each owns its tmp repo, machine home and runner, so they overlap their waits instead of adding them [C7]. */
+const cases = [];
+/** Register one case; it runs inside the concurrent suite at the end of this file. */
+const test = (name, body) => cases.push([name, body]);
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const SPEC = `# MCP fixture
@@ -115,8 +121,8 @@ async function stopFixtureLanding(root) {
   await createE2eHelpers().waitFor(() => owners.every(owner => !live(owner)), 'MCP fixture landing workers exit');
 }
 
-/** A real repo with one lane, a joined worktree bound to agent session A, and a network guard. */
-async function project(t) {
+/** A real repo with one lane, a joined worktree bound to agent session A, and a network guard; runner starts the machine's local runner, which only a case that submits needs. */
+async function project(t, { runner = false } = {}) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-mcp-')));
   const clients = [];
   t.after(async () => {
@@ -194,7 +200,7 @@ async function project(t) {
   const agent = JSON.parse(joined.out).agent;
   const runLocalArgs = (cwd, ...args) => runLocal(cwd, args);
   // Pull dispatch is the default: the machine's local runner takes each submit's gate and posts its receipt.
-  startFixtureLocalRunner(env, repo);
+  if (runner) startFixtureLocalRunner(env, repo);
   return { dir, env, runLocal, runLocalArgs, git, repo, web, agent, sessionA, guard, clients, database: join(repo, '.git', 'pullboard', 'board.sqlite') };
 }
 
@@ -490,7 +496,7 @@ test('[P6,A9] a person\'s move through MCP is refused', async (t) => {
 });
 
 test('an agent claims, submits, verifies and resumes through MCP with the CLI\'s refusals [A9,P6]', async (t) => {
-  const box = await project(t);
+  const box = await project(t, { runner: true });
   const id = (await fileFixtureItem(box, box.repo, { lane: 'web', title: 'An item worked through MCP', criterion: 'web/mcp.txt exists.', args: ['--specs', 'G1'], check: null, run: box.runLocalArgs })).item_id;
   const builder = mcpClient(t, box, box.web, box.sessionA);
   await initialize(builder);
@@ -566,7 +572,7 @@ test('an agent claims, submits, verifies and resumes through MCP with the CLI\'s
 });
 
 test('MCP rejects require and preserve caller-supplied frozen wording [A9,V6,H16]', async t => {
-  const box = await project(t);
+  const box = await project(t, { runner: true });
   const clause = 'web/mcp.txt contains a heading.';
   const id = (await fileFixtureItem(box, box.repo, { lane: 'web', title: 'A quoted MCP rejection', criterion: clause, args: ['--specs', 'G1'], check: null, run: box.runLocalArgs })).item_id;
   assert.equal((await cli(box, box.web, ['claim', String(id)], box.sessionA)).status, 0);
@@ -661,4 +667,8 @@ test('MCP code-map tools pin usages, impact and cell answers and refuse escaping
   assert.ok(opaque.structuredContent.unknown.some(row => row.file === 'src/opaque.js'));
   assert.deepEqual(opaque.structuredContent.tests.files, ['test/leaf.test.js', 'test/opaque.test.js']);
   assert.equal((await client.close()).code, 0);
+});
+
+describe('MCP journeys [A9,P6,C7]', { concurrency: true }, () => {
+  for (const [name, body] of cases) it(name, body);
 });
