@@ -1,21 +1,18 @@
 /** @pullboard-test-input source-tree */
 /** The production test runner reports cleanup it could not verify without failing the tests; split from snapshot.test.js to hold each file under 60 s [C7,V4]. */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
 import { waitForFixtureProcessDrain } from '../../../fixtures/landing-run.js';
 import { fixtureProcessIdentity } from '../../../fixtures/landing-run.js';
 import { signalFixtureProcess } from '../../../fixtures/landing-run.js';
 import { waitForFixtureMarker } from '../../../fixtures/landing-run.js';
 import { makeShardFixture } from '../../../fixtures/landing-run.js';
+import { runShardWithPreload } from '../../../fixtures/landing-run.js';
 
 test('a later spawn-time ps failure names unverified cleanup [C7,V4]', t => {
   const fixture = makeShardFixture(t);
@@ -58,13 +55,7 @@ if (process.argv[1] === ${JSON.stringify(workerTest)}) {
   syncBuiltinESMExports();
 }
 `);
-  const env = { ...process.env, PULLBOARD_LANDING_RUN: '1', PULLBOARD_LANDING_IDENTITY_WAIT_MS: '1000', // the later snapshot failure leaves one wait, and the case proves the diagnostic, not the wait
-    PULLBOARD_MACHINE_HOME: join(fixture.root, 'machine'),
-    NODE_OPTIONS: [process.env.NODE_OPTIONS, '--import=' + pathToFileURL(preload).href].filter(Boolean).join(' ') };
-  for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete env[key];
-  const result = runFixtureChild(process.execPath, [fixture.runner, 'test/spawn-snapshot.test.js'], {
-    cwd: fixture.root, env, encoding: 'utf8', timeout: 25000,
-  });
+  const result = runShardWithPreload(fixture, 'test/spawn-snapshot.test.js', { preload, waitMs: 1000, timeout: 25000 }); // the injected failure leaves one wait, and the case proves the outcome, not the wait
   const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
   assert.equal(result.status, 0, `${result.context}\n${output}`);
   assert.match(output, /# fail 0/u, 'cleanup uncertainty does not change the passing test outcome');
@@ -142,13 +133,7 @@ if (process.argv[1] === runner) {
   syncBuiltinESMExports();
 }
 `);
-  const env = { ...process.env, PULLBOARD_LANDING_RUN: '1', PULLBOARD_LANDING_IDENTITY_WAIT_MS: '1000', // both persistent-failure waits end in 1 s, since the case proves the outcome, not the wait
-    PULLBOARD_MACHINE_HOME: join(fixture.root, 'machine'),
-    NODE_OPTIONS: [process.env.NODE_OPTIONS, '--import=' + pathToFileURL(preload).href].filter(Boolean).join(' ') };
-  for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete env[key];
-  const result = runFixtureChild(process.execPath, [fixture.runner, 'test/worker-unverified.test.js'], {
-    cwd: fixture.root, env, encoding: 'utf8', timeout: 45000,
-  });
+  const result = runShardWithPreload(fixture, 'test/worker-unverified.test.js', { preload, waitMs: 1000, timeout: 45000 }); // the injected failure leaves one wait, and the case proves the outcome, not the wait
   const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
   assert.equal(result.status, 0, `${result.context}\n${output}`);
   assert.ok(existsSync(bodyRan), 'the selected test body ran despite persistent worker and parent census errors');

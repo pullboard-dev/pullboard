@@ -3,6 +3,7 @@ import { copyRunnerPackage } from './package.js';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { spawn } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { chmodSync } from 'node:fs';
 import { closeSync } from 'node:fs';
 import { existsSync } from 'node:fs';
@@ -22,6 +23,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { stageFixtureTests } from './tests.js';
+import { pathToFileURL } from 'node:url';
 
 export const shardFileCount = 9;
 
@@ -291,4 +293,18 @@ if (process.argv[1] === process.env.PULLBOARD_C7_RUNNER_PATH) {
 }
 `);
   return path;
+}
+
+/**
+ * Run the production test runner of a shard fixture on one staged test in a fresh process, with a preload that injects a census failure.
+ *
+ * Why a process: the runner's own cleanup report is the subject, and it only exists in the runner's process, not the test's.
+ */
+export function runShardWithPreload(fixture, file, { preload, waitMs, timeout }) {
+  const env = { ...process.env, PULLBOARD_LANDING_RUN: '1', PULLBOARD_LANDING_IDENTITY_WAIT_MS: String(waitMs),
+    PULLBOARD_MACHINE_HOME: join(fixture.root, 'machine'),
+    NODE_OPTIONS: [process.env.NODE_OPTIONS, '--import=' + pathToFileURL(preload).href].filter(Boolean).join(' ') };
+  for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete env[key];
+  const result = spawnSync(process.execPath, [fixture.runner, file], { cwd: fixture.root, env, encoding: 'utf8', timeout });
+  return { ...result, context: `runner exit ${result.status} signal ${result.signal ?? 'none'} ${result.error?.message ?? ''}`.trim() };
 }
