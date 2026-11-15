@@ -10,7 +10,7 @@ import { cellItem } from '../../../../store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
 import { submitFixture } from '../../../../store/tests/fixtures/submit.js';
-import { runFixtureSetupGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureSetupGit } from '../../../../gate/tests/fixtures/child.js';
 
 /** A verified item reviewed against the trunk before main moved, on a real repository: main then changes `mainFile`. */
 function verifiedThenMainMoves(t, mainFile) {

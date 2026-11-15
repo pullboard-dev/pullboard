@@ -5,7 +5,7 @@ import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../../../apps/cli/tests/fixtures/testkit.js';
 import { requestFor } from '../../index.js';
 

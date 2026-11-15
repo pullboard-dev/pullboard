@@ -18,7 +18,7 @@ import { historyShimReferences } from '../../../src/io/cells/scripts/plan.js';
 import {
   privateFixtureFiles,
   runFixtureGit,
-} from '../../../../../apps/cli/tests/fixtures/child.js';
+} from '../../../../gate/tests/fixtures/child.js';
 import { fixtureCommittedGraph } from '../../../../../apps/cli/tests/fixtures/testkit.js';
 
 /** A real Git adapter that records every synchronous Git command it runs. */

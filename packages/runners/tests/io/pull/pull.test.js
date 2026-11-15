@@ -8,7 +8,7 @@ import { rmSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { HOST } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
 import { enqueueRunnerJob } from '../../../src/io/pull/enqueue.js';

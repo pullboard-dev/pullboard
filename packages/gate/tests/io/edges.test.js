@@ -4,7 +4,7 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../fixtures/child.js';
 import { LIGHT_DOOR_BUDGET_MS } from '../../src/io/edges.js';
 import { lightDoorProblems } from '../../src/io/edges.js';
 import { lightDoorRefused } from '../../src/io/edges.js';

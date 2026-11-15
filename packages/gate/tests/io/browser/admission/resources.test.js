@@ -2,9 +2,9 @@
 import { redGateReleaseSource } from '../../../../../../apps/cli/tests/fixtures/gate/execution.js';
 import { awaitNestedRun } from '../../../../src/io/test/file/pool.js';
 import assert from 'node:assert/strict';
-import { startFixtureChild as spawn } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild as spawnSync } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChildAsync } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { startFixtureChild as spawn } from '../../../fixtures/child.js';
+import { runFixtureChild as spawnSync } from '../../../fixtures/child.js';
+import { runFixtureChildAsync } from '../../../fixtures/child.js';
 import { once } from 'node:events';
 import { chmodSync } from 'node:fs';
 import { existsSync } from 'node:fs';

@@ -17,7 +17,7 @@ import {
   submitGatePlan,
   writeTestTiers,
 } from '../../../../index.js';
-import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../fixtures/child.js';
 
 const IDENTITY = ['-c', 'user.name=Seal Test', '-c', 'user.email=seal@example.test', '-c', 'commit.gpgsign=false'];
 const BASE_TEST = 'packages/base/tests/base.test.js';

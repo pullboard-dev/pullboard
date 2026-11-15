@@ -2,7 +2,7 @@
 /** @pullboard-world-pin: the clauses read the shim source and the committed ceiling, and run the shim on a tiny test file as a frozen item check would. */
 /** The run-tests shim names no apps/ path, its ceiling row is gone, and a check frozen on its path still runs [C7]. */
 import assert from 'node:assert/strict';
-import { runFixtureChild as spawnSync } from '../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild as spawnSync } from './fixtures/child.js';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';

@@ -13,7 +13,7 @@ import { packageFiles } from '../index.js';
 import { cellLintReport } from '../../codemap/index.js';
 import { readCellLintBaseline } from '../../codemap/index.js';
 import { cellLintGrowth } from '../../codemap/index.js';
-import { runFixtureGit } from '../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../gate/tests/fixtures/child.js';
 import { mkdtempSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
