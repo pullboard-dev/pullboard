@@ -143,8 +143,6 @@ async function succeeds(box, cwd, ...args) {
 function privateMainSource(box, directory) {
   copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), directory);
   box.git(directory, 'init', '-q', '-b', 'main');
-  box.git(directory, 'add', '-A');
-  box.git(directory, 'commit', '-q', '-m', 'chore: candidate main source');
 }
 
 test('clause 1: a private main source checkout is the candidate tree in its own repository with no commit made of it [C7]', () => {
