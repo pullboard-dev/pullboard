@@ -15,10 +15,12 @@ const CELL_TESTS = /^(?:packages|apps)\/[^/]+\/tests?\//u;
  *
  * @param {{ file: string, spawns: { process: boolean, browser: boolean, board: boolean } }} row
  * @param {Set<string>} [golden] files the golden registry names; each is a harness, the one real-CLI walk of its user path
+ * @param {Set<string>} [guards] files the guard list names; each is a harness guarding a budget, ratchet, baseline or ceiling
  * @returns {{ kind: string, because: string }}
  */
-export function testKind({ file, spawns }, golden = new Set()) {
+export function testKind({ file, spawns }, golden = new Set(), guards = new Set()) {
   if (golden.has(file)) return { kind: 'harness', because: 'golden journey: the one real-CLI walk of a user path (golden registry)' };
+  if (guards.has(file)) return { kind: 'harness', because: 'guards a budget, ratchet, baseline or ceiling the mutation check cannot see' };
   if (HARNESS.test(file)) return { kind: 'harness', because: 'tests a shared fixture' };
   if (JOURNEY.test(file)) return { kind: 'journey', because: 'lives under journeys/' };
   const outside = spawns.process || spawns.browser;
@@ -90,9 +92,10 @@ export function tagJourneys(rows) {
  *
  * @param {{ file: string, ms: number|null, specs?: string[], direct: Set<string>, via: Map<string, Set<string>> }[]} inputs
  * @param {Set<string>} [golden] files the golden registry names, kept as harness so a regeneration never undoes the registry
+ * @param {Set<string>} [guards] files the guard list names, kept as harness for the same reason
  * @returns {object[]} one row per file, sorted by file
  */
-export function manifestRows(inputs, golden = new Set()) {
+export function manifestRows(inputs, golden = new Set(), guards = new Set()) {
   return tagJourneys(inputs.map(({ file, ms, specs = [], direct, via }) => {
     const started = category => direct.has(category) || [...via.values()].some(found => found.has(category));
     const spawns = {
@@ -102,7 +105,7 @@ export function manifestRows(inputs, golden = new Set()) {
       direct: direct.has('process') || direct.has('runner') || direct.has('browser'),
       via: [...via].filter(([, found]) => found.has('process') || found.has('runner') || found.has('browser')).map(([path]) => path).sort(),
     };
-    const { kind, because } = testKind({ file, spawns }, golden);
+    const { kind, because } = testKind({ file, spawns }, golden, guards);
     return { file, kind, because, specs, unproven: specs.length === 0, cost: { ms }, spawns };
   }).sort((a, b) => (a.file < b.file ? -1 : 1)));
 }
