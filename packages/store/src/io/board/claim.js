@@ -19,6 +19,7 @@ import {
   staleBoardRefusal,
 } from "./write/preparation.js";
 import { checkedSubmitOutcome } from "../submit/outcome.js";
+import { recordPendingOutcome } from "../submit/outcome.js";
 import { submitAdmission as checkedSubmitAdmission } from "../../../../state/light.js";
 import { AUTOMATIC_DISPATCH_ENGINE } from "../../../../state/light.js";
 import {
@@ -442,6 +443,7 @@ function commitClaim(board, id, prepared, binding, ports) {
         logEvent(board, 'board', 'fact', id, { id: factId, kind: 'note', text: `No live ${route.builderFamily} family seat was available for rework #${id}; checked families: ${route.checkedFamilies.join(', ') || 'none'}. The ordinary queue assigned it to ${agentId}.`, ref: null, supersedes: null });
       }
     }
+    recordPendingOutcome(outcome);
     if (shadow) hook({ id, ...shadow, wrote: board.db.prepare('SELECT event_kind kind, event_by by, event_detail detail FROM event WHERE event_id>? ORDER BY event_id').all(shadow.before) });
     return { leaseUntil, digest, renewed, ...(continuationSummary ? { continuationSummary } : {}) };
   });

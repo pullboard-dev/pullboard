@@ -88,7 +88,7 @@ export { writeRowDecisions } from './src/io/board/record/decisions.js';
 export { reserveWithin } from './src/io/board/reserve/review.js';
 export { insertShout, persistShout } from './src/io/board/shout.js';
 export { RELEASE_REASONS, releaseReasonProblem } from './src/logic/reasons.js';
-export { checkedSubmitOutcome } from './src/io/submit/outcome.js';
+export { checkedSubmitOutcome, outcomeDiffers, recordPendingOutcome } from './src/io/submit/outcome.js';
 export { INFRASTRUCTURE_CODES, RERUNNABLE_RUNNER_REFUSALS, INFRASTRUCTURE_RETRY_LIMIT, handoffGateCurrent, handoffServes, requireSubmitHandoffHookProof, submitHandoff, pendingSubmitHandoff, awaitingGateOrReview, submitHandoffFailure } from './src/io/submit/handoff/retry.js';
 export { queuedReds, queuedRedLines, boundedQueuedRedLines, sayQueuedReds } from './src/io/queued/red.js';
 export { redReturnLeaseHolds } from './src/logic/red/return.js';
