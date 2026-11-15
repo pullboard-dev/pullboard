@@ -42,7 +42,7 @@ test('a pull offer made before a board restart is still takeable after the resta
 
     const second = boot(path, pub, at + 1000);
     const later = at + 1000;
-    const job = second.adapter.take({ runner: 'r1', at: later, signature: signText(pullStatement('take', 'r1', later)) });
+    const job = second.adapter.take({ runner: 'r1', at: later, nonce: 'restart-nonce-0001', signature: signText(pullStatement('take', 'r1', later, 'restart-nonce-0001')) });
     assert.equal(job.job, 'gate-9');
     assert.deepEqual(job.shards, [{ shard: 's1', command: 'sh run.sh' }]);
     assert.equal(job.tree, TREE);
