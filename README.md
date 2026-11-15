@@ -372,6 +372,12 @@ pullboard land --why
 
 `why` shows the release on one screen: the one thing holding each unlanded item. `land --why` says why nothing landed. An accepted item that no longer merges goes back to its lane with the conflict named.
 
+#### Landing your own way
+
+- Set `landing.manualOverride: true` in `pullboard.json` to turn automatic landing off. An accepted item waits, and `pullboard land` lands it by hand.
+- To merge another way, such as a pull request or plain git, run `pullboard merged <id> <commit>` afterwards. The board records it as landed.
+- Work that never passed verify needs `--forced "<why>"`, which records the reason.
+
 ### Boards anywhere
 
 A clone on another machine can work the same board.
