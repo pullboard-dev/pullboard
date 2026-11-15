@@ -1,3 +1,4 @@
+/** @pullboard-module-loads packages/moves/src/logic/table/*.table.js */
 /** Load a move table by name and report on it: how often it agrees with the board, and what it says in order [C7,#8071,#8072]. */
 import { execFileSync } from 'node:child_process';
 import { basename } from 'node:path';
