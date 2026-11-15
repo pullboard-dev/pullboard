@@ -33,7 +33,7 @@ export function commitDecision(board, id, { agentId, commit, tree, files, policy
   const snapshot = {
     now: board.clock.now().toISOString(), actor: { id: agentId },
     item: { id, status: 'claimed', owner: agentId, leaseUntil: row.item_lease_until, frozenDigest: row.item_frozen_digest, files: (row.item_files ?? '').split('\n').filter(Boolean) },
-    children: [], history: [], submits: [], receipts: [], handoff: null, io: {}, deferred: { proofRecord: recordedProof ?? null, builderFamily: seatFamily(board, agentId) },
+    children: [], rejects: [], history: [], submits: [], receipts: [], handoff: null, io: {}, deferred: { proofRecord: recordedProof ?? null, builderFamily: seatFamily(board, agentId) },
     gate: { green: gateGreen, size: recordedSize, tooling, policyCommit },
   };
   const move = { id, actor: agentId, commit, tree, files, note, infra, companionRecord: companion, quarantineProofIds };
