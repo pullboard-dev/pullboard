@@ -1,5 +1,6 @@
 /** @pullboard-test-loads packages/store/src/io/board.js packages/state/src/io/engine.js src/exchange.js src/person-signing.js apps/relay/src/io/passkeys.js */
 import { DatabaseSync } from 'node:sqlite';
+import { waitForCondition } from '../../../tests/fixtures/runner/holders.js';
 import { viewApiPorts } from '../../../../view/index.js';
 /** Scenario partition: original case bytes and deadlines remain unchanged. */
 import { apiBoardOpeners } from '../../../tests/fixtures/board.js';
@@ -58,6 +59,12 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   await run(box, reviewer, 'join', 'web', '--route', 'strong');
   await run(box, reviewer, 'next', '--verify', '1');
   await run(box, reviewer, 'verify', '1', 'accept', '--note', 'The feature changes its first line and the frozen check observes it.');
+  // The accepted review detaches a comparison worker that records its fact a few seconds later. In-process calls are quick enough
+  // for that fact to land mid-journey and move the board sequence, so wait for it here and the later sequence checks read a quiet board.
+  await waitForCondition(() => {
+    const db = new DatabaseSync(join(box.repo, '.git/pullboard/board.sqlite'), { readOnly: true });
+    try { return db.prepare("SELECT count(*) AS n FROM event WHERE event_kind = 'fact' AND event_detail LIKE '%Review comparison%'").get().n > 0; } finally { db.close(); }
+  }, 'the detached review comparison to record its fact', { signal: t.signal });
   assert.equal(withBoard(box.repo, board => store.getItem(board, 1)).item_review_by,
     withBoard(box.repo, board => store.getItem(board, 1)).item_verified_by,
     'the original reservation stays in history after acceptance; it is not a live review lease');
@@ -146,8 +153,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   }
   assert.equal(box.git(reviewer, 'rev-parse', 'HEAD'), beforeMoveHead, 'the served worktree HEAD stayed fixed while main moved');
   const apiStale = (await http('/state')).state;
-  assert.equal(apiStale.sequence, initialState.sequence, 'Git movement needs no board event to invalidate the state cache '
-    + JSON.stringify((() => { const db = new DatabaseSync(join(box.repo, '.git/pullboard/board.sqlite'), { readOnly: true }); try { return db.prepare('SELECT * FROM event ORDER BY rowid DESC LIMIT 3').all().map(r => ({ ...r })); } finally { db.close(); } })()));
+  assert.equal(apiStale.sequence, initialState.sequence, 'Git movement needs no board event to invalidate the state cache');
   assert.equal(apiStale.items[0].verdictState?.code, 'STALE_VERDICT');
   assert.equal(apiStale.items[0].verdictState.commit, movingCommit);
   const coldGit = [];
