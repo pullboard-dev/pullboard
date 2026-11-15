@@ -25,6 +25,7 @@ import {
   fixtureChildMessage,
   runFixtureChild,
   runFixtureGit,
+  runFixtureSetupGit,
   startFixtureChild,
 } from '../../tests/fixtures/child.js';
 import {
@@ -191,7 +192,8 @@ async function project(t, { runner = false } = {}) {
   writeFileSync(configPath, `${JSON.stringify({ ...config, gate: 'true', spec: 'SPEC.md', lanes: { web: { owns: ['web/'], specs: ['G1'] } }, shared: [] }, null, 2)}\n`);
   writeFileSync(join(repo, 'SPEC.md'), SPEC);
   git(repo, 'add', '-A');
-  git(repo, 'commit', '-q', '-m', 'chore: set up mcp fixture');
+  // Setup, not the subject: this commit skips the hooks, which would each launch node [C7].
+  runFixtureSetupGit(['commit', '-q', '-m', 'chore: set up mcp fixture'], { cwd: repo, env });
   const web = join(dir, 'web-1');
   git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
   const sessionA = { CODEX_SESSION_ID: 'mcp-session-a' };
