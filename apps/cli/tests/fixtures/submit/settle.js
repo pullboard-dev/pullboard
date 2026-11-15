@@ -108,7 +108,8 @@ export function verifySettledSync(box, cwd, args) {
   const deadline = Date.now() + ACCEPT_SETTLE_MS;
   for (;;) {
     const answer = box.run(cwd, ...args);
-    if (answer.code === 0 || !/NOT_SUBMITTED/u.test(`${answer.err ?? ''}${answer.out ?? ''}`) || Date.now() > deadline) return answer;
+    if (answer.code === 0 || !/NOT_SUBMITTED/u.test(`${answer.err ?? ''}${answer.out ?? ''}`)) return answer;
+    if (Date.now() > deadline) return { ...answer, err: `${answer.err ?? ''}\nlocal runner log:\n${runnerLog(box.env.PULLBOARD_MACHINE_HOME)}` };
     reviveFixtureLocalRunner(box.repo, box.env);
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
   }
@@ -119,7 +120,8 @@ export async function verifySettled(box, run, cwd, args) {
   const deadline = Date.now() + ACCEPT_SETTLE_MS;
   for (;;) {
     const answer = await run(cwd, ...args);
-    if (answer.code === 0 || !/NOT_SUBMITTED/u.test(`${answer.err ?? ''}${answer.out ?? ''}`) || Date.now() > deadline) return answer;
+    if (answer.code === 0 || !/NOT_SUBMITTED/u.test(`${answer.err ?? ''}${answer.out ?? ''}`)) return answer;
+    if (Date.now() > deadline) return { ...answer, err: `${answer.err ?? ''}\nlocal runner log:\n${runnerLog(box.env.PULLBOARD_MACHINE_HOME)}` };
     reviveFixtureLocalRunner(box.repo, box.env);
     // Read again on the next change in the local runner's folder (a log line per claim and receipt, a heartbeat every 5 s).
     await new Promise(resolve => {
