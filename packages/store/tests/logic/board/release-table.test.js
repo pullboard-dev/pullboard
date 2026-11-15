@@ -51,6 +51,7 @@ function boardFor(t, record) {
   sql.prepare('UPDATE item SET item_criterion = ?, item_check = ?, item_brief = ? WHERE item_id = ?').run(diagnosis.criterion, diagnosis.check, diagnosisBrief(diagnosis), item.id);
   sql.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`item_diagnosis:${item.id}`, JSON.stringify(diagnosis));
   for (const e of history) sql.prepare('INSERT INTO event (event_id, event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?, ?)').run(e.id, e.at, e.by, e.kind, item.id, JSON.stringify(e.detail));
+  if (item.status === 'submitted') sql.prepare('UPDATE item SET item_review_by = ?, item_review_until = ? WHERE item_id = ?').run(item.reviewer, FAR, item.id);
   if (item.status === 'submitted') sql.prepare('INSERT INTO event (event_id, event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?, ?)')
     .run(Math.max(0, ...history.map(e => e.id)) + 1, stamp, item.reviewer, 'reserve', item.id, JSON.stringify({ reviewer: item.reviewer, until: FAR }));
   for (const { sql: guard } of guards) sql.exec(guard);
