@@ -539,7 +539,6 @@ test('a failed owning migration rolls back schema, index and stamp work together
   mkdirSync(installed);
   copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), installed);
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const before = snapshot(file);
   const db = new DatabaseSync(file);
   const version = db.prepare('PRAGMA user_version').get().user_version;
   const indexes = db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'event_fact_%_v2'").all();
@@ -548,6 +547,7 @@ test('a failed owning migration rolls back schema, index and stamp work together
     for (const index of indexes) db.exec(`DROP INDEX "${index.name}"`);
     db.exec("UPDATE board_meta SET meta_value = '0' WHERE meta_key = 'event_log_version'; PRAGMA application_id=0");
   } finally { db.close(); }
+  const before = snapshot(file); // taken after the downgrade, so the rollback is compared with the board it started from
   const preload = join(box.dir, 'fail-private-index.mjs');
   writeFileSync(preload, `
     import { DatabaseSync } from 'node:sqlite';
