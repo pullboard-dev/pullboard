@@ -106,7 +106,7 @@ export function applyFreeze(root, plan) {
 export function runFreezeCommand(args, { owner } = {}) {
   const at = args.indexOf('--manifest');
   const manifest = at >= 0 ? args[at + 1] : TEST_MANIFEST_FILE;
-  const rest = args.filter((arg, index) => arg !== '--dry-run' && index !== at && index !== at + 1);
+  const rest = args.filter((arg, index) => arg !== '--dry-run' && at < 0 || (index !== at && index !== at + 1));
   if (rest.some(arg => arg.startsWith('-')) || rest.length > 1 || (at >= 0 && !manifest)) {
     return { status: 1, stdout: '', stderr: 'usage: node packages/gate/src/io/test/scripts/freeze.js [--dry-run] [--manifest file] [project-root]\n' };
   }
