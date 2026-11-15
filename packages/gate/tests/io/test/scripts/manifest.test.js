@@ -161,3 +161,10 @@ test('the command prints the count of each journey tag [C7]', t => {
   const result = runManifestCommand(['--out', 'rows.json', fixture(t, JOURNEYS).root], { times: {} });
   assert.match(result.stdout, /journey tags: 3 keep, 3 convert, 1 delete/u);
 });
+
+test('the command prints a keep count of at most 20 however many journeys walk the golden paths [C7]', t => {
+  const bases = ['init', 'add', 'next', 'submit', 'verify', 'land', 'release', 'upgrade', 'relay/pair', 'view/open'];
+  const sources = Object.fromEntries(bases.flatMap(base => [1, 2, 3].map(n => [`apps/cli/journeys/${base}/j${n}.test.js`, `import { test } from "node:test"; test("walks [P${n}]", () => {});`])));
+  const result = runManifestCommand(['--out', 'rows.json', fixture(t, sources).root], { times: {} });
+  assert.match(result.stdout, /journey tags: 20 keep, 10 convert, 0 delete/u);
+});
