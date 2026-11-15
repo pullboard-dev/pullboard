@@ -8,6 +8,7 @@ import { barTestFiles } from '../../../../../packages/verify/index.js';
 import { itemProgress } from '../../../../../packages/roadmap/index.js';
 import { progressLine } from '../../../../../packages/roadmap/index.js';
 import { submitHandoff } from '../../../../../packages/store/light.js';
+import { mutationScoreLines } from '../../logic/mutate/score.js';
 import { queuedGateLines } from '../../logic/show/gate.js';
 import { supersededStop } from '../../logic/show/gate.js';
 import { pulledRedLines } from '../../logic/show/gate.js';
@@ -215,6 +216,7 @@ export async function run(io, { first, values }) {
       io.say(`  test ${path}: sha256 ${hash}${ruled.length ? `; person ruling ${ruled.map(ruling => `${ruling.factId} accepts ${ruling.hash.slice(0, 12)}`).join(', ')}` : ''}`);
     }
   }
+  for (const line of mutationScoreLines(thread)) io.say(line);
   const authors = testAuthors(thread);
   const reviewerFamilies = [...new Set(verdicts.map(verdict => verdict.verdict_verifier_family).filter(Boolean))];
   for (const path of barTestFiles(item).criterion.sort()) {
