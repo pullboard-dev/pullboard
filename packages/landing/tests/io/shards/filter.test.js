@@ -55,7 +55,7 @@ function projectTemplate() {
   mkdirSync(join(home, '.pullboard'), { recursive: true });
   writeFileSync(join(home, '.pullboard', 'settings.json'), JSON.stringify({ gateSlots: 3, browserSlots: 1 }));
   // The gate under test runs from source, never from the shipped test files: leaving them out halves the copy, the commit, and every shard's checkout and cleanup.
-  copyPackageFiles(SOURCE, repo, { files: packageFiles(SOURCE).filter(file => !/(?:^|\/)tests?\//u.test(file) && !/\.test\.js$/u.test(file)) });
+  copyPackageFiles(SOURCE, repo, { files: packageFiles(SOURCE).filter(file => !/(?:^|\/)tests\//u.test(file) && !/\.test\.js$/u.test(file)) });
   for (const name of NAMES) writeFileSync(join(repo, `test/${name}.test.js`), fixtureTest(name));
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node apps/cli/src/io/run/tests.js', landingShards: 2 }));
   const env = projectEnv(dir);
