@@ -13,6 +13,12 @@ let built = null;
 const tableEngine = (deps) => built ??= deps.verifyEngine({ acceptReason: ACCEPT_REASON, rejectReasons: REJECT_REASONS, wording: deps.wording, causeProblem, pipelineCause: deps.pipelineCause,
   frozenBar: (frozenText) => deps.frozenBar({ item_frozen: frozenText }), namedClause: (bar, quote) => deps.namedClause(bar, quote, true), strongNoticeEngine: deps.strongNoticeEngine });
 
+/** The id the board's next row in a table will take: its autoincrement sequence, which never reuses a deleted row's id. */
+function nextId(db, table, column) {
+  const sequence = db.prepare('SELECT seq FROM sqlite_sequence WHERE name=?').get(table)?.seq;
+  return (sequence ?? db.prepare(`SELECT COALESCE(MAX(${column}),0) m FROM ${table}`).get().m) + 1;
+}
+
 /** An event's detail as an object; a damaged row reads as empty. */
 function detailOf(text) {
   try { return JSON.parse(text || '{}'); } catch { return {}; }
@@ -54,7 +60,7 @@ export function verifyDecision(board, item, call, deps) {
       route: item.item_route, lane: item.item_lane, builtBy: item.item_built_by, owner: item.item_owner, reviewBy: item.item_review_by ?? null, reviewUntil: item.item_review_until ?? null,
       effectiveHead: call.sourceAdvanceHead ?? null, outside: null },
     history, verdicts, knownItems: call.implies ?? [], actorFlakeObservations: flakes, nativeFlakeEngine: deps.nativeFlakeEngine, lineSettings: { sharpenToPerson },
-    nextEventId: (db.prepare('SELECT COALESCE(MAX(event_id),0) m FROM event').get().m) + 1, nextVerdictId: (verdicts.at(-1)?.id ?? 0) + 1,
+    nextEventId: nextId(db, 'event', 'event_id'), nextVerdictId: nextId(db, 'verdict', 'verdict_id'),
     // The writer's own checks have all passed by now, so the command-side and board-side facts the table takes from the shell all hold.
     io: { isMain: main, mainRefusal: null, selfSession: false, staleAcceptance: item.item_status === 'verified', policyRefused: null, commitInHead: true, root: '/repo',
       missingCompanions: null, checkRefused: null, selectorGap: false, reviewHolderFresh: false },

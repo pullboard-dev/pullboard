@@ -39,7 +39,7 @@ function openPolicy(frozen) {
 
 /** A real board holding exactly what the replay record says the verdict saw, on a clock at the verdict's own instant. */
 function boardFor(t, record) {
-  const at = new Date(record.event.at);
+  const at = new Date(record.recorded.verdictRow.at);
   const board = cellBoard(t, ':memory:', { now: () => at });
   const { item, actor, history, verdicts } = record.snapshot;
   const sql = board.db;
@@ -63,6 +63,9 @@ function boardFor(t, record) {
   const verdict = sql.prepare(`INSERT INTO verdict (verdict_id, item_id, verdict_by, verdict_decision, verdict_reason, verdict_note, verdict_commit, verdict_digest, verdict_head, verdict_verifier_family, verdict_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   for (const v of verdicts) verdict.run(v.id, v.item, v.by, v.decision, v.reason, v.note, v.commit, v.digest, v.head, v.family, v.at);
+  // The board numbers its next event and verdict from its sequences, so they stand where the record's verdict was numbered.
+  sql.prepare("UPDATE sqlite_sequence SET seq=? WHERE name='event'").run(record.event.id - 1);
+  sql.prepare("UPDATE sqlite_sequence SET seq=? WHERE name='verdict'").run(record.recorded.verdictRow.id - 1);
   if (record.snapshot.lineSettings.sharpenToPerson) sql.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run('line_setting:bar.sharpenToPerson', 'true');
   return board;
 }
@@ -74,7 +77,7 @@ function drive(board, record) {
   const { as, itemReviewPolicy, ...call } = move;
   verify(board, move.id, { agentId: move.actor, ...call, policy: 'any', familyPolicy: 'off', prechecked: true });
   return board.db.prepare(`SELECT e.event_kind kind, e.event_by by, e.event_detail detail, e.item_id item FROM event e WHERE e.event_id>? ORDER BY e.event_id`).all(before)
-    .map(e => ({ kind: e.kind, by: e.by, detail: JSON.parse(e.detail), item: e.item }));
+    .map(e => { const { model, ...detail } = JSON.parse(e.detail); return { kind: e.kind, by: e.by, detail, item: e.item }; });
 }
 
 /** Reduce what the writer logged to the table's own event shape: a shout event holds the shout's id, so its words come from the shout row. */
