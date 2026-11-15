@@ -374,9 +374,9 @@ pullboard land --why
 
 #### Landing your own way
 
-Set `landing.manualOverride: true` in `pullboard.json` to turn automatic landing off. An accepted item then waits, and `pullboard land` lands it by hand through the same land job.
-To merge some other way, such as a pull request or plain git, run `pullboard merged <id> <commit>` afterwards. The board records the item as landed, and nothing lands twice.
-Work that never passed verify needs `--forced "<why>"`, which records the reason with the landing.
+- Set `landing.manualOverride: true` in `pullboard.json` to turn automatic landing off. An accepted item waits, and `pullboard land` lands it by hand.
+- To merge another way, such as a pull request or plain git, run `pullboard merged <id> <commit>` afterwards. The board records it as landed.
+- Work that never passed verify needs `--forced "<why>"`, which records the reason.
 
 ### Boards anywhere
 
