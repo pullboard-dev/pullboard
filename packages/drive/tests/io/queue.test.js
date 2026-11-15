@@ -6,7 +6,7 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { fixtureBoard } from '../../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../../board/tests/fixtures/board.js';
 import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 import { takeJob } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';

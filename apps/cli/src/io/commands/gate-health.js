@@ -8,6 +8,7 @@ import { gateHealthLines } from '../../../../../packages/gate/index.js';
 import { gateHealthReport } from '../../../../../packages/gate/index.js';
 import { runnerTimeLines } from '../../../../../packages/gate/index.js';
 import { runnerTimeReport } from '../../../../../packages/gate/index.js';
+import { testResults } from '../../../../../packages/store/index.js';
 import { landingHealthLines } from '../../../../../packages/landing/index.js';
 import { landingHealthReport } from '../../../../../packages/landing/index.js';
 
@@ -37,7 +38,7 @@ export function run(io, { first, second, rest, values }) {
   const span = gateHealthWindowMs(window);
   const ctx = context(io);
   const now = ctx.clock.now().getTime();
-  const { report, landing } = withBoardRead(ctx, board => ({ report: gateHealthReport(board.db, { commonDir: ctx.info.commonDir, since: now - span, now }),
+  const { report, landing } = withBoardRead(ctx, board => ({ report: gateHealthReport(board.db, { commonDir: ctx.info.commonDir, since: now - span, now, ledgerRows: testResults(board.db) }),
     landing: landingHealthReport(board.db, { commonDir: ctx.info.commonDir, since: now - span, now }) }));
   const runnerTime = runnerTimeReport({ commonDir: ctx.info.commonDir, since: now - span, now });
   io.result?.({ report, landing, runnerTime });
