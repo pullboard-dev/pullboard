@@ -28,6 +28,15 @@ test('receipt.review.by-key: [C7] review reads a receipt by key', () => {
   assert.equal(receiptByKey([receipt], receiptKey('x', 'y')), null);
 });
 
+test('receipt.key.tooling: [C7] two runs with the same candidate and base but different tooling pins get different receipt keys and never reuse each other', () => {
+  assert.notEqual(receiptKey('c1', 'b1', 't1'), receiptKey('c1', 'b1', 't2'));
+  assert.equal(receiptKey('c1', 'b1'), receiptKey('c1', 'b1', 'c1'), 'unpinned tooling is the candidate own tree');
+  const pinned = { candidate: 'c1', base: 'b1', tooling: 't1', verdict: 'green' };
+  assert.equal(receiptByKey([pinned], receiptKey('c1', 'b1', 't2')), null);
+  assert.deepEqual(reusable(pinned, { candidate: 'c1', base: 'b1', tooling: 't2' }), { reuse: false, code: 'TOOLING_CHANGED' });
+  assert.deepEqual(reusable(pinned, { candidate: 'c1', base: 'b1', tooling: 't1' }), { reuse: true, code: null });
+});
+
 test('receipt.reuse.refusals: [C7] clause 1: every refusal of reusable says reuse is false, and only a full match says true', () => {
   const same = { candidate: 'c1', base: 'b1' };
   const cases = [
@@ -45,5 +54,5 @@ test('receipt.key.types: [C7] receiptKey refuses a candidate or base that is emp
   for (const [candidate, base] of [['', 'b'], [5, 'b'], [null, 'b'], [undefined, 'b'], ['c', ''], ['c', 5], ['c', null], ['c', undefined]]) {
     assert.throws(() => receiptKey(candidate, base), { code: 'RECEIPT_KEY' }, JSON.stringify([candidate, base]));
   }
-  assert.equal(receiptKey('c', 'b'), 'c@b');
+  assert.equal(receiptKey('c', 'b'), 'c@b@c');
 });
