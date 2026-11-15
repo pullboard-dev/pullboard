@@ -125,9 +125,10 @@ test('a release jump on a phone leaves its heading below the top bar [N26]', { t
         documentHeight, viewportHeight:window.innerHeight, scrollY:window.scrollY, maxScroll, remainingScroll:maxScroll-window.scrollY };
     })())`));
     console.log('phone release jump geometry', JSON.stringify(position));
-    assert.ok(position.barHeight > 56, `the phone header must wrap beyond its desktop height: ${JSON.stringify(position)}`);
+    // Under 900 px the top bar is one 48 px bar with a menu drawer (dcf117ebc6), not a header that wraps to extra rows.
+    assert.ok(position.barHeight > 0 && position.barHeight <= 56, `the phone top bar is the one-row drawer bar: ${JSON.stringify(position)}`);
     assert.ok(position.remainingScroll > 300, `the jump is not clamped near the document bottom: ${JSON.stringify(position)}`);
-    assert.ok(position.headingTop >= position.barBottom, `the entire release heading sits below the wrapped header: ${JSON.stringify(position)}`);
+    assert.ok(position.headingTop >= position.barBottom, `the entire release heading sits below the top bar: ${JSON.stringify(position)}`);
     assert.ok(position.scrollY > 0, `the release jump scrolls the page: ${JSON.stringify(position)}`);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 812, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('innerWidth === 1280');
