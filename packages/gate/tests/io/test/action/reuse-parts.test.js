@@ -5,6 +5,8 @@ import { test } from 'node:test';
 import { planTestActions } from '../../../../src/io/test/action/cache.js';
 import { reusableResult } from '../../../../src/io/test/action/cache.js';
 import { testActionKeys } from '../../../../src/io/test/action/cache.js';
+import { importTestResults } from '../../../../src/io/test/store.js';
+import { packTestResults } from '../../../../src/io/test/store.js';
 import { completedTestResult } from '../../../../src/io/test/store.js';
 import { selectedTestResults } from '../../../../src/io/test/store.js';
 import { storeTestResult } from '../../../../src/io/test/store.js';
@@ -105,5 +107,24 @@ test('clause 2 environment: a material language change re-keys a file under the 
     const [plain, other] = [await keysWith('C.UTF-8'), await keysWith('cache-material-language')];
     assert.equal(other.get(PROBE).inputKey, plain.get(PROBE).inputKey, 'the files are the same');
     assert.notEqual(other.get(PROBE).key, plain.get(PROBE).key, 'the environment is part of the result key');
+  } finally { fx.done(); }
+});
+
+test('clause 1 transfer: a packed result imports into a second store for the requested keys only, with no fleet trip [C7,V4]', async () => {
+  const fx = fixture();
+  try {
+    const keys = await keysAt(fx, fx.commit());
+    const request = '11111111-1111-4111-8111-111111111111';
+    const storeA = fx.root + '/.store-a';
+    const storeB = fx.root + '/.store-b';
+    for (const file of [PROBE, STABLE]) assert.equal(storeTestResult(storeA, receipt(file, keys.get(file), 'pass', request)), true);
+    const packet = packTestResults(selectedTestResults(storeA, [keys.get(PROBE).inputKey, keys.get(STABLE).inputKey]));
+    assert.equal(typeof packet, 'string', 'the records pack for transfer');
+    assert.equal(importTestResults(storeB, packet, [keys.get(STABLE).inputKey]), 1, 'only the requested key is imported');
+    assert.deepEqual(selectedTestResults(storeB, [keys.get(PROBE).inputKey]), [], 'an unrequested key carries nothing');
+    const carried = selectedTestResults(storeB, [keys.get(STABLE).inputKey]);
+    assert.deepEqual(carried.map(row => row.file), [STABLE]);
+    assert.equal(carried[0].status, 'pass');
+    assert.equal(importTestResults(storeB, 'not-a-packet', [keys.get(STABLE).inputKey]), 0, 'an invalid packet confers nothing');
   } finally { fx.done(); }
 });
