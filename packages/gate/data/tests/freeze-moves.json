@@ -7,6 +7,20 @@
       "action": "convert",
       "because": "cites a spec id no cell unit or contract test cites",
       "idsFollowed": true
+    },
+    {
+      "from": "apps/cli/journeys/verify/reserve.test.js",
+      "to": "apps/cli/tests/journeys/verify/reserve.test.js",
+      "action": "convert",
+      "because": "runs in process, so the journey folder is not needed",
+      "idsFollowed": true
+    },
+    {
+      "from": "apps/cli/journeys/verify/clause-refusal.test.js",
+      "to": "apps/cli/tests/journeys/verify/clause-refusal.test.js",
+      "action": "convert",
+      "because": "runs in process, so the journey folder is not needed",
+      "idsFollowed": true
     }
   ],
   "deleted": [
