@@ -25,7 +25,9 @@ after(helpers.cleanup);
 
 /** Each hook child's wall time from git's trace file, so a slow commit names the hook that spent it. */
 function hookSpans(file) {
-  try { return readFileSync(file, 'utf8').split('\n').filter(line => /child_exit/u.test(line) && /hook/u.test(line)).map(line => line.replace(/^.*?\|/u, '').replace(/\s+/gu, ' ')).join('; '); } catch { return 'no trace'; } finally { rmSync(file, { force: true }); }
+  try {
+    return readFileSync(file, 'utf8').split('\n').filter(line => /\| (?:child_start|child_exit)/u.test(line)).map(line => line.replace(/^.*?\| /u, '').replace(/\s+/gu, ' ').slice(0, 110)).join('; ');
+  } catch { return 'no trace'; } finally { rmSync(file, { force: true }); }
 }
 
 /** Run one git commit as the session that owns the checkout; return its refusal text and wall time. */
