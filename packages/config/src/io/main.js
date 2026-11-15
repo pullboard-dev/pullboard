@@ -347,9 +347,8 @@ export function configProblems(config) {
     && (!Number.isSafeInteger(config.verify.familyRelaxAt) || config.verify.familyRelaxAt < 1)) {
     problems.push('"verify.familyRelaxAt" is off or a positive integer');
   }
-  if (!['inspectClauses', 'failBefore', 'frozenTests', 'testAuthorSplit'].every(key => typeof config.verify?.[key] === 'boolean')) {
-    problems.push('"verify.inspectClauses", "failBefore", "frozenTests" and "testAuthorSplit" are true or false');
-  }
+  const flags = ['inspectClauses', 'failBefore', 'frozenTests', 'testAuthorSplit'];
+  if (!flags.every(key => typeof config.verify?.[key] === 'boolean')) problems.push(`"verify.${flags.join('", "')}" are true or false`);
   if (notPlain(config.families)
     || Object.entries(config.families).some(([name, aliases]) => !name.trim() || name.length > 80
       || !Array.isArray(aliases) || aliases.some(alias => typeof alias !== 'string' || !alias.trim() || alias.length > 80))) {
