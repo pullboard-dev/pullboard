@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict';
 import {
   mkdirSync,
+  watch,
   writeFileSync,
 } from 'node:fs';
 import {
@@ -56,19 +57,28 @@ function submitShared(box, itemId) {
   return submitted;
 }
 
-/** Wait until the board has applied the pulled gate's receipt, so the item has left claimed; verify before that fails NOT_SUBMITTED [C7,#7283]. */
-function settledItem(box, itemId) {
-  const deadline = Date.now() + 180_000;
-  for (;;) {
+/**
+ * Wait until the board has applied the pulled gate's receipt, so the item has left claimed; verify before that fails
+ * NOT_SUBMITTED [C7,#7283]. Reads again on each change in the local runner's folder (a log line per claim and receipt, a
+ * heartbeat every 5 s), so the wait does not spin CLI reads against the runner it waits for.
+ */
+async function settledItem(box, itemId) {
+  const read = () => {
     const shown = box.run(box.repo, 'show', String(itemId), '--json', '--no-next');
-    if (shown.code === 0 && JSON.parse(shown.out).item_status !== 'claimed') return;
-    assert.ok(Date.now() < deadline, `gate for #${itemId} did not settle: ${shown.out.slice(0, 300)}`);
-  }
+    return shown.code === 0 && JSON.parse(shown.out).item_status !== 'claimed';
+  };
+  if (read()) return;
+  await new Promise((resolve, reject) => {
+    const watcher = watch(join(box.env.PULLBOARD_MACHINE_HOME, 'local-runner'), () => { if (read()) finish(); });
+    const timer = setTimeout(() => finish(new Error(`gate for #${itemId} did not settle`)), 110_000);
+    function finish(error) { watcher.close(); clearTimeout(timer); if (error) reject(error); else resolve(); }
+    if (read()) finish();
+  });
 }
 
 /** Accept the exact submitted commit through the public CLI, then restore the main checkout. */
-function acceptSubmitted(box, itemId, submitted) {
-  settledItem(box, itemId);
+async function acceptSubmitted(box, itemId, submitted) {
+  await settledItem(box, itemId);
   box.git(box.repo, 'switch', '-q', '--detach', submitted);
   const accepted = box.run(box.repo, 'verify', String(itemId), 'accept', '--as', 'coordinator',
     '--note', 'The submitted change passed its frozen check.');
@@ -87,7 +97,7 @@ test('coordinator resume guides and groups the checked composition after stale r
 
     const itemId = addAndClaim(box, 'Fresh composition');
     const submitted = submitShared(box, itemId);
-    acceptSubmitted(box, itemId, submitted);
+    await acceptSubmitted(box, itemId, submitted);
 
     writeFileSync(join(box.repo, 'web/shared.txt'), 'main side\n');
     commit(box, box.repo, 'feat(web): update the same line on main [G1]');
