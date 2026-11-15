@@ -13,7 +13,7 @@ import { test } from 'node:test';
 import { compareMainFailures } from '../../../../index.js';
 import { comparisonExecutor } from '../../../../index.js';
 import { executionEnvironment } from '../../../../../sandbox/index.js';
-import { runProfiledShell } from '../../../../../gate/index.js';
+import { runProfiledShellAsync } from '../../../../../gate/index.js';
 import { withGateSlot } from '../../../../../gate/index.js';
 import { recordReceipt } from '../../../../../gate/index.js';
 import { failureSignatures } from '../../../../index.js';
@@ -75,7 +75,7 @@ test('main comparison selects a matching registered peer only when the preferred
     }, 'an incomplete newest observation on B blocks stale peer eligibility');
     recordReceipt(box.root, receipt(box.root, B, environment));
 
-    const candidate = await withGateSlot(box.root, lease => runProfiledShell(box.root,
+    const candidate = await withGateSlot(box.root, lease => runProfiledShellAsync(box.root,
       "node test/runner.js './test/inherited.test.js'", { gateLease: lease, stages: true }), {
       env, executionServices, remote: true, runnerOnly: true, runnerWaitMs: 30000, requiredExecutor: { kind: 'ssh', host: A },
       diagnostic: true, agent: 'actual-candidate-runner-fixture', kind: 'candidate-comparison-control',
