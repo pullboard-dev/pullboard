@@ -46,7 +46,7 @@ function projectTemplate() {
   const repo = join(dir, 'repo'), home = join(dir, 'home');
   mkdirSync(join(repo, 'test'), { recursive: true });
   mkdirSync(join(home, '.pullboard'), { recursive: true });
-  writeFileSync(join(home, '.pullboard', 'settings.json'), JSON.stringify({ gateSlots: 2, browserSlots: 1 }));
+  writeFileSync(join(home, '.pullboard', 'settings.json'), JSON.stringify({ gateSlots: 6, browserSlots: 1 }));
   copyPackageFiles(SOURCE, repo);
   for (const name of NAMES) writeFileSync(join(repo, `test/${name}.test.js`), fixtureTest(name));
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node apps/cli/src/io/run/tests.js', landingShards: 6 }));
