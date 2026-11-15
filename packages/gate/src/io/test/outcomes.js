@@ -16,6 +16,14 @@ function portable(root, file) {
   return relative(root, file).split(sep).join('/');
 }
 
+/**
+ * Why a case failed: 'assertion' when the test body's own assertion threw, otherwise 'error' (a load error, crash or
+ * any other throw). Why: a clause is bound to a change only by an assertion that fails at base, never a load error [C7].
+ */
+export function failureKind(error) {
+  return error?.cause?.code === 'ERR_ASSERTION' ? 'assertion' : 'error';
+}
+
 /** Observe the controller's actual Node events before public reporters can interpret their output. */
 export function testOutcomeCollector(root) {
   const rows = [];
@@ -32,8 +40,8 @@ export function testOutcomeCollector(root) {
       if (!file || ['cancelledByParent', 'testAborted', 'subtestsFailed'].includes(details?.error?.failureType)) {
         invalid = true; return;
       }
-      rows.push({ file: portable(root, file), name,
-        passed: event.type === 'test:pass', skipped: skip !== undefined || todo !== undefined });
+      const passed = event.type === 'test:pass', skipped = skip !== undefined || todo !== undefined;
+      rows.push({ file: portable(root, file), name, passed, skipped, ...(passed || skipped ? {} : { failure: failureKind(details?.error) }) });
       owners.push(testFile ? portable(root, resolve(root, testFile)) : null);
     },
     /**

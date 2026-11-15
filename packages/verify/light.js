@@ -1,11 +1,15 @@
 export { receiptFields, runTimingFields, sameEnvironment, testRuntimeEnvironment, testRuntimeRows } from './src/logic/proof/provenance.js';
 
-/** Normalize bounded per-test facts; malformed or duplicate identities grant no quarantine evidence. */
+/**
+ * Normalize bounded per-test facts; malformed or duplicate identities grant no quarantine evidence. A row may carry an
+ * optional `failure` of 'assertion' or 'error' (a load error or crash), so rows recorded before it existed stay valid [C7].
+ */
 export function testOutcomeFields(value) {
   if (!Array.isArray(value) || !value.length || value.length > 100000) return null;
   const keys = new Set(), rows = [];
   for (const row of value) {
-    if (!row || Object.keys(row).sort().join(',') !== 'file,name,passed,skipped'
+    if (!row || !['file,name,passed,skipped', 'failure,file,name,passed,skipped'].includes(Object.keys(row).sort().join(','))
+      || row.failure !== undefined && (!['assertion', 'error'].includes(row.failure) || row.passed || row.skipped)
       || typeof row.file !== 'string' || !row.file || row.file.length > 4096
       || row.file.startsWith('/') || /^[A-Za-z]:/u.test(row.file) || /[\\\r\n\0]/u.test(row.file)
       || row.file.split('/').some(part => !part || part === '.' || part === '..')
@@ -14,7 +18,7 @@ export function testOutcomeFields(value) {
     const key = JSON.stringify([row.file, row.name]);
     if (keys.has(key)) return null;
     keys.add(key);
-    rows.push({ file: row.file, name: row.name, passed: row.passed, skipped: row.skipped });
+    rows.push({ file: row.file, name: row.name, passed: row.passed, skipped: row.skipped, ...(row.failure === undefined ? {} : { failure: row.failure }) });
   }
   return rows;
 }
