@@ -27,7 +27,7 @@ function outcome(board, shout) {
   return undefined;
 }
 
-test('[C7] a report right after the same agent accept is refused naming the event, by text or by --item; questions, blockers and old reports are delivered', () => {
+test('clause 1: [C7] a report right after the same agent accept is refused naming the event, by text or by --item; questions, blockers and old reports are delivered', () => {
   withBoard(({ board, id, at }) => {
     const report = { from: 'web-1', to: 'coordinator', kind: 'idea', text: `Item #${id} is done` };
     assert.equal(outcome(board, report), undefined, 'a report with no recent event is delivered');
