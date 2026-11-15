@@ -102,10 +102,10 @@ function parityRecord({ dir, env, cwd, args, result }) {
  * One journey CLI call for a fixture of its own: answered in this process by default, or as a real process under
  * PULLBOARD_JOURNEY_MODE=process, and appended to PULLBOARD_PARITY_RECORD when the parity check asks for it (#8267) [C7].
  * Why: the same record shape as runIn, so files whose box is not createE2eHelpers can join the parity sample.
- * @param {{ dir: string, env: object, cwd: string, args: string[], inProcess: () => Promise<{status: number, stdout: string, stderr: string}>, real: () => {status: number, stdout: string, stderr: string} }} call The call, both ways.
+ * @param {{ dir: string, env: object, cwd: string, args: string[], inProcess: () => Promise<{status: number, stdout: string, stderr: string}>, real?: () => {status: number, stdout: string, stderr: string}, bin?: string }} call The call, both ways; `bin` (the CLI entry file) lets the kit start the real process itself, so a test file never launches one.
  * @returns {Promise<{status: number, stdout: string, stderr: string}>} The answer.
  */
-export async function journeyCall({ dir, env, cwd, args, inProcess, real }) {
+export async function journeyCall({ dir, env, cwd, args, inProcess, bin, real = () => runFixtureChild(process.execPath, [bin, ...args], { cwd, env, encoding: 'utf8' }) }) {
   const result = JOURNEY_MODE === 'process' ? real() : await inProcess();
   if (process.env.PULLBOARD_PARITY_RECORD) {
     const answer = { code: result.status, out: result.stdout, stderr: result.stderr };
