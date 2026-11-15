@@ -1,3 +1,4 @@
+import { readdirSync } from 'node:fs';
 import { boardWriteSnapshot } from './write/preparation.js';
 import { builderFamilyProblem } from '../builder/family.js';
 import { BUILDER_FAMILY_REQUIRED_ENGINE } from '../../../../state/light.js';
@@ -13,6 +14,7 @@ import { MACHINE_VERDICT_ENGINE } from '../../../../state/light.js';
 import { CLAUSE_INSPECTION_ENGINE } from '../../../../state/light.js';
 import { clauseInspectionProblem } from '../../../../state/index.js';
 import { clauseInspectionSummary } from '../../../../state/index.js';
+import { clauseReceiptNotes } from '../../../../state/index.js';
 import { gateClauseTickNotes } from '../../../../state/index.js';
 import { itemThread } from './query.js';
 import { proofReceipts } from './query.js';
@@ -259,6 +261,30 @@ function greenProofFiles(board, id, commit) {
  */
 export function clauseInspectionNotes(board, id, { gateFiles, outcomes, head, green }, append) {
   if (green) for (const text of gateClauseTickNotes(getItem(board, id), itemThread(board, id), { gateFiles, outcomes, head })) append(text);
+  // The fail-before, pass-after receipt, stored once: the gate's green head rows against the recorded runs of the base commit [C7].
+  const base = getItem(board, id).item_claim_head;
+  if (green) for (const text of clauseReceiptNotes(getItem(board, id), itemThread(board, id), { gateFiles, baseRows: recordedBaseRows(board, base), outcomes, head, baseCommit: base })) append(text);
   const summary = clauseInspectionSummary(getItem(board, id), itemThread(board, id), { gateFiles, head });
   if (summary) append(summary);
+}
+
+/**
+ * The outcome rows of every recorded main comparison of the item's base commit: the base half of a clause's
+ * fail-before receipt. Why: the gate's receipt store already holds each case's outcome and failure kind (#8049), so the
+ * judge reads what ran and nothing reruns at submit [C7].
+ *
+ * @param {object} board - The open board, whose native ports find its receipt store.
+ * @param {string | null | undefined} base - The item's base commit (claim head).
+ * @returns {{ file: string, name: string, passed: boolean, skipped: boolean, failure?: string }[]} Empty when none was recorded.
+ */
+export function recordedBaseRows(board, base) {
+  const { boardReceiptStore, readGateReceipt } = board.nativePorts?.patchProof ?? {};
+  if (!/^[a-f0-9]{40}$/u.test(base ?? '') || !boardReceiptStore) return [];
+  const store = boardReceiptStore(board);
+  let names = [];
+  try { names = store ? readdirSync(store) : []; } catch { return []; }
+  return names.filter(name => /^[a-f0-9-]{36}\.json$/u.test(name)).flatMap(name => {
+    const receipt = readGateReceipt(store, name.slice(0, -5));
+    return receipt?.kind === 'main-red' && receipt.head === base && Array.isArray(receipt.testOutcomes) ? receipt.testOutcomes : [];
+  });
 }

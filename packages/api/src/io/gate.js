@@ -41,6 +41,7 @@ import { compareFilesWithMain } from './gate/files.js';
 import { fileMainLines } from './gate/files.js';
 import { applyTestReceipt } from './test/receipt.js';
 import { caseReworkLines } from './gate/files.js';
+import { ledgerInputKeys } from './gate/files.js';
 import { companionInherits } from './gate/companion.js';
 
 /** The extension of one gate run receipt file: a receipt is named by its run id [CD2]. */
@@ -361,7 +362,7 @@ export function failingParts(receipt) {
  * @param {any} board - The open board, gitRoot set to the board host's repository.
  * @param {Record<string, any>} receipt
  * @param {string} main - The accepted main the gate job was offered against.
- * @param {((request: { root: string, db: import('node:sqlite').DatabaseSync, main: string, cases: { file: string, name: string }[] }) =>
+ * @param {((request: { root: string, db: import('node:sqlite').DatabaseSync, main: string, cases: { file: string, name: string }[], inputKeys: Record<string, string> }) =>
  *   { classes: { file: string, owner: string, own: string[], receipt: unknown, job: string | null }[] } | null) | null} lookup
  * @returns {{ cases: { phase: string, file: string, name: string, signature: string | null, onMain: boolean | null, receipt: string | null }[], jobs: string[] } | null}
  *   null when the red is not only test cases (a job error, infrastructure, a refusal, a phase with no case account),
@@ -377,7 +378,8 @@ export function compareGateWithMain(board, receipt, main, lookup) {
   const signed = (phase, index) => Array.isArray(phase.failureSignatures) && /^[0-9a-f]{64}$/u.test(phase.failureSignatures[index] ?? '') ? phase.failureSignatures[index] : null;
   const cases = red.flatMap(phase => phase.failures.map(({ file, name }, index) => ({ phase: String(phase.role), file, name, signature: signed(phase, index) })));
   let found = null;
-  try { found = lookup({ root: board.gitRoot, db: board.db, main, cases: cases.map(({ file, name }) => ({ file, name })) }); } catch (error) { if (!error?.code) throw error; }
+  // Each failed file's test input key rides along, so a receipt from another main with the same closure answers [C7,SC11].
+  try { found = lookup({ root: board.gitRoot, db: board.db, main, cases: cases.map(({ file, name }) => ({ file, name })), inputKeys: ledgerInputKeys(red) }); } catch (error) { if (!error?.code) throw error; }
   const classes = new Map((found?.classes ?? []).map(row => [row.file, row]));
   if (cases.some(row => !classes.has(row.file))) return null;
   const receiptId = value => typeof value === 'string' ? value : typeof value?.id === 'string' ? value.id : null;
@@ -633,6 +635,11 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
   else if (compared && !mainOnly) parts.push(...caseReworkLines(board, main, compared));
   const jobs = [...new Set([...(compared?.jobs ?? []), ...(atClaim?.jobs ?? []), ...(byFile?.jobs ?? [])])];
   if (jobs.length) parts.push(`main-test job ${jobs.join(', ')} queued for main's missing receipts; submit again once it records`);
+  // A red main's receipts cannot judge yet (some case or file has none, and main passes none of them) is unknown, not red:
+  // nothing shows it is the item's, and the queued main-test job settles it (settleWaitingGates) [C7].
+  const unknown = !trials.refused.length && !routed?.refused && !green && !mainOnly && !waived && !excused
+    && (compared ? compared.cases.some(row => row.onMain === null) && compared.cases.every(row => row.onMain !== false)
+      : Boolean(byFile?.files.some(row => row.result === null) && byFile.files.every(row => row.result !== 'green')));
   if (green || mainOnly || waived || excused && !trials.refused.length) {
     const files = pulledProofFiles(receipt);
     // A red only in main's own frozen-check cases is a green gate that names them main-owned, as the controller's verdict records [C7,#3534].
@@ -684,13 +691,14 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
       parts = [`submit ${error.code}: ${error.message}`];
     }
   }
-  store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} ${green || mainOnly || waived ? 'passed but not submitted' : 'red'} at ${candidate.slice(0, 12)}; failing parts:\n${parts.join('\n')}` });
+  const word = green || mainOnly || waived ? 'passed but not submitted' : unknown ? 'unknown' : 'red';
+  store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} ${word} at ${candidate.slice(0, 12)}${unknown ? ' until main\'s missing receipts record' : ''}; failing parts:\n${parts.join('\n')}` });
   // The shout only wakes the builder; the fact above is the record, so a refused shout leaves the red recorded.
   try {
     store.shout(board, { from: 'coordinator', to: submit.agentId, lanes: [], item: id,
-      text: `#${id} gate red at ${candidate.slice(0, 7)}: ${parts.find(part => !part.startsWith('also fails on main')) ?? parts[0] ?? 'see pullboard show'}`.slice(0, 280) });
+      text: `#${id} gate ${unknown ? 'unknown' : 'red'} at ${candidate.slice(0, 7)}: ${parts.find(part => !part.startsWith('also fails on main')) ?? parts[0] ?? 'see pullboard show'}`.slice(0, 280) });
   } catch (error) { if (error?.code === undefined) throw error; }
-  return { applied: true, outcome: 'red', ...recorded };
+  return { applied: true, outcome: unknown ? 'unknown' : 'red', ...recorded };
 }
 
 /** The review comparison starter this process's board API calls when a pulled gate goes green; null until a host provides one. */

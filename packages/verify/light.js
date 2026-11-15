@@ -5,7 +5,8 @@ export function testOutcomeFields(value) {
   if (!Array.isArray(value) || !value.length || value.length > 100000) return null;
   const keys = new Set(), rows = [];
   for (const row of value) {
-    if (!row || Object.keys(row).sort().join(',') !== 'file,name,passed,skipped'
+    if (!row || !/^(failure,)?file,name,passed,skipped$/u.test(Object.keys(row).sort())
+      || 'failure' in row && (!/^(assertion|error)$/u.test(row.failure) || row.passed || row.skipped)
       || typeof row.file !== 'string' || !row.file || row.file.length > 4096
       || row.file.startsWith('/') || /^[A-Za-z]:/u.test(row.file) || /[\\\r\n\0]/u.test(row.file)
       || row.file.split('/').some(part => !part || part === '.' || part === '..')
@@ -14,7 +15,7 @@ export function testOutcomeFields(value) {
     const key = JSON.stringify([row.file, row.name]);
     if (keys.has(key)) return null;
     keys.add(key);
-    rows.push({ file: row.file, name: row.name, passed: row.passed, skipped: row.skipped });
+    rows.push({ ...row });
   }
   return rows;
 }
