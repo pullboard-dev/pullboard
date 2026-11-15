@@ -39,7 +39,8 @@ function caseEnvironment(box, agent) {
     PULLBOARD_AGENT: agent, PATH: box.env.PATH, HOME: box.home });
 }
 
-describe('registered runner selection for a pinned main comparison [V4,C7]', { concurrency: true }, () => {
+/** Serial: both real-gate cases name the same runner hosts, and the gate's per-host unavailability and avoidance state is process-wide, so a concurrent case's runner failure makes the other refuse BAD_RUNNER_POOL [C7]. */
+describe('registered runner selection for a pinned main comparison [V4,C7]', { concurrency: false }, () => {
 test('main comparison selects a matching registered peer only when the preferred runner is busy [V4,C7]', { timeout: 60000 }, async t => {
   const box = fixture(t);
   const environment = executionEnvironment();

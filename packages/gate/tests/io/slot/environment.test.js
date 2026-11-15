@@ -13,7 +13,7 @@ test('withGateSlot holds its lease in the machine home named by its env and runs
   repo.put('package.json', '{}\n');
   repo.commit();
   const machine = privateFixtureFiles('pullboard-gate-env-machine-').root;
-  fixtureMachineSettings(machine, { gateSlots: 1, browserSlots: 0 });
+  fixtureMachineSettings(machine, { gateSlots: 1, browserSlots: 1 });
   const env = { ...process.env, PULLBOARD_MACHINE_HOME: machine, PULLBOARD_AGENT: 'gate-env-agent' };
   const outer = process.env.PULLBOARD_AGENT;
   const seen = await withGateSlot(repo.root, async () => ({
