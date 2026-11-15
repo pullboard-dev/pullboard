@@ -1,8 +1,13 @@
-/** Board move declarations, their registry, the claim criterion freezer, the bar-ready setting, and next's selection and the reason lines it prints, behind one front door [C7,CD60,CD64]. */
+/** Board move declarations, their registry, the claim criterion freezer, the bar-ready setting, the derived-facts rules layer, the table engine with its explain and coverage and generated-test kit, the backbone table, and next's selection and the reason lines it prints, behind one front door [C7,CD60,CD64]. */
 export * from "./src/logic/bar/ready.js";
 export * from "./src/io/registry.js";
 export * from "./src/io/freezer.js";
 export { nextOnce, nextSelection } from "./src/io/selection.js";
+export { defineRules, deriveFact } from "./src/logic/table/rules.js";
+export { runTable } from "./src/logic/table/run.js";
+export { explainTable, tableCoverage } from "./src/logic/table/explain.js";
+export { BACKBONE_RULES, BACKBONE_STATES, BACKBONE_TABLE, JOB_KINDS, servesRule } from "./src/logic/table/backbone.table.js";
+export { breakOne, seeded, tableCases } from "./src/logic/table/cases.js";
 export { answerFirstReasons, foldedReasons, heldCounted, inboxReasons, ownWaitingLines } from "./src/logic/reasons.js";
 export { default as reopen } from "./src/logic/moves/reopen.js";
 export { default as shout } from "./src/logic/moves/shout.js";

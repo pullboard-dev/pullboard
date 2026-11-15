@@ -56,6 +56,7 @@ import { Refused } from '../../../../packages/kernel/index.js';
 import { reviewerStartup } from './next/steps.js';
 import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { remoteShell } from '../../../../packages/person/index.js';
+import { declaredAgentTools } from './skills.js';
 import { installSkills } from './skills.js';
 import {
   AGENTS_END,
@@ -814,6 +815,8 @@ export function initRepo({ info, openBoardHere, register, closeBoard, model, per
     throw new Refused('NOT_MAIN', 'run init in the main checkout; worktrees join a lane instead');
   }
   const { root } = info;
+  // Read before any write: setup's own CLAUDE.md and .claude files must not count as the project's declaration.
+  const agentTools = declaredAgentTools(root);
   const worktreeMode = existsSync(join(root, CONFIG_FILE)) ? loadConfig(root).worktrees : 'inside';
   const doctrine = existsSync(join(root, CONFIG_FILE)) ? loadConfig(root).practice : doctrineFile(root);
   const gate = detectGate(root);
@@ -836,7 +839,7 @@ export function initRepo({ info, openBoardHere, register, closeBoard, model, per
       : 'new agent worktrees go beside this repository as <repo>-<lane>-N; set "worktrees": "inside" in pullboard.json to nest them under .claude/worktrees (dot-scanner tools such as eslint . should ignore that path)',
     ...writeAgentDocs(root, onWrite),
     ...installHooks(root, onWrite),
-    ...installSkills(root, onWrite),
+    ...installSkills(root, onWrite, agentTools),
     ...(agentHooks ? configureAgentHooks(root, { legacyResume: RESUME_HOOK, onWrite }) : ['skipped agent nudges (--no-hooks)']),
     ...writeMcpConfig(root, onWrite),
   ];

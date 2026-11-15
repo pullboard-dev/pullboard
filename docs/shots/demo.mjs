@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { browser, waitForDemoBoard } from './capture-browser.mjs';
 import { FIXED_TIME, isolatedEnv } from './demo-env.mjs';
 import { renderTour } from './tour-renderer.mjs';
+import { centerScroll, pagerAction } from './roadmap-steps.mjs';
 import { themeVariants } from '../img/theme.mjs';
 import { AGENT_SHELL_MARKERS } from '../../packages/kernel/index.js';
 
@@ -22,6 +23,8 @@ const OUTPUT = fileURLToPath(new URL('./', import.meta.url));
 const THEMES = ['light', 'dark'];
 const DEMO_OUTPUT = join(ROOT, 'docs', 'demo');
 const DEMO_BOARD_ID = 'demo-board';
+/** Extra open items placed in the demo release, so the capture can be proved against a board the size of a real roadmap. */
+const FILLER_ITEMS = Number(process.env.PULLBOARD_DEMO_FILLER_ITEMS || 0);
 const CHROME = [process.env.PULLBOARD_CHROME, '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'].filter(Boolean);
 
 /** Set the deterministic lifecycle clock used by the next isolated board command. */
@@ -257,7 +260,8 @@ async function buildBoard(base, env) {
   pb(app, 'inbox');
   pb(repo, 'shout', 'app-1', '#4 can continue while #3 waits for review.');
   pb(repo, 'hold', 'review', '--reason', 'Waiting for the next demo item.');
-  pb(repo, 'milestone', 'add', 'Demo release', '--items', '1,2,3,4,5', '--note', 'A demo release with reviewed, active and future work.', '--reason', 'The demo release groups the demo items.');
+  const fillerIds = await addFillerItems(repo, env);
+  pb(repo, 'milestone', 'add', 'Demo release', '--items', ['1', '2', '3', '4', '5', ...fillerIds].join(','), '--note', 'A demo release with reviewed, active and future work.', '--reason', 'The demo release groups the demo items.');
   if (!/1 withdrawn/.test(pb(repo, 'status'))) throw new Error('The demo board must include a withdrawn item.');
   const item = JSON.parse(pb(repo, 'show', '1', '--json'));
   if (item.item_builder_family !== 'codex' || item.verdicts.at(-1)?.verdict_verifier_family !== 'claude') {
@@ -268,6 +272,33 @@ async function buildBoard(base, env) {
   // Item 3's gate has run beside the commands above; the board is final once it reads submitted.
   await settleSubmitted(pb, folder, '3');
   return repo;
+}
+
+/**
+ * File the open filler items of a large demo release, twenty at a time.
+ * Why: one add costs about a second, so 350 in a row outlast the test's budget; the adds only append rows, so parallel batches are safe.
+ * The withdrawn item is #6, so the filler ids run on from #7 in the order filed.
+ *
+ * @param {string} repo the demo board's repo
+ * @param {NodeJS.ProcessEnv} env the demo environment
+ * @returns {Promise<string[]>} the filler item ids
+ */
+async function addFillerItems(repo, env) {
+  const ids = [];
+  for (let first = 1; first <= FILLER_ITEMS; first += 20) {
+    const batch = [];
+    for (let n = first; n < Math.min(first + 20, FILLER_ITEMS + 1); n += 1) {
+      batch.push(new Promise((resolveAdd, reject) => {
+        const child = spawn(process.execPath, [BIN, 'add', 'app', `Filler item ${n}`, '--specs', 'G2', '--criterion', `Filler criterion ${n} stays open [test].`], { cwd: repo, env, stdio: ['ignore', 'ignore', 'pipe'] });
+        let stderr = '';
+        child.stderr.on('data', (chunk) => { stderr += chunk; });
+        child.once('close', (status) => status === 0 ? resolveAdd() : reject(new Error(`filler item ${n} failed: ${stderr.trim()}`)));
+      }));
+      ids.push(String(6 + n));
+    }
+    await Promise.all(batch);
+  }
+  return ids;
 }
 
 /** Capture the tour's own terminal-paced output and encode each line with its observed delay. */
@@ -317,7 +348,15 @@ async function captureRoadmap(view, repo, observation) {
     if (head.getAttribute('aria-expanded') !== 'true') head.click();
     return true;
   })()`);
-  await view.waitFor("document.querySelector('[data-key=\"m:Demo release\"] .milestone-item[data-roadmap-key=\"i:#1\"]')", 'the demo release items');
+  // The release lists landed items one page at a time, so on a long release the accepted item may sit on a later page: step to it.
+  await view.waitFor(`(() => {
+    const ${pagerAction.name} = ${pagerAction};
+    const release = document.querySelector('[data-key="m:Demo release"]');
+    const next = release.querySelector('.roadmap-page-step:not([disabled])[data-page]:last-of-type');
+    const action = ${pagerAction.name}({ keys: [...release.querySelectorAll('.milestone-item')].map(node => node.dataset.roadmapKey), target: 'i:#1', nextEnabled: !!next });
+    if (action === 'step') next.click();
+    return action === 'found';
+  })()`, 'the demo release items');
   await view.evaluate(`(() => {
     const release = document.querySelector('[data-key="m:Demo release"]');
     for (const row of release.querySelectorAll('.milestone-item[aria-expanded="true"]')) row.click();
@@ -338,6 +377,10 @@ async function captureRoadmap(view, repo, observation) {
     const reading = JSON.parse(await view.evaluate(`JSON.stringify((() => {
       const release = document.querySelector('[data-key="m:Demo release"]');
       const row = release.querySelector('.milestone-item[data-roadmap-key="i:#1"]');
+      // On a long release the item sits far down the page; bring it into the picture before measuring and shooting.
+      const ${centerScroll.name} = ${centerScroll};
+      const before = row.parentElement.getBoundingClientRect();
+      scrollTo(0, ${centerScroll.name}({ top: before.top, height: before.height, viewport: innerHeight, scrollY }));
       const rect = row.parentElement.getBoundingClientRect();
       return { theme: document.documentElement.dataset.theme, width: innerWidth, height: innerHeight,
         count: release.querySelector('.roadmap-left')?.textContent, legend: release.querySelectorAll('[data-summary-state]').length,
@@ -346,7 +389,7 @@ async function captureRoadmap(view, repo, observation) {
         history: row.parentElement.querySelector('.roadmap-history')?.textContent, time: release.querySelector('.roadmap-left')?.textContent,
         itemTop: rect.top, itemBottom: rect.bottom, pageWidth: document.documentElement.scrollWidth };
     })())`));
-    if (reading.theme !== theme || !/4 to go.*1 of 5 landed/u.test(reading.count) || ![6, 7].includes(reading.legend) || reading.rows !== 5 || reading.expanded !== 1
+    if (reading.theme !== theme || !new RegExp(`${4 + FILLER_ITEMS} to go.*1 of ${5 + FILLER_ITEMS} landed`, 'u').test(reading.count) || ![6, 7].includes(reading.legend) || reading.rows !== 5 + FILLER_ITEMS || reading.expanded !== 1
       || !reading.history?.includes('sent back') || !reading.history?.includes('accepted') || !reading.time
       || reading.itemTop < 0 || reading.itemBottom > reading.height || reading.pageWidth > reading.width) {
       throw new Error('The demo Roadmap capture is incomplete: ' + JSON.stringify(reading));
