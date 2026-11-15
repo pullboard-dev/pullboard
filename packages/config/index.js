@@ -49,6 +49,7 @@ export {
   tableReplayEnabled,
   fencedHopEnabled,
   movesShadowEnabled,
+  registryStrictEnabled,
   movesLiveEnabled,
   gateRunnerAdmission,
   setGateRunnersOnly,
