@@ -45,7 +45,7 @@ function fixture(t) {
   git(main, 'add', '-A'); git(main, 'commit', '-qm', 'fixture main');
   git(main, 'worktree', 'add', '-qb', 'candidate', candidate);
   const run = (cwd = candidate, files = ['slow.test.js', 'later.test.js'], flags = []) => runFixtureChild(process.execPath, [runner, ...flags, ...files], {
-    cwd, env: { ...process.env, PULLBOARD_MACHINE_HOME: join(directory, 'machine') }, encoding: 'utf8', detached: true,
+    cwd, env: { ...process.env, PULLBOARD_MACHINE_HOME: join(directory, 'machine'), PULLBOARD_TEST_NO_FILE_LIMIT: '' }, encoding: 'utf8', detached: true,
   });
   return { main, candidate, git, path, run };
 }
