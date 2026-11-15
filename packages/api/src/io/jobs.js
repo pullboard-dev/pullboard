@@ -1,4 +1,4 @@
-/** The board's runner job queue, served by the board API and kept out of the runner worker's import graph: offer a job with the capabilities it needs, claim by capability, renew, release, post progress and a receipt [P7]. */
+/** The board's runner job queue, served by the board API and kept out of the runner worker's import graph: offer a job with the capabilities it needs, claim by capability, renew, release, post progress, run artifacts and a receipt [P7]. */
 import { createHash } from 'node:crypto';
 import { randomBytes } from 'node:crypto';
 import { timingSafeEqual } from 'node:crypto';
@@ -10,6 +10,8 @@ import { jobView } from '../../../jobs/index.js';
 import { readPayload } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
 import { upsertProgressStep } from '../../../jobs/index.js';
+import { upsertArtifactStep } from '../../../jobs/index.js';
+import { readArtifactSteps } from '../../../jobs/index.js';
 import { finishJob } from '../../../jobs/index.js';
 import { releaseLease } from '../../../jobs/index.js';
 import { renewLease } from '../../../jobs/index.js';
@@ -67,6 +69,10 @@ export const PUSH_ALIVE_MS = 5 * 60_000;
 const REQUEST_STEP = 'request';
 // Budget: a progress step names each file once with a state word; it stays inline, under the 64 KiB blob threshold, so the live reader parses the row itself.
 const PROGRESS_BYTES = 60 * 1024;
+// Budget: one posted artifact (a job log or report) is at most this many bytes, and an attempt keeps at most ARTIFACT_COUNT; a runner caps its output the same way.
+const ARTIFACT_BYTES = 8 * 1024 ** 2;
+const ARTIFACT_COUNT = 16;
+const ARTIFACT_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/u;
 /** A repository-relative test path: never absolute, never climbing out, never a host or checkout folder. */
 const RELATIVE_FILE = /^(?!\/)(?![A-Za-z]:)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r\\]{1,1024}$/u;
 /** The per-file states a progress step may say. */
@@ -469,7 +475,44 @@ export function postProgress(db, { job, runner, token, progress, now = Date.now(
 }
 
 /**
- * Answer one queue call as the board API carries it: `{ action: 'claim' | 'request' | 'renew' | 'release' | 'progress' | 'receipt', ... }`.
+ * Post a named run artifact (a log, a report) for the job's current claim, so the board holds it after the runner's folder
+ * is gone. Only the runner whose token the current claim returned may post, as for a receipt; posting a name again
+ * replaces it, and the job's own step is left as it is [P7].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{ job: string, runner: string, token: string, artifact: { name: string, body: string, encoding?: 'utf8'|'base64' }, now?: number }} request
+ * @returns {{ job: string, attempt: number, name: string, bytes: number, recorded: boolean }}
+ */
+export function postArtifact(db, { job, runner, token, artifact, now = Date.now() }) {
+  const encoding = artifact?.encoding ?? 'utf8';
+  if (!artifact || typeof artifact !== 'object' || !ARTIFACT_NAME.test(artifact.name ?? '') || typeof artifact.body !== 'string' || !['utf8', 'base64'].includes(encoding)) {
+    throw new Refused('JOB_ARTIFACT', 'an artifact is { name: "<file name>", body: "<text>", encoding?: "utf8"|"base64" }; name it by a plain file name, never a path');
+  }
+  const bytes = Buffer.from(artifact.body, encoding === 'base64' ? 'base64' : 'utf8').length;
+  if (bytes > ARTIFACT_BYTES) throw new Refused('JOB_ARTIFACT', `an artifact is at most ${ARTIFACT_BYTES} bytes; post the head and tail of a larger log`);
+  return atomically(db, () => {
+    const { attempt } = heldBy(db, job, runner, token);
+    const stepName = `artifact:${artifact.name}`;
+    const have = db.prepare("SELECT job_step_name AS name FROM job_step WHERE job_step_job = ? AND job_step_seq = ? AND job_step_name LIKE 'artifact:%'").all(job, attempt);
+    if (have.length >= ARTIFACT_COUNT && !have.some(row => row.name === stepName)) throw new Refused('JOB_ARTIFACT', `a job keeps at most ${ARTIFACT_COUNT} artifacts per attempt; replace one by name or fold them into one report`);
+    upsertArtifactStep(db, job, attempt, artifact.name, { name: artifact.name, encoding, body: artifact.body }, now);
+    return { job, attempt, name: artifact.name, bytes, recorded: true };
+  });
+}
+
+/**
+ * The artifacts a job's runner posted, by name, read from the board alone: a runner's folder may be long deleted.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @returns {Map<string, Buffer>}
+ */
+export function jobArtifacts(db, job) {
+  return readArtifactSteps(db, String(job ?? ''));
+}
+
+/**
+ * Answer one queue call as the board API carries it: `{ action: 'claim' | 'request' | 'renew' | 'release' | 'progress' | 'artifact' | 'receipt', ... }`.
  * The queue answers only while the machine runs runner jobs by pull, so today's path never sees it. A claim also names
  * the board's trunk remote, the one place a runner fetches the candidate from, kept apart from the board host [P7].
  *
@@ -493,11 +536,12 @@ export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => n
   if (action === 'renew') return renewJob(db, { job, runner, token, now });
   if (action === 'release') return releaseJob(db, { job, runner, token, reason, backoff, draining: drained().includes(runner), now });
   if (action === 'progress') return postProgress(db, { job, runner, token, progress, now });
+  if (action === 'artifact') return postArtifact(db, { job, runner, token, artifact: body.artifact, now });
   if (action === 'receipt') {
     const posted = postReceipt(db, { job, runner, token, receipt, now });
     if (!posted.recorded || !onReceipt) return posted;
     try { return { ...posted, applied: onReceipt(posted) }; }
     catch (error) { if (!error?.code) throw error; return { ...posted, applied: { applied: false, outcome: 'refused', reason: `${error.code}: ${error.message}` } }; }
   }
-  throw new Refused('JOB_ACTION', 'a job queue call names its action: claim, request, renew, release, progress or receipt');
+  throw new Refused('JOB_ACTION', 'a job queue call names its action: claim, request, renew, release, progress, artifact or receipt');
 }
