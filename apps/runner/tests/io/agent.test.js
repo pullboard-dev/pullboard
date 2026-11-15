@@ -7,6 +7,7 @@ import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { renameSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import { watch } from 'node:fs';
@@ -177,9 +178,14 @@ test('an agent records the digest of its own script, and a start with another di
   start('old-digest');
   assert.equal(agentPid(), first, 'a start with the same digest leaves the live agent alone');
   assert.ok(!existsSync(join(root, 'wanted-version')));
-  enqueue(root, 'after', { command: 'echo new-agent' });
   start('new-digest');
   await until('the live agent to be asked', root, () => existsSync(join(root, 'wanted-version')));
+  // Queue only after the old agent has run two whole ticks since the request (its beat is touched each tick): a job queued before the start was claimed at once, so the test raced the stand-in's ssh start [C7,#5590].
+  const beat = join(root, 'running', 'long', 'beat');
+  const asked = statSync(join(root, 'wanted-version')).mtimeMs;
+  const seen = new Set();
+  await until('two ticks of the old agent after the request', root, () => { try { const at = statSync(beat).mtimeMs; if (at > asked) seen.add(at); } catch { /* Between ticks. */ } return seen.size >= 2; });
+  enqueue(root, 'after', { command: 'echo new-agent' });
   assert.ok(existsSync(join(root, 'queue', 'after')), 'the leaving agent claims nothing new');
   assert.ok(existsSync(join(root, 'running', 'long')), 'the running job is not touched');
   await until('the running job to finish whole', root, () => existsSync(join(root, 'done', 'long', 'exit')));
