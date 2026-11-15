@@ -78,8 +78,9 @@ function parityRecord({ dir, env, cwd, args, result }) {
     // @pullboard-board-file journey: a read-only look at the rows the command wrote, for the parity check.
     const db = new DatabaseSync(file, { readOnly: true });
     try {
+      // api_stall records a slow machine, not a product result: the parity runs share a loaded machine, so it is left out.
       board = { items: db.prepare('SELECT item_id, item_status, item_lane FROM item ORDER BY item_id').all().map(row => ({ ...row })),
-        events: db.prepare('SELECT event_kind, count(*) AS n FROM event GROUP BY event_kind ORDER BY event_kind').all().map(row => ({ ...row })) };
+        events: db.prepare("SELECT event_kind, count(*) AS n FROM event WHERE event_kind <> 'api_stall' GROUP BY event_kind ORDER BY event_kind").all().map(row => ({ ...row })) };
     } finally { db.close(); }
   }
   return JSON.parse(parityText(JSON.stringify({ cwd, args, code: result.code, json, out: json ? null : result.out, err: result.stderr, board }), dir));
