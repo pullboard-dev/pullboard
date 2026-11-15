@@ -37,6 +37,7 @@ import { privateFixtureFiles } from '../child.js';
 import { fixtureCommittedGraph } from '../testkit.js';
 
 export const TOOLING_SNAPSHOTS = new Map();
+export const PROFILE_LOG = [];
 export const ROUND_TRIP_DEADLINES = { dispatch: 45_000, 'remote run': 30_000, 'result return': 30_000 }; // budget: a stuck runner fails by name in about a minute, far under the 660-second per-test limit; dispatch took 20 s and result return 10 s on runners at twice their cores.
 
 /** Run Git in the private source repository and preserve useful failure context. */
@@ -239,8 +240,7 @@ export async function profiledRoundTrips(t, count, { otherJobs: busy = 0 } = {})
     if (index === 0) assert.match(result.output, /EXECUTED-ROUND-TRIP/u, 'the runner really runs the test body');
     const profile = roundTripProfile(result.phases), line = roundTripLine(profile);
     t.diagnostic(line);
-    process.stderr.write(`# ${line}\n`);
-    process.stderr.write('# raw marks ' + JSON.stringify(Object.entries(result.phases).sort((a, b) => a[1] - b[1]).map(([k, v]) => `${k}+${v - result.phases.dispatch}`)) + '\n');
+    PROFILE_LOG.push('raw marks ' + JSON.stringify(Object.entries(result.phases).sort((a, b) => a[1] - b[1]).map(([k, v]) => `${k}+${v - result.phases.dispatch}`)));
     profiles.push({ ...profile, line });
   }
   return profiles;
