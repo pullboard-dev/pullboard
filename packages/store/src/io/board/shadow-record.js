@@ -103,3 +103,15 @@ export function claimDiffers({ decided, wrote }) {
   if (decided?.refused) return 'refused';
   return firstDifference((decided?.events ?? []).map(stored), wrote.map(stored), 'events');
 }
+
+/**
+ * Every table's recorded counts, keyed by table name; tables with nothing recorded are absent.
+ * Why: `pullboard moves` reports the whole board in one read, and a table added later needs no edit here.
+ */
+export function readShadows(board) {
+  const found = {};
+  for (const { meta_key: key, meta_value: value } of board.db.prepare("SELECT meta_key, meta_value FROM board_meta WHERE meta_key GLOB 'moves.shadow.*' ORDER BY meta_key").all()) {
+    try { found[key.slice('moves.shadow.'.length)] = JSON.parse(value); } catch { /* A damaged row reads as nothing recorded. */ }
+  }
+  return found;
+}
