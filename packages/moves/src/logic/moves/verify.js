@@ -15,6 +15,7 @@ import { requiredReviewFamilyEngine } from "../../../../verify/browser.js";
 import { REVIEW_HEAD_BUILDER_FAMILY_ENGINE } from "../../../../state/light.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 import { LANDED_VERDICT_ENGINE } from "../../../../state/light.js";
+import { LANDED_REJECT_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by verify, discovered without a shared registry edit [C7,V4,H16]. */
 import {
   CAUSE_ENGINE,
@@ -53,7 +54,7 @@ function minimumEngine(args, board, at) {
   const sourceAdvance = args[1]?.sourceAdvanceHead !== undefined ? SOURCE_ADVANCE_ENGINE : 1;
   const outside = args[1]?.sandbox !== undefined || board && Boolean(outsideSource(board, args[0]));
   const patches = args[1]?.companionDigest !== undefined || board && board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`item_patches:${args[0]}`);
-  return Math.max(args[1]?.landed === true ? LANDED_VERDICT_ENGINE : 1, checkClause ? REVIEW_REQUEST_ENGINE : 1, relaxed ? REVIEW_FAMILY_RELAX_ENGINE : 1, args[1]?.returnRejectedWork === true ? REJECTION_RETURN_ENGINE : 1, Object.hasOwn(args[1] ?? {}, 'quarantineProofId') ? QUARANTINE_VERDICT_ENGINE : 1, checkTimingEngine(board, args[0]), sourceAdvance, itemReviewPolicyEngine(board, args[0]), requiredReviewFamilyEngine(board, args[0]), patches ? Math.max(ITEM_PATCH_ENGINE, REVIEW_HEAD_BUILDER_FAMILY_ENGINE) : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, existingEngine(args, board, at),
+  return Math.max(args[1]?.landed === true ? (args[1]?.decision === 'REJECT' ? LANDED_REJECT_ENGINE : LANDED_VERDICT_ENGINE) : 1, checkClause ? REVIEW_REQUEST_ENGINE : 1, relaxed ? REVIEW_FAMILY_RELAX_ENGINE : 1, args[1]?.returnRejectedWork === true ? REJECTION_RETURN_ENGINE : 1, Object.hasOwn(args[1] ?? {}, 'quarantineProofId') ? QUARANTINE_VERDICT_ENGINE : 1, checkTimingEngine(board, args[0]), sourceAdvance, itemReviewPolicyEngine(board, args[0]), requiredReviewFamilyEngine(board, args[0]), patches ? Math.max(ITEM_PATCH_ENGINE, REVIEW_HEAD_BUILDER_FAMILY_ENGINE) : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, existingEngine(args, board, at),
     args[1] && Object.hasOwn(args[1], 'clause') ? REJECT_CLAUSE_ENGINE : 1);
 }
 

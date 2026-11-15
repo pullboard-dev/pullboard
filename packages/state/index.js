@@ -203,6 +203,7 @@ export { lintBar, MAX_BAR_CLAUSES } from './src/logic/bar-lint.js';
 export { requireCriterionEvidence, clauseEvidenceWarnings, guardBar } from './src/logic/evidence.js';
 export { FORCED_MERGE_ENGINE } from './src/logic/engines/forced-merge-engine.js';
 export { LANDED_VERDICT_ENGINE } from './src/logic/engines/landed-verdict-engine.js';
+export { LANDED_REJECT_ENGINE } from './src/logic/engines/landed-reject-engine.js';
 export { ASK_CLOSE_ENGINE } from './src/logic/engines/ask-close-engine.js';
 export { PULLED_RED_COUNT_ENGINE } from './src/logic/engines/pulled-red-count-engine.js';
 export { COORDINATOR_USAGE_ENGINE } from './src/logic/engines/coordinator-usage-engine.js';
