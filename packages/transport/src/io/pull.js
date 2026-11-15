@@ -18,16 +18,21 @@ const SEEN_MS = 120_000;
 const RUNNER = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/u;
 
 /**
- * The text a runner signs to register or take work: the action, its own id and the time it asked.
+ * The text a runner signs to register or take work: the action, its own id and the time it asked; a take also
+ * signs its single-use nonce, so a captured take cannot be sent again [C7].
  *
  * @param {'register' | 'take'} action
  * @param {string} runner
  * @param {number} at
+ * @param {string} [nonce]
  * @returns {string}
  */
-export function pullStatement(action, runner, at) {
-  return `PB${action.toUpperCase()} 1 ${runner} ${at}`;
+export function pullStatement(action, runner, at, nonce) {
+  return `PB${action.toUpperCase()} 1 ${runner} ${at}${nonce === undefined ? '' : ` ${nonce}`}`;
 }
+
+/** A take nonce: 16 to 64 URL-safe characters, as a runner's 16 random bytes in base64url give. */
+const NONCE = /^[A-Za-z0-9_-]{16,64}$/u;
 
 /** True when a base64url Ed25519 signature over text verifies under a base64url SPKI key. */
 function signedBy(publicKey, text, signature) {
@@ -61,6 +66,8 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
   // Runners the board has revoked, and the keys they held: neither may register or pull again.
   const revoked = new Set();
   const revokedKeys = new Set();
+  // Nonces of accepted takes, each kept until its request can no longer be fresh, so a replay inside the window finds it.
+  const spent = new Map();
   const trustedKeys = () => new Set(typeof trusted === 'function' ? trusted() : trusted);
 
   /** The registered, still trusted runner a request or token names, or a refusal saying how to get admitted. */
@@ -73,9 +80,18 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
   };
 
   /** Refuse a signed request that is stale or not signed by the key named. */
-  const checkSigned = (action, id, at, signature, publicKey) => {
+  const checkSigned = (action, id, at, signature, publicKey, nonce) => {
     if (!Number.isFinite(at) || Math.abs(now() - at) > skewMs) throw new Refused('PULL_REQUEST_STALE', `the ${action} request is not within ${skewMs} ms of the board clock; sign it again with the current time`);
-    if (!signedBy(publicKey, pullStatement(action, id, at), signature)) throw new Refused('PULL_SIGNATURE', `the ${action} request is not signed by runner ${id}'s key; sign it with the key you registered`);
+    if (!signedBy(publicKey, pullStatement(action, id, at, nonce), signature)) throw new Refused('PULL_SIGNATURE', `the ${action} request is not signed by runner ${id}'s key; sign it with the key you registered`);
+  };
+
+  /** Refuse a take whose nonce is malformed or already used, then remember it; run after the signature verified. */
+  const spendNonce = (id, nonce) => {
+    const at = now();
+    for (const [key, expires] of spent) if (expires <= at) spent.delete(key);
+    const key = `${id} ${nonce}`;
+    if (spent.has(key)) throw new Refused('PULL_REPLAY', `runner ${id}'s take with this nonce was already accepted; sign a new take with a fresh nonce`);
+    spent.set(key, at + 2 * skewMs);
   };
 
   /** The job a token names, its runner admitted and the job still offered. */
@@ -175,12 +191,14 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
 
     /**
      * Take the first offered job with shards still owed, by lease, and hand back a token scoped to it alone.
-     * @param {{ runner: string, at: number, signature: string }} request
+     * @param {{ runner: string, at: number, nonce: string, signature: string }} request
      * @returns {{ job: string, tree: string, shards: { shard: string, command: string }[], token: string } | null}
      */
-    take({ runner, at, signature }) {
+    take({ runner, at, nonce, signature }) {
       const holder = admitted(runner);
-      checkSigned('take', runner, at, signature, holder.publicKey);
+      if (!NONCE.test(String(nonce ?? ''))) throw new Refused('PULL_NONCE', `a take carries a single-use nonce of 16 to 64 letters, digits, dash or underscore; sign a new take with a fresh one`);
+      checkSigned('take', runner, at, signature, holder.publicKey, nonce);
+      spendNonce(runner, nonce);
       holder.seen = now();
       for (const offer of offers.values()) {
         const owed = [...offer.shards.values()].filter(shard => !shard.result);
