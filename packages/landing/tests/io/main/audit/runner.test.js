@@ -8,6 +8,8 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after } from 'node:test';
+import { describe } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { compareMainFailures } from '../../../../index.js';
 import { comparisonExecutor } from '../../../../index.js';
@@ -18,6 +20,7 @@ import { recordReceipt } from '../../../../../gate/index.js';
 import { failureSignatures } from '../../../../index.js';
 import { matchingMainFailures } from '../../../../index.js';
 import { takeResource } from '../../../../../resources/index.js';
+import { runFixtureChildAsync } from '../../../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
 import { executionServices } from '../../../../../../apps/cli/tests/fixtures/gate/execution.js';
 import { HOST } from '../../../../../../apps/cli/tests/fixtures/runner/ssh.js';
@@ -27,8 +30,31 @@ const A = HOST;
 const B = `${HOST}-drop`;
 const C = `${HOST}-setup`;
 const roots = [];
+const ISOLATED = 'PULLBOARD_AUDIT_ISOLATED_CASE';
+const CHILD = Boolean(process.env[ISOLATED]);
 
-test('main comparison selects a matching registered peer only when the preferred runner is busy [V4,C7]', { timeout: 60000 }, async t => {
+/**
+ * Register a case that sets process.env for real runner round trips, so it runs in its own node process.
+ * Why: the cases share one process.env and could not overlap; in its own process each keeps an env of its own and the
+ * two slow cases run side by side. In the child only the named case is registered.
+ */
+function isolated(name, options, body) {
+  if (CHILD) { if (process.env[ISOLATED] === name) test(name, options, body); return; }
+  test(name, options, async () => {
+    const env = { ...process.env, [ISOLATED]: name };
+    delete env.NODE_TEST_CONTEXT;
+    const run = await runFixtureChildAsync(process.execPath, ['--test', '--test-reporter=tap', fileURLToPath(import.meta.url)],
+      { env, signal: AbortSignal.timeout(options.timeout) });
+    assert.equal(run.status, 0, run.stdout.slice(-4000) + run.stderr.slice(-2000));
+    assert.match(run.stdout, /^# pass 1$/mu, 'the isolated case ran and passed');
+  });
+}
+
+/** A case that only reads the file's own fixtures runs in the parent process, never again in a child. */
+function direct(name, body) { if (!CHILD) test(name, body); }
+
+describe('registered runner selection for a pinned main comparison [V4,C7]', { concurrency: true }, () => {
+isolated('main comparison selects a matching registered peer only when the preferred runner is busy [V4,C7]', { timeout: 60000 }, async t => {
   const box = fixture(t);
   const environment = executionEnvironment();
   const prior = { home: process.env.PULLBOARD_HOME, machine: process.env.PULLBOARD_MACHINE_HOME,
@@ -134,7 +160,7 @@ function selectWith(t, record) {
   }
 }
 
-test('clause 1: the real compare-main path runs main on the red host when no receipt matches, never BAD_RUNNER_POOL [C7]', { timeout: 60000 }, async t => {
+isolated('clause 1: the real compare-main path runs main on the red host when no receipt matches, never BAD_RUNNER_POOL [C7]', { timeout: 60000 }, async t => {
   const box = fixture(t);
   const environment = executionEnvironment();
   const prior = { home: process.env.PULLBOARD_HOME, machine: process.env.PULLBOARD_MACHINE_HOME,
@@ -161,7 +187,7 @@ test('clause 1: the real compare-main path runs main on the red host when no rec
   }
 });
 
-test('clause 1: registered runners with no matching receipts select the red host, never BAD_RUNNER_POOL [C7]', t => {
+direct('clause 1: registered runners with no matching receipts select the red host, never BAD_RUNNER_POOL [C7]', t => {
   const none = selectWith(t, () => {});
   assert.deepEqual(none, { requiredExecutor: { kind: 'ssh', host: A, hosts: [A] }, browser: null },
     'no receipts at all selects the red run host');
@@ -173,7 +199,7 @@ test('clause 1: registered runners with no matching receipts select the red host
     'receipts that do not match the red environment still select the red run host');
 });
 
-test('clause 2: a peer whose recorded environment differs from the red run is never chosen [C7]', t => {
+direct('clause 2: a peer whose recorded environment differs from the red run is never chosen [C7]', t => {
   const picked = selectWith(t, (root, environment) => {
     recordReceipt(root, receipt(root, A, environment));
     recordReceipt(root, receipt(root, B, environment));
@@ -182,9 +208,10 @@ test('clause 2: a peer whose recorded environment differs from the red run is ne
   assert.deepEqual(picked.requiredExecutor.hosts, [A, B], 'only the matching peer joins the red host');
   assert.ok(!picked.requiredExecutor.hosts.includes(C), 'the wrong-Node peer C is excluded');
 });
+});
 
 after(() => {
-  for (const root of roots) rmSync(root, { recursive: true, force: true });
+  for (const root of roots) rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
 });
 
 /** Build one recent structured receipt; null models a newer incomplete observation. */
@@ -204,7 +231,7 @@ function receipt(root, host, environment) {
 function fixture(t) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-compare-any-runner-'));
   roots.push(directory);
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  t.after(() => rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }));
   const paths = Object.fromEntries(['repo', 'bin', 'home', 'machine', 'worker', 'remote-home'].map(name => [name, join(directory, name)]));
   const remoteMachine = join(paths['remote-home'], '.pullboard');
   const remoteRoot = join(paths['remote-home'], '.pullboard-runner');
