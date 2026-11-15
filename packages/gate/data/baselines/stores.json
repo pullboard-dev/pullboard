@@ -599,6 +599,10 @@
       "kind": "json",
       "owner": "apps/runner/src/io/worker/cleanup.js"
     },
+    "cli-child-importers.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/test/child-fixture.js"
+    },
     "cli-launches.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/static/registry.js"
@@ -791,6 +795,10 @@
     "no-runtime-assumptions.json": {
       "kind": "json",
       "owner": "packages/codemap/src/io/no-runtime-assumptions.js"
+    },
+    "golden.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/test/manifest.js"
     },
     "push-only.json": {
       "kind": "repo-data",
@@ -1163,6 +1171,10 @@
     "table:fingerprint": {
       "kind": "table",
       "owner": "packages/pages/src/io/relay/cache.js"
+    },
+    "table:gate_hop": {
+      "kind": "table",
+      "owner": "packages/store/src/io/board/hop.js"
     },
     "table:heartbeat": {
       "kind": "table",

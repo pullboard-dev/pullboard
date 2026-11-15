@@ -12,8 +12,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../gate/tests/fixtures/child.js';
 
 /** The script run inside the copied tooling: four commits packed for a cold runner, the shim logging each scan's size. */
 const SCRIPT = `

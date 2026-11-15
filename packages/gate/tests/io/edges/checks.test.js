@@ -18,7 +18,7 @@ import {
   privateFixtureFiles,
   runFixtureChild,
   runFixtureGit,
-} from '../../../../../apps/cli/tests/fixtures/child.js';
+} from '../../fixtures/child.js';
 import {
   cellsEdgeProblems,
   cellsEdgeReport,

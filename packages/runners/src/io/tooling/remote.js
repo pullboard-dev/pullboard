@@ -1,6 +1,6 @@
 import { archivedToolingSource } from './committed.js';
 import { committedRunnerController } from './committed.js';
-import { committedToolingId } from './committed.js';
+import { committedToolingKey } from './committed.js';
 import { runnerPackage } from '../package.js';
 /** Pin, scan and install the trusted runner tooling bytes a remote worker runs [C7]. */
 import { runnerSource } from '../../../../gate/light.js';
@@ -12,6 +12,8 @@ import { REUSE_CAPSULE } from '../runtime.js';
 import { MAX_BLOB_BYTES } from '../source/scan.js';
 import { sourceGit } from '../source/scan.js';
 import { captureRunnerTooling } from './snapshot.js';
+import { loadTrustedCapture } from './saved.js';
+import { saveTrustedCapture } from './saved.js';
 import { currentRunnerTooling } from './snapshot.js';
 import { claimRunnerLaunch } from '../transport.js';
 import { recoveryIdentity } from '../../../../resources/index.js';
@@ -125,11 +127,17 @@ const CAPTURED = new Map();
  * export (an installed package, or a generation pin) is captured every time, as it can change under the process.
  */
 export function trustedTooling() {
-  const id = committedToolingId(TOOL_ROOT);
+  const id = committedToolingKey(TOOL_ROOT);
   const held = id && CAPTURED.get(TOOL_ROOT);
   if (held && held.commit === id.commit && held.tree === id.tree) return held.captured;
-  const { captured, installation } = captureTrustedTooling();
-  if (installation) CAPTURED.set(TOOL_ROOT, { commit: installation.commit, tree: installation.tree, captured });
+  const saved = id && loadTrustedCapture(TOOL_ROOT, id);
+  if (saved) { CAPTURED.set(TOOL_ROOT, { commit: id.commit, tree: id.tree, captured: saved }); return saved; }
+  const { captured, installation, order } = captureTrustedTooling();
+  const key = installation ?? (captured.tooling.commit && { commit: captured.tooling.commit, tree: captured.tooling.tree });
+  if (key) {
+    CAPTURED.set(TOOL_ROOT, { commit: key.commit, tree: key.tree, captured });
+    saveTrustedCapture(TOOL_ROOT, key, captured, order);
+  }
   return captured;
 }
 
@@ -160,7 +168,7 @@ function captureTrustedTooling() {
   }
   const tooling = { ...provenance, sha256: createHash('sha256').update(JSON.stringify(files)).digest('hex') };
   const runtimeFiles = Object.fromEntries(Object.entries(files).filter(([name]) => name !== entry));
-  return { installation: installation && { commit: installation.commit, tree: installation.tree }, captured: { worker: files[entry], tooling,
+  return { order: Object.keys(files), installation: installation && { commit: installation.commit, tree: installation.tree }, captured: { worker: files[entry], tooling,
     runtime: { entry, files: runtimeFiles, sha256: createHash('sha256').update(JSON.stringify(runtimeFiles)).digest('hex') } } };
   } finally { installation?.cleanup(); }
 }

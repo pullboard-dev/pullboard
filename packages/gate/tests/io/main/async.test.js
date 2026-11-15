@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { runProfiledShellAsync } from '../../../index.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../fixtures/child.js';
 
 test('the asynchronous gate backend runs its child and writes a terminal profile [C7]', async t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-async-backend-'));

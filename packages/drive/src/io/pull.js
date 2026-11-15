@@ -65,6 +65,8 @@ const RUNNER_TOOLS = fileURLToPath(new URL('../../../../', import.meta.url));
 /** The release tags every store refresh fetches, which proofs that unpack an old release read. */
 const RELEASE_TAGS = '+refs/tags/v*:refs/tags/v*';
 const SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+// The ref a land job pins its merged commit under on the trunk remote (packages/landing's landingRef).
+const LANDING_REF = /^refs\/pullboard\/landing\/[\w.-]{1,200}$/u;
 /** The line a gate job prints its receipt on; apps/cli's submit writes the same prefix into the job it offers. */
 export const GATE_RECEIPT = 'PULLBOARD_GATE_RECEIPT ';
 // Budget: a gate receipt line stays under the board's 64 KiB receipt limit; a longer line is output, not a receipt.
@@ -157,10 +159,19 @@ async function objectStore(git, cache) {
  *
  * @returns {Promise<string | null>} null once the commit is present, else why it is not.
  */
-async function fetchCommit(git, store, trunk, commit, pack = null) {
+async function fetchCommit(git, store, trunk, commit, pack = null, ref = null) {
   if (!SHA.test(String(commit ?? ''))) return `the job names no commit (${commit})`;
   if ((await git.run(store, ['cat-file', '-e', `${commit}^{commit}`])).status === 0) return null;
   if (typeof trunk !== 'string' || !trunk) return 'the board named no trunk remote';
+  // A land shard's merged commit is on no branch, only under its landing ref: take that ref, and the commit with it [C7,#7818].
+  if (typeof ref === 'string' && LANDING_REF.test(ref)) {
+    const viaRef = await git.fetchTrunk(store, trunk, [`+${ref}:refs/pullboard/fetched-ref`, RELEASE_TAGS]);
+    if (viaRef.status === 0 && (await git.run(store, ['cat-file', '-e', `${commit}^{commit}`])).status === 0) {
+      await git.run(store, ['update-ref', `refs/pullboard/fetched/${commit}`, commit]);
+      await pruneFetched(git, store);
+      return null;
+    }
+  }
   // A cold store takes the trunk's shared cached pack first, so N runners on one commit cost one pack-objects (#5932);
   // the fetch below then has the commit as a have and only adds release tags.
   if (pack && (await git.run(store, ['for-each-ref', '--count=1', 'refs/pullboard/fetched/', 'refs/remotes/trunk/'])).stdout === '') await fromPack(git, store, commit, pack);
@@ -252,12 +263,12 @@ async function pruneFetched(git, store, keep = FETCHED_REFS) {
  * @param {string} commit
  * @param {string} name
  * @param {string[]} [also]
- * @param {{ main?: string | null, pack?: ((commit: string) => Promise<{ file: string } | null>) | null, git?: PullGit | null }} [options] - main: the
+ * @param {{ ref?: string | null, main?: string | null, pack?: ((commit: string) => Promise<{ file: string } | null>) | null, git?: PullGit | null }} [options] - main: the
  *   commit the primary's main branch names; default none. pack: a shared trunk pack a cold store takes before fetching.
- *   git: the Git launches the caller hands in, since drive launches no git of its own [C7].
+ *   git: the Git launches the caller hands in, since drive launches no git of its own [C7]; ref: the landing ref a land shard's candidate sits under, fetched by name when the commit is absent [#7818].
  * @returns {Promise<{ ok: true, folder: string, primary: string, reused: boolean } | { ok: false, reason: string }>}
  */
-export async function checkoutCandidate(cache, trunk, commit, name, also = [], { main = null, pack = null, exclusive = work => work(), git = null } = {}) {
+export async function checkoutCandidate(cache, trunk, commit, name, also = [], { main = null, pack = null, exclusive = work => work(), git = null, ref = null } = {}) {
   if (!git) return { ok: false, reason: 'this runner was given no git launcher; pass serveRunner its git option' };
   if (!SHA.test(String(commit ?? ''))) return { ok: false, reason: `the job names no commit (${commit})` };
   if (typeof trunk !== 'string' || !trunk) return { ok: false, reason: 'the board named no trunk remote' };
@@ -278,7 +289,7 @@ export async function checkoutCandidate(cache, trunk, commit, name, also = [], {
   const absent = wanted.filter((_, index) => !present[index]);
   if (absent.length) {
     const missing = await exclusive(async () => {
-      for (const one of absent) { const reason = await fetchCommit(git, store, trunk, one, pack); if (reason) return reason; }
+      for (const one of absent) { const reason = await fetchCommit(git, store, trunk, one, pack, one === commit ? ref : null); if (reason) return reason; }
       return null;
     });
     if (missing) return { ok: false, reason: missing };
@@ -359,8 +370,9 @@ const PASSED_ENV = /^(?:PULLBOARD_TEST_PROGRESS|PULLBOARD_CHROME|(?:PULLBOARD_)?
 
 /**
  * A pulled job's own environment and the folders it lives in: a per-job HOME and temp folder beside the checkout, and
- * PULLBOARD_RUNNER_JOB, as a pushed runner builds it. Why: a job that inherited the runner service's environment ran
- * with the host's real HOME, ~/.pullboard and shared temp folder, and its proof failed where the controller's passed.
+ * PULLBOARD_RUNNER_JOB, as a pushed runner builds it, plus the runner's shared cache folder and a machine home inside the job's HOME.
+ * Why: a job that inherited the runner service's environment ran with the host's real HOME, ~/.pullboard and shared temp
+ * folder, and its proof failed where the controller's passed; one with no machine home read the account's real runner pools.
  *
  * @param {string} cache
  * @param {string} name - The job's checkout name.
@@ -371,10 +383,15 @@ const PASSED_ENV = /^(?:PULLBOARD_TEST_PROGRESS|PULLBOARD_CHROME|(?:PULLBOARD_)?
 export function jobEnvironment(cache, name, job, host = process.env) {
   const folder = join(cache, 'env', name), home = join(folder, 'home'), temporary = join(folder, 'tmp');
   try { rmSync(folder, { recursive: true, force: true, maxRetries: 3 }); } catch { /* a stale folder a writer still fills is the prune's; its home and tmp are made below */ }
-  for (const path of [home, temporary]) mkdirSync(path, { recursive: true, mode: 0o700 });
+  // One cache per runner that every job's keyed caches outlive the job in; a job's own HOME and TMPDIR start empty (#8233).
+  const shared = join(cache, 'shared-cache');
+  for (const path of [home, temporary, shared]) mkdirSync(path, { recursive: true, mode: 0o700 });
   const safePath = [dirname(process.execPath), host.PATH || '/usr/local/bin:/usr/bin:/bin'].join(delimiter);
   const passed = Object.fromEntries(Object.entries(host).filter(([key, value]) => PASSED_ENV.test(key) && typeof value === 'string'));
-  return { env: { ...passed, ...childEnvironment({ safePath, workerId: job }, home, temporary) }, folder };
+  // The job's own machine pool: without it the job's run read the OS account's ~/.pullboard, and on the board host a
+  // pulled gate shard saw the real runners there and fanned out onto them, holding their pools for 37 min (#8361).
+  const machine = join(home, '.pullboard');
+  return { env: { ...passed, ...childEnvironment({ safePath, workerId: job }, home, temporary, machine), PULLBOARD_RUNNER_SHARED_CACHE: shared }, folder };
 }
 
 /**
@@ -578,7 +595,7 @@ export function localLoadAdmits({ load, cores, share, running = 1 }) {
  * @param {AbortSignal} [options.signal]
  * @param {(state: { running: number }) => boolean} [options.admit] - Asked before each claim, with the jobs it holds now; false leaves the queue untouched and tries again after the idle wait.
  * @param {typeof fetch} [options.fetchImpl]
- * @param {(ms: number) => Promise<void>} [options.sleep]
+ * @param {(ms: number) => Promise<void>} [options.sleep] - Waits for idle and backoff; the default also ends when the signal aborts.
  * @param {(line: string) => void} [options.say]
  * @param {string} [options.unreachableHint] - Logged once a streak of network failures reaches HINT_AFTER: the likely
  *   cause on this host and its fix, so an installed service never retries silently.
@@ -594,12 +611,21 @@ export function localLoadAdmits({ load, cores, share, running = 1 }) {
  * @returns {Promise<{ jobs: Array<{ job: string, outcome: 'posted' | 'released' | 'lost', receipt?: object }>, waits: number[], slots: number }>}
  */
 export async function serveRunner({ board, key, runner, capabilities = hostCapabilities(), cache = join(homedir(), '.pullboard-runner', 'pull'),
-  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
+  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = null, say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
   const endpoint = boardEndpoint(board, key);
   const pack = trunkPack ?? boardTrunkPack(endpoint, fetchImpl, join(cache, 'packs'));
   const id = runner ?? `${hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner'}-${randomBytes(3).toString('hex')}`;
   const { renewMs = RENEW_MS, renewRetryMs = RENEW_RETRY_MS, leaseMs = LEASE_MS, idleMs = IDLE_MS, firstMs = BACKOFF.firstMs, maxMs = BACKOFF.maxMs, ceilingMs = CEILING_MS, reapMs = REAP_MS } = timing;
   const slots = once ? 1 : serveSlots(jobsSetting, cores);
+  // Every wait ends the moment the signal aborts, so an idle runner stops at once and its timer leaves nothing alive [C7,#8250].
+  const stopped = signal ? new Promise(resolve => { if (signal.aborted) resolve(); else signal.addEventListener('abort', resolve, { once: true }); }) : null;
+  const nap = ms => {
+    // An injected sleep is the caller's clock; the default one clears its own timer when the signal aborts first.
+    if (sleep) return stopped ? Promise.race([sleep(ms), stopped]) : sleep(ms);
+    let timer;
+    const own = new Promise(resolve => { timer = setTimeout(resolve, ms); });
+    return (stopped ? Promise.race([own, stopped]) : own).finally(() => clearTimeout(timer));
+  };
   // One checkout folder per slot, reset for each job it runs, since a fresh one cost 14 s per job (#5812) [P7].
   const jobs = [], waits = [], folders = `runner-${id.replace(/[^A-Za-z0-9._-]/gu, '-')}`;
   let delay = firstMs;
@@ -623,7 +649,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     // A board no request reaches, again and again, is likely blocked on this host: say once per streak what to fix.
     failures = error.network ? failures + 1 : 0;
     if (unreachableHint && failures === HINT_AFTER) say(`board still unreachable after ${failures} tries; likely cause: ${unreachableHint}`);
-    waits.push(delay); await sleep(delay); delay = Math.min(delay * 2, maxMs);
+    waits.push(delay); await nap(delay); delay = Math.min(delay * 2, maxMs);
   };
   /** Call the board until it answers; only the board's own refusal ends the call. */
   const reliably = async body => {
@@ -730,7 +756,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   /** Fetch, run and report one claimed argv job while runClaim renews its lease; isLost reads whether the lease moved. */
   const runHeld = async (claim, trunk, slot, held, isLost, whenLost, claimedAt = Date.now(), self = () => null, known = () => {}) => {
     // A job offered with no run carries its argv and stdin in its request, which only the claim's holder reads [P7].
-    let run = claim.run ?? [], input = null, also = claim.base ? [claim.base] : [], named = null, timed = false;
+    let run = claim.run ?? [], input = null, also = claim.base ? [claim.base] : [], named = null, timed = false, ref = null;
     const requestStart = Date.now();
     if (!run.length) {
       let asked;
@@ -742,6 +768,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
         input = JSON.stringify(request.input ?? null);
         named = Array.isArray(request.input?.data?.files) ? request.input.data.files.length : null;
         also = [...new Set([...also, ...(Array.isArray(request.commits) ? request.commits : [])])];
+        ref = typeof request.ref === 'string' ? request.ref : null;
         // A gate frozen with exclusive check timing holds the runner: nothing else is claimed from here until it ends [C7,#8187].
         timed = request.input?.data?.checkTiming === true;
         if (timed) exclusive = claim.job;
@@ -753,7 +780,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const gate = input !== null;
     const name = `${claim.job.replace(/[^A-Za-z0-9._-]/gu, '-')}-${claim.attempt}`;
     // Each slot reuses its own folder: concurrent jobs never share one, and only the shared object store's writes take turns.
-    const checkout = await checkoutCandidate(cache, trunk, claim.candidate, `${folders}-${slot}`, also, { main: claim.base ?? null, pack, exclusive: serially, git });
+    const checkout = await checkoutCandidate(cache, trunk, claim.candidate, `${folders}-${slot}`, also, { main: claim.base ?? null, pack, exclusive: serially, git, ref });
     if (!checkout.ok || !run.length) {
       // A candidate this runner cannot fetch is an infrastructure wait: hand the job back, never a red receipt.
       const reason = checkout.ok ? 'the job names nothing to run' : checkout.reason; say(`releasing ${claim.job}: ${reason}`);
@@ -847,7 +874,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     if (exclusive) { await Promise.race(active); continue; }
     if (!admit({ running: active.size })) {
       if (once) { say('not claiming: the machine is over its load share'); break; }
-      await Promise.race([sleep(idleMs), ...active]); continue;
+      await Promise.race([nap(idleMs), ...active]); continue;
     }
     let answer;
     try { answer = await reliably({ action: 'claim', runner: id, capabilities, jobs: slots, cores, ram: totalmem() }); }
@@ -855,7 +882,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     if (!answer.claim) {
       // A one-job runner, such as a sandbox or an ephemeral CI container, exits on an empty queue instead of idling [P7].
       if (once) { say('nothing to claim: the queue is empty'); break; }
-      await Promise.race([sleep(idleMs), ...active]); continue;
+      await Promise.race([nap(idleMs), ...active]); continue;
     }
     const task = start(answer.claim, answer.trunk);
     if (once) { await task; break; }

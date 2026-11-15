@@ -1,4 +1,4 @@
-/** @pullboard-test-input packages/gate/index.js packages/gate/src/io/run/tests.js */
+/** @pullboard-test-input packages/gate/index.js packages/gate/src/io/run/tests.js packages/gate/tests/fixtures/runner-standin.js */
 /** The test runner names itself to the tests it starts, so a test finds its runner without parsing ps text [C7]. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -12,6 +12,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { awaitNestedRun } from '../../index.js';
+import { privateFixtureFiles } from '../fixtures/child.js';
+import { runUnderStandIn } from '../fixtures/runner-standin.js';
 
 const runner = fileURLToPath(new URL('../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 
@@ -48,4 +50,24 @@ test('outer', async () => {
   assert.equal(by('outer').runner, String(child.pid), 'a test file reads its runner pid');
   assert.equal(by('inner').runner, by('nested runner').pid, 'a nested run sees the nested runner pid, not the outer one');
   assert.notEqual(by('inner').runner, by('outer').runner);
+});
+
+test('the runner stand-in names itself to its child the way the runner does, so stable.test.js can use it [C7]', async (t) => {
+  const dir = privateFixtureFiles('pullboard-standin-pid-').root;
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const seen = join(dir, 'seen.jsonl');
+  const probe = join(dir, 'probe.mjs');
+  writeFileSync(probe, `import { appendFileSync } from 'node:fs';
+appendFileSync(${JSON.stringify(seen)}, JSON.stringify({ runner: process.env.PULLBOARD_TEST_RUNNER_PID, parent: String(process.ppid) }) + '\\n');
+process.exit(Number(process.argv[2]));
+`);
+  // An outer runner pid already in the environment stands for a nested run.
+  const run = runUnderStandIn(probe, ['3'], { ...process.env, PULLBOARD_TEST_RUNNER_PID: '1234' });
+  const standInPid = String(run.child.pid);
+  const { status: code } = await run;
+  assert.equal(code, 3, 'the stand-in passes its child exit code on');
+  const [record] = readFileSync(seen, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
+  assert.equal(record.runner, standInPid, 'a probe reads its stand-in pid, as a test file reads its runner pid');
+  assert.equal(record.parent, standInPid, 'the stand-in is the probe parent');
+  assert.notEqual(record.runner, '1234', 'a nested run sees the nested stand-in pid, not the outer one');
 });

@@ -5,6 +5,7 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { availableParallelism } from 'node:os';
 import { tryGit } from '../../../../git/index.js';
 import { permitPushOptions } from '../../../../git/index.js';
 import { RUNNER_POLICY_FILE } from '../../../../sandbox/light.js';
@@ -21,9 +22,9 @@ export const LANDING_JOB_KIND = 'land';
 const PUSH_ATTEMPTS = 5;
 /**
  * The newest land payload shape this runner's code understands (packages/api's LAND_PAYLOAD_SHAPE is what the board writes).
- * A job of a newer shape is refused, never pushed without the options this code never learned (#7791).
+ * A job of a newer shape is refused, never pushed without the options this code never learned (#7791). Shape 3: `hops`, each item's gate hop epoch, pushed through its fence ref [C7,#8437].
  */
-export const LANDING_PAYLOAD_SHAPE = 2;
+export const LANDING_PAYLOAD_SHAPE = 3;
 const TRUNK_CACHE = 'refs/pullboard/landing/trunk';
 /** The release tags a trunk fetch also takes, as a runner's gate checkout does: a proof that archives an old release (git archive v0.8.6) needs them (#7816). */
 const RELEASE_TAGS = '+refs/tags/v*:refs/tags/v*';
@@ -44,8 +45,10 @@ const DIRTY_CHECKOUT = /Working directory has (?:unstaged|staged) changes|Could 
  * limited to plain git commands) gets one plain push instead, which lands when the trunk repo sets
  * receive.denyCurrentBranch=updateInstead itself (#7952).
  */
-export function pushTrunk(root, { payload, trunk, base, remote, source = 'HEAD', options = [] }) {
-  const send = (into, extra) => tryGit(root, ['push', '--porcelain', '--quiet', ...(into ? [INTO_CHECKOUT] : []), ...extra, `--force-with-lease=${trunk}:${base}`, remote, `${source}:${trunk}`]);
+export function pushTrunk(root, { payload, trunk, base, remote, source = 'HEAD', options = [], fence = null }) {
+  // fence: the hop fence leases and refspecs (publish.js hopFencePush), so trunk and each item's fence ref move in one atomic push [C7,#8437].
+  const send = (into, extra) => tryGit(root, ['push', '--porcelain', '--quiet', ...(fence ? ['--atomic'] : []), ...(into ? [INTO_CHECKOUT] : []), ...extra,
+    ...(fence?.leases ?? []), `--force-with-lease=${trunk}:${base}`, remote, ...(fence?.refspecs ?? []), `${source}:${trunk}`]);
   const push = into => {
     const pushed = send(into, options.flatMap(option => ['-o', option]));
     return options.length && pushed.status !== 0 && NO_PUSH_OPTIONS.test(pushed.stderr) ? send(into, []) : pushed;
@@ -215,8 +218,10 @@ function landingGuards(payload, phases) {
  * the ledger proof over the proved files the merged tree holds, then the contracts, stopping at the first red. Why the file filter: a
  * culprit search merges items one at a time, and a file only a later item adds is not in that tree yet [P7].
  */
-async function landingCheck(payload, env, phases = null) {
+async function landingCheck(payload, env, phases = null, shards = null) {
   const prove = payload.proof || payload.deferred ? (await import('./proof.js')).ledgerProofCheck : null;
+  // landing.shardProof: the proof's files run as shard jobs on other runners when the offer carries the gate to run them, else on this runner [C7,#7818].
+  const sharded = payload.shardProof && shards ? (await import('./shard-proof.js')).shardedProofCheck : null;
   // One deadline for the whole check, set when it starts: every command and the proof stop their trees when it passes (#7820).
   const limit = proofLimitMs(payload, env);
   let deadlineAt = null;
@@ -228,10 +233,14 @@ async function landingCheck(payload, env, phases = null) {
     // role: which of the item's own check and the job's proof a red came from, so a paired rerun uses that command's runner.
     // The board's staticChecks guard runs on the merged tree before any test; its red returns the item that turned it red [C7,#7492].
     const staticGuard = payload.staticChecks ? (await import('./static.js')).staticGuardCheck(payload.staticChecks, argv => commandCheck(argv, { deadline })) : null;
+    const proveFiles = own => {
+      const here = prove(own, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [], deadline });
+      return sharded ? sharded(own, { ...shards, gate: payload.shardProof, deadline }, here) : here;
+    };
     const guard = staticGuard && (context => timed(phases, 'static checks', () => staticGuard(context)));
     const parts = [['check', landingGuards(payload, phases)], ...(guard ? [['check', guard]] : []), ...payload.items.filter(entry => merged.has(entry.id) && typeof payload.checks?.[entry.id] === 'string').map(entry => ['check', commandCheck(['sh', '-c', payload.checks[entry.id]], { deadline })]),
       ...(payload.check ? [['proof', commandCheck(payload.check, { deadline })]] : []),
-      ...(prove && files.length ? [['proof', prove({ ...payload.proof, files }, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [], deadline })]] : [])];
+      ...(prove && files.length ? [['proof', proveFiles({ ...payload.proof, files })]] : [])];
     // Files an item's submit deferred to this landing run on the merged tree once their item is in it; a red returns the item [C7].
     const deferred = payload.deferred && typeof payload.deferred.runner === 'string' ? payload.deferred : null;
     if (deferred && prove) for (const entry of payload.items.filter(row => merged.has(row.id))) {
@@ -332,7 +341,7 @@ function firstMerges(root, base, tip, pending) {
  *   returned: { id: number, reason: 'red' | 'conflict', detail: string }[] }>} returned: the items the board sends back to their builders, or parks
  *   under separate publish (payload.publish), as 0.9.3's landing did; a red outcome lands nothing.
  */
-export async function runLandingJob(payload, { workdir, checks = null, renew = () => true, attempts = PUSH_ATTEMPTS, pushOptions = () => [], env = process.env, diagnose = null }) {
+export async function runLandingJob(payload, { workdir, checks = null, renew = () => true, attempts = PUSH_ATTEMPTS, pushOptions = () => [], env = process.env, diagnose = null, shards = null }) {
   const { remote, trunk, expect, items } = payload;
   if (Number.isSafeInteger(payload.shape) && payload.shape > LANDING_PAYLOAD_SHAPE) {
     // A plain coded error: this cell takes no kernel import, and the runner releases the job with this message, which names the code.
@@ -340,7 +349,7 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
   }
   // A job carrying a ledger proof runs only its misses on the merged tree; the module loads only then, off the worker bundle [P7].
   const phases = [];
-  const check = checks ?? await landingCheck(payload, env, phases);
+  const check = checks ?? await landingCheck(payload, env, phases, shards && { ...shards, remote, pushOptions });
   const separate = payload.publish === 'separate';
   const root = landingCheckout(workdir);
   // phases: each timed landing phase in the order it ran (merge, static checks, cli smoke, push), as the batch landing said them [C7,B3].
@@ -407,7 +416,10 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner before the push' });
     const tip = must(root, ['rev-parse', 'HEAD']);
     const pushStart = Date.now();
-    const pushed = pushTrunk(root, { payload, trunk, base, remote, options: pushOptions() });
+    // With hops on the job (gate.fencedHop), a fence at a later epoch refuses HOP_FENCED here, before trunk is pushed [C7,#8437].
+    const fence = Array.isArray(payload.hops) && payload.hops.length ? (await import('../step/publish.js')).hopFencePush(root, remote, payload.hops) : null;
+    const pushed = pushTrunk(root, { payload, trunk, base, remote, options: pushOptions(), fence });
+    fence?.requireHeld(pushed);
     phases.push({ phase: 'push', ms: Date.now() - pushStart });
     if (pushed.status === 0) return done('landed', { trunk: tip, landed: pending.map(entry => entry.id), merges: firstMerges(root, base, tip, pending), ...publishUpstream(root, { payload, trunk, tip, options: pushOptions() }) });
     // A refused push is a moved trunk only when trunk really moved; anything else is a push failure to report.
@@ -440,7 +452,11 @@ export async function takeLandingJob({ call, runner, capabilities = [], workdir,
   };
   // What a big job moved out of its payload (a large proof) is read back from the job's request, which only its holder reads [#7766].
   const moved = Array.isArray(claim.payload?.requested) && claim.payload.requested.length ? (await call({ action: 'request', job, runner, token }))?.request?.land : null;
-  const receipt = await runLandingJob(moved ? { ...claim.payload, ...moved } : claim.payload, { workdir, checks, renew, env, diagnose, pushOptions: () => permit ? permitPushOptions(permit) : [] });
+  const landing = moved ? { ...claim.payload, ...moved } : claim.payload;
+  // landing.shardProof: the holder offers its proof's files as shard jobs and reads their receipts back, through the board API like its renewals [C7,#7818].
+  const shards = landing.shardProof ? { job, cores: availableParallelism(), offer: ({ merged, ref, plan, gate }) => call({ action: 'shards', job, runner, token, merged, ref, plan, gate }),
+    receipts: async ids => (await call({ action: 'shardReceipts', job, runner, token, shards: ids })).shards } : null;
+  const receipt = await runLandingJob(landing, { workdir, checks, renew, env, diagnose, shards, pushOptions: () => permit ? permitPushOptions(permit) : [] });
   try {
     const posted = await call({ action: 'receipt', job, runner, token, receipt });
     return { job, receipt, recorded: Boolean(posted.recorded) };

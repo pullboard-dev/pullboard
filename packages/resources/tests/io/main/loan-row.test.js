@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { listResources } from '../../../src/io/main.js';
 import { takeResource } from '../../../src/io/main.js';
 

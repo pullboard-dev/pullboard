@@ -50,6 +50,7 @@ import {
 } from '../../../kernel/index.js';
 import { captureBoardChanges } from '../../../store/index.js';
 import { undoQueued } from './relay/undo.js';
+import { shadowOutbox } from './relay/shadow.js';
 import {
   requireKnownCoordinatorHold,
   stampCoordinatorHolder,
@@ -213,7 +214,7 @@ export const ITEM_SLOTS = Object.freeze({
   queueSubmitHandoff: [[0]], relandAccepted: [[0]], startSubmitHandoff: [[0]],
   recordUsageBatch: [[0, 'items', '*', 'item'], [0, 'sharedSessions', '*', 'allocations', '*', 'item']],
   recordExitProgress: [[0, 'item']],
-  recordUsage: [[0, 'item']], recordSharedUsage: [[0, 'allocations', '*', 'item']],
+  recordCoordinatorUsage: [], recordUsage: [[0, 'item']], recordSharedUsage: [[0, 'allocations', '*', 'item']],
   requestCompanion: [[0, 'parentId']],
   fileTypedRequest: [[0, 'itemId']],
   // A rule scope names a board item, but the rule itself is the coordinator's record, not a delegated item reference.
@@ -447,6 +448,7 @@ export async function queueMove(link, { operation, args, command, move, error, a
     throw new Refused('RELAY_OUTBOX_UNBOUND', `this move names #${stray[0]}, which this machine added while the relay was down, in a field the outbox cannot follow if the relay renumbers it; run it again once the relay answers`);
   }
   // `after` is the relay sequence this machine had seen: a refusal at replay names the moves ordered since.
+  const wasQueued = outbox.moves.map(row => ({ parked: row.parked }));
   const entry = { move, refs: bindRefs(outbox, move), intent: operationIntent(operation, args), queuedAt: new Date().toISOString(),
     after: Math.max(state.sequence, outbox.baseSequence),
     ...(command ? { command, commandIntent: operationIntent('cli:' + command.cliOperation, command) } : {}) };
@@ -476,6 +478,7 @@ export async function queueMove(link, { operation, args, command, move, error, a
   }
   rememberCreatedItems(entry, result);
   await writeOutbox(where, key, state.board, outbox);
+  shadowOutbox(link, 'queue', { baseSequence: outbox.baseSequence, moves: wasQueued }, outbox, move.id);
   if (!quiet && !OUTBOX_NOTICES.has(io)) {
     OUTBOX_NOTICES.add(io);
     io.err(`pullboard: [${safePauseCode(error)}] ${error.transportFailure ? `the relay did not answer (${error.transportFailure})` : safePauseMessage(error)}; the move is saved on this machine and waits in the relay outbox (${outbox.moves.length} pending); it goes up in order when the relay answers, and pullboard status lists it`);
@@ -760,9 +763,11 @@ async function park(link, key, entry, error) {
     const outbox = await readOutbox(where, key, state.board);
     const held = outbox?.moves.find((row) => row.move.id === entry.move.id);
     if (!held) return;
+    const wasParked = { baseSequence: outbox.baseSequence, moves: outbox.moves.map(row => ({ parked: row.parked })) };
     held.parked = parked;
     await writeOutbox(where, key, state.board, outbox);
     saveOutboxSummary(link, outbox);
+    shadowOutbox(link, 'park', wasParked, outbox, entry.move.id);
   });
   entry.parked = parked;
   link.saveLink(file, state);

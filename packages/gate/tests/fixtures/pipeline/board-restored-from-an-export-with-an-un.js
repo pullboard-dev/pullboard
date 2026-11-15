@@ -20,7 +20,7 @@ import {
 } from './kit.js';
 
 const { machine, project, SPEC } = await from('apps/cli/tests/fixtures/cockpit/machine.js');
-const { fileFixtureItem } = await from('apps/cli/tests/fixtures/testkit.js');
+const { fileFixtureItem } = await from('packages/gate/tests/fixtures/testkit.js');
 
 guardProcesses();
 
