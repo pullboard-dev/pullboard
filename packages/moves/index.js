@@ -1,4 +1,4 @@
-/** Board move declarations, their registry, the claim criterion freezer, the bar-ready setting, the derived-facts rules layer, the lifecycle rules and read-only event-log replay on it, the table engine with its explain and coverage and generated-test kit, the backbone table, the fenced gate hop table, the submit tables with their history reader, the lease and job queue tables, the replay core and its read-only reader with table discovery, and next's selection and the reason lines it prints, behind one front door [C7,CD60,CD64]. */
+/** Board move declarations, their registry, the claim criterion freezer, the bar-ready setting, the derived-facts rules layer, the lifecycle rules and read-only event-log replay on it, the table engine with its explain and coverage and generated-test kit, the backbone table, the fenced gate hop table, the submit tables with their history reader, the lease and job queue tables, the withdraw and reopen tables with their history reader, the replay core and its read-only reader with table discovery, and next's selection and the reason lines it prints, behind one front door [C7,CD60,CD64]. */
 export * from "./src/logic/bar/ready.js";
 export * from "./src/io/registry.js";
 export * from "./src/io/freezer.js";
@@ -37,3 +37,7 @@ export { readLandingRecords, replayLandingMoves } from "./src/io/table/landing.j
 export { VERIFY_DEFERRED_FIELDS, VERIFY_IO_FIELDS, VERIFY_NEXT, VERIFY_WORDS, stepInMessage, verifyEngine } from "./src/logic/table/verify.table.js";
 export { boardVerifyEngine } from "./src/io/table/board-verify.js";
 export { readVerifyRecords } from "./src/io/table/verify-records.js";
+export { WITHDRAW_NEXT, withdrawEngine } from "./src/logic/table/withdraw.table.js";
+export { REOPEN_NEXT, reopenEngine } from "./src/logic/table/reopen.table.js";
+export { boardReopenEngine, boardWithdrawEngine } from "./src/io/table/board-withdraw.js";
+export { readWithdrawRecords } from "./src/io/table/withdraw-records.js";
