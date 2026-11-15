@@ -1,0 +1,102 @@
+/** @pullboard-world-pin reads the recorded verdict history fixture to replay each verdict through the store verify writer. The store verify writer agrees with the verify table on every replayed verdict [C7,#8272]. */
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { test } from 'node:test';
+import { DatabaseSync } from 'node:sqlite';
+import { boardVerifyEngine } from '../../../../moves/index.js';
+import { readVerifyRecords } from '../../../../moves/index.js';
+import { runTable } from '../../../../moves/index.js';
+import { verify } from '../../../index.js';
+import { cellBoard } from '../../fixtures/cell.js';
+
+const HISTORY = JSON.parse(readFileSync(new URL('../../../../moves/tests/fixtures/table/verify-history.json', import.meta.url), 'utf8'));
+const STAMP = '2026-01-01T00:00:00.000Z';
+
+/** The recorded events, verdicts and items on a scratch in-memory board, read the way the replay reads them. */
+function recorded() {
+  const db = new DatabaseSync(':memory:');
+  db.exec(`CREATE TABLE event (event_id INTEGER PRIMARY KEY, event_at TEXT NOT NULL, event_by TEXT NOT NULL, event_kind TEXT NOT NULL, item_id INTEGER, event_detail TEXT NOT NULL DEFAULT '{}');
+    CREATE TABLE agent (agent_id TEXT PRIMARY KEY, agent_route TEXT);
+    CREATE TABLE item (item_id INTEGER PRIMARY KEY, item_frozen TEXT, item_frozen_digest TEXT, item_lane TEXT);
+    CREATE TABLE verdict (verdict_id INTEGER PRIMARY KEY, item_id INTEGER, verdict_by TEXT, verdict_decision TEXT, verdict_reason TEXT, verdict_note TEXT, verdict_commit TEXT,
+      verdict_digest TEXT, verdict_head TEXT, verdict_verifier_family TEXT, verdict_at TEXT);
+    CREATE TABLE shout (shout_id INTEGER PRIMARY KEY, shout_to TEXT, shout_text TEXT, shout_decision INTEGER);
+    CREATE TABLE board_meta (meta_key TEXT PRIMARY KEY, meta_value TEXT)`);
+  const insert = (table, rows) => { for (const row of rows) db.prepare(`INSERT INTO ${table} VALUES (${row.map(() => '?').join(',')})`).run(...row); };
+  insert('event', HISTORY.events); insert('agent', HISTORY.agents); insert('item', HISTORY.items);
+  insert('verdict', HISTORY.verdictRows); insert('shout', HISTORY.shouts); insert('board_meta', HISTORY.meta);
+  return { db };
+}
+
+/** What the board stores for an event, without the actor's model, which the event writer stamps on every event and no move decides. */
+const stored = ({ model, ...rest }) => JSON.parse(JSON.stringify(rest));
+
+/** A real board holding exactly what the replay record says the verdict saw, on a clock at the verdict's own instant. */
+function boardFor(t, record) {
+  const at = new Date(record.event.at);
+  const board = cellBoard(t, ':memory:', { now: () => at });
+  const { item, actor, history, verdicts } = record.snapshot;
+  const sql = board.db;
+  const seat = (id, route) => sql.prepare('INSERT OR IGNORE INTO agent (agent_id, agent_lane, agent_path, agent_route, agent_created_at) VALUES (?, ?, ?, ?, ?)').run(id, 'core', `/seat/${id}`, route ?? 'strong', STAMP);
+  seat(actor.id, actor.route);
+  for (const name of [item.owner, item.builtBy]) if (name) seat(name, 'strong');
+  sql.prepare(`INSERT INTO item (item_id, item_lane, item_title, item_route, item_status, item_owner, item_built_by, item_commit, item_frozen, item_frozen_digest, item_created_by, item_created_at, item_updated_at)
+    VALUES (?, ?, 'recorded', ?, ?, ?, ?, ?, ?, ?, 'coordinator', ?, ?)`).run(item.id, item.lane ?? 'core', item.route, item.status, item.owner, item.builtBy, item.commit, item.frozen, item.frozenDigest, STAMP, STAMP);
+  const event = sql.prepare('INSERT INTO event (event_id, event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?, ?)');
+  for (const e of history) event.run(e.id, STAMP, e.by, e.kind, item.id, JSON.stringify(e.detail));
+  for (const e of record.snapshot.actorFlakeObservations) event.run(e.id, STAMP, actor.id, 'flake-observation', null, JSON.stringify(e.detail));
+  const verdict = sql.prepare(`INSERT INTO verdict (verdict_id, item_id, verdict_by, verdict_decision, verdict_reason, verdict_note, verdict_commit, verdict_digest, verdict_head, verdict_verifier_family, verdict_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  for (const v of verdicts) verdict.run(v.id, v.item, v.by, v.decision, v.reason, v.note, v.commit, v.digest, v.head, v.family, v.at);
+  if (record.snapshot.lineSettings.sharpenToPerson) sql.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run('line_setting:bar.sharpenToPerson', 'true');
+  return board;
+}
+
+/** Drive the store's verify writer with what the record's move said, and return what it wrote after the seeded history. */
+function drive(board, record) {
+  const { move } = record;
+  const before = board.db.prepare('SELECT COALESCE(MAX(event_id),0) id FROM event').get().id;
+  const { as, itemReviewPolicy, ...call } = move;
+  verify(board, move.id, { agentId: move.actor, ...call, policy: 'any', familyPolicy: 'off', prechecked: true });
+  return board.db.prepare(`SELECT e.event_kind kind, e.event_by by, e.event_detail detail, e.item_id item FROM event e WHERE e.event_id>? ORDER BY e.event_id`).all(before)
+    .map(e => ({ kind: e.kind, by: e.by, detail: JSON.parse(e.detail), item: e.item }));
+}
+
+/** Reduce what the writer logged to the table's own event shape: a shout event holds the shout's id, so its words come from the shout row. */
+function asEvents(board, written) {
+  return written.map(e => {
+    if (e.kind !== 'shout') return stored({ kind: e.kind, by: e.by, detail: e.detail });
+    const row = board.db.prepare('SELECT shout_to, shout_text FROM shout WHERE shout_id=?').get(e.detail.shout);
+    return { kind: 'shout', by: e.by, to: row.shout_to, text: row.shout_text };
+  });
+}
+const shape = (e) => (e.kind === 'shout' ? { kind: 'shout', by: e.by, to: e.detail.to, text: e.detail.text } : stored({ kind: e.kind, by: e.by, detail: e.detail }));
+
+const records = readVerifyRecords(recorded(), { since: HISTORY.since, only: HISTORY.verdicts }).verify;
+
+test('clause 1: the store verify writer agrees with the verify table on every replayed verdict [C7,#8272]', t => {
+  const { rules, table } = boardVerifyEngine();
+  assert.ok(records.length >= 10, 'the replay holds accepts and rejects');
+  const disagreements = [];
+  const via = new Set();
+  for (const record of records) {
+    const answer = runTable(table, rules, structuredClone(record.snapshot), structuredClone(record.move));
+    for (const step of answer.via) via.add(step);
+    const board = boardFor(t, record);
+    const wrote = asEvents(board, drive(board, record).filter(e => e.kind !== 'fact'));
+    const expected = answer.events.filter(e => e.kind !== 'fact').map(shape);
+    if (JSON.stringify(wrote) !== JSON.stringify(expected)) disagreements.push({ event: record.event.id, wrote, expected });
+  }
+  assert.deepEqual(disagreements, []);
+  for (const path of ['accept', 'reject', 'bar-sharpen', 'route-calibration', 'two-rejects']) assert.ok(via.has(path), `${path} replayed through the writer`);
+});
+
+test('clause 1: the writer refuses with its own code and writes nothing when the verdict is not allowed [C7,#8272]', t => {
+  const record = records.find(entry => entry.move.decision === 'ACCEPT');
+  const board = boardFor(t, record);
+  const count = () => board.db.prepare('SELECT COUNT(*) n FROM event').get().n;
+  const before = count();
+  assert.throws(() => verify(board, record.move.id, { agentId: record.snapshot.item.builtBy, ...record.move, actor: undefined, policy: 'any', familyPolicy: 'off', prechecked: true }), { code: 'SELF_VERIFY' });
+  assert.throws(() => verify(board, record.move.id, { agentId: record.move.actor, ...record.move, digest: 'moved', policy: 'any', familyPolicy: 'off', prechecked: true }), { code: 'CRITERIA_CHANGED' });
+  assert.equal(count(), before);
+});
