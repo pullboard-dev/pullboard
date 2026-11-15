@@ -1,4 +1,7 @@
 /** The tooling pin: the tree of the last landing, which workers run instead of a seat's checkout [C7]. */
+import { createHmac } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
+import { timingSafeEqual } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -25,6 +28,25 @@ function pinFile(repo) {
 }
 
 /**
+ * The secret that signs the pin file, kept beside it in the common git directory and created on first use.
+ *
+ * Why: only the landing writes the pin, so only a holder of this key can make a pin file the board will accept.
+ *
+ * @param {string} file - The pin file path.
+ * @returns {string} The key as hex.
+ */
+function pinKey(file) {
+  const keyFile = `${file}.key`;
+  if (existsSync(keyFile)) return readFileSync(keyFile, 'utf8').trim();
+  const key = randomBytes(32).toString('hex');
+  try { writeFileSync(keyFile, `${key}\n`, { mode: 0o600, flag: 'wx' }); } catch (error) { if (error.code !== 'EEXIST') throw error; }
+  return readFileSync(keyFile, 'utf8').trim();
+}
+
+/** The signature over a pin's tree and commit. */
+const pinSignature = (key, tree, commit) => createHmac('sha256', key).update(`PBPIN 1\n${tree}\n${commit}`).digest('hex');
+
+/**
  * Record the tooling pin for a landing: the tree of the landed commit.
  *
  * Why: the landing is the one moment trunk's tooling changes, so it is the one writer; the write is atomic
@@ -40,13 +62,13 @@ export function writeToolingPin(repo, commit) {
   const file = pinFile(repo);
   mkdirSync(join(file, '..'), { recursive: true });
   const partial = `${file}.${process.pid}.partial`;
-  writeFileSync(partial, `${JSON.stringify({ tree, commit: sha })}\n`);
+  writeFileSync(partial, `${JSON.stringify({ tree, commit: sha, signature: pinSignature(pinKey(file), tree, sha) })}\n`);
   renameSync(partial, file);
   return { tree, commit: sha };
 }
 
 /**
- * Read the tooling pin, or null when no landing has written one yet.
+ * Read the tooling pin, or null when no landing has written one yet; an unsigned or edited pin file is refused.
  *
  * @param {string} repo - Any checkout of the repository.
  * @returns {{ tree: string, commit: string } | null} The pin.
@@ -58,7 +80,12 @@ export function toolingPin(repo) {
   try { pin = JSON.parse(readFileSync(file, 'utf8')); }
   catch { throw new Refused('PIN_TOOLING_CORRUPT', `The tooling pin file ${file} is unreadable; delete it and the next landing rewrites it.`); }
   if (!isObjectId(pin?.tree)) throw new Refused('PIN_TOOLING_CORRUPT', `The tooling pin file ${file} holds no tree id; delete it and the next landing rewrites it.`);
-  return pin;
+  const expected = existsSync(`${file}.key`) && isObjectId(pin.commit) ? pinSignature(pinKey(file), pin.tree, pin.commit) : '';
+  const given = String(pin.signature ?? '');
+  if (!expected || given.length !== expected.length || !timingSafeEqual(Buffer.from(given), Buffer.from(expected))) {
+    throw new Refused('PIN_TOOLING_UNSIGNED', `The tooling pin file ${file} has no valid signature, so no run uses it; delete it and the next landing rewrites it signed.`);
+  }
+  return { tree: pin.tree, commit: pin.commit };
 }
 
 /**

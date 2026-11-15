@@ -479,7 +479,7 @@ async function runGate(rows, view, { gate, owner, now, stallMs = GATE_STALL_MS, 
 function decide(rows, view, { sections, failures, owner, now }) {
   const captured = stepPayload(view, 'captured');
   const collected = stepPayload(view, 'collected');
-  const receipt = receiptKey(captured.tree, captured.base ?? captured.tree);
+  const receipt = receiptKey(captured.tree, captured.base ?? captured.tree, captured.tooling ?? captured.tree);
   settle((sections ?? (collected.gate ? gateSections : shardSections))(collected), receipt, {
     record: step => rows.verdict(view.id, step, owner, now, flakeTargets(step, captured, collected, failures)),
   });

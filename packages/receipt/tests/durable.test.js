@@ -65,3 +65,12 @@ test('clause 1: [C7] review reads a receipt by key', () => {
   assert.equal(receiptByKey(new Map([[receiptKey('c2', 'b1'), other]]), receiptKey('c2', 'b1')), other);
   assert.equal(receiptByKey([receipt], receiptKey('x', 'y')), null);
 });
+
+test('clause 1: [C7] two runs with the same candidate and base but different tooling pins get different receipt keys and never reuse each other', () => {
+  assert.notEqual(receiptKey('c1', 'b1', 't1'), receiptKey('c1', 'b1', 't2'));
+  assert.equal(receiptKey('c1', 'b1'), receiptKey('c1', 'b1', 'c1'), 'unpinned tooling is the candidate own tree');
+  const pinned = { candidate: 'c1', base: 'b1', tooling: 't1', verdict: 'green' };
+  assert.equal(receiptByKey([pinned], receiptKey('c1', 'b1', 't2')), null);
+  assert.deepEqual(reusable(pinned, { candidate: 'c1', base: 'b1', tooling: 't2' }), { reuse: false, code: 'TOOLING_CHANGED' });
+  assert.deepEqual(reusable(pinned, { candidate: 'c1', base: 'b1', tooling: 't1' }), { reuse: true, code: null });
+});

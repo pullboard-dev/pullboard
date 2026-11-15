@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { statSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
@@ -155,4 +156,18 @@ test('clause 1: a sweep never breaks a queued job, it keeps named trees and the 
   assert.equal(existsSync(path), false);
   assert.equal(cacheFor(repo, tree, where).rebuilt, true, 'the queued job still gets its tree');
   assert.throws(() => cachePath(where.cacheRoot, '../x'), { code: 'PIN_TREE_INVALID' });
+});
+
+test('clause 2: [C7] an edited or unsigned tooling pin file is refused before any run uses it', () => {
+  const { repo, old, landed } = repoWithOldAndNew();
+  writeToolingPin(repo, landed);
+  const file = join(repo, '.git', 'pullboard', 'tooling-pin.json');
+  const pin = JSON.parse(readFileSync(file, 'utf8'));
+  writeFileSync(file, `${JSON.stringify({ ...pin, tree: treeOf(repo, old) })}\n`);
+  assert.throws(() => toolingPin(repo), { code: 'PIN_TOOLING_UNSIGNED' });
+  assert.throws(() => toolingFor(repo, old), { code: 'PIN_TOOLING_UNSIGNED' });
+  writeFileSync(file, `${JSON.stringify({ tree: pin.tree, commit: pin.commit })}\n`);
+  assert.throws(() => toolingPin(repo), { code: 'PIN_TOOLING_UNSIGNED' });
+  assert.deepEqual(writeToolingPin(repo, landed), { tree: pin.tree, commit: pin.commit });
+  assert.deepEqual(toolingPin(repo), { tree: pin.tree, commit: pin.commit }, 'the landing rewrites it signed');
 });
