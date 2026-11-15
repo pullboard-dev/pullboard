@@ -25,6 +25,7 @@ import { claudeLoopRules } from '../../../../packages/config/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { fixtureAddRoute } from '../../tests/fixtures/testkit.js';
 import { fixtureJoinRoute } from '../../tests/fixtures/testkit.js';
@@ -79,7 +80,9 @@ test('init adds a Claude Code session hook that runs resume, and keeps every oth
   assert.equal(settings.hooks.Stop.length, mine.hooks.Stop.length + 1, 'only the new nonblocking Stop nudge is appended');
   assert.equal(settings.hooks.SessionStart.length, 1);
   const { command } = settings.hooks.SessionStart[0].hooks[0];
-  const card = spawnSync('sh', ['-c', command], { cwd: repo, env: box.env, encoding: 'utf8' });
+  // The hook's 2 s worker budget is the product's; a loaded runner starting a fresh node for it times out, so the card runs in this process [I6].
+  assert.match(command, /exec pullboard hook SessionStart$/);
+  const card = await runCliInProcess(['hook', 'SessionStart'], { cwd: repo, env: box.env });
   assert.equal(card.status, 0, card.stderr);
   assert.match(JSON.parse(card.stdout).hookSpecificOutput.additionalContext, /^resume: coordinator/);
   const bare = spawnSync('sh', ['-c', command], { cwd: repo, env: { ...box.env, PATH: '/usr/bin:/bin' }, encoding: 'utf8' });
@@ -98,6 +101,7 @@ test('the run pack names verified items that touched the same files, so a cold a
   await addDiagnosedLight(box, 'Greet', '--route', 'mid', '--criterion', 'says Hi', '--check', 'grep -q Hi web/page.js', '--brief', LIGHT_BRIEF);
   const runner = (await box.runLocal(box.repo, 'worktree', 'web', '--route', 'light')).out.match(/^made (\S+) /)[1];
   assert.match((await box.runLocal(runner, 'run', '--agent-light', greet, '--attempts', '1')).out, /#1 is in the gate as job /);
+  await settledGateJob(box, 1); // the pulled gate records the item commit only once its receipt is applied [C7]
   const firstCommit = JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out).item_commit;
   box.git(box.web, 'merge', '-q', '--ff-only', firstCommit);
   assert.match((await box.runLocal(box.web, 'verify', '1', 'accept', '--note', 'emptied the page; the check failed')).out, /verified #1/);
