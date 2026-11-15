@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { spawnSsh } from '../../index.js';
 import { sshControlPath } from '../../index.js';
 

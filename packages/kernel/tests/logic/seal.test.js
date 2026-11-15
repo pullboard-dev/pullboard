@@ -4,7 +4,7 @@
 /** @pullboard-test-loads packages/kernel/src/logic/seal.js */
 /** Device-side sealing is the same bytes and WebCrypto code in Node and Chrome (H15, H17). */
 import assert from 'node:assert/strict';
-import { runFixtureChild as spawnSync } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild as spawnSync } from '../../../gate/tests/fixtures/child.js';
 import {
   mkdtempSync,
   readFileSync,

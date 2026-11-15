@@ -13,8 +13,8 @@ import { failureSignatures } from '../../../../index.js';
 import { matchingMainFailures } from '../../../../index.js';
 import { cachedFailureSignatures } from '../../../../index.js';
 import { MAIN_FAILURE_SIGNATURE_VERSION } from '../../../../index.js';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../../gate/tests/fixtures/child.js';
 
 /** A real committed private test generates a nested failing child with native elapsed/path/UUID/port diagnostics. */
 function realFailure(t, { assertion = 'same assertion', expected = 0, name = 'volatile native failure [V4]', leaf = 'state.json' } = {}) {

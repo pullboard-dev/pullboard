@@ -9,7 +9,7 @@ import { cellItem } from '../../../../store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
 import { CELL_CONFIG } from '../../../../store/tests/fixtures/cell.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 import * as store from '../../../../store/index.js';
 import { prepareItemPatchSubmit } from '../../../../items/index.js';
 import { boardJobQueueCall } from '../../../index.js';

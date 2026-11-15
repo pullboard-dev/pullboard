@@ -5,7 +5,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { cellProject } from '../../../../../store/tests/fixtures/cell.js';
-import { runFixtureChildAsync } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChildAsync } from '../../../../../gate/tests/fixtures/child.js';
 
 /** Use a real private machine queue; fake executor names exercise admission without any network or live board. */
 async function scenario(t, body) {

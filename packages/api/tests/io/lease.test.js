@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { cellBoard } from '../../../store/tests/fixtures/cell.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fetchFresh } from '../../../../apps/cli/tests/fixtures/http.js';
 import { jobView } from '../../../jobs/index.js';
 import { Refused } from '../../../kernel/index.js';

@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { cellBoard } from '../../../store/tests/fixtures/cell.js';
 import { closeCellBoard } from '../../../store/tests/fixtures/cell.js';
 import { openCellBoard } from '../../../store/tests/fixtures/cell.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { LEASE_MS } from '../../../jobs/index.js';
 import { claimJob } from '../../index.js';
 import { jobQueueCall } from '../../index.js';

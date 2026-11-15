@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { serveRunner } from '../../index.js';
 import { testGit as pullGit } from '../fixtures/git.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 
 const BOARD = 'http://board.invalid/api/v1/boards/b?k=x';
 const HOUR = 3_600_000;

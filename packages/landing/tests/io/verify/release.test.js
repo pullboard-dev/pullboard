@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../gate/tests/fixtures/child.js';
 import { fixtureOpenBoard } from '../../../../../apps/cli/tests/fixtures/testkit.js';
 import { closeBoard } from '../../../../store/index.js';
 import { heldTestDefects } from '../../../src/io/step/selection.js';

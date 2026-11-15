@@ -5,7 +5,7 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { serveRunner } from '../../../index.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 
 // The land handler is stubbed, so the runner's git is never asked for anything.
 const pullGit = async () => ({ status: 0, stdout: '', stderr: '' });

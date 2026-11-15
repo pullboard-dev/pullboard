@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { copyPackageFiles } from '../../runners/index.js';
-import { runFixtureChild } from '../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../gate/tests/fixtures/child.js';
 import { completeGate } from '../index.js';
 import { landingFailures } from '../index.js';
 import { watchdogStoppedOnly } from '../index.js';

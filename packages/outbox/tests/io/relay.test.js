@@ -21,7 +21,7 @@ import {
 import {
   runFixtureExecFile,
   runFixtureGit,
-} from '../../../../apps/cli/tests/fixtures/child.js';
+} from '../../../gate/tests/fixtures/child.js';
 
 const ROOT = fileURLToPath(new URL('../../../..', import.meta.url));
 const OLD = '876df36c23a63993b371d4d85b9cf3b54f8ed38d';

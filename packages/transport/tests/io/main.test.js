@@ -2,11 +2,11 @@
 import assert from 'node:assert/strict';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { cleanupFixtureChildren } from '../../../../apps/cli/tests/fixtures/child.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChildAsync } from '../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureExecFile } from '../../../../apps/cli/tests/fixtures/child.js';
-import { startFixtureChild } from '../../../../apps/cli/tests/fixtures/child.js';
+import { cleanupFixtureChildren } from '../../../gate/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
+import { runFixtureChildAsync } from '../../../gate/tests/fixtures/child.js';
+import { runFixtureExecFile } from '../../../gate/tests/fixtures/child.js';
+import { startFixtureChild } from '../../../gate/tests/fixtures/child.js';
 import { createTransport } from '../../index.js';
 import { dispatchGate } from '../../index.js';
 import { shellWord } from '../../index.js';

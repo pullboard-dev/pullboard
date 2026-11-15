@@ -10,7 +10,7 @@ import { pathProcesses } from '../../../src/io/leftovers.js';
 import { alive } from '../../fixtures/stub-chrome.js';
 import { stub } from '../../fixtures/stub-chrome.js';
 import { testGit as pullGit } from '../../fixtures/git.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 
 const BOARD = 'http://board.invalid/api/v1/boards/b?k=x';
 

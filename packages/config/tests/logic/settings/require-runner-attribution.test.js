@@ -4,7 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { loadMachineSettings } from '../../../index.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../../../../apps/cli/tests/fixtures/testkit.js';
 
 /** Load machine settings from a private home holding the given settings, and restore the home afterwards. */

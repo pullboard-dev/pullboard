@@ -10,8 +10,8 @@ import { serveRunner } from '../../../index.js';
 import { testGit as pullGit } from '../../fixtures/git.js';
 import { jobWorkers } from '../../../src/io/pull.js';
 import { JOB_WORKERS_ENV } from '../../../light.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 
 const BOARD = 'http://board.invalid/api/v1/boards/b?k=x';
 const CONCURRENCY = pathToFileURL(resolve(import.meta.dirname, '../../../../gate/src/io/test/concurrency.js')).href;

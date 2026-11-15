@@ -28,7 +28,7 @@ import { waitsSnapshot } from '../../index.js';
 import { startServeSentinel } from '../../index.js';
 import { localCensus } from '../../src/io/surfaces.js';
 import { readRunnerJobs } from '../../src/io/surfaces.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { waitForCondition } from '../../../../apps/cli/tests/fixtures/runner/holders.js';
 
 /** Whether a pid is gone. */

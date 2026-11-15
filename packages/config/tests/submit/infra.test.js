@@ -3,7 +3,7 @@
  * The submit infra-note policy rejects invalid known values and warns on unknown keys [C7,V4,N26].
  */
 import assert from 'node:assert/strict';
-import { runFixtureChild } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../gate/tests/fixtures/child.js';
 import { test } from 'node:test';
 import { configFromSource } from '../../index.js';
 

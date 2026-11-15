@@ -24,7 +24,7 @@ import {
 import {
   runFixtureChild,
   runFixtureGit,
-} from '../../../../../apps/cli/tests/fixtures/child.js';
+} from '../../fixtures/child.js';
 
 const command = fileURLToPath(new URL('../../../src/io/scripts/seals.js', import.meta.url));
 const IDENTITY = ['-c', 'user.name=Seal Test', '-c', 'user.email=seal@example.test', '-c', 'commit.gpgsign=false'];
