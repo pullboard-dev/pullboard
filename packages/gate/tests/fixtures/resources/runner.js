@@ -27,8 +27,8 @@ import {
   HOST,
   installSshStandIn,
 } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { fixtureAdd } from '../../../../../apps/cli/tests/fixtures/testkit.js';
-import { fixturePolicy } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureAdd } from '../testkit.js';
+import { fixturePolicy } from '../testkit.js';
 
 const RESOURCES = pathToFileURL(resolve(import.meta.dirname, '../../../../resources/index.js')).href;
 const SETTINGS = pathToFileURL(resolve(import.meta.dirname, '../../../../config/src/io/settings.js')).href;

@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { writeSlice } from '../../../src/io/cost/checkpoint.js';
-import { FIXTURE_MODEL } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+import { FIXTURE_MODEL } from '../../../../gate/tests/fixtures/testkit.js';
 import { Refused } from '../../../../kernel/index.js';
 
 const item = (id, ms = 1000) => ({ item: { agentId: 'seat', item: id, revision: 1, observedAt: 1, records: [{ model: FIXTURE_MODEL, wallMs: ms }] } });
