@@ -232,7 +232,7 @@ export async function profiledRoundTrips(t, count, { otherJobs: busy = 0 } = {})
     const stop = index > 0 && busy ? otherJobs(busy) : null;
     if (stop) t.after(stop);
     const result = await runOnRunnerAsync(repo, 'node apps/cli/src/io/run/tests.js test/probe.test.js', {
-      runner: { host: HOST, slots: 1, browser: 0, node: process.execPath, root: join(home, 'runner') }, metadata: { testStage: 'submit', trunk } });
+      runner: { host: HOST, slots: 1, browser: 0, node: process.execPath, root: join(home, 'runner') }, metadata: { item: 'fixture', kind: 'remote-command', testStage: 'submit', trunk } });
     await stop?.();
     assert.equal(result.isGreen, true, result.output);
     // A repeat may reuse the first trip's receipt, as a real gate would; the first must run the body.
