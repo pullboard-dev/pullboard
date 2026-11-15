@@ -12,7 +12,8 @@ const RECORDS = [{ model: FIXTURE_MODEL, inputTokens: 9, outputTokens: 4, wallMs
 function board() {
   const db = new DatabaseSync(':memory:');
   db.exec('CREATE TABLE board_meta(meta_key TEXT PRIMARY KEY, meta_value TEXT NOT NULL)');
-  return { db, nativePorts: { atomic: (_board, run) => run() } };
+  const events = [];
+  return { db, events, nativePorts: { atomic: (_board, run) => run(), logEvent: (_board, by, kind, item, detail) => events.push({ by, kind, item, detail }) } };
 }
 
 test('coordinator usage is stored under coordinator:<session> with all token kinds and no item [C7]', () => {
@@ -25,6 +26,7 @@ test('coordinator usage is stored under coordinator:<session> with all token kin
   assert.deepEqual([record.model, record.inputTokens, record.outputTokens, record.freshInputTokens, record.cacheReadInputTokens, record.cacheWriteInputTokens],
     [FIXTURE_MODEL, 9, 4, 2, 5, 2]);
   assert.equal(b.db.prepare("SELECT COUNT(*) AS n FROM board_meta WHERE meta_key NOT LIKE 'coordinator:%'").get().n, 0);
+  assert.deepEqual(b.events.map(event => [event.kind, event.item, event.detail.session]), [['coordinator-usage', null, 's-1']]);
 });
 
 test('repeating a payload changes nothing and a changed payload refuses USAGE_CHANGED [C7]', () => {
@@ -33,5 +35,6 @@ test('repeating a payload changes nothing and a changed payload refuses USAGE_CH
   const before = b.db.prepare('SELECT * FROM board_meta').all();
   assert.deepEqual(recordCoordinatorUsage(b, { session: 's-1', records: RECORDS, observedAt: 5 }), { duplicate: true });
   assert.deepEqual(b.db.prepare('SELECT * FROM board_meta').all(), before);
+  assert.equal(b.events.length, 1);
   assert.throws(() => recordCoordinatorUsage(b, { session: 's-1', records: [{ ...RECORDS[0], outputTokens: 5, knownOutputTokens: 5 }], observedAt: 5 }), { code: 'USAGE_CHANGED' });
 });

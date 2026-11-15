@@ -16,7 +16,7 @@ const RECORDS = [{ model: FIXTURE_MODEL, inputTokens: 1, outputTokens: 1, wallMs
 function board(executionEngineVersion) {
   const db = new DatabaseSync(':memory:');
   db.exec('CREATE TABLE board_meta(meta_key TEXT PRIMARY KEY, meta_value TEXT NOT NULL)');
-  return { db, executionEngineVersion, nativePorts: { atomic: (_board, run) => run() } };
+  return { db, executionEngineVersion, nativePorts: { atomic: (_board, run) => run(), logEvent() {} } };
 }
 
 test('COORDINATOR_USAGE_ENGINE is one above the highest other engine number [C7]', () => {
