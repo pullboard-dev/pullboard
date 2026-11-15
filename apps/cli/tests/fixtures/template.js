@@ -96,26 +96,21 @@ function trackedFiles(box) {
 
 /** Snapshot a freshly built project into a template, or null when it holds something a copy cannot carry. */
 function snapshot(box, built) {
-  const T0 = Date.now(); const lap = name => console.error(`TPLTIME ${name} ${Date.now() - T0}`);
   if (!settleDatabases(box.dir)) return null;
-  lap('settle');
   const root = join(tmpdir(), `pullboard-tpl-${process.pid}-${stats.builds}-${templates.size}-${Date.now()}`);
   mkdirSync(root);
   roots.add(root);
   hookExit();
   const names = readdirSync(box.dir).filter(name => name !== 'bin');
   for (const name of names) cpSync(join(box.dir, name), join(root, name), { recursive: true, preserveTimestamps: true, verbatimSymlinks: true });
-  lap('copy');
   const needle = Buffer.from(box.dir);
   const hits = [];
   const tracked = trackedFiles(box);
-  lap('tracked');
   for (const { rel, abs, stat } of walk(root)) {
     if (stat.isSymbolicLink() && readlinkSync(abs).includes(box.dir)) return drop(root);
     if (!stat.isFile() && !stat.isDirectory() && !stat.isSymbolicLink()) return drop(root); // A socket or pipe cannot be copied.
     if (stat.isFile() && readFileSync(abs).includes(needle) && !tracked.has(rel)) hits.push(rel);
   }
-  lap('scan');
   const fields = {};
   for (const [key, value] of Object.entries(built)) if (typeof value === 'string' && value.startsWith(`${box.dir}/`) && box[key] !== value) fields[key] = value.slice(box.dir.length + 1);
   return { from: box.dir, root, names, hits, fields, builtAt: Date.now() };
@@ -154,15 +149,11 @@ export function templatedProject(box, shape, build) {
   if (sig === null || process.env.PULLBOARD_FIXTURE_TEMPLATE === 'off') return build();
   const key = `${shape}\0${sig}`;
   const have = templates.get(key);
-  if (have && have.from.length === box.dir.length && Date.now() - have.builtAt < TEMPLATE_MAX_AGE_MS) { stats.copies += 1; const C0 = Date.now(); const r = instantiate(have, box); console.error(`TPLTIME copy-total ${Date.now() - C0}`); return r; }
+  if (have && have.from.length === box.dir.length && Date.now() - have.builtAt < TEMPLATE_MAX_AGE_MS) { stats.copies += 1; return instantiate(have, box); }
   stats.builds += 1;
-  const B0 = Date.now();
   const built = build();
-  console.error(`TPLTIME build ${Date.now() - B0}`);
-  const S0 = Date.now();
   if (have) drop(have.root);
   const made = snapshot(box, built);
-  console.error(`TPLTIME snapshot-total ${Date.now() - S0} ${Boolean(made)}`);
   if (made) templates.set(key, made); else templates.delete(key);
   return built;
 }
