@@ -16,11 +16,11 @@ function itemOf(board, id) {
 const bare = message => String(message).replace(/^\[[A-Z0-9_]+\] /u, '');
 
 /** What a table answer comes to for a hand-off writer: its refusal, or the record it keeps (the newest one when it writes none) and whether a gate started. */
-function decision(answer, snapshot, move) {
+function decision(answer, snapshot, move, withNext = false) {
   if (answer.refused) {
     // A deferred row passes the writer's own refusal through, as the table reads it from the snapshot: that refusal is the answer.
     const injected = answer.refused.code.startsWith('deferred:') ? snapshot.deferred[answer.refused.code.slice('deferred:'.length)] : null;
-    return { refused: injected ? { code: injected.code, message: bare(injected.message) } : { code: answer.refused.code, message: answer.refused.message } };
+    return { refused: injected ? { code: injected.code, message: bare(injected.message), ...(withNext ? { next: injected.next } : {}) } : { code: answer.refused.code, message: answer.refused.message, ...(withNext ? { next: answer.refused.next } : {}) } };
   }
   const outcome = answer.table.outcomes.find(entry => entry.id === answer.via[0]);
   return { via: answer.via[0], job: outcome.record ? outcome.record(snapshot, move) : snapshot.handoff };
@@ -68,7 +68,7 @@ export function liveStartDecision(board, id, options, limits, hookProblem) {
  * Only the queue rows are compared: the digest the caller captured against the frozen one stays the writer's own check.
  * Why: the writer's own checks and the table must give one answer, and the shadow compare shows it [C7,#8280].
  */
-export function queueDecision(board, id, options, limits) {
+export function queueDecision(board, id, options, limits, withNext = false) {
   const item = itemOf(board, id);
   const children = board.db.prepare('SELECT item_id, item_status FROM item WHERE item_parent_id = ?').all(id).map(row => ({ id: row.item_id, status: row.item_status }));
   const snapshot = { now: board.clock.now().toISOString(), config: { handoff: true, leaseMs: options.leaseMs }, actor: { id: options.agentId, joined: true, lane: item?.lane },
@@ -76,7 +76,7 @@ export function queueDecision(board, id, options, limits) {
     io: { head: { commit: options.commit, tree: options.tree, main: options.main, executionCommit: options.executionCommit, executionTree: options.executionTree },
       companionDigest: options.companionDigest }, deferred: {}, gate: null };
   const move = { id, actor: options.agentId, job: options.job };
-  return decision(runSubmitTable('SUBMIT', limits, snapshot, move), snapshot, move);
+  return decision(runSubmitTable('SUBMIT', limits, snapshot, move), snapshot, move, withNext);
 }
 
 /**
