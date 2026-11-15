@@ -69,6 +69,9 @@ test('next --verify reserves the review for the reviewLease and says until when;
     const settled = await settleSubmit(t, { repo, env, run: showInProcess }, JSON.parse(submitted.stdout));
     assert.equal(settled.gate?.green ?? settled.gate?.ok, true, `the pulled gate is green: ${JSON.stringify(settled.gateJob)}`);
     process.stderr.write(`TIMING ${Date.now() - T0} settled\n`);
+    // The gate is done; stopping the runner now keeps the verdicts below from handing it a landing it would take seconds to finish.
+    stopFixtureLocalRunner(join(dir, 'home'));
+    process.stderr.write(`TIMING ${Date.now() - T0} runner stopped\n`);
     const commonDir = setupGit(repo, 'rev-parse', '--path-format=absolute', '--git-common-dir');
     assert.equal(setupGit(holder, 'rev-parse', '--path-format=absolute', '--git-common-dir'), commonDir,
       'the verifier worktree reads the builder repo common dir');
