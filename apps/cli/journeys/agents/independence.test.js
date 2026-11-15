@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { FIXTURE_MODEL } from '../../tests/fixtures/testkit.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { createE2eHelpers } from "../../tests/fixtures/e2e.js";
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 
 /** Read a successful JSON CLI response. */
 function document(result) {
@@ -20,7 +21,8 @@ test('review.independence off (the default): a seat under the building session v
   document(await fixtureAdd(box.inProcess, box.repo, 'web', 'Built under one session', '--criterion', 'the feature builds', '--specs', 'G1', '--check', 'true', '--json'));
   document(await box.inProcess(box.web, 'claim', '1', '--json'));
   assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', 'built\n', 'feat(web): build feature [G1]').status, 0);
-  document(await box.inProcess(box.web, 'submit', '1', '--json'));
+  // The pulled gate must settle before any verdict, or verify answers NOT_SUBMITTED [C7,#8028].
+  await settleSubmit(t, box, document(await box.inProcess(box.web, 'submit', '1', '--json')));
   const own = await box.inProcess(box.web, 'verify', '1', 'accept', '--note', 'checked the feature', '--json');
   assert.equal(own.code, 1, own.out + own.err);
   assert.equal(JSON.parse(own.out).error.code, 'SELF_VERIFY', 'the building seat is still refused');
