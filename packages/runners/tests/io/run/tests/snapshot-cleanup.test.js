@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell apps/cli apps/lib gate drive kernel codemap git resources jobs transport queue verify config spec doctrine sandbox store state items seats commits merge stats roadmap pin link keys person pages activity outbox landing runners receipt */
 /** The production test runner reports cleanup it could not verify without failing the tests; split from snapshot.test.js to hold each file under 60 s [C7,V4]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
