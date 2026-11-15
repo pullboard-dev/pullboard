@@ -9,8 +9,8 @@ import { mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { runFixtureChild } from '../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../gate/tests/fixtures/child.js';
 import { flakeSource } from '../../index.js';
 import { observeNativeFailure } from '../../index.js';
 

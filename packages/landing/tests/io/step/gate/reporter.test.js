@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import { landingFailures } from '../../../../index.js';
-import { privateFixtureFiles } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../../gate/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../../gate/tests/fixtures/child.js';
 
 /**
  * Run `node --test` with no reporter flag in a one-file red project and return what the landing reads.

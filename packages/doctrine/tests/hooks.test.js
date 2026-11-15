@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import {
   runFixtureChild,
   runFixtureGit,
-} from "../../../apps/cli/tests/fixtures/child.js";
+} from "../../gate/tests/fixtures/child.js";
 import {
   chmodSync,
   mkdirSync,

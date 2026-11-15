@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { JOB_SCHEMA_SQL } from '../../../store/index.js';
 import { healthFindingNotice } from '../../../store/index.js';
 import { normalizedHealthFindings } from '../../../store/index.js';

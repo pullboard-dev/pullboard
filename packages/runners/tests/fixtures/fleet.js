@@ -18,7 +18,7 @@ import {
 import { copyRunnerPackage } from './package.js';
 import { testResultStore } from '../../../gate/index.js';
 import { runOnRunnerAsync } from '../../index.js';
-import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../gate/tests/fixtures/child.js';
 import {
   HOST,
   installSshStandIn,

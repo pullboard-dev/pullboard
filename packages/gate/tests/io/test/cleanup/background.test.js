@@ -11,7 +11,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../fixtures/child.js';
 import { fixtureMachineSettings } from '../../../../../../apps/cli/tests/fixtures/testkit.js';
 import { HOST } from '../../../../../../apps/cli/tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../../../../apps/cli/tests/fixtures/runner/ssh.js';

@@ -15,7 +15,7 @@ import {
 import {
   runFixtureChild,
   runFixtureGit,
-} from '../../../../../apps/cli/tests/fixtures/child.js';
+} from '../child.js';
 import { createE2eHelpers } from '../../../../../apps/cli/tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../../../../apps/cli/tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../../../../apps/cli/tests/fixtures/testkit.js';

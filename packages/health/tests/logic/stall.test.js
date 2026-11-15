@@ -15,8 +15,8 @@ import { fixtureBoard } from '../../../../apps/cli/tests/fixtures/board.js';
 import { policyRepository } from '../../../store/tests/fixtures/submit.js';
 import { captureLapsedClaims } from '../../index.js';
 import { sweepClaims } from '../../index.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../gate/tests/fixtures/child.js';
 import { machineStalled } from '../../src/logic/stall.js';
 
 test('clause 1: most claimed seats quiet together is a machine stall, a single quiet seat is not [B4,N2]', () => {
