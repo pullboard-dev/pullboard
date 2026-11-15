@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { changedStaticFailures } from '../../../index.js';
+import { changedStaticFailures } from '../../../heavy.js';
 import { MARKDOWN_ALLOWLIST } from '../../../src/logic/markdown/allowlist.js';
 import { markdownProblems } from '../../../src/logic/markdown/allowlist.js';
 import { fixtureCommittedGraph } from '../../../../../apps/cli/tests/fixtures/testkit.js';
