@@ -37,9 +37,7 @@ import { mainComparisonMode } from '../../../../../packages/config/index.js';
 import { criterionMainReceipts } from '../submit/receipt.js';
 import { provideMainComparison } from '../../../../../packages/api/index.js';
 import { provideGateHopTable } from '../../../../../packages/api/index.js';
-import { hopEngine } from '../../../../../packages/moves/index.js';
-import { runTable } from '../../../../../packages/moves/index.js';
-import { leaseLapsed } from '../../../../../packages/jobs/index.js';
+import { gateHopTable } from '../submit/hop.js';
 import { provideCompanionInheritance } from '../../../../../packages/api/index.js';
 import { provideMainRedNotes } from '../../../../../packages/api/index.js';
 import { provideRefusalTrials } from '../../../../../packages/api/index.js';
@@ -231,12 +229,6 @@ export async function loopbackBoardApi(io, { projects, secret }) {
 export function boardStatePorts() {
   return { viewPorts: viewApiPorts, boardOpeners: { openBoard, openBoardForRead },
     snapshotStore: { load: loadKeyedResult, save: saveKeyedResult, saved: savedKeyedResults } };
-}
-
-/** The hop table the claim route decides with under gate.fencedHop, over the jobs cell's own lease rule [C7,#8352]. */
-function gateHopTable(leaseMs) {
-  const { rules, table } = hopEngine({ leaseMs, leaseLapsed });
-  return (snapshot, move) => runTable(table, rules, snapshot, move);
 }
 
 /**
