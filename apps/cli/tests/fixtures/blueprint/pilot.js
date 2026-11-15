@@ -44,25 +44,6 @@ export function runLeg(leg, { fault = null, timeoutMs = 420_000 } = {}) {
   return { passed: result.status === 0, timedOut: result.error?.code === 'ETIMEDOUT', ms, applied: logged.split('\n').includes('applied') };
 }
 
-/**
- * One fault's row: which versions failed on it. The parity check runs only when neither the in-process permutations nor the
- * contract caught the fault, since the kept design is their union with parity.
- *
- * @param {{ id: string, kind: string, file: string, find: string, replace: string }} fault
- * @returns {{ id: string, kind: string, caught: Record<string, boolean | null>, applied: Record<string, boolean | null>, ms: Record<string, number | null> }}
- */
-export function studyFault(fault) {
-  const row = { id: fault.id, kind: fault.kind, caught: {}, applied: {}, ms: {} };
-  const seed = { file: fault.file, find: fault.find, replace: fault.replace };
-  for (const leg of ['real', 'inprocess', 'contract', 'parity']) {
-    if (leg === 'parity' && (row.caught.inprocess || row.caught.contract)) { row.caught[leg] = null; row.applied[leg] = null; row.ms[leg] = null; continue; }
-    const ran = runLeg(leg, { fault: seed });
-    row.caught[leg] = !ran.passed; row.applied[leg] = ran.applied; row.ms[leg] = ran.ms;
-    if (ran.timedOut) row.caught[leg] = null;
-  }
-  return row;
-}
-
 /** The middle value of a list of numbers. */
 function median(values) {
   const sorted = [...values].sort((a, b) => a - b);
