@@ -3,6 +3,8 @@ import { recordedVerificationComparison } from '../../../../../packages/verify/i
 import { renderVerificationComparison } from '../../../../../packages/verify/index.js';
 import { machineVerification } from '../../../../../packages/verify/index.js';
 import { testHashRulings } from '../../../../../packages/verify/index.js';
+import { testAuthors } from '../../../../../packages/verify/index.js';
+import { barTestFiles } from '../../../../../packages/verify/index.js';
 import { itemProgress } from '../../../../../packages/roadmap/index.js';
 import { progressLine } from '../../../../../packages/roadmap/index.js';
 import { submitHandoff } from '../../../../../packages/store/light.js';
@@ -215,6 +217,12 @@ export async function run(io, { first, values }) {
     }
   }
   for (const line of mutationScoreLines(thread)) io.say(line);
+  const authors = testAuthors(thread);
+  const reviewerFamilies = [...new Set(verdicts.map(verdict => verdict.verdict_verifier_family).filter(Boolean))];
+  for (const path of barTestFiles(item).criterion.sort()) {
+    const author = authors[path];
+    io.say(`  test ${path}: author ${author ? `${agentName(author.seat)} [family ${author.family}]` : 'not recorded'}; reviewer family ${reviewerFamilies.join(', ') || 'none yet'}`);
+  }
   if (item.item_commit) io.say(`submitted by ${agentName(item.item_built_by)}${item.item_builder_family ? ` [family ${item.item_builder_family}]` : ''} at ${item.item_commit}`);
   if (item.item_effective_head) io.say(`checked main merge: ${item.item_effective_head} (original submitted source and verdict retained)`);
   if (infra) io.say(`infra note: ${infra.note} (files: ${infra.files.join(', ') || 'none'})`);
