@@ -38,7 +38,26 @@ Intro line.
  * A real repo and board with an isolated registry, so JSON exercises the command's lint and history
  * checks rather than just serializing the parser. Its files may use the configured names.
  */
-export function specBox(t, { specName = 'SPEC.md', practiceName = 'PRACTICE.md', practice, specSource = SPEC, freshInit = false, separateGitDir = false } = {}) {
+export function specBox(t, options = {}) {
+  const made = prepareBox(t, options);
+  const init = spawnSync(process.execPath, [resolve(import.meta.dirname, '../../../pullboard.js'), 'init'], { cwd: made.root, env: made.env, encoding: 'utf8' });
+  assert.equal(init.status, 0, init.stderr);
+  return finishBox(made, options);
+}
+
+/**
+ * The same box with `init` run in this process: awaited, with no CLI start per box [C7].
+ * Why: a case that builds several boxes paid one real process each; the in-process call writes the same files.
+ */
+export async function specBoxInProcess(t, options = {}) {
+  const made = prepareBox(t, options);
+  const init = await runCliInProcess(['init'], { cwd: made.root, env: made.env });
+  assert.equal(init.status, 0, init.stderr);
+  return finishBox(made, options);
+}
+
+/** Everything a box needs before `init` runs: the folder, the shim, the environment, the commands and the repository. */
+function prepareBox(t, { separateGitDir = false } = {}) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-spec-json-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const bin = join(root, '.bin');
@@ -72,8 +91,11 @@ export function specBox(t, { specName = 'SPEC.md', practiceName = 'PRACTICE.md',
   git('init', '-q', '-b', 'main', ...(metadata ? ['--separate-git-dir', join(metadata, 'repo.git')] : []));
   git('config', 'user.name', 'Test Agent');
   git('config', 'user.email', 'agent@example.com');
-  const init = spawnSync(process.execPath, [resolve(import.meta.dirname, '../../../pullboard.js'), 'init'], { cwd: root, env, encoding: 'utf8' });
-  assert.equal(init.status, 0, init.stderr);
+  return { root, env, git, run, command, cmd, spec };
+}
+
+/** Configure and commit a box once `init` has run. */
+function finishBox({ root, env, git, run, command, cmd, spec }, { specName = 'SPEC.md', practiceName = 'PRACTICE.md', practice, specSource = SPEC, freshInit = false } = {}) {
   const config = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8'));
   if (freshInit) {
     git('add', '-A');
