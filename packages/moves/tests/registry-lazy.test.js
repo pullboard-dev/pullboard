@@ -8,10 +8,12 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../tests/fixtures/child.js';
-import { discoverMoves } from '../../../../packages/moves/index.js';
-import { lazyMoves } from '../../../../packages/moves/index.js';
-import { DEFAULT_NEXT_STEPS } from '../../../../packages/state/light.js';
+import { privateFixtureFiles } from '../../gate/tests/fixtures/child.js';
+import { discoverMoves } from '../index.js';
+import { lazyMoves } from '../index.js';
+
+/** A stand-in base table of next steps, so the cell proves the merge without loading the state cell. */
+const DEFAULT_NEXT_STEPS = { BASE_STEP: 'run the base step', GOOD_STEP: 'overridden by a move' };
 
 test('clause 2: each move and its state engine resolve through the lazy registry on first use exactly as the eager registry resolved them [C7]', () => {
   const eager = discoverMoves();
@@ -41,11 +43,12 @@ test('clause 2: each move and its state engine resolve through the lazy registry
 test('clause 2: naming one move loads only its own module, and listing the moves still refuses a broken declaration [C7]', () => {
   const fixture = privateFixtureFiles('pullboard-lazy-moves-');
   const folder = fixture.root;
+  const write = fixture.write;
   try {
-    fixture.write('package.json', '{"type":"module"}\n');
-    fixture.write('goodMove.js', `export default { operation: 'goodMove', engine: 7, itemIdFirstArgument: true,
+    write('package.json', '{"type":"module"}\n');
+    write('goodMove.js', `export default { operation: 'goodMove', engine: 7, itemIdFirstArgument: true,
   minimumEngine: () => 7, actor: () => null, nextSteps: { GOOD_STEP: 'run the good step' } };\n`);
-    fixture.write('brokenMove.js', "throw new Error('brokenMove loaded');\n");
+    write('brokenMove.js', "throw new Error('brokenMove loaded');\n");
     const lazy = lazyMoves(pathToFileURL(`${folder}/`));
     assert.equal(lazy.registry.goodMove.engine, 7);
     assert.equal(lazy.registry.goodMove.minimumEngine(), 7);

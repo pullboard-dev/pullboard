@@ -530,9 +530,6 @@
   "apps/cli/journeys/fact/verdict/quarantine.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/resume/tour-slow.test.js": {
-    "launch": 1
-  },
   "packages/link/tests/logic/relay/poll.test.js": {
     "launch": 1
   },
