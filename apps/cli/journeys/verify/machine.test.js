@@ -5,6 +5,7 @@
  * failing on a broken copy, and in step with the refusals the board, CLI and spec parser raise today.
  */
 import { moveOf } from '../../../../packages/gate/tests/fixtures/functions.js';
+import { declaredBoardOrder } from '../../../../packages/gate/tests/fixtures/functions.js';
 import * as fs from 'node:fs';
 import * as machineRules from '../../../../packages/state/index.js';
 import { policyRepository } from '../../tests/fixtures/board/submit.js';

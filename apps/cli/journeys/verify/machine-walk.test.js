@@ -28,6 +28,7 @@ import * as store from '../../../../packages/store/index.js';
 import { openBoard } from '../../../lib/index.js';
 import { loadConfig } from '../../../../packages/config/index.js';
 import { Refused } from '../../../../packages/kernel/light.js';
+import { runnerControllerCallees } from '../../tests/fixtures/runner/machine.js';
 import { assertRunnerControllerReachability } from '../../tests/fixtures/runner/machine.js';
 
 const SUBMIT_REFUSALS = 'AGENT_APPROVAL_REQUIRED BAD_BUILD_ESTIMATE BOARD_UNAVAILABLE CLAUSE_EVIDENCE_KIND CLAUSE_EVIDENCE_REQUIRED CLAUSE_REASONING_ONLY EMPTY_SUBMIT GIT_SYNC_FOLDER KERNEL_EXPORT_APPROVAL KERNEL_EXPORT_SOURCE MILESTONES_CORRUPT SEAL_REVISION SEAL_STALE SEAL_STORE UNKNOWN_SPEC'.split(' ');
