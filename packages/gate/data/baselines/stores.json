@@ -1435,6 +1435,10 @@
       "kind": "repo-data",
       "owner": "packages/commits/src/logic/change/row/tier.js"
     },
+    "test-manifest.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/test/manifest.js"
+    },
     "timer.guard.sqlite": {
       "kind": "sqlite",
       "owner": "packages/gate/src/io/main/audit/scheduler.js"
