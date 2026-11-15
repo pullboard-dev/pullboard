@@ -28,7 +28,8 @@ after(cleanupFixtureChildren);
 after(cleanupToolingSnapshots);
 after(helpers.cleanup);
 
-test('sync and async admitted runner profiles retain the actual worker source phases and receipts [C7]', async () => {
+// The SSH stand-in rode the controller transport deleted with the dispatcher (1e1a9586af); #7526 removes the rest.
+test('sync and async admitted runner profiles retain the actual worker source phases and receipts [C7]', { skip: 'CONTROLLER_ONLY: deleted with #7526' }, async () => {
   for (const mode of ['sync', 'async']) {
     // Each mode gets its own machine: a second job would reuse the first's source and the stand-in's shared stderr misses the pulled worker's receipt [C7].
     const box = helpers.sandbox();
