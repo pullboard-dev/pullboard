@@ -20,6 +20,9 @@ const SOURCE = resolve(import.meta.dirname, '../../../../..');
 const NAMES = ['a', 'b'];
 
 let template = null;
+const T0 = Date.now();
+/** A phase mark on stderr, in seconds since the file loaded: it shows where the wait is. */
+const mark = label => process.stderr.write(`[filter ${((Date.now() - T0) / 1000).toFixed(1)}s] ${label}\n`);
 after(() => { if (template) rmSync(template, { recursive: true, force: true }); });
 
 /** The environment a gate child runs in, for a project folder. */
@@ -43,6 +46,7 @@ function fixtureTest(name, redFile, slowFile) {
 /** The project every case copies: built once per file, because copying the package and committing it costs seconds per case. */
 function projectTemplate() {
   if (template) return template;
+  mark('template build start');
   const dir = privateFixtureFiles('pullboard-name-shards-template-').root;
   template = dir;
   const repo = join(dir, 'repo'), home = join(dir, 'home');
@@ -54,6 +58,7 @@ function projectTemplate() {
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node apps/cli/src/io/run/tests.js', landingShards: 2 }));
   const env = projectEnv(dir);
   for (const args of [['init', '-q', '-b', 'main'], ['add', '.'], ['commit', '-q', '-m', 'test: name-filtered shards fixture']]) execFileSync('git', args, { cwd: repo, env });
+  mark('template build done');
   return dir;
 }
 
@@ -71,9 +76,13 @@ function project(t, redFile = null, slowFile = null) {
 }
 
 /** Run the landing gate with a name filter over all two files. */
-function gate(box, pattern = '^target', extra = [], files = NAMES.map(name => `test/${name}.test.js`)) {
-  return runFixtureChildAsync(process.execPath, ['apps/cli/src/io/run/tests.js', '--test-name-pattern', pattern, ...extra, ...files],
+async function gate(box, pattern = '^target', extra = [], files = NAMES.map(name => `test/${name}.test.js`)) {
+  const label = `gate ${pattern} ${extra.join(' ')}`;
+  mark(`${label} start`);
+  const run = await runFixtureChildAsync(process.execPath, ['apps/cli/src/io/run/tests.js', '--test-name-pattern', pattern, ...extra, ...files],
     { cwd: box.repo, env: box.env, signal: AbortSignal.timeout(240_000) });
+  mark(`${label} done`);
+  return run;
 }
 
 /** The cases share nothing but the read-only template, so they run side by side; each gate child is async for that. */
