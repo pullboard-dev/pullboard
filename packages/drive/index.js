@@ -12,7 +12,7 @@ export { keyedResult, cellsInventoryJob } from './src/io/keyed.js';
 export { CELLS_INVENTORY_KIND, keyedJobId } from './src/logic/keyed.js';
 export { driveLanding } from './src/io/landing.js';
 export { LANDING_RUN_KIND, landingRunJobId, landingRunSummary } from './src/logic/landing.js';
-export { admitGateDrive, recordGateDriveSpawn, endGateDriveUnstarted, readGateDrive, stalledGateDriveFindings } from './src/io/gate.js';
+export { admitGateDrive, renewGateDriveHop, recordGateDriveSpawn, endGateDriveUnstarted, readGateDrive, stalledGateDriveFindings } from './src/io/gate.js';
 export { GATE_DRIVE_KIND, gateDriveJobId, gateDriveRecord, gateDriverEnded, gateDriverGone, gateDriveStall, GATE_DRIVE_STUCK_MS } from './src/logic/gate.js';
 export { TEST_RUN_KIND, MACHINE_CONTEXT_ENV, machineContext, queuesTestRun, queueTestRun, testRunItem, workTestRun, testRunState, readFinalLine, START_BOUND_MS, readTestRun, ownTestRuns, deliverTestRun, deliverOwnTestRuns, deliverTestRunsWhenReady, testRunLines, endLostTestRuns, pulledJobState, LOST, PULLED, CANCELLED, cancelTestRun } from './src/io/queue.js';
 export * from './light.js';
