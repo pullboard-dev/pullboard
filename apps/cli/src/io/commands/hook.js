@@ -226,7 +226,8 @@ export async function hookCommand(io, { first, second }) {
       else if (recordedException) problems = ['the landing proof has an expired or missing person waiver; ask the person for a new expiring waiver'];
       else {
         // The full gate's files run as pull shard jobs over every free runner, not as one command on one runner [C7,#7743].
-        const sharded = landing || isStampedGreen(info.root) ? null : await (await import('../hook/push.js')).pushShardGate(ctx, { say: io.say });
+        // A real push of main takes the same path, so every shard runs to its end and a red names every failing file [C7,#8043].
+        const sharded = isStampedGreen(info.root) ? null : await (await import('../hook/push.js')).pushShardGate(ctx, { say: io.say });
         if (sharded && !sharded.isGreen) problems = [sharded.problem];
         const gate = sharded ? null : await runGate(info.root, ctx.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing, agent: resourceAgent(ctx), onWait: io.gateWaitReporter(io) });
         if (gate?.isCached) io.say('pre-push: the gate passed on this exact tree; not running it twice');
