@@ -46,7 +46,7 @@ const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 test("a shout's code reference opens that code as it was at that commit [B23]", async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  const beta = project(box, 'beta');
+  const beta = project(box, 'beta', undefined, {}, { joinSeat: false, bare: true });
   await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
   await buildLocal(box, alpha, 1, 'greeting.html');
   const first = box.git(alpha.web, 'rev-parse', 'HEAD');
