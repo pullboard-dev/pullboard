@@ -37,3 +37,11 @@ test('receipt.settle.order: [C7] the verdict step stores the receipt id and book
   assert.throws(() => verdictStep(judge(green()), ''), { code: 'VERDICT_RECEIPT' });
   assert.throws(() => { result.step.payload.verdict = 'red'; }, TypeError);
 });
+
+test('receipt.judge.code: [C7] a section keeps its own non-empty string code, and any other code reads null', () => {
+  const codeOf = (code) => judge({ ...green(), proof: { outcome: 'fail', code } }).sections.proof.code;
+  assert.equal(codeOf('TEST_FAILURE'), 'TEST_FAILURE');
+  for (const bad of ['', 7, null, undefined, {}]) assert.equal(codeOf(bad), null, String(bad));
+  assert.equal(judge({ ...green(), proof: { outcome: 'fail', code: '' } }).code, 'PROOF', 'a failed section with no code is named by the section');
+  assert.equal(judge({ ...green(), proof: { outcome: 'fail', code: 'TEST_FAILURE' } }).code, 'TEST_FAILURE');
+});
