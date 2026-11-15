@@ -35,15 +35,7 @@ import {
 import {
   createStudyExercise,
   seedIdentity,
-  seedOrdinaryWork,
-  seedMilestones,
-  seedLifecycle,
-  seedWatchReceipts,
-  seedObservationReceipts,
-  seedPublishFinding,
-  seedBaselineReceipts,
-  seedActivityReceipts,
-  seedSpecAndHandoff,
+  seedStudyState,
   seedRehome,
   seedHandoff,
 } from '../../../../../packages/store/tests/fixtures/relay/parity/seeds.js';
@@ -121,13 +113,8 @@ export async function exerciseOperationParity({ root, origin, token, boardId, la
     }
     /** The phases of each part: together they are the original single sequence, on separate boards. */
     const phases = {
-      study: [() => seedIdentity(context), () => seedOrdinaryWork(context), () => seedMilestones(context), () => seedLifecycle(context),
-        () => seedPublishFinding(context), // a CI finding names an item the lifecycle already merged
-        () => seedActivityReceipts(context)],
-      work: [seedSeats,
-        () => seedWatchReceipts(context),
-        () => seedObservationReceipts(context),
-        () => seedBaselineReceipts(context),
+      study: [() => seedStudyState(context)],
+      rest: [seedSeats,
         () => seedItemPatches(context),
         async () => {
           process.stderr.write('parity phase seedSourceAdvance begin\n');
@@ -141,9 +128,7 @@ export async function exerciseOperationParity({ root, origin, token, boardId, la
         () => seedAdministrative(context),
         () => seedTypedRequests(context),
         () => seedStaleState(context),
-        () => seedBatch(context)],
-      landing: [seedSeats,
-        () => seedSpecAndHandoff(context),
+        () => seedBatch(context),
         async () => {
           process.stderr.write('parity phase seedNativeTrain begin\n');
           await seedNativeTrain(context, { cli: CLI_ENTRY });
