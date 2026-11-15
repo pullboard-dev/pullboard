@@ -804,6 +804,10 @@
       "kind": "repo-data",
       "owner": "packages/gate/src/io/test/manifest.js"
     },
+    "guards.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/test/manifest.js"
+    },
     "push-only.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/test/push-only.js"

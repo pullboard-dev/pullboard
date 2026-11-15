@@ -43,6 +43,7 @@ import { mergeOnlyProblem } from "../../../../merge/index.js";
 import { prepareMergeOnlySubmit } from "../../../../merge/index.js";
 import { MERGE_ONLY_VERDICT_ENGINE } from "../../../../state/light.js";
 import { atomic } from "./event/log.js";
+import { movesLiveEnabled } from "../../../../config/index.js";
 import { movesShadowEnabled } from "../../../../config/index.js";
 
 /** The moves.shadow machine setting, a file read: call it before a board write opens, never inside one [C7,#8379]. */
@@ -156,6 +157,8 @@ export function submit(board, id, options) {
   }
   // The moves.shadow setting is a file read, so it is read here, before the write opens, and the commit compare is recorded under it [C7,#8379].
   const shadow = board.movesShadow ?? shadowSetting();
+  // The moves.live.submit setting is read here too: with it on, the COMMIT table's event is the one logged [C7,#8384].
+  const live = (board.movesLive?.submit ?? movesLiveEnabled('submit')) === true;
   atomic(board, () => {
     requireBoardWriteSnapshot(board, PREPARED_SUBMITS.get(options).snapshot, 'submit');
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= STRICT_RENAME_ENGINE && strictRenames !== undefined) {
@@ -238,7 +241,7 @@ export function submit(board, id, options) {
       set: found => submissionItemValues(board, found, { agentId, commit, tree, files, carry, basis }),
     });
     recordSubmissionEvent(board, id, { agentId, commit, tree, policyCommit, note, recordedProof, infra, tooling,
-      modern, gateGreen, companion, quarantineProofIds, carry, mergeOnly, recordedSize, engineVersion: board.executionEngineVersion ?? ENGINE_VERSION, shadow });
+      modern, gateGreen, companion, quarantineProofIds, carry, mergeOnly, recordedSize, engineVersion: board.executionEngineVersion ?? ENGINE_VERSION, shadow, live });
     startItemPatchObjectionWindow(board, id, { agentId, commit }, { logEvent });
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= MACHINE_VERDICT_ENGINE
       && options.machineReceipts !== undefined && machineVerificationEligible(board, getItem(board, id), files)) {
