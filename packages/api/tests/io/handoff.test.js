@@ -69,11 +69,11 @@ async function startReports(t) {
 
 test('clause 1: continuous requests across a code-change restart are every one answered, none refused or reset [C7]', { timeout: 120_000 }, async (t) => {
   if (process.platform === 'win32') { t.skip('Windows hands no listening descriptor; serve restarts there as before'); return; }
-  const project = cellProject(t);
+  const project = cellProject(t, { real: true });
   const opened = openCellBoard(project.boardFile);
   let id;
   try { id = boardId(opened); } finally { closeCellBoard(opened); }
-  const code = cellRepo(t);
+  const code = cellRepo(t, { real: true });
   code.put('server.mjs', SERVER);
   code.put('served.mjs', 'export const version = 1;\n');
   code.commitAll();
