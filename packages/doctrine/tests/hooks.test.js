@@ -69,19 +69,15 @@ after(() => { if (nativeTemplate) rmSync(nativeTemplate.base, { recursive: true,
  * paths stay valid. Cases run one at a time, so the shared path never holds two live boards.
  */
 function nativeFixture(t) {
-  const started = Date.now();
-  t.after(() => process.stderr.write(`DIAG fixture ${Date.now() - started}ms since start\n`));
   if (!nativeTemplate) {
     const base = mkdtempSync(join(tmpdir(), 'pullboard-native-merge-hook-'));
     nativeTemplate = { base, box: buildNativeFixture(join(base, 'live')), snapshot: join(base, 'snapshot') };
-    process.stderr.write(`DIAG build ${Date.now() - started}ms\n`);
     cpSync(join(base, 'live'), nativeTemplate.snapshot, { recursive: true, verbatimSymlinks: true, mode: fsConstants.COPYFILE_FICLONE });
     return nativeTemplate.box;
   }
   const live = join(nativeTemplate.base, 'live');
   rmSync(live, { recursive: true, force: true });
   cpSync(nativeTemplate.snapshot, live, { recursive: true, verbatimSymlinks: true, mode: fsConstants.COPYFILE_FICLONE });
-  process.stderr.write(`DIAG restore ${Date.now() - started}ms\n`);
   return nativeTemplate.box;
 }
 
@@ -131,10 +127,7 @@ function buildNativeFixture(dir) {
 
 /** Commit through the installed native pre-commit hook and preserve its exit and diagnostics. */
 function nativeCommit(box, cwd, message = 'test: native fixture commit') {
-  const at = Date.now();
-  const r = box.git(cwd, 'commit', '-m', message);
-  process.stderr.write(`DIAG commit ${Date.now() - at}ms\n`);
-  return r;
+  return box.git(cwd, 'commit', '-m', message);
 }
 
 /** Stage a real conflict between coordinator-authored policy versions after the lane joins. */
