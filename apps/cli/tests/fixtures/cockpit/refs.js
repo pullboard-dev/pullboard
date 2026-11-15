@@ -114,8 +114,11 @@ export async function proseReferencesAt(t, width) {
       const decision = "document.querySelector('#needs details[data-needs-key^=\"decision:\"]')";
       if (await chrome.stable(`${decision}.open`) !== true) await chrome.click(`${decision}.querySelector('summary')`);
       await chrome.click(`${decision}.querySelector('button[data-go^="decide:"]')`);
-      assert.equal(await chrome.stable("document.querySelectorAll('#answering-q .ref').length"), 1, 'the answering question keeps its inline item reference');
-      await chrome.click("document.querySelector('#answering-q .ref')");
+      // A ruling answers in its opened thread, where the message text carries the reference; the composer's answering line stays hidden (154e174c55).
+      const asked = "document.querySelector('#feed [data-thread-panel] .sx-msg .sx-tx .ref')";
+      await chrome.waitFor(asked + ' !== null');
+      assert.equal(await chrome.stable("document.querySelectorAll('#feed [data-thread-panel] .sx-msg .sx-tx .ref').length"), 1, 'the answered question keeps its inline item reference');
+      await chrome.click(asked);
       await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Local target') && document.querySelector('[data-tab=items].on')");
       await pressTab(chrome, 'roadmap');
       const keyboardRow = "document.querySelector('#roadmap .milestone-item[role=button]:not([data-board])')";
