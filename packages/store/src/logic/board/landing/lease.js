@@ -11,6 +11,7 @@ import { releaseEngine } from "../../../../../moves/light.js";
 import { RELEASE_REASONS } from "../../reasons.js";
 import { staleStateLimits } from "../stale/state/policy.js";
 import { runTable } from "../../../../../moves/light.js";
+import { withdrawEngine } from "../../../../../moves/light.js";
 import { claimEngine } from "../../../../../moves/light.js";
 import { AGENT_GRANT_ENGINE } from "../../../../../state/light.js";
 import { submitEngine } from "../../../../../moves/light.js";
@@ -22,6 +23,13 @@ import {
 } from "./local.js";
 
 const KEY = 'landing_lease';
+let withdrawBuilt = null;
+/** Run the withdraw table over a snapshot and a move; `from` is the lifecycle machine's list of states a withdrawal may start from [C7,#8273]. */
+export function runWithdrawTable(from, snapshot, move) {
+  withdrawBuilt ??= withdrawEngine({ from });
+  return runTable(withdrawBuilt.table, withdrawBuilt.rules, snapshot, move);
+}
+
 
 let claimTable = null;
 /**
