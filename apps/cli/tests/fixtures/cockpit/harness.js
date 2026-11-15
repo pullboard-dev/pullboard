@@ -397,6 +397,19 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
   let release = () => {};
   const held = new Promise((done) => { release = done; });
   if (!hold) release();
+  // The page's own timers, so close() can stop a page whose server is gone: its retry timers re-arm forever and
+  // would keep the test file's process from exiting (#8027).
+  const timers = new Set();
+  let closed = false;
+  /** Run a page timer like the browser's, held so close() can cancel it. */
+  const pageTimeout = (callback, ms, ...args) => {
+    if (closed) return 0;
+    const timer = setTimeout(() => { timers.delete(timer); callback(...args); }, ms);
+    timers.add(timer);
+    return timer;
+  };
+  /** Cancel a page timer the page itself clears. */
+  const pageClearTimeout = (timer) => { timers.delete(timer); clearTimeout(timer); };
   const context = vm.createContext({
     document,
     location: { search: '' },
@@ -409,8 +422,8 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
     setInterval: () => 0,
     ...(later ? { Date: daysOn(later) } : {}),
     ...(store ? { localStorage: store } : {}),
-    setTimeout,
-    clearTimeout,
+    setTimeout: pageTimeout,
+    clearTimeout: pageClearTimeout,
     fetch: (path, init = {}) => {
       requests.push({ path, method: init?.method ?? 'GET', body: init?.body ? JSON.parse(init.body) : null });
       const answer = held.then(() => fetchLive(`${view.base}${path}`, { ...init, headers: { ...init.headers, ...session }, signal: init.signal ?? AbortSignal.timeout(30_000) })).then(async (res) => {
@@ -431,6 +444,12 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
   return {
     html,
     requests,
+    /** Stop the page as closing its tab would: no timer it set, or sets later, runs. */
+    close() {
+      closed = true;
+      for (const timer of timers) clearTimeout(timer);
+      timers.clear();
+    },
     // Let the held requests go, and wait for what they bring.
     async release() {
       release();
