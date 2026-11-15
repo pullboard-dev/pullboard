@@ -34,7 +34,7 @@ test('one coordinator per board across machines [E19]', { timeout: relayWorkBudg
   const box = await relayClientFixture(t);
   await box.link();
   const pairing = await box.journeyCli('relay', 'pair');
-  const other = await box.otherDeviceJoin(pairing.document.code);
+  const other = await box.otherDeviceJoin(pairing.document.code, undefined, { inProcess: true });
   /** A refusal's code and message as the CLI reports them. */
   const refusal = result => ({ code: result.document?.error?.code, message: String(result.document?.error?.message ?? '') });
 
@@ -84,7 +84,7 @@ test('an agent session on a computer that does not hold the coordinator takes it
   const box = await relayClientFixture(t);
   await box.link();
   const pairing = await box.journeyCli('relay', 'pair');
-  const other = await box.otherDeviceJoin(pairing.document.code);
+  const other = await box.otherDeviceJoin(pairing.document.code, undefined, { inProcess: true });
   /** Run the second computer's CLI from a named agent session. */
   const inSession = (...args) => other.journeyCliAs('second-computer-session', ...args);
   assert.equal((await box.journeyCli('add', box.lane, 'Planned on the holding computer')).code, 0, 'the first computer holds the coordinator');

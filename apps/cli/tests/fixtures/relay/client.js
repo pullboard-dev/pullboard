@@ -574,7 +574,7 @@ globalThis.fetch = function tracedFetch(input, init) {
     return (await run('relay', 'off')).code;
   }
   /** Clone the same committed project into a separate repository/home, then join through a printed code. */
-  async function otherDeviceJoin(code, name) {
+  async function otherDeviceJoin(code, name, { inProcess = false } = {}) {
     const bare = join(scratch, 'project.git');
     const otherRoot = join(scratch, 'paired-clone');
     const otherHome = join(scratch, 'paired-home');
@@ -583,10 +583,11 @@ globalThis.fetch = function tracedFetch(input, init) {
     assert.equal(runFixtureChild('git', ['clone', '--bare', root, bare], { cwd: scratch, env: otherEnv, encoding: 'utf8' }).status, 0, 'fixture project creates a private bare remote');
     assert.equal(runFixtureChild('git', ['clone', bare, otherRoot], { cwd: scratch, env: otherEnv, encoding: 'utf8' }).status, 0, 'second device is a real clone');
     assert.equal(runFixtureChild('git', ['remote', 'set-url', 'origin', 'git@github.com:fixture/repository.git'], { cwd: otherRoot, env: otherEnv, encoding: 'utf8' }).status, 0, 'clone names the same authorized repository');
-    const run = (...args) => childResult(otherRoot, otherEnv, [CLI, ...args, '--json']);
+    // A journey's setup (inProcess) answers in this process: no node start-up for the init, join and export of a second device (#8283).
+    const run = (...args) => (inProcess ? inProcessResult(otherRoot, otherEnv, args) : childResult(otherRoot, otherEnv, [CLI, ...args, '--json']));
     const initEnv = { ...otherEnv };
     delete initEnv.PULLBOARD_MODEL; // Pairing imports the source coordinator's declaration.
-    assert.equal((await childResult(otherRoot, initEnv, [CLI, 'init', '--json'])).code, 0, 'the cloned project initializes its private local board');
+    assert.equal((await (inProcess ? inProcessResult(otherRoot, initEnv, ['init']) : childResult(otherRoot, initEnv, [CLI, 'init', '--json']))).code, 0, 'the cloned project initializes its private local board');
     const joined = await run('relay', 'join', code, '--url', origin, ...(name === undefined ? [] : ['--name', name]));
     const document = joined.document;
     if (joined.code !== 0) {
