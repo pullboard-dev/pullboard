@@ -3,14 +3,12 @@
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
 import { generateTestManifest } from '../../../../index.js';
+import { runManifestCommand } from '../../../../index.js';
 import { TEST_KINDS } from '../../../../index.js';
 import { privateFixtureFiles } from '../../../fixtures/child.js';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
 
-const command = fileURLToPath(new URL('../../../../src/io/test/scripts/manifest.js', import.meta.url));
 const SPAWN = 'import { spawnSync } from "node:child_process"; export const run = () => spawnSync("git");';
 
 /** Write only synthetic sources in a private Git repository; the candidate sources are read, never run. */
@@ -83,9 +81,15 @@ test('a row carries the recorded runtime in milliseconds, or null when none was 
 test('the command writes the manifest and prints the count per kind [C7]', t => {
   const files = fixture(t, SOURCES), root = files.root;
   files.write('rows.json', '');
-  const result = runFixtureChild(process.execPath, [command, '--out', 'rows.json', root], { cwd: root, encoding: 'utf8' });
+  const result = runManifestCommand(['--out', 'rows.json', root], { times: {} });
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /8 test files; 3 cell unit, 2 contract, 2 journey, 1 harness/u);
   const written = JSON.parse(files.read('rows.json'));
   assert.equal(written.files.length, 8);
+});
+
+test('the command refuses an unknown flag with its usage and writes nothing [C7]', () => {
+  const result = runManifestCommand(['--bogus']);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /usage: /u);
 });

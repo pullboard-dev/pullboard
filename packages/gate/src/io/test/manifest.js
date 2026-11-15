@@ -3,11 +3,13 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { resolve } from 'node:path';
 import { generateTestTiers } from './tiers.js';
 import { infrastructure } from './tiers.js';
 import { latestRunnerFileTimes } from './budget-rows.js';
 import { readFileTimes } from './value/timing.js';
 import { manifestRows } from '../../logic/test/manifest.js';
+import { TEST_KINDS } from '../../logic/test/manifest.js';
 
 export const TEST_MANIFEST_FILE = 'packages/gate/data/tests/test-manifest.json';
 const TEST = /\.(?:test|spec)\.[cm]?js$/u;
@@ -69,4 +71,25 @@ export function writeTestManifest(root, { out = TEST_MANIFEST_FILE, times } = {}
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, formatTestManifest(manifest));
   return { manifest, path };
+}
+
+/**
+ * The manifest command: write the manifest and say how many files each kind holds.
+ * Why: the script stays a thin wrapper, so the command is tested in process.
+ *
+ * @param {string[]} args `[--out file] [project-root]`
+ * @param {{ times?: Record<string, number> }} [options] recorded runtimes by file, for tests
+ * @returns {{ status: number, stdout: string, stderr: string }}
+ */
+export function runManifestCommand(args, { times } = {}) {
+  const at = args.indexOf('--out');
+  const out = at >= 0 ? args[at + 1] : TEST_MANIFEST_FILE;
+  const rest = args.filter((arg, index) => index !== at && index !== at + 1);
+  if (rest.some(arg => arg.startsWith('-')) || rest.length > 1 || (at >= 0 && !out)) {
+    return { status: 1, stdout: '', stderr: 'usage: node packages/gate/src/io/test/scripts/manifest.js [--out file] [project-root]\n' };
+  }
+  const { manifest } = writeTestManifest(resolve(rest[0] ?? '.'), { out, times });
+  const counts = TEST_KINDS.map(kind => `${manifest.files.filter(row => row.kind === kind).length} ${kind}`);
+  const timed = manifest.files.filter(row => row.cost.ms !== null).length;
+  return { status: 0, stdout: `${manifest.files.length} test files; ${counts.join(', ')}; ${timed} with a recorded runtime\n`, stderr: '' };
 }
