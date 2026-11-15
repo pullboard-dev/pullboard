@@ -691,10 +691,10 @@ function leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditF
 }
 
 /** Run a full gate while its caller owns the queue lease; only a full run may stamp its tree. */
-function* fullGateExecution(root, config, trustStamp = false, { waitMs = 0, log = gitPath(root, LOG), gateLease, landing = false, collectAll = false, auditBatchId, auditFiles, auditCoverage = false, releaseRequest, releaseStartedAt, stages = false, waivers = [], kind = 'gate', signal } = {}) {
+function* fullGateExecution(root, config, trustStamp = false, { waitMs = 0, log = gitPath(root, LOG), gateLease, landing = false, collectAll = false, auditBatchId, auditFiles, auditCoverage = false, releaseRequest, releaseStartedAt, stages = false, waivers = [], kind = 'gate', signal, timedShell } = {}) {
   if (trustStamp && !config[VALUE_GATE] && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
   const before = committedTree(root);
-  const run = yield [root, config.gate, { waitMs, pipefail: true, profileFile: `${log}.profile.json`, gateLease, landing, collectAll, releaseRequest, stages, waivers, auditCoverage, timeoutMs: landing ? config.landing?.timeoutMs : undefined, signal }];
+  const run = yield [root, config.gate, { waitMs, pipefail: true, profileFile: `${log}.profile.json`, gateLease, landing, collectAll, releaseRequest, stages, waivers, auditCoverage, timeoutMs: landing ? config.landing?.timeoutMs : undefined, timedShell, signal }];
   const { isGreen, output, seconds, profile, profilePath } = run;
   writeFileSync(log, output);
   // The environment refusing a run says nothing about the gate, so only a real result is recorded (U41).

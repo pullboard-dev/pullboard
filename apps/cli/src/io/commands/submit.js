@@ -117,6 +117,9 @@ import { whoAmI } from '../entry.js';
 import { claimOrdered } from '../entry.js';
 import { claimFreezer } from '../entry.js';
 import { withBoard } from '../entry.js';
+import { resourceAgent } from '../board/access.js';
+import { recordBaseRunsForSubmit } from '../submit/clause-base.js';
+import { recordMainComparison } from '../../../../../packages/flakes/index.js';
 import { actOn } from '../entry.js';
 import { recordedRecovery } from '../../../../../packages/state/index.js';
 import { topUpClaims } from '../next.js';
@@ -315,6 +318,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     if (offered !== null) return offered;
   }
   const preflightStart = performance.now();
+  // The fail-before check reads a base run of each [test] clause's file; produce it first, only when that check is on [C7,#8090].
+  if (inspectClauses && failBefore) await authorizationStep('clause-base-runs', () => recordBaseRunsForSubmit(ctx, id, { withBoard, ordered, resourceAgent, store, gateTestFiles, recordMainComparison }));
   const held = await authorizationStep('claim-check', () => withBoard(ctx, async (board) => {
     const me = whoAmI(ctx, board);
     const item = store.getItem(board, id);
