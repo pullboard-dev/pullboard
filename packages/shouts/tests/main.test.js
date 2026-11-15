@@ -47,8 +47,8 @@ test('watch flags become filters, and every bad value is refused with a usage er
 
 /** A real board holding two seats, an item and two shouts, with the repository it lives in. */
 function shoutedBoard(t) {
-  const repo = cellRepo(t);
-  const board = cellBoard(t, repo.boardFile);
+  const repo = cellRepo(t, { real: true });
+  const board = cellBoard(t, repo.boardFile, undefined, { real: true });
   const core = cellSeat(board, { lane: 'web', path: repo.root + '/a' });
   const other = cellSeat(board, { lane: 'api', path: repo.root + '/b' });
   const item = cellItem(board, { lane: 'web', title: 'Render the page', criterion: '1. it renders [test]' });

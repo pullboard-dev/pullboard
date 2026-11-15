@@ -1,5 +1,10 @@
 /** The backbone table: every item move and every job kind with the item state it serves, one source [C7,#8067]. */
 import { MACHINE } from '../../../../state/light.js';
+import { APPLIED_RULES } from './item-moves.js';
+import { GUARD_RULES } from './item-moves.js';
+import { ITEM_GUARDS } from './item-moves.js';
+import { ITEM_OUTCOMES } from './item-moves.js';
+import { KNOWN_RULES } from './item-moves.js';
 import { defineRules } from './rules.js';
 
 /**
@@ -28,7 +33,7 @@ export const JOB_KINDS = Object.freeze([
 export const servesRule = (kind) => `serves.${kind}`;
 
 /** One row per declared item move, keyed `verb:from>to` (several from-states join with `|`). */
-const itemRows = MACHINE.moves.map(move => ({ key: `${move.verb}:${move.from.join('|')}>${move.to}`, verb: move.verb, from: [...move.from], to: move.to, by: [...move.by] }));
+const itemRows = MACHINE.moves.map(move => ({ key: `${move.verb}:${move.from.join('|')}>${move.to}`, verb: move.verb, from: [...move.from], to: move.to, by: [...move.by], guards: [...(move.guards ?? [])] }));
 
 const pinned = (snapshot) => snapshot.item?.commit === snapshot.job?.commit && snapshot.item?.digest === snapshot.job?.digest;
 const everyItem = (snapshot, ok) => Array.isArray(snapshot.items) && snapshot.items.length > 0 && snapshot.items.every(ok);
@@ -38,6 +43,9 @@ const everyItem = (snapshot, ok) => Array.isArray(snapshot.items) && snapshot.it
  * Why: the serves facts are U152 rules, so a job's reason to exist is derived the same way as every guard.
  */
 export const BACKBONE_RULES = defineRules({
+  ...GUARD_RULES,
+  ...APPLIED_RULES,
+  ...KNOWN_RULES,
   claimed: { says: 'the item is claimed', holds: (s) => s.item?.status === 'claimed' },
   submitted: { says: 'the item is submitted', holds: (s) => s.item?.status === 'submitted' },
   noItem: { says: 'the job serves no item', holds: (s) => s.item === undefined || s.item === null },
@@ -73,8 +81,8 @@ export const BACKBONE_TABLE = Object.freeze({
   }),
   items: Object.freeze(itemRows),
   jobs: Object.freeze(JOB_KINDS.map(job => Object.freeze({ kind: job.kind, serves: servesRule(job.kind) }))),
-  guards: Object.freeze([]),
-  outcomes: Object.freeze([]),
+  guards: ITEM_GUARDS,
+  outcomes: ITEM_OUTCOMES,
 });
 
 /** Every stored item status and job kind, the list tableCoverage runs over. */

@@ -61,20 +61,22 @@ export function currentGitAdapter() {
   return adapters.getStore() ?? realGitAdapter;
 }
 
+export function needAdapter(adapter) {
+  const method = ['spawnSync', 'execFileSync', 'spawn'].find(name => typeof adapter?.[name] !== 'function');
+  if (method) throw new TypeError(`Git adapter needs ${method}`);
+}
+export { adapters, selections };
+
 /** Select an implementation for one call chain; concurrent and nested work cannot change its peers. */
 export function withGitAdapter(adapter, work) {
-  for (const method of ['spawnSync', 'execFileSync', 'spawn']) {
-    if (typeof adapter?.[method] !== 'function') throw new TypeError(`Git adapter needs ${method}`);
-  }
+  needAdapter(adapter);
   const forced = selections.getStore()?.audit || process.env.PULLBOARD_ADAPTER_AUDIT === '1';
   return adapters.run(forced ? realGitAdapter : adapter, work);
 }
 
 /** Contract suites explicitly exercise both implementations even during an audit. */
 export function withGitContractAdapter(adapter, work) {
-  for (const method of ['spawnSync', 'execFileSync', 'spawn']) {
-    if (typeof adapter?.[method] !== 'function') throw new TypeError(`Git adapter needs ${method}`);
-  }
+  needAdapter(adapter);
   return adapters.run(adapter, work);
 }
 

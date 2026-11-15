@@ -17,7 +17,7 @@ import { recordedClaimWorktrees } from '../../index.js';
 
 /** A repo holding shared.js at a base commit and two detached worktrees of it, each editing shared.js its own way. */
 function twoWorktrees(t) {
-  const repo = cellRepo(t);
+  const repo = cellRepo(t, { real: true });
   repo.put('shared.js', 'old\n');
   const base = repo.commitAll();
   const scratch = privateFixtureFiles('pullboard-worktrees-');
@@ -64,7 +64,7 @@ test('overlap lines name a shared edit and an out-of-scope edit to the holder on
 
 test('background maintenance records each claim\'s files, and a later read answers from the record with no Git [N2,B3]', t => {
   const { repo, items, agents, first } = twoWorktrees(t);
-  const board = cellBoard(t, repo.boardFile);
+  const board = cellBoard(t, repo.boardFile, undefined, { real: true });
   const observed = recordClaimWorktrees(board, items, agents, { now: new Date('2026-11-09T12:00:00.000Z') });
   assert.deepEqual(observed.get(1), { files: ['shared.js'], unknown: false });
   const recorded = recordedClaimWorktrees(items, agents, board);
@@ -79,7 +79,7 @@ test('background maintenance records each claim\'s files, and a later read answe
 });
 
 test('a landed commit names the files it changed against its base, and an unreadable pair is unknown [R2,N26]', t => {
-  const repo = cellRepo(t);
+  const repo = cellRepo(t, { real: true });
   repo.put('a.txt', 'one\n');
   const first = repo.commitAll();
   repo.put('b.txt', 'two\n');
