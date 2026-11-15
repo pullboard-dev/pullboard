@@ -86,7 +86,7 @@ export function runOnRunner(root, command, options) {
   const installation = committedRunnerController(fileURLToPath(new URL('../../../../', import.meta.url)), { shared: true });
   try {
   const child = spawnSync(process.execPath, [installation?.entry ?? runnerControllerEntry(fileURLToPath(new URL('../../../../', import.meta.url))), '--pullboard-runner-controller'], {
-    cwd: root, input: JSON.stringify(request), encoding: 'utf8', maxBuffer: MAX_OUTPUT_BYTES * 6 + 1024 ** 2,
+    cwd: root, env: { ...process.env }, input: JSON.stringify(request), encoding: 'utf8', maxBuffer: MAX_OUTPUT_BYTES * 6 + 1024 ** 2,
     stdio: ['pipe', 'pipe', 'pipe', 'pipe'],
   });
   return bridgeResult(request, child, 'sync-bridge');
@@ -106,7 +106,7 @@ export async function runOnRunnerAsync(root, command, options) {
   const request = { root, command, options: plainOptions, parentPid: process.pid, parentPipe: PARENT_PIPE_FD };
   const input = JSON.stringify(request);
   const child = spawn(process.execPath, [installation?.entry ?? runnerControllerEntry(fileURLToPath(new URL('../../../../', import.meta.url))), '--pullboard-runner-controller'], {
-    cwd: root, stdio: ['pipe', 'pipe', 'pipe', 'pipe'],
+    cwd: root, env: { ...process.env }, stdio: ['pipe', 'pipe', 'pipe', 'pipe'],
   });
   const output = [], diagnostics = [];
   let bytes = 0, error;
