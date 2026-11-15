@@ -11,6 +11,8 @@ import { releaseEngine } from "../../../../../moves/light.js";
 import { RELEASE_REASONS } from "../../reasons.js";
 import { staleStateLimits } from "../stale/state/policy.js";
 import { runTable } from "../../../../../moves/light.js";
+import { claimEngine } from "../../../../../moves/light.js";
+import { AGENT_GRANT_ENGINE } from "../../../../../state/light.js";
 import { submitEngine } from "../../../../../moves/light.js";
 import { ENGINE_VERSION } from "../../../../../state/index.js";
 import { LANDING_LOCAL_LEASE_ENGINE } from "../../../../../state/light.js";
@@ -20,6 +22,16 @@ import {
 } from "./local.js";
 
 const KEY = 'landing_lease';
+
+let claimTable = null;
+/**
+ * Run the claim and renew move table over a snapshot and move.
+ * Why here: this file is the store's one reader of the moves cell, so the claim writer reaches the table without a second cross-cell edge [C7,#8270].
+ */
+export function runClaimTable(snapshot, move) {
+  claimTable ??= claimEngine({ grantEngine: AGENT_GRANT_ENGINE });
+  return runTable(claimTable.table, claimTable.rules, snapshot, move);
+}
 export const LANDING_LEASE_MS = 120_000; // 30 s died under a 22 s board write; a dead holder is still reclaimed at expiry [C7].
 
 /** Validate every queue identity before it becomes durable or controls admission. */
