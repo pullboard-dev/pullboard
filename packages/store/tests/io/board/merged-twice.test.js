@@ -10,8 +10,8 @@ import { cellSeat } from '../../fixtures/cell.js';
 
 /** A verified item on a real Git project and SQLite board. */
 function verifiedItem(t) {
-  const project = cellProject(t);
-  const board = cellBoard(t, project.boardFile, undefined, { gitRoot: project.repo });
+  const project = cellProject(t, { real: true });
+  const board = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: project.repo });
   store.board_ensureCoordinator(board, project.repo);
   const builder = cellSeat(board, { lane: 'web', path: `${project.dir}/builder` }).id;
   const id = cellItem(board, { lane: 'web', title: 'Merged twice', criterion: 'Tracked work', specIds: ['G1'] }).item_id;

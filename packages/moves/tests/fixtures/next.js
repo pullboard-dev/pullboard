@@ -42,10 +42,10 @@ export function fixture(t, { reviewers = false, family, policy, route = 'strong'
   const config = {};
   if (family || policy) config.verify = { policy: policy ?? 'any', family: family ?? 'off' };
   if (reviewers) config.lanes = { ...CELL_CONFIG.lanes, review: { owns: [] } };
-  const project = cellProject(t, { config });
+  const project = cellProject(t, { real: true, config });
   let at = Date.parse('2026-10-25T10:00:00.000Z');
   const clock = { now: () => new Date(at) };
-  const board = cellBoard(t, project.boardFile, clock, { gitRoot: project.repo });
+  const board = cellBoard(t, project.boardFile, clock, { real: true, gitRoot: project.repo });
   const builderPath = join(project.dir, 'builder');
   mkdirSync(builderPath);
   const seats = { actor: cellSeat(board, { lane: 'web', path: project.repo, family: 'Family Alpha', route }),

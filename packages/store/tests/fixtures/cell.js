@@ -60,6 +60,15 @@ export const CELL_SPEC = `# Demo spec
 - G2 [approved, must] The API answers. | gate: api test
 `;
 
+/**
+ * Whether the running test file lives under packages/, where the stand-ins are the default [C7].
+ *
+ * Why: apps/ journeys start the real CLI on the repository and board, and other lanes own those files, so they keep real
+ * Git and boards until each asks for the stand-ins with `real: false`. node --test runs each file as its own process, so
+ * its argv names the file.
+ */
+const STAND_IN_DEFAULT = /[\\/]packages[\\/]/u.test(process.argv[1] ?? '');
+
 /** The fixed identity every stand-in commit signs as, matching the real fixture's. */
 const STAND_IN_IDENTITY = Object.freeze({ GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com',
   GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com' });
@@ -89,7 +98,7 @@ function memoryRepo(t, files, tracked) {
 
 /**
  * A private repository holding pullboard.json and SPEC.md in one plain commit; Git is isolated from the machine.
- * By default the repository lives in the in-memory Git stand-in, which is installed as this test's Git adapter, so no
+ * In a test under packages/ the repository lives, by default, in the in-memory Git stand-in, which is installed as this test's Git adapter, so no
  * Git process starts. A test that needs real Git objects, a Git process of its own or a real `.git` folder asks with
  * `real: true` and gets a real repository. Cleanup goes through `t.after`. No hooks are installed and no `pullboard init` runs.
  *
@@ -97,7 +106,7 @@ function memoryRepo(t, files, tracked) {
  * @param {{ config?: object, spec?: string, real?: boolean }} [policy] - The pullboard.json object and SPEC.md text (the e2e project's by default), and whether to build a real repository.
  * @returns {{ root: string, boardFile: string, commit: string, real: boolean, adapter: object | null, put: (path: string, body: string) => void, commitAll: () => string }}
  */
-export function cellRepo(t, { config = CELL_CONFIG, spec = CELL_SPEC, real = false } = {}) {
+export function cellRepo(t, { config = CELL_CONFIG, spec = CELL_SPEC, real = !STAND_IN_DEFAULT } = {}) {
   const tracked = [['pullboard.json', JSON.stringify(config, null, 2) + '\n'], ['SPEC.md', spec]];
   if (real) {
     const graph = fixtureCommittedGraph('pullboard-cell-');
@@ -119,7 +128,7 @@ export function cellRepo(t, { config = CELL_CONFIG, spec = CELL_SPEC, real = fal
  * Open a board through the board composition root (never the library front door, which also exports the CLI's main),
  * creating the production schema the way any first open does, and close it after the test.
  *
- * By default the board is the in-memory stand-in (`:memory:`), proved equal to an on-disk board by the contract in
+ * In a test under packages/ the board is, by default, the in-memory stand-in (`:memory:`), proved equal to an on-disk board by the contract in
  * packages/store/tests/board-contract.test.js (#8087), whatever `file` names. A test that needs the file itself, because
  * it starts a process on it, reads it back or watches it on disk, asks with `options.real: true`.
  *
@@ -129,7 +138,7 @@ export function cellRepo(t, { config = CELL_CONFIG, spec = CELL_SPEC, real = fal
  * @param {object} [options] - openBoard options such as gitRoot, plus `real` to open `file` on disk.
  * @returns {object} The open board.
  */
-export function cellBoard(t, file, clock, { real = false, ...options } = {}) {
+export function cellBoard(t, file, clock, { real = !STAND_IN_DEFAULT, ...options } = {}) {
   const board = openKitBoard(real ? file : ':memory:', clock, options);
   t.after(() => { try { closeBoard(board); } catch { /* A test that closed it itself already released it. */ } });
   return board;
@@ -199,7 +208,7 @@ export function cellSandbox(t, { model = FIXTURE_MODEL } = {}) {
  * @param {{ gate?: string, config?: object, spec?: string, model?: string, real?: boolean }} [options] - `real: true` builds a real repository, as cellRepo does.
  * @returns {{ dir: string, repo: string, boardFile: string, real: boolean, adapter: object | null, env: Record<string, string>, git: (cwd: string, ...args: string[]) => string, tryGit: (cwd: string, ...args: string[]) => object }}
  */
-export function cellProject(t, { gate = PROJECT_GATE, config = {}, spec = CELL_SPEC, model = FIXTURE_MODEL, real = false } = {}) {
+export function cellProject(t, { gate = PROJECT_GATE, config = {}, spec = CELL_SPEC, model = FIXTURE_MODEL, real = !STAND_IN_DEFAULT } = {}) {
   const sandbox = cellSandbox(t, { model });
   const repo = cellRepo(t, { config: { ...CELL_CONFIG, gate, ...config }, spec, real });
   if (real) return { dir: sandbox.dir, repo: repo.root, boardFile: repo.boardFile, env: sandbox.env, git: sandbox.git, tryGit: sandbox.tryGit, real: true, adapter: null };
