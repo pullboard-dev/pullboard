@@ -5,6 +5,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { BASELINE_TABLES } from '../../../../commits/light.js';
 import { Refused } from '../../../../kernel/index.js';
 import {
   LISTING as TEST_CELLS_FILE,
@@ -18,6 +19,7 @@ import {
 } from './tiers.js';
 
 export const TEST_JOURNEYS_FILE = 'packages/gate/data/tests/test-journeys.json';
+const TEST_WAITS_BASELINE_FILE = BASELINE_TABLES[1];
 const TEST = /\.(?:test|spec)\.[cm]?js$/u;
 const pretty = value => `${JSON.stringify(value, null, 2)}\n`;
 
@@ -70,6 +72,13 @@ export function deriveTestRegistries(root, { renamed = new Map(), touched = [] }
     const journeys = JSON.parse(readFileSync(journeysPath, 'utf8'));
     journeys.files = followRows(journeys.files, renamed, exists);
     if (writeIfChanged(root, TEST_JOURNEYS_FILE, pretty(journeys))) changed.push(TEST_JOURNEYS_FILE);
+  }
+  const waitsPath = join(root, TEST_WAITS_BASELINE_FILE);
+  if (existsSync(waitsPath)) {
+    const waits = JSON.parse(readFileSync(waitsPath, 'utf8'));
+    const followed = followRows(waits, renamed, exists);
+    // Only a real move or removal rewrites the file, so its hand-kept layout is never churned.
+    if (JSON.stringify(followed) !== JSON.stringify(waits) && writeIfChanged(root, TEST_WAITS_BASELINE_FILE, pretty(followed))) changed.push(TEST_WAITS_BASELINE_FILE);
   }
   const tiersPath = join(root, TEST_TIERS_FILE);
   if (existsSync(tiersPath)) {

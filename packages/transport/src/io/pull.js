@@ -75,7 +75,7 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
   /** Write the registrations and offers to the store, after every change to either. */
   const persist = () => store?.save({
     runners: [...runners.values()].map(({ runner, publicKey, seen }) => ({ runner, publicKey, seen })),
-    offers: [...offers.values()].map(({ job, tree, runner, shards }) => ({ job, tree, runner, shards: [...shards.values()] })),
+    offers: [...offers.values()].map(({ job, tree, base, tooling, attempt, runner, shards }) => ({ job, tree, base, tooling, attempt, runner, shards: [...shards.values()] })),
   });
   // Nonces of accepted takes, each kept until its request can no longer be fresh, so a replay inside the window finds it.
   const spent = new Map();
