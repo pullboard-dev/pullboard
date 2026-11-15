@@ -5,6 +5,7 @@ import { cpSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import {
@@ -134,6 +135,30 @@ async function succeeds(box, cwd, ...args) {
   return result;
 }
 
+/**
+ * Make a genuine private main source checkout of the candidate: its files in a fresh repository whose own Git directory is the
+ * common one, which is all main authority reads. It holds no commit: hashing and committing the whole tree cost seconds a loaded
+ * runner multiplied, and this journey's 180 s per-file budget was spent there [C7].
+ */
+function privateMainSource(box, directory) {
+  copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), directory);
+  box.git(directory, 'init', '-q', '-b', 'main');
+  box.git(directory, 'add', '-A');
+  box.git(directory, 'commit', '-q', '-m', 'chore: candidate main source');
+}
+
+test('clause 1: a private main source checkout is the candidate tree in its own repository with no commit made of it [C7]', () => {
+  const box = e2e.sandbox();
+  const directory = join(box.dir, 'main-source');
+  mkdirSync(directory);
+  privateMainSource(box, directory);
+  assert.ok(readFileSync(join(directory, 'apps/cli/pullboard.js'), 'utf8').length > 0, 'the candidate entry is copied');
+  const gitDir = box.git(directory, 'rev-parse', '--absolute-git-dir');
+  const common = box.git(directory, 'rev-parse', '--path-format=absolute', '--git-common-dir');
+  assert.equal(realpathSync(gitDir.trim()), realpathSync(common.trim()), 'its Git directory is the common one, which is what makes it main');
+  assert.notEqual(box.tryGit(directory, 'rev-parse', '--verify', 'HEAD').status, 0, 'no commit hashes the copied tree');
+});
+
 /** Commit one real source change in the private Git fixture. */
 function choice(box, cwd, value) {
   const result = e2e.commitFile(box, cwd, 'web/feature.js', `export const choice = '${value}';\n`, 'feat(web): fixture choice [G1]');
@@ -170,10 +195,7 @@ test('a stamped pre-carry board upgrades on main open and completes a native mer
   // repository's shared DDL. Copy the actual candidate into a genuine private main source checkout.
   const application = join(box.dir, 'main-application');
   mkdirSync(application);
-  copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), application);
-  box.git(application, 'init', '-q', '-b', 'main');
-  box.git(application, 'add', '-A');
-  box.git(application, 'commit', '-q', '-m', 'chore: candidate main source');
+  privateMainSource(box, application);
   // Process-level: this runs the copied candidate main checkout's own entry, which an in-process call cannot reach.
   const opened = runFixtureChild(process.execPath, [join(application, 'apps/cli/pullboard.js'), 'inbox', '--json'],
     { cwd: box.repo, env: box.env, encoding: 'utf8' });
