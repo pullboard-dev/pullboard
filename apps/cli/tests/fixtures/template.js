@@ -153,5 +153,8 @@ export function templatedProject(box, shape, build) {
   return built;
 }
 
+/** The sandbox directories this process's templates were taken from. */
+export function templateOrigins() { return [...templates.values()].map(template => template.from); }
+
 /** How many projects this process built from nothing and copied from a template; the fixture's own test reads it. */
 export function templateStats() { return { ...stats, templates: templates.size }; }

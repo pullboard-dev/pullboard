@@ -7,6 +7,7 @@ import { writeFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { join } from 'node:path';
 import { createE2eHelpers } from './fixtures/e2e.js';
+import { templateOrigins } from './fixtures/template.js';
 import { templateStats } from './fixtures/template.js';
 
 /** Every file under a directory except git objects, as absolute paths. */
@@ -56,7 +57,9 @@ test('a copied project is isolated: its paths, seat and writes belong to it alon
   assert.equal(b.tryGit(b.repo, 'cat-file', '-e', 'HEAD:only-in-a.txt').status === 0, false, 'the second case never sees the first case commit');
   assert.equal(a.git(a.repo, 'rev-list', '--count', 'HEAD').trim(), '2');
   assert.equal(b.git(b.repo, 'rev-list', '--count', 'HEAD').trim(), '1');
-  for (const file of files(b.dir)) assert.equal(readFileSync(file).includes(a.dir), false, `${file} still names the first case directory`);
+  // Tracked files keep the path their commit holds; git metadata, the board and the machine home name only the copy.
+  const stored = [...files(join(b.repo, '.git')), ...files(join(b.dir, 'machine-home')), join(b.web, '.git')];
+  for (const origin of templateOrigins()) for (const file of stored) assert.equal(readFileSync(file).includes(origin), false, `${file} still names the template directory`);
   const whoami = b.run(b.web, 'whoami');
   assert.equal(whoami.code, 0, whoami.err);
   assert.match(whoami.out, new RegExp(`web-1.*${b.web.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}`, 'u'), 'the copied seat reports its own worktree path');
