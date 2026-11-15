@@ -1,6 +1,7 @@
 /** The fence ref, the epoch commits and the refusal for a land push fenced by the gate hop's epoch; publish.js does the push itself [C7,#8275]. */
 import { tryGit } from '../../../../git/index.js';
 import { Refused } from '../../../../kernel/index.js';
+import { readGateHop } from '../../../../store/index.js';
 
 // A fixed identity and date make one item and epoch hash to the same fence commit on every clone.
 const FENCE_IDENTITY = { GIT_AUTHOR_NAME: 'pullboard', GIT_AUTHOR_EMAIL: 'hop@pullboard.invalid', GIT_AUTHOR_DATE: '@0 +0000',
@@ -39,4 +40,48 @@ export function hopFenceRefusal(root, { remote, item, epoch }, pushed) {
   const output = (pushed.stderr || pushed.stdout).split('\n');
   return new Refused('HOP_FENCED', `the land push for #${item} at hop epoch ${epoch} was refused: the fence ${hopFenceRef(item)} holds ${holds.slice(0, 12)}, not this epoch (${output.find(line => line.includes('stale info')) ?? output.find(line => line.includes('rejected')) ?? 'stale lease'})`,
     'stop landing: another land job owns the hop; acquire it again if it lapses');
+}
+
+/**
+ * The fence ref value this owner's epoch may replace: nothing (the ref was never fenced), or the commit of an earlier epoch of the same item; null when the ref holds this epoch or a later one.
+ * Why any earlier epoch: an item's gate can be taken more than once between two lands, so the fence may sit several epochs back [C7,#8320].
+ */
+export function hopFenceLeaseFrom(root, { item, epoch }, holds) {
+  if (!holds) return '';
+  if (epoch > 1 && hopFencePrevious(root, { item, epoch }) === holds) return holds;
+  for (let earlier = epoch - 2; earlier >= 1; earlier--) if (hopFenceObject(root, { item, epoch: earlier }) === holds) return holds;
+  return null;
+}
+
+/** Whether the board has the fenced hop table; it is created only once a gate driver takes a hop with gate.fencedHop on. */
+function hasGateHops(db) {
+  return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='gate_hop'").get());
+}
+
+/**
+ * The hop epochs a landing batch carries: each item's epoch from its fenced gate row, read only when `enabled` (gate.fencedHop).
+ * An item whose gate never took the row carries none, so turning the setting on does not stop items already gated [C7,#8320].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{ id: number }[]} items
+ * @param {{ enabled: boolean }} options
+ * @returns {{ item: number, epoch: number }[]}
+ */
+export function carryLandingHops(db, items, { enabled }) {
+  if (enabled !== true || !hasGateHops(db)) return [];
+  return items.flatMap(({ id }) => {
+    const row = readGateHop(db, id);
+    return row && row.epoch >= 1 ? [{ item: id, epoch: row.epoch }] : [];
+  });
+}
+
+/** Refuse HOP_FENCED when a carried epoch is no longer the one its gate row holds: another owner took the hop after the batch carried it [C7,#8320]. */
+export function requireCarriedHops(db, hops) {
+  for (const hop of hops) {
+    const row = hasGateHops(db) ? readGateHop(db, hop.item) : null;
+    if (row?.epoch !== hop.epoch) {
+      throw new Refused('HOP_FENCED', `the landing for #${hop.item} carries hop epoch ${hop.epoch}, but its gate row is at epoch ${row?.epoch ?? 'none'} (owner ${row?.owner ?? 'none'})`,
+        'stop landing: another owner took the hop; land again from the gate that owns it now');
+    }
+  }
 }

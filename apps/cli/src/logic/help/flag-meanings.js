@@ -234,6 +234,7 @@ export const FLAG_MEANINGS = Object.freeze({
   'serve --address': 'the IPv4 address to listen on',
   'test --diagnose': 'prioritizes the run so its failure is explained first',
   'test --cancel': 'cancels the queued or running test run with this id',
+  'gate --static': 'runs only the gate static stage here and prints each finding with its rule code',
   'gate --withdraw': 'takes this item\'s submission out of the gate queue',
   'runner install-serve --board': 'the board URL the runner pulls jobs from',
   'stats agents --window': ['--window <duration>', 'how far back to measure, such as 6h or 1d'],
