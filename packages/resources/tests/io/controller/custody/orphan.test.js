@@ -93,6 +93,6 @@ test('clause 2: the 13 Nov hold ends at once: a killed seat on a runner that oth
   db.prepare('INSERT INTO holder VALUES(?,?,?,?,?,?,?,?,?)').run('lease-two', 4201, 'other-start', 'agent', '/nowhere', '7004', 'gate', HOST, JSON.stringify(identity));
   const gone = new Set([HOLDER.pid, HOLDER.controllerPid]);
   pruneControllerOrphans(db, { sameProcess: pid => !gone.has(pid), recordRunnerFailure });
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM runner_unavailable WHERE host=?').get(HOST).n, 0, 'the runner is never out, so nothing is held past runnerUnavailableMs');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM runner_unavailable WHERE host=?').get(HOST).n, 0, 'the runner is never out, so nothing is held past the waiterMs budget');
   assert.deepEqual(db.prepare('SELECT token FROM holder WHERE runner=?').all(HOST).map(row => row.token), ['lease-two'], 'the live job keeps its lease');
 });
