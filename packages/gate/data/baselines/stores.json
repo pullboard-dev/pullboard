@@ -678,6 +678,10 @@
       "kind": "repo-data",
       "owner": "apps/cli/src/io/generated/declarations.js"
     },
+    "freeze-moves.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/test/freeze.js"
+    },
     "gate-receipts.jsonl": {
       "kind": "jsonl",
       "disk": "receipts",
