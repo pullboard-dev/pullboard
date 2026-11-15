@@ -9221,6 +9221,14 @@
       ],
       "coveredBy": "packages/outbox/tests/io/relay/replies.test.js",
       "because": "a recovered descriptor with no durable receipt stays pending and is never taken as an outcome, and a mismatched ciphertext is not a reply, in the outbox cell against a stand-in relay"
+    },
+    {
+      "file": "apps/cli/journeys/resume/tour-slow.test.js",
+      "specs": [
+        "N10"
+      ],
+      "coveredBy": "apps/cli/tests/logic/tour-steps.test.js",
+      "because": "a slow tour names its three slowest steps with their times, the slowed git commit among them, proven on the step ranking and labelling in the cli cell instead of a tour with a 15 s sleeping git shim"
     }
   ]
 }
