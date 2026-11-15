@@ -250,33 +250,28 @@
     },
     {
       "order": 47,
-      "name": "rules",
-      "file": "packages/codemap/data/plan/47-rules.json"
+      "name": "app:view",
+      "file": "packages/codemap/data/plan/47-app-view.json"
     },
     {
       "order": 48,
-      "name": "app:view",
-      "file": "packages/codemap/data/plan/48-app-view.json"
+      "name": "app:runner",
+      "file": "packages/codemap/data/plan/48-app-runner.json"
     },
     {
       "order": 49,
-      "name": "app:runner",
-      "file": "packages/codemap/data/plan/49-app-runner.json"
+      "name": "app:cli",
+      "file": "packages/codemap/data/plan/49-app-cli.json"
     },
     {
       "order": 50,
-      "name": "app:cli",
-      "file": "packages/codemap/data/plan/50-app-cli.json"
+      "name": "app:lib",
+      "file": "packages/codemap/data/plan/50-app-lib.json"
     },
     {
       "order": 51,
-      "name": "app:lib",
-      "file": "packages/codemap/data/plan/51-app-lib.json"
-    },
-    {
-      "order": 52,
       "name": "app:relay",
-      "file": "packages/codemap/data/plan/52-app-relay.json"
+      "file": "packages/codemap/data/plan/51-app-relay.json"
     }
   ],
   "stays": [
@@ -2209,8 +2204,8 @@
   "allowedEdges": [
     "apps/cli->apps/relay",
     "apps/cli->commits",
+    "apps/cli->moves",
     "apps/cli->search",
-    "apps/cli->rules",
     "apps/cli->state",
     "apps/lib->transport",
     "apps/cli->kernel",

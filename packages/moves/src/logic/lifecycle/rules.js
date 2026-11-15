@@ -1,3 +1,6 @@
+import { defineRules } from '../table/rules.js';
+import { deriveFact } from '../table/rules.js';
+
 /**
  * The item lifecycle as rules over recorded facts: states, move rows, named guards and derived readiness [C7].
  * Why: U152 puts "what is true" (ready, blocked, held, who may move it) in one place that both a trial replay and the
@@ -55,11 +58,11 @@ export function unmetWaits(item, items) {
 }
 
 /**
- * The named rules, as data in the shape of the move tables' derived-facts layer (#8063): each has `says`, the facts it
+ * The named rules, as data on the move tables' derived-facts layer (#8063): each has `says`, the facts it
  * `reads`, and a pure `holds(snapshot, move, fact)` that returns a boolean. The snapshot is `{ item, items }` and the move is the recorded fact.
- * Why this shape: there is one rules engine, so these definitions move to that layer unchanged once it lands.
+ * Why defineRules: one rules engine, so a bad rule is refused when written and every answer is traced.
  */
-export const RULES = {
+export const RULES = defineRules({
   itemExists: { says: 'an add event came before this move', holds: ({ item }) => item.created !== false },
   isOpen: { says: 'the item is open, waiting for a builder', holds: ({ item }) => item.status === 'open' },
   notHeld: { says: 'the coordinator has not put the item on hold', holds: ({ item }) => !item.held },
@@ -75,7 +78,7 @@ export const RULES = {
   coordinatorOnly: { says: 'the caller is the coordinator', holds: (snapshot, move) => move.by === 'coordinator' },
   notMerged: { says: 'the item has no recorded merge receipt', holds: ({ item }) => !item.merged },
   verifiedToLand: { says: 'only a verified item lands', holds: ({ item }) => item.status === 'verified' },
-};
+});
 
 /**
  * The refusal each rule would have been when it does not hold: the board's code and why, so a disagreement reads like a refusal.
@@ -95,22 +98,8 @@ const REFUSALS = {
   verifiedToLand: ({ item }, move) => ({ code: `NOT_VERIFIED (${move.forced ? 'forced ' : ''}from ${move.from ?? item.status})`, why: `the item was ${item.status} in the replay when it landed` }),
 };
 
-/**
- * Private evaluator with the call shape of the move tables' deriveFact (#8063): derive a named fact over a snapshot and move.
- * Not exported from the package. It switches to #8063's deriveFact once that lands, so there is one engine.
- *
- * @param {string} name
- * @param {{ item: object, items: Map<number, object> }} snapshot
- * @param {object} move
- * @returns {boolean}
- */
-function derive(name, snapshot, move) {
-  const rule = RULES[name];
-  return rule.holds(snapshot, move, read => {
-    if (!(rule.reads ?? []).includes(read)) throw new Error(`rule ${name} read ${read} without declaring it`);
-    return derive(read, snapshot, move);
-  });
-}
+/** Derive one named fact over a snapshot and move on the shared rules layer. */
+const derive = (name, snapshot, move) => deriveFact(RULES, name, snapshot, move).holds;
 
 /**
  * Derived readiness: the one definition of ready and blocked, derived from named rules.

@@ -1,9 +1,9 @@
 /** The pullboard rules command: replay the board's whole event log through the lifecycle rules and list every disagreement, read-only [C7]. */
 import { Refused } from '../../../../../packages/kernel/index.js';
-import { lifecycleFact } from '../../../../../packages/rules/index.js';
-import { readLifecycleLog } from '../../../../../packages/rules/index.js';
-import { trial } from '../../../../../packages/rules/index.js';
-import { RULES_VERSION } from '../../../../../packages/rules/index.js';
+import { lifecycleFact } from '../../../../../packages/moves/index.js';
+import { readLifecycleLog } from '../../../../../packages/moves/index.js';
+import { trial } from '../../../../../packages/moves/index.js';
+import { RULES_VERSION } from '../../../../../packages/moves/index.js';
 import { context } from '../entry.js';
 import { withBoardRead } from '../entry.js';
 

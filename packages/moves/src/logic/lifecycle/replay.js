@@ -3,12 +3,12 @@
  * Why: every disagreement is either a rule bug or a board bug, and both are worth knowing (U152 trial); the replay
  * changes nothing, it only reads facts and compares. Pure: facts in, a report out.
  */
-import { apply } from './lifecycle.js';
-import { judge } from './lifecycle.js';
-import { leaseLive } from './lifecycle.js';
-import { newItem } from './lifecycle.js';
-import { readiness } from './lifecycle.js';
-import { ruleOf } from './lifecycle.js';
+import { apply } from './rules.js';
+import { judge } from './rules.js';
+import { leaseLive } from './rules.js';
+import { newItem } from './rules.js';
+import { readiness } from './rules.js';
+import { ruleOf } from './rules.js';
 
 /** The moves that run the clock's lapse first: after a lease ends, the board treats the claim as gone. */
 const SKIPS_LAPSE = new Set(['claim', 'renew', 'release', 'withdraw', 'hold', 'unhold', 'refreeze', 'edit-after', 'merged', 'review-landed']);
