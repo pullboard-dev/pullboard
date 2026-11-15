@@ -5,9 +5,6 @@ import { createHash } from 'node:crypto';
 import { appendFact } from './fact.js';
 import { getItem } from './query.js';
 import { contains } from '../../../../git/index.js';
-import { mainCheckout } from '../../../../git/light.js';
-import { resolveCommit } from '../../../../git/light.js';
-import { trunkRef } from '../../../../git/light.js';
 import { Refused } from '../../../../kernel/index.js';
 import { boundProofReceipt } from '../receipts.js';
 import {
@@ -67,24 +64,6 @@ function changedPolicyKeys(before, after, prefix) {
 }
 
 /**
- * Accepted main's committed policy. While the primary checkout is detached for review (every verify there), the
- * checkout read refuses, so the retained trunk branch's tip is read instead, as the CLI's family read does [#1794].
- * Why: a pulled gate's receipt applies on the board host whenever its job ends, and refusing there recorded a green
- * gate as "passed but not submitted", leaving the item claimed until its builder ran the whole gate again [C7,#8011].
- */
-function acceptedMainPolicy(board, root) {
-  const reads = board.enginePorts.sandboxPolicyReads;
-  try { return reads.mainPolicy(root); }
-  catch (error) {
-    if (error?.code !== 'NO_POLICY' || mainCheckout(root)) throw error;
-    const retained = trunkRef(root);
-    const commit = retained ? resolveCommit(root, retained) : null;
-    if (!commit) throw error;
-    return reads.policyAt(root, commit);
-  }
-}
-
-/**
  * Bind clause inspection to the coordinator's accepted main, not a submitter's machine or arguments.
  *
  * The proof's policy commit may trail current main: landings move main during every long check, so a
@@ -97,7 +76,7 @@ function sealCurrentClauseInspection(board, id, options) {
     throw new Refused('NO_POLICY', 'the native board must know its repository before submitting');
   }
   const root = board.gitRoot;
-  const policy = acceptedMainPolicy(board, root);
+  const policy = board.enginePorts.sandboxPolicyReads.mainPolicy(root);
   const moved = Boolean(options.policyCommit && options.policyCommit !== policy.commit);
   // Main moving forward during a long proof is routine; only a rewind or a policy change voids the sealed policy (#2375).
   if (moved && !contains(root, options.policyCommit, policy.commit)) {

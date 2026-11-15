@@ -21,6 +21,8 @@ import {
   pinnedSpecText,
   tryGit,
   repoInfo,
+  resolveCommit,
+  trunkRef,
 } from '../../../../../git/light.js';
 import {
   Refused,
@@ -33,12 +35,33 @@ export function policyGit(root, args, { encoding = 'utf8' } = {}) {
   return result.stdout;
 }
 
+/** How many operations now read accepted main from the retained trunk branch while the primary is detached. */
+let retainedTrunkReads = 0;
+
+/**
+ * Run operation with mainPolicy reading the retained trunk branch's tip while the primary checkout is detached for review.
+ * Why: a pulled gate's receipt applies on the board host whenever its job ends, often while the coordinator verifies in
+ * the primary (every verify there detaches it); refusing there recorded a green gate "passed but not submitted" and left
+ * the item claimed until its builder ran the whole gate again [C7,#8011]. Commands a person runs keep the refusal.
+ *
+ * @template T
+ * @param {() => T} operation - Synchronous.
+ * @returns {T}
+ */
+export function withRetainedTrunkPolicy(operation) {
+  retainedTrunkReads += 1;
+  try { return operation(); } finally { retainedTrunkReads -= 1; }
+}
+
 /** Resolve the primary checkout's committed HEAD, independently of a linked or detached checkout. */
 export function mainPolicy(root) {
   const checkout = mainCheckout(root);
   if (!checkout) {
     const carried = carriedRunnerTrunk(root);
     if (carried) return policyAt(root, carried.commit);
+    const retained = retainedTrunkReads ? trunkRef(root) : null;
+    const commit = retained ? resolveCommit(root, retained) : null;
+    if (commit) return policyAt(root, commit);
     throw new Refused('NO_POLICY', 'the coordinator checkout is detached for review; ask it to return to its main branch before claiming or running the project gate');
   }
   if (!checkout.commit) throw new Refused('NO_POLICY', 'the coordinator checkout has no commit on ' + checkout.branch + '; create its first commit before claiming or running the project gate');

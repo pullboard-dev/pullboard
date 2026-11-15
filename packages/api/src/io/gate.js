@@ -526,8 +526,10 @@ const SUBMIT_OVERTAKEN_TRIES = 5;
  * not submitted" and its item stayed claimed until the builder ran the whole gate again [C7,#8011].
  */
 function submitOvertaken(board, id, options) {
+  // The coordinator verifying in the primary detaches it; accepted main is then its retained trunk branch [C7,#8011].
+  const retained = board.enginePorts?.sandboxPolicyReads?.withRetainedTrunkPolicy ?? (operation => operation());
   for (let tries = 1; ; tries += 1) {
-    try { return store.submit(board, id, options); }
+    try { return retained(() => store.submit(board, id, options)); }
     catch (error) { if (error?.code !== 'BOARD_BUSY' || !/changed while preparing/u.test(String(error.message)) || tries >= SUBMIT_OVERTAKEN_TRIES) throw error; }
   }
 }
