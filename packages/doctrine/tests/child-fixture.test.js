@@ -14,7 +14,7 @@ const STATIC_IMPORT = /\b(?:import|export)\b[^;'"`]*?\bfrom\s*['"][^'"]*apps\/cl
 /** Fixtures and a view-owned test that still import it: repointing them adds a cell to a ratchet or crosses a lane. */
 const FIXTURE_OWNED = ['gate/tests/io/static/style.test.js'];
 
-test('no package test imports the CLI app child fixture [C7]', () => {
+test('clause 1: no package test imports the CLI app child fixture [C7]', () => {
   const offenders = readdirSync(join(ROOT, 'packages'), { recursive: true })
     .filter((name) => /\.test\.m?js$/.test(name) && !name.split('/').includes('node_modules'))
     .filter((name) => !FIXTURE_OWNED.includes(name))
