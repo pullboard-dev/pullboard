@@ -5,9 +5,6 @@ import { test } from 'node:test';
 import { fixtureBoard } from '../../../../apps/cli/tests/fixtures/board.js';
 import { mainRedLookup } from '../../../drive/index.js';
 import { MAIN_TEST_JOB } from '../../../drive/index.js';
-import { formatTestOutcomes } from '../../../gate/index.js';
-import { judgeMainOwnedReds } from '../../../gate/index.js';
-import { returnedMainReceipts } from '../../../gate/index.js';
 import * as jobs from '../../../jobs/index.js';
 import { applyMainTestReceipt } from '../../src/io/recheck.js';
 import { MAIN_TEST_ENTRY } from '../../src/io/recheck.js';
@@ -18,6 +15,16 @@ const file = 'tests/red.test.js';
 const command = 'node --test';
 const tap = `TAP version 13\nnot ok 1 - main fails\n  ---\n  location: '${root}/${file}:3:1'\n  ...\nok 2 - main passes\n1..2\n# tests 2\n# pass 1\n# fail 1\n`;
 const rows = [{ file, name: 'main fails', passed: false, skipped: false, failure: 'assertion' }, { file, name: 'main passes', passed: true, skipped: false }];
+
+/** The native outcome frames a run prints, one per test row, as the controller writes them (an api test cannot import the gate cell that owns the writer). */
+function formatTestOutcomes(runId, tests) {
+  return tests.map(row => '# pullboard test outcomes ' + JSON.stringify({ version: 1, id: runId, tests: [row] }) + '\n').join('');
+}
+
+/** The keyed receipt steps the board holds for main-test jobs: what a gate reads back. */
+function returnedMainReceipts(db) {
+  return jobs.jobsOf(db, { kind: MAIN_TEST_JOB }).flatMap(job => job.steps.filter(step => step.name === 'receipt' && typeof step.payload?.tree === 'string').map(step => step.payload));
+}
 
 let loads = 0;
 
@@ -69,21 +76,16 @@ test('clause 2: a red whose cases cannot be read records no receipt, so a gate n
   const { board, job } = queued(t, 'e'.repeat(40));
   const result = applyMainTestReceipt(board, { job, receipt: { tail, commit: 'c'.repeat(40) } }, { now: 2000 });
   assert.deepEqual({ applied: result.applied, outcome: result.outcome }, { applied: false, outcome: 'unnamed' });
-  assert.deepEqual(returnedMainReceipts(jobs, board.db, MAIN_TEST_JOB), []);
+  assert.deepEqual(returnedMainReceipts(board.db), []);
 });
 
-test('clause 3: a gate red only on a case main also fails passes as main-owned from the receipt the job recorded [C7,P7]', async t => {
+test('clause 3: a gate red only on a case main also fails has its receipt recorded naming that case [C7,P7]', async t => {
   const tree = 'e'.repeat(40);
   const { tail } = await entryVerdict(tap + formatTestOutcomes(id, rows));
   const { board, job } = queued(t, tree);
   const result = applyMainTestReceipt(board, { job, receipt: { tail, commit: 'c'.repeat(40) } }, { now: 2000 });
   assert.equal(result.verdict, 'red');
-  const receipts = returnedMainReceipts(jobs, board.db, MAIN_TEST_JOB);
+  const receipts = returnedMainReceipts(board.db);
   assert.deepEqual(receipts[0].failing, ['main fails']);
-  const base = { commit: 'c'.repeat(40), tree, at: 1000 };
-  const same = judgeMainOwnedReds({ base, command, reds: [{ file, name: 'main fails' }], receipts });
-  assert.equal(same.verdict, 'green');
-  assert.equal(same.mainOwned.length, 1);
-  const other = judgeMainOwnedReds({ base, command, reds: [{ file, name: 'main fails' }, { file, name: 'new case' }], receipts });
-  assert.equal(other.verdict, 'red', 'a case main does not fail stays the candidate\'s own');
+  assert.deepEqual({ tree: receipts[0].tree, file: receipts[0].file, command: receipts[0].command, verdict: receipts[0].verdict, main: receipts[0].main }, { tree, file, command, verdict: 'red', main: 'c'.repeat(40) }, 'the receipt keys the tree, file and command a gate looks up');
 });
