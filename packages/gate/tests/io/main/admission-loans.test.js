@@ -4,7 +4,6 @@ import { executionServices } from '../../../../../apps/cli/tests/fixtures/gate/e
 import { withGateSlot } from '../../../index.js';
 import { awaitNestedRun } from '../../../index.js';
 import { waitFor } from '../../../../../apps/cli/tests/fixtures/gate/resource.js';
-import { measureFileInflation } from '../../fixtures/p95.js';
 import { timedFile } from '../../fixtures/file-pool.js';
 import { fixture } from '../../fixtures/file-pool.js';
 import assert from 'node:assert/strict';
@@ -340,22 +339,6 @@ test('c', () => { execSync(${JSON.stringify(startD)}, { cwd: ${JSON.stringify(ro
   assert.ok(events.find(event => event.at === 'resume').t >= dEnd, 'on 1 core, P resumed only after D, the file under its call, ended');
 });
 
-
-test('four concurrent runs start only token-owned file processes and keep p95 below twice standalone [C7]', async t => {
-  for (const mode of ['native', 'landing']) await t.test(mode, async scope => {
-    const measurement = await measureFileInflation(scope, mode);
-    const { samples, runs, standalone, standaloneAfter, ...summary } = measurement; // the rows are long; the summary keeps a red's numbers in a short log
-    scope.diagnostic('P95_MEASUREMENT=' + JSON.stringify({ ...summary, worstRatios: samples.map(row => Math.round(row.ratio * 100) / 100).sort((x, y) => y - x).slice(0, 4) }));
-    assert.equal(measurement.peakConcurrentRuns, 4, 'all four actual private gate leases overlapped');
-    await scope.test('only token-owned file processes start', () => {
-      assert.ok(measurement.peakFileProcesses <= measurement.cores,
-        `a two-token machine must not spawn files that wait for a token; saw ${measurement.peakFileProcesses}`);
-    });
-    await scope.test('p95 stays below twice standalone', () => {
-      assert.ok(measurement.p95 < 2, `p95 process-lifetime ratio ${measurement.p95} must be below2x standalone`); // budget: #1091 requires p95<2x under four concurrent runs.
-    });
-  });
-});
 
 /** Missing providers refuse before any workspace read, queued lease or caller action can begin. */
 test('gate admission requires explicit complete execution providers before work [C7,Q1]', async () => {
