@@ -48,3 +48,4 @@ export { localNetworkHost, serviceForm } from './src/logic/service.js';
 export { expandTestFolders } from "./src/io/pull/folders.js";
 export { mainRedUpdates } from './src/logic/main/reds.js';
 export { filesOfMain } from './src/io/main/reds.js';
+export { roundTripProfile, roundTripLine, ROUND_TRIP_PHASES } from './src/logic/roundtrip.js';
