@@ -23,7 +23,7 @@ export function shellQuote(value) {
  * `stderrLog` also copies the worker's stderr, so a test can read its result receipt, and `nodeOptions` reaches the
  * worker's own Node process, so a test can force an ordering inside it.
  */
-export function installSshStandIn({ bin, worker, home, machineHome, requests, starts, nodeCommand = 'node', dropFirst = false, healthDown = false, registrationDown = false, workerHealthDown = false, dropAfterMarker, hold = '', stderrLog, nodeOptions = '', registrationNodeOptions = '', invalidSpec = false, healthFailures = 0, deferFirstWorker = '', deferredFrame = '' }) {
+export function installSshStandIn({ bin, worker, home, machineHome, requests, starts, nodeCommand = 'node', dropFirst = false, healthDown = false, registrationDown = false, workerHealthDown = false, dropAfterMarker, hold = '', stderrLog, nodeOptions = '', registrationNodeOptions = '', invalidSpec = false, healthFailures = 0, deferFirstWorker = '', deferredFrame = '', hosts = [HOST, `${HOST}-drop`, `${HOST}-setup`] }) {
   const ssh = join(bin, 'ssh');
   const agentHost = startAgentHost(bin), remoteBin = installRemoteNohup(bin);
   const source = `#!/usr/bin/env node
@@ -81,7 +81,7 @@ const waitForMarker = path => {
   return { promise, cancel: () => cancel() };
 };
 let cancelDropWait = () => {};
-if (host !== ${JSON.stringify(HOST)} && host !== ${JSON.stringify(`${HOST}-drop`)} && host !== ${JSON.stringify(`${HOST}-setup`)}) {
+if (!${JSON.stringify(hosts)}.includes(host)) {
   record({ refused: true, stdinBytes }); process.exit(255);
 }
 // Registration may discover an absolute Node path through a login shell; only generic health probes fail here.
