@@ -25,7 +25,7 @@ import {
 
 const drive = await from('packages/drive/index.js');
 const { exactStart } = await from('packages/gate/index.js');
-const { withFixtureBoard } = await from('apps/cli/tests/fixtures/testkit.js');
+const { withFixtureBoard } = await from('packages/board/tests/fixtures/board.js');
 
 /** How far past its lease the blocked driver is judged: three minutes, past the 2-minute lease. */
 const LAPSED_MS = 3 * 60_000;
@@ -43,7 +43,7 @@ function sweeperVerdict(boardFile, handoff) {
   const source = `
     import { readGateDrive, gateDriverGone } from ${JSON.stringify(pathToFileURL(join(ROOT, 'packages/drive/index.js')).href)};
     import { deadWorker } from ${JSON.stringify(pathToFileURL(join(ROOT, 'apps/cli/src/io/alive.js')).href)};
-    import { withFixtureBoard } from ${JSON.stringify(pathToFileURL(join(ROOT, 'apps/cli/tests/fixtures/testkit.js')).href)};
+    import { withFixtureBoard } from ${JSON.stringify(pathToFileURL(join(ROOT, 'packages/board/tests/fixtures/board.js')).href)};
     const started = performance.now();
     const record = withFixtureBoard(${JSON.stringify(boardFile)}, board => readGateDrive(board.db, ${JSON.stringify(handoff)}));
     const verdict = { lapsed: gateDriverGone(record, Date.now()), dead: deadWorker(record, { id: ${JSON.stringify(handoff)} }) };

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { FIXTURE_MODEL } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+import { FIXTURE_MODEL } from '../../../../gate/tests/fixtures/testkit.js';
 import { COORDINATOR_USAGE_ENGINE } from '../../../../state/light.js';
 import { recordCoordinatorUsage } from '../../../src/io/cost.js';
 
