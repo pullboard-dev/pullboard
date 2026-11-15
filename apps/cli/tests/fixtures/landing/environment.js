@@ -187,7 +187,7 @@ export function assertMatchingLandingHost(helpers) {
   });
 
   // The host-policy refusals and the peer-environment warning rode the host landing batch, which land no longer runs: it only offers
-  // the runner land job (9069644c61, 1a432cf0c2, 1e1a9586af), so `land` here refuses LAND_NO_RUNNER on this controller-pinned board [C7].
+  // the runner land job (9069644c61, 1a432cf0c2, 1e1a9586af), so `land` here offers the land job to the local runner [C7].
   // The runner's land gate validates the host through constrainedLandingHost (packages/gate/src/io/execution.js).
 }
 
