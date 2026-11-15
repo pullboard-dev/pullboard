@@ -19,8 +19,8 @@ import { loadClock } from '../../tests/fixtures/load.js';
 const helpers = createE2eHelpers();
 
 /** Audited exceptions at measured own time (#6525, run b9b81cc9: commit 4273 ms at load 2.0x); targets 2000 and 1000 ms. */
-const COMMIT_EXCEPTION_MS = 4500;
-const PRE_COMMIT_EXCEPTION_MS = 2500;
+const COMMIT_EXCEPTION_MS = 2000;
+const PRE_COMMIT_EXCEPTION_MS = 1000;
 after(helpers.cleanup);
 
 /** Each hook child's wall time from git's trace file, so a slow commit names the hook that spent it. */
