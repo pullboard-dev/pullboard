@@ -28,6 +28,7 @@ t => {
   const board = cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
   board.gitRoot = repo.root;
   const seat = cellSeat(board, { lane: 'web', path: repo.root });
+  cellSeat(board, { lane: 'coordinator', path: '/fixture/coordinator' });
   const item = cellItem(board, { lane: 'web', title: 'Build the page' });
   cellClaim(board, item.item_id, seat, { root: repo.root });
   const main = repo.commit;
