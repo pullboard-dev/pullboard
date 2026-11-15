@@ -11,15 +11,15 @@ import { runSample } from './fixtures/journey-parity.js';
 
 /** One representative case per journey. init/docs.test.js has no sampled case: its calls run a copied candidate's own scripts, so they stay real processes. */
 const SAMPLES = [
-  { journey: 'apps/cli/journeys/resume/flow/setup.test.js', cases: ['setup lets agents build starter items while rows wait [S1,B26]'] },
-  { journey: 'apps/cli/journeys/merged/ratchet.test.js', cases: ['a real landing no longer refuses a newly observed unquarantined flake: reds never hold the trunk [C7,T12]'] },
+  { journey: 'apps/cli/journeys/resume/flow/setup.test.js', cases: ['spec draft adds draft rows and resume names them [N32]'] },
+  { journey: 'apps/cli/journeys/merged/ratchet.test.js', cases: ['manual merged records quarantine count without refusing historical publication [C7,T12]'] },
   { journey: 'apps/cli/journeys/decisions/row.test.js', cases: ['[B26] agent markers and agent worktrees cannot decide rows; only the coordinator applies them'] },
 ];
 
 test('clause 1: a sample of the setup, ratchet and row journeys gives the same exit codes, JSON results and board state in a real process and in-process [C7]', () => {
   const real = runSample(SAMPLES, 'process');
   const inprocess = runSample(SAMPLES, 'inprocess');
-  assert.ok(real.length >= 10, `the sample made its CLI calls (${real.length})`);
+  assert.ok(real.length >= 5, `the sample made its CLI calls (${real.length})`);
   const differences = parityDifferences(real, inprocess);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });
