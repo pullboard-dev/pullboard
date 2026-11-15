@@ -10,7 +10,7 @@ import { readAnalysisMemo } from '../../../src/io/static/scope.js';
 import { staticScopeFromEnv } from '../../../src/io/static/scope.js';
 import { writeAnalysisMemo } from '../../../src/io/static/scope.js';
 import { STATIC_TREE_CHECKS } from '../../../src/io/static/registry.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../fixtures/child.js';
 import { privateFixtureFiles } from '../../../tests/fixtures/child.js';
 
 const sandboxes = [];

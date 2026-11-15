@@ -21,7 +21,7 @@ import {
   resolve,
 } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../child.js';
 import { createE2eHelpers } from '../../../../../apps/cli/tests/fixtures/e2e.js';
 import {
   HOST,

@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/tests/fixtures/child.js packages/gate/src/io/run/tests.js packages/resources/index.js */
+/** @pullboard-test-input packages/gate/tests/fixtures/child.js packages/gate/src/io/run/tests.js packages/resources/index.js */
 /** A landing gate already inside a runner slot runs as one pass; only the controller fans out [C7,V4]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -13,8 +13,8 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { withMainCheckout } from '../../../index.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 import { GATE_SLOT_HELD_ENV } from '../../../../resources/index.js';
 import { GATE_SLOT_POOL_ENV } from '../../../../resources/index.js';
 import { GATE_SLOT_TOKEN_ENV } from '../../../../resources/index.js';
@@ -50,7 +50,7 @@ async function landingUnderSlot(t, runnerExecution) {
     runFixtureGit(['commit', '-qm', 'test: nested shard body [C7]'], { cwd: root, env });
     const driver = join(home, 'driver.mjs');
     writeFileSync(driver, `import { takeResource, gateSlotEnvironment } from ${JSON.stringify(pathToFileURL(join(root, 'packages/resources/index.js')).href)};
-import { runFixtureChild } from ${JSON.stringify(pathToFileURL(join(root, 'apps/cli/tests/fixtures/child.js')).href)};
+import { runFixtureChild } from ${JSON.stringify(pathToFileURL(join(root, 'packages/gate/tests/fixtures/child.js')).href)};
 const lease = await takeResource({ name: 'gate', scope: 'machine', root: ${JSON.stringify(root)}, capacity: 1, remote: false, runnerExecution: ${runnerExecution} });
 try {
   const result = runFixtureChild(process.execPath, [${JSON.stringify(join(root, 'apps/cli/src/io/run/tests.js'))}, ${JSON.stringify(file)}], { cwd: ${JSON.stringify(root)}, env: { ...process.env, ...gateSlotEnvironment(lease) }, encoding: 'utf8', timeout: 60000 });

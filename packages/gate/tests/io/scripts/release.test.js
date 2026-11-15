@@ -4,10 +4,10 @@
  * command, and every git hook, runs the installed pullboard, never this repo's bin.
  */
 import assert from 'node:assert/strict';
-import { runFixtureExecFile as execFileSync } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild as spawnSync } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureExecFile as execFileSync } from '../../fixtures/child.js';
+import { runFixtureChild as spawnSync } from '../../fixtures/child.js';
+import { runFixtureChild } from '../../fixtures/child.js';
+import { runFixtureGit } from '../../fixtures/child.js';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
