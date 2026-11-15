@@ -382,6 +382,44 @@ function heldBy(db, job, runner, token) {
 }
 
 /**
+ * The job row as the job table reads it: kind, step, attempt, lease and the current attempt's claim, or null for no job.
+ * Why: the table's claim token is the hash the board keeps, so the move carries the hash too and the two compare like for like.
+ */
+function jobSnapshot(db, job, now) {
+  const row = db.prepare('SELECT job_kind, job_step, job_attempt, job_lease_owner, job_lease_until FROM job WHERE job_id = ?').get(String(job ?? ''));
+  if (!row) return { job: null, now };
+  const claimed = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'claimed' AND job_step_seq = ?").get(job, row.job_attempt);
+  let claim = null;
+  try { const payload = claimed ? JSON.parse(claimed.job_step_payload) : null; claim = payload ? { runner: payload.runner, token: payload.token } : null; } catch { claim = null; }
+  return { job: { kind: row.job_kind, step: row.job_step, attempt: row.job_attempt, owner: row.job_lease_owner, leaseUntil: row.job_lease_until, claim }, now };
+}
+
+/**
+ * Run a runner's move through the writer and, when the db carries a `jobQueueShadow`, hand it the job table's answer beside the writer's.
+ * The hook brings the table as `decide(snapshot, move)`, the job table run over the row before the move, and gets `seen({ move, job, decided, wrote })`.
+ * Why shadow first and injected: the writer stays the authority until every compare agrees, a db without the hook runs no table,
+ * and the api cell sits below moves, so the caller hands the table in rather than this file importing it [C7,#8310].
+ *
+ * @param {import('node:sqlite').DatabaseSync & { jobQueueShadow?: { decide: Function, seen: Function } }} db
+ * @param {{ name: string, job: string, runner: string, token: string, free?: boolean }} move
+ * @param {number} now
+ * @param {() => any} write - The writer's own move.
+ */
+function shadowed(db, move, now, write) {
+  const shadow = db.jobQueueShadow;
+  if (typeof shadow?.decide !== 'function' || typeof shadow.seen !== 'function') return write();
+  const answer = shadow.decide(jobSnapshot(db, move.job, now), { ...move, token: tokenHash(move.token ?? '') });
+  const decided = answer.refused ? { refused: answer.refused.code } : { job: answer.patch.job };
+  let result;
+  try { result = write(); } catch (error) {
+    shadow.seen({ move: move.name, job: move.job, decided, wrote: { refused: error.code } });
+    throw error;
+  }
+  shadow.seen({ move: move.name, job: move.job, decided, wrote: { job: jobSnapshot(db, move.job, now).job } });
+  return result;
+}
+
+/**
  * Extend the lease of the runner holding a job's current claim, even one that lapsed while the board could not answer:
  * the token proves no runner claimed it since (#6546). False once the job was released; a newer claim refuses.
  *
@@ -390,6 +428,11 @@ function heldBy(db, job, runner, token) {
  * @returns {{ renewed: boolean, leaseUntil: number | null }}
  */
 export function renewJob(db, { job, runner, token, now = Date.now(), leaseMs = LEASE_MS }) {
+  return shadowed(db, { name: 'renew', job, runner, token }, now, () => renewHeld(db, { job, runner, token, now, leaseMs }));
+}
+
+/** The writer's renew: the claim's runner extends its lease. */
+function renewHeld(db, { job, runner, token, now, leaseMs }) {
   heldBy(db, job, runner, token);
   const renewed = renewLease(db, job, runner, { now, leaseMs, lapsed: true });
   return { renewed, leaseUntil: renewed ? now + leaseMs : null };
@@ -505,6 +548,11 @@ export function readLandShardReceipts(db, { job, runner, token, shards }) {
  * @returns {{ released: boolean, until?: number }}
  */
 export function releaseJob(db, { job, runner, token, reason, backoff = true, draining = false, now = Date.now() }) {
+  return shadowed(db, { name: 'release', job, runner, token, free: backoff === false && draining }, now, () => releaseHeld(db, { job, runner, token, reason, backoff, draining, now }));
+}
+
+/** The writer's release: back off, or free at once for a draining runner. */
+function releaseHeld(db, { job, runner, token, reason, backoff, draining, now }) {
   const { attempt } = heldBy(db, job, runner, token);
   // A free release leaves no step and no backoff, so only a runner the board lists as draining may ask for one (#7386).
   if (backoff === false && draining) return { released: releaseLease(db, job, runner, { now }) };
@@ -523,12 +571,12 @@ export function releaseJob(db, { job, runner, token, reason, backoff = true, dra
 export function postReceipt(db, { job, runner, token, receipt, now = Date.now() }) {
   if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)) throw new Refused('JOB_RECEIPT', 'a receipt is a JSON object; post { receipt: { ... } }');
   if (Buffer.byteLength(JSON.stringify(receipt)) > RECEIPT_BYTES) throw new Refused('JOB_RECEIPT', `a receipt is at most ${RECEIPT_BYTES} bytes; keep output in a report file and post its digest`);
-  return atomically(db, () => {
+  return shadowed(db, { name: 'receipt', job, runner, token }, now, () => atomically(db, () => {
     const { attempt } = heldBy(db, job, runner, token);
     const written = writeStep(db, job, 'receipt', { runner, attempt, receipt }, { seq: attempt, now });
     finishJob(db, job, runner, { now });
     return { job, attempt, receipt: written.payload.receipt, recorded: written.written };
-  });
+  }));
 }
 
 /**
