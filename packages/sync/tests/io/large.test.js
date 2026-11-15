@@ -4,7 +4,7 @@ import { constants } from 'node:buffer';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fixtureBoard } from '../../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../../board/tests/fixtures/board.js';
 import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
 import { fetchFresh } from '../../../../apps/cli/tests/fixtures/http.js';

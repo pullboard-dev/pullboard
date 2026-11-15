@@ -31,11 +31,12 @@ export function parityDifferences(real, inprocess) {
     const call = real[at].args.join(' ');
     for (const field of ['args', 'code', 'json', 'out', 'err', 'board']) {
       const [a, b] = [JSON.stringify(real[at][field]), JSON.stringify(inprocess[at][field])];
-      if (a === b) continue;
-      // A window around the first differing character: a long answer differs somewhere past its start.
-      const first = [...a].findIndex((char, index) => char !== b[index]);
-      const from = Math.max(0, (first < 0 ? Math.min(a.length, b.length) : first) - 80);
-      differences.push(`call ${at + 1} (${call}): ${field} differs at character ${from + 80}\n  process:    ${String(a).slice(from, from + 300)}\n  in-process: ${String(b).slice(from, from + 300)}`);
+      if (a !== b) {
+        // Show the text around the first difference, not the start, so a long record names what differs.
+        const first = [...a].findIndex((char, index) => char !== b[index]);
+        const from = Math.max(0, (first < 0 ? 0 : first) - 150);
+        differences.push(`call ${at + 1} (${call}): ${field} differs near character ${first}\n  process:    ${a.slice(from, from + 400)}\n  in-process: ${b.slice(from, from + 400)}`);
+      }
     }
   }
   return differences;
@@ -50,7 +51,7 @@ export async function sampleDifferences(samples) {
     const real = await realRun;
     const inprocess = await inprocessRun;
     assert.ok(real.length >= 1, `${sample.journey} made its CLI calls (${real.length})`);
-    assert.ok(real.some(row => Array.isArray(row.board?.items)), `${sample.journey} records carry board state`);
+    assert.ok(real.some(row => row.board?.items.length || row.board?.events.length), `${sample.journey} records carry board state`);
     found.push(...parityDifferences(real, inprocess).map(text => `${sample.journey}: ${text}`));
   }
   return found;
