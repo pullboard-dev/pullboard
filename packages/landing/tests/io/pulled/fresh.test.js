@@ -47,7 +47,7 @@ test('clause 2: main changing a reviewed file reopens the verified item to its l
   const said = [];
   const written = [];
   const write = async (operation, args) => { written.push(operation); return store[operation](board, args[0], args[1]); };
-  const all = await withoutStaleVerdicts(board, repo.root, main, store.listItems(board), { candidate: () => true, write, say: line => said.push(line) });
+  const all = await withoutStaleVerdicts(board, repo.root, main, store.listItems(board, { all: true }), { candidate: () => true, write, say: line => said.push(line) });
   assert.deepEqual(written, ['reopen']);
   assert.equal(store.getItem(board, item).item_status, 'open', 'the accept is withdrawn and the item is back in its lane');
   assert.equal(all.find(row => row.item_id === item).item_status, 'open', 'the offer no longer takes it');
@@ -57,7 +57,7 @@ test('clause 2: main changing a reviewed file reopens the verified item to its l
 test('clause 2: main changing only an unreviewed file leaves the verified item landable and writes nothing [B3,C7]', async t => {
   const { board, repo, item, main } = verifiedThenMainMoves(t, 'web/y.js');
   const written = [];
-  const all = await withoutStaleVerdicts(board, repo.root, main, store.listItems(board), { candidate: () => true, write: async operation => { written.push(operation); }, say: () => {} });
+  const all = await withoutStaleVerdicts(board, repo.root, main, store.listItems(board, { all: true }), { candidate: () => true, write: async operation => { written.push(operation); }, say: () => {} });
   assert.deepEqual(written, []);
   assert.equal(all.find(row => row.item_id === item).item_status, 'verified');
 });
