@@ -109,7 +109,7 @@ function openAndRun(ctx, work, opened) {
   });
   board.gitRoot = ctx.info.root; // A connection-local verification port, never board or wire metadata.
   // The gate-wait cap this seat's setting grants, sealed into each move it writes so every replica replays it alike [C7].
-  board.itemsInGate = ctx.config.claims?.itemsInGate === true && Number.isSafeInteger(ctx.config.claims.itemsInGateMax) ? ctx.config.claims.itemsInGateMax : 0;
+  board.itemsInGate = ctx.config.claims?.itemsInGate === true ? (Number.isSafeInteger(ctx.config.claims.itemsInGateMax) ? ctx.config.claims.itemsInGateMax : 3) : 0;
   return withOpenedBoard(ctx, work, board);
 }
 
