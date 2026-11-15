@@ -21,7 +21,8 @@ test('C7: the waiter observes need within 1 s of the runner writing it, and read
   for (const sub of [root, dir, bin, join(base, 'home')]) mkdirSync(sub, { recursive: true });
   const ssh = installSshStandIn({ bin, worker: base, home: join(base, 'home'), machineHome: join(base, 'machine'), requests: join(base, 'requests') });
   const queued = join(root, 'queue', 'j'), running = join(root, 'running', 'j'), finished = join(root, 'done', 'j');
-  mkdirSync(queued, { recursive: true });
+  for (const state of ['queue', 'running', 'done']) mkdirSync(join(root, state), { recursive: true });
+  mkdirSync(queued);
   writeFileSync(join(queued, 'owner.json'), JSON.stringify({ pid: process.pid }));
   const seen = {}, wrote = {}, waiters = {};
   const arrives = step => new Promise(resolve => { waiters[step] = resolve; });
@@ -36,7 +37,7 @@ test('C7: the waiter observes need within 1 s of the runner writing it, and read
   wrote.ready = Date.now(); appendFileSync(join(running, 'control.log'), 'PULLBOARD_RUNNER_READY j\n');
   await ready;
   wrote.done = Date.now(); appendFileSync(join(running, 'control.log'), 'PULLBOARD_RUNNER_RESULT j e30=\n');
-  mkdirSync(join(root, 'done'), { recursive: true }); renameSync(running, finished);
+  renameSync(running, finished);
   const end = await waited;
   note('done');
   const lag = step => seen[step] - wrote[step];
