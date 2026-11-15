@@ -33,7 +33,8 @@ test('next --verify reserves the review for the reviewLease and says until when;
     const sessions = new Map();
     const session = (cwd) => { if (!sessions.has(cwd)) sessions.set(cwd, `00000000-0000-4000-8000-${String(sessions.size + 1).padStart(12, '0')}`); return sessions.get(cwd); };
     // In process: a spawned CLI costs a second or more of start-up each, and this case makes eleven calls.
-    const run = async (cwd, ...args) => runCliInProcess(args, { cwd, env: { ...env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: session(cwd) } });
+    const T0 = Date.now();
+    const run = async (cwd, ...args) => { const r = await runCliInProcess(args, { cwd, env: { ...env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: session(cwd) } }); process.stderr.write(`TIMING ${Date.now() - T0} ${args.slice(0, 3).join(' ')}\n`); return r; };
     const repo = join(dir, 'repo');
     fs.mkdirSync(repo);
     setupGit(repo, 'init', '-q', '-b', 'main');
@@ -65,6 +66,7 @@ test('next --verify reserves the review for the reviewLease and says until when;
     };
     const settled = await settleSubmit(t, { repo, env, run: showInProcess }, JSON.parse(submitted.stdout));
     assert.equal(settled.gate?.green ?? settled.gate?.ok, true, `the pulled gate is green: ${JSON.stringify(settled.gateJob)}`);
+    process.stderr.write(`TIMING ${Date.now() - T0} settled\n`);
     const commonDir = setupGit(repo, 'rev-parse', '--path-format=absolute', '--git-common-dir');
     assert.equal(setupGit(holder, 'rev-parse', '--path-format=absolute', '--git-common-dir'), commonDir,
       'the verifier worktree reads the builder repo common dir');
