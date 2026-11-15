@@ -18,7 +18,6 @@ export const BOARD = '0123456789abcdef0123456789abcdef';
  */
 export function standInRelay() {
   const events = [];
-  const holders = new Map();
   const relay = {
     events,
     posts: 0,
@@ -30,8 +29,8 @@ export function standInRelay() {
       events.push(event);
       return event;
     },
-    /** Decide a move's outcome by its position in the order: the first claim of an item wins. */
-    decide(move) {
+    /** Decide a move's outcome from the claims a replica has already replayed in order: the first claim of an item wins. */
+    decide(move, holders) {
       if (move.operation !== 'claim') return { ok: true, result: { operation: move.operation } };
       const item = move.args[0];
       if (holders.has(item)) return { error: { code: 'HELD', message: `#${item} is held by ${holders.get(item)}`, next: 'take another item: pullboard next' } };
@@ -59,6 +58,7 @@ export function replica(t, relay) {
   t.after(() => db.close());
   // The board is closed after every replayed record by the ordering code; the stand-in keeps its one database open.
   const board = { db: { prepare: (sql) => db.prepare(sql), exec: (sql) => db.exec(sql), close() {} }, clock: { now: () => new Date(0) } };
+  const holders = new Map();
   const reported = [];
   const saved = [];
   const refusals = [];
@@ -69,7 +69,7 @@ export function replica(t, relay) {
     decoded: async () => { throw new Error('the stand-in relay serves no snapshot'); },
     replayRelayRecord: async (_board, _key, link, record) => {
       const move = JSON.parse(record.sealed);
-      const outcome = relay.decide(move);
+      const outcome = relay.decide(move, holders);
       // An accepted move leaves its durable receipt; a refused one is recorded as a refusal only, as the engine does.
       if (!outcome.error) db.prepare('INSERT OR REPLACE INTO board_meta VALUES (?,?)').run('relay_receipt_' + move.id, JSON.stringify({ sequence: record.event_id, move: record.sealed, outcome }));
       else refusals.push({ sequence: record.event_id, id: move.id, error: outcome.error });
