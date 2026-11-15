@@ -6,15 +6,11 @@
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parityDifferences } from './fixtures/journey-parity.js';
-import { runSample } from './fixtures/journey-parity.js';
+import { sampleDifferences } from './fixtures/journey-parity.js';
 
 const SAMPLES = [{ journey: 'apps/cli/journeys/resume/flow/setup.test.js', cases: ['spec draft adds draft rows and resume names them [N32]'] }];
 
-test('clause 1: a sample of the setup journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', () => {
-  const real = runSample(SAMPLES, 'process');
-  const inprocess = runSample(SAMPLES, 'inprocess');
-  assert.ok(real.length >= 3, `the sample made its CLI calls (${real.length})`);
-  const differences = parityDifferences(real, inprocess);
+test('clause 1: a sample of the setup journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
+  const differences = await sampleDifferences(SAMPLES);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });
