@@ -1,0 +1,347 @@
+{
+  "item": 8058,
+  "file": "apps/cli/journeys/blueprint/init.test.js",
+  "measuredOn": "fleet runners, 15 Nov 2026, load varied (many jobs at once)",
+  "versions": {
+    "real": "every call a node pullboard.js process (PULLBOARD_JOURNEY_MODE=process)",
+    "inprocess": "every call answered by the production dispatch in a warm worker thread",
+    "contract": "init.contract.test.js, one real-process journey",
+    "parity": "init.parity.test.js, a sample run both ways"
+  },
+  "baselineRunsMs": {
+    "real": [
+      205946,
+      209711,
+      230540
+    ],
+    "inprocess": [
+      100852,
+      126337,
+      178570,
+      223257,
+      244431
+    ],
+    "contract": [
+      32731,
+      49432
+    ],
+    "parity": [
+      107655,
+      120364
+    ]
+  },
+  "censoredAt540000ms": {
+    "real": 2,
+    "inprocess": 0,
+    "contract": 0,
+    "parity": 0
+  },
+  "runtimesMs": {
+    "real": 209711,
+    "inprocess": 178570,
+    "contract": 49432,
+    "parity": 120364
+  },
+  "pairs": [
+    {
+      "round": 1,
+      "realMs": 540083,
+      "realFinished": false,
+      "inprocessMs": 244431
+    },
+    {
+      "round": 2,
+      "realMs": 540210,
+      "realFinished": false,
+      "inprocessMs": 223257
+    },
+    {
+      "round": 3,
+      "realMs": 205946,
+      "realFinished": true,
+      "inprocessMs": 100852
+    },
+    {
+      "round": 4,
+      "realMs": 230540,
+      "realFinished": true,
+      "inprocessMs": 178570
+    },
+    {
+      "round": 5,
+      "realMs": 209711,
+      "realFinished": true,
+      "inprocessMs": 126337
+    }
+  ],
+  "speedUp": 1.7,
+  "catches": {
+    "faults": 11,
+    "real": 9,
+    "inprocess": 7,
+    "kept": 9,
+    "missedByInprocessOnly": [
+      "exit-code-dropped",
+      "stdout-unwired"
+    ],
+    "missedByKept": [],
+    "byKind": {
+      "product": {
+        "faults": 8,
+        "real": 7,
+        "inprocess": 7,
+        "kept": 7
+      },
+      "boundary": {
+        "faults": 3,
+        "real": 2,
+        "inprocess": 0,
+        "kept": 2
+      }
+    }
+  },
+  "rows": [
+    {
+      "id": "url-guard-off",
+      "kind": "product",
+      "caught": {
+        "real": true,
+        "inprocess": true,
+        "contract": false,
+        "parity": null
+      },
+      "applied": {
+        "real": true,
+        "inprocess": true,
+        "contract": true,
+        "parity": null
+      },
+      "ms": {
+        "real": 422347,
+        "inprocess": 158852,
+        "contract": 21047,
+        "parity": null
+      }
+    },
+    {
+      "id": "missing-file-unrefused",
+      "kind": "product",
+      "caught": {
+        "real": true,
+        "inprocess": true,
+        "contract": true,
+        "parity": null
+      },
+      "applied": {
+        "real": true,
+        "inprocess": true,
+        "contract": true,
+        "parity": null
+      },
+      "ms": {
+        "real": 455207,
+        "inprocess": 205954,
+        "contract": 11464,
+        "parity": null
+      }
+    },
+    {
+      "id": "repeat-add-refiles",
+      "kind": "product",
+      "caught": {
+        "real": true,
+        "inprocess": true,
+        "contract": true,
+        "parity": null
+      },
+      "applied": {
+        "real": true,
+        "inprocess": true,
+        "contract": true,
+        "parity": null
+      },
+      "ms": {
+        "real": 514452,
+        "inprocess": 207516,
+        "contract": 28221,
+        "parity": null
+      }
+    },
+    {
+      "id": "route-default-light",
+      "kind": "product",
+      "caught": {
+        "real": true,
+        "inprocess": true,
+        "contract": false,
+        "parity": null
+      },
+      "applied": {
+        "real": true,
+        "inprocess": true,
+        "contract": true,
+        "parity": null
+      },
+      "ms": {
+        "real": 354813,
+        "inprocess": 157437,
+        "contract": 33256,
+        "parity": null
+      }
+    },
+    {
+      "id": "already-line-reworded",
+      "kind": "product",
+      "caught": {
+        "real": true,
+        "inprocess": true,
+        "contract": false,
+        "parity": null
+      },
+      "applied": {
+        "real": true,
+        "inprocess": true,
+        "contract": true,
+        "parity": null
+      },
+      "ms": {
+        "real": 494064,
+        "inprocess": 247078,
+        "contract": 46282,
+        "parity": null
+      }
+    },
+    {
+      "id": "checks-not-run-reworded",
+      "kind": "product",
+      "caught": {
+        "real": true,
+        "inprocess": true,
+        "contract": false,
+        "parity": null
+      },
+      "applied": {
+        "real": true,
+        "inprocess": true,
+        "contract": true,
+        "parity": null
+      },
+      "ms": {
+        "real": 167671,
+        "inprocess": 222466,
+        "contract": 55180,
+        "parity": null
+      }
+    },
+    {
+      "id": "starter-check-unscoped",
+      "kind": "product",
+      "caught": {
+        "real": false,
+        "inprocess": false,
+        "contract": false,
+        "parity": null
+      },
+      "applied": {
+        "real": true,
+        "inprocess": true,
+        "contract": true,
+        "parity": null
+      },
+      "ms": {
+        "real": 431677,
+        "inprocess": 198370,
+        "contract": 18169,
+        "parity": null
+      }
+    },
+    {
+      "id": "refusal-code-renamed",
+      "kind": "product",
+      "caught": {
+        "real": true,
+        "inprocess": true,
+        "contract": true,
+        "parity": null
+      },
+      "applied": {
+        "real": true,
+        "inprocess": true,
+        "contract": true,
+        "parity": null
+      },
+      "ms": {
+        "real": 455110,
+        "inprocess": 206044,
+        "contract": 11718,
+        "parity": null
+      }
+    },
+    {
+      "id": "exit-code-dropped",
+      "kind": "boundary",
+      "caught": {
+        "real": true,
+        "inprocess": false,
+        "contract": true,
+        "parity": true
+      },
+      "applied": {
+        "real": true,
+        "inprocess": true,
+        "contract": true,
+        "parity": true
+      },
+      "ms": {
+        "real": 455603,
+        "inprocess": 213742,
+        "contract": 10758,
+        "parity": 94117
+      }
+    },
+    {
+      "id": "stdout-unwired",
+      "kind": "boundary",
+      "caught": {
+        "real": true,
+        "inprocess": false,
+        "contract": true,
+        "parity": true
+      },
+      "applied": {
+        "real": true,
+        "inprocess": true,
+        "contract": true,
+        "parity": true
+      },
+      "ms": {
+        "real": 260774,
+        "inprocess": 228291,
+        "contract": 6741,
+        "parity": 95208
+      }
+    },
+    {
+      "id": "stderr-unwired",
+      "kind": "boundary",
+      "caught": {
+        "real": false,
+        "inprocess": false,
+        "contract": false,
+        "parity": false
+      },
+      "applied": {
+        "real": true,
+        "inprocess": true,
+        "contract": true,
+        "parity": true
+      },
+      "ms": {
+        "real": 433316,
+        "inprocess": 198507,
+        "contract": 19932,
+        "parity": 63185
+      }
+    }
+  ]
+}

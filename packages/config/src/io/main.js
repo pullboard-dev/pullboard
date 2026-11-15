@@ -65,7 +65,7 @@ export function defaults() {
     reviewLease: '30m',
     worktrees: 'beside',
     worktreeMaintenance: maintenanceSettings.maintenanceDefaults(),
-    verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true, failBefore: false },
+    verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true, failBefore: false, frozenTests: false },
     review: { starveMinutes: 5, independence: 'off', excludeEarlierHolders: false },
     // Vendor spellings: canonical family -> alias names; never inferred [#1762].
     families: {},
@@ -353,8 +353,8 @@ export function configProblems(config) {
     && (!Number.isSafeInteger(config.verify.familyRelaxAt) || config.verify.familyRelaxAt < 1)) {
     problems.push('"verify.familyRelaxAt" is off or a positive integer');
   }
-  if (typeof config.verify?.inspectClauses !== 'boolean' || typeof config.verify.failBefore !== 'boolean') {
-    problems.push('"verify.inspectClauses" and "verify.failBefore" are true or false');
+  if (!['inspectClauses', 'failBefore', 'frozenTests'].every(key => typeof config.verify?.[key] === 'boolean')) {
+    problems.push('"verify.inspectClauses", "failBefore" and "frozenTests" are true or false');
   }
   if (notPlain(config.families)
     || Object.entries(config.families).some(([name, aliases]) => !name.trim() || name.length > 80
