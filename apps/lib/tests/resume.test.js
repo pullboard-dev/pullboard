@@ -57,31 +57,22 @@ function submitShared(box, itemId) {
   return submitted;
 }
 
-/**
- * Wait until the board has applied the pulled gate's receipt, so the item has left claimed; verify before that fails
- * NOT_SUBMITTED [C7,#7283]. Reads again on each change in the local runner's folder (a log line per claim and receipt, a
- * heartbeat every 5 s), so the wait does not spin CLI reads against the runner it waits for.
- */
-async function settledItem(box, itemId) {
-  const read = () => {
-    const shown = box.run(box.repo, 'show', String(itemId), '--json', '--no-next');
-    return shown.code === 0 && JSON.parse(shown.out).item_status !== 'claimed';
-  };
-  if (read()) return;
-  await new Promise((resolve, reject) => {
-    const watcher = watch(join(box.env.PULLBOARD_MACHINE_HOME, 'local-runner'), () => { if (read()) finish(); });
-    const timer = setTimeout(() => finish(new Error(`gate for #${itemId} did not settle`)), 110_000);
-    function finish(error) { watcher.close(); clearTimeout(timer); if (error) reject(error); else resolve(); }
-    if (read()) finish();
-  });
-}
-
 /** Accept the exact submitted commit through the public CLI, then restore the main checkout. */
 async function acceptSubmitted(box, itemId, submitted) {
-  await settledItem(box, itemId);
   box.git(box.repo, 'switch', '-q', '--detach', submitted);
-  const accepted = box.run(box.repo, 'verify', String(itemId), 'accept', '--as', 'coordinator',
-    '--note', 'The submitted change passed its frozen check.');
+  // Under pull the gate settles on the runner, so verify first fails NOT_SUBMITTED; retry on each change in the local runner's folder
+  // (a log line per claim and receipt, a heartbeat every 5 s) until the board has applied the receipt [C7,#7283].
+  const deadline = Date.now() + 110_000;
+  let accepted;
+  for (;;) {
+    accepted = box.run(box.repo, 'verify', String(itemId), 'accept', '--as', 'coordinator',
+      '--note', 'The submitted change passed its frozen check.');
+    if (accepted.code === 0 || !/NOT_SUBMITTED/u.test(accepted.err ?? '') || Date.now() > deadline) break;
+    await new Promise(resolve => {
+      const watcher = watch(join(box.env.PULLBOARD_MACHINE_HOME, 'local-runner'), () => { watcher.close(); resolve(); });
+      setTimeout(() => { watcher.close(); resolve(); }, 6000).unref();
+    });
+  }
   assert.equal(accepted.code, 0, accepted.err || accepted.out);
   box.git(box.repo, 'switch', '-q', 'main');
 }
