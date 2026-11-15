@@ -7,6 +7,7 @@ import { selectTestTreeGuards } from '../../../../../packages/gate/index.js';
 import { runnerExecutionServices } from '../../../../../packages/runners/index.js';
 import { landingExecutionServices } from '../../../../../packages/landing/index.js';
 import { isAbsolute } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { runSourceAdvances } from '../../../../../packages/sandbox/index.js';
 import { context } from '../../../index.js';
 import { ordered } from '../../../index.js';
@@ -25,6 +26,7 @@ import { takeLandingResource } from '../../../../../packages/landing/index.js';
 
 /** The gate with the move-table replay wired to this repository's board, so a changed table is checked against what the board recorded [C7,#8073]. */
 const runSubmitGate = (dir, config, options) => gateRun(dir, config, { ...options,
+  timedShell: fileURLToPath(new URL('../../../../runner/src/io/shell.js', import.meta.url)),
   tableReplay: ({ root: tree, changed }) => replayChangedTables(tree, { changed, replay: replayReport, boardFile: boardFilePath(repoInfo(root).commonDir) }) });
 
 const [root, token, ...extra] = process.argv.slice(2);
