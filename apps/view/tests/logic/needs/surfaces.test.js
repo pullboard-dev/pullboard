@@ -1,12 +1,18 @@
 /** Every Needs you entry, built from the seeded refusal board, shows no code, command, token or relay term [C6,N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { personSurfaceLeaks } from '../../../../cli/tests/fixtures/person-surfaces.js';
-import { seededPersonBoard } from '../../../../cli/tests/fixtures/person-surfaces.js';
+import { personSurfaceLeaks } from '../../fixtures/person-surfaces.js';
+import { seededPersonBoard as boardOf } from '../../fixtures/person-surfaces.js';
+import { personRequestStep } from '../../../../../packages/config/index.js';
+import { withMoveNextSteps } from '../../../../../packages/moves/light.js';
+import { DEFAULT_NEXT_STEPS } from '../../../../../packages/state/light.js';
 import { personNeeds } from '../../../../../packages/spec/index.js';
 import { needsEntries } from '../../../src/logic/needs/list.js';
 import { renderNeedsRow } from '../../../src/logic/needs/list.js';
 import { needsPanelModel } from '../../../src/logic/needs/panel.js';
+
+/** The seeded board over the live refusal catalog. */
+const seededPersonBoard = () => boardOf(DEFAULT_NEXT_STEPS, personRequestStep, withMoveNextSteps(DEFAULT_NEXT_STEPS));
 
 const AT = '2026-11-12T12:00:00.000Z';
 

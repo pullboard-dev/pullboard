@@ -1,9 +1,15 @@
 /** Every banner the view shows, built from the seeded refusal board, shows no code, command, token or relay term [C6,N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { personSurfaceLeaks } from '../../../../cli/tests/fixtures/person-surfaces.js';
-import { seededPersonBoard } from '../../../../cli/tests/fixtures/person-surfaces.js';
+import { personSurfaceLeaks } from '../../fixtures/person-surfaces.js';
+import { seededPersonBoard as boardOf } from '../../fixtures/person-surfaces.js';
+import { personRequestStep } from '../../../../../packages/config/index.js';
+import { withMoveNextSteps } from '../../../../../packages/moves/light.js';
+import { DEFAULT_NEXT_STEPS } from '../../../../../packages/state/light.js';
 import { hostedState } from '../../../src/logic/hosted/render.js';
+
+/** The seeded board over the live refusal catalog. */
+const seededPersonBoard = () => boardOf(DEFAULT_NEXT_STEPS, personRequestStep, withMoveNextSteps(DEFAULT_NEXT_STEPS));
 
 const STATES = ['looking', 'local-open', 'asking', 'blocked', 'not-running', 'mismatch', 'problem', 'signed-out', 'no-linked', 'unpaired', 'signed-out-paired', 'linked-failed', 'local-failed'];
 // The copy box's command and the sentence for the agent are the one thing the screen asks the person to do, so they are not banner prose.
