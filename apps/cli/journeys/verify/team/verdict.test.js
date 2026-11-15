@@ -153,7 +153,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   }
   assert.equal(box.git(reviewer, 'rev-parse', 'HEAD'), beforeMoveHead, 'the served worktree HEAD stayed fixed while main moved');
   const apiStale = (await http('/state')).state;
-  assert.equal(apiStale.sequence, initialState.sequence, 'Git movement needs no board event to invalidate the state cache');
+  assert.equal(apiStale.sequence, initialState.sequence, 'Git movement needs no board event to invalidate the state cache ' + (() => { const db = new DatabaseSync(join(box.repo, '.git/pullboard/board.sqlite'), { readOnly: true }); try { return JSON.stringify(db.prepare('SELECT event_id, event_by, event_kind, substr(event_detail,1,60) AS d FROM event ORDER BY event_id DESC LIMIT 4').all().map(r => ({ ...r }))); } finally { db.close(); } })());
   assert.equal(apiStale.items[0].verdictState?.code, 'STALE_VERDICT');
   assert.equal(apiStale.items[0].verdictState.commit, movingCommit);
   const coldGit = [];
