@@ -14,7 +14,8 @@ export const OUTCOMES = Object.freeze(['pass', 'fail', 'skip', 'infra']);
 /**
  * Judge collected results into per-section outcomes and codes, then one overall verdict. A missing section is an
  * infrastructure outcome (the result never arrived), never a pass. Infra outranks red only when nothing failed
- * outright, so a real failure is never hidden by a lost runner on another section.
+ * outright, so a real failure is never hidden by a lost runner on another section. A result in which every section
+ * is skip proved nothing, so it is red with the code ALL_SKIP, never green.
  *
  * @param {Record<string, { outcome?: string, code?: string } | undefined>} collected
  * @returns {{ sections: Record<string, { outcome: string, code: string | null }>, verdict: 'green' | 'red' | 'infra', code: string | null }}
@@ -39,6 +40,8 @@ export function judge(collected) {
   const named = (outcome) => SECTIONS.find((name) => sections[name].outcome === outcome);
   const failed = named('fail');
   const lost = named('infra');
+  const allSkip = SECTIONS.every((name) => sections[name].outcome === 'skip');
+  if (allSkip) return { sections, verdict: 'red', code: 'ALL_SKIP' };
   const verdict = failed ? 'red' : lost ? 'infra' : 'green';
   const at = failed ?? lost;
   return { sections, verdict, code: at ? (sections[at].code ?? at.toUpperCase()) : null };
