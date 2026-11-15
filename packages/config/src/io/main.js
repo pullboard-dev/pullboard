@@ -61,7 +61,7 @@ export function defaults() {
     registryGuards: [],
     staticChecks: '',
     lease: '2h',
-    claims: { releaseGone: false, releaseCooldownMinutes: 30 }, exitRules: exitRulesDefaults(),
+    claims: { releaseGone: false, releaseCooldownMinutes: 30, itemsInGate: false, itemsInGateMax: 3 }, exitRules: exitRulesDefaults(),
     reviewLease: '30m',
     worktrees: 'beside',
     worktreeMaintenance: maintenanceSettings.maintenanceDefaults(),
@@ -389,10 +389,11 @@ export function configProblems(config) {
     problems.push('"pushGate.shardMinutes" is a whole number of minutes, 1 to 1440, 20 by default: how long a push gate shard may run before the push gate gives up; raise it with PULLBOARD_RUNNER_RUN_CEILING_MS on the runners');
   }
   if (notPlain(config.claims)
-    || Object.keys(config.claims).some(key => !['releaseGone', 'releaseCooldownMinutes', 'perSeat'].includes(key)) || typeof config.claims.releaseGone !== 'boolean'
+    || Object.keys(config.claims).some(key => !['releaseGone', 'releaseCooldownMinutes', 'perSeat', 'itemsInGate', 'itemsInGateMax'].includes(key)) || typeof config.claims.releaseGone !== 'boolean'
     || typeof config.claims.releaseCooldownMinutes !== 'number' || !Number.isFinite(config.claims.releaseCooldownMinutes) || config.claims.releaseCooldownMinutes < 0) {
     problems.push('claims.releaseGone is a boolean, false by default; claims.releaseCooldownMinutes is zero or more minutes, 30 by default');
   }
+  if (typeof config.claims?.itemsInGate !== 'boolean' || !Number.isSafeInteger(config.claims.itemsInGateMax) || config.claims.itemsInGateMax < 1) problems.push('claims.itemsInGate is a boolean, false by default; claims.itemsInGateMax is a whole number of gate-waiting items, 1 or more, 3 by default');
   if (config.claims?.perSeat != null && (!Number.isSafeInteger(config.claims.perSeat) || config.claims.perSeat < 1)) problems.push('claims.perSeat is a whole number of live build claims, 1 or more; blank lets the board size it');
   if (notPlain(config.claim)
     || !Number.isSafeInteger(config.claim.reopenFirstRefusalMinutes) || config.claim.reopenFirstRefusalMinutes < 0
