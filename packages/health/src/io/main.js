@@ -40,7 +40,7 @@ import {
   mainCheckout,
   tryGit,
 } from '../../../git/index.js';
-import { gateControlFindings } from '../../../gate/light.js';
+import { gateControlFindings } from '../../../gate/index.js';
 import { boardBusyError } from '../../../store/index.js';
 import { buildOrder } from '../../../store/index.js';
 import { nextFor } from '../../../store/index.js';
@@ -61,7 +61,7 @@ import { rowDecisions } from '../../../store/index.js';
 import { unverifiedSubmissions } from '../../../store/index.js';
 import { roadmap } from '../../../store/index.js';
 import { staleRowDecisions } from '../../../spec/index.js';
-import { localReleaseRank } from '../../../landing/light.js';
+import { localReleaseRank } from '../../../landing/index.js';
 import { workQueue } from '../../../items/index.js';
 import { trunkRef } from '../../../sandbox/index.js';
 import { routeWorkShortages } from '../../../seats/index.js';

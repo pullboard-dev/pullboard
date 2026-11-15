@@ -8,7 +8,7 @@
 import { createHash } from 'node:crypto';
 import { loadDoctrine } from '../../../doctrine/index.js';
 import { agentDoctrine } from '../../../doctrine/index.js';
-import { foreignNodeOptions } from '../../../gate/light.js';
+import { foreignNodeOptions } from '../../../gate/index.js';
 import { headCommit } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';

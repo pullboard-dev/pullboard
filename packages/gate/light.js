@@ -2,8 +2,6 @@ import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
 import { readTestOutcomes } from './src/io/test/outcomes.js';
 import { formatTestOutcomes } from './src/io/test/outcomes.js';
-export { foreignNodeOptions } from './src/io/test/isolation.js';
-export { gateControlFindings } from './src/io/control.js';
 
 /** Accept only bounded worker-owned source measurements, never arbitrary receipt objects or paths. */
 export function sourcePreparationFields(value) {
