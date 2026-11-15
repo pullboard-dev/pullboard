@@ -86,9 +86,9 @@ test('discovered command reach requires the exact kernel front door and discover
       || file === 'apps/cli/src/io/commands/index.js') });
   box.put('apps/demo/index.js', "import { COMMANDS } from '../cli/src/io/commands/index.js'; COMMANDS.next();\n");
   box.put('apps/cli/src/io/commands/next.js', 'export function run() {}\n');
-  appendFileSync(join(box.root, 'packages/kernel/light.js'), '\n// changed provider\n');
+  appendFileSync(join(box.root, 'packages/kernel/index.js'), '\n// changed provider\n');
   assert.ok(box.report().metrics.unreachable.findings.some(row => row.key === 'apps/cli/src/io/commands/next.js'));
-  copyPackageFiles(source, box.root, { files: ['packages/kernel/light.js'] });
+  copyPackageFiles(source, box.root, { files: ['packages/kernel/index.js'] });
   appendFileSync(join(box.root, 'packages/kernel/src/logic/discovery.js'), '\n// changed discovery\n');
   assert.ok(box.report().metrics.unreachable.findings.some(row => row.key === 'apps/cli/src/io/commands/next.js'));
 });
