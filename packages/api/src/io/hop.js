@@ -3,9 +3,25 @@ import { Refused } from '../../../kernel/index.js';
 import { gateHopMove } from '../../../store/index.js';
 import { ensureGateHopTable } from '../../../store/index.js';
 import { readGateHop } from '../../../store/index.js';
+import { LEASE_MS } from '../../../jobs/index.js';
+import { leaseLapsed } from '../../../jobs/index.js';
 
 /** The hop table the serving app provides: given a lease length, the table's answer for a snapshot and a move. Why provided: the API cell may not import the moves cell. */
 let hopTable = null;
+
+/**
+ * The hop table at a lease length, built from the moves cell's hop engine over the jobs cell's own lease rule.
+ * Why the engine is passed in: the API cell may not import the moves cell, so the app hands it over and the lease rule stays here.
+ *
+ * @param {{ hopEngine: Function, runTable: Function }} moves
+ * @returns {(leaseMs: number) => (snapshot: object, move: object) => object}
+ */
+export function hopTableOver({ hopEngine, runTable }) {
+  return leaseMs => {
+    const { rules, table } = hopEngine({ leaseMs, leaseLapsed });
+    return (snapshot, move) => runTable(table, rules, snapshot, move);
+  };
+}
 
 /**
  * Provide the hop table the claim route decides with, once per serving process or handler worker.
@@ -42,17 +58,55 @@ export function moveGateClaimHop(db, hop, { item, candidate, runner, move, epoch
   const decide = hop.table(leaseMs);
   const waiting = { status: 'claimed', commit: candidate, digest: candidate };
   const write = name => gateHopMove(db, { item, actor: runner, enabled: true, decide: row => {
-    const answer = decide({ item: waiting, hop: row, now }, { name, actor: runner, epoch });
-    return answer.refused ? { refused: answer.refused } : { hop: answer.patch.hop };
+    // A hop that is over at another candidate is the resubmitted item's old hop: the new candidate's create replaces it, keeping its epoch so no old claim's epoch comes back [C7,#8353].
+    const replaced = name === 'create' && row && overAt(row, candidate);
+    const answer = decide({ item: waiting, hop: replaced ? null : row, now }, { name, actor: runner, epoch });
+    if (answer.refused) return { refused: answer.refused };
+    return { hop: replaced ? { ...answer.patch.hop, epoch: Math.max(answer.patch.hop.epoch, row.epoch) } : answer.patch.hop };
   } }).hop;
   try {
     if (move === 'step') return write('step');
     // A first claim finds no row: the table creates the queued hop, then the same claim acquires it.
     ensureGateHopTable(db);
-    if (!readGateHop(db, item)) write('create');
+    const row = readGateHop(db, item);
+    if (!row || overAt(row, candidate)) write('create');
     return write('acquire');
   } catch (error) {
     if (error.code === 'HOP_HELD') throw new Refused('HOP_FENCED', error.message, 'leave the gate job to the runner that owns its hop; claim again once its lease lapses');
+    // A step from a claim whose hop was ended or moved to a resubmitted candidate is a stale owner, fenced like a replaced epoch [C7,#8353].
+    if (move === 'step' && STALE_STEP.has(error.code)) throw new Refused('HOP_FENCED', `${runner} at epoch ${epoch} no longer owns the hop on #${item}: ${error.message}`, 'stop work on this gate job: the item was resubmitted');
     throw error;
   }
+}
+
+/** Refusals a step gets when its hop was ended or replaced by a resubmit rather than taken at a later epoch. */
+const STALE_STEP = new Set(['HOP_OVER', 'HOP_ITEM_MOVED', 'HOP_MISSING']);
+
+/** Whether the hop row is over (done or ended) and was for another candidate than this one. */
+function overAt(row, candidate) {
+  return (row.state === 'ended' || row.state === 'done') && row.commit !== candidate;
+}
+
+/**
+ * End the item's open hop when its submit offers a gate job at a new candidate, so the old candidate's gate job can no longer renew or land: the table's
+ * `end` move bumps the epoch, and its runner's next step is refused HOP_FENCED. No row, a hop already over, or a hop at this same candidate is left alone.
+ * Why at the offer: a resubmit is the item move the hop table names as the one way a hop ends, and the offer is where the board learns the new candidate.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{ table: NonNullable<typeof hopTable> } | null} hop - From gateClaimHop; null (gate.fencedHop off) reads and writes nothing.
+ * @param {{ item: number, candidate: string, now: number, leaseMs?: number }} offer
+ * @returns {{ ended: boolean, epoch?: number }}
+ */
+export function endGateHop(db, hop, { item, candidate, now, leaseMs = LEASE_MS }) {
+  if (!hop) return { ended: false };
+  ensureGateHopTable(db);
+  const row = readGateHop(db, item);
+  if (!row || row.commit === candidate || (row.state !== 'queued' && row.state !== 'driven')) return { ended: false };
+  const decide = hop.table(leaseMs);
+  const moved = { status: 'claimed', commit: candidate, digest: candidate };
+  const ended = gateHopMove(db, { item, actor: 'submit', enabled: true, decide: read => {
+    const answer = decide({ item: moved, hop: read, now }, { name: 'end', actor: 'submit' });
+    return answer.refused ? { refused: answer.refused } : { hop: answer.patch.hop };
+  } }).hop;
+  return { ended: true, epoch: ended.epoch };
 }

@@ -9,6 +9,8 @@ import { Refused } from "../../../../../kernel/light.js";
 import { RELEASE_REASONS } from "../../reasons.js";
 import { staleStateLimits } from "../stale/state/policy.js";
 import { AGENT_GRANT_ENGINE } from "../../../../../state/light.js";
+import { MOVES } from "../../../../../state/index.js";
+import { causeProblem } from "../rigor.js";
 import { ENGINE_VERSION } from "../../../../../state/index.js";
 import { LANDING_LOCAL_LEASE_ENGINE } from "../../../../../state/light.js";
 import {
@@ -19,10 +21,10 @@ import {
 const KEY = 'landing_lease';
 let provided = null;
 /**
- * Hand the store the move-table engines it runs: leaseEngine, releaseEngine, withdrawEngine, claimEngine, submitEngine and runTable.
+ * Hand the store the move-table engines it runs: leaseEngine, releaseEngine, withdrawEngine, claimEngine, submitEngine, reopenEngine and runTable.
  * Why injection: the moves cell already reads the store, so the store importing moves would close a cell cycle; the board composition root, which sees both, calls this once [C7].
  *
- * @param {{ leaseEngine: Function, releaseEngine: Function, withdrawEngine: Function, claimEngine: Function, submitEngine: Function, runTable: Function }} engines
+ * @param {{ leaseEngine: Function, releaseEngine: Function, withdrawEngine: Function, claimEngine: Function, submitEngine: Function, reopenEngine?: Function, runTable: Function }} engines
  */
 export function provideMoveTables(engines) { provided = Object.freeze({ ...engines }); }
 /** The injected engines; a store used without its composition root refuses by name. */
@@ -46,6 +48,15 @@ let claimTable = null;
 export function runClaimTable(snapshot, move) {
   claimTable ??= moveTables().claimEngine({ grantEngine: AGENT_GRANT_ENGINE });
   return moveTables().runTable(claimTable.table, claimTable.rules, snapshot, move);
+}
+let reopenBuilt = null;
+/**
+ * Run the reopen move table over a snapshot and move, built on first use over the board's own cause check and the states its machine lets a reopen start from.
+ * Why here: this file is the store's one reader of the moves tables, so the reopen writer reaches the table without a second cross-cell edge [C7,#8388].
+ */
+export function runReopenTable(snapshot, move) {
+  reopenBuilt ??= moveTables().reopenEngine({ causeProblem, states: MOVES.find(entry => entry.verb === 'reopen').from });
+  return moveTables().runTable(reopenBuilt.table, reopenBuilt.rules, snapshot, move);
 }
 export const LANDING_LEASE_MS = 120_000; // 30 s died under a 22 s board write; a dead holder is still reclaimed at expiry [C7].
 
