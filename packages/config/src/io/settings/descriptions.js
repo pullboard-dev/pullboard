@@ -46,6 +46,7 @@ const ROWS = [
   ['gate.runnersOnly', 'Runners only', 'Submit and review checks wait for a registered runner and never fall back to this computer.', 'Runners', 'on/off'],
   ['gate.measuredSlots', 'Measured runner slots', 'Each runner offers slots computed from its own cores and memory, unless it was registered with a fixed count.', 'Runners', 'on/off'],
   ['gate.fencedHop', 'Fenced gate hop row', 'When enabled, a gate hop is one row with one owner, written by compare-and-set; a writer that loses the race is refused with the owner named.', 'Runners', 'on/off'],
+  ['tests.registryStrict', 'Fail on unregistered tests', 'When enabled, the test registry check fails when a test has no stable ID or registry record; off, it reports the test and passes.', 'Runners', 'on/off'],
   ['moves.shadow', 'Record move table shadow compares', 'When enabled, each writer that carries a move table shadow records on the board whether the table agreed with what the writer wrote, so pullboard can show when a table is ready to run live.', 'Runners', 'on/off'],
   ['moves.live.claim', 'Claims follow the claim table', 'When enabled, the claim writer writes the events the claim move table decides and refuses what the table refuses; off, the writer\'s own rules decide. Turn it on only when pullboard moves shows no claim disagreements.', 'Runners', 'on/off'],
   ['gate.tableReplay', 'Replay changed move tables', 'When enabled, a submit that changes a move table replays it over the board\'s recorded moves and is red on any disagreement.', 'Runners', 'on/off'],
