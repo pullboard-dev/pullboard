@@ -44,6 +44,7 @@ import {
 import { projectState } from '../../src/io/view.js';
 import { testsNeedBrowser } from '../../../../packages/gate/index.js';
 import { copyPackageFiles } from '../../../../packages/runners/index.js';
+import { packageFiles } from '../../../../packages/runners/index.js';
 import { copyModuleClosure } from '../../tests/fixtures/copy.js';
 import {
   scratch,
@@ -66,10 +67,15 @@ import {
 } from '../../tests/fixtures/cockpit/harness.js';
 
 test('the view fixture refuses to launch Chrome from an undeclared test file [C7,O5]', async t => {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-view-browser-slot-')));
+  const T0=Date.now(); t.after(()=>console.error('LAP total',Date.now()-T0));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-view-browser-slot-')));console.error('LAP start',Date.now()-T0);
   t.after(() => rmSync(root, { recursive: true, force: true }));
+  let T=Date.now(); const lap=n=>{console.error('LAP',n,Date.now()-T);T=Date.now();};
   for (const name of ['bin', 'machine']) mkdirSync(join(root, name));
-  copyPackageFiles(resolve(import.meta.dirname, '../../../..'), root);
+  // Shipped code without test files or the CLI's fixtures (copied back below): the run executes the gate, and a smaller tree commits and scans faster [C7].
+  const source = resolve(import.meta.dirname, '../../../..');
+  copyPackageFiles(source, root, { files: packageFiles(source).filter(file => !file.startsWith('apps/cli/tests/') && !/\.test\.js$/u.test(file)) });
+  lap('pkg');
   // The tests under test import the cockpit harness from its place in the layout, so that folder comes along [C7].
   mkdirSync(join(root, 'test'));
   cpSync(resolve(import.meta.dirname, '../../tests/fixtures'), join(root, 'apps/cli/tests/fixtures'), { recursive: true });
@@ -114,18 +120,22 @@ setInterval(() => {}, 1000); // Protocol lifetime: the owner terminates this sta
   for (const key of ['NODE_TEST_CONTEXT', 'NODE_OPTIONS', 'PULLBOARD_BROWSER_SLOT_HELD', 'PULLBOARD_TEST_FILE', 'PULLBOARD_CHROME']) delete env[key];
   Object.assign(env, { PULLBOARD_HOME: join(root, 'home'), PULLBOARD_MACHINE_HOME: join(root, 'machine'),
     FIXTURE_BROWSER: browser, FIXTURE_MARKERS: join(root, 'markers'), FIXTURE_LAUNCHES: join(root, 'launches') });
+  lap('setup');
   // A committed main, so the runner can read its accepted main for test file budgets.
   for (const args of [['init', '-q', '-b', 'main'], ['add', '-A'], ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-q', '-m', 'fixture']]) {
     const result = spawnSync('git', args, { cwd: root, env, encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr);
   }
+  lap('git');
   assert.equal(await testsNeedBrowser(root, ['test/classified-view.test.js']), true, 'the first line declares the browser');
   assert.equal(await testsNeedBrowser(root, ['test/hidden-view.test.js']), false, 'no first-line marker, no browser');
   const run = spawnSync(process.execPath, ['packages/gate/src/io/run/tests.js', 'test/classified-view.test.js', 'test/hidden-view.test.js'],
     { cwd: root, env, encoding: 'utf8' });
+  lap('run');
   const output = `${run.stdout}\n${run.stderr}`;
   assert.notEqual(run.status, 0, output);
   assert.match(output, /\[BROWSER_UNDECLARED\] test\/hidden-view\.test\.js launched Chrome/u);
+  console.error('LAP asserts-start',Date.now()-T0);
   assert.deepEqual(readFileSync(join(root, 'markers'), 'utf8').trim().split('\n').sort(), ['held=held', 'none=none']);
   assert.deepEqual(readFileSync(join(root, 'launches'), 'utf8').trim().split('\n'), ['held-profile'],
     'only the declared worker starts the stand-in; the undeclared worker never spawns it');
