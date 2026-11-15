@@ -186,8 +186,7 @@ export { COORDINATOR_ACTIONS_ENGINE } from './src/logic/engines/coordinator-acti
 
 export { earlierHeadFacts, staleHeadClauses, staleHeadLines, linkEarlierFacts, namedEvidence } from './src/logic/stale.js';
 export { criterionClauses, clauseTicks, clauseInspectionProblem, clauseInspectionSummary, gateClauseTickNotes, gateNamedFile, testRunTickNotes, checkRunTickNotes } from './src/logic/clauses.js';
-export { failBeforePassAfter } from './src/logic/clause-proof.js';
-export { clauseReceiptProblem, clauseReceiptNotes, clauseReceipts } from './src/logic/clause-receipt.js';
+export { failBeforePassAfter, clauseReceiptProblem, clauseReceiptNotes, clauseReceipts } from './src/logic/clause-receipt.js';
 
 export { STRICT_RENAME_ENGINE } from './src/logic/engines/strict-rename-engine.js';
 

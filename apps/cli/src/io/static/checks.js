@@ -2,7 +2,7 @@
 /** The Pullboard repository's source-only preflight; no browser fixtures run [C7]. */
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { changedStaticFailures } from '../../../../../packages/gate/heavy.js';
 import { staticScopeFromEnv } from '../../../../../packages/gate/index.js';
 import { viewPureGate } from './view.js';
@@ -16,6 +16,31 @@ export function crashLine(stderr) {
   const error = lines.find(line => /^\w*Error\b/.test(line)) ?? lines.find(line => !/^Node\.js v/.test(line)) ?? 'no output';
   const at = lines.find(line => line.startsWith('at '));
   return at ? `${error} (${at})` : error;
+}
+
+/**
+ * Runs the independent static check classes concurrently and joins their findings in the order the classes are listed.
+ * Why: the registry child and the view-pure scan share no state, so the gate pays the longer of them, not the sum; the
+ * fixed join order keeps the printed findings stable however the classes finish [7089].
+ * @param {Array<() => Promise<string[]>>} classes each returns its findings as lines
+ * @returns {Promise<string[]>}
+ */
+export async function staticFailures(classes) {
+  const started = classes.map(run => run());
+  return (await Promise.all(started)).flat();
+}
+
+/** The static tree registry run as its own process; a crash is one failure line naming its cause [C7]. */
+function treeRegistryFailures(program, root) {
+  return new Promise(resolveRun => {
+    const child = spawn(process.execPath, [...process.execArgv, '--input-type=module', '-e', program, root, JSON.stringify(staticScopeFromEnv()), JSON.stringify(STATIC_APPS)], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const out = [];
+    const err = [];
+    child.stdout.on('data', chunk => out.push(chunk));
+    child.stderr.on('data', chunk => err.push(chunk));
+    child.on('error', error => resolveRun([`packages/gate/bin/static.js:1: the static tree registry could not run: ${error.message}`]));
+    child.on('close', status => resolveRun(status === 0 ? JSON.parse(Buffer.concat(out).toString('utf8')) : [`packages/gate/bin/static.js:1: the static tree registry could not run: ${crashLine(Buffer.concat(err).toString('utf8'))}`]));
+  });
 }
 
 /**
@@ -43,8 +68,10 @@ if (process.argv[2] === '--changed-files') {
 const registry = fileURLToPath(new URL('../../../../../packages/gate/src/io/static/registry.js', import.meta.url));
 // A gate that found no whole-repo input in the change hands over the changed paths; the registry then judges only those [5814].
 const program = `const { runStaticTreeRegistry } = await import(${JSON.stringify(pathToFileURL(registry).href)});\nprocess.stdout.write(JSON.stringify(runStaticTreeRegistry(process.argv[1], { changed: JSON.parse(process.argv[2]), apps: JSON.parse(process.argv[3]) })));`;
-const tree = spawnSync(process.execPath, [...process.execArgv, '--input-type=module', '-e', program, root, JSON.stringify(staticScopeFromEnv()), JSON.stringify(STATIC_APPS)], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-const failures = [...(tree.status === 0 ? JSON.parse(tree.stdout) : [`packages/gate/bin/static.js:1: the static tree registry could not run: ${crashLine(tree.stderr)}`]), ...viewPureGate(root).failures.map(row => `${row.path}:${row.line}: ${row.text}`)];
+const failures = await staticFailures([
+  () => treeRegistryFailures(program, root),
+  async () => viewPureGate(root).failures.map(row => `${row.path}:${row.line}: ${row.text}`),
+]);
 for (const row of failures) console.error(row);
 const failed = failures.length > 0;
 if (!failed) console.log('static style, prose declarations, clock budgets and doctrine hold');
