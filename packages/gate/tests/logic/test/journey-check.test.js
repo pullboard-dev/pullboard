@@ -27,7 +27,8 @@ test('the covering cells are the ones whose own tests cite the journey spec ids,
 
 test('the score with and without a journey counts the faults only the journey caught [C7]', () => {
   const report = { faults: [fault('cell.test.js', J), fault(J), fault('cell.test.js'), fault()] };
-  assert.deepEqual(scoreWithAndWithout(J, report), { seeded: 4, with: 3, without: 2, dropped: true });
+  assert.deepEqual(scoreWithAndWithout(J, report), { seeded: 4, with: 3, without: 2, dropped: true, blind: false, skipped: 0, capped: 0 });
+  assert.deepEqual(scoreWithAndWithout(J, { faults: [], redBefore: [J], skipped: 2, capped: 1 }), { seeded: 0, with: 0, without: 0, dropped: false, blind: true, skipped: 2, capped: 1 });
   assert.equal(scoreWithAndWithout(J, { faults: [fault('cell.test.js'), fault('cell.test.js', J)] }).dropped, false);
 });
 
