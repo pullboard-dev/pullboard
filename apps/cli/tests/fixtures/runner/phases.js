@@ -21,6 +21,7 @@ import {
   join,
   resolve,
 } from 'node:path';
+import { spawn } from 'node:child_process';
 import { cpus } from 'node:os';
 import { loadavg } from 'node:os';
 import { tmpdir } from 'node:os';
@@ -195,10 +196,20 @@ export function fixtureResultContext(result) {
 }
 
 /**
+ * Start `count` CPU-bound jobs beside the fixture runner, whose host is this machine, and return a stop that waits for
+ * each to exit. Why: a gate sends its shards to one runner at once, and a round trip must stay cheap beside them (#8145).
+ */
+export function otherJobs(count) {
+  const jobs = Array.from({ length: count }, () => spawn(process.execPath, ['-e', 'for (;;) {}'], { stdio: 'ignore' }));
+  const exits = jobs.map(job => new Promise(resolve => { if (job.exitCode !== null || job.signalCode !== null) resolve(); else job.once('exit', resolve); }));
+  return async () => { for (const job of jobs) job.kill('SIGKILL'); await Promise.all(exits); };
+}
+
+/**
  * Run `count` round trips of one committed tree on one fixture runner, under a private controller home, and return
  * each trip's phase profile with its printed line; the first trip really runs the test body on the runner.
  */
-export async function profiledRoundTrips(t, count) {
+export async function profiledRoundTrips(t, count, { otherJobs: busy = 0 } = {}) {
   const directory = privateFixtureFiles('pullboard-round-trip-').root;
   const graph = fixtureCommittedGraph('pullboard-round-trip-repo-'), repo = graph.root;
   t.after(() => { rmSync(directory, { recursive: true, force: true }); rmSync(repo, { recursive: true, force: true }); });
@@ -217,13 +228,18 @@ export async function profiledRoundTrips(t, count) {
   installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'), requests: join(home, 'requests.jsonl'), nodeCommand: process.execPath });
   const profiles = [];
   for (let index = 0; index < count; index++) {
+    // Repeats run beside the other jobs; the first trip stays alone so its cold export fits the case's timeout.
+    const stop = index > 0 && busy ? otherJobs(busy) : null;
+    if (stop) t.after(stop);
     const result = await runOnRunnerAsync(repo, 'node apps/cli/src/io/run/tests.js test/probe.test.js', {
       runner: { host: HOST, slots: 1, browser: 0, node: process.execPath, root: join(home, 'runner') }, metadata: { testStage: 'submit', trunk } });
+    await stop?.();
     assert.equal(result.isGreen, true, result.output);
     // A repeat may reuse the first trip's receipt, as a real gate would; the first must run the body.
     if (index === 0) assert.match(result.output, /EXECUTED-ROUND-TRIP/u, 'the runner really runs the test body');
     const profile = roundTripProfile(result.phases), line = roundTripLine(profile);
     t.diagnostic(line);
+    t.diagnostic('raw marks ' + JSON.stringify(Object.entries(result.phases).sort((a, b) => a[1] - b[1]).map(([k, v]) => `${k}+${v - result.phases.dispatch}`)));
     profiles.push({ ...profile, line });
   }
   return profiles;

@@ -31,6 +31,9 @@ import { statSync } from 'node:fs';
 import { writeSync } from 'node:fs';
 
 /** The modes a pull-aware controller entry accepts after `--pullboard-runner-controller`. */
+const CONTROLLER_START = Date.now();
+const CONTROLLER_ORIGIN = Math.round(performance.timeOrigin);
+
 export const PULL_MODES = ['--submit', '--serve-need', '--finish'];
 
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
@@ -58,7 +61,7 @@ export async function submitJob(payload, ports) {
   try {
     const mark = phase => { request.phase = phase; (request.phaseAt ??= { start: Date.now() })[phase] = Date.now(); };
     mark('connect');
-    Object.assign(request.phaseAt, { prepare: preparing, prepared });
+    Object.assign(request.phaseAt, request.subMarks, { 'ctl-origin': CONTROLLER_ORIGIN, 'ctl-start': CONTROLLER_START, prepare: preparing, prepared });
     if (request.rawOutputPath) closeSync(openSync(request.rawOutputPath, 'wx', 0o600));
     const job = { version: 1, id: request.spec.id, runner: request.runner, spec: { ...request.spec, ...(request.spec.testResults ? { testResults: { ...request.spec.testResults, packet: null } } : {}) },
       phaseAt: request.phaseAt, phase: request.phase, root: request.root, source: request.source, args: request.args,
@@ -142,12 +145,15 @@ async function captureRaw(job) {
  * @param {{ privateCheckPhases: Function }} ports
  */
 export async function finishJob(payload, ports) {
+  const finishStart = Date.now();
   const job = readJob(payload.id);
   const { reason } = payload;
   const request = { spec: job.spec, runner: job.runner, args: job.args, root: job.root, source: job.source, phaseAt: job.phaseAt, phase: payload.readyAt ? 'ready' : job.phase,
     reusedRuntime: job.reusedRuntime, ...(job.rawOutputPath ? { rawOutputPath: job.rawOutputPath } : {}) };
   if (payload.readyAt) request.phaseAt = { ...request.phaseAt, ready: payload.readyAt };
+  request.phaseAt = { ...request.phaseAt, 'fin-ctl-origin': CONTROLLER_ORIGIN, 'fin-ctl-start': CONTROLLER_START, 'fin-start': finishStart };
   if (job.hasExchange) request.exchange = { store: await exchangeStore(job.root) };
+  request.phaseAt['fin-store'] = Date.now();
   try {
     if (reason !== 'result' && reason !== 'ssh-exit') await sshBurst(job, cancelScript(job.runner, job.id));
     const control = await fetchBurst(job, 'control.log');
@@ -156,6 +162,7 @@ export async function finishJob(payload, ports) {
     else { const body = await fetchBurst(job, 'out.bin'); output = body.stdout; fetched = body.error ? body : control; }
     if (fetched.error?.code === 'RUNNER_OUTPUT_LIMIT') throw new Refused('RUNNER_OUTPUT_LIMIT', fetched.error.message);
     const stderr = control.stdout;
+    request.phaseAt['fin-fetched'] = Date.now();
     const receiptSeen = stderr.toString('utf8').split('\n').some(line => line.startsWith(`PULLBOARD_RUNNER_RESULT ${job.id} `));
     let error = fetched.error;
     if (reason === 'admission-deadline') request.admissionDeadlineExceeded = true;
