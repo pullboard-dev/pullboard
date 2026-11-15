@@ -1,4 +1,4 @@
-/** @pullboard-test-input packages/gate/index.js packages/gate/src/io/run/tests.js packages/gate/tests/fixtures/cockpit/runner-standin.mjs */
+/** @pullboard-test-input packages/gate/index.js packages/gate/src/io/run/tests.js packages/gate/tests/fixtures/runner-standin.js */
 /** The test runner names itself to the tests it starts, so a test finds its runner without parsing ps text [C7]. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -13,9 +13,8 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { awaitNestedRun } from '../../index.js';
 import { privateFixtureFiles } from '../fixtures/child.js';
-import { runFixtureChildAsync } from '../fixtures/child.js';
+import { runUnderStandIn } from '../fixtures/runner-standin.js';
 
-const standIn = fileURLToPath(new URL('../fixtures/cockpit/runner-standin.mjs', import.meta.url));
 const runner = fileURLToPath(new URL('../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 
 test('the test runner names itself to the tests it starts [C7]', async (t) => {
@@ -63,7 +62,7 @@ appendFileSync(${JSON.stringify(seen)}, JSON.stringify({ runner: process.env.PUL
 process.exit(Number(process.argv[2]));
 `);
   // An outer runner pid already in the environment stands for a nested run.
-  const run = runFixtureChildAsync(process.execPath, [standIn, probe, '3'], { env: { ...process.env, PULLBOARD_TEST_RUNNER_PID: '1234' } });
+  const run = runUnderStandIn(probe, ['3'], { ...process.env, PULLBOARD_TEST_RUNNER_PID: '1234' });
   const standInPid = String(run.child.pid);
   const { status: code } = await run;
   assert.equal(code, 3, 'the stand-in passes its child exit code on');
