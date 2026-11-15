@@ -6,7 +6,12 @@
  * the result becomes the template; every later case with the same shape gets a private copy of the template instead.
  * A box that does not look like a freshly made sandbox (a replaced run, declared families, an edited machine home) is
  * never copied, so a case that changed its setup still builds its own project.
+ *
+ * Each copy is a copy-on-write clone where the file system has them (APFS, btrfs, XFS): a clone shares the template's
+ * blocks, so a case pays for its directory entries, not its bytes. Where clones are unsupported (ext4 on Linux CI) it
+ * falls back to an ordinary copy [C7,#8319].
  */
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { cpSync } from 'node:fs';
 import { existsSync } from 'node:fs';
@@ -27,9 +32,43 @@ const TEMPLATE_MAX_AGE_MS = 45_000;
 const SKIPPED = '.git/objects';
 
 const templates = new Map();
-const stats = { builds: 0, copies: 0 };
+const stats = { builds: 0, copies: 0, clones: 0 };
 const roots = new Set();
 let exitHooked = false;
+
+/** The cp flags that clone a tree on this platform: BSD cp -c on macOS, GNU --reflink=always elsewhere. */
+const CLONE_FLAGS = process.platform === 'darwin' ? ['-c', '-pR'] : ['--reflink=always', '-a'];
+/** Whether this process's file system clones: probed once on a scratch file, so an unsupported one costs one failed cp, not one per case. */
+let cloning = null;
+
+/** Probe once whether cp can clone in the temp folder; any failure means the copy fallback. */
+function canClone() {
+  if (cloning !== null) return cloning;
+  const probe = join(tmpdir(), `pullboard-tpl-probe-${process.pid}-${Date.now()}`);
+  try {
+    mkdirSync(probe);
+    writeFileSync(join(probe, 'from'), 'probe\n');
+    execFileSync('cp', [...CLONE_FLAGS, join(probe, 'from'), join(probe, 'to')], { stdio: 'ignore' });
+    cloning = readFileSync(join(probe, 'to'), 'utf8') === 'probe\n';
+  } catch { cloning = false; } finally { rmSync(probe, { recursive: true, force: true }); }
+  return cloning;
+}
+
+/**
+ * Clone the named entries of one directory into another (created or merged), true when cp cloned them all. Why one cp
+ * for the whole set: a process start costs about what node pays to copy a few hundred small files.
+ */
+function cloneInto(from, names, to) {
+  if (!names.length || !canClone()) return false;
+  try { execFileSync('cp', [...CLONE_FLAGS, ...names.map(name => join(from, name)), `${to}/`], { stdio: 'ignore' }); return true; } catch { return false; }
+}
+
+/** Copy the named entries of one directory into another: a copy-on-write clone where supported, else an ordinary copy [C7,#8319]. */
+function copyInto(from, names, to) {
+  if (cloneInto(from, names, to)) { stats.clones += 1; return 'clone'; }
+  for (const name of names) cpSync(join(from, name), join(to, name), { recursive: true, force: true, preserveTimestamps: true, verbatimSymlinks: true });
+  return 'copy';
+}
 
 /** Remove every template tree when the process ends; the copies belong to their own sandboxes. */
 function hookExit() {
@@ -102,7 +141,7 @@ function snapshot(box, built) {
   roots.add(root);
   hookExit();
   const names = readdirSync(box.dir).filter(name => name !== 'bin');
-  for (const name of names) cpSync(join(box.dir, name), join(root, name), { recursive: true, preserveTimestamps: true, verbatimSymlinks: true });
+  copyInto(box.dir, names, root);
   const needle = Buffer.from(box.dir);
   const hits = [];
   const tracked = trackedFiles(box);
@@ -130,7 +169,7 @@ function rewrite(file, from, to) {
 
 /** Copy a template into a bare sandbox and point its stored paths at the new directory. */
 function instantiate(template, box) {
-  for (const name of template.names) cpSync(join(template.root, name), join(box.dir, name), { recursive: true, force: true, preserveTimestamps: true, verbatimSymlinks: true });
+  copyInto(template.root, template.names, box.dir);
   for (const rel of template.hits) rewrite(join(box.dir, rel), template.from, box.dir);
   return { ...box, ...Object.fromEntries(Object.entries(template.fields).map(([key, rel]) => [key, join(box.dir, rel)])) };
 }
@@ -161,5 +200,8 @@ export function templatedProject(box, shape, build) {
 /** The sandbox directories this process's templates were taken from. */
 export function templateOrigins() { return [...templates.values()].map(template => template.from); }
 
-/** How many projects this process built from nothing and copied from a template; the fixture's own test reads it. */
-export function templateStats() { return { ...stats, templates: templates.size }; }
+/**
+ * How many projects this process built from nothing and copied from a template, how many tree copies were clones, and
+ * the copy method this file system gets ('clone' or 'copy'); the fixture's own test reads it.
+ */
+export function templateStats() { return { ...stats, templates: templates.size, method: canClone() ? 'clone' : 'copy' }; }
