@@ -82,7 +82,7 @@ test('clause 2: after a resubmit the old gate job is refused HOP_FENCED when it 
   // Still fenced once the new candidate's runner holds the hop, even when the same runner claimed both.
   claim(db, 'r1', 7000);
   assert.throws(() => land(db, old, 7500), { code: 'HOP_FENCED' });
-  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM job_step WHERE job_id = 'gate:7:old' AND step_name = 'receipt'").get()?.n ?? 0, 0);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM job_step WHERE job_step_job = 'gate:7:old' AND job_step_name = 'receipt'").get()?.n ?? 0, 0);
 });
 
 test('clause 2: without a resubmit the gate job that owns the hop lands [C7,#8353]', t => {
