@@ -34,14 +34,14 @@ function jobRecords(db, rows) {
  * retried), and every span that ended in it.
  *
  * @param {import('node:sqlite').DatabaseSync} db - The board, read only.
- * @param {{ commonDir: string, since: number, now: number }} window
+ * @param {{ commonDir: string, since: number, now: number, ledgerRows?: object[] }} window - `ledgerRows`: the board's recorded test_result rows, the only source of the red list.
  * @returns {ReturnType<typeof gateHealthSummary>}
  */
-export function gateHealthReport(db, { commonDir, since, now }) {
+export function gateHealthReport(db, { commonDir, since, now, ledgerRows = [] }) {
   const records = hasJobTables(db)
     ? jobRecords(db, db.prepare("SELECT job_id AS id, job_item AS item FROM job WHERE job_kind = 'gate' AND job_updated >= ?").all(since - CHAIN_LOOKBACK_MS))
     : new Map();
-  return gateHealthSummary({ records: [...records.values()], spans: readGateSpans(gateSpanFolder(commonDir), { since: since - CHAIN_LOOKBACK_MS, now }), since, now });
+  return gateHealthSummary({ records: [...records.values()], spans: readGateSpans(gateSpanFolder(commonDir), { since: since - CHAIN_LOOKBACK_MS, now }), since, now, ledgerRows });
 }
 
 /**

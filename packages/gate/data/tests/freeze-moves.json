@@ -9179,6 +9179,50 @@
       "because": "its refusal rules are proven in-process in the cli cell: a report restating a recorded submit or verdict, the ten-minute window, and integration evidence"
     },
     {
+      "file": "apps/cli/journeys/relay/client/recovery.test.js",
+      "specs": [
+        "H16",
+        "H3",
+        "V1",
+        "V17"
+      ],
+      "coveredBy": "packages/outbox/tests/io/relay/replies.test.js",
+      "because": "a lost reply is recovered once from the ordered log without a second post, each operation (add, submit note, verify, edit, merge) alike, in the outbox cell against a stand-in relay"
+    },
+    {
+      "file": "apps/cli/journeys/relay/client/outcomes.test.js",
+      "specs": [
+        "H16",
+        "H3",
+        "V1",
+        "V17"
+      ],
+      "coveredBy": "packages/outbox/tests/io/relay/replies.test.js",
+      "because": "a refused move's lost reply surfaces the original rule after the winner and three replicas agree on the order and every receipt, in the outbox cell against a stand-in relay"
+    },
+    {
+      "file": "apps/cli/journeys/relay/client/stack.test.js",
+      "specs": [
+        "H16",
+        "H3",
+        "V1",
+        "V17"
+      ],
+      "coveredBy": "apps/cli/tests/io/submit/stack.test.js",
+      "because": "a head containing another item's unverified submitted commit is refused with STACKED_ON_UNVERIFIED, proven in process on real git and a real board"
+    },
+    {
+      "file": "apps/cli/journeys/relay/client/receipt.test.js",
+      "specs": [
+        "H16",
+        "H3",
+        "V1",
+        "V17"
+      ],
+      "coveredBy": "packages/outbox/tests/io/relay/replies.test.js",
+      "because": "a recovered descriptor with no durable receipt stays pending and is never taken as an outcome, and a mismatched ciphertext is not a reply, in the outbox cell against a stand-in relay"
+    },
+    {
       "file": "apps/cli/journeys/relay/client/order.test.js",
       "specs": [
         "H16",

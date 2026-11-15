@@ -145,6 +145,9 @@ export function loadMachineSettings() {
   if (value.gate?.postLandSuite !== undefined && typeof value.gate.postLandSuite !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.postLandSuite in ${file} must be true or false`);
   }
+  if (value.gate?.fencedHop !== undefined && typeof value.gate.fencedHop !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.fencedHop in ${file} must be true or false`);
+  }
   if (value.gate?.tableReplay !== undefined && typeof value.gate.tableReplay !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.tableReplay in ${file} must be true or false`);
   }

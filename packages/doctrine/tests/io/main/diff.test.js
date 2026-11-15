@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 
 const sandboxes = [];
 after(() => { for (const directory of sandboxes) rmSync(directory, { recursive: true, force: true }); });

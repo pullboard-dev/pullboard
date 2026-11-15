@@ -9,8 +9,8 @@ import { LANDING_COLLECT_ALL_ENV } from '../../../index.js';
 import { formatCollectionReport } from '../../../../gate/index.js';
 import { parseCollectionReports } from '../../../../gate/index.js';
 import { COLLECTION_ID_ENV } from '../../../../gate/index.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureSetupGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { runFixtureSetupGit } from '../../../../gate/tests/fixtures/child.js';
 
 const ID = '11111111-2222-4333-8444-555555555555';
 const FILES = ['test/a.test.js', 'test/b.test.js'];

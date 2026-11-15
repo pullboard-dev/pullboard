@@ -1,6 +1,6 @@
 /** Prove each test has a named bounded timeout and the run continues [C7, V10]. */
 import assert from 'node:assert/strict';
-import { runFixtureChild as spawnSync } from '../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild as spawnSync } from './fixtures/child.js';
 import { existsSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';

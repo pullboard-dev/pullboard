@@ -213,7 +213,7 @@ export const ITEM_SLOTS = Object.freeze({
   queueSubmitHandoff: [[0]], relandAccepted: [[0]], startSubmitHandoff: [[0]],
   recordUsageBatch: [[0, 'items', '*', 'item'], [0, 'sharedSessions', '*', 'allocations', '*', 'item']],
   recordExitProgress: [[0, 'item']],
-  recordUsage: [[0, 'item']], recordSharedUsage: [[0, 'allocations', '*', 'item']],
+  recordCoordinatorUsage: [], recordUsage: [[0, 'item']], recordSharedUsage: [[0, 'allocations', '*', 'item']],
   requestCompanion: [[0, 'parentId']],
   fileTypedRequest: [[0, 'itemId']],
   // A rule scope names a board item, but the rule itself is the coordinator's record, not a delegated item reference.

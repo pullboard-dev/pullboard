@@ -596,7 +596,7 @@
     "raw-board": 12,
     "tempdir": 9
   },
-  "apps/cli/tests/fixtures/board.js": {
+  "packages/board/tests/fixtures/board.js": {
     "raw-board": 1
   },
   "apps/cli/tests/fixtures/board/link.js": {

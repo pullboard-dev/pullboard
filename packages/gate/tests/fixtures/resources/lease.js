@@ -16,7 +16,7 @@ import * as store from '../../../../store/index.js';
 import { openBoard } from '../../../../../apps/lib/index.js';
 import { registerProject } from '../../../../seats/index.js';
 import { serveView } from '../../../../../apps/cli/src/io/commands/view.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../child.js';
 import { fixtureJoinRoute } from '../../../../../apps/cli/tests/fixtures/testkit.js';
 import { settledGateJob } from '../../../../../apps/cli/tests/fixtures/submit/settle.js';
 

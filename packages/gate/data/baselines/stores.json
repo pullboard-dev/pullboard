@@ -1164,6 +1164,10 @@
       "kind": "table",
       "owner": "packages/pages/src/io/relay/cache.js"
     },
+    "table:gate_hop": {
+      "kind": "table",
+      "owner": "packages/store/src/io/board/hop.js"
+    },
     "table:heartbeat": {
       "kind": "table",
       "owner": "packages/store/src/io/presence.js"
