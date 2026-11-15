@@ -10,7 +10,6 @@ import {
 } from 'node:child_process';
 import {
   chmodSync,
-  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -67,18 +66,14 @@ import {
 } from '../../tests/fixtures/cockpit/harness.js';
 
 test('the view fixture refuses to launch Chrome from an undeclared test file [C7,O5]', async t => {
-  const T0=Date.now(); t.after(()=>console.error('LAP total',Date.now()-T0));
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-view-browser-slot-')));console.error('LAP start',Date.now()-T0);
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-view-browser-slot-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  let T=Date.now(); const lap=n=>{console.error('LAP',n,Date.now()-T);T=Date.now();};
   for (const name of ['bin', 'machine']) mkdirSync(join(root, name));
   // Shipped code without test files or the CLI's fixtures (copied back below): the run executes the gate, and a smaller tree commits and scans faster [C7].
   const source = resolve(import.meta.dirname, '../../../..');
   copyPackageFiles(source, root, { files: packageFiles(source).filter(file => !file.startsWith('apps/cli/tests/') && !/\.test\.js$/u.test(file)) });
-  lap('pkg');
-  // The tests under test import the cockpit harness from its place in the layout, so that folder comes along [C7].
+  // The tests under test import the cockpit harness from its place in the layout, so its import closure comes along [C7].
   mkdirSync(join(root, 'test'));
-  cpSync(resolve(import.meta.dirname, '../../tests/fixtures'), join(root, 'apps/cli/tests/fixtures'), { recursive: true });
   // The CLI fixtures re-export helpers that live under packages/; copy the harness's whole import closure too.
   copyModuleClosure(resolve(import.meta.dirname, '../../../..'), root, ['apps/cli/tests/fixtures/cockpit/harness.js']);
 
@@ -120,22 +115,18 @@ setInterval(() => {}, 1000); // Protocol lifetime: the owner terminates this sta
   for (const key of ['NODE_TEST_CONTEXT', 'NODE_OPTIONS', 'PULLBOARD_BROWSER_SLOT_HELD', 'PULLBOARD_TEST_FILE', 'PULLBOARD_CHROME']) delete env[key];
   Object.assign(env, { PULLBOARD_HOME: join(root, 'home'), PULLBOARD_MACHINE_HOME: join(root, 'machine'),
     FIXTURE_BROWSER: browser, FIXTURE_MARKERS: join(root, 'markers'), FIXTURE_LAUNCHES: join(root, 'launches') });
-  lap('setup');
   // A committed main, so the runner can read its accepted main for test file budgets.
   for (const args of [['init', '-q', '-b', 'main'], ['add', '-A'], ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-q', '-m', 'fixture']]) {
     const result = spawnSync('git', args, { cwd: root, env, encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr);
   }
-  lap('git');
   assert.equal(await testsNeedBrowser(root, ['test/classified-view.test.js']), true, 'the first line declares the browser');
   assert.equal(await testsNeedBrowser(root, ['test/hidden-view.test.js']), false, 'no first-line marker, no browser');
   const run = spawnSync(process.execPath, ['packages/gate/src/io/run/tests.js', 'test/classified-view.test.js', 'test/hidden-view.test.js'],
     { cwd: root, env, encoding: 'utf8' });
-  lap('run');
   const output = `${run.stdout}\n${run.stderr}`;
   assert.notEqual(run.status, 0, output);
   assert.match(output, /\[BROWSER_UNDECLARED\] test\/hidden-view\.test\.js launched Chrome/u);
-  console.error('LAP asserts-start',Date.now()-T0);
   assert.deepEqual(readFileSync(join(root, 'markers'), 'utf8').trim().split('\n').sort(), ['held=held', 'none=none']);
   assert.deepEqual(readFileSync(join(root, 'launches'), 'utf8').trim().split('\n'), ['held-profile'],
     'only the declared worker starts the stand-in; the undeclared worker never spawns it');
@@ -487,6 +478,8 @@ test('Chrome startup waits past the old timeout, retries once, and reports final
   const profile = join(dir, 'slow-profile');
   mkdirSync(profile);
   const attempts = join(dir, 'slow-attempts');
+  // The stand-in publishes its port after this delay; the helper must outwait it, however long, so a short one proves the same wait [N26].
+  const publishDelayMs = 3_100;
   const delayed = join(dir, 'delayed-chrome');
   writeFileSync(delayed, `#!/usr/bin/env node
 const { readFileSync, writeFileSync, writeSync, mkdirSync } = require('node:fs');
@@ -501,13 +494,13 @@ setTimeout(() => {
   mkdirSync(profile, { recursive: true });
   writeFileSync(join(profile, 'DevToolsActivePort'), '9333\\n/devtools/browser/fake\\n');
   setInterval(() => {}, 1000);
-}, 10_100);
+}, ${publishDelayMs});
 `);
   chmodSync(delayed, 0o755);
   const started = Date.now();
   const chrome = await startSnapshotChrome(delayed, profile);
   try {
-    assert.ok(Date.now() - started > 10_000, 'the helper waits beyond its former ten-second limit'); // budget: the stand-in publishes DevToolsActivePort after 10,100 ms.
+    assert.ok(Date.now() - started >= publishDelayMs - 100, 'the helper waits for the stand-in to publish DevToolsActivePort'); // budget: the stand-in publishes after publishDelayMs.
     assert.equal(chrome.port, '9333');
     assert.equal(readFileSync(attempts, 'utf8'), '2', 'the failed first launch is retried exactly once');
   } finally {
