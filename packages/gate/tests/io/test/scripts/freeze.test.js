@@ -79,7 +79,7 @@ test('kept and converted files move into the owning cell tests folder, with old 
 test('the dry run prints every planned change and the count per action without touching files [C7]', t => {
   const repo = fixture(t);
   const before = runFixtureGit(['status', '--porcelain'], { cwd: repo.root });
-  const { status, stdout } = runFreezeCommand(['--dry-run', repo.root], { owner });
+  const { status, stdout } = runFreezeCommand(['--dry-run', '--manifest', 'packages/gate/data/tests/test-manifest.json', repo.root], { owner });
   assert.equal(status, 0);
   assert.match(stdout, /would move: apps\/cli\/journeys\/add\/main\.test\.js -> packages\/math\/tests\/journeys\/add\/main\.test\.js/u);
   assert.match(stdout, /would delete: apps\/cli\/journeys\/dup\/covered\.test\.js covered by packages\/math\/tests\/add\.test\.js/u);
