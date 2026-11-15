@@ -43,9 +43,36 @@ function selectedBy(patterns, path) {
   return selected;
 }
 
+/** The listings taken inside the running withPackageListing call, by root; null outside one. */
+let listings = null;
+
+/**
+ * Run a synchronous operation in which each root's package listing is walked once and shared by every reader in it.
+ * Why: one tooling capture walked the whole package once per closure reader, about seven walks of ~5,800 entries per
+ * short controller, seconds beside four other jobs (#8145). Each call walks afresh; nothing outlives it.
+ *
+ * @template T
+ * @param {() => T} operation
+ * @returns {T}
+ */
+export function withPackageListing(operation) {
+  if (listings) return operation();
+  listings = new Map();
+  try { return operation(); } finally { listings = null; }
+}
+
 /** Return stable regular-file paths; package.json is the mandatory manifest needed to interpret shipped code. */
 export function packageFiles(root) {
   const source = resolve(root);
+  const held = listings?.get(source);
+  if (held) return [...held];
+  const files = listPackageFiles(source);
+  listings?.set(source, files);
+  return [...files];
+}
+
+/** Walk one package's declared files from disk. */
+function listPackageFiles(source) {
   const manifestFile = join(source, 'package.json');
   if (!lstatSync(manifestFile).isFile() || lstatSync(manifestFile).isSymbolicLink()) throw new Error('package.json must be a regular file');
   const manifest = JSON.parse(readFileSync(manifestFile, 'utf8'));
