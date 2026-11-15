@@ -87,6 +87,18 @@ function asEvents(board, written) {
 }
 const shape = (e) => (e.kind === 'shout' ? { kind: 'shout', by: e.by, to: e.detail.to, text: e.detail.text } : stored({ kind: e.kind, by: e.by, detail: e.detail }));
 
+/** The paths where two event lists differ, so a disagreement names what the writer got different. */
+function differences(wrote, expected) {
+  const out = [];
+  const walk = (a, b, path) => {
+    if (JSON.stringify(a) === JSON.stringify(b)) return;
+    if (a && b && typeof a === 'object' && typeof b === 'object') { for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) walk(a[key], b[key], `${path}.${key}`); return; }
+    out.push(`${path}: wrote ${JSON.stringify(a)?.slice(0, 120)} expected ${JSON.stringify(b)?.slice(0, 120)}`);
+  };
+  walk(wrote, expected, 'events');
+  return out;
+}
+
 const records = readVerifyRecords(recorded(), { since: HISTORY.since, only: HISTORY.verdicts }).verify;
 
 test('clause 1: the store verify writer agrees with the verify table on every replayed verdict [C7,#8272]', t => {
@@ -100,7 +112,7 @@ test('clause 1: the store verify writer agrees with the verify table on every re
     const board = boardFor(t, record);
     const wrote = asEvents(board, drive(board, record).filter(e => e.kind !== 'fact'));
     const expected = answer.events.filter(e => e.kind !== 'fact').map(shape);
-    if (JSON.stringify(wrote) !== JSON.stringify(expected)) disagreements.push({ event: record.event.id, wrote, expected });
+    if (JSON.stringify(wrote) !== JSON.stringify(expected)) disagreements.push({ event: record.event.id, differences: differences(wrote, expected) });
   }
   assert.deepEqual(disagreements, []);
   for (const path of ['accept', 'reject', 'bar-sharpen', 'route-calibration', 'two-rejects']) assert.ok(via.has(path), `${path} replayed through the writer`);
