@@ -151,7 +151,8 @@ test('clause 2: an untrusted key is refused, the receipt cell refuses an unsigne
 
     const at = Date.now();
     await call(board.url, '/pull/register', JSON.stringify({ runner: 'sandbox-2', publicKey: keys.publicKey, at, signature: sign(null, Buffer.from(`PBREGISTER 1 sandbox-2 ${at}`), keys.key).toString('base64url') }));
-    const taken = await call(board.url, '/pull/take', JSON.stringify({ runner: 'sandbox-2', at, signature: sign(null, Buffer.from(`PBTAKE 1 sandbox-2 ${at}`), keys.key).toString('base64url') }));
+    const nonce = 'raw-take-nonce-0001';
+    const taken = await call(board.url, '/pull/take', JSON.stringify({ runner: 'sandbox-2', at, nonce, signature: sign(null, Buffer.from(`PBTAKE 1 sandbox-2 ${at} ${nonce}`), keys.key).toString('base64url') }));
     assert.equal(taken.status, 200);
     const { token, tree } = taken.body;
     const auth = { authorization: `Bearer ${token}` };
