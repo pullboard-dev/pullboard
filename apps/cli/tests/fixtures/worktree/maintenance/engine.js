@@ -499,9 +499,10 @@ export function registerMaintenanceIdleSeatTests() {
     const ahead = fx.addTree('ahead-seat', { seat: true });
     const recent = fx.addTree('recent-seat', { seat: true });
     fs.writeFileSync(join(dirty.path, 'unsaved.txt'), 'unfinished\n');
-    fs.writeFileSync(join(ahead.path, 'ahead.txt'), 'never merged\n');
-    fx.box.git(ahead.path, 'add', 'ahead.txt');
-    fx.box.git(ahead.path, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'unmerged work');
+    // Plumbing, not `git commit`: the fixture repository's pre-commit hook refuses commits from a seat folder.
+    const unmerged = fx.box.git(ahead.path, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+      'commit-tree', 'HEAD^{tree}', '-p', 'HEAD', '-m', 'unmerged work').trim();
+    fx.box.git(ahead.path, 'update-ref', 'HEAD', unmerged);
     fx.setNow(BORN + 3 * DAY);
     heartbeatSeat(fx.board, recent.agent);
     const claim = claimItem(fx, claimed.agent, 'Claim keeps an idle seat checkout');
