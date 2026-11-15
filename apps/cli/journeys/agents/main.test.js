@@ -113,8 +113,9 @@ test('the agents panel says what each agent holds [N26]', async () => {
   build(box, two, 4, 'footer.html');
   await box.inProcess(alpha.web, 'claim', '1');
   const view = await startView(box);
+  let page;
   try {
-    const page = await openPage(view);
+    page = await openPage(view);
     await page.click({ tab: 'shouts' });
     await cardsShown(page, 2);
     assert.deepEqual(agentEntries(page.show('agents')).map((agent) => agent.id), ['web-2', 'web-1'], 'an agent holding nothing waits in the idle fold, closed; the agent with work sent back comes first');
@@ -139,6 +140,8 @@ test('the agents panel says what each agent holds [N26]', async () => {
     page.run("go('item:1')");
     assert.match(page.show('detail'), /<span class="id">#1<\/span>[^]*<h2>Header<\/h2>/, 'a held item opens on the Items tab');
   } finally {
+    // The page retries a failed item read every 3 s; closed, it no longer holds the file open once the view stops (#8027).
+    page?.close();
     await view.stop();
   }
 });
