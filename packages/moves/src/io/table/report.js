@@ -1,10 +1,10 @@
 /** @pullboard-module-loads packages/moves/src/logic/table/*.table.js */
 /** Load a move table by name and report on it: how often it agrees with the board, and what it says in order [C7,#8071,#8072]. */
-import { execFileSync } from 'node:child_process';
 import { basename } from 'node:path';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Refused } from '../../../../kernel/light.js';
+import { tryGit } from '../../../../git/index.js';
 import { explainTable } from '../../logic/table/explain.js';
 import { replayTable } from '../../logic/table/replay.js';
 import { listMoveTables } from './read.js';
@@ -48,10 +48,8 @@ export async function loadMoveTable(root, name, code) {
 
 /** The v0.9.4 cut as an ISO time: the tag's commit time, or null when this repository has no such tag. */
 function tagCut(root) {
-  try {
-    const text = execFileSync('git', ['log', '-1', '--format=%cI', CUT_TAG], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-    return text ? new Date(text).toISOString() : null;
-  } catch { return null; }
+  const read = tryGit(root, ['log', '-1', '--format=%cI', CUT_TAG]);
+  return read.status === 0 && read.stdout ? new Date(read.stdout).toISOString() : null;
 }
 
 /**
