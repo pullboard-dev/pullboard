@@ -22,7 +22,6 @@ import {
 } from 'node:path';
 import {
   after,
-  describe,
   test,
 } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
@@ -206,8 +205,6 @@ function boardBytes(box) {
   return readFileSync(join(common, 'pullboard', 'board.sqlite'));
 }
 
-// Each case builds its own private repo, board and runner, so they run side by side on one runner [S19].
-describe('stale frozen items [S19]', { concurrency: true }, () => {
 test('[S19,V3] doctor and resume list stale frozen items in every lifecycle state without rewriting evidence', { timeout: 120_000 }, async (t) => {
   const box = await project(t);
   const ids = {};
@@ -345,5 +342,4 @@ test('[S19] a killed fixture child names its signal and elapsed time', () => {
   assert.throws(() => requireExit(killed, 1), named, 'an expected exit status, as text doctor');
   assert.throws(() => requireExit(killed, 'refused'), named, 'an expected refusal, as JSON doctor');
   assert.throws(() => jsonOf(killed), named, 'JSON output cut short');
-});
 });
