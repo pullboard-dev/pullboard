@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { fixtureBoard } from '../../../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../../../board/tests/fixtures/board.js';
 import { derivedFamily } from '../../../index.js';
 import { seatFamily } from '../../../index.js';
 import { withDerivedFamilies } from '../../../index.js';
