@@ -89,3 +89,44 @@ export async function settleSubmit(t, box, submitted, options) {
   const gateJob = await settledGateJob(box, submitted.item ?? submitted.id, options);
   return { ...submitted, gate: gateJob.gate, gateJob };
 }
+
+/** Budget: how long a verdict waits for the board to apply a pulled gate's receipt before it reports the refusal it saw. */
+const ACCEPT_SETTLE_MS = 150_000;
+
+/**
+ * Run a verdict command, repeating it while it refuses NOT_SUBMITTED, in this process without yielding.
+ * Why: a pulled submit returns queued, and the gate job reads done a moment before the board applies its receipt, so the
+ * first verify on a loaded runner finds the item still claimed (c77c8f38cf, #7283). The refusal is a state, not a failure:
+ * the item is read again until the receipt moves it, after restarting a local runner a gate switch stopped [C7].
+ *
+ * @param {{ repo: string, env: object, run: Function }} box - The fixture project; run(cwd, ...args) returns { code, out, err }.
+ * @param {string} cwd - Where the verdict runs.
+ * @param {string[]} args - The verify arguments.
+ * @returns {{ code: number, out: string, err: string }} The last answer, the success or the refusal that outlasted the wait.
+ */
+export function verifySettledSync(box, cwd, args) {
+  const deadline = Date.now() + ACCEPT_SETTLE_MS;
+  for (;;) {
+    const answer = box.run(cwd, ...args);
+    if (answer.code === 0 || !/NOT_SUBMITTED/u.test(`${answer.err ?? ''}${answer.out ?? ''}`) || Date.now() > deadline) return answer;
+    reviveFixtureLocalRunner(box.repo, box.env);
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
+  }
+}
+
+/** verifySettledSync for a caller whose run answers a promise (runLocal, runAsync), yielding between reads [C7]. */
+export async function verifySettled(box, run, cwd, args) {
+  const deadline = Date.now() + ACCEPT_SETTLE_MS;
+  for (;;) {
+    const answer = await run(cwd, ...args);
+    if (answer.code === 0 || !/NOT_SUBMITTED/u.test(`${answer.err ?? ''}${answer.out ?? ''}`) || Date.now() > deadline) return answer;
+    reviveFixtureLocalRunner(box.repo, box.env);
+    // Read again on the next change in the local runner's folder (a log line per claim and receipt, a heartbeat every 5 s).
+    await new Promise(resolve => {
+      let watcher = null;
+      const done = () => { watcher?.close(); resolve(); };
+      try { watcher = watch(join(box.env.PULLBOARD_MACHINE_HOME, 'local-runner'), done); } catch { /* no runner folder: the fallback below reads again */ }
+      setTimeout(done, 6000).unref(); // budget: fallback read when the runner's folder never changes.
+    });
+  }
+}
