@@ -13,6 +13,9 @@ export {
   reportUnbuildableOnce,
 } from './src/io/take.js';
 export {
+  mutateCell,
+} from './src/io/mutate.js';
+export {
   runPushReceiptSmoke,
 } from './src/io/smoke.js';
 export {
