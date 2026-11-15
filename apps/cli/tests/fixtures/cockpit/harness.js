@@ -77,7 +77,7 @@ function build(box, p, id, file) {
  * The in-process twin of build: the same claim, commit and submit, with the CLI calls awaited in this process instead of launched.
  * Why: a journey's before() seeds a whole board, and a launch per call ran it past the wall limit.
  */
-async function buildLocal(box, p, id, file) {
+async function buildLocal(box, p, id, file, { queued = false } = {}) {
   const key = `${p.baseBranch}:${id}`;
   let branch = p.itemBranches.get(key);
   if (!branch) {
@@ -93,7 +93,7 @@ async function buildLocal(box, p, id, file) {
   writeFileSync(join(p.web, 'web', file), `${file}\n`);
   box.git(p.web, 'add', '-A');
   box.git(p.web, 'commit', '-q', '-m', `feat(web): ${file} [G1]`);
-  await box.inProcess(p.web, 'submit', String(id), '--no-next');
+  await (queued ? box.inProcessQueued : box.inProcess)(p.web, 'submit', String(id), '--no-next');
 }
 
 /**
