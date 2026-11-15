@@ -1,5 +1,5 @@
 /** With moves.live.outbox on, the relay outbox writer refuses what the outbox table refuses and keeps the state it decides; off, its own rules decide [C7,#8391]. */
-/** @pullboard-test-input packages/outbox/src/io/relay/shadow.js */
+/** @pullboard-test-input packages/outbox/src/io/relay/shadow.js packages/outbox/src/io/relay.js */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { provideOutboxTable } from '../../../index.js';
