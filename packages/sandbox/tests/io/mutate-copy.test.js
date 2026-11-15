@@ -1,3 +1,4 @@
+// pullboard: browser
 /** DIAGNOSTIC: a delete-tagged journey that passes in the checkout passes in the mutation check's copy [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -9,7 +10,7 @@ import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 
 const root = resolve(import.meta.dirname, '../../../..');
-const journeys = ['apps/cli/journeys/add/baseline-local-runner.test.js', 'apps/cli/journeys/relay/installable.test.js', 'apps/cli/journeys/shout/journeys/search-capture.test.js'];
+const journeys = ['apps/cli/journeys/init/geometry.test.js', 'apps/cli/journeys/relay/installable.test.js', 'apps/cli/journeys/shout/journeys/search-capture.test.js'];
 
 test('diagnostic copy vs checkout [C7]', () => {
   const temp = privateFixtureFiles('diag-copy-').root;
