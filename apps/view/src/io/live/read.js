@@ -216,7 +216,7 @@ export function readLiveRunners({ roots, now, resources, configured = [], openBo
       const hasJobs = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'job'").get();
       if (hasJobs) {
         jobs.push(...readPulledJobs(db, now));
-        for (const host of readRecentJobRunners(db, now)) if (!registeredOnly && !runners.some(runner => runner.host === host)) runners.push({ host, unavailable: false, holders: [] });
+        for (const host of readRecentJobRunners(db, now)) if (!(registeredOnly && configured.length) && !runners.some(runner => runner.host === host)) runners.push({ host, unavailable: false, holders: [] });
       }
       const log = readTail(join(commonDir, 'pullboard', 'automatic-landing', 'worker.log'));
       if (hasJobs) landings.push(...readGatingLandings(db, { now, log, busyBatches }));
