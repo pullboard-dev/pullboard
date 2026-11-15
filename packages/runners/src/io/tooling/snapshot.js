@@ -106,13 +106,9 @@ function captureTooling(root, since) {
     };
   }
   const { read, providers } = lastCaptureReaders;
-  (globalThis.PB_MARKS ??= {})['c-start'] = Date.now();
-  const worker = read();
-  (globalThis.PB_MARKS ??= {})['c-worker'] = Date.now();
-  const loaded = { ...worker, controller: readFileSync(join(root, controllerFile(root)), 'utf8'),
+  const loaded = { ...read(), controller: readFileSync(join(root, controllerFile(root)), 'utf8'),
     controllerEntry, controllerEntryFile: entryFile, controllerSteps: controllerSteps(root), controllerPolicy: controllerPolicyFingerprints(root),
     controllerProviders: providers() };
-  (globalThis.PB_MARKS ??= {})['c-done'] = Date.now();
   if (since !== undefined && changedSince(root, [...Object.keys(loaded.files), controllerFile(root),
     entryFile, ...CONTROLLER_STEPS, ...providers.files], since)) return null;
   readers.set(loaded, { root: resolve(root), read, providers });
@@ -150,7 +146,6 @@ function checkTooling(root, loaded, rescan) {
     if (error.code === 'RUNNER_TOOLING_FILES') throw error;
     return refuse();
   }
-  (globalThis.PB_MARKS ??= {})['r-checked'] = Date.now();
   if (!rescan) return { entry: loaded.entry, files: loaded.files };
   const current = reader?.root === resolve(root) ? reader.read() : runnerPackage(root);
   if (current.entry !== loaded.entry || JSON.stringify(current.files) !== JSON.stringify(loaded.files)) return refuse();

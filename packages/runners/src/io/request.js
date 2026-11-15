@@ -69,7 +69,6 @@ export async function exchangeStore(root) { return (await import('../../../gate/
 /** Prepare the pinned request before negotiating history; cleanup owns only its scratch directory. */
 export async function requestFor(root, command, { runner, source, browser = false, byLaunch, pipefail = false, stages = false, waivers = [], metadata = {}, privateCheck, checkedSource, rawOutputPath, analysisArtifact }, { privateCheckEnvelope }) {
   runner = validateRunner(runner);
-  const sub = { 'req-start': Date.now() };
   // A pinned source runs an exact commit from this repository's objects whatever its checkout holds; the cache id below
   // is still this repository's, so the runner reuses the cache its submits fill [C7,#3323].
   const current = queuedSource(root, source);
@@ -96,11 +95,9 @@ export async function requestFor(root, command, { runner, source, browser = fals
   if (secretsIn([command, trustedMode?.install ?? ''].flatMap(value => value.split('\n')).map((text, index) => ({ path: 'run command', line: index + 1, text }))).length) {
     throw new Refused('RUNNER_SECRET', 'the run command contains a possible secret; use a command that does not transfer credentials');
   }
-  sub['req-source'] = Date.now();
   const protection = [sourceObjects(root, selected)];
   if (!trustedMode && metadata.trunk) protection.push(protectionAt(root, metadata.trunk.commit));
   for (const commit of [selected.commit, ...(selected.extraCommits ?? [])]) protectHistory(root, { commit }, protection);
-  sub['req-protect'] = Date.now();
   const origin = anonymousOrigin(root);
   const originBase = origin ? originAncestor(root, selected) : undefined;
   const tags = candidateTags(root, selected);
@@ -113,9 +110,7 @@ export async function requestFor(root, command, { runner, source, browser = fals
     const reuse = process.env.PULLBOARD_TEST_REUSE !== '0' && (source?.pinned !== true || command.startsWith('PULLBOARD_TEST_REUSE=record '));
     // Loaded on demand: read commands that import this module never pay for the key analyzer.
     const exchange = reuse ? await (await import('../../../gate/index.js')).prepareTestResultExchange(root, command, selected.commit) : null;
-    sub['req-exchange'] = Date.now();
     const { worker, tooling, runtime } = trustedTooling();
-    sub['req-tooling'] = Date.now();
     // A private check or probe taken under a landing lease is never itself the landing run: the worker refuses a trusted check marked landing.
     const landing = metadata.landing === true && !trustedMode;
     const projection = landing && Array.isArray(waivers) ? waivers.filter(entry => ['file', 'name', 'case'].includes(entry?.kind) && typeof entry.test === 'string' && entry.test).filter(entry => entry.kind !== 'case' || typeof entry.file === 'string' && entry.file && !entry.file.startsWith('/')
@@ -153,8 +148,7 @@ export async function requestFor(root, command, { runner, source, browser = fals
     const reusedRuntime = runtimeHeld(runner.host, tooling.sha256);
     const { command: remote, input: capsule } = remoteWorkerLaunch(runner, worker, tooling, runtime, '', spec.recovery, { reuse: reusedRuntime });
     // These are transport hang ceilings, independent of the command's execution budget.
-    sub['req-capsule'] = Date.now();
-    return { subMarks: sub, spec, runner, exchange, reusedRuntime, args: ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
+    return { spec, runner, exchange, reusedRuntime, args: ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
       '-o', 'SendEnv=-*', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=10', '-o', 'ServerAliveCountMax=3',
       '--', runner.host, remote], root, source: selected, ...(trustedMode ? { rawOutputPath } : {}), directory, frame: Buffer.concat([capsule, Buffer.from(`${encodedSpec.length}\n`), encodedSpec, ...(artifact ? [artifact.bytes] : [])]), env: sshEnvironment(),
     cleanup() { rmSync(directory, { recursive: true, force: true }); } };
