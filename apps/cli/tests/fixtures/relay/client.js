@@ -15,6 +15,7 @@ import { performance } from 'node:perf_hooks';
 import { once } from 'node:events';
 import { stopSender } from './sender.js';
 import { runCliInProcess } from '../process.js';
+import { runScriptInProcess } from './script.js';
 import {
   cpSync,
   existsSync,
@@ -184,9 +185,9 @@ export function parseCommandDocument(text) {
  * the same upload-derived deadline instead of being killed, because a process cannot kill itself safely.
  * Callers that need a real process (the fetch-trace preload, live streams, signals) keep childResult [C7].
  */
-async function inProcessResult(root, env, args, observedSnapshotUploads, initialSnapshotUploads = DEFAULT_SNAPSHOT_UPLOADS) {
+async function inProcessResult(root, env, args, observedSnapshotUploads, initialSnapshotUploads = DEFAULT_SNAPSHOT_UPLOADS, { source = null } = {}) {
   const startedAt = performance.now();
-  const argv = [...args, '--json'];
+  const argv = source === null ? [...args, '--json'] : ['script'];
   let deadlineMs = cliChildDeadlineMs(initialSnapshotUploads);
   let work = uploadWork(initialSnapshotUploads);
   let timer;
@@ -205,7 +206,7 @@ async function inProcessResult(root, env, args, observedSnapshotUploads, initial
   });
   stalled.catch(() => {});
   let run;
-  try { run = await Promise.race([runCliInProcess(argv, { cwd: root, env }), stalled]); }
+  try { run = await Promise.race([source === null ? runCliInProcess(argv, { cwd: root, env }) : runScriptInProcess(source, { cwd: root, env }), stalled]); }
   finally { finished = true; clearTimeout(timer); }
   const report = (detail = '') => reportFixtureChildFailure({ command: process.execPath, args: ['in-process', ...argv], status: run.code, signal: null,
     elapsedMs: performance.now() - startedAt, stderr: run.stderr, env, detail });
@@ -612,9 +613,13 @@ globalThis.fetch = function tracedFetch(input, init) {
   async function script(source) {
     return childResult(root, env, ['--input-type=module', '-e', source]);
   }
+  /** The same script run in this process, awaited: no Node launch, for a script that needs no process of its own [C7,#8251]. */
+  async function scriptLocal(source) {
+    return inProcessResult(root, env, [], undefined, DEFAULT_SNAPSHOT_UPLOADS, { source });
+  }
   return {
     ...serverApi, authDatabase, auth, otherDeviceJoin,
-    root, env, origin, lane, before, linkFile, readLink, keyFile, readKey, copyOwnBoardMetadata, copyOwnKey, privateTreeBytes, cli, cliAt, cliLocal, cliAtLocal, cliWithSnapshotUploads, cliWithSnapshotTrace, startCli, link, requireEngineThree, otherDeviceOff, additionalBoard, script,
+    root, env, origin, lane, before, linkFile, readLink, keyFile, readKey, copyOwnBoardMetadata, copyOwnKey, privateTreeBytes, cli, cliAt, cliLocal, cliAtLocal, cliWithSnapshotUploads, cliWithSnapshotTrace, startCli, link, requireEngineThree, otherDeviceOff, additionalBoard, script, scriptLocal,
     /** Assert the test consumed every declared child budget, with no hidden CLI calls. */
     assertCliChildrenComplete() {
       if (cliChildren) assert.equal(cliChildIndex, cliChildren.length, 'every planned private CLI child ran exactly once');

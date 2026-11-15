@@ -7,8 +7,12 @@ import {
 import { COORDINATOR } from "../../../../../config/index.js";
 import { Refused } from "../../../../../kernel/light.js";
 import { leaseEngine } from "../../../../../moves/light.js";
+import { releaseEngine } from "../../../../../moves/light.js";
+import { RELEASE_REASONS } from "../../reasons.js";
+import { staleStateLimits } from "../stale/state/policy.js";
 import { runTable } from "../../../../../moves/light.js";
 import { withdrawEngine } from "../../../../../moves/light.js";
+import { submitEngine } from "../../../../../moves/light.js";
 import { ENGINE_VERSION } from "../../../../../state/index.js";
 import { LANDING_LOCAL_LEASE_ENGINE } from "../../../../../state/light.js";
 import {
@@ -39,6 +43,20 @@ function validEntry(entry) {
 /** The lease table over this file's 120 s rule and entry check, built on first use so the moves cell is never read while it loads. */
 let engine;
 const leaseTable = () => engine ??= leaseEngine({ leaseMs: LANDING_LEASE_MS, valid: validEntry });
+
+let release;
+/**
+ * Run the release move table over a snapshot and a move; the table is built on first use over the board's own reasons and stale limits.
+ * Why here: this file is the store's one reader of the moves cell, so the release writer reaches the table without a second cross-cell edge [C7,#8246].
+ *
+ * @param {object} snapshot
+ * @param {object} move
+ * @returns {{ refused?: object, patch?: object, events?: object[], via?: string[] }}
+ */
+export function runReleaseTable(snapshot, move) {
+  const { rules, table } = release ??= releaseEngine({ reasons: RELEASE_REASONS, staleLimits: staleStateLimits });
+  return runTable(table, rules, snapshot, move);
+}
 
 /**
  * Run one lease move through the table over the queue and the board's clock and lineage; a refusal throws as the same code and words.
@@ -149,4 +167,19 @@ export function landingLeaseMove(board, { agentId, action, token, branch, pid, g
     return { holder: state.holder, position: state.line.findIndex(entry => entry.token === token) + 1,
       acquired: state.holder?.token === token, generation: state.holder?.token === token ? state.holder.generation : null };
   });
+}
+
+let submitTables = null;
+/**
+ * Run one submit-family table (SUBMIT, COMMIT, OUTCOME, START or COMPLETE) over a snapshot and move.
+ * Why here: this file is the store's one reader of the moves cell; the caller passes the retry limit and infrastructure codes, as the tables take them by injection [C7,#8271].
+ *
+ * @param {'SUBMIT' | 'COMMIT' | 'OUTCOME' | 'START' | 'COMPLETE'} name
+ * @param {{ retryLimit: number, infrastructureCodes: Iterable<string> }} limits
+ * @returns {{ refused?: object, patch?: object, events?: object[], via?: string[], table: object }}
+ */
+export function runSubmitTable(name, limits, snapshot, move) {
+  submitTables ??= submitEngine(limits);
+  const table = submitTables.tables[name];
+  return { ...runTable(table, submitTables.rules, snapshot, move), table };
 }
