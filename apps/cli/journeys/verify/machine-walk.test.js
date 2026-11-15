@@ -527,5 +527,5 @@ test('native store setup keeps the exact event-log callback refusal reachable [C
   assert.ok(!codeWalk(beside).refusalsOf(entry).has('STORE_ADJACENT_PROBE'));
 });
 
-test('post-verdict landing catches do not hide verification guards [B35,M1,M4]', () => assertPostVerdictLandingAudit(editedSource, codeProblems, machineRules.MACHINE));
+test('post-verdict landing catches do not hide verification guards [B35,M1,M4]', () => assertPostVerdictLandingAudit(editedSource, codeProblems, machineRules.MACHINE, { land: '../apps/cli/src/io/commands/land.js', verify: '../apps/cli/src/io/commands/verify.js' }));
 
