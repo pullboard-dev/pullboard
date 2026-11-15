@@ -93,3 +93,28 @@ test('the command refuses an unknown flag with its usage and writes nothing [C7]
   assert.equal(result.status, 1);
   assert.match(result.stderr, /usage: /u);
 });
+
+const CITING = {
+  'packages/math/tests/one.test.js': `import { test } from "node:test"; test("adds [G1.2, C7]", () => {}); test("again [C7] and [V4]", () => {});`,
+  'packages/math/tests/plain.test.js': `import { test } from "node:test"; test("adds with no id", () => {}); test("brackets without an id [draft]", () => {});`,
+  'packages/math/tests/quoted.test.js': 'const note = `test("fake [Z9]", () => {})`; // test("comment [Y8]")\nimport { test } from "node:test"; test(`real [A1]`, () => {});',
+};
+
+test('each manifest row lists the spec ids its test titles cite, sorted and without repeats [C7]', t => {
+  const manifest = generateTestManifest(fixture(t, CITING).root, { times: {} });
+  assert.deepEqual(row(manifest, 'packages/math/tests/one.test.js').specs, ['C7', 'G1.2', 'V4']);
+  assert.deepEqual(row(manifest, 'packages/math/tests/quoted.test.js').specs, ['A1']);
+});
+
+test('a row whose file cites no spec id is marked unproven and one that cites an id is not [C7]', t => {
+  const manifest = generateTestManifest(fixture(t, CITING).root, { times: {} });
+  assert.equal(row(manifest, 'packages/math/tests/plain.test.js').unproven, true);
+  assert.deepEqual(row(manifest, 'packages/math/tests/plain.test.js').specs, []);
+  assert.equal(row(manifest, 'packages/math/tests/one.test.js').unproven, false);
+});
+
+test('the command prints how many files are unproven [C7]', t => {
+  const files = fixture(t, CITING);
+  const result = runManifestCommand(['--out', 'rows.json', files.root], { times: {} });
+  assert.match(result.stdout, /1 unproven/u);
+});

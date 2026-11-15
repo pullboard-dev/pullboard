@@ -25,11 +25,11 @@ export function testKind({ file, spawns }) {
 /**
  * Turn per-file evidence into sorted manifest rows.
  *
- * @param {{ file: string, ms: number|null, direct: Set<string>, via: Map<string, Set<string>> }[]} inputs
+ * @param {{ file: string, ms: number|null, specs?: string[], direct: Set<string>, via: Map<string, Set<string>> }[]} inputs
  * @returns {object[]} one row per file, sorted by file
  */
 export function manifestRows(inputs) {
-  return inputs.map(({ file, ms, direct, via }) => {
+  return inputs.map(({ file, ms, specs = [], direct, via }) => {
     const started = category => direct.has(category) || [...via.values()].some(found => found.has(category));
     const spawns = {
       process: started('process') || started('runner'),
@@ -39,6 +39,6 @@ export function manifestRows(inputs) {
       via: [...via].filter(([, found]) => found.has('process') || found.has('runner') || found.has('browser')).map(([path]) => path).sort(),
     };
     const { kind, because } = testKind({ file, spawns });
-    return { file, kind, because, cost: { ms }, spawns };
+    return { file, kind, because, specs, unproven: specs.length === 0, cost: { ms }, spawns };
   }).sort((a, b) => (a.file < b.file ? -1 : 1));
 }
