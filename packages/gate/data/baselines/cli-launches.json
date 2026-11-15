@@ -255,7 +255,13 @@
     "launch": 12
   },
   "packages/runners/tests/io/run/tests.test.js": {
-    "launch": 23
+    "launch": 8
+  },
+  "packages/runners/tests/io/run/tests/snapshot.test.js": {
+    "launch": 5
+  },
+  "packages/runners/tests/io/run/tests/landing.test.js": {
+    "launch": 10
   },
   "apps/cli/journeys/gate/drift.test.js": {
     "launch": 1

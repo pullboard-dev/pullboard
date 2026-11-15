@@ -3187,8 +3187,17 @@
     "tempdir": 1
   },
   "packages/runners/tests/io/run/tests.test.js": {
-    "tempdir": 6,
+    "tempdir": 1
+  },
+  "packages/runners/tests/io/run/tests/snapshot.test.js": {
+    "tempdir": 1
+  },
+  "packages/runners/tests/io/run/tests/landing.test.js": {
+    "tempdir": 2,
     "hand-policy": 1
+  },
+  "packages/runners/tests/fixtures/landing-run.js": {
+    "tempdir": 2
   },
   "apps/cli/journeys/run/receipts.test.js": {
     "hand-policy": 2,
