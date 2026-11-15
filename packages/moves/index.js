@@ -29,3 +29,5 @@ export { listMoveTables, readMoveRecords } from "./src/io/table/read.js";
 export { readReleaseRecords } from "./src/io/table/release-records.js";
 export { boardReleaseEngine } from "./src/io/table/board-release.js";
 export { explainReport, loadMoveTable, replayReport } from "./src/io/table/report.js";
+export { LEASE_MOVES, leaseEngine } from "./src/logic/table/lease.table.js";
+export { readLandingRecords, replayLandingMoves } from "./src/io/table/landing.js";
