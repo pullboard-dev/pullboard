@@ -48,8 +48,9 @@ const posted = () => {
   return { bytes: Buffer.from('{"ok":true}'), key: publicKey.export({ format: 'der', type: 'spki' }).toString('base64url'), privateKey, fields: { job: 'j1', shard: 's1', tree: 't1' } };
 };
 
-test('receipt.signed.statement: [C7] the signed statement names job, shard, tree and digest; the key id is a sha256 hex', () => {
-  assert.equal(resultStatement({ job: 'j', shard: 's', tree: 't', digest: 'd' }), 'PBSIGNED 1 j s t d');
+test('receipt.signed.statement: [C7] the signed statement is the length-prefixed PBSIGNED 2 form binding job, shard, tree, digest, base, tooling, command and attempt (#8035); the key id is a sha256 hex', () => {
+  assert.equal(resultStatement({ job: 'j', shard: 's', tree: 't', digest: 'd' }), ['PBSIGNED 2', 'j', 's', 't', 'd', '', '', '', ''].map(v => `${v.length}:${v}`).join('\n'));
+  assert.equal(resultStatement({ job: 'j', shard: 's', tree: 't', digest: 'd', base: 'b', tooling: 'o', command: 'c', attempt: 2 }), ['PBSIGNED 2', 'j', 's', 't', 'd', 'b', 'o', 'c', '2'].map(v => `${v.length}:${v}`).join('\n'));
   const { key } = posted();
   assert.match(runnerKeyId(key), /^[0-9a-f]{64}$/u);
   assert.equal(runnerKeyId(key), runnerKeyId(key));
