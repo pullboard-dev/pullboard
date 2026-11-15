@@ -1,8 +1,8 @@
 /** The landing tables wired to the landing cell's own limits, fault codes and repeat-hold prefix, so callers and replays share one source [C7,#8249]. */
-import { LANDING_FAULT_CODES } from '../../../../landing/index.js';
-import { LANDING_RED_LIMIT } from '../../../../landing/index.js';
-import { REPEATED_LANDING_HOLD } from '../../../../landing/index.js';
-import { RUNNER_SOURCE_RETRIES } from '../../../../landing/index.js';
+import { LANDING_FAULT_CODES } from '../../../../store/index.js';
+import { LANDING_RED_LIMIT } from '../../../../store/index.js';
+import { REPEATED_LANDING_HOLD } from '../../../../store/index.js';
+import { RUNNER_SOURCE_RETRIES } from '../../../../store/index.js';
 import { landingEngine } from '../../logic/table/landing.table.js';
 
 /** Unheld items behind a full batch that selection still projects for staleness, as the landing's selection walk does. */

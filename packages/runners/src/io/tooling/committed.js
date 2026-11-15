@@ -25,6 +25,13 @@ import { scratchRoot } from '../../../../config/index.js';
 const OID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const MANIFEST = '.pullboard-runner-source.json';
 
+/**
+ * The paths a runner export carries: what package.json's files list ships, minus its test, journey and docs-test exclusions.
+ * Why: exporting all 4,700 files (60 MB, 4,750 with tests) cost ~1.7 s of git archive and unpack, and nothing reads them (#8242).
+ */
+const SHIPPED_PATHS = ['package.json', 'apps', 'packages', 'skills', 'docs', 'CHANGELOG.md', 'README.md', 'LICENSE',
+  ':(exclude,glob)*/*/tests/**', ':(exclude,glob)*/*/journeys/**', ':(exclude,glob)docs/**/*.test.js'];
+
 /** Read literal Git objects without project-selected repositories, replacement objects or filters. */
 function toolingGit(root, args, binary = false) {
   const env = { ...process.env };
@@ -205,7 +212,7 @@ export function committedRunnerController(root, { shared = false } = {}) {
     mkdirSync(join(metadata, 'info'), { recursive: true });
     writeFileSync(join(metadata, 'info/attributes'), '* -text -filter -ident -export-subst -export-ignore\n', { flag: 'wx' });
     const archive = toolingGit(root, ['--git-dir', metadata, '-c', 'core.autocrlf=false',
-      '-c', 'core.attributesFile=/dev/null', 'archive', '--format=tar', commit], true);
+      '-c', 'core.attributesFile=/dev/null', 'archive', '--format=tar', commit, '--', ...SHIPPED_PATHS], true);
     const unpacked = spawnSync('tar', ['-xf', '-', '-C', directory], { input: archive, encoding: 'utf8' });
     if (unpacked.status !== 0 || !existsSync(join(directory, 'apps/runner/src/io/controller.js'))) {
       throw new Refused('RUNNER_TOOLING_FILES', 'the selected Git archive has no runner controller; restore committed tooling');

@@ -58,6 +58,7 @@ test('clause 1: runLandingJob pushes the merged commit to refs/pullboard/landing
   assert.equal(seen.length, 1, 'the proof is offered once');
   assert.equal(seen[0], offered[0].merged, 'the ref held the merged commit when the shards were offered');
   assert.notEqual(offered[0].merged, payload.items[0].commit, 'the merged commit is the merge, not the item');
+  assert.equal(offered[0].ref, REF, 'the shards name the ref their runners fetch');
   assert.deepEqual(offered[0].plan, { runner: 'true', files: FILES, cores: 1 });
   assert.deepEqual(offered[0].gate, { ...GATE, commits: [expect] });
 });

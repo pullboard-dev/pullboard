@@ -7,6 +7,8 @@ import { userInfo } from 'node:os';
 import { machineHome } from '../../../kernel/index.js';
 
 const MAX_ROWS = 400_000;
+/** Keys per lookup query; far under SQLite's variable limit. */
+const LOOKUP_BATCH = 500;
 
 /** The directory every checkout and runner job on this machine shares; tests isolate it with their account home and no shared cache. */
 function storeDirectory() {
@@ -58,12 +60,14 @@ export function storedCompilations(epoch, sources, compile) {
   try {
     const keys = sources.map(source => keyOf(epoch, source));
     const found = new Map();
-    const read = db.prepare('SELECT body FROM results WHERE key=?');
+    // One query per batch of keys, not one per key: a cold trip looked up thousands one by one, ~0.9 s (#8242).
     try {
-      for (const key of new Set(keys)) {
-        const saved = read.get(key);
-        if (!saved) continue;
-        try { const row = JSON.parse(saved.body); if (validRow(row)) found.set(key, row); } catch { /* Rebuilt below. */ }
+      const wanted = [...new Set(keys)];
+      for (let at = 0; at < wanted.length; at += LOOKUP_BATCH) {
+        const batch = wanted.slice(at, at + LOOKUP_BATCH);
+        for (const saved of db.prepare(`SELECT key, body FROM results WHERE key IN (${batch.map(() => '?').join(',')})`).all(...batch)) {
+          try { const row = JSON.parse(saved.body); if (validRow(row)) found.set(saved.key, row); } catch { /* Rebuilt below. */ }
+        }
       }
     } catch { found.clear(); }
     const missing = [...new Map(sources.map((source, index) => [keys[index], source])).entries()].filter(([key]) => !found.has(key));
