@@ -17,6 +17,8 @@ async function submitWithoutReceipt(t, failBefore) {
   const verify = { ...config.verify, inspectClauses: true };
   if (failBefore === undefined) delete verify.failBefore; else verify.failBefore = failBefore;
   fixtureProjectPolicy(box.repo, { config: { ...config, verify } });
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-qm', 'chore: verify settings');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const id = String(json(box, box.repo, 'add', 'web', 'Render page', '--specs', 'G1', '--criterion', '1. web/page.test.js passes [test]', '--check', 'true').item.item_id);
   json(box, box.web, 'claim', id);
