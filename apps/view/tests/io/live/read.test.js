@@ -123,3 +123,16 @@ test('pull-dispatch leases on the board number one runner once per runner, shard
   assert.deepEqual(pulled.map(runner => runner.jobs.map(job => job.kind)), [['gate', 'gate'], ['test run']], 'the two shards of one restarted runner sit on one numbered entry');
   assert.equal(JSON.stringify(live).includes('mill'), false, 'no runner name leaves the machine');
 });
+
+test('registeredOnly lists the configured runners, carries each fresh heartbeat as load and folds a pull runner into its host (#8060) [C7]', t => {
+  const { repo, common, resources } = liveFixture(t);
+  const board = cellBoard(t, repo.boardFile, { now: () => new Date() });
+  const at = Date.now() - 2 * MINUTE;
+  offerJob(board.db, { id: 'gate:9:aa:s1', kind: 'gate-shard', needs: ['node22'], item: 9, candidate: 'd'.repeat(40), base: 'a'.repeat(40), request: { run: ['node', 'run.js'] }, now: at });
+  claimJob(board.db, { runner: 'auxiliary-51-mill-2cbb55', capabilities: ['node22'], now: at + 1000, leaseMs: 30 * MINUTE });
+  const configured = [{ host: 'me@10.0.0.51', cpuLoad: { at: new Date().toISOString(), busyPercent: 42, average: [1, 1, 1] } },
+    { host: 'me@10.0.0.52', cpuLoad: { at: new Date(Date.now() - 3_600_000).toISOString(), busyPercent: 90, average: [1, 1, 1] } }, { host: 'me@10.0.0.53' }];
+  const live = publicLiveRunners(common, { resources, configured, openBoardReadOnly: store.openBoardReadOnly, registeredOnly: true });
+  assert.deepEqual(live.runners.map(runner => [runner.runner, runner.cpu, runner.jobs.length]), [[1, 42, 1], [2, null, 0], [3, null, 0]],
+    'three registered runners; a stale or missing heartbeat has no load; the pull runner works on its host');
+});
