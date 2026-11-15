@@ -313,11 +313,15 @@ async function viewDecision(request, boardPath, verb, args) {
 test('[B26] failed view request names its cause', async (t) => {
   const box = await project();
   const preload = join(box.dir, 'stderr-preload.mjs');
+  // Only the view process writes: a node child the view starts inherits this preload and its stderr pipe, and its
+  // own split write, still half done when the view is killed, left the captured tail ending in "stderr-split-".
   writeFileSync(preload, [
+    "if (process.argv[2] === 'view') {",
     ...Array.from({ length: 25 }, (_, index) => `process.stderr.write('stderr-tail-${String(index + 1).padStart(2, '0')}\\n');`),
     'process.stderr.write("stderr-split-");',
     'await new Promise((resolveWait) => setTimeout(resolveWait, 25));',
     'process.stderr.write("line\\n");',
+    '}',
   ].join('\n'));
   const request = await startView(t, box, { NODE_OPTIONS: `--import=${pathToFileURL(preload).href}` });
   await request.stopView('SIGKILL');
