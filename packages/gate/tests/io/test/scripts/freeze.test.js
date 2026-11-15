@@ -73,6 +73,7 @@ test('kept and converted files move into the owning cell tests folder, with old 
     ['apps/cli/journeys/fact/packet.test.js', 'packages/math/tests/journeys/fact/packet.test.js', 'convert'],
   ]);
   assert.ok(record.moved.every(entry => entry.idsFollowed), 'stable test IDs follow every move');
+  assert.deepEqual(record.deleted.map(({ file, coveredBy }) => [file, coveredBy]), [['apps/cli/journeys/dup/covered.test.js', 1]], 'a deletion records how many tests cover it, not their list');
   assert.match(readFileSync(`${repo.root}/packages/math/tests/journeys/add/main.test.js`, 'utf8'), /from '\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/apps\/cli\/tests\/fixtures\/e2e\.js'/u);
 });
 

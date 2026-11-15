@@ -27,8 +27,6 @@ import { itemFolderPath } from './folder/identity.js';
 import { seatRoot } from './folder/identity.js';
 import { prepareSpareFolder } from './folder/spare.js';
 import { takeSpareFolder } from './folder/spare.js';
-import { itemFolderRunner } from '../commands/runner.js';
-import { openHostedItemFolder } from '../commands/runner.js';
 
 /**
  * Git config arguments that write a checkout's files with parallel workers, one per core, unless the repository sets its own count.
@@ -341,7 +339,7 @@ function dirtyFiles(path) {
  */
 export async function claimFolderRefusal(ctx, board, me, id, { renewing = false } = {}) {
   const live = await liveFolderRefusal(ctx, board, me, id);
-  if (live || renewing || me.id === 'coordinator' || itemFolderRunner()) return live;
+  if (live || renewing || me.id === 'coordinator' || await hostedRunner()) return live;
   const path = itemFolderPath(seatRoot(ctx, board, me), id);
   if (!existsSync(path) || checkoutBranch(path) !== branch(me.lane, id)) return null;
   const dirty = dirtyFiles(path);
@@ -438,6 +436,11 @@ export async function openItemFolder(ctx, me, id, options = {}) {
   return path;
 }
 
+/** The runner hosting this seat's item folders, or null; the runner command and its cells load only when the seat names one, so a plain command never pays for them [C7]. */
+async function hostedRunner() {
+  return process.env.PULLBOARD_ITEM_FOLDER_RUNNER?.trim() ? (await import('../commands/runner.js')).itemFolderRunner() : null;
+}
+
 /**
  * Open or reuse this item's branch folder without advancing it.
  *
@@ -449,10 +452,10 @@ export async function openItemFolder(ctx, me, id, options = {}) {
  */
 async function openFolder(ctx, me, id, options = {}) {
   if (me.id === 'coordinator') return null;
-  const runner = itemFolderRunner();
+  const runner = await hostedRunner();
   if (runner) {
     const hooks = tryGit(ctx.info.root, ['config', '--get', 'core.hooksPath']);
-    return openHostedItemFolder(runner, { itemId: id, branch: branch(me.lane, id), commonDir: ctx.info.commonDir,
+    return (await import('../commands/runner.js')).openHostedItemFolder(runner, { itemId: id, branch: branch(me.lane, id), commonDir: ctx.info.commonDir,
       hooksPath: hooks.status === 0 ? hooks.stdout : undefined });
   }
   const root = ctx.info.root, path = itemFolderPath(seatRoot(ctx, options.board, me), id), ref = branch(me.lane, id);

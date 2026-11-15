@@ -2,6 +2,7 @@
 import { waitRunnerJob as defaultWait } from './wait.js';
 import { runnerDispatchMode } from '../../../../config/index.js';
 import { controllerDeadline } from '../../../../resources/index.js';
+import { recordRunnerTime } from '../../../../resources/index.js';
 import { recordRunnerDispatch } from '../../../../resources/index.js';
 import { runOnRunnerAsync as controllerRunOnRunnerAsync } from '../dispatch.js';
 import { bridgeResult } from '../dispatch.js';
@@ -15,8 +16,26 @@ import { loadedToolingFiles } from '../tooling/remote.js';
 import { probeRunnerJob } from '../health.js';
 import { watchSource } from './observe.js';
 import { spawn } from 'node:child_process';
+import { mkdirSync } from 'node:fs';
+import { statSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scratchRoot } from '../../../../config/index.js';
+
+/**
+ * The environment of a short controller: this user's private V8 compile cache, when it is a folder only this user can
+ * write. Why: each pulled trip starts three controllers from one unchanged export, and each compiled the whole
+ * controller graph again, 2-8 s apiece beside four other jobs (#8145); V8 keys each entry by its source's hash.
+ */
+function controllerEnvironment() {
+  const folder = join(scratchRoot(), 'pullboard-controller-compile-cache');
+  try {
+    mkdirSync(folder, { recursive: true, mode: 0o700 });
+    const state = statSync(folder);
+    if (!state.isDirectory() || state.uid !== process.getuid?.() || (state.mode & 0o077) !== 0) return process.env;
+  } catch { return process.env; }
+  return { ...process.env, NODE_COMPILE_CACHE: folder };
+}
 
 /** Run one short controller mode and return its decoded answer, with the controller's own refusal and drop shapes. */
 async function shortController(mode, payload, { root, runner, signal }) {
@@ -24,7 +43,7 @@ async function shortController(mode, payload, { root, runner, signal }) {
   try {
     if (!installation) loadedToolingFiles({ rescan: false });
     const entry = installation?.entry ?? runnerControllerEntry(fileURLToPath(new URL('../../../../../', import.meta.url)));
-    const child = spawn(process.execPath, [entry, '--pullboard-runner-controller', mode], { cwd: mode === '--submit' ? root : scratchRoot(), stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [entry, '--pullboard-runner-controller', mode], { cwd: mode === '--submit' ? root : scratchRoot(), env: controllerEnvironment(), stdio: ['pipe', 'pipe', 'pipe'] });
     const output = [], diagnostics = [];
     let bytes = 0, error;
     const stop = () => child.kill('SIGTERM');
@@ -131,9 +150,11 @@ export async function runPulled(root, command, options, ports = {}) {
       // One refresh only, on an explicit pre-execution version mismatch, as the controller path does [C7,#2855].
       result = await attempt();
     }
+    recordRunnerTime(root, { ...span, item: options.metadata?.item, endedAt: Date.now() });
     recordRunnerDispatch({ ...span, endedAt: Date.now(), phases: result?.phases ? { ...result.phases, spawn: spawned } : null });
     return result;
   } catch (failure) {
+    recordRunnerTime(root, { ...span, item: options.metadata?.item, endedAt: Date.now(), error: failure });
     recordRunnerDispatch({ ...span, endedAt: Date.now(), error: failure });
     throw failure;
   } finally { custody.close(); if (held) keepExport(held); }

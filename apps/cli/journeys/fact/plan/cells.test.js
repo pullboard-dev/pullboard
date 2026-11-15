@@ -1,5 +1,5 @@
-/** @pullboard-test-input source-tree */
-/** @pullboard-test-input source-tree packages/codemap/data/plan/cells.json packages/codemap/data/plan/** */
+/** @pullboard-test-input source-cell codemap */
+/** @pullboard-test-input packages/codemap/data/plan/cells.json packages/codemap/data/plan/** */
 /** The committed cells move plan places each path once and orders cells leaf-first by real imports [D3,CD60,CD64]. */
 import { sourceAdvancePlan } from '../../../../../packages/codemap/index.js';
 import { withSourceComposition } from '../../../../../packages/merge/index.js';

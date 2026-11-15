@@ -207,6 +207,11 @@
       "disk": "other",
       "owner": "packages/verify/src/io/review/packet.js"
     },
+    "runner-time": {
+      "kind": "dir",
+      "disk": "other",
+      "owner": "packages/jobs/src/io/gate/runner-time.js"
+    },
     "sandbox-exports": {
       "kind": "dir",
       "disk": "other",
@@ -393,6 +398,10 @@
     "exit-anchor-*.json": {
       "kind": "json",
       "owner": "apps/cli/src/io/exit/rules.js"
+    },
+    "import-edges-*.json": {
+      "kind": "json",
+      "owner": "packages/git/src/io/check/definition.js"
     },
     "landing-worker-starts-*.jsonl": {
       "kind": "jsonl",

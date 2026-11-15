@@ -52,6 +52,7 @@ import {
   takeResource,
   requiredExecutorOf,
 } from '../../../../resources/index.js';
+import { withEnvironment } from '../../../../resources/index.js';
 import { sameEnvironment } from '../../../../verify/light.js';
 import { Refused } from '../../../../kernel/index.js';
 import {
@@ -381,11 +382,17 @@ function storeOutcome(cache, keys, path, outcome) {
  * @param {object} profile
  * @param {(state:object)=>void} [onWait]
  * @param {string} [output] - The failed phase's unchanged reporter output.
- * @param {{commit?: string, detailed?: boolean, fresh?: boolean, allowCancelled?: boolean, onMeasuredReceipt?: (id:string)=>Promise<void>, onStart?: (start:{file:string, runner:string|null})=>void, runnerAdmission?: object, execution?: {executor:object, environment:object}}} [options] - Capture the submit base and require exact test identities; fresh bypasses completed exact-main comparisons; onMeasuredReceipt records only freshly executed native receipts; onStart is told the file and its runner once the slot is taken, before the run.
+ * @param {{env?: Record<string,string>, commit?: string, detailed?: boolean, fresh?: boolean, allowCancelled?: boolean, onMeasuredReceipt?: (id:string)=>Promise<void>, onStart?: (start:{file:string, runner:string|null})=>void, runnerAdmission?: object, execution?: {executor:object, environment:object}}} [options] - Capture the submit base and require exact test identities; fresh bypasses completed exact-main comparisons; onMeasuredReceipt records only freshly executed native receipts; onStart is told the file and its runner once the slot is taken, before the run.
  * A caller that names no runnerAdmission gets this machine's: with gate.runnersOnly on, every caller's comparison queues for a runner, never a local process (#3011).
+ * env, when given, is process.env for the whole comparison; absent, process.env is used and nothing changes.
  * @returns {Promise<{ main: string|null, files: Array<{file:string,result:'red'|'green'}>, unavailable?: string }>}
  */
 export function compareMainFailures(...args) {
+  return withEnvironment(args[4]?.env, () => compareMainFailuresIn(...args));
+}
+
+/** compareMainFailures under its environment. */
+function compareMainFailuresIn(...args) {
   // A red gate's comparison with main can run for many minutes (apps/cli/journeys/land/main.test.js: 1300-1900 s on a runner); inside a
   // driven gate it reports progress the whole time, so the drive's stall watch never restarts a gate that is still
   // comparing (#3451's gate stalled 20 min after its red). Outside a driven gate this reports nothing.
@@ -511,7 +518,7 @@ async function compareMainFailuresNow(root, profile, onWait, output = '', { comm
           ...(fileIsolation ? { fileIsolation: true } : {}), ...(receiptId ? { receiptId } : {}), main: main.commit, at: new Date().toISOString() };
       };
       /** The slot options shared by both placements; only browser, gui and remote eligibility differ. */
-      const slotOptions = (browser, gui, remote) => ({ executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, diagnostic: runnerAdmission.landing !== true, browser, gui, remote, agent: process.env.PULLBOARD_AGENT, kind: 'main-red', onWait, ...runnerAdmission, ...(pinned ? { requiredExecutor: executor } : {}) });
+      const slotOptions = (browser, gui, remote) => ({ executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, diagnostic: runnerAdmission.landing !== true, browser, gui, remote, agent: process.env.PULLBOARD_AGENT, kind: 'main-red', item: 'main', onWait, ...runnerAdmission, ...(pinned ? { requiredExecutor: executor } : {}) });
       /** Measure the file on this machine in a temporary checkout, or (`remote`) on a runner straight from the object store. */
       const inCheckout = async remote => {
         // A run on this machine needs main's files: a clean temporary checkout, with the slot taken there as before.
@@ -851,13 +858,13 @@ export function mainFailureNotices(root, failures, comparison, { items = [], exc
  *
  * @param {string} checkout - A clean committed checkout; the runner receives its HEAD.
  * @param {string} command - The shell command to run at the checkout's root.
- * @param {{ kind: string, admission?: object, onWait?: Function }} options - Receipt kind and the captured runner-only admission.
+ * @param {{ kind: string, item?: string, admission?: object, onWait?: Function }} options - Receipt kind, the work it serves, and the captured runner-only admission.
  * @returns {Promise<{ isGreen: boolean, output: string, executionRunner?: string }>}
  */
-export async function runCheckOnRunner(checkout, command, { kind, admission = gateRunnerAdmission(), onWait } = {}) {
+export async function runCheckOnRunner(checkout, command, { kind, item = '', admission = gateRunnerAdmission(), onWait } = {}) {
   return withGateSlot(checkout, lease => runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs }), {
     executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() },
-    diagnostic: true, kind, agent: process.env.PULLBOARD_AGENT, onWait, ...admission, runnerOnly: true, remote: true,
+    diagnostic: true, kind, item, agent: process.env.PULLBOARD_AGENT, onWait, ...admission, runnerOnly: true, remote: true,
   });
 }
 

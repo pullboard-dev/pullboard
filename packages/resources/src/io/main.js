@@ -1,4 +1,5 @@
 import { recordGateSpan } from './spans/gate.js';
+import { withEnvironment } from './environment.js';
 import { repoRoot } from './admission/testseats.js';
 import { holdingTestSeats } from './admission/testseats.js';
 import { isSeatTest } from './admission/testseats.js';
@@ -944,13 +945,18 @@ export function requiredExecutorOf(value) {
 /**
  * Join the queue in its admission class (landing, review, submit, other), aging up over time; FIFO by ticket within a class.
  *
- * @param {{ name: string, capacity: number, loopHeartbeat?: boolean, capacityProvider?: () => number, shortCapacityProvider?: () => number, browserCapacityProvider?: () => number, scope?: 'machine'|'repo'|'board', root?: string, agent?: string, repo?: string, landing?: boolean, itemCheck?: boolean, shortEligible?: boolean, diagnostic?: boolean, browser?: boolean, remote?: boolean, requiredExecutor?: {kind:'local'}|{kind:'ssh',host:string,hosts?:string[]}, runnerOnly?: boolean, runnerDeadlineAt?: number, runnerExecution?: boolean, timing?: boolean, capturedRequest?: {argv: string[], cwd?: string}, runnerProvider?: () => Array<{host:string,slots:number,browser:number}>, item?: string, kind?: string, onWait?: (state: object) => any | Promise<any>, allowIdleCapacityUpdate?: boolean, memory?: () => Promise<{ checked: boolean, held: boolean, line: string, warning?: string }>, infrastructureRetry?: boolean, _resume?: object }} options - Resource identity, queue class, short-slot eligibility, optional remote executor pool and memory check. An awaited wait callback may return {leaseUntil} and then receives a final {admitted:true} callback before work starts.
+ * @param {{ env?: Record<string,string>, name: string, capacity: number, scope?: 'machine'|'repo'|'board', root?: string, agent?: string, requiredExecutor?: {kind:'local'}|{kind:'ssh',host:string,hosts?:string[]}, onWait?: (state: object) => any }} options - Resource identity and queue class flags; env stands in for process.env. An awaited wait callback may return {leaseUntil} and then receives a final {admitted:true} callback before work starts.
  *   memory, when given, is read before each admission: a held verdict blocks ordinary and short local
  *   executors while compatible remote slots remain eligible; an unchecked one is passed to onWait once
  *   so the caller can warn.
- * @returns {Promise<{ name: string, scope: string, token: string, pool: string, browser: boolean, slotClass: 'gate'|'short', runner?: {host:string,slots:number,browser:number}, waitMs: number, release: () => void, renew: () => void, handOver: (pid: number) => boolean, requeueRunner?: (reason?: string, options?: { local?: boolean }) => Promise<object> }>}
+ * @returns {Promise<{ name: string, scope: string, token: string, pool: string, browser: boolean, slotClass: 'gate'|'short', runner?: object, waitMs: number, release: () => void, renew: () => void, handOver: (pid: number) => boolean, requeueRunner?: Function }>}
  */
 export async function takeResource(options) {
+  return withEnvironment(options.env, () => takeResourceIn(options));
+}
+
+/** The admission under its environment. */
+async function takeResourceIn(options) {
   const { name, capacity, scope = 'machine', root = process.cwd(), allowIdleCapacityUpdate = false, allowCapacityGrowth = false, allowCapacityShrink = false, loopHeartbeat = false } = options;
   if (typeof name !== 'string' || !name.trim() || name.trim() !== name) throw new Refused('BAD_RESOURCE_NAME', 'resource name must be nonempty trimmed text');
   if (name.startsWith('runner:')) throw new Refused('RESERVED_RUNNER_RESOURCE', 'runner resource rows are managed by the machine gate; request name "gate"');
@@ -1060,7 +1066,7 @@ export async function takeResource(options) {
       if (row && row.capacity !== currentCapacity) {
         const state = snapshot(db, name);
         const activeHolders = name === 'gate' ? state.holders.filter(holder => !holder.runner).length : state.holders.length;
-        // Growing a pool never strands a holder, so a caller that allows growth may raise it while held (3 Nov: handoff workers grew from 4 to 10 with jobs running).
+        // Growing a pool never strands a holder, so a caller that allows growth may raise it while held.
         const grows = allowCapacityGrowth && currentCapacity > row.capacity;
         // A pool whose target fell (fewer runners) may shrink: holders above it finish, new takes wait [C7,#2944].
         const shrinks = allowCapacityShrink && currentCapacity < row.capacity;
