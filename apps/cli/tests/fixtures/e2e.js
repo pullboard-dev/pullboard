@@ -55,6 +55,7 @@ export const JOURNEY_MODE = process.env.PULLBOARD_JOURNEY_MODE === 'process' ? '
 export function parityText(text, dir) {
   return String(text ?? '').split(dir).join('<dir>')
     .replace(/\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z/gu, '<time>')
+    .replace(/\d{4}-\d\d-\d\dT\d\d:\d\d(?=  )/gu, '<time>')
     .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gu, '<uuid>')
     .replace(/\b[0-9a-f]{7,64}\b/gu, '<hex>')
     .replace(/\b\d+(?:\.\d+)? ?(?:ms|s)\b/gu, '<duration>')
@@ -223,6 +224,8 @@ function sandbox({ declareFamilies = false } = {}) {
     PULLBOARD_INFRA_RETRY_BACKOFF_MS: '0',
     // A fixture's claims start no detached claim beater bound to the test process; its own journey turns it on (#5726).
     PULLBOARD_CLAIM_BEATER: '0',
+    // init and resume start no background view in a fixture, in a real process or in-process: a busy port must not change an answer [C7].
+    PULLBOARD_VIEW_BACKGROUND: '0',
     // A fixed fixture model, so no fixture reads the machine's or the agent seat's identity [C7].
     PULLBOARD_MODEL: FIXTURE_MODEL,
     // The loopback local runner a pull submit starts stops with this test process, never outliving the journey [P7].
