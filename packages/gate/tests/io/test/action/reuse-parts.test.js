@@ -89,10 +89,10 @@ test('red: a red receipt wins over a green, is never reusable, and a worker requ
     assert.equal(storeTestResult(store, pass), false, 'a later green for a red key is refused');
     const rows = selectedTestResults(store, [pass.inputKey]);
     assert.deepEqual(rows.map(row => row.status), ['fail'], 'selection serves the red, never the green');
-    assert.equal(completedTestResult(pass), false, 'a pending request is not completed proof');
+    assert.ok(!completedTestResult(pass), 'a pending request is not completed proof');
     const completion = { id: request, commit: pass.commit, tree: 'b'.repeat(40), code: 0, signal: null,
       outputSha256: 'c'.repeat(64), runtimeSha256: 'd'.repeat(64), toolingSha256: 'e'.repeat(64) };
-    assert.equal(completedTestResult({ ...pass, origin: { ...pass.origin, completion } }), true);
+    assert.ok(completedTestResult({ ...pass, origin: { ...pass.origin, completion } }));
     assert.equal(testResultDigest({ inputKey: pass.inputKey, context: pass.context }), pass.key, 'the receipt key is the input key under its context');
   } finally { fx.done(); }
 });
