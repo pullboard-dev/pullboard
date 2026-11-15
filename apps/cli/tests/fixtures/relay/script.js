@@ -1,3 +1,4 @@
+/** @pullboard-module-loads packages/link/index.js packages/keys/index.js apps/cli/tests/fixtures/native.js */
 /** Run a relay journey's module script in this process, awaited, with its process globals restored [C7,#8251]. */
 import { serializeInProcess } from '../process.js';
 
