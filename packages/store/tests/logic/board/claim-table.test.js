@@ -42,6 +42,8 @@ function boardFor(t, record) {
   const at = new Date(snapshot.now);
   const board = cellBoard(t, ':memory:', { now: () => at });
   const sql = board.db;
+  // The scratch board is seeded with states a record saw; the state machine's own triggers guard only live moves.
+  for (const { name } of sql.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'machine_item%'").all()) sql.exec(`DROP TRIGGER ${name}`);
   const seat = (id, lane, route) => sql.prepare('INSERT OR IGNORE INTO agent (agent_id, agent_lane, agent_path, agent_route, agent_created_at) VALUES (?, ?, ?, ?, ?)').run(id, lane ?? 'core', `/seat/${id}`, route ?? 'strong', STAMP);
   if (snapshot.actor.joined) seat(snapshot.actor.id, snapshot.actor.lane, snapshot.actor.route);
   const stub = (id, lane) => { if (id != null && !sql.prepare('SELECT 1 FROM item WHERE item_id=?').get(id)) file({ id, status: 'verified' }, lane); };
