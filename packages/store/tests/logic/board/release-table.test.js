@@ -60,13 +60,13 @@ function boardFor(t, record) {
   return board;
 }
 
-/** Drive the store's release writer with what the record's move said, and return what it wrote after the seeded history. */
+/** Drive the store's release writer with what the record's move said, and return what it wrote after the seeded history; the sentinel's shout to the coordinator is delivery, not a move event, so it is left out. */
 function drive(board, record) {
   const { move } = record;
   const before = board.db.prepare('SELECT COALESCE(MAX(event_id),0) id FROM event').get().id;
   const observation = { ...(move.on ? { blockedOn: move.on } : {}), ...(move.worktreeSnapshot ? { worktreeSnapshot: move.worktreeSnapshot } : {}) };
   release(board, move.id, move.actor, move.note, Object.keys(observation).length ? observation : undefined, move.reason);
-  return board.db.prepare('SELECT event_kind kind, event_by by, event_detail detail FROM event WHERE event_id>? ORDER BY event_id').all(before)
+  return board.db.prepare('SELECT event_kind kind, event_by by, event_detail detail FROM event WHERE event_id>? AND event_kind <> \'shout\' ORDER BY event_id').all(before)
     .map(e => stored({ kind: e.kind, by: e.by, detail: JSON.parse(e.detail) }));
 }
 
