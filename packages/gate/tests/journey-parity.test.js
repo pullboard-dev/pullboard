@@ -9,11 +9,10 @@ import { test } from 'node:test';
 import { parityDifferences } from './fixtures/journey-parity.js';
 import { sampleDifferences } from './fixtures/journey-parity.js';
 
-/** The converted journey, and the cases of it the sample runs both ways. Later batches sample in their own files (each case runs twice). */
+/** The converted journey, and its one representative case, run both ways (each case runs twice, so one keeps the file inside its budget). Later batches sample in their own files (each case runs twice). */
 const SAMPLES = [
   { journey: 'apps/cli/journeys/spec/e2e/gates.test.js', cases: [
-    'unsupported spec grammar keeps claim, refreeze, submit and verify refusals typed',
-    'pullboard worktree makes a joined worktree for a lane in one command',
+    'decisions default up the chain, pass to the person, and return to the original asker',
   ] },
 ];
 

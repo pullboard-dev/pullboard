@@ -12,6 +12,8 @@ import { REUSE_CAPSULE } from '../runtime.js';
 import { MAX_BLOB_BYTES } from '../source/scan.js';
 import { sourceGit } from '../source/scan.js';
 import { captureRunnerTooling } from './snapshot.js';
+import { loadTrustedCapture } from './saved.js';
+import { saveTrustedCapture } from './saved.js';
 import { currentRunnerTooling } from './snapshot.js';
 import { claimRunnerLaunch } from '../transport.js';
 import { recoveryIdentity } from '../../../../resources/index.js';
@@ -128,8 +130,13 @@ export function trustedTooling() {
   const id = committedToolingId(TOOL_ROOT);
   const held = id && CAPTURED.get(TOOL_ROOT);
   if (held && held.commit === id.commit && held.tree === id.tree) return held.captured;
-  const { captured, installation } = captureTrustedTooling();
-  if (installation) CAPTURED.set(TOOL_ROOT, { commit: installation.commit, tree: installation.tree, captured });
+  const saved = id && loadTrustedCapture(TOOL_ROOT, id);
+  if (saved) { CAPTURED.set(TOOL_ROOT, { commit: id.commit, tree: id.tree, captured: saved }); return saved; }
+  const { captured, installation, order } = captureTrustedTooling();
+  if (installation) {
+    CAPTURED.set(TOOL_ROOT, { commit: installation.commit, tree: installation.tree, captured });
+    saveTrustedCapture(TOOL_ROOT, installation, captured, order);
+  }
   return captured;
 }
 
@@ -160,7 +167,7 @@ function captureTrustedTooling() {
   }
   const tooling = { ...provenance, sha256: createHash('sha256').update(JSON.stringify(files)).digest('hex') };
   const runtimeFiles = Object.fromEntries(Object.entries(files).filter(([name]) => name !== entry));
-  return { installation: installation && { commit: installation.commit, tree: installation.tree }, captured: { worker: files[entry], tooling,
+  return { order: Object.keys(files), installation: installation && { commit: installation.commit, tree: installation.tree }, captured: { worker: files[entry], tooling,
     runtime: { entry, files: runtimeFiles, sha256: createHash('sha256').update(JSON.stringify(runtimeFiles)).digest('hex') } } };
   } finally { installation?.cleanup(); }
 }

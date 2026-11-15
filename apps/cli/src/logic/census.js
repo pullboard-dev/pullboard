@@ -102,19 +102,30 @@ export function shardRows({ files, status, host, label, output, outcomes, times 
   // The watchdog names the file as a JSON string, absolute inside the shard's checkout.
   const stopped = [...String(output).matchAll(/run-tests: (?:HUNG|TIMEOUT) file ("(?:[^"\\]|\\.)*")/gu)].flatMap((match) => { try { return [JSON.parse(match[1])]; } catch { return []; } });
   const isHung = file => stopped.some(path => path === file || path.endsWith(`/${file}`));
-  // A red shard that printed no TAP totals never ran its tests (a missing engine, a crash), so it vouches for no file.
-  const ran = /^# tests \d+/mu.test(String(output)) || status === 'green';
   // In a red shard a file is green only on its own pass record; a file with no row of its own is no-result, never green.
   const passed = new Set(outcomes.filter(row => row.passed).map(row => row.file));
+  // A red shard with neither TAP totals nor a pass record never ran its tests (a missing engine, a crash), so it vouches
+  // for no file. A pass record proves the run too: a pulled receipt clips its log to fit, which can cut the totals line
+  // while the outcomes keep every file's result, and 533 of 624 census rows read no-result that way [C7,#8293].
+  const ran = /^# tests \d+/mu.test(String(output)) || status === 'green' || passed.size > 0;
   const cut = /^Landing gate stopped early|Landing shard .* stopped by the landing/mu.test(String(output));
+  // Each file's own exit code, as its shard printed it: one cancelled case voids a shard's case outcomes, and 313 files
+  // of the 15 Nov census read no-result that way though each file's process said whether it passed [C7,#8304].
+  const exits = new Map();
+  for (const [, code, path] of String(output).matchAll(/^# landing-file-exit (\d+) (.+)$/gmu)) {
+    const key = path.replace(/^\.\//u, '');
+    exits.set(key, Math.max(exits.get(key) ?? 0, Number(code)));
+  }
   return files.map((file) => {
-    const ms = times[file];
+    const ms = times[file], exit = exits.get(file);
     const verdict = status !== 'green' && status !== 'red' ? 'unrun'
       : isHung(file) ? 'hung'
-        : failed.has(file) ? 'red'
+        : failed.has(file) || exit > 0 ? 'red'
+          : exit === 0 ? 'green'
           : !ran || (status === 'red' && !passed.has(file)) ? 'no-result'
           : cut && !Number.isFinite(ms) ? 'unrun' : 'green';
-    return { file, status: verdict, cases: failed.get(file) ?? [], secs: Number.isFinite(ms) ? Math.round(ms / 100) / 10 : null, sha, shard: label, host };
+    const cases = failed.get(file) ?? (exit > 0 ? [`its test process exited ${exit} with no failing case named`] : []);
+    return { file, status: verdict, cases, secs: Number.isFinite(ms) ? Math.round(ms / 100) / 10 : null, sha, shard: label, host };
   });
 }
 
