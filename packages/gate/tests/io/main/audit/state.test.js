@@ -10,7 +10,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { readRemoteGateHolders } from '../../../../../../apps/cli/tests/fixtures/runner/holders.js';
 import { waitForCondition } from '../../../../../../apps/cli/tests/fixtures/runner/holders.js';
-import { runFixtureChildAsync } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChildAsync } from '../../../fixtures/child.js';
 
 test('a runner fixture wait observes a real holder release within its fixture deadline [C7]', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-fixture-wait-'));

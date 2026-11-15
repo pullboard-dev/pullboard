@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from './fixtures/child.js';
 import { laneSeatContext } from '../../seats/index.js';
 import { canonicalCommonDir } from '../../git/index.js';
 import { repoInfo } from '../../git/index.js';

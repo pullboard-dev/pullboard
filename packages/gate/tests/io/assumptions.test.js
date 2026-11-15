@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { spawnSync } from 'node:child_process';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../fixtures/child.js';
 import { assumptionProblems } from '../../../codemap/index.js';
 import { assumptionsIn } from '../../../codemap/index.js';
 import { writeAssumptionBaseline } from '../../../codemap/index.js';

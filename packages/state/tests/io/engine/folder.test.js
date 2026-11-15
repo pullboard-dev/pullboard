@@ -18,8 +18,8 @@ import { engineFolderProblems } from '../../../index.js';
 import { engineFolderViolations } from '../../../index.js';
 import { assignEngineNumbers } from '../../../src/io/engine/numbers.js';
 import { readEngineLeaves } from '../../../src/io/engine/numbers.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 import { copyPackageSubset } from '../../../../../apps/cli/tests/fixtures/copy.js';
 
 /** The one folder engine leaves live in. */
