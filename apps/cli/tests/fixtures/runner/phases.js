@@ -1,4 +1,8 @@
 import { copyPackageFiles } from '../../../../../packages/runners/index.js';
+import { roundTripLine } from '../../../../../packages/runners/index.js';
+import { roundTripProfile } from '../../../../../packages/runners/index.js';
+import { runOnRunnerAsync } from '../../../../../packages/runners/index.js';
+import { copyRunnerPackage } from '../../../../../packages/runners/tests/fixtures/package.js';
 /** Pure registered-runner test helpers: snapshots, phase counting and bounded round-trip waits; nothing here launches the CLI. */
 import { executionServicesSource } from '../gate/execution.js';
 import { awaitNestedRun } from '../../../../../packages/gate/index.js';
@@ -10,8 +14,10 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  writeFileSync,
 } from 'node:fs';
 import {
+  delimiter,
   join,
   resolve,
 } from 'node:path';
@@ -24,6 +30,10 @@ import {
   runFixtureChildAsync,
 } from '../child.js';
 import { stopGroup } from './group.js';
+import { HOST } from './ssh.js';
+import { installSshStandIn } from './ssh.js';
+import { privateFixtureFiles } from '../child.js';
+import { fixtureCommittedGraph } from '../testkit.js';
 
 export const TOOLING_SNAPSHOTS = new Map();
 export const ROUND_TRIP_DEADLINES = { dispatch: 45_000, 'remote run': 30_000, 'result return': 30_000 }; // budget: a stuck runner fails by name in about a minute, far under the 660-second per-test limit; dispatch took 20 s and result return 10 s on runners at twice their cores.
@@ -184,3 +194,37 @@ export function fixtureResultContext(result) {
   return `${result.context}\nstdout tail:\n${String(result.stdout ?? '').slice(-4_000)}\nstderr tail:\n${String(result.stderr ?? '').slice(-4_000)}`;
 }
 
+/**
+ * Run `count` round trips of one committed tree on one fixture runner, under a private controller home, and return
+ * each trip's phase profile with its printed line; the first trip really runs the test body on the runner.
+ */
+export async function profiledRoundTrips(t, count) {
+  const directory = privateFixtureFiles('pullboard-round-trip-').root;
+  const graph = fixtureCommittedGraph('pullboard-round-trip-repo-'), repo = graph.root;
+  t.after(() => { rmSync(directory, { recursive: true, force: true }); rmSync(repo, { recursive: true, force: true }); });
+  const [bin, worker, controller, home] = ['bin', 'worker', 'controller', 'machine'].map(name => join(directory, name));
+  for (const folder of [bin, worker, controller, home]) mkdirSync(folder, { recursive: true });
+  copyRunnerPackage(resolve(import.meta.dirname, '../../../../..'), repo);
+  const manifest = JSON.parse(readFileSync(join(repo, 'package.json'), 'utf8'));
+  writeFileSync(join(repo, 'package.json'), JSON.stringify({ ...manifest, name: 'round-trip-fixture', private: true, type: 'module' }) + '\n');
+  graph.put('test/probe.test.js', "import { test } from 'node:test';\ntest('round trip probe [C7]', () => { console.log('EXECUTED-ROUND-TRIP'); });\n");
+  const trunk = { ref: 'refs/heads/main', commit: graph.commit() };
+  const env = { HOME: controller, PULLBOARD_HOME: controller, PULLBOARD_MACHINE_HOME: join(controller, '.pullboard'), PATH: `${bin}${delimiter}${process.env.PATH}` };
+  const previous = Object.fromEntries([...Object.keys(env), 'PULLBOARD_TEST_REUSE'].map(key => [key, process.env[key]]));
+  t.after(() => { for (const [key, value] of Object.entries(previous)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } });
+  Object.assign(process.env, env);
+  delete process.env.PULLBOARD_TEST_REUSE;
+  installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'), requests: join(home, 'requests.jsonl'), nodeCommand: process.execPath });
+  const profiles = [];
+  for (let index = 0; index < count; index++) {
+    const result = await runOnRunnerAsync(repo, 'node apps/cli/src/io/run/tests.js test/probe.test.js', {
+      runner: { host: HOST, slots: 1, browser: 0, node: process.execPath, root: join(home, 'runner') }, metadata: { testStage: 'submit', trunk } });
+    assert.equal(result.isGreen, true, result.output);
+    // A repeat may reuse the first trip's receipt, as a real gate would; the first must run the body.
+    if (index === 0) assert.match(result.output, /EXECUTED-ROUND-TRIP/u, 'the runner really runs the test body');
+    const profile = roundTripProfile(result.phases), line = roundTripLine(profile);
+    t.diagnostic(line);
+    profiles.push({ ...profile, line });
+  }
+  return profiles;
+}

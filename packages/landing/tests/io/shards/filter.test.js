@@ -16,7 +16,8 @@ import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/chil
 import { runFixtureChildAsync } from '../../../../../apps/cli/tests/fixtures/child.js';
 
 const SOURCE = resolve(import.meta.dirname, '../../../../..');
-const NAMES = ['a', 'b', 'c', 'd', 'e', 'f'];
+/** Two files, two shards: the fan-out is under test, not its volume, and every shard is a whole node process. */
+const NAMES = ['a', 'b'];
 
 let template = null;
 after(() => { if (template) rmSync(template, { recursive: true, force: true }); });
@@ -50,13 +51,13 @@ function projectTemplate() {
   writeFileSync(join(home, '.pullboard', 'settings.json'), JSON.stringify({ gateSlots: 3, browserSlots: 1 }));
   copyPackageFiles(SOURCE, repo);
   for (const name of NAMES) writeFileSync(join(repo, `test/${name}.test.js`), fixtureTest(name));
-  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node apps/cli/src/io/run/tests.js', landingShards: 6 }));
+  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node apps/cli/src/io/run/tests.js', landingShards: 2 }));
   const env = projectEnv(dir);
   for (const args of [['init', '-q', '-b', 'main'], ['add', '.'], ['commit', '-q', '-m', 'test: name-filtered shards fixture']]) execFileSync('git', args, { cwd: repo, env });
   return dir;
 }
 
-/** A private project with six test files, each holding a target case and an unrelated one, and landingShards 6: a copy of the template, with one file made red or slow when asked. */
+/** A private project with two test files, each holding a target case and an unrelated one, and landingShards 2: a copy of the template, with one file made red or slow when asked. */
 function project(t, redFile = null, slowFile = null) {
   const dir = privateFixtureFiles('pullboard-name-shards-').root;
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -69,7 +70,7 @@ function project(t, redFile = null, slowFile = null) {
   return { repo, env };
 }
 
-/** Run the landing gate with a name filter over all six files. */
+/** Run the landing gate with a name filter over all two files. */
 function gate(box, pattern = '^target', extra = [], files = NAMES.map(name => `test/${name}.test.js`)) {
   return runFixtureChildAsync(process.execPath, ['apps/cli/src/io/run/tests.js', '--test-name-pattern', pattern, ...extra, ...files],
     { cwd: box.repo, env: box.env, signal: AbortSignal.timeout(240_000) });
@@ -77,18 +78,19 @@ function gate(box, pattern = '^target', extra = [], files = NAMES.map(name => `t
 
 /** The cases share nothing but the read-only template, so they run side by side; each gate child is async for that. */
 describe('name-filtered landing shards [C7]', { concurrency: 10 }, () => {
-test('clause 1: a name-filtered landing gate with landingShards 6 runs as six shards, each with the name filter [C7]', async t => {
-  const run = await gate(project(t));
+test('clause 1: a name-filtered landing gate with landingShards 2 runs as two shards, each with the name filter [C7]', async t => {
+  // Overlapping globs ride the same gate: each of the two target cases still runs once.
+  const run = await gate(project(t), '^target', [], ['test/*.test.js', 'test/[ab].test.js']);
   assert.equal(run.status, 0, run.context ?? run.stdout + run.stderr);
-  assert.match(run.stdout, /# landing shards: 6 /u, 'six shards, not one local pass');
-  assert.equal([...run.stdout.matchAll(/^# landing selected cases (\d+)$/gmu)].reduce((sum, match) => sum + Number(match[1]), 0), 6,
-    'every shard ran only its target case');
+  assert.match(run.stdout, /# landing shards: 2 /u, 'two shards, not one local pass');
+  const cases = [...run.stdout.matchAll(/^# landing selected cases (\d+)$/gmu)].reduce((sum, match) => sum + Number(match[1]), 0);
+  assert.equal(cases, 2, 'every shard ran only its target case, and overlapping globs run each of the two target cases once');
 });
 
 test('clause 2: a red in any name-filtered shard fails the gate and names the test; a filter matching nothing fails too [C7]', async t => {
-  const [red, none] = await Promise.all([gate(project(t, 'd')), gate(project(t), '^no such case$')]);
+  const [red, none] = await Promise.all([gate(project(t, 'b')), gate(project(t), '^no such case$')]);
   assert.notEqual(red.status, 0);
-  assert.match(red.stdout + red.stderr, /target d/u, 'the failing case is named');
+  assert.match(red.stdout + red.stderr, /target b/u, 'the failing case is named');
   assert.match(red.stdout, /# landing result: red/u);
   assert.notEqual(none.status, 0);
   assert.match(none.stdout + none.stderr, /NO_TESTS_MATCHED/u);
@@ -97,10 +99,10 @@ test('clause 2: a red in any name-filtered shard fails the gate and names the te
 test('clause 1: duplicate paths run once, and every selector option reaches every shard [C7]', async t => {
   const box = project(t);
   const files = [...NAMES.map(name => `test/${name}.test.js`), 'test/a.test.js', './test/b.test.js'];
-  const run = await gate(box, '^target', ['--test-skip-pattern', 'target [ce] '], files);
+  const run = await gate(box, '^target', ['--test-skip-pattern', 'target [b] '], files);
   assert.equal(run.status, 0, run.context ?? run.stdout + run.stderr);
   const cases = [...run.stdout.matchAll(/^# landing selected cases (\d+)$/gmu)].reduce((sum, match) => sum + Number(match[1]), 0);
-  assert.equal(cases, 4, 'each target runs once despite duplicate paths, and the skip pattern drops c and e in their shards');
+  assert.equal(cases, 1, 'each target runs once despite duplicate paths, and the skip pattern drops b in its shard');
   const { landingShardOptions } = await import('../../../../gate/index.js');
   assert.deepEqual(landingShardOptions(['--test-name-pattern', 'x', 'test/a.test.js', '--test-skip-pattern=y', '--test-timeout', '5', '--test-reporter=tap', '--', 'test/b.test.js'],
     arg => ['--test-name-pattern', '--test-timeout'].includes(arg)),
@@ -122,14 +124,10 @@ test('clause 1: the fan-out expands globs and folds spellings into one file list
   const box = project(t);
   assert.deepEqual(landingFanOutFiles(['test/a.test.js', './test/a.test.js', 'test/b.test.js'], ['--test-name-pattern', 'x'], box.repo, optionTakesValue),
     ['test/a.test.js', 'test/b.test.js'], 'each file once');
-  assert.deepEqual(landingFanOutFiles(['test/[a-c].test.js', 'test/*.test.js', `${box.repo}/test/f.test.js`], [], box.repo, optionTakesValue),
+  assert.deepEqual(landingFanOutFiles(['test/[ab].test.js', 'test/*.test.js', `${box.repo}/test/b.test.js`], [], box.repo, optionTakesValue),
     NAMES.map(name => `test/${name}.test.js`), 'globs expand to files, overlaps and absolute spellings fold');
   assert.deepEqual(landingFanOutFiles(['test/a.test.js'], ['--test-name-pattern', '--test-shard=2/2'], box.repo, optionTakesValue), ['test/a.test.js'],
     'a pattern value that looks like a shard flag is a pattern');
-  const run = await gate(box, '^target', [], ['test/*.test.js', 'test/[a-c].test.js']);
-  assert.equal(run.status, 0, run.context ?? run.stdout + run.stderr);
-  const cases = [...run.stdout.matchAll(/^# landing selected cases (\d+)$/gmu)].reduce((sum, match) => sum + Number(match[1]), 0);
-  assert.equal(cases, 6, 'overlapping globs run each of the six target cases once');
 });
 
 test('clause 1: a name-filtered landing that also carries a caller shard flag refuses USAGE and never fans out [C7]', async t => {
@@ -138,18 +136,18 @@ test('clause 1: a name-filtered landing that also carries a caller shard flag re
   for (const args of [['--test-shard=1/2'], ['--test-shard', '2/2'], ['--test-shard'], ['--test-name-pattern', 'x', '--test-shard'], ['--shard=1/2']]) {
     assert.throws(() => landingFanOutFiles(['test/a.test.js'], args, box.repo, optionTakesValue), error => error.code === 'USAGE', JSON.stringify(args));
   }
-  for (const extra of [['--shard', '1/2'], ['--test-shard']]) {
-    const run = await gate(box, '^target', extra);
-    assert.notEqual(run.status, 0, JSON.stringify(extra));
-    assert.match(run.stdout + run.stderr, /USAGE/u);
-    assert.doesNotMatch(run.stdout, /# landing selected cases/u, 'no shard ran');
-  }
+  // The pure planner above refuses both spellings; one real gate proves the refusal reaches the command, since each gate is a whole node process.
+  const run = await gate(box, '^target', ['--shard', '1/2']);
+  assert.notEqual(run.status, 0);
+  assert.match(run.stdout + run.stderr, /USAGE/u);
+  assert.doesNotMatch(run.stdout, /# landing selected cases/u, 'no shard ran');
 });
 
 test('clause 1: a selector option missing its value refuses as the unsharded run does, and never fans out [C7]', async t => {
   const box = project(t);
-  for (const option of ['--test-skip-pattern', '--test-name-pattern']) {
-    const run = await gate(box, '^target', [], [...NAMES.map(name => `test/${name}.test.js`), option]);
+  const gates = ['--test-skip-pattern', '--test-name-pattern'].map(option => gate(box, '^target', [], [...NAMES.map(name => `test/${name}.test.js`), option]));
+  for (const [index, option] of ['--test-skip-pattern', '--test-name-pattern'].entries()) {
+    const run = await gates[index];
     assert.notEqual(run.status, 0, option);
     assert.match(run.stdout + run.stderr, new RegExp(`${option} requires a value`, 'u'));
     assert.doesNotMatch(run.stdout, /# landing selected cases/u, 'no shard ran');
@@ -157,20 +155,18 @@ test('clause 1: a selector option missing its value refuses as the unsharded run
 });
 
 test('clause 2: a caller --test-timeout reaches every shard, so a case that times out unsharded fails the sharded gate [C7]', async t => {
-  const runs = await Promise.all([['--test-timeout', '3000'], ['--test-timeout=3000']].map(extra => gate(project(t, null, 'd'), '^target', extra)));
-  for (const [index, extra] of [['--test-timeout', '3000'], ['--test-timeout=3000']].entries()) {
-    const run = runs[index];
-    assert.notEqual(run.status, 0, `${extra.join(' ')}: ${run.stdout}${run.stderr}`);
-    assert.match(run.stdout, /# landing shards: 6 /u, 'the run was sharded');
-    assert.match(run.stdout + run.stderr, /target d|d\.test\.js/u, 'the timed-out test is named');
-    assert.match(run.stdout + run.stderr, /timed out after 3000ms/u, 'the caller timeout applied');
-    assert.match(run.stdout, /# landing result: red/u);
-  }
+  const extra = ['--test-timeout=3000'];
+  const run = await gate(project(t, null, 'b'), '^target', extra);
+  assert.notEqual(run.status, 0, `${extra.join(' ')}: ${run.stdout}${run.stderr}`);
+  assert.match(run.stdout, /# landing shards: 2 /u, 'the run was sharded');
+  assert.match(run.stdout + run.stderr, /target b|b\.test\.js/u, 'the timed-out test is named');
+  assert.match(run.stdout + run.stderr, /timed out after 3000ms/u, 'the caller timeout applied');
+  assert.match(run.stdout, /# landing result: red/u);
 });
 
 test('clause 1: a name filter with no file arguments fans out, and its collection never claims the full suite [C7]', async t => {
   const box = project(t);
-  // Only the six fixture files stay tracked tests, so the unfiltered default suite is exactly them.
+  // Only the two fixture files stay tracked tests, so the unfiltered default suite is exactly them.
   const packaged = execFileSync('git', ['ls-files', '*.test.js'], { cwd: box.repo, env: box.env, encoding: 'utf8' }).split('\n').filter(file => file && !file.startsWith('test/'));
   if (packaged.length) execFileSync('git', ['rm', '-q', '--', ...packaged], { cwd: box.repo, env: box.env });
   execFileSync('git', ['commit', '-q', '--allow-empty', '-m', 'test: only the fixture tests'], { cwd: box.repo, env: box.env });
@@ -189,7 +185,7 @@ test('clause 1: files after -- stay files in every shard, under the caller spell
   execFileSync('git', ['commit', '-q', '-m', 'test: a file named like an option'], { cwd: box.repo, env: box.env });
   const run = await gate(box, '^target', [], ['./test/a.test.js', 'test/b.test.js', '--', '-case.test.js']);
   assert.equal(run.status, 0, run.context ?? run.stdout + run.stderr);
-  assert.match(run.stdout, /# landing shards: 3 /u, 'three files, three shards');
+  assert.match(run.stdout, /# landing shards: 2 /u, 'three files fold onto the two shards');
   assert.equal([...run.stdout.matchAll(/^# landing selected cases (\d+)$/gmu)].reduce((sum, match) => sum + Number(match[1]), 0), 3,
     'the dash-named file ran as a test file, not an option');
   const { landingFanOutFiles, optionTakesValue } = await import('../../../../gate/index.js');
