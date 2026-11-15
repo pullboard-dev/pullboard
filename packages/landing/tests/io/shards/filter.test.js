@@ -148,12 +148,13 @@ test('clause 1: a name-filtered landing that also carries a caller shard flag re
 
 test('clause 1: a selector option missing its value refuses as the unsharded run does, and never fans out [C7]', async t => {
   const box = project(t);
-  // One real gate proves the refusal reaches the command; each gate is a whole node process.
-  const option = '--test-skip-pattern';
-  const run = await gate(box, '^target', [], [...NAMES.map(name => `test/${name}.test.js`), option]);
-  assert.notEqual(run.status, 0, option);
-  assert.match(run.stdout + run.stderr, new RegExp(`${option} requires a value`, 'u'));
-  assert.doesNotMatch(run.stdout, /# landing selected cases/u, 'no shard ran');
+  const gates = ['--test-skip-pattern', '--test-name-pattern'].map(option => gate(box, '^target', [], [...NAMES.map(name => `test/${name}.test.js`), option]));
+  for (const [index, option] of ['--test-skip-pattern', '--test-name-pattern'].entries()) {
+    const run = await gates[index];
+    assert.notEqual(run.status, 0, option);
+    assert.match(run.stdout + run.stderr, new RegExp(`${option} requires a value`, 'u'));
+    assert.doesNotMatch(run.stdout, /# landing selected cases/u, 'no shard ran');
+  }
 });
 
 test('clause 2: a caller --test-timeout reaches every shard, so a case that times out unsharded fails the sharded gate [C7]', async t => {
