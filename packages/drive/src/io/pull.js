@@ -359,7 +359,7 @@ const PASSED_ENV = /^(?:PULLBOARD_TEST_PROGRESS|PULLBOARD_CHROME|(?:PULLBOARD_)?
 
 /**
  * A pulled job's own environment and the folders it lives in: a per-job HOME and temp folder beside the checkout, and
- * PULLBOARD_RUNNER_JOB, as a pushed runner builds it. Why: a job that inherited the runner service's environment ran
+ * PULLBOARD_RUNNER_JOB, as a pushed runner builds it, plus the runner's shared cache folder. Why: a job that inherited the runner service's environment ran
  * with the host's real HOME, ~/.pullboard and shared temp folder, and its proof failed where the controller's passed.
  *
  * @param {string} cache
@@ -371,10 +371,12 @@ const PASSED_ENV = /^(?:PULLBOARD_TEST_PROGRESS|PULLBOARD_CHROME|(?:PULLBOARD_)?
 export function jobEnvironment(cache, name, job, host = process.env) {
   const folder = join(cache, 'env', name), home = join(folder, 'home'), temporary = join(folder, 'tmp');
   try { rmSync(folder, { recursive: true, force: true, maxRetries: 3 }); } catch { /* a stale folder a writer still fills is the prune's; its home and tmp are made below */ }
-  for (const path of [home, temporary]) mkdirSync(path, { recursive: true, mode: 0o700 });
+  // One cache per runner that every job's keyed caches outlive the job in; a job's own HOME and TMPDIR start empty (#8233).
+  const shared = join(cache, 'shared-cache');
+  for (const path of [home, temporary, shared]) mkdirSync(path, { recursive: true, mode: 0o700 });
   const safePath = [dirname(process.execPath), host.PATH || '/usr/local/bin:/usr/bin:/bin'].join(delimiter);
   const passed = Object.fromEntries(Object.entries(host).filter(([key, value]) => PASSED_ENV.test(key) && typeof value === 'string'));
-  return { env: { ...passed, ...childEnvironment({ safePath, workerId: job }, home, temporary) }, folder };
+  return { env: { ...passed, ...childEnvironment({ safePath, workerId: job }, home, temporary), PULLBOARD_RUNNER_SHARED_CACHE: shared }, folder };
 }
 
 /**
