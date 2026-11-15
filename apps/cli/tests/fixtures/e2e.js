@@ -83,8 +83,12 @@ function parityRecord({ dir, env, cwd, args, result }) {
     } finally { db.close(); }
   }
   // Mask string values only: a bare number of 7 or more digits would read as a hash and break the JSON it sits in.
-  const mask = value => typeof value === 'string' ? parityText(value, dir) : Array.isArray(value) ? value.map(mask)
-    : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([key, inner]) => [key, mask(inner)])) : value;
+  // Also masked: the disk-use measurement status prints (apps/cli/src/io/disk/use.js). A detached worker measures the store sizes
+  // at no fixed moment, so whether a call sees "measuring" or a total, and the byte counts, depend on timing, not on the runtime.
+  const DISK_MEASURED = ['total', 'stores', 'measuredAt', 'measuring', 'warning'];
+  const mask = (value, key) => typeof value === 'string' ? parityText(value, dir).replace(/^disk use under \.git\/pullboard: .*$/gmu, 'disk use under .git/pullboard: <measured>')
+    : Array.isArray(value) ? value.map(inner => mask(inner))
+    : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([name, inner]) => [name, key === 'disk' && DISK_MEASURED.includes(name) ? '<measured>' : mask(inner, name)])) : value;
   return mask({ cwd, args, code: result.code, json, out: json ? null : result.out, err: result.stderr, board });
 }
 
