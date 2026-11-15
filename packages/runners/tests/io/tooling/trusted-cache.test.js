@@ -99,7 +99,8 @@ async function exportedTooling(t) {
   t.after(() => exported.cleanup());
   assert.equal(existsSync(join(exported.root, '.git')), false, 'a runner work dir has no .git');
   const url = pathToFileURL(join(exported.root, 'packages/runners/src/io/tooling/remote.js')).href;
-  return async label => (await import(`${url}?${label}`)).trustedTooling;
+  // A runner's controller pins its own loaded bytes at start, as every process there does, before it captures them.
+  return async label => { const module = await import(`${url}?${label}`); module.pinRunnerTooling(); return module.trustedTooling; };
 }
 
 test('#8426 clause 1: a second trip in a work dir without .git reuses the saved capture [C7]', async t => {
