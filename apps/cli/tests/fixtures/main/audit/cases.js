@@ -30,7 +30,7 @@ function git(root,env,...args) {const ran=spawnSync('git',args,{cwd:root,env,enc
 import { mainAuditFixture } from './project.js';
 
 test('production main audit waits for real FF, collects both failures, routes both, and never repeats completion [C7,V4,H16]',{timeout:120_000},async t=>{
-  const box=await mainAuditFixture(t);
+  const box=await mainAuditFixture(t,{landingShards:1});
   await box.runWorker();
   assert.equal(existsSync(join(box.directory,box.key+'.json')),false,'native finish before actual FF is not audit execution');
   assert.equal(existsSync(box.marker),false);
@@ -110,7 +110,7 @@ test('production main audit waits for real FF, collects both failures, routes bo
 async function observed(read,name){const deadline=Date.now()+30_000;while(Date.now()<deadline){const value=read();if(value)return value;await pause(20);}assert.fail(`missing ${name}`);}
 
 test('a contender wake makes the original main audit owner drain a later real landing without a third nudge [C7,V4,H16]',{timeout:150_000},async t=>{
-  const box=await mainAuditFixture(t);const release=await box.holdBoth();
+  const box=await mainAuditFixture(t,{landingShards:1});const release=await box.holdBoth();
   git(box.repo,box.env,'merge','--ff-only',box.tip);
   const first=box.startWorker();
   const ownerFile=join(box.directory,'owner.json'),wakeFile=join(box.directory,'wake.json');
