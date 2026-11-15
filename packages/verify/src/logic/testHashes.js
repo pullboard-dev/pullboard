@@ -78,6 +78,11 @@ export function testHashProblem(item, thread, { atHead, atMain, person }) {
     `restore ${first.path} to the frozen content, or ask the coordinator to bring the change to the person for a ruling: pullboard fact ${item.item_id} decision "test-hash ${first.path} ${first.now ?? '<sha256>'}" --as person`);
 }
 
+/** The test-hash refusal, only when verify.frozenTests is true (off by default); hashes are recorded either way [C7]. */
+export function frozenTestsProblem(verify, item, thread, source) {
+  return verify?.frozenTests === true ? testHashProblem(item, thread, source) : null;
+}
+
 /** The author record a submit writes for a test file: `test author <path>: seat <id>, family <name>, sha256 <hash>`. */
 const AUTHOR = /^test author (\S+): seat (\S+), family (.+), sha256 ([a-f0-9]{64})$/u;
 

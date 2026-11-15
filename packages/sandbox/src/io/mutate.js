@@ -1,6 +1,7 @@
 /** Seed single-line faults into a throwaway copy of a cell and run the cell's own tests against each, report only; the adapter that runs tests for the mutation check [C7]. */
 import { execFile } from 'node:child_process';
 import { cpSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -55,6 +56,19 @@ async function passes(dir, file) {
 }
 
 /**
+ * Put HEAD's tree in a folder so a cell's imports outside its own folder resolve; the cell itself is overlaid from the working tree by the caller.
+ * Why git archive and not a worktree: it writes nothing under the checkout's .git. A checkout without commits gets an empty folder and the cell-only copy.
+ */
+async function exportHead(root, into) {
+  mkdirSync(into, { recursive: true });
+  const tar = join(into, '..', 'head.tar');
+  const made = await finish('git', ['archive', '--format=tar', '-o', tar, 'HEAD'], { cwd: root });
+  if (made.status !== 0) return;
+  await finish('tar', ['-xf', tar, '-C', into], {});
+  rmSync(tar, { force: true });
+}
+
+/**
  * The lines changed against the base per cell-relative source file, from `git diff -U0`.
  * Why git and not a copy: a mutation check should only ask whether tests cover what this change touched.
  */
@@ -91,7 +105,9 @@ export async function mutateCell(root, cell, { all = false, base = 'main' } = {}
   const lines = all ? null : await changedSourceLines(root, name, base, changedLines);
   const temp = mkdtempSync(join(scratchBase(), 'pullboard-mutate-'));
   try {
-    const copy = join(temp, name);
+    const copy = join(temp, 'tree', name);
+    await exportHead(root, join(temp, 'tree'));
+    rmSync(copy, { recursive: true, force: true });
     cpSync(source, copy, { recursive: true, filter: (from) => !/(?:^|[\\/])(?:node_modules|\.git)$/u.test(from) });
     const redBefore = [];
     for (const file of tests) if (!await passes(copy, file)) redBefore.push(file);
