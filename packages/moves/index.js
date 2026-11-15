@@ -25,3 +25,5 @@ export { lifecycleFact, replay, compareFinal, readinessCounts, topKinds, trial }
 export { LIFECYCLE_KINDS, readLifecycleLog } from "./src/io/lifecycle-log.js";
 export { listMoveTables, readMoveRecords } from "./src/io/table/read.js";
 export { explainReport, loadMoveTable, replayReport } from "./src/io/table/report.js";
+export { LEASE_MOVES, leaseEngine } from "./src/logic/table/lease.table.js";
+export { readLandingRecords, replayLandingMoves } from "./src/io/table/landing.js";
