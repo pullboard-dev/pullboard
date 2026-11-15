@@ -518,7 +518,7 @@ async function compareMainFailuresNow(root, profile, onWait, output = '', { comm
           ...(fileIsolation ? { fileIsolation: true } : {}), ...(receiptId ? { receiptId } : {}), main: main.commit, at: new Date().toISOString() };
       };
       /** The slot options shared by both placements; only browser, gui and remote eligibility differ. */
-      const slotOptions = (browser, gui, remote) => ({ executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, diagnostic: runnerAdmission.landing !== true, browser, gui, remote, agent: process.env.PULLBOARD_AGENT, kind: 'main-red', onWait, ...runnerAdmission, ...(pinned ? { requiredExecutor: executor } : {}) });
+      const slotOptions = (browser, gui, remote) => ({ executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, diagnostic: runnerAdmission.landing !== true, browser, gui, remote, agent: process.env.PULLBOARD_AGENT, kind: 'main-red', item: 'main', onWait, ...runnerAdmission, ...(pinned ? { requiredExecutor: executor } : {}) });
       /** Measure the file on this machine in a temporary checkout, or (`remote`) on a runner straight from the object store. */
       const inCheckout = async remote => {
         // A run on this machine needs main's files: a clean temporary checkout, with the slot taken there as before.
@@ -858,13 +858,13 @@ export function mainFailureNotices(root, failures, comparison, { items = [], exc
  *
  * @param {string} checkout - A clean committed checkout; the runner receives its HEAD.
  * @param {string} command - The shell command to run at the checkout's root.
- * @param {{ kind: string, admission?: object, onWait?: Function }} options - Receipt kind and the captured runner-only admission.
+ * @param {{ kind: string, item?: string, admission?: object, onWait?: Function }} options - Receipt kind, the work it serves, and the captured runner-only admission.
  * @returns {Promise<{ isGreen: boolean, output: string, executionRunner?: string }>}
  */
-export async function runCheckOnRunner(checkout, command, { kind, admission = gateRunnerAdmission(), onWait } = {}) {
+export async function runCheckOnRunner(checkout, command, { kind, item = '', admission = gateRunnerAdmission(), onWait } = {}) {
   return withGateSlot(checkout, lease => runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs }), {
     executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() },
-    diagnostic: true, kind, agent: process.env.PULLBOARD_AGENT, onWait, ...admission, runnerOnly: true, remote: true,
+    diagnostic: true, kind, item, agent: process.env.PULLBOARD_AGENT, onWait, ...admission, runnerOnly: true, remote: true,
   });
 }
 

@@ -51,7 +51,6 @@
   ["src/submit-size.js","packages/items/src/logic/submit/size.js","seed"],
   ["src/submit-wait.js","packages/items/src/io/submit/wait.js","rule"],
   ["src/work-order.js","packages/items/src/logic/order/work.js","seed"],
-  ["test/bar-native-session.test.js","packages/items/tests/bar-native-session.test.js","seed"],
   ["test/decision-handoff.test.js","packages/items/tests/io/decision.test.js","seed"],
   ["src/check-timing.js","packages/items/src/logic/check/timing.js","imports"],
   ["src/item-edit-bar.js","packages/items/src/logic/edit/bar.js","rule"],
@@ -87,7 +86,7 @@
   {"cell":"app:cli","imports":4,"before":false}
  ],
  "cuts": [
-   {"cell":"roadmap","imports":1,"edges":["src/roadmap.js->src/queue.js"]}
+  {"cell":"roadmap","imports":1,"edges":["src/roadmap.js->src/queue.js"]}
  ],
  "ratchets": {
   "legacySource": -4,

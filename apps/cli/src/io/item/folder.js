@@ -448,10 +448,12 @@ async function hostedRunner() {
  * @param {{ id: string, lane: string }} me the claiming seat
  * @param {number} id the item
  * @param {any} options
- * @returns {Promise<string|object|null>} the folder path, a runner-hosted folder record, or null for the coordinator
+ * @returns {Promise<string|object|null>} the folder path, a runner-hosted folder record, or null for the coordinator and a URL-joined seat
  */
 async function openFolder(ctx, me, id, options = {}) {
   if (me.id === 'coordinator') return null;
+  // A seat joined by board URL builds in its own clone; a folder here on the board host would hold nothing it can submit [C7].
+  if (ctx.io?.remoteAgent) return null;
   const runner = await hostedRunner();
   if (runner) {
     const hooks = tryGit(ctx.info.root, ['config', '--get', 'core.hooksPath']);

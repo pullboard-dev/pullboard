@@ -162,6 +162,16 @@ export function loadMachineSettings() {
   if (value.gate?.runnerDispatch !== undefined && !['controller', 'pull'].includes(value.gate.runnerDispatch)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnerDispatch in ${file} must be "controller" or "pull"`);
   }
+  if (value.gate?.refuseController !== undefined && typeof value.gate.refuseController !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.refuseController in ${file} must be true or false`);
+  }
+  if (value.gate?.requireRunnerAttribution !== undefined && typeof value.gate.requireRunnerAttribution !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.requireRunnerAttribution in ${file} must be true or false`);
+  }
+  // Off by default until every fixture and machine has left controller: only then does the old value become a refusal [P7].
+  if (value.gate?.refuseController === true && value.gate.runnerDispatch === 'controller') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnerDispatch "controller" in ${file} is removed: every runner job is a row a runner pulls; next: run pullboard settings gate.runnerDispatch pull`);
+  }
   const reserve = value.gate?.jobReserve;
   if (reserve != null && (typeof reserve !== 'object' || Array.isArray(reserve) || Object.values(reserve).some(share => !Number.isFinite(share) || share < 0 || share > 1)
     || Object.values(reserve).reduce((sum, share) => sum + share, 0) > 1)) {

@@ -106,7 +106,7 @@ ${executionServicesSource(gate)}
     const run=await withGateSlot(process.cwd(),lease=>{
       attempts.push(lease.runner.host);
       return runProfiledShellAsync(process.cwd(),'node -e "console.log(\\'READY_FAILOVER_EXECUTED\\')"',{gateLease:lease});
-    },{executionServices,remote:true,runnerOnly:true,onWait:state=>{
+    },{executionServices,remote:true,runnerOnly:true,item:'fixture',kind:'remote-command',onWait:state=>{
       if(state.runnerUnavailable)notices.push(state.runnerUnavailable);
       else if(!state.admitted)waits.push(state);
     }});
@@ -144,7 +144,7 @@ ${executionServicesSource(gate)}
     const run=await withGateSlot(process.cwd(),lease=>{
       attempts.push(lease.runner.host);
       return runProfiledShellAsync(process.cwd(),'node -e "console.log(\\'RETRY_EXECUTED\\')"',{gateLease:lease});
-    },{executionServices,remote:true,runnerOnly:true,onWait(){}});
+    },{executionServices,remote:true,runnerOnly:true,item:'fixture',kind:'remote-command',onWait(){}});
     const db=new DatabaseSync(process.env.PULLBOARD_MACHINE_HOME+'/resources.sqlite',{readOnly:true});
     const held=db.prepare('SELECT host,detail FROM runner_unavailable').all();
     const leases=db.prepare('SELECT (SELECT COUNT(*) FROM holder)+(SELECT COUNT(*) FROM waiter) n').get().n;db.close();
