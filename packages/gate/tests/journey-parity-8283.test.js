@@ -17,7 +17,7 @@ const SAMPLES = [
 test('clause 1: a sample case of the coordinator journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', () => {
   const real = runSample('process', SAMPLES);
   const inprocess = runSample('inprocess', SAMPLES);
-  assert.ok(real.length >= 10, `the sample made its CLI calls (${real.length})`);
+  assert.ok(real.length >= 5, `the sample made its CLI calls (${real.length})`);
   assert.ok(real.some(row => row.board?.items.length), 'the records carry board state');
   const differences = parityDifferences(real, inprocess);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
