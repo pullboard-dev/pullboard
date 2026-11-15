@@ -66,17 +66,17 @@ export function defaults() {
     worktrees: 'beside',
     worktreeMaintenance: maintenanceSettings.maintenanceDefaults(),
     verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true, failBefore: false, frozenTests: false },
-    // Off by default: toolingPin refuses an unsigned or edited pin file only when pin.signed is true [#8038].
+    // Off by default: pin.signed makes toolingPin refuse an unsigned pin [#8038].
     pin: { signed: false },
     review: { starveMinutes: 5, independence: 'off', excludeEarlierHolders: false },
     // Vendor spellings: canonical family -> alias names; never inferred [#1762].
     families: {},
     labels: {},
-    // The route table is data: packages/config/data/ceilings/model-tiers.json (fresh per call) [P5].
+    // The route table is data: data/ceilings/model-tiers.json [P5].
     modelTiers: JSON.parse(readFileSync(new URL('../../data/ceilings/model-tiers.json', import.meta.url), 'utf8')),
-    // Off by default: next and claim print an item's code map slice only when map.slice is true [1203].
+    // Off by default: map.slice prints a code map slice in next and claim [1203].
     map: { slice: false },
-    // Off by default: the cells checks replay a saved answer for an unchanged commit, tree and diff [#2076].
+    // Off by default: cells checks replay a saved answer for an unchanged tree [#2076].
     cells: { cache: false, shimMaxAgeDays: 7 },
     agents: { names: 'suffix' },
     inbox: { tokenBudget: 8192 },
@@ -118,7 +118,7 @@ export function durationMs(text, setting = 'lease') {
   return Number(match[1]) * UNIT_MS[/** @type {'m'|'h'|'d'} */ (match[2])];
 }
 
-/** A settings group merged field by field over its default; a non-object value is kept for the checks to refuse. */
+/** A settings group merged field by field over its default; a non-object is kept for the checks to refuse. */
 function section(raw, base) {
   return raw === undefined ? base : raw && typeof raw === 'object' && !Array.isArray(raw) ? { ...base, ...raw } : raw;
 }
@@ -315,7 +315,7 @@ export function configProblems(config) {
   if (config.landing?.pauseOnRed !== undefined && typeof config.landing.pauseOnRed !== 'boolean') problems.push('"landing.pauseOnRed" is a boolean, off by default; true pauses landing after an unproven red publish full suite');
   const cadenceError = cadenceProblem(config.landing?.cadence);
   if (cadenceError) problems.push(cadenceError);
-  // landing.stall: how long a landing batch may stall before it ends (2 minutes when unset, #3186).
+  // landing.stall: how long a batch may stall (2 minutes unset, #3186).
   for (const key of ['timeout', 'stall']) {
     const value = config.landing?.[key];
     const match = typeof value === 'string' ? CHECK_TIMEOUT_RE.exec(value) : null;
@@ -386,11 +386,11 @@ export function configProblems(config) {
     || Object.keys(config.withdraw).some(key => key !== 'review') || typeof config.withdraw.review !== 'boolean')) {
     problems.push('"withdraw" is { "review": true or false }: true makes a withdrawal wait for another seat to confirm it');
   }
-  if (notPlain(config.pushGate) || Object.keys(config.pushGate).some(key => !['shardMinutes', 'sizeFromBoard'].includes(key))
+  if (notPlain(config.pushGate) || Object.keys(config.pushGate).some(key => key !== 'shardMinutes' && key !== 'sizeFromBoard')
     || !Number.isSafeInteger(config.pushGate.shardMinutes) || config.pushGate.shardMinutes < 1 || config.pushGate.shardMinutes > 1440) {
     problems.push('"pushGate.shardMinutes" is a whole number of minutes, 1 to 1440, 20 by default: how long a push gate shard may run before the push gate gives up; raise it with PULLBOARD_RUNNER_RUN_CEILING_MS on the runners');
   } else if (typeof config.pushGate.sizeFromBoard !== 'boolean') {
-    problems.push('"pushGate.sizeFromBoard" is true or false, false by default: true sizes the push gate\'s shard count from board data instead of a fixed number');
+    problems.push('"pushGate.sizeFromBoard" is true or false');
   }
   if (notPlain(config.claims)
     || Object.keys(config.claims).some(key => !['releaseGone', 'releaseCooldownMinutes', 'perSeat'].includes(key)) || typeof config.claims.releaseGone !== 'boolean'
