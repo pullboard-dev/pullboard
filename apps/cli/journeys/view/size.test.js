@@ -194,14 +194,18 @@ test('[N26,A2] active-seat expiry rebuilds the cached state at the inclusive fou
   // Item progress has its own minute transitions; isolate this seat-only activity boundary.
   const box = await fixture(t, { items: 0, recentAge: 3 * 3_600_000 });
   assert.equal((await box.request(box.path + '/state')).document.state.agents.length, 1);
-  box.advance(3_600_000);
+  box.advance(3_600_000 - 1);
   assert.equal((await box.request(box.path + '/state')).document.state.agents.length, 1);
-  assert.equal(box.builds(), 1, 'the inclusive seat boundary still uses the clock-only cache hit');
+  assert.equal(box.builds(), 1, 'just inside the boundary the clock-only cache hit holds');
+  // The seat's own shout also leaves the dashboard's four-hour counts at exactly four hours (47c447d3ec), so the boundary itself rebuilds once and still retains the seat.
+  box.advance(1);
+  assert.equal((await box.request(box.path + '/state')).document.state.agents.length, 1);
+  assert.equal(box.builds(), 2);
   box.advance(1);
   const expired = await box.request(box.path + '/state');
   assert.deepEqual(expired.document.state.agents, []);
   assert.equal(expired.document.state.proofStats.flow.activeAgents.total, 0);
-  assert.equal(box.builds(), 2);
+  assert.equal(box.builds(), 3);
 });
 
 test('[N26,A2] detailed proof reads retain board authentication and reject missing, malformed and write requests', async t => {
