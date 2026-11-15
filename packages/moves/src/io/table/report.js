@@ -1,10 +1,11 @@
 /** @pullboard-module-loads packages/moves/src/logic/table/*.table.js */
 /** Load a move table by name and report on it: how often it agrees with the board, and what it says in order [C7,#8071,#8072]. */
-import { execFileSync } from 'node:child_process';
 import { basename } from 'node:path';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Refused } from '../../../../kernel/light.js';
+import { tryGit } from '../../../../git/index.js';
+import { explainTable } from '../../logic/table/explain.js';
 import { replayTable } from '../../logic/table/replay.js';
 import { listMoveTables } from './read.js';
 import { readMoveRecords } from './read.js';
@@ -47,10 +48,8 @@ export async function loadMoveTable(root, name, code) {
 
 /** The v0.9.4 cut as an ISO time: the tag's commit time, or null when this repository has no such tag. */
 function tagCut(root) {
-  try {
-    const text = execFileSync('git', ['log', '-1', '--format=%cI', CUT_TAG], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-    return text ? new Date(text).toISOString() : null;
-  } catch { return null; }
+  const read = tryGit(root, ['log', '-1', '--format=%cI', CUT_TAG]);
+  return read.status === 0 && read.stdout ? new Date(read.stdout).toISOString() : null;
 }
 
 /**
@@ -68,4 +67,16 @@ export async function replayReport({ root, boardFile, name, days = 7, now = Date
   const records = readMoveRecords(boardFile, { since });
   const report = replayTable(loaded.table, loaded.rules, records, { cut: cutAt });
   return { table: name, days, since, cut: new Date(Date.parse(cutAt)).toISOString(), ...report };
+}
+
+/**
+ * Explain a table: its guards in order with each code and next step, then its outcomes and follow-ups.
+ * Why: an agent asks "what can happen from here" without reading the table's source; nothing is read from the board.
+ *
+ * @param {{ root: string, name: string }} options
+ * @returns {Promise<{ table: string, guards: object[], outcomes: object[], followups: object[] }>}
+ */
+export async function explainReport({ root, name }) {
+  const loaded = await loadMoveTable(root, name, 'EXPLAIN_TABLE');
+  return explainTable(loaded.table, loaded.rules);
 }

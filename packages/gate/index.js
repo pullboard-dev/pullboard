@@ -31,6 +31,7 @@ export { receiptStore, boardReceiptStore, receiptBody, readGateReceipt, receiptB
 export { requireGateExecutionServices, settleReceipt, withGateSlot, gateRunnerLoadPolicy, withAvoidedRunners, preferOtherRunners } from "./src/io/slot.js";
 export { INFRASTRUCTURE_CODES, INFRA_RETRIES, LOCK_CODES, LOCK_WAIT_LIMIT, INVENTORY_WAITS, infrastructureFailure, submitUntilSettled } from "./src/io/requeue.js";
 export { gateStages, stagedScript, readPipes, readStages } from "./src/io/stages.js";
+export { replayChangedTables } from "./src/io/moves/replay.js";
 export { submitGateConfig, submitGatePlan, submitGateAdmission, runSubmitGate, startCriterionRun, submitLogPath, startDiagnostics, namedFileRunner } from "./src/io/submit.js";
 export { gateWaitReporter } from "./src/logic/wait.js";
 export { recordGreenRun } from "./src/io/shards/green.js";
@@ -119,3 +120,4 @@ export { report } from './src/io/scan.js';
 export { walk } from './src/io/scan.js';
 export { acceptedCellsIdentity, toolingIsPinned, readAcceptedCells, warmAcceptedCells, nudgeAcceptedCells, recordAcceptedCellsFailure, waitForAcceptedCells } from './src/io/inventory.js';
 export { deriveTestRegistries } from './src/io/test/derived.js';
+export { runJourneyCheck } from "./src/io/test/journey-check.js";

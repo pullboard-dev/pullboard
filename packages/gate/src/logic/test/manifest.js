@@ -42,20 +42,42 @@ export function goldenPath(file) {
   return null;
 }
 
+export const KEEP_PER_PATH = 2;
+
+/** Order two journeys on one path: more spec ids first, then the faster recorded runtime (unknown last), then file name. */
+function byValue(a, b) {
+  const slow = ms => ms ?? Infinity;
+  return b.specs.length - a.specs.length || slow(a.cost?.ms) - slow(b.cost?.ms) || (a.file < b.file ? -1 : 1);
+}
+
 /**
  * Tag each journey row keep, convert or delete, with the rule that chose it.
- * Keep when it walks a golden path. Delete only when every spec id it cites is also cited by a non-journey test, so
- * another test proves the same ids. Everything else converts, as does a journey that cites none, since nothing else proves it [C7].
+ * Keep at most KEEP_PER_PATH journeys per golden path: the ones citing the most spec ids, then the fastest, each with
+ * the reason it beat the others on its path. A golden-path journey that loses falls to the rule below, as does any other.
+ * Delete only when every spec id it cites is also cited by a non-journey test, so another test proves the same ids.
+ * Everything else converts, as does a journey that cites none, since nothing else proves it [C7].
  *
  * @param {object[]} rows manifest rows with kind and specs
  * @returns {object[]} the rows, journeys now carrying tag and tagBecause
  */
 export function tagJourneys(rows) {
   const proven = new Set(rows.filter(row => row.kind !== 'journey').flatMap(row => row.specs));
+  const onPath = new Map();
+  for (const row of rows) {
+    const path = row.kind === 'journey' ? goldenPath(row.file) : null;
+    if (path) onPath.set(path, [...(onPath.get(path) ?? []), row]);
+  }
+  const kept = new Map();
+  for (const [path, group] of onPath) {
+    group.sort(byValue).slice(0, KEEP_PER_PATH).forEach((row, index) => {
+      const ms = row.cost?.ms ?? null;
+      const speed = ms === null ? 'no recorded runtime' : `${ms} ms`;
+      kept.set(row.file, `walks the golden path ${path}; chosen over ${group.length - 1} other${group.length === 2 ? '' : 's'} on it: rank ${index + 1} of ${group.length} by ${row.specs.length} spec ids, then speed (${speed})`);
+    });
+  }
   return rows.map(row => {
     if (row.kind !== 'journey') return row;
-    const path = goldenPath(row.file);
-    if (path) return { ...row, tag: 'keep', tagBecause: `walks the golden path ${path}` };
+    if (kept.has(row.file)) return { ...row, tag: 'keep', tagBecause: kept.get(row.file) };
     if (row.specs.length && row.specs.every(id => proven.has(id))) return { ...row, tag: 'delete', tagBecause: 'every spec id it cites is also cited by a cell unit or contract test' };
     return { ...row, tag: 'convert', tagBecause: row.specs.length ? 'cites a spec id no cell unit or contract test cites' : 'cites no spec id, so nothing else proves it' };
   });
