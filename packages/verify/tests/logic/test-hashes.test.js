@@ -15,7 +15,7 @@ test('clause 1: only existing test files the criterion names are hashed [C7,V4]'
 });
 
 test('clause 1: a hash already frozen is kept, not read again [C7,V4]', () => {
-  assert.deepEqual(namedTestHashes(item, () => 'changed', { 'a/one.test.js': 'f'.repeat(64) }), { 'a/one.test.js': 'f'.repeat(64) });
+  assert.deepEqual(namedTestHashes(item, () => null, { 'a/one.test.js': 'f'.repeat(64) }), { 'a/one.test.js': 'f'.repeat(64) });
 });
 
 test('clause 2: a builder edit is a change, an identical or main-supplied content is not [C7,V4]', () => {
