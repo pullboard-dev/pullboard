@@ -76,7 +76,7 @@ function gate(box, pattern = '^target', extra = [], files = NAMES.map(name => `t
 }
 
 /** The cases share nothing but the read-only template, so they run side by side; each gate child is async for that. */
-describe('name-filtered landing shards [C7]', { concurrency: 4 }, () => {
+describe('name-filtered landing shards [C7]', { concurrency: 10 }, () => {
 test('clause 1: a name-filtered landing gate with landingShards 6 runs as six shards, each with the name filter [C7]', async t => {
   const run = await gate(project(t));
   assert.equal(run.status, 0, run.context ?? run.stdout + run.stderr);
@@ -86,11 +86,10 @@ test('clause 1: a name-filtered landing gate with landingShards 6 runs as six sh
 });
 
 test('clause 2: a red in any name-filtered shard fails the gate and names the test; a filter matching nothing fails too [C7]', async t => {
-  const red = await gate(project(t, 'd'));
+  const [red, none] = await Promise.all([gate(project(t, 'd')), gate(project(t), '^no such case$')]);
   assert.notEqual(red.status, 0);
   assert.match(red.stdout + red.stderr, /target d/u, 'the failing case is named');
   assert.match(red.stdout, /# landing result: red/u);
-  const none = await gate(project(t), '^no such case$');
   assert.notEqual(none.status, 0);
   assert.match(none.stdout + none.stderr, /NO_TESTS_MATCHED/u);
 });
@@ -158,8 +157,9 @@ test('clause 1: a selector option missing its value refuses as the unsharded run
 });
 
 test('clause 2: a caller --test-timeout reaches every shard, so a case that times out unsharded fails the sharded gate [C7]', async t => {
-  for (const extra of [['--test-timeout', '3000'], ['--test-timeout=3000']]) {
-    const run = await gate(project(t, null, 'd'), '^target', extra);
+  const runs = await Promise.all([['--test-timeout', '3000'], ['--test-timeout=3000']].map(extra => gate(project(t, null, 'd'), '^target', extra)));
+  for (const [index, extra] of [['--test-timeout', '3000'], ['--test-timeout=3000']].entries()) {
+    const run = runs[index];
     assert.notEqual(run.status, 0, `${extra.join(' ')}: ${run.stdout}${run.stderr}`);
     assert.match(run.stdout, /# landing shards: 6 /u, 'the run was sharded');
     assert.match(run.stdout + run.stderr, /target d|d\.test\.js/u, 'the timed-out test is named');
