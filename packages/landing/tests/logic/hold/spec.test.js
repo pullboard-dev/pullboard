@@ -21,7 +21,7 @@ import {
   runFixtureChildAsync,
   runFixtureGit,
 } from '../../../../gate/tests/fixtures/child.js';
-import { fixtureSettledMachine } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureSettledMachine } from '../../../../gate/tests/fixtures/testkit.js';
 import {
   HOST,
   installSshStandIn,

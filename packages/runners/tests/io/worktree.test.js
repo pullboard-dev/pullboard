@@ -10,7 +10,7 @@ import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { temporaryRepository } from '../../../store/tests/fixtures/submit.js';
-import { temporaryDirectory } from '../../../../apps/cli/tests/fixtures/board.js';
+import { temporaryDirectory } from '../../../board/tests/fixtures/board.js';
 import { runFixtureChildAsync } from '../../../gate/tests/fixtures/child.js';
 import { createHostedItemFolder } from '../../index.js';
 import { hostedItemFolderPath } from '../../index.js';

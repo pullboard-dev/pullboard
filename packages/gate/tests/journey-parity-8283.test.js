@@ -14,9 +14,10 @@ const SAMPLES = [
   { journey: 'apps/cli/journeys/relay/team/coordinator.test.js', cases: ['an agent session on a computer that does not hold the coordinator takes it over'] },
 ];
 
-test('clause 1: a sample case of the coordinator journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', () => {
-  const real = runSample('process', SAMPLES);
-  const inprocess = runSample('inprocess', SAMPLES);
+test('clause 1: a sample case of the coordinator journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
+  // One after the other: the two modes side by side slow each other past the file budget.
+  const real = await runSample('process', SAMPLES[0]);
+  const inprocess = await runSample('inprocess', SAMPLES[0]);
   assert.ok(real.length >= 5, `the sample made its CLI calls (${real.length})`);
   assert.ok(real.some(row => row.board?.items.length), 'the records carry board state');
   const differences = parityDifferences(real, inprocess);

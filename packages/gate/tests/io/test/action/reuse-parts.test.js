@@ -11,7 +11,7 @@ import { completedTestResult } from '../../../../src/io/test/store.js';
 import { selectedTestResults } from '../../../../src/io/test/store.js';
 import { storeTestResult } from '../../../../src/io/test/store.js';
 import { testResultDigest } from '../../../../src/io/test/store.js';
-import { fixtureCommittedGraph } from '../../../../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureCommittedGraph } from '../../../fixtures/testkit.js';
 
 const PROBE = 'test/probe.test.js';
 const STABLE = 'test/stable.test.js';
