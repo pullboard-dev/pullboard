@@ -11,6 +11,9 @@ import { releaseEngine } from "../../../../../moves/light.js";
 import { RELEASE_REASONS } from "../../reasons.js";
 import { staleStateLimits } from "../stale/state/policy.js";
 import { runTable } from "../../../../../moves/light.js";
+import { claimEngine } from "../../../../../moves/light.js";
+import { AGENT_GRANT_ENGINE } from "../../../../../state/light.js";
+import { submitEngine } from "../../../../../moves/light.js";
 import { ENGINE_VERSION } from "../../../../../state/index.js";
 import { LANDING_LOCAL_LEASE_ENGINE } from "../../../../../state/light.js";
 import {
@@ -19,6 +22,16 @@ import {
 } from "./local.js";
 
 const KEY = 'landing_lease';
+
+let claimTable = null;
+/**
+ * Run the claim and renew move table over a snapshot and move.
+ * Why here: this file is the store's one reader of the moves cell, so the claim writer reaches the table without a second cross-cell edge [C7,#8270].
+ */
+export function runClaimTable(snapshot, move) {
+  claimTable ??= claimEngine({ grantEngine: AGENT_GRANT_ENGINE });
+  return runTable(claimTable.table, claimTable.rules, snapshot, move);
+}
 export const LANDING_LEASE_MS = 120_000; // 30 s died under a 22 s board write; a dead holder is still reclaimed at expiry [C7].
 
 /** Validate every queue identity before it becomes durable or controls admission. */
@@ -158,4 +171,19 @@ export function landingLeaseMove(board, { agentId, action, token, branch, pid, g
     return { holder: state.holder, position: state.line.findIndex(entry => entry.token === token) + 1,
       acquired: state.holder?.token === token, generation: state.holder?.token === token ? state.holder.generation : null };
   });
+}
+
+let submitTables = null;
+/**
+ * Run one submit-family table (SUBMIT, COMMIT, OUTCOME, START or COMPLETE) over a snapshot and move.
+ * Why here: this file is the store's one reader of the moves cell; the caller passes the retry limit and infrastructure codes, as the tables take them by injection [C7,#8271].
+ *
+ * @param {'SUBMIT' | 'COMMIT' | 'OUTCOME' | 'START' | 'COMPLETE'} name
+ * @param {{ retryLimit: number, infrastructureCodes: Iterable<string> }} limits
+ * @returns {{ refused?: object, patch?: object, events?: object[], via?: string[], table: object }}
+ */
+export function runSubmitTable(name, limits, snapshot, move) {
+  submitTables ??= submitEngine(limits);
+  const table = submitTables.tables[name];
+  return { ...runTable(table, submitTables.rules, snapshot, move), table };
 }

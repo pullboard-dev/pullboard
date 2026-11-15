@@ -287,13 +287,24 @@
       "msSource": null,
       "why": "doctor and resume list stale frozen items in every state on real Git; the first-run walk itself is init",
       "msNote": "no recorded run yet"
-    }
-  ],
-  "gaps": [
+    },
     {
       "path": "release",
-      "nearest": "apps/cli/journeys/release/speed.test.js",
-      "reason": "no journey walks a release cut through the real CLI; release/speed.test.js drives the release services in process and cites I15, so it is not a user walk"
+      "file": "apps/cli/journeys/release/cut.test.js",
+      "specs": [
+        "C7"
+      ],
+      "commands": [
+        "roadmap",
+        "add",
+        "milestone",
+        "ship"
+      ],
+      "ms": null,
+      "msSource": null,
+      "why": "cuts a version: milestone add, items and ship take a clean board to a release recorded at main",
+      "msNote": "no recorded run yet"
     }
-  ]
+  ],
+  "gaps": []
 }
