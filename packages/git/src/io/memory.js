@@ -259,10 +259,11 @@ function commonDir(repo, absolute) {
   return repo.common || absolute ? `${main.root}/.git` : '.git';
 }
 
-/** Every checkout of one repository, the main one first, then linked worktrees in the order they were added. */
+/** Every checkout of one repository, the main one first, then linked worktrees by folder name, the order real Git reads its admin folders in. */
 function checkouts(repo) {
   const main = mainOf(repo);
-  return [main, ...main.linked];
+  const name = tree => tree.root.slice(tree.root.lastIndexOf('/') + 1);
+  return [main, ...[...main.linked].sort((a, b) => (name(a) < name(b) ? -1 : name(a) > name(b) ? 1 : 0))];
 }
 
 /** `git worktree add [-q] [--detach] [-b <branch>] <path> [<commit-ish>]` and `list --porcelain [-z]`; anything else is refused. */
