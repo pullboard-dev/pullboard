@@ -75,6 +75,11 @@ export function fencedHopEnabled() {
   return loadMachineSettings().gate?.fencedHop === true;
 }
 
+/** Fail the registry check on an unregistered test only when this machine opted in; off, it reports [C7,#8374]. */
+export function registryStrictEnabled() {
+  return loadMachineSettings().tests?.registryStrict === true;
+}
+
 /** Record each move table shadow compare on the board only when this machine opted in [C7,#8376]. */
 export function movesShadowEnabled() {
   return loadMachineSettings().moves?.shadow === true;
