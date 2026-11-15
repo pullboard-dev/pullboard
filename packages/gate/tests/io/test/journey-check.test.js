@@ -7,7 +7,7 @@ import { runJourneyCheck } from '../../../src/io/test/journey-check.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 
 const ROWS = [
-  { file: 'packages/a/tests/a.test.js', kind: 'cell unit', specs: ['S1', 'S2', 'S3'] },
+  { file: 'packages/a/tests/a.test.js', kind: 'cell unit', specs: ['S1', 'S2', 'S3', 'S4'] },
   ...['1', '2', '3', '4'].map(n => ({ file: `apps/cli/journeys/edges/j${n}.test.js`, kind: 'journey', specs: [`S${n}`], tag: 'delete', tagBecause: 'covered' })),
   { file: 'apps/cli/journeys/edges/keep.test.js', kind: 'journey', specs: ['S1'], tag: 'keep', tagBecause: 'kept' },
 ];
