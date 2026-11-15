@@ -34,10 +34,12 @@ function seam(drop) {
 test('the check scores each delete-tagged journey with and without it and reports the share that holds [C7]', async t => {
   const files = fixture(t);
   const { mutate, calls } = seam('apps/cli/journeys/edges/j2.test.js');
-  const result = await runJourneyCheck(['--manifest', 'manifest.json', files.root], { mutate });
+  const reachOf = () => new Map([['packages/a/tests/a.test.js', new Set(['packages/a/src/x.js'])], ['apps/cli/journeys/edges/j1.test.js', new Set(['packages/a/src/x.js'])], ['packages/z/tests/z.test.js', new Set(['packages/z/src/z.js'])]]);
+  const result = await runJourneyCheck(['--manifest', 'manifest.json', files.root], { mutate, reachOf });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(calls.length, 4, 'only the delete tags are run, one covering cell each');
   assert.ok(calls.every(call => call.cell === 'packages/a' && call.all === true && call.extra.length === 1));
+  assert.deepEqual(calls[0].reach, { 'packages/a/tests/a.test.js': ['packages/a/src/x.js'], 'apps/cli/journeys/edges/j1.test.js': ['packages/a/src/x.js'] }, 'only the cell tests and the journey carry their reach');
   assert.match(result.stdout, /convert {2}apps\/cli\/journeys\/edges\/j2\.test\.js .*packages\/a falls from 2 to 1 of 2/u);
   assert.match(result.stdout, /hold {2}apps\/cli\/journeys\/edges\/j1\.test\.js/u);
   assert.match(result.stdout, /with 2\/2 {2}without 1\/2/u);
@@ -47,7 +49,7 @@ test('the check scores each delete-tagged journey with and without it and report
 test('--limit runs only a sample of the delete tags, spread over the sorted list [C7]', async t => {
   const files = fixture(t);
   const { mutate, calls } = seam('none');
-  const result = await runJourneyCheck(['--manifest', 'manifest.json', '--limit', '2', files.root], { mutate });
+  const result = await runJourneyCheck(['--manifest', 'manifest.json', '--limit', '2', files.root], { mutate, reachOf: () => new Map() });
   assert.equal(calls.length, 2);
   assert.deepEqual(calls.map(call => call.extra[0]), ['apps/cli/journeys/edges/j1.test.js', 'apps/cli/journeys/edges/j3.test.js']);
   assert.match(result.stdout, /2 of 2 sampled delete tags hold \(100%\).* of 4 delete tags/u);
@@ -56,9 +58,9 @@ test('--limit runs only a sample of the delete tags, spread over the sorted list
 test('--write retags the dropped journey in the manifest file and nothing else, and no flag leaves the file alone [C7]', async t => {
   const files = fixture(t);
   const { mutate } = seam('apps/cli/journeys/edges/j2.test.js');
-  await runJourneyCheck(['--manifest', 'manifest.json', files.root], { mutate });
+  await runJourneyCheck(['--manifest', 'manifest.json', files.root], { mutate, reachOf: () => new Map() });
   assert.deepEqual(JSON.parse(files.read('manifest.json')).files, ROWS);
-  await runJourneyCheck(['--manifest', 'manifest.json', '--write', files.root], { mutate });
+  await runJourneyCheck(['--manifest', 'manifest.json', '--write', files.root], { mutate, reachOf: () => new Map() });
   const tags = Object.fromEntries(JSON.parse(files.read('manifest.json')).files.filter(row => row.tag).map(row => [row.file.split('/').pop(), row.tag]));
   assert.deepEqual(tags, { 'j1.test.js': 'delete', 'j2.test.js': 'convert', 'j3.test.js': 'delete', 'j4.test.js': 'delete', 'keep.test.js': 'keep' });
 });
@@ -66,7 +68,7 @@ test('--write retags the dropped journey in the manifest file and nothing else, 
 test('the check refuses an unknown flag and a non-numeric limit with its usage [C7]', async () => {
   const { mutate, calls } = seam('none');
   for (const args of [['--bogus'], ['--limit', 'many'], ['--limit', '0']]) {
-    const result = await runJourneyCheck(args, { mutate });
+    const result = await runJourneyCheck(args, { mutate, reachOf: () => new Map() });
     assert.equal(result.status, 1);
     assert.match(result.stderr, /usage: journey-check/u);
   }

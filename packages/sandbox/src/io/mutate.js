@@ -94,12 +94,13 @@ function spread(list, count) {
  *
  * @param {string} root git checkout root
  * @param {string} cell cell folder relative to root
- * @param {{all?: boolean, base?: string, extra?: string[], sample?: number}} [options] all seeds every line; base is the ref changed lines are read against;
- *   extra are root-relative test files outside the cell (such as a journey) run against each fault too; sample caps the faults seeded per source file, spread evenly
+ * @param {{all?: boolean, base?: string, extra?: string[], sample?: number, reach?: Record<string, string[]>}} [options] all seeds every line; base is the ref changed lines are read against;
+ *   extra are root-relative test files outside the cell (such as a journey) run against each fault too; sample caps the faults seeded per source file, spread evenly;
+ *   reach maps a root-relative test file to the root-relative files its imports reach, and a fault then runs only the tests that reach the seeded file
  * @param {{faults: Function, changedLines: Function}} seams the pure fault and diff readers, passed in because a package never imports an app
  * @returns {Promise<{cell: string, base: string, all: boolean, redBefore: string[], tests: {file: string, caught: number, total: number}[], faults: object[], caught: number, missed: number}>}
  */
-export async function mutateCell(root, cell, { all = false, base = 'main', extra = [], sample = Infinity } = {}, { faults, changedLines }) {
+export async function mutateCell(root, cell, { all = false, base = 'main', extra = [], sample = Infinity, reach = null } = {}, { faults, changedLines }) {
   const name = String(cell).replace(/\\/gu, '/').replace(/^\.\//u, '').replace(/\/+$/u, '');
   const source = join(root, name);
   let stat = null;
@@ -116,24 +117,37 @@ export async function mutateCell(root, cell, { all = false, base = 'main', extra
     await exportHead(root, join(temp, 'tree'));
     rmSync(copy, { recursive: true, force: true });
     cpSync(source, copy, { recursive: true, filter: (from) => !/(?:^|[\\/])(?:node_modules|\.git)$/u.test(from) });
+    const plan = sources.map((file) => {
+      const text = readFileSync(join(source, file), 'utf8');
+      const set = all ? Array.from({ length: text.split('\n').length }, (_, at) => at + 1) : (lines[file] ?? []);
+      return { file, text, faults: spread(faults(text, set), sample) };
+    });
+    const reaches = reach ? new Map(Object.entries(reach).map(([test, list]) => [test, new Set(list)])) : null;
+    /** Whether a test's imports reach a seeded source; a test with no reach data is assumed to, so it still runs. */
+    const outsideOf = new Set(extra);
+    const covers = (test, target) => {
+      const set = reaches?.get(outsideOf.has(test) ? test : `${name}/${test}`);
+      return !set || set.has(`${name}/${target}`);
+    };
+    const seeded = plan.filter((row) => row.faults.length).map((row) => row.file);
+    const needed = (test) => !reaches || seeded.some((file) => covers(test, file));
     const redBefore = [];
-    for (const file of tests) if (!await passes(copy, file)) redBefore.push(file);
+    for (const file of tests) if (needed(file) && !await passes(copy, file)) redBefore.push(file);
     const tree = join(temp, 'tree');
     const extraRed = [];
-    for (const file of extra) if (!await passes(tree, file)) extraRed.push(file);
+    for (const file of extra) if (needed(file) && !await passes(tree, file)) extraRed.push(file);
     redBefore.push(...extraRed);
-    const live = tests.filter((file) => !redBefore.includes(file));
-    const outside = extra.filter((file) => !extraRed.includes(file));
+    const live = tests.filter((file) => needed(file) && !redBefore.includes(file));
+    const outside = extra.filter((file) => needed(file) && !extraRed.includes(file));
     const run = (file) => passes(outside.includes(file) ? tree : copy, file);
     const tally = Object.fromEntries([...live, ...outside].map((file) => [file, { file, caught: 0, total: 0 }]));
     const results = [];
-    for (const file of sources) {
-      const text = readFileSync(join(source, file), 'utf8');
-      const set = all ? Array.from({ length: text.split('\n').length }, (_, at) => at + 1) : (lines[file] ?? []);
-      for (const fault of spread(faults(text, set), sample)) {
+    for (const { file, text, faults: seeds } of plan) {
+      const ours = [...live, ...outside].filter((test) => covers(test, file));
+      for (const fault of seeds) {
         writeFileSync(join(copy, file), fault.mutated);
         const caughtBy = [];
-        try { for (const test of [...live, ...outside]) { tally[test].total += 1; if (!await run(test)) { caughtBy.push(test); tally[test].caught += 1; } } } finally { writeFileSync(join(copy, file), text); }
+        try { for (const test of ours) { tally[test].total += 1; if (!await run(test)) { caughtBy.push(test); tally[test].caught += 1; } } } finally { writeFileSync(join(copy, file), text); }
         results.push({ file, line: fault.line, operator: fault.operator, before: fault.before, after: fault.after, caught: caughtBy.length > 0, caughtBy });
       }
     }
