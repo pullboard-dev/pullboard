@@ -112,6 +112,7 @@ const ROWS = [
   ['rigor.budget', 'Code a change may add', 'The most lines of non-test code one change may add.', 'Checks', 'lines'],
   ['rigor.autoDraft', 'Draft unproved Rigor rules', 'Rigor drafts a rule for a repeated failure before any fix is proven; false keeps only drafts you prove with rigor draft --red/--green.', 'Checks', 'on/off'],
   ['flakes.rerun', 'Rerun flaky tests', 'A test known to be flaky is run again before a failure counts.', 'Checks', 'on/off'],
+  ['ratchets.boardOpens', 'Refuse new file-board opens', 'A changed test that opens a board file without naming why is refused at pre-commit and gate, even when no test is selected.', 'Checks', 'on/off'],
   ['flakes.quarantine', 'Quarantine flaky tests', 'A test that keeps flaking is set aside so it stops blocking work.', 'Checks', 'on/off'],
   ['testConcurrency.files', 'Test files at once', 'How many test files run at the same time.', 'Checks', 'count'],
   ['testConcurrency.browser', 'Browser test files at once', 'How many browser test files run at the same time; never more than the file limit.', 'Checks', 'count'],

@@ -25,6 +25,10 @@ import { gitSpawnSync } from '../../../../../git/index.js';
 import { compatibilityToggleProblems } from '../../../../../config/index.js';
 import { INVENTORY_FILE } from '../../../../../config/index.js';
 import { storeRegistryCheck } from '../../stores.js';
+import { boardFileOpens } from '../../board/files.js';
+import { boardFileGrowth } from '../../board/files.js';
+import { BOARD_FILE_BASELINE } from '../../board/baseline.js';
+import { loadConfig } from '../../../../../config/index.js';
 import { layoutProblems } from '../layout.js';
 import { inlineStyleProblems } from '../inline-style.js';
 
@@ -43,6 +47,11 @@ function growthCheck(check) {
 function isTestSource(file) {
   // A src/ folder named test/ holds source, never tests [V32].
   return /\.[cm]?js$/u.test(file) && !/(?:^|\/)src\//u.test(file) && (/(?:^|\/)(?:tests?|journeys)\//u.test(file) || /(?:^|\/)(?:test|test[-_.].+|.+[-_.]test)\.[cm]?js$/u.test(file));
+}
+
+/** Whether the repo turned the file-board open ratchet on: the "ratchets.boardOpens" setting, off by default; a config that cannot load leaves it off. */
+function boardOpensOn(root) {
+  try { return loadConfig(root).ratchets?.boardOpens === true; } catch { return false; }
 }
 
 /**
@@ -131,6 +140,12 @@ export const STATIC_CHECKS = Object.freeze([
     let source;
     try { source = text(INVENTORY_FILE); } catch { return []; } // a project without the settings inventory has no toggles to judge
     return compatibilityToggleProblems(source, previous(INVENTORY_FILE) ?? '', now);
+  } },
+  // A changed test that adds an unclassified file-board open past its file's ceiling; silent unless "ratchets.boardOpens" is on, and it reads only changed test files.
+  { name: 'board-file-opens', run: ({ root, files, read }) => {
+    const tests = files.filter(isTestSource);
+    if (!tests.length || !boardOpensOn(root)) return [];
+    return tests.flatMap(file => boardFileGrowth(boardFileOpens(read(file).source, file), BOARD_FILE_BASELINE).map(row => `${row.path}:${row.line}: ${row.text}`));
   } },
   { name: 'test-waits', run: ({ root, files, read }) => {
     let baseline;

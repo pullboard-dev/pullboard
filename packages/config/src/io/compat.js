@@ -14,6 +14,7 @@ function schema(base) {
     flakes: fields(['rerun', 'quarantine']),
     rigor: fields(['budget', 'autoDraft']),
     cells: fields(['cache', 'shimMaxAgeDays']),
+    ratchets: fields(['boardOpens']),
     relay: fields(['outbox', 'board']),
     checks: fields(['provesNothing']),
     withdraw: fields(['review']),

@@ -255,6 +255,9 @@ export function configProblems(config) {
   if (config.flakes !== undefined && (notPlain(config.flakes)
       || ['rerun', 'quarantine'].some(key => config.flakes[key] !== undefined && typeof config.flakes[key] !== 'boolean')
       || Object.keys(config.flakes).some(key => !['rerun', 'quarantine'].includes(key)))) problems.push('"flakes" has only the optional booleans "rerun" and "quarantine", each off by default');
+  if (config.ratchets !== undefined && (notPlain(config.ratchets)
+      || config.ratchets.boardOpens !== undefined && typeof config.ratchets.boardOpens !== 'boolean'
+      || Object.keys(config.ratchets).some(key => key !== 'boardOpens'))) problems.push('"ratchets" has only the optional boolean "boardOpens", off by default; true refuses a new unclassified file-board open in a changed test at pre-commit and gate even when no test is selected');
   if (config.cells !== undefined && (notPlain(config.cells)
       || typeof config.cells.cache !== 'boolean' || !Number.isSafeInteger(config.cells.shimMaxAgeDays) || config.cells.shimMaxAgeDays < 0
       || Object.keys(config.cells).some(key => !['cache', 'shimMaxAgeDays'].includes(key)))) problems.push('"cells" has only boolean "cache" and nonnegative whole-number "shimMaxAgeDays" (default 7)');
