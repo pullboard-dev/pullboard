@@ -95,7 +95,9 @@ export function parityRecord({ dir, env, cwd, args, result }) {
   // Also masked: the disk-use measurement status prints (apps/cli/src/io/disk/use.js). A detached worker measures the store sizes
   // at no fixed moment, so whether a call sees "measuring" or a total, and the byte counts, depend on timing, not on the runtime.
   const DISK_MEASURED = ['total', 'stores', 'measuredAt', 'measuring', 'warning'];
-  const mask = (value, key) => key === 'comparison' ? '<comparison>' : typeof value === 'string' ? parityText(value, dir).replace(/^disk use under \.git\/pullboard: .*$/gmu, 'disk use under .git/pullboard: <measured>')
+  const mask = (value, key) => key === 'comparison' ? '<comparison>'
+    : key === 'steps' && value && typeof value === 'object' && Object.values(value).every(Number.isFinite) ? '<steps>' // gate step timings, in milliseconds
+    : typeof value === 'string' ? parityText(value, dir).replace(/^disk use under \.git\/pullboard: .*$/gmu, 'disk use under .git/pullboard: <measured>')
     : Array.isArray(value) ? value.map(inner => mask(inner))
     : value && typeof value === 'object' ? Object.fromEntries([...Object.entries(value).filter(([name]) => key !== 'disk' || !DISK_MEASURED.includes(name)).map(([name, inner]) => [name, mask(inner, name)]),
       ...(key === 'disk' ? [['measurement', '<measured>']] : [])]) : value;
