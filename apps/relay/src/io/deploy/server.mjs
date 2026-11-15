@@ -15,6 +15,7 @@ import { createAuthHandler } from '../../../index.js';
 import { createRelayAuth } from '../../../index.js';
 import { createGitHubClient } from '../../../index.js';
 import { createRelayHandler } from '../../../index.js';
+import { health } from './health.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 
 const NODE_UID = 1000;
@@ -53,14 +54,6 @@ function dropPrivileges() {
   } catch {
     throw new Refused('RELAY_USER', 'start as the image node user, or set RAILWAY_RUN_UID=0 with permission to drop startup privileges');
   }
-}
-
-/** Handle the Railway readiness probe without exposing storage or configuration. */
-function health(req, res) {
-  if (req.method !== 'GET' || new URL(req.url, 'http://localhost').pathname !== '/health') return false;
-  res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' });
-  res.end('ok\n');
-  return true;
 }
 
 /** Start the authenticated opaque relay on Railway's assigned port and public origin. */

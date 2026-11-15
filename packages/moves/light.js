@@ -18,3 +18,5 @@ export { runTable } from './src/logic/table/run.js';
 export { claimEngine } from './src/logic/table/claim.table.js';
 /** The release move table's engine, for the store's release writer to run [C7,#8246]. */
 export { releaseEngine } from './src/logic/table/release.table.js';
+/** The gate-job queue table's engine, for the api job writer's shadow compare [C7,#8310]. */
+export { jobEngine } from './src/logic/table/job.table.js';
