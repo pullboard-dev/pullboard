@@ -275,6 +275,46 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   assert.ok(existsSync(join(peer, '.git', 'pullboard', 'board.sqlite')));
 });
 
+test('an accepted verdict reads stale through the CLI once main moves under its files [E8]', { timeout: 120_000 }, async t => { // budget: hang ceiling for one real repo and its CLI calls; not a speed target.
+  const box = helpers.project();
+  /** Run a fixture CLI command through the journey seam and return its output, failing on a refusal. */
+  const run = async (fixture, root, ...args) => {
+    const result = await fixture.runIn(root, ...args);
+    assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}${result.out}`);
+    return result.out;
+  };
+  assert.equal(helpers.commitFile(box, box.repo, 'web/feature.js', 'feature = 0\nmain = 0\n', 'feat(web): baseline [G1]').status, 0);
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  const { check } = staleVerdictCheckFixture(box.dir);
+  await run(box, box.repo, 'add', 'web', 'Feature', '--specs', 'G1', '--route', 'strong', '--check', check, '--wait');
+  await run(box, box.web, 'claim', '1');
+  assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', 'feature = 1\nmain = 0\n', 'feat(web): feature [G1]').status, 0);
+  const submitted = box.git(box.web, 'rev-parse', 'HEAD');
+  await run(box, box.web, 'submit', '1');
+  const reviewer = join(box.dir, 'web-2');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, submitted);
+  await run(box, reviewer, 'join', 'web', '--route', 'strong');
+  await run(box, reviewer, 'next', '--verify', '1');
+  await run(box, reviewer, 'verify', '1', 'accept', '--note', 'The feature changes its first line and the frozen check observes it.');
+  await waitForCondition(() => {
+    const db = new DatabaseSync(join(box.repo, '.git/pullboard/board.sqlite'), { readOnly: true });
+    try {
+      const latest = db.prepare("SELECT event_detail FROM event WHERE event_kind = 'fact' AND event_detail LIKE '%Review comparison%' ORDER BY event_id DESC LIMIT 1").get();
+      return Boolean(latest) && !latest.event_detail.includes('pending');
+    } finally { db.close(); }
+  }, 'the detached review comparison to record its result', { signal: t.signal });
+  assert.ok(!JSON.parse(await run(box, box.repo, 'show', '1', '--json')).item_verdict_state, 'the acceptance reads fresh at the reviewed trunk');
+  const mainEditor = join(box.dir, 'main-caller-editor');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', mainEditor, 'main');
+  await run(box, mainEditor, 'join', 'web');
+  assert.equal(helpers.commitFile(box, mainEditor, 'web/feature.js', 'feature = 0\nmain = 1\n', 'feat(web): change main caller [G1]').status, 0);
+  box.git(box.repo, 'merge', '-q', '--no-ff', box.git(mainEditor, 'rev-parse', 'HEAD'), '-m', 'chore(merge): change main caller [G1]');
+  const stale = JSON.parse(await run(box, box.repo, 'show', '1', '--json'));
+  assert.equal(stale.item_verdict_state?.code, 'STALE_VERDICT');
+  assert.equal(stale.item_verdict_state.file, 'web/feature.js');
+  assert.equal(stale.item_verdict, 'ACCEPT', 'the historical acceptance remains a fact');
+});
+
 test('many verified items at one commit cost one ancestry check per state build, with the same freshness [E8,V8]', { timeout: 120_000 }, t => { // budget: hang ceiling for one real repo and 40 projected items; not a speed target.
   const dir = temporaryRepository(t, 'verdict-ancestry-memo-');
   const git = (...args) => execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { cwd: dir, encoding: 'utf8' }).trim();

@@ -11,13 +11,13 @@ import { runSample } from './fixtures/journey-parity.js';
 
 /** Each converted journey, and the one case of it the sample runs both ways. */
 const SAMPLES = [
-  { journey: 'apps/cli/journeys/verify/team/verdict.test.js', cases: ['a verdict reads stale when main moves under its files'] },
+  { journey: 'apps/cli/journeys/verify/team/verdict.test.js', cases: ['an accepted verdict reads stale through the CLI once main moves under its files'] },
 ];
 
 test('clause 1: a sample case of the verdict journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', () => {
   const real = runSample('process', SAMPLES);
   const inprocess = runSample('inprocess', SAMPLES);
-  assert.ok(real.length >= 15, `the sample made its CLI calls (${real.length})`);
+  assert.ok(real.length >= 10, `the sample made its CLI calls (${real.length})`);
   assert.ok(real.some(row => row.board?.items.length), 'the records carry board state');
   const differences = parityDifferences(real, inprocess);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
