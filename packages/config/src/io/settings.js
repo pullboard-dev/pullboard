@@ -80,6 +80,11 @@ export function movesShadowEnabled() {
   return loadMachineSettings().moves?.shadow === true;
 }
 
+/** Let a move writer follow its move table only when this machine opted in for that table [C7,#8383]. */
+export function movesLiveEnabled(table) {
+  return loadMachineSettings().moves?.live?.[table] === true;
+}
+
 /** Run the full suite after each landed train batch only when this machine opted in. */
 export function postLandSuiteEnabled() {
   return loadMachineSettings().gate?.postLandSuite === true;
