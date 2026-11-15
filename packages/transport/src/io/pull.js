@@ -58,10 +58,14 @@ function signedBy(publicKey, text, signature) {
 export function pullAdapter({ trusted, lease, record, checkResult, bundle, secret = randomBytes(32), now = Date.now, tokenMs = TOKEN_MS, skewMs = SKEW_MS, seenMs = SEEN_MS }) {
   const runners = new Map();
   const offers = new Map();
+  // Runners the board has revoked, and the keys they held: neither may register or pull again.
+  const revoked = new Set();
+  const revokedKeys = new Set();
   const trustedKeys = () => new Set(typeof trusted === 'function' ? trusted() : trusted);
 
   /** The registered, still trusted runner a request or token names, or a refusal saying how to get admitted. */
   const admitted = id => {
+    if (revoked.has(id)) throw new Refused('PULL_RUNNER_REVOKED', `runner ${id}'s credential was revoked; ask the person to issue it a new key`);
     const runner = runners.get(id);
     if (!runner) throw new Refused('PULL_RUNNER_UNKNOWN', `runner ${id} is not registered; register its trusted key first`);
     if (!trustedKeys().has(runner.publicKey)) throw new Refused('PULL_RUNNER_UNTRUSTED', `runner ${id}'s key is no longer trusted on the board; ask the person to trust it again`);
@@ -149,9 +153,24 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
     register({ runner, publicKey, at, signature }) {
       if (!RUNNER.test(String(runner ?? ''))) throw new Refused('PULL_RUNNER_ID', 'a runner id is a plain name: letters, digits, dot, dash or underscore');
       if (!trustedKeys().has(publicKey)) throw new Refused('PULL_RUNNER_UNTRUSTED', `runner ${runner}'s key is not trusted on this board; ask the person to trust it with the runner's public key`);
+      if (revoked.has(runner) || revokedKeys.has(publicKey)) throw new Refused('PULL_RUNNER_REVOKED', `runner ${runner}'s credential was revoked; ask the person to issue it a new key`);
+      // Why: a key is one runner's credential; two runners behind one key could not be told apart or revoked singly [C7].
+      for (const other of runners.values()) if (other.runner !== runner && other.publicKey === publicKey) throw new Refused('PULL_KEY_SHARED', `this key is already runner ${other.runner}'s credential; give runner ${runner} a key of its own`);
       checkSigned('register', runner, at, signature, publicKey);
       runners.set(runner, { runner, publicKey, seen: now() });
       return { runner };
+    },
+
+    /**
+     * Revoke one runner's credential: its pulls, heartbeats and results are refused from now on, and every other runner is untouched.
+     * @param {string} runner
+     * @returns {{ revoked: boolean }}
+     */
+    revoke(runner) {
+      const held = runners.get(runner);
+      revoked.add(runner);
+      if (held) { revokedKeys.add(held.publicKey); runners.delete(runner); }
+      return { revoked: Boolean(held) };
     },
 
     /**
