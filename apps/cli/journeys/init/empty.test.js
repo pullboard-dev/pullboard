@@ -5,13 +5,13 @@
 import assert from 'node:assert/strict';
 import {
   mkdtempSync,
-  readFileSync,
   rmSync,
 } from 'node:fs';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../index.js';
+import { composeViewStyles } from '../../../view/src/io/styles.js';
 import {
   accept,
   build,
@@ -24,6 +24,7 @@ import {
   startView,
   tapTouch,
 } from '../../tests/fixtures/cockpit/harness.js';
+import { pressTab } from '../../tests/fixtures/cockpit/stable.js';
 
 /** Serve the supported live read-only page over the fixture's authenticated board API. */
 async function startReadOnlyView(view) {
@@ -36,7 +37,7 @@ async function startReadOnlyView(view) {
         .end(cockpitPage('', { readOnly: true, transportModule: '/transport.js', stylesheet: '/view.css' }));
       if (url.pathname === '/transport.js') return response.writeHead(200, { 'content-type': 'text/javascript' }).end(transport);
       if (url.pathname === '/view.css') return response.writeHead(200, { 'content-type': 'text/css' })
-        .end(readFileSync(new URL("../../../view/src/io/main.css", import.meta.url)));
+        .end(composeViewStyles());
       if (!url.pathname.startsWith('/upstream/')) return response.writeHead(404).end();
       const reply = await fetchLive(view.base + url.pathname.slice('/upstream'.length) + url.search,
         { headers: { 'x-pullboard-key': view.key } });
@@ -69,7 +70,7 @@ async function checkFinishedItems(executable, address, readOnly, label, box, tou
       await chrome.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
       await chrome.waitFor("innerWidth === 390 && matchMedia('(pointer: coarse)').matches");
     }
-    await chrome.click("document.querySelector('[data-tab=\"items\"]')"); // a person opens Items before the list is drawn, since pages open on the Dashboard.
+    await pressTab(chrome, 'items'); // a person opens Items before the list is drawn, since pages open on the Dashboard.
     await chrome.waitFor("document.querySelector('#chain .empty') || document.querySelector('#chain .row[data-item=\"1\"]')");
     const initial = JSON.parse(await chrome.stable(`JSON.stringify({
       state: view.state,

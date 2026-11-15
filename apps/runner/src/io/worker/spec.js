@@ -1,6 +1,7 @@
 import { processCensus } from '../custody.js';
 /** Read and strictly validate the controller's one-shot work specification [C7]. */
 import { runnerPolicyRecord } from '../../../../../packages/sandbox/light.js';
+import { trustedWorkerEntry } from '../../../../../packages/runners/light.js';
 import { runnerPublicKeyProblem } from '../../../../../packages/runners/light.js';
 import { privateCheckEnvelope } from '../private/guard.js';
 import { analysisArtifactDescriptor } from '../../../../../packages/resources/light.js';
@@ -154,7 +155,7 @@ export async function readSpec(S) {
     tagNames.add(tag.name);
     if (tag.chain.length ? tag.chain[0] !== tag.object : tag.object !== tag.peeledCommit) throw new Error('invalid tag manifest');
   }
-  if (value.runtime.entry !== 'apps/runner/src/io/scripts/worker.js' || Object.keys(value.runtime.files).length > 4096
+  if (!trustedWorkerEntry(value.runtime.entry) || Object.keys(value.runtime.files).length > 4096
     || !Object.hasOwn(value.runtime.files, 'package.json')
     || Object.entries(value.runtime.files).some(([name, source]) => !name || name.startsWith('/')
       || name.split('/').some(part => !part || part === '.' || part === '..')

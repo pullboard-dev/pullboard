@@ -1,9 +1,14 @@
 import { privateCheckAdmission } from '../../../../../packages/gate/index.js';
 import { launchComparisonWorker } from '../../../../../packages/verify/index.js';
 import { comparisonRestartPlan } from '../../../../../packages/verify/index.js';
-import { toolsSnapshot } from '../submit/handoff.js';
+import { sharedToolsTarget } from '../toolsnapshot.js';
+import { toolsSnapshot } from '../toolsnapshot.js';
+import { runPulledComparison } from '../test/pull.js';
 import { generateTestTiersAt } from '../../../../../packages/gate/index.js';
 import { fileURLToPath } from 'node:url';
+import { randomUUID } from 'node:crypto';
+import { writeFileSync } from 'node:fs';
+import { committedTestOutcomes } from '../../../../../packages/gate/index.js';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
 import { submitGatePlan } from '../../../../../packages/gate/index.js';
 import { sealedMoveOverlap } from '../../../../../packages/verify/index.js';
@@ -15,12 +20,8 @@ import { compareVerification } from '../../../../../packages/verify/index.js';
 import { composesUnchanged } from '../../../../../packages/verify/index.js';
 import { comparisonCommand } from '../../../../../packages/verify/index.js';
 import { renderVerificationComparison } from '../../../../../packages/verify/index.js';
-import { recordedVerificationComparison } from '../../../../../packages/verify/index.js';
 import { VERIFICATION_COMPARISON_PREFIX } from '../../../../../packages/verify/index.js';
-import { committedNeedsGui } from '../../../../../packages/landing/index.js';
 import { mainRunnerSource } from '../../../../../packages/landing/index.js';
-import { runProfiledShellAsync } from '../../../../../packages/gate/index.js';
-import { testsNeedBrowser } from '../../../../../packages/gate/index.js';
 import { mainPolicy } from '../../../../../packages/sandbox/index.js';
 import { testTierProofFiles } from '../../../../../packages/gate/index.js';
 import { testTierCommand } from '../../../../../packages/gate/index.js';
@@ -51,6 +52,7 @@ import { matchingMainFailures } from '../../../../../packages/landing/index.js';
 import { trunkRef } from '../../../../../packages/sandbox/index.js';
 import { selectAffectedTests } from '../../../../../packages/gate/index.js';
 import { committedItemAuthors } from '../../../../../packages/verify/index.js';
+import { earlierHolderProblem } from '../../../../../packages/verify/index.js';
 import { verifyOutsideSandbox } from '../../../../../packages/sandbox/index.js';
 import { effectiveItemHead } from '../../../../../packages/verify/index.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
@@ -88,6 +90,7 @@ import {
   invalidateGitFacts,
   isClean,
   resolveCommit,
+  tryGit,
   untracked,
 } from '../../../../../packages/git/index.js';
 import {
@@ -158,6 +161,7 @@ import {
 import { recordedRecovery } from '../../../../../packages/state/index.js';
 import { retryReviewCommit } from '../../../../../packages/verify/index.js';
 import { readFileSync } from 'node:fs';
+import { switchToSubmitted } from '../verify.js';
 import { mainRedCheckCases } from './submit.js';
 import { itemCheckBaseline } from '../../../../../packages/store/index.js';
 import { mainComparisonMode } from '../../../../../packages/config/index.js';
@@ -267,6 +271,7 @@ export async function verifyHere(ctx, id, { second, values }) {
   let verificationQuarantine = null;
   let accepted = null;
   let acceptedLandingCommit = null;
+  let landedVerdict = false;
   let approvalRows = [];
   /** Record one verdict on the open board. */
   const decide = async (board) => {
@@ -288,7 +293,24 @@ export async function verifyHere(ctx, id, { second, values }) {
       return await ordered(ctx, board, 'verify', recovered.args);
     }
     const item = store.getItem(board, id);
+    const earlier = earlierHolderProblem(board, item, me.id);
+    if (earlier) throw earlier;
     itemSessions.refuseSelfSession(ctx.info, item, agentSessionDigest(), itemAuthors(board, item, { reviewPatchAuthors, committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item), independence: board.reviewIndependence });
+    // The builder is always refused on its own forced landing, whatever the commit authors say: the claim history names it [V1,H16].
+    if (item.item_status === 'withdrawn' && item.item_merged_commit &&
+        (item.item_built_by === me.id || store.events(board, { itemId: id }).some(event => event.event_kind === 'claim' && event.event_by === me.id))) {
+      throw new Refused('SELF_VERIFY', 'the builder never verifies its own work; another agent must');
+    }
+    // A forced-landed item takes one verdict: a second one, by any seat, is refused before the move [V1,H16].
+    if (item.item_status === 'withdrawn' && item.item_merged_commit && item.item_verdict) {
+      throw new Refused('NOT_LANDED', `item #${id} already has a ${item.item_verdict} verdict by ${item.item_verified_by ?? 'another seat'}; a forced-landed item takes one verdict`);
+    }
+    // A forced merge landed this item around the gate; a verdict is recorded on the board and the landing stays (V1).
+    if (decision === 'ACCEPT' && item.item_status === 'withdrawn' && item.item_merged_commit) {
+      landedVerdict = true;
+      return await ordered(ctx, board, 'verify', [id, { agentId: me.id, decision, reason: values.reason, note: textArg(ctx.io, values, 'note') ?? '',
+        head: item.item_merged_commit, digest: item.item_frozen_digest ?? '', policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, landed: true }]);
+    }
     const reReview = item.item_status === 'verified' && !item.item_merged_commit;
     const stale = reReview ? verdictProjector(root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).state(item) : null;
     if (item.item_status !== 'submitted' && !stale) {
@@ -300,11 +322,11 @@ export async function verifyHere(ctx, id, { second, values }) {
     const policy = itemPolicy(root, item);
     ctx = { ...ctx, config: policy.config };
     const fromPacket = packetAcceptance(ctx, board, item, decision, reReview, values.read);
-    const head = fromPacket ? item.item_commit : headCommit(root) ?? '';
     const commit = resolveCommit(root, item.item_commit);
-    if (!commit || !contains(root, commit, head)) {
-      throw new Refused('NOT_AT_COMMIT', `check out the submitted commit first: ${cdTo(root)} git switch --detach ${item.item_commit.slice(0, 12)}`);
-    }
+    if (!commit) throw new Refused('NOT_AT_COMMIT', `check out the submitted commit first: ${cdTo(root)} git switch --detach ${item.item_commit.slice(0, 12)}`);
+    // A clean review worktree elsewhere is moved onto the submitted commit, detached, rather than refused (#2907).
+    if (!fromPacket && !contains(root, commit, headCommit(root) ?? '')) { switchToSubmitted(ctx.info, commit, item.item_commit.slice(0, 12)); invalidateGitFacts(); }
+    const head = fromPacket ? item.item_commit : headCommit(root) ?? '';
     let digest = 'missing';
     let check;
     let review;
@@ -507,7 +529,7 @@ export async function verifyHere(ctx, id, { second, values }) {
   };
   const result = await withBoard(ctx, async (board) => {
     const verdict = await decide(board);
-    if (verdict.decision === 'ACCEPT') {
+    if (verdict.decision === 'ACCEPT' && !landedVerdict) {
       accepted = store.getItem(board, id);
       acceptedLandingCommit = store.checkedLandingCommit(board, accepted);
     }
@@ -567,7 +589,9 @@ function packetAcceptance(ctx, board, item, decision, reReview, read) {
     return null;
   }
   const reading = readUncovered.length ? ` and the reviewer read clause${readUncovered.length > 1 ? 's' : ''} ${readUncovered.join(', ')} that no run covers` : '';
-  return `accepted from review packet ${packet.head.slice(0, 12)}: every ${readUncovered.length ? 'other ' : ''}clause is covered by a recorded green run at the submitted head${reading}; no checkout, test run or main merge`;
+  const named = [...readClauses].filter(Number.isInteger).sort((x, y) => x - y);
+  const reviewed = named.length ? `clause${named.length > 1 ? 's' : ''} ${named.join(', ')}` : 'the review packet';
+  return `accepted from review packet ${packet.head.slice(0, 12)}: every ${readUncovered.length ? 'other ' : ''}clause is covered by a recorded green run at the submitted head${reading}; accepted on the gate's green receipts and your reading of ${reviewed}`;
 }
 
 /** Run `pullboard verify` and return its exit code. */
@@ -595,23 +619,20 @@ export async function run(io, args) {
           const allowed = new Set(units);
           return { ...selected, files: selected.files.filter(file => allowed.has(file)) };
         },
-        // The runner receives the commit id and reads its files from this repository's object store, so there is no
-        // checkout or worktree here; a slot that would run on this machine is refused, never served from a clone [C7,V4].
-        runTests: async (commit, files, { profileFile, artifactDirectory }) => {
+        // Each side is a pulled test job at its commit id: any runner, the machine's own loopback runner included, claims
+        // it, so no checkout or worktree is made here and no SSH controller transport is needed [C7,V4,P7].
+        runTests: async (commit, files, { profileFile }) => {
           const root = ctx.info.root;
           const source = mainRunnerSource(root, commit, policy.commit);
           if (!source) return { unavailable: 'the exact comparison commit could not be read from the object store' };
           const command = comparisonCommand(policy.config.affectedTests || 'node --test', files);
-          const browser = await testsNeedBrowser(root, files, { commit });
-          return withGateSlot(root, lease => {
-            if (!lease.runner) throw new Refused('RUNNER_SOURCE', 'a review comparison runs on a runner from commit ids; no local checkout is made, so register a runner and retry');
-            lease.testTiers = true;
-            return runProfiledShellAsync(root, command,
-              { gateLease: lease, waitMs: lease.waitMs, profileFile, artifactDirectory, persistLog: true, stages: true,
-                pinnedSource: { head: source.head, tree: source.tree } });
-          }, { executionServices, ...gateRunnerAdmission(), runnerOnly: true, remote: true,
-            browser, gui: files.some(file => committedNeedsGui(root, commit, file)), shortEligible: true, item: String(id), kind: 'compare',
-            pinnedSource: { commit: source.head, tree: source.tree, trunk: source.trunk } });
+          const runId = randomUUID();
+          const ran = await runPulledComparison(ctx, { item: id, commit: source.head, main: policy.commit, command, files, runId });
+          // Outcomes count only for regular test files at the run's own commit; anything else leaves the side unaccounted.
+          const testOutcomes = committedTestOutcomes(root, source.head, ran.outcomes, tryGit);
+          const profile = { id: runId, job: ran.job, runner: ran.runner, green: ran.green, ...(testOutcomes ? { testOutcomes } : {}) };
+          writeFileSync(profileFile, JSON.stringify(profile) + '\n', { mode: 0o600 });
+          return { id: runId, isGreen: ran.green, executionRunner: ran.runner, profile, ...(testOutcomes ? { testOutcomes } : {}) };
         },
       });
       compared = { ...compared, status: 'complete', source: item.item_commit, digest: item.item_frozen_digest };
@@ -639,19 +660,8 @@ async function recordComparison(ctx, item, result) {
   });
 }
 
-/** A green submission records pending before detaching work; no comparison grants gate or verdict authority. */
-export async function startAutomaticComparison(ctx, id) {
-  const item = withBoardRead(ctx, board => store.getItem(board, id));
-  const previous = withBoardRead(ctx, board => recordedVerificationComparison(store.itemThread(board, id), item));
-  if (previous && ['pending', 'complete'].includes(previous.status)) return;
-  const pending = { item: id, status: 'pending', source: item.item_commit, digest: item.item_frozen_digest };
-  await recordComparison(ctx, item, pending);
-  try {
-    await launchComparisonWorker({ origin: ctx.info.root, commonDir: ctx.info.commonDir,
-      toolRoot: fileURLToPath(new URL('../../../../../', import.meta.url)), entry: 'apps/cli/pullboard.js',
-      item: id, source: item.item_commit, digest: item.item_frozen_digest }, { snapshot: toolsSnapshot });
-  } catch (error) { await recordComparison(ctx, item, { ...pending, status: 'unavailable', error: error.message }); }
-}
+/** How a comparison gets its tools: a cold shared snapshot is built by the detached worker, so submit returns first (#5752) [C7]. */
+const COMPARISON_TOOLS = { snapshot: toolsSnapshot, plan: sharedToolsTarget, snapshotModule: new URL('../toolsnapshot.js', import.meta.url).href };
 
 /** A pending comparison whose worker died starts again from its recorded request, and is recorded unavailable after three restarts [C7]. */
 export async function reviveStalledComparison(ctx, id) {
@@ -663,7 +673,32 @@ export async function reviveStalledComparison(ctx, id) {
   } else if (plan.action === 'restart') {
     await launchComparisonWorker({ origin: ctx.info.root, commonDir: ctx.info.commonDir,
       toolRoot: fileURLToPath(new URL('../../../../../', import.meta.url)), entry: 'apps/cli/pullboard.js',
-      item: id, source: item.item_commit, digest: item.item_frozen_digest }, { snapshot: toolsSnapshot });
+      item: id, source: item.item_commit, digest: item.item_frozen_digest }, COMPARISON_TOOLS);
+  }
+}
+
+/**
+ * Detach a pulled green submission's comparison worker for the board API, which recorded it pending; a launch that
+ * fails is recorded unavailable on the board, so no review waits on a comparison that never ran (#7267) [C7,V4].
+ *
+ * @param {{ root: string, item: number, source: string, digest: string }} request - root: the board's repository.
+ * @returns {Promise<void>}
+ */
+export async function launchPulledComparison({ root, item, source, digest }) {
+  const commonDir = git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+  try {
+    await launchComparisonWorker({ origin: root, commonDir, toolRoot: fileURLToPath(new URL('../../../../../', import.meta.url)), entry: 'apps/cli/pullboard.js',
+      item, source, digest }, COMPARISON_TOOLS);
+  } catch (error) {
+    const { openBoard, closeBoard } = await import('../../../../lib/index.js');
+    const board = openBoard(store.boardFilePath(commonDir));
+    try {
+      const current = store.getItem(board, item);
+      if (current?.item_commit === source && current.item_frozen_digest === digest) {
+        store.appendFact(board, item, { agentId: current.item_owner ?? 'coordinator', kind: 'measurement',
+          text: VERIFICATION_COMPARISON_PREFIX + JSON.stringify({ item, status: 'unavailable', source, digest, error: String(error?.message ?? error).slice(0, 500) }) });
+      }
+    } finally { closeBoard(board); }
   }
 }
 

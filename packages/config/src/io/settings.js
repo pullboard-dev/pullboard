@@ -1,6 +1,8 @@
 /** Machine-wide settings shared by every Pullboard checkout on this machine. */
 import {
   chmodSync,
+  existsSync,
+  statSync,
   mkdirSync,
   readFileSync,
   renameSync,
@@ -17,8 +19,12 @@ import {
   updateRunnerSettings,
 } from '../../../resources/index.js';
 import { validateRunner } from '../logic/settings.js';
+import { PERSON_SET } from '../logic/settings.js';
+import { parsePersonSet } from '../logic/settings.js';
 import { loadMachineSettings } from '../logic/settings.js';
+import { parseRunnerRate } from '../logic/runner-rates.js';
 import { validateServe } from '../logic/settings.js';
+import { validateBoardRemote } from '../logic/settings.js';
 export { loadMachineSettings };
 import { Refused } from '../../../kernel/index.js';
 import { relayCanaryConfig } from '../logic/settings.js';
@@ -57,6 +63,11 @@ export function browserFreeChecksEnabled() {
 /** Runner-first admission is machine-wide and remains off unless explicitly enabled. */
 export function gateRunnersFirstEnabled() {
   return loadMachineSettings().gate?.runnersFirst === true;
+}
+
+/** Replay a changed move table in the submit gate only when this machine opted in [C7,#8073]. */
+export function tableReplayEnabled() {
+  return loadMachineSettings().gate?.tableReplay === true;
 }
 
 /** Run the full suite after each landed train batch only when this machine opted in. */
@@ -114,11 +125,53 @@ export function setWorkerBudget(budget) {
   return next;
 }
 
+/**
+ * The board this machine's seats read over HTTP, or null for the local board: board.url and board.token [P7].
+ * Why: a seat on another host has no board.sqlite; it reaches the board host's pullboard serve instead.
+ * @returns {{ url: string, token: string } | null}
+ */
+export function boardRemote() {
+  const board = loadMachineSettings().board;
+  return board?.url ? { url: board.url, token: board.token ?? '' } : null;
+}
+
+/**
+ * Set board.url or board.token; the value off removes it, so seats use the local board again [P7].
+ * @param {'url' | 'token'} key
+ * @param {string} value
+ */
+export function setBoardRemote(key, value) {
+  const current = loadMachineSettings();
+  const { [key]: _old, ...rest } = current.board ?? {};
+  const board = value === 'off' ? rest : { ...rest, [key]: value };
+  validateBoardRemote(board, 'the command line');
+  const { board: _board, ...others } = current;
+  const next = Object.keys(board).length ? { ...others, board } : others;
+  writeMachineSettings(next);
+  return next;
+}
+
 /** Set the runner deadline for new work without changing any admitted or queued run. */
 export function setGateRunnerWaitMs(milliseconds) {
   validateRunnerWaitMs(milliseconds);
   const current = loadMachineSettings();
   const next = { ...current, gate: { ...current.gate, runnerWaitMs: milliseconds } };
+  writeMachineSettings(next);
+  return next;
+}
+
+/**
+ * Store one runner's rate card in machine settings, refusing a card with a missing or invalid field.
+ * Why: a later cost figure is only as honest as its inputs, so only a whole, valid card is stored.
+ *
+ * @param {string} host - The runner host the card belongs to.
+ * @param {unknown} card - { price, months, watts, kwhPrice }.
+ * @returns {object} The settings now stored.
+ */
+export function setRunnerRate(host, card) {
+  const parsed = parseRunnerRate(card, host);
+  const current = loadMachineSettings();
+  const next = { ...current, runnerRates: { ...current.runnerRates, [host]: parsed } };
   writeMachineSettings(next);
   return next;
 }
@@ -149,11 +202,12 @@ export function submitAuthorizationMode() {
 }
 
 /**
- * How a runner job is watched: `controller` holds one process per job until its result, `pull` waits on a shared status
- * mirror in the caller [C7,#5465]. Anything but an exact `pull` is the default, so a damaged value never changes dispatch.
+ * How a runner job is watched: `pull` (default) offers each job as a row a runner takes and waits on a shared status
+ * mirror in the caller; `controller` holds one process per job until its result [C7,P7,#5465]. Why pull by default: a
+ * fresh board's gate then runs on the zero-setup loopback runner, so no command holds this machine while it runs.
  */
 export function runnerDispatchMode() {
-  return loadMachineSettings().gate?.runnerDispatch === 'pull' ? 'pull' : 'controller';
+  return loadMachineSettings().gate?.runnerDispatch === 'controller' ? 'controller' : 'pull';
 }
 
 /**
@@ -185,6 +239,15 @@ export function pullGateFor(item) {
  */
 export function localRunnerEnabled() {
   return loadMachineSettings().gate?.localRunner !== false;
+}
+
+/**
+ * The load per core below which the local runner takes a job: gate.localLoadShare, default 1.0. Why: with no runners the
+ * machine runs its own gates, and taking one at any load thrashed a busy Mac; a job waits in the queue instead [P7].
+ */
+export function localLoadShare() {
+  const share = loadMachineSettings().gate?.localLoadShare;
+  return Number.isFinite(share) && share > 0 ? share : 1;
 }
 
 /**
@@ -255,6 +318,29 @@ function writeMachineSettings(settings) {
     writeFileSync(temporary, `${JSON.stringify(settings, null, 2)}\n`, { mode: 0o600 });
     renameSync(temporary, file);
   } finally { rmSync(temporary, { force: true }); }
+}
+
+/**
+ * Set one plain-valued machine setting from what a person typed, or clear it with `off`, keeping every other setting.
+ * A value the loader refuses is rolled back, so a typo never leaves settings.json unreadable [O5,O6,N26].
+ */
+export function setPersonSetting(key, text) {
+  const value = parsePersonSet(key, text);
+  if (PERSON_SET[key] === 'folder' && value !== undefined && !statSync(value, { throwIfNoEntry: false })?.isDirectory()) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `scratch must be an absolute folder that exists, or off; run pullboard settings scratch <folder>|off`);
+  }
+  const settings = structuredClone(loadMachineSettings());
+  const names = key.split('.');
+  const parents = names.slice(0, -1).reduce((node, name) => (node[name] = node[name] && typeof node[name] === 'object' ? node[name] : {}), settings);
+  if (value === undefined) delete parents[names.at(-1)]; else parents[names.at(-1)] = value;
+  const file = machineSettingsFile();
+  const before = existsSync(file) ? readFileSync(file) : null;
+  writeMachineSettings(settings);
+  try { loadMachineSettings(); } catch (error) {
+    if (before) writeFileSync(file, before, { mode: 0o600 }); else rmSync(file, { force: true });
+    throw error;
+  }
+  return settings;
 }
 
 /** Persist an explicitly configured canary without changing any board's credentials or project policy. */
@@ -417,6 +503,36 @@ export function recordRunnerMeasurement(host, observation) {
     writeMachineSettings({ ...current, runners });
     return runner;
   }, { observation: true });
+}
+
+/**
+ * Take a registered runner out of rotation (`drain`) or back in: dispatch and pull claims give it no new job, its running
+ * jobs keep their leases and finish. Why: a runner jammed overnight and nothing could rest it while a fix rolled out.
+ */
+export function setRunnerDrain(host, drain) {
+  return updateRunnerSettings(host, () => {
+    const current = loadMachineSettings();
+    const index = (current.runners ?? []).findIndex(runner => runner.host === host);
+    if (index < 0) throw new Refused('RUNNER_NOT_REGISTERED', `runner ${host} is not registered`, 'run pullboard runner list');
+    const { drain: _drained, ...rest } = current.runners[index];
+    const runner = validateRunner(drain ? { ...rest, drain: true } : rest);
+    const runners = [...current.runners]; runners[index] = runner;
+    writeMachineSettings({ ...current, runners });
+    return runner;
+  }, { observation: true });
+}
+
+/**
+ * The share of each runner's slots every job class keeps (gate.jobReserve), or null: unset keeps today's claim order,
+ * set makes a claim take the highest class first while each class keeps its reserve [C7].
+ */
+export function jobReserve() {
+  return loadMachineSettings().gate?.jobReserve ?? null;
+}
+
+/** The hosts taken out of rotation with `pullboard runner drain`: a pull runner serving under one of these ids is given no job. */
+export function drainedRunnerHosts() {
+  return (loadMachineSettings().runners ?? []).filter(runner => runner.drain === true).map(runner => runner.host);
 }
 
 /** Stop dispatching to a runner immediately; admitted jobs keep their leases until they finish. */

@@ -3,7 +3,7 @@
  * own job; every phase it runs in this process records through it, and a process with no open sink records nothing.
  * The jobs cell keeps the span files.
  */
-import { appendGateSpan } from '../../../../jobs/index.js';
+import { appendGateSpan } from '../../../../jobs/light.js';
 import { recordLandingSpan } from './landing.js';
 
 /** The typed failure causes a span may carry: readiness-miss, transport-lost, runner-dropped, deadline, infra-retry. */

@@ -9,6 +9,12 @@ import { unownedMainReds } from "./reworks.js";
 import { linkKnownMainReworks } from "./reworks.js";
 import { validateItemAddition } from "../../../io/board/add.js";
 import { insertItem } from "../../../io/board/add.js";
+import { appendFact } from "../../../io/board/fact.js";
+import { splitMainReds } from "../../../../../items/index.js";
+import { mainRedFact } from "../../../../../items/index.js";
+import { mainRedKeyLines } from "../../../../../items/index.js";
+import { writeBoardMeta } from "../../../io/board/meta.js";
+import { atomic } from "../../../io/board/event/log.js";
 
 /** Quote one derived literal file without interpreting its bytes as shell syntax. */
 function word(file) { return "'" + file.replaceAll("'", "'\\''") + "'"; }
@@ -68,9 +74,13 @@ export function fileKnownMainAutofile(board, id, options, items, runningFile = f
   for (const { file, names } of missing) {
     const lane = laneOf({ lanes: options.autoMainReds.lanes }, file);
     if (!lane || lane === 'coordinator') throw new Refused('SUBMISSION_PROOF', `automatic Main red repair has no declared owner lane for ${file}; ask the coordinator to file or route its repair`);
+    // One cause key for every filer: a case an open repair owns gets a fact there, never a second item.
+    const { owned, fresh } = splitMainReds(items, names.map(name => ({ file, name })));
+    for (const [owner, rows] of owned) appendFact(board, owner, { agentId: options.agentId, kind: 'measurement', text: mainRedFact(rows, `submit #${id}; main ${known.main}`) });
+    if (!fresh.length) continue;
     const item = { by: options.agentId, lane, title: `Main red: ${file}`, route: 'strong', specIds: [], parentId: null, after: [],
-      criterion: `Repair these exact cases on main ${known.main}: ${names.join('; ')}. First introducing landing: unknown. Filed by submit #${id} from identical native candidate/main failure signatures.`,
-      brief: `Files: ${file}\nTest: Run the stored exact-file check; every case named in the criterion must pass.\nSource: submit #${id}; main ${known.main}` };
+      criterion: `Repair these exact cases on main ${known.main}: ${fresh.map(row => row.name).join('; ')}. First introducing landing: unknown. Filed by submit #${id} from identical native candidate/main failure signatures.`,
+      brief: `Files: ${file}\nTest: Run the stored exact-file check; every case named in the criterion must pass.\nSource: submit #${id}; main ${known.main}\n${mainRedKeyLines(fresh)}` };
     const validated = validateItemAddition(board, item);
     // This engine's approved authority derives this one check; it does not impersonate the coordinator or widen addItem.
     const repair = insertItem(board, item, { ...validated, command: `${options.autoMainReds.runner.trim()} ${word(file)}` });
@@ -82,4 +92,37 @@ export function fileKnownMainAutofile(board, id, options, items, runningFile = f
   const linked = linkKnownMainReworks(known, items, id, true, runningFile);
   if (!linked) throw refused();
   return { known: linked, repairs };
+}
+
+/**
+ * File one derived Main red repair per file of a pulled gate's unowned main reds, when accepted main opts in with
+ * submit.autoFileMainReds, and keep each case's first error line for show. Why its own path: a pulled gate's receipt
+ * carries no native submit receipts for the inline sealed autofile, but the board host has already judged every case
+ * red identically on main. As the sealed autofile does, this engine derives the one exact-file check itself, under
+ * accepted main's opt-in; it does not impersonate the coordinator or widen addItem [V4,B3,C7].
+ *
+ * @param {any} board
+ * @param {number} id - The submitting item.
+ * @param {{ agentId: string, main: string, runner: string, lanes: object, unowned: { file: string, names: string[] }[],
+ *   errors?: { file: string | null, name: string, error: string }[] }} request - runner and lanes: accepted main's config.
+ * @returns {number[] | null} The repairs filed, or null when any file has no owner lane (the coordinator is asked instead).
+ */
+export function filePulledMainReds(board, id, { agentId, main, runner, lanes, unowned, errors = [] }) {
+  if (typeof runner !== 'string' || !runner.trim() || !unowned.length) return null;
+  const owned = unowned.map(red => ({ ...red, lane: laneOf({ lanes }, red.file) }));
+  if (owned.some(red => !red.lane || red.lane === 'coordinator')) return null;
+  return atomic(board, () => owned.map(({ file, names, lane }) => {
+    const rows = names.map(name => ({ file, name }));
+    const item = { by: agentId, lane, title: `Main red: ${file}`, route: 'strong', specIds: [], parentId: null, after: [],
+      criterion: `Repair these exact cases on main ${main}: ${names.join('; ')}. First introducing landing: unknown. Filed by submit #${id} from identical pulled gate and main failures.`,
+      brief: `Files: ${file}\nTest: Run the stored exact-file check; every case named in the criterion must pass.\nSource: submit #${id}; main ${main}\n${mainRedKeyLines(rows)}` };
+    const repair = insertItem(board, item, { ...validateItemAddition(board, item), command: `${runner.trim()} ${word(file)}` });
+    // The first error line of each case, as the candidate's receipt names it: main fails the case the same way.
+    const lines = names.flatMap(name => {
+      const first = errors.find(row => row?.name === name && (row.file === file || row.file === null))?.error?.split('\n').find(line => line.trim());
+      return first ? [{ name, firstError: first.trim().slice(0, 600) }] : [];
+    });
+    if (lines.length) writeBoardMeta(board.db, `main_red_failure_lines:${repair}`, JSON.stringify(lines));
+    return repair;
+  }));
 }

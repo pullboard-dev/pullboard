@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { healLeakedRunner } from '../../../../src/io/runner/heal.js';
 
-const HOST = 'coreyolson@192.168.1.51';
+const HOST = 'user@192.0.2.10';
 
 /** A resource queue with one quarantined runner and the given live holders on it. */
 function queueWith(holders) {

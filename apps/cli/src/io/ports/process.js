@@ -1,4 +1,4 @@
-/** @pullboard-module-loads apps/cli/src/io/hook/work.js apps/cli/src/io/submit/handoff/worker.js */
+/** @pullboard-module-loads apps/cli/src/io/hook/work.js */
 /**
  * The process capabilities the CLI entry hands to apps/cli/src/io/main.js. The in-process entry and the resident board
  * process run commands with the same capabilities, so both compose them here [C7].
@@ -23,7 +23,7 @@ export function gateWaitReporter(io) {
 
 /** Compose process-only capabilities after a command actually requests them. */
 export function loadProcessPorts() {
-  return Promise.all([import('node:url'), import('../../../../../packages/outbox/index.js')]).then(([{ fileURLToPath }, { outboxFields }]) => ({
+  return Promise.all([import('node:url'), import('../../../../../packages/outbox/light.js')]).then(([{ fileURLToPath }, { outboxFields }]) => ({
     outboxFields,
     /** Load the canonical guard only when a linked operation actually needs it. */
     withOutboxGuard: (...args) => import('../../../../../packages/outbox/index.js').then(({ withOutboxGuard }) => withOutboxGuard(...args)),
@@ -42,7 +42,6 @@ export function loadProcessPorts() {
     outboxHasPendingCreatedItem: (...args) => import('../../../../../packages/outbox/index.js').then(m => m.outboxHasPendingCreatedItem(...args)),
     checkpointWorker: fileURLToPath(new URL('../../../../lib/src/io/worker/checkpoint/relay.js', import.meta.url)),
     hookWorker: fileURLToPath(new URL('../hook/work.js', import.meta.url)),
-    submitHandoffWorker: fileURLToPath(new URL('../submit/handoff/worker.js', import.meta.url)),
     /** Start only an actually requested sender; ordinary reads never load its modules. */
     launchRelaySender: (root, env) => {
       void import('../../../index.js').then(sender => sender.launchRelaySender(root, env)).catch(() => {});

@@ -32,11 +32,14 @@ const LOCK_MAX_PAUSE_MS = 30_000;
 export const INVENTORY_WAITS = 8;
 
 /**
- * The infrastructure code behind a failure, or null when it is a real result (a red test, a red check, a rule).
+ * The infrastructure code behind a failure, or null when it is a real result (a red test, a red check, a rule, or a
+ * refusal marked rerun: false).
  * A dropped runner throws RunnerDropped with no code; a raw SQLite lock carries only its message.
  */
 export function infrastructureFailure(error) {
   if (!error || typeof error !== 'object') return null;
+  // A refusal marked rerun: false names a fact no rerun changes, such as a commit the trunk remote lacks (#5808).
+  if (error.rerun === false) return null;
   if (INFRASTRUCTURE_CODES.has(error.code)) return error.code;
   if (error.name === 'RunnerDropped') return 'TRANSPORT_LOST';
   if ((error.code === undefined || error.code === 'ERR_SQLITE_ERROR') && LOCKED.test(String(error.message ?? ''))) return 'DATABASE_LOCKED';

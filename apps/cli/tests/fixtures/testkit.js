@@ -27,9 +27,26 @@ function fixtureResult(result) {
   return { code: result.code ?? result.status, out: result.out ?? result.stdout ?? '', err: result.err ?? result.stderr ?? '' };
 }
 
-/** Join a fixture worktree with the model and route required by current admission rules. */
-export function joinFixtureSeat(box, root, lane, { model = 'Fixture Model', route = 'strong', run = box.run } = {}) {
-  return fixtureResult(run(root, 'join', lane, '--model', model, '--route', route, '--json'));
+/** Join a fixture worktree with the model and route required by current admission rules; an awaited runner gives an awaited result. */
+export function joinFixtureSeat(box, root, lane, { model = 'Fixture Model', route = 'strong', lockLane = false, run = box.run } = {}) {
+  const result = run(root, 'join', lane, '--model', model, '--route', route, ...(lockLane ? ['--lock-lane'] : []), '--json');
+  return typeof result?.then === 'function' ? result.then(fixtureResult) : fixtureResult(result);
+}
+
+/**
+ * Run a fixture add; when the likely-duplicate guard refuses it, file it again naming the item it resembles.
+ *
+ * Why: fixture boards file many near-identical items by design, and the guard is for people, so the kit answers it once
+ * here instead of every journey inventing distinct titles [C7].
+ */
+function addAnsweringDuplicate(run, root, addArgs) {
+  const nearest = raw => {
+    const result = fixtureResult(raw);
+    return result.code === 0 ? null : /DUPLICATE_LIKELY[\s\S]*?#(\d+)/u.exec(result.out + result.err)?.[1] ?? null;
+  };
+  const again = (raw, id) => id === null ? raw : run(root, ...addArgs.slice(0, -1), '--not-duplicate-of', `${id} fixture items repeat by design`, '--json');
+  const first = run(root, ...addArgs);
+  return typeof first?.then === 'function' ? first.then(raw => again(raw, nearest(raw))) : again(first, nearest(first));
 }
 
 /** Add a fixture item with a complete route-specific build brief and return its parsed item; a diagnosis fact routes the item light, so pass diagnose: false to keep the declared route. */
@@ -37,21 +54,37 @@ export function fileFixtureItem(box, root, { lane, title, criterion = 'The fixtu
   const buildBrief = brief ?? `Files:\n- ${lane}/fixture.js\nChange:\n- Keep the fixture valid.\nTest:\n- ${title} passes.`;
   const addArgs = ['add', lane, title, '--route', route, '--criterion', criterion];
   if (check !== null) addArgs.push('--check', check);
+  if (check === 'true') addArgs.push('--accept-green', 'fixture check keeps passing');
   addArgs.push('--brief', buildBrief, ...args, '--json');
   if (wait) addArgs.splice(addArgs.length - 1, 0, '--wait');
-  const result = fixtureResult(run(root, ...addArgs));
-  assert.equal(result.code, 0, `${result.out}\n${result.err}`);
-  const item = JSON.parse(result.out).item;
-  if (check !== null && diagnose) {
-    const recorded = fixtureResult(run(root, 'fact', String(item.item_id), 'diagnosis', diagnosis ?? buildBrief, '--json'));
+  const added = addAnsweringDuplicate(run, root, addArgs);
+  const afterAdd = raw => {
+    const result = fixtureResult(raw);
+    assert.equal(result.code, 0, `${result.out}\n${result.err}`);
+    const item = JSON.parse(result.out).item;
+    return { item, fact: check !== null && diagnose ? () => run(root, 'fact', String(item.item_id), 'diagnosis', diagnosis ?? buildBrief, '--json') : null };
+  };
+  const afterFact = raw => {
+    const recorded = fixtureResult(raw);
     assert.equal(recorded.code, 0, `${recorded.out}\n${recorded.err}`);
+  };
+  // An awaited runner (box.runLocal) gets an awaited item; a synchronous runner keeps the synchronous answer.
+  if (typeof added?.then === 'function') {
+    return added.then(async raw => {
+      const step = afterAdd(raw);
+      if (step.fact) afterFact(await step.fact());
+      return step.item;
+    });
   }
-  return item;
+  const step = afterAdd(added);
+  if (step.fact) afterFact(step.fact());
+  return step.item;
 }
 
 /** Create and join a fixture worktree with all current admission identity flags. */
 export function createFixtureWorktree(box, root, lane, { model = 'Fixture Model', route = 'strong', run = box.run } = {}) {
-  return fixtureResult(run(root, 'worktree', lane, '--model', model, '--route', route, '--json'));
+  const result = run(root, 'worktree', lane, '--model', model, '--route', route, '--json');
+  return typeof result?.then === 'function' ? result.then(fixtureResult) : fixtureResult(result);
 }
 
 /**
@@ -138,6 +171,26 @@ export function fixtureProjectPolicy(repo, { config = {}, spec } = {}) {
  */
 export function fixtureMachineSettings(machineHome, settings) {
   writeFileSync(join(machineHome, 'settings.json'), JSON.stringify(settings));
+}
+
+/**
+ * The gate dispatch under which a fixture's submit, test run or comparison settles inside the command that started it.
+ * Why one constant: fixtures name their dispatch here instead of inheriting the machine default. Pull is the only dispatch:
+ * a plain fixture project is judged by the runner's installed Pullboard (#6265), on the loopback local runner [P7,#5821].
+ */
+export const FIXTURE_GATE_DISPATCH = Object.freeze({ runnerDispatch: 'pull' });
+
+/**
+ * Make a fixture machine home whose submits settle the same way whatever the machine's runnerDispatch default is:
+ * the folder, and its settings with FIXTURE_GATE_DISPATCH under any gate fields the fixture names.
+ *
+ * @param {string} machineHome - The fixture's machine home folder.
+ * @param {object} [settings] - Further machine settings; its gate fields keep their own values beside the dispatch.
+ * @returns {void}
+ */
+export function fixtureSettledMachine(machineHome, settings = {}) {
+  mkdirSync(machineHome, { recursive: true });
+  fixtureMachineSettings(machineHome, { ...settings, gate: { ...settings.gate, ...FIXTURE_GATE_DISPATCH } });
 }
 
 /**
@@ -290,7 +343,7 @@ export function rigorFixtureBoard(store) {
   const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Rigor fixture', GIT_AUTHOR_EMAIL: 'rigor@example.invalid',
     GIT_COMMITTER_NAME: 'Rigor fixture', GIT_COMMITTER_EMAIL: 'rigor@example.invalid',
-    PULLBOARD_HOME: join(root, 'private-home'), PULLBOARD_MACHINE_HOME: join(root, 'private-machine') };
+    PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(root, 'private-home'), PULLBOARD_MACHINE_HOME: join(root, 'private-machine') };
   const git = (...args) => runFixtureGit(args, { cwd: root, env, encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ name: 'Rigor fixture', gate: 'true', spec: 'SPEC.md',
@@ -317,6 +370,31 @@ export function rigorFixtureBoard(store) {
     note: 'synthetic failure receipt', clause: store.getItem(board, id).item_title, head: store.getItem(board, id).item_commit,
     digest: store.getItem(board, id).item_frozen_digest, policy: 'any' }); };
   return { root, board, submit, reject, close: () => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); } };
+}
+
+/**
+ * File `count` items on a joined project's board and give the seat a closed claim on each, so each has one usage revision pending.
+ *
+ * Why: a usage-drain journey needs many pending revisions on a real board; the raw board writes live in this one kit seam [C7].
+ *
+ * @param {object} store - The store module, passed in so the kit takes on no cell import.
+ * @param {object} board - An open board of the project.
+ * @param {{ agent: string, lane: string, main: string, count: number, now?: number }} seed - The seat, its lane, main's commit and the item count.
+ * @returns {number[]} The item ids, oldest first.
+ */
+export function seedPendingUsage(store, board, { agent, lane, main, count, now = Date.now() - 100000 }) {
+  const ids = [];
+  store.atomic(board, () => {
+    for (let n = 0; n < count; n++) {
+      const id = store.addItem(board, { by: 'coordinator', lane, title: `Usage drain ${n}`, specIds: ['G1'],
+        criterion: 'Usage stays attributed once.', check: 'test -f web/ready',
+        checkBaseline: { command: 'test -f web/ready', result: 'red', main, seconds: 0 } });
+      ids.push(id);
+      store.logEvent(board, agent, 'claim', id, { model: 'unknown', leaseUntil: new Date(now + n * 100 + 90).toISOString() }, new Date(now + n * 100));
+      store.logEvent(board, agent, 'release', id, {}, new Date(now + n * 100 + 50));
+    }
+  });
+  return ids;
 }
 
 /** Commit in one checkout a pullboard.json asking for strict review.independence, so its seat is refused a verdict on its own session's work (#27). */

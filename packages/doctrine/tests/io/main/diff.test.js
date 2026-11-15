@@ -25,7 +25,7 @@ import { readText, runCheck, walk } from './scan.js';
 /** One problem per TODO line in every walked file. */
 export function todoProblems(root) {
   const problems = [];
-  for (const path of walk(root, /^src\\/.*\\.js$/u)) readText(root, path).split('\\n').forEach((text, at) => { if (text.includes('TODO')) problems.push({ path, line: at + 1, text: 'a TODO marker' }); });
+  for (const path of walk(root, /^src\\/.*\\.js$/u)) if (readText(root, path).includes('POISON')) throw new Error('read a file outside the change: ' + path); else readText(root, path).split('\\n').forEach((text, at) => { if (text.includes('TODO')) problems.push({ path, line: at + 1, text: 'a TODO marker' }); });
   return problems;
 }
 runCheck(import.meta, todoProblems);
@@ -116,4 +116,16 @@ test('an honest lowering removes a problem and declares the new count [C7,D1,D3]
   const box = repo();
   const results = await holdDoctrineAsync(box.root, declare(box, 1, 'src/old.js', '// TODO one\n'));
   assert.deepEqual(results.map(row => [row.state, row.count, row.committed]), [['holding', 1, 1]]);
+});
+
+test('a moved main is measured over the changed files only, never its whole tree [C7]', async () => {
+  const box = repo();
+  // Main gains a file the check cannot read; only a whole-tree run at main would open it.
+  writeFileSync(join(box.root, 'src/poison.js'), '// POISON\n');
+  box.git('add', '-A');
+  box.git('commit', '-q', '-m', 'chore: main moves');
+  box.main = box.git('rev-parse', 'HEAD');
+  const results = await holdDoctrineAsync(box.root, change(box, 'src/clean.js', 'export const clean = 3;\n'));
+  assert.deepEqual(results.map(row => [row.id, row.state, row.count]), [['Q1', 'holding', 2]]);
+  await assert.rejects(holdDoctrineAsync(box.root, change(box, 'src/clean.js', '// TODO added\n')), error => error.code === 'RATCHET_ROSE' && error.message.includes('src/clean.js:1:'));
 });

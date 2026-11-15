@@ -16,8 +16,20 @@ import { loadSpec } from '../../../../packages/spec/index.js';
 import { loadDoctrine } from '../../../../packages/doctrine/index.js';
 import { rigorDraftNeeds } from '../../../../packages/rigor/index.js';
 import { personNeeds } from '../../../../packages/spec/index.js';
+import { personNeedsSummaryWith } from '../logic/needs/summary.js';
 import { recentBlocks } from '../logic/needs/summary.js';
-export { personNeedsSummary, recentBlocks } from '../logic/needs/summary.js';
+import { resumeNeedsWith } from '../logic/resume.js';
+export { recentBlocks } from '../logic/needs/summary.js';
+
+/** The status obligations with this machine's passkey decision bound in. */
+export function personNeedsSummary(root, options) {
+  return personNeedsSummaryWith(root, options, verifiedPasskeyRowDecision);
+}
+
+/** Resume's obligations with this machine's passkey decision bound in. */
+export function resumeNeeds(root, options) {
+  return resumeNeedsWith(root, options, verifiedPasskeyRowDecision);
+}
 import {
   projectSpecApprovals,
   specApprovalState,

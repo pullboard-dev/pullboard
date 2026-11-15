@@ -1,15 +1,12 @@
-/** One generation boundary for source-owned format, API, help and lifecycle declarations [C7,A1,A5,M1]. */
+/** One generation boundary for source-owned format, API, and help declarations [C7,A1,A5,M1]. */
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { closeBoard } from '../../../../../packages/store/index.js';
 import { JSON_SHAPES } from '../../../../../packages/config/index.js';
-import { lifecycleMarkdown } from '../../../../../packages/state/index.js';
 import { formatTable } from '../../../../../packages/state/index.js';
-import { HELP_SOURCE_SECTIONS } from '../../logic/help/declarations.js';
 import { commandHelpModule } from '../docs.js';
-import { commandHelpText } from '../docs.js';
 import { replaceDocTable } from '../../logic/generated/doc/blocks.js';
 import { shapeTable } from '../../logic/generated/doc/blocks.js';
 import { schemaDocBlocks } from '../../logic/generated/doc/schema.js';
@@ -32,11 +29,9 @@ export function generatedDocs(root = fileURLToPath(new URL('../../../../../', im
       Object.entries(JSON_SHAPES.http).map(([name, shape]) => [name, shape.required]))),
   };
   for (const [name, table] of Object.entries(tables)) api = replaceDocTable(api, name, table);
-  const help = HELP_SOURCE_SECTIONS.map(section => section.name === 'footer'
-    ? commandHelpText(root) + section.text : section.text).join('');
   return new Map([
-    ['docs/formats.md', formats], ['docs/api.md', api], ['docs/lifecycle.md', lifecycleMarkdown()],
-    ['apps/cli/src/logic/help/additions.js', commandHelpModule(root)], ['docs/cli-help.txt', help + '\n'],
+    ['docs/formats.md', formats], ['docs/api.md', api],
+    ['apps/cli/src/logic/help/additions.js', commandHelpModule(root)],
   ]);
 }
 

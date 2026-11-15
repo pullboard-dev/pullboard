@@ -18,6 +18,7 @@ import {
   chromeExecutable,
   openSnapshotChrome,
   closeSnapshotChrome,
+  openItemsNeeds,
 } from '../../tests/fixtures/cockpit/harness.js';
 
 /**
@@ -59,7 +60,7 @@ test('clause 1: the view shows one sentinel draft with its proof, never as an ap
     const page = await openPage(view);
     // Pages open on the Dashboard since #2289 and draw Needs you on Items only, so open Items as a person would.
     await page.click({ tab: 'items' });
-    await page.run(`data.project.sentinelDrafts = ${JSON.stringify([draft({ name: 'rigor-row-g1', check: 'test -f up.txt' })])}; render();`);
+    await page.run(`data.project = { ...data.project, sentinelDrafts: ${JSON.stringify([draft({ name: 'rigor-row-g1', check: 'test -f up.txt' })])} }; render();`);
     const html = page.show('needs');
     const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
     assert.equal((html.match(/data-sentinel-draft=/g) || []).length, 1, 'one draft is one row');
@@ -68,11 +69,11 @@ test('clause 1: the view shows one sentinel draft with its proof, never as an ap
     assert.match(text, /Proposed by An agent · 2 repeats Repeated cause row:G1 Cited items #4, #7/, 'it cites the repeat');
     assert.match(text, /Proof command test -f up\.txt Red proof aaaaaaaaaaaa · exit 1 Green proof bbbbbbbbbbbb · exit 0/, 'it shows the red and green proof');
     assert.doesNotMatch(text, /release|approved sentinel|is watching/i, 'it is neither a lane hold nor an approved sentinel');
-    await page.run(`data.project.sentinelDrafts = ${JSON.stringify([draft({ name: 'x<b>y', check: 'true', cited: false })])}; render();`);
+    await page.run(`data.project = { ...data.project, sentinelDrafts: ${JSON.stringify([draft({ name: 'x<b>y', check: 'true', cited: false })])} }; render();`);
     const bare = page.show('needs');
     assert.match(bare, /Proposed by.*An agent, with no repeat cited/, 'a draft with no evidence says so');
     assert.ok(!bare.includes('<b>y'), 'the name is escaped');
-    await page.run('data.project.sentinelDrafts = []; render();');
+    await page.run('data.project = { ...data.project, sentinelDrafts: [] }; render();');
     assert.equal(page.show('needs').includes('data-sentinel-draft'), false, 'an approved or declined draft leaves Needs-you');
   } finally {
     await view.stop();
@@ -87,11 +88,12 @@ test('a Rigor proposal reaches Needs you only after coordinator materialization 
     const page = await openPage(view);
     // Pages open on the Dashboard since #2289 and draw Needs you on Items only, so open Items as a person would.
     await page.click({ tab: 'items' });
-    await page.run(`data.project.rigorDrafts = [{kind:'rigor-draft',id:'doctrine:RG1',ref:'doctrine:RG1',target:'doctrine:RG1',
+    await page.run(`data.project = { ...data.project, rigorDrafts: [{kind:'rigor-draft',id:'doctrine:RG1',ref:'doctrine:RG1',target:'doctrine:RG1',
       text:'Rigor draft (unproved): Review the repeated cause.',unproved:true,materialized:false,
-      what:'Coordinator: materialize with pullboard spec apply; then the person approves or declines'}]; render();`);
+      what:'Coordinator: materialize with pullboard spec apply; then the person approves or declines'}] }; render();`);
     assert.doesNotMatch(page.show('needs'), /Rigor|materialize/u, 'coordinator preparation is not a person call');
-    await page.run('data.project.rigorDrafts[0].materialized = true; render();');
+    // The page reads the person's rulings once per board state, so each change installs a fresh state (#6851).
+    await page.run('data.project = { ...data.project, rigorDrafts: [{ ...data.project.rigorDrafts[0], materialized: true }] }; render();');
     const html = page.show('needs');
     const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
     assert.match(text, /an unproved Rigor proposal/u);
@@ -132,6 +134,7 @@ test('a materialized automatic Rigor draft shows in Needs you, marked unproved, 
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor(`innerWidth === ${width}`);
       await chrome.click(`document.querySelector('[data-tab=items]')`);
+      await openItemsNeeds(chrome);
       const read = JSON.parse(await chrome.stable(`JSON.stringify((() => {
         const needs = document.querySelector('#needs');
         const rows = [...needs.querySelectorAll('.needs-call')].map((row) => ({ words: row.querySelector('.needs-copy b').textContent,

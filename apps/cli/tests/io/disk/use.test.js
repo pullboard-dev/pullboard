@@ -1,3 +1,5 @@
+/** @pullboard-test-input apps/cli/src/io/disk/use.js packages/gate/data/baselines/stores.json */
+/** @pullboard-world-pin reads the disk module's own source to prove it names no store by hand. */
 /** Disk use is reported per store with a warning threshold, and retention ages out raw material but never a referenced record [C7]. */
 import assert from 'node:assert/strict';
 import { chmodSync } from 'node:fs';
@@ -9,6 +11,7 @@ import { utimesSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { DISK_STORES } from '../../../src/io/disk/use.js';
 import { diskLines } from '../../../src/io/disk/use.js';
 import { diskPolicy } from '../../../src/io/disk/use.js';
 import { MEASURE_LOCK } from '../../../src/io/disk/use.js';
@@ -17,6 +20,8 @@ import { diskUse } from '../../../src/io/disk/use.js';
 import { startDiskMeasure } from '../../../src/io/disk/use.js';
 import { pruneDisk } from '../../../src/io/disk/use.js';
 import { refusingBadPolicy } from '../../../src/io/disk/use.js';
+import { diskStoresFrom } from '../../../../../packages/gate/index.js';
+import { storeRegistry } from '../../../../../packages/gate/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { runFixtureChild } from '../../fixtures/child.js';
@@ -172,4 +177,25 @@ test('retention walks a folder of 200000 entries without a stack overflow and fi
   const result = pruneDisk(dir, { now: NOW, dryRun: true });
   assert.ok(!result.removed.some(row => row.entry === 'flake-big-6666'), 'a folder holding a fresh file is not aged');
   assert.ok(result.removed.some(row => row.entry === 'flake-old-5555'), 'an all-old folder is still removed');
+});
+
+test('#6738 clause 1: DISK_STORES comes from stores.json and the file holds no hand-written store list [C7]', () => {
+  const source = readFileSync(new URL('../../../src/io/disk/use.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /'worktree-archives'|'check-receipts'|'board\.sqlite'/u, 'no store name is written in the module');
+  const registry = storeRegistry();
+  assert.deepEqual(DISK_STORES, diskStoresFrom(registry));
+  assert.ok(DISK_STORES['worktree archives'].includes('worktree-archives') && DISK_STORES.receipts.includes('landings'));
+});
+
+test('#6738 clause 2: every store in stores.json is in DISK_STORES under its disk group, so a missing one fails [C7]', () => {
+  const registry = storeRegistry();
+  for (const [name, row] of Object.entries(registry.dirs)) assert.ok(typeof row.disk === 'string', `directory store ${name} names its disk group (or other)`);
+  for (const rows of [registry.stores, registry.dirs]) {
+    for (const [name, row] of Object.entries(rows)) {
+      if (row.disk && row.disk !== 'other') assert.ok(DISK_STORES[row.disk]?.includes(name), `${name} is in DISK_STORES under ${row.disk}`);
+    }
+  }
+  const without = structuredClone(registry);
+  delete without.dirs['worktree-archives'].disk;
+  assert.ok(!diskStoresFrom(without)['worktree archives'].includes('worktree-archives'), 'a row without a group falls out of its group');
 });

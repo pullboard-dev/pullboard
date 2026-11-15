@@ -75,9 +75,10 @@ export function fixture() {
     GIT_AUTHOR_EMAIL: 'queue@example.invalid',
     GIT_COMMITTER_NAME: 'Queue Test',
     GIT_COMMITTER_EMAIL: 'queue@example.invalid',
-    PULLBOARD_HOME: join(dir, 'home'),
+    PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(dir, 'home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'home'),
   };
+  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
   delete env[GATE_SLOT_HELD_ENV];
   // The runner this file runs on holds a token of its own run's file pool; whole-suite fixture runs need a pool of their own.
   delete env[TEST_FILE_POOL_ENV];
@@ -184,11 +185,11 @@ await withGateSlot(process.cwd(), async () => {
 }
 
 /** Fill both gate slots with real whole-suite runs and wait until each one's probe is running. */
-export async function wholeSuiteHolders(box, names) {
+export async function wholeSuiteHolders(box, names, add = child => child) {
   const runs = names.map(name => {
     const marker = join(box.dir, `${name}.started`);
     const release = join(box.dir, `${name}.release`);
-    return { marker, release, child: launchTestRunner(box, probeSuite(box, name), [], marker, release) };
+    return { marker, release, child: add(launchTestRunner(box, probeSuite(box, name), [], marker, release)) };
   });
   try { await waitFor(() => runs.every(run => existsSync(run.marker)), 'every gate slot to hold a whole-suite run'); } catch (error) {
     throw new Error(`${error.message}: ${runs.map(run => `${run.child.exitCode ?? 'running'} ${run.child.stdoutText}${run.child.stderrText}`).join(' | ').slice(0, 1500)}; home ${readdirSync(join(box.dir, 'home')).join(',')} settings ${readFileSync(join(box.dir, 'home', 'settings.json'), 'utf8')}`);

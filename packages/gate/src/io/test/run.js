@@ -26,6 +26,7 @@ import { selectRegistryGuards } from '../../../../kernel/index.js';
 import { mainPolicy } from '../../../../sandbox/index.js';
 import { runnerPolicyRecord } from '../../../../sandbox/index.js';
 import { RUNNER_POLICY_FILE } from '../../../../sandbox/index.js';
+import { affectedCommand } from './affected-command.js';
 import { acceptedBudgetTrunk } from './file/policy.js';
 import {
   cleanGitEnvironment,
@@ -46,6 +47,7 @@ import { timingSource } from '../run/timing.js';
 import { whileSeatAlive } from '../keepalive.js';
 import { announceTestRun } from '../../logic/test/progress.js';
 import { trackedDefaultTestFiles } from './selection.js';
+import { recordGreenRun } from '../shards/green.js';
 import {
   preQueueReuse,
   reuseReceipt,
@@ -76,11 +78,6 @@ function testRunnerAdmission() {
   const admission = gateRunnerAdmission();
   if (admission.runnerOnly) process.stderr.write('gate.runnersOnly is on; tests wait for a registered runner with no local fallback\n');
   return admission;
-}
-
-/** Quote one argument for the configured focused test command. */
-function shellWord(value) {
-  return `'${String(value).replaceAll("'", "'\\''")}'`;
 }
 
 /** Keep each named file a test file inside this checkout, as the runner's checkout names it. */
@@ -170,15 +167,18 @@ function localReason() {
 
 /**
  * Hold a local start until the one-minute load is under one per core, so test runs never pile onto a busy
- * machine while it has no runner to send them to [C7]. Returns what the run says about its start.
+ * machine while it has no runner to send them to [C7]. Returns what the run says about its start. A test fixture
+ * board (PULLBOARD_FIXTURE_BOARD=1) starts at once: the outer gated run already owns the load budget, so waiting
+ * again inside it double-counts and times nested journeys out on a loaded runner.
  *
- * @param {{ read?: () => number[], cores?: number, wait?: (ms: number) => Promise<unknown>, pollMs?: number, maxWaitMs?: number, onWait?: (state: object) => void }} [options]
+ * @param {{ env?: Record<string, string | undefined>, read?: () => number[], cores?: number, wait?: (ms: number) => Promise<unknown>, pollMs?: number, maxWaitMs?: number, onWait?: (state: object) => void }} [options]
  * @returns {Promise<{ load: number, cores: number, waitedMs: number, note: string }>}
  */
-export async function localLoadStart({ read = loadavg, cores = availableParallelism(), wait = sleep, pollMs = 2000, maxWaitMs = 10 * 60_000, onWait } = {}) {
+export async function localLoadStart({ env = process.env, read = loadavg, cores = availableParallelism(), wait = sleep, pollMs = 2000, maxWaitMs = 10 * 60_000, onWait } = {}) {
   const started = Date.now();
   let load = read()[0];
-  while (load >= cores && Date.now() - started < maxWaitMs) {
+  const fixture = env.PULLBOARD_FIXTURE_BOARD === '1';
+  while (!fixture && load >= cores && Date.now() - started < maxWaitMs) {
     onWait?.({ state: 'local-load', load, cores });
     process.stderr.write(`pullboard test: load ${load.toFixed(1)} on ${cores} cores; waiting for it to drop under ${cores} before a local start\n`);
     await wait(pollMs);
@@ -254,7 +254,7 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, s
         paths = split.run;
       }
     }
-    const focused = paths.length ? `${config.affectedTests.trimEnd()} ${paths.map(path => shellWord('./' + path)).join(' ')}` : '';
+    const focused = paths.length ? affectedCommand(config, paths) : '';
     if (full && !config.gate?.trim()) throw new Refused('NO_TEST_RUNNER', 'affected selection needs the full project gate; set gate in accepted pullboard.json');
     const command = full ? `(${config.gate})${focused ? ' && ' + focused : ''}` : (focused || 'true');
     const browser = full || !browserFreeChecksEnabled() || await testsNeedBrowser(checkout, paths);
@@ -263,6 +263,8 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, s
       try { return await runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs, stages: true }); } finally { stop(); }
     },
       { executionServices, ...admission, browser, gui: (full && projectNeedsGui(checkout)) || testsNeedGui(checkout, paths), shortEligible: !full && !diagnose, agent, item, itemCheck: Boolean(item) && !diagnose, diagnostic: diagnose, kind: 'test', onWait });
+    // A green runner run of named files is the gate's proof of them at this tree: the submit's item check takes it [C7].
+    if (!full && !diagnose && ran?.isGreen) recordGreenRun(ran, { runner: config.affectedTests, files: paths, timingRunId: ran.id ?? null });
     return reusedText && typeof ran?.output === 'string' ? { ...ran, output: reusedText + ran.output } : ran;
   }, withMainCheckout), { everyMs: 30_000 });
   const summary = retainTestOutput(root, run.output, { root: run.executionRoot ?? root, profile: run.profile });

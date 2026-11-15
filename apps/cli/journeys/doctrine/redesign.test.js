@@ -28,7 +28,7 @@ test('Doctrine redesign shows its sources, checks, review state and detail in re
     + '- G1 [approved, must] A local doctrine row keeps its item citation. | gate: commit-msg hook, review\n');
   box.git(repo.repo, 'add', '-A');
   box.git(repo.repo, 'commit', '-qm', 'test: seed real Doctrine gate evidence');
-  box.run(repo.repo, 'add', 'web', 'Doctrine citation', '--specs', 'G1', '--criterion', 'The doctrine row has an item citation.');
+  await box.inProcess(repo.repo, 'add', 'web', 'Doctrine citation', '--specs', 'G1', '--criterion', 'The doctrine row has an item citation.');
   const server = await startView(box);
   let chrome;
   try {
@@ -57,8 +57,8 @@ test('Doctrine redesign shows its sources, checks, review state and detail in re
         pendingColor: getComputedStyle(pb7.querySelector('.chip')).color, pendingDotColor: getComputedStyle(pb7.querySelector('.dot')).color,
         bodyColor: getComputedStyle(document.body).color, pendingState: pb7.querySelector('.dot').className,
         pendingIcon: !!pb7.querySelector('.doctrine-eye'), pendingRed: !!pb7.querySelector('.chip.no'),
-        filter: document.querySelector('#doctrine-chips [data-rows="doctrine:defaults"]')?.textContent,
-        section: section?.querySelector('h4')?.innerText, sectionCount: section?.querySelector('.section-count')?.textContent,
+        filter: (chip => chip && chip.querySelector('.seg-full').textContent + chip.querySelector('b').textContent)(document.querySelector('#doctrine-chips [data-rows="doctrine:defaults"]')),
+        section: section?.querySelector('h3')?.innerText, sectionCount: section?.querySelector('.section-count')?.textContent,
         reviewCount: section?.querySelector('.doctrine-review-count')?.textContent,
         approveAll: !!section?.querySelector('button') };
     })())`));

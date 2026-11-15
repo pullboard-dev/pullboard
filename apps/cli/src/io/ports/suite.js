@@ -21,7 +21,7 @@ async function runSuite(root) {
     { runners: runnerExecutionServices(), landing: landingExecutionServices() });
   if (!run) return { unavailable: 'this project has no full-suite runner the post-land run can use' };
   if (run.isGreen) return { green: true, failures: [] };
-  const failures = failureSignatures(run, run.executionRoot ?? root, { raw: true });
+  const failures = failureSignatures(run, run.executionRoot ?? root, { raw: true, evidence: true });
   return failures ? { green: false, failures } : { green: false, failures: null };
 }
 

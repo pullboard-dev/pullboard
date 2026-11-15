@@ -59,32 +59,32 @@ function assertBlockedByHistoricalHead(result, itemId, oldHead) {
  * Make A's old submission, B's candidate based on that old head, then A's sibling resubmission.
  * B and A-retry use separate real worktrees so A's newer submission cannot enter B's history.
  */
-function submittedSiblingHistory() {
+async function submittedSiblingHistory() {
   const box = e2e.project('true');
   const itemA = add(box, 'A old submitted head');
-  assert.equal(box.run(box.web, 'claim', String(itemA)).code, 0);
+  assert.equal((await box.inProcess(box.web, 'claim', String(itemA))).code, 0);
   const oldHead = commitFile(box, box.web, 'web/a-old.txt', 'A old submitted head');
-  assert.equal(box.run(box.web, 'submit', String(itemA)).code, 0);
+  assert.equal((await box.inProcess(box.web, 'submit', String(itemA))).code, 0);
 
   const itemB = add(box, 'B based on A old head');
   const bWorktree = join(box.dir, 'web-b-from-old-a');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/b-candidate', bWorktree, oldHead);
   joinSeat(box, bWorktree, 'web', { model: FIXTURE_MODEL });
-  const claimedB = box.run(bWorktree, 'claim', String(itemB));
+  const claimedB = await box.inProcess(bWorktree, 'claim', String(itemB));
   assert.equal(claimedB.code, 0, claimedB.out + claimedB.err);
   const bHead = commitFile(box, bWorktree, 'web/b-candidate.txt', 'B candidate based on old A');
 
   const oldReview = join(box.dir, 'review-old-a');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', oldReview, oldHead);
   joinSeat(box, oldReview, 'api', { model: FIXTURE_MODEL_EARLIER });
-  const rejected = box.run(oldReview, 'verify', String(itemA), 'reject', '--reason', 'TEST_FAILURE', '--clause', 'A old submitted head', '--note', 'revise A before acceptance', '--json');
+  const rejected = await box.inProcess(oldReview, 'verify', String(itemA), 'reject', '--reason', 'TEST_FAILURE', '--clause', 'A old submitted head', '--note', 'revise A before acceptance', '--json');
   assert.equal(rejected.code, 0, rejected.out + rejected.err);
 
   const base = box.git(box.repo, 'rev-parse', `${oldHead}^`);
   const retryWorktree = join(box.dir, 'web-a-sibling-retry');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/a-retry', retryWorktree, base);
   joinSeat(box, retryWorktree, 'web', { model: FIXTURE_MODEL });
-  assert.equal(box.run(retryWorktree, 'claim', String(itemA)).code, 0);
+  assert.equal((await box.inProcess(retryWorktree, 'claim', String(itemA))).code, 0);
   const latestAHead = commitFile(box, retryWorktree, 'web/a-new.txt', 'A newer sibling submission');
   assert.notEqual(latestAHead, oldHead);
   assert.equal(box.tryGit(box.repo, 'merge-base', '--is-ancestor', oldHead, latestAHead).status, 1,
@@ -93,32 +93,32 @@ function submittedSiblingHistory() {
     'B does not contain A newer head');
   assert.equal(box.tryGit(box.repo, 'merge-base', '--is-ancestor', oldHead, 'main').status, 1,
     'the historical A submission is not reachable from the trunk exemption');
-  assert.equal(box.run(retryWorktree, 'submit', String(itemA)).code, 0);
+  assert.equal((await box.inProcess(retryWorktree, 'submit', String(itemA))).code, 0);
 
   return { box, itemA, itemB, oldHead, latestAHead, bHead, bWorktree };
 }
 
-test('[V17,V1] an old submitted head remains stacked on another item after a sibling resubmission', () => {
-  const { box, itemA, itemB, oldHead, latestAHead, bHead, bWorktree } = submittedSiblingHistory();
+test('[V17,V1] an old submitted head remains stacked on another item after a sibling resubmission', async () => {
+  const { box, itemA, itemB, oldHead, latestAHead, bHead, bWorktree } = await submittedSiblingHistory();
   assert.equal(box.git(bWorktree, 'rev-parse', 'HEAD'), bHead);
-  assertBlockedByHistoricalHead(box.run(bWorktree, 'submit', String(itemB), '--json'), itemA, oldHead);
-  const a = JSON.parse(box.run(bWorktree, 'show', String(itemA), '--json').out);
+  assertBlockedByHistoricalHead(await box.inProcess(bWorktree, 'submit', String(itemB), '--json'), itemA, oldHead);
+  const a = JSON.parse((await box.inProcess(bWorktree, 'show', String(itemA), '--json')).out);
   assert.equal(a.item_status, 'submitted');
   assert.equal(a.item_commit, latestAHead);
-  assert.equal(JSON.parse(box.run(bWorktree, 'show', String(itemB), '--json').out).item_status, 'claimed');
+  assert.equal(JSON.parse((await box.inProcess(bWorktree, 'show', String(itemB), '--json')).out).item_status, 'claimed');
 });
 
-test('[V17,V1] accepting the latest sibling submission clears every historical stack blocker', () => {
-  const { box, itemA, itemB, oldHead, latestAHead, bHead, bWorktree } = submittedSiblingHistory();
+test('[V17,V1] accepting the latest sibling submission clears every historical stack blocker', async () => {
+  const { box, itemA, itemB, oldHead, latestAHead, bHead, bWorktree } = await submittedSiblingHistory();
   const latestReview = join(box.dir, 'review-latest-a');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', latestReview, latestAHead);
   joinSeat(box, latestReview, 'api', { model: FIXTURE_MODEL_EARLIER });
-  const accepted = box.run(latestReview, 'verify', String(itemA), 'accept', '--note', 'accepted A latest sibling head', '--json');
+  const accepted = await box.inProcess(latestReview, 'verify', String(itemA), 'accept', '--note', 'accepted A latest sibling head', '--json');
   assert.equal(accepted.code, 0, accepted.out + accepted.err);
 
   assert.equal(box.git(bWorktree, 'rev-parse', 'HEAD'), bHead);
-  const submitted = box.run(bWorktree, 'submit', String(itemB), '--json');
+  const submitted = await box.inProcess(bWorktree, 'submit', String(itemB), '--json');
   assert.equal(submitted.code, 0, submitted.out + submitted.err);
-  assert.equal(JSON.parse(box.run(bWorktree, 'show', String(itemB), '--json').out).item_commit, bHead);
+  assert.equal(JSON.parse((await box.inProcess(bWorktree, 'show', String(itemB), '--json')).out).item_commit, bHead);
   assert.notEqual(oldHead, latestAHead);
 });

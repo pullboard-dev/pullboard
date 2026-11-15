@@ -6,6 +6,7 @@ import { Refused } from '../../../kernel/index.js';
 import { recordRunnerMeasurement } from '../../../config/index.js';
 import { declaredMachineSlots } from '../../../config/index.js';
 import { machineHome } from '../../../resources/index.js';
+import { withEnvironment } from '../../../resources/index.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { DatabaseSync } from 'node:sqlite';
 import { existsSync } from 'node:fs';
@@ -204,10 +205,16 @@ function machineRunnersOnly() {
  * hold (gate.memoryFloorMB) holds short slots too, since a short run uses the same machine memory.
  *
  * @param {(lease: { waitMs: number, token?: string, pool?: string, browser?: boolean, slotClass?: 'gate'|'short', release: () => void }) => any | Promise<any>} action - Work to perform while holding a slot.
- * @param {{ landing?: boolean, itemCheck?: boolean, shortEligible?: boolean, diagnostic?: boolean, browser?: boolean, gui?: boolean, remote?: boolean, requiredExecutor?: {kind:'local'}|{kind:'ssh',host:string,hosts?:string[]}, runnerOnly?: boolean, runnerWaitMs?: number, runnerDeadlineAt?: number, timing?: boolean, agent?: string, item?: string|number, kind?: string, onWait?: (state: object) => void, onReceipt?: (receipt: object) => void, readMemory?: typeof readMachineMemory, pinnedSource?: {commit:string, tree:string, trunk:{ref:string, commit:string}} }} [options] - Queue class, short-slot eligibility, remote eligibility, progress reporter, the run's receipt once its slot is released (#836), for tests the machine memory reader, and an exact commit a runner takes from the object store in place of the checkout's HEAD (a main comparison, #3323).
+ * @param {{ env?: Record<string,string>, landing?: boolean, itemCheck?: boolean, shortEligible?: boolean, diagnostic?: boolean, browser?: boolean, gui?: boolean, remote?: boolean, requiredExecutor?: {kind:'local'}|{kind:'ssh',host:string,hosts?:string[]}, runnerOnly?: boolean, runnerWaitMs?: number, runnerDeadlineAt?: number, timing?: boolean, agent?: string, item?: string|number, kind?: string, onWait?: (state: object) => void, onReceipt?: (receipt: object) => void, readMemory?: typeof readMachineMemory, pinnedSource?: {commit:string, tree:string, trunk:{ref:string, commit:string}} }} [options] - Queue class, short-slot eligibility, remote eligibility, progress reporter, the run's receipt once its slot is released (#836), for tests the machine memory reader, and an exact commit a runner takes from the object store in place of the checkout's HEAD (a main comparison, #3323).
  * @returns {Promise<any>} The action's result after releasing its lease.
  */
 export async function withGateSlot(root, action, options = {}) {
+  // options.env, when given, is process.env for the whole admission and the action; absent, nothing changes.
+  return withEnvironment(options.env, () => withGateSlotIn(root, action, options));
+}
+
+/** withGateSlot under its environment. */
+async function withGateSlotIn(root, action, options) {
   const remoteCheck = gateRunnersFirstEnabled() && (options.itemCheck === true || options.kind === 'review');
   options = { ...options, runnerOnly: options.runnerOnly === true || remoteCheck,
     executionServices: requireGateExecutionServices(options.executionServices) };
@@ -477,7 +484,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
         // A loaded runner gets 15 s and three retries before its failed call can quarantine it [C7]. A missed admission
         // deadline gets the same probe (#3738): on 8 Nov a coordinator at load 25 missed every deadline and quarantined
         // six idle runners that all answered SSH; the deadline is the controller's clock, not the runner's answer.
-        const health = cleanup || setup ? null : await confirmRunnerProbe(probeRunnerTransport, lease.runner);
+        const health = cleanup || setup ? null : await confirmRunnerProbe(probeRunnerTransport, lease.runner, retryPolicy.startMs === 0 ? { pauseMs: 0, hostDownMs: 0 } : {}); // A zero first wait (fixtures) skips the confirming probe's pauses too, so a fast-failing stub cannot sit out the 21 s host-down window (#4575).
         const diagnostic = { ...(error.diagnostic ?? { reason: error.name }), confirmingProbe: health };
         // A persistent receipt/capsule failure must surface; rotating through healthy hosts cannot repair it.
         const repeatedStop = previousStopHost === lease.runner.host;

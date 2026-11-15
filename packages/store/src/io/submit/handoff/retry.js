@@ -240,6 +240,28 @@ export function endWithdrawnHandoff(board, id) {
   return record(board, id, { ...job, state: 'ended', reason: 'withdrawn', completedAt: now(board) });
 }
 
+/**
+ * Record an item's queued or running gate as withdrawn, at the request of the seat that holds the item or the coordinator.
+ * Why: a gate that sat in the line for hours had no command to stop it (#2828); the record ends at once, a later result
+ * from its worker is ignored because completeSubmitHandoff stores nothing on a finished record, and a fresh submit
+ * queues a new gate because only a queued or running record counts as pending [C7].
+ *
+ * @param {object} board
+ * @param {number} id
+ * @param {{ agentId: string }} who - The seat asking, bound to the move's sender.
+ * @returns {Record<string, any>} The withdrawn record.
+ */
+function withdrawGate(board, id, { agentId }) {
+  const job = submitHandoff(board, id);
+  if (!job || !['queued', 'running'].includes(job.state)) {
+    throw new Refused('GATE_NOT_WAITING', `item #${id} has no queued or running gate to withdraw; pullboard show ${id} prints its gate state`);
+  }
+  if (agentId !== job.agentId && agentId !== 'coordinator') {
+    throw new Refused('NOT_YOURS', `only the seat that submitted #${id} or the coordinator can withdraw its gate; ask ${job.agentId} or the coordinator`);
+  }
+  return record(board, id, { ...job, state: 'withdrawn', reason: 'gate withdrawn', withdrawnBy: agentId, completedAt: now(board) });
+}
+
 /** Exactly one detached worker enters the existing canonical submit path. */
 export function startSubmitHandoff(board, id, options) {
   return atomic(board, () => {
@@ -268,6 +290,7 @@ export function startSubmitHandoff(board, id, options) {
 /** Store the canonical result without performing any submission transition or accepting new proof. */
 export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMinutes, ...options }) {
   return atomic(board, () => {
+    if (options.withdrawn === true) return withdrawGate(board, id, options);
     const saved = matching(board, id, options);
     if (!['queued', 'running'].includes(saved.state)) return saved;
     const job = { ...saved, ...lockWaitRecord(result?.lockWaits) };

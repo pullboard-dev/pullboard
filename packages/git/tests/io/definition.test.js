@@ -94,3 +94,10 @@ test('the bounded look-back before each literal reads every Pullboard source the
     assert.deepEqual(scanImports(source, true), scanImports(source, true, Infinity), file);
   }
 });
+
+test('a concatenated module load leaves a runner closure intact and a strict scan opaque [C7]', () => {
+  const graph = fixture();
+  graph.put('a.js', "import './b.js';\nexport const load = () => import('./late-' + 'sweep.js');\n");
+  assert.ok(checkCommandDefinition(graph.root, [], [`${graph.root}/a.js`]), 'the closure still names its files');
+  assert.equal(checkCommandDefinition(graph.root, ['node a.js']), null, 'a strict command scan cannot vouch for the load');
+});

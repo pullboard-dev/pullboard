@@ -223,6 +223,11 @@ export function reportInitSetup(io, info, notes, landed, { verbose = false } = {
     io.say('Set up Pullboard: board, project rules, Git hooks and agent instructions.');
     const missingGate = notes.find(note => note.startsWith('gate command "'));
     if (missingGate) io.say(missingGate.split(';')[0] + '.');
+    // An empty gate proves no code, and the first submit refuses NO_GATE: name the exact step now, not at that refusal [C7,#7753].
+    if (notes.some(note => note.startsWith('no test command detected'))) {
+      io.say("No test command found, so the gate is empty. Set it in this checkout: pullboard gate set '<command>', then commit pullboard.json.");
+      io.say('Put a real test command there (for example npm test or pytest); the gate is what proves a build works.');
+    }
     if (landed.length) io.say(`Blueprints: ${landed.length}; ${waiting.length} rows waiting for a decision.`);
     // Codex needs the person when its config writes mcp_servers inline: the exact block shows even without --verbose (#961).
     const codexManual = notes.find(note => note.startsWith(CODEX_MANUAL_NOTE));

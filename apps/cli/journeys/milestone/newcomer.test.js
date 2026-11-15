@@ -20,6 +20,7 @@ import {
   openSnapshotChrome,
   closeSnapshotChrome,
   press,
+  pressTab,
 } from '../../tests/fixtures/cockpit/harness.js';
 
 /** Initialize the real template, retaining its spec and doctrine instead of replacing them with demo rows. */
@@ -42,7 +43,7 @@ function freshProject(box) {
 
 /** Visit one tab through the same pointer path as a person. */
 async function tab(chrome, name) {
-  await press(chrome, `document.querySelector('[data-tab="${name}"]')`);
+  await pressTab(chrome, name);
   await chrome.waitFor(`!document.querySelector('[data-pane="${name}"]').hidden`);
 }
 
@@ -65,8 +66,9 @@ test('a new project reviews inherited defaults and files new work in its first b
       await press(chrome, 'document.querySelector("#doctrine-chips [data-rows=\\"doctrine:decide\\"]")');
       assert.equal(await chrome.stable('document.querySelector("#doctrine-chips [data-rows=\\"doctrine:decide\\"] b").textContent'), '0', `${width}: untouched template rules are not decisions waiting`);
       assert.equal(await chrome.stable('document.querySelectorAll("#doctrine-list .srow").length'), 0, `${width}: no inherited rule appears among the person\'s calls`);
-      const defaults = await chrome.stable('document.querySelector("#doctrine-chips [data-rows=\\"doctrine:defaults\\"]")?.textContent');
-      assert.match(defaults ?? '', /^To review\d+$/, `${width}: inherited rules have the shorter To review label`);
+      const defaults = await chrome.stable('document.querySelector("#doctrine-chips [data-rows=\\"doctrine:defaults\\"]")?.innerText');
+      // The phone tab words shorten To review to Review under 700 px (b0bed6ea95), so the rendered text is read, not both spans' text; wider screens keep To review.
+      assert.match(defaults ?? '', width <= 700 ? /^Review\s*\d+$/ : /^To review\s*\d+$/, `${width}: inherited rules have the shorter To review label`);
       await press(chrome, 'document.querySelector("#doctrine-chips [data-rows=\\"doctrine:defaults\\"]")');
       assert.deepEqual(JSON.parse(await chrome.stable('JSON.stringify([...document.querySelectorAll("#doctrine-list .srow")].map(row => row.dataset.row.slice(9)))')),
         JSON.parse(await chrome.stable('JSON.stringify(data.project.practice.filter(row => row.origin === "standard").map(row => row.id))')), `${width}: every inherited default remains available to review`);
@@ -74,7 +76,7 @@ test('a new project reviews inherited defaults and files new work in its first b
       assert.match(await chrome.stable('document.querySelector("#doctrine-detail").textContent'), /Approve it to keep it, or override or decline it in DOCTRINE\.md/, `${width}: the default explains how to adopt a local rule`);
       assert.equal(await chrome.stable('document.querySelectorAll("#doctrine-detail [data-row-decision]").length'), 0, `${width}: inherited defaults offer no local decision action`);
       await tab(chrome, 'items');
-      await press(chrome, 'document.querySelector("#new-item")');
+      await press(chrome, 'document.querySelector(\'[data-page-ctl=new]\')');
       assert.equal(await chrome.stable('document.querySelector("#add-lane").value'), 'web', `${width}: new work starts in the first lane owning folders`);
       assert.deepEqual(JSON.parse(await chrome.stable('JSON.stringify([...document.querySelector("#add-lane").options].map(option => option.value))')),
         ['web', 'api', 'coordinator', 'review', 'research'], `${width}: building lanes precede coordinator and non-building lanes`);
@@ -127,9 +129,12 @@ test('the actual tour leaves a labelled demo visible at phone and desktop widths
       await chrome.waitFor(`innerWidth === ${width}`);
       assert.ok(await chrome.stable(`[...document.querySelectorAll('#proj-list [data-root]')].some(row => row.dataset.root === ${JSON.stringify(demo)} && /demo/.test(row.textContent))`), `${width}: the real tour board is listed and marked demo`);
       assert.equal(await chrome.stable('document.querySelector("#proj-name").textContent'), 'demo', `${width}: the selected board is the registered tour demo`);
-      assert.ok(await chrome.stable('data.project.items.some(item => item.status === "verified" && item.stage === "merged")'), `${width}: the tour\'s actual accepted history is visible`);
+      // A first load asks for open work only; Roadmap reads the finished items it shows (de3affd4f4, #6697).
+      await tab(chrome, 'roadmap');
+      await chrome.waitFor('data.project.items.some(item => item.status === "verified" && (item.merged || item.stage === "merged"))');
+      assert.ok(await chrome.stable('data.project.items.some(item => item.status === "verified" && (item.merged || item.stage === "merged"))'), `${width}: the tour\'s actual accepted history is visible`);
       await tab(chrome, 'items');
-      await press(chrome, 'document.querySelector("#new-item")');
+      await press(chrome, 'document.querySelector(\'[data-page-ctl=new]\')');
       assert.equal(await chrome.stable('document.querySelector("#add-lane").value'), 'app', `${width}: tour work also defaults to its building lane`);
       await press(chrome, 'document.querySelector("#add-cancel")');
     }

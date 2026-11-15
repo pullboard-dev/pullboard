@@ -50,11 +50,11 @@ import {
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 test('a shout address opens an old shout [N38,N26]', { timeout: 180_000 }, async () => { // budget: hang-only ceiling for real writes and both viewport journeys.
   const box = machine(), alpha = addressBoard(box, 'old-shout-alpha');
-  box.run(alpha.repo, 'shout', 'person', 'OLD ADDRESSED SHOUT, unique body.');
+  await box.inProcess(alpha.repo, 'shout', 'person', 'OLD ADDRESSED SHOUT, unique body.');
   await withBrowser(box, async (chrome, server) => {
     const target = (await boardOf(server, alpha.repo)).shouts.find(one => one.shout_text === 'OLD ADDRESSED SHOUT, unique body.');
     assert.ok(target?.shout_id);
-    for (let index = 0; index < 46; index += 1) box.run(alpha.repo, 'shout', 'person', `Later shout ${index + 1}.`);
+    for (let index = 0; index < 46; index += 1) await box.inProcess(alpha.repo, 'shout', 'person', `Later shout ${index + 1}.`);
     const state = await boardOf(server, alpha.repo);
     assert.equal(state.shouts.length, 40);
     assert.equal(state.shouts.some(one => one.shout_id === target.shout_id), false, 'the target is outside the actual public state window');
@@ -78,7 +78,7 @@ async function shoutLayout(chrome, id) {
       return { left: rect.left + scrollX, top: rect.top + scrollY, width: rect.width, height: rect.height };
     };
     const heading = card?.querySelector('h2');
-    return { card: box(card), avatar: box(card?.querySelector('.avatar')), text: box(card?.querySelector('.text')), header: box(card?.querySelector('header')),
+    return { card: box(card), avatar: box(card?.querySelector('.avatar')), text: box(card?.querySelector('.sx-tx')), header: box(card?.querySelector('.sx-snd')),
       heading: heading ? { tag: heading.tagName, text: heading.textContent } : null,
       found: card?.classList.contains('found') ?? false };
   })())`));
@@ -87,7 +87,7 @@ async function shoutLayout(chrome, id) {
 test('an addressed shout is highlighted without changing its layout [N26,N38]', { timeout: 180_000 }, async (t) => { // budget: hang-only ceiling for four real Chrome viewport and theme checks.
   const box = machine(), alpha = addressBoard(box, 'shout-layout');
   const text = 'Shout whose address must not change its layout.';
-  box.run(alpha.repo, 'shout', 'person', text);
+  await box.inProcess(alpha.repo, 'shout', 'person', text);
   await withBrowser(box, async (chrome, server) => {
     const shout = (await boardOf(server, alpha.repo)).shouts.find(one => one.shout_text === text);
     assert.ok(shout?.shout_id, 'the real board contains the addressed shout');
@@ -100,7 +100,7 @@ test('an addressed shout is highlighted without changing its layout [N26,N38]', 
         await openAddress(chrome, server, '/shouts');
         await assertPlace(chrome, '/shouts', 'shouts', alpha.repo);
         await press(chrome, 'document.querySelector(\'[data-shout-thread="none"]\')');
-        await settled(chrome, `!!document.querySelector('#shout-${shout.shout_id} .text')`);
+        await settled(chrome, `!!document.querySelector('#shout-${shout.shout_id} .sx-tx')`);
         const before = await shoutLayout(chrome, shout.shout_id);
         assert.ok(before.card && before.text && before.header, `${width}px ${scheme}: the opened conversation has its message layout boxes`);
         assert.equal(before.avatar, null, 'the approved conversation has no avatar');
@@ -138,7 +138,7 @@ test('grouped repos each get their own address [N38,N26]', { timeout: 180_000 },
       await onePlace(chrome, 'document.querySelector(\'[data-tab="shouts"]\')', `/${name}/shouts`, 'shouts', repo.repo);
     }
     await openAddress(chrome, server, '/alpha/items/1');
-    if (await chrome.stable("getComputedStyle(document.querySelector('#side .side-body')).display === 'none'")) await press(chrome, "document.querySelector('#proj-switch')");
+    if (await chrome.stable("getComputedStyle(document.querySelector('#side .side-body')).display === 'none'")) { await press(chrome, "document.querySelector('#proj-switch')"); await press(chrome, 'document.querySelector("[data-proj-all]")'); }
     await onePlace(chrome, 'document.querySelector(\'[data-root="' + beta.repo + '"]\')', '/beta/items', 'items', beta.repo);
     await travel(chrome, -1);
     await settled(chrome, `${SCRIPT} && view.root === ${JSON.stringify(alpha.repo)}`);
@@ -164,10 +164,10 @@ test('an older relay shout keeps its address and explains retained history [N38,
   const box = await relayClientFixture(t);
   const text = 'OLD RELAY ADDRESS TARGET 187';
   for (let index = 0; index < 46; index += 1) {
-    const reply = await box.cli('shout', 'person', index === 0 ? text : `Later relay address shout ${index}`);
+    const reply = await box.cliLocal('shout', 'person', index === 0 ? text : `Later relay address shout ${index}`);
     assert.equal(reply.code, 0, 'real CLI appends each fixture shout');
   }
-  const exported = await box.cli('export');
+  const exported = await box.cliLocal('export');
   assert.equal(exported.code, 0);
   const target = exported.document.tables.shout.find(one => one.shout_text === text);
   assert.ok(target?.shout_id);
@@ -189,7 +189,7 @@ test('an older relay shout keeps its address and explains retained history [N38,
   for (let visit = 0; visit < 2; visit += 1) {
     await settled(chrome, `${SCRIPT} && !document.querySelector('#shout-address-status')?.textContent.startsWith('Loading')`);
     await assertPlace(chrome, address, 'shouts', link.board);
-    const body = await chrome.stable(`document.querySelector('#feed #shout-${target.shout_id} .text')?.textContent ?? null`);
+    const body = await chrome.stable(`document.querySelector('#feed #shout-${target.shout_id} .sx-tx')?.textContent ?? null`);
     if (body === text) await assertShout(chrome, target.shout_id, text);
     else assert.match(await chrome.stable("document.querySelector('#shout-address-status')?.textContent ?? ''"), /older than the relay holds/i,
       'an unsupported old read explains the relay retention limit in the Shouts pane');
@@ -257,6 +257,7 @@ test('a sandbox-blocked view port names the fix [I1,L3,P4]', { timeout: 120_000 
         GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', NODE_OPTIONS: `--import=${pathToFileURL(stub).href}`, ...harness.env };
       for (const name of ['CLAUDECODE', 'CODEX_SANDBOX', 'CODEX_SANDBOX_NETWORK_DISABLED', 'AI_AGENT', 'PULLBOARD_VIEW_FOREGROUND']) if (!(name in harness.env)) delete env[name];
       if (foreground) env.PULLBOARD_VIEW_FOREGROUND = '1';
+      // Process-level case: the NODE_OPTIONS import stub and exit status only exist in a real child, so this one launch stays a process.
       const run = (...extra) => runFixtureChild(process.execPath, [BIN, 'view', '--no-open', ...extra], { cwd: dir, env, encoding: 'utf8', timeout: 40_000 });
       const where = `${harness.name}, ${foreground ? 'foreground' : 'background'}`;
       const plain = run();

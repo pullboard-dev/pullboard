@@ -33,6 +33,9 @@ import {
   runFixtureGit,
 } from '../../tests/fixtures/child.js';
 
+// Process-level by nature, so every box.run below stays a real process (10 launches, no in-process form exists):
+// each one starts a copied CLI entry (or its pre-commit hook launcher) to prove that entry's own start-up,
+// stale-worktree handover and PULLBOARD_OWN_CLI behaviour, which runCliInProcess and box.runLocal skip by calling main() directly.
 const SOURCE = resolve(import.meta.dirname, '../../../..');
 const MAIN_MARK = 'fixture-main-cli-ran';
 const OWN_MARK = 'fixture-worktree-cli-ran';
@@ -77,11 +80,15 @@ async function project(t, { predates = false } = {}) {
   }
   // The hook launcher runs the staged static checks before the entry, so their folder is linked too.
   function linkRemaining(relative) {
+    // The fixture keeps no layout baseline, so the layout ratchet leaves its own root entries alone [C7,#6544].
+    if (relative === 'packages/codemap/data/baselines/layout.json') return;
     const destination = join(root, relative);
     if (!existsSync(destination)) return symlinkSync(join(SOURCE, relative), destination);
     if (!statSync(destination).isDirectory()) return;
     for (const name of readdirSync(join(SOURCE, relative))) linkRemaining(join(relative, name));
   }
+  // A real folder chain down to the baselines lets every sibling link while the layout baseline stays absent.
+  mkdirSync(join(root, 'packages/codemap/data/baselines'), { recursive: true });
   for (const folder of ['src', 'packages', 'apps', 'bin/checks']) linkRemaining(folder);
   const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_') && name !== 'PULLBOARD_OWN_CLI'));
   Object.assign(env, { PULLBOARD_RESIDENT: '0', GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',

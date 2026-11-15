@@ -175,7 +175,7 @@ test('one item goes from claim to merged through every hop, each state change on
     const verified = timed(review, 'verify', String(id), 'accept', '--note', 'removed web/snapshot.txt; the check still passed, so the bar is the snapshot', '--no-next');
     assert.equal(verified.code, 0, verified.err);
     assert.equal(box.state(id).item.item_verdict, 'ACCEPT');
-    const landed = timed(box.repo, 'land', '--max', '1');
+    const landed = timed(box.repo, 'land');
     assert.equal(landed.code, 0, landed.err);
     const { item } = box.state(id);
     assert.ok(item.item_merged_commit, 'the landing recorded the merge commit');

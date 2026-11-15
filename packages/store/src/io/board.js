@@ -67,6 +67,7 @@ import { landingBatches } from "../../../git/index.js";
 import { recordRelayRefusal } from "./board/refusal.js";
 import { linkPublishRepair } from "./board/repair.js";
 import { register } from "./board/register.js";
+export { REMOTE_AGENT_PATH, isRemoteAgentPath } from "./board/register.js";
 import { ensureCoordinator } from "./board/coordinator.js";
 import { addItem } from "./board/add.js";
 import { validateItemAddition } from "./board/add.js";
@@ -79,6 +80,7 @@ import { objectItemPatch } from "./board/patch/attach.js";
 import { removeItemPatch } from "./board/patch/remove.js";
 import { prepareClaim as preparedClaim } from "./board/claim.js";
 import { claim as applyPreparedClaim } from "./board/claim.js";
+import { admitSubmit as applySubmitAdmission } from "./board/claim.js";
 import { release } from "./board/release.js";
 import { submit } from "./board/submit.js";
 import { prepareSubmit } from "./board/submit.js";
@@ -89,6 +91,7 @@ import { reviewOffer } from "./board/review/offer.js";
 import { reserveReview } from "./board/reserve/review.js";
 import { reserveNextReview } from "./board/reserve/next.js";
 import { verify } from "./board/verify.js";
+import { verdictEvidence } from "./board/verify.js";
 import { reopen } from "./board/reopen.js";
 import { merged } from "./board/merged.js";
 import { withdraw } from "./board/withdraw.js";
@@ -97,6 +100,7 @@ import { shout } from "./board/shout.js";
 import { recordHealthFindings } from "./board/record/findings.js";
 import { passDecision } from "./board/decision/pass.js";
 import { answerDecision } from "./board/decision/answer.js";
+import { closeFinishedAsks } from "./board/decision/answer.js";
 import { appendFact } from "./board/fact.js";
 import { buildOrder } from "./board/order.js";
 import { nextFor } from "./board/next.js";
@@ -169,10 +173,10 @@ export { ROUTES, canTake };
 export { landingFlakes, landingWaiverCovers, landingWaiverKind };
 export { acceptCheck } from "../../../verify/index.js";
 export { declareJob, recordJobRun } from "../logic/board/jobs.js";
-export { recordUsage } from "../../../stats/index.js";
-export { recordUsageBatch } from "../../../stats/index.js";
-export { recordSharedUsage } from "../../../stats/index.js";
-export { proofReceipts, recordProofRun } from "./receipts.js";
+export { recordUsage } from "../../../stats/light.js";
+export { recordUsageBatch } from "../../../stats/light.js";
+export { recordSharedUsage } from "../../../stats/light.js";
+export { proofReceipts, recordProofRun, storeTestReceipt } from "./receipts.js";
 /** Seat rules live in seats.js and agent readers in board-query.js; the board re-exports them so `store.*` callers keep one import. */
 export { agentCreator, coordinatorHolder, nextSeatId, seatEnrolled, seatLineage, withVerifierStanding } from "../../../seats/index.js";
 export { agentAt, agentById, listAgents } from "./board/query.js";
@@ -468,6 +472,7 @@ export {
   reserveReview,
   reserveNextReview,
   verify,
+  verdictEvidence,
   reopen,
   merged,
   withdraw,
@@ -476,6 +481,7 @@ export {
   recordHealthFindings,
   passDecision,
   answerDecision,
+  closeFinishedAsks,
   appendFact,
   buildOrder,
   nextFor,
@@ -520,6 +526,11 @@ export function claim(board, id, options) {
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.min(attempt + 1, 5));
     }
   }
+}
+
+/** Record a submit admission on the caller's own live claim in one attempt that never sleeps; a moved board refuses BOARD_BUSY. */
+export function admitSubmit(board, id, options) {
+  return applySubmitAdmission(board, id, options, { checkedItemMove, moveItem, reviewerChecks, reviewReleaseCooldown, foreignBlockers });
 }
 
 export { prepareQueueSubmitHandoff, queueSubmitHandoff, startSubmitHandoff, completeSubmitHandoff } from "./submit/handoff/retry.js";

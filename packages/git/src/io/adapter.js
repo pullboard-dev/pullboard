@@ -10,13 +10,21 @@ import {
 const adapters = new AsyncLocalStorage();
 const selections = new AsyncLocalStorage();
 const projectReads = new AsyncLocalStorage();
+export const PROJECT_GIT_ATTEMPTS = 3; // budget: a slow read is retried twice, so a project is skipped only after 3 timeouts in a row.
 export const PROJECT_GIT_TIMEOUT_MS = 5_000; // budget: one unreachable registered repo cannot retain an interactive discovery command.
 
 /** Bound every Git process in one project inspection; nested inspections and concurrent requests retain their own root. */
 export function withProjectGitTimeout(root, work, { timeoutMs = PROJECT_GIT_TIMEOUT_MS } = {}) {
   if (typeof root !== 'string' || !root || !Number.isSafeInteger(timeoutMs) || timeoutMs < 1) throw new TypeError('project Git reads need a root and positive timeout');
   const parent = projectReads.getStore();
-  return projectReads.run({ root, timeoutMs: Math.min(timeoutMs, parent?.timeoutMs ?? timeoutMs) }, work);
+  const bound = Math.min(timeoutMs, parent?.timeoutMs ?? timeoutMs);
+  // A nested read of the same root belongs to the outer retry; retrying inside it multiplied the attempts (3 x 3 x 5 s) past the discovery bound [C7].
+  if (parent?.root === root) return projectReads.run({ root, timeoutMs: bound, last: parent.last }, work);
+  // A read that timed out under load (an API restart, a busy disk) tries again before the project is skipped; the last try says so [C7].
+  for (let attempt = 1; ; attempt += 1) {
+    try { return projectReads.run({ root, timeoutMs: bound, last: attempt >= PROJECT_GIT_ATTEMPTS }, work); }
+    catch (error) { if (attempt >= PROJECT_GIT_ATTEMPTS || error?.code !== 'BOARD_UNAVAILABLE' || !error.projectTimeout) throw error; }
+  }
 }
 
 /** Retain a caller's tighter bound and terminate only the Git process owned by this inspection. */
@@ -31,9 +39,11 @@ function projectOptions(options) {
 function projectTimeout(error, options) {
   const scope = projectReads.getStore();
   if (!scope || error?.code !== 'ETIMEDOUT') return null;
-  const message = `registered project ${scope.root} is unreachable: Git timed out after ${options.timeout}ms; skipping this project`;
+  const message = `registered project ${scope.root} is unreachable: Git timed out after ${options.timeout}ms; ${scope.last ? 'skipping this project' : 'retrying'}`;
   process.stderr.write(`pullboard: ${message}\n`);
-  return new Refused('BOARD_UNAVAILABLE', message, `restore the repository or run pullboard forget ${JSON.stringify(scope.root)}`);
+  const refusal = new Refused('BOARD_UNAVAILABLE', message, `restore the repository or run pullboard forget ${JSON.stringify(scope.root)}`);
+  refusal.projectTimeout = true;
+  return refusal;
 }
 
 /** The real implementation forwards every argument and option without interpreting Git output. */
@@ -51,20 +61,22 @@ export function currentGitAdapter() {
   return adapters.getStore() ?? realGitAdapter;
 }
 
+export function needAdapter(adapter) {
+  const method = ['spawnSync', 'execFileSync', 'spawn'].find(name => typeof adapter?.[name] !== 'function');
+  if (method) throw new TypeError(`Git adapter needs ${method}`);
+}
+export { adapters, selections };
+
 /** Select an implementation for one call chain; concurrent and nested work cannot change its peers. */
 export function withGitAdapter(adapter, work) {
-  for (const method of ['spawnSync', 'execFileSync', 'spawn']) {
-    if (typeof adapter?.[method] !== 'function') throw new TypeError(`Git adapter needs ${method}`);
-  }
+  needAdapter(adapter);
   const forced = selections.getStore()?.audit || process.env.PULLBOARD_ADAPTER_AUDIT === '1';
   return adapters.run(forced ? realGitAdapter : adapter, work);
 }
 
 /** Contract suites explicitly exercise both implementations even during an audit. */
 export function withGitContractAdapter(adapter, work) {
-  for (const method of ['spawnSync', 'execFileSync', 'spawn']) {
-    if (typeof adapter?.[method] !== 'function') throw new TypeError(`Git adapter needs ${method}`);
-  }
+  needAdapter(adapter);
   return adapters.run(adapter, work);
 }
 

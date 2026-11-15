@@ -1,5 +1,6 @@
 /** Keep fixture creation behind one live-rule-aware testkit helper [C7]. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -13,7 +14,7 @@ import {
 } from '../../tests/fixtures/testkit.js';
 
 /** Exercise real CLI add and join admissions, then lint fixture call sites and option ownership. */
-function fixtureAdmissionProof(t) {
+async function fixtureAdmissionProof(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -21,10 +22,10 @@ function fixtureAdmissionProof(t) {
   assert.equal(item.item_lane, 'web');
   assert.equal(item.item_route, 'strong');
   assert.match(item.item_brief, /Files:[\s\S]*Change:[\s\S]*Test:/u);
-  const identity = box.run(box.web, 'whoami', '--json');
+  const identity = (await box.runLocal(box.web, 'whoami', '--json'));
   assert.equal(identity.code, 0, identity.err);
   assert.equal(JSON.parse(identity.out).model, FIXTURE_MODEL);
-  const log = box.run(box.repo, 'log', String(item.item_id), '--json');
+  const log = (await box.runLocal(box.repo, 'log', String(item.item_id), '--json'));
   assert.equal(log.code, 0, log.err);
   assert.match(log.out, /diagnosis/u);
   const invalidJoin = joinFixtureSeat(box, box.web, 'web', { model: '' });
@@ -34,7 +35,7 @@ function fixtureAdmissionProof(t) {
     { name: '../../tests/fixtures/e2e.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
     { name: '../../tests/fixtures/land/project.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
     { name: '../../tests/fixtures/board/submit.js', helpers: [] },
-    { name: '../land/landing/per.test.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
+    { name: '../../tests/fixtures/land/per.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
     { name: '../land/landing/excluded.test.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
     { name: '../../tests/fixtures/submit/outcome.js', helpers: ['fileFixtureItem', 'createFixtureWorktree'] },
     { name: '../../tests/fixtures/submit/red.js', helpers: ['fileFixtureItem', 'createFixtureWorktree'] },
@@ -54,3 +55,26 @@ function fixtureAdmissionProof(t) {
 }
 
 test('testkit fixture helper satisfies live add and join rules and owns fixture admission flags [C7] clause 1 clause 2', fixtureAdmissionProof);
+
+test('project() runs its setup init and join in the warm worker with no Node launch, unless a test replaced run [C7]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const counted = box => {
+    const launched = [];
+    const run = box.run;
+    box.run = (cwd, ...args) => { launched.push(args[0]); return run(cwd, ...args); };
+    return launched;
+  };
+  const warm = helpers.sandbox();
+  const warmLaunches = counted(warm);
+  warm.runSync.of = warm.run;
+  const project = helpers.project('true', warm);
+  assert.deepEqual(warmLaunches, [], 'init and join start no Node process');
+  assert.ok(existsSync(join(project.repo, '.git/pullboard')), 'the in-process init created the board');
+  const seat = JSON.parse((project.run(project.web, 'whoami', '--json')).out);
+  assert.equal(seat.lane, 'web', 'the in-process join registered the worktree seat');
+  const replaced = helpers.sandbox();
+  const replacedLaunches = counted(replaced);
+  helpers.project('true', replaced);
+  assert.deepEqual(replacedLaunches, ['init', 'join'], 'a replaced run still answers the setup calls');
+});

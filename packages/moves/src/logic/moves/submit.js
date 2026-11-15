@@ -7,20 +7,21 @@ import { KNOWN_MAIN_AUTOFILE_ENGINE } from "../../../../state/light.js";
 import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from "../../../../state/light.js";
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../state/light.js";
 import { itemReviewPolicyEngine } from "../../../../verify/browser.js";
-import { checkTimingEngine } from "../../../../items/light.js";
-import { itemPatchRecords } from "../../../../items/light.js";
+import { checkTimingEngine } from "../../../../items/browser.js";
+import { itemPatchRecords } from "../../../../items/browser.js";
 import { ITEM_PATCH_SUBMIT_ENGINE } from "../../../../state/light.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 import { MERGE_ONLY_VERDICT_ENGINE } from "../../../../state/light.js";
 import { FLOW_SIZE_ENGINE } from "../../../../state/light.js";
 import { KNOWN_MAIN_REWORKS_ENGINE } from "../../../../state/light.js";
 import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from "../../../../state/light.js";
+import { KNOWN_MAIN_RECEIPT_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by submit, discovered without a shared registry edit [C7,V4,H16]. */
 import { BAR_READY_ENGINE } from "../../../../state/light.js";
 import { barReadySetting } from "../bar/ready.js";
 import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";
 import { OUTSIDE_INTAKE_ENGINE } from "../../../../state/light.js";
-import { outsideSource } from "../../../../items/light.js";
+import { outsideSource } from "../../../../items/browser.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
 import { BAR_CHECK_ENGINE } from "../../../../state/light.js";
 import { barCheckEnabled } from "../../../../verify/browser.js";
@@ -51,6 +52,8 @@ function minimumEngine(args, board, at) {
         : (board?.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_OWNER_PATTERN_ENGINE
           ? KNOWN_MAIN_OWNER_PATTERN_ENGINE : KNOWN_MAIN_REWORKS_ENGINE
       : 1,
+    // A known main failure citing its main receipt needs the engine that keeps that id [V4,B3,H16].
+    args[1]?.submissionProof?.knownMainFailures?.failures?.some?.(row => row?.receipt !== undefined) ? KNOWN_MAIN_RECEIPT_ENGINE : 1,
     args[1]?.submissionSize !== undefined ? FLOW_SIZE_ENGINE : 1,
     outside ? OUTSIDE_INTAKE_ENGINE : 1, existingEngine(args, board, at));
 }
@@ -127,6 +130,7 @@ export default Object.freeze({ operation: "submit", order: 15, engine: 1,
   "PIPEFAIL_UNAVAILABLE": "rewrite the gate in pullboard.json without a pipe",
   "RATCHET_ROSE": "fix the new doctrine problems named in the report, commit, and submit again; only the person can sign an increased count",
   "RATCHET_UNCOUNTED": "fix the named doctrine check to exit zero or one within its configured timeout, or ask the coordinator to repair it, then submit again",
+  "RUNNER_TOOLING_CRASH": "shout the coordinator with this refusal word for word: main's pinned tooling throws, and only a fix landed on main clears it",
   "RUNNER_RESULT_INVALID": "inspect the retained transport diagnostic and repair the named protocol or capsule failure before retrying",
   "RUNNER_INFRA_RETRY_EXHAUSTED": "inspect the retained runner diagnostic, restore the named runner, then retry this command",
   "RUNNER_BROWSER_SLOT_REQUIRED": "nothing to do: the run reruns on a local gate slot; if it repeats, set gate.browserByLaunch the same on this machine and that runner",

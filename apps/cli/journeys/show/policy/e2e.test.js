@@ -17,13 +17,15 @@ import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { submitFixture } from '../../../tests/fixtures/board/submit.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
+import { whenRunnerSettles } from '../../../tests/fixtures/runner/local-start.js';
+import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
-  project, attackCommit, historicalCheckSubmission, LIGHT_BRIEF,
+  attackCommit, historicalCheckSubmission, LIGHT_BRIEF, project,
 } = e2e;
 
 /**
@@ -31,23 +33,31 @@ const {
  *
  * Why: the ownership routing (814a7def2a) replaced the immediate OUTSIDE_LANE refusal for proved foreign paths; the owner decides.
  */
-function assertWaitsOnOwner(box, id, submitted, paths, label = '') {
+async function assertWaitsOnOwner(t, box, id, submitted, paths, label = '') {
   assert.equal(submitted.code, 0, `${label} ${submitted.out}${submitted.err}`);
-  const waiting = JSON.parse(submitted.out).waitingOwner;
-  assert.deepEqual(waiting.owners, ['coordinator'], label);
-  for (const path of paths) assert.equal(waiting.paths.includes(path), true, `${label} ${path}`);
-  const item = JSON.parse(box.run(box.repo, 'show', String(id), '--json').out);
+  // The pulled gate settles red on the ownership refusal; the hold is applied a moment later, so settle on it [P7].
+  const settled = await settleSubmit(t, box, JSON.parse(submitted.out));
+  assert.equal(settled.gate.analysis.ownership?.code, 'OUTSIDE_LANE', `${label}: the pulled gate analysis names the ownership refusal`);
+  const item = await whenRunnerSettles(box.env, async () => {
+    const row = JSON.parse((await box.inProcess(box.repo, 'show', String(id), '--json')).out);
+    return row.item_hold_reason ? row : null;
+  }, { deadlineMs: 120_000, what: `the owner routing of #${id} ${label}` });
   assert.equal(item.item_status, 'open', label);
   assert.equal(item.item_commit, null, `${label}: owner waiting is not a submission`);
   assert.match(item.item_hold_reason, /^waiting on ownership /u, label);
+  // The hold names only a digest; owner and paths are in the thread's ownership-wait event.
+  const waiting = (item.thread ?? []).findLast(row => row.kind === 'ownership-wait')?.detail;
+  assert.ok(waiting, `${label}: the thread records the ownership wait`);
+  assert.deepEqual(waiting.owners, ['coordinator'], label);
+  for (const path of paths) assert.equal(waiting.paths.includes(path), true, `${label} ${path}`);
 }
 
 
-test('the blind gate-bypass repro refuses submit and accept, and doctor audits pre-merge policy [V4,V16,L3,M3]', () => {
+test('the blind gate-bypass repro refuses submit and accept, and doctor audits pre-merge policy [V4,V16,L3,M3]', async t => {
   const box = project('true');
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Append notes', '--specs', 'G1', '--criterion', 'append one note', '--brief', LIGHT_BRIEF, '--check', 'test ! -f web/RED_CHECK').code, 0);
-  assert.equal(box.run(box.web, 'claim', '1').code, 0);
-  const original = JSON.parse(box.run(box.web, 'show', '1', '--json').out);
+  assert.equal((await box.inProcess(box.web, 'claim', '1')).code, 0);
+  const original = JSON.parse((await box.inProcess(box.web, 'show', '1', '--json')).out);
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web/RED_CHECK'), 'red');
   const config = JSON.parse(readFileSync(join(box.web, 'pullboard.json'), 'utf8'));
@@ -55,12 +65,12 @@ test('the blind gate-bypass repro refuses submit and accept, and doctor audits p
   config.lanes.web.owns.push('pullboard.json');
   writeFileSync(join(box.web, 'pullboard.json'), JSON.stringify(config));
   const commit = attackCommit(box, box.web);
-  const submitted = box.run(box.web, 'submit', '1', '--json');
-  assert.equal(submitted.code, 1);
-  // A red check is never waived by ownership routing (ownership.test.js): the red gate refuses and the builder keeps the claim.
-  assert.equal(JSON.parse(submitted.out).error.code, 'GATE_RED');
-  assert.equal(JSON.parse(box.run(box.web, 'show', '1', '--json').out).item_status, 'claimed');
-  assert.equal(box.run(box.web, 'check', '1').code, 1, 'the original item check stays red');
+  const submitted = await box.inProcess(box.web, 'submit', '1', '--json');
+  // A red check is never waived by ownership routing (ownership.test.js): the settled gate is red and the builder keeps the claim.
+  assert.equal(submitted.code, 0, submitted.out + submitted.err);
+  assert.equal((await settleSubmit(t, box, JSON.parse(submitted.out))).gate.green, false);
+  assert.equal(JSON.parse((await box.inProcess(box.web, 'show', '1', '--json')).out).item_status, 'claimed');
+  assert.equal((await box.inProcess(box.web, 'check', '1')).code, 1, 'the original item check stays red');
 
   // Model a historical unchecked receipt using the low-level engine in this private fixture.
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
@@ -70,19 +80,19 @@ test('the blind gate-bypass repro refuses submit and accept, and doctor audits p
   const review = join(box.dir, 'review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
   assert.equal(fixtureJoin(box.run, review, 'api').code, 0);
-  const accepted = box.run(review, 'verify', '1', 'accept', '--note', 'private repro', '--json');
+  const accepted = await box.inProcess(review, 'verify', '1', 'accept', '--note', 'private repro', '--json');
   assert.equal(accepted.code, 1);
   assert.equal(JSON.parse(accepted.out).error.code, 'CHECK_RED');
-  assert.equal(JSON.parse(box.run(review, 'show', '1', '--json').out).item_status, 'submitted');
+  assert.equal(JSON.parse((await box.inProcess(review, 'show', '1', '--json')).out).item_status, 'submitted');
 
   const history = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try { store.verify(history, 1, { agentId: 'api-1', decision: 'ACCEPT', note: 'synthetic historical unchecked verdict', head: commit, digest: original.item_frozen_digest, policy: 'any' }); }
   finally { store.closeBoard(history); }
   box.git(box.repo, 'merge', '--ff-only', '-q', 'web/one');
-  assert.equal(box.run(box.repo, 'merged', '1', commit).code, 0);
+  assert.equal((await box.inProcess(box.repo, 'merged', '1', commit)).code, 0);
   const file = join(box.repo, '.git/pullboard/board.sqlite');
   const before = readFileSync(file);
-  const doctor = box.run(box.repo, 'doctor', '--json');
+  const doctor = await box.inProcess(box.repo, 'doctor', '--json');
   assert.equal(doctor.code, 1);
   const problems = JSON.parse(doctor.out).problems;
   assert.equal(problems.some(problem => problem.code === 'OUTSIDE_LANE' && problem.message.includes('pullboard.json')), true,
@@ -91,7 +101,7 @@ test('the blind gate-bypass repro refuses submit and accept, and doctor audits p
   assert.deepEqual(readFileSync(file), before, 'doctor keeps the historical evidence unchanged');
 });
 
-test('a shared config edit cannot replace the gate frozen from the coordinator [V4,V16]', () => {
+test('a shared config edit cannot replace the gate frozen from the coordinator [V4,V16]', async t => {
   const box = project('test ! -f web/RED');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.shared.push('pullboard.json');
@@ -100,22 +110,22 @@ test('a shared config edit cannot replace the gate frozen from the coordinator [
   box.git(box.repo, 'commit', '-q', '-m', 'chore: share fixture config');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Frozen gate', '--specs', 'G1', '--criterion', 'original gate passes').code, 0);
-  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  assert.equal((await box.inProcess(box.web, 'claim', '1')).code, 0);
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web/RED'), 'red');
   config.gate = 'true';
   writeFileSync(join(box.web, 'pullboard.json'), JSON.stringify(config));
   box.git(box.web, 'add', '-A');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): fixture config change [G1]');
-  const refused = box.run(box.web, 'submit', '1', '--json');
-  assert.equal(refused.code, 1);
-  assert.equal(JSON.parse(refused.out).error.code, 'GATE_RED', 'the committed original gate executes even though the candidate says true');
+  const refused = await box.inProcess(box.web, 'submit', '1', '--json');
+  assert.equal(refused.code, 0, refused.out + refused.err);
+  assert.equal((await settleSubmit(t, box, JSON.parse(refused.out))).gate.green, false, 'the committed original gate executes even though the candidate says true');
 });
 
-test('accepted-main merges carry foreign files without granting permission to alter them [L3,V4]', () => {
+test('accepted-main merges carry foreign files without granting permission to alter them [L3,V4]', async t => {
   const box = project('true');
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Main merge', '--specs', 'G1', '--criterion', 'foreign main object preserved').code, 0);
-  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  assert.equal((await box.inProcess(box.web, 'claim', '1')).code, 0);
   writeFileSync(join(box.repo, 'coordinator.txt'), 'accepted main fixture');
   box.git(box.repo, 'add', 'coordinator.txt');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: coordinator fixture');
@@ -124,19 +134,19 @@ test('accepted-main merges carry foreign files without granting permission to al
   writeFileSync(join(box.web, 'web/index.html'), 'app fixture');
   box.git(box.web, 'add', 'web/index.html');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): preserve main fixture [G1]');
-  assert.equal(box.run(box.web, 'submit', '1').code, 0, 'unchanged accepted-main foreign objects are allowed');
+  assert.equal((await box.inProcess(box.web, 'submit', '1')).code, 0, 'unchanged accepted-main foreign objects are allowed');
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
   box.git(box.repo, 'merge', '-q', '--ff-only', 'web/one');
-  assert.equal(box.run(box.repo, 'verify', '1', 'accept', '--as', 'coordinator', '--note', 'private accepted-main fixture').code, 0);
-  assert.equal(box.run(box.repo, 'doctor').code, 0, 'the pre-merge main proof remains available for historical audit');
+  assert.equal((await box.inProcess(box.repo, 'verify', '1', 'accept', '--as', 'coordinator', '--note', 'private accepted-main fixture')).code, 0);
+  assert.equal((await box.inProcess(box.repo, 'doctor')).code, 0, 'the pre-merge main proof remains available for historical audit');
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Alter foreign file', '--specs', 'G1', '--criterion', 'ownership remains enforced').code, 0);
-  assert.equal(box.run(box.web, 'claim', '2').code, 0);
+  assert.equal((await box.inProcess(box.web, 'claim', '2')).code, 0);
   writeFileSync(join(box.web, 'coordinator.txt'), 'unauthorized replacement');
   attackCommit(box, box.web);
-  assertWaitsOnOwner(box, 2, box.run(box.web, 'submit', '2', '--json'), ['coordinator.txt']);
+  await assertWaitsOnOwner(t, box, 2, await box.inProcess(box.web, 'submit', '2', '--json'), ['coordinator.txt']);
 });
 
-test('foreign changes before claiming and cross-lane renames cannot hide from submit [L3,V4]', () => {
+test('foreign changes before claiming and cross-lane renames cannot hide from submit [L3,V4]', async t => {
   for (const mode of ['before-claim', 'rename', 'delete']) {
     const box = project('true');
     writeFileSync(join(box.repo, 'foreign file.txt'), 'coordinator-owned');
@@ -148,35 +158,35 @@ test('foreign changes before claiming and cross-lane renames cannot hide from su
       writeFileSync(join(box.web, 'foreign file.txt'), 'unauthorized pre-claim replacement');
       attackCommit(box, box.web);
     }
-    assert.equal(box.run(box.web, 'claim', '1').code, 0);
+    assert.equal((await box.inProcess(box.web, 'claim', '1')).code, 0);
     mkdirSync(join(box.web, 'web'));
     if (mode === 'rename') box.git(box.web, 'mv', 'foreign file.txt', 'web/moved.txt');
     else if (mode === 'delete') box.git(box.web, 'rm', 'foreign file.txt');
     writeFileSync(join(box.web, 'web/index.html'), 'owned');
     attackCommit(box, box.web);
-    assertWaitsOnOwner(box, 1, box.run(box.web, 'submit', '1', '--json'), ['foreign file.txt'], mode);
+    await assertWaitsOnOwner(t, box, 1, await box.inProcess(box.web, 'submit', '1', '--json'), ['foreign file.txt'], mode);
   }
 });
 
-test('accept reruns the frozen check at the submission even when the reviewer repaired its HEAD [V4,M3]', () => {
+test('accept reruns the frozen check at the submission even when the reviewer repaired its HEAD [V4,M3]', async t => {
   const box = project('true');
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Exact check', '--specs', 'G1', '--criterion', 'the original check passes', '--brief', LIGHT_BRIEF, '--check', 'test ! -f web/RED_CHECK').code, 0);
-  assert.equal(box.run(box.web, 'claim', '1').code, 0);
+  assert.equal((await box.inProcess(box.web, 'claim', '1')).code, 0);
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web/RED_CHECK'), 'red');
   const commit = attackCommit(box, box.web);
-  const blocked = box.run(box.web, 'submit', '1');
-  assert.equal(blocked.code, 1, 'current submit refuses the red frozen check even when the project gate passes');
-  assert.match(blocked.err, /GATE_RED/);
+  const blocked = await box.inProcess(box.web, 'submit', '1', '--json');
+  assert.equal(blocked.code, 0, blocked.out + blocked.err);
+  assert.equal((await settleSubmit(t, box, JSON.parse(blocked.out))).gate.green, false, 'the settled gate is red on the frozen check even when the project gate passes');
   historicalCheckSubmission(box, commit); // Legacy receipts must still be independently checked.
   const review = join(box.dir, 'exact-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
   assert.equal(fixtureJoin(box.run, review, 'api').code, 0);
   box.git(review, 'rm', 'web/RED_CHECK');
   attackCommit(box, review); // Model the adversarial repair without disabling its lane hook.
-  assert.equal(box.run(review, 'check', '1', '--yes').code, 0, 'the reviewer HEAD alone is green');
-  const refused = box.run(review, 'verify', '1', 'accept', '--note', 'reviewer repair is not submission proof', '--json');
+  assert.equal((await box.inProcess(review, 'check', '1', '--yes')).code, 0, 'the reviewer HEAD alone is green');
+  const refused = await box.inProcess(review, 'verify', '1', 'accept', '--note', 'reviewer repair is not submission proof', '--json');
   assert.equal(refused.code, 1);
   assert.equal(JSON.parse(refused.out).error.code, 'CHECK_RED');
-  assert.equal(JSON.parse(box.run(review, 'show', '1', '--json').out).item_status, 'submitted');
+  assert.equal(JSON.parse((await box.inProcess(review, 'show', '1', '--json')).out).item_status, 'submitted');
 });

@@ -253,8 +253,8 @@ test('clause 1: help add example runs on a fresh board and its help adds no next
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
   for (const key of Object.keys(env)) if (key.startsWith('GIT_') && !['GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM'].includes(key)) delete env[key];
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env, encoding: 'utf8' });
-  const initialized = runFixtureChild(process.execPath, [BIN, 'init'], { cwd: root, env, encoding: 'utf8' });
-  assert.equal(initialized.status, 0, initialized.failure ?? `${initialized.stdout}${initialized.stderr}`);
+  const initialized = await runCliInProcess(['init'], { cwd: root, env });
+  assert.equal(initialized.status, 0, `${initialized.stdout}${initialized.stderr}`);
 
   const help = runFixtureChild(process.execPath, [BIN, 'help', 'add'], { cwd: root, env, encoding: 'utf8' });
   assert.equal(help.status, 0, help.failure ?? help.stderr);
@@ -288,16 +288,16 @@ test('help covers every dispatched subcommand [N2]', async () => {
 test('the settings forms the CLI dispatches have help and reach their own refusal [N2]', async () => {
   // The expected forms are written out here, not read from the parser: each one must have help, and
   // each must reach its own value check in settingsCommand, which proves the dispatcher knows it (#824).
-  assert.deepEqual([...helpDeclaration.SETTING_FORMS], ['gateSlots', 'browserSlots', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'gate.runnerBusyCeiling', 'gate.runnersOnly', 'gate.runnerWaitMs', 'workers.budget', 'landing.pool', 'inspection.clauses']);
+  assert.deepEqual([...helpDeclaration.SETTING_FORMS], ['gateSlots', 'browserSlots', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'gate.runnerBusyCeiling', 'gate.runnersOnly', 'gate.runnerWaitMs', 'workers.budget', 'landing.pool', 'inspection.clauses', 'runnerRates', 'budget.dailyUsd', 'budget.totalUsd', 'scratch', 'gate.diskFloorMB', 'gate.memoryFloorMB', 'gate.queue.agingMinutes', 'gate.queue.reviewsFirst', 'gate.queue.currentReleaseFirst', 'gate.browserFreeChecks', 'gate.browserByLaunch', 'health.sentinel', 'view.background', 'relay.offerAtInit']);
   const folder = mkdtempSync(join(tmpdir(), 'pullboard-settings-'));
   sandboxes.push(folder);
   runFixtureGit(['init', '-q'], { cwd: folder });
-  const refusals = { gateSlots: '[USAGE]', browserSlots: '[BAD_BROWSER_SLOTS]', 'gate.shortSlots': '[BAD_SHORT_SLOTS]', 'gate.runnersFirst': '[BAD_MACHINE_SETTINGS]', 'gate.measuredSlots': '[BAD_MACHINE_SETTINGS]', 'gate.loadAwareDispatch': '[BAD_MACHINE_SETTINGS]', 'gate.runnerBusyCeiling': '[BAD_MACHINE_SETTINGS]', 'gate.runnersOnly': '[BAD_MACHINE_SETTINGS]', 'gate.runnerWaitMs': '[BAD_MACHINE_SETTINGS]', 'workers.budget': '[BAD_MACHINE_SETTINGS]', 'landing.pool': '[USAGE]', 'inspection.clauses': '[BAD_MACHINE_SETTINGS]' };
+  const refusals = { gateSlots: '[USAGE]', browserSlots: '[BAD_BROWSER_SLOTS]', 'gate.shortSlots': '[BAD_SHORT_SLOTS]', 'gate.runnersFirst': '[BAD_MACHINE_SETTINGS]', 'gate.measuredSlots': '[BAD_MACHINE_SETTINGS]', 'gate.loadAwareDispatch': '[BAD_MACHINE_SETTINGS]', 'gate.runnerBusyCeiling': '[BAD_MACHINE_SETTINGS]', 'gate.runnersOnly': '[BAD_MACHINE_SETTINGS]', 'gate.runnerWaitMs': '[BAD_MACHINE_SETTINGS]', 'workers.budget': '[BAD_MACHINE_SETTINGS]', 'landing.pool': '[USAGE]', 'inspection.clauses': '[BAD_MACHINE_SETTINGS]', runnerRates: '[USAGE]', 'budget.dailyUsd': '[BAD_MACHINE_SETTINGS]', 'budget.totalUsd': '[BAD_MACHINE_SETTINGS]', 'scratch': '[BAD_MACHINE_SETTINGS]', 'gate.diskFloorMB': '[BAD_MACHINE_SETTINGS]', 'gate.memoryFloorMB': '[BAD_MACHINE_SETTINGS]', 'gate.queue.agingMinutes': '[BAD_MACHINE_SETTINGS]', 'gate.queue.reviewsFirst': '[BAD_MACHINE_SETTINGS]', 'gate.queue.currentReleaseFirst': '[BAD_MACHINE_SETTINGS]', 'gate.browserFreeChecks': '[BAD_MACHINE_SETTINGS]', 'gate.browserByLaunch': '[BAD_MACHINE_SETTINGS]', 'health.sentinel': '[BAD_MACHINE_SETTINGS]', 'view.background': '[BAD_MACHINE_SETTINGS]', 'relay.offerAtInit': '[BAD_MACHINE_SETTINGS]' };
   for (const [form, code] of Object.entries(refusals)) {
     const help = (await run('help', 'settings', form));
     assert.equal(help.status, 0, `help settings ${form} exits 0: ${help.stderr}`);
     assert.match(help.stdout, new RegExp(`^Usage: pullboard settings ${form.replace('.', '\\.')} `, 'u'), `help settings ${form} names its usage`);
-    const refused = runFixtureChild(process.execPath, [BIN, 'settings', form, 'abc'], { cwd: folder, encoding: 'utf8' });
+    const refused = await runCliInProcess(['settings', form, 'abc'], { cwd: folder });
     assert.equal(refused.status, 1, `settings ${form} abc is refused: ${refused.stdout}`);
     assert.ok(refused.stderr.includes(code), `settings ${form} reaches its own check ${code}: ${refused.stderr}`);
   }

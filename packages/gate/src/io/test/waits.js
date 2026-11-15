@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 /** Source-only test waits/ports lint; debt is a ceiling, never a reason to add another wait [C7]. */
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { blobOid } from '../static/cache.js';
 import { lex } from '../scan.js';
@@ -295,8 +297,8 @@ export function testWaitSites(source, path, scanFixtures = true) {
 }
 
 /** Inspect test modules and their helpers as text; never import them or open a socket. */
-export function testWaitReport(root, { cache = null } = {}) {
-  return walk(root, TEST_SOURCE).flatMap(path => {
+export function testWaitReport(root, { cache = null, only = null } = {}) {
+  return (only ? only.filter(path => TEST_SOURCE.test(path) && existsSync(join(root, path))).sort() : walk(root, TEST_SOURCE)).flatMap(path => {
     const text = readText(root, path);
     return cache ? cache.get(path, blobOid(text), () => testWaitSites(text, path)) : testWaitSites(text, path);
   });

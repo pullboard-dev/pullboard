@@ -3,21 +3,19 @@
 /** @pullboard-test-gui */
 /** Real relay browser journeys and their owned setup [N26]. */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import {
   createServer,
   request,
 } from 'node:http';
-import {
-  join,
-  resolve,
-} from 'node:path';
+import { join } from 'node:path';
 import {
   after,
   test,
 } from 'node:test';
 import { performance } from 'node:perf_hooks';
+import { composeViewStyles } from '../../../../view/index.js';
 import { press } from '../../../tests/fixtures/cockpit/stable.js';
+import { pressTab } from '../../../tests/fixtures/cockpit/stable.js';
 import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../../index.js';
 import {
   machine,
@@ -68,7 +66,7 @@ test('a person request never moves the reading position under a 6× CPU throttle
       .end(cockpitPage('', { readOnly: true, requests: true, transportModule: '/transport.js', stylesheet: '/view.css' }));
     if (url.pathname === '/transport.js') return response.writeHead(200, { 'content-type': 'text/javascript' }).end(transportModule);
     if (url.pathname === '/view.css') return response.writeHead(200, { 'content-type': 'text/css' })
-      .end(readFileSync(resolve(import.meta.dirname, "../../../../view/src/io/main.css")));
+      .end(composeViewStyles()); // every stylesheet the view serves: main.css alone leaves the nav notch unsized and covering the page (#7658)
     if (url.pathname === '/intent' && request.method === 'POST') {
       const receivedAt = Date.now();
       const chunks = [];
@@ -102,7 +100,7 @@ test('a person request never moves the reading position under a 6× CPU throttle
     await chrome.waitFor("typeof data === 'object' && !!data?.project");
     assert.equal(await chrome.stable('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), true,
       'the 375px person-request view fits the viewport');
-    await press(chrome, "document.querySelector('[data-tab=\"shouts\"]')");
+    await pressTab(chrome, 'shouts');
     await chrome.stable("document.querySelector('#shout-to').value = 'person'");
     await chrome.stable("document.querySelector('#shout-text').value = 'Should this item ship?'");
     await chrome.stable("document.querySelector('#shout-form').requestSubmit()");
@@ -110,7 +108,7 @@ test('a person request never moves the reading position under a 6× CPU throttle
     assert.deepEqual(intents[0], { verb: 'shout', args: { to: 'person', text: 'Should this item ship?' } },
       'the initial request is an actual literal person intent');
 
-    await press(chrome, "document.querySelector('[data-tab=\"spec\"]')");
+    await pressTab(chrome, 'spec');
     await chrome.waitFor("document.querySelector('#spec-list [data-row=\"spec:G2\"]')");
     await chrome.stable("document.querySelector('#spec-list [data-row=\"spec:G2\"]').scrollIntoView({ block: 'center', behavior: 'instant' })");
     await chrome.waitFor('window.scrollY > 0');

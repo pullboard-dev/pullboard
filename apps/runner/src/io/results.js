@@ -35,7 +35,7 @@ function measure(path) {
 }
 
 /**
- * Remove old result records, then the oldest until the store fits the size cap. A unit is an input bucket or a green
+ * Remove old result records, then the oldest until the store fits the size cap. A unit is an input bucket, a lists entry or a green
  * record under a repo store. A repo store named in `held` (a live job pins it) is skipped whole, and a unit changed
  * within the grace period is kept: its writer may still be running. Each removal first claims the unit with an atomic
  * rename out of the store, so a reader or writer sees it whole or gone, never half deleted.
@@ -51,7 +51,7 @@ export function pruneTestResults(root, { capBytes = RESULTS_CAP_BYTES, maxAgeMs 
   const units = [];
   for (const repo of names(store)) {
     if (repo.startsWith('.')) continue;
-    for (const folder of ['inputs', 'green']) {
+    for (const folder of ['inputs', 'green', 'lists']) {
       for (const name of names(join(store, repo, folder))) {
         const path = join(store, repo, folder, name);
         units.push({ path, held: held.has(repo), ...measure(path) });

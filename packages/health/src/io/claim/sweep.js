@@ -7,6 +7,7 @@ import { events } from '../../../../store/index.js';
 import { atomic } from '../../../../store/index.js';
 import { getItem } from '../../../../store/index.js';
 import { insertShout } from '../../../../store/index.js';
+import { closeFinishedAsks } from '../../../../store/index.js';
 import { withLocalSeatPresence } from '../../../../store/index.js';
 import { planClaimWatchdog } from '../../../../seats/index.js';
 import { WATCHDOG_GRACE_MS } from '../../../../seats/index.js';
@@ -148,5 +149,7 @@ export async function sweepClaims(ctx, board, actor, ordered, ports = {}) {
   // The View's ten-minute sentinel cadence calls this sweep outside builder seats; its stale-state move above owns the 40-minute release.
   const watchdogSnapshot = (ports.captureClaimWatchdogSnapshot ?? captureClaimWatchdogSnapshot)(ctx, board, ports);
   (ports.runScheduledClaimWatchdog ?? runScheduledClaimWatchdog)(ctx, board, watchdogSnapshot, ports.watchdogPorts, model);
+  // Asks left open on items that already landed or were withdrawn close once; a later pass finds none [B21,C7].
+  try { (ports.closeFinishedAsks ?? closeFinishedAsks)(board, { agentId: actor }); } catch { /* the next pass tries again */ }
   return snapshot;
 }

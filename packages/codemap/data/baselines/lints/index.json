@@ -2,7 +2,7 @@
   "version": 2,
   "metrics": {
     "boundaries": {
-      "count": 7247,
+      "count": 7272,
       "shards": [
         {
           "file": "packages/codemap/data/baselines/lints/boundaries-001.json",
@@ -50,15 +50,15 @@
         },
         {
           "file": "packages/codemap/data/baselines/lints/boundaries-012.json",
-          "sha256": "f3562f525dda852e28a0bdf8415acf8e4adb7251693e248837a6a3f7383de702"
+          "sha256": "6a580da348f5eff7084d4c9aeb8083e2ca57d3715c899cdb87dbf98b82c7dc79"
         },
         {
           "file": "packages/codemap/data/baselines/lints/boundaries-013.json",
-          "sha256": "222cf96cc94568c2bbf47cf875245e5c815df3845ec8a2a9a06e14728b663279"
+          "sha256": "313b6986f75140f20e30f17c244dfcfb2852856d0ed01c3095f64c741be8787e"
         },
         {
           "file": "packages/codemap/data/baselines/lints/boundaries-014.json",
-          "sha256": "5505b863a21fa8584286e835c188549e4e0464a8e962f1232cfb5640494350d9"
+          "sha256": "ac61e2a7da6ce78f0aecba68cbff904c746ffb6ebfb7b094e3fabc4c4c783b8c"
         },
         {
           "file": "packages/codemap/data/baselines/lints/boundaries-015.json",
@@ -74,11 +74,11 @@
         },
         {
           "file": "packages/codemap/data/baselines/lints/boundaries-018.json",
-          "sha256": "1bea9994a163b5fdafa553d65ea75cc8ea08a67063fda2c1b78572bddaf671ee"
+          "sha256": "cbc3e189b34e235f74aa0e90bbf1e3f84198521b66e419691f66cf653fe367b8"
         },
         {
           "file": "packages/codemap/data/baselines/lints/boundaries-019.json",
-          "sha256": "b2b03d43f0c231a301d5f0a332e7130f9b934cf50cbfdd746381bdf92ec8aab6"
+          "sha256": "be217cbe597de948eb2b74b8738a086089b211ce09483d72d0dba2a61b2cfd99"
         }
       ]
     },
@@ -113,28 +113,28 @@
       ]
     },
     "fileSize": {
-      "count": 66304,
+      "count": 65234,
       "shards": [
         {
           "file": "packages/codemap/data/baselines/lints/fileSize-001.json",
-          "sha256": "3c344c3568690dd2946bfd88e8dc21deaa17c6fecc6dc34e4e0d3f77b74aad7d"
+          "sha256": "409fefdb62f5b9417555e64525dc8fda80088b73490254e4dc347612ef320ebb"
         }
       ]
     },
     "strays": {
-      "count": 901,
+      "count": 906,
       "shards": [
         {
           "file": "packages/codemap/data/baselines/lints/strays-001.json",
-          "sha256": "1521acc858156c21904da04ae45916fa4f055abd5ae2cc97f0326a1e8c33b36c"
+          "sha256": "f1fee1190988b34297aee517ca46afb0028e4387f601f832eb70692def13e233"
         },
         {
           "file": "packages/codemap/data/baselines/lints/strays-002.json",
-          "sha256": "750f5fc7705f5da44c093878f8de361173b31c2827e7cca012308b81c232d06f"
+          "sha256": "808804525f98adf3c23bf50ac7b22834f56c25f88604f659c006406c94a1d1df"
         },
         {
           "file": "packages/codemap/data/baselines/lints/strays-003.json",
-          "sha256": "9517c2cd08937f0eb1b9ab851c0a68c4cf70ed99c8212304bfbbfee9f41c6e6b"
+          "sha256": "97f0e59a7222fbfcfe68f60d1c212613e17c2fd087ec66edb0208d165e3bb225"
         }
       ]
     },
@@ -143,11 +143,11 @@
       "shards": []
     },
     "unreachable": {
-      "count": 383,
+      "count": 382,
       "shards": [
         {
           "file": "packages/codemap/data/baselines/lints/unreachable-001.json",
-          "sha256": "2b9f186dec4ca878062f1da6c4af438212172937dedd31498de96665bd80d177"
+          "sha256": "994f0d7213e5ca504ff92f39a578a666756197f9d500d8bb0cdc41b2494c8e47"
         }
       ]
     },
@@ -161,7 +161,7 @@
       ]
     },
     "unreachableExports": {
-      "count": 1176,
+      "count": 1175,
       "shards": [
         {
           "file": "packages/codemap/data/baselines/lints/unreachableExports-001.json",
@@ -169,7 +169,7 @@
         },
         {
           "file": "packages/codemap/data/baselines/lints/unreachableExports-002.json",
-          "sha256": "f872a1bc5c31ea0884da707c0fe227ae48330b6c5f7d787dd65e5582406cf08a"
+          "sha256": "d0c35d2ae99326481cfc62b6f03d2a1255dd2b926a32577abdc4237f47ab2940"
         },
         {
           "file": "packages/codemap/data/baselines/lints/unreachableExports-003.json",

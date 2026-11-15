@@ -17,7 +17,7 @@ import { lateTransportRetrySource } from '../../fixtures/retry.js';
 
 /** Build a private runner pool with no configured host or relay connection. */
 function fixture(t) {
-  const box = cellProject(t, { gate: 'true' });
+  const box = cellProject(t, { real: true, gate: 'true' });
   const bin = join(box.dir, 'infra-retry-bin'), worker = join(box.dir, 'infra-retry-worker');
   const home = join(box.dir, 'infra-retry-home'), machineHome = join(home, '.pullboard');
   for (const folder of [bin, worker, home, machineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(folder, { recursive: true });

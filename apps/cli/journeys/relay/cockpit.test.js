@@ -30,6 +30,7 @@ import {
 } from 'node:test';
 import { performance } from 'node:perf_hooks';
 import { stableChrome } from '../../tests/fixtures/cockpit/stable.js';
+import { pressTab } from '../../tests/fixtures/cockpit/stable.js';
 import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../index.js';
 import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
 import {
@@ -109,9 +110,9 @@ test('a paired relay reference explains that committed source is available only 
   })).success, true, 'the private browser receives the paired phone’s authenticated session');
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + encoded);
   await chrome.waitFor(`data?.project?.items?.some(item => item.title === ${JSON.stringify(itemTitle)})`);
-  await chrome.click(`document.querySelector('[data-tab="items"]')`); // a person opens Items before the list is drawn, since pages open on the Dashboard.
+  await pressTab(chrome, 'items'); // a person opens Items before the list is drawn, since pages open on the Dashboard.
   await chrome.waitFor(`document.querySelector('#chain')?.textContent.includes(${JSON.stringify(itemTitle)})`);
-  await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
+  await pressTab(chrome, 'shouts');
   // Shouts list conversations first; a person opens the one carrying the reference to read its messages in full.
   await chrome.waitFor(`!!document.querySelector('#feed [data-shout-thread]:not([data-shout-thread=""])') || !!document.querySelector('#feed button[data-code^="${sourceRef}:1@"]')`);
   if (await chrome.stable(`!document.querySelector('#feed button[data-code^="${sourceRef}:1@"]')`)) await chrome.click(`document.querySelector('#feed [data-shout-thread]:not([data-shout-thread=""])')`);
@@ -198,7 +199,7 @@ export async function createTransport({ onUpdate, onOpenBoard }) {
     chrome = await openSnapshotChrome(executable, `http://127.0.0.1:${server.address().port}/`, join(box.dir, 'approved-board-chrome'));
     await chrome.waitFor(`view.root === ${JSON.stringify(firstId)} && data?.project?.items.some(item => item.title === 'Current board item')`);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
-    await chrome.click('document.querySelector(\'[data-tab="shouts"]\')');
+    await pressTab(chrome, 'shouts');
     await chrome.waitFor('view.tab === "shouts" && document.querySelector(\'[data-pane="items"]\').hidden');
     const documentOrigin = await chrome.stable('performance.timeOrigin');
     await chrome.stable('window.__transportUpdate()');
@@ -270,8 +271,8 @@ test('served connection reaches an authenticated API on another origin and path 
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('typeof data === "object" && !!data?.project');
     assert.equal(await chrome.stable('data.project.items[0].title'), 'Remote original');
-    await chrome.click(`document.querySelector('[data-tab="items"]')`); // a person opens Items before the list is drawn, since pages open on the Dashboard.
-    await chrome.click(`document.querySelector('#new-item')`); await chrome.stable(`document.querySelector('#add-title').value = 'Remote added'`); await chrome.stable(`document.querySelector('#add-form').requestSubmit()`);
+    await pressTab(chrome, 'items'); // a person opens Items before the list is drawn, since pages open on the Dashboard.
+    await chrome.click(`document.querySelector('[data-page-ctl=new]')`); await chrome.stable(`document.querySelector('#add-title').value = 'Remote added'`); await chrome.stable(`document.querySelector('#add-form').requestSubmit()`);
     await chrome.waitFor('data.project.items.some(item => item.title === "Remote added")');
     assert.ok(seen.some((entry) => entry.method === 'POST' && entry.path.endsWith('/moves')), 'a real browser action reaches the configured API');
     assert.ok(seen.every((entry) => entry.authorization === `Bearer ${credential}` && entry.localKey === undefined && entry.path.startsWith('/mirror/api/v1/')), 'only the supplied credential and API base reach the stand-in');

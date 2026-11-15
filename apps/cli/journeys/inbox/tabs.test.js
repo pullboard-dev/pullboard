@@ -41,8 +41,8 @@ test('a machine with no board says how to start one [N26]', async () => {
     const style = await styleOf(view);
     // Agents start boards, so the view offers no form for it.
     const renderedMarkup = page.html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/giu, '');
-    assert.doesNotMatch(renderedMarkup, /init-form|init-path|Start a board|<details/,
-      'the rendered page has no form or disclosure for starting a board');
+    assert.doesNotMatch(renderedMarkup, /init-form|init-path|Start a board|<details(?![^>]*sx-lanes)/u,
+      'the rendered page has no form or disclosure for starting a board (the Lanes fold, 154e174c55, is not one)');
     assert.doesNotMatch(style, /\.start\b/);
 
     const classes = (on) => ['loading', 'boardless'].filter((name) => on.run(`document.body.classList.contains('${name}')`));
@@ -55,7 +55,7 @@ test('a machine with no board says how to start one [N26]', async () => {
     assert.deepEqual(classes(early), ['loading'], 'and stays so while the first answer is on its way');
     await early.release();
     assert.deepEqual(classes(early), ['boardless'], 'then the message takes the place of the board');
-    assert.match(page.html, /<main>\n {2}<section class="card-panel first">\n {4}<h2>No boards yet<\/h2>\n {4}<p>Run <code>pullboard init<\/code> in a git repo, or ask an agent to\. Its board shows up here by itself\.<\/p>\n {2}<\/section>\n/, 'the message says how a board starts');
+    assert.match(page.html, /<main>\n {2}<div class="page-title" id="page-title"><h2 id="page-title-text"><\/h2><\/div>\n {2}<section class="card-panel first">\n {4}<h2>No boards yet<\/h2>\n {4}<p>Run <code>pullboard init<\/code> in a git repo, or ask an agent to\. Its board shows up here by itself\.<\/p>\n {2}<\/section>\n/, 'the message says how a board starts');
     assert.equal(page.show('proj-list'), '<div class="empty">None yet.</div>');
     assert.equal(page.element('products').hidden, true);
 
@@ -82,7 +82,7 @@ test('a fresh board files new work where it can be built [N26, N27]', async () =
   const fresh = join(box.dir, 'fresh');
   mkdirSync(fresh);
   box.git(fresh, 'init', '-q', '-b', 'main');
-  box.run(fresh, 'init');
+  await box.inProcess(fresh, 'init');
   const beta = project(box, 'beta', SPEC, { lanes: { web: { owns: ['web/'], specs: ['G'] }, review: { owns: [] } } });
   const view = await startView(box);
   try {
@@ -153,12 +153,12 @@ test('the project switcher\'s arrow turns with the list [N26]', { timeout: 120_0
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-arrow-chrome-'));
   let chrome;
   /** The switcher's arrow as it reads: shown, its size, which way it points, and whether it animates. */
-  const read = async () => JSON.parse(await chrome.stable(`JSON.stringify((() => {
-    const arrow = document.querySelector('#proj-switch small'), svg = arrow.querySelector('svg'), s = getComputedStyle(arrow), r = svg.getBoundingClientRect();
+  const read = async (switcher = '#proj-switch') => JSON.parse(await chrome.stable(`JSON.stringify((() => {
+    const arrow = document.querySelector('${switcher} small'), svg = arrow.querySelector('svg'), s = getComputedStyle(arrow), r = svg.getBoundingClientRect();
     return {
       page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth },
       shown: s.display !== 'none' && r.width > 0, size: [Math.round(r.width), Math.round(r.height)], faint: s.color === (() => { const p = document.createElement('i'); p.style.color = 'var(--ink-faint)'; document.body.append(p); const c = getComputedStyle(p).color; p.remove(); return c; })(),
-      turn: s.transform, motion: [s.transitionDuration, s.animationName], open: document.querySelector('#proj-switch').getAttribute('aria-expanded'),
+      turn: s.transform, motion: [s.transitionDuration, s.animationName], open: document.querySelector('${switcher}').getAttribute('aria-expanded'),
     };
   })())`));
   const click = (selector) => chrome.click(`document.querySelector(${JSON.stringify(selector)})`);
@@ -174,13 +174,14 @@ test('the project switcher\'s arrow turns with the list [N26]', { timeout: 120_0
         await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
         await chrome.waitFor(`innerWidth === ${width} && matchMedia('(prefers-color-scheme: ${scheme})').matches`);
         const at = `${width}px ${scheme}`;
-        if (width === 1280) {
-          // Docked, the name opens no list, so there is no arrow; collapsed, the list drops from the name.
-          if (await chrome.stable("document.documentElement.dataset.side === 'collapsed'")) await click('#side-toggle');
-          await chrome.waitFor("document.documentElement.dataset.side !== 'collapsed'");
-          assert.equal((await read()).shown, false, `${at}: docked, with no list to drop, there is no arrow`);
-          await click('#side-toggle');
-          await chrome.waitFor("document.documentElement.dataset.side === 'collapsed'");
+        if (width === 375) {
+          // Under 900 px the switcher is in the Menu drawer (dcf117ebc6, #6725): the same chevron, drawn once the drawer is open. Its press hands over to the project list, so it has no turn to check.
+          await click('#menu-btn');
+          const drawn = await read('#mdrawer-proj');
+          assert.ok(drawn.page.scroll <= drawn.page.width, `${at}: no sideways scroll`);
+          assert.deepEqual([drawn.shown, drawn.size, drawn.faint, drawn.turn, drawn.motion], [true, [16, 16], true, DOWN, ['0s', 'none']], `${at}: the drawer's switcher keeps a 16px faint chevron that never animates: ${JSON.stringify(drawn)}`);
+          await click('#mveil');
+          continue;
         }
         const closed = await read();
         assert.ok(closed.page.scroll <= closed.page.width, `${at}: no sideways scroll`);
@@ -213,7 +214,7 @@ test('a migration-refused project stays quiet beside a normal board [A5,A6,N26]'
   const normal = project(box, 'normal-board', SPEC, { name: 'Normal board' });
   const missing = project(box, 'missing-board', SPEC, { name: 'Missing board' });
   writeFileSync(join(missing.repo, 'pullboard.json'), '{not valid json');
-  box.run(normal.repo, 'add', 'web', 'Readable beside the refused board', '--specs', 'G1');
+  await box.inProcess(normal.repo, 'add', 'web', 'Readable beside the refused board', '--specs', 'G1');
   const primary = join(box.dir, 'migration-cli');
   const linked = join(box.dir, 'migration-cli-linked');
   mkdirSync(primary);

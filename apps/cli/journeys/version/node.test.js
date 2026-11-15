@@ -27,6 +27,7 @@ import {
   test,
 } from 'node:test';
 
+// Process-level by nature: every launch here spoofs process.versions.node or runs real git hooks, which only a fresh node process (or git child) can model.
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-node-')));
 after(() => rmSync(dir, { recursive: true, force: true }));

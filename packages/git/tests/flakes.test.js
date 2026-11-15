@@ -7,10 +7,20 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { flakyProject } from './fixtures/flakes.js';
+import { cellSandbox } from '../../store/tests/fixtures/cell.js';
+import { evidenceReader } from './fixtures/evidence.js';
+
+/** A private scratch with a repo source file and a counter, read only through the flake fixture's evidence reader; no CLI runs. */
+function evidenceBox(t) {
+  const scratch = cellSandbox(t).dir;
+  const root = join(scratch, 'repo'), counter = join(scratch, 'observed-target-runs');
+  mkdirSync(join(root, 'test'), { recursive: true });
+  writeFileSync(join(root, 'test/alternating.test.mjs'), 'export {};\n');
+  return { root, counter, readData: evidenceReader({ scratch, root, counter }) };
+}
 
 test('private flake evidence keeps real bytes and refuses source paths and symlinks [C7,H16]', t => {
-  const box = flakyProject(t);
+  const box = evidenceBox(t);
   writeFileSync(box.counter, 'actual counter bytes\n');
   assert.equal(box.readData(box.counter, 'utf8'), 'actual counter bytes\n');
   const evidence = join(box.root, '.git/pullboard');

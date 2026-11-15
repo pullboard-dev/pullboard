@@ -15,6 +15,7 @@ import { proofShardCount } from '../../../src/io/shards/proof.js';
 import { runProofShards } from '../../../src/io/shards/proof.js';
 import { shardStartupMs } from '../../../src/io/shards/proof.js';
 import { proofFields } from '../../../../verify/index.js';
+import { receiptFields } from '../../../../verify/index.js';
 import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
 
 const FILES = ['test/a.test.js', 'test/b.test.js', 'test/c.test.js', 'test/d.test.js'];
@@ -203,4 +204,20 @@ test('clause 1: a proof shard dispatch gets a 90 s startup budget, not its 30 s 
   assert.equal(shardStartupMs(SHARD_ADMIT_MS), SHARD_STARTUP_MS, 'the admission window no longer sets the startup budget');
   assert.equal(shardStartupMs(undefined), SHARD_STARTUP_MS);
   assert.equal(shardStartupMs(30 * 60_000), 30 * 60_000, 'a longer lease budget stands');
+});
+
+test('#5763 clause 1: shards on two runners that report the same child PID still merge into a valid native receipt, so a check that ran is never PROOF_RUN_UNAVAILABLE [P7]', async () => {
+  const env = { node: '22.22.2', platform: 'darwin', arch: 'arm64' };
+  const shard = (host, pids) => async files => ({ isGreen: true, exitCode: 0, output: `ok ${files[0]}`, executionRunner: host, remoteWallMs: 3,
+    testRuntimes: pids.map(pid => ({ pid, environment: env, file: files[0] })) });
+  const merged = mergeShardRuns(await runProofShards(FILES.slice(0, 2), { freeSlots: 1, batchFiles: 1, runFirst: shard('runner-a', [4242, 7]), takeSlot: lane => lane(shard('runner-b', [4242, 9])) }));
+  assert.deepEqual(merged.testRuntimes.map(row => row.pid).sort(), [7, 9], 'a PID both shards report is dropped from both; the rest stay');
+  const receipt = pids => receiptFields({ version: 2, id: '00000000-0000-4000-8000-000000000001', kind: 'submit', tree: 'a'.repeat(40), head: 'b'.repeat(40),
+    main: null, command: 'c'.repeat(64), green: true, failures: [], load: null, at: new Date(0).toISOString(),
+    proof: { ...receiptProof(merged), environment: env, testRuntimes: pids } });
+  assert.ok(receipt(merged.testRuntimes), 'the merged receipt is valid, so the gate writes the native receipt');
+  assert.equal(receipt([...merged.testRuntimes, { pid: 7, environment: env, file: 'test/b.test.js' }]), null, 'the old joined rows, with a PID twice, refused the receipt');
+  const all = mergeShardRuns(await runProofShards(FILES.slice(0, 2), { freeSlots: 1, batchFiles: 1, runFirst: shard('runner-a', [5]), takeSlot: lane => lane(shard('runner-b', [5])) }));
+  assert.equal(all.testRuntimes, null, 'when every row collides the children read as unknown, never an empty list the receipt refuses');
+  assert.ok(receipt(all.testRuntimes));
 });

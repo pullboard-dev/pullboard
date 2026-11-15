@@ -116,6 +116,36 @@ export async function waitForStableBoxes(chrome, find = 'document.documentElemen
 }
 
 /**
+ * A page in a closed navigation menu (Rules or Insights, #6614), or a project tool in the closed project list, is reached
+ * as a person reaches it: press the menu's button, or the project switcher, first. A target outside a menu, or not drawn yet, is left to the stable wait as before.
+ * @param {object} chrome
+ * @param {string} find
+ * @returns {Promise<void>}
+ */
+async function openNavMenuFor(chrome, find) {
+  const button = await rawChromeEvaluation(chrome, `(() => { try {
+    const target = (${find}), menu = target?.closest?.('[data-nav-menu]'), side = target?.closest?.('#side');
+    if (menu && menu.hidden) return '[aria-controls="' + menu.id + '"]';
+    return side && !side.classList.contains('open') && getComputedStyle(target).display !== 'none' && target.getBoundingClientRect().width === 0 ? '#proj-switch' : null;
+  } catch { return null; } })()`);
+  if (button) await press(chrome, `document.querySelector(${JSON.stringify(button)})`, { native: false });
+  if (button === '#proj-switch') await press(chrome, 'document.querySelector("[data-proj-all]")', { native: false });
+}
+
+/**
+ * Visit a page as a person does: the tab strip over 900 px, or under it the Menu button and its drawer, where every page
+ * lives once the strip is gone (the compact layout, dcf117ebc6).
+ * @param {object} chrome
+ * @param {string} name - The page's data-tab name.
+ * @returns {Promise<void>}
+ */
+export async function pressTab(chrome, name) {
+  const drawer = await rawChromeEvaluation(chrome, 'innerWidth <= 900');
+  if (drawer) await press(chrome, "document.querySelector('#menu-btn')");
+  await press(chrome, `document.querySelector('${drawer ? '#mdrawer ' : ''}[data-tab="${name}"]')`);
+}
+
+/**
  * Press an uncovered, stable target through real Chrome input, optionally using a browser button or modifier.
  * A pointer move can change hover layout, so wait again after it and refuse a changed point rather than retrying.
  * Fixed dialog targets use viewport geometry; flowing targets retain the document-scroll guard as well.
@@ -125,6 +155,7 @@ export async function waitForStableBoxes(chrome, find = 'document.documentElemen
  * @returns {Promise<void>}
  */
 export async function press(chrome, find, { native = true, button = 'left', modifiers = 0, afterMouseDown = null } = {}) {
+  await openNavMenuFor(chrome, find);
   await waitForStableBoxes(chrome, find);
   if (!native) return rawChromeEvaluation(chrome, `(${find}).click()`);
   await rawChromeEvaluation(chrome, `(${find}).scrollIntoView({ block: 'center', behavior: 'instant' })`);

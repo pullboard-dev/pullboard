@@ -22,7 +22,6 @@ import {
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { gitSpawnSync } from '../../../../../packages/git/index.js';
-import { tmpdir } from 'node:os';
 import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath } from 'node:url';
 import { runOnRunner } from '../../../../../packages/runners/index.js';
@@ -42,6 +41,7 @@ import {
 } from '../../../../../packages/sandbox/index.js';
 import { mappedCheck } from '../../../../../packages/codemap/index.js';
 import { environmentProblem } from '../../../../../packages/config/index.js';
+import { scratchFolder } from '../../../../../packages/config/index.js';
 import {
   digestOf,
   writeTimingProfile,
@@ -179,7 +179,7 @@ export function checkAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, ga
   const install = config.check.install;
   const timeout = frozenCheckCeilingMs(config);
   // Retain the physical root before cleanup; Node TAP resolves symlinks in test locations.
-  const scratch = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-criterion-')));
+  const scratch = realpathSync(scratchFolder('pullboard-criterion-'));
   const copy = join(scratch, 'repo');
   const home = join(scratch, 'home');
   mkdirSync(home, { mode: 0o700 });

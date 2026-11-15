@@ -351,7 +351,7 @@ test('the hosted page lists linked and local boards together [N26,H5]', {
       };
       return true;
     })()`);
-    await chrome.click("document.querySelector('#new-item')");
+    await chrome.click("document.querySelector('[data-page-ctl=new]')");
     await chrome.stable("document.querySelector('#add-title').value = 'held local action'; true");
     const firstHeld = stopOrigins.holdNextResponse(({ method, path }) => method === 'POST' && path === '/api/v1/boards/' + localId + '/moves');
     await chrome.stable("document.querySelector('#add-title').value = 'held local action'; document.querySelector('#add-form').requestSubmit(); true");
@@ -360,7 +360,7 @@ test('the hosted page lists linked and local boards together [N26,H5]', {
     assert.ok(firstResponse.status >= 200 && firstResponse.status < 300, 'the local board accepted the real move before response delivery was held');
     await pickProject(chrome, remoteRow);
     await chrome.waitFor("view.root === data.projects.find(row => row.id === " + JSON.stringify(linkedId) + ").root && readOnly && requests");
-    await chrome.click("document.querySelector('#new-item')");
+    await chrome.click("document.querySelector('[data-page-ctl=new]')");
     await chrome.stable("document.querySelector('#add-title').value = 'relay draft survives local completion'; true");
     assert.equal(await chrome.stable(holdRelayReads), true, 'relay reads wait for the fixture');
     firstResponse.release();
@@ -375,7 +375,7 @@ test('the hosted page lists linked and local boards together [N26,H5]', {
     // draft entered in that board's form while the response was held.
     await pickProject(chrome, localRow);
     await chrome.waitFor("view.root === data.projects.find(row => row.name === 'local-machine-b').root && !readOnly && !requests");
-    await chrome.click("document.querySelector('#new-item')");
+    await chrome.click("document.querySelector('[data-page-ctl=new]')");
     await chrome.stable("document.querySelector('#add-title').value = 'second held local action'; true");
     const secondHeld = stopOrigins.holdNextResponse(({ method, path }) => method === 'POST' && path === '/api/v1/boards/' + localId + '/moves');
     await chrome.stable('window.__actOutcome = null; true');
@@ -387,7 +387,7 @@ test('the hosted page lists linked and local boards together [N26,H5]', {
     await chrome.waitFor("view.root === data.projects.find(row => row.id === " + JSON.stringify(linkedId) + ").root && readOnly && requests");
     await pickProject(chrome, localRow);
     await chrome.waitFor("view.root === data.projects.find(row => row.name === 'local-machine-b').root && !readOnly && !requests");
-    await chrome.click("document.querySelector('#new-item')");
+    await chrome.click("document.querySelector('[data-page-ctl=new]')");
     await chrome.stable("document.querySelector('#add-title').value = 'replacement local draft'; true");
     assert.equal(await chrome.stable(holdRelayReads), true, 'relay reads wait for the fixture');
     secondResponse.release();

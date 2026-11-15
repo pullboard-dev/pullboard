@@ -7,6 +7,7 @@ import { handoffQueueDirectory } from '../../../../../packages/resources/index.j
 import { listResources } from '../../../../../packages/resources/index.js';
 import { machineHome } from '../../../../../packages/resources/index.js';
 import { openWaitKey } from '../../../../../packages/sentinels/index.js';
+import { waitPidRecorded } from '../../../../../packages/sentinels/index.js';
 import { recordWaits } from '../../../../../packages/sentinels/index.js';
 import { waitBudgets } from '../../../../../packages/sentinels/index.js';
 import { waitItemFields } from '../../../../../packages/sentinels/index.js';
@@ -60,6 +61,10 @@ export async function run(io, { first, second, rest = [] } = {}) {
     const filing = me.id === COORDINATOR;
     const outcome = await recordWaits({ ...snapshot, budgets: { ...budgets, file: budgets.file && filing, reclaim: budgets.reclaim } }, {
       openKey: key => openWaitKey(board.db, key),
+      repeat: async (id, text, pid) => {
+        if (pid && waitPidRecorded(board.db, id, pid)) return;
+        await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text }]);
+      },
       fileItem: draft => ordered(ctx, board, 'addItem', [waitItemFields(draft, me.id)]),
       shout: text => ordered(ctx, board, 'shout', [{ from: 'sentinel', to: COORDINATOR, lanes: [], text, detail: { model: me.model ?? 'unknown' } }]),
       prunePools: scope => listResources({ scope, root: ctx.info.root }),

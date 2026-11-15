@@ -1,13 +1,13 @@
 import { EXPECTED_BUILD_ENGINE } from '../../../../state/light.js';
 import { MACHINE_VERDICT_ENGINE } from '../../../../state/light.js';
 import { BLOCKED_DEPENDENCIES_ENGINE } from '../../../../state/light.js';
-import { checkTimingEngine } from "../../../../items/light.js";
+import { checkTimingEngine } from "../../../../items/browser.js";
 import { REVIEW_TIER_ENGINE } from "../../../../state/light.js";
 import { CHECK_TIMING_ENGINE } from "../../../../state/light.js";
 import { REVIEW_INDEPENDENCE_ENGINE } from "../../../../state/light.js";
 import { REFERENCE_ENGINE } from "../../../../state/light.js";
 import { CROSS_REPO_DEPENDENCY_ENGINE } from "../../../../state/light.js";
-import { hasForeignDependencies } from "../../../../items/light.js";
+import { hasForeignDependencies } from "../../../../items/browser.js";
 import { AUTOMATIC_DISPATCH_ENGINE } from "../../../../state/light.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by editItem, discovered without a shared registry edit [C7,V4,H16]. */
@@ -53,6 +53,7 @@ export default Object.freeze({ operation: "editItem", order: 9, engine: 1,
   "BAD_REVIEW_FAMILY": "use --review-family with a nonempty declared reviewer family of at most 100 characters",
   "BAD_CHECK": "ask your coordinator to set the check: pullboard edit <id> --check \"<command>\"",
   "BAR_REASON": "say what the old bar got wrong: pullboard edit <id> --reason \"...\"",
+  "CHECK_RUNS_PULLBOARD_TEST": "run the files directly: node packages/gate/src/io/run/tests.js <files>",
   "COORDINATOR_CHECK": "ask your coordinator to set the check: pullboard shout coordinator --kind question \"please set a check on #<id>\"",
   "USAGE": "run pullboard help"
 }) });

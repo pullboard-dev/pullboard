@@ -9,6 +9,9 @@ import { COORDINATOR } from '../../../../config/index.js';
 import { Refused } from '../../../../kernel/index.js';
 
 
+/** The hold reason an item gets when its first baseline shows its check already passes on main (#5709); accepting that check lifts it. */
+export const PROVES_NOTHING_HOLD_REASON = 'check passes on main; edit the bar';
+
 /** The setting value that turns today's warning into a hold. */
 export const PROVES_NOTHING_HOLD = 'hold';
 
@@ -142,6 +145,10 @@ export async function checkAcceptCommand(io, first, rest, { context, withBoard, 
     if (!ctx.info.isMain || whoAmI(ctx, board).id !== COORDINATOR) throw new Refused('B26_PERSON_APPROVAL', 'only the person accepts a check, from the main checkout or the view', 'ask the person to accept it in pullboard view, or in their own terminal at the main checkout');
     const item = getItem(board, idArg(first));
     if (!item.item_check) throw new Refused('NO_CHECK', `#${item.item_id} has no check command to accept; its proof is the project gate: pullboard gate`);
+    // Accepting is the person's answer to that hold, so the hold lifts first and the acceptance stays the newest event [#5709].
+    if (getItem(board, item.item_id).item_hold_reason === PROVES_NOTHING_HOLD_REASON) {
+      await ordered(ctx, board, 'releaseItemHold', [item.item_id, { agentId: COORDINATOR }]);
+    }
     const accepted = await ordered(ctx, board, 'acceptCheck', [item.item_id, { agentId: PERSON, channel: io.personChannel ?? 'terminal', digest: checkDigest(item.item_check) }]);
     io.result?.({ id: accepted.id, digest: accepted.digest, check: accepted.check });
     io.say(`accepted #${accepted.id}'s check as it reads now: ${accepted.check}`);

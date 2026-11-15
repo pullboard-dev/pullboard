@@ -10,7 +10,7 @@
  */
 import { audit } from './harness.mjs';
 
-const VERIFY_AT_COMMIT = ['apps/cli/journeys/spec/e2e.test.js', 'verify runs at the submitted commit, against the criterion frozen at claim'];
+const VERIFY_AT_COMMIT = ['apps/cli/journeys/spec/e2e/next.test.js', 'verify runs at the submitted commit, against the criterion frozen at claim'];
 const CLEAN_TREE = ['apps/cli/journeys/gate/slot.test.js', 'submit needs a clean tree, nothing untracked, and the gate green at HEAD'];
 const VERDICT_RULES = ['apps/cli/journeys/resume/board.test.js', 'ACCEPT needs CRITERION_MET'];
 const BOARD_CRITERION = ['packages/store/src/io/board/verify.js', '        criterionUnchanged: (found) =>\n          digest === found.item_frozen_digest', '        criterionUnchanged: (found) =>\n          true || digest === found.item_frozen_digest'];
@@ -18,8 +18,9 @@ const CLI_CRITERION = 'if (digest !== item.item_frozen_digest) throw new Refused
 const CLI_CRITERION_OFF = 'if (false) throw new Refused(\'CRITERIA_CHANGED\'';
 const RED_GATE = ['apps/cli/src/io/commands/submit.js', 'if (redCriterion || !gate.isGreen && !waived && !proofMatched) {', 'if (false) {'];
 const VERDICT_INSERT = '.run(item.item_id, agentId, decision, reason, note.trim(), item.item_commit,';
-const MOVED = 'if (headCommit(root) !== commit || !isClean(root)) {';
-const MOVED_TREE = ['apps/cli/journeys/gate/main.test.js', 'submit refuses a tree its gate left changed'];
+const MOVED = 'if (before && JSON.stringify(after) !== JSON.stringify(before)) refusals.push(';
+const PULL = 'apps/cli/src/io/submit/pull.js';
+const MOVED_TREE = ['apps/cli/journeys/runner/moved.pull.test.js', 'a pulled gate whose script commits or edits a tracked file in its runner checkout'];
 
 /** Row, the change, its edits as [file, from, to], the test that judges it, and the outcome expected. */
 const MUTANTS = [
@@ -32,7 +33,7 @@ const MUTANTS = [
   ['V3', "the CLI's own check alone is removed; the board still refuses with the same code", [['apps/cli/src/io/commands/verify.js', CLI_CRITERION, CLI_CRITERION_OFF], ['apps/cli/src/io/commands/verify.js', CLI_CRITERION, CLI_CRITERION_OFF]], VERIFY_AT_COMMIT, 'green'],
   ['V4', 'submit takes a dirty tree', [['apps/cli/src/io/commands/submit.js', "if (!isClean(root)) throw new Refused('DIRTY'", "if (false) throw new Refused('DIRTY'"]], CLEAN_TREE, 'red'],
   ['V4', 'submit takes untracked files', [['apps/cli/src/io/commands/submit.js', "if (stray.length) throw new Refused('UNTRACKED'", "if (false) throw new Refused('UNTRACKED'"]], CLEAN_TREE, 'red'],
-  ['V4', 'submit takes a red gate', [RED_GATE], ['apps/cli/journeys/spec/e2e.test.js', 'a red gate refuses submit'], 'red'],
+  ['V4', 'submit takes a red gate', [RED_GATE], ['apps/cli/journeys/spec/e2e/next.test.js', 'a red gate refuses submit'], 'red'],
   ['V5', 'an accept needs no proof note', [['packages/store/src/io/board/verify.js', '        proofNoted: () =>\n          suppliedNote', '        proofNoted: () =>\n          true || suppliedNote']], VERDICT_RULES, 'red'],
   ['V5', 'an accept may give another reason', [['packages/store/src/io/board/verify.js', 'reasonIsMet: () => (reason && reason !== ACCEPT_REASON ?', 'reasonIsMet: () => (false ?']], VERDICT_RULES, 'red'],
   ['V5', 'a reject needs no reason code', [['packages/store/src/io/board/verify.js', 'reasonCoded: () => (reason && REJECT_REASONS.includes(reason) ? null :', 'reasonCoded: () => (true ? null :']], VERDICT_RULES, 'red'],
@@ -43,9 +44,9 @@ const MUTANTS = [
   ['V8', "a verdict binds the verifier's head as the commit", [['packages/verify/src/logic/verdict/assurance.js', VERDICT_INSERT, VERDICT_INSERT.replace('item.item_commit', 'head')]], ['apps/cli/journeys/resume/board.test.js', 'every verdict binds the submitted commit'], 'red'],
   ['V8', 'a verdict binds no digest', [['packages/verify/src/logic/verdict/assurance.js', '    digest, head, family,', "    'none', head, family,"]], ['apps/cli/journeys/resume/board.test.js', 'every verdict binds the submitted commit'], 'red'],
   ['V9', 'the main checkout verifies without --as coordinator', [['apps/cli/src/io/verify.js', '  if (values.as === COORDINATOR) return;\n  const agents = store.listAgents(board)', '  return;\n  const agents = store.listAgents(board)']], VERIFY_AT_COMMIT, 'red'],
-  ['V16', 'submit does not look whether the tree moved', [['apps/cli/src/io/commands/submit.js', MOVED, 'if (false) {']], MOVED_TREE, 'red'],
-  ['V16', 'submit misses a commit made during the gate', [['apps/cli/src/io/commands/submit.js', MOVED, 'if (!isClean(root)) {']], MOVED_TREE, 'red'],
-  ['V16', 'submit misses a tracked file edited during the gate', [['apps/cli/src/io/commands/submit.js', MOVED, 'if (headCommit(root) !== commit) {']], MOVED_TREE, 'red'],
+  ['V16', 'submit does not look whether the tree moved', [[PULL, MOVED, 'if (false) refusals.push(']], MOVED_TREE, 'red'],
+  ['V16', 'submit misses a commit made during the gate', [[PULL, MOVED, 'if (before && after?.tracked !== before.tracked) refusals.push(']], MOVED_TREE, 'red'],
+  ['V16', 'submit misses a tracked file edited during the gate', [[PULL, MOVED, 'if (before && after?.head !== before.head) refusals.push(']], MOVED_TREE, 'red'],
 ];
 
 audit(MUTANTS);

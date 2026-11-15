@@ -39,6 +39,7 @@ import {
   openSnapshotChrome,
   closeSnapshotChrome,
   press,
+  openItemsNeeds,
 } from '../../tests/fixtures/cockpit/harness.js';
 
 /** Seed authoritative health transitions through the normal ordered receiver, never fabricated event rows. */
@@ -57,15 +58,15 @@ async function tab(chrome, name) {
 
 /** Exercise real bookkeeping writers, retaining their source/receipt identities outside Activity. */
 async function seedBookkeeping(box, alpha) {
-  box.run(alpha.repo, 'add', 'web', 'Bookkeeping keeps its native subject', '--specs', 'G1', '--criterion', 'The native fixture command runs.', '--check', 'node --version');
-  box.run(alpha.repo, 'milestone', 'add', 'Plain launch', '--reason', 'Arrange fixture release', '--items', '1');
-  box.run(alpha.repo, 'milestone', 'items', 'Plain launch', '--add', '2', '--reason', 'Arrange fixture release');
-  box.run(alpha.repo, 'milestone', 'order', 'Plain launch', '2,1', '--reason', 'Arrange fixture release');
-  box.run(alpha.web, 'claim', '3');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Bookkeeping keeps its native subject', '--specs', 'G1', '--criterion', 'The native fixture command runs.', '--check', 'node --version');
+  await box.inProcess(alpha.repo, 'milestone', 'add', 'Plain launch', '--reason', 'Arrange fixture release', '--items', '1');
+  await box.inProcess(alpha.repo, 'milestone', 'items', 'Plain launch', '--add', '2', '--reason', 'Arrange fixture release');
+  await box.inProcess(alpha.repo, 'milestone', 'order', 'Plain launch', '2,1', '--reason', 'Arrange fixture release');
+  await box.inProcess(alpha.web, 'claim', '3');
   const source = box.git(alpha.web, 'rev-parse', 'HEAD');
   const patch = join(box.dir, 'plain-native.patch');
   writeFileSync(patch, ['diff --git a/docs/plain-native.txt b/docs/plain-native.txt', 'new file mode 100644', '--- /dev/null', '+++ b/docs/plain-native.txt', '@@ -0,0 +1 @@', '+Native companion provenance.', ''].join('\n'));
-  box.run(alpha.repo, 'patch', 'attach', '3', patch, '--key', 'plain-native', '--author', 'coordinator', '--source', source);
+  await box.inProcess(alpha.repo, 'patch', 'attach', '3', patch, '--key', 'plain-native', '--author', 'coordinator', '--source', source);
   mkdirSync(join(alpha.web, 'web'), { recursive: true });
   writeFileSync(join(alpha.web, 'web', 'bookkeeping.js'), 'export const bookkeeping = true;\n');
   box.git(alpha.web, 'add', 'web/bookkeeping.js');
@@ -97,7 +98,7 @@ async function seedBookkeeping(box, alpha) {
     } finally { board.clock = originalClock; }
     assert.equal(JSON.parse(store.events(board).findLast(event => event.event_kind === 'gate-run').event_detail).run.id, receipt.id, 'the gate event retains its actual receipt identity');
   } finally { store.closeBoard(board); }
-  box.run(alpha.repo, 'hold', 'web', '--reason', 'Waiting for plain guidance.');
+  await box.inProcess(alpha.repo, 'hold', 'web', '--reason', 'Waiting for plain guidance.');
   // @pullboard-board-file journey: reopen the CLI's persisted private board to observe actual idle and baseline events.
   const held = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
@@ -126,13 +127,13 @@ test('clause 1: native board kinds, names, reasons and sentinel notices read pla
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the visible plain-words scanner.');
   const box = machine(), alpha = project(box, 'plain-words');
-  box.run(alpha.repo, 'add', 'web', 'Visible subject for native evidence', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Visible subject for native evidence', '--specs', 'G1', '--criterion', 'greets');
   build(box, alpha, 1, 'plain.txt'); // Actual native frozen check and proof receipt, not synthetic assurance.
   sendBack(box, alpha, 1, 'Keep [MY_CODE] in this quoted review note.');
   for (const [kind, text] of [['measurement', 'Measured the native example.'], ['note', 'Keep [MY_CODE] in the native note.']]) {
-    box.run(alpha.repo, 'fact', '1', kind, text);
+    await box.inProcess(alpha.repo, 'fact', '1', kind, text);
   }
-  box.run(alpha.repo, 'add', 'web', 'Legacy holder has a subject', '--specs', 'G1', '--criterion', 'visible');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Legacy holder has a subject', '--specs', 'G1', '--criterion', 'visible');
   const unknown = join(box.dir, 'legacy-unknown');
   box.git(alpha.repo, 'worktree', 'add', '-q', '-b', 'web/plain-legacy', unknown, 'main');
   // Historical stored registrations can have no model even though modern CLI joins require it.
@@ -140,7 +141,7 @@ test('clause 1: native board kinds, names, reasons and sentinel notices read pla
   const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     store.register(board, { lane: 'web', path: unknown });
-    box.run(unknown, 'claim', '2');
+    await box.inProcess(unknown, 'claim', '2');
     const since = new Date(Date.now() - 60_000).toISOString();
     const finding = { key: 'RANK_INVERSION:item:2', cause: 'RANK_INVERSION', item: 2, subject: '#2', title: 'a free item ranks ahead', since,
       owner: { who: 'web-2', role: 'agent' }, why: 'web-2 claimed #2 while #1 ranks ahead in the web lane and sits free', next: 'release #2, then claim #1' };
@@ -152,8 +153,8 @@ test('clause 1: native board kinds, names, reasons and sentinel notices read pla
     }
   } finally { store.closeBoard(board); }
   await seedBookkeeping(box, alpha);
-  box.run(alpha.repo, 'shout', 'person', 'Which plain greeting?', '--decision');
-  box.run(unknown, 'shout', 'all', 'Keep [MY_CODE] and these words. Appointment 2026-10-28T04:12:00Z');
+  await box.inProcess(alpha.repo, 'shout', 'person', 'Which plain greeting?', '--decision');
+  await box.inProcess(unknown, 'shout', 'all', 'Keep [MY_CODE] and these words. Appointment 2026-10-28T04:12:00Z');
   const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-plain-words-'));
   let chrome;
   const forbidden = /\(unknown\)|\b(?:health-failure|health-resolved|health-scan|proof-run|rehomeImport|submit-merge|TEST_FAILURE|BEHAVIOR_MISMATCH)\b|\[RANK_INVERSION\]|\d{4}-\d\d-\d\dT\d\d:/u;
@@ -174,19 +175,22 @@ test('clause 1: native board kinds, names, reasons and sentinel notices read pla
         assert.ok(selection.bookkeeping.length > 0 && selection.bookkeeping.every(id => !selection.raw.includes(id) && !selection.plain.includes(id)), 'bookkeeping remains native history without becoming a work row');
         assert.equal(selection.unchanged, true, 'both presentation modes preserve every raw native event field and identity');
         await chrome.stable('document.querySelectorAll("#activity details").forEach(node => { node.open = true; })');
-        const rows = await chrome.stable('[...document.querySelectorAll("#activity .activity-event")].map(node => node.innerText)');
-        assert.ok(rows.some(text => /Measured|measurement/iu.test(text)), 'the genuine measurement has an Activity sentence');
+        const rows = await chrome.stable('[...document.querySelectorAll("#activity .act-row")].map(node => node.innerText)');
+        // The redesigned Activity (#6916) draws lifecycle, shout and Sentinel rows only; a measurement fact has no Activity row, so its sentence is asserted on the item timeline below.
+        assert.ok(rows.length > 0, 'Activity draws native sentence rows: ' + JSON.stringify(rows));
         assert.ok(rows.every(text => text.trim()), 'no native Activity row is empty');
-        const subjects = await chrome.stable('[...document.querySelectorAll("#activity .activity-event")].map(node => (node.querySelector(".activity-who") || node.querySelector("summary b"))?.textContent)');
+        const subjects = await chrome.stable('[...document.querySelectorAll("#activity .act-row")].map(node => (node.querySelector(".ph") || node.querySelector(".fa"))?.textContent)');
         assert.ok(subjects.every(subject => typeof subject === 'string' && subject.trim()), 'every native Activity sentence has its actual actor or Sentinels subject');
-        const workSubjects = await chrome.stable('[...document.querySelectorAll("#activity .activity-event")].filter(node => !["shout", "sentinels"].includes(node.dataset.activityKind)).map(node => node.querySelector(".activity-item")?.textContent)');
+        const workSubjects = await chrome.stable('[...document.querySelectorAll("#activity .act-row")].filter(node => !["Shout", "Sentinel"].includes(node.querySelector(".act-chip")?.textContent)).map(node => node.dataset.row ?? node.querySelector(".id")?.textContent ?? node.querySelector(".ph")?.textContent)');
         assert.ok(workSubjects.every(subject => typeof subject === 'string' && subject.trim()), 'every native work sentence retains its actual item subject');
       }
       const text = await chrome.stable('document.querySelector("[data-pane=' + name + ']").innerText');
-      assert.doesNotMatch(text, forbidden, name + ': visible scanner finds no raw machine words');
+      // The redesigned Activity page quotes a shout's own words exactly, as the Shouts pane does; the scanner covers everything outside those quotes.
+      assert.doesNotMatch(name === 'activity' ? text.replace(/“[^”]*”/gu, '') : text, forbidden, name + ': visible scanner finds no raw machine words');
       if (name === 'shouts') assert.match(text, /Keep \[MY_CODE\] and these words\./u, 'free user words remain exact');
     }
     await tab(chrome, 'items');
+    await openItemsNeeds(chrome);
     assert.match(await chrome.stable('document.querySelector("#needs").innerText'), /Asked by coordinator/u, 'the person keeps the actual source of the decision');
     assert.doesNotMatch(await chrome.stable('document.querySelector("#needs").innerText'), /\(unknown\)/u, 'Needs attribution shows no invented model');
     await press(chrome, 'document.querySelector("#chain [data-item=\\\"1\\\"]")');
@@ -194,12 +198,13 @@ test('clause 1: native board kinds, names, reasons and sentinel notices read pla
     const detail = await chrome.stable('document.querySelector("#detail").innerText');
     assert.doesNotMatch(detail, forbidden, 'item timeline and verdict contain plain visible labels');
     assert.match(detail, /Keep \[MY_CODE\] in this quoted review note\./u, 'reviewer words remain exact');
-    assert.equal(await chrome.stable('document.querySelector("#detail .verdict.no [title=BEHAVIOR_MISMATCH]")?.title'), 'BEHAVIOR_MISMATCH', 'the exact reason survives as a tooltip');
+    assert.match(await chrome.stable('document.querySelector("#detail [data-item-panel-panel=history]").textContent'), /Measured the native example|measurement/iu, 'the genuine measurement has a sentence in the item history');
+    assert.equal(await chrome.stable('document.querySelector("#detail .item-panel-latest.sentback [title=BEHAVIOR_MISMATCH]")?.title'), 'BEHAVIOR_MISMATCH', 'the exact reason survives as a tooltip');
     await tab(chrome, 'activity');
-    if (!await chrome.stable('document.querySelectorAll("#flow svg title").length > 0')) await press(chrome, 'document.querySelector("#flow-show")');
-    await chrome.waitFor('document.querySelectorAll("#flow svg title").length > 0');
-    assert.doesNotMatch(await chrome.stable('[...document.querySelectorAll("#flow svg text")].map(node => node.textContent).join(" ")'), /rehomeImport|submit-merge|\bintake\b|\bpatch\b/u, 'lifecycle labels use plain action words');
-    assert.doesNotMatch(await chrome.stable('[...document.querySelectorAll("#flow svg title")].map(node => node.textContent).join(" ")'), /\b(?:rehomeImport|submit-merge|intake|patch)\b/u, 'lifecycle hover text uses plain action words as well');
+    // The redesigned Activity page draws its waterfall and journey charts inline (#6916); their labels and hover text carry the same plain-word rule.
+    await chrome.waitFor('document.querySelectorAll("#activity svg text").length > 0');
+    assert.doesNotMatch(await chrome.stable('[...document.querySelectorAll("#activity svg text")].map(node => node.textContent).join(" ")'), /rehomeImport|submit-merge|\bintake\b|\bpatch\b/u, 'lifecycle labels use plain action words');
+    assert.doesNotMatch(await chrome.stable('[...document.querySelectorAll("#activity svg title")].map(node => node.textContent).join(" ")'), /\b(?:rehomeImport|submit-merge|intake|patch)\b/u, 'lifecycle hover text uses plain action words as well');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     rmSync(profile, { recursive: true, force: true });

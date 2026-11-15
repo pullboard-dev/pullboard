@@ -35,6 +35,11 @@ import { leaveConflictNotice } from './relay/conflicts.js';
 import { withOutboxGuard } from './relay/guard.js';
 import { transientRelayFailure } from '../../../link/index.js';
 import {
+  RECOVER_COMMAND,
+  permanentRelayRefusal,
+} from '../../../link/index.js';
+import { ENGINE_VERSION } from '../../../state/index.js';
+import {
   refuseRevokedSeat,
   seatReceipt,
   withSeatName,
@@ -45,7 +50,10 @@ import {
 } from '../../../kernel/index.js';
 import { captureBoardChanges } from '../../../store/index.js';
 import { undoQueued } from './relay/undo.js';
-import { stampCoordinatorHolder } from '../../../seats/index.js';
+import {
+  requireKnownCoordinatorHold,
+  stampCoordinatorHolder,
+} from '../../../seats/index.js';
 import { Refused } from '../../../kernel/index.js';
 import {
   outboxFile,
@@ -131,7 +139,22 @@ export function describeMove(move) {
 
 /** The key-free line pullboard status keeps for one queued move. */
 export function outboxEntrySummary(entry) {
-  return { id: entry.move.id, operation: entry.move.operation, item: moveItem(entry.move), actor: entry.move.actor ?? null, queuedAt: entry.queuedAt };
+  return { id: entry.move.id, operation: entry.move.operation, item: moveItem(entry.move), actor: entry.move.actor ?? null, queuedAt: entry.queuedAt,
+    ...(entry.parked ? { parked: entry.parked } : {}) };
+}
+
+/**
+ * Whether a parked move still counts as refused: the relay refused it for good under this engine, and an upgraded
+ * client tries it again, since an engine mismatch or an oversize list may no longer apply (#6693).
+ */
+function stillParked(entry) {
+  return Boolean(entry.parked) && entry.parked.engine === ENGINE_VERSION;
+}
+
+/** Whether every move left in the outbox is parked, so nothing more can go up until the person recovers (key-free read). */
+export function outboxParkedOnly(linkFile) {
+  const moves = readOutboxSummary(linkFile)?.moves;
+  return Array.isArray(moves) && moves.length > 0 && moves.every((move) => move.parked);
 }
 
 /**
@@ -215,6 +238,7 @@ export const ITEM_SLOTS = Object.freeze({
   reserveRehomeItemId: [], rehomeItem: [[0]], applyRehomeItem: [[0, 'destinationItemId']],
   ...Object.fromEntries(FIRST_ITEM.map((operation) => [operation, [[0]]])),
   advanceItemSource: [[0]],
+  claim: [[0], [1, 'gateWaits', '*']],
   submit: [[0], [1, 'autoMainReds', 'candidates', '*', 'proof', 'item']],
   intakeOutside: [[0, 'item', 'parentId'], [0, 'item', 'after', '*']],
   addItem: [[0, 'parentId'], [0, 'after', '*']],
@@ -335,12 +359,7 @@ async function finishEntry(link, outbox, where, key) {
   saveOutboxSummary(link, outbox);
 }
 
-/** The queued moves and replay refusals pullboard status shows, when there are any. */
-export function outboxFields(state) {
-  return { ...(state?.outbox?.moves?.length ? { outbox: structuredClone(state.outbox.moves) } : {}),
-    ...(state?.outboxRefusals?.length ? { outboxRefusals: structuredClone(state.outboxRefusals) } : {}),
-    ...(state?.outboxRenumbered?.length ? { outboxRenumbered: structuredClone(state.outboxRenumbered) } : {}) };
-}
+export { outboxFields } from '../../light.js';
 
 /** Whether this command may queue a move in the ordered outbox: the board's relay.outbox setting, on unless opted out (#922,H21). */
 function outboxEnabled(io) {
@@ -422,6 +441,7 @@ export async function queueMove(link, { operation, args, command, move, error, a
     move.actor = senderPolicy.relayMoveActor(move) ?? senderPolicy.credentialActor(move);
   }
   refuseRevokedSeat(state, senderPolicy.credentialActor(move));
+  localRecords(root, (board) => requireKnownCoordinatorHold(board, move));
   const stray = strayItemRefs(outbox, move);
   if (stray.length) {
     throw new Refused('RELAY_OUTBOX_UNBOUND', `this move names #${stray[0]}, which this machine added while the relay was down, in a field the outbox cannot follow if the relay renumbers it; run it again once the relay answers`);
@@ -570,9 +590,16 @@ function restoreBase(link, image, sequence) {
   });
 }
 
+/** Drop the kept COORDINATOR_HELD refusals: the person followed their takeover step (#7939). */
+function clearHeldRefusals(state) {
+  if (state.outboxRefusals) state.outboxRefusals = state.outboxRefusals.filter((kept) => kept.code !== 'COORDINATOR_HELD');
+}
+
 /** Settle one queued move the relay ordered: report a refusal with the move that won, and note a renumbered item. */
 function settle(link, outbox, entry, receipt) {
   const { root, state, io, localRecords } = link;
+  // Taking the coordinator is the step a COORDINATOR_HELD refusal names, so once it is ordered those lines are answered.
+  if (!receipt.outcome.error && entry.move.operation === 'takeCoordinator') clearHeldRefusals(state);
   if (receipt.outcome.error) {
     const earlier = localRecords(root, (board) => earlierMoves(board, { ...entry, move: resolveMove(entry, outbox).move }, receipt.sequence));
     const line = keepRefusal(state, entry, receipt.outcome.error, earlier);
@@ -687,7 +714,14 @@ async function sendQueued(link, key) {
   const outbox = await readOutbox(outboxFile(file), key, state.board);
   let sent = 0;
   for (const entry of outbox?.moves ?? []) {
-    if ((entry.refs ?? []).some((ref) => outbox.moves.some((other) => other.move.id === ref.add))) break;
+    if (stillParked(entry)) continue;
+    // A move that acts on an item a parked move added can never be sent: it parks too, so what follows still flows.
+    const adder = (entry.refs ?? []).map((ref) => outbox.moves.find((other) => other.move.id === ref.add)).find(Boolean);
+    if (adder && stillParked(adder)) {
+      await park(link, key, entry, new Refused('RELAY_OUTBOX_DEPENDS', `it acts on an item added by ${describeMove(adder.move)}, which the relay refused`));
+      continue;
+    }
+    if (adder) break;
     const { move, lost } = resolveMove(entry, outbox);
     if (lost.length) break;
     if (localRecords(root, (board) => engineReceipt(board, move.id))) continue;
@@ -702,6 +736,8 @@ async function sendQueued(link, key) {
       if (['SEQUENCE_REPEAT', 'SEQUENCE_GAP'].includes(error.code)) break;
       // A lost reply may have been taken; the next pull says, by the move's receipt, without sending it twice.
       if (sent && transientRelayFailure(error)) break;
+      // The relay refused this one move for good (too large, malformed, an engine it does not take): park it and let the rest go (#6693).
+      if (permanentRelayRefusal(error)) { await park(link, key, entry, error); continue; }
       throw error;
     }
     sent += 1;
@@ -710,13 +746,82 @@ async function sendQueued(link, key) {
 }
 
 /**
+ * Park a queued move the relay refused for good (#6693): it stays in the outbox, so this machine keeps showing it, but
+ * the sender passes it by and every later move is sent and acknowledged. The refusal names the one command that resolves it.
+ */
+async function park(link, key, entry, error) {
+  const { file, state, io } = link;
+  const where = outboxFile(file);
+  const limit = error.moveLimit;
+  const parked = { code: error.relayCode ?? error.code, message: error.relayMessage ?? error.message, at: new Date().toISOString(), engine: ENGINE_VERSION,
+    ...(Number.isSafeInteger(limit?.moveBytes) && Number.isSafeInteger(limit?.limit) ? { moveBytes: limit.moveBytes, limit: limit.limit } : {}),
+    next: RECOVER_COMMAND };
+  await withOutboxGuard(file, async () => {
+    const outbox = await readOutbox(where, key, state.board);
+    const held = outbox?.moves.find((row) => row.move.id === entry.move.id);
+    if (!held) return;
+    held.parked = parked;
+    await writeOutbox(where, key, state.board, outbox);
+    saveOutboxSummary(link, outbox);
+  });
+  entry.parked = parked;
+  link.saveLink(file, state);
+  const line = `[RELAY_OUTBOX_PARKED] the queued move ${describeMove(entry.move)} (made ${entry.queuedAt}) was refused by the relay and is parked: [${parked.code}] ${parked.message}; later moves keep flowing; run ${RECOVER_COMMAND} to publish a checkpoint of this board under the same board id`;
+  io.err(`pullboard: ${line}`);
+  tellAgent(link, entry.move.actor, line);
+}
+
+/**
+ * Publish this board's checkpoint over its parked moves, under the same board id, and clear the outbox (#6693). The
+ * local board already shows every parked move, so its sealed checkpoint carries their effects to the relay and to
+ * every computer that reads it: no new board id, no rejoin, no lost history. The outbox guard is held throughout, so
+ * no move queues between the read and the acknowledgement.
+ */
+async function recoverParked(link) {
+  const { root, file, state, io } = link;
+  const where = outboxFile(file);
+  if (!state.token?.startsWith('pm_') || process.env.PULLBOARD_RELAY_TOKEN) {
+    throw new Refused('RELAY_RECOVER_CREDENTIAL', 'run pullboard relay recover on the computer you signed in on; only its machine credential publishes a board checkpoint');
+  }
+  const key = readBoardKey(state.board);
+  return withOutboxGuard(file, async () => {
+    const outbox = await readOutbox(where, key, state.board);
+    const parked = (outbox?.moves ?? []).filter((entry) => entry.parked);
+    if (!parked.length) throw new Refused('RELAY_NOTHING_PARKED', 'no move is parked, so there is nothing to recover; pullboard relay status shows what waits');
+    if (outbox.moves.some((entry) => !entry.parked)) throw new Refused('RELAY_OUTBOX_WAITING', 'queued moves still wait for the relay; run pullboard relay status, then run pullboard relay recover again once they are sent');
+    const document = link.snapshotDocument();
+    const sequence = Number(document.tables.board_meta.find((row) => row.meta_key === 'relay_applied_sequence')?.meta_value ?? 0);
+    const sealed = await link.sealedRecord(key, document, state, 'snapshot', sequence);
+    const reply = await link.request(state, '/api/v1/boards/' + state.board + '/state', { method: 'PUT', body: { sequence, sealed, recovery: true } }, io);
+    if (reply.state?.sequence !== sequence || reply.state.sealed !== sealed) throw new Refused('RELAY_RESPONSE', 'the relay did not acknowledge the recovery checkpoint; the parked moves stay parked, retry pullboard relay recover');
+    removeOutbox(where);
+    saveOutboxSummary(link, null);
+    state.presentationDigest = link.presentationDigest(document.presentation);
+    // This machine published the recovery, so it already holds it; every other computer reads it by its epoch (#7776).
+    if (Number.isSafeInteger(reply.state.epoch)) state.checkpointEpoch = reply.state.epoch;
+    delete state.checkpoint;
+    delete state.checkpointPresentationDigest;
+    delete state.checkpointRefusal;
+    link.saveLink(file, state);
+    return { recovered: parked.map(outboxEntrySummary), sequence };
+  });
+}
+
+/**
  * Send the outbox and bring this machine up to the relay's order (#922, #1013). Each round reads what the relay
  * ordered since the base image, rebuilds the board under the outbox guard, then sends what still waits. Only the
  * rebuild holds the guard, so moves keep queuing while the relay is read or written, and the board never shows a
  * half-replayed state between rounds. A relay failure leaves every move queued and the board as its person last saw
- * it, and is thrown for the caller to report.
+ * it, and is thrown for the caller to report. A move the relay refuses for good is parked and the rest go on; with
+ * `recover`, once only parked moves remain, the board's checkpoint is published over them and they are resolved (#6693).
  */
-export async function flushOutbox(link) {
+export async function flushOutbox(link, { recover = false } = {}) {
+  await flushRounds(link);
+  if (recover) return recoverParked(link);
+}
+
+/** The rounds of {@link flushOutbox}: pull, rebuild, send, until nothing but parked moves waits. */
+async function flushRounds(link) {
   const { file, state } = link;
   const where = outboxFile(file);
   if (!state.outbox && !existsSync(where)) return;
@@ -734,7 +839,9 @@ export async function flushOutbox(link) {
     // The queued moves could not be taken back row for row: the next round restores the relay's checkpoint.
     fromCheckpoint = waiting === 'checkpoint';
     if (!pulled || fromCheckpoint) continue;
-    await sendQueued(link, key);
+    const sent = await sendQueued(link, key);
+    // Nothing went up and only parked moves remain: they wait for pullboard relay recover, not for another round.
+    if (!sent && (await readOutbox(where, key, state.board))?.moves.every((entry) => stillParked(entry))) return;
   }
   throw new Refused('RELAY_BUSY', 'the relay order stayed busy while this machine sent its queued moves; they stay queued for the next send');
 }

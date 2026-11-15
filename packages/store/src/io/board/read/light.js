@@ -10,10 +10,18 @@ import { EXPECTED_BUILD_ENGINE } from '../../../../../state/light.js';
 import { itemWorkInFlight } from '../../../logic/red/return.js';
 import { itemStage } from '../../../logic/item/stage.js';
 import { handoffRecords } from '../../submit/handoff/records.js';
-import { boardDataVersion } from '../version.js';
+import { pulledGateRecords } from '../../submit/handoff/records.js';
 import { withSeatPresence } from '../../presence.js';
 import { withDerivedFamily } from '../../../../../items/light.js';
 import { agentParent } from '../../../../../seats/light.js';
+
+/**
+ * A value that changes whenever the board's data may have, for per-revision read caches [H24]: another connection's commit moves
+ * SQLite's data_version, and this connection's own writes move its total_changes. It lives here so the light read loads one module less [C7].
+ */
+export function boardDataVersion(board) {
+  return `${board.db.prepare('PRAGMA data_version').get().data_version}:${board.db.prepare('SELECT total_changes() AS n').get().n}`;
+}
 
 /** Maximum time a board connection waits for another process to release SQLite's lock. */
 export const BOARD_BUSY_TIMEOUT_MS = 10_000;
@@ -111,12 +119,14 @@ export function listItems(board, { lane, all = false } = {}) {
   // Copying named columns is several times faster than rest-destructuring SQLite's null-prototype rows (#2511).
   const columns = rows.length ? Object.keys(rows[0]).filter(key => !['imported_rehome', 'review_family', 'expected_build', 'landed'].includes(key)) : [];
   // Every item's hand-off record in one read of the job tables, where the record lives [C7].
-  const records = handoffRecords(board.db);
+  const records = handoffRecords(board.db, { live: true });
+  const pulled = pulledGateRecords(board.db, null, Date.parse(at));
   const items = rows.map((row) => {
     const item = {}, imported = row.imported_rehome, family = row.review_family, expected = row.expected_build;
     for (const key of columns) item[key] = row[key];
     if (family !== null) item.item_review_family = family;
-    item.item_stage = itemStage(item, records.get(item.item_id) ?? null, Boolean(row.landed), at);
+    item.item_stage = itemStage(item, pulled.get(item.item_id) ?? records.get(item.item_id) ?? null, Boolean(row.landed), at);
+    if (item.item_stage === 'in the gate' && pulled.get(item.item_id)?.noRunner) item.item_gate_runner = 'none';
     // A claim whose lease lapsed reads as open (B4) unless its own gate is in flight, exactly as isHeld() reads it (#3121).
     if (item.item_status === 'claimed' && !((item.item_lease_until ?? '') > at) && !itemWorkInFlight(board, item)) {
       item.item_status = 'open'; item.item_owner = null; item.item_lease_until = null;

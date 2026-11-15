@@ -1,5 +1,4 @@
 /** @pullboard-test-input packages/state/src/logic/engines/* */
-import { submitHandoffEventContract } from '../apps/cli/tests/fixtures/generated/handoff.js';
 /** Keep the format guide aligned with parser behavior, live SQLite schema and static export [A5,A10]. */
 import { recordRelayExclusionIntent } from '../packages/link/index.js';
 import assert from 'node:assert/strict';
@@ -345,7 +344,7 @@ function recordEventContract() {
   const first = addItem(board, { by: coordinator, lane: 'docs', title: 'Accepted example', criterion: 'Initial', specIds: ['A1'], route: 'strong', reviewFamily: 'Fixture Review', checkTiming: false });
   const fact = appendFact(board, first, { agentId: builder, kind: 'note', text: 'Captured evidence', ref: 'docs/formats.md:1-3@' + 'a'.repeat(40) });
   appendFact(board, first, { agentId: coordinator, kind: 'measurement', text: 'Corrected evidence', supersedes: fact.id });
-  editItem(board, first, { agentId: coordinator, brief: 'Files: docs/formats.md\nTest: docs/formats.test.js', route: 'mid', criterion: 'Changed', check: 'node test', reviewFamily: 'Fixture Review', checkTiming: false });
+  editItem(board, first, { agentId: coordinator, title: 'Accepted example, retitled', brief: 'Files: docs/formats.md\nTest: docs/formats.test.js', route: 'mid', criterion: 'Changed', check: 'node test', reviewFamily: 'Fixture Review', checkTiming: false });
   const dependency = addItem(board, { by: coordinator, lane: 'docs', title: 'Dependency example' });
   requestCompanion(board, { agentId: builder, parentId: dependency, lane: 'core', key: 'format-event', title: 'Companion event example' });
   editItem(board, first, { agentId: coordinator, after: [dependency] });
@@ -558,6 +557,11 @@ function exerciseUpgrade() {
     const old = new DatabaseSync(file);
     old.exec("ALTER TABLE shout DROP COLUMN shout_evidence_kind; DROP TABLE hold; DROP INDEX item_lane_status; DROP TRIGGER machine_event_delete; DROP TRIGGER machine_event_update; CREATE TRIGGER machine_event_update AFTER DELETE ON event BEGIN SELECT 1; END; CREATE TRIGGER machine_old_extra AFTER INSERT ON item BEGIN SELECT 1; END; PRAGMA user_version = 1;");
     old.close();
+    // The refusal of a schema-1 board is proved in packages/store/tests/io/board/too-old.test.js (#7767); this file keeps its five board-file opens.
+    const supported = new DatabaseSync(file);
+    // Schema 3 is the oldest supported version, so an event log marker at the unversioned state is what makes the board behind, and it migrates.
+    supported.exec(`PRAGMA user_version = ${SCHEMA_VERSION}; DELETE FROM board_meta WHERE meta_key = 'event_log_version'`);
+    supported.close();
 
     board = openBoard(file);
     assert.equal(board.db.prepare("SELECT item_title FROM item").get().item_title, 'Preserved row');
@@ -822,7 +826,7 @@ test('clause 1: [A5] schema, versions, event kinds and event detail fields match
 
   const { rows, actors } = recordEventContract();
   const repairedRows = exerciseUpgrade();
-  const actualRows = [...rows, ...repairedRows, ...await sourceAdvanceEventContract(t), ...reviewDefaultEventContract(), ...await submitHandoffEventContract(t), ...pipelineEventContract(), ...placementEventContract()];
+  const actualRows = [...rows, ...repairedRows, ...await sourceAdvanceEventContract(t), ...reviewDefaultEventContract(), ...pipelineEventContract(), ...placementEventContract()];
   const actual = {};
   const actorByKind = {
     join: 'joining agent',
@@ -861,8 +865,6 @@ test('clause 1: [A5] schema, versions, event kinds and event detail fields match
     'sentinel-failure': 'sentinel',
     person_proposal: 'proposing agent',
     source_advanced: 'coordinator',
-    'submit-handoff': 'queued builder',
-    submit_handoff_returned: 'queued builder',
   };
   for (const row of actualRows) {
     const kind = row.event_kind;

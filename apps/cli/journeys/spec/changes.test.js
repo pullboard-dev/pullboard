@@ -1,9 +1,8 @@
 /** Approved-row edits need an exact person decision or staged SSH receipt [S19,V3]. */
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import assert from 'node:assert/strict';
 import {
-  runFixtureExecFile as execFileSync,
   startFixtureChild as spawn,
-  runFixtureChild as spawnSync,
   fixtureChildMessage,
   runFixtureChild,
   runFixtureGit,
@@ -80,7 +79,7 @@ function shellWord(value) {
 }
 
 /** Create a private repo, initialized board, installed hooks and real committed SPEC rows. */
-function fixture(t, { signer = false, doctrine = false } = {}) {
+async function fixture(t, { signer = false, doctrine = false } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-approved-row-'));
   TEMP_DIRS.push(dir);
   t.after(() => removeFixtureDirectory(dir));
@@ -112,14 +111,14 @@ function fixture(t, { signer = false, doctrine = false } = {}) {
   }
   /** Run Pullboard in the fixture repo and retain both output streams for assertions. */
   function pullboard(...args) {
-    return runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8' });
+    return runCliInProcess(args, { cwd: root, env });
   }
   git('init', '-q', '-b', 'main');
   git('config', 'user.name', 'Approved-row fixture');
   git('config', 'user.email', 'approved-row@example.invalid');
   // Seed the legacy file before init so the conventional rename test starts with one doctrine.
   if (doctrine) writeFileSync(join(root, 'PRACTICE.md'), '# Local rules\n\n## L · Local\n- L1 [approved] Keep the local rule exact. | gate: true\n');
-  const initialized = pullboard('init');
+  const initialized = await pullboard('init');
   assert.equal(initialized.status, 0, `${initialized.stdout}${initialized.stderr}`);
   const configPath = join(root, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
@@ -135,7 +134,7 @@ function fixture(t, { signer = false, doctrine = false } = {}) {
     const generated = runFixtureChild('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-C', 'approved-row@example.invalid', '-f', key], { encoding: 'utf8' });
     assert.equal(generated.status, 0, fixtureChildMessage(generated));
     git('config', 'user.signingkey', key);
-    const added = pullboard('spec', 'signers', 'add', '--key', `${key}.pub`, '--by', 'CO');
+    const added = await pullboard('spec', 'signers', 'add', '--key', `${key}.pub`, '--by', 'CO');
     assert.equal(added.status, 0, `${added.stdout}${added.stderr}`);
     git('add', '.pullboard/signers', '.pullboard/first-commit', '.pullboard/signers.initial');
     const trustCommit = commit({ root, env });
@@ -152,6 +151,7 @@ test('[C7] cleanup diagnostics capture a forced late writer without hiding ENOTE
   writeFileSync(join(target, 'initial'), 'force a real non-empty-directory error');
   const lateFile = join(target, 'late-write');
   const source = `const fs = require('node:fs'); let descriptor; process.stdin.setEncoding('utf8'); process.stdin.on('data', data => { if (data.includes('write')) { descriptor = fs.openSync(${JSON.stringify(lateFile + '.pending')}, 'w'); fs.writeSync(descriptor, 'written after the cleanup failure'); fs.renameSync(${JSON.stringify(lateFile + '.pending')}, ${JSON.stringify(lateFile)}); console.log('late-write-ready'); } if (data.includes('exit')) { if (descriptor !== undefined) fs.closeSync(descriptor); process.exit(0); } }); console.log('writer-ready');`;
+  // Process-level: a separate child holds an open file and writes late, so cleanup diagnostics can name its pid.
   const writer = spawn(process.execPath, ['-e', source], { stdio: ['pipe', 'pipe', 'pipe'], env: { PATH: process.env.PATH } });
   const writerClosed = once(writer, 'close').then(() => true, () => true);
   let output = '';
@@ -211,6 +211,7 @@ test('[C7] cleanup diagnostics name the owner when lsof is slow', async () => {
   writeFileSync(lsof, `#!/bin/sh\n/bin/sleep 4\nPATH=${shellWord(originalPath)}\nexport PATH\nexec lsof "$@"\n`);
   chmodSync(lsof, 0o755);
   const source = `const fs = require('node:fs'); const fd = fs.openSync(${JSON.stringify(heldFile)}, 'r'); console.log('writer-ready'); process.stdin.resume(); process.stdin.on('end', () => { fs.closeSync(fd); process.exit(0); });`;
+  // Process-level: a separate child holds a file open while a slow lsof shim runs, so the owner pid is a real one.
   const writer = spawn(process.execPath, ['-e', source], { stdio: ['pipe', 'pipe', 'pipe'], env: { PATH: originalPath } });
   const writerClosed = once(writer, 'close').then(() => true, () => true);
   let output = '';
@@ -282,8 +283,8 @@ function stage(box, ...paths) {
   box.git('add', '--', 'SPEC.md', ...paths);
 }
 
-test('[S19,V3] raw staged changes to an approved row are refused by the real commit hook', (t) => {
-  const box = fixture(t);
+test('[S19,V3] raw staged changes to an approved row are refused by the real commit hook', async (t) => {
+  const box = await fixture(t);
   const before = box.git('rev-parse', 'HEAD');
   setRowText(box, 'G1', 'A rewrite with no person approval.');
   stage(box);
@@ -293,18 +294,18 @@ test('[S19,V3] raw staged changes to an approved row are refused by the real com
   assert.equal(box.git('rev-parse', 'HEAD'), before, 'the refused staged rewrite never becomes a commit');
 });
 
-test('[B26,S19,V3] exact board approval and decline apply authorize only their approved-row text changes', (t) => {
-  const box = fixture(t);
+test('[B26,S19,V3] exact board approval and decline apply authorize only their approved-row text changes', async (t) => {
+  const box = await fixture(t);
   setRowText(box, 'G1', 'The person approved this exact replacement.');
-  const approved = box.pullboard('spec', 'approve', 'G1', '--json');
+  const approved = await box.pullboard('spec', 'approve', 'G1', '--json');
   assert.equal(approved.status, 0, `${approved.stdout}${approved.stderr}`);
   stage(box);
   const accepted = commit(box, 'docs: apply person-approved wording');
   assert.equal(accepted.status, 0, `${accepted.stdout}${accepted.stderr}`);
 
-  const declined = box.pullboard('spec', 'decline', 'G1', '--reason', 'The promise is no longer required.', '--json');
+  const declined = await box.pullboard('spec', 'decline', 'G1', '--reason', 'The promise is no longer required.', '--json');
   assert.equal(declined.status, 0, `${declined.stdout}${declined.stderr}`);
-  const applied = box.pullboard('spec', 'apply', '--json');
+  const applied = await box.pullboard('spec', 'apply', '--json');
   assert.equal(applied.status, 0, `${applied.stdout}${applied.stderr}`);
   stage(box);
   const declinedCommit = commit(box, 'docs: apply person-declined wording');
@@ -312,8 +313,8 @@ test('[B26,S19,V3] exact board approval and decline apply authorize only their a
   assert.match(readFileSync(join(box.root, 'SPEC.md'), 'utf8'), /G1 \[wont, must\] The person approved this exact replacement\./u);
 });
 
-test('[S19] unchanged approved rows and draft-row wording remain committable', (t) => {
-  const box = fixture(t);
+test('[S19] unchanged approved rows and draft-row wording remain committable', async (t) => {
+  const box = await fixture(t);
   writeFileSync(join(box.root, 'notes.txt'), 'The approved row was not changed.\n');
   box.git('add', 'notes.txt');
   const unchanged = commit(box, 'docs: add unrelated notes');
@@ -325,10 +326,10 @@ test('[S19] unchanged approved rows and draft-row wording remain committable', (
   assert.equal(draft.status, 0, `${draft.stdout}${draft.stderr}`);
 });
 
-test('[S19,V3] an exact approval cannot authorize different staged bytes in a partial commit', (t) => {
-  const box = fixture(t);
+test('[S19,V3] an exact approval cannot authorize different staged bytes in a partial commit', async (t) => {
+  const box = await fixture(t);
   setRowText(box, 'G1', 'The person approved these exact bytes.');
-  const approved = box.pullboard('spec', 'approve', 'G1', '--json');
+  const approved = await box.pullboard('spec', 'approve', 'G1', '--json');
   assert.equal(approved.status, 0, `${approved.stdout}${approved.stderr}`);
 
   setRowText(box, 'G1', 'Different text is staged instead.');
@@ -341,10 +342,10 @@ test('[S19,V3] an exact approval cannot authorize different staged bytes in a pa
   assert.match(readFileSync(join(box.root, 'SPEC.md'), 'utf8'), /The person approved these exact bytes\./u, 'the different worktree text must not mask staged bytes');
 });
 
-test('[S18,S19,S20] pre-commit validates the staged SSH receipt and staged signer trust, not worktree substitutes', (t) => {
-  const box = fixture(t, { signer: true });
+test('[S18,S19,S20] pre-commit validates the staged SSH receipt and staged signer trust, not worktree substitutes', async (t) => {
+  const box = await fixture(t, { signer: true });
   setRowText(box, 'G1', 'The signed person-approved wording.');
-  const signed = box.pullboard('spec', 'signoff', 'G1', '--by', 'CO', '--json');
+  const signed = await box.pullboard('spec', 'signoff', 'G1', '--by', 'CO', '--json');
   assert.equal(signed.status, 0, `${signed.stdout}${signed.stderr}`);
   const ledger = join(box.root, '.pullboard', 'signoffs.jsonl');
   const validReceipt = readFileSync(ledger, 'utf8');
@@ -368,31 +369,31 @@ test('[S18,S19,S20] pre-commit validates the staged SSH receipt and staged signe
   assert.equal(box.git('show', 'HEAD:.pullboard/signers'), box.git('show', 'HEAD^:.pullboard/signers'), 'the valid committed trust list came from the index');
 });
 
-test('[B26,S18,S19] proposed SSH-approved wording and person-declined wording commit through one decision record', (t) => {
-  const box = fixture(t, { signer: true });
+test('[B26,S18,S19] proposed SSH-approved wording and person-declined wording commit through one decision record', async (t) => {
+  const box = await fixture(t, { signer: true });
   const before = readFileSync(join(box.root, 'SPEC.md'), 'utf8');
   const text = 'The exact signed replacement the person approved.';
-  const approved = box.pullboard('spec', 'approve', 'G1', '--text', text, '--by', 'CO', '--json');
+  const approved = await box.pullboard('spec', 'approve', 'G1', '--text', text, '--by', 'CO', '--json');
   assert.equal(approved.status, 0, `${approved.stdout}${approved.stderr}`);
   const record = JSON.parse(approved.stdout).decisions[0];
   assert.ok(record.signature);
   assert.equal(record.type, 'row-decision');
   assert.equal(record.text, text);
   assert.equal(readFileSync(join(box.root, 'SPEC.md'), 'utf8'), before);
-  assert.equal(box.pullboard('spec', 'apply').status, 0);
+  assert.equal((await box.pullboard('spec', 'apply')).status, 0);
   stage(box, '.pullboard/signoffs.jsonl');
   const accepted = commit(box, 'docs: apply exact signed row decision');
   assert.equal(accepted.status, 0, `${accepted.stdout}${accepted.stderr}`);
-  const declined = box.pullboard('spec', 'decline', 'G1', '--reason', 'The person declined this promise.');
+  const declined = await box.pullboard('spec', 'decline', 'G1', '--reason', 'The person declined this promise.');
   assert.equal(declined.status, 0, `${declined.stdout}${declined.stderr}`);
-  assert.equal(box.pullboard('spec', 'apply').status, 0);
+  assert.equal((await box.pullboard('spec', 'apply')).status, 0);
   stage(box);
   const declinedCommit = commit(box, 'docs: apply signed-repo person decline');
   assert.equal(declinedCommit.status, 0, `${declinedCommit.stdout}${declinedCommit.stderr}`);
 });
 
-test('[S19] repo doctrine approved text has the same exact person-approval commit guard', (t) => {
-  const box = fixture(t, { doctrine: true });
+test('[S19] repo doctrine approved text has the same exact person-approval commit guard', async (t) => {
+  const box = await fixture(t, { doctrine: true });
   const file = join(box.root, 'PRACTICE.md');
   const before = readFileSync(file, 'utf8');
   writeFileSync(file, before.replace('Keep the local rule exact.', 'An unauthorized local rule.'));
@@ -402,20 +403,20 @@ test('[S19] repo doctrine approved text has the same exact person-approval commi
   assert.match(`${refused.stdout}${refused.stderr}`, /L1 changes approved text.*person/u);
   writeFileSync(file, before);
   box.git('add', 'PRACTICE.md');
-  const approved = box.pullboard('spec', 'approve', 'doctrine:L1', '--text', 'The exact approved local rule.');
+  const approved = await box.pullboard('spec', 'approve', 'doctrine:L1', '--text', 'The exact approved local rule.');
   assert.equal(approved.status, 0, `${approved.stdout}${approved.stderr}`);
-  assert.equal(box.pullboard('spec', 'apply').status, 0);
+  assert.equal((await box.pullboard('spec', 'apply')).status, 0);
   box.git('add', 'PRACTICE.md');
   const accepted = commit(box, 'docs: apply person-approved local rule');
   assert.equal(accepted.status, 0, `${accepted.stdout}${accepted.stderr}`);
 });
 
-test('[S19] staged config and row-file renames cannot hide an approved rewrite', (t) => {
+test('[S19] staged config and row-file renames cannot hide an approved rewrite', async (t) => {
   for (const [kind, from, to, id, old, replacement] of [
     ['spec', 'SPEC.md', 'requirements.md', 'G1', 'The existing approved promise.', 'The unauthorized moved promise.'],
     ['practice', 'PRACTICE.md', 'DOCTRINE.md', 'L1', 'Keep the local rule exact.', 'The unauthorized moved local rule.'],
   ]) {
-    const box = fixture(t, { doctrine: true });
+    const box = await fixture(t, { doctrine: true });
     const configFile = join(box.root, 'pullboard.json');
     const config = JSON.parse(readFileSync(configFile, 'utf8'));
     box.git('mv', from, to);
@@ -425,15 +426,15 @@ test('[S19] staged config and row-file renames cannot hide an approved rewrite',
     const refused = commit(box);
     assert.notEqual(refused.status, 0, `${kind}: changing the path cannot hide an unapproved rewrite`);
     assert.match(`${refused.stdout}${refused.stderr}`, new RegExp(`${id} changes approved text.*person`));
-    const approved = box.pullboard('spec', 'approve', `${kind === 'practice' ? 'doctrine:' : ''}${id}`);
+    const approved = await box.pullboard('spec', 'approve', `${kind === 'practice' ? 'doctrine:' : ''}${id}`);
     assert.equal(approved.status, 0, `${approved.stdout}${approved.stderr}`);
     const accepted = commit(box, 'docs: move exact person-approved wording');
     assert.equal(accepted.status, 0, `${accepted.stdout}${accepted.stderr}`);
   }
 });
 
-test('[S19] unstaged config cannot redirect the approval guard away from the staged SPEC', (t) => {
-  const box = fixture(t);
+test('[S19] unstaged config cannot redirect the approval guard away from the staged SPEC', async (t) => {
+  const box = await fixture(t);
   setRowText(box, 'G1', 'An unapproved promise remains staged.');
   stage(box);
   const configFile = join(box.root, 'pullboard.json');

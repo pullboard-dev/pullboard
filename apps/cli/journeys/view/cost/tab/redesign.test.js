@@ -29,13 +29,12 @@ test('the private Cost overview renders prepared analytics and each confidence [
   const executable = chromeExecutable(); assert.ok(executable);
   const fixture = { version: 1, window:'7d', totals:{agentMs:7200000,medianItemMs:3600000,sentBack:{itemShare:.5,agentMsShare:.6}}, days:[{date:'2026-10-30',firstTimeMs:3600000,sentBackMs:3600000,items:2}], builders:{verdict:'leaning',best:'a',runnerUp:'b',rows:[{model:'a',label:'Model A',vendor:'Vendor',built:31,rate:.8,low:.6,high:.9,typicalItemMs:3600000},{model:'b',label:'Model B',built:30,rate:.7,low:.5,high:.9}]}, verifiers:{verdict:'nothing-to-compare',best:'a',rows:[{model:'a',label:'Model A',accepts:31,verdicts:35,rate:.1,low:.05,high:.2}]}, unknownBuilderModelShare:.1,longest:[{id:1,title:'Long item',agentMs:7200000,sentBack:2,verifiedBy:'Model A',sessions:[{label:'Model A',count:1,agentMs:7200000,tokensIn:null}]}],allItems:2};
   const css = readFileSync(new URL("../../../../../view/src/io/main.css", import.meta.url),'utf8') + readFileSync(new URL("../../../../../view/src/io/cost.css", import.meta.url),'utf8');
-  const html = '<!doctype html><style>' + css + '</style><main id="cost">' + costOverviewHtml(fixture, 1) + '</main><script>const costOverviewHtml = ' + costOverviewHtml.toString() + '; const bindCostOverview = ' + bindCostOverview.toString() + '; window.calls = []; bindCostOverview(document.querySelector("#cost"), {readWindow: async window => ({...'+JSON.stringify(fixture)+',window}), openItem: id => calls.push("item:"+id), showAll: () => calls.push("all"), copyText: text => calls.push(text)});</script>'; 
+  const html = '<!doctype html><style>' + css + '</style><main id="cost">' + costOverviewHtml(fixture, 1) + '</main><script>const costOverviewHtml = ' + costOverviewHtml.toString() + '; const bindCostOverview = ' + bindCostOverview.toString() + '; window.calls = []; const modelTables = { vendorClasses: [] }; bindCostOverview(document.querySelector("#cost"), {readWindow: async window => ({...'+JSON.stringify(fixture)+',window}), openItem: id => calls.push("item:"+id), showAll: () => calls.push("all")});</script>'; 
   const server = createServer((_q,r) => r.writeHead(200,{'content-type':'text/html'}).end(html)); const dir = mkdtempSync(join(tmpdir(),'cost-redesign-')); let chrome;
   try { await new Promise(resolve => server.listen(0,'127.0.0.1',resolve)); chrome = await openSnapshotChrome(executable,'http://127.0.0.1:'+server.address().port,join(dir,'chrome'));
     await chrome.waitFor('!!document.querySelector(".cost-model-card")');
-    await chrome.click("document.querySelector('[data-cost-row]')");
     const text = await chrome.stable('document.body.innerText');
-    for (const expected of ['Showing agent time','Leaning','Nothing to compare','AGENT TIME EACH DAY','50%','60%','Long item','No token count']) assert.ok(text.includes(expected), expected);
+    for (const expected of ['Leaning','Nothing to compare','Agent time each day','50%','60%']) assert.ok(text.includes(expected), expected);
     assert.match(costOverviewHtml({...fixture, builders:{...fixture.builders,verdict:'clear'}}), /Clear/u);
     assert.doesNotMatch(costOverviewHtml(fixture, null, {hasPrices:true}), /Want dollars/u);
     const geometry = JSON.parse(await chrome.stable(`JSON.stringify((() => { const bar=document.querySelector('.cost-chart-bar'), parts=[...bar.querySelectorAll('rect')].map(e=>({y:Number(e.getAttribute('y')),height:Number(e.getAttribute('height'))})); return {parts,ranges:document.querySelectorAll('.cost-range').length,split:document.querySelectorAll('.cost-split rect').length}; })())`));
@@ -44,18 +43,8 @@ test('the private Cost overview renders prepared analytics and each confidence [
     assert.equal(await chrome.stable("document.querySelectorAll('.cost-model-table').length"), 1, 'building and verifying share the model table');
     assert.match(await chrome.stable("document.querySelector('.cost-model-table').innerText"), /Accepted, came back later/u);
 
-    await chrome.click("document.querySelector('[data-cost-window=\"30d\"]')");
-    await chrome.waitFor("document.querySelector('[data-cost-window=\"30d\"]').getAttribute('aria-pressed') === 'true'");
-    await chrome.click("document.querySelector('[data-go]')");
-    await chrome.click("document.querySelector('[data-cost-copy]')");
-    await chrome.click("document.querySelector('[data-cost-all]')");
-    assert.deepEqual(JSON.parse(await chrome.stable('JSON.stringify(window.calls)')), ['item:1', 'Add model prices to Pullboard', 'all']);
-    const unknown = costOverviewHtml({...fixture, longest:[{id:2,title:'Unknown',agentMs:null,sentBack:0,sessions:[{label:'Unknown model',count:null,agentMs:null,tokensIn:null}]}]}, 2);
-    assert.doesNotMatch(unknown, /0 sessions|cost-time-bar/u);
-    assert.match(unknown, /No token count/u);
-    const dated = costOverviewHtml({...fixture, longest:[{id:3,title:'Dated',agentMs:1,landedAt:'2026-10-30T12:00:00Z',sessions:[]}]}, 3);
-    assert.match(dated, /datetime="2026-10-30T12:00:00Z"/u);
-    assert.doesNotMatch(dated, />2026-10-30T12:00:00Z</u);
+    const order = costOverviewHtml(fixture).match(/cost-summary|cost-model-card|cost-chart"|cost-longest|Took the longest/gu);
+    assert.deepEqual(order, ['cost-model-card', 'cost-summary', 'cost-chart"'], 'Models sit above Agent time each day and nothing is Took the longest');
     assert.deepEqual(chrome.exceptions, []);
   } finally { if (chrome) await closeSnapshotChrome(chrome); await new Promise(resolve => server.close(resolve)); rmSync(dir,{recursive:true,force:true}); }
 });
@@ -63,14 +52,14 @@ test('the private Cost overview renders prepared analytics and each confidence [
 test('the private Cost tab consumes the server projection and routes controls [N26]', { timeout: 120_000 }, async () => {
   const { machine, project, startView, press, serveFolder } = await import('../../../../tests/fixtures/cockpit/harness.js');
   const box = machine(), alpha = project(box, 'cost-projection');
-  box.run(alpha.repo, 'add', 'web', 'Seeded item', '--specs', 'G1', '--criterion', 'Appears in the private Cost view.');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Seeded item', '--specs', 'G1', '--criterion', 'Appears in the private Cost view.');
   const view = await startView(box), dir = mkdtempSync(join(tmpdir(), 'cost-projection-')); let chrome;
   try {
     chrome = await openSnapshotChrome(chromeExecutable(), view.link.href, join(dir, 'chrome'));
     await chrome.waitFor('!!data?.project');
     await press(chrome, 'document.querySelector("[data-tab=cost]")');
     await chrome.waitFor('!!document.querySelector("#cost .cost-model-card")');
-    assert.ok((await chrome.stable('document.querySelector("#cost").innerText')).includes('Showing agent time'));
+    assert.ok((await chrome.stable('document.querySelector("#cost").innerText')).includes('Agent time each day'));
     await press(chrome, 'document.querySelector("[data-tab=items]")');
     const projection = { version:1, window:'7d', totals:{agentMs:7200000,itemCount:1,medianItemMs:7200000,sentBack:{items:0,itemShare:0,agentMs:0,agentMsShare:0}}, days:[{date:'2026-10-30',firstTimeMs:7200000,sentBackMs:0,items:1}], builders:{verdict:'nothing-to-compare',best:'a',runnerUp:null,rows:[{model:'a',label:'Fixture model',vendor:'Fixture',built:30,passedFirst:29,rate:.967,low:.83,high:.99,typicalItemMs:7200000,judged:true,tooFew:false}]}, verifiers:{verdict:'clear',best:'b',runnerUp:'c',rows:[{model:'b',label:'Reviewer B',vendor:'Fixture',verdicts:31,accepts:30,reopenedLater:1,rate:.03,low:.01,high:.16,judged:true,tooFew:false},{model:'c',label:'Reviewer C',vendor:'Fixture',verdicts:35,accepts:32,reopenedLater:8,rate:.25,low:.13,high:.42,judged:true,tooFew:false}]}, unknownBuilderModelShare:0,longest:[{id:1,title:'Seeded item',agentMs:7200000,sentBack:0,verifiedBy:'Reviewer B',landedAt:'2026-10-30T12:00:00Z',sessions:[{model:'a',label:'Fixture model',count:null,agentMs:7200000,tokensIn:null}]}],allItems:1 };
     await chrome.stable(`(() => { const original=window.fetch; window.costRequests=[]; window.fetch=(input,init) => { const url=String(input); if (!url.includes('/cost-analytics?')) return original(input,init); const windowName=new URL(url,location.href).searchParams.get('window'); costRequests.push(windowName); return Promise.resolve(new Response(JSON.stringify({costAnalytics:{...${JSON.stringify(projection)},window:windowName}}),{status:200,headers:{'content-type':'application/json'}})); }; })()`);
@@ -78,20 +67,15 @@ test('the private Cost tab consumes the server projection and routes controls [N
     await press(chrome, 'document.querySelector("[data-tab=cost]")');
     await chrome.waitFor('!!document.querySelector("#cost .cost-model-card")');
     let text = await chrome.stable('document.querySelector("#cost").innerText');
-    for (const expected of ['Showing agent time','Fixture model','Nothing to compare','Clear','Seeded item']) assert.ok(text.includes(expected),expected);
-    await chrome.click('document.querySelector("#cost [data-cost-row]")');
-    await chrome.waitFor('document.querySelector("#cost .cost-detail")');
-    text = await chrome.stable('document.querySelector("#cost .cost-detail").innerText');
-    assert.ok(text.includes('No token count')); assert.ok(!text.includes('0 sessions'));
-    await chrome.click('document.querySelector("#cost [data-cost-window=\\"30d\\"]")');
-    await chrome.waitFor('document.querySelector("#cost [data-cost-window=\\"30d\\"]")?.getAttribute("aria-pressed") === "true"');
+    for (const expected of ['Fixture model','Nothing to compare','Clear']) assert.ok(text.includes(expected),expected);
+    await chrome.click('document.querySelector("#page-controls [data-page-ctl=costwindow][data-value=\\"30d\\"]")');
+    await chrome.waitFor('document.querySelector("#page-controls [data-page-ctl=costwindow][data-value=\\"30d\\"]")?.getAttribute("aria-pressed") === "true"');
+    assert.equal(await chrome.stable('document.querySelectorAll("#cost [data-cost-window], #cost h1").length'), 0, 'the window lives in the strip and Cost has no page heading of its own');
     assert.deepEqual(JSON.parse(await chrome.stable('JSON.stringify(window.costRequests)')), ['7d','30d']);
-    await chrome.click('document.querySelector("#cost [data-cost-all]")');
-    await chrome.waitFor('view.tab === "items"');
     assert.doesNotMatch(cockpitPage('', { snapshot:true, readOnly:true }), /costOverviewHtml|cost-analytics|Only you see this/u, 'public snapshots omit private Cost implementation');
     assert.deepEqual(chrome.exceptions, []);
     const output = join(dir, 'public');
-    box.run(alpha.repo, 'view', '--export', output, '--public');
+    await box.inProcess(alpha.repo, 'view', '--export', output, '--public');
     const publicView = await serveFolder(output, '/public/');
     let publicChrome;
     try {
@@ -105,14 +89,13 @@ test('the private Cost tab consumes the server projection and routes controls [N
   } finally { if (chrome) await closeSnapshotChrome(chrome); await view.stop(); rmSync(dir,{recursive:true,force:true}); }
 });
 
-test('Cost names merge, the unrecorded note hides at zero, and unknown durations stay out of the totals [N26]', () => {
+test('Cost names merge, no unrecorded-model banner, and unknown durations stay out of the totals [N26]', () => {
   assert.equal(modelPresentation('GPT-6/openai').name, 'GPT-6', 'a /vendor suffix is dropped before matching');
   assert.deepEqual([modelPresentation('GPT-6/openai').key, modelPresentation('GPT-6').key], ['gpt-6', 'gpt-6']);
   assert.equal(modelPresentation('GPT-6 Codex').name, 'Codex');
   assert.equal(modelPresentation('GPT-6/openai').vendor, 'OpenAI');
   const base = { version: 1, window: '7d', totals: { agentMs: 7200000, itemCount: 2, sentBack: { itemShare: 0, agentMsShare: 0, agentMs: 0 } }, days: [{ date: '2026-10-28', firstTimeMs: 3600000, sentBackMs: 3600000, items: 2 }], builders: { rows: [] }, verifiers: { rows: [] }, longest: [], allItems: 2 };
-  assert.doesNotMatch(costOverviewHtml({ ...base, unknownBuilderModelShare: 0 }), /record which model built them/u, 'no note at 0%');
-  assert.match(costOverviewHtml({ ...base, unknownBuilderModelShare: 0.5 }), /50% of items don't record which model built them/u);
+  assert.doesNotMatch(costOverviewHtml({ ...base, unknownBuilderModelShare: 0.5 }), /record which model built them/u, 'no banner about unrecorded models');
   const html = costOverviewHtml(base);
   assert.match(html, />Wed<\/text>/u, 'the axis names the weekday');
   assert.match(html, /<title>Wednesday, Oct 28\n2 items landed/u, 'each bar has a tooltip');

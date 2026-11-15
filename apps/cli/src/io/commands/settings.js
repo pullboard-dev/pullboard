@@ -25,6 +25,10 @@ import {
   setGateLoadDispatch,
   setGateRunnersOnly,
   setGateRunnerWaitMs,
+  setBoardRemote,
+  setRunnerRate,
+  setPersonSetting,
+  PERSON_SET,
   setLandingPool,
   parseWorkerBudget,
   setWorkerBudget,
@@ -38,7 +42,10 @@ import {
   withBoardRead,
 } from '../entry.js';
 import { boardId } from '../../../../../packages/store/index.js';
+import { atomic } from '../../../../../packages/store/index.js';
+import { logEvent } from '../../../../../packages/store/index.js';
 import { describeSetting } from '../../../../../packages/config/index.js';
+import { recordLimitChange } from './stats/limits.js';
 
 const PRINTED = ['gateSlots', 'browserSlots', 'gate.queue.reviewsFirst', 'gate.queue.currentReleaseFirst', 'gate.queue.agingMinutes', 'gate.memoryFloorMB', 'view.background', 'relay.offerAtInit', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'gate.runnerBusyCeiling', 'gate.runnersOnly', 'gate.runnerWaitMs', 'workers.budget', 'inspection.clauses'];
 
@@ -62,6 +69,13 @@ export function settingsCommand(io, { first, second, rest, values }) {
     io.say(`this board's landing pool: ${second}`);
     return 0;
   }
+  if (first === 'board.url' || first === 'board.token') {
+    if (!second || rest.length) throw new Refused('USAGE', `pullboard settings ${first} <${first === 'board.url' ? 'url' : 'key'}>|off`);
+    setBoardRemote(first.slice(6), second);
+    io.result?.({ setting: first, set: second !== 'off' });
+    io.say(second === 'off' ? `${first} removed` : `${first} set${first === 'board.url' ? ` to ${second}` : ''}`);
+    return 0;
+  }
   if (first === 'person.signed' && !rest.length) return signingSetting(io, second, { actOn });
   if (!first && !second && !rest.length) {
     const settings = loadMachineSettings();
@@ -74,7 +88,7 @@ export function settingsCommand(io, { first, second, rest, values }) {
     const loadAwareDispatch = settings.gate?.loadAwareDispatch === true || settings.gate?.loadAwareDispatch !== false && (settings.runners ?? []).some(runner => Number.isSafeInteger(runner.cores));
     const runnerBusyCeiling = settings.gate?.runnerBusyCeiling ?? 90;
     const measuredSlots = settings.gate?.measuredSlots === true;
-    io.result?.({ settings: { ...settings, gate: { ...settings.gate, queue: { ...settings.gate?.queue, ...queue }, shortSlots, runnersFirst, runnersOnly, measuredSlots, loadAwareDispatch, runnerBusyCeiling, runnerWaitMs: gateRunnerWaitMs() }, relay: { ...settings.relay, offerAtInit } }, memoryFloorMB: memoryFloorMB(), descriptions: Object.fromEntries(PRINTED.map(key => [key, describeSetting(key)])) });
+    io.result?.({ settings: { ...settings, ...(settings.board ? { board: { ...settings.board, ...(settings.board.token ? { token: 'set' } : {}) } } : {}), gate: { ...settings.gate, queue: { ...settings.gate?.queue, ...queue }, shortSlots, runnersFirst, runnersOnly, measuredSlots, loadAwareDispatch, runnerBusyCeiling, runnerWaitMs: gateRunnerWaitMs() }, relay: { ...settings.relay, offerAtInit } }, memoryFloorMB: memoryFloorMB(), descriptions: Object.fromEntries(PRINTED.map(key => [key, describeSetting(key)])) });
     sayDescribed(io, `gateSlots: ${settings.gateSlots}`, values.detail === true);
     sayDescribed(io, `browserSlots: ${settings.browserSlots}`, values.detail === true);
     sayDescribed(io, `gate.queue.reviewsFirst: ${queue.reviewsFirst}${queue.reviewsFirst ? '' : ' (landings first, then arrival order)'}`, values.detail === true);
@@ -94,6 +108,21 @@ export function settingsCommand(io, { first, second, rest, values }) {
     if (clauses || values.detail === true) sayDescribed(io, `inspection.clauses: ${clauses} (legacy machine value; submit uses verify.inspectClauses from accepted main)`, values.detail === true);
     const budget = workerBudget();
     sayDescribed(io, `workers.budget: ${budget?.spend ? `${budget.spend}/${budget.window} (spend pullboard run --scale may use across every live seat on this machine)` : 'off (pullboard run --scale launches no workers)'}`, values.detail === true);
+    return 0;
+  }
+  if (first === 'runnerRates') {
+    const fields = ['price', 'months', 'watts', 'kwhPrice'];
+    if (!second || rest.length !== fields.length) throw new Refused('USAGE', 'pullboard settings runnerRates <runner> <price> <months> <watts> <kwhPrice>');
+    const card = Object.fromEntries(fields.map((name, index) => [name, /^\s*$/u.test(rest[index]) ? NaN : Number(rest[index])]));
+    const settings = setRunnerRate(second, card);
+    io.result?.({ settings, runnerRate: { runner: second, ...settings.runnerRates[second] } });
+    io.say(`runnerRates for ${second} set to price ${card.price}, ${card.months} months, ${card.watts} W, ${card.kwhPrice} per kWh`);
+    return 0;
+  }
+  if (PERSON_SET[first] && second && !rest.length) {
+    const settings = setPersonSetting(first, second);
+    io.result?.({ settings });
+    io.say(`${first} set to ${second}`);
     return 0;
   }
   if (!SETTING_FORMS.includes(first) || !second || rest.length) {
@@ -135,7 +164,9 @@ export function settingsCommand(io, { first, second, rest, values }) {
     return 0;
   }
   if (first === 'workers.budget') {
+    const before = loadMachineSettings().workers?.budget ?? null;
     const settings = setWorkerBudget(parseWorkerBudget(second));
+    recordLimitChange(work => withBoard(context(io), work), 'workers.budget', before, settings.workers.budget, { atomic, logEvent });
     io.result?.({ settings });
     io.say(`workers.budget set to ${settings.workers.budget.spend} spend per ${settings.workers.budget.window}`);
     return 0;
@@ -160,7 +191,9 @@ export function settingsCommand(io, { first, second, rest, values }) {
     if (first === 'gateSlots') throw new Refused('USAGE', 'pullboard settings gateSlots <n>');
     throw new Refused('BAD_BROWSER_SLOTS', 'browserSlots must be a whole number, 0 or more; 0 requires a registered runner');
   }
+  const before = loadMachineSettings().gateSlots;
   const settings = first === 'browserSlots' ? setBrowserSlots(Number(second)) : setGateSlots(Number(second));
+  if (first === 'gateSlots') recordLimitChange(work => withBoard(context(io), work), 'gateSlots', before, settings.gateSlots, { atomic, logEvent });
   io.result?.({ settings });
   io.say(`${first} set to ${settings[first]}`);
   return 0;

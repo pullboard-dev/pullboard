@@ -207,6 +207,9 @@ export function guardianMain(token, { boardFile = null, leaseToken = null } = {}
     if (Number.isFinite(message?.deadline)) deadline = message.deadline;
   });
   process.on('disconnect', act);
+  // A command killed while this guardian was still importing closed the channel before the listener above existed; without
+  // this check the guardian outlived it until the lease expired, and the next landing waited the whole 2 minutes (#5738).
+  if (!process.connected) act();
   setInterval(() => {
     if (finishing || Date.now() < deadline) return;
     const board = boardFile && leaseToken ? boardDeadline(boardFile, leaseToken) : null;

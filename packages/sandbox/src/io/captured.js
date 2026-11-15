@@ -4,9 +4,10 @@ import { spawn } from 'node:child_process';
 /** Drain an owned child before returning its status, including timeout, output-limit and caller cancellation. */
 export async function spawnCaptured(command, args, options) {
   const grouped = process.platform !== 'win32';
-  const { signal, ...spawnOptions } = options;
+  const { signal, onSpawn, onOutput, ...spawnOptions } = options;
   signal?.throwIfAborted();
   const child = spawn(command, args, { ...spawnOptions, detached: grouped, timeout: undefined });
+  onSpawn?.(child);
   const output = { stdout: [], stderr: [] };
   const sizes = { stdout: 0, stderr: 0 };
   let error;
@@ -27,6 +28,7 @@ export async function spawnCaptured(command, args, options) {
   signal?.addEventListener('abort', cancel, { once: true });
   if (signal?.aborted) cancel();
   for (const name of ['stdout', 'stderr']) child[name]?.setEncoding('utf8').on('data', part => {
+    onOutput?.();
     sizes[name] += Buffer.byteLength(part);
     if (sizes[name] <= (options.maxBuffer ?? 1024 * 1024)) output[name].push(part);
     else { error ??= Object.assign(new Error('child output exceeded maxBuffer'), { code: 'ENOBUFS' }); stop(); }

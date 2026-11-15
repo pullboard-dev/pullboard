@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-input README.md skills/pullboard-triage/SKILL.md */
 /** The shipped triage skill preserves the person's text and treats referenced pages as information [I1]. */
 import assert from 'node:assert/strict';

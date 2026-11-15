@@ -1,5 +1,7 @@
 /** Select testing tiers from immutable source; caller hints never hide a changed package [C7,CS4,V4]. */
 import { gitSpawnSync } from '../../../../../git/index.js';
+import { currentGitAdapter } from '../../../../../git/index.js';
+import { realGitAdapter } from '../../../../../git/index.js';
 import { posix } from 'node:path';
 import { cleanGitEnvironment } from '../../../../../git/index.js';
 import { checkCommandDefinition } from '../../../../../git/index.js';
@@ -9,6 +11,7 @@ import { testOutcomeFields } from '../outcomes.js';
 import { Refused } from '../../../../../kernel/index.js';
 import { literalShellWords } from '../../../../../kernel/index.js';
 import { generateTestTiersFrom } from '../tiers.js';
+import { pushOnlyTests } from '../push-only.js';
 import { commitSourceSnapshot } from '../../snapshot.js';
 import { ownerOf } from '../tiers.js';
 import { TEST_TIERS_FILE } from '../tiers.js';
@@ -18,12 +21,15 @@ import { sealStoreFile } from '../../seals.js';
 import { sealsExist } from '../../seals.js';
 import { checkSkippedSeals } from '../../seals.js';
 import { refusalFloor } from '../../refusal/floor.js';
+import { cellReadPathMap } from '../../../../../codemap/index.js';
 import { codeMapGraph } from '../../affected/tests.js';
+import { BASELINE_TABLES } from '../../../../../commits/light.js';
 import { readTierSnapshot } from './cache.js';
 import { writeTierSnapshot } from './cache.js';
 
 const snapshots = new Map();
 const TEST_HELPER = /(?:^|\/)(?:test|tests)\//u;
+const TEST_FILE = /\.(?:test|spec)\.[cm]?js$/u;
 
 /** Read exact Git objects or construct an isolated read view without executing project hooks. */
 function sourceGit(root, args, optional = false, { input, binary = false } = {}) {
@@ -35,16 +41,41 @@ function sourceGit(root, args, optional = false, { input, binary = false } = {})
   throw new Refused('TEST_SELECTION_SOURCE', 'the immutable test-selection source could not be read; restore Git history and retry');
 }
 
+const OBJECT_ID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
+/** Answers about exact object ids, which never change: a resolved commit, and whether its tree holds the manifest. */
+const exactAnswers = new Map();
+
+/**
+ * Remember one answer about an exact object id under real Git, or compute it every time under an injected adapter.
+ * Why: one submit asked Git the same commit and manifest question up to eight times, a process each (#5900).
+ */
+function exactAnswer(key, read) {
+  if (currentGitAdapter() !== realGitAdapter) return read();
+  if (exactAnswers.has(key)) return exactAnswers.get(key);
+  const value = read();
+  exactAnswers.set(key, value);
+  if (exactAnswers.size > 256) exactAnswers.delete(exactAnswers.keys().next().value);
+  return value;
+}
+
 /** Resolve one immutable commit instead of retaining a movable ref inside the selection. */
 function commitAt(root, ref) {
-  const commit = sourceGit(root, ['rev-parse', '--verify', `${ref}^{commit}`]).trim();
-  if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(commit)) throw new Refused('TEST_SELECTION_SOURCE', 'test selection needs a real committed source');
-  return commit;
+  const resolve = () => {
+    const commit = sourceGit(root, ['rev-parse', '--verify', `${ref}^{commit}`]).trim();
+    if (!OBJECT_ID.test(commit)) throw new Refused('TEST_SELECTION_SOURCE', 'test selection needs a real committed source');
+    return commit;
+  };
+  // A movable ref is read every time; an exact id that resolved once resolves the same way for good.
+  return OBJECT_ID.test(ref) ? exactAnswer(JSON.stringify(['commit', root, ref]), resolve) : resolve();
 }
 
 /** The checked-in portable manifest enables tiers for any project; older projects keep their existing gate. */
 export function hasTestTiers(root, commit = 'HEAD') {
-  return sourceGit(root, ['cat-file', '-e', `${commit}:${TEST_TIERS_FILE}`], true) !== null;
+  const read = () => sourceGit(root, ['cat-file', '-e', `${commit}:${TEST_TIERS_FILE}`], true) !== null;
+  // A commit's tree never changes, so the answer for an exact commit already resolved here is final; a missing object is
+  // asked again, since a fetch can bring it.
+  return OBJECT_ID.test(commit) && exactAnswers.get(JSON.stringify(['commit', root, commit])) === commit
+    ? exactAnswer(JSON.stringify(['tiers', root, commit]), read) : read();
 }
 
 /**
@@ -80,6 +111,22 @@ function tierCodeDigest() {
   return tierCode;
 }
 
+/**
+ * What the layout freeze made of the former bin folder, by the committed path map at one commit: the check scripts
+ * (bin/checks/*.js) and every path that file set touches, old and new. A commit without the map has none [C7,#4015].
+ */
+function formerBin(root, commit) {
+  const scripts = new Set(), inputs = new Set();
+  let map = new Map();
+  try { map = cellReadPathMap(root, { commit }); } catch { /* No readable map, no tooling tier. */ }
+  for (const [old, now] of map) {
+    if (!old.startsWith('bin/')) continue;
+    inputs.add(old).add(now);
+    if (old.startsWith('bin/checks/') && old.endsWith('.js')) scripts.add(now);
+  }
+  return { scripts, inputs };
+}
+
 /** Recompute classifications and ownership from the exact source, including stale or edited manifest rows. */
 function snapshotAt(root, commit) {
   const common = sourceGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
@@ -96,6 +143,9 @@ function snapshotAt(root, commit) {
   // Read from the commit's Git objects: a sealed in-memory source, no clone or checkout on this machine [C7,V4].
   let owners, packageFiles;
   const helpers = new Map();
+  // The tooling tier: unit tests whose only production inputs, by the import graph, are the former bin check scripts.
+  const { scripts } = formerBin(root, commit);
+  const tooling = new Set();
   const manifest = generateTestTiersAt(root, commit, {
     onInventory: inventory => {
       owners = inventory.owners;
@@ -103,6 +153,8 @@ function snapshotAt(root, commit) {
     },
     onReach: row => {
       if (row.tier !== 'T1') return;
+      const inputs = [...row.reached].filter(path => path !== row.file && !TEST_HELPER.test(path) && !TEST_FILE.test(path));
+      if (inputs.length && inputs.every(path => scripts.has(path))) tooling.add(row.file);
       for (const path of row.reached) if (TEST_HELPER.test(path)) {
         const packages = helpers.get(path) ?? new Set();
         for (const name of row.packages) packages.add(name);
@@ -110,7 +162,7 @@ function snapshotAt(root, commit) {
       }
     },
   });
-  const result = { manifest, owners, packageFiles, helpers, rows: new Map(manifest.files.map(row => [row.file, row])) };
+  const result = { manifest, owners, packageFiles, helpers, tooling, rows: new Map(manifest.files.map(row => [row.file, row])) };
   writeTierSnapshot(commit, tierCodeDigest(), result);
   snapshots.set(key, result);
   if (snapshots.size > 8) snapshots.delete(snapshots.keys().next().value);
@@ -127,8 +179,12 @@ function ownUnit(row, snapshot, unsealed) {
   return Boolean(owner) && owner !== '.' && unsealed.has(owner) && row.reasons.every(reason => reason.startsWith('cross-package:'));
 }
 
-/** Select only units belonging to changed packages and defer every current journey to the batch. */
-export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, runner = 'node --test' } = {}) {
+/**
+ * Select only units belonging to changed packages and defer every current journey to the batch.
+ * `auditOnly` is landing.auditOnly, joined by the push-only listing (packages/gate/data/tests/push-only.json): a listed file the change does not itself touch is left to the main audit and named in `auditLeft`,
+ * so a repo-wide inventory test never turns one item's gate red [C7].
+ */
+export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, runner = 'node --test', auditOnly = [] } = {}) {
   commit = commitAt(root, commit);
   if (trunk) {
     const mergeBase = sourceGit(root, ['merge-base', trunk, commit]).trim();
@@ -185,14 +241,36 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
   // source text, never through imports, so a diff that adds or edits one names that audit here (#3184).
   for (const file of refusalFloor({ changed: actual, manifest: after.manifest,
     read: (path, side) => sourceGit(root, ['show', `${side === 'base' ? base : commit}:${path}`], true) })) authored.add(file);
-  const selects = row => confined ? confinedUnit(row, confined.roots, doors) : (row.tier === 'T1' && row.packages.some(name => packages.has(name))) || own(row);
-  const units = [...new Set([...after.manifest.files.filter(row => selects(row) || authored.has(row.file)).map(row => row.file), ...contracts])].sort();
+  // The tooling tier runs only when a former bin file or a rule it checks changes: its tests reach nothing else, so any other
+  // cell change leaves them out, and a global change keeps every test [C7,#4015].
+  const tooling = after.tooling ?? new Set(), former = formerBin(root, commit);
+  const toolingRun = global || (actual ?? []).some(file => former.inputs.has(file));
+  const selects = row => (!tooling.has(row.file) || toolingRun) && (confined ? confinedUnit(row, confined.roots, doors) : (row.tier === 'T1' && row.packages.some(name => packages.has(name))) || own(row));
+  const units = [...new Set([...after.manifest.files.filter(row => selects(row) || authored.has(row.file) || (toolingRun && tooling.has(row.file))).map(row => row.file), ...contracts])].sort();
   // A confined change runs no journey: nothing outside a sealed cell reaches past its front door (#4003). The one exception
   // is a test that reads a listing file the change carried: that file is its input, so it stays selected (#4633).
   const readers = confined?.listings.length ? listingReaders(root, base, commit, confined.listings) : null;
   const journeys = confined ? after.manifest.files.filter(row => readers?.has(row.file) && !units.includes(row.file)).map(row => row.file)
     : after.manifest.files.filter(row => row.tier === 'T3' && !units.includes(row.file)).map(row => row.file);
-  return { version: 1, commit, base, packages: [...packages].sort(), changed: actual ?? [], units, journeys, skipped, ...(sealedCells.length ? { sealedCells } : {}), runner: runner?.trim() || 'node --test' };
+  // The push-only listing joins landing.auditOnly here, the one place every item gate selects its files [R4,C7].
+  const audit = new Set([...(Array.isArray(auditOnly) ? auditOnly : []), ...pushOnlyTests()].filter(file => typeof file === 'string'));
+  const touched = new Set(actual ?? []);
+  const left = [...new Set([...units, ...journeys])].filter(file => audit.has(file) && !touched.has(file)).sort();
+  const kept = file => !left.includes(file);
+  return { version: 1, commit, base, packages: [...packages].sort(), changed: actual ?? [], units: units.filter(kept), journeys: journeys.filter(kept), skipped,
+    ...(left.length ? { auditLeft: left } : {}), ...(sealedCells.length ? { sealedCells } : {}), runner: runner?.trim() || 'node --test' };
+}
+
+/**
+ * The tooling tier of a commit: its unit tests whose only production inputs, by the import graph, are the former bin check
+ * scripts named by the layout freeze path map. Computed from the graph each time, never listed by hand [C7,#4015].
+ *
+ * @param {string} root any checkout of the repository
+ * @param {string} [commit] the commit whose graph decides the tier
+ * @returns {string[]} the sorted test files
+ */
+export function toolingTests(root, commit = 'HEAD') {
+  return [...(snapshotAt(root, commitAt(root, commit)).tooling ?? [])].sort();
 }
 
 /** Whether a change list carries a file that is global whatever cell it sits in: a manifest, lockfile or non-shard plan file. */
@@ -207,7 +285,11 @@ function confinementOf(root, base, commit, actual, sealedCells) {
 
 /** A cell's own plan shard (`bin/cells-plan/NN-<cell>.json`); the index, path maps and transition file are not shards. */
 const PLAN_SHARD = /^packages\/codemap\/data\/plan\/\d+-[^/]+\.json$/u;
-const COMMITTED_LISTINGS = new Set(['packages/gate/data/tests/test-cells.json', 'packages/gate/data/ceilings/cells-edges.json', TEST_TIERS_FILE]);
+/** The generated fixture registry: one row per test file naming the fixtures it uses. */
+const [FIXTURE_REGISTRY] = BASELINE_TABLES;
+const COMMITTED_LISTINGS = new Set(['packages/gate/data/tests/test-cells.json', 'packages/gate/data/ceilings/cells-edges.json', TEST_TIERS_FILE, FIXTURE_REGISTRY]);
+/** The fixture registry keys each row by the test file it serves, so a row is a cell's own when that file lies in the cell (#4638). */
+const FILE_KEYED = new Set([FIXTURE_REGISTRY]);
 /**
  * The listing sections a tool regenerates from the tree (`--write`), by file; `true` means every section. A static check
  * and the tests that read the file compare them with a fresh run, so a hand edit or a raised ratchet is caught there and
@@ -274,7 +356,7 @@ function listingIsOwn(file, roots, read) {
   const [was, now] = [listingRows(before), listingRows(after)];
   const generated = section => GENERATED_SECTIONS[file] === true || GENERATED_SECTIONS[file]?.has(section);
   return [...new Set([...was.keys(), ...now.keys()])].filter(key => was.get(key) !== now.get(key))
-    .every(key => generated(key.slice(0, key.indexOf('\0'))) || owns(key.slice(key.indexOf('\0') + 1)));
+    .every(key => { const section = key.slice(0, key.indexOf('\0')); return generated(section) || owns(key.slice(section.length + 1)) || FILE_KEYED.has(file) && owns(section); });
 }
 
 /**
@@ -416,15 +498,22 @@ export function testTierReport(plan, { names = true } = {}) {
   const skipped = plan.skipped?.length ? `\nSealed packages skipped (${plan.skipped.length}): ${plan.skipped
     .map(row => `${row.package} by receipt ${row.receipt}`).join(', ')}` : '';
   const sealed = plan.sealedCells?.length ? `\nCells sealed by conforming tests (${plan.sealedCells.length}): ${plan.sealedCells.join(', ')}` : '';
-  return `${units}\nT3 journeys deferred to the landing batch (${plan.journeys.length})${skipped}${sealed}`;
+  const audit = plan.auditLeft?.length ? `\nLeft to the main audit (landing.auditOnly) (${plan.auditLeft.length}): ${plan.auditLeft.join(', ')}` : '';
+  return `${units}\nT3 journeys deferred to the landing batch (${plan.journeys.length})${skipped}${sealed}${audit}`;
 }
 
-/** A green exit with no observed test account cannot prove a selected unit or journey. */
+/**
+ * A green exit with no observed test account cannot prove a selected unit or journey. The refusal names the selected
+ * files the run gave no account for, so a runner that ignored them is found by name, on the controller and on a pulled gate.
+ */
 export function requireTestTierAccount(run, files) {
   const green = run.isGreen === true || run.green === true || run.state === 'pass';
   const outcomes = testOutcomeFields(run.profile?.testOutcomes) ?? testOutcomeFields(run.testOutcomes);
-  const accounted = outcomes
-    ? files.every(file => outcomes.some(row => row.file === posix.normalize(file)))
-    : Boolean(run.profile?.tests?.length);
-  if (green && files.length && !accounted) throw new Refused('TEST_SELECTION_UNVERIFIED', 'selected test files produced no test account; make the focused runner execute and report the selected tests');
+  const missing = outcomes
+    ? files.filter(file => !outcomes.some(row => row.file === posix.normalize(file)))
+    : run.profile?.tests?.length ? [] : [...files];
+  if (green && files.length && missing.length) {
+    const named = missing.slice(0, 20).join(', ') + (missing.length > 20 ? ` and ${missing.length - 20} more` : '');
+    throw new Refused('TEST_SELECTION_UNVERIFIED', `selected test files produced no test account (${missing.length} of ${files.length} unreported: ${named}); make the focused runner execute and report the selected tests`);
+  }
 }

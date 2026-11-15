@@ -9,18 +9,22 @@ import { tryGit } from '../../../git/index.js';
 import {
   submissionPaths,
   dependencySnapshots,
+  frozenCheck,
 } from '../../../sandbox/index.js';
 import {
   BLANKS,
   STATES,
   storeTriggers,
 } from '../../../state/index.js';
+import { DEFAULT_NEXT_STEPS } from '../../../state/index.js';
 
 import {
   boardBusyError,
   EVENT_LOG_VERSION,
   openBoardReadOnly,
   readEventLogVersion,
+  OLDEST_UPGRADABLE_SCHEMA,
+  BOARD_TOO_OLD_NEXT,
   SCHEMA_VERSION,
 } from '../../../store/index.js';
 import {
@@ -31,6 +35,7 @@ import { loadSpec } from '../../../spec/index.js';
 import { loadDoctrine } from '../../../doctrine/index.js';
 import {
   preMergeHookProblems,
+  staleHookProblems,
   unwiredHookProblems,
 } from '../../../commits/index.js';
 const blankCharacters = new Set(BLANKS.map((point) => String.fromCodePoint(point)));
@@ -51,10 +56,10 @@ export function doctrineProblems(root, config) {
  * @param {string} root
  * @param {(root: string, args: string[]) => { status: number, stdout: string }} tryGit
  * @param {any} [config] - Compare frozen rows with this checkout's current source when supplied.
- * @param {{ isMain?: boolean }} [options] - Give older-board repair steps for the running source.
+ * @param {{ isMain?: boolean, release?: string }} [options] - Give older-board repair steps for the running source.
  * @returns {{ code: string, message: string, next: string }[]}
  */
-export function doctorProblems(file, root, tryGit, config, { isMain = true, checkAtCommit } = {}) {
+export function doctorProblems(file, root, tryGit, config, { isMain = true, checkAtCommit, release } = {}) {
   if (!existsSync(file)) return [finding('BOARD_MISSING', 'board file is missing', 'run pullboard status to create a new board')];
   const startedAt = Date.now();
   let db;
@@ -67,7 +72,7 @@ export function doctorProblems(file, root, tryGit, config, { isMain = true, chec
       const version = readEventLogVersion(db);
       if (version < EVENT_LOG_VERSION) {
         const next = isMain ? 'run pullboard status to upgrade this event log'
-          : 'merge this code into the main checkout first, then run pullboard status there; or test it against a throwaway board';
+          : DEFAULT_NEXT_STEPS.BOARD_SCHEMA_BEHIND;
         eventProblems.push(finding('EVENT_LOG_VERSION', `event log version is ${version}; this pullboard expects ${EVENT_LOG_VERSION}`, next));
       }
     }
@@ -79,6 +84,7 @@ export function doctorProblems(file, root, tryGit, config, { isMain = true, chec
     return [
       ...preMergeHookProblems(root),
       ...unwiredHookProblems(root),
+      ...(release ? staleHookProblems(root, release) : []),
       ...eventProblems,
       ...triggerProblems(db),
       ...layout.problems,
@@ -144,8 +150,12 @@ function layoutProblems(db) {
 function versionProblems(db, isMain) {
   const version = db.prepare('PRAGMA user_version').get().user_version;
   if (version === SCHEMA_VERSION) return [];
+  // Schema 0 is an empty layout that status creates; 1 to before the oldest upgradable is refused by every write [R4].
+  if (version > 0 && version < OLDEST_UPGRADABLE_SCHEMA) {
+    return [finding('BOARD_TOO_OLD', `this board is schema ${version}, from before pullboard 0.9.3, and is too old for this pullboard to upgrade`, BOARD_TOO_OLD_NEXT)];
+  }
   const repair = version < SCHEMA_VERSION
-    ? (isMain ? 'run pullboard status to upgrade this board' : 'merge this code into the main checkout first, then run pullboard status there; or test it against a throwaway board')
+    ? (isMain ? 'run pullboard status to upgrade this board' : DEFAULT_NEXT_STEPS.BOARD_SCHEMA_BEHIND)
     : 'use a pullboard version that supports this board schema';
   return [finding('SCHEMA_VERSION', `schema version is ${version}; this pullboard expects ${SCHEMA_VERSION}`, repair)];
 }
@@ -157,16 +167,18 @@ function versionProblems(db, isMain) {
  * @returns {{ code: string, message: string, next: string }[]}
  */
 function triggerProblems(db) {
+  // Status only reads; the first board write rewrites a changed trigger, and inbox is the lightest one [R4].
+  const repair = 'run pullboard inbox';
   const expected = storeTriggers();
   const actual = new Map(db.prepare("SELECT name, sql FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'machine%'").all().map((row) => [row.name, row.sql]));
   const problems = [];
   for (const trigger of expected) {
     const sql = actual.get(trigger.name);
-    if (sql === undefined) problems.push(finding('TRIGGER_MISSING', `board trigger ${trigger.name} is missing`, 'run pullboard status'));
-    else if (sql !== trigger.sql) problems.push(finding('TRIGGER_CHANGED', `board trigger ${trigger.name} has changed`, 'run pullboard status'));
+    if (sql === undefined) problems.push(finding('TRIGGER_MISSING', `board trigger ${trigger.name} is missing`, repair));
+    else if (sql !== trigger.sql) problems.push(finding('TRIGGER_CHANGED', `board trigger ${trigger.name} has changed`, repair));
   }
   for (const name of actual.keys()) {
-    if (!expected.some((trigger) => trigger.name === name)) problems.push(finding('TRIGGER_UNEXPECTED', `board trigger ${name} is unexpected`, 'run pullboard status'));
+    if (!expected.some((trigger) => trigger.name === name)) problems.push(finding('TRIGGER_UNEXPECTED', `board trigger ${name} is unexpected`, repair));
   }
   return problems;
 }
@@ -235,6 +247,12 @@ function submissionProblems(db, root, checkAtCommit) {
       submissionPaths(root, item, item.item_commit, { mainCommit: proof?.policyCommit, dependencies: dependencySnapshots(db, item) });
     } catch (error) {
       problems.push(finding(error.code ?? 'SUBMISSION_POLICY', 'item #' + item.item_id + ': ' + (error.code === 'OUTSIDE_LANE' ? error.message : 'its committed submission policy or claim base cannot be checked'), 'ask the coordinator to restore the original policy and inspect this submission'));
+    }
+    // A frozen gate naming a test file the commit lacks can never run green: name it now instead of waiting on a worker (#4988).
+    const missing = [...new Set([...frozenCheck(item).matchAll(/(?:^|\s)(['"]?)([\w./-]+\.(?:test|spec)\.[cm]?js)\1(?=\s|$)/gu)].map(match => match[2]))].filter(file => tryGit(root, ['cat-file', '-e', `${item.item_commit}:${file}`]).status !== 0);
+    if (missing.length) {
+      problems.push(finding('GATE_FILE_MISSING', `item #${item.item_id} has a frozen gate naming ${missing.join(', ')}, which does not exist at ${item.item_commit}`, 'ask the coordinator to refreeze the item with a gate naming a file that exists'));
+      continue;
     }
     const check = checkAtCommit(root, item);
     if (check.state === 'unverified') problems.push(finding('CHECK_UNVERIFIED', 'item #' + item.item_id + ' has an unverified frozen ' + check.stage + ' at ' + item.item_commit + '; output digest: ' + check.report, 'restore the install or check environment, then rerun doctor'));

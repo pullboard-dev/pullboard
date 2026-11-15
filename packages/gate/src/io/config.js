@@ -2,6 +2,7 @@
 import {
   existsSync,
   readFileSync,
+  readdirSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
@@ -14,26 +15,61 @@ import { Refused } from '../../../kernel/index.js';
 
 const NPM_DEFAULT_TEST = 'echo "Error: no test specified" && exit 1';
 
-/** Detect an existing ecosystem's test command without executing it during setup. */
-export function detectGate(root) {
+/** Test-file globs per detected language [#3707]. */
+const LANGUAGE_TESTS = Object.freeze({
+  go: ['**/*_test.go'],
+  rust: ['**/tests/*.rs'],
+  python: ['**/test_*.py', '**/*_test.py'],
+  php: ['**/*Test.php'],
+  elixir: ['**/*_test.exs'],
+  csharp: ['**/*Tests.cs', '**/*Test.cs'],
+  cmake: ['**/*_test.c', '**/*_test.cpp', '**/test_*.c', '**/test_*.cpp'],
+  make: [],
+});
+
+/**
+ * Every ecosystem the project uses, each with its test command, in a fixed order, without running anything.
+ * Why: a repo with several languages needs each one's tests in its gate, not only the first found [#3707].
+ *
+ * @returns {{ language: string, command: string }[]}
+ */
+export function detectLanguages(root) {
+  const found = [];
+  const add = (language, command) => found.push({ language, command });
   const file = join(root, 'package.json');
   if (existsSync(file)) {
     try {
       const test = JSON.parse(readFileSync(file, 'utf8'))?.scripts?.test;
-      if (typeof test === 'string' && test.trim() && test.trim() !== NPM_DEFAULT_TEST) return 'npm test';
+      if (typeof test === 'string' && test.trim() && test.trim() !== NPM_DEFAULT_TEST) add('node', 'npm test');
     } catch { /* An unreadable package does not hide another ecosystem. */ }
   }
-  if (existsSync(join(root, 'go.mod'))) return 'go test ./...';
-  if (existsSync(join(root, 'Cargo.toml'))) return 'cargo test';
-  if (['pytest.ini', '.pytest.ini', 'pytest.toml', '.pytest.toml', 'pyproject.toml', 'setup.py', 'requirements.txt'].some((name) => existsSync(join(root, name)))) return 'pytest';
+  if (existsSync(join(root, 'go.mod'))) add('go', 'go test ./...');
+  if (existsSync(join(root, 'Cargo.toml'))) add('rust', 'cargo test');
+  let python = ['pytest.ini', '.pytest.ini', 'pytest.toml', '.pytest.toml', 'pyproject.toml', 'setup.py', 'requirements.txt'].some((name) => existsSync(join(root, name)));
   for (const [name, section] of [['tox.ini', 'pytest'], ['setup.cfg', 'tool:pytest']]) {
-    if (existsSync(join(root, name)) && readFileSync(join(root, name), 'utf8').includes(`[${section}]`)) return 'pytest';
+    if (!python && existsSync(join(root, name)) && readFileSync(join(root, name), 'utf8').includes(`[${section}]`)) python = true;
   }
+  if (python) add('python', 'pytest');
+  if (existsSync(join(root, 'composer.json'))) add('php', 'composer test');
+  if (existsSync(join(root, 'mix.exs'))) add('elixir', 'mix test');
+  if (readdirSync(root).some((name) => /\.(sln|csproj)$/iu.test(name))) add('csharp', 'dotnet test');
+  if (existsSync(join(root, 'CMakeLists.txt'))) add('cmake', 'cmake -S . -B build && cmake --build build && ctest --test-dir build');
   for (const name of ['GNUmakefile', 'makefile', 'Makefile']) {
     if (!existsSync(join(root, name))) continue;
-    return makeHasTest(readFileSync(join(root, name), 'utf8')) ? 'make test' : '';
+    if (makeHasTest(readFileSync(join(root, name), 'utf8'))) add('make', 'make test');
+    break;
   }
-  return '';
+  return found;
+}
+
+/** Detect an existing ecosystem's test command without executing it during setup; several join with &&. */
+export function detectGate(root) {
+  return detectLanguages(root).map((entry) => entry.command).join(' && ');
+}
+
+/** The test-file globs of every detected language, so a builder cannot pick the tests that judge it [#3707]. */
+export function detectTestGlobs(root) {
+  return [...new Set(detectLanguages(root).flatMap((entry) => LANGUAGE_TESTS[entry.language] ?? []))];
 }
 
 /** Read literal rule target lists without executing Makefile parsing, includes or recipes. */

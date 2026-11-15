@@ -11,6 +11,8 @@ import { layoutCounts } from '../logic/layout.js';
 import { layoutRatchet } from '../logic/layout.js';
 import { layoutViolations } from '../logic/layout.js';
 
+/** The baseline's path from a checkout root, for a caller that judges another tree's own copy. */
+export const LAYOUT_BASELINE = 'packages/codemap/data/baselines/layout.json';
 const BASELINE = join(dirname(fileURLToPath(import.meta.url)), '../../data/baselines/layout.json');
 
 /** A refusal in the house shape: the rule code leads the message and the next step rides along. */

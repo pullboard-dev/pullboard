@@ -1,5 +1,6 @@
 /** Exercise actual remote parent-death custody, optionally holding the database so the release queues [C7]. */
 import assert from 'node:assert/strict';
+import { fixtureMachineSettings } from '../testkit.js';
 import {
   existsSync,
   mkdirSync,
@@ -100,9 +101,9 @@ export async function parentDeathDrainFixture(t, tools, { holdRelease = false, c
   for (const folder of [repo, worker, bin, home, machineHome, remoteHome, remoteMachineHome]) {
     mkdirSync(folder, { recursive: true });
   }
-  writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1, gate: { loadAwareDispatch: false } }));
+  fixtureMachineSettings(machineHome, { gateSlots: 1, gate: { loadAwareDispatch: false } });
   const env = {
-    ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
+    ...process.env, HOME: home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
     PATH: `${bin}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Parent Death Fixture', GIT_AUTHOR_EMAIL: 'parent-death@example.invalid',
     GIT_COMMITTER_NAME: 'Parent Death Fixture', GIT_COMMITTER_EMAIL: 'parent-death@example.invalid',

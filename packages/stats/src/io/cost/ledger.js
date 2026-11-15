@@ -112,7 +112,10 @@ export function usageCheckpoint(info, { agent, item, operation, model, now = Dat
     pruneCursors(state.cursors, now);
     sharedBefore(state, session, now, advance, changed);
     state.seenClaims ??= {};
+    const closing = ['merged', 'withdraw'].includes(operation);
     for (const interval of intervals) {
+      // A closing move carries no session of the seat it closes, so another claim waits for that seat's own checkpoint.
+      if (closing && interval.item !== item) continue;
       if (state.seenClaims[interval.key] || state.active.some((entry) => entry.claim === interval.key) || newClaim && interval.item === item && interval.end === null) continue;
       const recorded = state.totals[`${agent}:${interval.item}`];
       const start = Math.max(interval.start, recorded?.observedAt ?? 0);
@@ -128,6 +131,18 @@ export function usageCheckpoint(info, { agent, item, operation, model, now = Dat
         recovered.snapshot = sessionSnapshot(recovered.source, undefined, now, state.cursors);
         state.active.push(recovered);
       }
+    }
+    // A pulled submit closes its allocation as it offers the gate, while the board's claim stays open until the receipt applies;
+    // after a red gate, the resubmit or release that ends that claim continues from the seat's last attributed moment.
+    state.offered ??= {};
+    const reopen = ['submit', 'release'].includes(operation) && !state.active.some((entry) => entry.agent === agent)
+      ? intervals.findLast((value) => value.item === item && value.key === state.offered[`${agent}:${item}`] && (value.end === null || value.endKind === 'release')) : null;
+    const at = reopen && Math.max(reopen.start, ...Object.values(state.totals).filter((value) => value.agentId === agent).map((value) => value.observedAt ?? 0));
+    if (reopen && at < (reopen.end ?? now)) {
+      const source = sessionSource(environment);
+      const snapshot = sessionSnapshot(source, undefined, at, state.cursors);
+      state.active.push({ agent, item, claim: reopen.key, model: snapshot?.model ?? model ?? 'unknown', session, source, snapshot,
+        missing: missingSessionReason(environment), at, ambiguous: state.active.some((entry) => session && entry.session === session) });
     }
     const own = state.active.filter((entry) => entry.agent === agent);
     for (const entry of own) {
@@ -151,9 +166,13 @@ export function usageCheckpoint(info, { agent, item, operation, model, now = Dat
         if (interval) state.seenClaims[interval.key] = true;
         advance(state, entry, now, changed);
       }
-    } else if (['submit', 'release'].includes(operation)) {
+    } else if (['submit', 'release', 'merged', 'withdraw'].includes(operation)) {
       state.active = state.active.filter((entry) => entry.agent !== agent || entry.item !== item);
     }
+    // Remember a close the board has not applied yet (a pulled submit), and forget one whose claim the board has ended.
+    const open = operation === 'submit' ? intervals.findLast((value) => value.item === item && value.end === null) : null;
+    if (open) state.offered[`${agent}:${item}`] = open.key;
+    else delete state.offered[`${agent}:${item}`];
     sharedAfter(state, session, now, advance, changed);
     for (const entry of state.active) entry.ambiguous = Boolean(entry.session && state.active.some((peer) => peer !== entry && peer.session === entry.session));
     return { items: Object.values(state.totals).filter((value) => value.agentId === agent && value.revision > (existing.find((row) => row.item === value.item)?.revision ?? 0)).map((value) => structuredClone(value)),

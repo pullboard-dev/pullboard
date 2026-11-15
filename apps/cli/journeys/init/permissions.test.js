@@ -20,10 +20,8 @@ import {
 import { test } from 'node:test';
 import { machineHomeWriteScopeIsNarrow } from '../../index.js';
 import { machineHome } from '../../../../packages/resources/index.js';
-import {
-  runFixtureChild,
-  runFixtureGit,
-} from '../../tests/fixtures/child.js';
+import { runFixtureGit } from '../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 
@@ -63,8 +61,8 @@ function initFixture(t, { existingSettings, existingCodexRules } = {}) {
     writeFileSync(join(root, '.codex', 'rules', 'pullboard.rules'), existingCodexRules);
   }
   /** Invoke the real init command in JSON mode and preserve its status/document. */
-  function init(...args) {
-    const child = runFixtureChild(process.execPath, [BIN, 'init', ...args, '--json'], { cwd: root, env, encoding: 'utf8' });
+  async function init(...args) {
+    const child = await runCliInProcess(['init', ...args, '--json'], { cwd: root, env });
     return { code: child.status, document: child.stdout ? JSON.parse(child.stdout) : null, stderr: child.failure ?? child.stderr };
   }
   return { root, env, init };
@@ -97,7 +95,7 @@ function codexPrefixes(contents) {
     });
 }
 
-test('init grants the agent the permissions the Pullboard loop needs [I1,I2]', t => {
+test('init grants the agent the permissions the Pullboard loop needs [I1,I2]', async t => {
   const syntheticHome = join(resolve(tmpdir()), 'permission-scope-user');
   assert.equal(machineHomeWriteScopeIsNarrow(join(syntheticHome, '.pullboard'), syntheticHome), true, 'a private machine-home below the OS home is eligible for a write grant');
   assert.equal(machineHomeWriteScopeIsNarrow(syntheticHome, syntheticHome), false, 'the OS home itself is never granted');
@@ -117,7 +115,7 @@ test('init grants the agent the permissions the Pullboard loop needs [I1,I2]', t
   assert.equal(machineHomeWriteScopeIsNarrow(danglingAlias, simulatedHome), false, 'an unresolvable existing symlink fails closed');
 
   const fresh = initFixture(t);
-  const freshInit = fresh.init();
+  const freshInit = await fresh.init();
   assert.equal(freshInit.code, 0, freshInit.stderr);
   const freshSettings = JSON.parse(readFileSync(join(fresh.root, '.claude', 'settings.json'), 'utf8'));
   const freshMachineHome = actualMachineHome(fresh.env);
@@ -142,7 +140,7 @@ test('init grants the agent the permissions the Pullboard loop needs [I1,I2]', t
   mkdirSync(join(box.root, '.codex'), { recursive: true });
   const codexConfigPath = join(box.root, '.codex', 'config.toml');
   writeFileSync(codexConfigPath, existingCodexConfig);
-  const initialized = box.init();
+  const initialized = await box.init();
   assert.equal(initialized.code, 0, initialized.stderr);
 
   const settingsPath = join(box.root, '.claude', 'settings.json');
@@ -187,13 +185,13 @@ test('init grants the agent the permissions the Pullboard loop needs [I1,I2]', t
 
   const settingsBytes = readFileSync(settingsPath, 'utf8');
   const codexBytes = readFileSync(codexPath, 'utf8');
-  const second = box.init();
+  const second = await box.init();
   assert.equal(second.code, 0, second.stderr);
   assert.equal(readFileSync(settingsPath, 'utf8'), settingsBytes, 'repeat init does not duplicate or rewrite Claude rules');
   assert.equal(readFileSync(codexPath, 'utf8'), codexBytes, 'repeat init does not duplicate or rewrite Codex rules');
 
   const skipFresh = initFixture(t);
-  const skipFreshResult = skipFresh.init('--no-permissions');
+  const skipFreshResult = await skipFresh.init('--no-permissions');
   assert.equal(skipFreshResult.code, 0, skipFreshResult.stderr);
   const skipFreshSettings = JSON.parse(readFileSync(join(skipFresh.root, '.claude', 'settings.json'), 'utf8'));
   assert.equal(skipFreshSettings.permissions, undefined, '--no-permissions leaves fresh Claude permissions unset');
@@ -206,14 +204,14 @@ test('init grants the agent the permissions the Pullboard loop needs [I1,I2]', t
   const skipPermissions = JSON.parse(readFileSync(skipSettingsPath, 'utf8')).permissions;
   const skipSandbox = JSON.parse(readFileSync(skipSettingsPath, 'utf8')).sandbox;
   const skipCodexBytes = readFileSync(skipCodexPath, 'utf8');
-  const skipExistingResult = skipExisting.init('--no-permissions');
+  const skipExistingResult = await skipExisting.init('--no-permissions');
   assert.equal(skipExistingResult.code, 0, skipExistingResult.stderr);
   assert.deepEqual(JSON.parse(readFileSync(skipSettingsPath, 'utf8')).permissions, skipPermissions, '--no-permissions preserves existing Claude permissions');
   assert.deepEqual(JSON.parse(readFileSync(skipSettingsPath, 'utf8')).sandbox, skipSandbox, '--no-permissions preserves existing sandbox scope');
   assert.equal(readFileSync(skipCodexPath, 'utf8'), skipCodexBytes, '--no-permissions preserves existing Codex rules byte-for-byte');
 });
 
-test('init edits a simple Codex config and keeps a pullboard server already there [A9,I1]', (t) => {
+test('init edits a simple Codex config and keeps a pullboard server already there [A9,I1]', async (t) => {
   // Every line is in the simple subset, so init appends the table once, or keeps the file when pullboard is there.
   for (const [existing, codex] of [
     ['[mcp_servers.pullboard] # the team runs it here\ncommand = "pullboard"\nargs = ["mcp"]\n', 'kept'],
@@ -227,7 +225,7 @@ test('init edits a simple Codex config and keeps a pullboard server already ther
     const box = initFixture(t);
     mkdirSync(join(box.root, '.codex'), { recursive: true });
     writeFileSync(join(box.root, '.codex', 'config.toml'), existing);
-    const initialized = box.init();
+    const initialized = await box.init();
     assert.equal(initialized.code, 0, `${existing}\n${initialized.stderr}`);
     assert.equal(initialized.document.mcp.codex, codex, existing);
     const after = readFileSync(join(box.root, '.codex', 'config.toml'), 'utf8');
@@ -239,7 +237,7 @@ test('init edits a simple Codex config and keeps a pullboard server already ther
   }
 });
 
-test('init leaves a Codex config outside the simple subset as written, prints the exact block and marks Codex manual [A9,I1]', (t) => {
+test('init leaves a Codex config outside the simple subset as written, prints the exact block and marks Codex manual [A9,I1]', async (t) => {
   // Outside the subset init never rewrites the person's TOML; it prints the one block for them to add.
   for (const existing of [
     'mcp_servers = { other = { command = "other-server", args = ["serve"] } }\n',
@@ -252,7 +250,7 @@ test('init leaves a Codex config outside the simple subset as written, prints th
     const box = initFixture(t);
     mkdirSync(join(box.root, '.codex'), { recursive: true });
     writeFileSync(join(box.root, '.codex', 'config.toml'), existing);
-    const initialized = box.init();
+    const initialized = await box.init();
     assert.equal(initialized.code, 0, `${existing}\n${initialized.stderr}`);
     assert.equal(readFileSync(join(box.root, '.codex', 'config.toml'), 'utf8'), existing, `${existing}: byte for byte as it was`);
     assert.equal(initialized.document.mcp.codex, 'manual', `${existing}: --json marks Codex as manual`);
@@ -263,7 +261,7 @@ test('init leaves a Codex config outside the simple subset as written, prints th
   const box = initFixture(t);
   mkdirSync(join(box.root, '.codex'), { recursive: true });
   writeFileSync(join(box.root, '.codex', 'config.toml'), 'mcp_servers = {}\n');
-  const plain = runFixtureChild(process.execPath, [BIN, 'init'], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  const plain = await runCliInProcess(['init'], { cwd: box.root, env: box.env });
   assert.equal(plain.status, 0, plain.stderr);
   assert.match(plain.stdout, /\[mcp_servers\.pullboard\]\ncommand = "sh"\nargs = \["-c", /u, 'the plain output shows the block');
 });

@@ -24,6 +24,7 @@ import { withSentinelTrunk } from "./runner.js";
 import { healthSentinelEnabled } from "../../../config/index.js";
 import { recordedHealthFindings } from "./findings.js";
 import { scanHealthSentinel } from "./findings.js";
+import { readScratchMemory } from "./memory.js";
 import { initialSpecApprovalBaseline } from "../../../spec/index.js";
 
 /** The watch command's existing string options, shared with the CLI parser. */
@@ -73,7 +74,7 @@ async function runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensu
           ? { ...ctx.io, personRequest: undefined, personRequestMoveId: undefined } : ctx.io;
         await ordered({ ...ctx, io }, board, 'recordSpecApprovalBaseline', [{ agentId: 'coordinator', baseline }]);
       }
-      const observation = scanHealthSentinel(ctx.file, { root: ctx.info.root, config: ctx.config, now: ctx.clock.now(), returnRejected: me.id === 'coordinator',
+      const observation = scanHealthSentinel(ctx.file, { root: ctx.info.root, config: ctx.config, now: ctx.clock.now(), returnRejected: me.id === 'coordinator', memory: readScratchMemory,
         ...(stalledGateDrives ? { gateDrives: stalledGateDrives } : {}) });
       if (observation) {
         try { await ordered(ctx, board, 'recordHealthFindings', [{ agentId: me.id, ...observation }]); }

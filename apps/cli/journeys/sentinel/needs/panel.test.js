@@ -13,14 +13,16 @@ import {
   press,
   project,
   startView,
+  openItemsNeeds,
 } from '../../../tests/fixtures/cockpit/harness.js';
+import { pressTab } from '../../../tests/fixtures/cockpit/stable.js';
 
 test('Needs you shares grouped, expandable rows and exact person confirmation across Items and Dashboard [N26,B26]', { timeout: 120_000 }, async () => { // budget: native board/Git setup, two viewports and a real person confirmation.
   const box = machine();
   const spec = '# Needs review\n\n## G · Goals\n' + Array.from({ length: 4 }, (_, i) => '- G' + (i + 1) + ' [approved, must] The actual approved requirement ' + (i + 1) + ' keeps its full final words. | gate: browser gate ' + (i + 1)).join('\n') + '\n- G5 [draft, should] A draft remains for review. | gate: draft gate\n';
   const alpha = project(box, 'needs-panel', spec, {}, { agentApproved: true });
-  box.run(alpha.repo, 'shout', 'person', 'Choose the wording for this release. The full question stays available when expanded.', '--decision');
-  box.run(alpha.repo, 'sentinel', 'propose', 'hourly-size', '--check', 'node packages/gate/src/io/file/size.js', '--directory', '.', '--every', 'hourly', '--owner', 'coordinator');
+  await box.inProcess(alpha.repo, 'shout', 'person', 'Choose the wording for this release. The full question stays available when expanded.', '--decision');
+  await box.inProcess(alpha.repo, 'sentinel', 'propose', 'hourly-size', '--check', 'node packages/gate/src/io/file/size.js', '--directory', '.', '--every', 'hourly', '--owner', 'coordinator');
   const view = await startView(box);
   let chrome;
   try {
@@ -29,10 +31,10 @@ test('Needs you shares grouped, expandable rows and exact person confirmation ac
     assert.deepEqual(approvals.map(row => row.id), ['G1', 'G2', 'G3', 'G4']);
     assert.ok(chromeExecutable(), 'Chrome is required for the two real presentation surfaces');
     chrome = await openSnapshotChrome(chromeExecutable(), view.link.href, join(box.dir, 'needs-panel-chrome'));
-    // A fresh board opens on the first-run Dashboard (0de17112c6); set it aside so the usual Needs-you card is measured.
+    // A fresh board opens on the first-run Dashboard (0de17112c6); set it aside so the usual Dashboard is measured.
     await chrome.waitFor('data?.project?.root === ' + JSON.stringify(alpha.repo));
     await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
-    await chrome.waitFor('document.querySelectorAll("#dashboard .needs-call").length === 3');
+    await chrome.waitFor('!!document.querySelector("#dashboard .dash-live")');
     /** Preserve actual seeded browser views in bounded native-log chunks for visual review. */
     const capture = async (surface, width) => {
       await chrome.stable('window.scrollTo(0, 0); true');
@@ -43,16 +45,16 @@ test('Needs you shares grouped, expandable rows and exact person confirmation ac
     };
     for (const width of [1440, 375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      await press(chrome, 'document.querySelector("[data-tab=dashboard]")');
+      await pressTab(chrome, 'dashboard');
       await chrome.waitFor('view.tab === "dashboard"');
-      assert.equal(await chrome.stable('document.querySelectorAll("#dashboard .needs-call").length'), 3, 'Dashboard caps the same typed rows at three');
-      assert.match(await chrome.stable('document.querySelector("#dashboard .needs-more").textContent'), /3 more and 1 draft rows/u);
-      assert.equal(await chrome.stable('document.querySelectorAll("#dashboard details[open]").length'), 0, 'the initial summary rows are collapsed');
+      // The /live-style Dashboard (#6847) holds no Rulings rows; Items is where the person rules.
+      assert.equal(await chrome.stable('document.querySelectorAll("#dashboard .needs-call").length'), 0, 'the Dashboard draws no Rulings rows');
       await capture('dashboard', width);
-      await press(chrome, 'document.querySelector("#dashboard [data-needs-list]")');
-      await chrome.waitFor('view.tab === "items" && view.state === "active"');
+      await pressTab(chrome, 'items');
+      await chrome.waitFor('view.tab === "items"');
+      await openItemsNeeds(chrome);
       assert.match(await chrome.stable('document.querySelector("#needs").textContent'), /Questions and sentinels · 2/u);
-      assert.match(await chrome.stable('document.querySelector("#needs").textContent'), /Rows approved in Git, waiting for you · 4/u);
+      assert.match(await chrome.stable('document.querySelector("#needs").textContent'), /Rulings: rows approved in Git · 4/u);
       assert.equal(await chrome.stable('document.querySelector("#needs [data-needs-confirm]").dataset.needsConfirm'), 'G1 G2 G3 G4', 'Confirm all captures every eligible row, including rows beyond the summary');
       assert.equal(await chrome.stable('document.querySelectorAll("#needs .needs-drafts").length'), 1);
       assert.equal(await chrome.stable('document.querySelectorAll("#needs .needs-age time[data-ago]").length > 0'), true, 'dated calls retain the live time element instead of escaped markup');

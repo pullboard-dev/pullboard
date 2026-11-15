@@ -29,7 +29,7 @@ import { ENGINE_VERSION } from "../../../../state/index.js";
 import { Refused } from "../../../../kernel/index.js";
 import { COORDINATOR } from "../../../../config/index.js";
 import { loadConfig } from "../../../../config/index.js";
-import { requireOwnLaneCheck } from "../../../../verify/light.js";
+import { requireOwnLaneCheck } from "../../../../verify/index.js";
 import { laneOf } from "../../../../seats/index.js";
 
 /**

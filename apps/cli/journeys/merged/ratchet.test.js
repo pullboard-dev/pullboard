@@ -1,4 +1,5 @@
 import { recordLandingBatch } from '../../../../packages/store/index.js';
+import { settleLand } from '../../tests/fixtures/land/settle.js';
 import { join } from 'node:path';
 import { openBoard } from '../../../lib/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
@@ -216,7 +217,7 @@ test('historical structured quarantine requires twenty clean runs before the bou
 });
 
 /** Exercise the actual landing route against a private board and remote. */
-test('a real landing refuses a newly observed unquarantined flake [C7,T12]', t => {
+test('a real landing no longer refuses a newly observed unquarantined flake: reds never hold the trunk [C7,T12]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const fixtures = makeLandProjectFixtures(helpers);
@@ -233,16 +234,16 @@ test('a real landing refuses a newly observed unquarantined flake [C7,T12]', t =
     }
   } finally { closeBoard(board); }
   const before = box.git(box.repo, 'rev-parse', 'main');
-  const result = box.run(box.repo, 'land', '--json');
-  assert.notEqual(result.code, 0, result.out);
-  assert.match(result.err + result.out, /FLAKE_RATCHET|unquarantined flaky test/);
-  assert.match(result.err + result.out, /test\/unstable\.test\.js/);
-  assert.equal(box.git(box.repo, 'rev-parse', 'main'), before);
-  assert.equal(box.git(box.remote, 'rev-parse', 'main'), before);
+  const offered = await box.runLocal(box.repo, 'land', '--json');
+  assert.equal(offered.code, 0, offered.err + offered.out);
+  // lander-v2 L1 (#6813): the pulled land job never holds the trunk for a flake; the open-quarantine count is a health ratchet, so the landing lands.
+  const result = await settleLand(box, JSON.parse(offered.out));
+  assert.equal(result.batch.state, 'landed', JSON.stringify(result.landJob.receipt));
+  assert.notEqual(box.git(box.repo, 'rev-parse', 'main'), before);
 });
 
 /** Two actual landings retain a falling, named quarantine count in their batch receipts. */
-test('real landings record the quarantine baseline and lower it after repair [C7,T12]', t => {
+test('real landings record the quarantine baseline and lower it after repair [C7,T12]', { skip: 'CONTROLLER_ONLY: the pulled land receipt carries no batch.flakeRatchet (the host batch step went with #6813, lander-v2 L1); the manual merged case below still records the count' }, async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const fixtures = makeLandProjectFixtures(helpers);
@@ -258,7 +259,7 @@ test('real landings record the quarantine baseline and lower it after repair [C7
   const first = fixtures.itemWorktree(box, 1);
   fixtures.submitItem(box, first);
   fixtures.acceptItem(box, first);
-  const landed = box.run(box.repo, 'land', '--json');
+  const landed = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(landed.code, 0, landed.err + landed.out);
   assert.equal(JSON.parse(landed.out).batch.flakeRatchet.count, 1);
   // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
@@ -268,13 +269,13 @@ test('real landings record the quarantine baseline and lower it after repair [C7
   const second = fixtures.itemWorktree(box, 2);
   fixtures.submitItem(box, second);
   fixtures.acceptItem(box, second);
-  const next = box.run(box.repo, 'land', '--json');
+  const next = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(next.code, 0, next.err + next.out);
   assert.equal(JSON.parse(next.out).batch.flakeRatchet.count, 0);
 });
 
 /** A manual merged receipt records the count even if a current flake would block a fresh publication. */
-test('manual merged records quarantine count without refusing historical publication [C7,T12]', t => {
+test('manual merged records quarantine count without refusing historical publication [C7,T12]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const fixtures = makeLandProjectFixtures(helpers);
@@ -293,7 +294,7 @@ test('manual merged records quarantine count without refusing historical publica
         testOutcomes: [{ file: 'test/new.test.js', name: 'new case', passed, skipped: false }] } });
     }
   } finally { closeBoard(board); }
-  const result = box.run(box.repo, 'merged', String(item.item), item.commit, '--note', 'already published fixture');
+  const result = await box.runLocal(box.repo, 'merged', String(item.item), item.commit, '--note', 'already published fixture');
   assert.equal(result.code, 0, result.err + result.out);
   // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const after = openBoard(boardFile, undefined, { gitRoot: box.repo });

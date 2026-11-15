@@ -1,6 +1,6 @@
 import * as self from './light.js';
 /** Pure state source classification, without loading the native board [C7]. */
-export { EXIT_RULES_ENGINE } from "./src/logic/engine/metadata.js";
+export { EXIT_RULES_ENGINE } from "./src/logic/engines/exit-rules-engine.js";
 export { correctedBar } from "./src/logic/bar.js";
 export { engineAtLeast } from "./src/logic/engine/minimum.js";
 export { MACHINE } from "./src/logic/machine/declaration.js";
@@ -9,6 +9,7 @@ export { ACTIVITY_DELIVERY_ENGINE } from './src/logic/engines/activity-delivery-
 export { ACTIVITY_NEWS_ENGINE } from './src/logic/engines/activity-news-engine.js';
 export { AGENT_GRANT_ENGINE } from './src/logic/engines/agent-grant-engine.js';
 export { AUTOMATIC_DISPATCH_ENGINE } from './src/logic/engines/automatic-dispatch-engine.js';
+export { ASK_CLOSE_ENGINE } from './src/logic/engines/ask-close-engine.js';
 export { AUTO_ESCALATE_ENGINE } from './src/logic/engines/auto-escalate-engine.js';
 export { AUTO_SUBMIT_QUARANTINE_ENGINE } from './src/logic/engines/auto-submit-quarantine-engine.js';
 export { BAR_CHECK_ENGINE } from './src/logic/engines/bar-check-engine.js';
@@ -73,12 +74,14 @@ export { KNOWN_MAIN_FAILURES_ENGINE } from './src/logic/engines/known-main-failu
 export { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from './src/logic/engines/known-main-owner-pattern-engine.js';
 export { KNOWN_MAIN_REWORKS_ENGINE } from './src/logic/engines/known-main-reworks-engine.js';
 export { KNOWN_MAIN_RUNNING_FILE_ENGINE } from './src/logic/engines/known-main-running-file-engine.js';
+export { KNOWN_MAIN_RECEIPT_ENGINE } from './src/logic/engines/known-main-receipt-engine.js';
 export { LANDING_DEFECT_CLOSE_ENGINE } from './src/logic/engines/landing-defect-close-engine.js';
 export { LANDING_ENVIRONMENT_ENGINE } from './src/logic/engines/landing-environment-engine.js';
 export { LANDING_LEASE_ENGINE } from './src/logic/engines/landing-lease-engine.js';
 export { LANDING_LOCAL_LEASE_ENGINE } from './src/logic/engines/landing-local-lease-engine.js';
 export { LAND_COLLISION_ENGINE } from './src/logic/engines/landing-collision-engine.js';
 export { LANE_LEAD_ENGINE } from './src/logic/engines/lane-lead-engine.js';
+export { LANDED_VERDICT_ENGINE } from './src/logic/engines/landed-verdict-engine.js';
 export { LEASE_LAPSE_ENGINE } from './src/logic/engines/lease-lapse-engine.js';
 export { LEDGER_QUARANTINE_ENGINE } from './src/logic/engines/ledger-quarantine-engine.js';
 export { LINE_CAPACITY_ENGINE } from './src/logic/engines/line-capacity-engine.js';
@@ -95,6 +98,7 @@ export { MAIN_RED_WITHDRAW_ENGINE } from './src/logic/engines/main-red-withdraw-
 export { MECHANICAL_MERGE_ENGINE } from './src/logic/engines/mechanical-merge-engine.js';
 export { MERGE_ONLY_VERDICT_ENGINE } from './src/logic/engines/merge-only-verdict-engine.js';
 export { MILESTONE_LIMIT_ENGINE } from './src/logic/engines/milestone-limit-engine.js';
+export { MILESTONE_PERSON_LIMIT_ENGINE } from './src/logic/engines/milestone-person-limit-engine.js';
 export { MILESTONE_PLACEMENT_ENGINE } from './src/logic/engines/milestone-placement-engine.js';
 export { MILESTONE_QUEUE_ORDER_ENGINE } from './src/logic/engines/milestone-queue-order-engine.js';
 export { MILESTONE_RANK_ENGINE } from './src/logic/engines/milestone-rank-engine.js';
@@ -116,6 +120,7 @@ export { PLAN_MERGE_ENGINE } from './src/logic/engines/plan-merge-engine.js';
 export { PRIVATE_REHOME_ENGINE } from './src/logic/engines/private-rehome-engine.js';
 export { PROOF_RUN_ENGINE } from './src/logic/engines/proof-run-engine.js';
 export { PR_BRIDGE_ENGINE } from './src/logic/engines/pr-bridge-engine.js';
+export { PULLED_RED_COUNT_ENGINE } from './src/logic/engines/pulled-red-count-engine.js';
 export { QUARANTINE_BACKFILL_ENGINE } from './src/logic/engines/quarantine-backfill-engine.js';
 export { QUARANTINE_CORE_ENGINE } from './src/logic/engines/quarantine-core-engine.js';
 export { QUARANTINE_VERDICT_ENGINE } from './src/logic/engines/quarantine-verdict-engine.js';
@@ -124,6 +129,7 @@ export { QUEUED_START_GRANT_ENGINE } from './src/logic/engines/queued-start-gran
 export { QUEUE_FAIRNESS_ENGINE } from './src/logic/engines/queue-fairness-engine.js';
 export { QUEUE_PREEMPT_ENGINE } from './src/logic/engines/queue-preempt-engine.js';
 export { QUOTED_LANDING_FAILURE_ENGINE } from './src/logic/engines/quoted-landing-failure-engine.js';
+export { REJECTED_FIRST_ENGINE } from './src/logic/engines/rejected-first-engine.js';
 export { RECURRING_JOB_ENGINE } from './src/logic/engines/job-engine.js';
 export { REFERENCE_ENGINE } from './src/logic/engines/reference-engine.js';
 export { REJECTED_WORK_RETURN_ENGINE } from './src/logic/engines/rejected-work-return-engine.js';
@@ -203,7 +209,7 @@ export { factFromEvent } from './src/logic/projection.js';
 export { submitAdmission } from './src/logic/admission.js';
 export { ensureGrantActivationIndex } from './src/logic/relay/activation.js';
 export { manualLandingFailureQuoted } from './src/logic/landing.js';
-export { canonicalMilestoneTarget } from './src/logic/target.js';
+export { canonicalMilestoneTarget } from './src/logic/settings.js';
 export { missingGrantActivationIndex } from './src/logic/relay/activation.js';
 export { CAUSE_ENGINE } from './src/logic/move/constants.js';
 export { IMPLIES_ENGINE } from './src/logic/move/constants.js';

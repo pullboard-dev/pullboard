@@ -1,5 +1,7 @@
 /** A retry checks an immutable merge object without changing the reviewer's checkout or the submitted item [V4,V8]. */
 import { mergeManifestRows } from '../../../../merge/index.js';
+import { mergePlanData } from '../../../../merge/index.js';
+import { mergeableData } from '../../../../merge/index.js';
 import { rowManifest } from '../../../../merge/index.js';
 import {
   gitExecFileSync,
@@ -44,7 +46,7 @@ function manifestTree(root, fields) {
     records.get(row[4]).push({ mode: row[1], hash: row[2], stage: Number(row[3]) });
   }
   const paths = [...records.keys()].sort();
-  if (!paths.length || paths.some(path => !rowManifest(path))) throw new Refused('MERGE_CONFLICT',
+  if (!paths.length || paths.some(path => !mergeableData(path))) throw new Refused('MERGE_CONFLICT',
     `the review cannot form a clean merge with current main; conflicts: ${paths.map(path => JSON.stringify(path)).join(', ')}; resolve, commit and resubmit`);
   const resolved = paths.map(path => {
     const rows = records.get(path);
@@ -52,7 +54,8 @@ function manifestTree(root, fields) {
       || !['100644', '100755'].includes(rows[0].mode)) throw new Refused('MERGE_CONFLICT', `manifest file mode or deletion conflicts at ${path}`);
     const sources = rows.map(row => objectGit(root, ['cat-file', 'blob', row.hash]));
     if (sources.some(source => !Buffer.from(source.toString('utf8'), 'utf8').equals(source))) throw new Refused('MERGE_CONFLICT', `manifest encoding conflicts at ${path}`);
-    const merged = mergeManifestRows(path, ...sources.map(source => source.toString('utf8')));
+    const texts = sources.map(source => source.toString('utf8'));
+    const merged = rowManifest(path) ? mergeManifestRows(path, ...texts) : mergePlanData(path, ...texts);
     if (merged.conflicts) throw new Refused('MERGE_CONFLICT', `${path}: ${merged.conflicts.join(', ')}`);
     return { path, mode: rows[0].mode, source: merged.source };
   });

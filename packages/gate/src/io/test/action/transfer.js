@@ -20,6 +20,11 @@ const VALUE_OPTIONS = new Set(['--test-name-pattern', '--test_name_pattern', '--
   '--test-concurrency', '--test_concurrency', '--test-timeout', '--test_timeout', '--test-reporter', '--test_reporter',
   '--test-reporter-destination', '--test_reporter_destination', '--test-shard', '--test_shard']);
 const TEST_FILE = /\.(?:test|spec)\.[cm]?js$/u;
+/**
+ * The test launchers whose literal file selections carry stored greens: the app's and gate's own, which pullboard.json runs.
+ * Why both: once the configured command named gate's launcher, runners stopped reusing each other's greens (#5778).
+ */
+const LAUNCHERS = ['apps/cli/src/io/run/tests.js', 'packages/gate/src/io/run/tests.js'];
 
 /** Parse only literal file selectors; opaque shell commands keep ordinary fresh execution. */
 function selection(args) {
@@ -57,7 +62,7 @@ function invocations(root, command, depth = 0) {
     const record = words[0] === RECORD_ONLY_PREFIX;
     if (record) words.shift();
     if (!['node', 'node.exe'].includes(basename(words[0] ?? '')) || words.length < 2
-      || resolve(root, words[1]) !== resolve(root, 'apps/cli/src/io/run/tests.js')) continue;
+      || !LAUNCHERS.some(launcher => resolve(root, words[1]) === resolve(root, launcher))) continue;
     const selected = selection(words.slice(2));
     if (selected) found.push(record ? { ...selected, record } : selected);
   }

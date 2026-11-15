@@ -14,9 +14,9 @@ const SERVES = ['apps/cli/journeys/spec/main.test.js', 'serves links must name r
 const GATES = ['apps/cli/journeys/spec/main.test.js', 'approved must-rows name their gate'];
 const SIGNOFF = ['apps/cli/journeys/spec/main.test.js', 'a sign-off holds the text it approved'];
 const BOTH_FILES = ['apps/cli/journeys/merged/e2e.test.js', 'spec check lints both files'];
-const ONE_PAGE = ['apps/cli/journeys/view/main.test.js', 'one self-contained page with every tab and every row'];
+const ONE_PAGE = ['apps/cli/journeys/view/main.test.js', 'one self-contained page with every tab and inherited doctrine row'];
 const PERMANENT = ['apps/cli/journeys/spec/main.test.js', 'an id once committed or cited never leaves the spec'];
-const DELETED = ['apps/cli/journeys/merged/e2e.test.js', 'a deleted spec row is refused at commit'];
+const DELETED = ['apps/cli/journeys/spec/e2e/next.test.js', 'a deleted spec row is refused at commit'];
 const WONT = ['apps/cli/journeys/spec/main.test.js', 'a row marked wont stays with its id'];
 const ROW_PARSED = '      spec.rows.push({ id, status, tier: tier ?? \'\', ...fields, section: section.name, line: lineNo });';
 

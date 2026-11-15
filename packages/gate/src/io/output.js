@@ -109,6 +109,7 @@ export function writeTimingProfile(path, profile) {
     ...(testOutcomeFields(profile.testOutcomes) ? { testOutcomes: profile.testOutcomes.map(row => ({ ...row,
       file: sanitize(row.file, 'test outcome file'), name: sanitize(row.name, 'test outcome name') })) } : {}),
     ...(profile.testCache ? { testCache: { summary: sanitize(String(profile.testCache.summary), 'test cache summary'),
+      ...(profile.testCache.ledger ? { ledger: sanitize(String(profile.testCache.ledger), 'test cache ledger') } : {}),
       files: profile.testCache.files.map(row => ({ file: sanitize(row.file, 'test cache file'), outcome: row.outcome, key: row.key,
         missed: row.missed === null ? null : sanitize(String(row.missed), 'test cache missed input') })) } } : {}),
     runner: sanitize(profile.runner ?? 'shell', 'runner'),

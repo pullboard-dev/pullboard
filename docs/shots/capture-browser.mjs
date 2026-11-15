@@ -28,8 +28,12 @@ export async function browser(chrome, profile, url) {
   };
 }
 
-/** Wait for this demo's API data and rendered controls before storage writes or selection. */
+/**
+ * Wait for this demo's API data and rendered controls before storage writes or selection.
+ * Why: the live view shows its Show control in the page strip; the committed snapshot export under docs/demo still carries the older Filter toggle until it is rebuilt.
+ * The accepted item loads only once All is shown, so callers wait for its row there.
+ */
 export async function waitForDemoBoard(view, repo) {
-  const ready = `typeof data !== 'undefined' && data?.project?.root === ${JSON.stringify(repo)} && data.root === view.root && view.tab === 'items' && data.projects.some(project => project.root === ${JSON.stringify(repo)} && project.ok && project.name === 'Demo board') && data.project.items.some(item => item.id === 1 && item.title === 'Reviewed and accepted') && !!document.querySelector('#filter-toggle')`;
-  await view.waitFor(ready, 'addressed demo board, reviewed item summary and current Filter control');
+  const ready = `typeof data !== 'undefined' && data?.project?.root === ${JSON.stringify(repo)} && data.root === view.root && view.tab === 'items' && data.projects.some(project => project.root === ${JSON.stringify(repo)} && project.ok && project.name === 'Demo board') && !!document.querySelector('#page-controls [data-page-ctl="state"], #filter-toggle') && !!document.querySelector('#chain .row[data-item]')`;
+  await view.waitFor(ready, 'addressed demo board, the Show control and an item row');
 }

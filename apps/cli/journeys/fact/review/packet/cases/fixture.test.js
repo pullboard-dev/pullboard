@@ -13,6 +13,7 @@ import {
 } from 'node:test';
 import { createE2eHelpers } from '../../../../../tests/fixtures/e2e.js';
 import { joinFixtureSeat } from '../../../../../tests/fixtures/testkit.js';
+import { settleSubmit } from '../../../../../tests/fixtures/submit/settle.js';
 import { TIMING_RUN_ID_ENV } from '../../../../../../../packages/gate/index.js';
 
 const helpers = createE2eHelpers();
@@ -23,8 +24,8 @@ after(() => {
 });
 
 /** Run the actual CLI and keep its complete output when an assertion fails. */
-function ok(box, cwd, ...args) {
-  const result = box.run(cwd, ...args);
+async function ok(box, cwd, ...args) {
+  const result = await box.runLocal(cwd, ...args);
   assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}\n${result.out}`);
   return result;
 }
@@ -60,7 +61,7 @@ export default async function* report(events) {
 
 const RUN = 'node --test --test-reporter=./web/outcome-reporter.js';
 
-test('clause 1: a clause case defined in a fixture file is mapped from a gate run [V4,C7]', { timeout: 240_000 }, () => {
+test('clause 1: a clause case defined in a fixture file is mapped from a gate run [V4,C7]', { timeout: 240_000 }, async t => {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   // The fixture's own `node --test` must run its files, not see this runner's context and skip them.
   delete box.env.NODE_TEST_CONTEXT;
@@ -76,11 +77,11 @@ test('clause 1: a clause case defined in a fixture file is mapped from a gate ru
   const builder = join(box.dir, 'web-builder');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', builder, 'main');
   assert.equal(joinFixtureSeat(box, builder, 'web').code, 0, 'the builder seat joins');
-  const added = JSON.parse(ok(box, box.repo, 'add', 'web', 'Greet the visitor', '--specs', 'G1',
+  const added = JSON.parse((await ok(box, box.repo, 'add', 'web', 'Greet the visitor', '--specs', 'G1',
     '--criterion', '1. The page shows a greeting [test] 2. Legacy callers keep working [test]',
-    '--check', `${RUN} web/packet.test.js`, '--json').out);
+    '--check', `${RUN} web/packet.test.js`, '--json')).out);
   const id = added.item.item_id;
-  ok(box, builder, 'claim', String(id));
+  await ok(box, builder, 'claim', String(id));
   writeFileSync(join(builder, 'web/greet.js'), "export const greet = (name) => `Hello, ${name.split(' ')[0]}`;\n");
   // The clause cases live in fixture modules, one beside the test file and one in a subfolder; Node attributes
   // each case to the fixture file that called test(), not to the test file the gate ran.
@@ -106,9 +107,12 @@ test('clause 1: a clause case defined in a fixture file is mapped from a gate ru
   ].join('\n'));
   commit(box, builder, 'feat(web): greet the visitor by first name [G1]');
   const head = box.git(builder, 'rev-parse', 'HEAD').trim();
-  for (const n of [1, 2]) ok(box, builder, 'fact', String(id), 'note', `clause ${n} [test]: web/packet.test.js, run by the check for clause ${n}`);
-  const submitted = JSON.parse(ok(box, builder, 'submit', String(id), '--no-next', '--json').out);
+  for (const n of [1, 2]) await ok(box, builder, 'fact', String(id), 'note', `clause ${n} [test]: web/packet.test.js, run by the check for clause ${n}`);
+  // A pulled submit returns queued; settle its gate before reading the result [V4,C7].
+  const submitted = await settleSubmit(t, { repo: box.repo, env: box.env, run: box.runLocal }, JSON.parse((await ok(box, builder, 'submit', String(id), '--no-next', '--json')).out));
   assert.equal(submitted.gate.green, true, 'the fixture gate is green');
+  // A pulled gate's receipt posts on the board host, which holds no checkout; the first review read builds and stores the packet [V4,C7].
+  await ok(box, box.repo, 'show', String(id), '--review');
   const packet = JSON.parse(readFileSync(join(box.repo, '.git', 'pullboard', 'review-packets', String(id), `${head}.json`), 'utf8'));
   const [greeting, legacy] = packet.clauses;
   const cited = (clause, name, source) => clause.runs.find(run => run.test === name && run.why === 'test cites the clause'

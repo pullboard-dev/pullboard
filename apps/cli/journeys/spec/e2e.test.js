@@ -25,34 +25,34 @@ const {
   startView, LIGHT_BRIEF,
 } = e2e;
 
-test('decisions are asked, listed and answered, and evidence attached, from the command line [B21, B22, B26]', () => {
+test('decisions are asked, listed and answered, and evidence attached, from the command line [B21, B22, B26]', async () => {
   const box = project();
-  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1');
-  const asked = box.run(box.web, 'shout', 'coordinator', 'ship', 'today?', '--kind', 'question', '--decision');
+  await fixtureAdd(box.runIn, box.repo, 'web', 'Page', '--specs', 'G1');
+  const asked = await box.runIn(box.web, 'shout', 'coordinator', 'ship', 'today?', '--kind', 'question', '--decision');
   assert.equal(asked.code, 0, asked.err);
   const id = /as #(\d+)/.exec(asked.out)?.[1];
   assert.ok(id, asked.out);
-  assert.match(box.run(box.repo, 'decisions').out, new RegExp(`#${id} {2}web-1 \\(fixture-model\\) -> coordinator \\(unknown\\), \\d+m ago: ship today\\?`));
-  assert.match(box.run(box.repo, 'inbox').out, new RegExp(`web-1 \\(fixture-model\\) -> coordinator \\(unknown\\): asks for a decision \\(#${id}; pullboard answer ${id}`));
-  const wrongActor = box.run(box.repo, 'answer', id, 'yes, today', '--as', 'person');
+  assert.match((await box.runIn(box.repo, 'decisions')).out, new RegExp(`#${id} {2}web-1 \\(fixture-model\\) -> coordinator \\(unknown\\), \\d+m ago: ship today\\?`));
+  assert.match((await box.runIn(box.repo, 'inbox')).out, new RegExp(`web-1 \\(fixture-model\\) -> coordinator \\(unknown\\): asks for a decision \\(#${id}; pullboard answer ${id}`));
+  const wrongActor = await box.runIn(box.repo, 'answer', id, 'yes, today', '--as', 'person');
   assert.notEqual(wrongActor.code, 0);
   assert.match(wrongActor.err, /B26_PERSON_ANSWER.*person mode answers only/);
-  assert.match(box.run(box.repo, 'answer', id, 'yes, today').out, new RegExp(`answered #${id} to web-1 \\(fixture-model\\) as #\\d+`));
-  assert.match(box.run(box.repo, 'decisions').out, /no open decisions/);
-  assert.match(box.run(box.web, 'inbox').out, new RegExp(`coordinator \\(unknown\\) -> web-1 \\(fixture-model\\): answers #${id}: yes, today`));
+  assert.match((await box.runIn(box.repo, 'answer', id, 'yes, today')).out, new RegExp(`answered #${id} to web-1 \\(fixture-model\\) as #\\d+`));
+  assert.match((await box.runIn(box.repo, 'decisions')).out, /no open decisions/);
+  assert.match((await box.runIn(box.web, 'inbox')).out, new RegExp(`coordinator \\(unknown\\) -> web-1 \\(fixture-model\\): answers #${id}: yes, today`));
   const head = box.git(box.web, 'rev-parse', 'HEAD');
-  const proved = box.run(box.web, 'shout', 'coordinator', 'FINISH', 'the page', '--evidence', 'receipt', '--outcome', 'measured', '--item', '1', '--commit', 'HEAD');
+  const proved = await box.runIn(box.web, 'shout', 'coordinator', 'FINISH', 'the page', '--evidence', 'receipt', '--outcome', 'measured', '--item', '1', '--commit', 'HEAD');
   assert.equal(proved.code, 0, proved.err);
-  assert.match(box.run(box.repo, 'inbox').out, new RegExp(`web-1 \\(fixture-model\\) -> item:1 \\(unknown\\): FINISH the page\\n {2}receipt: measured, #1 at ${head.slice(0, 12)}`));
-  assert.match(box.run(box.web, 'shout', 'coordinator', 'x', '--evidence', 'receipt', '--outcome', 'measured', '--item', '1', '--commit', 'nope').err, /BAD_EVIDENCE.*"nope"/);
+  assert.match((await box.runIn(box.repo, 'inbox')).out, new RegExp(`web-1 \\(fixture-model\\) -> item:1 \\(unknown\\): FINISH the page\\n {2}receipt: measured, #1 at ${head.slice(0, 12)}`));
+  assert.match((await box.runIn(box.web, 'shout', 'coordinator', 'x', '--evidence', 'receipt', '--outcome', 'measured', '--item', '1', '--commit', 'nope')).err, /BAD_EVIDENCE.*"nope"/);
 });
 
-test("a worktree starts only from a commit that holds pullboard's files as the main checkout has them [I4, C4]", () => {
+test("a worktree starts only from a commit that holds pullboard's files as the main checkout has them [I4, C4]", async () => {
   const box = sandbox();
   const repo = join(box.dir, 'repo');
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
-  assert.equal(box.run(repo, 'init').code, 0);
+  assert.equal((await box.runIn(repo, 'init')).code, 0);
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify(CONFIG, null, 2));
   writeFileSync(join(repo, 'SPEC.md'), SPEC);
   writeFileSync(join(repo, 'notes.txt'), 'mine\n');
@@ -61,8 +61,8 @@ test("a worktree starts only from a commit that holds pullboard's files as the m
     assert.notEqual(box.tryGit(repo, 'rev-parse', '--verify', '--quiet', 'refs/heads/web/1').status, 0, 'no branch');
   };
   /** Refused, with the files it names; returns the command it gives. */
-  const refused = (pattern, named) => {
-    const said = box.run(repo, 'worktree', 'web');
+  const refused = async (pattern, named) => {
+    const said = await box.runIn(repo, 'worktree', 'web');
     assert.equal(said.code, 1, said.out);
     assert.match(said.err, pattern);
     for (const file of named) assert.ok(said.err.includes(file), `names ${file}: ${said.err}`);
@@ -74,7 +74,7 @@ test("a worktree starts only from a commit that holds pullboard's files as the m
   };
   const sh = (command) => execFileSync('sh', ['-c', command], { env: box.env, encoding: 'utf8', stdio: 'pipe' });
 
-  const first = refused(/\[NOT_COMMITTED\] this repo has no commit yet, and a new worktree starts from one; not committed: /, [
+  const first = await refused(/\[NOT_COMMITTED\] this repo has no commit yet, and a new worktree starts from one; not committed: /, [
     '.githooks/pre-commit',
     'AGENTS.md',
     'DOCTRINE.md',
@@ -91,16 +91,16 @@ test("a worktree starts only from a commit that holds pullboard's files as the m
   writeFileSync(join(repo, '.githooks', 'post-checkout'), '#!/bin/sh\n');
   rmSync(join(repo, 'DOCTRINE.md'));
   box.git(repo, 'add', 'notes.txt');
-  refused(/\[NOT_COMMITTED\] a new worktree starts from the last commit, and these differ from it here: /, [
+  await refused(/\[NOT_COMMITTED\] a new worktree starts from the last commit, and these differ from it here: /, [
     '.githooks/post-checkout (not committed)',
     'DOCTRINE.md (deleted)',
     'SPEC.md (changed)',
   ]);
   box.git(repo, 'checkout', '--', 'DOCTRINE.md');
-  sh(refused(/these differ from it here: \.githooks\/post-checkout \(not committed\), SPEC\.md \(changed\)\. /, []));
+  sh(await refused(/these differ from it here: \.githooks\/post-checkout \(not committed\), SPEC\.md \(changed\)\. /, []));
   assert.equal(box.git(repo, 'diff', '--cached', '--name-only'), 'notes.txt', "the person's staged file stays staged, and out of the commit");
 
-  const made = box.run(repo, 'worktree', 'web');
+  const made = await box.runIn(repo, 'worktree', 'web');
   assert.equal(made.code, 0, made.err);
   assert.match(made.out, /repo-web-1 on branch web\/1, joined as web-1 \(fixture-model\) in the web lane/, 'the refusals made nothing and joined no one');
   const web = join(box.dir, 'repo-web-1');
@@ -109,14 +109,14 @@ test("a worktree starts only from a commit that holds pullboard's files as the m
   assert.match(foreign.stderr, /outside the web lane: api\/a.js/, 'its hooks run');
 });
 
-test('a hook git ignores is committed by force before a worktree; a deleted config is restored, never re-initialized [I4, C4]', () => {
+test('a hook git ignores is committed by force before a worktree; a deleted config is restored, never re-initialized [I4, C4]', async () => {
   const box = project();
   const sh = (command) => execFileSync('sh', ['-c', command], { env: box.env, encoding: 'utf8', stdio: 'pipe' });
   writeFileSync(join(box.repo, '.gitignore'), '.githooks/post-checkout\n');
   box.git(box.repo, 'add', '.gitignore');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: ignore a local hook');
   writeFileSync(join(box.repo, '.githooks', 'post-checkout'), '#!/bin/sh\n');
-  const ignored = box.run(box.repo, 'worktree', 'web');
+  const ignored = await box.runIn(box.repo, 'worktree', 'web');
   assert.equal(ignored.code, 1, ignored.out);
   assert.match(ignored.err, /\[NOT_COMMITTED\] a new worktree starts from the last commit, and these differ from it here: \.githooks\/post-checkout \(not committed; git ignores it\)\. /);
   assert.ok(!existsSync(join(box.dir, 'repo-web-1')), 'no folder');
@@ -124,21 +124,21 @@ test('a hook git ignores is committed by force before a worktree; a deleted conf
   assert.ok(command.includes(' && git add -f -- .githooks/post-checkout && git commit '), command);
   sh(command);
   assert.equal(box.git(box.repo, 'ls-tree', '--name-only', 'HEAD', '--', '.githooks/post-checkout'), '.githooks/post-checkout', 'the ignored hook is committed');
-  const made = box.run(box.repo, 'worktree', 'web');
+  const made = await box.runIn(box.repo, 'worktree', 'web');
   assert.equal(made.code, 0, made.err);
   assert.ok(existsSync(join(box.dir, 'repo-web-1', '.githooks', 'post-checkout')), 'the worktree has the hook the main checkout runs');
 
   box.git(box.repo, 'rm', '-q', 'pullboard.json');
   const restore = `cd ${box.repo} && git checkout HEAD -- pullboard.json`;
   for (const args of [['worktree', 'web'], ['status'], ['next']]) {
-    const said = box.run(box.repo, ...args);
+    const said = await box.runIn(box.repo, ...args);
     assert.equal(said.code, 1, said.out);
     assert.ok(said.err.includes(`[NO_CONFIG] pullboard.json is deleted here, though this checkout's last commit has it: restore it: ${restore}\n`), said.err);
     assert.ok(!said.err.includes('pullboard init'), `${args[0]} never says to run init`);
   }
   assert.ok(!existsSync(join(box.dir, 'repo-web-2')), 'the refused worktree made nothing');
   sh(restore);
-  assert.equal(box.run(box.repo, 'status').code, 0, 'restored, the board works again');
+  assert.equal((await box.runIn(box.repo, 'status')).code, 0, 'restored, the board works again');
   rmSync(join(box.web, 'pullboard.json'));
-  assert.ok(box.run(box.web, 'next').err.includes(`restore it: cd ${box.web} && git checkout HEAD -- pullboard.json`), 'a linked worktree restores its own');
+  assert.ok((await box.runIn(box.web, 'next')).err.includes(`restore it: cd ${box.web} && git checkout HEAD -- pullboard.json`), 'a linked worktree restores its own');
 });

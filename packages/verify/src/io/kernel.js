@@ -2,7 +2,7 @@
 import { createHash } from 'node:crypto';
 import { posix } from 'node:path';
 import { git } from '../../../git/index.js';
-import { scanSource } from '../../../codemap/index.js';
+import { scanSource } from '../../../codemap/light.js';
 import { Refused } from '../../../kernel/index.js';
 
 const DOORS = ['packages/kernel/index.js', 'packages/kernel/light.js'];

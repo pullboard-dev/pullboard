@@ -11,6 +11,12 @@ import { SCHEMA_VERSION } from "./schema/source.js";
 import { EVENT_LOG_VERSION } from "./schema/source.js";
 import { SIGNED_EVENT_LOG_VERSION } from "./schema/source.js";
 import { storeTriggers } from "../../../../state/index.js";
+import { DatabaseSync } from 'node:sqlite';
+import { SCHEMA } from "./schema/source.js";
+import { migrate } from "./migrate.js";
+import { boardSchema } from "./schema.js";
+import { ensureAdditiveSchema } from "./indexes.js";
+import { missingAdditiveSchema } from "./indexes.js";
 
 const GUARDED = 1;
 
@@ -68,6 +74,76 @@ export function refreshStoreDeclarations(board) {
     }
     return true;
   }, { reviewPolicy: false });
+}
+
+const declaredShapes = new Map();
+
+/** Every column, index and trigger as this code declares them, built once in memory per trigger declaration. */
+function declaredShape(wanted) {
+  const key = wanted.map(({ sql }) => sql).join('\n');
+  if (!declaredShapes.has(key)) {
+    const db = new DatabaseSync(':memory:');
+    try {
+      db.exec(SCHEMA);
+      migrate(db);
+      ensureAdditiveSchema(db);
+      for (const { sql } of wanted) db.exec(sql);
+      declaredShapes.set(key, shapeOf(db));
+    } finally { db.close(); }
+  }
+  return declaredShapes.get(key);
+}
+
+/** A board's columns by name (as PRAGMA table_info reads them, so an ALTER-added column matches), indexes and triggers. */
+function shapeOf(db) {
+  const rows = type => db.prepare("SELECT name, tbl_name, sql FROM sqlite_master WHERE type = ? AND name NOT LIKE 'sqlite_%' ORDER BY name").all(type)
+    .map(({ name, tbl_name, sql }) => [name, tbl_name, sql]);
+  return JSON.stringify({ columns: [...boardSchema(db).columns].sort(([a], [b]) => (a < b ? -1 : 1)), indexes: rows('index'), triggers: rows('trigger') });
+}
+
+/** The same shape with every trigger's SQL left out, so only machine guards whose names all match can be repaired. */
+function namesOnly(shape) {
+  const parsed = JSON.parse(shape);
+  return JSON.stringify({ ...parsed, triggers: parsed.triggers.map(([name, table]) => [name, table]) });
+}
+
+/** True when the board has additive objects to gain, or its shape differs from the declaration only in guard SQL. */
+function driftRepairable(db, wanted) {
+  return missingAdditiveSchema(db) || namesOnly(shapeOf(db)) === namesOnly(declaredShape(wanted));
+}
+
+/**
+ * On a drifted board, create the additive tables and indexes it lacks; then, when every column, index and trigger name
+ * is this code's declaration, restore changed machine guards and restamp, since the shape then matches [A5,M3].
+ * Why: a board an older release left with other guard SQL or without a new table stayed 'drifted', so it never
+ * gained the job tables and submit crashed (#5825). A missing or foreign trigger, or any column or index change,
+ * keeps the board's stamp and is still reported. No row is moved, rewritten or deleted.
+ *
+ * @returns {boolean} true when the board is now current
+ */
+export function repairDrift(board) {
+  const wanted = storeTriggers();
+  if (boardStanding(board.db, SCHEMA_DIGEST, SCHEMA_VERSION) !== 'drifted' || !driftRepairable(board.db, wanted)) return false;
+  try {
+    return atomic(board, () => repairDriftNow(board, wanted), { reviewPolicy: false });
+  } catch (error) {
+    // The whole repair rolled back; the board opens as it was and is reported as drifted.
+    if (error?.code === 'SCHEMA_DRIFT') return false;
+    throw error;
+  }
+}
+
+/** The repair itself, inside the opener's transaction. */
+function repairDriftNow(board, wanted) {
+  if (boardStanding(board.db, SCHEMA_DIGEST, SCHEMA_VERSION) !== 'drifted') return false;
+  ensureAdditiveSchema(board.db);
+  if (namesOnly(shapeOf(board.db)) !== namesOnly(declaredShape(wanted))) return false;
+  const found = differences(board.db, wanted);
+  for (const name of found.changed) board.db.exec(`DROP TRIGGER "${name}"; ${wanted.find(trigger => trigger.name === name).sql}`);
+  if (shapeOf(board.db) !== declaredShape(wanted)) throw new Refused('SCHEMA_DRIFT', 'the repaired board shape does not match this code; keep the board and ask the coordinator to inspect its schema');
+  if (found.changed.length) logEvent(board, 'board', 'guards', null, found);
+  recordSchemaStamp(board.db, SCHEMA_DIGEST);
+  return boardStanding(board.db, SCHEMA_DIGEST, SCHEMA_VERSION) === 'current';
 }
 
 /**

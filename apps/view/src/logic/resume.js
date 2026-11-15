@@ -3,13 +3,13 @@ import * as store from '../../../../packages/store/index.js';
 import { pendingFit } from '../../../../packages/blueprints/index.js';
 import { projectFit } from '../../../../packages/blueprints/index.js';
 import { repoInfo } from '../../../../packages/git/index.js';
-import { personNeedsSummary } from './needs/summary.js';
+import { personNeedsSummaryWith } from './needs/summary.js';
 import { personNeeds } from '../../../../packages/spec/index.js';
 import { resumeRigorCounters } from '../../../../packages/rigor/index.js';
 
-/** Extend the indexed summary only for resume; retain exact row decisions, fit and coordinator Rigor. */
-export function resumeNeeds(root, { board, config, includeRigorUndrafted = false }) {
-  const summary = personNeedsSummary(root, { board, config });
+/** Extend the indexed summary only for resume, with the passkey decision injected; retain exact row decisions, fit and coordinator Rigor. */
+export function resumeNeedsWith(root, { board, config, includeRigorUndrafted = false }, verifiedPasskeyRowDecision) {
+  const summary = personNeedsSummaryWith(root, { board, config }, verifiedPasskeyRowDecision);
   // Resume consumes obligations, not dashboard items. Fit still decorates every current spec row.
   const fitted = projectFit(pendingFit(repoInfo(root).commonDir), { ...summary, items: [] });
   const rigor = includeRigorUndrafted ? resumeRigorCounters(board, summary, { person: store.PERSON,

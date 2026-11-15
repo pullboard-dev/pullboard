@@ -26,14 +26,14 @@ test('a held item shows held with its reason in the roadmap list, matching the h
   const box = machine();
   // Two lanes, so one item can be held on its own and another through its lane.
   const alpha = project(box, 'held-rows', SPEC, { lanes: { web: { owns: ['web/'], specs: ['G'] }, docs: { owns: ['docs/'], specs: ['G'] } } });
-  box.run(alpha.repo, 'add', 'web', 'Held on its own', '--specs', 'G1', '--criterion', 'renders');
-  box.run(alpha.repo, 'add', 'web', 'Free to take', '--specs', 'G1', '--criterion', 'renders');
-  box.run(alpha.repo, 'add', 'docs', 'Held with its lane', '--specs', 'G1', '--criterion', 'renders');
-  box.run(alpha.repo, 'hold', '1', 'waits on the vendor reply');
-  box.run(alpha.repo, 'hold', 'docs', '--reason', 'docs frozen for the release');
-  box.run(alpha.repo, 'milestone', 'add', 'Next', '--reason', 'Arrange fixture release', '--items', '1,2,3');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Held on its own', '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Free to take', '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(alpha.repo, 'add', 'docs', 'Held with its lane', '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(alpha.repo, 'hold', '1', 'waits on the vendor reply');
+  await box.inProcess(alpha.repo, 'hold', 'docs', '--reason', 'docs frozen for the release');
+  await box.inProcess(alpha.repo, 'milestone', 'add', 'Next', '--reason', 'Arrange fixture release', '--items', '1,2,3');
   // The board orders the release by its placement rule, so the held rows follow the real roadmap API's order.
-  const heldOrder = JSON.parse(box.run(alpha.repo, 'roadmap', '--json')).milestones.find((m) => m.name === 'Next').items
+  const heldOrder = JSON.parse(await box.inProcess(alpha.repo, 'roadmap', '--json')).milestones.find((m) => m.name === 'Next').items
     .map((item) => `#${item.id}`).filter((id) => ['#1', '#3'].includes(id));
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-held-rows-chrome-'));
@@ -60,9 +60,9 @@ test('a held item shows held with its reason in the roadmap list, matching the h
       await chrome.waitFor(`innerWidth === ${width}`);
       const seen = await read();
       const byId = Object.fromEntries(seen.rows.map((row) => [row.id, row]));
-      assert.deepEqual([byId['#1'].chip, byId['#1'].tone], ['Gated', 'gated'], `${width}: an item held on its own keeps its lifecycle stage`);
+      assert.deepEqual([byId['#1'].chip, byId['#1'].tone], ['Blocked', 'blocked'], `${width}: an item held on its own keeps its lifecycle stage`);
       assert.match(byId['#1'].why, /Held: waits on the vendor reply/u, `${width}: the hold mark names the item's reason on hover`);
-      assert.deepEqual([byId['#3'].chip, byId['#3'].tone], ['Gated', 'gated'], `${width}: an item in a held lane keeps its lifecycle stage`);
+      assert.deepEqual([byId['#3'].chip, byId['#3'].tone], ['Blocked', 'blocked'], `${width}: an item in a held lane keeps its lifecycle stage`);
       assert.match(byId['#3'].why, /Lane held: docs frozen for the release/u, `${width}: the lane mark names its reason on hover`);
       assert.deepEqual([byId['#2'].chip, byId['#2'].tone], ['Ready', 'ready'], `${width}: an item nobody held stays unclaimed`);
       assert.equal(seen.rows.filter((row) => row.why.startsWith('Held:') || row.why.startsWith('Lane held:')).length, seen.held, `${width}: the list's held rows match the header's held count`);
@@ -91,7 +91,7 @@ test('a held item shows held with its reason in the roadmap list, matching the h
       const mark = stage.querySelector('.stage-mark');
       return { chip: stage.querySelector('.stage-word').textContent.trim(), why: mark?.getAttribute('title') || '' };
     }))`));
-    assert.equal(items[0].chip, 'Gated', 'the Items row preserves the held item lifecycle stage');
+    assert.equal(items[0].chip, 'Blocked', 'the Items row preserves the held item lifecycle stage');
     assert.match(items[0].why, /Held: waits on the vendor reply/u, 'the Items row names the hold reason on hover');
     assert.equal(items[1].chip, 'Ready', 'the Items row of a free item stays unclaimed');
     assert.deepEqual(chrome.exceptions, [], 'the held rows raise no uncaught page exception');

@@ -1,5 +1,6 @@
 /** The short controller modes of a pulled job: submit, serve-need and finish, each its own brief process [C7,#5465]. */
 import { Refused } from '../../../../kernel/index.js';
+import { keepParserResults } from '../module/parser.js';
 import { historyPack } from '../pack.js';
 import { exchangeStore } from '../request.js';
 import { requestFor } from '../request.js';
@@ -22,6 +23,8 @@ import { fetchScript } from './scripts.js';
 import { packScript } from './scripts.js';
 import { sshBurst } from './transfer.js';
 import { createHash } from 'node:crypto';
+import { accessSync } from 'node:fs';
+import { constants } from 'node:fs';
 import { closeSync } from 'node:fs';
 import { openSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -186,11 +189,31 @@ export async function finishJob(payload, ports) {
   }
 }
 
+/** The programs a pulled job's tests spawn; a runner whose PATH cannot reach them would fake reds. */
+export const REQUIRED_TOOLS = ['ps', 'lsof'];
+
+/**
+ * Refuse unless every required tool resolves on PATH, so a runner missing one stops loudly instead of failing tests with ENOENT.
+ * Why: a LaunchDaemon PATH once lacked /usr/sbin, where lsof lives, and every test that spawned it went red (#6022).
+ *
+ * @param {NodeJS.ProcessEnv} [env] - The environment whose PATH is searched.
+ * @param {string[]} [tools] - The program names to find.
+ */
+export function requireRunnerTools(env = process.env, tools = REQUIRED_TOOLS) {
+  const directories = String(env.PATH ?? '').split(':').filter(Boolean);
+  for (const tool of tools) {
+    const found = directories.some(directory => { try { accessSync(`${directory}/${tool}`, constants.X_OK); return true; } catch { return false; } });
+    if (!found) throw new Refused('RUNNER_TOOL_MISSING', `${tool} is not on this runner's PATH (${env.PATH ?? 'unset'}); jobs that spawn ${tool} would fail`, `put the directory holding ${tool} (on macOS /usr/sbin and /sbin) on the service PATH, then run pullboard runner install-serve again`);
+  }
+}
+
 /** Read the JSON request from stdin, run one mode and write the same `{result}` or `{error}` envelope the controller does. */
 export async function servePullController(mode, ports) {
+  keepParserResults();
   let input = '';
   for await (const chunk of process.stdin) input += chunk;
   try {
+    requireRunnerTools();
     const payload = JSON.parse(input);
     const result = mode === '--submit' ? await submitJob(payload, ports) : mode === '--serve-need' ? await serveNeed(payload) : await finishJob(payload, ports);
     process.stdout.write(JSON.stringify({ result }));

@@ -10,7 +10,7 @@ const NON_RELAY = new Map([
   // The CLA check calls the GitHub API from CI; it sat in bin/, outside this check, until the layout freeze [V32].
   // A pull runner calls its own board's job queue API; it is the runner side of that API, not a relay request [P7].
   ['packages/drive/src/io/pull.js', ['fetchImpl = fetch']],
-  ['packages/gate/src/io/check/cla.js', ['fetch(`${url}', 'fetch(`${api}/pulls/', 'fetch(`${pr.api}/statuses/']],
+  ['packages/gate/src/io/check/cla.js', ['send = fetch']],
 ]);
 const ADAPTERS = new Set([
   'packages/person/src/io/adapter.js',

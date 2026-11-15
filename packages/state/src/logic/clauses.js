@@ -1,5 +1,5 @@
 /** Clause inspection: a numbered criterion is ticked clause by clause, each with its evidence, before submit (#2050). */
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/light.js';
 
 export const EVIDENCE_KINDS = Object.freeze(['test', 'command', 'screenshot', 'measurement', 'reasoning']);
 const KINDS = EVIDENCE_KINDS.join('|');
@@ -43,15 +43,83 @@ export function gateNamedFile(clause, gateFiles, item = null) {
   return [...gateFiles].find(file => file && (text.includes(file.toLowerCase()) || text.includes(file.split('/').pop().toLowerCase()))) ?? null;
 }
 
-/** The latest tick each clause carries from the builder, read from ordinary note facts. */
-export function clauseTicks(thread, owner) {
+/** A test file path or base name a clause's text quotes, such as `web/page.test.js`. */
+const QUOTED_TEST = /[\w./-]+\.(?:test|spec)\.[cm]?js\b/u;
+
+/**
+ * The gate-run test files that tick a [test] clause: the file it names, or, when its text names no test file, the item
+ * check's own files, which every gate runs. [] when neither applies. Why: most bars say "X passes on a runner [test]" and
+ * keep the file in the check line, so submit refused CLAUSE_UNTICKED and builders ran the check before the gate ran it
+ * again (#6675) [C7].
+ */
+export function gateCoveredFiles(clause, gateFiles, item = null) {
+  const named = gateNamedFile(clause, gateFiles, item);
+  if (named) return [named];
+  return clause.kind === 'test' && !QUOTED_TEST.test(clause.text) ? checkTestFiles(item?.item_check) : [];
+}
+
+/**
+ * The latest tick each clause carries, read from ordinary note facts under the bar now in force. The holder's ticks count; an
+ * earlier holder's count only when they cite `head`, the commit being submitted. A tick recorded before the criterion was edited
+ * to other text never counts. A hand-written note never replaces a recorded green run. Why: a re-claim of the same bar at the
+ * same head re-proved every clause on a runner (#5775, 11 Nov), and #3793 (11 Nov) wrote its own notes after pullboard test
+ * ticked both clauses, the notes hid the run, and submit sent the seat to a second 254 s runner trip for the same file [C7].
+ *
+ * @param {object[]} thread - The item's thread, oldest first.
+ * @param {string} owner - The current holder.
+ * @param {{ criterion?: string, head?: string | null }} [current] - The bar text and head now in force.
+ * @returns {Map<number, { kind: string, evidence: string }>}
+ */
+export function clauseTicks(thread, owner, { criterion, head = null } = {}) {
   const ticks = new Map();
+  const heads = submittedHeads(thread, head);
+  const edited = thread.some(entry => entry.type === 'move' && typeof entry.detail?.criterion === 'string');
+  let bar = edited ? undefined : criterion;
   for (const entry of thread) {
-    if (entry.type !== 'fact' || entry.kind !== 'note' || entry.by !== owner) continue;
+    if (entry.type === 'move' && typeof entry.detail?.criterion === 'string') bar = entry.detail.criterion;
+    if (entry.type !== 'fact' || entry.kind !== 'note') continue;
     const match = TICK.exec(String(entry.text).trim());
-    if (match) ticks.set(Number(match[1]), { kind: match[2], evidence: match[3].trim() });
+    if (!match || (criterion !== undefined && bar !== criterion)) continue;
+    if (entry.by !== owner && !citesHead(match[3], heads)) continue;
+    const tick = { kind: match[2], evidence: match[3].trim() };
+    const held = ticks.get(Number(match[1]));
+    if (held && RUN_EVIDENCE.test(held.evidence) && !RUN_EVIDENCE.test(tick.evidence)) continue;
+    ticks.set(Number(match[1]), tick);
   }
   return ticks;
+}
+
+const SHELL_SYNTAX = /[;&|<>`$()!\\\n'"*?]/u;
+const TEST_FILE = /\.(?:test|spec)\.[cm]?js$/u;
+
+/**
+ * The test files a frozen check runs when it is one plain command naming them, such as `node <runner> a.test.js`; [] for
+ * anything a test run cannot stand in for: shell syntax, a negation, or no test file at all.
+ */
+function checkTestFiles(check) {
+  const text = String(check ?? '').trim();
+  if (!text || SHELL_SYNTAX.test(text)) return [];
+  return text.split(/\s+/u).filter(word => TEST_FILE.test(word)).map(word => word.replace(/^\.\//u, ''));
+}
+
+/**
+ * The submitted head and the builder source an automatic main merge recorded for it. Why: submit merges main into an unchanged
+ * item head, and the earlier ticks cite that source, not the merge commit.
+ */
+function submittedHeads(thread, head) {
+  const full = String(head ?? '').toLowerCase();
+  if (!/^[0-9a-f]{7,64}$/u.test(full)) return [];
+  const sources = thread.flatMap(entry => {
+    const merge = entry.type === 'fact' && /automatic main merge: source ([0-9a-f]{7,64}), main [0-9a-f]+, merge ([0-9a-f]{7,64})\./u.exec(String(entry.text));
+    return merge && (full.startsWith(merge[2]) || merge[2].startsWith(full)) ? [merge[1]] : [];
+  });
+  return [full, ...sources];
+}
+
+/** Whether evidence names one of `heads` by a hex prefix of at least 7 characters. */
+function citesHead(evidence, heads) {
+  const cited = String(evidence).toLowerCase().match(/\b[0-9a-f]{7,64}\b/gu) ?? [];
+  return cited.some(sha => heads.some(full => full.startsWith(sha) || sha.startsWith(full)));
 }
 
 /**
@@ -60,17 +128,17 @@ export function clauseTicks(thread, owner) {
  * exact commit ran. Why: the gate already proved that file; refusing the submit until the builder retypes the case
  * name with "clause N" cost two or three submits per item on 6 Nov (588 tick notes in a morning) [C7].
  */
-export function clauseInspectionProblem(item, thread, { greenFiles = new Set(), gateFiles = new Set() } = {}) {
+export function clauseInspectionProblem(item, thread, { greenFiles = new Set(), gateFiles = new Set(), head = null } = {}) {
   const clauses = criterionClauses(item.item_criterion);
   if (!clauses.length) return null;
-  const ticks = clauseTicks(thread, item.item_owner);
+  const ticks = clauseTicks(thread, item.item_owner, { criterion: item.item_criterion, head });
   const problems = [];
   const testClauses = [];
   for (const clause of clauses) {
     const tick = ticks.get(clause.number);
     const label = `clause ${clause.number} (${clause.text.slice(0, 80)})`;
     const proven = () => RUN_EVIDENCE.test(tick.evidence) || [...greenFiles].some(file => file && tick.evidence.includes(file));
-    if (!tick && gateNamedFile(clause, new Set([...gateFiles, ...greenFiles]), item)) continue;
+    if (!tick && gateCoveredFiles(clause, new Set([...gateFiles, ...greenFiles]), item).length) continue;
     if (!tick) { problems.push(`${label} has no evidence`); if (clause.kind === null || clause.kind === 'test') testClauses.push(clause); }
     else if (clause.kind && clause.kind !== tick.kind) {
       problems.push(`${label} needs ${clause.kind} evidence, not ${tick.kind}${tick.kind === 'reasoning' ? ' (the weakest kind)' : ''}`);
@@ -95,6 +163,12 @@ export function clauseInspectionProblem(item, thread, { greenFiles = new Set(), 
  * @returns {{ message: string, next: string }}
  */
 function testStep(item, testClauses) {
+  const checkFiles = checkTestFiles(item.item_check);
+  if (checkFiles.length) {
+    // The one runner trip: the run ticks the clauses and its green is the receipt the gate's item check reuses [C7].
+    const command = `pullboard test ${checkFiles.join(' ')}`;
+    return { message: `run ${command}, the item's check files, which ticks every test clause when green`, next: `${command}, then submit again` };
+  }
   if (String(item.item_check ?? '').trim()) {
     const command = `pullboard check ${item.item_id}`;
     return { message: `run ${command}, which runs the frozen check and ticks every test clause`, next: `${command}, then submit again` };
@@ -107,13 +181,15 @@ function testStep(item, testClauses) {
 
 /**
  * The tick notes a green `pullboard test` run earns: one per clause that is a test clause (declared [test] or
- * undeclared) when every file the run named is part of the item's check. Why: the run is the proof the clause cites,
- * so the builder never retypes a case name or spends a second run after a green runner proof [C7].
+ * undeclared) when the run covered every test file the item's check names. Why: the run is the proof the clause cites,
+ * so the builder never retypes a case name or spends a second run after a green runner proof; a run of only some of
+ * the check's files proves only some of it, so it ticks nothing [C7].
  */
 export function testRunTickNotes(item, files, head) {
   const clauses = criterionClauses(item.item_criterion);
-  const check = String(item.item_check ?? '');
-  if (!clauses.length || !files.length || !files.every(file => check.includes(file))) return [];
+  const ran = new Set(files.map(file => String(file).replace(/^\.\//u, '')));
+  const needed = checkTestFiles(item.item_check);
+  if (!clauses.length || !needed.length || !needed.every(file => ran.has(file))) return [];
   return testClauseTickNotes(clauses, `test run of ${files.join(' ')}`, head);
 }
 
@@ -132,14 +208,44 @@ function testClauseTickNotes(clauses, run, head) {
     .map(clause => `clause ${clause.number} [test]: green pullboard ${run} at ${head}`);
 }
 
+/** The most case names one gate tick note lists; the receipt keeps the rest. */
+const NAMED_CASES = 5;
+
+/**
+ * One tick note per [test] clause the builder has not ticked whose named test file the gate ran green, naming the cases
+ * the receipt observed passing in it. Why: submit no longer waits on a builder-run proof, so the gate records the
+ * evidence itself, wherever the gate ran, and a red gate records none [C7,V4].
+ *
+ * @param {object} item - The submitted item.
+ * @param {object[]} thread - The item's thread, to leave builder ticks alone.
+ * @param {{ gateFiles: Set<string>, outcomes: { file: string, name: string, passed: boolean, skipped: boolean }[], head: string }} run - Files the gate ran, the receipts' per-test outcomes and the head proved.
+ * @returns {string[]} Note texts for the item's thread.
+ */
+export function gateClauseTickNotes(item, thread, { gateFiles, outcomes, head }) {
+  const ticks = clauseTicks(thread, item.item_owner, { criterion: item.item_criterion, head });
+  const notes = [];
+  for (const clause of criterionClauses(item.item_criterion)) {
+    if (ticks.has(clause.number)) continue;
+    const files = gateCoveredFiles(clause, gateFiles, item);
+    if (!files.length) continue;
+    const ran = row => files.includes(row.file) && !row.skipped;
+    const passed = outcomes.filter(row => ran(row) && row.passed).map(row => row.name);
+    if (files.some(file => !outcomes.some(row => ran(row) && row.file === file && row.passed)) || outcomes.some(row => ran(row) && !row.passed)) continue;
+    const file = files.join(' ');
+    const listed = passed.slice(0, NAMED_CASES).join('; ');
+    notes.push(`clause ${clause.number} [test]: gate run of ${file} green at ${head.slice(0, 12)}: ${passed.length} case${passed.length === 1 ? '' : 's'} passed (${listed}${passed.length > NAMED_CASES ? '; ...' : ''})`);
+  }
+  return notes;
+}
+
 /** One reviewer-facing line per clause with its evidence; reasoning is flagged as the weakest kind. */
-export function clauseInspectionSummary(item, thread, { gateFiles = new Set() } = {}) {
+export function clauseInspectionSummary(item, thread, { gateFiles = new Set(), head = null } = {}) {
   const clauses = criterionClauses(item.item_criterion);
   if (!clauses.length) return null;
-  const ticks = clauseTicks(thread, item.item_owner);
+  const ticks = clauseTicks(thread, item.item_owner, { criterion: item.item_criterion, head });
   return `inspection, clause by clause: ${clauses.map(clause => {
-    const named = ticks.has(clause.number) ? null : gateNamedFile(clause, gateFiles, item);
-    const tick = named ? { kind: 'test', evidence: `ticked by the gate run of ${named}` } : ticks.get(clause.number);
+    const named = ticks.has(clause.number) ? [] : gateCoveredFiles(clause, gateFiles, item);
+    const tick = named.length ? { kind: 'test', evidence: `ticked by the gate run of ${named.join(' ')}` } : ticks.get(clause.number);
     return `${clause.number}. ${clause.text.slice(0, 80)} -> ${tick.kind}${tick.kind === 'reasoning' ? ' (weakest evidence)' : ''}: ${tick.evidence}`;
   }).join(' | ')}`;
 }

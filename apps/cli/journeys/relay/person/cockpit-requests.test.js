@@ -42,8 +42,8 @@ test('relay person requests stay explicit, read-only and visible [H12,H5]', { ti
   const requestRows = Array.from({ length: 12 }, (_, index) => `- P${index + 1} [draft, must] Keep the reading position measurable. | gate: test`).join('\n');
   const requestSpec = `# Person request fixture\n\n## G · Goals\n- G1 [approved, must] Existing item remains readable. | gate: test\n${requestRows}\n- G2 [draft, must] The person can approve this row. | gate: test\n`;
   const app = project(box, 'person requests', requestSpec);
-  box.run(app.repo, 'add', 'web', 'Existing private item', '--specs', 'G1', '--criterion', 'remains readable');
-  box.run(app.repo, 'shout', 'person', 'Should this item ship?', '--decision');
+  await box.inProcess(app.repo, 'add', 'web', 'Existing private item', '--specs', 'G1', '--criterion', 'remains readable');
+  await box.inProcess(app.repo, 'shout', 'person', 'Should this item ship?', '--decision');
   const live = await startView(box);
   const intents = [];
   const records = [];
@@ -166,9 +166,9 @@ test('relay person requests stay explicit, read-only and visible [H12,H5]', { ti
     await chrome.waitFor("typeof data === 'object' && !!data?.project && typeof window.__setPersonRequest === 'function'");
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.click("document.querySelector('[data-tab=\"items\"]')");
-    await chrome.waitFor("view.tab === 'items' && !document.querySelector('[data-pane=\"items\"]').hidden && document.querySelector('#new-item')");
+    await chrome.waitFor("view.tab === 'items' && !document.querySelector('[data-pane=\"items\"]').hidden && document.querySelector('button[data-page-ctl=new]')");
     assert.equal(await chrome.stable('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), true, 'the request view fits a phone viewport');
-    assert.equal(await chrome.stable("document.body.classList.contains('requests') && getComputedStyle(document.querySelector('#new-item')).display !== 'none' && document.querySelector('#new-item').getBoundingClientRect().height >= 44"), true, 'the explicit capability exposes usable person controls');
+    assert.equal(await chrome.stable("document.body.classList.contains('requests') && getComputedStyle(document.querySelector('button[data-page-ctl=new]')).display !== 'none' && document.querySelector('button[data-page-ctl=new]').getBoundingClientRect().height >= 44"), true, 'the explicit capability exposes usable person controls');
     await chrome.click("document.querySelector('[data-tab=\"shouts\"]')"); await chrome.stable("document.querySelector('#shout-to').value = 'coordinator'"); await chrome.stable("document.querySelector('#shout-text').value = 'Please review this item.'"); await chrome.stable("document.querySelector('#shout-form').requestSubmit()");
     await chrome.waitFor("data?.project?.personRequests?.length === 1");
     assert.deepEqual(intents.at(-1), { verb: 'shout', args: { to: 'coordinator', text: 'Please review this item.' } });

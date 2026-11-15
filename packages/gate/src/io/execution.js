@@ -17,6 +17,7 @@ import { gateRunnerAdmission } from '../../../config/index.js';
 import { loadMachineSettings } from '../../../config/index.js';
 import { gitChildEnv } from '../../../git/index.js';
 import { invalidateGitFacts } from '../../../git/index.js';
+import { commandFact } from '../../../git/index.js';
 import { keepHeartbeatWhileBlocked } from '../../../resources/index.js';
 /** Concern-specific gate stage; public callers keep the gate facade. */
 import {
@@ -90,9 +91,8 @@ import {
   gitPath,
   headCommit,
   headTree,
-  isClean,
+  treeUntouched,
   tryGit,
-  untracked,
 } from '../../../git/index.js';
 import {
   recordGateRun,
@@ -157,6 +157,7 @@ import {
 import {
   sandboxBlockedOperation,
 } from '../../../sandbox/index.js';
+import { storeName } from './store-names.js';
 const STAMP = 'pullboard-gate-green';
 const LOG = 'pullboard-gate.log';
 const LANDING_RUN_ENV = 'PULLBOARD_LANDING_RUN';
@@ -171,8 +172,11 @@ const LANDING_WAIVERS_ENV = 'PULLBOARD_LANDING_WAIVERS';
  * @returns {string | null}
  */
 export function committedTree(root) {
-  if (!isClean(root) || untracked(root).length) return null;
-  return headTree(root);
+  // Read once between invalidations: the run's shell drops the remembered answer after the gate has run (#6153).
+  return commandFact(`committedTree:${root}`, () => {
+    if (!treeUntouched(root)) return null;
+    return headTree(root);
+  });
 }
 
 /**
@@ -221,9 +225,9 @@ export function safeLog(output) {
 /** Run the unchanged caller command and profile only timings already present in its output.
  * @param {string} root
  * @param {string} command
- * @param {{ waitMs?: number, artifactDirectory?: string, artifactPrefix?: string, persistLog?: boolean, profileFile?: string, pipefail?: boolean, gateSlotHeld?: boolean, gateLease?: object, landing?: boolean, collectAll?: boolean, stages?: boolean, timeoutMs?: number, waivers?: Array<{ kind: string, test: string }>, pinnedSource?: { head: string, tree: string } }} [options] - pinnedSource is the exact commit a runner runs in place of this checkout's HEAD.
+ * @param {{ readOnlyGit?: boolean, waitMs?: number, artifactDirectory?: string, artifactPrefix?: string, persistLog?: boolean, profileFile?: string, pipefail?: boolean, gateSlotHeld?: boolean, gateLease?: object, landing?: boolean, collectAll?: boolean, stages?: boolean, timeoutMs?: number, timedShell?: string, waivers?: Array<{ kind: string, test: string }>, pinnedSource?: { head: string, tree: string } }} [options] - pinnedSource is the exact commit a runner runs in place of this checkout's HEAD.
  */
-function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, artifactPrefix = 'pullboard-gate', persistLog = false, profileFile, pipefail = false, gateSlotHeld = false, gateLease, landing = false, collectAll = false, releaseRequest, stages = false, waivers = [], timeoutMs, auditCoverage = false, signal, pinnedSource } = {}) {
+function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, artifactPrefix = 'pullboard-gate', persistLog = false, profileFile, pipefail = false, gateSlotHeld = false, gateLease, landing = false, collectAll = false, releaseRequest, stages = false, waivers = [], timeoutMs, timedShell, auditCoverage = false, signal, pinnedSource, readOnlyGit = false } = {}) {
   const proofSource = gateLease?.proof || gateLease?.quarantines?.length ? proofSourceAt(root, null, committedTree) : null;
   // A pinned runner source is the exact commit the runner received, never this checkout's HEAD [C7,#3323].
   const timingSourceBefore = stages ? pinnedSource ?? timingSourceForReceipt(root) : null;
@@ -239,6 +243,8 @@ function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, arti
   const inherited = {
     ...(gateLease?.testTiers ? { NODE_TEST_CONTEXT: undefined } : {}),
     [TIMING_RUN_ID_ENV]: id,
+    // A static check only reads: with optional locks off its Git reads never take the worktree index lock a gate commit needs [V16,#5635].
+    ...(readOnlyGit ? { GIT_OPTIONAL_LOCKS: '0' } : {}),
     ...auditAdapterEnvironment(auditCoverage),
     ...(auditCoverage ? { PULLBOARD_AUDIT_COVERAGE_REPORTER: fileURLToPath(new URL('../logic/reporter/coverage.js', import.meta.url)), PULLBOARD_TEST_REUSE: '0' } : {}),
     ...(gateLease && !gateLease.runner ? gateSlotEnvironment(gateLease) : gateSlotHeld ? { [GATE_SLOT_HELD_ENV]: '1' } : {}),
@@ -257,7 +263,7 @@ function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, arti
     remoteOptions: gateLease?.runner ? { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline, runnerStartupMs: gateLease.runnerStartupMs, signal,
     browser: gateLease.browser, byLaunch: gateLease.browserByLaunch, pipefail, stages, waivers: landing ? continuation : [], metadata: { ...(gateLease.runMetadata ?? {}), landing, auditCoverage,
       testStage: inherited.PULLBOARD_TEST_STAGE, timingRunId: id, ...(timeoutMs ? { timeoutMs } : {}) } } : null,
-    localOptions: { pipefail, env: inherited, stages, timeoutMs, captureRuntimes: Boolean(gateLease), signal } };
+    localOptions: { pipefail, env: inherited, stages, timeoutMs, ...(timedShell ? { timedShell } : {}), captureRuntimes: Boolean(gateLease), signal } };
   gateLease?.tracker?.mark('ranAt');
   if (gateLease) {
     gateLease.environment = run.environment ?? null;
@@ -279,7 +285,10 @@ function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, arti
     waitMs: Math.max(0, Math.round(waitMs)), wallMs: Math.max(0, Date.now() - started), receipt: settleReceipt(gateLease),
   });
   const collectionReport = collectionId ? parseCollectionReports(run.output, { id: collectionId, scope: 'suite', requireComplete: false }) : null;
-  const timingSourceAfter = stages ? pinnedSource ?? timingSourceForReceipt(root) : null;
+  // One observation after the run serves both the stage accounting and the suite timing: two back-to-back reads of the
+  // same checkout cost three Git processes each and answer the same (#5900).
+  const observedAfter = !run.executionSource || stages && !pinnedSource ? timingSourceForReceipt(root) : null;
+  const timingSourceAfter = stages ? pinnedSource ?? observedAfter : null;
   const executionSource = run.executionSource && { head: run.executionSource.commit, tree: run.executionSource.tree };
   const accountingSource = sameTimingSource(timingSourceBefore, timingSourceAfter)
     && run.executionSourceUnchanged !== false && (!gateLease?.runner || Boolean(executionSource))
@@ -288,14 +297,14 @@ function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, arti
   const rawResult = { ...profiledRun, id, profile, profilePath, logPath,
     ...(stages ? { stages: timingAccountingStages(run.stages, id, accountingSource, { collectionId: collectionId ?? id }) } : {}),
     suiteTiming: suiteTimingFromOutput(run.output, id, run.executionSource
-      ? { head: run.executionSource.commit, tree: run.executionSource.tree } : timingSourceForReceipt(root)),
+      ? { head: run.executionSource.commit, tree: run.executionSource.tree } : observedAfter),
     ...(releaseRequest ? { releaseParticipation: releaseParticipation(run.output, releaseRequest.id) } : {}),
     ...(collectAll ? { collectAllComplete: collectionReport?.complete === true, collectionReport,
       cleanupVerified: collectionReport?.cleanupVerified === true } : {}) };
-  const result = quarantineRunVerdict(rawResult, gateLease?.quarantines, { root,
-    sourceClean: cleanProofSource(root, proofSource, rawResult, gateLease) });
+  const sourceClean = cleanProofSource(root, proofSource, rawResult, gateLease);
+  const result = quarantineRunVerdict(rawResult, gateLease?.quarantines, { root, sourceClean });
   if (result.blockingVerdict) result.profile = writeTimingProfile(profilePath, { ...profile, blockingVerdict: result.blockingVerdict });
-  const proofReceiptId = gateLease?.proof && leaveProofReceipt(root, command, result, proofSource, gateLease.proof, gateLease);
+  const proofReceiptId = gateLease?.proof && leaveProofReceipt(root, command, result, proofSource, gateLease.proof, gateLease, sourceClean);
   return { ...result, ...(proofReceiptId ? { proofReceiptId } : {}) };
 }
 
@@ -312,13 +321,18 @@ function cleanProofSource(root, before, run, lease, pinned = false) {
 /** A computed exception never overwrites what the process actually returned. */
 function rawRunGreen(run) { return run.rawIsGreen ?? run.isGreen ?? run.state === 'pass'; }
 
-/** The private gate writer records process results, never provenance supplied by a CLI argument. */
-function leaveProofReceipt(root, command, run, before, context, lease) {
+/**
+ * The private gate writer records process results, never provenance supplied by a CLI argument.
+ * observedClean is the unpinned clean-source answer the caller already observed after this run; reusing it saves the
+ * five Git processes a second, identical observation costs (#5900).
+ */
+function leaveProofReceipt(root, command, run, before, context, lease, observedClean) {
   try {
     if (!before || run.sandboxBlocked || run.exitCode === undefined) return null;
     const store = receiptStore(root);
     if (!store) return null;
-    const sourceClean = cleanProofSource(root, before, run, lease, Boolean(context.commit));
+    const pinned = Boolean(context.commit);
+    const sourceClean = !pinned && typeof observedClean === 'boolean' ? observedClean : cleanProofSource(root, before, run, lease, pinned);
     const testRuntimes = run.testRuntimes ?? run.profile?.testRuntimes ?? null;
     // A run with no captured test workers still observed its executor: record that host, never an invented one [C7,#2662].
     const executor = run.environment;
@@ -358,7 +372,7 @@ function leaveProofReceipt(root, command, run, before, context, lease) {
         ...(Array.isArray(run.shards) ? { shards: run.shards } : {}) } });
     if (!receipt) return null;
     mkdirSync(store, { recursive: true, mode: 0o700 });
-    writeFileSync(join(store, `${receipt.id}.json`), receiptBody(receipt), { flag: 'wx', mode: 0o600 });
+    writeFileSync(join(store, storeName(receipt.id)), receiptBody(receipt), { flag: 'wx', mode: 0o600 });
     retainTestValueTimings(store, receipt.id, testValueProfile(root, run));
     if (lease) {
       lease.proofReceiptIds ??= [];
@@ -670,7 +684,7 @@ function leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditF
       ...(releaseRequest ? { participationDigest: releaseParticipationDigest(run.releaseParticipation) } : {}) });
     if (!receipt) return null;
     mkdirSync(store, { recursive: true, mode: 0o700 });
-    writeFileSync(join(store, `${receipt.id}.json`), receiptBody(receipt), { flag: 'wx', mode: 0o600 });
+    writeFileSync(join(store, storeName(receipt.id)), receiptBody(receipt), { flag: 'wx', mode: 0o600 });
     if (!run.proofReceiptId) retainTestValueTimings(store, receipt.id, testValueProfile(root, run));
     return receipt.id;
   } catch { return null; }

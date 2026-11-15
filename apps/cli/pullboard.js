@@ -31,6 +31,9 @@ process.emitWarning = (warning, ...rest) => {
   emitWarning.call(process, warning, ...rest);
 };
 
+// The gate package runs a timed shell it does not name: this app hands it the runner app's entry, which every child inherits [C7].
+process.env.PULLBOARD_TIMED_SHELL ??= new URL('../runner/src/io/shell.js', import.meta.url).pathname;
+
 // A reader that stops early, like head, closes the pipe, and the rest of the output has nowhere to
 // go: end quietly, as other command-line tools do, rather than print a stack trace (N24).
 process.stdout.on('error', (error) => {
@@ -41,7 +44,9 @@ process.stdout.on('error', (error) => {
 // The common version probe needs only the release metadata, not the command dispatcher.
 if (process.argv.length === 3 && process.argv[2] === '--version') {
   const { default: packageData } = await import('../../package.json', { with: { type: 'json' } });
-  process.stdout.write(`${packageData.version}\n`);
+  // A hook one release back is told its own version, so an upgrade never stops a seat's commit (#7760).
+  const { hookProbeVersion } = process.env.GIT_EXEC_PATH ? await import('./src/io/hook/probe.js') : { hookProbeVersion: (release) => release };
+  process.stdout.write(`${hookProbeVersion(packageData.version, { cwd: process.cwd(), env: process.env })}\n`);
   process.exit(0);
 }
 
@@ -57,6 +62,12 @@ if (process.argv[2] === 'hook') {
 if (process.argv[2] === 'hook') {
   const composed = await (await import('./src/io/hook/composed.js')).runComposedHook(process.argv[1], process.argv.slice(2), { cwd: process.cwd(), env: process.env });
   if (composed !== null) process.exit(composed);
+}
+
+// A bare heartbeat is one sidecar write, so it runs before tool selection and the stale-checkout redirect and loads no dispatcher, resident client or recovery (#3847).
+if (process.argv.length === 3 && process.argv[2] === 'heartbeat') {
+  const beat = (await import('./src/io/heartbeat/thin.js')).runThinHeartbeat({ cwd: process.cwd(), stderr: process.stderr });
+  if (beat !== null) process.exit(beat);
 }
 
 // Select immutable tooling before redirecting a stale worktree to today's CLI.

@@ -85,3 +85,30 @@ export function localWaitBranch({ capacity, browserCapacity, runnerOnly, browser
 export function runnerDeadlineLine(wait) {
   return `runner wait deadline ${new Date(wait.at).toISOString()} passed; ${wait.branch}; ${wait.runners.map(runner => `${runner.host}: ${runner.reason}`).join('; ') || 'no registered runner'}`;
 }
+
+/** How often a gate past its runner deadline repeats an unchanged state: one heartbeat line a minute. */
+export const DEADLINE_HEARTBEAT_MS = 60_000;
+
+/**
+ * The lines a gate past its runner deadline prints for one poll. The deadline state prints once when it changes, then at
+ * most one heartbeat a minute naming the runner slots and the holders it waits for; the heartbeat states how many
+ * unchanged polls it left out, so the output stays bounded and says what it omits [C7].
+ *
+ * @param {{ line?: string, at?: number, skipped?: number }} memory - What this wait printed last, updated in place.
+ * @param {{ at: number, branch: string, runners: { host: string, reason: string }[] }} deadline - The overdue facts.
+ * @param {Parameters<typeof runnerWaitLine>[0] | undefined} wait - The slot and holder state the gate waits on, when known.
+ * @param {number} now - The poll's time in milliseconds.
+ * @returns {string[]} The lines to print: none, the changed state, or one heartbeat.
+ */
+export function runnerDeadlineOutput(memory, deadline, wait, now) {
+  const line = runnerDeadlineLine(deadline);
+  if (line !== memory.line) {
+    Object.assign(memory, { line, at: now, skipped: 0 });
+    return [line];
+  }
+  memory.skipped = (memory.skipped ?? 0) + 1;
+  if (now - (memory.at ?? now) < DEADLINE_HEARTBEAT_MS) return [];
+  const skipped = memory.skipped;
+  Object.assign(memory, { at: now, skipped: 0 });
+  return [`still past the runner deadline; ${wait ? runnerWaitLine(wait) : 'no runner slot state'}; ${skipped} unchanged polls not printed`];
+}

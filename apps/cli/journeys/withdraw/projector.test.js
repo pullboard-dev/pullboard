@@ -8,6 +8,7 @@ import { openBoard } from '../../../lib/index.js';
 import * as serve from '../../src/io/view.js';
 import { addMilestone } from '../../../../packages/store/index.js';
 import { projectItemState } from '../../../../packages/api/index.js';
+import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
 import { lifecycleEvent } from '../../../../packages/items/index.js';
 import { withdrawnFrom } from '../../../../packages/items/index.js';
 import {
@@ -67,32 +68,37 @@ function countingVerdictReads(board) {
   return { board: { ...board, db }, counted };
 }
 
-test('the item projector matches the full projection [A2,N26]', () => {
+test('the item projector matches the full projection [A2,N26]', async () => {
   const box = machine();
   const p = project(box, 'projector-items');
-  const add = (...args) => Number(/#(\d+)/.exec(box.run(p.repo, 'add', 'web', ...args))[1]);
+  const add = async (...args) => Number(/#(\d+)/.exec(await box.inProcess(p.repo, 'add', 'web', ...args))[1]);
   // Every state, with waits, verdicts and history: verified twice over, sent back, under review, claimed, open,
   // waiting, and withdrawn.
-  const verified = add('Verified after a send-back', '--criterion', 'the page renders', '--specs', 'G1');
+  const verified = await add('Verified after a send-back', '--criterion', 'the page renders', '--specs', 'G1');
   build(box, p, verified, 'one.txt');
   sendBack(box, p, verified, 'the heading is missing');
   build(box, p, verified, 'two.txt');
   accept(box, p, verified);
-  const reviewed = add('Under review', '--criterion', 'the page says goodbye', '--specs', 'G2');
+  const reviewed = await add('Under review', '--criterion', 'the page says goodbye', '--specs', 'G2');
   build(box, p, reviewed, 'three.txt');
-  box.run(p.repo, 'next', '--verify', String(reviewed), '--as', 'coordinator');
-  const sentBack = add('Sent back', '--criterion', 'a third page');
+  await box.inProcess(p.repo, 'next', '--verify', String(reviewed), '--as', 'coordinator');
+  const sentBack = await add('Sent back', '--criterion', 'a third page');
   build(box, p, sentBack, 'four.txt');
   sendBack(box, p, sentBack, 'it shows the wrong page');
-  const claimed = add('Claimed', '--criterion', 'a fourth page');
-  box.run(p.web, 'claim', String(claimed));
-  const open = add('Open', '--criterion', 'a fifth page');
-  const waiting = add('Waits on open and verified work', '--criterion', 'after the others', '--after', `${open},${verified},${claimed}`);
-  const withdrawn = add('Withdrawn', '--criterion', 'nobody builds it');
-  box.run(p.repo, 'withdraw', String(withdrawn), 'a duplicate of the open item');
+  const claimed = await add('Claimed', '--criterion', 'a fourth page');
+  await box.inProcess(p.web, 'claim', String(claimed));
+  const open = await add('Open', '--criterion', 'a fifth page');
+  const waiting = await add('Waits on open and verified work', '--criterion', 'after the others', '--after', `${open},${verified},${claimed}`);
+  const withdrawn = await add('Withdrawn', '--criterion', 'nobody builds it');
+  await box.inProcess(p.repo, 'withdraw', String(withdrawn), 'a duplicate of the open item');
 
+  // The pulled submits above started the loopback local runner, whose heartbeat moves the projection's runner rows between two reads: stop it so the projections compare [C7].
+  stopFixtureLocalRunner(join(box.dir, 'machine-home'));
   const file = join(p.repo, '.git', 'pullboard', 'board.sqlite');
-  const board = openBoard(file);
+  // @pullboard-board-file journey: reads the projection from the board the CLI children wrote
+  // Both projections read one fixed clock, so the dashboard's four-hour window and pace rows cannot move between the two reads [C7].
+  const at = Date.now();
+  const board = openBoard(file, { now: () => new Date(at) });
   try {
     const all = store.listItems(board, { all: true });
     const status = new Map(all.map((item) => [item.item_id, item.item_status]));
@@ -110,7 +116,10 @@ test('the item projector matches the full projection [A2,N26]', () => {
     // A pass-through callback changes nothing, and is offered each item in order with the board and the status map.
     const offered = [];
     const passed = serve.projectState(p.repo, { board, itemProjector: (item, context) => { offered.push([item.item_id, context.board === board, context.status.get(item.item_id)]); return context.project(); } });
-    assert.equal(JSON.stringify(passed), JSON.stringify(full), 'projectState with a pass-through callback equals it too');
+    const text = [JSON.stringify(passed), JSON.stringify(full)];
+    let at = 0;
+    while (at < text[0].length && text[0][at] === text[1][at]) at += 1;
+    assert.ok(text[0] === text[1], `DIFF at ${at}: ${text[0].slice(Math.max(0, at - 150), at + 100)} <> ${text[1].slice(Math.max(0, at - 150), at + 100)}`);
     assert.deepEqual(offered, all.map((item) => [item.item_id, true, item.item_status]), 'the callback is offered every item with its board and status');
 
     // Each item projected on its own is that item in the full projection, a fresh object each time, and it changes
@@ -141,11 +150,12 @@ test('the item projector matches the full projection [A2,N26]', () => {
   }
 });
 
-test('project state carries the focused release as name and item ids, and null without focus [B26,C7]', () => {
+test('project state carries the focused release as name and item ids, and null without focus [B26,C7]', async () => {
   const box = machine();
   const p = project(box, 'projector-focus');
-  const add = (title) => Number(/#(\d+)/.exec(box.run(p.repo, 'add', 'web', title, '--criterion', 'a page renders'))[1]);
-  const first = add('First'), second = add('Second');
+  const add = async (title) => Number(/#(\d+)/.exec(await box.inProcess(p.repo, 'add', 'web', title, '--criterion', 'a page renders'))[1]);
+  const first = await add('First');
+  const second = await add('Second');
   // @pullboard-board-file journey: serves project state from the board the CLI children wrote
   const board = openBoard(join(p.repo, '.git', 'pullboard', 'board.sqlite'));
   try {

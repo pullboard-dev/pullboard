@@ -7,7 +7,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { configFromSource } from '../../../../packages/config/index.js';
 import * as store from '../../../../packages/store/index.js';
 import { openBoard } from '../../../lib/index.js';
@@ -15,64 +15,64 @@ import { SPEC_APPROVAL_ENGINE } from '../../../../packages/state/light.js';
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
 
 /** Run the private project's real CLI and require its structured successful response. */
-function document(box, root, ...args) {
-  const result = box.run(root, ...args, '--json');
+async function document(box, root, ...args) {
+  const result = await box.runIn(root, ...args, '--json');
   assert.equal(result.code, 0, `${result.out}\n${result.err}`);
   return JSON.parse(result.out);
 }
 
-test('a row approved without a person move reads as agent-approved until the person confirms it [S1,B26,P6]', t => {
+test('a row approved without a person move reads as agent-approved until the person confirms it [S1,B26,P6]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   // This normal fixture's setup commit writes approved rows, without any person row decision.
   const box = helpers.project('true');
   const sourceCommit = box.git(box.repo, 'rev-parse', 'HEAD');
-  const initial = document(box, box.repo, 'status');
+  const initial = await document(box, box.repo, 'status');
   const unconfirmed = (initial.needs ?? []).find(need => need.kind === 'agent-approved' && need.id === 'G1');
   assert.ok(unconfirmed, 'an approved row with no person decision must appear in Needs you as agent-approved');
   assert.equal(unconfirmed.commit, sourceCommit, 'the flag names the commit containing the unconfirmed row');
   assert.ok(unconfirmed.agent, 'the available author attribution is shown, never inferred to be human approval');
   assert.match(unconfirmed.text, /agent-approved/u);
 
-  const added = document(box, box.repo, 'add', 'web', 'Work on the unconfirmed requirement',
+  const added = await document(box, box.repo, 'add', 'web', 'Work on the unconfirmed requirement',
     '--specs', 'G1', '--criterion', 'The fixture page exists.');
   const id = added.item.item_id;
-  assert.equal(box.run(box.web, 'claim', String(id)).code, 0, 'the default flag does not block work');
+  assert.equal((await box.runIn(box.web, 'claim', String(id))).code, 0, 'the default flag does not block work');
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web/page.js'), 'export const page = true;\n');
   box.git(box.web, 'add', 'web/page.js');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): add the fixture page [G1]');
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
-  document(box, box.web, 'submit', String(id), '--wait', '--no-next');
+  await document(box, box.web, 'submit', String(id), '--wait', '--no-next');
   const review = join(box.dir, 'independent-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
   // An unrouted item is strong, so its reviewer joins strong.
-  document(box, review, 'join', 'api', '--route', 'strong');
-  const verified = box.run(review, 'verify', String(id), 'accept', '--note', 'The real fixture gate passed on the submitted commit.');
+  await document(box, review, 'join', 'api', '--route', 'strong');
+  const verified = await box.runIn(review, 'verify', String(id), 'accept', '--note', 'The real fixture gate passed on the submitted commit.');
   assert.equal(verified.code, 0, `${verified.out}\n${verified.err}`);
   assert.match(verified.out, /verified against agent-approved G1/u);
-  const exported = document(box, box.repo, 'export');
+  const exported = await document(box, box.repo, 'export');
   const acceptance = exported.tables.event.findLast(event => event.item_id === id && event.event_kind === 'accept');
   assert.ok(acceptance, 'the normal independent verification produced a receipt');
   assert.match(acceptance.event_detail, /verified against agent-approved G1/u);
-  const ledger = box.run(box.repo, 'ledger');
+  const ledger = await box.runIn(box.repo, 'ledger');
   assert.equal(ledger.code, 0, ledger.err);
   assert.match(ledger.out, /verified against agent-approved G1/u);
 
   // Only this isolated fixture simulates a marked agent and a separate ordinary person terminal.
-  const agent = runFixtureChild(process.execPath, [helpers.BIN, 'spec', 'approve', 'G1', '--json'], {
-    cwd: box.web, env: { ...box.env, CLAUDECODE: '1' }, encoding: 'utf8',
+  const agent = await runCliInProcess(['spec', 'approve', 'G1', '--json'], {
+    cwd: box.web, env: { ...box.env, CLAUDECODE: '1' },
   });
   assert.equal(agent.status, 1);
   assert.equal(JSON.parse(agent.stdout).error.code, 'B26_PERSON_CHANNEL', 'an agent cannot confirm its own approval');
-  document(box, box.repo, 'spec', 'approve', 'G1');
-  const confirmed = document(box, box.repo, 'status');
+  await document(box, box.repo, 'spec', 'approve', 'G1');
+  const confirmed = await document(box, box.repo, 'status');
   assert.equal((confirmed.needs ?? []).some(need => need.kind === 'agent-approved' && need.id === 'G1'), false,
     'one person decision confirms the exact row without a separate apply step');
-  const after = box.run(box.repo, 'ledger');
+  const after = await box.runIn(box.repo, 'ledger');
   assert.equal(after.code, 0, after.err);
   assert.doesNotMatch(after.out, /verified against agent-approved G1/u, 'the current ledger reflects the confirmation');
-  const kept = document(box, box.repo, 'export').tables.event.find(event => event.event_id === acceptance.event_id);
+  const kept = (await document(box, box.repo, 'export')).tables.event.find(event => event.event_id === acceptance.event_id);
   assert.equal(kept.event_detail, acceptance.event_detail, 'confirmation never rewrites the historical verification receipt');
 });
 
@@ -92,7 +92,7 @@ test('agent approval settings preserve the filename form and reject ambiguous ch
   assert.equal(unknown.specAgentApproval, 'flag', 'an unknown spec key changes no approval setting');
 });
 
-test('allow suppresses approval calls and explicit refuse protects a new claim [S1,B26,P6]', t => {
+test('allow suppresses approval calls and explicit refuse protects a new claim [S1,B26,P6]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   for (const mode of ['allow', 'refuse']) {
@@ -103,21 +103,21 @@ test('allow suppresses approval calls and explicit refuse protects a new claim [
     box.git(box.repo, 'add', 'pullboard.json');
     box.git(box.repo, 'commit', '-q', '-m', 'chore(config): choose approval policy');
     box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-    const initial = document(box, box.repo, 'status');
+    const initial = await document(box, box.repo, 'status');
     assert.equal(initial.needs.some(need => need.kind === 'agent-approved' && need.id === 'G1'), mode !== 'allow');
-    const id = document(box, box.repo, 'add', 'web', 'Policy-controlled fixture', '--specs', 'G1', '--criterion', 'A real fixture.').item.item_id;
-    const claimed = box.run(box.web, 'claim', String(id), '--json');
+    const id = (await document(box, box.repo, 'add', 'web', 'Policy-controlled fixture', '--specs', 'G1', '--criterion', 'A real fixture.')).item.item_id;
+    const claimed = await box.runIn(box.web, 'claim', String(id), '--json');
     if (mode === 'allow') assert.equal(claimed.code, 0, `${claimed.out}\n${claimed.err}`);
     else {
       assert.equal(claimed.code, 1);
       assert.equal(JSON.parse(claimed.out).error.code, 'AGENT_APPROVAL_REQUIRED');
-      document(box, box.repo, 'spec', 'approve', 'G1');
-      assert.equal(box.run(box.web, 'claim', String(id)).code, 0, 'the exact person decision unblocks an explicit refuse policy');
+      await document(box, box.repo, 'spec', 'approve', 'G1');
+      assert.equal((await box.runIn(box.web, 'claim', String(id))).code, 0, 'the exact person decision unblocks an explicit refuse policy');
     }
   }
 });
 
-test('confirmation follows the exact row and an unsigned ledger cannot impersonate it [S1,S19,P6]', t => {
+test('confirmation follows the exact row and an unsigned ledger cannot impersonate it [S1,S19,P6]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -126,16 +126,16 @@ test('confirmation follows the exact row and an unsigned ledger cannot impersona
   mkdirSync(join(box.repo, '.pullboard'), { recursive: true });
   writeFileSync(join(box.repo, '.pullboard/signoffs.jsonl'), JSON.stringify({ version: 1, type: 'row-decision', kind: 'spec',
     file: 'SPEC.md', id: 'G1', decision: 'approve', by: 'person', source: line, replacement: line, text: 'The page renders.' }) + '\n');
-  assert.ok(document(box, box.repo, 'status').needs.some(need => need.kind === 'agent-approved' && need.id === 'G1'),
+  assert.ok((await document(box, box.repo, 'status')).needs.some(need => need.kind === 'agent-approved' && need.id === 'G1'),
     'a hand-written unsigned receipt is not person approval');
-  document(box, box.repo, 'spec', 'approve', 'G1');
-  assert.equal(document(box, box.repo, 'status').needs.some(need => need.kind === 'agent-approved' && need.id === 'G1'), false);
+  await document(box, box.repo, 'spec', 'approve', 'G1');
+  assert.equal((await document(box, box.repo, 'status')).needs.some(need => need.kind === 'agent-approved' && need.id === 'G1'), false);
   writeFileSync(join(box.repo, 'SPEC.md'), before.replace('The page renders.', 'The changed page renders.'));
-  const changed = document(box, box.repo, 'status').needs.find(need => need.kind === 'agent-approved' && need.id === 'G1');
+  const changed = (await document(box, box.repo, 'status')).needs.find(need => need.kind === 'agent-approved' && need.id === 'G1');
   assert.ok(changed, 'an approval of earlier wording cannot confirm a changed row');
   assert.equal(changed.commit, null, 'uncommitted wording never borrows a committed row attribution');
-  document(box, box.repo, 'spec', 'approve', 'G1');
-  assert.equal(document(box, box.repo, 'status').needs.some(need => need.kind === 'agent-approved' && need.id === 'G1'), false);
+  await document(box, box.repo, 'spec', 'approve', 'G1');
+  assert.equal((await document(box, box.repo, 'status')).needs.some(need => need.kind === 'agent-approved' && need.id === 'G1'), false);
 });
 
 test('the actual API reports approval calls and accepts one person confirmation [A9,S1,P6]', async t => {
@@ -158,11 +158,11 @@ test('approval projection leaves a board with no Spec readable [I10,S1,P6]', asy
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const id = document(box, box.repo, 'add', 'web', 'An item needs no spec rows').item.item_id;
+  const id = (await document(box, box.repo, 'add', 'web', 'An item needs no spec rows')).item.item_id;
   rmSync(join(box.repo, 'SPEC.md'));
-  assert.equal(document(box, box.repo, 'status').needs.some(need => need.kind === 'agent-approved'), false);
-  assert.equal(document(box, box.repo, 'show', String(id)).agentApproved.length, 0);
-  assert.deepEqual(document(box, box.repo, 'ledger').items, []);
+  assert.equal((await document(box, box.repo, 'status')).needs.some(need => need.kind === 'agent-approved'), false);
+  assert.equal((await document(box, box.repo, 'show', String(id))).agentApproved.length, 0);
+  assert.deepEqual((await document(box, box.repo, 'ledger')).items, []);
   const view = await helpers.startView(box, box.repo);
   t.after(view.stop);
   const state = (await view.state(box.repo)).project;

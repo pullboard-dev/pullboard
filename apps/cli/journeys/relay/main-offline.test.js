@@ -26,7 +26,7 @@ test('offline linked reads use the local board, moves queue locally, and the sam
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
   const boardFile = join(box.root, '.git', 'pullboard', 'board.sqlite');
   const beforeBytes = readFileSync(boardFile);
-  const beforeTables = (await box.cli('export')).document.tables;
+  const beforeTables = (await box.cliLocal('export')).document.tables;
   const beforeEvents = beforeTables.event;
   const oldEnvironment = new Map(['HOME', 'PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME']
     .map(name => [name, process.env[name]]));
@@ -39,9 +39,9 @@ test('offline linked reads use the local board, moves queue locally, and the sam
     assert.match(page.headers.get('content-type') ?? '', /text\/html/);
 
     await box.stopRelay();
-    const status = await box.cli('status');
-    const listed = await box.cli('list', '--all');
-    const shown = await box.cli('show', '1');
+    const status = await box.cliLocal('status');
+    const listed = await box.cliLocal('list', '--all');
+    const shown = await box.cliLocal('show', '1');
     assert.equal(status.code, 0, 'status reads its local board while disconnected');
     assert.equal(listed.code, 0, 'list reads its local board while disconnected');
     assert.ok(listed.document.items.some(item => item.item_title === 'private cleanup fixture item'));
@@ -65,7 +65,7 @@ test('offline linked reads use the local board, moves queue locally, and the sam
       'the local view reads the same private board contents while the relay is stopped');
 
     for (const args of [['add', box.lane, 'queued offline add'], ['shout', 'all', 'queued offline shout']]) {
-      const queued = await box.cli(...args);
+      const queued = await box.cliLocal(...args);
       assert.equal(queued.code, 0, 'H21: an offline move returns at once and is queued, not refused');
     }
     const viewMoveUrl = new URL(`/api/v1/boards/${localBoard.id}/moves`, view.url);
@@ -75,14 +75,14 @@ test('offline linked reads use the local board, moves queue locally, and the sam
       body: JSON.stringify({ verb: 'add', args: { lane: box.lane, title: 'queued offline view move' } }),
     });
     assert.equal(viewMove.status, 200, 'the local view API also queues the move');
-    const queuedStatus = await box.cli('status');
+    const queuedStatus = await box.cliLocal('status');
     assert.deepEqual(queuedStatus.document.relay.outbox.map(move => move.operation), ['addItem', 'shout', 'addItem'], 'every offline move waits in order');
     const addsOf = tables => tables.event.filter(event => event.event_kind === 'add').length;
-    assert.equal(addsOf((await box.cli('export')).document.tables), addsOf(beforeTables) + 2, 'each queued add is on the local board at once');
+    assert.equal(addsOf((await box.cliLocal('export')).document.tables), addsOf(beforeTables) + 2, 'each queued add is on the local board at once');
     await box.restartRelay();
-    const resumed = await box.cli('add', box.lane, 'move after relay returns');
+    const resumed = await box.cliLocal('add', box.lane, 'move after relay returns');
     assert.equal(resumed.code, 0, 'the relay resumes without relay off/on repair');
-    const sent = (await box.cli('status')).document.relay;
+    const sent = (await box.cliLocal('status')).document.relay;
     assert.equal(sent.behind, 0, 'the queued moves reached the same relay without relay off/on repair');
     assert.equal(sent.sequence, 4, 'each queued move and the recovery move hold exactly one relay position');
   } finally {

@@ -18,6 +18,7 @@ import {
   openSnapshotChrome,
   closeSnapshotChrome,
   press,
+  openItemsNeeds,
 } from '../../tests/fixtures/cockpit/harness.js';
 
 test('a spec revision shows old and proposed rows side by side with proposal-id actions [P6,B23,N39]', { timeout: 120_000 }, async () => {
@@ -41,6 +42,7 @@ test('a spec revision shows old and proposed rows side by side with proposal-id 
     await chrome.waitFor("!document.querySelector('[data-pane=items]').hidden");
     assert.equal(await chrome.stable('document.querySelectorAll("#needs [data-spec-revision]").length'), 4,
       'Needs you renders each core-projected revision as its own actionable comparison');
+    await openItemsNeeds(chrome);
     await chrome.stable(`window.revisionMoves = []; window.revisionFetch = window.fetch; window.fetch = function(input, init) {
       if (init?.body && String(input).includes('/moves')) { const move = JSON.parse(init.body); if (move.verb) window.revisionMoves.push(move); }
       return window.revisionFetch.apply(this, arguments);

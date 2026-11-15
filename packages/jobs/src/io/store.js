@@ -124,6 +124,58 @@ export function writeStep(db, job, name, payload = {}, { seq = 0, now = Date.now
 }
 
 /**
+ * Record a runner's progress for one attempt: the first post inserts the step, a later post for the same attempt replaces it.
+ *
+ * Why: progress is a live reading, so the newest post wins; this lives here because the jobs store owns job_step.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {number} attempt
+ * @param {string} text - The progress JSON, already validated.
+ * @param {number} now
+ * @returns {void}
+ */
+export function upsertProgressStep(db, job, attempt, text, now) {
+  db.prepare(`INSERT INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, 'progress', ?, ?, ?)
+    ON CONFLICT (job_step_job, job_step_name, job_step_seq) DO UPDATE SET job_step_payload = excluded.job_step_payload, job_step_at = excluded.job_step_at`).run(job, attempt, text, now);
+}
+
+/**
+ * Record that something is still waiting on each of these jobs: one `alive` step per job, its time replaced by every call.
+ * The job's own step is left as it is, so a job stays claimable. Why: a pre-push gate renews it while it waits, so a shard
+ * whose gate has gone can be told from one still wanted (#7805).
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string[]} jobs
+ * @param {number} [now]
+ */
+export function touchLive(db, jobs, now = Date.now()) {
+  atomically(db, () => {
+    for (const job of jobs) {
+      db.prepare(`INSERT INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) SELECT job_id, 'alive', 0, '{}', ? FROM job WHERE job_id = ? AND job_step <> 'done'
+        ON CONFLICT (job_step_job, job_step_name, job_step_seq) DO UPDATE SET job_step_at = excluded.job_step_at`).run(now, job);
+    }
+  });
+}
+
+/**
+ * When something last said it waits on a job (touchLive), or when the job was created if nothing ever did; null for no such job.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @returns {number | null}
+ */
+export function liveSince(db, job) {
+  const row = db.prepare(`SELECT job.job_created AS created, (SELECT job_step_at FROM job_step WHERE job_step_job = job.job_id AND job_step_name = 'alive' AND job_step_seq = 0) AS alive FROM job WHERE job.job_id = ?`).get(job);
+  return row ? Math.max(row.created, row.alive ?? 0) : null;
+}
+
+/** Delete step rows by id in one write; the archive pass calls it once the rows are durable elsewhere. */
+export function dropSteps(db, ids) {
+  atomically(db, () => { for (const id of ids) db.prepare('DELETE FROM job_step WHERE job_step_id = ?').run(id); });
+}
+
+/**
  * The job and its steps, with the current step being the last one written; null when the job does not exist.
  *
  * @param {import('node:sqlite').DatabaseSync} db

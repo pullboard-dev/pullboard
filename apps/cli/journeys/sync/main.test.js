@@ -26,16 +26,16 @@ test('two machines share a board through git [H11]', async t => {
   const remote = join(box.dir, 'remote.git');
   box.git(box.dir, 'clone', '--bare', box.repo, remote);
   box.git(box.repo, 'remote', 'add', 'origin', remote);
-  document(box.run(box.repo, 'sync', '--json'), 'explicit sync shares the first machine without a relay account');
+  document((await box.runLocal(box.repo, 'sync', '--json')), 'explicit sync shares the first machine without a relay account');
   const clone = join(box.dir, 'second');
   box.git(box.dir, 'clone', remote, clone);
   // As project() does, keep an undeclared disposable coordinator during initial setup.
   const inheritedModel = box.env.PULLBOARD_MODEL;
   delete box.env.PULLBOARD_MODEL;
-  const initialized = box.run(clone, 'init');
+  const initialized = (await box.runLocal(clone, 'init'));
   if (inheritedModel !== undefined) box.env.PULLBOARD_MODEL = inheritedModel;
   assert.equal(initialized.code, 0, 'initialize only the clone-local board');
-  document(box.run(clone, 'sync', '--json'), 'the second machine joins the same board');
+  document((await box.runLocal(clone, 'sync', '--json')), 'the second machine joins the same board');
   const secondSeat = join(box.dir, 'second-web');
   box.git(clone, 'worktree', 'add', secondSeat, '-b', 'web/second');
   document(fixtureJoin(box.run, secondSeat, 'web', '--model', 'fixture', '--route', 'strong', '--json'), 'join a distinct seat on machine two');
@@ -60,36 +60,36 @@ test('two machines share a board through git [H11]', async t => {
   chmodSync(hook, 0o755);
   const retried = document(await fixtureAdd(run, box.repo, 'web', 'Survives one lost push'), 'retry the refused push').item.item_id;
   for (const root of [box.repo, clone]) {
-    document(box.run(root, 'sync', '--json'), 'synchronize the accepted prefix');
-    const board = document(box.run(root, 'export'), 'export the converged public board');
+    document((await box.runLocal(root, 'sync', '--json')), 'synchronize the accepted prefix');
+    const board = document((await box.runLocal(root, 'export')), 'export the converged public board');
     assert.deepEqual(board.tables.item.map(item => item.item_id).sort((a, b) => a - b), [...ids, retried].sort((a, b) => a - b));
     assert.equal(board.tables.event.filter(event => event.event_kind === 'add' && event.item_id === retried).length, 1, 'the retried move is recorded once');
     assert.equal(board.tables.event.filter(event => event.event_kind === 'claim').length, 1, 'only the winning claim becomes a move');
   }
 });
 
-test('Git sharing preserves offline reads, a pending move and ordinary code gates [H11,H10,C3]', t => {
+test('Git sharing preserves offline reads, a pending move and ordinary code gates [H11,H10,C3]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project();
   const remote = join(box.dir, 'remote.git');
   box.git(box.dir, 'clone', '--bare', box.repo, remote);
   box.git(box.repo, 'remote', 'add', 'origin', remote);
-  document(box.run(box.repo, 'sync', '--json'), 'enable Git board sharing');
+  document((await box.runLocal(box.repo, 'sync', '--json')), 'enable Git board sharing');
   renameSync(remote, remote + '.offline');
-  assert.equal(document(box.run(box.repo, 'export'), 'read the board while offline').tables.item.length, 0);
-  const refused = fixtureAdd(box.run, box.repo, 'web', 'One pending move', '--json');
+  assert.equal(document((await box.runLocal(box.repo, 'export')), 'read the board while offline').tables.item.length, 0);
+  const refused = (await fixtureAdd(box.runLocal, box.repo, 'web', 'One pending move', '--json'));
   assert.notEqual(refused.code, 0, 'an offline move cannot report success');
   assert.equal(JSON.parse(refused.out).error.code, 'GIT_SYNC_REMOTE');
   const pendingFile = join(box.repo, '.git', 'pullboard', 'git-sync-pending.json');
   assert.ok(existsSync(pendingFile), 'the refused command retains its sealed intent');
   const moveId = JSON.parse(readFileSync(pendingFile, 'utf8')).move.id;
-  assert.equal(document(box.run(box.repo, 'export'), 'offline read does not apply the pending move').tables.item.length, 0);
+  assert.equal(document((await box.runLocal(box.repo, 'export')), 'offline read does not apply the pending move').tables.item.length, 0);
   renameSync(remote + '.offline', remote);
-  const recovered = document(fixtureAdd(box.run, box.repo, 'web', 'One pending move', '--json'), 'retry the same public command');
+  const recovered = document((await fixtureAdd(box.runLocal, box.repo, 'web', 'One pending move', '--json')), 'retry the same public command');
   assert.equal(recovered.item.item_id, 1);
   assert.equal(existsSync(pendingFile), false);
-  const exported = document(box.run(box.repo, 'export'), 'read the acknowledged pending move');
+  const exported = document((await box.runLocal(box.repo, 'export')), 'read the acknowledged pending move');
   assert.equal(exported.tables.item.length, 1, 'the retried command creates one item');
   assert.ok(exported.tables.board_meta.some(row => row.meta_key === 'relay_receipt_' + moveId), 'the original sealed identity was acknowledged');
   writeFileSync(join(box.repo, 'web.txt'), 'a source change\n');
@@ -97,7 +97,7 @@ test('Git sharing preserves offline reads, a pending move and ordinary code gate
   box.git(box.repo, 'commit', '-m', 'feat(web): a code change [G1]');
   writeFileSync(join(box.repo, 'RED'), 'the code gate fails\n');
   assert.notEqual(box.tryGit(box.repo, 'push', 'origin', 'HEAD:main').status, 0, 'ordinary code pushes still run and fail the code gate');
-  document(fixtureAdd(box.run, box.repo, 'web', 'Board data while code gate is red', '--json'), 'normal Git push accepts validated board data without shipping code');
+  document((await fixtureAdd(box.runLocal, box.repo, 'web', 'Board data while code gate is red', '--json')), 'normal Git push accepts validated board data without shipping code');
   const before = box.git(box.repo, 'ls-remote', 'origin', 'refs/pullboard/board');
   const tip = before.split(/\s/u)[0];
   const wrongTree = box.git(box.repo, 'rev-parse', 'HEAD^{tree}');

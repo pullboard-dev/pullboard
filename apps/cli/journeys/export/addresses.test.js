@@ -21,14 +21,13 @@ import {
   SPEC,
   machine,
   project,
-  build,
+  buildLocal,
   startView,
   boardOf,
   chromeExecutable,
   openSnapshotChrome,
   closeSnapshotChrome,
   press,
-  travel,
   settled,
   serveFolder,
 } from '../../tests/fixtures/cockpit/harness.js';
@@ -38,26 +37,36 @@ import {
   openAddress,
   assertHeading,
   history,
-  onePlace,
-  addressBoard,
+  addressBoardLocal,
   withBrowser,
   assertShout,
 } from '../../tests/fixtures/cockpit/addresses.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
-/** Create accepted and open items whose real prose, dependency and activity rows cite one another. */
-function linkedItems(box, name) {
+/**
+ * Create accepted and open items whose real prose, dependency and activity rows cite one another.
+ * Why: every call is awaited in this process, because a launch per call cost over half of each case's time on a loaded runner.
+ */
+async function linkedItems(box, name) {
   const alpha = project(box, name, SPEC, { practice: 'DOCTRINE.md' });
   writeFileSync(join(alpha.repo, 'DOCTRINE.md'), `# Local rules\n\n## Team\n- PB1 [approved, must] ${name} practice rule. | gate: review\n`);
-  box.run(alpha.repo, 'add', 'web', 'Address target', '--specs', 'G1', '--criterion', 'renders');
-  box.run(alpha.repo, 'add', 'web', 'Text points to #1', '--specs', 'G1', '--criterion', 'criterion cites #1 and `#1`', '--brief', 'brief cites #1 and #999, with literal `#1`');
-  box.run(alpha.repo, 'add', 'web', 'Waits on #2', '--specs', 'G1', '--criterion', 'waits', '--after', '2');
-  box.run(alpha.repo, 'shout', 'all', 'Activity cites #1 and waits on #2.');
-  build(box, alpha, 1, 'target.txt');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Address target', '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Text points to #1', '--specs', 'G1', '--criterion', 'criterion cites #1 and `#1`', '--brief', 'brief cites #1 and #999, with literal `#1`');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Waits on #2', '--specs', 'G1', '--criterion', 'waits', '--after', '2');
+  await box.inProcess(alpha.repo, 'shout', 'all', 'Activity cites #1 and waits on #2.');
+  await buildLocal(box, alpha, 1, 'target.txt');
   box.git(alpha.repo, 'switch', '-q', '--detach', alpha.itemBranches.get(`${alpha.baseBranch}:1`));
-  box.run(alpha.repo, 'verify', '1', 'accept', '--note', 'The notes cite #2 and literal `#2`.', '--as', 'coordinator');
+  await box.inProcess(alpha.repo, 'verify', '1', 'accept', '--note', 'The notes cite #2 and literal `#2`.', '--as', 'coordinator');
   box.git(alpha.repo, 'switch', '-q', 'main');
   return alpha;
+}
+
+/** The one linked board the three item-address cases share; it is only read, so one build serves all of them. */
+let linkedBoard;
+/** Build the linked board once and hand the same machine and project to each case. */
+function sharedLinked() {
+  linkedBoard ??= (async () => { const box = machine(); return { box, alpha: await linkedItems(box, 'linked-items') }; })();
+  return linkedBoard;
 }
 
 /** Poll Chrome's real target list until a modified anchor click opens its href in another tab. */
@@ -75,23 +84,23 @@ async function targetForHref(profile, href) {
 }
 
 test('clause 1: item text links every item reference [N38,N26]', { timeout: 90_000 }, async () => { // budget: hang ceiling for the real API, Chrome navigation and linked prose checks.
-  const box = machine(), alpha = linkedItems(box, 'item-text-links');
+  const { box, alpha } = await sharedLinked();
   await withBrowser(box, async (chrome, server) => {
     await openAddress(chrome, server, '/items/2');
     const refs = JSON.parse(await chrome.stable(`JSON.stringify({
-      criterion:[...([...document.querySelectorAll('#detail h3')].find(node=>node.textContent==='Done when')?.closest('section').querySelectorAll('a.ref[data-go]')||[])].map(node=>[node.textContent,new URL(node.href).pathname]),
-      brief:[...([...document.querySelectorAll('#detail h3')].find(node=>node.textContent==='Brief')?.closest('section').querySelectorAll('a.ref[data-go]')||[])].map(node=>[node.textContent,new URL(node.href).pathname])
+      criterion:[...([...document.querySelectorAll('#detail .ip-lbl')].find(node=>node.textContent==='Done when')?.closest('section').querySelectorAll('a.ref[data-go]')||[])].map(node=>[node.textContent,new URL(node.href).pathname]),
+      brief:[...([...document.querySelectorAll('#detail .ip-lbl')].find(node=>node.textContent==='Brief')?.closest('section').querySelectorAll('a.ref[data-go]')||[])].map(node=>[node.textContent,new URL(node.href).pathname])
     })`));
     assert.deepEqual(refs.criterion, [['#1', '/items/1']], 'criterion references are real same-board addresses');
     assert.deepEqual(refs.brief, [['#1', '/items/1'], ['#999', '/items/999']], 'known and unknown references are real same-board addresses');
     for (const heading of ['Done when', 'Brief']) {
       const literal = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-        const section = [...document.querySelectorAll('#detail h3')].find(node => node.textContent === ${JSON.stringify(heading)}).closest('section');
+        const section = [...document.querySelectorAll('#detail .ip-lbl')].find(node => node.textContent === ${JSON.stringify(heading)}).closest('section');
         return { code: [...section.querySelectorAll('code')].map(node => node.textContent), linkedCode: section.querySelectorAll('code a, a code').length };
       })())`));
       assert.deepEqual(literal, { code: ['#1'], linkedCode: 0 }, `${heading}: backticked references stay unlinked code`);
       const before = await history(chrome);
-      await press(chrome, `[...document.querySelectorAll('#detail h3')].find(node => node.textContent === ${JSON.stringify(heading)}).closest('section').querySelector('code')`);
+      await press(chrome, `[...document.querySelectorAll('#detail .ip-lbl')].find(node => node.textContent === ${JSON.stringify(heading)}).closest('section').querySelector('code')`);
       assert.deepEqual(await history(chrome), before, `${heading}: clicking code leaves the browser address unchanged`);
     }
     await press(chrome, `document.querySelector('#detail a.ref[data-go="item:999"]')`);
@@ -103,31 +112,31 @@ test('clause 1: item text links every item reference [N38,N26]', { timeout: 90_0
     assert.deepEqual(waits, [['#2', '/items/2']], 'waits-on references link to the waited item');
     await press(chrome, `document.querySelector('[data-tab="activity"]')`);
     const activity = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#activity a.ref[data-go]')].map(node=>[node.textContent,new URL(node.href).pathname]))`));
-    const activityCites = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#activity .activity-event')]
+    const activityCites = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#activity .act-row')]
       .filter(node=>node.textContent.includes('Activity cites #1 and waits on #2'))
       .flatMap(node=>[...node.querySelectorAll('a.ref[data-go]:not(.activity-about)')].map(link=>[link.textContent,new URL(link.href).pathname])))`));
     assert.deepEqual(activityCites, [['#1', '/items/1'], ['#2', '/items/2']], 'the Activity citation and wait prose link to their exact item targets');
     assert.ok(activity.some(([text, href]) => text === '#1' && href === '/items/1'), 'Activity item events also link to their item addresses');
     await openAddress(chrome, server, '/items/1');
-    const verdict = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#detail .item-panel-latest .verdict .note a.ref[data-go]')].map(node=>[node.textContent,new URL(node.href).pathname]))`));
+    const verdict = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#detail .item-panel-latest .note a.ref[data-go]')].map(node=>[node.textContent,new URL(node.href).pathname]))`));
     assert.deepEqual(verdict, [['#2', '/items/2']], 'verdict notes link only their plain cited item');
     const verdictCode = JSON.parse(await chrome.stable(`JSON.stringify({
-      code: [...document.querySelectorAll('#detail .item-panel-latest .verdict .note code')].map(node => node.textContent),
-      linkedCode: document.querySelectorAll('#detail .item-panel-latest .verdict .note code a, #detail .item-panel-latest .verdict .note a code').length
+      code: [...document.querySelectorAll('#detail .item-panel-latest .note code')].map(node => node.textContent),
+      linkedCode: document.querySelectorAll('#detail .item-panel-latest .note code a, #detail .item-panel-latest .note a code').length
     })`));
     assert.deepEqual(verdictCode, { code: ['#2'], linkedCode: 0 }, 'actual recorded verdict notes keep backticked references literal');
     const beforeCode = await history(chrome);
-    await press(chrome, `document.querySelector('#detail .item-panel-latest .verdict .note code')`);
+    await press(chrome, `document.querySelector('#detail .item-panel-latest .note code')`);
     assert.deepEqual(await history(chrome), beforeCode, 'plain click on verdict code does not navigate');
-    await press(chrome, `document.querySelector('#detail .item-panel-latest .verdict .note a.ref[data-go]')`);
+    await press(chrome, `document.querySelector('#detail .item-panel-latest .note a.ref[data-go]')`);
     assert.equal(await chrome.stable('location.pathname'), '/items/2', 'plain click stays in the page and opens the linked place');
-    assert.equal(await chrome.stable("document.querySelector('#detail h2 > span')?.textContent"), '#2');
+    assert.equal(await chrome.stable("document.querySelector('#detail .item-panel-head .id')?.textContent"), '#2');
     assert.deepEqual(chrome.exceptions, [], 'the real view raises no page errors');
   });
 });
 
 test('clause 1: a modified click opens a new tab [N38,N26]', { timeout: 90_000 }, async () => { // budget: hang ceiling for Chrome startup and native modified-click targets.
-  const box = machine(), alpha = linkedItems(box, 'modified-item-link');
+  const { box, alpha } = await sharedLinked();
   const server = await startView(box);
   const executable = chromeExecutable();
   assert.ok(executable, 'real Chrome is required to prove native modified-click behavior');
@@ -138,7 +147,7 @@ test('clause 1: a modified click opens a new tab [N38,N26]', { timeout: 90_000 }
     await settled(chrome, SCRIPT);
     await openAddress(chrome, server, '/items/2');
     for (const heading of ['Done when', 'Brief']) {
-      const selector = `[...document.querySelectorAll('#detail h3')].find(node => node.textContent === ${JSON.stringify(heading)}).closest('section').querySelector('code')`;
+      const selector = `[...document.querySelectorAll('#detail .ip-lbl')].find(node => node.textContent === ${JSON.stringify(heading)}).closest('section').querySelector('code')`;
       for (const input of [{ button: 'middle' }, { modifiers: process.platform === 'darwin' ? 4 : 2 }]) {
         const beforeTargets = (await chrome.send('Target.getTargets')).targetInfos.filter(row => row.type === 'page').map(row => row.targetId).sort();
         await press(chrome, selector, input);
@@ -163,13 +172,13 @@ test('clause 1: a modified click opens a new tab [N38,N26]', { timeout: 90_000 }
     await chrome.send('Target.closeTarget', { targetId: target.id });
     await chrome.send('Target.closeTarget', { targetId: modifierTarget.id });
     await openAddress(chrome, server, '/items/1');
-    const verdictSelector = `document.querySelector('#detail .item-panel-latest .verdict .note a.ref[data-go="item:2"]')`;
-    assert.equal(await chrome.stable(`document.querySelector('#detail .item-panel-latest .verdict .note code')?.textContent ?? null`), '#2', 'modified-click control has a literal verdict code token');
+    const verdictSelector = `document.querySelector('#detail .item-panel-latest .note a.ref[data-go="item:2"]')`;
+    assert.equal(await chrome.stable(`document.querySelector('#detail .item-panel-latest .note code')?.textContent ?? null`), '#2', 'modified-click control has a literal verdict code token');
     const verdictHref = await chrome.stable(`${verdictSelector}?.href`);
     assert.equal(new URL(verdictHref).pathname, '/items/2', 'recorded verdict prose exposes its real href');
     for (const input of [{ button: 'middle' }, { modifiers }]) {
       const beforeTargets = (await chrome.send('Target.getTargets')).targetInfos.filter(row => row.type === 'page').map(row => row.targetId).sort();
-      await press(chrome, `document.querySelector('#detail .item-panel-latest .verdict .note code')`, input);
+      await press(chrome, `document.querySelector('#detail .item-panel-latest .note code')`, input);
       const afterTargets = (await chrome.send('Target.getTargets')).targetInfos.filter(row => row.type === 'page').map(row => row.targetId).sort();
       assert.deepEqual(afterTargets.filter(id => !beforeTargets.includes(id)), [], 'modified click on literal verdict code opens no tab');
       assert.equal(await chrome.stable('location.pathname'), '/items/1', 'literal code leaves the original tab in place');
@@ -190,7 +199,7 @@ test('clause 1: a modified click opens a new tab [N38,N26]', { timeout: 90_000 }
 test('clause 1: the snapshot keeps its addresses under a sub-path [N38,A10]', { timeout: 90_000 }, async () => { // budget: hang ceiling for export, replay, click and reload.
   const executable = chromeExecutable();
   assert.ok(executable, 'real Chrome is required to prove exported address reloads');
-  const box = machine(), alpha = linkedItems(box, 'snapshot-item-address');
+  const { box, alpha } = await sharedLinked();
   const folder = join(box.dir, 'snapshot');
   box.run(alpha.repo, 'view', '--export', folder);
   const host = await serveFolder(folder, '/demo/');
@@ -215,9 +224,9 @@ test('clause 1: the snapshot keeps its addresses under a sub-path [N38,A10]', { 
       .filter(link=>new URL(link.href).pathname !== '/demo/').map(link=>link.href))`));
     assert.deepEqual(outsideInitialRefs, [], 'item detail references also remain under the exported sub-path');
     await press(chrome, reference);
-    await settled(chrome, "location.pathname === '/demo/' && location.hash === '#items/1' && document.querySelector('#detail h2 > span')?.textContent === '#1'");
+    await settled(chrome, "location.pathname === '/demo/' && location.hash === '#items/1' && document.querySelector('#detail .item-panel-head .id')?.textContent === '#1'");
     await chrome.send('Page.reload');
-    await settled(chrome, "location.pathname === '/demo/' && location.hash === '#items/1' && document.querySelector('#detail h2 > span')?.textContent === '#1'");
+    await settled(chrome, "location.pathname === '/demo/' && location.hash === '#items/1' && document.querySelector('#detail .item-panel-head .id')?.textContent === '#1'");
 
     /** Reload an exported address and verify both its selected detail and its contained references. */
     const checkPlace = async (hash, ready) => {
@@ -229,7 +238,7 @@ test('clause 1: the snapshot keeps its addresses under a sub-path [N38,A10]', { 
         .filter(link=>new URL(link.href).pathname !== '/demo/').map(link=>link.href))`));
       assert.deepEqual(outside, [], `${hash} keeps every item address under the exported sub-path`);
     };
-    await press(chrome, `document.querySelector('[data-items-view="pipeline"]')`);
+    await press(chrome, `document.querySelector('[data-page-ctl="view"][data-value="pipeline"]')`);
     await checkPlace('#items/pipeline', "view.tab === 'items' && view.itemsView === 'pipeline' && !document.querySelector('[data-pane=items]').hidden");
     const oldest = JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const link = document.querySelector('#pipeline .pipeline-oldest a.ref[data-go]');
@@ -241,16 +250,17 @@ test('clause 1: the snapshot keeps its addresses under a sub-path [N38,A10]', { 
     await press(chrome, `document.querySelector('[data-tab="shouts"]')`);
     await checkPlace('#shouts', "view.tab === 'shouts' && !document.querySelector('[data-pane=shouts]').hidden");
     // The Shouts tab lists conversations; open the first one so its message cards render.
-    await press(chrome, `document.querySelector('#feed .conversation-row')`);
+    await press(chrome, `document.querySelector('#feed .sx-th')`);
     await chrome.waitFor(`!!document.querySelector('#feed [data-shout-id]')`);
     const shoutId = await chrome.stable(`document.querySelector('#feed [data-shout-id]')?.dataset.shoutId`);
     await press(chrome, `document.querySelector('#feed [data-shout-id]')`);
-    await checkPlace('#shouts/' + shoutId, `view.tab === 'shouts' && view.shout === Number(${JSON.stringify(shoutId)}) && document.querySelector('#feed article.found')?.dataset.shoutId === ${JSON.stringify(shoutId)}`);
+    await checkPlace('#shouts/' + shoutId, `view.tab === 'shouts' && view.shout === Number(${JSON.stringify(shoutId)}) && document.querySelector('#feed .sx-msg.found')?.dataset.shoutId === ${JSON.stringify(shoutId)}`);
     await press(chrome, `document.querySelector('[data-tab="spec"]')`);
     await press(chrome, `document.querySelector('[data-rows="spec:all"]')`);
     const specId = await chrome.stable(`document.querySelector('#spec-list [data-row]')?.dataset.row.split(':')[1]`);
     await press(chrome, `document.querySelector('#spec-list [data-row]')`);
-    await checkPlace('#spec/' + specId, `view.tab === 'spec' && view.row.spec === ${JSON.stringify(specId)} && document.querySelector('#spec-detail h2 > span')?.textContent === ${JSON.stringify(specId)}`);
+    // The All rows filter rides in the address with the open row (#6614).
+    await checkPlace('#spec/' + specId + '?rows=all', `view.tab === 'spec' && view.row.spec === ${JSON.stringify(specId)} && document.querySelector('#spec-detail h2 > span')?.textContent === ${JSON.stringify(specId)}`);
     await press(chrome, `document.querySelector('[data-tab="doctrine"]')`);
     const doctrineId = await chrome.stable(`document.querySelector('#doctrine-list [data-row]')?.dataset.row.split(':')[1]`);
     await press(chrome, `document.querySelector('#doctrine-list [data-row]')`);
@@ -268,16 +278,17 @@ test('clause 1: the snapshot keeps its addresses under a sub-path [N38,A10]', { 
   }
 });
 test('every place in the view has its own address [N38,N26]', { timeout: 180_000 }, async () => { // budget: hang-only ceiling for the complete direct-address matrix.
-  const box = machine(), alpha = addressBoard(box, 'alpha');
-  box.run(alpha.repo, 'shout', 'person', 'Address target shout.');
+  const box = machine();
+  const alpha = await addressBoardLocal(box, 'history-alpha');
+  await box.inProcess(alpha.repo, 'shout', 'person', 'Address target shout.');
   await withBrowser(box, async (chrome, server) => {
     const shout = (await boardOf(server, alpha.repo)).shouts.find(one => one.shout_text === 'Address target shout.');
     assert.ok(shout?.shout_id);
     const direct = [
-      ['/items/1', 'items', '#detail', '#1', 'alpha first address item'],
+      ['/items/1', 'items', '#detail', '#1', 'history-alpha first address item'],
       ['/items/pipeline', 'items'], ['/shouts', 'shouts'], [`/shouts/${shout.shout_id}`, 'shouts'],
-      ['/spec', 'spec'], ['/spec/G2', 'spec', '#spec-detail', 'G2', 'alpha distinct specification row'],
-      ['/doctrine', 'doctrine'], ['/doctrine/PB1', 'doctrine', '#doctrine-detail', 'PB1', 'alpha distinct practice rule'],
+      ['/spec', 'spec'], ['/spec/G2', 'spec', '#spec-detail', 'G2', 'history-alpha distinct specification row'],
+      ['/doctrine', 'doctrine'], ['/doctrine/PB1', 'doctrine', '#doctrine-detail', 'PB1', 'history-alpha distinct practice rule'],
       ['/activity', 'activity'], ['/roadmap', 'roadmap'],
     ];
     for (const [address, pane, selector, id, text] of direct) {
@@ -308,69 +319,3 @@ test('every place in the view has its own address [N38,N26]', { timeout: 180_000
     assert.equal((await fetch(new URL('/items/1', server.link))).status, 403, 'direct places retain the secret boundary');
   });
 });
-
-test('back, forward and reload keep the place [N38,N26]', { timeout: 180_000 }, async () => { // budget: hang-only ceiling for real clicks, stack traversal and fresh-document reloads.
-  const box = machine(), alpha = addressBoard(box, 'history-alpha');
-  box.run(alpha.repo, 'shout', 'person', 'History journey shout.');
-  await withBrowser(box, async (chrome, server) => {
-    const shout = (await boardOf(server, alpha.repo)).shouts.find(one => one.shout_text === 'History journey shout.');
-    await openAddress(chrome, server, '/items');
-    const journey = [{ address: '/items', pane: 'items', root: alpha.repo }];
-    const steps = [
-      ['#chain .row[data-item="1"]', '/items/1', 'items'], ['[data-items-view="pipeline"]', '/items/pipeline', 'items'],
-      ['[data-tab="shouts"]', '/shouts', 'shouts'], [`#feed #shout-${shout.shout_id} .text`, `/shouts/${shout.shout_id}`, 'shouts'],
-      ['[data-tab="spec"]', '/spec', 'spec'], ['[data-row="spec:G2"]', '/spec/G2', 'spec'],
-      ['[data-tab="doctrine"]', '/doctrine', 'doctrine'], ['[data-row="doctrine:PB1"]', '/doctrine/PB1', 'doctrine'],
-      ['[data-tab="activity"]', '/activity', 'activity'], ['[data-tab="roadmap"]', '/roadmap', 'roadmap'],
-      ['[data-tab="items"]', '/items/pipeline', 'items'], ['[data-items-view="list"]', '/items', 'items'],
-      ['#chain .row[data-item="2"]', '/items/2', 'items'],
-    ];
-    for (const [selector, address, pane] of steps) {
-      if (selector === `#feed #shout-${shout.shout_id} .text`) {
-        const beforeConversation = await history(chrome);
-        await press(chrome, 'document.querySelector(\'[data-shout-thread="none"]\')');
-        await settled(chrome, `!!document.querySelector('#feed #shout-${shout.shout_id} .text')`);
-        assert.deepEqual(await history(chrome), beforeConversation, 'opening a conversation preserves the current Shouts address');
-      }
-      journey.push(await onePlace(chrome, `document.querySelector(${JSON.stringify(selector)})`, address, pane, alpha.repo));
-    }
-    const unchanged = await history(chrome);
-    await press(chrome, 'document.querySelector(\'#chain .row[data-item="2"]\')');
-    await settled(chrome, SCRIPT);
-    assert.deepEqual(await history(chrome), unchanged, 'selecting the same item never pushes a duplicate');
-    await onePlace(chrome, 'document.querySelector(\'[data-tab="shouts"]\')', '/shouts', 'shouts', alpha.repo);
-    const sameTab = await history(chrome);
-    for (let repeat = 0; repeat < 2; repeat += 1) {
-      await press(chrome, 'document.querySelector(\'[data-tab="shouts"]\')');
-      await settled(chrome, SCRIPT);
-      assert.deepEqual(await history(chrome), sameTab, 'selecting the current tab never pushes a duplicate');
-    }
-    await travel(chrome, -1);
-    await settled(chrome, SCRIPT);
-    for (const direction of [-1, 1]) {
-      const indices = direction < 0 ? Array.from({ length: journey.length - 1 }, (_, index) => journey.length - 2 - index) : Array.from({ length: journey.length - 1 }, (_, index) => index + 1);
-      for (const index of indices) {
-        await travel(chrome, direction);
-        await settled(chrome, SCRIPT);
-        const step = journey[index];
-        await assertPlace(chrome, step.address, step.pane, step.root);
-        if (step.address === '/spec/G2') await assertHeading(chrome, '#spec-detail', 'G2', 'history-alpha distinct specification row');
-        if (step.address === '/doctrine/PB1') await assertHeading(chrome, '#doctrine-detail', 'PB1', 'history-alpha distinct practice rule');
-        if (/\/items\/\d+$/.test(step.address)) await assertHeading(chrome, '#detail', `#${step.address.split('/').at(-1)}`, 'address item');
-        if (step.address.startsWith('/shouts/')) await assertShout(chrome, shout.shout_id, 'History journey shout.');
-      }
-    }
-    for (const step of journey.slice(0, -2)) {
-      await openAddress(chrome, server, step.address);
-      const before = await chrome.stable('performance.timeOrigin');
-      await chrome.send('Page.reload');
-      await settled(chrome, `performance.timeOrigin !== ${before} && ${SCRIPT}`);
-      await assertPlace(chrome, step.address, step.pane, alpha.repo);
-      if (step.address === '/spec/G2') await assertHeading(chrome, '#spec-detail', 'G2', 'history-alpha distinct specification row');
-      if (step.address === '/doctrine/PB1') await assertHeading(chrome, '#doctrine-detail', 'PB1', 'history-alpha distinct practice rule');
-      if (step.address === '/items/1') await assertHeading(chrome, '#detail', '#1', 'history-alpha first address item');
-      if (step.address.startsWith('/shouts/')) await assertShout(chrome, shout.shout_id, 'History journey shout.');
-    }
-  });
-});
-

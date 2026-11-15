@@ -38,6 +38,17 @@ export function dropStagingFolder(staging) {
 }
 
 /**
+ * Write one empty lease file, private to this user, in `folder`; its holder removes it when done.
+ *
+ * @param {string} folder
+ * @param {string} name
+ */
+export function writeKeyedLease(folder, name) {
+  mkdirSync(folder, { recursive: true, mode: 0o700 });
+  writeFileSync(join(folder, name), '', { mode: 0o600 });
+}
+
+/**
  * Mark a keyed folder used now, so an age sweep keeps it.
  *
  * @param {string} path

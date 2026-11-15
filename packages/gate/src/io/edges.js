@@ -22,6 +22,10 @@ import {
   report,
   walk,
 } from './scan.js';
+import {
+  packageAppProblems,
+  packageAppReport,
+} from './edges/package-app.js';
 
 const CEILINGS = new URL('../../data/ceilings/cells-edges.json', import.meta.url);
 const SOURCE = /^(?:src|packages|apps|bin)\/.*\.[cm]?js$/u;
@@ -53,6 +57,9 @@ export function cellOf(path) {
   if (!match) return { cell: ROOT_OWNER, deep: false };
   return { cell: match[1].replace(/^packages\//u, ''), deep: match[2].startsWith('src/') };
 }
+
+/** The one next step a refused cross-cell import names; the plan's allowedEdges is never offered as a way round [C7]. */
+const NEXT_STEP = ': import through a lower cell front door, or ask the coordinator';
 
 /** A light door (a cell's core.js that may re-export shell modules) must cold-load within this many milliseconds [C7]. */
 export const LIGHT_DOOR_BUDGET_MS = 100;
@@ -190,8 +197,45 @@ export function importSpecifiers(source) {
   return found;
 }
 
+// A repo path to a source file of one cell, and the calls that run or read a file by such a path [C7].
+const PATH_STRING = /^(?:packages|apps)\/[^/\s]+\/[^\s$]*\.[cm]?js$/u;
+const REACH_CALLS = 'spawn|spawnSync|execFile|execFileSync|fork|exec|execSync|import|readFileSync|readFile|createReadStream|runFixtureChild|runFixtureChildAsync|startFixtureChild';
+const REACH_CALLEE = new RegExp(`(?:^|[^\\w$.])(?:${REACH_CALLS})$`, 'u');
+
+/** Whether the string at `start` sits inside the arguments of a spawn, dynamic import or file read, or in a variable passed to one. */
+function reachedByCall(code, start) {
+  let depth = 0;
+  for (let at = start - 1; at >= 0 && start - at < 600; at -= 1) {
+    const char = code[at];
+    if (char === ';' && depth === 0) break;
+    if (')]}'.includes(char)) depth += 1;
+    else if ('([{'.includes(char)) {
+      if (depth > 0) depth -= 1;
+      else if (char === '(' && REACH_CALLEE.test(code.slice(Math.max(0, at - 30), at).trimEnd())) return true;
+    }
+  }
+  const tail = code.slice(code.lastIndexOf(';', start) + 1, start);
+  const name = /^\s*(?:const|let|var)\s+([\w$]+)\s*=/u.exec(tail)?.[1];
+  if (!name) return false;
+  const use = new RegExp(`(?<![\\w$])${name.replace(/\$/gu, '\\$')}(?![\\w$])`, 'u');
+  for (const call of code.matchAll(new RegExp(`\\b(?:${REACH_CALLS})\\s*\\(([^;]*)`, 'gu'))) if (use.test(call[1])) return true;
+  return false;
+}
+
 /**
- * Every other cell one file imports, each with whether the import reaches into that cell's src folder.
+ * The repo-path strings a file spawns, dynamically imports or reads, with their lines; a path named only as data never counts.
+ *
+ * @param {string} source
+ * @returns {{ specifier: string, line: number }[]}
+ */
+export function reachedPaths(source) {
+  const { code, strings } = lex(source);
+  return strings.filter(string => PATH_STRING.test(string.text) && reachedByCall(code, string.start))
+    .map(string => ({ specifier: string.text, line: lineAt(source, string.start) }));
+}
+
+/**
+ * Every other cell one file imports or reaches by a repo path string, each with whether it reaches into that cell's src folder.
  *
  * @param {string} file - Repo-relative path.
  * @param {string} source
@@ -204,7 +248,57 @@ export function fileEdges(file, source) {
     const target = cellOf(posix.normalize(posix.join(posix.dirname(file), specifier)));
     if (target.cell !== own && target.cell !== ROOT_OWNER) edges.push({ to: target.cell, deep: target.deep, line });
   }
+  for (const { specifier, line } of reachedPaths(source)) {
+    const target = cellOf(specifier);
+    if (target.cell !== own && target.cell !== ROOT_OWNER) edges.push({ to: target.cell, deep: target.deep, line });
+  }
   return edges;
+}
+
+/**
+ * The repo-relative files a re-export-only source forwards to, or undefined when it holds any other code.
+ * Why: a forwarder that only says `export ... from` is a shim; it must not hide what it forwards to [C7].
+ *
+ * @param {string} file - Repo-relative path of the forwarder.
+ * @param {string} source
+ * @returns {string[] | undefined}
+ */
+export function forwardTargets(file, source) {
+  const { code, strings } = lex(source);
+  const rest = code.replace(/\bexport\s*(?:\*(?:\s*as\s+[\w$]+)?|\{[^}]*\})\s*from\s*(['"`])\s*\1\s*;?/gu, '');
+  if (!strings.length || rest.trim()) return undefined;
+  return importSpecifiers(source).map(({ specifier }) => posix.normalize(posix.join(posix.dirname(file), specifier)));
+}
+
+/**
+ * The edges one file reaches through re-export-only files it imports: each forwarder's real target counts as imported by the file.
+ * Why: the scanner follows a shim to its real cell, so a forwarder inside a cell cannot hide a deep import into another [C7].
+ *
+ * @param {string} file - Repo-relative path.
+ * @param {string} source
+ * @param {(file: string) => string | undefined} readSource - A repo-relative file's source, or undefined when it is missing.
+ * @returns {{ to: string, deep: boolean, line: number }[]}
+ */
+export function forwardedEdges(file, source, readSource) {
+  const own = cellOf(file).cell;
+  const edges = [];
+  for (const { specifier, line } of importSpecifiers(source)) {
+    const via = posix.normalize(posix.join(posix.dirname(file), specifier));
+    if (cellOf(via).cell !== own || !SOURCE.test(via)) continue;
+    const text = readSource(via);
+    for (const target of (text === undefined ? undefined : forwardTargets(via, text)) ?? []) {
+      const real = cellOf(target);
+      if (real.cell !== own && real.cell !== ROOT_OWNER) edges.push({ to: real.cell, deep: real.deep, line });
+    }
+  }
+  return edges;
+}
+
+/** The cells plan, or an empty one when the tree has none. */
+function planOf(root) {
+  try { return JSON.parse(readFileSync(resolve(root, 'packages/codemap/data/plan/cells.json'), 'utf8')); }
+  catch (error) { if (error.code !== 'ENOENT') throw error; }
+  return {};
 }
 
 /**
@@ -214,9 +308,7 @@ export function fileEdges(file, source) {
  * @returns {Set<string>}
  */
 export function declaredEdges(root) {
-  let plan = {};
-  try { plan = JSON.parse(readFileSync(resolve(root, 'packages/codemap/data/plan/cells.json'), 'utf8')); }
-  catch (error) { if (error.code !== 'ENOENT') throw error; }
+  const plan = planOf(root);
   return new Set(plan.allowedEdges ?? []);
 }
 
@@ -225,15 +317,23 @@ export function declaredEdges(root) {
  *
  * @param {string} root
  * @param {{ files?: string[], read?: (file: string) => string, edgesOf?: (file: string, source: string) => ReturnType<typeof fileEdges> }} [options] - `edgesOf` lets a caller answer a file's edges from a cache.
- * @returns {{ files: Record<string, { cells: number, deep: number, edges: { from: string, to: string, deep: boolean, line: number }[] }>, cells: Record<string, { imports: string[], deepImporters: number }> }}
+ * @returns {{ files: Record<string, { cells: number, deep: number, edges: { from: string, to: string, deep: boolean, line: number }[] }>, cells: Record<string, { imports: string[], deepImporters: number }>, packageApps: ReturnType<typeof packageAppReport> }}
  */
 export function cellsEdgeReport(root, { files, read = file => readFileSync(resolve(root, file), 'utf8'), edgesOf = fileEdges } = {}) {
   const declared = declaredEdges(root);
   const names = (files ?? walk(root, SOURCE)).filter(file => SOURCE.test(file) && !TESTISH.test(file));
-  const result = { files: {}, cells: {} };
+  const result = { files: {}, cells: {}, packageApps: packageAppReport(names, read, edgesOf) };
+  const seen = new Map();
+  /** A forwarder's source, read once per report; a missing file is undefined. */
+  const forwarded = path => {
+    if (!seen.has(path)) { try { seen.set(path, read(path)); } catch { seen.set(path, undefined); } }
+    return seen.get(path);
+  };
   for (const file of names) {
     const from = cellOf(file).cell;
-    const edges = edgesOf(file, read(file)).filter(edge => !declared.has(`${from}->${edge.to}${edge.deep ? '/src' : ''}`));
+    const source = read(file);
+    const edges = [...edgesOf(file, source), ...forwardedEdges(file, source, forwarded)]
+      .filter(edge => !declared.has(`${from}->${edge.to}${edge.deep ? '/src' : ''}`));
     if (!edges.length) continue;
     const cells = new Set(edges.map(edge => edge.to));
     const deep = edges.filter(edge => edge.deep);
@@ -246,16 +346,17 @@ export function cellsEdgeReport(root, { files, read = file => readFileSync(resol
 }
 
 /**
- * The ceilings to commit for today's report: file counts and cell rows only.
+ * The ceilings to commit for today's report: file counts, cell rows and each package file's apps.
  *
  * @param {ReturnType<typeof cellsEdgeReport>} current
- * @returns {{ files: Record<string, { cells: number, deep: number }>, cells: Record<string, { imports: string[], deepImporters: number }> }}
+ * @returns {{ files: Record<string, { cells: number, deep: number }>, cells: Record<string, { imports: string[], deepImporters: number }>, packageApps: Record<string, string[]> }}
  */
 export function ceilingsOf(current) {
-  const files = {}, cells = {};
+  const files = {}, cells = {}, packageApps = {};
   for (const [file, row] of Object.entries(current.files)) files[file] = { cells: row.cells, deep: row.deep };
   for (const [name, row] of Object.entries(current.cells)) cells[name] = row;
-  return { files, cells };
+  for (const [file, edges] of Object.entries(current.packageApps ?? {})) packageApps[file] = edges.map(edge => edge.to);
+  return { files, cells, packageApps };
 }
 
 /**
@@ -271,26 +372,27 @@ export function cellsEdgeProblems(root, { files, read, edgesOf, ceilings = JSON.
   const add = (path, line, text) => problems.push({ path, line, text });
   for (const [file, row] of Object.entries(current.files)) {
     const allowed = ceilings.files[file] ?? { cells: 0, deep: 0 };
-    const from = cellOf(file).cell;
     for (const edge of row.edges) {
       const fresh = edge.deep ? row.deep > allowed.deep : row.cells > allowed.cells;
       if (!fresh) continue;
-      const declaration = `${from}->${edge.to}${edge.deep ? '/src' : ''}`;
       add(file, edge.line, edge.deep
-        ? `deep import into ${edge.to}'s src exceeds the ratchet (${row.deep} > ${allowed.deep}); import ${edge.to}'s index, or add "${declaration}" to allowedEdges in packages/codemap/data/plan/cells.json`
-        : `new cross-cell import of ${edge.to} exceeds the ratchet (${row.cells} cells > ${allowed.cells}); cut it, or add "${declaration}" to allowedEdges in packages/codemap/data/plan/cells.json`);
+        ? `deep import into ${edge.to}'s src exceeds the ratchet (${row.deep} > ${allowed.deep}); import ${edge.to}'s index${NEXT_STEP}`
+        : `new cross-cell import of ${edge.to} exceeds the ratchet (${row.cells} cells > ${allowed.cells}); cut it${NEXT_STEP}`);
     }
   }
   if (!files) {
     for (const [name, row] of Object.entries(current.cells)) {
       const allowed = ceilings.cells[name] ?? { imports: [], deepImporters: 0 };
       if (name.startsWith('<-')) {
-        if (row.deepImporters > allowed.deepImporters) add(`packages/${name.slice(2)}`, 1, `${row.deepImporters} files import ${name.slice(2)}'s src past its index (ceiling ${allowed.deepImporters}); import its index, or add "<from>->${name.slice(2)}/src" to allowedEdges in packages/codemap/data/plan/cells.json`);
+        if (row.deepImporters > allowed.deepImporters) add(`packages/${name.slice(2)}`, 1, `${row.deepImporters} files import ${name.slice(2)}'s src past its index (ceiling ${allowed.deepImporters}); import its index${NEXT_STEP}`);
         continue;
       }
-      for (const target of row.imports.filter(to => !allowed.imports.includes(to))) add(`packages/${name}`, 1, `cell ${name} gains an edge to ${target}; cut it, or add "${name}->${target}" to allowedEdges in packages/codemap/data/plan/cells.json`);
+      for (const target of row.imports.filter(to => !allowed.imports.includes(to))) add(`packages/${name}`, 1, `cell ${name} gains an edge to ${target}; cut it${NEXT_STEP}`);
     }
   }
+  problems.push(...packageAppProblems(current.packageApps, ceilings.packageApps ?? {}));
+  if (!files) for (const entry of upwardAllowedEdges(root)) add('packages/codemap', 1, `allowedEdges entry "${entry.edge}" points up the cell order: ${entry.from} is order ${entry.fromOrder}, ${entry.to} is order ${entry.toOrder}; a cell may declare an edge only to a lower order${NEXT_STEP}`);
+  if (!files) for (const entry of unusedAllowedEdges(root, { ...(read ? { read } : {}), ...(edgesOf ? { edgesOf } : {}) })) add('packages/codemap', 1, `allowedEdges entry "${entry}" is used by no import; remove it from allowedEdges in the cells plan`);
   problems.push(...durableEdgeProblems(root, { files, ...(read ? { read } : {}), ...(edgesOf ? { edgesOf } : {}) }));
   return problems;
 }
@@ -337,6 +439,47 @@ export function durableEdgeProblems(root, { files, read = file => readFileSync(r
     }
   }
   return problems;
+}
+
+/**
+ * The allowedEdges entries no import in the tree uses.
+ * Why: a declaration nothing needs is a standing permission for a new import to hide behind; it must go [C7].
+ *
+ * @param {string} root
+ * @param {{ files?: string[], read?: (file: string) => string, edgesOf?: (file: string, source: string) => ReturnType<typeof fileEdges> }} [options]
+ * @returns {string[]} The unused entries, in plan order.
+ */
+export function unusedAllowedEdges(root, { files, read = file => readFileSync(resolve(root, file), 'utf8'), edgesOf = fileEdges } = {}) {
+  const used = new Set();
+  for (const file of (files ?? walk(root, SOURCE)).filter(path => SOURCE.test(path) && !TESTISH.test(path))) {
+    const from = cellOf(file).cell;
+    for (const edge of edgesOf(file, read(file))) used.add(`${from}->${edge.to}${edge.deep ? '/src' : ''}`);
+  }
+  return [...declaredEdges(root)].filter(entry => !used.has(entry));
+}
+
+/**
+ * The allowedEdges entries whose target cell has an order not lower than the source cell's, minus the plan's `upwardEdgesGrandfathered` list.
+ * Why: a cell that may import a higher cell tangles the order the plan promises, and a builder could declare such an edge to pass the check [C7].
+ * A deep entry (`from->to/src`) is judged by its cell like any other; an entry naming a cell the plan does not order is left to the unused-entry check.
+ *
+ * @param {string} root
+ * @returns {{ edge: string, from: string, to: string, fromOrder: number, toOrder: number }[]}
+ */
+export function upwardAllowedEdges(root) {
+  const plan = planOf(root);
+  const orders = new Map((plan.cells ?? []).map(cell => [cell.name, cell.order]));
+  const orderOf = name => orders.get(name.startsWith('apps/') ? `app:${name.slice(5)}` : name);
+  const grandfathered = new Set(plan.upwardEdgesGrandfathered ?? []);
+  const rows = [];
+  for (const edge of plan.allowedEdges ?? []) {
+    if (grandfathered.has(edge)) continue;
+    const [from, rest] = edge.split('->');
+    const to = (rest ?? '').replace(/\/src$/u, '');
+    const fromOrder = orderOf(from), toOrder = orderOf(to);
+    if (fromOrder !== undefined && toOrder !== undefined && toOrder >= fromOrder) rows.push({ edge, from, to, fromOrder, toOrder });
+  }
+  return rows;
 }
 
 /** Record the ceilings at today's undeclared counts, and each light door's measured cold load in ms. */

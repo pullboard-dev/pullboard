@@ -338,3 +338,13 @@ test('private native submit admission links stay out of all public history proje
     assert.throws(() => publicSnapshot(forged), error => error.code === 'PUBLIC_EXPORT_BLOCKED', 'arbitrary and malformed lookalikes keep the full privacy scan');
   }
 });
+
+test('live runs name long repo test paths yet a 40-char token stays refused [N26]', () => {
+  const run = file => ({ live: { now: 1, configured: ['a'], jobs: [{ id: 'j1', kind: 'gate', item: '#1', runner: 'a', claimedAt: 0, files: [file] }] } });
+  const long = 'apps/cli/journeys/next/reviews/reviews-first-next.test.js';
+  assert.ok(long.length > 40);
+  const out = publicSnapshot(run(long));
+  assert.equal(out.live.runs[0].files[0].file, long);
+  assert.throws(() => publicSnapshot(run(`${'A1b2'.repeat(10)}.test.js`)), error => error.code === 'PUBLIC_EXPORT_BLOCKED');
+  assert.throws(() => publicSnapshot(run(`apps/${'a1b2c3d4'.repeat(4)}/x.test.js`)), error => error.code === 'PUBLIC_EXPORT_BLOCKED');
+});

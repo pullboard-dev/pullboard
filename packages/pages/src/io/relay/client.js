@@ -110,7 +110,7 @@ export async function pagedSnapshotRequest(state, options, { request, key, decod
           cache.acknowledge(object.id);
         }
         const result = await request(path + '/uploads/' + uploadId + '/publish', {
-          method: 'POST', body: { root: prepared.reference, ...(options.initialBaseline ? { initialOnly: true } : {}) },
+          method: 'POST', body: { root: prepared.reference, ...(options.initialBaseline ? { initialOnly: true } : {}), ...(options.body.recovery === true ? { recovery: true } : {}) },
         });
         const accepted = pageReference(result.state?.root);
         if (result.apiVersion !== 2 || result.state?.sequence !== pending.sequence || JSON.stringify(accepted) !== JSON.stringify(prepared.reference)) throw invalid();

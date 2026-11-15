@@ -1,5 +1,7 @@
 /** Deterministically seed a disposable Pullboard board through its public board operations. */
 import { createHash } from 'node:crypto';
+import { deflateSync } from 'node:zlib';
+import { existsSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -71,7 +73,7 @@ function textOf(seed, label, targetLength) {
 }
 
 /** Allocate all five lifecycle states proportionally while keeping each state represented. */
-function statusCounts(size) {
+export function statusCounts(size) {
   const totalWeight = STATUS_WEIGHTS.reduce((sum, weight) => sum + weight, 0);
   const exact = STATUS_WEIGHTS.map((weight) => size * weight / totalWeight);
   const counts = exact.map(Math.floor);
@@ -99,9 +101,13 @@ function run(command, args, cwd, env) {
   return result.stdout;
 }
 
-/** Start from a caller environment without inherited board, machine or gate identity switches. */
+/**
+ * Start from a caller environment without inherited board, machine or gate identity switches.
+ * NODE_TEST_CONTEXT goes too: inside a test run, init refuses to register a board whose home is outside the temp folder,
+ * so a stress board cached under the runner's home came out with an empty registry and the view said "No boards yet" [N26].
+ */
 function cleanEnvironment() {
-  return Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PULLBOARD_')));
+  return Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PULLBOARD_') && key !== 'NODE_TEST_CONTEXT'));
 }
 
 /** Build a spec whose row count scales with board size and whose first draft appears in the default view. */
@@ -177,12 +183,26 @@ function freezeItem(item, spec, doctrine) {
 }
 
 /**
+ * Write one fixed-date child commit of the fixture head straight into the object store.
+ * Byte-identical to `git commit-tree`, which cost a process per generated item and made up most of the seed time.
+ */
+function writeChildCommit(repo, message) {
+  const stamp = `${Math.floor(FIXED_NOW.getTime() / 1000)} +0000`, who = 'Stress fixture <stress@pullboard.invalid>';
+  const body = Buffer.from(`tree ${repo.tree}\nparent ${repo.head}\nauthor ${who} ${stamp}\ncommitter ${who} ${stamp}\n\n${message}\n`);
+  const object = Buffer.concat([Buffer.from(`commit ${body.length}\0`), body]);
+  const id = createHash('sha1').update(object).digest('hex');
+  const file = join(repo.root, '.git', 'objects', id.slice(0, 2), id.slice(2));
+  if (!existsSync(file)) { mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, deflateSync(object), { flag: 'wx', mode: 0o444 }); }
+  return id;
+}
+
+/**
  * Move one synthetic item through a committed submission using Pullboard board operations.
  * Since 8078e19a4a submit diffs the claim head against the submitted commit, so both are real objects in the
  * fixture repository: main's commit, and a seeded child commit with fixed dates that stays the same per seed.
  */
 function submitItem(board, id, seed, lane, builder, commitNumber, freezer, repo) {
-  const commit = run('git', ['commit-tree', repo.tree, '-p', repo.head, '-m', `chore: generated ${digest(seed, 'commit', id, commitNumber).slice(0, 40)}`], repo.root, repo.env).trim();
+  const commit = writeChildCommit(repo, `chore: generated ${digest(seed, 'commit', id, commitNumber).slice(0, 40)}`);
   const tree = repo.tree;
   const frozen = claim(board, id, { agentId: builder, lane,
     leaseMs: LEASE_MS, freeze: freezer, head: repo.head });
@@ -263,7 +283,7 @@ export function generateStressBoard({ seed = 'pullboard-perf-606', size = 150, p
     mkdirSync(machineHome, { recursive: true });
     const canonicalRoot = realpathSync(root);
     // #851: cleanEnvironment drops every PULLBOARD_ variable, including the fixture opt-out, so init would start a background view.
-    const env = { ...cleanEnvironment(), HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome, PULLBOARD_VIEW_BACKGROUND: '0',
+    const env = { ...cleanEnvironment(), HOME: home, PULLBOARD_HOME: home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_MACHINE_HOME: machineHome, PULLBOARD_VIEW_BACKGROUND: '0',
       GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Stress fixture',
       GIT_AUTHOR_EMAIL: 'stress@pullboard.invalid', GIT_COMMITTER_NAME: 'Stress fixture', GIT_COMMITTER_EMAIL: 'stress@pullboard.invalid',
       GIT_AUTHOR_DATE: FIXED_NOW.toISOString(), GIT_COMMITTER_DATE: FIXED_NOW.toISOString() };

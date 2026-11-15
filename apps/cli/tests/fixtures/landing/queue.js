@@ -1,11 +1,8 @@
-import { landingPorts } from './ports.js';
-import { createE2eHelpers } from '../e2e.js';
+import { FIXTURE_GATE_DISPATCH } from '../testkit.js';
 import { fixtureMachineSettings } from '../testkit.js';
+import { fixtureProjectPolicy } from '../testkit.js';
 import { HOST } from '../runner/ssh.js';
 import { installSshStandIn } from '../runner/ssh.js';
-import { checkAtCommit } from '../../../../runner/index.js';
-import { fileURLToPath } from 'node:url';
-const candidateWorkerFile = fileURLToPath(new URL('../../../../lib/src/io/landing/candidate.js', import.meta.url));
 /** Public, real-Git landing contention fixture; no private drill data is used [B3,R3,Q1,Q2,E8]. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -34,10 +31,11 @@ import {
 } from '../../../../../packages/gate/index.js';
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
-import { invalidateGitFacts } from '../../../../../packages/git/index.js';
-import { runLandingBatch } from '../../../../../packages/landing/index.js';
-import { assertLandingLease } from '../../../../../packages/store/index.js';
 import { LANDING_LEASE_MS } from '../../../../../packages/store/index.js';
+import { makeLandProjectFixtures } from '../land/project.js';
+import { calls as landCalls } from '../land/board.js';
+import { landJobs } from '../land/board.js';
+import { settleLand } from '../land/settle.js';
 
 /** Run an ordinary fixture command and retain its full refusal on failure. */
 function run(box, root, ...args) {
@@ -85,7 +83,7 @@ function withBaselineRunner(box, action) {
   const settings = join(machine, 'settings.json'), previous = existsSync(settings) ? readFileSync(settings) : null;
   const previousPath = box.env.PATH;
   box.env.PATH = `${bin}:${previousPath}`;
-  fixtureMachineSettings(machine, { gateSlots: 0, browserSlots: 0, gate: { browserFreeChecks: true, timingRunner: false },
+  fixtureMachineSettings(machine, { gateSlots: 0, browserSlots: 0, gate: { browserFreeChecks: true, timingRunner: false, ...FIXTURE_GATE_DISPATCH },
     runners: [{ host: HOST, slots: 1, browser: 0, node: process.execPath, root: join(home, '.pullboard-runner') }] });
   try { return action(); }
   finally {
@@ -109,7 +107,7 @@ function acceptedPair(helpers, box, staleAfterFirst, policyAfterFirst) {
     const file = `web/queue-${number}.txt`;
     const added = JSON.parse(withBaselineRunner(box, () => run(box, box.repo, 'add', 'web', `Queue item ${number}`, '--specs', 'G1',
       '--criterion', `queue item ${number} works`, '--check', `grep -qx works ${file}`, '--route', 'strong', '--wait', '--brief',
-      `Files: ${file}\nTest: the queued fixture check requires ${file} to contain exactly works`, '--json')));
+      `Files: ${file}\nTest: the queued fixture check requires ${file} to contain exactly works`, '--not-duplicate-of', '0 a fixture item, not a real duplicate', '--json')));
     const id = added.item.item_id;
     assert.ok(added.item.item_check_baseline, 'the ordinary add observes its actual setup baseline');
     assert.notEqual(added.item.item_check_baseline.result, 'pending', 'no detached setup baseline remains to publish during claim');
@@ -138,75 +136,6 @@ function acceptedPair(helpers, box, staleAfterFirst, policyAfterFirst) {
     run(box, review, 'verify', String(entry.id), 'accept', '--note', 'The exact item check passes in this independent private fixture seat.');
   }
   return entries;
-}
-
-/** The shared bounded observation wait; this fixture's sandboxes are owned by its callers. */
-const LEASE_WAIT = createE2eHelpers();
-
-/** Use a real public lease and board for bounded internal boundary controls, never a fabricated grant. */
-async function withFixtureLease(box, branch, action) {
-  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
-  const request = { agentId: 'coordinator', action: 'request', branch, token: randomUUID(), pid: process.pid };
-  let fence;
-  try {
-    // A real lander may still hold the lease while it finishes; queue behind it and wait for the grant (#3137).
-    const grant = await LEASE_WAIT.waitFor(() => { // budget: hang ceiling for the fixture's own landers releasing, not a speed target.
-      const observed = store.landingLeaseMove(board, request);
-      return observed.acquired ? observed : null;
-    }, 'the fixture landers release the landing lease', 120_000);
-    fence = { ...request, generation: grant.generation };
-    invalidateGitFacts();
-    const check = () => assertLandingLease(board, fence);
-    return await action({ root: box.repo, board, fence, owner: 'private-boundary-control', say() {},
-      write: async (operation, args) => board.enginePorts.store[operation](board, ...args), checkLease: async () => { check(); invalidateGitFacts(); }, checkLeaseNow: check });
-  } finally {
-    store.landingLeaseMove(board, { ...(fence ?? request), action: 'release' });
-    store.closeBoard(board);
-  }
-}
-
-/** A lease for one branch cannot follow a same-commit branch switch or adopt another branch's batch. */
-async function interruptedBranchControls(box) {
-  const before = box.git(box.repo, 'rev-parse', 'HEAD');
-  try {
-    await withFixtureLease(box, 'refs/heads/main', async options => {
-      box.git(box.repo, 'switch', '-q', '-c', 'alternate-trunk');
-      invalidateGitFacts();
-      assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), before, 'only the actual branch identity changes');
-      await assert.rejects(runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, ...options, adopt: true }), error => error.code === 'LAND_LEASE_LOST');
-    });
-    await withFixtureLease(box, 'refs/heads/alternate-trunk', async options => {
-      await assert.rejects(runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, ...options, adopt: true }), error => error.code === 'LAND_LEASE_LOST');
-      assert.equal(store.landingBatches(options.board).length, 1, 'a branch mismatch creates no replacement batch');
-    });
-  } finally { box.git(box.repo, 'switch', '-q', 'main'); invalidateGitFacts(); }
-  assert.equal(box.git(box.repo, 'rev-parse', 'main'), before);
-}
-
-/** Resolve absent config from the repaired accepted tip; explicit direct-call config remains supported. */
-async function repairedPolicyControls(box, batch) {
-  box.git(box.repo, 'reset', '--hard', batch.base); // Only this private fixture simulates receipts preceding local Git repair.
-  try {
-    box.git(box.repo, 'switch', '-q', '-c', 'alternate-repair');
-    await withFixtureLease(box, 'refs/heads/alternate-repair', async options => {
-      await assert.rejects(runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, ...options }), error => error.code === 'LAND_LEASE_LOST');
-      assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), batch.base, 'a foreign-branch recorded repair never moves Git before refusing');
-    });
-  } finally { box.git(box.repo, 'switch', '-q', 'main'); invalidateGitFacts(); }
-  await withFixtureLease(box, 'refs/heads/main', async options => {
-    const count = store.landingBatches(options.board).length;
-    const result = await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, ...options });
-    assert.equal(result.batch, null, 'all items were already durably landed');
-    assert.equal(box.git(box.repo, 'rev-parse', 'main'), batch.tip, 'the recorded landing repairs local Git');
-    assert.equal(options.board.quarantineEnabled(), true, 'policy comes from the repaired accepted tip, not its old base');
-    assert.equal(store.landingBatches(options.board).length, count, 'repair does not invent another batch');
-  });
-  const explicit = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
-  try {
-    await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root: box.repo, board, config: { ...explicit, flakes: { quarantine: false } }, dryRun: true });
-    assert.equal(board.quarantineEnabled(), false, 'explicit config and no-fence dry-run callers retain their behavior');
-  } finally { store.closeBoard(board); }
 }
 
 /** Recognize only this board's recorded exact source composition, never a temporary-path prefix alone. */
@@ -298,8 +227,91 @@ function landingPolicyCalls(box, batches, records) {
   return calls;
 }
 
+/**
+ * The freshness variant on pull: two accepted items, the second changing the first's checked file; the second lands
+ * alone (the first held), moving main under the first's verdict, and the next land reopens the first to its lane with
+ * STALE_VERDICT and offers no land job for it [B3,C7].
+ */
+async function pulledFreshnessCase(helpers) {
+  const { landProject, itemWorktree, submitItem, acceptItem, FILES } = makeLandProjectFixtures(helpers);
+  const box = landProject();
+  const first = itemWorktree(box, 1);
+  const second = itemWorktree(box, 2);
+  submitItem(box, first);
+  // The second item changes the first's checked file on its own branch, so its landing makes the first verdict stale.
+  mkdirSync(join(second.path, 'web'), { recursive: true });
+  writeFileSync(join(second.path, FILES[0]), '// PASS changed\n');
+  submitItem(box, second);
+  acceptItem(box, first);
+  acceptItem(box, second);
+  // Only the second lands now; the first keeps its accept behind a hold.
+  readBoard(box, board => store.holdItem(board, first.item, { agentId: 'coordinator', reason: 'land the second item first' }));
+  const landed = await settleLand(box, JSON.parse(run(box, box.repo, 'land', '--json')));
+  assert.deepEqual(landed.landed, [second.item], JSON.stringify(landed));
+  readBoard(box, board => store.releaseItemHold(board, first.item, { agentId: 'coordinator' }));
+  const jobs = landJobs(box).length;
+  const again = box.run(box.repo, 'land');
+  assert.equal(again.code, 0, again.err + again.out);
+  assert.match(again.out + again.err, /STALE_VERDICT #\d+ reopened to its lane/u);
+  assert.equal(readBoard(box, board => store.getItem(board, first.item).item_status), 'open', 'the stale item left verified for its lane');
+  assert.equal(readBoard(box, board => store.getItem(board, first.item).item_merged_commit), null);
+  assert.equal(landJobs(box).length, jobs, 'a stale verdict starts no land job');
+}
+
+/** The gate arguments each offered land job carries, read from its offered step, in offer order. */
+function offeredLandChecks(box) {
+  return readBoard(box, board => board.db.prepare("SELECT job_step_payload AS payload FROM job_step JOIN job ON job_id = job_step_job WHERE job_kind = 'land' AND job_step_name = 'offered' ORDER BY job_created, job_id").all()
+    .map(row => JSON.parse(row.payload).payload?.check ?? null));
+}
+
+/**
+ * The admitted-policy variant on pull: the second item changes the project's gate args and lands first, on the policy
+ * main accepted before it; the first item's land job, offered after, checks with the new args main now holds. Why: the
+ * pulled land check is fixed at offer time from main's policy, so an item never judges itself by the policy it brings [Q1,B3,C7].
+ */
+async function pulledPolicyCase(helpers) {
+  const { landProject, itemWorktreeLocal, commitItemLocal, submitItemLocal, acceptItemLocal } = makeLandProjectFixtures(helpers);
+  const box = landProject();
+  // The project's own gate judges each land job (no affectedTests ledger proof), and the web lane owns its config.
+  const configPath = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  delete config.affectedTests;
+  config.lanes.web.owns.push('pullboard.json');
+  fixtureProjectPolicy(box.repo, { config });
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: the project gate judges landings');
+  box.git(box.repo, 'push', '-q', 'origin', 'main');
+  // In-process seats, claims, submits and verdicts: a node start-up per step was most of this case's time [B3].
+  const first = await itemWorktreeLocal(box, 1);
+  const second = await itemWorktreeLocal(box, 2);
+  const itemConfig = JSON.parse(readFileSync(join(second.path, 'pullboard.json'), 'utf8'));
+  fixtureProjectPolicy(second.path, { config: { ...itemConfig, gate: itemConfig.gate + ' --new-policy' } });
+  await Promise.all([first, second].map(entry => commitItemLocal(box, entry)));
+  for (const entry of [first, second]) await submitItemLocal(box, entry);
+  for (const entry of [first, second]) await acceptItemLocal(box, entry);
+  // The submit gates also ran the gate; only the land jobs' runs count from here.
+  writeFileSync(box.calls, '');
+  readBoard(box, board => store.holdItem(board, first.item, { agentId: 'coordinator', reason: 'land the policy change first' }));
+  const landed = await settleLand(box, JSON.parse(run(box, box.repo, 'land', '--json')));
+  assert.deepEqual(landed.landed, [second.item], JSON.stringify(landed));
+  assert.match(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'), /--new-policy/u, 'main now holds the new gate args');
+  readBoard(box, board => store.releaseItemHold(board, first.item, { agentId: 'coordinator' }));
+  const after = await settleLand(box, JSON.parse(run(box, box.repo, 'land', '--json')));
+  assert.deepEqual(after.landed, [first.item], JSON.stringify(after));
+  const gate = config.gate.trim();
+  assert.deepEqual(offeredLandChecks(box), [['sh', '-c', gate], ['sh', '-c', `${gate} --new-policy`]], 'each land job carries the gate main accepted when it was offered');
+  const calls = landCalls(box).filter(args => !args.includes('--alone'));
+  assert.deepEqual(calls, [[], ['--new-policy']], 'the policy change lands on the old args; the next land job ran the new ones');
+}
+
 /** Prove named waiting, exclusion and verdict order with two real overlapping land commands. */
 export async function landingQueueCase(t, helpers, { staleAfterFirst = false, killParent = false, killGuardian = false, suspendParent = false, policyAfterFirst = false } = {}) {
+  // Freshness survives under pull: the land offer rechecks each verdict against the main it lands onto [B3,C7].
+  if (staleAfterFirst) return pulledFreshnessCase(helpers);
+  if (policyAfterFirst) return pulledPolicyCase(helpers);
+  // Every variant is the controller's landing lease: a named waiting lander, its held batch, parent and guardian death. A pulled landing is a runner job with none of these; #6807 deletes the cases with the lease.
+  t.skip('CONTROLLER_ONLY: deleted with #6807');
+  return;
   const sandbox = helpers.sandbox({ declareFamilies: policyAfterFirst });
   const arm = join(sandbox.dir, 'landing-armed');
   const entered = join(sandbox.dir, 'landing-entered');
@@ -434,7 +446,6 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
     const waiting = await second.closed;
     assert.equal(waiting.code, 1);
     assert.match(second.stderrText, /LAND_ADOPT/u, 'a queued ordinary land preserves explicit interrupted-batch adoption');
-    if (killParent) await interruptedBranchControls(box);
     rmSync(arm); // Future gates may run, but removing arm cannot unblock the old gate's release loop.
     const adopted = JSON.parse(run(box, box.repo, 'land', '--adopt', '--json'));
     assert.equal(adopted.batch.id, firstBatch.id);
@@ -490,76 +501,4 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
     assert.equal(readFileSync(join(box.repo, `web/queue-${entry.id}.txt`), 'utf8'), 'works\n');
     assert.equal(readBoard(box, board => board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE event_kind='merged' AND item_id=?").get(entry.id).n), 1);
   }
-  if (policyAfterFirst) await repairedPolicyControls(box, batches[0]);
-}
-
-/** Exercise a real independently closed source-advance gate before the second foreground landing [Q1,B3]. */
-export async function sourceAdvancePolicyCase(t, helpers) {
-  const sandbox = helpers.sandbox({ declareFamilies: true });
-  const callsFile = join(sandbox.dir, 'source-policy-calls.jsonl');
-  const gate = join(sandbox.dir, 'source-policy-gate.cjs');
-  const entered = join(sandbox.dir, 'source-policy-entered');
-  const released = join(sandbox.dir, 'source-policy-released');
-  t.after(() => writeFileSync(released, 'released'));
-  writeFileSync(gate, [
-    "const fs = require('node:fs'); const assert = require('node:assert/strict');",
-    `fs.appendFileSync(${JSON.stringify(callsFile)}, JSON.stringify({cwd:process.cwd(),args:process.argv.slice(2)}) + '\\n');`,
-    `if (process.argv.includes('--new-policy') && !fs.existsSync(${JSON.stringify(released)})) { fs.writeFileSync(${JSON.stringify(entered)}, process.cwd()); const end = Date.now()+20000; while (!fs.existsSync(${JSON.stringify(released)}) && Date.now()<end) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,20); assert.ok(fs.existsSync(${JSON.stringify(released)}), 'owning test releases actual source gate'); }`,
-    "for (const name of (fs.existsSync('web') ? fs.readdirSync('web') : []).filter(name => /^queue-\\d+\\.txt$/.test(name))) assert.match(fs.readFileSync('web/'+name,'utf8'), /^works/);",
-    "console.log('TAP version 13\\nok 1 - actual source composition preserves queue behavior\\n1..1\\n# tests 1\\n# pass 1\\n# fail 0');",
-  ].join('\n'));
-  const box = helpers.project(`node ${JSON.stringify(gate)}`, sandbox);
-  const configFile = join(box.repo, 'pullboard.json');
-  const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  config.lanes.web.owns.push('pullboard.json');
-  writeFileSync(configFile, JSON.stringify(config, null, 2));
-  box.git(box.repo, 'add', 'pullboard.json');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: assign private source policy ownership');
-  const remote = join(box.dir, 'source-policy-origin.git');
-  box.git(box.dir, 'init', '-q', '--bare', remote);
-  box.git(box.repo, 'remote', 'add', 'origin', remote);
-  box.git(box.repo, 'push', '-q', '-u', 'origin', 'main');
-  const entries = acceptedPair(helpers, box, false, true);
-  // Main moves after the submits, so landing cannot reuse a submit receipt proven on the older base (BASE_MOVED) and runs its real gate.
-  const moved = helpers.commitFile(box, box.repo, 'web/moved.txt', 'moved\n', 'chore: move main after the submit receipts');
-  assert.equal(moved.status, 0, moved.stderr);
-  box.git(box.repo, 'push', '-q', 'origin', 'main');
-  writeFileSync(callsFile, '');
-  const directory = join(box.repo, '.git', 'pullboard', 'source-advances');
-  const wakeFile = join(directory, 'wake.json');
-  const expectedGeneration = (readMainAudit(wakeFile)?.generation ?? 0) + 1;
-  run(box, box.repo, 'land', '--max', '1');
-  // The actual first landing must schedule this worker; no second nudge can consume its expected generation.
-  await helpers.waitFor(() => existsSync(entered), 'the actual new-policy source gate enters');
-  const liveOwner = readMainAudit(join(directory, 'owner.json'));
-  assert.ok(Number.isSafeInteger(liveOwner?.pid), 'the held source gate has a real native worker owner');
-  const enteredRoot = readFileSync(entered, 'utf8');
-  assert.ok(readdirSync(directory).filter(name => /^[a-f0-9]{64}\.json$/u.test(name))
-    .some(name => readMainAudit(join(directory, name))?.directory === enteredRoot), 'the held gate belongs to a recorded source job');
-  writeFileSync(released, 'released');
-  const sourceJob = await helpers.waitFor(() => { // Budget: 120s runaway ceiling for an actual detached native gate and closed wake.
-    const done = readMainAudit(join(directory, 'settled.json'));
-    if (existsSync(join(directory, 'owner.json')) || !(done?.generation >= expectedGeneration)) return false;
-    return readdirSync(directory).filter(name => /^[a-f0-9]{64}\.json$/u.test(name))
-      .map(name => readMainAudit(join(directory, name)))
-      .find(job => job.item === entries[0].id && job.state === 'advanced' && job.receiptIds?.length);
-  }, 'the genuine source-advance gate closes its expected generation', 120_000);
-  const finalGeneration = (readMainAudit(wakeFile)?.generation ?? 0) + 1;
-  run(box, box.repo, 'land', '--max', '1');
-  await closePolicySourceWake(box, helpers, finalGeneration);
-  const batches = readBoard(box, board => store.landingBatches(board).filter(batch => batch.state === 'landed'));
-  assert.equal(batches.length, 2);
-  const records = readFileSync(callsFile, 'utf8').trim().split(/\r?\n/u).map(line => JSON.parse(line));
-  const foreground = landingPolicyCalls(box, batches, records);
-  assert.deepEqual(foreground, [[], ['--new-policy']]);
-  const background = records.filter(record => !batches.some(batch => batch.root === record.cwd));
-  assert.ok(background.length > 0, 'at least one actual independent native gate was executed');
-  assert.throws(() => landingPolicyCalls(box, batches, [...records, background[0]]), /duplicate audit invocation/u);
-  assert.throws(() => landingPolicyCalls(box, batches, records.map(record => record === background[0] ? { ...record, args: [] } : record)), /accepted policy/u);
-  assert.throws(() => landingPolicyCalls(box, batches, [...records, { cwd: join(box.dir, 'unbound-source'), args: ['--new-policy'] }]), /unknown gate root/u);
-  await repairedPolicyControls(box, batches[0]);
-  t.diagnostic(JSON.stringify({ liveOwner, finalGeneration, foreground: foreground.length, independentlyBound: background.length,
-    expectedGeneration, items: entries.map(entry => entry.id), policyTip: batches[0].tip,
-    sourceJob: { item: sourceJob.item, state: sourceJob.state, head: sourceJob.head, tree: sourceJob.tree,
-      basis: sourceJob.basis, receiptIds: sourceJob.receiptIds } }));
 }

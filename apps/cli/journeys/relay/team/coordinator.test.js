@@ -18,7 +18,13 @@ import { resolve } from 'node:path';
 async function refusedCoordinatorAdd(device, lane, title, add = () => device.cli('add', lane, title)) {
   const since = new Date().toISOString();
   const added = await add();
-  assert.equal(added.code, 0, 'a linked board applies the move locally at once, then settles it with the relay');
+  // A computer that already knows the hold refuses at once; one with a stale board settles it with the relay later [#7939].
+  if (added.code !== 0) {
+    const refusal = added.document?.error ?? added.document;
+    assert.equal(refusal?.code, 'COORDINATOR_HELD', added.failure);
+    const message = refusal.message;
+    return { code: 'COORDINATOR_HELD', message };
+  }
   const status = await device.cli('status');
   assert.equal(status.code, 0, status.failure);
   const refused = (status.document.relay.outboxRefusals ?? []).filter(entry => entry.queuedAt >= since).at(-1);
@@ -29,14 +35,14 @@ async function refusedCoordinatorAdd(device, lane, title, add = () => device.cli
 test('one coordinator per board across machines [E19]', { timeout: relayWorkBudgetMs(12) }, async t => { // budget: hang ceiling for two linked devices' real CLI and relay round trips; not a speed target.
   const box = await relayClientFixture(t);
   await box.link();
-  const pairing = await box.cli('relay', 'pair');
+  const pairing = await box.cliLocal('relay', 'pair');
   const other = await box.otherDeviceJoin(pairing.document.code);
   /** A refusal's code and message as the CLI reports them. */
   const refusal = result => ({ code: result.document?.error?.code, message: String(result.document?.error?.message ?? '') });
 
   // The first device to act as coordinator holds it; the board keeps working there as it does today.
-  assert.equal((await box.cli('add', box.lane, 'Planned on the first machine')).code, 0, 'the first machine coordinates');
-  assert.equal((await box.cli('add', box.lane, 'Still planned on the first machine')).code, 0, 'the holder keeps coordinating');
+  assert.equal((await box.cliLocal('add', box.lane, 'Planned on the first machine')).code, 0, 'the first machine coordinates');
+  assert.equal((await box.cliLocal('add', box.lane, 'Still planned on the first machine')).code, 0, 'the holder keeps coordinating');
 
   // On one machine, the main checkout is held by one agent session at a time; takeover passes it between sessions.
   /** Run the first machine's real CLI from a named agent session. */
@@ -80,12 +86,12 @@ test('one coordinator per board across machines [E19]', { timeout: relayWorkBudg
 test('an agent session on a computer that does not hold the coordinator takes it over [E19]', { timeout: relayWorkBudgetMs(12) }, async t => { // budget: hang ceiling for two linked devices' real CLI and relay round trips; not a speed target.
   const box = await relayClientFixture(t);
   await box.link();
-  const pairing = await box.cli('relay', 'pair');
+  const pairing = await box.cliLocal('relay', 'pair');
   const other = await box.otherDeviceJoin(pairing.document.code);
   /** Run the second computer's real CLI from a named agent session. */
   const inSession = (...args) => relayFixtureChild(other.root, { ...other.env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: 'second-computer-session' },
     [resolve(import.meta.dirname, '../../../pullboard.js'), ...args, '--json']);
-  assert.equal((await box.cli('add', box.lane, 'Planned on the holding computer')).code, 0, 'the first computer holds the coordinator');
+  assert.equal((await box.cliLocal('add', box.lane, 'Planned on the holding computer')).code, 0, 'the first computer holds the coordinator');
   const held = await refusedCoordinatorAdd(other, box.lane, 'Planned before the takeover', () => inSession('add', box.lane, 'Planned before the takeover'));
   assert.match(held.message, /pullboard takeover/u, 'the refusal names the takeover');
   const taken = await inSession('takeover');

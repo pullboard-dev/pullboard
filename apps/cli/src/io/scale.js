@@ -35,7 +35,7 @@ const HOUR = 3_600_000;
  * Price per seat-hour by declared model, in budget units (one unit is one seat-hour of an unpriced seat).
  * Why: the budget is a daily spend, so an expensive model draws it down faster than a cheap one [C7].
  */
-export const MODEL_SEAT_HOUR_PRICE = Object.freeze(JSON.parse(readFileSync(new URL('../../data/seat-hour-prices.json', import.meta.url), 'utf8')));
+export const MODEL_SEAT_HOUR_PRICE = Object.freeze(JSON.parse(readFileSync(new URL('../../data/ceilings/seat-hour-prices.json', import.meta.url), 'utf8')));
 
 /**
  * What one seat-hour of a model costs against the budget; an unpriced or unknown model is charged one seat-hour,

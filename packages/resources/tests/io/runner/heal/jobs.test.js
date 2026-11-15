@@ -6,7 +6,7 @@ import { temporaryDirectory } from '../../../../../../apps/cli/tests/fixtures/bo
 import { DatabaseSync } from 'node:sqlite';
 import { healLeakedRunner } from '../../../../src/io/runner/heal.js';
 
-const HOST = 'coreyolson@192.168.1.51';
+const HOST = 'user@192.0.2.10';
 const row = { host: HOST, since: '2026-11-06T01:16:00.000Z', detail: 'TRANSPORT_UNVERIFIED' };
 const unhealthy = { healthy: false, step: 'worker readiness', reason: 'transport lost' };
 

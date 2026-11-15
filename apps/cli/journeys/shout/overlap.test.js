@@ -19,6 +19,7 @@ import {
   openSnapshotChrome,
   closeSnapshotChrome,
   press,
+  pressTab,
 } from '../../tests/fixtures/cockpit/harness.js';
 import { holdPriorShoutResponse } from '../../tests/fixtures/cockpit/barrier.mjs';
 
@@ -62,7 +63,7 @@ test('a delayed prior shout cannot clear a newer person answer [N26,H5,C7]', {
   assert.ok(executable, 'Chrome is required for this real-board regression');
   const box = machine();
   const demo = project(box, 'prior-shout-overlap');
-  box.run(demo.repo, 'shout', 'person', QUESTION, '--decision');
+  await box.inProcess(demo.repo, 'shout', 'person', QUESTION, '--decision');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-prior-shout-'));
   let chrome, barrier, captureArmed = false, capture = null, barrierCleanup = null;
@@ -72,19 +73,23 @@ test('a delayed prior shout cannot clear a newer person answer [N26,H5,C7]', {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor("innerWidth===375&&document.querySelector('#proj-list .pname')?.textContent==='prior-shout-overlap'");
-    await press(chrome, `document.querySelector(${JSON.stringify('[data-tab="shouts"]')})`);
+    await pressTab(chrome, 'shouts');
     await openShoutConversation(chrome);
     const armed = await armWitness(chrome);
     captureArmed = armed.armed === true;
     assert.ok(captureArmed, 'the native shout composer observer arms');
     barrier = await holdPriorShoutResponse(chrome, PRIOR);
 
-    const beginPrior = "(()=>{const to=document.querySelector('#shout-to'),field=document.querySelector('#shout-text');"
+    // Opening the conversation selects its pending question as an answer; the prior shout must be a plain one, so leave answer mode first.
+    const beginPrior = "(()=>{if(view.answering)answer(null);const to=document.querySelector('#shout-to'),field=document.querySelector('#shout-text');"
       + "to.value='web';to.dispatchEvent(new Event('input',{bubbles:true}));to.dispatchEvent(new Event('change',{bubbles:true}));"
       + "field.value=" + JSON.stringify(PRIOR) + ";field.dispatchEvent(new Event('input',{bubbles:true}));"
       + "field.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('#shout-form').requestSubmit();})()";
     await chrome.stable(beginPrior);
-    const held = await barrier.waitUntilHeld(10_000); // budget: the existing local browser-wait ceiling, not a speed target.
+    const held = await barrier.waitUntilHeld(10_000).catch(async (error) => {
+      t.diagnostic('prior-shout-not-held ' + JSON.stringify({ trace: barrier.trace, page: await Promise.race([chrome.stable("JSON.stringify((()=>{try{const g=(q)=>document.querySelector(q);return {consoleText:g('#console')?.textContent??null,consoleHidden:g('#console')?.hidden??null,to:g('#shout-to')?.value??null,text:g('#shout-text')?.value??null,tab:view.tab,thread:view.shoutThread??null,answering:view.answering?.id??null,acting:view.acting??null,formDisplay:g('#shout-form')?getComputedStyle(g('#shout-form')).display:null,formRect:g('#shout-form')?.getBoundingClientRect().height??null,inv:g('#shout-text')?.validity?.valid??null};}catch(e){return {err:String(e)};}})())"), new Promise((done) => setTimeout(() => done('page probe timed out'), 5000))]) }));
+      throw error;
+    }); // budget: the existing local browser-wait ceiling, not a speed target.
     await chrome.waitFor("document.querySelector('#feed')?.innerText.includes(" + JSON.stringify(PRIOR) + ")");
     const committed = await boardOf(view, demo.repo);
     assert.ok(committed.shouts.some((shout) => shout.shout_text === PRIOR), 'the real server committed the prior shout while its response was held');
@@ -93,6 +98,11 @@ test('a delayed prior shout cannot clear a newer person answer [N26,H5,C7]', {
     const selector = '#feed [data-go="decide:' + ask.shout_id + '"]';
     await chrome.waitFor('!!document.querySelector(' + JSON.stringify(selector) + ')');
     await press(chrome, `document.querySelector(${JSON.stringify(selector)})`);
+    // The open conversation's own press closes it; a second press opens it again with the question selected.
+    if (await chrome.stable("typeof view==='object'&&!view.answering")) {
+      await chrome.waitFor('!!document.querySelector(' + JSON.stringify(selector) + ')');
+      await press(chrome, `document.querySelector(${JSON.stringify(selector)})`);
+    }
     const fillAnswer = "(()=>{const field=document.querySelector('#shout-text');field.value=" + JSON.stringify(ANSWER)
       + ";field.dispatchEvent(new Event('input',{bubbles:true}));field.dispatchEvent(new Event('change',{bubbles:true}));})()";
     await chrome.stable(fillAnswer);
@@ -159,7 +169,7 @@ test('a delayed prior shout cannot turn a newer answer into a plain shout [N26,H
   const box = machine();
   const demo = project(box, 'prior-shout-mode-order');
   const answerText = 'Person answer after prior completion';
-  box.run(demo.repo, 'shout', 'person', QUESTION, '--decision');
+  await box.inProcess(demo.repo, 'shout', 'person', QUESTION, '--decision');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-prior-shout-mode-'));
   let chrome, barrier, captureArmed = false, capture = null, barrierCleanup = null;
@@ -169,19 +179,23 @@ test('a delayed prior shout cannot turn a newer answer into a plain shout [N26,H
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor("innerWidth===375&&document.querySelector('#proj-list .pname')?.textContent==='prior-shout-mode-order'");
-    await press(chrome, `document.querySelector(${JSON.stringify('[data-tab="shouts"]')})`);
+    await pressTab(chrome, 'shouts');
     await openShoutConversation(chrome);
     const armed = await armWitness(chrome);
     captureArmed = armed.armed === true;
     assert.ok(captureArmed, 'the native shout composer observer arms');
     barrier = await holdPriorShoutResponse(chrome, PRIOR);
 
-    const beginPrior = "(()=>{const to=document.querySelector('#shout-to'),field=document.querySelector('#shout-text');"
+    // Opening the conversation selects its pending question as an answer; the prior shout must be a plain one, so leave answer mode first.
+    const beginPrior = "(()=>{if(view.answering)answer(null);const to=document.querySelector('#shout-to'),field=document.querySelector('#shout-text');"
       + "to.value='web';to.dispatchEvent(new Event('input',{bubbles:true}));to.dispatchEvent(new Event('change',{bubbles:true}));"
       + "field.value=" + JSON.stringify(PRIOR) + ";field.dispatchEvent(new Event('input',{bubbles:true}));"
       + "field.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('#shout-form').requestSubmit();})()";
     await chrome.stable(beginPrior);
-    const held = await barrier.waitUntilHeld(10_000); // budget: the existing local browser-wait ceiling, not a speed target.
+    const held = await barrier.waitUntilHeld(10_000).catch(async (error) => {
+      t.diagnostic('prior-shout-not-held ' + JSON.stringify({ trace: barrier.trace, page: await chrome.stable("JSON.stringify({consoleText:document.querySelector('#console')?.textContent??null,consoleHidden:document.querySelector('#console')?.hidden??null,to:document.querySelector('#shout-to')?.value??null,text:document.querySelector('#shout-text')?.value??null,tab:view.tab,thread:view.shoutThread??null,answering:view.answering?.id??null,acting:view.acting??null,formDisplay:getComputedStyle(document.querySelector('#shout-form')).display,drawer:getComputedStyle(document.querySelector('#mdrawer')).display})").catch((e) => 'unreadable ' + e.message) }));
+      throw error;
+    }); // budget: the existing local browser-wait ceiling, not a speed target.
     await chrome.waitFor("document.querySelector('#feed')?.innerText.includes(" + JSON.stringify(PRIOR) + ")");
     const committed = await boardOf(view, demo.repo);
     const committedPrior = committed.shouts.find((shout) => shout.shout_text === PRIOR);
@@ -191,6 +205,11 @@ test('a delayed prior shout cannot turn a newer answer into a plain shout [N26,H
     const selector = '#feed [data-go="decide:' + ask.shout_id + '"]';
     await chrome.waitFor('!!document.querySelector(' + JSON.stringify(selector) + ')');
     await press(chrome, `document.querySelector(${JSON.stringify(selector)})`);
+    // The open conversation's own press closes it; a second press opens it again with the question selected.
+    if (await chrome.stable("typeof view==='object'&&!view.answering")) {
+      await chrome.waitFor('!!document.querySelector(' + JSON.stringify(selector) + ')');
+      await press(chrome, `document.querySelector(${JSON.stringify(selector)})`);
+    }
     const selected = JSON.parse(await chrome.stable("JSON.stringify({answerId:typeof view==='object'?(view.answering?.id??null):null,text:document.querySelector('#shout-text').value,to:document.querySelector('#shout-to').value})"));
     assert.equal(selected.answerId, ask.shout_id, 'the native journey selected the actual question before the prior response completes');
 

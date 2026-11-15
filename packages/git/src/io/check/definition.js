@@ -24,6 +24,7 @@ import { literalShellWords } from '../../../../kernel/light.js';
 import { blobOid } from './project-files.js';
 import { indexedFiles } from './project-files.js';
 import { repoInfo } from '../main.js';
+import { storeName } from '../store-names.js';
 
 const binaries = new Map();
 
@@ -47,7 +48,7 @@ function executable(root, word) {
 /** Resolve only literal local module files; directory/package loaders remain uncached rather than guessed. */
 function localModule(file, specifier) {
   const target = resolve(dirname(file), specifier);
-  const found = [target, `${target}.js`, `${target}.json`, `${target}.node`].find(candidate => {
+  const found = [target, `${target}.js`, `${storeName(target)}`, `${target}.node`].find(candidate => {
     try { return statSync(candidate).isFile(); } catch { return false; }
   });
   if (!found) throw new Error('checker module cannot be resolved literally');
@@ -80,6 +81,8 @@ export function scanImports(source, strict, size = contextWindow) {
     const call = /\b(?:require|import)\s*\(\s*$/u.test(prefix);
     if (!call && !/\b(?:from|import)\s*$/u.test(prefix)) continue;
     if (call) { calls++; if (/\brequire\s*\(\s*$/u.test(prefix)) requires++; }
+    // A literal that is only the head of a concatenated specifier names no file; a runner closure leaves that load out, a strict scan cannot vouch for it.
+    if (call && /^\s*\+/u.test(code.slice(value.end))) { if (strict) return null; continue; }
     if (value.text.includes('\\') || value.text.includes('${')) return null;
     if (isBuiltin(value.text)) {
       if (strict && /^(?:node:)?(?:module|vm|child_process)$/u.test(value.text)) return null;

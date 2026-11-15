@@ -61,7 +61,7 @@ import {
  * @param {boolean} helper - false for the caller's own seat (`next`); a helper's seat records its parent [N2,B13]
  * @returns {Promise<number>}
  */
-export async function worktreeFor(io, lane, route, family = null, model, helper = true, { reuseRoot = null } = {}) {
+export async function worktreeFor(io, lane, route, family = null, model, helper = true, { reuseRoot = null, lockLane = false } = {}) {
   const ctx = context(io);
   if (!lane || lane === COORDINATOR || !isLane(ctx.config, lane)) {
     throw new Refused('NO_LANE', `no lane "${lane ?? ''}"; lanes: ${laneNames(ctx.config).slice(1).join(', ') || 'none yet, declare them in pullboard.json'}`);
@@ -98,7 +98,7 @@ export async function worktreeFor(io, lane, route, family = null, model, helper 
   }
   const root = git(pathFor(n), ['rev-parse', '--show-toplevel']);
   let id;
-  try { id = await withBoard(ctx, async (board) => await ordered(ctx, board, 'register', [{ lane, path: root, route, family, model }])); }
+  try { id = await withBoard(ctx, async (board) => await ordered(ctx, board, 'register', [{ lane, path: root, route, family, model, ...(lockLane ? { lockLane: true } : {}) }])); }
   catch (error) {
     const registered = withBoard(ctx, (board) => store.agentAt(board, root));
     if (registered) {
@@ -124,7 +124,7 @@ export async function worktreeFor(io, lane, route, family = null, model, helper 
   const modelWord = shellWord(model);
   const prompt = `You are ${displayName}, in the ${lane} lane. Work only in ${shellWord(root)}, and start every command with ${cdTo(root)}\nModel: ${modelWord}. This worktree joined with --model ${modelWord}. For another worktree using the same model, pass --model ${modelWord} or set PULLBOARD_MODEL=${modelWord}; for a different agent, use that agent's actual model label.\nRead ${shellWord(join(root, 'AGENTS.md'))} first. Its rules govern this work, over any other repo's instructions you were given.`;
   io.result?.({ agent: id, lane, route, path: root, branch: `${lane}/${n}`, model, displayName, prompt });
-  io.say(`made ${root} on branch ${lane}/${n}, joined as ${displayName} in the ${lane} lane${route === 'light' ? ', on the light route' : ''}${family ? ` (family ${family})` : ''}`);
+  io.say(`made ${root} on branch ${lane}/${n}, joined as ${displayName} in the ${lane} lane${route === 'light' ? ', on the light route' : ''}${lockLane ? ', locked to it' : ''}${family ? ` (family ${family})` : ''}`);
   io.say(`Work only in that folder. A shell that starts each command in the main checkout acts as the coordinator there, so start every command with: ${cdTo(root)}`);
   const install = installStep(root);
   if (install) io.say(`  ${cdTo(root)} ${install.command}    (${install.note})`);
@@ -140,7 +140,7 @@ export async function worktreeFor(io, lane, route, family = null, model, helper 
 
 /** Run `pullboard worktree` and return its exit code. */
 export function run(io, { first, values }) {
-  return worktreeFor(io, first, values.route ?? 'strong', values.family ?? null, values.model);
+  return worktreeFor(io, first, values.route ?? 'strong', values.family ?? null, values.model, true, { lockLane: Boolean(values['lock-lane']) });
 }
 
 /** Remove only a clean parked worker; Git refuses dirty content, and unfinished native obligations are retained. */

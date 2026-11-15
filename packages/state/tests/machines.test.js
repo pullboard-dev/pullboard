@@ -47,27 +47,60 @@ function sources() {
   while (pending.length) {
     const directory = pending.pop();
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      if (entry.name === 'node_modules' || entry.name === 'tests') continue;
+      if (entry.name === 'node_modules' || entry.name === 'tests' || /\.test\.m?js$/u.test(entry.name)) continue;
       const path = join(directory, entry.name);
       if (entry.isDirectory()) pending.push(path);
       else if (entry.isFile() && /\.m?js$/u.test(entry.name)) found.push({ path: relative(ROOT, path).split(sep).join('/'), text: readFileSync(path, 'utf8') });
     }
   }
-  return found;
+  return found.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 }
 
 const SOURCES = sources();
 const ALL_TEXT = SOURCES.map(source => source.text).join('\n');
 
 /**
- * The string value of an exported constant, wherever it is declared.
+ * The import path a name is destructured from by a lazy import: `const { NAME } = await import('x')`, or one slot of
+ * `const [{ NAME }, { OTHER }] = await Promise.all([import('x'), import('y')])`.
+ *
+ * Why: a cell that loads its dependency lazily still creates jobs with a constant it does not declare.
  * @param {string} name
+ * @param {string} text
+ * @returns {RegExpExecArray | null} a match whose group 1 is the import path
+ */
+function lazyImport(name, text) {
+  const single = new RegExp(`\\{[^}]*\\b${name}\\b[^}]*\\} = await import\\('([^']+)'\\)`, 'u').exec(text);
+  if (single) return single;
+  const many = /const \[([^\]]*)\] = await Promise\.all\(\[([^\]]*)\]\)/gu;
+  for (const match of text.matchAll(many)) {
+    const slots = match[1].match(/\{[^}]*\}/gu) ?? [];
+    const paths = [...match[2].matchAll(/import\('([^']+)'\)/gu)];
+    const at = slots.findIndex(slot => new RegExp(`\\b${name}\\b`, 'u').test(slot));
+    if (at >= 0 && paths[at]) return /** @type {RegExpExecArray} */ ([paths[at][0], paths[at][1]]);
+  }
+  return null;
+}
+
+/**
+ * The string value of an exported constant as the given source sees it: declared in that file, or in the file it
+ * imports the name from.
+ *
+ * Why: several cells declare a constant of the same name with different values (LANDING_JOB_KIND), so the first
+ * declaration anywhere is not the one a creator uses.
+ * @param {string} name
+ * @param {{ path: string, text: string }} from
  * @returns {string}
  */
-function constant(name) {
-  const match = new RegExp(`export const ${name} = '([^']+)'`, 'u').exec(ALL_TEXT);
-  assert.ok(match, `the code declares the constant ${name}`);
-  return match[1];
+function constant(name, from) {
+  const declared = new RegExp(`(?:export )?const ${name} = '([^']+)'`, 'u');
+  const own = declared.exec(from.text);
+  if (own) return own[1];
+  const imported = new RegExp(`(?:import|export) \\{[^}]*\\b${name}\\b[^}]*\\} from ['"]([^'"]+)['"]`, 'u').exec(from.text) ?? lazyImport(name, from.text);
+  assert.ok(imported, `${from.path} declares or imports the constant ${name}`);
+  const target = relative(ROOT, join(ROOT, from.path, '..', imported[1])).split(sep).join('/');
+  const source = SOURCES.find(entry => entry.path === target || entry.path === `${target}.js` || entry.path === `${target}/index.js`);
+  assert.ok(source, `${from.path} imports ${name} from ${target}, which is a source file`);
+  return constant(name, source);
 }
 
 /**
@@ -108,15 +141,15 @@ test('every item status and declared move is in the map and the page, and every 
 test('every job kind and step the code writes is in the map and the page, and every mapped one is in the code [C7]', () => {
   const page = section();
   const kinds = new Set();
-  for (const { text } of SOURCES) {
-    for (const match of text.matchAll(/\b(?:createJob|keyedResult)\([^;]*?\bkind: *(?:'([^']+)'|([A-Z][A-Z0-9_]*))/gu)) kinds.add(match[1] ?? constant(match[2]));
+  for (const source of SOURCES) {
+    for (const match of source.text.matchAll(/\b(?:createJob|keyedResult|offerJob)\([^;]*?\bkind: *(?:'([^']+)'|([A-Z][A-Z0-9_]*))/gu)) kinds.add(match[1] ?? constant(match[2], source));
   }
   const mappedKinds = new Set(MAP.jobs.map(job => job.kind));
   assert.deepEqual([...mappedKinds].sort(), [...kinds].sort(), 'the map has one table per job kind the code creates');
   const states = new Set(MAP.jobs.flatMap(job => job.states));
   const steps = new Set([...PHASES, ...FINISH_STEPS]);
-  for (const { text } of SOURCES) {
-    for (const match of text.matchAll(/\bwriteStep\([^,()]+,[^,()]+, *(?:'([^']+)'|([A-Z][A-Z0-9_]*)\b)/gu)) steps.add(match[1] ?? constant(match[2]));
+  for (const source of SOURCES) {
+    for (const match of source.text.matchAll(/\bwriteStep\([^,()]+,[^,()]+, *(?:'([^']+)'|([A-Z][A-Z0-9_]*)\b)/gu)) steps.add(match[1] ?? constant(match[2], source));
   }
   const handoff = SOURCES.find(source => source.path === 'packages/store/src/io/submit/handoff/retry.js');
   for (const match of handoff.text.matchAll(/\bstate: '([a-z-]+)'/gu)) steps.add(match[1]);

@@ -48,3 +48,25 @@ export function newPackageCliReach(main, candidate) {
   const before = packageCliReach(main);
   return [...packageCliReach(candidate)].filter(([module]) => !before.has(module)).map(([module, path]) => ({ module, path }));
 }
+
+/**
+ * The modules a test closure reaches whose import the selection graph cannot read (a computed import, a CommonJS
+ * loader), present at the candidate but not on main, each with the number of test files that reach it. Why: one
+ * such module leaves every test that reaches it without a closure key, so landing reruns them all in silence (#5840).
+ *
+ * @param {{ unknown: Map<string, string> }} main - The selection graph at main.
+ * @param {{ unknown: Map<string, string>, reverse: Map<string, Iterable<string>> }} candidate - The graph at the candidate.
+ * @param {(path: string) => boolean} isTest - Whether a path is a test file with a closure of its own.
+ * @returns {{ module: string, reason: string, tests: number }[]}
+ */
+export function newKeylessImports(main, candidate, isTest) {
+  const rows = [];
+  for (const [module, reason] of [...candidate.unknown].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+    if (main.unknown.has(module)) continue;
+    const reached = new Set([module]);
+    for (const path of reached) for (const importer of candidate.reverse.get(path) ?? []) reached.add(importer);
+    const tests = [...reached].filter(isTest).length;
+    if (tests) rows.push({ module, reason, tests });
+  }
+  return rows;
+}

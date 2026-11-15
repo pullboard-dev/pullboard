@@ -240,28 +240,38 @@
     },
     {
       "order": 45,
-      "name": "app:view",
-      "file": "packages/codemap/data/plan/45-app-view.json"
+      "name": "search",
+      "file": "packages/codemap/data/plan/45-search.json"
     },
     {
       "order": 46,
-      "name": "app:runner",
-      "file": "packages/codemap/data/plan/46-app-runner.json"
+      "name": "board",
+      "file": "packages/codemap/data/plan/46-board.json"
     },
     {
       "order": 47,
-      "name": "app:cli",
-      "file": "packages/codemap/data/plan/47-app-cli.json"
+      "name": "app:view",
+      "file": "packages/codemap/data/plan/47-app-view.json"
     },
     {
       "order": 48,
-      "name": "app:lib",
-      "file": "packages/codemap/data/plan/48-app-lib.json"
+      "name": "app:runner",
+      "file": "packages/codemap/data/plan/48-app-runner.json"
     },
     {
       "order": 49,
+      "name": "app:cli",
+      "file": "packages/codemap/data/plan/49-app-cli.json"
+    },
+    {
+      "order": 50,
+      "name": "app:lib",
+      "file": "packages/codemap/data/plan/50-app-lib.json"
+    },
+    {
+      "order": 51,
       "name": "app:relay",
-      "file": "packages/codemap/data/plan/49-app-relay.json"
+      "file": "packages/codemap/data/plan/51-app-relay.json"
     }
   ],
   "stays": [
@@ -1801,6 +1811,38 @@
         "packages/gate/tests/io/check/baseline.test.js",
         "seed"
       ]
+    },
+    {
+      "cell": "landing",
+      "row": [
+        "src/landing-history-plan.js",
+        "packages/landing/src/io/history.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "src/documentation/events/submit-handoff.json",
+        "apps/cli/src/io/documentation/events/submit/handoff.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "src/documentation/events/submit_handoff_returned.json",
+        "apps/cli/src/io/documentation/events/submit_handoff_returned.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "landing",
+      "row": [
+        "src/main-failure-noise.js",
+        "packages/landing/src/logic/main/noise.js",
+        "imports"
+      ]
     }
   ],
   "entries": [
@@ -1810,10 +1852,6 @@
     },
     {
       "path": "bin/check-baseline.js",
-      "cell": "app:lib"
-    },
-    {
-      "path": "bin/landing-candidate.js",
       "cell": "app:lib"
     },
     {
@@ -1845,19 +1883,7 @@
       "cell": "app:cli"
     },
     {
-      "path": "bin/automatic-landing.js",
-      "cell": "app:cli"
-    },
-    {
       "path": "bin/main-red-refresh.js",
-      "cell": "app:cli"
-    },
-    {
-      "path": "bin/handoff-worker-dispatcher.js",
-      "cell": "app:lib"
-    },
-    {
-      "path": "bin/gate-drive-worker.js",
       "cell": "app:cli"
     }
   ],
@@ -2177,11 +2203,13 @@
   ],
   "allowedEdges": [
     "apps/cli->apps/relay",
+    "apps/cli->commits",
+    "apps/cli->moves",
+    "apps/cli->search",
+    "apps/cli->sandbox",
+    "sandbox->kernel",
     "apps/cli->state",
-    "apps/lib->apps/runner",
     "apps/lib->transport",
-    "(root)->gate",
-    "(root)->seats",
     "apps/cli->kernel",
     "gate->jobs",
     "drive->jobs",
@@ -2190,8 +2218,11 @@
     "resources->git",
     "codemap->git",
     "codemap->kernel",
+    "config->kernel",
     "gate->codemap",
     "runners->config",
+    "items->config",
+    "items->state",
     "runners->verify",
     "landing->verify",
     "verify->kernel",
@@ -2200,10 +2231,6 @@
     "runners->resources",
     "runners->transport",
     "activity->store",
-    "(root)->apps/cli",
-    "(root)->apps/lib",
-    "(root)->apps/view",
-    "(root)->sandbox",
     "apps/cli->doctrine",
     "apps/cli->gate",
     "apps/cli->seats",
@@ -2216,7 +2243,6 @@
     "api->git",
     "api->store",
     "apps/lib->store",
-    "apps/lib->apps/view",
     "blueprints->store",
     "doctrine->git",
     "doctrine->store",
@@ -2227,23 +2253,26 @@
     "gate->resources",
     "gate->drive",
     "gate->config",
+    "merge->config",
+    "rigor->config",
+    "spec->config",
     "gate->seats",
     "github->store",
     "items->git",
     "items->kernel",
-    "items->store",
     "items->queue",
     "queue->kernel",
     "api->jobs",
     "api->kernel",
-      "keys->store",
+    "keys->store",
+    "landing->gate",
     "landing->git",
     "landing->pin",
     "landing->store",
-    "landing->store/src",
     "apps/cli->apps/lib/src",
     "landing->resources",
     "landing->runners",
+    "landing->sandbox",
     "link->store",
     "merge->git",
     "outbox->store",
@@ -2256,12 +2285,12 @@
     "apps/cli->sentinels",
     "apps/cli->config",
     "apps/cli->resources",
-    "state->store",
-    "stats->store",
     "stats->jobs",
     "stats->resources",
     "apps/cli->stats",
     "apps/cli->queue",
+    "apps/cli->health",
+    "apps/cli->store",
     "sync->store",
     "apps/cli->kernel",
     "apps/cli->git",
@@ -2294,16 +2323,14 @@
     "commits->kernel",
     "sandbox->commits",
     "rigor->store",
-    "(root)->store",
     "spec->kernel",
     "gate->spec",
-    "(root)->doctrine",
-    "(root)->codemap",
-    "(root)->landing",
     "person->doctrine",
     "blueprints->doctrine",
     "health->doctrine",
     "rigor->doctrine",
+    "rigor->config",
+    "sentinels->config",
     "runners->doctrine",
     "apps/lib->doctrine",
     "store->items",
@@ -2317,6 +2344,27 @@
     "apps/relay->apps/lib",
     "apps/relay->outbox",
     "apps/relay->keys",
-    "apps/relay->seats"
+    "apps/relay->seats",
+    "search->store",
+    "board->git",
+    "board->items",
+    "board->jobs",
+    "board->kernel",
+    "board->moves",
+    "board->sandbox",
+    "board->seats",
+    "board->spec",
+    "board->state",
+    "board->store",
+    "board->verify",
+    "apps/lib->board"
+  ],
+  "upwardEdgesGrandfathered": [
+    "apps/cli->apps/relay",
+    "apps/cli->search",
+    "apps/cli->apps/lib",
+    "apps/cli->apps/lib/src",
+    "state->store",
+    "stats->store"
   ]
 }
