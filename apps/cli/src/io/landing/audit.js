@@ -35,5 +35,5 @@ if (cellsOnly) {
   try { await produceAcceptedCells(root, token, args[1]); }
   catch (error) { try { recordAcceptedCellsFailure(root, args[1], error); } catch { /* Preserve the producer failure. */ } throw error; }
 } else if (!wakeAt || await waitMainAudit(mainAuditDirectory(repoInfo(root)), token, wakeAt)) {
-  await runMainAudits(root, token, { scheduled, forceFull }, { workerUrl: new URL(import.meta.url), nativeBoard, openBoardForRead, executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, context, ordered, withBoard, testValue: { flakeLedger, eventCauses }, cellsBacklog: cellsBacklogCollector(root, acceptedCellsPorts), commandBudget: boardCommandBudgetCheck() });
+  await runMainAudits(root, token, { scheduled, forceFull }, { workerUrl: new URL(import.meta.url), nativeBoard, openBoardForRead, executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, context, ordered, withBoard, testValue: { flakeLedger, eventCauses }, cellsBacklog: cellsBacklogCollector(root, acceptedCellsPorts), commandBudget: boardCommandBudgetCheck(), commandBudgetOwnerPath: 'apps/cli/pullboard.js' });
 }

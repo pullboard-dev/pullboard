@@ -23,6 +23,8 @@ Name the cause when you send work back, so Rigor can read it. For example:
     pullboard verify <id> reject --reason TEST_FAILURE --note "what failed" --cause <key>
     pullboard reopen <id> --note "why" --cause <key>
 
+Copy the key exactly as `pullboard rigor` prints it, so the failure joins the same line.
+
 A reject or reopen without a cause still counts as a failure. Rigor just cannot read it, and the report says how many there are.
 
 ## How you use it
@@ -32,6 +34,10 @@ Start by looking at what has repeated:
     pullboard rigor
 
 Each line shows the cause, whether it reads as work, product or both, how often it failed, and which items it touched. A line that says "never again (the person)" is one the person has already decided on.
+
+The same report as one versioned document, for scripts:
+
+    pullboard rigor --json
 
 When a cause repeats, the board posts a notice to the coordinator with the next command. The coordinator then drafts the rule and proves it. The command takes a rule, a check, and two commits: one where the check fails, and one where it passes:
 

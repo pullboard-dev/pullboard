@@ -157,6 +157,7 @@ import {
 import {
   sandboxBlockedOperation,
 } from '../../../sandbox/index.js';
+import { storeName } from './store-names.js';
 const STAMP = 'pullboard-gate-green';
 const LOG = 'pullboard-gate.log';
 const LANDING_RUN_ENV = 'PULLBOARD_LANDING_RUN';
@@ -224,9 +225,9 @@ export function safeLog(output) {
 /** Run the unchanged caller command and profile only timings already present in its output.
  * @param {string} root
  * @param {string} command
- * @param {{ readOnlyGit?: boolean, waitMs?: number, artifactDirectory?: string, artifactPrefix?: string, persistLog?: boolean, profileFile?: string, pipefail?: boolean, gateSlotHeld?: boolean, gateLease?: object, landing?: boolean, collectAll?: boolean, stages?: boolean, timeoutMs?: number, waivers?: Array<{ kind: string, test: string }>, pinnedSource?: { head: string, tree: string } }} [options] - pinnedSource is the exact commit a runner runs in place of this checkout's HEAD.
+ * @param {{ readOnlyGit?: boolean, waitMs?: number, artifactDirectory?: string, artifactPrefix?: string, persistLog?: boolean, profileFile?: string, pipefail?: boolean, gateSlotHeld?: boolean, gateLease?: object, landing?: boolean, collectAll?: boolean, stages?: boolean, timeoutMs?: number, timedShell?: string, waivers?: Array<{ kind: string, test: string }>, pinnedSource?: { head: string, tree: string } }} [options] - pinnedSource is the exact commit a runner runs in place of this checkout's HEAD.
  */
-function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, artifactPrefix = 'pullboard-gate', persistLog = false, profileFile, pipefail = false, gateSlotHeld = false, gateLease, landing = false, collectAll = false, releaseRequest, stages = false, waivers = [], timeoutMs, auditCoverage = false, signal, pinnedSource, readOnlyGit = false } = {}) {
+function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, artifactPrefix = 'pullboard-gate', persistLog = false, profileFile, pipefail = false, gateSlotHeld = false, gateLease, landing = false, collectAll = false, releaseRequest, stages = false, waivers = [], timeoutMs, timedShell, auditCoverage = false, signal, pinnedSource, readOnlyGit = false } = {}) {
   const proofSource = gateLease?.proof || gateLease?.quarantines?.length ? proofSourceAt(root, null, committedTree) : null;
   // A pinned runner source is the exact commit the runner received, never this checkout's HEAD [C7,#3323].
   const timingSourceBefore = stages ? pinnedSource ?? timingSourceForReceipt(root) : null;
@@ -262,7 +263,7 @@ function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, arti
     remoteOptions: gateLease?.runner ? { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline, runnerStartupMs: gateLease.runnerStartupMs, signal,
     browser: gateLease.browser, byLaunch: gateLease.browserByLaunch, pipefail, stages, waivers: landing ? continuation : [], metadata: { ...(gateLease.runMetadata ?? {}), landing, auditCoverage,
       testStage: inherited.PULLBOARD_TEST_STAGE, timingRunId: id, ...(timeoutMs ? { timeoutMs } : {}) } } : null,
-    localOptions: { pipefail, env: inherited, stages, timeoutMs, captureRuntimes: Boolean(gateLease), signal } };
+    localOptions: { pipefail, env: inherited, stages, timeoutMs, ...(timedShell ? { timedShell } : {}), captureRuntimes: Boolean(gateLease), signal } };
   gateLease?.tracker?.mark('ranAt');
   if (gateLease) {
     gateLease.environment = run.environment ?? null;
@@ -371,7 +372,7 @@ function leaveProofReceipt(root, command, run, before, context, lease, observedC
         ...(Array.isArray(run.shards) ? { shards: run.shards } : {}) } });
     if (!receipt) return null;
     mkdirSync(store, { recursive: true, mode: 0o700 });
-    writeFileSync(join(store, `${receipt.id}.json`), receiptBody(receipt), { flag: 'wx', mode: 0o600 });
+    writeFileSync(join(store, storeName(receipt.id)), receiptBody(receipt), { flag: 'wx', mode: 0o600 });
     retainTestValueTimings(store, receipt.id, testValueProfile(root, run));
     if (lease) {
       lease.proofReceiptIds ??= [];
@@ -683,17 +684,17 @@ function leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditF
       ...(releaseRequest ? { participationDigest: releaseParticipationDigest(run.releaseParticipation) } : {}) });
     if (!receipt) return null;
     mkdirSync(store, { recursive: true, mode: 0o700 });
-    writeFileSync(join(store, `${receipt.id}.json`), receiptBody(receipt), { flag: 'wx', mode: 0o600 });
+    writeFileSync(join(store, storeName(receipt.id)), receiptBody(receipt), { flag: 'wx', mode: 0o600 });
     if (!run.proofReceiptId) retainTestValueTimings(store, receipt.id, testValueProfile(root, run));
     return receipt.id;
   } catch { return null; }
 }
 
 /** Run a full gate while its caller owns the queue lease; only a full run may stamp its tree. */
-function* fullGateExecution(root, config, trustStamp = false, { waitMs = 0, log = gitPath(root, LOG), gateLease, landing = false, collectAll = false, auditBatchId, auditFiles, auditCoverage = false, releaseRequest, releaseStartedAt, stages = false, waivers = [], kind = 'gate', signal } = {}) {
+function* fullGateExecution(root, config, trustStamp = false, { waitMs = 0, log = gitPath(root, LOG), gateLease, landing = false, collectAll = false, auditBatchId, auditFiles, auditCoverage = false, releaseRequest, releaseStartedAt, stages = false, waivers = [], kind = 'gate', signal, timedShell } = {}) {
   if (trustStamp && !config[VALUE_GATE] && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
   const before = committedTree(root);
-  const run = yield [root, config.gate, { waitMs, pipefail: true, profileFile: `${log}.profile.json`, gateLease, landing, collectAll, releaseRequest, stages, waivers, auditCoverage, timeoutMs: landing ? config.landing?.timeoutMs : undefined, signal }];
+  const run = yield [root, config.gate, { waitMs, pipefail: true, profileFile: `${log}.profile.json`, gateLease, landing, collectAll, releaseRequest, stages, waivers, auditCoverage, timeoutMs: landing ? config.landing?.timeoutMs : undefined, timedShell, signal }];
   const { isGreen, output, seconds, profile, profilePath } = run;
   writeFileSync(log, output);
   // The environment refusing a run says nothing about the gate, so only a real result is recorded (U41).

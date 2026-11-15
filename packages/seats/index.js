@@ -59,6 +59,7 @@ export {
   stampCoordinatorHolder,
   coordinatorHolder,
   requireCoordinatorHold,
+  requireKnownCoordinatorHold,
   takeCoordinator,
 } from './src/io/hold.js';
 export {
@@ -89,7 +90,6 @@ export {
   waitedOnItems,
   reviewerScarcity,
   lineBuildOrder,
-  barReadyForOrder,
 } from './src/io/order.js';
 export {
   lineSettingsCommand,

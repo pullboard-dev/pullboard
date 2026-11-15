@@ -23,6 +23,7 @@ import { SCHEMA_VERSION } from '../../../../../packages/store/index.js';
 import { boardStanding } from '../../../../../packages/store/index.js';
 import { recordSchemaStamp } from '../../../../../packages/store/index.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
+import { waitForCondition } from '../../../tests/fixtures/runner/holders.js';
 import { runFixtureChild } from '../../../tests/fixtures/child.js';
 import { exportBoard } from '../../../../../packages/store/index.js';
 import { importBoard } from '../../../../../packages/store/index.js';
@@ -36,9 +37,16 @@ import { ENGINE_VERSION } from '../../../../../packages/state/index.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
+/** Open the board file the way the store does: a live pulled gate job writes it, so a raw handle waits out a lock instead of failing at once [C7]. */
+function openRawBoard(file, options = {}) {
+  const db = new DatabaseSync(file, options);
+  db.exec('PRAGMA busy_timeout = 30000');
+  return db;
+}
+
 /** Install and stamp the real previous declaration in a private fixture, without changing its data version. */
 function olderDeclaration(file, stamp = true) {
-  const db = new DatabaseSync(file);
+  const db = openRawBoard(file);
   try {
     const old = storeTriggers({ ...MACHINE, moves: MACHINE.moves.filter(move => move.verb !== 'submit-merge') })
       .find(trigger => trigger.name === 'machine_item_move');
@@ -50,7 +58,7 @@ function olderDeclaration(file, stamp = true) {
 
 /** Read persistent shape and native evidence without invoking a writable opener. */
 function observe(file) {
-  const db = new DatabaseSync(file, { readOnly: true });
+  const db = openRawBoard(file, { readOnly: true });
   try {
     return {
       standing: boardStanding(db, SCHEMA_DIGEST, SCHEMA_VERSION),
@@ -143,6 +151,9 @@ test('a stamped pre-carry board upgrades on main open and completes a native mer
   await succeeds(box, box.web, 'claim', String(id));
   const accepted = choice(box, box.web, 'accepted');
   await succeeds(box, box.web, 'submit', String(id));
+  // A pulled submit returns queued; the item is submitted only once the gate job's receipt lands, so wait on the item itself [P7,C7].
+  const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  await waitForCondition(() => observe(file).items.find(row => row.item_id === id)?.item_status === 'submitted', `the pulled gate submits #${id}`, { signal: AbortSignal.timeout(150_000) });
   box.git(box.repo, 'switch', '-q', '--detach', accepted);
   try { await succeeds(box, box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'checked the accepted choice'); }
   finally { box.git(box.repo, 'switch', '-q', 'main'); }
@@ -151,7 +162,6 @@ test('a stamped pre-carry board upgrades on main open and completes a native mer
   await succeeds(box, box.web, 'claim', String(id));
   assert.notEqual(box.tryGit(box.web, 'merge', '-q', '--no-edit', 'main').status, 0);
   const head = choice(box, box.web, 'resolved');
-  const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   olderDeclaration(file);
   const before = observe(file);
   await succeeds(box, box.repo, 'status');
@@ -170,7 +180,9 @@ test('a stamped pre-carry board upgrades on main open and completes a native mer
   assert.equal(opened.status, 0, opened.stderr + opened.stdout);
   assert.ok(observe(file).schema.find(row => row.name === 'machine_item_move').sql.includes("'claimed>verified'"));
   await succeeds(box, box.web, 'submit', String(id));
-  const db = new DatabaseSync(file, { readOnly: true });
+  // The carry completes with the pulled gate job's receipt, which can land just after the settled command returns [P7,C7].
+  await waitForCondition(() => observe(file).items.find(row => row.item_id === id)?.item_status === 'verified', `the pulled gate carries #${id}`, { signal: AbortSignal.timeout(150_000) });
+  const db = openRawBoard(file, { readOnly: true });
   try {
     const item = db.prepare('SELECT * FROM item WHERE item_id=?').get(id);
     assert.equal(item.item_status, 'verified');

@@ -1,6 +1,6 @@
 /** Board health reports, doctor checks and stale-state capture behind one front door [C7,CD60,CD64]. */
 export { doctrineProblems, doctorProblems } from './src/io/doctor.js';
-export { HEALTH_DEFAULTS, healthThresholds, boardHealth, healthReport, itemHistory, conflictFiles, healthLines } from './src/io/main.js';
+export { HEALTH_DEFAULTS, healthThresholds, boardHealth, healthReport, itemHistory, conflictFiles, healthLines, releaseFlow } from './src/io/main.js';
 export { flowWhy } from './src/logic/flow.js';
 export { releaseBlockingItems } from './src/logic/stale/state/blockers.js';
 export { captureStaleState } from './src/io/stale/state/capture.js';

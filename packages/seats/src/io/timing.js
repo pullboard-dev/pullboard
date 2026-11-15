@@ -40,15 +40,19 @@ export function timingSeat(cwd) {
     try {
       // The seat registered at this exact path is found by index; only a moved or aliased path reads every seat.
       const exact = db.prepare('SELECT agent_id, agent_path FROM agent WHERE agent_path=?').get(root);
+      // An item folder is never a registered seat path: its marker names the seat, so the scan of every seat is skipped (#3847).
+      const early = exact ? null : itemMarker(gitDir);
+      const named = early && db.prepare('SELECT agent_id FROM agent WHERE agent_id=?').get(early.seat);
+      if (named) return { seat: named.agent_id, item: early.item, file: join(common, 'pullboard', 'seat-timing.jsonl'), board: file };
       const rows = exact ? [exact] : db.prepare('SELECT agent_id, agent_path FROM agent').all();
       const found = rows.find(row => { if (typeof row.agent_path !== 'string') return false; try { return realpathSync(row.agent_path) === realpathSync(root); } catch { return resolve(row.agent_path) === resolve(root); } });
       // An item folder names its seat and item in its private marker, so its commit hooks time under that seat (#5719).
       const marker = found ? null : itemMarker(gitDir);
       const seat = found ?? (marker && db.prepare('SELECT agent_id FROM agent WHERE agent_id=?').get(marker.seat));
       if (!seat) return null;
-      if (marker) return { seat: seat.agent_id, item: marker.item, file: join(common, 'pullboard', 'seat-timing.jsonl') };
+      if (marker) return { seat: seat.agent_id, item: marker.item, file: join(common, 'pullboard', 'seat-timing.jsonl'), board: file };
       const item = db.prepare("SELECT item_id FROM item WHERE item_owner=? AND item_status='claimed' ORDER BY item_id LIMIT 1").get(seat.agent_id)?.item_id ?? null;
-      return { seat: seat.agent_id, item, file: join(common, 'pullboard', 'seat-timing.jsonl') };
+      return { seat: seat.agent_id, item, file: join(common, 'pullboard', 'seat-timing.jsonl'), board: file };
     } finally { db.close(); }
   } catch { return null; }
 }

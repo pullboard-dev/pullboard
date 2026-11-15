@@ -43,7 +43,7 @@ function dayOf(ms) {
 export function appendGateSpan(folder, line) {
   const end = Date.parse(line.end);
   mkdirSync(folder, { recursive: true, mode: 0o700 });
-  const file = join(folder, `${dayOf(end)}.jsonl`);
+  const file = join(folder, dayOf(end) + '.jsonl');
   const fresh = !existsSync(file);
   appendFileSync(file, JSON.stringify(line) + '\n', { mode: 0o600 });
   if (!fresh) return;

@@ -161,6 +161,7 @@ test('a repo without package.json is told a gate that fits it [C7,B26]', async (
   assert.equal(existsSync(join(root, 'package.json')), false, 'the newcomer repo has no package manifest');
   assert.equal(existsSync(marker), false, 'init does not execute a project command it has not detected');
   assert.match(initialized.out, /ask the person which command tests this project/u);
+  assert.match(initialized.out, /pullboard gate set '<command>'/u);
   const initializedGate = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8')).gate;
   const pending = await box.runLocal(root, 'resume', '--diagnostics', '--json');
   assert.equal(pending.code, 0, pending.err || pending.out);
@@ -171,6 +172,9 @@ test('a repo without package.json is told a gate that fits it [C7,B26]', async (
   const config = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8'));
   config.gate = '';
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify(config, null, 2));
+  // lane add refuses NO_POLICY until main has a first commit [C7].
+  box.git(root, 'add', '-A');
+  box.git(root, 'commit', '-q', '-m', 'chore: initialize the no-manifest board');
   const lane = await box.runLocal(root, 'lane', 'add', 'app', '--owns', 'app/');
   assert.equal(lane.code, 0, lane.err || lane.out);
   box.git(root, 'add', '-A');
@@ -223,7 +227,7 @@ test('a repo without package.json is told a gate that fits it [C7,B26]', async (
   box.git(root, 'worktree', 'add', '-q', '-b', 'app/chosen', configuredWorktree, 'main');
   // 1388ce262a: an item frozen under the empty gate refuses its claim once the gate policy changes, so the chosen gate gets a fresh item.
   const refiled = fixtureAdd(box.run, root, 'app', 'Chosen-gate newcomer change',
-    '--criterion', 'the result file is present', '--check', 'test -f app/result.txt', '--json');
+    '--criterion', 'the result file is present', '--check', 'test -f app/result.txt', '--not-duplicate-of', `${id} refiled under the chosen gate`, '--json');
   assert.equal(refiled.code, 0, refiled.err || refiled.out);
   const configuredId = String(JSON.parse(refiled.out).item.item_id);
   const configuredJoin = fixtureJoin(box.run, configuredWorktree, 'app', '--route', 'strong');
@@ -437,5 +441,27 @@ test('NO_GATE finds test anywhere in literal Makefile target lists [C3,I1,B26]',
     const gated = await box.runLocal(root, 'gate', '--json');
     assert.equal(JSON.parse(gated.out).green, !target, rule);
     assert.equal(existsSync(marker), target, 'only running a real project gate executes its test recipe');
+  }
+});
+
+test('init joins one gate per detected language and protects each language\'s test files [C7,B26,#3707]', async () => {
+  const box = e2e.sandbox();
+  const root = join(box.dir, 'mixed-languages');
+  mkdirSync(root);
+  box.git(root, 'init', '-q', '-b', 'main');
+  writeFileSync(join(root, 'composer.json'), '{}\n');
+  writeFileSync(join(root, 'mix.exs'), '# mix\n');
+  writeFileSync(join(root, 'App.csproj'), '<Project/>\n');
+  writeFileSync(join(root, 'CMakeLists.txt'), 'project(app)\n');
+  writeFileSync(join(root, 'go.mod'), 'module app\n');
+  writeFileSync(join(root, 'pytest.ini'), '[pytest]\n');
+  assert.equal((await box.runLocal(root, 'init')).code, 0);
+  const config = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8'));
+  assert.equal(config.gate, [
+    'go test ./...', 'pytest', 'composer test', 'mix test', 'dotnet test',
+    'cmake -S . -B build && cmake --build build && ctest --test-dir build',
+  ].join(' && '));
+  for (const glob of ['**/*_test.go', '**/test_*.py', '**/*Test.php', '**/*_test.exs', '**/*Tests.cs', '**/*.test.js']) {
+    assert.ok(config.claim.barTestFiles.includes(glob), `${glob} is a protected test glob`);
   }
 });

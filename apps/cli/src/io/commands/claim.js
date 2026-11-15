@@ -16,6 +16,7 @@ import { outsideBuildProblem } from '../../../../../packages/items/index.js';
 import { sayMapSlice } from '../../../../../packages/codemap/index.js';
 import { primaryCheckoutRoot } from '../worktree.js';
 import { requireNoCoordinatorPath } from './add.js';
+import { onTrunk } from '../item/bar.js';
 import { refuseClaimMissingPaths } from '../item/bar.js';
 import { cleanItemFolders } from '../item/folder.js';
 import { claimFolderRefusal } from '../item/folder.js';
@@ -44,7 +45,7 @@ export async function run(io, { first }) {
   // A path missing from main is named before ownership: no lane can build a path that no longer exists (#5709).
   if (filed && !outsideBuildProblem(board, filed)) await refuseClaimMissingPaths(ctx, board, id);
   if (filed && !outsideBuildProblem(board, filed)) requireNoCoordinatorPath(ctx.config, me, { lane: filed.item_lane, title: filed.item_title, criterion: filed.item_criterion,
-    check: filed.item_check, brief: filed.item_brief });
+    check: filed.item_check, brief: filed.item_brief }, { present: onTrunk(ctx.info.root) });
   // A folder problem refuses here, before the move; another seat's live claim is left for the move to refuse (#5766).
   const heldElsewhere = filed && filed.item_owner !== me.id && isHeld(board, filed);
   if (filed && filed.item_lane === me.lane && !heldElsewhere) {

@@ -51,3 +51,16 @@ test('#5919 clause 1: a pulled job whose serve set its worker share spreads its 
   assert.equal(testConcurrency(project(t), executionCores({ [PULLED_JOB_ENV]: '1', [JOB_WORKERS_ENV]: '3' })).files, 3);
   assert.equal(isolateTestMachine({ [JOB_WORKERS_ENV]: '3' }, project(t))[JOB_WORKERS_ENV], undefined, 'a test process never inherits the share');
 });
+
+test('#6753 clause 1: reading the settings twice spawns sysctl at most once per process [C7]', async t => {
+  const root = project(t);
+  const fresh = await import(`../../../src/io/test/concurrency.js?fresh=${process.pid}`);
+  let spawns = 0;
+  const spawn = () => { spawns += 1; return { status: 0, stdout: '4\n' }; };
+  const first = fresh.performanceCores(spawn);
+  const second = fresh.performanceCores(spawn);
+  assert.equal(first, second);
+  assert.equal(spawns, process.platform === 'darwin' ? 1 : 0);
+  assert.equal(fresh.testConcurrency(root).files, first);
+  assert.equal(spawns, process.platform === 'darwin' ? 1 : 0);
+});

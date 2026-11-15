@@ -1,4 +1,4 @@
-import { COORDINATOR } from '../../../../../../config/index.js';
+import { COORDINATOR } from '../../../../../../config/light.js';
 import { Refused } from '../../../../../../kernel/light.js';
 
 /** Replace the coordinator's train request with the prepared landing it seals [H16]. */

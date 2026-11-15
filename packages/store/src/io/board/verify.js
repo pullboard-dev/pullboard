@@ -1,4 +1,6 @@
 import { REJECT_OPEN_ENGINE } from '../../../../state/index.js';
+import { LANDED_VERDICT_ENGINE } from '../../../../state/index.js';
+import { setItem } from "../board.js";
 import { rejectionReturnEnabled } from '../../logic/rework.js';
 import { finishVerdict } from "../../../../verify/index.js";
 import { rejectionClauseDetail } from "../../../../verify/index.js";
@@ -6,10 +8,14 @@ import { rejectionClauseProblem } from "../../../../verify/index.js";
 import { requireSourceAdvanceReview } from "../../../../verify/index.js";
 import { SOURCE_ADVANCE_ENGINE } from "../../../../state/light.js";
 import { itemPatchReviewProblem } from "../../../../items/index.js";
+import { vendorOfModel } from "../../../../items/index.js";
+import { familyName } from "../../../../verify/index.js";
+import { seatFamily } from "../../../../verify/index.js";
 import { outsideSandboxProblem } from "../../../../items/index.js";
 import { outsideSource } from "../../../../items/index.js";
 import { saveOutsideSource } from "../../../../items/index.js";
 import { current } from "./query.js";
+import { events } from "./query.js";
 import { getItem } from "./query.js";
 import { listItems } from "./query.js";
 import { requireKnownMainReworks } from '../../logic/known/main/reworks.js';
@@ -49,6 +55,25 @@ import { ROUTE_CALIBRATION_ENGINE } from "../../../../state/light.js";
 import { listAgents } from './query.js';
 import { measureBoardWritePhase } from './write/lock.js';
 import { endReviewLease } from './review/lease.js';
+
+/**
+ * The item with its builder family read from its claim events when it never recorded a builder or a family.
+ * Why: forced landings leave item_built_by empty, so verify.family require could not tell the builder's family and
+ * refused every reviewer. A reviewer whose family is among the claimers' families is checked against that family, so the
+ * same-family refusal holds; otherwise any claimer's family stands in [V1].
+ */
+function withClaimedBuilderFamily(board, item, agentId) {
+  if (item.item_built_by || String(item.item_builder_family ?? '').trim()) return item;
+  const families = [];
+  for (const event of events(board, { itemId: item.item_id })) {
+    if (event.event_kind !== 'claim') continue;
+    const family = vendorOfModel(JSON.parse(event.event_detail || '{}').model);
+    if (family && !families.includes(family)) families.push(family);
+  }
+  const reviewer = familyName(seatFamily(board, agentId));
+  const family = families.includes(reviewer) ? reviewer : families[0];
+  return family ? { ...item, item_builder_family: family } : item;
+}
 
 /**
  * The evidence a verdict names: known-main failures and a quarantine proof. With `enforce` false the slow reads (every item,
@@ -93,12 +118,13 @@ export function verdictEvidence(board, id, { agentId, isAccept, engine, review, 
  * @param {{ agentId: string, decision: string, reason?: string, note?: string, cause?: string, clause?: string, head: string, digest: string, policy: string, familyPolicy?: string, check?: 'none' | 'green', review?: {commit: string, head?: string, trunk: string, paths: string[]}, implies?: number[], impliesId?: string }} verdict - implies: items this verdict changes (B29)
  * @returns {{ decision: string, reason: string, check?: 'none' | 'green' }}
  */
-export function verify(board, id, { agentId, decision, reason, note = '', cause, clause, head, digest, policy, familyPolicy = 'off', check, review, companionDigest, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox, sourceAdvanceHead, quarantineProofId, knownMainFailures, prechecked = false }) {
+export function verify(board, id, { agentId, decision, reason, note = '', cause, clause, head, digest, policy, familyPolicy = 'off', landed, check, review, companionDigest, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox, sourceAdvanceHead, quarantineProofId, knownMainFailures, prechecked = false }) {
   const verb = { ACCEPT: 'accept', REJECT: 'reject' }[decision];
   if (!verb) throw new Refused('BAD_DECISION', 'the decision is accept or reject');
   const isAccept = verb === 'accept';
   const code = isAccept ? ACCEPT_REASON : reason;
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
+  if (landed === true) return landedVerdict(board, id, { agentId, isAccept, decision, code, reason, note, policy, familyPolicy, engine });
   if (sourceAdvanceHead !== undefined && engine < SOURCE_ADVANCE_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade before binding a verdict to an automatically advanced source');
   board.nativePorts.landingEnvironment.requireVerdict(board, environment);
   const declaration = MOVES.find(move => move.verb === verb);
@@ -171,5 +197,39 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
     if (!isAccept) postRigorNotices(board, trigger);
     return { decision, reason: code, ...(isAccept && check !== undefined ? { check } : {}),
       ...(clauseDetail.clause ? { clause: clauseDetail.clause, held: Boolean(itemHold(board, id)) } : {}) };
+  });
+}
+
+/**
+ * Record a verdict on an item a forced merge landed around the gate with no review (V1).
+ * An accept is recorded as a verdict and the landing stays: the item keeps its status and merged commit.
+ * Why: hand landings had no second look, and verify refused them as not submitted [V1,H16].
+ *
+ * @param {any} board
+ * @param {number} id
+ * @param {{ agentId: string, isAccept: boolean, decision: string, code: string, reason?: string, note: string, policy: string, familyPolicy: string, engine: number }} verdict
+ * @returns {{ decision: string, reason: string }}
+ */
+function landedVerdict(board, id, { agentId, isAccept, decision, code, reason, note, policy, familyPolicy, engine }) {
+  if (engine < LANDED_VERDICT_ENGINE) throw new Refused('ENGINE_VERSION', `a verdict on a forced landing requires engine ${LANDED_VERDICT_ENGINE}; upgrade Pullboard before recording one`);
+  if (!isAccept) throw new Refused('NOT_SUBMITTED', `item #${id} already landed; only an accept is recorded on a forced landing`);
+  const suppliedNote = note.trim();
+  return atomic(board, () => {
+    const found = getItem(board, id);
+    const forced = found && found.item_merged_commit && found.item_status === 'withdrawn'
+      && events(board, { itemId: id }).some(event => event.event_kind === 'merged' && JSON.parse(event.event_detail || '{}').forced === true);
+    if (!forced) throw new Refused('NOT_LANDED', `item #${id} is ${found?.item_status}, not landed by a forced merge: pullboard show ${id}`);
+    const checks = reviewerChecks(board, { agentId, policy, familyPolicy });
+    const judged = withClaimedBuilderFamily(board, found, agentId);
+    for (const guard of ['notBuilder', 'routeAllows', 'policyAllows', 'requiredReviewFamily', 'familyAllows', 'reviewFree']) {
+      const refusal = checks[guard](judged);
+      if (refusal) throw refusal;
+    }
+    if (reason && reason !== ACCEPT_REASON) throw new Refused('BAD_REASON', `accept means ${ACCEPT_REASON}; a failed criterion is a reject`);
+    if (!suppliedNote) throw new Refused('PROOF_REQUIRED', 'an accept says how you proved it: --note "what you broke or which edge you tried, and what happened"; passing tests alone are not proof');
+    recordVerdict(board, { ...found, item_commit: found.item_commit ?? found.item_merged_commit }, { agentId, decision, reason: code, note, digest: found.item_frozen_digest ?? '', head: found.item_merged_commit });
+    setItem(board, id, { item_verdict: decision, item_verified_by: agentId });
+    logEvent(board, agentId, 'verify', id, { reason: code, commit: found.item_merged_commit, landed: true, note: suppliedNote });
+    return { decision, reason: code };
   });
 }

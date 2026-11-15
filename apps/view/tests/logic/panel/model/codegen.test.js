@@ -7,6 +7,8 @@ import { pageRenderScript } from '../../../../index.js';
 test('page renderer embeds the pure Agents model and HTML renderer as parseable script [N26]', () => {
   const source = pageRenderScript();
   assert.match(source, /const agentsPanelModel = \(/u);
+  assert.match(source, /const shoutsModel = \(/u);
+  assert.match(source, /const shoutsHtml = \(/u);
   assert.match(source, /const agentsPanelHtml = \(/u);
   new vm.Script(source, { filename: 'generated-page-render.js' });
 });

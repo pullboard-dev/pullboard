@@ -7,8 +7,8 @@ import { REVIEW_ROUTING_ENGINE } from '../../../../state/light.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from '../../../../state/light.js';
 import { Refused } from '../../../../kernel/light.js';
 
-import { familyName } from '../../../../items/light.js';
-export { familyIndex, aliasEngineOn, familyAliasesOf, familiesDiffer, familyName } from '../../../../items/light.js';
+import { familyName } from '../../../../items/browser.js';
+export { familyIndex, aliasEngineOn, familyAliasesOf, familiesDiffer, familyName } from '../../../../items/browser.js';
 
 /** Read policy from native snapshot metadata; damaged policy cannot silently downgrade a strict item. */
 export function itemReviewPolicy(board, id) {

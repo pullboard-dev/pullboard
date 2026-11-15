@@ -2,14 +2,11 @@
 import {
   execFileSync,
 } from 'node:child_process';
+import { scratchFolder } from '../../../../config/index.js';
 import {
-  mkdtempSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import {
-  tmpdir,
-} from 'node:os';
 import {
   join,
 } from 'node:path';
@@ -74,7 +71,7 @@ function api(path, { archive = false } = {}) {
 /** Read one bounded ZIP member to stdout only; no path from the archive is extracted to disk. */
 export function unpackReleaseReceipt(bytes) {
   requireValue(Buffer.isBuffer(bytes) && bytes.length > 0 && bytes.length <= MAX_ARCHIVE, 'invalid release artifact archive size');
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-release-artifact-'));
+  const directory = scratchFolder('pullboard-release-artifact-');
   try {
     const file = join(directory, 'artifact.zip');
     writeFileSync(file, bytes, { mode: 0o600, flag: 'wx' });

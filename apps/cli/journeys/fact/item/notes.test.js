@@ -11,6 +11,7 @@ import {
 } from 'node:test';
 import * as store from "../../../../../packages/store/src/io/board.js";
 import { createE2eHelpers } from "../../../tests/fixtures/e2e.js";
+import { waitForState } from "../../../tests/fixtures/check-baseline.js";
 import { onBoard } from "../../../tests/fixtures/land/board.js";
 
 const helpers = createE2eHelpers();
@@ -79,7 +80,7 @@ test('typed notes on an item reach its agents and stay off the board-wide feed [
   ].join('\n'));
   const ran = await command(box, box.web, 'run', '--agent-strong', `"${process.execPath}" "${script}"`,
     '--attempts', '1', '--items', '1');
-  assert.match(ran.out, new RegExp(`submitted #${id}`));
+  assert.match(ran.out, new RegExp(`#${id} is in the gate`));
   const pack = readFileSync(captured, 'utf8');
   for (const fact of notes) {
     assert.ok(pack.includes(fact.text), `${fact.kind} text reaches the actual run pack`);
@@ -87,6 +88,8 @@ test('typed notes on an item reach its agents and stay off the board-wide feed [
     assert.ok(pack.includes(fact.by), `${fact.kind} author reaches the actual run pack`);
   }
   assert.ok(!pack.includes('OTHER-ITEM-ONLY'), 'the pack reads only this item conversation');
+  // The fixture's loopback runner pulls the gate job and `run` returns once it settles, and the real gate submits the item when its receipt posts.
+  await waitForState(() => onBoard(box, board => store.getItem(board, id).item_status) === 'submitted', 'the pulled gate submits the item once its receipt posts');
   const held = await document(box, reviewer, 'next', '--verify', String(id));
   assert.equal(held.item.item_id, id, 'the independent reviewer really reserves the submitted item');
   assert.deepEqual((await document(box, reviewer, 'show', String(id))).thread.filter(entry => entry.type === 'fact'),

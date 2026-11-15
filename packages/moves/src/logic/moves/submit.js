@@ -7,20 +7,21 @@ import { KNOWN_MAIN_AUTOFILE_ENGINE } from "../../../../state/light.js";
 import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from "../../../../state/light.js";
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../state/light.js";
 import { itemReviewPolicyEngine } from "../../../../verify/browser.js";
-import { checkTimingEngine } from "../../../../items/light.js";
-import { itemPatchRecords } from "../../../../items/light.js";
+import { checkTimingEngine } from "../../../../items/browser.js";
+import { itemPatchRecords } from "../../../../items/browser.js";
 import { ITEM_PATCH_SUBMIT_ENGINE } from "../../../../state/light.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 import { MERGE_ONLY_VERDICT_ENGINE } from "../../../../state/light.js";
 import { FLOW_SIZE_ENGINE } from "../../../../state/light.js";
 import { KNOWN_MAIN_REWORKS_ENGINE } from "../../../../state/light.js";
 import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from "../../../../state/light.js";
+import { KNOWN_MAIN_RECEIPT_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by submit, discovered without a shared registry edit [C7,V4,H16]. */
 import { BAR_READY_ENGINE } from "../../../../state/light.js";
 import { barReadySetting } from "../bar/ready.js";
 import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";
 import { OUTSIDE_INTAKE_ENGINE } from "../../../../state/light.js";
-import { outsideSource } from "../../../../items/light.js";
+import { outsideSource } from "../../../../items/browser.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
 import { BAR_CHECK_ENGINE } from "../../../../state/light.js";
 import { barCheckEnabled } from "../../../../verify/browser.js";
@@ -51,6 +52,8 @@ function minimumEngine(args, board, at) {
         : (board?.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_OWNER_PATTERN_ENGINE
           ? KNOWN_MAIN_OWNER_PATTERN_ENGINE : KNOWN_MAIN_REWORKS_ENGINE
       : 1,
+    // A known main failure citing its main receipt needs the engine that keeps that id [V4,B3,H16].
+    args[1]?.submissionProof?.knownMainFailures?.failures?.some?.(row => row?.receipt !== undefined) ? KNOWN_MAIN_RECEIPT_ENGINE : 1,
     args[1]?.submissionSize !== undefined ? FLOW_SIZE_ENGINE : 1,
     outside ? OUTSIDE_INTAKE_ENGINE : 1, existingEngine(args, board, at));
 }

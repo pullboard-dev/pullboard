@@ -17,6 +17,7 @@ import {
 } from '../../../../packages/store/index.js';
 import { landingFailures } from '../../../../packages/landing/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { settleLand } from '../../tests/fixtures/land/settle.js';
 import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
 import {
   json,
@@ -27,8 +28,15 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { landProject, itemWorktree, submitItem, acceptItem, moveMainPastSubmit } = makeLandProjectFixtures(e2e);
 
-test('a landing reopen carries the exact failing assertion [C7,B22]', () => {
+test('a landing reopen carries the exact failing assertion [C7,B22]', async () => {
   const box = landProject();
+  // The default shape: no affectedTests, so the landing gate runs the whole suite and sees the red file, as in land/red-returns [C7].
+  const configPath = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  delete config.affectedTests;
+  writeFileSync(configPath, JSON.stringify(config, null, 2));
+  box.git(box.repo, 'commit', '-q', '-am', 'chore: the init default has no affectedTests');
+  box.git(box.repo, 'push', '-q', 'origin', 'main');
   const gate = join(box.dir, 'land-gate.cjs');
   const source = readFileSync(gate, 'utf8');
   writeFileSync(gate, source.replace("console.log('  error: fixture behavior is red');", "console.log('  error: fixture behavior is red'); console.log('  expected: 7'); console.log('  actual: 9');"));
@@ -36,27 +44,30 @@ test('a landing reopen carries the exact failing assertion [C7,B22]', () => {
   box.env.LAND_SUPPRESS_RED = '1';
   submitItem(box, entry, 'RED\n');
   acceptItem(box, entry);
-  delete box.env.LAND_SUPPRESS_RED;
+  delete box.env.LAND_SUPPRESS_RED; // the switch folder mirrors the delete to the pulled gate, so the red shows
   // The submit ran with its red suppressed; move main so the landing runs its own gate instead of reusing that receipt (#3685).
   moveMainPastSubmit(box);
   const base = box.git(box.repo, 'rev-parse', 'main');
   const landing = box.run(box.repo, 'land', '--json');
-  assert.equal(landing.code, 1, `every candidate is a culprit, so land exits 1 [#4265]: ${landing.err}${landing.out}`);
+  // The pulled land job returns the red item on its receipt; land itself offers the job and exits 0 [#4265].
+  const settled = await settleLand(box, JSON.parse(landing.out));
+  assert.deepEqual(settled.landed, [], `every candidate is a culprit, so nothing lands: ${landing.err}${landing.out}${JSON.stringify(settled.landJob ?? {})}`);
+  assert.equal(settled.batch.state, 'blocked', JSON.stringify(settled.landJob ?? {}));
   const item = json(box, box.repo, 'show', String(entry.item));
   assert.equal(item.item_status, 'open');
   const thread = onBoard(box, board => store.itemThread(board, entry.item));
-  const fact = thread.find(row => row.type === 'fact' && row.text.startsWith('Landing failure evidence:'));
-  assert.ok(fact, 'reopen attaches the assertion evidence');
-  for (const expected of [entry.file, 'keeps the landed behavior', 'fixture behavior is red', 'expected: 7', 'actual: 9', base, entry.commit]) assert.ok(fact.text.includes(expected), expected);
+  // A pulled landing's red returns through the board, which records the runner's failing-case lines as a "Land job ... red" note [P7,B22].
+  const fact = thread.find(row => row.type === 'fact' && /^Land job \S+ red:/u.test(row.text));
+  assert.ok(fact, `reopen attaches the assertion evidence: ${JSON.stringify(thread.map(row => row.text ?? row.kind))}`);
+  for (const expected of [entry.file, 'keeps the landed behavior', 'fixture behavior is red', 'expected: 7', 'actual: 9']) assert.ok(fact.text.includes(expected), `${expected} in ${fact.text}`);
   const reopened = thread.find(row => row.kind === 'reopen');
-  assert.match(reopened.detail?.note ?? '', /landing failure evidence/u, 'next step points to the evidence');
+  assert.match(reopened.detail?.note ?? '', /land job \S+ checked the merged tree red/u, 'the reopen names the red landing');
   const snapshot = onBoard(box, board => exportBoard(board));
   const replica = openBoard(':memory:');
   try {
     importBoard(replica, snapshot);
     const replayed = store.itemThread(replica, entry.item);
-    assert.deepEqual(replayed.find(row => row.kind === 'reopen').detail.landingFailure, reopened.detail.landingFailure);
-    assert.equal(replayed.find(row => row.type === 'fact' && row.text.startsWith('Landing failure evidence:')).text, fact.text);
+    assert.equal(replayed.find(row => row.type === 'fact' && /^Land job \S+ red:/u.test(row.text)).text, fact.text);
   } finally { store.closeBoard(replica); }
 });
 

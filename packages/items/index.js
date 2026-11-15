@@ -59,6 +59,8 @@ export { claimProgress } from './src/logic/claims.js';
 export { namedItemPaths, claimOverlaps, liveClaimCollisions } from './src/logic/overlap.js';
 export { validateExpectedBuildMinutes, parseExpectedBuildMinutes, expectedBuildProblem } from './src/logic/expected.js';
 
+export { headRevs } from './src/io/submit/revs.js';
+export { headCommitOf } from './src/io/submit/revs.js';
 export { prepareDeadHandoffRetry } from './src/io/submit/recovery.js';
 export { handoffToolsAllowed } from './src/io/submit/recovery.js';
 export { removeJobToolSnapshot } from './src/io/submit/recovery.js';
@@ -74,3 +76,4 @@ export { dependencyWaiters, dependencyWorkAt } from './src/logic/progress.js';
 export { parseDiagnosis, diagnosisBrief } from './src/logic/diagnosis.js';
 export { itemFolderIdentity, itemFolderPath, writeItemMarker } from './src/io/claim.js';
 export { mainRedRootCause, mainRedKey, mainRedKeyLines, mainRedEvidenceLines, splitMainReds, mainRedFact, fileMainRed } from './src/logic/audit/main-red.js';
+export { vendorOfModel } from './src/logic/vendors.js';

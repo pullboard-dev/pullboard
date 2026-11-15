@@ -1,5 +1,5 @@
 /** Pure companion path validation is shared by classification and composition [V4,H16]. */
-import { Refused } from "../../../kernel/light.js";
+import { Refused } from "../../../kernel/browser.js";
 
 /** Refuse unsupported path inputs without reading Git or launching a process. */
 function refuse(message) { throw new Refused('ITEM_PATCH', message); }

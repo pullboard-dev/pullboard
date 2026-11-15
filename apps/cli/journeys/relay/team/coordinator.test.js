@@ -18,7 +18,13 @@ import { resolve } from 'node:path';
 async function refusedCoordinatorAdd(device, lane, title, add = () => device.cli('add', lane, title)) {
   const since = new Date().toISOString();
   const added = await add();
-  assert.equal(added.code, 0, 'a linked board applies the move locally at once, then settles it with the relay');
+  // A computer that already knows the hold refuses at once; one with a stale board settles it with the relay later [#7939].
+  if (added.code !== 0) {
+    const refusal = added.document?.error ?? added.document;
+    assert.equal(refusal?.code, 'COORDINATOR_HELD', added.failure);
+    const message = refusal.message;
+    return { code: 'COORDINATOR_HELD', message };
+  }
   const status = await device.cli('status');
   assert.equal(status.code, 0, status.failure);
   const refused = (status.document.relay.outboxRefusals ?? []).filter(entry => entry.queuedAt >= since).at(-1);

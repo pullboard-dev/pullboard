@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../../../index.js';
-import { submitFixture } from '../../../../../apps/cli/tests/fixtures/board/submit.js';
+import { submitFixture } from '../../fixtures/submit.js';
 import { cellBoard } from '../../fixtures/cell.js';
 import { cellItem } from '../../fixtures/cell.js';
 import { cellProject } from '../../fixtures/cell.js';
@@ -10,8 +10,8 @@ import { cellSeat } from '../../fixtures/cell.js';
 
 /** A verified item on a real Git project and SQLite board. */
 function verifiedItem(t) {
-  const project = cellProject(t);
-  const board = cellBoard(t, project.boardFile, undefined, { gitRoot: project.repo });
+  const project = cellProject(t, { real: true });
+  const board = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: project.repo });
   store.board_ensureCoordinator(board, project.repo);
   const builder = cellSeat(board, { lane: 'web', path: `${project.dir}/builder` }).id;
   const id = cellItem(board, { lane: 'web', title: 'Merged twice', criterion: 'Tracked work', specIds: ['G1'] }).item_id;

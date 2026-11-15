@@ -8,6 +8,7 @@ import { posix } from 'node:path';
 import { resolve } from 'node:path';
 import { runnerPackage } from '../package.js';
 import { runnerPackageReader } from '../package.js';
+import { withPackageListing } from '../package/files.js';
 import { Refused } from '../../../../kernel/index.js';
 import { assertRunnerModuleParserCurrent } from '../module/parser.js';
 import { createHash } from 'node:crypto';
@@ -87,6 +88,11 @@ function changedSince(root, files, since) {
  * Why: callers capture at first dispatch, so since (the controller's load instant) keeps the load-time pin.
  */
 export function captureRunnerTooling(root, { since } = {}) {
+  return withPackageListing(() => captureTooling(root, since));
+}
+
+/** Capture under one package listing; captureRunnerTooling says what. */
+function captureTooling(root, since) {
   const absoluteRoot = resolve(root);
   const entryFile = controllerEntryFile(root);
   const controllerEntry = readFileSync(join(root, entryFile), 'utf8');
@@ -117,6 +123,11 @@ function sameControllerPolicy(root, policy) {
 
 /** Refuse stale pinned bytes before parsing dependencies again; newly reached files also require a restart. */
 export function currentRunnerTooling(root, loaded, { rescan = true } = {}) {
+  return withPackageListing(() => checkTooling(root, loaded, rescan));
+}
+
+/** Check under one package listing, separate from the capture's; currentRunnerTooling says what. */
+function checkTooling(root, loaded, rescan) {
   assertRunnerModuleParserCurrent();
   /** Keep every stale generation on the existing typed restart path. */
   const refuse = () => { throw new Refused('RUNNER_TOOLING_CHANGED', 'runner tooling changed since this controller loaded; restart the command from the current committed CLI before retrying'); };

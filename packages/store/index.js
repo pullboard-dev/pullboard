@@ -1,6 +1,6 @@
 export { exitSessionIdentity, exitedSession, exitContinuationProblem, exitContinuationSummary, exitedSessionIdentity } from './src/logic/exit/rules/continuation.js';
 export { exitClaim, recordExitProgress, exitClaimDecision, releaseExitClaim, capturedExitRules, requireExitActive } from './src/logic/exit/rules/claim.js';
-export { validateKnownMainAutofile, fileKnownMainAutofile } from './src/logic/known/main/autofile.js';
+export { validateKnownMainAutofile, fileKnownMainAutofile, filePulledMainReds } from './src/logic/known/main/autofile.js';
 export { boardNotWritable, requireBoardWriteAccess, boardBusyError } from './src/io/board/access.js';
 export { boardBusyError as board_busy_boardBusyError, boardWriteBusyError, beginImmediateQueued } from './src/io/board/busy.js';
 export { captureBoardChanges, beginCapture } from './src/io/board/capture.js';
@@ -8,9 +8,10 @@ export { migrateEventLogVersion } from './src/io/board/event/log/migrate.js';
 export { atomic, logEvent } from './src/io/board/event/log.js';
 export { applyHealthFindings } from './src/io/board/health.js';
 export { jobBlobsPending, migrateJobBlobs, compactBoard } from './src/io/board/blobs.js';
-export { JOB_SCHEMA_SQL, missingJobTables, ensureJobTables, adoptLegacyHandoffs } from './src/io/board/jobs.js';
+export { compactJobSteps, jobHistory, stepArchivePath, COMPACT_AFTER_DAYS, STEP_ARCHIVE_NAME } from './src/io/board/compact.js';
+export { JOB_SCHEMA_SQL, RUN_SCHEMA_SQL, RUN_OBJECT_NAMES, missingJobTables, ensureJobTables, adoptLegacyHandoffs } from './src/io/board/jobs.js';
 export { LEDGER_SCHEMA_SQL, ledgerFiles, ledgerHits, ledgerMainReds, missingLedgerTable, recordTestResults, testResults } from './src/io/board/ledger.js';
-export { ensureHotIndexes, missingAdditiveIndexes, ensureAdditiveIndexes, eventsOfKinds, submitInvariantEvents, recentEvents, recentShouts, lastMoves, decisionAndEvidenceShouts } from './src/io/board/indexes.js';
+export { ensureHotIndexes, costEvents, costLandedIds, costKindEvents, costMoveEvents, costItemEvents, costItems, costRevision, missingAdditiveIndexes, ensureAdditiveIndexes, eventsOfKinds, submitInvariantEvents, recentEvents, recentShouts, lastMoves, decisionAndEvidenceShouts } from './src/io/board/indexes.js';
 export { localBoardInventory, resolveLocalBoard, resolveLocalItemReference } from './src/io/board/inventory.js';
 export { validateItemDependencies } from './src/io/board/item/dependencies.js';
 export * from "./light.js";
@@ -24,13 +25,13 @@ export { PERSON, now, isHeld, current, reviewReleasesSinceSubmit, boardId, getIt
 export { getShout, allShouts, shoutDetails, decisionAnswers, openRequests, peekShouts, projectItemThreads, unverifiedSubmissions, pendingRefreeze, pendingRefreezeProblem, milestonePriorities } from './src/io/board/read/shouts.js';
 export { readBoardSnapshot } from './src/io/board/read/snapshot.js';
 export { validateRehomeCheck, reserveRehomeItemId, itemRedirect, rehomeImport, rehomeDestinationItemId, rehomeItem } from './src/io/board/facade.js';
-export { EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION, BOARD_BUSY_TIMEOUT_MS, SCHEMA_VERSION, SCHEMA, SCHEMA_DIGEST } from './src/io/board/schema/source.js';
+export { EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION, BOARD_BUSY_TIMEOUT_MS, SCHEMA_VERSION, OLDEST_UPGRADABLE_SCHEMA, BOARD_TOO_OLD_NEXT, SCHEMA, SCHEMA_DIGEST } from './src/io/board/schema/source.js';
 export { isRepositoryBoard, boardSchema, declaredBoardSchema, sharedSchemaDiagnostic, reportSharedSchema, sharedSchemaOwner, expectedBoardSchema } from './src/io/board/schema.js';
 export { legacySigningMatchesStamp } from './src/io/board/recovery.js';
 export { recordNextIdle } from './src/logic/board/stats.js';
 export { guardStore, refreshStoreDeclarations, repairDrift, suspendStoreGuards } from './src/io/board/guards.js';
 export { prepareBoardWriteIdentity, configureBoardJournal, beginBoardWrite, noteBoardWriteItem, finishBoardWrite, closeBoardWrites, boardWriteHolderText } from './src/io/board/write/lock.js';
-export { ACCEPT_REASON, REJECT_REASONS, moveItem, onlyCoordinator, seatFamily, canonicalFamily, reviewReleaseCooldown, reviewerChecks, coordinatorOnly, postRigorNotices, setItem, foreignBlockers, foreignDependencyStates, prepareClaim, claim, laneLeads, itemPatches, itemPatchDigest, followItemPatches, lineSettings, setLineSetting, setBarReady, signBar, coordinatorCheck, completeCheckBaseline, itemCheckAuthor, checkedLandingCommit, landingTestDefects, recordLandingTestDefect, closeLandingTestDefect, recordSelectorGap, selectorGapCandidate, landingLeaseMove, landingLeaseState, itemFiles, ROUTES, canTake, landingFlakes, landingWaiverCovers, landingWaiverKind, acceptCheck, declareJob, recordJobRun, recordUsage, recordUsageBatch, recordSharedUsage, recordProofRun, storeTestReceipt, agentCreator, coordinatorHolder, nextSeatId, seatEnrolled, seatLineage, withVerifierStanding, takeCoordinator, prepareMergeOnlySubmit, EVIDENCE_KINDS, inbox, FACT_KINDS, factReference, recordSpecApprovalBaseline, canonicalMilestoneTarget, landingBatches, rowVerifications, fileTypedRequest, typedRequests, answerTypedRequests, escalate, recordAttempt, recordRelayRefusal, linkPublishRepair, register, REMOTE_AGENT_PATH, isRemoteAgentPath, ensureCoordinator as board_ensureCoordinator, addItem, validateItemAddition, planCompanion, requestCompanion, editItem, validateItemEdit, attachItemPatch, removeItemPatch, release, submit, reviewReleaseNoteProblem, reviewOffer, reserveReview, reserveNextReview, verify, reopen, merged, withdraw, refreeze, shout, recordHealthFindings, passDecision, answerDecision, appendFact, buildOrder, nextFor, holdLane, releaseLane, holdItem, releaseItemHold, maintainStaleState, recordRowDecisions, applyRowDecisions, recordLandingBatch, recordLandingWaiver, recordLandingFlake, finishLandingBatch, intakeOutside, applyRehomeItem, approveOutside, setLaneLead, activityDeliveryState, activityInterruptWasDelivered, recordActivityDelivery, actOnActivity, openHandoff, takeHandoff, recordNextIdle as board_recordNextIdle, prepareQueueSubmitHandoff, queueSubmitHandoff, startSubmitHandoff, completeSubmitHandoff } from './src/io/board.js';
+export { ACCEPT_REASON, REJECT_REASONS, moveItem, onlyCoordinator, seatFamily, canonicalFamily, reviewReleaseCooldown, reviewerChecks, coordinatorOnly, postRigorNotices, setItem, foreignBlockers, foreignDependencyStates, prepareClaim, claim, admitSubmit, laneLeads, itemPatches, itemPatchDigest, followItemPatches, lineSettings, setLineSetting, setBarReady, signBar, coordinatorCheck, completeCheckBaseline, itemCheckAuthor, checkedLandingCommit, landingTestDefects, recordLandingTestDefect, closeLandingTestDefect, recordSelectorGap, selectorGapCandidate, landingLeaseMove, landingLeaseState, itemFiles, ROUTES, canTake, landingFlakes, landingWaiverCovers, landingWaiverKind, acceptCheck, declareJob, recordJobRun, recordUsage, recordUsageBatch, recordSharedUsage, recordProofRun, storeTestReceipt, agentCreator, coordinatorHolder, nextSeatId, seatEnrolled, seatLineage, withVerifierStanding, takeCoordinator, prepareMergeOnlySubmit, EVIDENCE_KINDS, inbox, FACT_KINDS, factReference, recordSpecApprovalBaseline, canonicalMilestoneTarget, landingBatches, rowVerifications, fileTypedRequest, typedRequests, answerTypedRequests, escalate, recordAttempt, recordRelayRefusal, linkPublishRepair, register, REMOTE_AGENT_PATH, isRemoteAgentPath, ensureCoordinator as board_ensureCoordinator, addItem, validateItemAddition, planCompanion, requestCompanion, editItem, validateItemEdit, attachItemPatch, removeItemPatch, release, submit, reviewReleaseNoteProblem, reviewOffer, reserveReview, reserveNextReview, verify, reopen, merged, withdraw, refreeze, shout, recordHealthFindings, passDecision, answerDecision, closeFinishedAsks, appendFact, buildOrder, nextFor, holdLane, releaseLane, holdItem, releaseItemHold, maintainStaleState, recordRowDecisions, applyRowDecisions, recordLandingBatch, recordLandingWaiver, recordLandingFlake, finishLandingBatch, intakeOutside, applyRehomeItem, approveOutside, setLaneLead, activityDeliveryState, activityInterruptWasDelivered, recordActivityDelivery, actOnActivity, openHandoff, takeHandoff, recordNextIdle as board_recordNextIdle, prepareQueueSubmitHandoff, queueSubmitHandoff, startSubmitHandoff, completeSubmitHandoff } from './src/io/board.js';
 export { diagnoseWanted, returnedRecord, gateAtHead } from './src/io/board/next.js';
 export { companionPlan, applyCompanionRequest } from './src/io/companion.js';
 export { dispatchWork } from './src/io/eligibility.js';
@@ -54,7 +55,10 @@ export { submissionItemValues, recordSubmissionEvent, submissionChildrenProblem 
 export { TYPED_REQUEST_CAUSES, TYPED_REQUEST_VERBS } from './src/io/requests.js';
 export { boardEnginePorts } from './src/io/board/ports.js';
 export { addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, shipMilestone, roadmap } from './src/io/board/milestones.js';
-export { requireRuntimePorts, openBoardStore } from './src/io/board/sqlite.js';
+export { requireRuntimePorts, openBoardStore, boardFilePath, RUNS_FILE, RUNS_SCHEMA, RUNS_STORE_KEY, runsFilePath, runsStoreOn, openRunsStore, boardRunsPort } from './src/io/board/sqlite.js';
+export { RUNS_PORT_CALLS, PENDING_STEP, runsPort } from './src/io/board/runs.js';
+export { INTENT_GRACE_MS, boardRun, recordQueuedRun, queueRun, reconcileQueued, applyRunReceipt, applyReceipts } from './src/io/board/run.js';
+export { RUN_QUEUED_EVENT, RUN_APPLIED_EVENT, runSummary, runRowsFromEvents } from './src/logic/board/runs.js';
 export { AUTHORITY, AUTHORITY_TRIGGERS, exportedMeta } from './src/logic/board/authority.js';
 export { activityDeliveryState as board_activity_delivery_store_activityDeliveryState, activityInterruptWasDelivered as board_activity_delivery_store_activityInterruptWasDelivered, rejectionRecipient, recordActivityDelivery as board_activity_delivery_store_recordActivityDelivery, actOnActivity as board_activity_delivery_store_actOnActivity } from './src/logic/board/activity/delivery.js';
 export { itemActivity, activityEventDetail, activityInterests, isActivityNews, projectAgentActivity } from './src/logic/board/activity/feed.js';
@@ -74,7 +78,7 @@ export { applyStaleState } from './src/logic/board/stale/apply.js';
 export { readableRigorText, automaticRigorSource, readAutomaticRigorSource, automaticSourceFromText, automaticDecisionSource, rigorDecisionKey, sameAutomaticRow, automaticRigorNeeds } from './src/logic/board/rigor/auto.js';
 export { rigorSource, readRigorSource } from './src/logic/board/rigor/provenance.js';
 export { CAUSE_FORMS, causeProblem, requireNeverAgain, testCause, isMergeConflict, causeReading, eventCauses, rigorReport, rigorLines } from './src/logic/board/rigor.js';
-export { prepareClaim as board_claim_prepareClaim, claim as board_claim_claim } from './src/io/board/claim.js';
+export { prepareClaim as board_claim_prepareClaim, claim as board_claim_claim, claimsPerSeat, claimAdmission } from './src/io/board/claim.js';
 export { writeBoardCommand } from './src/io/board/write.js';
 export { boardWriteSnapshot, requireBoardWriteSnapshot, acknowledgeOwnWrites } from './src/io/board/write/preparation.js';
 export { insertItem } from './src/io/board/add.js';
@@ -96,6 +100,8 @@ export { HEALTH_SENTINEL_ENGINE } from "../state/light.js";
 export { HEALTH_CAP_ENGINE } from "../state/light.js";
 export { RECURRING_JOB_ENGINE } from "../state/light.js";
 export { RIGOR_NOTICE_ENGINE } from "../state/light.js";
+export { KNOWN_MAIN_RECEIPT_ENGINE } from "../state/light.js";
+export { ENGINE_VERSION } from "../state/light.js";
 
 export { rejectionReturnEnabled } from './src/logic/rework.js';
 
@@ -103,7 +109,7 @@ export { createItemSlice } from "./src/io/board/item/slice.js";
 
 export { nextIdleChanged } from './src/io/board/record/idle.js';
 
-export { prepareSubmit, sealStrictRenames } from './src/io/board/submit.js';
+export { prepareSubmit, sealStrictRenames, clauseInspectionNotes, recordedBaseRows } from './src/io/board/submit.js';
 export { checkpointBoard, BOARD_WAL_LIMIT_BYTES } from './src/io/board/checkpoint.js';
 
 export { endedSubmitHandoff, handoffRecord, handoffRecords } from './src/io/submit/handoff/records.js';

@@ -174,7 +174,7 @@ function comparisonRatio(value, denominator) { return denominator > 0 && value !
 /** The event kinds that open, renew, close or explain a seat's held work, the only ones a seat window replays. */
 const SEAT_KINDS = new Set(['claim', 'renew', 'reserve', 'submit', 'lapse', 'withdraw', 'reopen', 'release', 'accept', 'reject', 'patch', 'next-idle']);
 /** The event kinds a comparison window counts. */
-const COUNTED_KINDS = new Set(['submit', 'reject', 'shout']);
+const COUNTED_KINDS = new Set(['submit', 'accept', 'reject', 'shout']);
 /** Each indexed history's facts, by its first event row: the indexes of the histories that row starts, newest first. */
 const indexes = new WeakMap();
 
@@ -238,12 +238,14 @@ function gapReach(index, gap, to, end) {
 
 /** Preserve the Dashboard's event-observed seat cohort and union overlapping work, with building first. */
 function seatWindow(history, bounds, gone = new Map()) {
-  const joined = new Map(), last = new Map(), work = new Map(), segments = [], observations = new Map();
+  const advisors = new Set(), joined = new Map(), last = new Map(), work = new Map(), segments = [], observations = new Map();
   const index = historyIndex(history);
   for (const { event, at } of index.joins) {
     if (!(at <= bounds.end) || joined.has(event.event_by) || ['coordinator', 'board', 'person', 'clock'].includes(event.event_by)) continue;
     const detail = proofEventDetail(event);
-    if (detail.lane && detail.lane !== 'coordinator') joined.set(event.event_by, at);
+    // An advisor reads and drafts; it is never a builder, so it leaves the idle cohort and is counted on its own.
+    if (detail.lane === 'advisor') advisors.add(event.event_by);
+    else if (detail.lane && detail.lane !== 'coordinator') joined.set(event.event_by, at);
   }
   for (const agent of joined.keys()) {
     let latest = -Infinity;
@@ -362,7 +364,7 @@ function seatWindow(history, bounds, gone = new Map()) {
     }
   }
   const idleMilliseconds = Math.max(0, budget - occupied), measured = unknownSeats.size === 0;
-  return { observedSeats: seats, unmeasuredSeats: unknownSeats.size,
+  return { observedSeats: seats, advisorSeats: advisors.size, unmeasuredSeats: unknownSeats.size,
     agentHours: measured ? budget / HOUR : null, idleHours: measured ? idleMilliseconds / HOUR : null,
     idleShare: measured ? comparisonRatio(idleMilliseconds, budget) : null,
     idleReasonHours: Object.fromEntries(IDLE_REASONS.map(reason => [reason, measured ? reasons[reason] / HOUR : null])),
@@ -376,6 +378,7 @@ function comparisonWindow(history, prepared, bounds, stageReport, gone) {
   const submittedItems = new Set(submissions.map(event => event.item_id).filter(id => id !== null && id !== undefined)).size;
   const landed = prepared.items.filter(item => item.mergeAt > bounds.start && item.mergeAt <= bounds.end).length;
   const rejections = selected.filter(event => event.event_kind === 'reject').length;
+  const accepted = selected.filter(event => event.event_kind === 'accept').length;
   const coordinatorShouts = selected.filter(event => event.event_kind === 'shout' && proofEventDetail(event).to === 'coordinator').length;
   const seats = seatWindow(history, bounds, gone);
   const stageMilliseconds = Object.fromEntries(Object.entries(COMPARE_STAGES).map(([name, key]) => [name, stageReport.milliseconds[key]]));
@@ -386,7 +389,9 @@ function comparisonWindow(history, prepared, bounds, stageReport, gone) {
     stageShares: Object.fromEntries(Object.entries(stageMilliseconds).map(([key, value]) => [key, comparisonRatio(value, measuredStageMilliseconds)])),
     unknownStageHours: stageReport.unknownMilliseconds / HOUR,
     submissions: submissions.length, submittedItems, submitsPerItem: comparisonRatio(submissions.length, submittedItems),
-    rejections, rejectRate: comparisonRatio(rejections, submissions.length), coordinatorShouts,
+    rejections,
+    // The share of the reviews finished in the window that were sent back: every verdict is an accept or a reject.
+    rejectRate: comparisonRatio(rejections, rejections + accepted), coordinatorShouts,
     shoutsPerLanding: comparisonRatio(coordinatorShouts, landed) };
 }
 

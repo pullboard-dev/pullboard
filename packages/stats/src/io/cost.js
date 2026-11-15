@@ -2,7 +2,7 @@
 import { COST_ENGINE } from '../../../state/light.js';
 import { ENGINE_VERSION } from '../../../state/light.js';
 import { publicSharedSessions } from './cost/shared.js';
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/light.js';
 import { usageDollars } from '../../../config/browser.js';
 import { loadMachineSettings } from '../../../config/index.js';
 import { COUNTS } from './cost/usage.js';

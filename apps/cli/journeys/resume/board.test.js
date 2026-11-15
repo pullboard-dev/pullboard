@@ -539,7 +539,8 @@ test('merged and withdraw are the coordinator\'s, and only for the right states 
   assert.throws(() => store.merged(board, id, { agentId: 'web-2', commit: SHA_B }), /COORDINATOR_ONLY/);
   store.merged(board, id, { agentId: 'coordinator', commit: SHA_B });
   assert.equal(store.getItem(board, id).item_merged_commit, SHA_B);
-  assert.throws(() => store.withdraw(board, id, { agentId: 'coordinator', reason: 'late' }), /CLOSED/);
+  store.withdraw(board, id, { agentId: 'coordinator', reason: 'late' });
+  assert.throws(() => store.withdraw(board, id, { agentId: 'coordinator', reason: 'again' }), /CLOSED/);
 });
 
 test('shouts reach a lane, an agent or all; inbox marks them read [B7]', () => {
@@ -705,7 +706,7 @@ test('a board made by an older version is migrated on open [O3]', () => {
     old.db.exec('ALTER TABLE verdict DROP COLUMN verdict_verifier_family');
     old.db.exec('DROP TABLE hold');
     // An older version's board carries an older user_version; only that makes an open migrate (#1047).
-    old.db.exec('PRAGMA user_version = 1');
+    old.db.exec('PRAGMA user_version = 0');
     store.closeBoard(old);
     const reopened = openBoard(file, clock);
     const columns = (table) => reopened.db.prepare(`PRAGMA table_info(${table})`).all().map((column) => column.name);

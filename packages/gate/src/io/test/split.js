@@ -21,6 +21,7 @@ import { cellLintReport } from '../../../../codemap/index.js';
 import { cellLintParsers } from '../../../../codemap/index.js';
 import { readCellLintBaseline } from '../../../../codemap/index.js';
 import { mainCellLintReport } from '../../../../codemap/index.js';
+import { TEST_JOURNEYS_FILE } from './derived.js';
 import { CLI_LAUNCHES_FILE } from '../static/registry.js';
 import { BASELINE_TABLES } from '../../../../commits/light.js';
 import { CONFIG_FILE } from '../../../../config/index.js';
@@ -33,7 +34,7 @@ export const SPLIT_REGISTRIES = Object.freeze({
   waits: WAITS_FILE,
   fixtures: FIXTURES_FILE,
   boardFiles: 'packages/gate/src/io/board/baseline.js',
-  journeys: 'packages/gate/data/tests/test-journeys.json',
+  journeys: TEST_JOURNEYS_FILE,
   tiers: TEST_TIERS_FILE,
   roles: 'apps/view/src/logic/roles.js',
   lanes: CONFIG_FILE,

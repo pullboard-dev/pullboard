@@ -1,4 +1,4 @@
-import { COORDINATOR } from '../../../../../config/index.js';
+import { COORDINATOR } from '../../../../../config/light.js';
 import { VERIFIER_STANDING_ENGINE } from '../../../io/machine.js';
 import { Refused } from '../../../../../kernel/light.js';
 

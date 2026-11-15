@@ -289,7 +289,7 @@ test('move import closure stays process-free on a seeded revision board [C7,V4,H
       assert.ok(specifier.startsWith('.'), 'move imports are native or relative');
       const target = new URL(specifier, pathToFileURL(join(root, bodies[index].path)));
       // A JSON module (packages/items/src/logic/vendors.json) is data: it must parse and imports nothing, so the walk ends there.
-      if (specifier.endsWith('.json')) { JSON.parse(readFileSync(fileURLToPath(target), 'utf8')); continue; }
+      if (specifier.endsWith('.json')) { JSON.parse(mappedWorkingSources(root, [fileURLToPath(target).slice(root.length)])[0].body.toString('utf8')); continue; }
       pending.push(target.href);
     }
   }

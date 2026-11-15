@@ -1,5 +1,5 @@
 /** Helpers for `pullboard verify`: the main-checkout verifier and the landing command. Split from src/cli.js, which re-exports it [C7]. */
-import { reviewerStartup } from './next/steps.js';
+import { reviewerSeatStep } from './next/steps.js';
 import * as store from '../../../../packages/store/index.js';
 import { cdTo } from './context.js';
 import { shellWord } from './context.js';
@@ -33,7 +33,7 @@ export function checkMainVerifier(ctx, board, values) {
   const detached = tryGit(ctx.info.root, ['symbolic-ref', '-q', 'HEAD']).status !== 0 ? ' The main checkout is not on its branch; whoever switched it puts it back.' : '';
   throw new Refused('MAIN_IS_COORDINATOR',
     `this is the main checkout, so this verdict would be the coordinator's.${listed}${detached}`,
-    reviewerStartup(ctx.info.root, ctx.config, values.verifyId),
+    reviewerSeatStep(ctx.info.root, ctx.config, values.verifyId),
   );
 }
 /**

@@ -1,5 +1,6 @@
 import { archivedToolingSource } from './committed.js';
 import { committedRunnerController } from './committed.js';
+import { committedToolingId } from './committed.js';
 import { runnerPackage } from '../package.js';
 /** Pin, scan and install the trusted runner tooling bytes a remote worker runs [C7]. */
 import { runnerSource } from '../../../../gate/light.js';
@@ -114,8 +115,26 @@ function committedToolingMatches(root, commit, files) {
   });
 }
 
-/** Snapshot, scan and pin the actual tooling bytes independently of the project being tested. */
+/** What the last committed capture of each controller root gave, with the commit and tree it was taken at. */
+const CAPTURED = new Map();
+
+/**
+ * Snapshot, scan and pin the actual tooling bytes independently of the project being tested.
+ * Why cached: a committed export, its file closure, scan and blob comparison are a function of the tree alone, and each
+ * submit spent 3.4-4.5 s repeating them (#8133). A changed commit or tree captures afresh; a root with no committed
+ * export (an installed package, or a generation pin) is captured every time, as it can change under the process.
+ */
 export function trustedTooling() {
+  const id = committedToolingId(TOOL_ROOT);
+  const held = id && CAPTURED.get(TOOL_ROOT);
+  if (held && held.commit === id.commit && held.tree === id.tree) return held.captured;
+  const { captured, installation } = captureTrustedTooling();
+  if (installation) CAPTURED.set(TOOL_ROOT, { commit: installation.commit, tree: installation.tree, captured });
+  return captured;
+}
+
+/** Export, scan and describe the trusted tooling once; the installation it came from, if committed, rides along for its key. */
+function captureTrustedTooling() {
   const installation = committedRunnerController(TOOL_ROOT, { shared: true });
   try {
   const root = installation?.root ?? TOOL_ROOT;
@@ -141,8 +160,8 @@ export function trustedTooling() {
   }
   const tooling = { ...provenance, sha256: createHash('sha256').update(JSON.stringify(files)).digest('hex') };
   const runtimeFiles = Object.fromEntries(Object.entries(files).filter(([name]) => name !== entry));
-  return { worker: files[entry], tooling,
-    runtime: { entry, files: runtimeFiles, sha256: createHash('sha256').update(JSON.stringify(runtimeFiles)).digest('hex') } };
+  return { installation: installation && { commit: installation.commit, tree: installation.tree }, captured: { worker: files[entry], tooling,
+    runtime: { entry, files: runtimeFiles, sha256: createHash('sha256').update(JSON.stringify(runtimeFiles)).digest('hex') } } };
   } finally { installation?.cleanup(); }
 }
 

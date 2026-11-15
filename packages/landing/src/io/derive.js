@@ -11,10 +11,9 @@ import { gitSpawn } from '../../../git/index.js';
 import { assignEngineNumbers } from '../../../state/index.js';
 import { writeFormatTable } from '../../../state/index.js';
 import { GENERATED_DOC_PATHS } from '../../../merge/index.js';
-import { placeLandingHistory } from './history.js';
-import { placeLandingNewFiles } from './history.js';
 import { refreshLandingDocs } from './docs.js';
 import { measureHeldRules } from './doctrine.js';
+import { stageTestRegistries } from './registries.js';
 
 /** Printed instead of a patch when this checkout is not the tree the coordinator named, so the coordinator derives locally. */
 export const DERIVE_UNAVAILABLE = 'LANDING_DERIVE_UNAVAILABLE';
@@ -27,10 +26,10 @@ export const DERIVE_ENGINES = 'LANDING_DERIVE_ENGINES=';
 export const DERIVE_RULES = 'LANDING_DERIVE_RULES=';
 
 /**
- * Derive and stage everything a landing writes after an item merge: engine numbers and their history, the format table, generated docs and rule placement.
+ * Derive and stage everything a landing writes after an item merge: engine numbers and their history, the format table, generated docs.
  * Why: one function builds the files whether the coordinator or a runner runs it, so the two can never differ.
  * @param {string} root A checkout of the merged tree.
- * @returns {{ engines: { files: string[], assigned: { name: string, number: number }[] }, newFiles: string[] }} What was staged.
+ * @returns {{ engines: { files: string[], assigned: { name: string, number: number }[] } }} What was staged.
  */
 export function stageLandingDerived(root) {
   const engines = assignEngineNumbers(root);
@@ -39,23 +38,27 @@ export function stageLandingDerived(root) {
   refreshLandingDocs(root);
   const generatedChanges = git(root, ['diff', '--name-only', 'HEAD', '--', ...GENERATED_DOC_PATHS]).split('\n').filter(Boolean);
   for (const file of generatedChanges) if (!engines.files.includes(file)) engines.files.push(file);
-  if (engines.files.length) {
-    // Canonical rule placement accepts only staged regular files, including this just-generated history.
-    git(root, ['add', '--', ...engines.files]);
-    const placed = placeLandingHistory(root, engines.files);
-    if (placed.length) git(root, ['add', '--', ...placed]);
-  }
-  // Any other new file the plan lacks is placed by rule in this same merge, so main's cells-plan check never goes red (#3443).
-  const newFiles = placeLandingNewFiles(root);
-  if (newFiles.length) git(root, ['add', '--', ...newFiles]);
-  return { engines, newFiles };
+  if (engines.files.length) git(root, ['add', '--', ...engines.files]);
+  return { engines };
 }
 
 /** Allocate and stage engine history, then place it before amending that same item merge; hooks are extra Git flags. */
 export function amendLandingEngines(root, hooks = []) {
-  const { engines, newFiles } = stageLandingDerived(root);
-  if (engines.files.length || newFiles.length) git(root, [...hooks, 'commit', '--amend', '--no-edit']);
+  const { engines } = stageLandingDerived(root);
+  if (engines.files.length) git(root, [...hooks, 'commit', '--amend', '--no-edit']);
   return engines;
+}
+
+/**
+ * Refresh the test registries and badge documents on a merged tree and amend them into its last merge, as a batch's derive did; resolves the paths staged.
+ * Why: a pulled land job runs no batch, so main kept hand-edited registries and stale badges until it called this after amendLandingEngines (#7027) [C7].
+ * @param {string} root A checkout of the merged tree.
+ * @param {{ base?: string, badges?: { path: string, text: string }[], hooks?: string[] }} [options] - base: the commit the merges started from.
+ */
+export async function amendLandingRegistries(root, { base = 'HEAD^1', badges = [], hooks = [] } = {}) {
+  const staged = [...await stageTestRegistries(root, base), ...stageBadgeDocuments(root, badges)];
+  if (git(root, ['diff', '--cached', '--name-only']).trim()) git(root, [...hooks, 'commit', '--amend', '--no-edit']);
+  return staged;
 }
 
 /** Run a git command in `cwd`, feeding `input` on stdin; resolves its status and stdout bytes. Async so a leased caller's timer keeps firing. */
@@ -100,6 +103,7 @@ async function main() {
   const wanted = argument('--tree');
   if (git(root, ['rev-parse', 'HEAD^{tree}']) !== wanted) { process.stdout.write(`${DERIVE_UNAVAILABLE}\n`); return; }
   const { engines } = stageLandingDerived(root);
+  await stageTestRegistries(root, argument('--base') ?? 'HEAD^1');
   const badges = argument('--badges');
   if (badges) stageBadgeDocuments(root, JSON.parse(Buffer.from(badges, 'base64').toString('utf8')));
   const patch = await gitStdin(root, ['diff', '--cached', '--binary', 'HEAD']);

@@ -13,8 +13,8 @@ import {
 
 /** A real git repo with a real SQLite board file holding one event; returns its root and board path. */
 function realBoard(t) {
-  const { root, boardFile: file } = cellRepo(t);
-  const seed = cellBoard(t, file, undefined, { isMain: true, gitRoot: root });
+  const { root, boardFile: file } = cellRepo(t, { real: true });
+  const seed = cellBoard(t, file, undefined, { real: true, isMain: true, gitRoot: root });
   try { appendEvent(seed, 'Seed'); } finally { closeCellBoard(seed); }
   return { root, file };
 }
@@ -27,13 +27,13 @@ function appendEvent(board, note) {
 
 test('a write from a second connection during the capture neither refuses it nor changes it from a quiet capture [C7]', t => {
   const { root, file } = realBoard(t);
-  const reader = cellBoard(t, file, undefined, { isMain: true, gitRoot: root });
+  const reader = cellBoard(t, file, undefined, { real: true, isMain: true, gitRoot: root });
   const quiet = landingFlakeRatchet(reader);
   let wrote = 0;
   /** Read the runs, then write a new event from another connection before the capture's later queries. */
   const busyRuns = board => {
     const runs = gateRuns(board);
-    const writer = cellBoard(t, file, undefined, { isMain: true, gitRoot: root });
+    const writer = cellBoard(t, file, undefined, { real: true, isMain: true, gitRoot: root });
     try { appendEvent(writer, 'Concurrent write'); wrote += 1; }
     finally { closeCellBoard(writer); }
     return runs;

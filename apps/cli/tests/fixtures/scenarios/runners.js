@@ -3,7 +3,9 @@ import {
   executionServicesSource,
 } from '../gate/execution.js';
 import {
-  runnerRecoveryTests,
+  runnerHoldRecoveryTests,
+  runnerInstallerRecoveryTests,
+  runnerProbeRecoveryTests,
 } from '../runner/recovery.js';
 import {
   copyPackageFiles,
@@ -365,7 +367,9 @@ export {
   runnerFirstPolicyCase,
   runnerOrphanFixture,
   runnerPackage,
-  runnerRecoveryTests,
+  runnerHoldRecoveryTests,
+  runnerInstallerRecoveryTests,
+  runnerProbeRecoveryTests,
   runnerRemoveKeepsSettings,
   runnerSourceRefusalCases,
   runnerStageFixture,

@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict';
 import {
   mkdirSync,
+  watch,
   writeFileSync,
 } from 'node:fs';
 import {
@@ -57,10 +58,21 @@ function submitShared(box, itemId) {
 }
 
 /** Accept the exact submitted commit through the public CLI, then restore the main checkout. */
-function acceptSubmitted(box, itemId, submitted) {
+async function acceptSubmitted(box, itemId, submitted) {
   box.git(box.repo, 'switch', '-q', '--detach', submitted);
-  const accepted = box.run(box.repo, 'verify', String(itemId), 'accept', '--as', 'coordinator',
-    '--note', 'The submitted change passed its frozen check.');
+  // Under pull the gate settles on the runner, so verify first fails NOT_SUBMITTED; retry on each change in the local runner's folder
+  // (a log line per claim and receipt, a heartbeat every 5 s) until the board has applied the receipt [C7,#7283].
+  const deadline = Date.now() + 110_000;
+  let accepted;
+  for (;;) {
+    accepted = box.run(box.repo, 'verify', String(itemId), 'accept', '--as', 'coordinator',
+      '--note', 'The submitted change passed its frozen check.');
+    if (accepted.code === 0 || !/NOT_SUBMITTED/u.test(accepted.err ?? '') || Date.now() > deadline) break;
+    await new Promise(resolve => {
+      const watcher = watch(join(box.env.PULLBOARD_MACHINE_HOME, 'local-runner'), () => { watcher.close(); resolve(); });
+      setTimeout(() => { watcher.close(); resolve(); }, 6000).unref();
+    });
+  }
   assert.equal(accepted.code, 0, accepted.err || accepted.out);
   box.git(box.repo, 'switch', '-q', 'main');
 }
@@ -76,7 +88,7 @@ test('coordinator resume guides and groups the checked composition after stale r
 
     const itemId = addAndClaim(box, 'Fresh composition');
     const submitted = submitShared(box, itemId);
-    acceptSubmitted(box, itemId, submitted);
+    await acceptSubmitted(box, itemId, submitted);
 
     writeFileSync(join(box.repo, 'web/shared.txt'), 'main side\n');
     commit(box, box.repo, 'feat(web): update the same line on main [G1]');

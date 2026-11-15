@@ -49,9 +49,6 @@
   "apps/cli/src/io/submit/wait.js": {
     "daemon-loop": 1
   },
-  "apps/cli/src/io/submit/handoff.js": {
-    "state-file": 11
-  },
   "apps/cli/src/io/tool/build.js": {
     "detached": 1,
     "unref": 1
@@ -303,9 +300,6 @@
     "daemon-loop": 1,
     "state-file": 3
   },
-  "packages/landing/src/io/automatic/scheduler.js": {
-    "state-file": 1
-  },
   "packages/landing/src/io/smoke.js": {
     "state-file": 7
   },
@@ -318,9 +312,6 @@
   },
   "packages/landing/src/io/shards.js": {
     "detached": 1
-  },
-  "packages/landing/src/io/step/batch.js": {
-    "state-file": 1
   },
   "packages/landing/src/io/step/publish.js": {
     "detached": 1,

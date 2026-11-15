@@ -1,5 +1,5 @@
 import { submissionSize } from '../../../../index.js';
-import { Refused } from '../../../../../kernel/index.js';
+import { Refused } from '../../../../../kernel/light.js';
 import { ENGINE_VERSION } from '../../machine.js';
 import { SUBMISSION_PROOF_ENGINE } from '../../../logic/move/constants.js';
 import { submissionProof } from '../../../../index.js';

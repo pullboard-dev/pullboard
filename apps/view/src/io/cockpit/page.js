@@ -2,6 +2,7 @@ import { cockpitMarkup } from "../../logic/cockpit/markup.js";
 import { cockpitLive } from "../../logic/cockpit/live.js";
 import { cockpitReplay } from "../../logic/cockpit/replay.js";
 import { cockpitSidebar } from "../../logic/cockpit/sidebar.js";
+import { cockpitProjectMenu } from "../../logic/cockpit/project-menu.js";
 import { cockpitRoadmap } from "./roadmap.js";
 import { cockpitProse } from "../../logic/cockpit/prose.js";
 import { costTabScript } from "../cost/tab.js";
@@ -22,8 +23,15 @@ import { activityModel } from "../../logic/activity/model.js";
 import { activityFilters } from "../../logic/activity/render.js";
 import { lifecycleChart } from "../../logic/lifecycle/chart.js";
 import { activityHtml } from "../../logic/activity/render.js";
+import { activityFlow } from "../../logic/activity/flow.js";
+import { activityPageHtml } from "../../logic/activity/page.js";
+import { activityTipHtml } from "../../logic/activity/page.js";
+import { activityStep } from "../../logic/activity/slot.js";
+import { activityStart } from "../../logic/activity/slot.js";
+import { activityRuntime } from "../activity/runtime.js";
 import { dashboardModel } from "../dashboard/model.js";
 import { dashboardHtml } from "../../logic/render/dashboard.js";
+import { comparisonHtml } from "../../logic/render/comparison.js";
 import { dashboardRuntime } from "../dashboard/runtime.js";
 import { releaseNotice } from "../../logic/notice.js";
 import { sharingPresentation } from "../../logic/invitation.js";
@@ -58,6 +66,10 @@ import { pageScriptPart1 } from "../../logic/page/session.js";
 import { pageScriptPart2 } from "../page/connect.js";
 import { pageScriptPart3 } from "../page/boards.js";
 import { pageScriptPart4 } from "../page/actions.js";
+import { paletteScript } from "../palette/index.js";
+import { accountScript } from "../page/account.js";
+import { shoutsScript } from "../page/shouts.js";
+import { menuScript } from "../page/menu.js";
 import { settingsMarkup } from "../../logic/settings/page.js";
 import { settingsPageScript } from "../../logic/settings/page.js";
 import { agentApprovalScript } from "../../logic/agent/approval.js";
@@ -122,12 +134,12 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
   const css = stylesheet ?? (snapshot ? 'view.css' : transportModule ? '/view.css' : '/view.css?k=' + encodeURIComponent(key));
   const cssAttribute = css.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
   const firstRunCoordinate = commandPhrases().includes('coordinate');
-  const pageScope = { firstRunCoordinate, sharedRowHtml, activityWords, activityModel, activityHtml, activityFilters, lifecycleChart, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, dashboardRuntime, releaseNotice, STAR_KEY, applyStateDelta, expandItemSummaries, closePageDialog, connection, costPrices: privateCostPrices, costTabScript, drawHosted, hostedBrowser, hostedOptions, hostedReleaseDistance, hostedReleaseNote, homeCapacity, homeRules, hostedState, lifecycle, lifecycleEvent, lifecycleMove, moduleOption, openPageDialog, pageStartup, paths, personNeeds, privateCost, readOnly, releaseHosted, releaseInfo, requestMode, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, snapshot, staleChip, tabValue, transportModule };
+  const pageScope = { firstRunCoordinate, sharedRowHtml, activityWords, activityModel, activityHtml, activityFilters, activityFlow, activityPageHtml, activityTipHtml, activityStep, activityStart, activityRuntime, lifecycleChart, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, comparisonHtml, dashboardRuntime, releaseNotice, STAR_KEY, applyStateDelta, expandItemSummaries, closePageDialog, connection, costPrices: privateCostPrices, costTabScript, drawHosted, hostedBrowser, hostedOptions, hostedReleaseDistance, hostedReleaseNote, homeCapacity, homeRules, hostedState, lifecycle, lifecycleEvent, lifecycleMove, moduleOption, openPageDialog, pageStartup, paths, personNeeds, privateCost, readOnly, releaseHosted, releaseInfo, requestMode, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, snapshot, staleChip, tabValue, transportModule };
   const repositoryAttribute = starRepository().replace(/[&<>"']/gu, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
   const sections = { repositoryAttribute, cssAttribute, hostedLocal, snapshot, readOnly, requestMode, privateCost, hostedMarkup, signIn, settingsMarkup, starMarkup,
     pageScope, pageScriptPart1, pageScriptPart2, pageScriptPart3, COMMAND_SOURCE, groupActivityModel, groupNeedsHtml, groupEventHtml,
     milestoneRowHtml, readMilestoneModel, roadmapRemainingCount, roadmapCardsHtml, releaseNotice, pageRenderScript, settingsPageScript,
-    agentApprovalScript, pageScriptPart4, historyLoadingScript };
-  return cockpitMarkup(sections) + cockpitLive(sections) + cockpitReplay(sections) + cockpitSidebar(sections)
+    agentApprovalScript, pageScriptPart4, historyLoadingScript, paletteScript, accountScript, shoutsScript, menuScript };
+  return cockpitMarkup(sections) + cockpitLive(sections) + cockpitReplay(sections) + cockpitSidebar(sections) + cockpitProjectMenu()
     + cockpitRoadmap(sections) + cockpitProse(sections);
 }

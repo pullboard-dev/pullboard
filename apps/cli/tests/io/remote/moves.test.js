@@ -14,6 +14,9 @@ import { fixtureMachineSettings } from '../../fixtures/testkit.js';
 import { FIXTURE_MODEL_EARLIER } from '../../fixtures/testkit.js';
 import { runFixtureGit } from '../../fixtures/child.js';
 import { runCliInProcess } from '../../fixtures/process.js';
+import { startFixtureLocalRunner } from '../../fixtures/runner/local-start.js';
+import { whenRunnerSettles } from '../../fixtures/runner/local-start.js';
+import { stopFixtureLocalRunner } from '../../fixtures/runner/local-stop.js';
 
 /** One successful versioned CLI call on the served board's own checkouts, run in this process. */
 async function served(box, cwd, ...args) {
@@ -31,7 +34,7 @@ async function served(box, cwd, ...args) {
 function onRemoteSeats(body) {
   return async (t) => {
     const seats = await remoteSeats(t);
-    try { await body(seats); } finally { await seats.box.api.close(); }
+    try { await body(seats); } finally { stopFixtureLocalRunner(seats.box.env.PULLBOARD_MACHINE_HOME); await seats.box.api.close(); }
   };
 }
 
@@ -52,9 +55,9 @@ async function remoteSeats(t) {
   runFixtureGit(['clone', '-q', box.root, clone], { cwd: box.dir, env: box.env, stdio: 'pipe' });
   const machine = join(box.dir, 'studio-home');
   mkdirSync(machine);
-  // Both homes hold the submit's gate in process and start no detached local runner, so they pin both [P7].
-  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  for (const home of [box.env.PULLBOARD_MACHINE_HOME, machine]) fixtureMachineSettings(home, { gate: { runnerDispatch: 'controller', localRunner: false } });
+  // The served board's host runs its pulled gate jobs on its own loopback local runner; the boardless clone starts none [P7].
+  fixtureMachineSettings(machine, { gate: { localRunner: false } });
+  startFixtureLocalRunner(box.env, box.root);
   /** Run the real CLI dispatch in the clone as one seat, awaited, so the in-process server keeps answering. */
   const run = (seat, ...args) => runCliInProcess(args,
     { cwd: clone, env: { ...box.env, PULLBOARD_MACHINE_HOME: machine, PULLBOARD_AGENT: seat.agent } });
@@ -65,6 +68,15 @@ async function remoteSeats(t) {
   /** The served board's summary row for one item. */
   const row = async (id) => (await box.call(`${box.path}/state`)).document.state.items.find((entry) => entry.id === id);
   return { box, builder, verifier, clone, run, add, row };
+}
+
+// Budget: how long the served host's local runner has to pull and settle one gate job; a hang ceiling only.
+const SETTLE_MS = 60_000;
+
+/** The item's served row once its pulled gate settled: a pull submit stays claimed until the host's runner posts the receipt [P7]. */
+function settledRow(seats, id) {
+  return whenRunnerSettles(seats.box.env, async () => { const row = await seats.row(id); return row.status === 'claimed' ? null : row; },
+    { deadlineMs: SETTLE_MS, what: `the served gate of #${id}` });
 }
 
 /** Whether a local board command created or opened a board in the clone. */
@@ -105,7 +117,7 @@ onRemoteSeats(async (seats) => {
   const submitted = await seats.run(seats.builder, 'submit', String(id));
   assert.equal(submitted.status, 0, submitted.stdout + submitted.stderr);
   assert.match(submitted.stdout, new RegExp(`^submitted #${id}\\b.* via http://`, 'mu'));
-  assert.equal((await seats.row(id)).status, 'submitted');
+  assert.equal((await settledRow(seats, id)).status, 'submitted', 'the host runner posted the pulled gate receipt');
   checkOutSubmitted(seats.box, seats.builder, seats.verifier);
   const reserved = await moved(seats, seats.verifier, 'next', '--verify');
   assert.equal(reserved.item.item_id, id, 'next --verify reserved the review on the served board');
@@ -113,6 +125,20 @@ onRemoteSeats(async (seats) => {
   assert.equal(verdict.item?.item_id ?? verdict.item_id ?? id, id);
   assert.equal((await seats.row(id)).status, 'verified', 'the verdict reached the served board');
   assert.equal(cloneBoard(seats.clone), false, 'no move opened a local board');
+}));
+
+test('shout from a boardless clone reaches the served board with the seat as sender and opens no local board [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board and two CLI calls, not a throughput claim.
+onRemoteSeats(async (seats) => {
+  const shouted = await moved(seats, seats.builder, 'shout', 'coordinator', '--kind', 'blocker', 'written from another host');
+  assert.ok(shouted.id, 'the board answered with the shout id');
+  const { shouts } = (await seats.box.call(`${seats.box.path}/state`)).document.state;
+  const row = shouts.find((entry) => entry.shout_id === shouted.id);
+  assert.equal(row?.shout_from, seats.builder.agent, 'the board records the seat as the sender');
+  assert.equal(row?.shout_text, 'written from another host');
+  const text = await seats.run(seats.builder, 'shout', 'coordinator', '--kind', 'blocker', 'and in text form');
+  assert.equal(text.status, 0, text.stdout + text.stderr);
+  assert.match(text.stdout, /^shouted #\d+ via http:\/\//mu);
+  assert.equal(cloneBoard(seats.clone), false, 'no shout opened a local board');
 }));
 
 /** The refusal code and next: line one CLI run printed. */

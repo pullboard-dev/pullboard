@@ -1,3 +1,4 @@
+/** @pullboard-world-pin: the board-write hop runs the checkout's own CLI, so it reads the root package.json bin entry. */
 /**
  * Repro, 9 Nov about 1:25 am CT: the coordinator's `hold --off`, `add` and `edit` queued over ten minutes, because
  * every write held its checkout's lease for its whole run and a `merged` that ran tests held it first. The invariant:
@@ -27,6 +28,9 @@ import {
 } from '../kit.js';
 
 const { createE2eHelpers } = await from('apps/cli/tests/fixtures/e2e.js');
+
+/** The command's entry, named by the root package's `bin`, so this package fixture names no app path. */
+const PULLBOARD_BIN = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).bin.pullboard;
 
 /** The board-write target: any write holds the lock, and lands, in under 1 s. */
 const WRITE_TARGET_MS = 1_000;
@@ -58,7 +62,7 @@ function start(source, args, env) {
 /** Run one CLI command in its own process, resolving with its result and wall time, or `late` past the limit. */
 function cli(box, cwd, args) {
   const started = performance.now();
-  const child = spawn(process.execPath, [join(ROOT, 'apps/cli/pullboard.js'), ...args], { cwd, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, [join(ROOT, PULLBOARD_BIN), ...args], { cwd, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
   let out = '', err = '';
   child.stdout.setEncoding('utf8').on('data', text => { out += text; });
   child.stderr.setEncoding('utf8').on('data', text => { err += text; });

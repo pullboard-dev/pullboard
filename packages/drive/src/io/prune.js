@@ -4,6 +4,7 @@ import { readdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { statfsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const GIB = 1024 ** 3;
@@ -49,6 +50,28 @@ export function defaultFloorBytes(totalBytes) {
   return Math.ceil(Math.max(10 * GIB, totalBytes * 0.05)) + MARGIN_BYTES;
 }
 
+/** Chrome's own temp folders in a temp directory are dead an hour after their last change, so a runner prune removes them [C7]. */
+const CHROME_TEMP = /^(com\.google\.Chrome|org\.chromium\.Chromium)/u;
+const CHROME_TEMP_MAX_AGE_MS = 60 * 60_000;
+
+/**
+ * Remove Chrome temp folders (com.google.Chrome*, org.chromium.Chromium*) in `dir` that are older than an hour. Why: a
+ * browser test killed mid-run leaves them behind and they filled runner disks.
+ *
+ * @param {{ dir?: string, maxAgeMs?: number, now?: number }} options
+ * @returns {string[]} the paths removed
+ */
+export function pruneChromeTemp({ dir = tmpdir(), maxAgeMs = CHROME_TEMP_MAX_AGE_MS, now = Date.now() } = {}) {
+  const removed = [];
+  for (const name of names(dir)) {
+    if (!CHROME_TEMP.test(name)) continue;
+    const path = join(dir, name);
+    if (now - touched(path) < maxAgeMs) continue;
+    try { rmSync(path, { recursive: true, force: true }); removed.push(path); } catch { /* best effort */ }
+  }
+  return removed;
+}
+
 /**
  * Remove test-results records and pull job environment folders that are old, then the oldest of what remains while free
  * disk is below the floor. Test-results units are the input buckets and green records under each repo store; environment
@@ -58,8 +81,9 @@ export function defaultFloorBytes(totalBytes) {
  *   root: the runner root holding test-results; cache: the pull cache holding env; space: free-space reader, injectable.
  * @returns {{ removed: string[], freeBytes: number | null }} paths removed and the free bytes afterwards
  */
-export function pruneRunnerStores({ root, cache, live = new Set(), maxAgeMs = PRUNE_MAX_AGE_MS, floorBytes, graceMs = GRACE_MS, now = Date.now(), space = () => volumeSpace(root) }) {
+export function pruneRunnerStores({ root, cache, live = new Set(), maxAgeMs = PRUNE_MAX_AGE_MS, floorBytes, graceMs = GRACE_MS, now = Date.now(), space = () => volumeSpace(root), tmp = tmpdir() }) {
   const units = [];
+  const removedChrome = pruneChromeTemp({ dir: tmp, now });
   const store = join(root, 'test-results');
   for (const repo of names(store)) {
     if (repo.startsWith('.')) continue;
@@ -72,7 +96,7 @@ export function pruneRunnerStores({ root, cache, live = new Set(), maxAgeMs = PR
     const path = join(cache, 'env', name);
     units.push({ path, ...measure(path) });
   }
-  const removed = [];
+  const removed = [...removedChrome];
   let reading = space();
   let free = reading?.freeBytes ?? null;
   const floor = floorBytes ?? (reading ? defaultFloorBytes(reading.totalBytes) : null);

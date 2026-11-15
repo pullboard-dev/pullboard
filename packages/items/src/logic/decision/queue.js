@@ -1,9 +1,9 @@
-import { normalizeRulingEffects } from "../../../../spec/index.js";
-import { RULING_OWNER_ENGINE } from "../../../../state/index.js";
+import { normalizeRulingEffects } from "../../../../spec/light.js";
+import { RULING_OWNER_ENGINE } from "../../../../state/light.js";
 /** Structured choices on the existing append-only decision/answer stream [B21,B27]. */
-import { DECISION_QUEUE_ENGINE } from "../../../../state/index.js";
-import { Refused } from "../../../../kernel/index.js";
-import { shoutItemId } from "../../../../kernel/index.js";
+import { DECISION_QUEUE_ENGINE } from "../../../../state/light.js";
+import { Refused } from "../../../../kernel/light.js";
+import { shoutItemId } from "../../../../kernel/light.js";
 
 /** Validate new decision metadata before any message is persisted, without changing legacy shouts. */
 export function itemDecisionDetail(board, message, { itemShoutReader }, engine) {

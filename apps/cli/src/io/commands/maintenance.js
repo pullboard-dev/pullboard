@@ -1,5 +1,7 @@
 import { maintenanceTimerWarning } from '../worktree/maintenance/diagnostics.js';
 import { recordMaintenanceLastRun } from '../worktree/maintenance/diagnostics.js';
+import { compactionSummary } from '../worktree/maintenance/compaction.js';
+import { dailyBoardCompaction } from '../worktree/maintenance/compaction.js';
 /** Repository maintenance is opt-in and runs from its real coordinator checkout [B3,C7]. */
 import { actOn } from '../entry.js';
 import { context } from '../entry.js';
@@ -26,8 +28,11 @@ export async function run(io, { first, second, rest, values }) {
     try { recordMaintenanceLastRun(ctx.info.commonDir); }
     catch (error) { io.err(`maintenance last-run diagnostic unavailable: ${error.code ?? error.name}: ${error.message}`); }
   }
+  // Routine maintenance also compacts the board's old job steps, at most once a day, and reports the bytes before and after [C7].
+  if (report.enabled) report.compaction = dailyBoardCompaction(ctx);
   io.result?.(report);
   io.say(maintenanceSummary(report));
+  if (report.compaction) io.say(compactionSummary(report.compaction));
   if (report.enabled) {
     const { scheduleWorktreeMaintenance } = await import('../worktree/maintenance/scheduler.js');
     try { await scheduleWorktreeMaintenance(ctx); }

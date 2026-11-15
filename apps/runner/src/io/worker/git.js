@@ -18,10 +18,13 @@ export function safeGitDiagnostic(S, value, root, env) {
   return bytes.length > 2_048 ? `${bytes.subarray(0, 768).toString('utf8')}\n...[truncated]...\n${bytes.subarray(-1_024).toString('utf8')}` : text;
 }
 
+/** The Git operations a setup failure names, and those a timed preparation also counts. */
+const FAILED = new Set(['init', 'fetch', 'checkout', 'index-pack', 'cat-file', 'rev-parse', 'rev-list', 'for-each-ref', 'update-ref', 'merge-base', 'verify-pack', 'check-ref-format', 'repack', 'commit-graph']);
+const TIMED = new Set([...FAILED, 'config', 'status']);
+
 /** Keep the failed Git operation and bounded cause without exposing command arguments or raw errors. */
 function gitSetupFailure(S, root, args, env, result, stderr, overflow, inputError) {
-  const commands = new Set(['init', 'fetch', 'checkout', 'index-pack', 'cat-file', 'rev-parse', 'rev-list', 'for-each-ref', 'update-ref', 'merge-base', 'verify-pack', 'check-ref-format', 'repack', 'commit-graph']);
-  const operation = args.find(arg => commands.has(arg)) ?? 'command';
+  const operation = args.find(arg => FAILED.has(arg)) ?? 'command';
   const role = root.endsWith('.git') || args.includes('--bare') ? 'source cache' : 'source checkout';
   const code = result.error?.code ?? inputError?.code;
   const status = overflow ? 'stdout limit exceeded' : result.error && /^[A-Z][A-Z0-9_]{0,63}$/u.test(code ?? '') ? code
@@ -60,7 +63,7 @@ export async function gitBytes(S, root, args, env, input) {
   await drainOwned(S, owned);
   if (overflow || inputError || result.error || result.code !== 0 || result.signal) throw gitSetupFailure(S, root, args, env, result, stderr.toString('utf8'), overflow, inputError);
   if (S.sourcePreparation) {
-    const operation = args.find(arg => new Set(['init', 'fetch', 'checkout', 'index-pack', 'cat-file', 'rev-parse', 'rev-list', 'for-each-ref', 'update-ref', 'merge-base', 'verify-pack', 'check-ref-format', 'repack', 'commit-graph', 'config', 'status']).has(arg)) ?? 'unknown';
+    const operation = args.find(arg => TIMED.has(arg)) ?? 'unknown';
     const row = S.sourcePreparation.git[operation] ??= { calls: 0, ms: 0 };
     row.calls++;
     row.ms += Math.round(performance.now() - started);

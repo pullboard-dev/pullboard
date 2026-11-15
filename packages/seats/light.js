@@ -3,3 +3,4 @@ export { timingSeat, appendSeatTiming, beginSeatTiming } from './src/io/timing.j
 export * from './browser.js';
 export { sessionBound } from './src/io/agent/binding.js';
 export { agentParent } from './src/logic/parent.js';
+export { verdictRows } from './src/logic/rows.js';

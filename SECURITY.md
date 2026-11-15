@@ -1,10 +1,10 @@
 # Security
 
-**Report vulnerabilities privately.** Use this repository's Security tab ("Report a vulnerability"). Never use a public issue or PR. The gate hides a public report that looks like one.
+**Report vulnerabilities privately.** Use this repository's Security tab ("Report a vulnerability"). Never use a public issue or PR.
 
 ## How to report
 
-Run the `pullboard-contribute` skill; it writes a Security record and sends it privately. By hand, use this shape:
+Use this shape:
 
 > 2-3 short sentences: what's exposed, to whom, how bad.
 

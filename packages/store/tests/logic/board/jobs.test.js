@@ -18,10 +18,10 @@ import { cellSeat } from '../../fixtures/cell.js';
 
 /** Build a project with a claimed item and one committed candidate, ready to queue. */
 function queued(t) {
-  const project = cellProject(t, { gate: 'true', config: { submit: { handoff: true } } });
+  const project = cellProject(t, { real: true, gate: 'true', config: { submit: { handoff: true } } });
   const web = join(project.dir, 'web');
   project.git(project.repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
-  const board = cellBoard(t, project.boardFile, undefined, { gitRoot: web });
+  const board = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: web });
   const seat = cellSeat(board, { lane: 'web', path: web });
   const id = cellItem(board, { lane: 'web', title: 'Shadow job source', specIds: ['G1'], route: 'strong',
     criterion: 'The candidate passes.', check: 'true' }).item_id;

@@ -12,6 +12,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tryGit } from '../../../../git/index.js';
 import { machineHome } from '../../../../resources/index.js';
+import { storeName } from '../store-names.js';
 
 /** The environment variable that hands a static command the changed paths, as a JSON list; a command that ignores it runs whole. */
 export const STATIC_SCOPE_ENV = 'PULLBOARD_STATIC_SCOPE';
@@ -86,7 +87,7 @@ export function analysisKey(root, { kind, main, source, raw, definition = null, 
 
 /** The file a kept result lives in, under the machine home so every job on one runner shares it. */
 function memoFile(key, home) {
-  return join(home ?? join(machineHome(), 'analysis-memo'), `${key}.json`);
+  return join(home ?? join(machineHome(), 'analysis-memo'), storeName(key));
 }
 
 /**

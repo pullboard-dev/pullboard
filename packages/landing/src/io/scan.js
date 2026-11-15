@@ -1,10 +1,9 @@
-/** The scans of a named landing that used to run on the coordinator: module resolution and cells-plan placement, now one runner job [C7,#5559]. */
+/** The scans of a named landing that used to run on the coordinator: module resolution, now one runner job [C7,#5559]. */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { git } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
-import { landingPlacementProblems } from './guards.js';
 import { requireLandingModuleResolution } from './guards.js';
 
 /** Printed instead of rows when this checkout lacks the batch's objects, so the coordinator scans locally. */
@@ -17,8 +16,6 @@ export function scanRidesRunner(state) {
   return state.batch.external === true && Boolean(state.config.staticChecks?.trim()) && existsSync(join(state.batch.root, SCAN_PATH));
 }
 
-const PLAN = 'packages/codemap/data/plan/cells.json';
-
 /** The `file:line: text` rows the static-check reader attributes to items, from a module-resolution refusal. */
 function resolutionRows(error) {
   if (error.code === 'LAND_MODULE_PARSE') return (error.broken?.length ? error.broken : ['(composed tree)']).map(file => `${file}:1: ${error.code} ${error.message}`);
@@ -30,17 +27,13 @@ function resolutionRows(error) {
 
 /**
  * Scan the composed tree at `tip` against `base`; resolves rows (empty when clean) or SCAN_UNAVAILABLE.
- * Why: the parse, the import graph of two whole trees and the plan check cost the coordinator seconds of CPU per landing; a runner has the spare CPU.
+ * Why: the parse and the import graph of two whole trees cost the coordinator seconds of CPU per landing; a runner has the spare CPU.
  */
 export async function scanLanding(root, base, tip) {
   const have = sha => tryGit(root, ['cat-file', '-e', `${sha}^{commit}`]).status === 0;
   if (!have(base) || !have(tip) || git(root, ['rev-parse', 'HEAD^{tree}']) !== git(root, ['rev-parse', `${tip}^{tree}`])) return SCAN_UNAVAILABLE;
   const rows = [];
   try { await requireLandingModuleResolution(root, base, tip); } catch (error) { rows.push(...resolutionRows(error)); }
-  if (existsSync(join(root, PLAN)) && tryGit(root, ['cat-file', '-e', `${base}:${PLAN}`]).status === 0) {
-    const problems = await landingPlacementProblems(root, base);
-    for (const row of problems) rows.push(`${row.path}:1: CELLS_PLAN_UNPLACED ${row.message}; place it with node packages/codemap/src/io/cells/scripts/plan.js --place <path> --cell <cell> (or --stay)`);
-  }
   return rows;
 }
 

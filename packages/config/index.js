@@ -22,7 +22,7 @@ export { trunkRemote } from './src/io/trunk.js';
 export { hostOf, roleHosts } from './src/logic/hosts.js';
 export { trunkProblems, configTrunkRemote } from './src/logic/trunk.js';
 export { scratchRoot } from './src/logic/scratch.js';
-export { scratchFolder, moveAcross } from './src/logic/scratch/folder.js';
+export { scratchFolder, moveAcross, applyMachineScratch } from './src/logic/scratch/folder.js';
 export {
   JSON_SHAPES,
 } from './src/logic/json.js';
@@ -34,6 +34,8 @@ export {
   declaredMachineSlots,
   validateRunner,
   parseToolchains,
+  PERSON_SET,
+  parsePersonSet,
   relayCanaryConfig,
   DEFAULT_RUNNER_WAIT_MS,
   validateRunnerWaitMs,
@@ -44,6 +46,7 @@ export {
   browserFreeChecksEnabled,
   gateRunnersFirstEnabled,
   postLandSuiteEnabled,
+  tableReplayEnabled,
   gateRunnerAdmission,
   setGateRunnersOnly,
   gateRunnerWaitMs,
@@ -51,8 +54,10 @@ export {
   workerBudget,
   setWorkerBudget,
   setGateRunnerWaitMs,
+  setRunnerRate,
   browserByLaunchEnabled,
   runnerDispatchMode,
+  jobReserve,
   pullPilot,
   pullGateFor,
   jobQueueMode,
@@ -153,3 +158,4 @@ export {
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';
 export { boardKey, boardKeyFile } from './src/io/settings.js';
 export { boardRemote, setBoardRemote } from './src/io/settings.js';
+export { setPersonSetting } from './src/io/settings.js';

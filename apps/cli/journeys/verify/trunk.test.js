@@ -30,6 +30,8 @@ import {
   mainPolicy,
   requireTrunkMerge,
 } from '../../../../packages/sandbox/index.js';
+import { settleLand } from '../../tests/fixtures/land/settle.js';
+import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 import { FIXTURE_MODEL } from '../../tests/fixtures/e2e.js';
@@ -114,9 +116,8 @@ for (const branch of ['master', 'trunk']) {
     assert.equal(added.code, 0, `${added.out}${added.err}`);
     const item = JSON.parse(added.out).item;
     assert.equal(item.item_check_baseline.main, head, `${branch} baseline points at the primary checkout commit`);
-    // Baselines wait for a registered runner and never run on the coordinator (#3851); this fixture has none, so the request stays queued.
-    assert.equal(item.item_check_baseline.result, 'pending', `${branch} baseline queued for a runner instead of being unavailable: ${JSON.stringify(item.item_check_baseline)}`);
-    assert.match(item.item_check_baseline.request, /^[0-9a-f-]{36}$/u, `${branch} baseline carries its queued request`);
+    // Under pull a runner (here the fixture's local one) settles the baseline during `add --wait`, so a failing check is recorded red, not pending [C7].
+    assert.equal(item.item_check_baseline.result, 'red', `${branch} baseline settled by a runner instead of being unavailable: ${JSON.stringify(item.item_check_baseline)}`);
     assert.notEqual(item.item_check_baseline.reason, 'no main');
   });
 }
@@ -181,6 +182,14 @@ async function mergeCandidate(branch = 'trunk') {
   return { ...box, web, id };
 }
 
+/** Submit the item's builder and wait for the pulled gate to settle: submit returns once the gate job is queued [C7]. */
+async function submitSettled(box) {
+  const submitted = await box.go(box.web, 'submit', String(box.id));
+  assert.equal(submitted.code, 0, submitted.err);
+  await settledGateJob({ ...box, run: box.go }, box.id);
+  return submitted;
+}
+
 /** Capture the bytes and state a speculative merge must leave alone. */
 function checkoutState(box, cwd) {
   return {
@@ -214,8 +223,7 @@ test('[B34,V6] clean divergent submit and accept preserve every checkout and ind
   advanceMergeTrunk(box, false);
   const before = [checkoutState(box, box.repo), checkoutState(box, box.web)];
   const trunk = box.git(box.repo, 'rev-parse', 'HEAD');
-  const submitted = await box.go(box.web, 'submit', String(box.id));
-  assert.equal(submitted.code, 0, submitted.err);
+  await submitSettled(box);
   // Submit composes clean main into the builder's own checkout as a merge commit (4d18c3c77d); the primary checkout is untouched.
   assert.deepEqual(checkoutState(box, box.repo), before[0]);
   const composed = checkoutState(box, box.web);
@@ -229,6 +237,8 @@ test('[B34,V6] clean divergent submit and accept preserve every checkout and ind
   assert.equal(accepted.code, 0, accepted.err);
   assert.deepEqual(checkoutState(box, review), reviewBefore);
   assert.deepEqual(checkoutState(box, box.web), after[1], 'accept leaves the builder checkout and index as submitted');
+  // Accept only offers a land job under pull; the runner's landing is what advances trunk, so wait for its receipt [C7].
+  await settleLand(box, { messages: [accepted.out, accepted.err] });
   // Accept lands the verified source on trunk, so the primary checkout advances cleanly to contain it.
   const landed = checkoutState(box, box.repo);
   assert.equal(box.git(box.repo, 'merge-base', after[1].head, landed.head), after[1].head, 'the primary head contains the verified builder head');
@@ -252,8 +262,7 @@ test('[B34,V6] conflicting submit names files and refuses without changing any c
 
 test('[B34,V6] accept rechecks the moved trunk and refuses with indexes and checkouts intact', async () => {
   const box = await mergeCandidate();
-  const submitted = await box.go(box.web, 'submit', String(box.id));
-  assert.equal(submitted.code, 0, submitted.err);
+  await submitSettled(box);
   const review = await mergeReviewer(box);
   advanceMergeTrunk(box, true);
   const before = [box.repo, box.web, review].map(cwd => checkoutState(box, cwd));
@@ -269,7 +278,7 @@ test('[B34,V6] accept rechecks the moved trunk and refuses with indexes and chec
 
 test('[B34,V6] a detached coordinator accept checks the retained non-main trunk tip', async () => {
   const box = await mergeCandidate('master');
-  assert.equal((await box.go(box.web, 'submit', String(box.id))).code, 0);
+  await submitSettled(box);
   advanceMergeTrunk(box, true);
   box.git(box.repo, 'switch', '-q', '--detach', box.git(box.web, 'rev-parse', 'HEAD'));
   const before = checkoutState(box, box.repo);

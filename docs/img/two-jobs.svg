@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 972 236" role="img" aria-labelledby="dt dd"><style>
+/* Layout: one diagram, centred, full width on a phone. Same green family as the paper. */
+:root{
+  --bg:#f5f6f3; --ink:#1b211d; --muted:#5d6760; --line:#8a948c;
+  --rule-fill:#ece9fb; --rule-stroke:#5b4fb8; --rule-ink:#2e2770;
+  --check-fill:#e1f3ec; --check-stroke:#0f6e56; --check-ink:#08443a;
+  --agent-fill:#fbeae4; --agent-stroke:#a8452a; --agent-ink:#5e2414;
+  --neutral-fill:#eceeea; --neutral-stroke:#7b847d; --neutral-ink:#1b211d;
+  --gap-fill:#faeeda; --gap-stroke:#9a5b0d; --gap-ink:#5a3406;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--gap-fill:#4a2f08;--gap-stroke:#efa94a;--gap-ink:#fbe6c4}}
+:root[data-theme="dark"]{--gap-fill:#4a2f08;--gap-stroke:#efa94a;--gap-ink:#fbe6c4}
+.gap rect{fill:var(--gap-fill);stroke:var(--gap-stroke)} .gap text{fill:var(--gap-ink)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#121613;--ink:#e3e8e3;--muted:#9aa59d;--line:#7d877f;--rule-fill:#2a2550;--rule-stroke:#a9a1ee;--rule-ink:#e4e1fb;--check-fill:#0f3a30;--check-stroke:#5dcaa5;--check-ink:#d6f3e8;--agent-fill:#4a2015;--agent-stroke:#ef9b7d;--agent-ink:#fbe2d8;--neutral-fill:#222924;--neutral-stroke:#8a948c;--neutral-ink:#e3e8e3;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#121613;--ink:#e3e8e3;--muted:#9aa59d;--line:#7d877f;--rule-fill:#2a2550;--rule-stroke:#a9a1ee;--rule-ink:#e4e1fb;--check-fill:#0f3a30;--check-stroke:#5dcaa5;--check-ink:#d6f3e8;--agent-fill:#4a2015;--agent-stroke:#ef9b7d;--agent-ink:#fbe2d8;--neutral-fill:#222924;--neutral-stroke:#8a948c;--neutral-ink:#e3e8e3;color-scheme:dark}
+svg text{font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+.t{font-size:17px;font-weight:600}
+.s{font-size:14px}
+.rule rect{fill:var(--rule-fill);stroke:var(--rule-stroke)} .rule text{fill:var(--rule-ink)}
+.check rect{fill:var(--check-fill);stroke:var(--check-stroke)} .check text{fill:var(--check-ink)}
+.agent rect{fill:var(--agent-fill);stroke:var(--agent-stroke)} .agent text{fill:var(--agent-ink)}
+.neutral rect{fill:var(--neutral-fill);stroke:var(--neutral-stroke)} .neutral text{fill:var(--neutral-ink)}
+.wire{fill:none;stroke:var(--line);stroke-width:1.5}
+.legend{fill:var(--muted);font-size:13px}
+
+text{font-family:system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}
+:root{background:var(--bg)}
+.wall{fill:var(--neutral-stroke)} .head{font-size:13px;font-weight:700;letter-spacing:.12em;fill:var(--ink)}
+</style><rect width="100%" height="100%" fill="var(--bg)"/><title id="dt">Pullboard at a glance</title><desc id="dd">Validation and verification, with a wall between them. Validation is the person's: the person says what correct is, and it is frozen as tests, the bar. Only the frozen bar crosses the wall. Verification is the machine's: untrusted agents build, the machine checks every step, and the work is proven or sent back with the reason. Every step goes into a hash-chained record anyone can re-check.</desc><defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs><g class="neutral"><rect x="16" y="74" width="160" height="64" rx="8" stroke-width="1"/><text class="t" x="96" y="96" text-anchor="middle" dominant-baseline="central">The person</text><text class="s" x="96" y="118" text-anchor="middle" dominant-baseline="central">Says what correct is</text></g><g class="rule"><rect x="198" y="74" width="160" height="64" rx="8" stroke-width="1"/><text class="t" x="278" y="96" text-anchor="middle" dominant-baseline="central">The bar</text><text class="s" x="278" y="118" text-anchor="middle" dominant-baseline="central">Frozen as tests</text></g><g class="agent"><rect x="432" y="74" width="160" height="64" rx="8" stroke-width="1"/><text class="t" x="512" y="96" text-anchor="middle" dominant-baseline="central">Agents</text><text class="s" x="512" y="118" text-anchor="middle" dominant-baseline="central">Untrusted, they build</text></g><g class="check"><rect x="614" y="74" width="160" height="64" rx="8" stroke-width="1"/><text class="t" x="694" y="96" text-anchor="middle" dominant-baseline="central">The machine</text><text class="s" x="694" y="118" text-anchor="middle" dominant-baseline="central">Checks every step</text></g><g class="check"><rect x="796" y="74" width="160" height="64" rx="8" stroke-width="1"/><text class="t" x="876" y="96" text-anchor="middle" dominant-baseline="central">Proven work</text><text class="s" x="876" y="118" text-anchor="middle" dominant-baseline="central">Or sent back, with why</text></g><path class="wire" d="M176 106 L196 106" marker-end="url(#arrow)"/><path class="wire" d="M358 106 L430 106" marker-end="url(#arrow)"/><path class="wire" d="M592 106 L612 106" marker-end="url(#arrow)"/><path class="wire" d="M774 106 L794 106" marker-end="url(#arrow)"/><rect class="wall" x="389" y="14" width="12" height="84"/><rect class="wall" x="389" y="114" width="12" height="38"/><text class="head" x="187.0" y="28" text-anchor="middle" dominant-baseline="central">VALIDATION</text><text class="legend" x="187.0" y="50" text-anchor="middle" dominant-baseline="central">Is the bar right? The person's.</text><text class="head" x="694.0" y="28" text-anchor="middle" dominant-baseline="central">VERIFICATION</text><text class="legend" x="694.0" y="50" text-anchor="middle" dominant-baseline="central">Does the work meet it? The machine's.</text><g class="neutral"><rect x="16" y="172" width="940" height="40" rx="8" stroke-width="1"/><text class="s" x="486.0" y="192" text-anchor="middle" dominant-baseline="central">The record: every step hashed and chained, so anyone can re-check every verdict</text></g></svg>

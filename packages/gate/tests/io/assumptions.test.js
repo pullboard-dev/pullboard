@@ -10,7 +10,7 @@ import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.j
 import { assumptionProblems } from '../../../codemap/index.js';
 import { assumptionsIn } from '../../../codemap/index.js';
 import { writeAssumptionBaseline } from '../../../codemap/index.js';
-import { STATIC_CHECKS } from '../../index.js';
+import { STATIC_CHECKS } from '../../heavy.js';
 
 const REPO = join(import.meta.dirname, '../../../..');
 const made = [];

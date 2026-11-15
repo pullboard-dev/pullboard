@@ -4,9 +4,9 @@ import { STRICT_RENAME_ENGINE } from '../../../../state/light.js';
 import { REVIEW_DEFAULT_ENGINE } from '../../../../state/light.js';
 import { REVIEW_TIER_ENGINE } from '../../../../state/light.js';
 import { readFileSync } from 'node:fs';
-import { itemPatches } from '../../../../items/light.js';
-import { itemPatchPaths } from '../../../../items/light.js';
-import { outsideSource } from '../../../../items/light.js';
+import { itemPatches } from '../../../../items/browser.js';
+import { itemPatchPaths } from '../../../../items/browser.js';
+import { outsideSource } from '../../../../items/browser.js';
 
 // Rulings 39301/39401: source areas and named guard tests, never all test/board/review/person families.
 const SOURCE_DIRECTORIES = ['apps/relay/', 'src/gate/', 'src/auth/', 'src/relay/', 'src/kernel/', 'src/landing/', 'src/runner/',

@@ -4,13 +4,13 @@
  * `verify.unrelatedTrunkMoves` on, a move is kept when its commits change none of the item's files and none of the
  * files its check and affected tests read; anything else, or anything the selection cannot see, refuses as before.
  */
-import { execFileSync } from 'node:child_process';
+import { gitExecFileSync } from '../../../../git/light.js';
 import { Refused } from '../../../../kernel/index.js';
 import { literalShellWords } from '../../../../kernel/light.js';
 
 /** Run git in the reviewer's checkout and return its trimmed output. */
 function git(root, args) {
-  return execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  return gitExecFileSync(args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 }
 
 /** The paths a range of commits changed, without rename pairing so both sides of a move count. */

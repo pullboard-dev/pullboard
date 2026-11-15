@@ -20,6 +20,7 @@ import { Refused } from '../../../../kernel/index.js';
 import { readBoardKey } from '../../../../keys/index.js';
 import {
   outboxAhead,
+  outboxParkedOnly,
   outboxWaiting,
 } from '../relay.js';
 import { withOutboxGuard } from './guard.js';
@@ -67,6 +68,9 @@ export function relayOrdering({ request, localRecords, decoded, replayRelayRecor
     if (pass >= CATCH_UP_PASSES) throw new Refused('RELAY_BUSY', 'moves kept queuing on this machine while it caught up; they stay queued for the next send');
     // Queued moves sit on top of this board: the outbox rebuilds it from the relay's order with them on top (#1013).
     if (outboxAhead(state) || outboxWaiting(file)) await flush(root, file, state, io, senderPolicy);
+    // Only parked moves are left: the flush already brought this board to the relay's order with them on top, and
+    // another machine's moves must not land under them until pullboard relay recover resolves them (#6693).
+    if (outboxParkedOnly(file)) return;
     const key = readBoardKey(state.board);
     const after = localRecords(root, appliedSequence);
     let remote;
@@ -84,6 +88,20 @@ export function relayOrdering({ request, localRecords, decoded, replayRelayRecor
       return catchUp(root, file, state, io, senderPolicy, pass);
     }
     if ([remote.warning, ...(remote.warnings ?? [])].some((warning) => warning?.code === 'KEY_REQUESTS')) io.keyRequestsWaiting = true;
+    // A recovery replaced the checkpoint at a sequence this machine already holds, so the log shows nothing new: take it (#7776).
+    if (Number.isSafeInteger(remote.checkpointEpoch) && remote.checkpointEpoch > (state.checkpointEpoch ?? 0)) {
+      const checkpoint = await fetchCheckpoint(state, io, key, senderPolicy);
+      const restored = await withOutboxGuard(file, () => {
+        if (outboxWaiting(file)) return false;
+        localRecords(root, (board) => restoreRelaySnapshot(board, checkpoint.native, checkpoint.sequence));
+        return true;
+      });
+      if (!restored) return catchUp(root, file, state, io, senderPolicy, pass + 1);
+      state.checkpointEpoch = remote.checkpointEpoch;
+      state.sequence = localRecords(root, appliedSequence);
+      saveLink(file, state);
+      return catchUp(root, file, state, io, senderPolicy, pass);
+    }
     if (!Array.isArray(remote.events) || remote.events.some((record, index) => !record || record.event_id !== after + index + 1 || !['move', 'request'].includes(record.kind) || typeof record.sealed !== 'string')) {
       throw new Refused('RELAY_RESPONSE', 'the relay returned an invalid ordered prefix; fetch a consistent relay snapshot');
     }

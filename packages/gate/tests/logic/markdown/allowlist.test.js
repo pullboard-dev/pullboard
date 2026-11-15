@@ -13,7 +13,8 @@ import { fixtureCommittedGraph } from '../../../../../apps/cli/tests/fixtures/te
 import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
 
 const ROOT = fileURLToPath(new URL('../../../../..', import.meta.url));
-const REAL = readFileSync(join(ROOT, MARKDOWN_ALLOWLIST), 'utf8');
+const SHIPPED = readFileSync(join(ROOT, MARKDOWN_ALLOWLIST), 'utf8');
+const REAL = JSON.stringify({ ...JSON.parse(SHIPPED), enforce: true });
 
 /** A private repository holding the real allowlist and the named files, all staged. */
 function stagedRepo(t, files, allowlist = REAL) {
@@ -35,7 +36,7 @@ test('clause 1: a staged .md that is not on the allowlist is refused with the th
 });
 
 test('clause 1: an entry added with a reason lets the file through, and a nested folder is not matched by a one-level star [C7]', t => {
-  const added = JSON.stringify({ entries: [{ pattern: 'docs/*.md', reason: 'one level of docs' }] });
+  const added = JSON.stringify({ enforce: true, entries: [{ pattern: 'docs/*.md', reason: 'one level of docs' }] });
   assert.deepEqual(judge(stagedRepo(t, { 'docs/a.md': '#\n' }, added)), []);
   assert.equal(judge(stagedRepo(t, { 'docs/deep/a.md': '#\n' }, added)).length, 1);
 });
@@ -61,6 +62,12 @@ test('clause 2: the allowlist is one file, every entry has a reason, and it list
   assert.match(entries.find(entry => entry.pattern === 'docs/lifecycle.md').reason, /#5309/u);
 });
 
-test('clause 2: every .md this checkout tracks is allowed, so main stays green [C7]', () => {
-  assert.deepEqual(changedStaticFailures(ROOT, [], { only: ['markdown-allowlist'] }), []);
+test('clause 1: the refusal ships off, so a repository without the enforce switch commits any .md, and the shipped file leaves it off [C7]', t => {
+  assert.equal(JSON.parse(SHIPPED).enforce, false);
+  assert.deepEqual(judge(stagedRepo(t, { 'docs/notes.md': '# notes\n' }, SHIPPED)), []);
+});
+
+test('clause 2: every .md this checkout tracks is allowed, so turning the switch on stays green [C7]', () => {
+  const tracked = runFixtureGit(['ls-files', '-z', '--', '*.md'], { cwd: ROOT }).stdout.split('\0').filter(Boolean);
+  assert.deepEqual(markdownProblems(REAL, tracked), []);
 });

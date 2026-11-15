@@ -26,6 +26,9 @@ import {
   setGateRunnersOnly,
   setGateRunnerWaitMs,
   setBoardRemote,
+  setRunnerRate,
+  setPersonSetting,
+  PERSON_SET,
   setLandingPool,
   parseWorkerBudget,
   setWorkerBudget,
@@ -39,6 +42,8 @@ import {
   withBoardRead,
 } from '../entry.js';
 import { boardId } from '../../../../../packages/store/index.js';
+import { atomic } from '../../../../../packages/store/index.js';
+import { logEvent } from '../../../../../packages/store/index.js';
 import { describeSetting } from '../../../../../packages/config/index.js';
 import { recordLimitChange } from './stats/limits.js';
 
@@ -105,6 +110,21 @@ export function settingsCommand(io, { first, second, rest, values }) {
     sayDescribed(io, `workers.budget: ${budget?.spend ? `${budget.spend}/${budget.window} (spend pullboard run --scale may use across every live seat on this machine)` : 'off (pullboard run --scale launches no workers)'}`, values.detail === true);
     return 0;
   }
+  if (first === 'runnerRates') {
+    const fields = ['price', 'months', 'watts', 'kwhPrice'];
+    if (!second || rest.length !== fields.length) throw new Refused('USAGE', 'pullboard settings runnerRates <runner> <price> <months> <watts> <kwhPrice>');
+    const card = Object.fromEntries(fields.map((name, index) => [name, /^\s*$/u.test(rest[index]) ? NaN : Number(rest[index])]));
+    const settings = setRunnerRate(second, card);
+    io.result?.({ settings, runnerRate: { runner: second, ...settings.runnerRates[second] } });
+    io.say(`runnerRates for ${second} set to price ${card.price}, ${card.months} months, ${card.watts} W, ${card.kwhPrice} per kWh`);
+    return 0;
+  }
+  if (PERSON_SET[first] && second && !rest.length) {
+    const settings = setPersonSetting(first, second);
+    io.result?.({ settings });
+    io.say(`${first} set to ${second}`);
+    return 0;
+  }
   if (!SETTING_FORMS.includes(first) || !second || rest.length) {
     throw new Refused('USAGE', 'pullboard settings gateSlots <n> | browserSlots <n> | gate.shortSlots <n> | gate.runnersFirst on|off');
   }
@@ -146,7 +166,7 @@ export function settingsCommand(io, { first, second, rest, values }) {
   if (first === 'workers.budget') {
     const before = loadMachineSettings().workers?.budget ?? null;
     const settings = setWorkerBudget(parseWorkerBudget(second));
-    recordLimitChange(work => withBoard(context(io), work), 'workers.budget', before, settings.workers.budget);
+    recordLimitChange(work => withBoard(context(io), work), 'workers.budget', before, settings.workers.budget, { atomic, logEvent });
     io.result?.({ settings });
     io.say(`workers.budget set to ${settings.workers.budget.spend} spend per ${settings.workers.budget.window}`);
     return 0;
@@ -173,7 +193,7 @@ export function settingsCommand(io, { first, second, rest, values }) {
   }
   const before = loadMachineSettings().gateSlots;
   const settings = first === 'browserSlots' ? setBrowserSlots(Number(second)) : setGateSlots(Number(second));
-  if (first === 'gateSlots') recordLimitChange(work => withBoard(context(io), work), 'gateSlots', before, settings.gateSlots);
+  if (first === 'gateSlots') recordLimitChange(work => withBoard(context(io), work), 'gateSlots', before, settings.gateSlots, { atomic, logEvent });
   io.result?.({ settings });
   io.say(`${first} set to ${settings[first]}`);
   return 0;

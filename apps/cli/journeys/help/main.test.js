@@ -7,6 +7,7 @@ import {
 } from 'node:fs';
 import {
   dirname,
+  relative,
   resolve,
 } from 'node:path';
 import { test } from 'node:test';
@@ -28,7 +29,11 @@ function localImports(source, file = '') {
   for (const match of source.matchAll(dynamicImport)) found.add(match[2]);
   // Since 0b71d48c6e packages/git/src/io/trunk/install.js writes a pre-receive hook whose generated text holds one
   // dynamic import of a computed path (the guard's folder is known only at install time); no other file may have one.
-  const computed = file.endsWith('packages/git/src/io/trunk/install.js') ? 1 : 0;
+  // A source file that declares its one computed load in a literal `@pullboard-module-loads` header (liveness.js keeps its
+  // stale-test sweep out of the runner worker bundle, #4140) is allowed that one import; the declared module is walked as an edge.
+  const declared = /^\/\*\* @pullboard-module-loads ([^*\n]+?) \*\/$/mu.exec(source)?.[1].split(' ').filter(path => !path.includes('*')) ?? [];
+  for (const path of declared) found.add(relative(dirname(file), resolve(ROOT, path)).replace(/^(?!\.)/u, './'));
+  const computed = file.endsWith('packages/git/src/io/trunk/install.js') || declared.length ? 1 : 0;
   assert.equal([...source.matchAll(/\bimport\s*\(/gu)].length - [...source.matchAll(dynamicImport)].length, computed,
     'leaf dependencies use inspectable literal dynamic imports');
   return [...found].filter(specifier => specifier.startsWith('.'));
