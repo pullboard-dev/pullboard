@@ -70,6 +70,8 @@ test('clause 1: submit passes the accepted runner plan and admission to runSubmi
   const runnerPlan = acceptRunnerPlan(analysis, { main, source, crossRunTests: ['test/b.test.js'] });
   const result = runSubmitGateWithRunnerPlan(runSubmitGate, '/controller', { affectedTests: true }, runnerPlan, { staticChecked: true });
   assert.equal(result, 'gate');
+  assert.equal(typeof received.options.tableReplay, 'function', 'the move-table replay is wired in [#8117]');
+  delete received.options.tableReplay;
   assert.deepEqual(received, { root: '/controller', config: { affectedTests: true }, options: {
     staticChecked: true, plan: analysis.plan, admission: analysis.admission,
   } });

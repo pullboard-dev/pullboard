@@ -248,6 +248,81 @@ function mutate(repo, command, rest, env, commandConfig) {
   return undefined;
 }
 
+/** The checkout whose `.git` folder holds the shared objects and refs: the repository itself, or the one a linked worktree hangs off. */
+function mainOf(repo) {
+  return repo.common ?? repo;
+}
+
+/** The common git folder as `rev-parse --git-common-dir` prints it: relative at the top of the main checkout, absolute in a linked worktree. */
+function commonDir(repo, absolute) {
+  const main = mainOf(repo);
+  return repo.common || absolute ? `${main.root}/.git` : '.git';
+}
+
+/** Every checkout of one repository, the main one first, then linked worktrees by folder name, the order real Git reads its admin folders in. */
+function checkouts(repo) {
+  const main = mainOf(repo);
+  const name = tree => tree.root.slice(tree.root.lastIndexOf('/') + 1);
+  return [main, ...[...main.linked].sort((a, b) => (name(a) < name(b) ? -1 : name(a) > name(b) ? 1 : 0))];
+}
+
+/** `git worktree add [-q] [--detach] [-b <branch>] <path> [<commit-ish>]` and `list --porcelain [-z]`; anything else is refused. */
+function worktree(repositories, repo, rest, cwd) {
+  const [verb, ...words] = rest;
+  if (verb === 'list') {
+    const flags = words.filter(word => word === '--porcelain' || word === '-z');
+    if (!words.includes('--porcelain') || flags.length !== words.length) unsupported(`worktree list ${words.join(' ')}`);
+    const end = words.includes('-z') ? '\0' : '\n';
+    return outcome(0, checkouts(repo).map(one => {
+      const head = revision(one, 'HEAD')?.oid ?? '0'.repeat(40);
+      return [`worktree ${one.root}`, `HEAD ${head}`, one.branch ? `branch ${one.branch}` : 'detached'].map(line => line + end).join('') + end;
+    }).join(''));
+  }
+  if (verb !== 'add') unsupported(`worktree ${rest.join(' ')}`);
+  let detach = false;
+  let branch = null;
+  const names = [];
+  for (let index = 0; index < words.length; index += 1) {
+    if (words[index] === '-q') continue;
+    if (words[index] === '--detach') detach = true;
+    else if (words[index] === '-b' && words[index + 1] && !words[index + 1].startsWith('-')) { index += 1; branch = words[index]; }
+    else if (words[index].startsWith('-')) unsupported(`worktree add ${words[index]}`);
+    else names.push(words[index]);
+  }
+  if (!names.length || names.length > 2 || detach && branch) unsupported(`worktree add ${words.join(' ')}`);
+  const path = resolve(cwd, names[0]);
+  if (repositories.has(path)) return outcome(128, '', `fatal: '${path}' already exists\n`);
+  const found = revision(repo, names[1] ?? 'HEAD');
+  if (!found || found.type !== 'commit') return outcome(128, '', 'fatal: invalid reference\n');
+  const main = mainOf(repo);
+  if (branch && main.refs.has(`refs/heads/${branch}`)) return outcome(255, '', `fatal: a branch named '${branch}' already exists\n`);
+  if (!branch && !detach) unsupported('worktree add without --detach or -b');
+  if (branch) main.refs.set(`refs/heads/${branch}`, found.oid);
+  const files = found.commit.files;
+  const added = { root: path, branch: branch ? `refs/heads/${branch}` : null, head: found.oid, commits: main.commits, refs: main.refs,
+    config: main.config, common: main, linked: [], index: new Map(files), work: new Map(files) };
+  main.linked.push(added);
+  repositories.set(path, added);
+  return outcome();
+}
+
+/** `git remote add <name> <url>` and `get-url <name>`, kept as the remote.<name>.url settings real Git writes. */
+function remote(repo, rest) {
+  const [verb, name, url] = rest;
+  const key = `remote.${name}.url`;
+  if (verb === 'add' && rest.length === 3 && !name.startsWith('-')) {
+    if (repo.config.has(configKey(key))) return outcome(3, '', `error: remote ${name} already exists.\n`);
+    repo.config.set(configKey(key), url);
+    repo.config.set(configKey(`remote.${name}.fetch`), `+refs/heads/*:refs/remotes/${name}/*`);
+    return outcome();
+  }
+  if (verb === 'get-url' && rest.length === 2 && !name.startsWith('-')) {
+    const saved = repo.config.get(configKey(key));
+    return saved === undefined ? outcome(2, '', `error: No such remote '${name}'\n`) : outcome(0, `${saved}\n`);
+  }
+  unsupported(`remote ${rest.join(' ')}`);
+}
+
 /** Parse only the explicitly contracted global flags; unknown flags cannot silently change semantics. */
 function commandArgs(args, options) {
   const words = [...args];
@@ -267,18 +342,37 @@ function outcome(status = 0, stdout = '', stderr = '') {
 }
 
 /** Apply the supported read and config/ref mutation commands to the in-memory repository. */
-function execute(repo, args, commandConfig, env = {}) {
+function execute(repositories, repo, args, commandConfig, env = {}) {
   const [command, ...rest] = args;
   const written = mutate(repo, command, rest, env, commandConfig);
   if (written) return written;
   if (command === 'rev-parse') {
     if (rest.length === 1 && rest[0] === '--show-toplevel') return outcome(0, `${repo.root}\n`);
     if (rest.length === 1 && rest[0] === '--is-shallow-repository') return outcome(0, 'false\n');
+    if (rest.some(word => word === '--git-common-dir' || word.startsWith('--path-format='))) {
+      let absolute = false;
+      const lines = [];
+      for (const word of rest) {
+        if (word === '--path-format=absolute') absolute = true;
+        else if (word === '--path-format=relative') absolute = false;
+        else if (word === '--git-common-dir') lines.push(commonDir(repo, absolute));
+        else if (word === '--show-toplevel') lines.push(repo.root);
+        else if (word.startsWith('-')) unsupported(`rev-parse ${rest.join(' ')}`);
+        else {
+          const found = revision(repo, word);
+          if (!found) return outcome(128, '', 'fatal: revision not found\n');
+          lines.push(found.oid);
+        }
+      }
+      return outcome(0, lines.map(line => `${line}\n`).join(''));
+    }
     const names = rest.filter(word => !['--verify', '--quiet'].includes(word));
     if (!names.length || names.some(word => word.startsWith('-')) || rest.includes('--verify') && names.length > 1) unsupported(`rev-parse ${rest.join(' ')}`);
     const found = names.map(name => revision(repo, name)); // several names print one line each, as `git rev-parse a b` does (#6486)
     return found.every(Boolean) ? outcome(0, found.map(one => `${one.oid}\n`).join('')) : outcome(rest.includes('--quiet') ? 1 : 128, '', 'fatal: revision not found\n');
   }
+  if (command === 'worktree') return worktree(repositories, repo, rest, repo.root);
+  if (command === 'remote') return remote(repo, rest);
   if (command === 'symbolic-ref') {
     if (rest.at(-1) !== 'HEAD' || rest.slice(0, -1).some(word => !['--quiet', '-q', '--short'].includes(word))) unsupported(`symbolic-ref ${rest.join(' ')}`);
     if (!repo.branch) return outcome(1);
@@ -346,7 +440,7 @@ function execute(repo, args, commandConfig, env = {}) {
 /** Shape captured bytes like Node for the options this fake contracts; reject unsupported transport options. */
 function capture(result, options) {
   for (const key of Object.keys(options)) {
-    if (!['cwd', 'env', 'encoding', 'stdio', 'input', 'maxBuffer'].includes(key)) unsupported(`process option ${key}`);
+    if (!['cwd', 'env', 'encoding', 'stdio', 'input', 'maxBuffer', 'timeout'].includes(key)) unsupported(`process option ${key}`);
   }
   if (options.input && Buffer.byteLength(options.input)) unsupported('nonempty process stdin');
   if (options.encoding && !['utf8', 'utf-8', 'buffer'].includes(options.encoding)) unsupported(`encoding ${options.encoding}`);
@@ -365,7 +459,7 @@ function capture(result, options) {
  * Supports the exact rev-parse, symbolic-ref, config, show, cat-file, ls-tree, ancestry, update-ref
  * and committed name-only diff forms exercised by the shared contract, plus the scripted writes of
  * packages/git/tests/io/journey-contract.test.js: init, add -A, commit, branch, switch and merge on a
- * clean flat-or-nested tree, with real object ids. It models no conflicts, dirty-tree moves, worktree discovery, streaming protocol, environment-selected repository, or arbitrary Git argv.
+ * clean flat-or-nested tree, with real object ids. Also: worktree add and list --porcelain, remote add and get-url, and rev-parse --git-common-dir (with --path-format). `timeout` is accepted and ignored, as nothing here can run long. It models no conflicts, dirty-tree moves, worktree discovery from a subfolder, branch-checked-out-elsewhere refusals, streaming protocol, environment-selected repository, or arbitrary Git argv.
  */
 export function createMemoryGitAdapter(seeds) {
   const repositories = new Map(seeds.map(seed => {
@@ -375,7 +469,7 @@ export function createMemoryGitAdapter(seeds) {
     const refs = new Map(Object.entries(seed.refs ?? {}));
     if (branch && seed.head) refs.set(branch, seed.head);
     const tipFiles = commits.get(seed.head)?.files ?? new Map();
-    return [root, { root, branch, head: seed.head, commits, refs, index: new Map(tipFiles), work: new Map(tipFiles),
+    return [root, { root, branch, head: seed.head, commits, refs, index: new Map(tipFiles), work: new Map(tipFiles), linked: [],
       config: new Map(Object.entries(seed.config ?? {}).map(([key, value]) => [configKey(key), value])) }];
   }));
   const adapter = {
@@ -389,11 +483,11 @@ export function createMemoryGitAdapter(seeds) {
       if (words[0] === 'init') {
         if (words.join(' ') !== 'init -q -b main') unsupported(`init ${words.slice(1).join(' ')}`);
         repositories.set(cwd, { root: cwd, branch: 'refs/heads/main', head: undefined, commits: new Map(),
-          refs: new Map(), index: new Map(), work: new Map(), config: new Map() });
+          refs: new Map(), index: new Map(), work: new Map(), config: new Map(), linked: [] });
         return capture(outcome(), options);
       }
       const repo = repositories.get(cwd);
-      return capture(repo ? execute(repo, words, environmentConfig(options.env), options.env) : outcome(128, '', 'fatal: not a git repository\n'), options);
+      return capture(repo ? execute(repositories, repo, words, environmentConfig(options.env), options.env) : outcome(128, '', 'fatal: not a git repository\n'), options);
     },
     /** Write or delete (bytes null) a file in a repository's working tree, standing in for a test's file write. */
     write(root, path, bytes) {
@@ -414,3 +508,45 @@ export function createMemoryGitAdapter(seeds) {
   };
   return adapter;
 }
+
+/*
+ * Package test files that keep `real: true` because the stand-in still cannot serve them [C7, #8098].
+ * Gaps: disk-written fixtures (the test writes files with writeFileSync, which the stand-in cannot see), killSignal
+ * (the code under test passes a process option the contract lacks), child process (a spawned node process cannot reach
+ * the in-process Git), board busy (the test needs an on-disk board shared between connections).
+ * packages/activity/tests/io/next-wait-shout-scope.test.js: killSignal
+ * packages/activity/tests/io/worktrees.test.js: disk-written fixtures
+ * packages/api/tests/io/gate/detached.test.js: killSignal
+ * packages/api/tests/io/gate/ordered.test.js: killSignal
+ * packages/api/tests/io/gate/overtaken.test.js: killSignal
+ * packages/api/tests/io/handoff.test.js: child process
+ * packages/api/tests/io/main.test.js: disk-written fixtures
+ * packages/api/tests/io/pool.test.js: child process
+ * packages/api/tests/io/pool/reads.test.js: child process
+ * packages/api/tests/io/relink-alias.test.js: board busy
+ * packages/api/tests/io/remote-join.test.js: killSignal
+ * packages/flakes/tests/logic/ratchet.test.js: board busy
+ * packages/flakes/tests/verdict.test.js: disk-written fixtures
+ * packages/gate/tests/io/changed/scripts/static.test.js: disk-written fixtures
+ * packages/gate/tests/io/requeue/retry.test.js: child process
+ * packages/gate/tests/io/test/shards.test.js: child process
+ * packages/gate/tests/runner/probe.test.js: child process
+ * packages/landing/tests/io/deferred/notices.test.js: killSignal
+ * packages/landing/tests/io/main/nearby.test.js: disk-written fixtures
+ * packages/landing/tests/io/main/red/refresh/single.test.js: killSignal
+ * packages/landing/tests/io/reuse/refresh.test.js: disk-written fixtures
+ * packages/landing/tests/io/step/gate/affected.test.js: disk-written fixtures
+ * packages/moves/tests/logic/moves/holdItem.test.js: disk-written fixtures
+ * packages/moves/tests/reopen.test.js: disk-written fixtures
+ * packages/runners/tests/io/pack/flight.test.js: disk-written fixtures
+ * packages/runners/tests/machine-home.test.js: board busy
+ * packages/runners/tests/run-updates-main-reds.test.js: disk-written fixtures
+ * packages/seats/tests/io/checkout.test.js: killSignal
+ * packages/shouts/tests/main.test.js: board busy
+ * packages/store/tests/any.test.js: disk-written fixtures
+ * packages/store/tests/cli.test.js: killSignal
+ * packages/store/tests/corrections.test.js: disk-written fixtures
+ * packages/store/tests/fixtures-stand-ins.test.js: disk-written fixtures
+ * packages/store/tests/implies.test.js: disk-written fixtures
+ * packages/store/tests/io/board/blobs.test.js: board busy
+ */
