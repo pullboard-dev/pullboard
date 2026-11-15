@@ -7,7 +7,7 @@ import { readdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 import { waitForCondition } from '../../../../apps/cli/tests/fixtures/runner/holders.js';
 import { LAUNCH_LABEL_PREFIX } from '../../index.js';
 import { launchJobPlist } from '../../index.js';

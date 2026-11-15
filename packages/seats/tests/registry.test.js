@@ -1,8 +1,8 @@
 /** Registry metadata, refresh, pruning and forgetting (N33, N35, N36). */
 import assert from 'node:assert/strict';
-import { startFixtureChild as spawn } from '../../gate/tests/fixtures/child.js';
-import { reportFixtureChildFailure } from '../../gate/tests/fixtures/child.js';
-import { runFixtureGit } from '../../gate/tests/fixtures/child.js';
+import { startFixtureChild as spawn } from '../../../apps/cli/tests/fixtures/child.js';
+import { reportFixtureChildFailure } from '../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../apps/cli/tests/fixtures/child.js';
 import { performance } from 'node:perf_hooks';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';

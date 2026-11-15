@@ -34,7 +34,7 @@ await new Promise(resolve => server.close(resolve));
 const root = mkdtempSync(join(tmpdir(), 'pullboard-known-child-'));
 try { throw new Error(${JSON.stringify(assertion)} + ' file ' + join(root, ${JSON.stringify(leaf)}) + ' request ' + randomUUID() + ' endpoint http://127.0.0.1:' + port); }
 finally { rmSync(root, { recursive: true, force: true }); }`;
-  const helper = pathToFileURL(join(import.meta.dirname, '../../../../../../apps/cli/tests/fixtures/child.js')).href;
+  const helper = pathToFileURL(join(import.meta.dirname, '../../../../../../packages/gate/tests/fixtures/child.js')).href;
   writeFileSync(join(root, 'test/failure.test.js'), `import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { runFixtureChild } from ${JSON.stringify(helper)};

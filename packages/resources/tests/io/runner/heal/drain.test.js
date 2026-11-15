@@ -17,7 +17,7 @@ async function scenario(t, body) {
 import { DatabaseSync } from 'node:sqlite';
 import { setTimeout as pause } from 'node:timers/promises';
 import { takeResource, listResources } from ${JSON.stringify(new URL('../../../../index.js', import.meta.url).href)};
-import { runFixtureChildAsync, startFixtureChild } from ${JSON.stringify(new URL('../../../../../../apps/cli/tests/fixtures/child.js', import.meta.url).href)};
+import { runFixtureChildAsync, startFixtureChild } from ${JSON.stringify(new URL('../../../../../../packages/gate/tests/fixtures/child.js', import.meta.url).href)};
 import { once } from 'node:events';
 const root = process.cwd();
 const runners = [{host:'drain-a',slots:2,browser:0},{host:'flow-b',slots:3,browser:1},{host:'guard-c',slots:2,browser:1}];

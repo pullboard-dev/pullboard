@@ -5,7 +5,7 @@ import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { cellBoard } from '../../../store/tests/fixtures/cell.js';
-import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../../../apps/cli/tests/fixtures/testkit.js';
 import { fetchFresh } from '../../../../apps/cli/tests/fixtures/http.js';
 import { runnerDispatchMode } from '../../../config/index.js';

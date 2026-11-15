@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { requirePlannedSource } from '../../../index.js';
 import { readTrunkEntry } from '../../../src/logic/submit/preflight.js';
-import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
 
 const IDENTITY = ['-c', 'user.name=Trunk Test', '-c', 'user.email=trunk@example.test', '-c', 'commit.gpgsign=false'];
 const PLAN = 'packages/codemap/data/plan/cells.json';

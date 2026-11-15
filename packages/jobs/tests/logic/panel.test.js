@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { cellBoard } from '../../../store/tests/fixtures/cell.js';
-import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 import { appendGateSpan } from '../../index.js';
 import { createJob } from '../../index.js';
 import { gatePanel } from '../../index.js';

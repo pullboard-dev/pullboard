@@ -6,7 +6,7 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 import { pullAdapter } from '../../src/io/pull.js';
 import { pullStatement } from '../../src/io/pull.js';
 import { fileStore } from '../../src/io/pull/store.js';

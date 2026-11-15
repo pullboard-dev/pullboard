@@ -50,7 +50,7 @@ async function landingUnderSlot(t, runnerExecution) {
     runFixtureGit(['commit', '-qm', 'test: nested shard body [C7]'], { cwd: root, env });
     const driver = join(home, 'driver.mjs');
     writeFileSync(driver, `import { takeResource, gateSlotEnvironment } from ${JSON.stringify(pathToFileURL(join(root, 'packages/resources/index.js')).href)};
-import { runFixtureChild } from ${JSON.stringify(pathToFileURL(join(root, 'apps/cli/tests/fixtures/child.js')).href)};
+import { runFixtureChild } from ${JSON.stringify(pathToFileURL(join(root, 'packages/gate/tests/fixtures/child.js')).href)};
 const lease = await takeResource({ name: 'gate', scope: 'machine', root: ${JSON.stringify(root)}, capacity: 1, remote: false, runnerExecution: ${runnerExecution} });
 try {
   const result = runFixtureChild(process.execPath, [${JSON.stringify(join(root, 'apps/cli/src/io/run/tests.js'))}, ${JSON.stringify(file)}], { cwd: ${JSON.stringify(root)}, env: { ...process.env, ...gateSlotEnvironment(lease) }, encoding: 'utf8', timeout: 60000 });

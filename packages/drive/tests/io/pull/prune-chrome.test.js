@@ -14,7 +14,7 @@ import { test } from 'node:test';
 import { pruneChromeTemp } from '../../../index.js';
 import { pruneRunnerStores } from '../../../index.js';
 import { launchChromeProcess } from '../../../../../apps/cli/tests/fixtures/chrome.js';
-import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
 
 const HOUR = 3_600_000;
 
