@@ -1,10 +1,10 @@
 /** A red gate reads "(back with builder)" in list and show, and status counts it under that stage, until the next submit [F5]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../../packages/store/index.js';
-import { recordSubmitHandoff } from '../../../../packages/jobs/index.js';
-import { itemLine } from '../../src/io/read.js';
-import { fixtureBoard } from '../../tests/fixtures/board.js';
+import * as store from '../../../../../packages/store/index.js';
+import { recordSubmitHandoff } from '../../../../../packages/jobs/index.js';
+import { itemLine } from '../../../src/io/read.js';
+import { fixtureBoard } from '../../fixtures/board.js';
 
 const COMMIT = 'c'.repeat(40);
 
