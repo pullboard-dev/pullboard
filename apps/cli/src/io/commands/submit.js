@@ -158,6 +158,11 @@ function reportSubmitStage(ctx, name, start) {
   recordGateSpan({ phase: name === 'authorization and source' ? 'authorization' : name.replaceAll(' ', '-'), start: end - elapsed, end, outcome: 'done' });
 }
 
+/** Write one phase's wall time to stderr when PULLBOARD_SUBMIT_MARKS is set, so a slow submit names the phase that spent it [C7]. */
+export function submitMark(phase, startMs) {
+  if (process.env.PULLBOARD_SUBMIT_MARKS) process.stderr.write(`submit-mark ${phase}: ${Date.now() - startMs} ms\n`);
+}
+
 /**
  * Run one step of the authorization stage and record it as its own gate span (phase "authorization-<step>"), so the
  * stage's median can be traced to the step that spends it: the whole stage had no sub-spans (p50 14.5 s, 584 spans) [C7].
@@ -169,7 +174,7 @@ function reportSubmitStage(ctx, name, start) {
  */
 function authorizationStep(step, work) {
   const start = Date.now();
-  const finish = outcome => recordGateSpan({ phase: `authorization-${step}`, start, end: Date.now(), outcome });
+  const finish = outcome => { submitMark(`authorization/${step}`, start); recordGateSpan({ phase: `authorization-${step}`, start, end: Date.now(), outcome }); };
   let value;
   try { value = work(); } catch (error) { finish('failed'); throw error; }
   if (typeof value?.then !== 'function') { finish('done'); return value; }
@@ -552,10 +557,15 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   // a companion submit's gate judges its composed source [P7].
   if (ownershipRefusal) throw ownershipRefusal;
   // The configured static check runs in the agent's checkout before any runner job is queued, so a red one takes no trip (#5730).
+  const staticStart = Date.now();
   if (!companion) await requireStaticPreflight(root, acceptedMain.config.staticChecks, changedSince(root, acceptedMain.commit, commit), { timeoutMs: acceptedMain.config.check?.timeoutMs });
+  submitMark('preflight/static', staticStart);
   // A reminder never stops a submit: a handled reference this change leaves unacknowledged in the changelog is named (point 20) [C7].
   for (const reminder of submitReferenceReminders(root, held, commit)) ctx.io.err(reminder);
-  return (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization ? authorizationRequest() : null, full: Boolean(regenerated || regeneratedFrom), companion, infra: infraRecord }, { frozenCheck, policyAt, listItems: store.listItems, pairPrefix });
+  const queueStart = Date.now();
+  const queued = await (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization ? authorizationRequest() : null, full: Boolean(regenerated || regeneratedFrom), companion, infra: infraRecord }, { frozenCheck, policyAt, listItems: store.listItems, pairPrefix });
+  submitMark('queueing', queueStart);
+  return queued;
 }
 
 /** `submit --preflight`: run every registered static check in parallel on this branch's changed files and submit nothing [C7]. */
