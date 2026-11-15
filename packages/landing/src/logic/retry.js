@@ -1,10 +1,5 @@
-/**
- * Refusals that say the landing's machinery could not run, not that the batch or an item failed: a busy board, a locked
- * slot database, accepted policy that moved mid-write (#5672), or a gate whose only non-green shards are runner refusals.
- * They are retried and never park an item.
- * Why here: the repeat guard (core) and the landing steps (shell) must judge the same codes [C7,#3693].
- */
-export const LANDING_FAULT_CODES = Object.freeze(['BOARD_BUSY', 'SLOT_DB_LOCKED', 'LAND_RUNNER_FAULT', 'POLICY_SNAPSHOT_STALE']);
+import { LANDING_FAULT_CODES } from '../../../store/index.js';
+export { LANDING_FAULT_CODES };
 
 /**
  * Refusals that end a landing whose batch another wake must finish: the lease was lost (its renewal missed the deadline,
