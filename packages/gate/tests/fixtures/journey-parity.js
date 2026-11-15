@@ -40,7 +40,11 @@ export function parityDifferences(real, inprocess) {
     const call = real[at].args.join(' ');
     for (const field of ['args', 'code', 'json', 'out', 'err', 'board']) {
       const [a, b] = [JSON.stringify(real[at][field]), JSON.stringify(inprocess[at][field])];
-      if (a !== b) differences.push(`call ${at + 1} (${call}): ${field} differs\n  process:    ${String(a).slice(0, 400)}\n  in-process: ${String(b).slice(0, 400)}`);
+      if (a === b) continue;
+      // A window around the first differing character: a long answer differs somewhere past its start.
+      const first = [...a].findIndex((char, index) => char !== b[index]);
+      const from = Math.max(0, (first < 0 ? Math.min(a.length, b.length) : first) - 80);
+      differences.push(`call ${at + 1} (${call}): ${field} differs at character ${from + 80}\n  process:    ${String(a).slice(from, from + 300)}\n  in-process: ${String(b).slice(from, from + 300)}`);
     }
   }
   return differences;
