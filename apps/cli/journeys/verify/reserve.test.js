@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
 import { runFixtureSetupGit } from '../../tests/fixtures/child.js';
 import { privateFixtureFiles } from '../../../../packages/gate/tests/fixtures/child.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
@@ -12,8 +11,22 @@ import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 import { fixtureProjectPolicy } from '../../tests/fixtures/testkit.js';
 
+/**
+ * End the fixture's local runner at once. Why: it ignores SIGTERM for the whole 10 s stopFixtureLocalRunner allows before it kills it, and this case needs the runner only until its gate settles.
+ *
+ * @param {string} machineHome - The fixture's PULLBOARD_MACHINE_HOME.
+ */
+function killLocalRunner(machineHome) {
+  let pid = 0;
+  try { pid = Number(JSON.parse(fs.readFileSync(join(machineHome, 'local-runner', 'state.json'), 'utf8')).pid); } catch { return; }
+  try { process.kill(pid, 'SIGKILL'); } catch { return; }
+  for (const until = Date.now() + 2000; Date.now() < until;) {
+    try { process.kill(pid, 0); } catch { return; }
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
+  }
+}
+
 test('next --verify reserves the review for the reviewLease and says until when; show names the holder; another verifier is passed over and refused [V15]', async (t) => {
-  const S0 = Date.now();
   const dir = privateFixtureFiles('pullboard-reserve-').root;
   try {
     // A fixture seat never inherits the running agent's session: it joins with its own declared model.
@@ -34,9 +47,7 @@ test('next --verify reserves the review for the reviewLease and says until when;
     const sessions = new Map();
     const session = (cwd) => { if (!sessions.has(cwd)) sessions.set(cwd, `00000000-0000-4000-8000-${String(sessions.size + 1).padStart(12, '0')}`); return sessions.get(cwd); };
     // In process: a spawned CLI costs a second or more of start-up each, and this case makes eleven calls.
-    process.stderr.write(`TIMING pre-T0 ${Date.now() - S0}\n`);
-    const T0 = Date.now();
-    const run = async (cwd, ...args) => { const r = await runCliInProcess(args, { cwd, env: { ...env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: session(cwd) } }); process.stderr.write(`TIMING ${Date.now() - T0} ${args.slice(0, 3).join(' ')}\n`); return r; };
+    const run = async (cwd, ...args) => runCliInProcess(args, { cwd, env: { ...env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: session(cwd) } });
     const repo = join(dir, 'repo');
     fs.mkdirSync(repo);
     setupGit(repo, 'init', '-q', '-b', 'main');
@@ -68,10 +79,8 @@ test('next --verify reserves the review for the reviewLease and says until when;
     };
     const settled = await settleSubmit(t, { repo, env, run: showInProcess }, JSON.parse(submitted.stdout));
     assert.equal(settled.gate?.green ?? settled.gate?.ok, true, `the pulled gate is green: ${JSON.stringify(settled.gateJob)}`);
-    process.stderr.write(`TIMING ${Date.now() - T0} settled\n`);
-    // The gate is done; stopping the runner now keeps the verdicts below from handing it a landing it would take seconds to finish.
-    stopFixtureLocalRunner(join(dir, 'home'));
-    process.stderr.write(`TIMING ${Date.now() - T0} runner stopped\n`);
+    // The gate is done; the verdicts below need no runner, and one still running would hand them a landing to finish.
+    killLocalRunner(join(dir, 'home'));
     const commonDir = setupGit(repo, 'rev-parse', '--path-format=absolute', '--git-common-dir');
     assert.equal(setupGit(holder, 'rev-parse', '--path-format=absolute', '--git-common-dir'), commonDir,
       'the verifier worktree reads the builder repo common dir');
@@ -107,9 +116,7 @@ test('next --verify reserves the review for the reviewLease and says until when;
     const accepted = await run(holder, 'verify', '1', 'accept', '--note', 'checked out the commit; web/greet.txt says hello');
     assert.equal(accepted.status, 0, accepted.stderr);
   } finally {
-    process.stderr.write(`TIMING finally ${Date.now() - S0}\n`);
-    stopFixtureLocalRunner(join(dir, 'home'));
-    process.stderr.write(`TIMING stopped ${Date.now() - S0}\n`);
+    killLocalRunner(join(dir, 'home'));
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
