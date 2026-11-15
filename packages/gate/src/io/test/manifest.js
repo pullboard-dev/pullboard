@@ -9,6 +9,7 @@ import { readFileTimes } from './value/timing.js';
 import { testNameIds } from './names.js';
 import { spawnCategories } from '../../logic/test/spawns.js';
 import { manifestRows } from '../../logic/test/manifest.js';
+import { JOURNEY_TAGS } from '../../logic/test/manifest.js';
 import { TEST_KINDS } from '../../logic/test/manifest.js';
 
 export const TEST_MANIFEST_FILE = 'packages/gate/data/tests/test-manifest.json';
@@ -92,6 +93,7 @@ export function runManifestCommand(args, { times } = {}) {
   const { manifest } = writeTestManifest(resolve(rest[0] ?? '.'), { out, times });
   const counts = TEST_KINDS.map(kind => `${manifest.files.filter(row => row.kind === kind).length} ${kind}`);
   const timed = manifest.files.filter(row => row.cost.ms !== null).length;
+  const tags = JOURNEY_TAGS.map(tag => `${manifest.files.filter(row => row.tag === tag).length} ${tag}`);
   const unproven = manifest.files.filter(row => row.unproven).length;
-  return { status: 0, stdout: `${manifest.files.length} test files; ${counts.join(', ')}; ${timed} with a recorded runtime; ${unproven} unproven (cite no spec id)\n`, stderr: '' };
+  return { status: 0, stdout: `${manifest.files.length} test files; ${counts.join(', ')}; ${timed} with a recorded runtime; ${unproven} unproven (cite no spec id)\njourney tags: ${tags.join(', ')}\n`, stderr: '' };
 }
