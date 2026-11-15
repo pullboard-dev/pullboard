@@ -2537,6 +2537,7 @@
     "store->resources",
     "store->git",
     "store->jobs",
+    "store->kernel",
     "github->items",
     "link->kernel",
     "apps/relay->link",
