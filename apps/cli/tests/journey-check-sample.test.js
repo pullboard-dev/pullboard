@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { runJourneyCheck } from '../../../packages/gate/index.js';
+import { journeySampleAsked } from './fixtures/journey-sample.js';
 import { mutateCell } from '../src/io/mutate/run.js';
 
 const TEN_MINUTES_MS = 10 * 60 * 1000;
@@ -14,7 +15,7 @@ const started = Date.now();
 const lines = [];
 const say = line => { lines.push(line); process.stderr.write(`${Math.round((Date.now() - started) / 1000)}s ${line}\n`); };
 /** One run serves both clauses, so the sample is paid for once. */
-const ASKED = process.env.PULLBOARD_JOURNEY_SAMPLE === '1';
+const ASKED = journeySampleAsked();
 const sample = !ASKED ? null : runJourneyCheck(['--limit', '4', '--cells', '2', '--faults', '3', ROOT], { mutate: mutateCell, say, trace: say }).then(result => ({ ...result, took: Date.now() - started }));
 
 test('clause 1: [C7] a 4-journey sample of the delete-tag check ends within 10 minutes', { timeout: TEN_MINUTES_MS, skip: !ASKED && 'set PULLBOARD_JOURNEY_SAMPLE=1 to run the 9-minute sample' }, async () => {
