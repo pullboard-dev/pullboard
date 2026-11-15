@@ -4,6 +4,12 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Refused } from '../../../../kernel/light.js';
+import { SKIPS_LAPSE } from '../../logic/lifecycle/replay.js';
+import { lifecycleFact } from '../../logic/lifecycle/replay.js';
+import { apply } from '../../logic/lifecycle/rules.js';
+import { leaseLive } from '../../logic/lifecycle/rules.js';
+import { newItem } from '../../logic/lifecycle/rules.js';
+import { ruleOf } from '../../logic/lifecycle/rules.js';
 import { openBoardReadOnly } from '../../../../store/index.js';
 
 /** The repository root, five folders above this file. */
@@ -50,23 +56,29 @@ export function readMoveRecords(board, { since } = {}) {
     const db = opened ?? board.db;
     const rows = db.prepare(`
       SELECT event_id, event_at, event_by, event_kind, item_id, event_detail FROM event
-      WHERE item_id IN (SELECT DISTINCT item_id FROM event WHERE item_id IS NOT NULL AND event_at >= ?)
-      ORDER BY event_id`).all(from);
+      WHERE item_id IS NOT NULL ORDER BY event_id`).all();
+    const active = new Set(rows.filter(row => row.event_at >= from).map(row => row.item_id));
     const history = new Map();
+    const states = new Map();
     const records = [];
     for (const row of rows) {
-      const earlier = history.get(row.item_id) ?? [];
-      const event = { id: row.event_id, kind: row.event_kind, by: row.event_by, at: row.event_at, detail: detailOf(row.event_detail) };
+      const detail = detailOf(row.event_detail);
+      const fact = lifecycleFact({ ...detail, id: row.event_id, at: row.event_at, by: row.event_by, kind: row.event_kind, item: row.item_id });
+      let item = states.get(row.item_id) ?? (row.event_kind === 'add' ? newItem(row.item_id, fact.after ?? []) : { ...newItem(row.item_id), created: false });
+      const rule = ruleOf(fact);
+      if (item.status === 'claimed' && !SKIPS_LAPSE.has(rule) && item.leaseUntil && !leaseLive(item, row.event_at)) item = { ...item, status: 'open', owner: null, leaseUntil: null };
       if (row.event_at >= from) {
+        const earlier = history.get(row.item_id) ?? [];
+        const waits = new Map(item.after.filter(id => states.has(id)).map(id => [id, { ...states.get(id) }]));
         records.push(deepFreeze({
           event: { id: row.event_id, at: row.event_at },
-          snapshot: { revision: row.event_id - 1, item: { id: row.item_id }, actor: { id: row.event_by }, history: earlier.map(prior => ({ ...prior, detail: { ...prior.detail } })) },
-          move: { kind: row.event_kind, id: row.item_id, actor: row.event_by },
-          recorded: { events: [{ kind: row.event_kind, by: row.event_by, detail: event.detail }] },
+          snapshot: { revision: row.event_id - 1, item: { ...item, after: [...item.after] }, items: waits, actor: { id: row.event_by }, history: earlier.map(prior => ({ ...prior, detail: { ...prior.detail } })) },
+          move: { name: row.event_kind, kind: row.event_kind, id: row.item_id, actor: row.event_by, at: row.event_at, detail },
+          recorded: { events: [{ kind: row.event_kind, by: row.event_by, detail }] },
         }));
       }
-      earlier.push(event);
-      history.set(row.item_id, earlier);
+      if (active.has(row.item_id)) history.set(row.item_id, [...(history.get(row.item_id) ?? []), { id: row.event_id, kind: row.event_kind, by: row.event_by, at: row.event_at, detail }]);
+      states.set(row.item_id, row.event_kind === 'add' ? { ...item, lastEvent: row.event_id } : apply(item, fact, rule));
     }
     return records;
   } finally {
