@@ -10,6 +10,7 @@ export * from "./src/io/nudge.js";
 export * from "./src/io/trunk/revision.js";
 export * from "./src/io/worktree.js";
 export * from "./light.js";
+export { plainTrunkRef } from "./src/io/trunk/ref.js";
 export * from "./src/logic/selectors.js";
 export * from "./src/logic/batches.js";
 export { canonicalToolCommand, recordToolCommand, recordedToolCommits, toolRegenerationSource } from './src/io/tools.js';

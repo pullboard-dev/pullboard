@@ -29,6 +29,9 @@ import { MAIN_CASE_NAME_UNITS } from './recheck.js';
 import { offerMainTests } from './recheck.js';
 import { landingGuardKey } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
+import { plainTrunkRef } from '../../../git/index.js';
+import { resolveCommit } from '../../../git/index.js';
+import { mainCheckout } from '../../../git/index.js';
 import { CONFIG_FILE } from '../../../kernel/browser.js';
 import { judgePulledFlakes } from './flakes.js';
 import { recordLandedRed } from './flakes.js';
@@ -520,16 +523,38 @@ function recordClauseInspection(board, { id, receipt, head, agentId, green }) {
 const SUBMIT_OVERTAKEN_TRIES = 5;
 
 /**
+ * Run operation with the board's mainPolicy reading the retained trunk branch's tip while the primary checkout is
+ * detached for review. Why: a pulled gate's receipt applies inside a board API request whenever its job ends, often
+ * while the coordinator verifies in the primary (every verify there detaches it); refusing there recorded a green gate
+ * "passed but not submitted" and left the item claimed. The branch is read from the config file, never by spawning Git
+ * on the request path; commands a person runs keep the refusal [C7,#8011].
+ */
+function withRetainedTrunkPolicy(board, operation) {
+  const ports = board.enginePorts, reads = ports?.sandboxPolicyReads;
+  if (!reads) return operation();
+  /** Accepted main: the primary's branch, or the retained trunk's tip while the primary is detached. */
+  const mainPolicy = root => {
+    try { return reads.mainPolicy(root); }
+    catch (error) {
+      const branch = error?.code === 'NO_POLICY' && !mainCheckout(root) ? plainTrunkRef(root) : null;
+      const commit = branch ? resolveCommit(root, branch) : null;
+      if (!commit) throw error;
+      return reads.policyAt(root, commit);
+    }
+  };
+  board.enginePorts = { ...ports, sandboxPolicyReads: { ...reads, mainPolicy } };
+  try { return operation(); } finally { board.enginePorts = ports; }
+}
+
+/**
  * store.submit, prepared again while another connection's write overtakes its preparation. Why: submit seals its
  * repository reads against a board snapshot and refuses BOARD_BUSY "changed while preparing" when any other command
  * wrote meanwhile; a receipt has no caller to retry it, so a green gate on a busy board was recorded as "passed but
  * not submitted" and its item stayed claimed until the builder ran the whole gate again [C7,#8011].
  */
 function submitOvertaken(board, id, options) {
-  // The coordinator verifying in the primary detaches it; accepted main is then its retained trunk branch [C7,#8011].
-  const retained = board.enginePorts?.sandboxPolicyReads?.withRetainedTrunkPolicy ?? (operation => operation());
   for (let tries = 1; ; tries += 1) {
-    try { return retained(() => store.submit(board, id, options)); }
+    try { return withRetainedTrunkPolicy(board, () => store.submit(board, id, options)); }
     catch (error) { if (error?.code !== 'BOARD_BUSY' || !/changed while preparing/u.test(String(error.message)) || tries >= SUBMIT_OVERTAKEN_TRIES) throw error; }
   }
 }
