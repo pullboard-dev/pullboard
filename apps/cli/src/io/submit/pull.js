@@ -148,12 +148,14 @@ const failingCases = (status, text, run) => {
  * pullboard by name, as on the controller, where the seat's CLI is on PATH; a runner job's PATH has none, and the check exited 127.
  */
 const cliPath = () => {
+  // The service's PATH may lack /usr/bin: a job's tests spawn git, ps and lsof from the system directories (#8245).
+  const held = String(process.env.PATH ?? '').split(delimiter).filter(Boolean), kept = held.concat(['/usr/bin', '/bin', '/usr/sbin', '/sbin'].filter(directory => !held.includes(directory))).join(delimiter);
   const cli = join(tools, 'apps', 'cli', 'pullboard.js'), bin = join(tools, '.pullboard-bin');
-  if (!existsSync(cli)) return [dirname(process.execPath), process.env.PATH].filter(Boolean).join(delimiter);
+  if (!existsSync(cli)) return [dirname(process.execPath), kept].filter(Boolean).join(delimiter);
   mkdirSync(bin, { recursive: true, mode: 0o700 });
   // The archive keeps the CLI's mode and its env-node line, which finds this Node next on PATH.
   if (!existsSync(join(bin, 'pullboard'))) symlinkSync(cli, join(bin, 'pullboard'));
-  return [bin, dirname(process.execPath), process.env.PATH].filter(Boolean).join(delimiter);
+  return [bin, dirname(process.execPath), kept].filter(Boolean).join(delimiter);
 };
 const input = JSON.parse(readFileSync(0, 'utf8'));
 // A proof shard the board offered from a gate's plan runs only its part of the proof, with the same trusted runner [P7].
