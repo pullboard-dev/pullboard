@@ -176,3 +176,22 @@ test('clause 2: [C7] an edited or unsigned tooling pin file is refused before an
   assert.deepEqual(writeToolingPin(repo, landed), { tree: pin.tree, commit: pin.commit });
   assert.deepEqual(toolingPin(repo), { tree: pin.tree, commit: pin.commit }, 'the landing rewrites it signed');
 });
+
+test('clause 1: [C7] the first gate after an upgrade signs a pin file written before signing existed, once', () => {
+  const { repo, landed } = repoWithOldAndNew();
+  writeToolingPin(repo, landed);
+  const file = join(repo, '.git', 'pullboard', 'tooling-pin.json');
+  const pin = JSON.parse(readFileSync(file, 'utf8'));
+  writeFileSync(file, `${JSON.stringify({ tree: pin.tree, commit: pin.commit })}\n`);
+  rmSync(`${file}.key`);
+  fixtureProjectPolicy(repo, { config: { pin: { signed: true } } });
+  assert.deepEqual(toolingPin(repo), { tree: pin.tree, commit: pin.commit }, 'the first read signs the legacy pin and runs');
+  assert.equal(typeof JSON.parse(readFileSync(file, 'utf8')).signature, 'string', 'the file on disk is now signed');
+  const signed = readFileSync(file, 'utf8');
+  assert.deepEqual(toolingPin(repo), { tree: pin.tree, commit: pin.commit });
+  assert.equal(readFileSync(file, 'utf8'), signed, 'the second read changes nothing');
+  writeFileSync(file, `${JSON.stringify({ ...JSON.parse(signed), tree: '0'.repeat(40) })}\n`);
+  assert.throws(() => toolingPin(repo), { code: 'PIN_TOOLING_UNSIGNED' }, 'edited after signing is still refused');
+  writeFileSync(file, `${JSON.stringify({ tree: pin.tree, commit: pin.commit })}\n`);
+  assert.throws(() => toolingPin(repo), { code: 'PIN_TOOLING_UNSIGNED' }, 'an unsigned file beside a key is not an upgrade');
+});
