@@ -5,16 +5,26 @@
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { parityDifferences } from './fixtures/journey-parity.js';
+import { runSample } from './fixtures/journey-parity.js';
 import { sampleDifferences } from './fixtures/journey-parity.js';
 
 /** Memoised: the three clause tests read one pair of runs, so each case still runs only twice. */
 let found;
-const differences = () => found ??= sampleDifferences(SAMPLES);
+/**
+ * gate/slot is sampled by its pre-push case, whose CLI calls are fixed (settings); its other cases poll a gate or a pulled submit,
+ * so their call counts follow timing, and its one board is empty, which sampleDifferences does not accept.
+ */
+const SLOT = { journey: 'apps/cli/journeys/gate/slot.test.js', cases: ['pre-push keeps its machine gate slot until the hook check finishes'] };
+const differences = () => found ??= (async () => {
+  const [others, real, inprocess] = await Promise.all([sampleDifferences(SAMPLES), runSample('process', SLOT), runSample('inprocess', SLOT)]);
+  assert.ok(real.length >= 1, `${SLOT.journey} made its CLI calls (${real.length})`);
+  return [...others, ...parityDifferences(real, inprocess).map(text => `${SLOT.journey}: ${text}`)];
+})();
 
 const SAMPLES = [
   { journey: 'apps/cli/journeys/verify/trunk.test.js', cases: ['[B34,P2] add --check reports an unavailable baseline for a detached coordinator'] },
   { journey: 'apps/cli/journeys/engine/merged.test.js', cases: ['[R3,R1] --note records an otherwise uncarried merge receipt'] },
-  { journey: 'apps/cli/journeys/gate/slot.test.js', cases: ['submit needs a clean tree, nothing untracked, and the gate green at HEAD'] },
 ];
 
 /** The differences of one kind (a field name in each difference's text). */
