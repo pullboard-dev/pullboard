@@ -11,6 +11,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   writeFileSync,
 } from 'node:fs';
 import {
@@ -138,7 +139,7 @@ test('a fresh worktree with no install of its own runs pullboard from the main c
   const committed = commit();
   assert.equal(committed.status, 0, committed.stderr);
   assert.equal(resume().status, 0);
-  assert.equal(readFileSync(reached, 'utf8').trim(), join(box.repo, 'node_modules', '.bin', 'pullboard'), 'the session hook found the main checkout install');
+  assert.equal(realpathSync(readFileSync(reached, 'utf8').trim()), realpathSync(join(bin, 'pullboard')), 'the session hook found the main checkout install');
   const card = await runCliInProcess(['hook', 'SessionStart'], { cwd: box.web, env: bare });
   assert.match(JSON.parse(card.stdout).hookSpecificOutput.additionalContext, /^resume: web-1 \(fixture-model\), web lane/);
 });
