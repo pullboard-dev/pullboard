@@ -92,7 +92,7 @@ test('unchanged companion closure [C7,V4]', () => { console.log('EXECUTED-STABLE
     const began = Date.now();
     const result = await runOnRunnerAsync(repo, command, {
       runner: { host, slots: 1, browser: 0, node: process.execPath, root: join(home, 'runner') },
-      metadata: { testStage: stage, trunk: { ref: 'refs/heads/main', commit: policyCommit } },
+      metadata: { item: 'fixture', kind: 'remote-command', testStage: stage, trunk: { ref: 'refs/heads/main', commit: policyCommit } },
       ...(composition && stage === 'verify' ? { checkedSource,
         privateCheck: { kind: 'private-check', version: 1, install: '', check: command, timeoutMs: 120000,
           policyCommit, trunk: { ref: 'refs/heads/main', commit: policyCommit }, guard: null },

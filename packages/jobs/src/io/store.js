@@ -141,6 +141,45 @@ export function upsertProgressStep(db, job, attempt, text, now) {
 }
 
 /**
+ * Keep one named run artifact (a log, a report) for an attempt on the board: the first post inserts the row, a later post
+ * of the same name replaces it. The job's own step is left as it is, so a job stays claimable and its state never moves.
+ *
+ * Why: a log left only on a runner's disk is lost with its folder; the body rides in the job store, and the blob store
+ * past the inline threshold, so the board can read it back on its own [P7].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {number} attempt
+ * @param {string} name - The artifact's file name.
+ * @param {{ name: string, encoding: 'utf8'|'base64', body: string }} artifact
+ * @param {number} now
+ * @returns {void}
+ */
+export function upsertArtifactStep(db, job, attempt, name, artifact, now) {
+  const kept = storableText(db, JSON.stringify(artifact), artifact);
+  db.prepare(`INSERT INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT (job_step_job, job_step_name, job_step_seq) DO UPDATE SET job_step_payload = excluded.job_step_payload, job_step_at = excluded.job_step_at`).run(job, `artifact:${name}`, attempt, kept, now);
+}
+
+/**
+ * The artifacts of a job's newest attempt that has any, by name, each with its body decoded to bytes.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @returns {Map<string, Buffer>}
+ */
+export function readArtifactSteps(db, job) {
+  const rows = db.prepare("SELECT job_step_name AS name, job_step_payload AS payload FROM job_step WHERE job_step_job = ? AND job_step_name LIKE 'artifact:%' ORDER BY job_step_seq").all(job);
+  const found = new Map();
+  for (const row of rows) {
+    const artifact = readPayload(db, row.payload);
+    if (artifact.pruned) continue;
+    found.set(row.name.slice('artifact:'.length), Buffer.from(artifact.body, artifact.encoding === 'base64' ? 'base64' : 'utf8'));
+  }
+  return found;
+}
+
+/**
  * Record that something is still waiting on each of these jobs: one `alive` step per job, its time replaced by every call.
  * The job's own step is left as it is, so a job stays claimable. Why: a pre-push gate renews it while it waits, so a shard
  * whose gate has gone can be told from one still wanted (#7805).

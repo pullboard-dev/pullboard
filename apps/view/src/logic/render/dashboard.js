@@ -59,7 +59,9 @@ export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 
   const tile = (dot, value, word, list, title) => open('<i class="dash-dot '+dot+'"></i><b>'+num(value)+'</b>'+word, list, { cls: 'dash-tile', title });
   const now = section('Now', 'dash-nowsec', label('Now'), '<div class="dash-card dash-now">'+[
     tile('ready', s.ready, 'ready', 'next', 'Open, nothing blocks it'), tile('waiting', s.waiting, 'blocked', 'gated', 'Blocked by another item'),
-    tile('building', s.building, 'building', 'building', 'One item each'), tile('gate', s.gate, 'in the gate', 'gate', 'Submitted, the gate is checking'),
+    tile('building', s.building, 'building', 'building', 'One item each'),
+    ...(s.stalled ? [tile('held', s.stalled, 'stalled', 'building', 'Claimed, but idle for 20 minutes or more')] : []),
+    ...(s.waitingClaims ? [tile('waiting', s.waitingClaims, 'waiting', 'building', 'Claimed, waiting on another item')] : []), tile('gate', s.gate, 'in the gate', 'gate', 'Submitted, the gate is checking'),
     tile('review', s.review, 'in review', 'review', 'Passed the gate, in review or pending review'), tile('landing', s.toLand, 'to land', 'passed', 'Accepted, landing next'),
     tile('back', s.sentBack, 'sent back', 'sent-back', 'With their builders'), tile('held', s.held, 'held', 'held', 'Paused on purpose'),
   ].join('<span class="dash-x" aria-hidden="true"></span>')+open(num(s.active)+' open · Items ›', 'active', { cls: 'dash-tright' })+'</div>');

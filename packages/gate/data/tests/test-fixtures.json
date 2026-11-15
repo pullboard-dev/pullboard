@@ -999,11 +999,23 @@
     "raw-board": 1
   },
   "apps/cli/journeys/shout/fixture.test.js": {
-    "tempdir": 6,
-    "repo-read": 2,
-    "hand-policy": 1,
-    "raw-cli": 3,
+    "tempdir": 4,
+    "repo-read": 1,
+    "hand-policy": 1
+  },
+  "apps/cli/journeys/shout/journeys/fixture-api.test.js": {
+    "raw-cli": 1
+  },
+  "apps/cli/journeys/shout/journeys/fixture-presentation.test.js": {
+    "raw-cli": 1,
     "raw-board": 2
+  },
+  "apps/cli/journeys/shout/journeys/fixture-setup.test.js": {
+    "raw-cli": 1,
+    "repo-read": 1
+  },
+  "apps/cli/journeys/shout/journeys/fixture-undeclared.test.js": {
+    "tempdir": 1
   },
   "apps/cli/journeys/verify/fixes.test.js": {
     "raw-cli": 3,
