@@ -8,7 +8,6 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { runChildTests } from './child-tests.js';
-import { runChildTestsAsync } from './child-tests.js';
 import { privateFixtureFiles } from './child.js';
 
 const REPOSITORY = resolve(import.meta.dirname, '../../../..');
@@ -47,22 +46,3 @@ export function parityDifferences(real, inprocess) {
   return differences;
 }
 
-
-/**
- * The same as runSample for one mode, without blocking this process: a heavy journey's two modes then run side by side
- * and the parity file takes one run's time, not two.
- */
-export async function runSampleAsync(mode, samples) {
-  const dir = privateFixtureFiles('pullboard-journey-parity-').root;
-  const record = join(dir, `${mode}.jsonl`);
-  try {
-    for (const { journey, cases } of samples) {
-      const pattern = cases.map(name => name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('|');
-      const run = await runChildTestsAsync([journey], { cwd: REPOSITORY, args: [`--test-name-pattern=^(?:${pattern})`],
-        env: { ...process.env, PULLBOARD_JOURNEY_MODE: mode, PULLBOARD_PARITY_RECORD: record } });
-      assert.equal(run.status, 0, `the ${mode} run of ${journey} passes:\n${run.stdout.slice(-3000)}\n${run.stderr.slice(-2000)}`);
-      assert.equal(run.pass, cases.length, `every sampled case of ${journey} ran in the ${mode} run`);
-    }
-    return readFileSync(record, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line));
-  } finally { rmSync(dir, { recursive: true, force: true }); }
-}
