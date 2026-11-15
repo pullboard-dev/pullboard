@@ -9,7 +9,7 @@ import { receiptFields } from '../../verify/index.js';
 import { tier1Shadow } from '../../verify/index.js';
 import { tier1ShadowFields } from '../../verify/index.js';
 import { SHADOW_TIER1_ENGINE } from '../../state/light.js';
-import { fixtureBoard } from '../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../board/tests/fixtures/board.js';
 
 const SHA = 'a'.repeat(40);
 const failure = { file: 'test/near.test.js', name: 'near case [V4]' };
