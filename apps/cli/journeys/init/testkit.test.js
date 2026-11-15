@@ -36,7 +36,7 @@ async function fixtureAdmissionProof(t) {
     { name: '../../tests/fixtures/land/project.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
     { name: '../../tests/fixtures/board/submit.js', helpers: [] },
     { name: '../../tests/fixtures/land/per.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
-    { name: '../land/landing/excluded.test.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
+    { name: '../../tests/fixtures/worktree/maintenance.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
     { name: '../../tests/fixtures/submit/outcome.js', helpers: ['fileFixtureItem', 'createFixtureWorktree'] },
     { name: '../../tests/fixtures/submit/red.js', helpers: ['fileFixtureItem', 'createFixtureWorktree'] },
   ];
