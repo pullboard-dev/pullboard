@@ -18,6 +18,8 @@ import { claim } from '../../index.js';
 import { getItem } from '../../index.js';
 import { register } from '../../index.js';
 import { criterionFreezer } from '../../../moves/index.js';
+import { readSubmitRecords } from '../../../moves/index.js';
+export { readSubmitRecords };
 import { loadConfig } from '../../../config/index.js';
 import { headCommit } from '../../../git/index.js';
 import { repoInfo } from '../../../git/index.js';
