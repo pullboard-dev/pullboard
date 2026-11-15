@@ -1,5 +1,7 @@
 /** Compose maintenance with native board readers and ordinary archive facts [B3,C7]. */
 import { agentHandoff } from '../../../../../../packages/state/index.js';
+import { lineSettings } from '../../../../../../packages/state/index.js';
+import { SEAT_LIVE_WINDOW_MS } from '../../../../../../packages/store/index.js';
 import { mainPolicy } from '../../../../../../packages/sandbox/index.js';
 import { listAgents } from '../../../../../../packages/store/index.js';
 import { listItems } from '../../../../../../packages/store/index.js';
@@ -16,6 +18,8 @@ export function readMaintenanceSnapshot(ctx) {
     seats: withLocalSeatPresence(board, listAgents(board)).map(seat => ({ ...seat, createdAt: seat.agent_created_at,
       completedTakeoverAt: agentHandoff(board, seat.agent_id)?.takenAt ?? null })),
     items: listItems(board, { all: true }),
+    // The line's takeover window, the same one claims use; a seat idle past it with no claim may be retired (#8199).
+    takeoverMs: typeof lineSettings(board).takeoverMinutes === 'number' ? lineSettings(board).takeoverMinutes * 60_000 : SEAT_LIVE_WINDOW_MS,
   }));
 }
 
