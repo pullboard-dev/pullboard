@@ -8,6 +8,7 @@ import { shadowHook } from "../board/shadow-record.js";
 import { shadowDecide } from "../board/shadow-record.js";
 import { firstDifference } from "../board/shadow-record.js";
 import { shadowSetting } from "../board/submit.js";
+import { movesLiveEnabled } from "../../../../config/index.js";
 
 /** Recorder compares waiting for their claim to commit, keyed by the outcome the plan carries to the claim writer [C7,#8380]. */
 const PENDING = new WeakMap();
@@ -23,7 +24,7 @@ export function outcomeDecision(board, id, actor, value) {
   const snapshot = { now: board.clock.now().toISOString(), actor: { id: actor }, item: row ? { id, status: row.item_status, owner: row.item_owner, leaseUntil: row.item_lease_until, frozenDigest: row.item_frozen_digest } : null };
   const move = { id, actor, digest: value.digest, stage: value.stage, refusal: { code: value.code, text: value.text } };
   const answer = runSubmitTable('OUTCOME', { retryLimit: INFRASTRUCTURE_RETRY_LIMIT, infrastructureCodes: INFRASTRUCTURE_CODES }, snapshot, move);
-  if (answer.refused) return { refused: { code: answer.refused.code, message: answer.refused.message } };
+  if (answer.refused) return { refused: { code: answer.refused.code, message: answer.refused.message, next: answer.refused.next } };
   if (answer.via[0] === 'skip') return { skipped: true };
   return { recorded: answer.table.outcomes.find(o => o.id === 'renew').submitOutcome(snapshot, move) };
 }
@@ -35,6 +36,9 @@ export function outcomeDecision(board, id, actor, value) {
  * a refusal never commits, so its compare is recorded now [C7,#8380].
  */
 export function checkedSubmitOutcome(board, id, actor, value, admission) {
+  // With moves.live.outcome on (a board's own `movesLive.outcome` stands in for the setting in a store test), the OUTCOME table decides:
+  // it refuses, or skips a renewal on a claim that moved on, before anything is recorded, and the outcome it names is the one kept [C7,#8386].
+  if (value != null && (board.movesLive?.outcome ?? movesLiveEnabled('outcome')) === true) return tableSubmitOutcome(board, id, actor, value, admission);
   const hook = value == null ? null : shadowHook(board, 'submitOutcomeShadow', 'outcome', outcomeDiffers, shadowSetting);
   if (!hook) return writeSubmitOutcome(board, id, actor, value, admission);
   const decided = shadowDecide(hook, () => outcomeDecision(board, id, actor, value));
@@ -44,6 +48,17 @@ export function checkedSubmitOutcome(board, id, actor, value, admission) {
   else hook({ id, decided, wrote });
   if (wrote.refused) throw new Refused(wrote.refused.code, wrote.refused.message);
   return wrote.recorded;
+}
+
+/** The outcome as the OUTCOME table decides it; the engine floor and an admission claim, which the table does not model, keep the writer's own refusals [C7,#8386]. */
+function tableSubmitOutcome(board, id, actor, value, admission) {
+  const engines = board.enginePorts.pipelineCauseEngines();
+  if ((board.executionEngineVersion ?? engines.current) < engines.pipeline) throw new Refused('ENGINE_VERSION', 'upgrade Pullboard before recording typed submit outcomes');
+  if (admission) throw new Refused('ITEM_LEASE_LOST', 'a submit outcome needs its original live claim and unchanged frozen bar');
+  const decided = outcomeDecision(board, id, actor, value);
+  if (decided.refused) throw new Refused(decided.refused.code, decided.refused.message, decided.refused.next);
+  if (decided.skipped) throw new Refused('ITEM_LEASE_LOST', 'a submit outcome needs its original live claim and unchanged frozen bar');
+  return decided.recorded;
 }
 
 /** Record the compare a claim's outcome waited on; the claim writer calls it inside its own board write, so the compare lands with the claim [C7,#8380]. */
