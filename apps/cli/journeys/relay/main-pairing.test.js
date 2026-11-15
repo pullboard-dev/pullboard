@@ -1,6 +1,5 @@
 /** Relay identity, expiry, permission freshness and scoped credential isolation [H8, H1]. */
 import assert from 'node:assert/strict';
-import { runFixtureChild as spawnSync } from '../../tests/fixtures/child.js';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { hostname } from 'node:os';
@@ -17,7 +16,6 @@ import { ACCESS_WINDOW_MS } from '../../../relay/index.js';
 import { serveRelay } from '../../../relay/index.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
-import { CLI } from '../../tests/fixtures/relay/auth.js';
 import { openRelayConfirmation } from '../../tests/fixtures/relay/auth.js';
 import { linkedBoardCount } from '../../tests/fixtures/relay/auth.js';
 import { runRelayOnAll } from '../../tests/fixtures/relay/auth.js';
