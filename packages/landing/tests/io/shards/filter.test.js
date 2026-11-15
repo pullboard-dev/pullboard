@@ -55,11 +55,13 @@ function projectTemplate() {
   mkdirSync(join(home, '.pullboard'), { recursive: true });
   writeFileSync(join(home, '.pullboard', 'settings.json'), JSON.stringify({ gateSlots: 3, browserSlots: 1 }));
   // The gate under test runs from source, never from the shipped test files: leaving them out shrinks the copy, the commit, and every shard's checkout and cleanup.
-  copyPackageFiles(SOURCE, repo, { files: packageFiles(SOURCE).filter(file => !/\.test\.js$/u.test(file)) });
+  // Docs and the archived board history (22 MB of the 41 MB) are never read by a gate child, and every case and shard copies the project.
+  copyPackageFiles(SOURCE, repo, { files: packageFiles(SOURCE).filter(file => !/\.test\.js$/u.test(file) && !/^(?:docs|packages\/state\/data)\//u.test(file)) });
   for (const name of NAMES) writeFileSync(join(repo, `test/${name}.test.js`), fixtureTest(name));
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node apps/cli/src/io/run/tests.js', landingShards: 2 }));
   const env = projectEnv(dir);
   for (const args of [['init', '-q', '-b', 'main'], ['add', '.'], ['commit', '-q', '-m', 'test: name-filtered shards fixture']]) execFileSync('git', args, { cwd: repo, env });
+  execFileSync('git', ['gc', '-q', '--prune=now'], { cwd: repo, env }); // One pack file instead of thousands of loose objects: every case copies this tree.
   mark('template build done');
   return dir;
 }
