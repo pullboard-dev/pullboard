@@ -33,7 +33,6 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -41,7 +40,6 @@ import { hostname } from 'node:os';
 import { SEALED_SNAPSHOT_BYTES as SEALED_SNAPSHOT_LIMIT } from '../logic/relay/limits.js';
 import { basename } from 'node:path';
 import { join } from 'node:path';
-import { resolve } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { gzipSync } from 'node:zlib';
 import * as store from '../../../store/index.js';
@@ -117,6 +115,7 @@ import { relaySnapshotRequest } from '../../../pages/index.js';
 import { relayStorage } from '../../../pages/index.js';
 import { relayStorageLine } from '../../../pages/index.js';
 export { relayOrigin, relayStorageLine };
+import { readCommonDir } from './relay/common-dir.js';
 import { loadLink } from './relay/link.js';
 import { saveLink } from './relay/link.js';
 import { STATE_FILES } from './relay/link.js';
@@ -168,25 +167,8 @@ export async function assertRehomeSourceItemOrdered(root, itemId, io) {
 /** Find the shared local link metadata without opening a board or connecting for an unlinked repo. */
 function linkFile(root) { return relayFiles(quickCommonDir(root)).link; }
 
-/**
- * Find the shared git directory by reading `.git` (and `commondir` for a linked worktree) instead of starting git.
- * Why: every read command asked git for this just to learn the link path, about 200 ms each [C7].
- * Anything unusual falls back to the git-backed answer.
- */
-function quickCommonDir(root) {
-  try {
-    const dotGit = join(root, '.git');
-    const stat = lstatSync(dotGit);
-    if (stat.isDirectory()) return realpathSync(dotGit);
-    const match = /^gitdir:\s*(.+)\s*$/mu.exec(readFileSync(dotGit, 'utf8'));
-    if (match) {
-      const gitDir = resolve(root, match[1]);
-      const common = readFileSync(join(gitDir, 'commondir'), 'utf8').trim();
-      return realpathSync(resolve(gitDir, common));
-    }
-  } catch { /* Not a plain checkout root: ask git. */ }
-  return repoInfo(root).commonDir;
-}
+/** The shared git directory, read straight from `.git` when possible and from git otherwise [C7]. */
+function quickCommonDir(root) { return readCommonDir(root) ?? repoInfo(root).commonDir; }
 
 /** Locate the credential-free reason an independently deleted copy no longer syncs. */
 function deletedLinkFile(root) { return relayFiles(repoInfo(root).commonDir).deleted; }
