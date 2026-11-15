@@ -15,6 +15,7 @@ import { performance } from 'node:perf_hooks';
 import { once } from 'node:events';
 import { stopSender } from './sender.js';
 import { runCliInProcess } from '../process.js';
+import { runScriptInProcess } from '../process.js';
 import {
   cpSync,
   existsSync,
@@ -184,9 +185,9 @@ export function parseCommandDocument(text) {
  * the same upload-derived deadline instead of being killed, because a process cannot kill itself safely.
  * Callers that need a real process (the fetch-trace preload, live streams, signals) keep childResult [C7].
  */
-async function inProcessResult(root, env, args, observedSnapshotUploads, initialSnapshotUploads = DEFAULT_SNAPSHOT_UPLOADS) {
+async function inProcessResult(root, env, args, observedSnapshotUploads, initialSnapshotUploads = DEFAULT_SNAPSHOT_UPLOADS, { source = null } = {}) {
   const startedAt = performance.now();
-  const argv = [...args, '--json'];
+  const argv = source === null ? [...args, '--json'] : ['script'];
   let deadlineMs = cliChildDeadlineMs(initialSnapshotUploads);
   let work = uploadWork(initialSnapshotUploads);
   let timer;
@@ -205,7 +206,7 @@ async function inProcessResult(root, env, args, observedSnapshotUploads, initial
   });
   stalled.catch(() => {});
   let run;
-  try { run = await Promise.race([runCliInProcess(argv, { cwd: root, env }), stalled]); }
+  try { run = await Promise.race([source === null ? runCliInProcess(argv, { cwd: root, env }) : runScriptInProcess(source, { cwd: root, env }), stalled]); }
   finally { finished = true; clearTimeout(timer); }
   const report = (detail = '') => reportFixtureChildFailure({ command: process.execPath, args: ['in-process', ...argv], status: run.code, signal: null,
     elapsedMs: performance.now() - startedAt, stderr: run.stderr, env, detail });
@@ -605,12 +606,12 @@ globalThis.fetch = function tracedFetch(input, init) {
     const encoded = readFileSync(join(nextEnv.PULLBOARD_HOME, 'relay-keys', state.board + '.key'), 'utf8').trim();
     privateKeys.add(encoded);
     /** Run native fixture actions in this board's own home; no caller changes the parent process environment. */
-    async function script(source) { return childResult(nextRoot, nextEnv, ['--input-type=module', '-e', source]); }
+    async function script(source) { return inProcessResult(nextRoot, nextEnv, [], undefined, DEFAULT_SNAPSHOT_UPLOADS, { source }); }
     return { id: state.board, encoded, cli: run, script };
   }
-  /** Run multiple production commands in one process, emitting only safe counters. */
+  /** Run multiple production commands in this process as a module script, emitting only safe counters [C7,#8251]. */
   async function script(source) {
-    return childResult(root, env, ['--input-type=module', '-e', source]);
+    return inProcessResult(root, env, [], undefined, DEFAULT_SNAPSHOT_UPLOADS, { source });
   }
   return {
     ...serverApi, authDatabase, auth, otherDeviceJoin,
