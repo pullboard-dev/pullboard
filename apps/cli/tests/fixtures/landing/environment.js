@@ -147,16 +147,7 @@ function rechecked(box, entry) {
   return boardRead(box, board => JSON.parse(store.events(board, { itemId: entry.id }).findLast(event => event.event_kind === 'accept').event_detail));
 }
 
-/** Save a project policy normally, without changing another machine's settings. */
-function policy(box, landing) {
-  const file = join(box.repo, 'pullboard.json');
-  const config = JSON.parse(readFileSync(file, 'utf8'));
-  config.landing = { ...landing, manualOverride: true };
-  writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
-  commit(box, box.repo, 'chore: declare the landing host policy');
-}
-
-/** S7d: a real check records its host; only an opted-in matching host may land. */
+/** S7d: a real check and gate record the host that ran them, and the receipt binds it. */
 export function assertMatchingLandingHost(helpers) {
   const box = fixture(helpers);
   const entry = verified(box, 'a');
@@ -196,36 +187,9 @@ export function assertMatchingLandingHost(helpers) {
       'recorded legacy verdict moves replay without acquiring new metadata');
   });
 
-  const mismatch = { ...environment, platform: process.platform === 'linux' ? 'darwin' : 'linux' };
-  policy(box, { environment: mismatch });
-  const base = box.git(box.repo, 'rev-parse', 'HEAD');
-  success(box, box.repo, 'settings', 'landing.pool', 'on');
-  const refused = command(box, box.repo, 'land');
-  assert.equal(refused.document?.error?.code, 'LAND_ENVIRONMENT', JSON.stringify(refused));
-  assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), base, 'a mismatched host never moves the trunk');
-  assert.equal(boardRead(box, board => store.landingBatches(board).length), 0,
-    'host mismatch is refused before a batch or its gate starts');
-
-  policy(box, { environment });
-  success(box, box.repo, 'settings', 'landing.pool', 'off');
-  assert.equal(command(box, box.repo, 'land').document?.error?.code, 'LAND_HOST_NOT_JOINED');
-  success(box, box.repo, 'settings', 'landing.pool', 'on');
-  const current = rechecked(box, entry);
-  // Model a sealed peer verdict reporting a different host; this is fixture data, not a measured second runtime.
-  const peerEnvironment = { ...environment, node: '0.0.1' };
-  boardRead(box, board => {
-    const item = store.getItem(board, entry.id);
-    store.verify(board, entry.id, { agentId: 'coordinator', decision: 'ACCEPT',
-      note: 'Stand-in peer records its different execution environment.', head: current.review.head,
-      digest: item.item_frozen_digest, policy: 'any', check: 'green',
-      review: current.review, environment: peerEnvironment });
-  });
-  const landed = success(box, box.repo, 'land');
-  assert.deepEqual(landed.landed, [entry.id]);
-  assert.deepEqual(landed.batch.environment, environment);
-  assert.ok(landed.batch.environmentWarnings.some(warning => warning.item === entry.id
-    && warning.recorded.node === peerEnvironment.node && warning.landing.node === environment.node),
-  'landing flags the stand-in verdict from another environment');
+  // The host-policy refusals and the peer-environment warning rode the host landing batch, which land no longer runs: it only offers
+  // the runner land job (9069644c61, 1a432cf0c2, 1e1a9586af), so `land` here refuses LAND_NO_RUNNER on this controller-pinned board [C7].
+  // The runner's land gate validates the host through constrainedLandingHost (packages/gate/src/io/execution.js).
 }
 
 /** S7e: an interaction with no item culprit files a test defect; a recorded defect never refuses a landing, which retries the gate and lands nothing until the red is corrected or waived [C7,#5862]. */
