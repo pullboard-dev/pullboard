@@ -1,16 +1,16 @@
-/** @pullboard-world-pin reads the recorded claim history fixture to drive the claim writer with it. The store claim and renew writer applies the claim table and agrees on every replayed move [C7,#8270].
- * @pullboard-test-input packages/moves/tests/fixtures/table/claim-history.json packages/store/src/io/board/claim.js packages/store/src/io/board/claim-table.js */
+/** @pullboard-world-pin reads the recorded claim history fixture to drive the store claim writer with it. The store claim and renew writer applies the claim table and agrees on every replayed move [C7,#8270]. */
+/** @pullboard-test-input packages/moves/tests/fixtures/table/claim-history.json */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { boardClaimEngine } from '../../../../moves/index.js';
-import { readClaimRecords } from '../../../../moves/index.js';
-import { runTable } from '../../../../moves/index.js';
-import { claim } from '../../../index.js';
-import { cellBoard } from '../../fixtures/cell.js';
+import { boardClaimEngine } from '../../../index.js';
+import { readClaimRecords } from '../../../index.js';
+import { runTable } from '../../../index.js';
+import { claim } from '../../../../store/index.js';
+import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
 
-const HISTORY = JSON.parse(readFileSync(new URL('../../../../moves/tests/fixtures/table/claim-history.json', import.meta.url), 'utf8'));
+const HISTORY = JSON.parse(readFileSync(new URL('../../fixtures/table/claim-history.json', import.meta.url), 'utf8'));
 const STAMP = '2026-01-01T00:00:00.000Z';
 
 /** The recorded events on a scratch in-memory board, read the way the replay reads them. */
