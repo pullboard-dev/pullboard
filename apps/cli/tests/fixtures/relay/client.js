@@ -606,16 +606,20 @@ globalThis.fetch = function tracedFetch(input, init) {
     const encoded = readFileSync(join(nextEnv.PULLBOARD_HOME, 'relay-keys', state.board + '.key'), 'utf8').trim();
     privateKeys.add(encoded);
     /** Run native fixture actions in this board's own home; no caller changes the parent process environment. */
-    async function script(source) { return inProcessResult(nextRoot, nextEnv, [], undefined, DEFAULT_SNAPSHOT_UPLOADS, { source }); }
+    async function script(source) { return childResult(nextRoot, nextEnv, ['--input-type=module', '-e', source]); }
     return { id: state.board, encoded, cli: run, script };
   }
-  /** Run multiple production commands in this process as a module script, emitting only safe counters [C7,#8251]. */
+  /** Run multiple production commands in one process, emitting only safe counters. */
   async function script(source) {
+    return childResult(root, env, ['--input-type=module', '-e', source]);
+  }
+  /** The same script run in this process, awaited: no Node launch, for a script that needs no process of its own [C7,#8251]. */
+  async function scriptLocal(source) {
     return inProcessResult(root, env, [], undefined, DEFAULT_SNAPSHOT_UPLOADS, { source });
   }
   return {
     ...serverApi, authDatabase, auth, otherDeviceJoin,
-    root, env, origin, lane, before, linkFile, readLink, keyFile, readKey, copyOwnBoardMetadata, copyOwnKey, privateTreeBytes, cli, cliAt, cliLocal, cliAtLocal, cliWithSnapshotUploads, cliWithSnapshotTrace, startCli, link, requireEngineThree, otherDeviceOff, additionalBoard, script,
+    root, env, origin, lane, before, linkFile, readLink, keyFile, readKey, copyOwnBoardMetadata, copyOwnKey, privateTreeBytes, cli, cliAt, cliLocal, cliAtLocal, cliWithSnapshotUploads, cliWithSnapshotTrace, startCli, link, requireEngineThree, otherDeviceOff, additionalBoard, script, scriptLocal,
     /** Assert the test consumed every declared child budget, with no hidden CLI calls. */
     assertCliChildrenComplete() {
       if (cliChildren) assert.equal(cliChildIndex, cliChildren.length, 'every planned private CLI child ran exactly once');
