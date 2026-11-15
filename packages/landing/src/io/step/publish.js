@@ -33,6 +33,8 @@ import { claimRefreshStart } from '../main/red/refresh/flight.js';
 import { AGENT_SESSION_IDS } from '../../../../kernel/index.js';
 import { scanRidesRunner } from '../scan.js';
 import { trunkRemote } from '../../../../config/index.js';
+import { fencedHopEnabled } from '../../../../config/index.js';
+import { pushTrunkThroughFence } from '../land/fence.js';
 
 /** Name the remote a landing pushes the trunk to: the trunk branch's own remote, else origin [B3]. */
 function landingRemoteName(root, branch) {
@@ -219,7 +221,7 @@ export async function publish(state) {
     const alreadyPushed = tryGit(batch.root, ['ls-remote', remote, batch.branch]).stdout.split(/\s+/u)[0] === batch.tip;
     if (!alreadyPushed) {
       await timedPhase(state.say, 'lease check', () => state.checkLeaseNow());
-      const pushed = await timedPhase(state.say, 'push', () => tryGit(pushRoot, ['push', remote, `HEAD:${batch.branch}`]));
+      const pushed = await timedPhase(state.say, 'push', () => pushTrunkThroughFence(pushRoot, { remote, branch: batch.branch, base: batch.base, hop: fencedHopEnabled() ? batch.hop : undefined }));
       if (pushed.status !== 0) throw pushRefused(pushed.stderr || pushed.stdout);
     }
     await save(state, { state: 'pushed' });
