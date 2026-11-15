@@ -20,10 +20,10 @@ function claimable(t, { live, seatLane = 'core' }) {
   return { board, id, claim };
 }
 
-/** The item's events as the claim table compares them: no stamped model, no random fact id. */
+/** The item's claim, renew and fact events in order, without the stamped model or a fact's random id, which differ on every write. */
 function eventsOf(board, id) {
-  return board.db.prepare('SELECT event_kind kind, event_by by, event_detail detail FROM event WHERE item_id=? AND event_kind IN (\'claim\', \'renew\', \'fact\') ORDER BY event_id').all(id)
-    .map(row => store.claimDiffers && JSON.parse(row.detail) && { kind: row.kind, by: row.by, detail: (({ model, id: factId, ...rest }) => rest)(JSON.parse(row.detail)) });
+  return board.db.prepare("SELECT event_kind kind, event_by by, event_detail detail FROM event WHERE item_id=? AND event_kind IN ('claim', 'renew', 'fact') ORDER BY event_id").all(id)
+    .map(({ kind, by, detail }) => ({ kind, by, detail: (({ model, id: factId, ...rest }) => rest)(JSON.parse(detail)) }));
 }
 
 test('clause 1: with moves.live.claim on, a claim writes exactly the events the claim table decides [C7,#8383]', t => {
@@ -35,7 +35,7 @@ test('clause 1: with moves.live.claim on, a claim writes exactly the events the 
   const live = claimable(t, { live: true });
   live.claim();
   const strip = ({ kind, by, detail }) => ({ kind, by, detail: (({ model, id, ...rest }) => rest)(detail) });
-  assert.deepEqual(eventsOf(live.board, live.id).filter(event => event.kind !== 'add'), decided.events.map(strip));
+  assert.deepEqual(eventsOf(live.board, live.id), decided.events.map(strip));
 });
 
 test('clause 2: with moves.live.claim on, a claim the table refuses is refused with the table\'s code and writes nothing [C7,#8383]', t => {
