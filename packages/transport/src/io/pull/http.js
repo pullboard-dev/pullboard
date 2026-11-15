@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createPrivateKey } from 'node:crypto';
 import { sign } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -184,7 +185,8 @@ export function pullRunner({ board, runner, publicKey, privateKey, workdir, now 
     /** Take one job, run its shards and post their signed results; null when the board offers nothing. */
     async runOnce() {
       const at = now();
-      const job = await answer(await post('/pull/take', JSON.stringify({ runner, at, signature: signText(pullStatement('take', runner, at)) })));
+      const nonce = randomBytes(16).toString('base64url');
+      const job = await answer(await post('/pull/take', JSON.stringify({ runner, at, nonce, signature: signText(pullStatement('take', runner, at, nonce)) })));
       if (!job) return null;
       const auth = { authorization: `Bearer ${job.token}` };
       const tree = join(workdir, 'trees', job.tree);
