@@ -85,7 +85,7 @@ export function projectAgentActivity({ agent, interests, events, shouts, changes
   const entries = [], laneItems = new Set(), announcements = [];
   let laneCount = 0;
   for (const event of events) {
-    if (['usage', 'shared-usage'].includes(event.event_kind)) continue;
+    if (['usage', 'shared-usage', 'coordinator-usage'].includes(event.event_kind)) continue;
     const detail = activityEventDetail(event);
     if (!detail) {
       if (interests.related.has(event.item_id) || event.item_id === null) {

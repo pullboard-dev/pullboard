@@ -134,6 +134,7 @@ export {
 export {
   sanitizedUsage,
   recordUsage,
+  recordCoordinatorUsage,
   costTotals,
   budgetState,
   storedSeatUsage,

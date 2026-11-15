@@ -698,15 +698,15 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
    * Run one claimed job in its slot and say how it ended; null when the runner stopped before it held anything.
    * Why a slot: concurrent jobs each own a checkout and, for handled kinds, a working folder, so no two share files.
    */
-  const runClaim = async (claim, trunk, slot) => {
+  const runClaim = async (claim, trunk, slot, self, known) => {
     const held = { job: claim.job, runner: id, token: claim.token }, claimedAt = Date.now();
     say(`claimed ${claim.job} (attempt ${claim.attempt}) at ${claim.candidate} in slot ${slot}`);
-    if (Object.hasOwn(handlers, claim.kind)) return { job: claim.job, ...await handled(claim, held, slot === 0 ? cache : join(cache, 'slot', String(slot)), `${folders}-${slot}`) };
+    if (Object.hasOwn(handlers, claim.kind)) { known(); return { job: claim.job, ...await handled(claim, held, slot === 0 ? cache : join(cache, 'slot', String(slot)), `${folders}-${slot}`) }; }
     // Renew from the claim on, through the request and the fetch too: a fetch longer than the 2-minute lease let another
     // runner take the job mid-fetch, and every job churned from runner to runner unrun (#5805).
     const lease = keepLease(held);
-    try { return await runHeld(claim, trunk, slot, held, lease.isLost, lease.whenLost, claimedAt); }
-    finally { lease.stop(); }
+    try { return await runHeld(claim, trunk, slot, held, lease.isLost, lease.whenLost, claimedAt, self, known); }
+    finally { lease.stop(); known(); if (exclusive === claim.job) exclusive = null; }
   };
   /**
    * Keep a held job's lease from its claim until stop(): renew every renewMs, and retry a renewal the board never
@@ -730,22 +730,26 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     return { isLost: () => lost, lose, whenLost: stop => { onLost = stop; }, stop: () => { ended = true; clearTimeout(timer); } };
   };
   /** Fetch, run and report one claimed argv job while runClaim renews its lease; isLost reads whether the lease moved. */
-  const runHeld = async (claim, trunk, slot, held, isLost, whenLost, claimedAt = Date.now()) => {
+  const runHeld = async (claim, trunk, slot, held, isLost, whenLost, claimedAt = Date.now(), self = () => null, known = () => {}) => {
     // A job offered with no run carries its argv and stdin in its request, which only the claim's holder reads [P7].
-    let run = claim.run ?? [], input = null, also = claim.base ? [claim.base] : [], named = null;
+    let run = claim.run ?? [], input = null, also = claim.base ? [claim.base] : [], named = null, timed = false;
     const requestStart = Date.now();
     if (!run.length) {
       let asked;
       try { asked = await reliably({ action: 'request', ...held }); }
-      catch (error) { if (error.code === 'RUNNER_STOPPED') return null; if (error.code === 'JOB_LEASE_MOVED') return { job: claim.job, outcome: 'lost' }; throw error; }
+      catch (error) { known(); if (error.code === 'RUNNER_STOPPED') return null; if (error.code === 'JOB_LEASE_MOVED') return { job: claim.job, outcome: 'lost' }; throw error; }
       const request = asked?.request;
       if (Array.isArray(request?.run) && request.run.length) {
         run = request.run;
         input = JSON.stringify(request.input ?? null);
         named = Array.isArray(request.input?.data?.files) ? request.input.data.files.length : null;
         also = [...new Set([...also, ...(Array.isArray(request.commits) ? request.commits : [])])];
+        // A gate frozen with exclusive check timing holds the runner: nothing else is claimed from here until it ends [C7,#8187].
+        timed = request.input?.data?.checkTiming === true;
+        if (timed) exclusive = claim.job;
       }
     }
+    known();
     const requestMs = Date.now() - requestStart;
     // A job whose request carries its input runs the gate bootstrap, a gate's or a pulled test's, and prints one receipt line [P7].
     const gate = input !== null;
@@ -759,6 +763,15 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
       return { job: claim.job, outcome: 'released' };
     }
     if (isLost()) { say(`lost the lease on ${claim.job} while fetching it`); return { job: claim.job, outcome: 'lost' }; }
+    // The timed check starts only once every job this serve held before it has ended, so its clock runs on an otherwise idle runner.
+    if (timed) {
+      for (;;) {
+        const others = [...active].filter(task => task !== self());
+        if (!others.length || isLost() || signal?.aborted) break;
+        await Promise.race([...others, new Promise(resolve => setTimeout(resolve, renewMs))]);
+      }
+      if (isLost()) { say(`lost the lease on ${claim.job} while waiting for the runner to idle`); return { job: claim.job, outcome: 'lost' }; }
+    }
     const started = Date.now();
     // Claim-to-command, in phases the receipt carries: the board's request, the commit download (waiting its turn included),
     // the checkout, and whether the slot's warm folder was reused.
@@ -798,7 +811,10 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
       return { job: claim.job, outcome: 'released' };
     }
     if (lost) { say(`lost the lease on ${claim.job}; another runner may hold it`); return { job: claim.job, outcome: 'lost' }; }
-    const receipt = { ...(gate ? gateReceipt(result, claim.candidate, Date.now() - started)
+    // Exclusivity evidence: this serve took no other job from admission to finish, so the run's whole span was the runner's alone.
+    const finishedAt = Date.now();
+    const exclusiveEvidence = timed ? { timing: true, exclusive: true, unfencedClients: [], occupiedSlots: slots, admittedAt: new Date(started).toISOString(), finishedAt: new Date(finishedAt).toISOString() } : {};
+    const receipt = { ...exclusiveEvidence, ...(gate ? gateReceipt(result, claim.candidate, Date.now() - started)
       : { status: result.status, signal: result.signal, commit: claim.candidate, run, outputSha256: result.outputSha256,
         outputBytes: result.outputBytes, tail: result.tail, durationMs: Date.now() - started }), startup, ...(kept ? { output: { runner: id, folder: kept } } : {}) };
     try {
@@ -815,16 +831,22 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   // Claim until every slot holds a job, then claim again as each one ends: one serve uses the whole runner [P7].
   const active = new Set(), free = Array.from({ length: slots }, (_, slot) => slot);
   let failure = null;
+  // The job holding the runner for exclusive check timing; nothing else is claimed while it is set [C7,#8187].
+  let exclusive = null;
   const start = (claim, trunk) => {
     const slot = free.shift();
-    const task = runClaim(claim, trunk, slot).then(entry => { if (entry) jobs.push(entry); }, error => { failure ??= error; })
+    let task, known;
+    const learned = new Promise(resolve => { known = resolve; });
+    task = runClaim(claim, trunk, slot, () => task, known).then(entry => { if (entry) jobs.push(entry); }, error => { failure ??= error; })
       .finally(() => { active.delete(task); free.push(slot); free.sort((a, b) => a - b); });
     active.add(task);
+    task.learned = learned;
     return task;
   };
   while (!signal?.aborted && !failure) {
     prune();
     if (active.size >= slots) { await Promise.race(active); continue; }
+    if (exclusive) { await Promise.race(active); continue; }
     if (!admit({ running: active.size })) {
       if (once) { say('not claiming: the machine is over its load share'); break; }
       await Promise.race([sleep(idleMs), ...active]); continue;
@@ -839,6 +861,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     }
     const task = start(answer.claim, answer.trunk);
     if (once) { await task; break; }
+    // The next claim waits for this job to say whether it holds the runner, so a timed gate is never claimed beside another [C7,#8187].
+    await Promise.race([task.learned, task]);
   }
   await Promise.all(active);
   if (failure) throw failure;
