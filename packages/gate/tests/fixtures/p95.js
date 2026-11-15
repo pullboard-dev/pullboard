@@ -9,8 +9,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
-import { runFixtureChild } from '../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChildAsync } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from './child.js';
+import { runFixtureChildAsync } from './child.js';
 import { awaitNestedRun } from '../../index.js';
 import { TEST_FILE_CORES_ENV } from '../../index.js';
 import { TEST_FILE_POOL_ENV } from '../../index.js';
@@ -20,7 +20,7 @@ import { GATE_SLOT_TOKEN_ENV } from '../../../resources/index.js';
 import { BROWSER_SLOT_HELD_ENV } from '../../../resources/index.js';
 import { testsNeedBrowser } from '../../index.js';
 
-const runner = fileURLToPath(new URL('../../../../apps/cli/src/io/run/tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../src/io/run/tests.js', import.meta.url));
 
 /**
  * Make a real test file; its exit record includes startup and any post-spawn pool wait, never dispatcher queue time.
