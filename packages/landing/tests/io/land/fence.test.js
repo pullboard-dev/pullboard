@@ -1,4 +1,5 @@
 /** @pullboard-test-input packages/landing/src/io/land/fence.js */
+/** @pullboard-test-input packages/landing/src/io/step/publish.js */
 /** A land push carries its gate hop epoch through a fenced git ref, so a stale hop owner cannot move trunk [C7,#8275]. */
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
@@ -7,9 +8,9 @@ import { test } from 'node:test';
 import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
-import { fenceHop } from '../../../src/io/land/fence.js';
+import { fenceHop } from '../../../src/io/step/publish.js';
 import { hopFenceRef } from '../../../src/io/land/fence.js';
-import { pushTrunkThroughFence } from '../../../src/io/land/fence.js';
+import { pushTrunkThroughFence } from '../../../src/io/step/publish.js';
 
 const ITEM = 7;
 const TRUNK = 'refs/heads/main';

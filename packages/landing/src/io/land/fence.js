@@ -1,4 +1,4 @@
-/** The land push through a git ref fenced by the gate hop's epoch, so a land job whose hop was retaken cannot move trunk [C7,#8275]. */
+/** The fence ref, the epoch commits and the refusal for a land push fenced by the gate hop's epoch; publish.js does the push itself [C7,#8275]. */
 import { tryGit } from '../../../../git/index.js';
 import { Refused } from '../../../../kernel/index.js';
 
@@ -28,46 +28,15 @@ export function hopFenceObject(root, { item, epoch }) {
   return commit.stdout;
 }
 
-/**
- * Point the remote's fence ref at this epoch, only from the epoch before it, so a new hop owner shuts out the one it replaced.
- * The hop row's compare-and-set already gave this owner the epoch; the fence carries it to the remote trunk lives on. Fencing the epoch the ref already holds is a no-op.
- *
- * @param {string} root
- * @param {{ remote: string, item: number, epoch: number }} options
- */
-export function fenceHop(root, { remote, item, epoch }) {
-  const ref = hopFenceRef(item);
-  const next = hopFenceObject(root, { item, epoch });
-  const lease = epoch === 1 ? `--force-with-lease=${ref}:` : `--force-with-lease=${ref}:${hopFenceObject(root, { item, epoch: epoch - 1 })}`;
-  // No '+' on the refspec: a forced refspec skips the lease, and the lease is the fence.
-  const pushed = tryGit(root, ['push', '--atomic', '--quiet', lease, remote, `${next}:${ref}`]);
-  if (pushed.status !== 0) throw fenced(root, { remote, item, epoch }, pushed);
-  return next;
+/** The value the remote fence ref must hold before this epoch takes it: the epoch before's commit, or '' (absent) for the first epoch. */
+export function hopFencePrevious(root, { item, epoch }) {
+  return epoch === 1 ? '' : hopFenceObject(root, { item, epoch: epoch - 1 });
 }
 
 /** The refusal for a push the fence turned away, naming the epoch's commit the remote fence holds now. */
-function fenced(root, { remote, item, epoch }, pushed) {
+export function hopFenceRefusal(root, { remote, item, epoch }, pushed) {
   const holds = tryGit(root, ['ls-remote', remote, hopFenceRef(item)]).stdout.split(/\s+/u)[0] || 'nothing';
-  return new Refused('HOP_FENCED', `the land push for #${item} at hop epoch ${epoch} was refused: the fence ${hopFenceRef(item)} holds ${holds.slice(0, 12)}, not this epoch (${(pushed.stderr || pushed.stdout).split('\n').find(line => line.includes('stale info')) ?? (pushed.stderr || pushed.stdout).split('\n').find(line => line.includes('rejected')) ?? 'stale lease'})`,
+  const output = (pushed.stderr || pushed.stdout).split('\n');
+  return new Refused('HOP_FENCED', `the land push for #${item} at hop epoch ${epoch} was refused: the fence ${hopFenceRef(item)} holds ${holds.slice(0, 12)}, not this epoch (${output.find(line => line.includes('stale info')) ?? output.find(line => line.includes('rejected')) ?? 'stale lease'})`,
     'stop landing: another land job owns the hop; acquire it again if it lapses');
-}
-
-/**
- * Push trunk from the batch base to its tip in one atomic push that also checks the fence ref still holds this hop's epoch.
- * Why atomic with two leases: a stale owner's push must leave trunk exactly where it was, so the fence and trunk move together or not at all [C7].
- * With the hop missing, it is the plain push the landing has always made.
- *
- * @param {string} root - The checkout whose HEAD (or `tip`) is pushed.
- * @param {{ remote: string, branch: string, base: string, tip?: string, hop?: { item: number, epoch: number } }} options
- * @returns {{ status: number, stdout: string, stderr: string }}
- */
-export function pushTrunkThroughFence(root, { remote, branch, base, tip = 'HEAD', hop }) {
-  if (!hop) return tryGit(root, ['push', remote, `${tip}:${branch}`]);
-  const ref = hopFenceRef(hop.item);
-  const fence = hopFenceObject(root, hop);
-  const pushed = tryGit(root, ['push', '--atomic', `--force-with-lease=${ref}:${fence}`, `--force-with-lease=${branch}:${base}`, remote, `${fence}:${ref}`, `${tip}:${branch}`]);
-  if (pushed.status === 0) return pushed;
-  const holds = tryGit(root, ['ls-remote', remote, ref]).stdout.split(/\s+/u)[0];
-  if (holds !== fence) throw fenced(root, { remote, ...hop }, pushed);
-  return pushed;
 }
