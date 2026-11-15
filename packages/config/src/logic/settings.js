@@ -3,9 +3,9 @@ import { isAbsolute } from 'node:path';
 import { validateCostPrices } from './prices.js';
 import { validateRunnerRates } from './runner-rates.js';
 import { Refused } from '../../../kernel/light.js';
-import { machineSettingsFile } from '../../../resources/index.js';
-import { readMachineSettingsFile } from '../../../queue/index.js';
-import { validateGateQueue } from '../../../queue/index.js';
+import { machineSettingsFile } from '../../../resources/light.js';
+import { readMachineSettingsFile } from '../../../queue/light.js';
+import { validateGateQueue } from '../../../queue/light.js';
 const DEFAULT_GATE_SLOTS = 2;
 
 /**
@@ -366,4 +366,14 @@ export function validRunnerCpuLoad(value) {
   return value !== null && typeof value === 'object' && Number.isFinite(Date.parse(value.at))
     && Number.isFinite(value.busyPercent) && value.busyPercent >= 0 && value.busyPercent <= 100
     && Array.isArray(value.average) && value.average.length === 3 && value.average.every(n => Number.isFinite(n) && n >= 0);
+}
+
+/**
+ * The board this machine's seats read over HTTP, or null for the local board: board.url and board.token [P7].
+ * Why: a seat on another host has no board.sqlite; it reaches the board host's pullboard serve instead.
+ * @returns {{ url: string, token: string } | null}
+ */
+export function boardRemote() {
+  const board = loadMachineSettings().board;
+  return board?.url ? { url: board.url, token: board.token ?? '' } : null;
 }

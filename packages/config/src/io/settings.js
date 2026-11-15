@@ -26,6 +26,7 @@ import { parseRunnerRate } from '../logic/runner-rates.js';
 import { validateServe } from '../logic/settings.js';
 import { validateBoardRemote } from '../logic/settings.js';
 export { loadMachineSettings };
+export { boardRemote } from '../logic/settings.js';
 import { Refused } from '../../../kernel/index.js';
 import { relayCanaryConfig } from '../logic/settings.js';
 import {
@@ -125,15 +126,6 @@ export function setWorkerBudget(budget) {
   return next;
 }
 
-/**
- * The board this machine's seats read over HTTP, or null for the local board: board.url and board.token [P7].
- * Why: a seat on another host has no board.sqlite; it reaches the board host's pullboard serve instead.
- * @returns {{ url: string, token: string } | null}
- */
-export function boardRemote() {
-  const board = loadMachineSettings().board;
-  return board?.url ? { url: board.url, token: board.token ?? '' } : null;
-}
 
 /**
  * Set board.url or board.token; the value off removes it, so seats use the local board again [P7].
