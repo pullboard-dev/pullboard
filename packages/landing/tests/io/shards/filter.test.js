@@ -12,8 +12,8 @@ import { after } from 'node:test';
 import { describe } from 'node:test';
 import { test } from 'node:test';
 import { copyPackageFiles } from '../../../../runners/index.js';
-import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
-import { runFixtureChildAsync } from '../../../../gate/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChildAsync } from '../../../../../apps/cli/tests/fixtures/child.js';
 
 const SOURCE = resolve(import.meta.dirname, '../../../../..');
 const NAMES = ['a', 'b', 'c', 'd', 'e', 'f'];
