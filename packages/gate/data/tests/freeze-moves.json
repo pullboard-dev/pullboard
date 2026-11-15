@@ -28,6 +28,13 @@
       "action": "convert",
       "because": "runs in process on real git; the cli cell proves the claim without a journey",
       "idsFollowed": true
+    },
+    {
+      "from": "apps/cli/journeys/release/lazy-moves.test.js",
+      "to": "packages/moves/tests/registry-lazy.test.js",
+      "action": "convert",
+      "because": "pure in-process registry check with no CLI; the moves cell proves the claim without a journey",
+      "idsFollowed": true
     }
   ],
   "deleted": [
