@@ -307,7 +307,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       throw new Refused('NOT_LANDED', `item #${id} already has a ${item.item_verdict} verdict by ${item.item_verified_by ?? 'another seat'}; a forced-landed item takes one verdict`);
     }
     // A forced merge landed this item around the gate; a verdict is recorded on the board and the landing stays (V1).
-    if (decision === 'ACCEPT' && item.item_status === 'withdrawn' && item.item_merged_commit) {
+    if (item.item_status === 'withdrawn' && item.item_merged_commit) {
       landedVerdict = true;
       return await ordered(ctx, board, 'verify', [id, { agentId: me.id, decision, reason: values.reason, note: textArg(ctx.io, values, 'note') ?? '',
         head: item.item_merged_commit, digest: item.item_frozen_digest ?? '', policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, landed: true }]);
