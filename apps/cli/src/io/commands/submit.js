@@ -1,4 +1,5 @@
 import { parseSpec } from '../../../../../packages/spec/light.js';
+import { submitReferenceReminders } from '../../../../../packages/spec/index.js';
 import { requireKernelApproval } from '../../../../../packages/verify/index.js';
 import { itemFolderIdentity } from '../item/folder.js';
 import { itemFolderPath } from '../item/folder/identity.js';
@@ -484,6 +485,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   if (ownershipRefusal) throw ownershipRefusal;
   // The configured static check runs in the agent's checkout before any runner job is queued, so a red one takes no trip (#5730).
   if (!companion) await requireStaticPreflight(root, acceptedMain.config.staticChecks, changedSince(root, acceptedMain.commit, commit), { timeoutMs: acceptedMain.config.check?.timeoutMs });
+  // A reminder never stops a submit: a handled reference this change leaves unacknowledged in the changelog is named (point 20) [C7].
+  for (const reminder of submitReferenceReminders(root, held, commit)) ctx.io.err(reminder);
   return (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization ? authorizationRequest() : null, full: Boolean(regenerated || regeneratedFrom), companion, infra: infraRecord }, { frozenCheck, policyAt, listItems: store.listItems, pairPrefix });
 }
 
