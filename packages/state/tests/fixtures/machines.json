@@ -114,22 +114,6 @@
       "harness": "NONE"
     },
     {
-      "kind": "dispatcher",
-      "name": "gate dispatcher",
-      "id": "dispatcher",
-      "created": "packages/drive/src/io/dispatcher.js:ensureDispatcher",
-      "serves": "no item: one per machine while tickets wait or drivers run",
-      "states": ["dispatcher.spawned"],
-      "terminal": [],
-      "lease": "LEASE_MS 120 s; renewed every 5 s per pass; released when the queue empties; never done",
-      "transitions": [
-        { "from": "(lapsed)", "to": "dispatcher.spawned", "trigger": "submit, next or claim ensures it; takes the row only where the lease lapsed", "at": "packages/drive/src/io/dispatcher.js:ensureDispatcher" },
-        { "from": "dispatcher.spawned", "to": "dispatcher.spawned", "trigger": "each pass renews, or retakes a lapsed row", "at": "packages/drive/src/io/dispatcher.js:renewDispatcher" }
-      ],
-      "servingCheck": { "status": "held", "at": "packages/drive/src/io/dispatcher.js:ensureDispatcher", "note": "the row launches nothing since #6579 deleted the hand-off dispatcher; it holds only its own lease" },
-      "harness": "apps/lib/tests/durable/drive.test.js"
-    },
-    {
       "kind": "review",
       "name": "review reservation",
       "id": "review:<item>",
