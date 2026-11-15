@@ -22,6 +22,7 @@ export { testsNeedCpuRunner, cpuRunnerRequired } from "./src/io/admission/cpu/lo
 export { detectGate, detectTestGlobs, settingCommand, missingGate, setHere } from "./src/io/config.js";
 export { recordGateRun, gateRuns, gateControlFindings, GATE_RUNS_FILE, GATE_WINDOW_MS, GATE_MIN_RUNS } from "./src/io/control.js";
 export { committedTree, isStampedGreen, stampGreen, refuseSandboxBlocked, safeLog, runProfiledShell, runFrozenProof, runProfiledShellAsync, withLandingGateSlot, landingControllerPlacement, pinRunMain, runGate, runMainComparison, recordRun, fullGateRun } from "./src/io/execution.js";
+export { runClauseBaseComparison } from "./src/io/clause-base.js";
 export { digestOf, writeTimingProfile } from "./src/io/output.js";
 export { failureSignature } from "./src/logic/failure/signature.js";
 export { runnerSource, RunnerDropped, validateRunner } from "./src/logic/policy.js";
@@ -78,6 +79,7 @@ export { failedAssertionLines, retainedGateAssertions, testOutputSummary, retain
 export { cachedAffectedGraph } from "./src/io/affected/graph/cache.js";
 export { checkCoordinatorRelease, recordCoordinatorRelease, readCoordinatorRelease } from './src/io/coordinator/release.js';
 export { TEST_TIERS_FILE, generateTestTiers, formatTestTiers, writeTestTiers } from './src/io/test/tiers.js';
+export { testIdIndex, resolveIdRows, idRenames } from './src/io/test/ids.js';
 
 export { reviewCitations, citedReceiptsNote, citedReceipts, landingRunFiles } from './src/io/once.js';
 export { redGateScope, redGateReport, runnerErrors } from './src/io/red.js';
@@ -85,6 +87,7 @@ export { pushOnlyTests } from './src/io/test/push-only.js';
 export { requireTestTierAccount, requireSealedSkips, hasTestTiers, generateTestTiersAt, selectTestTiers, testTierProofFiles, testTierCommand, testTierCheckCommand, testTierReport } from './src/io/test/tier/selection.js';
 export { testRunPhaseClock } from './src/io/test/run/phases.js';
 
+export { duplicateClaims, requireUniqueClaims } from './src/io/test/duplicate-claims.js';
 export { testTimeBudget, testTimeBudgetLines } from './src/logic/test/budget/time.js';
 
 export { runGateStages } from "./src/logic/stages.js";

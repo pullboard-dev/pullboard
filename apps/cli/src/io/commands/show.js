@@ -1,6 +1,8 @@
+import { clauseReceipts } from '../../../../../packages/state/index.js';
 import { recordedVerificationComparison } from '../../../../../packages/verify/index.js';
 import { renderVerificationComparison } from '../../../../../packages/verify/index.js';
 import { machineVerification } from '../../../../../packages/verify/index.js';
+import { testHashRulings } from '../../../../../packages/verify/index.js';
 import { itemProgress } from '../../../../../packages/roadmap/index.js';
 import { progressLine } from '../../../../../packages/roadmap/index.js';
 import { submitHandoff } from '../../../../../packages/store/light.js';
@@ -205,6 +207,11 @@ export async function run(io, { first, values }) {
   if (frozen) {
     io.say(`frozen at claim (${item.item_frozen_digest.slice(0, 12)}):`);
     frozen.rows.forEach((row) => io.say(`  ${row.id}: ${readableRigorText(row.text)}${row.gate ? `  | gate: ${row.gate}` : ''}`));
+    const rulings = testHashRulings(thread, store.PERSON);
+    for (const [path, hash] of Object.entries(frozen.testHashes ?? {})) {
+      const ruled = rulings.filter(ruling => ruling.path === path);
+      io.say(`  test ${path}: sha256 ${hash}${ruled.length ? `; person ruling ${ruled.map(ruling => `${ruling.factId} accepts ${ruling.hash.slice(0, 12)}`).join(', ')}` : ''}`);
+    }
   }
   if (item.item_commit) io.say(`submitted by ${agentName(item.item_built_by)}${item.item_builder_family ? ` [family ${item.item_builder_family}]` : ''} at ${item.item_commit}`);
   if (item.item_effective_head) io.say(`checked main merge: ${item.item_effective_head} (original submitted source and verdict retained)`);
@@ -221,6 +228,7 @@ export async function run(io, { first, values }) {
   });
   if (notes.some((note, index) => note !== verdicts[index].verdict_note)) io.say(`(earlier verdicts shortened; every note in full: pullboard show ${id} --history)`);
   for (const correction of barCorrections(thread)) io.say(barCorrectionLine(correction));
+  for (const receipt of clauseReceipts(thread)) io.say(`fail-before, pass-after receipt, clause ${receipt.number}: ${receipt.text}`);
   for (const line of mainMerge ? mainMergeLines(item, mainMerge, agentName) : []) io.say(line);
   if (item.item_merged_commit) io.say(`merged as ${item.item_merged_commit}`);
   if (item.item_withdrawn_reason) io.say(`withdrawn: ${item.item_withdrawn_reason}`);

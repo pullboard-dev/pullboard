@@ -82,6 +82,46 @@ function rules({ host = hostname(), addresses = privateAddresses(), home = homed
   ];
 }
 
+/** The person's own name, written in pieces so this file never holds it whole. */
+const OWNER_NAME = 'Cor' + 'ey';
+
+/**
+ * The rules for added lines only: a line that attributes a quote to the person ("<name> said", "The person, 15 Oct: ...")
+ * (home folders are already refused everywhere by the tracked-file scan). History keeps what it already holds; only new text is held to them [C7].
+ */
+function addedLineRules() {
+  const speaker = `(?:\\b${OWNER_NAME}\\b|\\b[Tt]he (?:person|owner)\\b)`;
+  return [
+    { name: 'an attributed quote', pattern: new RegExp(`${speaker}(?:,[^\\n"]{0,24})?\\s+(?:said|says|wrote|asked|told|replied|ruled)\\b`, 'u') },
+    { name: 'an attributed quote', pattern: new RegExp(`${speaker}[^\\n]{0,30}:\\s*["\u201c]`, 'u') },
+  ];
+}
+
+/** The added lines of a diff against a base, as { path, line, text }; binary and pattern-holder files are skipped. */
+function addedLines(root, base) {
+  const out = execFileSync('git', ['diff', '-U0', '--no-color', '--no-ext-diff', `${base}..HEAD`], { cwd: root, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+  const added = [];
+  let path = null;
+  let line = 0;
+  for (const row of out.split('\n')) {
+    if (row.startsWith('+++ ')) { path = row === '+++ /dev/null' ? null : row.slice(6); continue; }
+    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)/u.exec(row);
+    if (hunk) { line = Number(hunk[1]); continue; }
+    if (row.startsWith('+') && path) {
+      if (!PATTERN_HOLDERS.has(path) && !/\.(?:png|jpe?g|gif|ico|woff2?|ttf|mp4|webm|sqlite|pdf)$/iu.test(path)) added.push({ path, line, text: row.slice(1) });
+      line += 1;
+    }
+  }
+  return added;
+}
+
+/** Findings in the lines a range adds, as "<file>:<line>: <rule>"; no range means no added lines to check. */
+function addedLineProblems(root, range) {
+  if (!range) return [];
+  const active = addedLineRules();
+  return addedLines(root, range.split('..')[0]).flatMap(({ path, line, text }) => (isContainerHomeDeclaration(path, text) ? [] : [...new Set(problemsIn(text, `${path}:${line}`, active))]));
+}
+
 /** This machine's addresses in the private ranges (10/8, 172.16/12, 192.168/16). */
 function privateAddresses() {
   return Object.values(networkInterfaces()).flat().filter(Boolean).map((entry) => entry.address)
@@ -119,6 +159,7 @@ function privacyProblems(root, { range = pushedRange(root), machine } = {}) {
     });
   }
   if (range) {
+    problems.push(...addedLineProblems(root, range));
     for (const record of git('log', '--format=%H%x00%b%x1e', range).split('\x1e').map((entry) => entry.trim()).filter(Boolean)) {
       const [sha, body] = record.split('\0');
       problems.push(...problemsIn(body ?? '', `commit ${sha.slice(0, 12)} body`, active));
@@ -186,4 +227,29 @@ test('only the declared sandbox container home is exempted while a real source h
   const realHome = planted(t, { file: "const privatePath = '/Users/fixture-owner/project';\n", filePath: 'src/privacy-probe.js' });
   assert.deepEqual(privacyProblems(realHome.root, { range: realHome.range, machine: STAND_IN }),
     ['src/privacy-probe.js:1: a home folder'], 'the narrow sandbox allowance does not suppress a real home path in source');
+});
+
+test('added text that quotes the person or holds a home path is refused; synthetic text and untouched history pass [C7]', (t) => {
+  const quote = `${OWNER_NAME} said ship it`;
+  const cases = [
+    [quote, 'an attributed quote'],
+    ['The person, 15 Oct: "ship it"', 'an owner quote'],
+    [`${OWNER_NAME} wrote: "go"`, 'an attributed quote'],
+    ['logs live in /Users/fixture-owner/Code/repo', 'a home folder'],
+  ];
+  for (const [text, rule] of cases) {
+    const added = planted(t, { file: `${text}\n`, filePath: 'docs/added-probe.md' });
+    assert.deepEqual(privacyProblems(added.root, { range: added.range, machine: STAND_IN }).filter((found) => found.endsWith(`: ${rule}`)), [`docs/added-probe.md:1: ${rule}`], `an added line with ${rule}`);
+  }
+  const synthetic = planted(t, { file: 'Sam, a synthetic owner, asked for a sample at /Users/example/project\n', filePath: 'docs/added-probe.md' });
+  assert.deepEqual(privacyProblems(synthetic.root, { range: synthetic.range, machine: STAND_IN }), [], 'a synthetic fixture passes');
+  const old = planted(t, { file: 'clean text\n', filePath: 'docs/added-probe.md' });
+  writeFileSync(join(old.root, 'docs/older.md'), `${quote}\n`);
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'F', GIT_AUTHOR_EMAIL: 'f@example.invalid', GIT_COMMITTER_NAME: 'F', GIT_COMMITTER_EMAIL: 'f@example.invalid' };
+  execFileSync('git', ['add', '.'], { cwd: old.root, env });
+  execFileSync('git', ['commit', '-q', '-m', 'docs: older', '-m', 'Pullboard-Item: #1'], { cwd: old.root, env });
+  const base = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: old.root, encoding: 'utf8' }).trim();
+  writeFileSync(join(old.root, 'docs/added-probe.md'), 'clean text\nmore clean text\n');
+  execFileSync('git', ['commit', '-q', '-am', 'docs: later', '-m', 'Pullboard-Item: #1'], { cwd: old.root, env });
+  assert.deepEqual(addedLineProblems(old.root, `${base}..HEAD`), [], 'a line committed before the range is not re-read');
 });
