@@ -112,7 +112,7 @@ async function fixture(t, { signer = false, doctrine = false } = {}) {
   }
   /** Run Pullboard in the fixture repo and retain both output streams for assertions. */
   function pullboard(...args) {
-    return journeyCall({ dir, env, cwd: root, args, inProcess: () => runCliInProcess(args, { cwd: root, env }), real: () => runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8' }) });
+    return journeyCall({ dir, env, cwd: root, args, inProcess: () => runCliInProcess(args, { cwd: root, env }), bin: BIN });
   }
   git('init', '-q', '-b', 'main');
   git('config', 'user.name', 'Approved-row fixture');

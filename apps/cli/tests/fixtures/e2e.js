@@ -88,8 +88,13 @@ function parityRecord({ dir, env, cwd, args, result }) {
     } finally { db.close(); }
   }
   // Mask string values only: a bare number of 7 or more digits would read as a hash and break the JSON it sits in.
-  const mask = value => typeof value === 'string' ? parityText(value, dir) : Array.isArray(value) ? value.map(mask)
-    : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([key, inner]) => [key, mask(inner)])) : value;
+  // Also masked: the disk-use measurement status prints (apps/cli/src/io/disk/use.js). A detached worker measures the store sizes
+  // at no fixed moment, so whether a call sees "measuring" or a total, and the byte counts, depend on timing, not on the runtime.
+  const DISK_MEASURED = ['total', 'stores', 'measuredAt', 'measuring', 'warning'];
+  const mask = (value, key) => typeof value === 'string' ? parityText(value, dir).replace(/^disk use under \.git\/pullboard: .*$/gmu, 'disk use under .git/pullboard: <measured>')
+    : Array.isArray(value) ? value.map(inner => mask(inner))
+    : value && typeof value === 'object' ? Object.fromEntries([...Object.entries(value).filter(([name]) => key !== 'disk' || !DISK_MEASURED.includes(name)).map(([name, inner]) => [name, mask(inner, name)]),
+      ...(key === 'disk' ? [['measurement', '<measured>']] : [])]) : value;
   return mask({ cwd, args, code: result.code, json, out: json ? null : result.out, err: result.stderr, board });
 }
 
@@ -97,10 +102,10 @@ function parityRecord({ dir, env, cwd, args, result }) {
  * One journey CLI call for a fixture of its own: answered in this process by default, or as a real process under
  * PULLBOARD_JOURNEY_MODE=process, and appended to PULLBOARD_PARITY_RECORD when the parity check asks for it (#8267) [C7].
  * Why: the same record shape as runIn, so files whose box is not createE2eHelpers can join the parity sample.
- * @param {{ dir: string, env: object, cwd: string, args: string[], inProcess: () => Promise<{status: number, stdout: string, stderr: string}>, real: () => {status: number, stdout: string, stderr: string} }} call The call, both ways.
+ * @param {{ dir: string, env: object, cwd: string, args: string[], inProcess: () => Promise<{status: number, stdout: string, stderr: string}>, real?: () => {status: number, stdout: string, stderr: string}, bin?: string }} call The call, both ways; `bin` (the CLI entry file) lets the kit start the real process itself, so a test file never launches one.
  * @returns {Promise<{status: number, stdout: string, stderr: string}>} The answer.
  */
-export async function journeyCall({ dir, env, cwd, args, inProcess, real }) {
+export async function journeyCall({ dir, env, cwd, args, inProcess, bin, real = () => runFixtureChild(process.execPath, [bin, ...args], { cwd, env, encoding: 'utf8' }) }) {
   const result = JOURNEY_MODE === 'process' ? real() : await inProcess();
   if (process.env.PULLBOARD_PARITY_RECORD) {
     const answer = { code: result.status, out: result.stdout, stderr: result.stderr };
