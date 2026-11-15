@@ -25,6 +25,9 @@ export { assertReaderParity } from './parity/reader.js';
 import { createParityReader } from './parity/reader.js';
 import { relayClientFixture } from './client.js';
 
+/** The parts of the operation inventory; operations.js names the phases each one runs. */
+const OPERATION_PARTS = Object.freeze(['study', 'rest']);
+
 /** Bind the real canonical presentation providers once for this fixture module. */
 const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
@@ -76,7 +79,8 @@ function foreignBoardFixture(t, box) {
 }
 
 /** Capture full API state and independently reconstruct the sealed API2 snapshot over actual authenticated HTTP. */
-export async function parityRoundtrip(t, { foreign = false, localHealth = false } = {}) {
+/** A linked relay fixture whose repo policy commit is in place, ready for one real device session [H5,H16,A2]. */
+async function linkedParityBox(t) {
   const box = await relayClientFixture(t);
   assert.equal(runFixtureChild('git', ['add', 'pullboard.json'], { cwd: box.root, env: box.env }).status, 0);
   const git = args => runFixtureChild('git', args, { cwd: box.root, env: box.env, encoding: 'utf8' });
@@ -87,6 +91,43 @@ export async function parityRoundtrip(t, { foreign = false, localHealth = false 
   const commit = git(['commit-tree', tree.stdout.trim(), '-p', parent.stdout.trim(), '-m', 'fixture: commit parity policy']);
   assert.equal(commit.status, 0);
   assert.equal(git(['update-ref', 'refs/heads/main', commit.stdout.trim(), parent.stdout.trim()]).status, 0);
+  return box;
+}
+
+/** Link one fixture to its relay and open its person session, the same start every operation child needs. */
+async function linkedSession(box) {
+  await box.link();
+  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const session = await box.phoneSession();
+  return { link, session };
+}
+
+/** Run the operation inventory part `part` in its own child process against one linked fixture's board. */
+async function runOperationPart(t, box, link, session, part) {
+  const module = new URL('../../../../relay/tests/fixtures/parity/operations.js', import.meta.url).href;
+  const parameters = { root: box.root, origin: box.origin, token: session.token, boardId: link.board, lane: box.lane, keyFile: box.keyFile, part };
+  const file = join(box.root, '.git', 'pullboard', 'parity-reader-session.json');
+  writeFileSync(file, JSON.stringify(parameters), { mode: 0o600 });
+  try {
+    const running = runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', `import { readFileSync } from 'node:fs';
+import { exerciseOperationParity } from ${JSON.stringify(module)};
+try { console.log(JSON.stringify(await exerciseOperationParity(JSON.parse(readFileSync(${JSON.stringify(file)}, 'utf8'))))); } catch (error) { console.log(JSON.stringify({ error: error.message })); process.exitCode = 1; }`], { cwd: box.root, env: box.env, signal: t.signal });
+    t.after(async () => {
+      if (running.child.exitCode === null && running.child.signalCode === null) running.child.kill('SIGTERM');
+      await running;
+    });
+    const result = await running;
+    let document;
+    try { document = JSON.parse(result.stdout.trim()); }
+    catch { assert.fail(`operation child did not return JSON: ${result.failure ?? result.context}`); }
+    assert.equal(result.status, 0, `${document.error ?? 'operation child failed'}\n${result.failure ?? result.context}`);
+    return document;
+  } finally { rmSync(file, { force: true }); }
+}
+
+/** Capture full API state and independently reconstruct the sealed API2 snapshot over actual authenticated HTTP. */
+export async function parityRoundtrip(t, { foreign = false, localHealth = false } = {}) {
+  const box = await linkedParityBox(t);
   const seeded = seedParityBoard(box.root, box.lane);
   const other = foreign ? foreignBoardFixture(t, box) : null;
   assertPresentationChangeClock(box.root, seeded.item);
@@ -96,10 +137,8 @@ export async function parityRoundtrip(t, { foreign = false, localHealth = false 
       ok: false, step: 'pull', code: 'RELAY_UNREACHABLE', roundTripMs: 1, relayVersion: 1,
     }, { now: at });
   }
-  await box.link();
-  const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+  const { link, session } = await linkedSession(box);
   const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
-  const session = await box.phoneSession();
   const reader = await createParityReader({ root: box.root, origin: box.origin, token: session.token, boardId: link.board, key,
     projects: () => [{ root: box.root, name: 'parity' }, ...(other ? [other] : [])] });
   t.after(reader.close);
@@ -111,27 +150,28 @@ export async function parityRoundtrip(t, { foreign = false, localHealth = false 
     assert.ok(JSON.stringify(scoped).includes('unavailable'), 'the external reference is an unavailable obligation');
     assert.ok(!JSON.stringify(scoped).includes('foreign-parity'), 'the external project reference remains redacted');
   }
-  /** One genuine private-environment process retains native and HTTP clients for the full declared operation inventory. */
+  /**
+   * The declared inventory split into parts, each on its own linked fixture and child process, run at once.
+   * Why: every operation is still published and compared against both full readers after its own mutation; only the
+   * serial wait between independent boards goes, and the union of the parts must still equal every declared operation.
+   */
   async function exerciseOperations() {
-    const module = new URL('../../../../relay/tests/fixtures/parity/operations.js', import.meta.url).href;
-    const parameters = { root: box.root, origin: box.origin, token: session.token, boardId: link.board, lane: box.lane, keyFile: box.keyFile };
-    const file = join(box.root, '.git', 'pullboard', 'parity-reader-session.json');
-    writeFileSync(file, JSON.stringify(parameters), { mode: 0o600 });
-    try {
-      const running = runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', `import { readFileSync } from 'node:fs';
-import { exerciseOperationParity } from ${JSON.stringify(module)};
-try { console.log(JSON.stringify(await exerciseOperationParity(JSON.parse(readFileSync(${JSON.stringify(file)}, 'utf8'))))); } catch (error) { console.log(JSON.stringify({ error: error.message })); process.exitCode = 1; }`], { cwd: box.root, env: box.env, signal: t.signal });
-      t.after(async () => {
-        if (running.child.exitCode === null && running.child.signalCode === null) running.child.kill('SIGTERM');
-        await running;
-      });
-      const result = await running;
-      let document;
-      try { document = JSON.parse(result.stdout.trim()); }
-      catch { assert.fail(`operation child did not return JSON: ${result.failure ?? result.context}`); }
-      assert.equal(result.status, 0, `${document.error ?? 'operation child failed'}\n${result.failure ?? result.context}`);
-      return document;
-    } finally { rmSync(file, { force: true }); }
+    const parts = OPERATION_PARTS;
+    const [first, ...rest] = parts;
+    // The first part starts at once on this board; every other part builds its own linked board while it runs.
+    const results = await Promise.all([
+      runOperationPart(t, box, link, session, first),
+      ...rest.map(async part => {
+        const other = await linkedParityBox(t);
+        const linked = await linkedSession(other);
+        return runOperationPart(t, other, linked.link, linked.session, part);
+      }),
+    ]);
+    const declared = results[0].declared;
+    const covered = [...new Set(results.flatMap(result => result.covered))].sort();
+    const missing = declared.filter(operation => !covered.includes(operation));
+    assert.deepEqual(missing, [], `every declared native operation must pass the complete oracle; setup refusals=${JSON.stringify(results.map(result => result.setupRefusals))}`);
+    return { covered, declared };
   }
   return { native, relay, restored, exercised: seeded.exercised, exerciseOperations };
 }

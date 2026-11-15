@@ -25,13 +25,13 @@ function fixture(n, mod = 50) {
   }));
 }
 
-test('clause 1: queue and status find file collisions through a path index and match the all-pairs answer [C7]', () => {
+test('verify.queue.path-index: clause 1: queue and status find file collisions through a path index and match the all-pairs answer [C7]', () => {
   const items = fixture(300);
   for (const item of items) assert.deepEqual(itemFileCollisions(item, items), naive(item, items));
   assert.ok(itemFileCollisions(items[1], items).length > 0);
 });
 
-test('clause 2: queue on a 3,000-item fixture runs in under 200 ms [C7]', () => {
+test('verify.queue.speed: clause 2: queue on a 3,000-item fixture runs in under 200 ms [C7]', () => {
   const items = fixture(3000, 4000);
   const reads = {
     listItems: () => items, laneHolds: () => [], laneHold: () => null, localDependencyIds: () => [],

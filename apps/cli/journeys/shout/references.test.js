@@ -28,7 +28,7 @@ import {
   pressTab,
   machine,
   project,
-  build,
+  buildLocal,
   fetchLive,
   startView,
   target,
@@ -48,7 +48,7 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
   const alpha = project(box, 'alpha');
   const beta = project(box, 'beta');
   await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
-  build(box, alpha, 1, 'greeting.html');
+  await buildLocal(box, alpha, 1, 'greeting.html');
   const first = box.git(alpha.web, 'rev-parse', 'HEAD');
   writeFileSync(join(alpha.web, 'web', 'greeting.html'), '  hello <b>there</b>\n    second line\n');
   writeFileSync(join(alpha.web, 'web', 'long.txt'), Array.from({ length: 100 }, (_, n) => `line ${n + 1}`).join('\n') + '\n');
@@ -221,7 +221,7 @@ test('committed shout and fact references stay local, expand safely at phone and
   mkdirSync(join(alpha.web, 'web'), { recursive: true });
   const sourceText = ['const localOnlyFixture = 42;', ...Array.from({ length: 99 }, (_, index) => `export const row${index + 1} = ${index + 1};`)].join('\n') + '\n';
   writeFileSync(join(alpha.web, 'web', 'reference.js'), sourceText);
-  build(box, alpha, 1, 'submitted.txt');
+  await buildLocal(box, alpha, 1, 'submitted.txt');
   const sha = box.git(alpha.web, 'rev-parse', 'HEAD');
   const ref = `web/reference.js:1-100@${sha}`;
   await box.inProcess(alpha.web, 'fact', '1', 'note', 'review the source block', '--ref', ref);
