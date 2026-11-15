@@ -4,8 +4,8 @@ import { completedTestResult } from '../../gate/index.js';
 import { test } from 'node:test';
 import { fleetTestResultReuse } from './fixtures/fleet.js';
 
-test('same-tree review reuses submit receipts and a companion reruns only its changed closure [C7,V4]', { timeout: 180_000 }, async t => {
-  await fleetTestResultReuse(t, { composition: true });
+test('same-tree review reuses submit receipts on another machine, and a changed environment reruns [C7,V4]', { timeout: 180_000 }, async t => {
+  await fleetTestResultReuse(t, { composition: true, scenario: 'cross' });
 });
 
 test('pending, failed and interrupted worker requests are not completed green proof [C7,V4]', () => {

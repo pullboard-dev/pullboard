@@ -30,8 +30,12 @@ import {
 const SOURCE = resolve(import.meta.dirname, '../../../..');
 const EXECUTED = 'EXECUTED-FLEET-CACHE-PROBE';
 
-/** Prove the production request/worker/result path, without contacting a host or changing real runner settings. */
-export async function fleetTestResultReuse(t, { composition = false } = {}) {
+/**
+ * Prove the production request/worker/result path, without contacting a host or changing real runner settings.
+ * `scenario` picks 'cross', 'closure', 'harness' or 'red' alone, or 'all' runs every part.
+ * Why: a round trip takes about 50 s on a loaded runner, so each file runs the few trips of one part inside the 180 s file budget.
+ */
+export async function fleetTestResultReuse(t, { composition = false, scenario = 'all' } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-result-fleet-')));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const repo = join(directory, 'repo');
@@ -103,83 +107,92 @@ test('unchanged companion closure [C7,V4]', () => { console.log('EXECUTED-STABLE
     if (composition && stage === 'verify') assert.equal(result.privateCheck.state, 'pass', result.output);
     return result;
   };
+  const on = name => scenario === 'all' || scenario === name;
   try {
     const first = await run(homeA, HOST, 'submit');
     assert.equal(first.isGreen, true, first.output);
     assert.match(first.output, new RegExp(EXECUTED), 'the first worker really executes the test body');
     assert.doesNotMatch(first.output, /^# reused /mu);
-    const second = await run(homeB, `${HOST}-setup`, 'verify');
-    assert.equal(second.isGreen, true, second.output);
-    assert.notEqual(first.executionRoot, second.executionRoot, 'the workers use different private machine namespaces');
-    assert.doesNotMatch(second.output, new RegExp(EXECUTED), 'the second worker never executes the body');
-    assert.match(second.output, new RegExp(`^# all ${composition ? 2 : 1} test files reused; none ran$`, 'mu'));
-    assert.doesNotMatch(second.output, /EXECUTED-STABLE/u);
-    assert.match(second.output, /^# reused [0-9a-f]{64} from submit /mu);
-    const origin = JSON.parse(second.output.split('\n').find(line => line.startsWith('# result-origin ')).slice('# result-origin '.length));
-    assert.equal(origin.machine, HOST, 'the real first worker remains the origin');
-    assert.equal(origin.stage, 'submit');
-    assert.equal(origin.completion.id, first.executionReceipt.id, 'reuse cites the original authenticated completion, not the verify request');
-    assert.equal(origin.completion.tree, first.executionSource.tree);
-    assert.notEqual(origin.completion.id, second.executionReceipt.id);
-    const retained = JSON.parse(readFileSync(join(testResultStore(repo), 'completions', origin.completion.id + '.json'), 'utf8'));
-    assert.equal(retained.id, first.executionReceipt.id);
-    assert.equal(retained.outputSha256, origin.completion.outputSha256);
-    assert.equal(retained.code, 0);
-    if (composition) {
-      const reporter = await run(homeB, `${HOST}-setup`, 'verify', false, true);
-      assert.equal(reporter.isGreen, true, reporter.output);
-      assert.match(reporter.output, new RegExp(EXECUTED));
-      assert.match(reporter.output, /EXECUTED-STABLE/u);
-      assert.doesNotMatch(reporter.output, /^# reused /mu, 'caller-selected reporters cannot use the reporter-free harness shortcut');
+    if (on('cross')) {
+      const second = await run(homeB, `${HOST}-setup`, 'verify');
+      assert.equal(second.isGreen, true, second.output);
+      assert.notEqual(first.executionRoot, second.executionRoot, 'the workers use different private machine namespaces');
+      assert.doesNotMatch(second.output, new RegExp(EXECUTED), 'the second worker never executes the body');
+      assert.match(second.output, new RegExp(`^# all ${composition ? 2 : 1} test files reused; none ran$`, 'mu'));
+      assert.doesNotMatch(second.output, /EXECUTED-STABLE/u);
+      assert.match(second.output, /^# reused [0-9a-f]{64} from submit /mu);
+      const origin = JSON.parse(second.output.split('\n').find(line => line.startsWith('# result-origin ')).slice('# result-origin '.length));
+      assert.equal(origin.machine, HOST, 'the real first worker remains the origin');
+      assert.equal(origin.stage, 'submit');
+      assert.equal(origin.completion.id, first.executionReceipt.id, 'reuse cites the original authenticated completion, not the verify request');
+      assert.equal(origin.completion.tree, first.executionSource.tree);
+      assert.notEqual(origin.completion.id, second.executionReceipt.id);
+      const retained = JSON.parse(readFileSync(join(testResultStore(repo), 'completions', origin.completion.id + '.json'), 'utf8'));
+      assert.equal(retained.id, first.executionReceipt.id);
+      assert.equal(retained.outputSha256, origin.completion.outputSha256);
+      assert.equal(retained.code, 0);
+      // A third machine under a host name the controller holds no runtime for (the stand-in accepts three; it drops nothing unless asked): a worker agent still alive on machine B would keep its own LANG, ignoring this run's preload,
+      // and a host the controller already sent the runtime to is sent none again, which a new machine does not hold (5c6da27234; 4de3a661db reverted it).
+      const differentEnvironment = await run(homeC, `${HOST}-drop`, 'verify', true);
+      assert.equal(differentEnvironment.isGreen, true, differentEnvironment.output);
+      assert.match(differentEnvironment.output, new RegExp(EXECUTED), 'a material execution environment change requires a fresh body');
+      assert.doesNotMatch(differentEnvironment.output, /^# reused /mu);
+      if (composition) assert.match(differentEnvironment.output, /EXECUTED-STABLE/u);
     }
-    // A third machine under a host name the controller holds no runtime for (the stand-in accepts three; it drops nothing unless asked): a worker agent still alive on machine B would keep its own LANG, ignoring this run's preload,
-    // and a host the controller already sent the runtime to is sent none again, which a new machine does not hold (5c6da27234; 4de3a661db reverted it).
-    const differentEnvironment = await run(homeC, `${HOST}-drop`, 'verify', true);
-    assert.equal(differentEnvironment.isGreen, true, differentEnvironment.output);
-    assert.match(differentEnvironment.output, new RegExp(EXECUTED), 'a material execution environment change requires a fresh body');
-    assert.doesNotMatch(differentEnvironment.output, /^# reused /mu);
-    if (composition) assert.match(differentEnvironment.output, /EXECUTED-STABLE/u);
-    const beforeComposition = composition ? await testActionKeys(repo, { files: ['test/probe.test.js', 'test/stable.test.js'] }) : null;
-    writeFileSync(join(repo, 'lib', 'value.js'), 'export const value = 2;\n');
-    git('add', 'lib/value.js');
-    git('commit', '-q', '-m', 'test: edit reached value');
-    if (composition) {
-      const afterComposition = await testActionKeys(repo, { files: ['test/probe.test.js', 'test/stable.test.js'] });
-      assert.equal(afterComposition.get('test/stable.test.js').inputKey, beforeComposition.get('test/stable.test.js').inputKey, 'the unchanged file retains its input identity');
-      const rows = selectedTestResults(testResultStore(repo), [afterComposition.get('test/stable.test.js').inputKey]);
-      assert.ok(rows.some(row => row.origin.completion?.id === first.executionReceipt.id), JSON.stringify(rows));
+    if (on('closure')) {
+      const beforeComposition = composition ? await testActionKeys(repo, { files: ['test/probe.test.js', 'test/stable.test.js'] }) : null;
+      writeFileSync(join(repo, 'lib', 'value.js'), 'export const value = 2;\n');
+      git('add', 'lib/value.js');
+      git('commit', '-q', '-m', 'test: edit reached value');
+      if (composition) {
+        const afterComposition = await testActionKeys(repo, { files: ['test/probe.test.js', 'test/stable.test.js'] });
+        assert.equal(afterComposition.get('test/stable.test.js').inputKey, beforeComposition.get('test/stable.test.js').inputKey, 'the unchanged file retains its input identity');
+        const rows = selectedTestResults(testResultStore(repo), [afterComposition.get('test/stable.test.js').inputKey]);
+        assert.ok(rows.some(row => row.origin.completion?.id === first.executionReceipt.id), JSON.stringify(rows));
+      }
+      const changed = await run(homeB, `${HOST}-setup`, 'land');
+      assert.equal(changed.isGreen, true, changed.output);
+      assert.match(changed.output, new RegExp(EXECUTED), 'editing a reached module executes its file again');
+      if (composition) {
+        assert.doesNotMatch(changed.output, /EXECUTED-STABLE/u, 'a companion changes only the reached probe closure');
+        assert.match(changed.output, /^# reused .*\(test\/stable\.test\.js\)$/mu);
+        assert.notEqual(changed.executionSource.tree, first.executionSource.tree);
+      } else assert.doesNotMatch(changed.output, /^# reused /mu);
+      const pushed = await run(homeA, HOST, 'push');
+      assert.equal(pushed.isGreen, true, pushed.output);
+      assert.doesNotMatch(pushed.output, new RegExp(EXECUTED));
+      assert.match(pushed.output, /^# reused [0-9a-f]{64} from land /mu, 'the result crosses back to the first machine and another stage');
     }
-    const changed = await run(homeB, `${HOST}-setup`, 'land');
-    assert.equal(changed.isGreen, true, changed.output);
-    assert.match(changed.output, new RegExp(EXECUTED), 'editing a reached module executes its file again');
-    if (composition) {
-      assert.doesNotMatch(changed.output, /EXECUTED-STABLE/u, 'a companion changes only the reached probe closure');
-      assert.match(changed.output, /^# reused .*\(test\/stable\.test\.js\)$/mu);
-      assert.notEqual(changed.executionSource.tree, first.executionSource.tree);
-    } else assert.doesNotMatch(changed.output, /^# reused /mu);
-    const pushed = await run(homeA, HOST, 'push');
-    assert.equal(pushed.isGreen, true, pushed.output);
-    assert.doesNotMatch(pushed.output, new RegExp(EXECUTED));
-    assert.match(pushed.output, /^# reused [0-9a-f]{64} from land /mu, 'the result crosses back to the first machine and another stage');
-    if (composition) {
-      const harnessPath = join(repo, 'packages/gate/src/io/test/action/reporter.js');
-      writeFileSync(harnessPath, readFileSync(harnessPath, 'utf8') + '\n// fixture: changed actual harness input\n');
-      git('add', 'packages/gate/src/io/test/action/reporter.js');
-      git('commit', '-q', '-m', 'test: change actual harness bytes');
-      const harnessChanged = await run(homeA, HOST, 'land');
-      assert.equal(harnessChanged.isGreen, true, harnessChanged.output);
-      assert.match(harnessChanged.output, new RegExp(EXECUTED));
-      assert.match(harnessChanged.output, /EXECUTED-STABLE/u);
-      assert.doesNotMatch(harnessChanged.output, /^# reused /mu, 'changed real harness invalidates both file receipts');
+    if (on('harness')) {
+      if (composition) {
+        const reporter = await run(homeB, `${HOST}-setup`, 'verify', false, true);
+        assert.equal(reporter.isGreen, true, reporter.output);
+        assert.match(reporter.output, new RegExp(EXECUTED));
+        assert.match(reporter.output, /EXECUTED-STABLE/u);
+        assert.doesNotMatch(reporter.output, /^# reused /mu, 'caller-selected reporters cannot use the reporter-free harness shortcut');
+      }
+      if (composition) {
+        const harnessPath = join(repo, 'packages/gate/src/io/test/action/reporter.js');
+        writeFileSync(harnessPath, readFileSync(harnessPath, 'utf8') + '\n// fixture: changed actual harness input\n');
+        git('add', 'packages/gate/src/io/test/action/reporter.js');
+        git('commit', '-q', '-m', 'test: change actual harness bytes');
+        const harnessChanged = await run(homeA, HOST, 'land');
+        assert.equal(harnessChanged.isGreen, true, harnessChanged.output);
+        assert.match(harnessChanged.output, new RegExp(EXECUTED));
+        assert.match(harnessChanged.output, /EXECUTED-STABLE/u);
+        assert.doesNotMatch(harnessChanged.output, /^# reused /mu, 'changed real harness invalidates both file receipts');
+      }
     }
-    writeFileSync(join(repo, 'lib', 'value.js'), 'export const value = -1;\n');
-    git('add', 'lib/value.js');
-    git('commit', '-q', '-m', 'test: make reached value fail');
-    for (const [home, host] of [[homeA, HOST], [homeB, `${HOST}-setup`]]) {
-      const red = await run(home, host, 'audit');
-      assert.equal(red.isGreen, false, red.output);
-      assert.match(red.output, new RegExp(EXECUTED), 'a red receipt never supplies a cached passing execution');
-      assert.doesNotMatch(red.output, /^# reused .*\(test\/probe\.test\.js\)$/mu);
+    if (on('red')) {
+      writeFileSync(join(repo, 'lib', 'value.js'), 'export const value = -1;\n');
+      git('add', 'lib/value.js');
+      git('commit', '-q', '-m', 'test: make reached value fail');
+      for (const [home, host] of [[homeA, HOST], [homeB, `${HOST}-setup`]]) {
+        const red = await run(home, host, 'audit');
+        assert.equal(red.isGreen, false, red.output);
+        assert.match(red.output, new RegExp(EXECUTED), 'a red receipt never supplies a cached passing execution');
+        assert.doesNotMatch(red.output, /^# reused .*\(test\/probe\.test\.js\)$/mu);
+      }
     }
   } finally {
     for (const key of changedEnv) {
