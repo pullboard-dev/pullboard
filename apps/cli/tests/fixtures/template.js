@@ -48,7 +48,7 @@ function* walk(root, rel = '') {
   }
 }
 
-/** Every file text of a small directory, with the sandbox path made neutral; the machine home of a fresh sandbox. */
+/** Every path and file text under a small directory, with the sandbox path made neutral; a fresh sandbox is a shim and a machine home. */
 function treeText(root, dir) {
   const rows = [];
   for (const { rel, abs, stat } of walk(root)) rows.push(`${rel}\0${stat.isFile() ? readFileSync(abs, 'utf8').replaceAll(dir, '@') : ''}`);
@@ -56,15 +56,12 @@ function treeText(root, dir) {
 }
 
 /**
- * What makes two boxes interchangeable: the same environment and machine home once the sandbox path is neutral, a bare
- * sandbox directory, and the original run. Null when the box has been changed and must build its own project.
+ * What makes two boxes interchangeable: the same environment and sandbox files once the sandbox path is neutral and the original run. Null when the box has been changed and must build its own project.
  */
 function signature(box) {
   if (!box.runSync || box.runSync.of !== box.run || box.declareFamilies) return null;
-  const top = readdirSync(box.dir).sort().join(',');
-  if (top !== 'bin,machine-home') return null;
   const env = JSON.stringify(Object.entries(box.env).sort(([a], [b]) => a < b ? -1 : 1)).replaceAll(box.dir, '@');
-  return createHash('sha256').update(env).update(treeText(join(box.dir, 'machine-home'), box.dir)).digest('hex');
+  return createHash('sha256').update(env).update(treeText(box.dir, box.dir)).digest('hex');
 }
 
 /** Fold every database write back into its file, so the copy holds no write-ahead log; false when one cannot be. */
