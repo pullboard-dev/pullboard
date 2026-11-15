@@ -127,6 +127,20 @@ onRemoteSeats(async (seats) => {
   assert.equal(cloneBoard(seats.clone), false, 'no move opened a local board');
 }));
 
+test('shout from a boardless clone reaches the served board with the seat as sender and opens no local board [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board and two CLI calls, not a throughput claim.
+onRemoteSeats(async (seats) => {
+  const shouted = await moved(seats, seats.builder, 'shout', 'coordinator', '--kind', 'blocker', 'written from another host');
+  assert.ok(shouted.id, 'the board answered with the shout id');
+  const { shouts } = (await seats.box.call(`${seats.box.path}/state`)).document.state;
+  const row = shouts.find((entry) => entry.shout_id === shouted.id);
+  assert.equal(row?.shout_from, seats.builder.agent, 'the board records the seat as the sender');
+  assert.equal(row?.shout_text, 'written from another host');
+  const text = await seats.run(seats.builder, 'shout', 'coordinator', '--kind', 'blocker', 'and in text form');
+  assert.equal(text.status, 0, text.stdout + text.stderr);
+  assert.match(text.stdout, /^shouted #\d+ via http:\/\//mu);
+  assert.equal(cloneBoard(seats.clone), false, 'no shout opened a local board');
+}));
+
 /** The refusal code and next: line one CLI run printed. */
 function refusalLines(ran) {
   assert.equal(ran.status, 1, ran.stdout + ran.stderr);
