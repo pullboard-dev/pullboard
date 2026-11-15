@@ -11,6 +11,7 @@ import { Refused } from '../../../../kernel/index.js';
 import { countActions } from '../../logic/test/freeze.js';
 import { planFreeze } from '../../logic/test/freeze.js';
 import { rebaseSpecifiers } from '../../logic/test/freeze.js';
+import { rebasePathMath } from '../../logic/test/freeze-paths.js';
 import { idRenames } from './ids.js';
 import { testIdIndex } from './ids.js';
 import { ORDER as ORDER_FILE } from './cells.js';
@@ -46,6 +47,26 @@ export function cellOwner(root) {
 }
 
 /**
+ * Refuse each move whose path math (new URL, join or resolve on its own folder) would not resolve after the move, naming file and line.
+ * Why: a moved test that reads fixtures by a path computed from its own location breaks silently, so the dry run must say so before the freeze.
+ *
+ * @param {string} root project root
+ * @param {object[]} plan from planFreeze
+ * @returns {object[]} the plan with those moves turned into refusals
+ */
+function refusePathMath(root, plan) {
+  const leaving = new Set(plan.filter(change => ['delete', 'move', 'convert'].includes(change.action)).map(change => change.file));
+  const exists = path => !leaving.has(path) && existsSync(join(root, path));
+  return plan.map(change => {
+    if (change.action !== 'move' && change.action !== 'convert') return change;
+    const { problems } = rebasePathMath(readFileSync(join(root, change.file), 'utf8'), change.file, change.to, exists);
+    if (!problems.length) return change;
+    const named = problems.map(problem => `${change.file}:${problem.line} ${problem.because}`).join('; ');
+    return { file: change.file, tag: change.tag, action: 'refused', because: `path math cannot be rewritten: ${named}` };
+  });
+}
+
+/**
  * Plan the freeze from a manifest file, touching nothing.
  *
  * @param {string} root project root
@@ -57,7 +78,7 @@ export function planFreezeAt(root, { manifest = TEST_MANIFEST_FILE, owner = cell
   if (!existsSync(path)) throw new Refused('FREEZE_NO_MANIFEST', `no test manifest at ${manifest}`, 'run node packages/gate/src/io/test/scripts/manifest.js first');
   const rows = JSON.parse(readFileSync(path, 'utf8')).files;
   const tracked = new Set(git(root, ['ls-files', '-z']).split('\0').filter(Boolean));
-  const plan = planFreeze(rows.filter(row => tracked.has(row.file)), { owner, taken: tracked });
+  const plan = refusePathMath(root, planFreeze(rows.filter(row => tracked.has(row.file)), { owner, taken: tracked }));
   return { plan, counts: countActions(plan) };
 }
 
@@ -79,7 +100,7 @@ export function applyFreeze(root, plan) {
     } else if (change.action === 'move' || change.action === 'convert') {
       mkdirSync(dirname(join(root, change.to)), { recursive: true });
       git(root, ['mv', '--', change.file, change.to]);
-      const path = join(root, change.to), source = readFileSync(path, 'utf8'), rebased = rebaseSpecifiers(source, change.file, change.to);
+      const path = join(root, change.to), source = readFileSync(path, 'utf8'), rebased = rebasePathMath(rebaseSpecifiers(source, change.file, change.to), change.file, change.to, () => true).source;
       if (rebased !== source) writeFileSync(path, rebased);
       moved.push({ from: change.file, to: change.to, action: change.action, because: change.because });
     }
