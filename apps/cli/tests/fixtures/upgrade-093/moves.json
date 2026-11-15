@@ -822,7 +822,7 @@
     "event_by": "api-1",
     "event_kind": "proof-run",
     "item_id": 1,
-    "event_detail": "{\"engine\":122,\"receipt\":{\"id\":\"369f2c2e-2ca6-48d4-892c-750b2e5ba3a4\",\"kind\":\"submit\",\"item\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\",\"tree\":\"f62c09eadad8f68a3b1618f4701577682f51abf3\",\"frozenDigest\":\"dc7a65c80a22c66e6534871285b9f82b18e8bd13c9045acdc36a199235e4791b\",\"environment\":{\"node\":\"22.22.2\",\"platform\":\"darwin\",\"arch\":\"arm64\"},\"runner\":\"local:E289M.local\",\"seat\":\"api-1\",\"parentSession\":null,\"exitCode\":0,\"counts\":{\"passed\":0,\"failed\":0,\"skipped\":0},\"durationMs\":68,\"sourceClean\":true,\"at\":\"2026-11-14T07:07:20.388Z\",\"testRuntimes\":[{\"pid\":37835,\"environment\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"},\"file\":null}]},\"model\":\"claude-sonnet-5\"}"
+    "event_detail": "{\"engine\":122,\"receipt\":{\"id\":\"369f2c2e-2ca6-48d4-892c-750b2e5ba3a4\",\"kind\":\"submit\",\"item\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\",\"tree\":\"f62c09eadad8f68a3b1618f4701577682f51abf3\",\"frozenDigest\":\"dc7a65c80a22c66e6534871285b9f82b18e8bd13c9045acdc36a199235e4791b\",\"environment\":{\"node\":\"22.22.2\",\"platform\":\"darwin\",\"arch\":\"arm64\"},\"runner\":\"local:builder-one.local\",\"seat\":\"api-1\",\"parentSession\":null,\"exitCode\":0,\"counts\":{\"passed\":0,\"failed\":0,\"skipped\":0},\"durationMs\":68,\"sourceClean\":true,\"at\":\"2026-11-14T07:07:20.388Z\",\"testRuntimes\":[{\"pid\":37835,\"environment\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"},\"file\":null}]},\"model\":\"claude-sonnet-5\"}"
    },
    {
     "event_id": 15,
@@ -982,7 +982,7 @@
     "event_by": "api-1",
     "event_kind": "proof-run",
     "item_id": 3,
-    "event_detail": "{\"engine\":122,\"receipt\":{\"id\":\"f8fb8634-a5d8-4787-9a60-ed4912edffbf\",\"kind\":\"submit\",\"item\":3,\"commit\":\"df88a7f9cf5305bc0fa5b2c74435fcb322b0d8f6\",\"tree\":\"4f1e75721362e6c888522648d168d3c41639a505\",\"frozenDigest\":\"c4e611324765937160b52a71343cf771e4eabe4d04915857d546515a720e4c8f\",\"environment\":{\"node\":\"22.22.2\",\"platform\":\"darwin\",\"arch\":\"arm64\"},\"runner\":\"local:E289M.local\",\"seat\":\"api-1\",\"parentSession\":null,\"exitCode\":0,\"counts\":{\"passed\":0,\"failed\":0,\"skipped\":0},\"durationMs\":53,\"sourceClean\":true,\"at\":\"2026-11-14T07:07:27.356Z\",\"testRuntimes\":[{\"pid\":42848,\"environment\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"},\"file\":null}]},\"model\":\"claude-sonnet-5\"}"
+    "event_detail": "{\"engine\":122,\"receipt\":{\"id\":\"f8fb8634-a5d8-4787-9a60-ed4912edffbf\",\"kind\":\"submit\",\"item\":3,\"commit\":\"df88a7f9cf5305bc0fa5b2c74435fcb322b0d8f6\",\"tree\":\"4f1e75721362e6c888522648d168d3c41639a505\",\"frozenDigest\":\"c4e611324765937160b52a71343cf771e4eabe4d04915857d546515a720e4c8f\",\"environment\":{\"node\":\"22.22.2\",\"platform\":\"darwin\",\"arch\":\"arm64\"},\"runner\":\"local:builder-one.local\",\"seat\":\"api-1\",\"parentSession\":null,\"exitCode\":0,\"counts\":{\"passed\":0,\"failed\":0,\"skipped\":0},\"durationMs\":53,\"sourceClean\":true,\"at\":\"2026-11-14T07:07:27.356Z\",\"testRuntimes\":[{\"pid\":42848,\"environment\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"},\"file\":null}]},\"model\":\"claude-sonnet-5\"}"
    },
    {
     "event_id": 35,
