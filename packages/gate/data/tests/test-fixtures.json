@@ -3530,9 +3530,6 @@
   "apps/cli/journeys/shout/item.test.js": {
     "raw-board": 4
   },
-  "apps/cli/journeys/shout/refusal.test.js": {
-    "raw-board": 5
-  },
   "apps/cli/journeys/shout/routing.test.js": {
     "raw-board": 6
   },
