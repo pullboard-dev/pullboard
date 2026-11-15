@@ -28,7 +28,7 @@ test('receipt.review.by-key: [C7] review reads a receipt by key', () => {
   assert.equal(receiptByKey([receipt], receiptKey('x', 'y')), null);
 });
 
-test('receipt.reuse.refusals: [C7] every refusal of reusable says reuse is false, and only a full match says true', () => {
+test('receipt.reuse.refusals: [C7] clause 1: every refusal of reusable says reuse is false, and only a full match says true', () => {
   const same = { candidate: 'c1', base: 'b1' };
   const cases = [
     [null, 'NO_RECEIPT'],
