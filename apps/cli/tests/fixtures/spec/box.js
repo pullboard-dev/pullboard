@@ -94,12 +94,12 @@ function prepareBox(t, { separateGitDir = false } = {}) {
   return { root, env, git, run, command, cmd, spec };
 }
 
-/** Configure and commit a box once `init` has run. */
+/** Configure and commit a box once `init` has run; the setup commits skip the hooks, which no case here proves (they cost a process each) [C7]. */
 function finishBox({ root, env, git, run, command, cmd, spec }, { specName = 'SPEC.md', practiceName = 'PRACTICE.md', practice, specSource = SPEC, freshInit = false } = {}) {
   const config = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8'));
   if (freshInit) {
     git('add', '-A');
-    git('commit', '-q', '-m', 'chore: fresh pullboard init');
+    git('-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'chore: fresh pullboard init');
     return { root, run, command, cmd, spec, env, git, specName: config.spec, practiceName: config.practice };
   }
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ ...config, spec: specName, practice: practiceName, gate: 'true', lanes: { review: { owns: [] } } }));
@@ -109,7 +109,7 @@ function finishBox({ root, env, git, run, command, cmd, spec }, { specName = 'SP
   writeFileSync(join(root, specName), specSource);
   if (practice !== undefined) writeFileSync(join(root, practiceName), practice);
   git('add', '-A');
-  git('commit', '-q', '-m', 'chore: a spec');
+  git('-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'chore: a spec');
   return { root, run, command, cmd, spec, env, git, specName, practiceName };
 }
 
