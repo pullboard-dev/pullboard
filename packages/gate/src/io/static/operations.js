@@ -27,6 +27,8 @@ const TEST_RUNNER = /run-tests\.js|['"`]--test['"`]/u;
 export const OPERATIONS = Object.freeze([
   { name: 'run-tests', entry: 'apps/cli/src/io/run/tests.js', why: 'spawns the test runner',
     forwards: ['apps/cli/src/io/run/tests.js', 'packages/gate/bin/run-tests.js'],
+    // The one named adapter: it runs node --test in a throwaway copy outside any checkout, where the entry cannot run (#8055).
+    adapters: ['packages/sandbox/src/io/mutate.js'],
     marks: code => (TEST_RUNNER.test(code) ? code.search(CHILD) : -1) },
   { name: 'dispatch-gates', entry: 'apps/cli/src/io/submit/pull.js', why: 'defines a gate dispatch',
     marks: code => code.search(/export\s+(?:async\s+)?function\s+(?:offer|dispatch|start)\w*Gate\w*\s*\(/u) },
@@ -82,8 +84,8 @@ function withoutComments(source) {
 export function operationSites(source, path) {
   if (!SOURCE.test(path)) return [];
   const code = withoutComments(source);
-  return OPERATIONS.flatMap(({ name, entry, why, marks }) => {
-    if (path === entry) return [];
+  return OPERATIONS.flatMap(({ name, entry, why, marks, adapters }) => {
+    if (path === entry || adapters?.includes(path)) return [];
     const at = marks(code);
     return at < 0 ? [] : [{ path, line: lineAt(source, at), operation: name, text: `${why} outside ${entry}, the one ${name} entry point; call it instead [C7]` }];
   });

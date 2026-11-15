@@ -219,3 +219,9 @@ test('#6747 clause 2: the baseline lists the other trunk movers as known violati
   const grown = { ...baseline, 'move-trunk': [...baseline['move-trunk'], 'packages/demo/src/io/move.js'] };
   assert.match(operationRatchetGrowth(grown, baseline)[0]?.text ?? '', /move-trunk gains a second entry point/u);
 });
+
+test('#8055 [C7]: the mutation adapter is the one named spawner of tests outside the run-tests entry, and no other file is', () => {
+  const code = "import { execFile } from 'node:child_process';\nexecFile(process.execPath, ['--test', 'a.test.js']);\n";
+  assert.deepEqual(operationSites(code, 'packages/sandbox/src/io/mutate.js'), []);
+  assert.equal(operationSites(code, 'packages/sandbox/src/io/other.js').length, 1);
+});

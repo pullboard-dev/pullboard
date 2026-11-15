@@ -1,6 +1,8 @@
 import { parseSpec } from '../../../../../packages/spec/light.js';
 import { submitReferenceReminders } from '../../../../../packages/spec/index.js';
+import { committedReader } from '../../../../../packages/moves/index.js';
 import { requireKernelApproval } from '../../../../../packages/verify/index.js';
+import { testHashProblem } from '../../../../../packages/verify/index.js';
 import { itemFolderIdentity } from '../item/folder.js';
 import { itemFolderPath } from '../item/folder/identity.js';
 import { seatRoot } from '../item/folder/identity.js';
@@ -11,6 +13,7 @@ import { heartbeatCommand } from '../presence.js';
 import { mergeSubmissionMain } from '../../../../../packages/merge/index.js';
 import { requireNonEmptySubmit } from '../empty.js';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
+import { clauseReceiptProblem } from '../../../../../packages/state/index.js';
 import { staleHeadLines } from '../../../../../packages/state/index.js';
 import { checkRunTickNotes } from '../../../../../packages/state/index.js';
 import { testRunTickNotes } from '../../../../../packages/state/index.js';
@@ -280,7 +283,9 @@ function restoreMergedHead(root, before) {
 
 export async function submitHere(ctx, id, infra, companionInput = null) {
   const { root } = ctx.info;
-  const inspectClauses = (submitHandoffPolicy(ctx) ?? mainPolicy(root)).config.verify.inspectClauses === true;
+  const submitVerify = (submitHandoffPolicy(ctx) ?? mainPolicy(root)).config.verify;
+  const inspectClauses = submitVerify.inspectClauses === true;
+  const failBefore = submitVerify.failBefore === true;
   const recovered = relayRecovered(root, {}, ctx.io);
   if (recovered?.operation === 'submit' && recovered.args[0] === id) {
     const preflight = withBoard(ctx, (board) => {
@@ -320,6 +325,9 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     if (readiness) throw readiness;
     const clauseProblem = inspectClauses ? authorizationStep('clause-inspection', () => clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateTestFiles(root, item), head: headCommit(root) })) : null;
     if (clauseProblem) throw clauseProblem;
+    // A [test] clause also needs a recorded run that failed on an assertion at the item's base (fail-before, pass-after) [C7].
+    const receiptProblem = inspectClauses && failBefore ? clauseReceiptProblem(item, { gateFiles: gateTestFiles(root, item), baseRows: store.recordedBaseRows(board, item.item_claim_head), baseCommit: item.item_claim_head }) : null;
+    if (receiptProblem) throw new Refused('CLAUSE_UNTICKED', receiptProblem.message, receiptProblem.next);
     // A clause whose only evidence cites an earlier head is named before the gate queues, so the builder refreshes it (#3752).
     if (inspectClauses) for (const line of staleHeadLines(item, store.itemThread(board, id), headCommit(root))) ctx.io.say(line);
     const correction = store.pendingRefreezeProblem(board, id);
@@ -359,6 +367,12 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     }
   }
   authorizationStep('non-empty', () => requireNonEmptySubmit(root, id, commit, acceptedMain.commit));
+  // A test file the bar froze at claim keeps its content unless the person ruled on the new content [C7,V4].
+  authorizationStep('test-hashes', () => withBoard(ctx, (board) => {
+    const problem = testHashProblem(held, store.itemThread(board, id),
+      { atHead: committedReader(root, commit), atMain: committedReader(root, acceptedMain.commit), person: store.PERSON });
+    if (problem) throw problem;
+  }));
   let trunk;
   let regenerated = null;
   try { trunk = authorizationStep('trunk-merge', () => requireTrunkMerge(root, commit, isSubmitHandoffWorker(ctx) ? acceptedMain.commit : undefined)); }
