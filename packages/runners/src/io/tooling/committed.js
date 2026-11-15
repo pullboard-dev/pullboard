@@ -211,8 +211,10 @@ export function committedRunnerController(root, { shared = false } = {}) {
     writeFileSync(join(metadata, 'objects/info/alternates'), `${objects}\n`, { flag: 'wx' });
     mkdirSync(join(metadata, 'info'), { recursive: true });
     writeFileSync(join(metadata, 'info/attributes'), '* -text -filter -ident -export-subst -export-ignore\n', { flag: 'wx' });
+    // A path the commit lacks (a package without docs or skills) would fail the whole archive, so only the present ones are named.
+    const present = new Set(toolingGit(root, ['ls-tree', '--name-only', commit]).split('\n'));
     const archive = toolingGit(root, ['--git-dir', metadata, '-c', 'core.autocrlf=false',
-      '-c', 'core.attributesFile=/dev/null', 'archive', '--format=tar', commit, '--', ...SHIPPED_PATHS], true);
+      '-c', 'core.attributesFile=/dev/null', 'archive', '--format=tar', commit, '--', ...SHIPPED_PATHS.filter(path => path.startsWith(':') || present.has(path))], true);
     const unpacked = spawnSync('tar', ['-xf', '-', '-C', directory], { input: archive, encoding: 'utf8' });
     if (unpacked.status !== 0 || !existsSync(join(directory, 'apps/runner/src/io/controller.js'))) {
       throw new Refused('RUNNER_TOOLING_FILES', 'the selected Git archive has no runner controller; restore committed tooling');
