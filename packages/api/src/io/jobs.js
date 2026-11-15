@@ -434,13 +434,16 @@ export function renewJob(db, { job, runner, token, now = Date.now(), leaseMs = L
   return shadowed(db, { name: 'renew', job, runner, token }, now, () => renewHeld(db, { job, runner, token, now, leaseMs, hop }));
 }
 
+/** Step the item's hop as a gate job's claim at the epoch it took, refused HOP_FENCED when that claim no longer owns it [C7,#8352,#8353]. */
+function stepClaimHop(db, hop, { job, runner, epoch, now, leaseMs }) {
+  const row = db.prepare('SELECT job_item, job_candidate FROM job WHERE job_id = ?').get(job);
+  moveGateClaimHop(db, hop, { item: row.job_item, candidate: row.job_candidate, runner, move: 'step', epoch, now, leaseMs });
+}
+
 /** The writer's renew: the claim's runner extends its lease, and with gate.fencedHop on steps its gate hop at the claim's epoch, so a replaced owner is refused HOP_FENCED [C7,#8352]. */
 function renewHeld(db, { job, runner, token, now, leaseMs, hop }) {
   const held = heldBy(db, job, runner, token);
-  if (hop && held.hopEpoch !== undefined) {
-    const row = db.prepare('SELECT job_item, job_candidate FROM job WHERE job_id = ?').get(job);
-    moveGateClaimHop(db, hop, { item: row.job_item, candidate: row.job_candidate, runner, move: 'step', epoch: held.hopEpoch, now, leaseMs });
-  }
+  if (hop && held.hopEpoch !== undefined) stepClaimHop(db, hop, { job, runner, epoch: held.hopEpoch, now, leaseMs });
   const renewed = renewLease(db, job, runner, { now, leaseMs, lapsed: true });
   return { renewed, leaseUntil: renewed ? now + leaseMs : null };
 }
@@ -572,14 +575,17 @@ function releaseHeld(db, { job, runner, token, reason, backoff, draining, now })
  * job since. Posting the same attempt's receipt again returns the stored one.
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ job: string, runner: string, token: string, receipt: Record<string, unknown>, now?: number }} request
+ * @param {{ job: string, runner: string, token: string, receipt: Record<string, unknown>, now?: number, leaseMs?: number, hop?: { table: Function } | null }} request - hop: from gateClaimHop, null with gate.fencedHop off.
  * @returns {{ job: string, attempt: number, receipt: Record<string, unknown>, recorded: boolean }}
  */
-export function postReceipt(db, { job, runner, token, receipt, now = Date.now() }) {
+export function postReceipt(db, { job, runner, token, receipt, now = Date.now(), leaseMs = LEASE_MS, hop = null }) {
   if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)) throw new Refused('JOB_RECEIPT', 'a receipt is a JSON object; post { receipt: { ... } }');
   if (Buffer.byteLength(JSON.stringify(receipt)) > RECEIPT_BYTES) throw new Refused('JOB_RECEIPT', `a receipt is at most ${RECEIPT_BYTES} bytes; keep output in a report file and post its digest`);
   return shadowed(db, { name: 'receipt', job, runner, token }, now, () => atomically(db, () => {
-    const { attempt } = heldBy(db, job, runner, token);
+    const held = heldBy(db, job, runner, token);
+    const { attempt } = held;
+    // With gate.fencedHop on, a gate job lands only while its claim still owns the item's hop: a resubmit ended it, so the old job is refused HOP_FENCED [C7,#8353].
+    if (hop && held.hopEpoch !== undefined) stepClaimHop(db, hop, { job, runner, epoch: held.hopEpoch, now, leaseMs });
     const written = writeStep(db, job, 'receipt', { runner, attempt, receipt }, { seq: attempt, now });
     finishJob(db, job, runner, { now });
     return { job, attempt, receipt: written.payload.receipt, recorded: written.written };
@@ -681,7 +687,7 @@ export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => n
   if (action === 'progress') return postProgress(db, { job, runner, token, progress, now });
   if (action === 'artifact') return postArtifact(db, { job, runner, token, artifact: body.artifact, now });
   if (action === 'receipt') {
-    const posted = postReceipt(db, { job, runner, token, receipt, now });
+    const posted = postReceipt(db, { job, runner, token, receipt, now, hop });
     if (posted.recorded) withdrawLandShards(db, job, { now });
     if (!posted.recorded || !onReceipt) return posted;
     try { return { ...posted, applied: onReceipt(posted) }; }
