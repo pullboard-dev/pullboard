@@ -67,3 +67,4 @@ export { pushTrunk, runLandingJob, takeLandingJob } from "./src/io/runner/job.js
 /** Lander v2: the pure queue planner and the chained land job built on it [C7]. */
 export { CHAIN_DEPTH, planBatches, planQueue } from './src/logic/queue.js';
 export { returnLastItem, runChainedLandingJob } from './src/io/runner/chain.js';
+export { IDLE_PROBE_INTERVAL_MS, idleRunnerTick } from "./src/io/idle-runners.js";
