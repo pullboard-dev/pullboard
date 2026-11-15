@@ -1,4 +1,5 @@
 /** @pullboard-test-loads packages/store/src/io/board.js packages/state/src/io/engine.js src/exchange.js src/person-signing.js apps/relay/src/io/passkeys.js */
+import { DatabaseSync } from 'node:sqlite';
 import { viewApiPorts } from '../../../../view/index.js';
 /** Scenario partition: original case bytes and deadlines remain unchanged. */
 import { apiBoardOpeners } from '../../../tests/fixtures/board.js';
@@ -146,7 +147,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   assert.equal(box.git(reviewer, 'rev-parse', 'HEAD'), beforeMoveHead, 'the served worktree HEAD stayed fixed while main moved');
   const apiStale = (await http('/state')).state;
   assert.equal(apiStale.sequence, initialState.sequence, 'Git movement needs no board event to invalidate the state cache '
-    + JSON.stringify((() => { const db = new (require('node:module').createRequire(import.meta.url)('node:sqlite').DatabaseSync)(join(box.repo, '.git/pullboard/board.sqlite'), { readOnly: true }); try { return db.prepare('SELECT * FROM event ORDER BY rowid DESC LIMIT 3').all().map(r => ({ ...r })); } finally { db.close(); } })()));
+    + JSON.stringify((() => { const db = new DatabaseSync(join(box.repo, '.git/pullboard/board.sqlite'), { readOnly: true }); try { return db.prepare('SELECT * FROM event ORDER BY rowid DESC LIMIT 3').all().map(r => ({ ...r })); } finally { db.close(); } })()));
   assert.equal(apiStale.items[0].verdictState?.code, 'STALE_VERDICT');
   assert.equal(apiStale.items[0].verdictState.commit, movingCommit);
   const coldGit = [];
