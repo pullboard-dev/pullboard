@@ -50,9 +50,14 @@ export function commitDecision(board, id, { agentId, commit, tree, files, policy
  * Why the tooling tree: landing and review reuse a submit's proof only when its tooling tree is the one that judges
  * them (RFC 0007 SC7); dropped here, every receipt read as TOOLING_CHANGED and no proof was ever reused [C7,#3685].
  */
-export function recordSubmissionEvent(board, id, { agentId, commit, tree, policyCommit, note, recordedProof, infra, tooling = null, modern, gateGreen, companion, quarantineProofIds, carry, mergeOnly, recordedSize, engineVersion, shadow = false }) {
+export function recordSubmissionEvent(board, id, { agentId, commit, tree, policyCommit, note, recordedProof, infra, tooling = null, modern, gateGreen, companion, quarantineProofIds, carry, mergeOnly, recordedSize, engineVersion, shadow = false, live = false }) {
   // A board that carries `submitCommitShadow` is handed the table's event beside the one logged here; the table models only a modern, non-carry submit [C7,#8281].
   // With no such hook, `shadow` (the moves.shadow setting, read before the write opened) records the compare on the board instead [C7,#8379].
+  // With moves.live.submit on (`live`, read before the write opened), the COMMIT table decides the submit event and it is the one logged; it models only the same modern, non-carry submit [C7,#8384].
+  if (live && modern && !carry && engineVersion >= 9) {
+    for (const event of commitDecision(board, id, { agentId, commit, tree, files: [], policyCommit, note, recordedProof, infra, tooling, gateGreen, companion, quarantineProofIds, recordedSize }).events) logEvent(board, event.by, event.kind, id, event.detail);
+    return;
+  }
   const hook = modern && !carry && engineVersion >= 9 ? shadowHook(board, 'submitCommitShadow', 'commit', commitDiffers, () => shadow === true) : null;
   const shadowed = hook !== null;
   const decided = shadowed ? shadowDecide(hook, () => commitDecision(board, id, { agentId, commit, tree, files: [], policyCommit, note, recordedProof, infra, tooling, gateGreen, companion, quarantineProofIds, recordedSize })) : null;

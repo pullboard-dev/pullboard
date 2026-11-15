@@ -1,3 +1,4 @@
+import { movesLiveEnabled } from "../../../../../config/index.js";
 import { shadowed } from "./shadow.js";
 import { startDecision } from "./shadow.js";
 import { shadowHook } from "../../board/shadow-record.js";
@@ -182,11 +183,19 @@ export function prepareQueueSubmitHandoff(board, id, options) {
  * A board that carries `queueSubmitHandoffShadow` is handed the SUBMIT table's answer beside what this returned or refused with, for the store test to compare [C7,#8280].
  */
 export function queueSubmitHandoff(board, id, options) {
+  // With moves.live.submit on (a board's own `movesLive.submit` stands in for the setting in a store test), the SUBMIT table decides: it refuses before any write
+  // opens and the record it names is the one kept. The setting is read here, before the board write, so no file I/O runs inside it [C7,#8384].
+  if ((board.movesLive?.submit ?? movesLiveEnabled('submit')) === true) {
+    candidate(options);
+    const decided = queueDecision(board, id, options, { retryLimit: INFRASTRUCTURE_RETRY_LIMIT, infrastructureCodes: INFRASTRUCTURE_CODES }, true);
+    if (decided.refused) throw new Refused(decided.refused.code, decided.refused.message, decided.refused.next);
+    return writeQueueHandoff(board, id, options, decided);
+  }
   return shadowed(board, 'queueSubmitHandoffShadow', id, true, () => queueDecision(board, id, options, { retryLimit: INFRASTRUCTURE_RETRY_LIMIT, infrastructureCodes: INFRASTRUCTURE_CODES }), () => writeQueueHandoff(board, id, options), { table: 'submit', differs: queueDiffers });
 }
 
 /** The writer's own checks and the record it keeps. */
-function writeQueueHandoff(board, id, options) {
+function writeQueueHandoff(board, id, options, decided = null) {
   candidate(options);
   const prepared = board.executionEngineVersion === undefined ? prepareQueueSubmitHandoff(board, id, options) : options;
   const snapshot = PREPARED.get(prepared)?.snapshot;
@@ -195,8 +204,8 @@ function writeQueueHandoff(board, id, options) {
     if (snapshot) requireBoardWriteSnapshot(board, snapshot, 'queueSubmitHandoff');
     const item = getItem(board, id);
     const until = Date.parse(item.item_lease_until);
-    if (item.item_status !== 'claimed' || item.item_owner !== options.agentId
-      || !Number.isFinite(until) || until <= Date.parse(now(board))) {
+    if (!decided && (item.item_status !== 'claimed' || item.item_owner !== options.agentId
+      || !Number.isFinite(until) || until <= Date.parse(now(board)))) {
       throw new Refused('NOT_YOURS', 'claim this item before submitting it');
     }
     if (item.item_frozen_digest !== options.digest || board.enginePorts.itemPatchDigest(board, id, options.commit) !== options.companionDigest) throw new Refused('SUBMIT_HANDOFF_CHANGED', 'read and claim the current frozen bar before queuing a gate');
@@ -207,7 +216,7 @@ function writeQueueHandoff(board, id, options) {
       }
       return { job: pending, created: false };
     }
-    const job = { version: 1, id: options.job, agentId: options.agentId, commit: options.commit,
+    const job = decided?.job ?? { version: 1, id: options.job, agentId: options.agentId, commit: options.commit,
       tree: options.tree, main: options.main, executionCommit: options.executionCommit, executionTree: options.executionTree, digest: options.digest, companionDigest: options.companionDigest, leaseMs: options.leaseMs, state: 'queued', at: now(board) };
     return { job: record(board, id, job), created: true };
   });
