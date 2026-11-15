@@ -34,3 +34,6 @@ export { explainReport, loadMoveTable, replayReport } from "./src/io/table/repor
 export { LEASE_MOVES, leaseEngine } from "./src/logic/table/lease.table.js";
 export { GATE_JOB_KINDS, JOB_QUEUE_MOVES, jobEngine, releaseBackoff } from "./src/logic/table/job.table.js";
 export { readLandingRecords, replayLandingMoves } from "./src/io/table/landing.js";
+export { VERIFY_DEFERRED_FIELDS, VERIFY_IO_FIELDS, VERIFY_NEXT, VERIFY_WORDS, stepInMessage, verifyEngine } from "./src/logic/table/verify.table.js";
+export { boardVerifyEngine } from "./src/io/table/board-verify.js";
+export { readVerifyRecords } from "./src/io/table/verify-records.js";
