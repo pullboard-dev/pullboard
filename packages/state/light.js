@@ -36,6 +36,7 @@ export { CONVEYOR_RETURN_ENGINE } from './src/logic/engines/conveyor-return-engi
 export { COORDINATOR_ACTIONS_ENGINE } from './src/logic/engines/coordinator-actions-engine.js';
 export { COORDINATOR_HOLD_ENGINE } from './src/logic/engines/coordinator-hold-engine.js';
 export { COORDINATOR_SHOUT_KINDS_ENGINE } from './src/logic/engines/coordinator-shout-kinds-engine.js';
+export { COORDINATOR_USAGE_ENGINE } from './src/logic/engines/coordinator-usage-engine.js';
 export { COST_ENGINE } from './src/logic/engines/cost-engine.js';
 export { COST_INPUT_SPLIT_ENGINE } from './src/logic/engines/cost-input-split-engine.js';
 export { CPU_SENTINEL_ENGINE } from './src/logic/engines/cpu-sentinel-engine.js';
