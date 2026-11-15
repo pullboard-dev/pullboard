@@ -26,7 +26,10 @@ function recorded() {
 }
 
 /** What the board stores for an event, without the actor's model, which the event writer stamps on every event and no move decides. */
-const stored = ({ model, ...rest }) => JSON.parse(JSON.stringify(rest));
+const stored = ({ detail, ...rest }) => {
+  const { model, ...kept } = detail ?? {};
+  return JSON.parse(JSON.stringify({ ...rest, ...(detail ? { detail: kept } : {}) }));
+};
 
 /** A real board holding exactly what the replay record says the release saw, on a clock at the release's own instant. */
 function boardFor(t, record) {
