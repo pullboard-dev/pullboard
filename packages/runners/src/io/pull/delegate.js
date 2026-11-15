@@ -62,8 +62,9 @@ export async function runPulled(root, command, options, ports = {}) {
   const dispatchStart = Date.now();
   const { signal, ...plainOptions } = options;
   const call = ports.call ?? shortController;
-  // One shared tooling export serves the trip's submit, serve-need and finish controllers: each short controller
-  // releases its export, and the last release deleted it, so every trip exported the tooling tree three times (#8129).
+  // One shared tooling export serves the trip's submit, serve-need and finish controllers, and this process keeps its
+  // latest one for its next trip: each short controller releases its export, and the last release deleted it, so every
+  // trip exported the tooling tree three times, about 2 s each on a loaded runner (#8129). keepExport bounds the hold.
   const held = ports.call ? null : committedRunnerController(fileURLToPath(new URL('../../../../../', import.meta.url)), { shared: true });
   let custody;
   try { custody = (ports.controllerDeadline ?? controllerDeadline)(options.metadata?.resourceOwner, process.pid, root); }
@@ -135,7 +136,22 @@ export async function runPulled(root, command, options, ports = {}) {
   } catch (failure) {
     recordRunnerDispatch({ ...span, endedAt: Date.now(), error: failure });
     throw failure;
-  } finally { custody.close(); held?.cleanup(); }
+  } finally { custody.close(); if (held) keepExport(held); }
+}
+
+/** The tooling export this process keeps between its pulled trips; at most one, so each process holds at most one idle export. */
+let keptExport = null;
+
+/**
+ * Keep this trip's export for the process's next trip, releasing the one kept before unless it is the same folder.
+ * Why: a gate sends its shards and proofs one after another from one process, and each paid a whole export (#8129).
+ * A kept export holds a lease like any run, so another process never removes it; once this process exits, its lease
+ * is dead and the next sweep (SHARED_KEEP_COUNT) or release removes the folder.
+ */
+function keepExport(held) {
+  const previous = keptExport;
+  keptExport = held;
+  previous?.cleanup();
 }
 
 /** Isolate asynchronous execution: the controller path by default, the pull path under the machine setting gate.runnerDispatch. */
