@@ -1,5 +1,7 @@
 /** Select committed Node test files through import edges; uncertainty requires the full gate [V4,C7]. */
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { cachedAffectedGraph } from './graph/cache.js';
 import { DOCS_TREE_INPUT } from './inputs.js';
 import { isSourceCellLine } from './inputs.js';
@@ -9,6 +11,7 @@ import { changedModules } from './graph/delta.js';
 import { forkWithout } from './graph/delta.js';
 import { documentationInputs } from './inputs.js';
 import { unknownRootTests } from './roots.js';
+import { join } from 'node:path';
 import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
@@ -164,6 +167,30 @@ function readBlobs(root, hashes) {
     sources.set(hash, result.stdout.subarray(at, at + size).toString('utf8'));
     at += size + 1;
   }
+  return sources;
+}
+
+/**
+ * The given object ids' source text, read from the checkout's own files where a file hashes to the object, else from Git.
+ * Why: a first trip reads about 30 MB of modules, which one Git batch inflates in ~1 s under load; a checkout at the commit
+ * holds the same bytes, and the object hash proves they are exact, so a dirty, other-commit or filtered file falls back to Git [C7,#8135].
+ *
+ * @param {string} root
+ * @param {Map<string, string>} wanted - Object id to the committed path it was listed under.
+ * @returns {Map<string, string>}
+ */
+function readCommittedSources(root, wanted) {
+  const sources = new Map();
+  for (const [hash, path] of wanted) {
+    try {
+      const bytes = readFileSync(join(root, path));
+      const algorithm = hash.length === 64 ? 'sha256' : 'sha1';
+      const actual = createHash(algorithm).update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
+      if (actual === hash) sources.set(hash, bytes.toString('utf8'));
+    } catch { /* A missing or unreadable file is read from Git. */ }
+  }
+  const rest = [...wanted.keys()].filter(hash => !sources.has(hash));
+  for (const [hash, text] of readBlobs(root, rest)) sources.set(hash, text);
   return sources;
 }
 
@@ -454,8 +481,8 @@ export function scopedTestClosures(root, commit, tests, runnerEntries, probe = n
     const hashes = new Map(tree.entries.map(entry => [entry.path, entry.hash]));
     const sources = new Map();
     const load = paths => {
-      const missing = [...new Set(paths.map(path => hashes.get(path)))].filter(hash => !sources.has(hash));
-      for (const [hash, text] of readBlobs(root, missing)) sources.set(hash, text);
+      const missing = new Map(paths.filter(path => !sources.has(hashes.get(path))).map(path => [hashes.get(path), path]));
+      for (const [hash, text] of readCommittedSources(root, missing)) sources.set(hash, text);
     };
     // Unparsed modules read on demand, so a consumer that asks for a module outside the walk still gets its exact bytes.
     const modules = new (class extends Map {
