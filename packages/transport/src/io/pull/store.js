@@ -4,6 +4,9 @@ import { readFileSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 
+/** The file, inside the board folder, that holds the pull adapter's registrations, offers and spent take nonces. */
+export const PULL_STORE_FILE = 'pull.json';
+
 /**
  * A pull store kept in one JSON file, replaced whole by rename so a crash never leaves half a file.
  *
