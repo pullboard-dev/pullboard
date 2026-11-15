@@ -15,6 +15,8 @@ import { statSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
+/** The one saveKeyedResult is the pin cell's, reached through the transport cell this cell already imports, so no pin edge is added. */
+export { saveKeyedResult } from '../../../transport/index.js';
 
 /**
  * Move a finished staging folder to its keyed name, unless a folder already holds that name; a staging folder that
@@ -86,26 +88,6 @@ export function sweepKeyedFolders(parent, { matches, keep = null, maxAgeMs, now 
 /** The file one key's result lives in: a digest of the key, so any key names a safe file. */
 function keyedResultPath(folder, key) {
   return join(folder, createHash('sha256').update(key).digest('hex').slice(0, 32) + '.result');
-}
-
-/**
- * Save the bytes of one key's result through a temporary file and a rename, so a reader sees the old result or the
- * new one, never half of one.
- *
- * @param {string} folder
- * @param {string} key
- * @param {Uint8Array} bytes
- */
-export function saveKeyedResult(folder, key, bytes) {
-  mkdirSync(folder, { recursive: true });
-  const path = keyedResultPath(folder, key);
-  const temporary = `${path}.${process.pid}.partial`;
-  try {
-    writeFileSync(temporary, bytes);
-    renameSync(temporary, path);
-  } finally {
-    rmSync(temporary, { force: true });
-  }
 }
 
 /**

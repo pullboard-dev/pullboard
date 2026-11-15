@@ -14,9 +14,11 @@ const CELL_TESTS = /^(?:packages|apps)\/[^/]+\/tests?\//u;
  * Why: each kind has its own standard, so the rule is recorded and a wrong kind is visible, not silent.
  *
  * @param {{ file: string, spawns: { process: boolean, browser: boolean, board: boolean } }} row
+ * @param {Set<string>} [golden] files the golden registry names; each is a harness, the one real-CLI walk of its user path
  * @returns {{ kind: string, because: string }}
  */
-export function testKind({ file, spawns }) {
+export function testKind({ file, spawns }, golden = new Set()) {
+  if (golden.has(file)) return { kind: 'harness', because: 'golden journey: the one real-CLI walk of a user path (golden registry)' };
   if (HARNESS.test(file)) return { kind: 'harness', because: 'tests a shared fixture' };
   if (JOURNEY.test(file)) return { kind: 'journey', because: 'lives under journeys/' };
   const outside = spawns.process || spawns.browser;
@@ -87,9 +89,10 @@ export function tagJourneys(rows) {
  * Turn per-file evidence into sorted manifest rows.
  *
  * @param {{ file: string, ms: number|null, specs?: string[], direct: Set<string>, via: Map<string, Set<string>> }[]} inputs
+ * @param {Set<string>} [golden] files the golden registry names, kept as harness so a regeneration never undoes the registry
  * @returns {object[]} one row per file, sorted by file
  */
-export function manifestRows(inputs) {
+export function manifestRows(inputs, golden = new Set()) {
   return tagJourneys(inputs.map(({ file, ms, specs = [], direct, via }) => {
     const started = category => direct.has(category) || [...via.values()].some(found => found.has(category));
     const spawns = {
@@ -99,7 +102,7 @@ export function manifestRows(inputs) {
       direct: direct.has('process') || direct.has('runner') || direct.has('browser'),
       via: [...via].filter(([, found]) => found.has('process') || found.has('runner') || found.has('browser')).map(([path]) => path).sort(),
     };
-    const { kind, because } = testKind({ file, spawns });
+    const { kind, because } = testKind({ file, spawns }, golden);
     return { file, kind, because, specs, unproven: specs.length === 0, cost: { ms }, spawns };
   }).sort((a, b) => (a.file < b.file ? -1 : 1)));
 }
