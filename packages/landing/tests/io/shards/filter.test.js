@@ -2,6 +2,7 @@
 /** A name-filtered landing gate shards like any other landing gate, and a red in any shard still fails it [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { cp } from 'node:fs/promises';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -66,11 +67,22 @@ function projectTemplate() {
   return dir;
 }
 
+/** Copy the template to a new path: a copy-on-write clone where the volume has them, whose cost does not grow with the file count; a plain recursive copy otherwise. Async, so the cases copy side by side. */
+async function cloneTree(from, to) {
+  rmSync(to, { recursive: true, force: true }); // The private root's empty directory: cp creates the destination itself.
+  for (const flags of process.platform === 'darwin' ? [['-cRp'], ['-Rp']] : [['-Rp']]) {
+    const status = await new Promise(done => spawn('cp', [...flags, from, to], { stdio: 'ignore' }).on('error', () => done(1)).on('close', done));
+    if (status === 0) return;
+    rmSync(to, { recursive: true, force: true });
+  }
+  await cp(from, to, { recursive: true });
+}
+
 /** A private project with two test files, each holding a target case and an unrelated one, and landingShards 2: a copy of the template, with one file made red or slow when asked. */
 async function project(t, redFile = null, slowFile = null) {
   const dir = privateFixtureFiles('pullboard-name-shards-').root;
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  await cp(projectTemplate(), dir, { recursive: true }); // async, so the cases copy side by side instead of one blocking the rest
+  await cloneTree(projectTemplate(), dir);
   const repo = join(dir, 'repo'), env = projectEnv(dir);
   if (redFile || slowFile) {
     for (const name of [redFile, slowFile].filter(Boolean)) writeFileSync(join(repo, `test/${name}.test.js`), fixtureTest(name, redFile, slowFile));
