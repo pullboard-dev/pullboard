@@ -52,7 +52,7 @@ export function destinationOf(file, cell) {
  *
  * @param {object[]} rows manifest rows (kind, specs, tag, tagBecause)
  * @param {{ owner: (file: string, row: object) => string|null, taken?: Set<string> }} options owner resolver; paths already in use
- * @returns {{ action: string, file: string, to?: string, tag: string, because: string, coveredBy?: string[] }[]} the plan, sorted by file
+ * @returns {{ action: string, file: string, to?: string, tag: string, because: string, coveredBy?: string[], specs?: string[] }[]} the plan, sorted by file
  */
 export function planFreeze(rows, { owner, taken = new Set() }) {
   const claimed = new Set(taken);
@@ -63,7 +63,7 @@ export function planFreeze(rows, { owner, taken = new Set() }) {
       const { coveredBy, missing } = coverageOf(row, rows);
       if (!row.specs?.length || missing.length || !coveredBy.length) {
         plan.push({ ...base, action: 'refused', because: `delete needs a covering test the manifest names; ${row.specs?.length ? `no test covers ${missing.join(', ')}` : 'the file cites no spec id'}` });
-      } else plan.push({ ...base, action: 'delete', coveredBy });
+      } else plan.push({ ...base, action: 'delete', coveredBy, specs: row.specs });
       continue;
     }
     const to = destinationOf(row.file, owner(row.file, row));
