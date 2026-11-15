@@ -7,7 +7,7 @@ import { requireKnownMainReworks } from '../../../../../index.js';
 import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from '../../../../../../state/light.js';
 import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from '../../../../../../state/light.js';
 import * as store from '../../../../../index.js';
-import { fixtureBoard } from '../../../../../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../../../../../board/tests/fixtures/board.js';
 import { prepareEngineMove } from '../../../../../../state/index.js';
 import { applyEngineMove } from '../../../../../../state/index.js';
 import { submissionProof } from '../../../../../../state/index.js';

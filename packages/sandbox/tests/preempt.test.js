@@ -8,7 +8,7 @@ import { nextTake } from '../index.js';
 import { QUEUE_PREEMPT_ENGINE } from '../../state/light.js';
 import { prepareEngineMove } from '../../state/index.js';
 import { applyRelayMove } from '../../state/index.js';
-import { fixtureBoard } from '../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../board/tests/fixtures/board.js';
 import { defaults } from '../../config/index.js';
 
 /** A private native board with explicit readiness, person marks and observed work. */
