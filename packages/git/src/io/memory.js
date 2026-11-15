@@ -187,7 +187,7 @@ function mutate(repo, command, rest, env, commandConfig) {
     return outcome();
   }
   if (command === 'branch') {
-    if (rest.length === 1 && rest[0] === '--show-current') return outcome(0, repo.branch ? `${repo.branch.replace(/^refs\/heads\//u, '')}\n` : '\n');
+    if (rest.length === 1 && rest[0] === '--show-current') return outcome(0, repo.branch ? `${repo.branch.replace(/^refs\/heads\//u, '')}\n` : '');
     if (rest.length !== 1 || rest[0].startsWith('-')) unsupported(`branch ${rest.join(' ')}`);
     const tip = revision(repo, 'HEAD');
     if (!tip) return outcome(128, '', 'fatal: not a valid object name\n');
