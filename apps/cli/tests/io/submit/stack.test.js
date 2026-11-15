@@ -1,0 +1,53 @@
+/** A submit stacked on another item's unverified commit is refused, and a base that is verified or already on main is not [H3,H16,V1,V17]. */
+import assert from 'node:assert/strict';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { test } from 'node:test';
+import { refuseUnsubmittableStack } from '../../../src/io/submit.js';
+import { fixtureBoard } from '../../fixtures/board.js';
+import { runFixtureGit } from '../../fixtures/child.js';
+import { temporaryRepository } from '../../fixtures/board/submit.js';
+
+const AT = '2026-10-23T00:00:00.000Z';
+
+/** Commit one file on the current branch and return the new head. */
+function commit(root, file, text) {
+  writeFileSync(join(root, file), text);
+  runFixtureGit(['add', file], { cwd: root });
+  runFixtureGit(['commit', '-q', '-m', `test: ${file} [G1]`], { cwd: root });
+  return runFixtureGit(['rev-parse', 'HEAD'], { cwd: root });
+}
+
+/** A repository with main, a base item's commit stacked on it, and a board holding both items. */
+function stacked(t, baseStatus) {
+  const root = temporaryRepository(t, 'pullboard-stack-');
+  const trunk = runFixtureGit(['rev-parse', 'HEAD'], { cwd: root });
+  const base = commit(root, 'recovery-a.txt', 'the first submitted commit\n');
+  const head = commit(root, 'recovery-b.txt', 'the stacked candidate\n');
+  const board = fixtureBoard(t);
+  const insert = board.db.prepare(`INSERT INTO item (item_lane, item_title, item_criterion, item_status, item_commit,
+    item_created_by, item_created_at, item_updated_at) VALUES ('web', ?, 'The stack guard holds.', ?, ?, 'coordinator', ?, ?)`);
+  insert.run('Stack base', baseStatus, base, AT, AT);
+  insert.run('Stacked item', 'claimed', null, AT, AT);
+  return { root, board, trunk: { ref: 'main', commit: trunk }, base, head, candidate: { item_id: 2 } };
+}
+
+test('stack refusal: a head containing another item\'s unverified submitted commit is refused with that item named [H3,H16,V1,V17]', t => {
+  const { root, board, trunk, base, head, candidate } = stacked(t, 'submitted');
+  assert.throws(() => refuseUnsubmittableStack(root, board, candidate, head, trunk),
+    error => error.code === 'STACKED_ON_UNVERIFIED' && error.message.includes('#1') && error.message.includes(base));
+});
+
+test('stack refusal: a base that is verified, or a head that does not contain it, is not a stack [H3,H16,V1,V17]', t => {
+  const verified = stacked(t, 'verified');
+  assert.doesNotThrow(() => refuseUnsubmittableStack(verified.root, verified.board, verified.candidate, verified.head, verified.trunk));
+  const open = stacked(t, 'submitted');
+  assert.doesNotThrow(() => refuseUnsubmittableStack(open.root, open.board, open.candidate, open.trunk.commit, open.trunk),
+    'a head at main contains no unverified commit');
+});
+
+test('stack refusal: the base item itself is never refused for its own commit, and a trunk that cannot be read refuses with its own code [H3,H16,V1,V17]', t => {
+  const { root, board, trunk, head } = stacked(t, 'submitted');
+  assert.doesNotThrow(() => refuseUnsubmittableStack(root, board, { item_id: 1 }, head, trunk));
+  assert.throws(() => refuseUnsubmittableStack(root, board, { item_id: 2 }, head, { ref: 'main', commit: 'e'.repeat(40) }), error => error.code === 'NO_POLICY');
+});
