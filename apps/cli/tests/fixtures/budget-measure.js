@@ -12,8 +12,6 @@ import { COMMANDS } from '../../index.js';
 import { FIXTURE_MODEL } from './child.js';
 import { privateFixtureFiles } from './child.js';
 import { runFixtureChildAsync } from './child.js';
-import { captureCommandInProcess } from './process.js';
-import { pathToFileURL } from 'node:url';
 
 /**
  * The seeded-board helpers bound to one e2e helper set.
@@ -69,8 +67,8 @@ export function createBudgetMeasure(helpers) {
 
   /**
    * Each measured command's default text in UTF-8 bytes, run through one CLI entrypoint against one board. This checkout's
-   * own entry and merge-base main's both run in this process (no node start-up per command) except machine-state readers,
-   * which are real processes; a few commands run at a time [C7].
+   * own entry runs in this process (no node start-up per command) except machine-state readers; another checkout's entry, such
+   * as merge-base main, is a real process, a few at a time [C7].
    *
    * @param {{ repo: string, env: object, runIn?: Function }} box
    * @param {string} bin
@@ -80,12 +78,10 @@ export function createBudgetMeasure(helpers) {
     const sizes = {};
     const commands = Object.keys(COMMANDS).filter(name => !Object.hasOwn(EXCLUDED, name));
     /** A refusal still prints its default text; only stdout lands in a reader's context as output. */
-    // Merge-base main's own dispatcher is loaded into this process as a separate module graph, so it too runs without a start-up [C7].
-    const treeMain = bin === helpers.BIN ? null : await import(pathToFileURL(join(bin, '../tests/fixtures/native.js')).href).then(loaded => loaded.main, () => null);
     const sizeOf = async command => {
       const args = [command, ...(DEFAULT_ARGS[command] ?? [])];
-      if (!REAL_PROCESS.has(command) && (treeMain || (bin === helpers.BIN && box.runIn))) {
-        const result = treeMain ? await captureCommandInProcess(treeMain, args, { cwd: box.repo, env: box.env }) : await box.runIn(box.repo, ...args);
+      if (!REAL_PROCESS.has(command) && bin === helpers.BIN && box.runIn) {
+        const result = await box.runIn(box.repo, ...args);
         sizes[command] = Buffer.byteLength(result.stdout ?? '');
         return;
       }
@@ -96,7 +92,7 @@ export function createBudgetMeasure(helpers) {
       sizes[command] = result.signal ? Infinity : Buffer.byteLength(result.stdout ?? '');
     };
     const queue = [...commands];
-    const lanes = 3;
+    const lanes = bin === helpers.BIN && box.runIn ? 1 : 6;
     await Promise.all(Array.from({ length: lanes }, async () => { for (let command = queue.shift(); command; command = queue.shift()) await sizeOf(command); }));
     return Object.fromEntries(commands.map(command => [command, sizes[command]]));
   }
