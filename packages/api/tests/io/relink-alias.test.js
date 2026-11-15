@@ -22,7 +22,7 @@ const PREVIOUS = 'a'.repeat(32);
 
 /** Serve one temp board with a queued job, a pull-mode machine, and (optionally) the relink intent that names PREVIOUS. */
 async function served(t, { relink }) {
-  const project = cellProject(t);
+  const project = cellProject(t, { real: true });
   const board = openCellBoard(project.boardFile);
   let current;
   try { current = boardId(board); offerJob(board.db, { id: 'test:relink:one', kind: 'test', now: 1000 }); } finally { closeCellBoard(board); }
