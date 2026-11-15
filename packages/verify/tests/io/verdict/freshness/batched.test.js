@@ -16,7 +16,7 @@ function git(cwd, ...args) {
   return execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { cwd, encoding: 'utf8' }).trim();
 }
 
-test('clause 1: ancestryStatus spawns at most 3 git processes for 1,038 verified items, with the same answers as before [C7]', t => {
+test('verify.freshness.batched-git: clause 1: ancestryStatus spawns at most 3 git processes for 1,038 verified items, with the same answers as before [C7]', t => {
   const dir = temporaryRepository(t, 'verdict-batched-');
   writeFileSync(join(dir, 'x.txt'), 'base\n');
   git(dir, 'add', '.');
