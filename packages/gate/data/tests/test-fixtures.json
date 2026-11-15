@@ -492,6 +492,9 @@
   "apps/lib/tests/rebuild.test.js": {
     "hand-policy": 1
   },
+  "apps/lib/tests/rebuild/producer.test.js": {
+    "hand-policy": 1
+  },
   "apps/cli/journeys/reopen/relands.test.js": {
     "model": 1
   },
