@@ -85,7 +85,7 @@ function toolingRepo(t) {
 function modifiedToolingCopy(t, note) {
   const copy = temporaryDirectory('accepted-identity-copy-');
   t.after(() => rmSync(copy, { recursive: true, force: true }));
-  copyFiles(copy, trackedFiles('packages', 'apps', 'package.json').filter(file => !file.includes('/tests/')));
+  copyFiles(copy, trackedFiles('packages', 'apps', 'package.json').filter(file => !(file.includes('/tests/') && file.endsWith('.js'))));
   const checker = join(copy, 'packages/codemap/src/io/module/imports.js');
   writeFileSync(checker, `${readFileSync(checker, 'utf8')}\n// ${note}\n`);
   return copy;
