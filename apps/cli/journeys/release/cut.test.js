@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell: cli */
+/** @pullboard-test-input source-cell apps/cli */
 /** The golden release journey: a version cut walks the real CLI from a clean board to a recorded release [C7]. */
 import assert from 'node:assert/strict';
 import { after } from 'node:test';
