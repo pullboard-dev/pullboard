@@ -124,7 +124,7 @@ export function dashboardModel(project, history, { now, complete = true, working
   };
   for (const agent of project.agents ?? []) {
     const entry = row(agent.agent_id);
-    if (entry) { entry.name = agent.agent_id; entry.model = agent.model || agent.agent_model || '';  entry.last = Date.parse(agent.lastMoveAt) || 0; entry.start = Math.max(start, Date.parse(agent.agent_created_at) || start); }
+    if (entry) { entry.name = agent.agent_id; entry.model = agent.model || agent.agent_model || ''; entry.lane = agent.agent_lane ?? agent.lane ?? null; entry.presence = agent.presence ?? null; entry.last = Date.parse(agent.lastMoveAt) || 0; entry.start = Math.max(start, Date.parse(agent.agent_created_at) || start); }
   }
   // Seats appear in the order their first event came, after those the API lists.
   for (const [by, at] of state.lastBy) { const entry = row(by); if (entry) entry.last = Math.max(entry.last, at); }
