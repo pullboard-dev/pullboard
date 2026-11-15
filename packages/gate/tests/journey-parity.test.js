@@ -52,7 +52,7 @@ test('clause 1: a sample of a converted journey gives the same exit codes, JSON 
   const real = runSample('process');
   const inprocess = runSample('inprocess');
   assert.ok(real.length >= 15, `the sample made its CLI calls (${real.length})`);
-  assert.ok(real.some(row => row.board?.items.length), 'the records carry board state');
+  assert.ok(real.some(row => row.board?.events.length), 'the records carry board state');
   const differences = parityDifferences(real, inprocess);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });
