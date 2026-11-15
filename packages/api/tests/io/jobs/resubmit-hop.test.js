@@ -1,10 +1,11 @@
 /** @pullboard-test-input source-cell api */
 /** With gate.fencedHop on, a resubmit at a new candidate ends the item's open hop, and the old candidate's gate job is then refused HOP_FENCED when it posts its receipt [C7,#8353]. */
 import assert from 'node:assert/strict';
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { temporaryDirectory } from '../../../../../apps/cli/tests/fixtures/board.js';
 import { readGateHop } from '../../../../store/index.js';
 import { claimJob } from '../../../index.js';
 import { endGateHop } from '../../../index.js';
@@ -20,7 +21,8 @@ const NEW = 'b'.repeat(40);
 
 /** A real board file with one gate job offered for ITEM at the old candidate. */
 function board(t) {
-  const { root } = privateFixtureFiles('pullboard-resubmit-hop-');
+  const root = temporaryDirectory('pullboard-resubmit-hop-');
+  t.after(() => rmSync(root, { recursive: true, force: true }));
   const { db } = cellBoard(t, join(root, 'board.sqlite'));
   offerJob(db, { id: 'gate:7:old', kind: 'gate', needs: [], item: ITEM, candidate: OLD, now: 1000 });
   return db;
