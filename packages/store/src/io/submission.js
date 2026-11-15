@@ -6,6 +6,9 @@ import { logEvent } from "./board/event/log.js";
 import { runSubmitTable } from "../logic/board/landing/lease.js";
 import { INFRASTRUCTURE_CODES } from "./submit/handoff/retry.js";
 import { INFRASTRUCTURE_RETRY_LIMIT } from "./submit/handoff/retry.js";
+import { shadowHook } from "./board/shadow-record.js";
+import { shadowDecide } from "./board/shadow-record.js";
+import { firstDifference } from "./board/shadow-record.js";
 
 /** Build the original submit mutation at the same guarded point in its caller's transaction. */
 export function submissionItemValues(board, found, { agentId, commit, tree, files, carry, basis }) {
@@ -47,10 +50,12 @@ export function commitDecision(board, id, { agentId, commit, tree, files, policy
  * Why the tooling tree: landing and review reuse a submit's proof only when its tooling tree is the one that judges
  * them (RFC 0007 SC7); dropped here, every receipt read as TOOLING_CHANGED and no proof was ever reused [C7,#3685].
  */
-export function recordSubmissionEvent(board, id, { agentId, commit, tree, policyCommit, note, recordedProof, infra, tooling = null, modern, gateGreen, companion, quarantineProofIds, carry, mergeOnly, recordedSize, engineVersion }) {
+export function recordSubmissionEvent(board, id, { agentId, commit, tree, policyCommit, note, recordedProof, infra, tooling = null, modern, gateGreen, companion, quarantineProofIds, carry, mergeOnly, recordedSize, engineVersion, shadow = false }) {
   // A board that carries `submitCommitShadow` is handed the table's event beside the one logged here; the table models only a modern, non-carry submit [C7,#8281].
-  const shadowed = typeof board.submitCommitShadow === 'function' && modern && !carry && engineVersion >= 9;
-  const decided = shadowed ? commitDecision(board, id, { agentId, commit, tree, files: [], policyCommit, note, recordedProof, infra, tooling, gateGreen, companion, quarantineProofIds, recordedSize }) : null;
+  // With no such hook, `shadow` (the moves.shadow setting, read before the write opened) records the compare on the board instead [C7,#8379].
+  const hook = modern && !carry && engineVersion >= 9 ? shadowHook(board, 'submitCommitShadow', 'commit', commitDiffers, () => shadow === true) : null;
+  const shadowed = hook !== null;
+  const decided = shadowed ? shadowDecide(hook, () => commitDecision(board, id, { agentId, commit, tree, files: [], policyCommit, note, recordedProof, infra, tooling, gateGreen, companion, quarantineProofIds, recordedSize })) : null;
   const criterionDigest = engineVersion >= 9 ? getItem(board, id).item_frozen_digest : null;
   logEvent(board, agentId, 'submit', id, {
     commit,
@@ -69,7 +74,7 @@ export function recordSubmissionEvent(board, id, { agentId, commit, tree, policy
   if (shadowed) {
     const logged = board.db.prepare("SELECT event_by AS by, event_detail AS detail FROM event WHERE item_id=? AND event_kind='submit' ORDER BY event_id DESC LIMIT 1").get(id);
     const { model, ...detail } = JSON.parse(logged.detail);
-    board.submitCommitShadow({ id, decided: decided.events, wrote: [{ kind: 'submit', by: logged.by, detail }] });
+    hook({ id, decided: decided.threw ? decided : decided.events, wrote: [{ kind: 'submit', by: logged.by, detail }] });
   }
 }
 
@@ -79,4 +84,10 @@ export function submissionChildrenProblem(board, id) {
     .prepare("SELECT COUNT(*) AS total FROM item WHERE item_parent_id = ? AND item_status IN ('open', 'claimed', 'submitted')")
     .get(id);
   return total ? new Refused('CHILDREN_OPEN', `item #${id} has ${total} unfinished child items`) : null;
+}
+
+/** Where the COMMIT table's submit event and the event the writer logged part: the first differing path, or null when they agree. */
+export function commitDiffers({ decided, wrote }) {
+  if (decided?.threw) return `threw ${decided.threw}`;
+  return firstDifference(decided, wrote, 'events');
 }
