@@ -151,6 +151,9 @@ export function loadMachineSettings() {
   if (value.moves?.shadow !== undefined && typeof value.moves.shadow !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `moves.shadow in ${file} must be true or false`);
   }
+  for (const [table, live] of Object.entries(value.moves?.live ?? {})) {
+    if (typeof live !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `moves.live.${table} in ${file} must be true or false`);
+  }
   if (value.gate?.tableReplay !== undefined && typeof value.gate.tableReplay !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.tableReplay in ${file} must be true or false`);
   }
