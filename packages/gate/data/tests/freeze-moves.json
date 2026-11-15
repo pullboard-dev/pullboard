@@ -180,14 +180,6 @@
       "because": "every spec id it cites is also cited by a cell unit or contract test"
     },
     {
-      "file": "apps/cli/journeys/budget/commands.test.js",
-      "specs": [
-        "C7"
-      ],
-      "coveredBy": 771,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
       "file": "apps/cli/journeys/cache/wipe.test.js",
       "specs": [
         "C7"
@@ -226,14 +218,6 @@
     },
     {
       "file": "apps/cli/journeys/capacity/wake.test.js",
-      "specs": [
-        "C7"
-      ],
-      "coveredBy": 771,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/cells/against.test.js",
       "specs": [
         "C7"
       ],
@@ -760,75 +744,6 @@
       "because": "every spec id it cites is also cited by a cell unit or contract test"
     },
     {
-      "file": "apps/cli/journeys/doctrine/checks.test.js",
-      "specs": [
-        "C7",
-        "D1",
-        "D3"
-      ],
-      "coveredBy": 781,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/doctrine/name.test.js",
-      "specs": [
-        "A5",
-        "D1",
-        "D2",
-        "D4",
-        "N26"
-      ],
-      "coveredBy": 126,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/doctrine/name.verifier.test.js",
-      "specs": [
-        "A5",
-        "D4"
-      ],
-      "coveredBy": 6,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/doctrine/name.verify.test.js",
-      "specs": [
-        "A5",
-        "D4"
-      ],
-      "coveredBy": 6,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/doctrine/pulled-counts.test.js",
-      "specs": [
-        "C7",
-        "D1",
-        "D3"
-      ],
-      "coveredBy": 781,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/doctrine/pulled-ratchets.test.js",
-      "specs": [
-        "C7",
-        "D1",
-        "D3"
-      ],
-      "coveredBy": 781,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/edges/door.test.js",
-      "specs": [
-        "C7",
-        "D3"
-      ],
-      "coveredBy": 775,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
       "file": "apps/cli/journeys/edges/reads.test.js",
       "specs": [
         "C7",
@@ -972,14 +887,6 @@
     },
     {
       "file": "apps/cli/journeys/fact/checks-refused.test.js",
-      "specs": [
-        "C7"
-      ],
-      "coveredBy": 771,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/fact/checks-staged.test.js",
       "specs": [
         "C7"
       ],
@@ -1247,18 +1154,6 @@
       "because": "every spec id it cites is also cited by a cell unit or contract test"
     },
     {
-      "file": "apps/cli/journeys/fact/plan/cells.test.js",
-      "specs": [
-        "C7",
-        "CD60",
-        "CD64",
-        "D3",
-        "H16"
-      ],
-      "coveredBy": 837,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
       "file": "apps/cli/journeys/fact/plan/tracked-only.test.js",
       "specs": [
         "C7",
@@ -1411,14 +1306,6 @@
         "C7"
       ],
       "coveredBy": 771,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/fact/timing.test.js",
-      "specs": [
-        "H24"
-      ],
-      "coveredBy": 5,
       "because": "every spec id it cites is also cited by a cell unit or contract test"
     },
     {
@@ -2167,14 +2054,6 @@
       "because": "every spec id it cites is also cited by a cell unit or contract test"
     },
     {
-      "file": "apps/cli/journeys/hook/diff-only-ratchet.test.js",
-      "specs": [
-        "C7"
-      ],
-      "coveredBy": 771,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
       "file": "apps/cli/journeys/hook/once.test.js",
       "specs": [
         "L3"
@@ -2200,14 +2079,6 @@
     },
     {
       "file": "apps/cli/journeys/hook/shim.test.js",
-      "specs": [
-        "C7"
-      ],
-      "coveredBy": 771,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/hook/slot.test.js",
       "specs": [
         "C7"
       ],
@@ -2265,32 +2136,6 @@
       "because": "every spec id it cites is also cited by a cell unit or contract test"
     },
     {
-      "file": "apps/cli/journeys/imports/closure-budget.test.js",
-      "specs": [
-        "C7"
-      ],
-      "coveredBy": 771,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/imports/cross-lane-edits.test.js",
-      "specs": [
-        "C7",
-        "L3"
-      ],
-      "coveredBy": 773,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/imports/ratchet.test.js",
-      "specs": [
-        "C7",
-        "CD64"
-      ],
-      "coveredBy": 771,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
       "file": "apps/cli/journeys/inbox/address.test.js",
       "specs": [
         "H16",
@@ -2298,16 +2143,6 @@
         "N26"
       ],
       "coveredBy": 196,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/inbox/budget.test.js",
-      "specs": [
-        "C7",
-        "N26",
-        "R2"
-      ],
-      "coveredBy": 858,
       "because": "every spec id it cites is also cited by a cell unit or contract test"
     },
     {
@@ -2353,15 +2188,6 @@
         "V4"
       ],
       "coveredBy": 926,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/inbox/growth.test.js",
-      "specs": [
-        "C7",
-        "N26"
-      ],
-      "coveredBy": 847,
       "because": "every spec id it cites is also cited by a cell unit or contract test"
     },
     {
@@ -3478,14 +3304,6 @@
       "because": "every spec id it cites is also cited by a cell unit or contract test"
     },
     {
-      "file": "apps/cli/journeys/lane/test.test.js",
-      "specs": [
-        "C7"
-      ],
-      "coveredBy": 771,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
       "file": "apps/cli/journeys/lanes/merged.test.js",
       "specs": [
         "L3",
@@ -3970,14 +3788,6 @@
         "C7"
       ],
       "coveredBy": 771,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/next/claims.test.js",
-      "specs": [
-        "H24"
-      ],
-      "coveredBy": 5,
       "because": "every spec id it cites is also cited by a cell unit or contract test"
     },
     {
@@ -5595,38 +5405,6 @@
     },
     {
       "file": "apps/cli/journeys/release/returns.test.js",
-      "specs": [
-        "C7"
-      ],
-      "coveredBy": 771,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/release/size-claim.test.js",
-      "specs": [
-        "C7"
-      ],
-      "coveredBy": 771,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/release/size-take.test.js",
-      "specs": [
-        "C7"
-      ],
-      "coveredBy": 771,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/release/size-verify.test.js",
-      "specs": [
-        "C7"
-      ],
-      "coveredBy": 771,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/release/size.test.js",
       "specs": [
         "C7"
       ],
@@ -7540,70 +7318,6 @@
       "because": "every spec id it cites is also cited by a cell unit or contract test"
     },
     {
-      "file": "apps/cli/journeys/speed/profile.test.js",
-      "specs": [
-        "C7"
-      ],
-      "coveredBy": 771,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/speed/spawns-client.test.js",
-      "specs": [
-        "C7"
-      ],
-      "coveredBy": 771,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/speed/spawns-folder.test.js",
-      "specs": [
-        "C7"
-      ],
-      "coveredBy": 771,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/speed/spawns-freeze.test.js",
-      "specs": [
-        "C7"
-      ],
-      "coveredBy": 771,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/speed/spawns-hook.test.js",
-      "specs": [
-        "C7"
-      ],
-      "coveredBy": 771,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/speed/spawns-submit-revs.test.js",
-      "specs": [
-        "C7"
-      ],
-      "coveredBy": 771,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/speed/spawns-submit-status.test.js",
-      "specs": [
-        "C7"
-      ],
-      "coveredBy": 771,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/speed/spawns.test.js",
-      "specs": [
-        "C7"
-      ],
-      "coveredBy": 771,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
       "file": "apps/cli/journeys/stats/agents.test.js",
       "specs": [
         "C7",
@@ -7632,16 +7346,6 @@
         "R2"
       ],
       "coveredBy": 56,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/stats/log.test.js",
-      "specs": [
-        "B2",
-        "C7",
-        "P4"
-      ],
-      "coveredBy": 776,
       "because": "every spec id it cites is also cited by a cell unit or contract test"
     },
     {
@@ -8434,15 +8138,6 @@
         "V4"
       ],
       "coveredBy": 788,
-      "because": "every spec id it cites is also cited by a cell unit or contract test"
-    },
-    {
-      "file": "apps/cli/journeys/submit/preflight.test.js",
-      "specs": [
-        "C7",
-        "V4"
-      ],
-      "coveredBy": 784,
       "because": "every spec id it cites is also cited by a cell unit or contract test"
     },
     {
