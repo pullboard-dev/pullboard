@@ -138,6 +138,11 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
   const readShard = ({ job, shard, digest }) => {
     const known = offers.get(job)?.shards.get(shard);
     if (!known) return { state: 'absent' };
+    if (known.invalid) {
+      const reason = known.invalid;
+      known.invalid = null;
+      return { state: 'import.invalid', reason, digest: null, reset: true };
+    }
     if (!known.result) return { state: 'running' };
     if (digest && digest !== known.result.digest) {
       const held = known.result.digest;
@@ -260,7 +265,10 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
       const known = offer.shards.get(shard);
       if (!known) throw new Refused('PULL_SHARD_UNKNOWN', `job ${scope.job} has no shard ${shard}; post only the shards take returned`);
       const signed = checkResult({ bytes, signature, publicKey: runner.publicKey, job: scope.job, shard, tree: offer.tree, base: offer.base, tooling: offer.tooling, command: known.command, attempt: offer.attempt });
-      if (!signed.valid) throw new Refused('PULL_RESULT_INVALID', `the result for shard ${shard} of job ${scope.job} is import.invalid: ${signed.reason}; rerun it and sign with the registered key`);
+      if (!signed.valid) {
+        known.invalid = signed.reason;
+        throw new Refused('PULL_RESULT_INVALID', `the result for shard ${shard} of job ${scope.job} is import.invalid: ${signed.reason}; rerun it and sign with the registered key`);
+      }
       const parsed = parseResult(bytes);
       if (!parsed.valid) throw new Refused('PULL_RESULT_INVALID', `the result for shard ${shard} of job ${scope.job} is import.invalid: ${parsed.reason}; rerun it`);
       record(scope.job, shard, { state: 'done', status: parsed.status, digest: parsed.digest, tree: offer.tree, runner: scope.runner, key: signed.keyId, signature });
