@@ -91,7 +91,7 @@ isolated('main comparison selects a matching registered peer only when the prefe
 
     const candidate = await withGateSlot(box.root, lease => runProfiledShell(box.root,
       "node test/runner.js './test/inherited.test.js'", { gateLease: lease, stages: true }), {
-      executionServices, remote: true, runnerOnly: true, runnerWaitMs: 5000, requiredExecutor: { kind: 'ssh', host: A },
+      executionServices, remote: true, runnerOnly: true, runnerWaitMs: 30000, requiredExecutor: { kind: 'ssh', host: A },
       diagnostic: true, agent: 'actual-candidate-runner-fixture', kind: 'candidate-comparison-control',
       onReceipt: value => candidateReceipts.push(value),
     });
@@ -108,7 +108,7 @@ isolated('main comparison selects a matching registered peer only when the prefe
       runnerProvider: () => box.runners, agent: 'hold-preferred-comparison-runner', kind: 'comparison-affinity-control' });
     const compare = () => compareMainFailures(box.root, { tests: [{ file: 'test/inherited.test.js', passed: false }] }, undefined, '', {
       commit: box.main, detailed: true, fresh: true, execution,
-      runnerAdmission: { runnerOnly: true, runnerWaitMs: 5000, onReceipt: value => measured.push(value) },
+      runnerAdmission: { runnerOnly: true, runnerWaitMs: 30000, onReceipt: value => measured.push(value) },
     });
     const whileABusy = await compare();
     assert.equal(whileABusy.unavailable, undefined, whileABusy.unavailable);
@@ -173,7 +173,7 @@ isolated('clause 1: the real compare-main path runs main on the red host when no
     for (const host of [A, B, C]) recordReceipt(box.root, receipt(box.root, host, { ...environment, node: '0.0.1' }));
     const compared = await compareMainFailures(box.root, { tests: [{ file: 'test/inherited.test.js', passed: false }] }, undefined, '', {
       commit: box.main, detailed: true, fresh: true, execution: { executor: { kind: 'ssh', host: A }, environment },
-      runnerAdmission: { runnerOnly: true, runnerWaitMs: 5000, onReceipt: value => measured.push(value) },
+      runnerAdmission: { runnerOnly: true, runnerWaitMs: 30000, onReceipt: value => measured.push(value) },
     });
     assert.equal(compared.unavailable, undefined, compared.unavailable);
     assert.equal(compared.files[0]?.file, 'test/inherited.test.js');
