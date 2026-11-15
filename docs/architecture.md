@@ -144,7 +144,7 @@ For an operational drill, interrupt the authenticated sign-in, move-upload or fr
 
 ## Redeploys
 
-A new relay process on the same `/data` volume keeps every account, link, credential hash, paired phone, wrapped key, approval and journal; `apps/cli/journeys/relay/deploy.test.js` restarts the relay and proves that no one re-pairs. A restart ends what lives only in memory, so a half-finished sign-in or pairing starts again. The service runs as a single replica, since one writer owns these SQLite files (`apps/relay/src/io/deploy/README.md`).
+A new relay process on the same `/data` volume keeps every account, link, credential hash, paired phone, wrapped key, approval and journal; `apps/relay/tests/logic/http/device.test.js` reopens the relay's databases as a new process would and proves that a paired phone and its wrapped keys survive. A restart ends what lives only in memory, so a half-finished sign-in or pairing starts again. The service runs as a single replica, since one writer owns these SQLite files (`apps/relay/src/io/deploy/README.md`).
 
 A phone pairs again when its browser storage is cleared, when it signs in as another account, or when the device is revoked. The hosted page can be installed to the Home Screen and asks the browser to keep its storage, since Safari on iPhone can clear a site's storage after seven days without a visit (`apps/relay/src/logic/browser/install.js`).
 
