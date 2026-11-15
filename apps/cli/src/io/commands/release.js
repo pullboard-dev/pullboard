@@ -11,13 +11,13 @@ import { cleanItemFolders } from '../item/folder.js';
 import * as store from '../../../../../packages/store/index.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
 import { refuseHeldElsewhere } from '../../../../../packages/seats/index.js';
+import { actOn } from '../board/access.js';
+import { ordered } from '../claim.js';
+import { idArg } from '../context.js';
 import {
-  actOn,
-  idArg,
-  ordered,
-  textArg,
   editAfter,
-} from '../entry.js';
+  textArg,
+} from '../read.js';
 
 /**
  * A seat whose session ends releases its build claims at once (#1225), keeping its work at a board ref, so no claim

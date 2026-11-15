@@ -1,11 +1,23 @@
 import { requireOwnLaneCheck } from '../lane.js';
+import {
+  COORDINATOR,
+  coordinatorPaths,
+  requireNoCoordinatorPath,
+  splitAdvice,
+} from '../item/bar.js';
+export {
+  barPaths,
+  coordinatorPaths,
+  pathTokens,
+  requireNoCoordinatorPath,
+  splitAdvice,
+} from '../item/bar.js';
 import { itemText } from '../../../../../packages/search/index.js';
 import { nearestOpenItems } from '../../../../../packages/search/index.js';
 import { searchSidecarPath } from '../../../../../packages/search/index.js';
 import { requireBarPathsOnMain } from '../item/bar.js';
 import { guardDuplicate } from '../item/duplicate.js';
 import { guardBar } from '../../../../../packages/state/index.js';
-import { briefFiles } from '../../../../../packages/items/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
 import { parseCheckTiming } from '../../../../../packages/items/index.js';
 import { criterionSize } from '../../../../../packages/items/index.js';
@@ -36,7 +48,6 @@ import {
 } from '../../../../../packages/gate/index.js';
 import {
   isLane,
-  laneOf,
 } from '../../../../../packages/seats/index.js';
 import {
   Refused,
@@ -62,7 +73,6 @@ import {
   launchBaseline,
   CHECKOUT_LEASES,
 } from '../entry.js';
-import { isConfigFile } from '../../../../../packages/config/browser.js';
 import { anyRunnerLive } from '../runner/local.js';
 
 /**
@@ -266,73 +276,4 @@ export function splitBar(config, bar) {
   return { paths: coordinatorPaths(config, { criterion: bar.criterion, check: bar.check, brief: bar.brief }),
     lane: { criterion: joinClauses(parts, parts.clauses.filter(clause => !owned(clause))), check: checkOwned ? undefined : bar.check, brief: laneLines.join('\n') },
     coordinator: { criterion: joinClauses(parts, parts.clauses.filter(owned)), check: checkOwned ? bar.check : undefined, brief: pieceLines.join('\n') } };
-}
-
-/** Cross-ownership: a bar that names a coordinator-owned path cannot be built by a lane seat, so add and claim refuse it up front [C7,#2650]. */
-/** The coordinator's lane and seat id: laneOf gives it every path no lane owns (the queue cell's COORDINATOR). */
-const COORDINATOR = 'coordinator';
-
-/** A path-like token: a directory with a trailing slash, a dotted folder, or a file with an extension, or pullboard.json. */
-const PATH_TOKEN = /(?:^|[\s`'"(\[,])((?:\.?[\w-]+\/)+(?:[\w.-]*\.[\w-]+|[\w.-]*(?=[\s`'")\],;:]|$))|pullboard\.json)/gu;
-
-/**
- * The path-like tokens in free text, with a leading ./ removed.
- * Why: criterion, check and brief are prose, so only tokens shaped like paths can be judged by lane ownership.
- */
-export function pathTokens(text) {
-  const tokens = new Set();
-  for (const match of String(text ?? '').matchAll(PATH_TOKEN)) {
-    const token = match[1].replace(/^\.\//u, '');
-    if (token.endsWith('/') || token.includes('.') || isConfigFile(token)) tokens.add(token);
-  }
-  return [...tokens];
-}
-
-/**
- * The paths an item's criterion, check or brief Files section names that no lane owns, so only the coordinator may change them.
- * Why: add and claim both read all three, so a lane item already on the board whose criterion alone names a
- * coordinator-owned path is refused at claim as it would be at add; `prose: false` reads only the check and Files list.
- *
- * @param {object} config - The frozen policy with its lanes.
- * @param {{ criterion?: string, check?: string, brief?: string }} item - The item's bar.
- * @param {{ prose?: boolean, present?: (paths: string[]) => Set<string> }} [options] - `present` names which paths exist on main;
- *   with it, a path missing from main and owned by no lane is a planned file of the item's own lane, not a coordinator path (#6713).
- * @returns {string[]}
- */
-export function coordinatorPaths(config, item, options) {
-  const unowned = barPaths(item, options).filter(path => laneOf(config, path) === COORDINATOR);
-  if (!options?.present || !unowned.length) return unowned;
-  const found = options.present(unowned);
-  return unowned.filter(path => found.has(path.replace(/\/$/u, '')));
-}
-
-/**
- * The repo paths an item's criterion, check and brief Files section name, resolved against a lane-scoped check [C7].
- * Why: claim compares their owning lanes under two policies, so only items whose own files changed lanes go stale.
- *
- * @param {{ criterion?: string, check?: string, brief?: string }} item - The item's bar.
- * @param {{ prose?: boolean }} [options]
- * @returns {string[]}
- */
-export function barPaths(item, { prose = true } = {}) {
-  const named = [...(prose ? pathTokens(item.criterion) : []), ...pathTokens(item.check), ...briefFiles(item.brief ?? '').flatMap(file => pathTokens(` ${file}`))];
-  // A starter check scoped to its lane folder (`cd './app' && (...)`) runs there, so the paths its bar names are that folder's.
-  const scope = /^cd '\.\/([^']+)' && \(/u.exec(item.check ?? '')?.[1];
-  const scoped = scope ? named.map(path => (isConfigFile(path) || path.startsWith(`${scope}/`) ? path : `${scope}/${path}`)) : named;
-  return [...new Set(scoped)];
-}
-
-/** The next step of a cross-ownership refusal: the lane piece, then the coordinator piece filed --after it. */
-export function splitAdvice(lane, title, paths) {
-  return `split it: file the lane piece with only ${lane} paths (pullboard add ${lane} "${title}"), then file the coordinator piece `
-    + `(pullboard add coordinator "${title}: coordinator piece" --after <lane item id>) naming ${paths.join(', ')}`;
-}
-
-/** Refuse a lane item whose bar names a coordinator-owned path; the coordinator and the person may name any path. */
-export function requireNoCoordinatorPath(config, me, item, options) {
-  if (me.id === COORDINATOR || item.lane === COORDINATOR || item.by === 'person') return;
-  const paths = coordinatorPaths(config, item, options);
-  if (!paths.length) return;
-  throw new Refused('CROSS_OWNERSHIP', `the bar names ${paths.join(', ')}, which no lane owns, so lane ${item.lane} cannot build it`,
-    splitAdvice(item.lane, item.title, paths));
 }

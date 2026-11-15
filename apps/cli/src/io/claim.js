@@ -4,7 +4,6 @@ import {
   submitHandoffActor,
   isSubmitHandoffWorker,
 } from '../../../../packages/sandbox/index.js';
-import { captureLapsedClaims } from '../../../../packages/health/index.js';
 /** Helpers for `pullboard claim`: ordered moves and the criterion freeze. Split from src/cli.js, which re-exports it [C7]. */
 import { writeBoardCommand } from '../../../../packages/store/index.js';
 import { laneSeatContext } from '../../../../packages/seats/index.js';
@@ -91,6 +90,7 @@ async function maintainLapsedBeforeWrite(ctx, board, operation, args, actor) {
   if (relayRecovered(ctx.info.root, { includePending: true }, ctx.io)) return;
   LAPSE_MAINTENANCE.add(board);
   try {
+    const { captureLapsedClaims } = await import('../../../../packages/health/index.js');
     const snapshot = captureLapsedClaims(ctx, board, actor, { lapsedOnly: true });
     if (!snapshot) return;
     const io = { ...ctx.io, personRequest: undefined, personRequestMoveId: undefined, relayCommand: undefined, requestedCommand: undefined };
