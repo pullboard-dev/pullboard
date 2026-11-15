@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { cellProject } from '../../../../../store/tests/fixtures/cell.js';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../../gate/tests/fixtures/child.js';
 import { HOST } from '../../../../../../apps/cli/tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../../../../apps/cli/tests/fixtures/runner/ssh.js';
 

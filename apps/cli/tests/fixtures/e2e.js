@@ -8,11 +8,13 @@ import { runFixtureChild } from './child.js';
 import { runFixtureChildAsync } from './child.js';
 import { runFixtureSetupGit } from './child.js';
 import { performance } from 'node:perf_hooks';
+import { appendFileSync } from 'node:fs';
 import { chmodSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { statSync } from 'node:fs';
@@ -42,6 +44,75 @@ import { fixtureJoinRoute } from './testkit.js';
 import { fixtureSettledMachine } from './testkit.js';
 import { fixtureProjectPolicy } from './testkit.js';
 import { joinFixtureSeat } from './testkit.js';
+
+/**
+ * How runIn and runLocal reach the CLI: in this process by default. PULLBOARD_JOURNEY_MODE=process runs the same call as its own
+ * process instead, so the gate's parity check can run one journey both ways and compare them (#8257) [C7].
+ */
+export const JOURNEY_MODE = process.env.PULLBOARD_JOURNEY_MODE === 'process' ? 'process' : 'inprocess';
+
+/** Machine-dependent text in a CLI answer: the private sandbox folder, times, ids, hashes and durations. */
+export function parityText(text, dir) {
+  return String(text ?? '').split(dir).join('<dir>')
+    .replace(/\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z/gu, '<time>')
+    .replace(/\d{4}-\d\d-\d\dT\d\d:\d\d(?=  )/gu, '<time>')
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gu, '<uuid>')
+    .replace(/\b[0-9a-f]{7,64}\b/gu, '<hex>')
+    .replace(/\b\d+(?:\.\d+)? ?(?:ms|s)\b/gu, '<duration>')
+    .replace(/(gate:\d+:<hex>):[0-9a-z]+/gu, '$1:<job>')
+    .replace(/\(pid \d+\)/gu, '(pid <pid>)')
+    .replace(/"pid":\d+/gu, '"pid":"<pid>"')
+    // Whether init's background view starts or finds port 4890 taken depends on what else runs on the machine, not on the runtime.
+    .replace(/Pullboard view is running; open [^"\\]*|Port \d+ is in use; the background view did not start\./gu, '<view state>');
+}
+
+/**
+ * One call's result for the parity check: argv, exit code, the JSON result or the printed text, and the board's items and
+ * event counts after the call, all with machine-dependent text masked. Read-only: the board is opened read-only [C7].
+ */
+function parityRecord({ dir, env, cwd, args, result }) {
+  let json = null;
+  try { json = JSON.parse(result.out); } catch { /* a text answer */ }
+  let board = null;
+  const common = runFixtureChild('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd, env, encoding: 'utf8' });
+  const file = common.status === 0 ? join(common.stdout.trim(), 'pullboard', 'board.sqlite') : null;
+  // A command that hands a gate job on finishes its board writes when a runner posts the receipt, at no fixed moment after it
+  // returns, so its own record carries no board state; the next call's record compares the settled board instead.
+  if (file && existsSync(file) && !(result.code === 0 && JOB_OFFERING.has(args[0]))) {
+    // @pullboard-board-file journey: a read-only look at the rows the command wrote, for the parity check.
+    const db = new DatabaseSync(file, { readOnly: true });
+    try {
+      // api_stall records a slow machine, not a product result: the parity runs share a loaded machine, so it is left out.
+      board = { items: db.prepare('SELECT item_id, item_status, item_lane FROM item ORDER BY item_id').all().map(row => ({ ...row })),
+        events: db.prepare("SELECT event_kind, count(*) AS n FROM event WHERE event_kind <> 'api_stall' GROUP BY event_kind ORDER BY event_kind").all().map(row => ({ ...row })) };
+    } finally { db.close(); }
+  }
+  // Mask string values only: a bare number of 7 or more digits would read as a hash and break the JSON it sits in.
+  // Also masked: the disk-use measurement status prints (apps/cli/src/io/disk/use.js). A detached worker measures the store sizes
+  // at no fixed moment, so whether a call sees "measuring" or a total, and the byte counts, depend on timing, not on the runtime.
+  const DISK_MEASURED = ['total', 'stores', 'measuredAt', 'measuring', 'warning'];
+  const mask = (value, key) => typeof value === 'string' ? parityText(value, dir).replace(/^disk use under \.git\/pullboard: .*$/gmu, 'disk use under .git/pullboard: <measured>')
+    : Array.isArray(value) ? value.map(inner => mask(inner))
+    : value && typeof value === 'object' ? Object.fromEntries([...Object.entries(value).filter(([name]) => key !== 'disk' || !DISK_MEASURED.includes(name)).map(([name, inner]) => [name, mask(inner, name)]),
+      ...(key === 'disk' ? [['measurement', '<measured>']] : [])]) : value;
+  return mask({ cwd, args, code: result.code, json, out: json ? null : result.out, err: result.stderr, board });
+}
+
+/**
+ * One journey CLI call for a fixture of its own: answered in this process by default, or as a real process under
+ * PULLBOARD_JOURNEY_MODE=process, and appended to PULLBOARD_PARITY_RECORD when the parity check asks for it (#8267) [C7].
+ * Why: the same record shape as runIn, so files whose box is not createE2eHelpers can join the parity sample.
+ * @param {{ dir: string, env: object, cwd: string, args: string[], inProcess: () => Promise<{status: number, stdout: string, stderr: string}>, real?: () => {status: number, stdout: string, stderr: string}, bin?: string }} call The call, both ways; `bin` (the CLI entry file) lets the kit start the real process itself, so a test file never launches one.
+ * @returns {Promise<{status: number, stdout: string, stderr: string}>} The answer.
+ */
+export async function journeyCall({ dir, env, cwd, args, inProcess, bin, real = () => runFixtureChild(process.execPath, [bin, ...args], { cwd, env, encoding: 'utf8' }) }) {
+  const result = JOURNEY_MODE === 'process' ? real() : await inProcess();
+  if (process.env.PULLBOARD_PARITY_RECORD) {
+    const answer = { code: result.status, out: result.stdout, stderr: result.stderr };
+    appendFileSync(process.env.PULLBOARD_PARITY_RECORD, `${JSON.stringify(parityRecord({ dir, env, cwd, args, result: answer }))}\n`);
+  }
+  return result;
+}
 
 /** The model every fixture board runs as, whatever the parent process was launched with [C7]. */
 export const FIXTURE_MODEL = 'fixture-model';
@@ -106,6 +177,19 @@ export function settlePulledJobs(cwd, args, env) {
   }
 }
 
+/** The pids of the background views a sandbox's commands started, from the session files in its private Pullboard home. */
+function sandboxViewPids(dir) {
+  const home = join(dir, 'pullboard-home');
+  let names = [];
+  try { names = readdirSync(home).filter(name => /^view-\d+\.json$/u.test(name)); } catch { return []; }
+  return names.flatMap(name => {
+    try {
+      const pid = Number(JSON.parse(readFileSync(join(home, name), 'utf8')).pid);
+      return Number.isSafeInteger(pid) && pid > 1 && pid !== process.pid ? [pid] : [];
+    } catch { return []; }
+  });
+}
+
 /** Create isolated real-repository helpers for one parallel end-to-end test file. */
 export function createE2eHelpers() {
   const sandboxes = [];
@@ -115,8 +199,12 @@ export function createE2eHelpers() {
    * to 30 s for it to stop; the 1 s budget failed pending-refreeze with ENOTEMPTY (#3192).
    */
   const cleanup = () => {
+    // A background view an in-process init started is this process's own child, and the test file cannot end while it runs [C7].
+    const views = sandboxes.flatMap(sandboxViewPids);
+    for (const pid of views) { try { process.kill(pid, 'SIGTERM'); } catch { /* it has exited */ } }
     // Every runner is signalled before any is awaited, so five sandboxes cost one stop, not five [C7].
     stopFixtureLocalRunners(sandboxes.map(dir => join(dir, 'machine-home')));
+    for (const pid of views) { try { process.kill(pid, 'SIGKILL'); } catch { /* it has stopped */ } }
     for (const dir of sandboxes) {
       stopComparisonWorkers(dir);
       const deadline = Date.now() + 30_000;
@@ -163,6 +251,8 @@ function sandbox({ declareFamilies = false } = {}) {
     PULLBOARD_INFRA_RETRY_BACKOFF_MS: '0',
     // A fixture's claims start no detached claim beater bound to the test process; its own journey turns it on (#5726).
     PULLBOARD_CLAIM_BEATER: '0',
+    // init and resume start no background view in a fixture, in a real process or in-process: a busy port must not change an answer [C7].
+    PULLBOARD_VIEW_BACKGROUND: '0',
     // A fixed fixture model, so no fixture reads the machine's or the agent seat's identity [C7].
     PULLBOARD_MODEL: FIXTURE_MODEL,
     // The loopback local runner a pull submit starts stops with this test process, never outliving the journey [P7].
@@ -205,7 +295,7 @@ function sandbox({ declareFamilies = false } = {}) {
     prepare(cwd, args);
     const result = await runFixtureChildAsync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
     if (result.status === 0) settlePulledJobs(cwd, args, env);
-    return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
+    return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure, rawStderr: result.stderr };
   };
   /** The same call as run, answered by the production dispatcher in this process; no node start-up (about 1 s saved). */
   const inProcess = async (cwd, ...args) => {
@@ -221,7 +311,15 @@ function sandbox({ declareFamilies = false } = {}) {
     return { code: result.status, out: result.stdout, err: result.stderr, failure: null, status: result.status, stdout: result.stdout, stderr: result.stderr };
   };
   runSync.of = run;
-  return { dir, env, git, tryGit, run, runAsync, inProcess, runLocal: inProcess, runIn: inProcess, runSync, declareFamilies, declareFamily };
+  /** The journey's call: inProcess, or a real process under PULLBOARD_JOURNEY_MODE=process; PULLBOARD_PARITY_RECORD appends each call's record. */
+  const runIn = async (cwd, ...args) => {
+    const called = [...args];
+    const result = JOURNEY_MODE === 'process' ? await runAsync(cwd, ...args) : await inProcess(cwd, ...args);
+    const answer = { ...result, status: result.code, stdout: result.out, stderr: result.rawStderr ?? result.err };
+    if (process.env.PULLBOARD_PARITY_RECORD) appendFileSync(process.env.PULLBOARD_PARITY_RECORD, `${JSON.stringify(parityRecord({ dir, env, cwd, args: called, result: answer }))}\n`);
+    return answer;
+  };
+  return { dir, env, git, tryGit, run, runAsync, inProcess, runLocal: runIn, runIn, runSync, declareFamilies, declareFamily };
 }
 
 const CONFIG = {

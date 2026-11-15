@@ -70,6 +70,11 @@ export function tableReplayEnabled() {
   return loadMachineSettings().gate?.tableReplay === true;
 }
 
+/** Write gate hops through the fenced, compare-and-set hop row only when this machine opted in [C7,#8269]. */
+export function fencedHopEnabled() {
+  return loadMachineSettings().gate?.fencedHop === true;
+}
+
 /** Run the full suite after each landed train batch only when this machine opted in. */
 export function postLandSuiteEnabled() {
   return loadMachineSettings().gate?.postLandSuite === true;
