@@ -9,8 +9,8 @@ import { test } from 'node:test';
 import { serveLocalRunner } from '../../../../drive/index.js';
 import { serveRunner } from '../../../../drive/index.js';
 import { testGit as pullGit } from '../../fixtures/git.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 
 const BOARD = 'http://board.invalid/api/v1/boards/b?k=x';
 const reply = document => ({ status: 200, json: async () => document });

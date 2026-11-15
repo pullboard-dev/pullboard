@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/cli apps/lib apps/runner codemap config doctrine flakes gate git items kernel landing link person resources rigor runners seats spec state stats store verify */
+/** @pullboard-test-input source-cell apps/cli apps/lib apps/runner codemap config doctrine flakes gate git items kernel landing link moves person resources rigor runners seats spec state stats store verify */
 /** @pullboard-world-pin: the audit reads the CLI's command files and the packages' source, to find the refusals the code raises. */
 /** @pullboard-test-loads packages/store/src/io/board.js */
 import { assertPostVerdictLandingAudit } from '../../../../packages/gate/tests/fixtures/functions.js';
@@ -54,6 +54,8 @@ const RUNNER_ENTRY_FILES = ['../packages/runners/index.js', '../packages/gate/sr
   '../packages/runners/src/io/dispatch.js', '../apps/runner/src/io/worker/entry.js'];
 // The pulled gate runs the doctrine hold through injected runner services (apps/cli/src/io/runner/handoff/services.js), which a static walk cannot follow [#6807].
 const INJECTED_GATE_FILES = ['../packages/doctrine/src/io/checks.js'];
+// The move tables raise the lease refusals from data the walk does not follow; these files raise them as code, and the audit worker raises STALE_MAIN_RED on withdraw.
+const TABLE_RAISER_FILES = ['../packages/store/src/logic/board/landing/lease.js', '../packages/landing/src/io/worker.js', '../packages/landing/src/io/resource.js', '../packages/gate/src/io/main/audit/worker.js'];
 const NON_MOVE_ENTRY_POINTS = [
   '../apps/lib/src/logic/native.js#openBoard', // Physical storage is composed before any item move.
   '../packages/store/index.js#recordSpecApprovalBaseline', // A distinct bootstrap operation precedes the requested move.
@@ -220,8 +222,10 @@ function codeProblems(machine, read = fromDisk) {
   }
   const commandFiles = fs.readdirSync(new URL('../../src/io/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `../apps/cli/src/io/commands/${name}`);
   const moveFiles = new Set([...read('../packages/store/src/io/board.js').matchAll(/^import \{ \w+ \} from (['"])(\.\/(?:board-[\w-]+|board\/[\w/-]+)\.js)\1;$/gmu)].map((match) => posix.join('../packages/store/src/io', match[2]))), raised = new Set([
-    '../packages/store/src/io/board.js', ...moveFiles, '../apps/cli/src/io/entry.js', '../packages/spec/src/io/main.js', '../packages/gate/src/io/submit.js', ...RUNNER_ENTRY_FILES, ...INJECTED_GATE_FILES, ...commandFiles,
+    '../packages/store/src/io/board.js', ...moveFiles, '../apps/cli/src/io/entry.js', '../packages/spec/src/io/main.js', '../packages/gate/src/io/submit.js', ...RUNNER_ENTRY_FILES, ...INJECTED_GATE_FILES, ...TABLE_RAISER_FILES, ...commandFiles,
   ].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
+  // The lease table names its refusals as data (code: 'X') and the table engine raises them; the walk reads only thrown Refused codes.
+  for (const [, code] of read('../packages/moves/src/logic/table/lease.table.js').matchAll(/\bcode: '([A-Z][A-Z0-9_]*)'/g)) raised.add(code);
   for (const code of declaredCodes(machine)) if (!raised.has(code)) problems.add(`${code} is declared but the board, CLI and spec parser never raise it`);
   return [...problems];
 }
