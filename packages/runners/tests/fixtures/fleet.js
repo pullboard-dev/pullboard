@@ -96,6 +96,7 @@ test('unchanged companion closure [C7,V4]', () => { console.log('EXECUTED-STABLE
       nodeOptions: differentLanguage ? `--import=${pathToFileURL(languagePreload).href}` : '' });
     const command = `node apps/cli/src/io/run/tests.js test/probe.test.js${composition ? ' test/stable.test.js' : ''}${customReporter ? ' --test-reporter=./reporter.mjs' : ''}`;
     const checkedSource = { commit: git('rev-parse', 'HEAD').trim(), tree: git('rev-parse', 'HEAD^{tree}').trim() };
+    const began = Date.now();
     const result = await runOnRunnerAsync(repo, command, {
       runner: { host, slots: 1, browser: 0, node: process.execPath, root: join(home, 'runner') },
       metadata: { testStage: stage, trunk: { ref: 'refs/heads/main', commit: policyCommit } },
@@ -104,6 +105,7 @@ test('unchanged companion closure [C7,V4]', () => { console.log('EXECUTED-STABLE
           policyCommit, trunk: { ref: 'refs/heads/main', commit: policyCommit }, guard: null },
         rawOutputPath: join(directory, `private-${invocation}.raw.log`) } : {}),
     });
+    console.log(`# trip ${invocation} ${stage} ${((Date.now() - began) / 1000).toFixed(1)} s`);
     if (composition && stage === 'verify') assert.equal(result.privateCheck.state, 'pass', result.output);
     return result;
   };
