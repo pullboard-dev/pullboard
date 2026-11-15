@@ -37,6 +37,7 @@ function boardFor(t, record) {
   const guards = sql.prepare("SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'machine%'").all();
   for (const { name } of sql.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'machine%'").all()) sql.exec(`DROP TRIGGER "${name}"`);
   const seat = (id, route) => sql.prepare('INSERT OR IGNORE INTO agent (agent_id, agent_lane, agent_path, agent_route, agent_created_at) VALUES (?, ?, ?, ?, ?)').run(id, 'core', `/seat/${id}`, route ?? 'strong', stamp);
+  seat('coordinator', 'strong');
   seat(actor.id, actor.route);
   if (item.owner) seat(item.owner, 'strong');
   if (item.reviewer) seat(item.reviewer, 'strong');
@@ -83,7 +84,7 @@ test('clause 1: the writer refuses with the table\'s code and words, and writes 
   const events = () => board.db.prepare('SELECT COUNT(*) n FROM event').get().n;
   const count = events();
   assert.throws(() => release(board, record.move.id, 'someone-else', record.move.note, undefined, record.move.reason),
-    { code: 'NOT_YOURS', message: `item #${record.move.id} is not claimed by you` });
+    { code: 'NOT_YOURS', message: `[NOT_YOURS] item #${record.move.id} is not claimed by you` });
   assert.throws(() => release(board, record.move.id, record.move.actor, '', undefined, 'OTHER'), { code: 'RELEASE_REASON' });
   assert.equal(events(), count);
 });
