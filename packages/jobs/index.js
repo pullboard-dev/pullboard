@@ -13,3 +13,5 @@ export { appendGateSpan, gateSpanFolder, readGateSpans } from "./src/io/gate/spa
 export { BLOB_THRESHOLD_BYTES, blobDirOf, putBlob, readBlob, readPayload, stubOf, parseStub } from "./src/io/blobs.js";
 export { spawnReachable, spawnDetachedChild, launchJobPlist, LAUNCH_LABEL_PREFIX } from "./src/io/launch.js";
 export { readRunnerTime, runnerTimeFolder } from "./src/io/gate/runner-time.js";
+export { expireQueuedJobs } from "./src/io/expire.js";
+export { QUEUED_EXPIRY_MS, queuedExpired } from "./src/logic/rules.js";
