@@ -1115,6 +1115,15 @@ catalogCase('[A1,C7,#8071] replay reports a table through the catalog', async ()
   assert.equal(report.table, 'demo');
 });
 
+catalogCase('[A1,C7,#8072] explain reports a table through the catalog', async () => {
+  const box = await project();
+  const dir = join(box.repo, 'packages/demo/src/logic');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'demo.table.js'), 'export const DEMO_RULES = {};\nexport const DEMO_TABLE = { name: \'demo\', guards: [], outcomes: [] };\n');
+  const report = await json(box, box.repo, 'explain', ['demo']);
+  assert.equal(report.table, 'demo');
+});
+
 catalogCase('[A1,C7] contribute check reports an accepted record through the catalog', async () => {
   const box = await project();
   const file = join(box.dir, 'record.yml');

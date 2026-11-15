@@ -23,4 +23,4 @@ export { RULES_VERSION, STATES, MOVE_RULES, RULES, newItem, leaseLive, unmetWait
 export { lifecycleFact, replay, compareFinal, readinessCounts, topKinds, trial } from "./src/logic/lifecycle/replay.js";
 export { LIFECYCLE_KINDS, readLifecycleLog } from "./src/io/lifecycle-log.js";
 export { listMoveTables, readMoveRecords } from "./src/io/table/read.js";
-export { loadMoveTable, replayReport } from "./src/io/table/report.js";
+export { explainReport, loadMoveTable, replayReport } from "./src/io/table/report.js";

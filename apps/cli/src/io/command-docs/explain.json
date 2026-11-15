@@ -1,0 +1,9 @@
+{
+  "name": "explain",
+  "help": "  pullboard explain <table>            a move table's guards in order, each with its refusal code and next step; read-only\n",
+  "required": {
+    "table": "string",
+    "guards": "array",
+    "outcomes": "array"
+  }
+}
