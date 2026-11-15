@@ -61,6 +61,8 @@ export function parityText(text, dir) {
     .replace(/(<hex>\.)[\w-]{20,}\.[\w-]{20,}/gu, '$1<token>')
     .replace(/\b\d+(?:\.\d+)? ?(?:ms|s)\b/gu, '<duration>')
     .replace(/(gate:\d+:<hex>):[0-9a-z]+/gu, '$1:<job>')
+    // The detached comparison worker records its result at no fixed moment, so a call sees it pending, complete or unavailable: a background-measured value.
+    .replace(/^comparison (?:pending for #\d+|unavailable: .*|#\d+.*(?:\n(?:head |base |new red:|fixed:|No new red).*)*)$/gmu, '<comparison>')
     .replace(/"steps":\{[^}]*\}/gu, '"steps":"<steps>"')
     .replace(/\(pid \d+\)/gu, '(pid <pid>)')
     .replace(/"pid":\d+/gu, '"pid":"<pid>"')
@@ -86,14 +88,14 @@ export function parityRecord({ dir, env, cwd, args, result }) {
     try {
       // api_stall records a slow machine, not a product result: the parity runs share a loaded machine, so it is left out.
       board = { items: db.prepare('SELECT item_id, item_status, item_lane FROM item ORDER BY item_id').all().map(row => ({ ...row })),
-        events: db.prepare("SELECT event_kind, count(*) AS n FROM event WHERE event_kind <> 'api_stall' GROUP BY event_kind ORDER BY event_kind").all().map(row => ({ ...row })) };
+        events: db.prepare("SELECT event_kind, count(*) AS n FROM event WHERE event_kind <> 'api_stall' AND NOT (event_kind = 'fact' AND event_detail LIKE '%Review comparison:%') GROUP BY event_kind ORDER BY event_kind").all().map(row => ({ ...row })) };
     } finally { db.close(); }
   }
   // Mask string values only: a bare number of 7 or more digits would read as a hash and break the JSON it sits in.
   // Also masked: the disk-use measurement status prints (apps/cli/src/io/disk/use.js). A detached worker measures the store sizes
   // at no fixed moment, so whether a call sees "measuring" or a total, and the byte counts, depend on timing, not on the runtime.
   const DISK_MEASURED = ['total', 'stores', 'measuredAt', 'measuring', 'warning'];
-  const mask = (value, key) => typeof value === 'string' ? parityText(value, dir).replace(/^disk use under \.git\/pullboard: .*$/gmu, 'disk use under .git/pullboard: <measured>')
+  const mask = (value, key) => key === 'comparison' ? '<comparison>' : typeof value === 'string' ? parityText(value, dir).replace(/^disk use under \.git\/pullboard: .*$/gmu, 'disk use under .git/pullboard: <measured>')
     : Array.isArray(value) ? value.map(inner => mask(inner))
     : value && typeof value === 'object' ? Object.fromEntries([...Object.entries(value).filter(([name]) => key !== 'disk' || !DISK_MEASURED.includes(name)).map(([name, inner]) => [name, mask(inner, name)]),
       ...(key === 'disk' ? [['measurement', '<measured>']] : [])]) : value;
