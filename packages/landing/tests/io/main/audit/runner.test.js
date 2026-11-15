@@ -41,7 +41,8 @@ function withEnvironment(box, agent, body) {
   return captureCommandInProcess(async () => { await body(); return 0; }, [], { env });
 }
 
-describe('registered runner selection for a pinned main comparison [V4,C7]', { concurrency: true }, () => {
+/** Serial on purpose: the cases share one process-wide environment, so a queued case's timeout must not run while another holds it. */
+describe('registered runner selection for a pinned main comparison [V4,C7]', { concurrency: false }, () => {
 test('main comparison selects a matching registered peer only when the preferred runner is busy [V4,C7]', { timeout: 60000 }, async t => {
   const box = fixture(t);
   const environment = executionEnvironment();
