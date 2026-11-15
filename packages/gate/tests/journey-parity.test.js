@@ -6,6 +6,7 @@
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { parityDifferences } from './fixtures/journey-parity.js';
 import { sampleDifferences } from './fixtures/journey-parity.js';
 
 /** The converted journey, and the cases of it the sample runs both ways. Later batches sample in their own files (each case runs twice). */
