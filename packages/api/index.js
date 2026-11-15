@@ -7,7 +7,7 @@ export { offerReleaseShards, releaseParticipationShards } from "./src/io/release
 export { SHARD_JOB_KIND, shardClaimCap, offerJob, offerLandShards, readLandShardReceipts, withdrawLandShards, openJob, jobViews, claimJob, keepJobsAlive, endJobs, PUSH_ALIVE_MS, jobRequest, renewJob, releaseJob, postReceipt, postArtifact, jobArtifacts, jobQueueCall, queueDraining, boardQueueMode } from "./src/io/jobs.js";
 export { LANDING_JOB_KIND, LAND_PAYLOAD_SHAPE, offerLandingJob, openLandingJob } from "./src/io/landing.js";
 export { withLandingPermit } from "./src/io/permit.js";
-export { gateClaimHop, provideGateHopTable } from "./src/io/hop.js";
+export { endGateHop, gateClaimHop, hopTableOver, provideGateHopTable } from "./src/io/hop.js";
 export { applyGateReceipt, applyJobReceipt, combinedReceipt, applyLandingReceipt, applyShardReceipt, boardJobQueueCall, compareGateWithMain, failingParts, gateLedgerHits, provideMainComparison, provideRefusalTrials, provideComparisonStart, provideLandingStart, pulledGateReds } from "./src/io/gate.js";
 export { provideMainRedNotes } from "./src/io/gate/files.js";
 export { CHECK_BASELINE_KIND, offerCheckBaseline, provideBaselineRecorder } from "./src/io/baseline.js";
