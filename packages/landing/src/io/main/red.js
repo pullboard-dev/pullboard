@@ -596,36 +596,46 @@ async function compareMainFailuresNow(root, profile, onWait, output = '', { comm
 
 /**
  * What the local cache already knows of main's failures in these files at one commit, without running anything. A file
- * the cache lacks is left out, so a case in it is never matched as main's [C7].
+ * the cache lacks is left out, so a case in it is never matched as main's [C7]. A file with no outcome at that commit
+ * answers from the outcome recorded under its test input key (`inputKeys`), which hashes the file, its whole import
+ * closure and its declared inputs. Why: main lands every few minutes, so a receipt keyed to one main is stale before a
+ * gate reads it; a main that moved only outside the file's closure keeps its key, and so its receipt [C7,SC11].
  *
  * @param {string} root
  * @param {string} commit - The main commit whose recorded outcomes to read.
  * @param {string[]} files - Repository-relative test files.
+ * @param {{ inputKeys?: Record<string, string> }} [options] - each file's test input key at that commit, when known.
  */
-export function cachedMainComparison(root, commit, files) {
+export function cachedMainComparison(root, commit, files, { inputKeys = {} } = {}) {
   try {
-    const entries = readCache(cacheFile(root)).entries[commit] ?? {};
-    return { main: commit, files: [...new Set(files)].filter(path => entries[path]).map(path => ({ file: path, ...entries[path] })) };
+    const all = readCache(cacheFile(root)).entries, entries = all[commit] ?? {};
+    const at = path => entries[path] ?? (/^[0-9a-f]{64}$/u.test(inputKeys[path] ?? '') ? all[inputKeys[path]]?.[path] : undefined);
+    return { main: commit, files: [...new Set(files)].filter(path => at(path)).map(path => ({ file: path, ...at(path) })) };
   } catch { return { main: commit, files: [], unavailable: 'the main comparison cache cannot be read' }; }
 }
 
 /**
  * Record one finished main-test job's verdict in the local comparison cache, so submit, landing and serve find the
- * receipt at that main commit [C7,P7]. A green is a complete row with no failing cases; a red names the whole file
- * (fileIsolation), since the job carries case names but no signatures. An existing row for the file is kept.
+ * receipt at that main commit [C7,P7], and under the file's test input key when the run named one, so a main whose
+ * inputs to the file are the same finds it too [C7,SC11]. A green is a complete row with no failing cases; a red names
+ * the whole file (fileIsolation), since the job carries case names but no signatures. An existing row is kept.
  *
  * @param {string} root - The board host's repository.
- * @param {{ main: string, file: string, verdict: 'green' | 'red', job: string, at?: number }} receipt
+ * @param {{ main: string, file: string, verdict: 'green' | 'red', job: string, at?: number, inputKey?: string }} receipt
  * @returns {boolean} whether a row was written
  */
-export function recordMainTestReceipt(root, { main, file, verdict, job, at = Date.now() }) {
+export function recordMainTestReceipt(root, { main, file, verdict, job, at = Date.now(), inputKey = null }) {
   if (!/^[0-9a-f]{40,64}$/u.test(main ?? '') || !file || !['green', 'red'].includes(verdict)) return false;
   // Synchronous on purpose: the receipt applier is; a racing writer only costs a re-measure of one file.
   const path = cacheFile(root);
   const cache = readCache(path);
-  if (cache.entries[main]?.[file]) return false;
+  const keys = [main, /^[0-9a-f]{64}$/u.test(inputKey ?? '') ? inputKey : null].filter(key => key && !cache.entries[key]?.[file]);
+  if (!keys.length) return false;
   const outcome = verdict === 'green' ? { result: 'green', failures: [], signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : { result: 'red', fileIsolation: true };
-  cache.entries[main] = { ...cache.entries[main], [file]: { ...outcome, receiptId: job, main, at: new Date(at).toISOString() } };
+  // A main keeps its place among the generations; past the bound, the oldest keys go, as storeOutcome drops them.
+  for (const key of keys) cache.entries[key] = { ...cache.entries[key], [file]: { ...outcome, receiptId: job, main, at: new Date(at).toISOString() } };
+  const all = Object.keys(cache.entries);
+  for (const key of all.slice(0, Math.max(0, all.length - CACHE_KEYS_KEPT))) delete cache.entries[key];
   writeCache(path, cache);
   return true;
 }

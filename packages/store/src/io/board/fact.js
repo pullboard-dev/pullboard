@@ -44,6 +44,10 @@ export function appendFact(board, id, { agentId, kind, text, ref = null, superse
       checkRouted({ brief: diagnosisBrief(diagnosis), route: 'light', criterion: item.item_criterion, check: item.item_check }, board.executionEngineVersion ?? ENGINE_VERSION);
     }
     const urgency = kind === 'urgent';
+    // A person's ruling on a frozen test file's new content: a decision `test-hash <path> <sha256>` recorded as the person [C7,V4].
+    const ruling = kind === 'decision' && asPerson && cause === null && !neverAgain && /^test-hash \S+ [a-f0-9]{64}$/u.test(text.trim());
+    if (ruling && agentId !== COORDINATOR) throw new Refused('B26_PERSON_APPROVAL', `only the person rules on a frozen test file, from the main checkout: pullboard fact ${id} decision "${text.trim()}" --as person`);
+    if (ruling && !['terminal', 'view'].includes(channel)) throw new Refused('B26_PERSON_CHANNEL', 'a test-hash ruling uses the person terminal or authenticated view');
     if (urgency && (!asPerson || agentId !== COORDINATOR)) throw new Refused('B26_PERSON_APPROVAL', 'only the person marks urgent work: pullboard fact <id> urgent on --as person');
     if (urgency && !['terminal', 'view'].includes(channel)) throw new Refused('B26_PERSON_CHANNEL', 'urgent marks use the person terminal or authenticated view');
     if (urgency && !['on', 'off'].includes(text)) throw new Refused('URGENT_VALUE', 'mark urgent with on or off');
@@ -57,8 +61,8 @@ export function appendFact(board, id, { agentId, kind, text, ref = null, superse
       throw new Refused('NO_FACT', `no fact ${String(supersedes)} on item #${id}; use a fact id from pullboard show ${id} --json`);
     }
     const binding = factReference(ref);
-    if (!urgency && (neverAgain || asPerson || cause !== null)) requireNeverAgain(id, { agentId, cause, neverAgain, asPerson, channel });
-    logEvent(board, neverAgain || urgency ? PERSON : agentId, 'fact', id, { id: factId, kind, text, ref: binding, supersedes, ...barFields, ...(neverAgain ? { cause, neverAgain: true, channel } : {}), ...(implies?.length ? { implies } : {}) });
+    if (!urgency && !ruling && (neverAgain || asPerson || cause !== null)) requireNeverAgain(id, { agentId, cause, neverAgain, asPerson, channel });
+    logEvent(board, neverAgain || urgency || ruling ? PERSON : agentId, 'fact', id, { id: factId, kind, text, ref: binding, supersedes, ...barFields, ...(neverAgain ? { cause, neverAgain: true, channel } : {}), ...(implies?.length ? { implies } : {}) });
     if (urgency) board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
       .run(`item_urgent:${id}`, text);
     const trigger = board.lastEvent;

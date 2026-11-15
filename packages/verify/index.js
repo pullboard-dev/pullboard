@@ -9,6 +9,7 @@ export { barDigest, barNotes, barReadiness, barReadinessRequired, barReadyProble
 export { PROVES_NOTHING_HOLD, PROVES_NOTHING_HOLD_REASON, acceptCheck, checkAcceptCommand, checkAcceptance, checkDigest, provingCheck, refuseClaimProvesNothing, refuseProvesNothing } from './src/io/check/accept.js';
 export { citedTestFiles, rowEvidence, rowStage } from './src/io/evidence.js';
 export { barTestFiles, frozenBar, frozenRowGates, namedClause, wording } from './src/logic/frozen.js';
+export { changedTestFiles, contentHash, frozenTestHashes, namedTestHashes, testHashProblem, testHashRulings } from './src/logic/testHashes.js';
 export { nextReview, ownSessionReviews, returnUnmergeable } from './src/logic/next.js';
 export { completeMoveHandoff } from './src/logic/post/move.js';
 export { recordNativeProof } from './src/logic/proof/native.js';
