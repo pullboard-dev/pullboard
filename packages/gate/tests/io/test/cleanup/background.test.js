@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { fixtureMachineSettings } from '../../../../../../apps/cli/tests/fixtures/testkit.js';
 import { HOST } from '../../../../../../apps/cli/tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../../../../apps/cli/tests/fixtures/runner/ssh.js';
 
@@ -30,6 +31,8 @@ test('a job whose cleanup sleeps reports its result at once and its cleanup stil
   const remoteHome = join(dir, 'remote-home'), remoteMachineHome = join(remoteHome, '.pullboard');
   for (const folder of [root, bin, worker, home, join(home, '.pullboard'), remoteHome, remoteMachineHome]) mkdirSync(folder, { recursive: true });
   writeFileSync(join(bin, 'package.json'), JSON.stringify({ type: 'module' }));
+  // The test is about the controller path's receipt-before-cleanup; the machine default is pull (4ec4d14695), which would wait on a shared mirror instead.
+  fixtureMachineSettings(join(home, '.pullboard'), { gate: { runnerDispatch: 'controller' } });
   // The worker's final job-directory removal blocks for SLOW_CLEANUP_MS, as a slow disk or a stuck unlink would.
   const slow = join(dir, 'slow-cleanup.mjs');
   writeFileSync(slow, `import fs from 'node:fs';
