@@ -10,7 +10,7 @@ import { checkSignedResult } from '../../../receipt/index.js';
 test('clause 1: [C7] a runner result with an invalid signature is recorded as import.invalid, an infra outcome that retries, and never as a failing test', async () => {
   const keys = generateKeyPairSync('ed25519');
   const publicKey = keys.publicKey.export({ format: 'der', type: 'spki' }).toString('base64url');
-  const sig = (action, at) => sign(null, Buffer.from(pullStatement(action, 'r1', at)), keys.privateKey).toString('base64url');
+  const sig = (action, at, nonce) => sign(null, Buffer.from(pullStatement(action, 'r1', at, nonce)), keys.privateKey).toString('base64url');
   const recorded = [];
   const adapter = pullAdapter({
     trusted: [publicKey],
@@ -24,7 +24,7 @@ test('clause 1: [C7] a runner result with an invalid signature is recorded as im
   const channel = adapter.open({ host: 'r1' });
   const tree = 'a'.repeat(40);
   await channel.startShard({ job: 'gate-1', shard: 's1', command: 'true', tree });
-  const { token } = adapter.take({ runner: 'r1', at, signature: sig('take', at) });
+  const { token } = adapter.take({ runner: 'r1', at, nonce: 'bad-signature-nonce-1', signature: sig('take', at, 'bad-signature-nonce-1') });
 
   assert.throws(() => adapter.post(token, 's1', Buffer.from('PBRESULT 1 1 0\n'), 'A'.repeat(86)), { code: 'PULL_RESULT_INVALID' });
   const read = await channel.fetchResult({ job: 'gate-1', shard: 's1' });
