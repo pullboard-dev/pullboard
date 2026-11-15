@@ -1,5 +1,6 @@
 /** Explain why a queued run still waits, from the pool's own local facts and no network probe [C7,Q1,Q2]. */
 import { runnerRecoveryStatus } from '../recovery.js';
+import { runnerOverload } from './pick.js';
 
 /** The runner kept for timed checks, or '' when none is kept or this pool predates the reserve table. */
 function keptTimingRunner(db) {
@@ -31,8 +32,8 @@ function withTimingReserve(db, explained, waiter) {
   });
 }
 
-/** Explain each registered runner from the same local facts used by admission; no network probe. */
-export function runnerWaitReasons(db, runners, waiter, unavailable) {
+/** Explain each registered runner from local facts, no probe; `load` ({ policy, now }) names a runner skipped as overloaded [C7,#8351]. */
+export function runnerWaitReasons(db, runners, waiter, unavailable, load) {
   return withTimingReserve(db, runners.map(runner => {
     const recorded = db.prepare('SELECT detail,failure FROM runner_unavailable WHERE host = ?').get(runner.host);
     const observed = db.prepare('SELECT gui FROM runner_gui WHERE host = ?').get(runner.host);
@@ -48,6 +49,8 @@ export function runnerWaitReasons(db, runners, waiter, unavailable) {
     else if (holders.length >= runner.slots || holders.some(holder => holder.timing === 1)
       || waiter.timing === 1 && holders.length > 0
       || waiter.browser === 1 && holders.filter(holder => holder.browser === 1).length >= runner.browser) reason = 'busy';
+    const over = reason === 'available' && load?.policy?.enabled === true && runnerOverload(runner, load.policy, load.now);
+    if (over) reason = `overloaded (load ${over.load.toFixed(1)} on ${over.cores} cores, above ${over.factor}x)`;
     if (unavailable.has(runner.host) && recorded) {
       const probe = runnerRecoveryStatus(recorded.failure);
       reason += `; ${probe.step}: ${probe.reason}`;

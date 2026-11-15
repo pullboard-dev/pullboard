@@ -276,6 +276,35 @@ export function fenceHop(root, { remote, item, epoch }) {
 }
 
 /**
+ * The leases and refspecs that move each item's fence ref to its carried epoch in the same atomic push as trunk, and a check that names a fence a failed push lost.
+ * Each fence moves only from nothing or an earlier epoch of its item; a fence already at a later epoch is refused HOP_FENCED before anything is pushed.
+ * Why one push: the runner land job has no board row to re-read, so trunk and every fence move together or not at all [C7,#8437].
+ *
+ * @param {string} root
+ * @param {string} remote
+ * @param {{ item: number, epoch: number }[]} hops
+ * @returns {{ leases: string[], refspecs: string[], requireHeld: (pushed: { status: number, stdout: string, stderr: string }) => void }}
+ */
+export function hopFencePush(root, remote, hops) {
+  const fences = hops.map(hop => {
+    const ref = hopFenceRef(hop.item), next = hopFenceObject(root, hop);
+    const holds = tryGit(root, ['ls-remote', remote, ref]).stdout.split(/\s+/u)[0];
+    const from = holds === next ? next : hopFenceLeaseFrom(root, hop, holds);
+    if (from === null) throw hopFenceRefusal(root, { remote, ...hop }, { status: 1, stdout: '', stderr: 'rejected: the fence holds a later epoch' });
+    return { hop, ref, next, from };
+  });
+  const requireHeld = pushed => {
+    if (pushed.status === 0) return;
+    const lost = fences.find(({ hop, ref, next, from }) => {
+      const holds = tryGit(root, ['ls-remote', remote, ref]).stdout.split(/\s+/u)[0];
+      return holds !== next && holds !== from && hopFenceLeaseFrom(root, hop, holds) === null;
+    });
+    if (lost) throw hopFenceRefusal(root, { remote, ...lost.hop }, pushed);
+  };
+  return { leases: fences.map(({ ref, from }) => `--force-with-lease=${ref}:${from}`), refspecs: fences.map(({ ref, next }) => `${next}:${ref}`), requireHeld };
+}
+
+/**
  * Push trunk from the batch base to its tip in one atomic push that also checks the hop fence ref still holds this hop's epoch.
  * Why atomic with two leases: a stale owner's push must leave trunk exactly where it was, so the fence and trunk move together or not at all [C7,#8275].
  * With no hop (gate.fencedHop off) it is the plain push the landing has always made.
