@@ -9221,6 +9221,15 @@
       ],
       "coveredBy": "packages/outbox/tests/io/relay/replies.test.js",
       "because": "a recovered descriptor with no durable receipt stays pending and is never taken as an outcome, and a mismatched ciphertext is not a reply, in the outbox cell against a stand-in relay"
+    },
+    {
+      "file": "apps/cli/journeys/submit/stacked.test.js",
+      "specs": [
+        "V1",
+        "V17"
+      ],
+      "coveredBy": "apps/cli/tests/io/submit/stack.test.js",
+      "because": "submit and accept both refuse through refuseUnverifiedStack; the cli cell proves it on real git and a board file for a submitted base, an unsubmitted base, the base's own item, an unreadable trunk and a base already merged into trunk"
     }
   ]
 }
