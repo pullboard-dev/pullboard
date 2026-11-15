@@ -52,11 +52,11 @@ function copyCommit(commit) {
 function revision(repo, value) {
   const peeled = /\^\{(commit|tree)\}$/u.exec(value);
   const name = peeled ? value.slice(0, -peeled[0].length) : value;
-  const parent = /\^(?:1)?$/u.test(name);
-  const plain = parent ? name.replace(/\^(?:1)?$/u, '') : name;
+  const parent = /\^[1-9]?$/u.exec(name);
+  const plain = parent ? name.slice(0, -parent[0].length) : name;
   let oid = plain === 'HEAD' ? (repo.branch ? repo.refs.get(repo.branch) : repo.head)
     : repo.refs.get(plain) ?? repo.refs.get(`refs/heads/${plain}`) ?? (repo.commits.has(plain) ? plain : null);
-  if (parent) oid = repo.commits.get(oid)?.parents[0] ?? null;
+  if (parent) oid = repo.commits.get(oid)?.parents[Number(parent[0].slice(1) || 1) - 1] ?? null;
   const commit = repo.commits.get(oid);
   return commit ? { oid: peeled?.[1] === 'tree' ? commit.tree : oid, commit, type: peeled?.[1] === 'tree' ? 'tree' : 'commit' } : null;
 }
