@@ -6,7 +6,7 @@ import { TWO_TIER_DIAGNOSIS_ENGINE } from '../../../../state/index.js';
 import { prepareEngineMove } from '../../../../state/index.js';
 import { applyEngineMove } from '../../../../state/index.js';
 import { parseDiagnosis } from '../../../../items/index.js';
-import { fixtureBoard } from '../../../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../../../board/tests/fixtures/board.js';
 
 const DIAGNOSIS = 'Files: web/handler.js test/handler.test.js Change: repoint the fixture to the canonical handler Test case: handler returns the expected result from the canonical module';
 

@@ -45,6 +45,7 @@ const ROWS = [
   ['serve.port', 'Board API port', 'The port pullboard serve listens on; 0 chooses a free one, so set it when runners keep the board URL.', 'Runners', 'port'],
   ['gate.runnersOnly', 'Runners only', 'Submit and review checks wait for a registered runner and never fall back to this computer.', 'Runners', 'on/off'],
   ['gate.measuredSlots', 'Measured runner slots', 'Each runner offers slots computed from its own cores and memory, unless it was registered with a fixed count.', 'Runners', 'on/off'],
+  ['gate.fencedHop', 'Fenced gate hop row', 'When enabled, a gate hop is one row with one owner, written by compare-and-set; a writer that loses the race is refused with the owner named.', 'Runners', 'on/off'],
   ['gate.tableReplay', 'Replay changed move tables', 'When enabled, a submit that changes a move table replays it over the board\'s recorded moves and is red on any disagreement.', 'Runners', 'on/off'],
   ['gate.postLandSuite', 'Full suite after landing', 'When enabled, each landed train batch is followed by the full suite on registered runners; newly red files get Main red owners.', 'Runners', 'on/off'],
   ['gate.handoffWorkers', 'Hand-off workers', 'Caps the submit hand-off workers this computer runs at once, computed from the runner slots when unset and lowered only by this setting, never by a launching command.', 'Capacity', 'count'],
