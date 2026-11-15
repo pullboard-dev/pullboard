@@ -18,6 +18,14 @@ function runnerLog(machineHome) {
   return machineHome && existsSync(log) ? readFileSync(log, 'utf8').slice(-3000) : '(no local runner log)';
 }
 
+/** The thread lines a gate receipt wrote, so a verify that never settles shows why the board kept the item claimed. */
+function gateFacts(shown) {
+  let thread = [];
+  try { thread = JSON.parse(shown.out).thread ?? []; } catch { return `gate facts unavailable: ${String(shown.err ?? '').slice(0, 300)}`; }
+  const lines = thread.map(row => typeof row?.text === 'string' ? row.text : JSON.stringify(row)).filter(text => text.includes('Gate job '));
+  return `gate facts:\n${lines.join('\n').slice(-2000) || '(none)'}`;
+}
+
 /** True when the thread holds the fact applyGateReceipt writes for a gate job's result; the earlier "offered for" note is not one. */
 function resultFact(thread, jobId) {
   const text = JSON.stringify(thread ?? []);
@@ -109,7 +117,7 @@ export function verifySettledSync(box, cwd, args) {
   for (;;) {
     const answer = box.run(cwd, ...args);
     if (answer.code === 0 || !/NOT_SUBMITTED/u.test(`${answer.err ?? ''}${answer.out ?? ''}`)) return answer;
-    if (Date.now() > deadline) return { ...answer, err: `${answer.err ?? ''}\nlocal runner log:\n${runnerLog(box.env.PULLBOARD_MACHINE_HOME)}` };
+    if (Date.now() > deadline) return { ...answer, err: `${answer.err ?? ''}\n${gateFacts(box.run(cwd, 'show', args[1], '--json', '--no-next'))}\nlocal runner log:\n${runnerLog(box.env.PULLBOARD_MACHINE_HOME)}` };
     reviveFixtureLocalRunner(box.repo, box.env);
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
   }
@@ -121,7 +129,7 @@ export async function verifySettled(box, run, cwd, args) {
   for (;;) {
     const answer = await run(cwd, ...args);
     if (answer.code === 0 || !/NOT_SUBMITTED/u.test(`${answer.err ?? ''}${answer.out ?? ''}`)) return answer;
-    if (Date.now() > deadline) return { ...answer, err: `${answer.err ?? ''}\nlocal runner log:\n${runnerLog(box.env.PULLBOARD_MACHINE_HOME)}` };
+    if (Date.now() > deadline) return { ...answer, err: `${answer.err ?? ''}\n${gateFacts(await run(cwd, 'show', args[1], '--json', '--no-next'))}\nlocal runner log:\n${runnerLog(box.env.PULLBOARD_MACHINE_HOME)}` };
     reviveFixtureLocalRunner(box.repo, box.env);
     // Read again on the next change in the local runner's folder (a log line per claim and receipt, a heartbeat every 5 s).
     await new Promise(resolve => {
