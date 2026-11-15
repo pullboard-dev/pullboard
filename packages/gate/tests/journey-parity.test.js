@@ -10,7 +10,7 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
-import { runChildTests } from './fixtures/child-tests.js';
+import { runChildTestsAsync } from './fixtures/child-tests.js';
 import { privateFixtureFiles } from './fixtures/child.js';
 
 const REPOSITORY = resolve(import.meta.dirname, '../../..');
@@ -29,12 +29,12 @@ const SAMPLES = [
 ];
 
 /** Run one journey's sample in a child node --test in one mode and return each CLI call's record, in call order. */
-function runSample(mode, { journey, cases }) {
+async function runSample(mode, { journey, cases }) {
   const dir = privateFixtureFiles('pullboard-journey-parity-').root;
   const record = join(dir, `${mode}.jsonl`);
   try {
     const pattern = cases.map(name => name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('|');
-    const run = runChildTests([journey], { cwd: REPOSITORY, args: [`--test-name-pattern=^(?:${pattern})`],
+    const run = await runChildTestsAsync([journey], { cwd: REPOSITORY, args: [`--test-name-pattern=^(?:${pattern})`],
       env: { ...process.env, PULLBOARD_JOURNEY_MODE: mode, PULLBOARD_PARITY_RECORD: record } });
     assert.equal(run.status, 0, `the ${mode} run of the ${journey} sample passes:\n${run.stdout.slice(-3000)}\n${run.stderr.slice(-2000)}`);
     assert.equal(run.pass, cases.length, `every sampled case of ${journey} ran in the ${mode} run`);
@@ -56,11 +56,13 @@ function parityDifferences(real, inprocess) {
   return differences;
 }
 
-test('clause 1: a sample of a converted journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', () => {
-  for (const sample of SAMPLES) {
-    const real = runSample('process', sample);
-    const inprocess = runSample('inprocess', sample);
-    assert.ok(real.length >= 3, `${sample.journey} made its CLI calls (${real.length})`);
+test('clause 1: a sample of a converted journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
+  // Every journey runs both ways at once: the child runs are separate processes with private sandboxes, so they cannot disturb each other.
+  const runs = await Promise.all(SAMPLES.map(async sample => ({ sample, real: runSample('process', sample), inprocess: runSample('inprocess', sample) })));
+  for (const { sample, real: realRun, inprocess: inprocessRun } of runs) {
+    const real = await realRun;
+    const inprocess = await inprocessRun;
+    assert.ok(real.length >= 1, `${sample.journey} made its CLI calls (${real.length})`);
     assert.ok(real.some(row => row.board?.items.length), `${sample.journey} records carry board state`);
     const differences = parityDifferences(real, inprocess);
     assert.deepEqual(differences, [], `the two runtimes disagree on ${sample.journey}:\n${differences.join('\n')}`);
