@@ -7,8 +7,8 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { runFixtureChildAsync } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChildAsync } from '../../fixtures/child.js';
+import { runFixtureGit } from '../../fixtures/child.js';
 
 /** Run an actual SQLite admission in a child whose callbacks hold no event-loop reference. */
 async function admissionCase(t, refused) {

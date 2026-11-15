@@ -9,8 +9,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { readTierSnapshot } from '../../../../src/io/test/tier/cache.js';
 import { writeTierSnapshot } from '../../../../src/io/test/tier/cache.js';
-import { privateFixtureFiles } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../fixtures/child.js';
+import { runFixtureGit } from '../../../fixtures/child.js';
 
 /** Point the machine cache at a private folder for one test and restore the caller's setting after it. */
 function privateMachine(t) {

@@ -9,7 +9,7 @@ import { ADMISSION_POLL_FRESH_MS } from '../../../index.js';
 import { recoverUnavailableRunners } from '../../../index.js';
 import { runnerWaitReasons } from '../../../index.js';
 import { takeResource } from '../../../index.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 
 /** Isolate the machine resource SQLite database; `clock` also freezes Date so a poll can advance simulated time. */
 function fixture(t, { clock = false } = {}) {

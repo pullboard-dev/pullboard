@@ -25,6 +25,8 @@ import {
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const PROBE = join(ROOT, 'packages/gate/tests/fixtures/cockpit/probe.mjs');
+/** The CLI fixtures folder the probe loads its launchers from; the package fixture names no app itself. */
+const PROBE_KIT = fileURLToPath(new URL('../../../apps/cli/tests/fixtures/', import.meta.url));
 const DEATH_BUDGET_MS = 10_000; // budget: the item's declared bound for Chrome to exit after its owner dies.
 const READY_BUDGET_MS = 600_000; // budget: hang ceiling for one real Chrome launch, including a wait for a gate browser slot.
 
@@ -104,7 +106,7 @@ describe('a test Chrome never outlives its owner [C7]', { concurrency: true }, (
         const readyFile = join(directory, 'ready');
         const recorded = [];
         t.after(() => { stopRecorded(profile, recorded); rmSync(directory, { recursive: true, force: true }); });
-        const env = { ...process.env, PROBE_LAUNCHER: launcher, PROBE_PROFILE: profile, PROBE_READY: readyFile };
+        const env = { ...process.env, PROBE_KIT, PROBE_LAUNCHER: launcher, PROBE_PROFILE: profile, PROBE_READY: readyFile };
         // The runner case starts the probe the way the gate does, as a test file under packages/gate/src/io/run/tests.js.
         const victim = killed === 'owner'
           ? spawn(process.execPath, [PROBE], { cwd: ROOT, env, stdio: 'ignore' })

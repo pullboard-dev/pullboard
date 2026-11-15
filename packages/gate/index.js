@@ -110,7 +110,8 @@ export { LOAD_BEARING_CEILINGS, LOAD_BEARING_CELLS, loadBearingJudged, loadBeari
 export { freeRunnerSlots } from "./src/io/shards/proof.js";
 export { keepClaimsAlive } from "./src/io/keepalive.js";
 export { beatSeat } from "./src/io/keepalive.js";
-export { gateHealthLines } from "./src/logic/health.js";
+export { gateHealthLines, gateHealthSummary } from "./src/logic/health.js";
+export { redNow } from "./src/logic/red-now.js";
 export { gateHealthReport, runnerTimeReport } from "./src/io/health.js";
 export { runnerTimeLines, runnerTimeSummary } from "./src/logic/runner-time.js";
 export { enforcePartsCap, maintainPartsStore, prunePartsStore } from './src/io/test/action/prune.js';

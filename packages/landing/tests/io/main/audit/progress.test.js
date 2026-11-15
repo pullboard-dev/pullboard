@@ -1,8 +1,8 @@
 /** A red gate's comparison with main reports gate progress while it runs, and nothing outside a driven gate [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../../gate/tests/fixtures/child.js';
 import { fixtureProjectPolicy } from '../../../../../../apps/cli/tests/fixtures/testkit.js';
 import { withGateProgress } from '../../../../../gate/index.js';
 import { compareMainFailures } from '../../../../index.js';

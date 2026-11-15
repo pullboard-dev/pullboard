@@ -15,6 +15,7 @@ import { performance } from 'node:perf_hooks';
 import { once } from 'node:events';
 import { stopSender } from './sender.js';
 import { runCliInProcess } from '../process.js';
+import { runScriptInProcess } from './script.js';
 import {
   cpSync,
   existsSync,
@@ -184,9 +185,9 @@ export function parseCommandDocument(text) {
  * the same upload-derived deadline instead of being killed, because a process cannot kill itself safely.
  * Callers that need a real process (the fetch-trace preload, live streams, signals) keep childResult [C7].
  */
-async function inProcessResult(root, env, args, observedSnapshotUploads, initialSnapshotUploads = DEFAULT_SNAPSHOT_UPLOADS) {
+async function inProcessResult(root, env, args, observedSnapshotUploads, initialSnapshotUploads = DEFAULT_SNAPSHOT_UPLOADS, { source = null } = {}) {
   const startedAt = performance.now();
-  const argv = [...args, '--json'];
+  const argv = source === null ? [...args, '--json'] : ['script'];
   let deadlineMs = cliChildDeadlineMs(initialSnapshotUploads);
   let work = uploadWork(initialSnapshotUploads);
   let timer;
@@ -205,7 +206,7 @@ async function inProcessResult(root, env, args, observedSnapshotUploads, initial
   });
   stalled.catch(() => {});
   let run;
-  try { run = await Promise.race([runCliInProcess(argv, { cwd: root, env }), stalled]); }
+  try { run = await Promise.race([source === null ? runCliInProcess(argv, { cwd: root, env }) : runScriptInProcess(source, { cwd: root, env }), stalled]); }
   finally { finished = true; clearTimeout(timer); }
   const report = (detail = '') => reportFixtureChildFailure({ command: process.execPath, args: ['in-process', ...argv], status: run.code, signal: null,
     elapsedMs: performance.now() - startedAt, stderr: run.stderr, env, detail });
@@ -231,18 +232,15 @@ export async function relayClientFixture(t, { cliChildren, coordinatorModel, acc
   const root = join(scratch, 'repo');
   const home = join(scratch, 'home');
   const privateBin = join(scratch, 'path');
-  const hookBin = join(scratch, 'hook-path');
   const traceFile = join(scratch, 'snapshot-fetch-trace.jsonl');
   const tracePreload = join(scratch, 'snapshot-fetch-trace.mjs');
   mkdirSync(root);
   mkdirSync(home, { mode: 0o700 });
   mkdirSync(privateBin, { mode: 0o700 });
-  mkdirSync(hookBin, { mode: 0o700 });
   const git = process.env.PATH.split(delimiter).map(entry => join(entry, 'git')).find(existsSync);
   assert.ok(git, 'fixture has a git executable');
   symlinkSync(realpathSync(git), join(privateBin, 'git'));
   symlinkSync(realpathSync(process.execPath), join(privateBin, 'node'));
-  symlinkSync(realpathSync(CLI), join(hookBin, 'pullboard'));
   const env = {
     ...process.env, HOME: home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_FIXTURE_ADD_DISTINCT: '1', PULLBOARD_HOME: join(home, '.pullboard'),
     PULLBOARD_MACHINE_HOME: join(scratch, 'machine'), PATH: privateBin,
@@ -445,8 +443,9 @@ globalThis.fetch = function tracedFetch(input, init) {
   const policy = JSON.parse(readFileSync(policyPath, 'utf8'));
   writeFileSync(policyPath, JSON.stringify({ ...policy, landing: { ...policy.landing, manualOverride: true } }, null, 2) + '\n');
   assert.equal(runFixtureChild('git', ['add', 'pullboard.json'], { cwd: root, env, encoding: 'utf8' }).status, 0, 'initialized coordinator policy is staged');
-  const policyCommit = runFixtureChild('git', ['commit', '-q', '-m', 'test(relay): commit initialized coordinator policy'], {
-    cwd: root, env: { ...env, PATH: `${hookBin}:${env.PATH}` }, encoding: 'utf8' });
+  // A setup commit skips the repository's hooks, which cost a Node launch each; no relay case tests them [C7].
+  const policyCommit = runFixtureChild('git', ['-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'test(relay): commit initialized coordinator policy'], {
+    cwd: root, env, encoding: 'utf8' });
   assert.equal(policyCommit.status, 0, policyCommit.failure ?? policyCommit.stderr + policyCommit.stdout);
   assert.equal(runFixtureChild('git', ['remote', 'add', 'origin', 'git@github.com:fixture/repository.git'], { cwd: root, env, encoding: 'utf8' }).status, 0);
   const lane = Object.keys(JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8')).lanes)[0];
@@ -614,9 +613,13 @@ globalThis.fetch = function tracedFetch(input, init) {
   async function script(source) {
     return childResult(root, env, ['--input-type=module', '-e', source]);
   }
+  /** The same script run in this process, awaited: no Node launch, for a script that needs no process of its own [C7,#8251]. */
+  async function scriptLocal(source) {
+    return inProcessResult(root, env, [], undefined, DEFAULT_SNAPSHOT_UPLOADS, { source });
+  }
   return {
     ...serverApi, authDatabase, auth, otherDeviceJoin,
-    root, env, origin, lane, before, linkFile, readLink, keyFile, readKey, copyOwnBoardMetadata, copyOwnKey, privateTreeBytes, cli, cliAt, cliLocal, cliAtLocal, cliWithSnapshotUploads, cliWithSnapshotTrace, startCli, link, requireEngineThree, otherDeviceOff, additionalBoard, script,
+    root, env, origin, lane, before, linkFile, readLink, keyFile, readKey, copyOwnBoardMetadata, copyOwnKey, privateTreeBytes, cli, cliAt, cliLocal, cliAtLocal, cliWithSnapshotUploads, cliWithSnapshotTrace, startCli, link, requireEngineThree, otherDeviceOff, additionalBoard, script, scriptLocal,
     /** Assert the test consumed every declared child budget, with no hidden CLI calls. */
     assertCliChildrenComplete() {
       if (cliChildren) assert.equal(cliChildIndex, cliChildren.length, 'every planned private CLI child ran exactly once');

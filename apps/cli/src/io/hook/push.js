@@ -80,6 +80,21 @@ export function planPushShards(files, times, maxShards = PUSH_MAX_SHARDS) {
 }
 
 /**
+ * How many shards the push gate should offer, from board data: enough for each to hold about targetMs of recorded time
+ * (ceil(totalMs / targetMs)), at least 1, never more than the live runners or PUSH_MAX_SHARDS. Any unknown input (zero,
+ * missing or not finite) gives PUSH_MAX_SHARDS, today's fixed plan. Why: shard and runner counts come from measured
+ * board data, never typed in (U151); a caller passes them only once it reads them.
+ *
+ * @param {{ totalMs?: number, runners?: number, targetMs?: number }} data
+ * @returns {number}
+ */
+export function pushShardCount({ totalMs, runners, targetMs } = {}) {
+  const known = value => Number.isFinite(value) && value > 0;
+  if (!known(totalMs) || !known(runners) || !known(targetMs)) return PUSH_MAX_SHARDS;
+  return Math.max(1, Math.min(PUSH_MAX_SHARDS, Math.floor(runners), Math.ceil(totalMs / targetMs)));
+}
+
+/**
  * How long the gate waits on one held shard: the pushGate.shardMinutes limit, or the heaviest partition's estimated time
  * when that is longer. Why: with at most eight partitions each holds far more than the old 5-minute shards, so a flat
  * 20-minute limit would give up on a healthy run of main.

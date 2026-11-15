@@ -414,6 +414,8 @@ export function jobRequest(db, { job, runner, token }) {
 const MAX_LAND_SHARDS = 32;
 const PROOF_FILE = /^(?!\/)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r]{1,4096}$/u;
 const FULL_SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
+// The ref a land job pins its merged commit under on the trunk remote, which its shards' runners fetch (packages/landing's landingRef).
+const LAND_REF = /^refs\/pullboard\/landing\/[\w.-]{1,200}$/u;
 
 /**
  * Offer a land job's proof as shard jobs on its runner's call: the plan's files split round-robin into one shard per
@@ -421,30 +423,76 @@ const FULL_SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
  * proof's files and command, its cores) and the gate bootstrap to run it, and the board holds the queue and the ledger,
  * so it carries each shard's ledgerHits with the merged commit as source, as offerProofShards does for a gate [P7,C7,#7818].
  *
+ * A shard offered for an earlier merged commit of the same land job (its trunk moved and it merged again) ends first, and a
+ * shard id an earlier merged commit used is not reused: a retried land job never reads the old tree's receipts as its own [C7,#7818].
+ *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ job: string, runner: string, token: string, merged: string, plan: { runner: string, files: string[], cores: number }, gate: { run: string[], entry: string, commits?: string[] }, now?: number }} request
+ * @param {{ job: string, runner: string, token: string, merged: string, ref?: string | null, plan: { runner: string, files: string[], cores: number }, gate: { run: string[], entry: string, commits?: string[] }, now?: number }} request - ref: the landing ref holding the merged commit, which a shard's runner fetches.
  * @returns {{ sharded: boolean, shards: string[] }} Not sharded (no ids) when the plan is not one to split.
  */
-export function offerLandShards(db, { job, runner, token, merged, plan, gate, now = Date.now() }) {
+export function offerLandShards(db, { job, runner, token, merged, ref = null, plan, gate, now = Date.now() }) {
   const held = jobRequest(db, { job, runner, token });
   if (held.kind !== 'land') throw new Refused('JOB_NOT_LAND', `job ${job} is not a land job; only a land job's runner asks for its proof's shards`, 'ask for shards on the land job you hold');
   const files = Array.isArray(plan?.files) ? plan.files : [];
   const cores = Number.isSafeInteger(plan?.cores) && plan.cores > 0 ? plan.cores : 0;
   if (!FULL_SHA.test(merged ?? '')) throw new Refused('LAND_SHARDS', 'a land job\'s shards name the full merged commit they prove', 'send merged as the full sha');
+  if (ref !== null && ref !== undefined && (typeof ref !== 'string' || !LAND_REF.test(ref))) throw new Refused('LAND_SHARDS', 'a land job\'s shards name their landing ref as refs/pullboard/landing/<name>', 'send ref as the landing ref the merged commit was pushed to');
   if (typeof plan?.runner !== 'string' || !plan.runner.trim() || /[\0\n\r]/u.test(plan.runner) || files.some(file => typeof file !== 'string' || !PROOF_FILE.test(file))
     || !Array.isArray(gate?.run) || !gate.run.length || typeof gate.entry !== 'string') throw new Refused('LAND_SHARDS', 'a land job\'s shard plan is { runner, files, cores } and its gate is { run, entry }', 'send both as the proof names them');
   if (!cores || files.length <= cores) return { sharded: false, shards: [] };
   const count = Math.min(MAX_LAND_SHARDS, Math.ceil(files.length / cores));
   const buckets = Array.from({ length: count }, () => []);
   files.forEach((file, at) => buckets[at % count].push(file));
-  const ids = atomically(db, () => buckets.map((part, index) => {
-    const command = `${plan.runner.trim()} ${part.map(file => `'./${file.replaceAll("'", "'\\''")}'`).join(' ')}`;
-    const ledger = ledgerHits(db, part, { budget: 16_000 });
-    return offerJob(db, { id: `${job}:shard:${index + 1}`, kind: SHARD_JOB_KIND, priority: 'gate', needs: held.request?.needs ?? [], candidate: merged, base: held.base, now,
-      request: { run: gate.run, gate: job, commits: gate.commits ?? [], input: { main: held.base, entry: gate.entry, data: { main: held.base, source: merged,
-        shard: { index: index + 1, of: count, files: part, command, ...(ledger ? { ledger } : {}) } } } } }).id;
-  }));
+  const prefix = `${job}:shard:`;
+  const ids = atomically(db, () => {
+    const prior = db.prepare('SELECT job_id, job_candidate, job_step FROM job WHERE job_kind = ? AND substr(job_id, 1, ?) = ?').all(SHARD_JOB_KIND, prefix.length, prefix);
+    endJobs(db, prior.filter(row => row.job_candidate !== merged && row.job_step !== 'done').map(row => row.job_id), { reason: 'the land job proved another merged commit', now });
+    return buckets.map((part, index) => {
+      const named = `${prefix}${index + 1}`, taken = prior.find(row => row.job_id === named);
+      const command = `${plan.runner.trim()} ${part.map(file => `'./${file.replaceAll("'", "'\\''")}'`).join(' ')}`;
+      const ledger = ledgerHits(db, part, { budget: 16_000 });
+      return offerJob(db, { id: taken && taken.job_candidate !== merged ? `${prefix}${merged.slice(0, 12)}-${index + 1}` : named, kind: SHARD_JOB_KIND, priority: 'gate', needs: held.request?.needs ?? [], candidate: merged, base: held.base, now,
+        request: { run: gate.run, gate: job, commits: gate.commits ?? [], ...(ref ? { ref } : {}), input: { main: held.base, entry: gate.entry, data: { main: held.base, source: merged,
+          shard: { index: index + 1, of: count, files: part, command, ...(ledger ? { ledger } : {}) } } } } }).id;
+    });
+  });
   return { sharded: true, shards: ids };
+}
+
+/**
+ * End the unfinished shards of a land job that has ended: its receipt is posted, so no runner should still claim or run them.
+ * Why: a landing red on one shard returns at once, and the board holds the rest, so each would run its files for a result nobody reads [C7,#7818].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job - The land job's id.
+ * @param {{ now?: number }} [options]
+ * @returns {string[]} The shard jobs ended.
+ */
+export function withdrawLandShards(db, job, { now = Date.now() } = {}) {
+  if (db.prepare('SELECT job_kind FROM job WHERE job_id = ?').get(job)?.job_kind !== 'land') return [];
+  const prefix = `${job}:shard:`;
+  const open = db.prepare("SELECT job_id FROM job WHERE job_kind = ? AND substr(job_id, 1, ?) = ? AND job_step <> 'done'").all(SHARD_JOB_KIND, prefix.length, prefix).map(row => row.job_id);
+  return endJobs(db, open, { reason: 'the land job it served ended', now });
+}
+
+/**
+ * The receipts a land job's shards have posted so far, for the land job's holder only: each shard's newest receipt step, or
+ * null while it has none. Why: the runner holding the land job pushes trunk only when every shard is green, so it reads them back through the board API [P7,C7,#7818].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{ job: string, runner: string, token: string, shards: string[] }} request - shards: ids offerLandShards returned.
+ * @returns {{ shards: { job: string, posted: { runner?: string, receipt?: object } | null }[] }}
+ */
+export function readLandShardReceipts(db, { job, runner, token, shards }) {
+  heldBy(db, job, runner, token);
+  const prefix = `${job}:shard:`;
+  if (!Array.isArray(shards) || shards.length > MAX_LAND_SHARDS || shards.some(id => typeof id !== 'string' || !id.startsWith(prefix))) {
+    throw new Refused('LAND_SHARDS', `a land job reads only its own shards, named ${prefix}<n>`, 'send the shard ids the shards action returned');
+  }
+  return { shards: shards.map(id => {
+    const step = jobView(db, id)?.steps?.findLast(row => row.name === 'receipt');
+    return { job: id, posted: step?.payload ?? null };
+  }) };
 }
 
 /**
@@ -550,7 +598,7 @@ export function jobArtifacts(db, job) {
 }
 
 /**
- * Answer one queue call as the board API carries it: `{ action: 'claim' | 'request' | 'renew' | 'shards' | 'release' | 'progress' | 'artifact' | 'receipt', ... }`.
+ * Answer one queue call as the board API carries it: `{ action: 'claim' | 'request' | 'renew' | 'shards' | 'shardReceipts' | 'release' | 'progress' | 'artifact' | 'receipt', ... }`.
  * The queue answers only while the machine runs runner jobs by pull, so today's path never sees it. A claim also names
  * the board's trunk remote, the one place a runner fetches the candidate from, kept apart from the board host [P7].
  *
@@ -572,15 +620,17 @@ export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => n
   }
   if (action === 'request') return jobRequest(db, { job, runner, token });
   if (action === 'renew') return renewJob(db, { job, runner, token, now });
-  if (action === 'shards') return offerLandShards(db, { job, runner, token, merged: body.merged, plan: body.plan, gate: body.gate, now });
+  if (action === 'shardReceipts') return readLandShardReceipts(db, { job, runner, token, shards: body.shards });
+  if (action === 'shards') return offerLandShards(db, { job, runner, token, merged: body.merged, ref: body.ref, plan: body.plan, gate: body.gate, now });
   if (action === 'release') return releaseJob(db, { job, runner, token, reason, backoff, draining: drained().includes(runner), now });
   if (action === 'progress') return postProgress(db, { job, runner, token, progress, now });
   if (action === 'artifact') return postArtifact(db, { job, runner, token, artifact: body.artifact, now });
   if (action === 'receipt') {
     const posted = postReceipt(db, { job, runner, token, receipt, now });
+    if (posted.recorded) withdrawLandShards(db, job, { now });
     if (!posted.recorded || !onReceipt) return posted;
     try { return { ...posted, applied: onReceipt(posted) }; }
     catch (error) { if (!error?.code) throw error; return { ...posted, applied: { applied: false, outcome: 'refused', reason: `${error.code}: ${error.message}` } }; }
   }
-  throw new Refused('JOB_ACTION', 'a job queue call names its action: claim, request, renew, shards, release, progress, artifact or receipt');
+  throw new Refused('JOB_ACTION', 'a job queue call names its action: claim, request, renew, shards, shardReceipts, release, progress, artifact or receipt');
 }

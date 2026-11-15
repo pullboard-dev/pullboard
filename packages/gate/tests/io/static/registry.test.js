@@ -7,7 +7,7 @@ import { STATIC_TREE_CHECKS } from '../../../src/io/static/registry.js';
 import {
   privateFixtureFiles,
   runFixtureGit,
-} from '../../../../../apps/cli/tests/fixtures/child.js';
+} from '../../fixtures/child.js';
 
 /** The app paths the CLI static entry hands the registry, as that entry declares them. */
 const STATIC_APPS = { cliCell: 'apps/cli', cliIndex: 'apps/cli/index.js', cliHelp: 'apps/cli/src/logic/help.js' };

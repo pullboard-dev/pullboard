@@ -5,7 +5,7 @@ import { chmodSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { requireRunnerTools } from '../../../src/io/pull/serve.js';
 
 /** A folder holding executable stand-ins for the named tools. */
