@@ -212,7 +212,7 @@ export async function mutateCell(root, cell, { all = false, base = 'main', extra
       results.push({ file, line: fault.line, operator: fault.operator, before: fault.before, after: fault.after, caught: caughtBy.length > 0, caughtBy });
     }
     const caught = results.filter((row) => row.caught).length;
-    return { cell: name, base: all ? null : base, all, redBefore, tests: Object.values(tally), faults: results, caught, missed: results.length - caught, skipped, capped };
+    return { cell: name, base: all ? null : base, all, redBefore, tests: Object.values(tally).filter((row) => row.total > 0 && !redBefore.includes(row.file)), faults: results, caught, missed: results.length - caught, skipped, capped };
   } finally {
     rmSync(temp, { recursive: true, force: true });
   }
