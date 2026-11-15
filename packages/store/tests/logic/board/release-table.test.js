@@ -34,6 +34,8 @@ function boardFor(t, record) {
   const { item, actor, history } = record.snapshot;
   const sql = board.db;
   const stamp = '2026-01-01T00:00:00.000Z';
+  const guards = sql.prepare("SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'machine%'").all();
+  for (const { name } of sql.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'machine%'").all()) sql.exec(`DROP TRIGGER "${name}"`);
   const seat = (id, route) => sql.prepare('INSERT OR IGNORE INTO agent (agent_id, agent_lane, agent_path, agent_route, agent_created_at) VALUES (?, ?, ?, ?, ?)').run(id, 'core', `/seat/${id}`, route ?? 'strong', stamp);
   seat(actor.id, actor.route);
   if (item.owner) seat(item.owner, 'strong');
@@ -45,6 +47,7 @@ function boardFor(t, record) {
   for (const e of history) sql.prepare('INSERT INTO event (event_id, event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?, ?)').run(e.id, e.at, e.by, e.kind, item.id, JSON.stringify(e.detail));
   if (item.status === 'submitted') sql.prepare('INSERT INTO event (event_id, event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?, ?)')
     .run(Math.max(0, ...history.map(e => e.id)) + 1, stamp, item.reviewer, 'reserve', item.id, JSON.stringify({ reviewer: item.reviewer, until: FAR }));
+  for (const { sql: guard } of guards) sql.exec(guard);
   return board;
 }
 
