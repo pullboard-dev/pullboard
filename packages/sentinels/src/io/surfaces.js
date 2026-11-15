@@ -328,7 +328,7 @@ function runnerJobRows(host, text, now) {
     const label = testFile ? testFile.split('/').slice(-2).join('/') : descendants.length ? `${descendants[0].command.split(' ')[0].split('/').at(-1)} without a script` : 'no job process';
     return { surface: 'runner-job', key: `${host}:${label}`, holder: `${host} worker ${worker.pid}: ${label}`, pid: worker.pid, ageMs: worker.ageMs ?? 0,
       context: testFile ?? null, detail: `${descendants.length} child process${descendants.length === 1 ? '' : 'es'}; job folder ${folder ? `~${folder}` : 'none'}${worker.ppid === 1 ? '; orphaned (ppid 1)' : ''}`,
-      waiters: [], evidence: `ssh ${host} ps -p ${worker.pid}` };
+      waiters: [], evidence: `ssh ${host} ps -p ${worker.pid}`, host, working: descendants.length > 0 && worker.ppid !== 1 };
   });
 }
 
