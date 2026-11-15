@@ -9,8 +9,8 @@ import { createHash } from 'node:crypto';
 import { loadDoctrine } from '../../../doctrine/index.js';
 import { agentDoctrine } from '../../../doctrine/index.js';
 import { foreignNodeOptions } from '../../../gate/index.js';
-import { committedReader } from '../../../git/index.js';
 import { headCommit } from '../../../git/index.js';
+import { tryGit } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { verifiedPasskeyRowDecision } from '../../../person/index.js';
 import { itemPolicy } from '../../../sandbox/index.js';
@@ -30,6 +30,22 @@ import { wording } from '../../../verify/index.js';
 import { machineVerification } from '../../../verify/index.js';
 import { liveCriterionSpec } from '../../../doctrine/index.js';
 import { mainCriterionFacts } from '../../../doctrine/index.js';
+
+/**
+ * A reader of repository files as committed at one commit.
+ * Why: the frozen test hashes cover committed content, never a dirty working file, read the same way at claim and at submit [C7,V4].
+ *
+ * @param {string} root a checkout of the repository
+ * @param {string | null} commit the commit to read; null reads nothing
+ * @returns {(path: string) => string | null} file text, or null when the file is absent at that commit
+ */
+export function committedReader(root, commit) {
+  return path => {
+    if (!commit) return null;
+    const shown = tryGit(root, ['show', `${commit}:${path}`]);
+    return shown.status === 0 ? shown.stdout : null;
+  };
+}
 
 /**
  * Freeze the bar alone: title, criterion, check and cited spec rows, never pullboard.json [B4,R2].

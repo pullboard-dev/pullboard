@@ -1,5 +1,6 @@
 import { parseSpec } from '../../../../../packages/spec/light.js';
 import { submitReferenceReminders } from '../../../../../packages/spec/index.js';
+import { committedReader } from '../../../../../packages/moves/index.js';
 import { requireKernelApproval } from '../../../../../packages/verify/index.js';
 import { testHashProblem } from '../../../../../packages/verify/index.js';
 import { itemFolderIdentity } from '../item/folder.js';
@@ -8,7 +9,6 @@ import { seatRoot } from '../item/folder/identity.js';
 import { writeItemMarker } from '../item/folder/identity.js';
 import { pushHostedItemBranch } from '../../../../../packages/runners/index.js';
 import { checkoutBranch } from '../../../../../packages/git/index.js';
-import { committedReader } from '../../../../../packages/git/index.js';
 import { heartbeatCommand } from '../presence.js';
 import { mergeSubmissionMain } from '../../../../../packages/merge/index.js';
 import { requireNonEmptySubmit } from '../empty.js';
