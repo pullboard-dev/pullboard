@@ -9230,6 +9230,16 @@
       "because": "a recovered descriptor with no durable receipt stays pending and is never taken as an outcome, and a mismatched ciphertext is not a reply, in the outbox cell against a stand-in relay"
     },
     {
+      "file": "apps/cli/journeys/land/cadence.test.js",
+      "specs": [
+        "E30",
+        "E10",
+        "E29"
+      ],
+      "coveredBy": "packages/landing/tests/logic/cadence.test.js",
+      "because": "the cadence policy's validation and its two exact due boundaries (age and count) are proven in the landing cell on a board seeded with real verdict rows, without submitting items through the CLI"
+    },
+    {
       "file": "apps/cli/journeys/relay/client/order.test.js",
       "specs": [
         "H16",

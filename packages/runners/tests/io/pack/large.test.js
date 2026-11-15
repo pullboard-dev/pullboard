@@ -8,7 +8,7 @@ import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { historyPack } from '../../../src/io/pack.js';
 import { MAX_BLOB_BYTES } from '../../../src/io/source/scan.js';
-import { fixtureCommittedGraph } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureCommittedGraph } from '../../../../gate/tests/fixtures/testkit.js';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { runFixtureChild } from '../../../../gate/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
