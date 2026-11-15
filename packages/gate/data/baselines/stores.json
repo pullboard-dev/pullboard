@@ -835,6 +835,10 @@
       "kind": "json",
       "owner": "packages/landing/src/io/pause.js"
     },
+    "pull.json": {
+      "kind": "json",
+      "owner": "packages/transport/src/io/pull/store.js"
+    },
     "pullboard-activity.json": {
       "kind": "json",
       "owner": "packages/activity/src/io/inbox.js"
