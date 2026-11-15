@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
+import { diagnosisBrief } from '../../../../items/index.js';
 import { boardReleaseEngine } from '../../../../moves/index.js';
 import { readReleaseRecords } from '../../../../moves/index.js';
 import { runTable } from '../../../../moves/index.js';
@@ -45,6 +46,10 @@ function boardFor(t, record) {
     VALUES (?, 'core', 'recorded', ?, ?, ?, ?, ?, ?, ?, 'coordinator', ?, ?)`).run(id, row.route ?? 'strong', row.status, row.owner ?? null, row.leaseUntil ?? null, (row.after ?? []).join(','), row.holdReason ?? null, row.holdBy ?? null, stamp, stamp);
   for (const [id, other] of Object.entries(record.snapshot.items)) if (Number(id) !== item.id) file(Number(id), other);
   file(item.id, item);
+  // The replay records every release as holding a diagnosed claim, so the board holds the matching diagnosis for the item.
+  const diagnosis = { criterion: 'the bar', check: 'a check', files: ['a.js'], change: 'the change', testCase: 'the test' };
+  sql.prepare('UPDATE item SET item_criterion = ?, item_check = ?, item_brief = ? WHERE item_id = ?').run(diagnosis.criterion, diagnosis.check, diagnosisBrief(diagnosis), item.id);
+  sql.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`item_diagnosis:${item.id}`, JSON.stringify(diagnosis));
   for (const e of history) sql.prepare('INSERT INTO event (event_id, event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?, ?)').run(e.id, e.at, e.by, e.kind, item.id, JSON.stringify(e.detail));
   if (item.status === 'submitted') sql.prepare('INSERT INTO event (event_id, event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?, ?)')
     .run(Math.max(0, ...history.map(e => e.id)) + 1, stamp, item.reviewer, 'reserve', item.id, JSON.stringify({ reviewer: item.reviewer, until: FAR }));
