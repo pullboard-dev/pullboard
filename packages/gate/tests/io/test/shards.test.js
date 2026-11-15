@@ -10,7 +10,7 @@ import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/
 import { runFixtureChild } from '../../fixtures/child.js';
 import { HOST } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { fixtureMachineSettings } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureMachineSettings } from '../../fixtures/testkit.js';
 
 const HOSTS = [HOST, `${HOST}-second`];
 const FILES = ['test/a.test.js', 'test/b.test.js'];

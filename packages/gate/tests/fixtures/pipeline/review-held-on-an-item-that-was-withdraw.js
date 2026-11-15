@@ -19,7 +19,8 @@ import {
 
 const { createE2eHelpers } = await from('apps/cli/tests/fixtures/e2e.js');
 const { makeLandProjectFixtures } = await from('apps/cli/tests/fixtures/land/project.js');
-const { withFixtureBoard, joinFixtureSeat } = await from('apps/cli/tests/fixtures/testkit.js');
+const { joinFixtureSeat } = await from('packages/gate/tests/fixtures/testkit.js');
+const { withFixtureBoard } = await from('packages/board/tests/fixtures/board.js');
 const { reviewJobId, jobView } = await from('packages/jobs/index.js');
 const { getItem } = await from('packages/store/index.js');
 const { stopFixtureLocalRunner } = await from('apps/cli/tests/fixtures/runner/local-stop.js');

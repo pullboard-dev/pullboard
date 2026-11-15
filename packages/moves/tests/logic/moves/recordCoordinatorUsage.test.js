@@ -7,7 +7,7 @@ import { prepareEngineMove } from '../../../../state/index.js';
 import { MOVE_REGISTRY } from '../../../index.js';
 import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
-import { FIXTURE_MODEL } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+import { FIXTURE_MODEL } from '../../../../gate/tests/fixtures/testkit.js';
 
 const RECORDS = [{ model: FIXTURE_MODEL, inputTokens: 9, outputTokens: 4, wallMs: 0, knownInputTokens: 9, knownOutputTokens: 4,
   freshInputTokens: 2, cacheReadInputTokens: 5, cacheWriteInputTokens: 2, unknownReasons: [] }];
