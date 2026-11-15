@@ -2467,6 +2467,7 @@
     "keys->store",
     "landing->gate",
     "landing->git",
+    "landing->kernel",
     "landing->pin",
     "landing->store",
     "apps/cli->apps/lib/src",
