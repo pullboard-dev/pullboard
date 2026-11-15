@@ -8,6 +8,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { privateFixtureFiles } from './child.js';
+import { runFixtureChildAsync } from './child.js';
 import { GRANDFATHERED_DIRECT_SPAWNERS } from './child-tests-grandfathered.js';
 
 export { GRANDFATHERED_DIRECT_SPAWNERS };
@@ -73,6 +74,25 @@ export function runChildTests(files, { cwd = process.cwd(), env = process.env, a
   const tapFile = join(dir, 'tap.txt');
   const child = spawnSync(process.execPath, ['--test', '--test-reporter=tap', `--test-reporter-destination=${tapFile}`, '--test-reporter=spec', '--test-reporter-destination=stdout', ...args, ...files],
     { cwd, env: clean, encoding: 'utf8', maxBuffer, ...(timeout ? { timeout } : {}) });
+  const tap = existsSync(tapFile) ? readFileSync(tapFile, 'utf8') : '';
+  rmSync(dir, { recursive: true, force: true });
+  // Node reports a file that defines no test as one result named after the file; that is not a test that ran.
+  const cases = [...tap.matchAll(/^(not )?ok \d+ - (.+)$/gmu)].filter(row => !/\.(?:c|m)?js$/u.test(row[2].trim()));
+  const result = { status: child.status, tests: cases.length, pass: cases.filter(row => !row[1]).length, fail: cases.filter(row => row[1]).length, stdout: child.stdout, stderr: child.stderr };
+  // A file that fails to load reports a failing file-level row and a non-zero status: that failure is visible, not a silent nothing.
+  const loadFailed = child.status !== 0 && /^not ok \d+ - .+\.(?:c|m)?js$/mu.test(tap);
+  if (result.tests === 0 && !loadFailed) throw new Error(`the child test run reported zero tests for ${files.join(' ')}; it ran nothing (status ${child.status}). ${child.stderr.slice(0, 300)}`);
+  return result;
+}
+
+/** The same as runChildTests without blocking this process, so two child runs can overlap and share one wall clock. */
+export async function runChildTestsAsync(files, { cwd = process.cwd(), env = process.env, args = [], timeout, maxBuffer = 32 * 1024 * 1024 } = {}) {
+  const clean = { ...env };
+  delete clean.NODE_TEST_CONTEXT;
+  const dir = privateFixtureFiles('pullboard-child-tap-').root;
+  const tapFile = join(dir, 'tap.txt');
+  const child = await runFixtureChildAsync(process.execPath, ['--test', '--test-reporter=tap', `--test-reporter-destination=${tapFile}`, '--test-reporter=spec', '--test-reporter-destination=stdout', ...args, ...files],
+    { cwd, env: clean, encoding: 'utf8', maxBuffer });
   const tap = existsSync(tapFile) ? readFileSync(tapFile, 'utf8') : '';
   rmSync(dir, { recursive: true, force: true });
   // Node reports a file that defines no test as one result named after the file; that is not a test that ran.
