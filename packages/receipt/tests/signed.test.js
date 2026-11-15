@@ -31,3 +31,13 @@ test('receipt.signed.binding: [C7] a result signed for one attempt, base, toolin
     assert.deepEqual([other.valid, other.code], [false, 'import.invalid'], JSON.stringify(change));
   }
 });
+
+test('receipt.signed.types: [C7] a public key or signature of the wrong type is import.invalid even when its text would pass', () => {
+  const signature = signed(bound);
+  const wrongKey = checkSignedResult({ bytes, signature, publicKey: [publicKey], ...bound });
+  assert.deepEqual([wrongKey.valid, wrongKey.code, wrongKey.reason], [false, 'import.invalid', 'the board holds no registered key for this runner']);
+  const wrongSignature = check([signature], bound);
+  assert.deepEqual([wrongSignature.valid, wrongSignature.code, wrongSignature.reason], [false, 'import.invalid', 'the result file is unsigned']);
+  assert.equal(check('', bound).reason, 'the result file is unsigned');
+  assert.equal(check(signature, bound).valid, true);
+});
