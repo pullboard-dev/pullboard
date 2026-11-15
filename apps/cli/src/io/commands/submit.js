@@ -281,7 +281,9 @@ function restoreMergedHead(root, before) {
 
 export async function submitHere(ctx, id, infra, companionInput = null) {
   const { root } = ctx.info;
-  const inspectClauses = (submitHandoffPolicy(ctx) ?? mainPolicy(root)).config.verify.inspectClauses === true;
+  const submitVerify = (submitHandoffPolicy(ctx) ?? mainPolicy(root)).config.verify;
+  const inspectClauses = submitVerify.inspectClauses === true;
+  const failBefore = submitVerify.failBefore === true;
   const recovered = relayRecovered(root, {}, ctx.io);
   if (recovered?.operation === 'submit' && recovered.args[0] === id) {
     const preflight = withBoard(ctx, (board) => {
@@ -322,7 +324,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     const clauseProblem = inspectClauses ? authorizationStep('clause-inspection', () => clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateTestFiles(root, item), head: headCommit(root) })) : null;
     if (clauseProblem) throw clauseProblem;
     // A [test] clause also needs a recorded run that failed on an assertion at the item's base (fail-before, pass-after) [C7].
-    const receiptProblem = inspectClauses ? clauseReceiptProblem(item, { gateFiles: gateTestFiles(root, item), baseRows: store.recordedBaseRows(board, item.item_claim_head), baseCommit: item.item_claim_head }) : null;
+    const receiptProblem = inspectClauses && failBefore ? clauseReceiptProblem(item, { gateFiles: gateTestFiles(root, item), baseRows: store.recordedBaseRows(board, item.item_claim_head), baseCommit: item.item_claim_head }) : null;
     if (receiptProblem) throw new Refused('CLAUSE_UNTICKED', receiptProblem.message, receiptProblem.next);
     // A clause whose only evidence cites an earlier head is named before the gate queues, so the builder refreshes it (#3752).
     if (inspectClauses) for (const line of staleHeadLines(item, store.itemThread(board, id), headCommit(root))) ctx.io.say(line);

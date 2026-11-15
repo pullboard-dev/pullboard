@@ -237,6 +237,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `labels` | `version:number`, `labels:array`, `unmet:array` |
 | `maintenance` | `version:number`, `enabled:boolean`, `counts:object`, `pruned:number`, `archived:number` |
 | `red` | `version:number`, `file:string` |
+| `rules` | `version:number`, `rulesVersion:number`, `judged:number`, `agreed:number`, `rate:number`, `disagreements:array`, `disagreementCount:number`, `kinds:array`, `final:object`, `readiness:object` |
 | `search` | `version:number`, `query:string`, `matches:array` |
 | `seats` | `version:number`, `seats:array` |
 | `stats agents` | `version:number`, `agents:object` |
