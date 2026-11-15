@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { fixtureBoard } from '../../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../../board/tests/fixtures/board.js';
 import { classifyGateRed } from '../../../drive/index.js';
 import { mainRedLookup } from '../../../drive/index.js';
 import { MAIN_TEST_JOB } from '../../../drive/index.js';
