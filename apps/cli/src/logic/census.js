@@ -102,10 +102,12 @@ export function shardRows({ files, status, host, label, output, outcomes, times 
   // The watchdog names the file as a JSON string, absolute inside the shard's checkout.
   const stopped = [...String(output).matchAll(/run-tests: (?:HUNG|TIMEOUT) file ("(?:[^"\\]|\\.)*")/gu)].flatMap((match) => { try { return [JSON.parse(match[1])]; } catch { return []; } });
   const isHung = file => stopped.some(path => path === file || path.endsWith(`/${file}`));
-  // A red shard that printed no TAP totals never ran its tests (a missing engine, a crash), so it vouches for no file.
-  const ran = /^# tests \d+/mu.test(String(output)) || status === 'green';
   // In a red shard a file is green only on its own pass record; a file with no row of its own is no-result, never green.
   const passed = new Set(outcomes.filter(row => row.passed).map(row => row.file));
+  // A red shard with neither TAP totals nor a pass record never ran its tests (a missing engine, a crash), so it vouches
+  // for no file. A pass record proves the run too: a pulled receipt clips its log to fit, which can cut the totals line
+  // while the outcomes keep every file's result, and 533 of 624 census rows read no-result that way [C7,#8293].
+  const ran = /^# tests \d+/mu.test(String(output)) || status === 'green' || passed.size > 0;
   const cut = /^Landing gate stopped early|Landing shard .* stopped by the landing/mu.test(String(output));
   return files.map((file) => {
     const ms = times[file];
