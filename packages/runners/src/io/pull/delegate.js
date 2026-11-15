@@ -62,7 +62,12 @@ export async function runPulled(root, command, options, ports = {}) {
   const dispatchStart = Date.now();
   const { signal, ...plainOptions } = options;
   const call = ports.call ?? shortController;
-  const custody = (ports.controllerDeadline ?? controllerDeadline)(options.metadata?.resourceOwner, process.pid, root);
+  // One shared tooling export serves the trip's submit, serve-need and finish controllers: each short controller
+  // releases its export, and the last release deleted it, so every trip exported the tooling tree three times (#8129).
+  const held = ports.call ? null : committedRunnerController(fileURLToPath(new URL('../../../../../', import.meta.url)), { shared: true });
+  let custody;
+  try { custody = (ports.controllerDeadline ?? controllerDeadline)(options.metadata?.resourceOwner, process.pid, root); }
+  catch (failure) { held?.cleanup(); throw failure; }
   const span = { startedAt: dispatchStart, host: options.runner?.host ?? null, kind: options.metadata?.kind ?? null };
   const spawned = Date.now();
   const attempt = async () => {
@@ -70,7 +75,7 @@ export async function runPulled(root, command, options, ports = {}) {
     const local = new AbortController();
     const abort = () => local.abort();
     signal?.addEventListener('abort', abort, { once: true });
-    let submitted, readyAt = null, serving = null, serveFailure = null, finished = false;
+    let submitted, readyAt = null, needAt = null, serving = null, serveFailure = null, finished = false;
     try {
       submitted = await call('--submit', { root, command, options: plainOptions, parentPid: process.pid }, { root, runner: options.runner, signal });
       // The job exists on the runner only now: a status mirror that began earlier may not list it, and is never read as a lost job.
@@ -91,6 +96,7 @@ export async function runPulled(root, command, options, ports = {}) {
           return null;
         },
         onNeed: (id, inventory) => {
+          needAt ??= Date.now();
           serving ??= call('--serve-need', { id, inventory }, { root, runner: options.runner }).catch(failure => { serveFailure = failure; throw failure; });
           return serving;
         },
@@ -105,8 +111,11 @@ export async function runPulled(root, command, options, ports = {}) {
       // A waiter's own fault or a failed pack upload ends the job as canceled; the fault is what the caller sees.
       const reason = signal?.aborted || serveFailure || end.end === 'error' ? 'canceled' : end.end === 'result' ? 'result' : end.finishReason;
       finished = true;
+      const doneAt = Date.now();
       const result = await finish({ reason, exit: end.job?.exit, unavailable: end.unavailable, cancellation: end.cancellation }).catch(failure => { throw serveFailure ?? end.error ?? failure; });
       if (serveFailure) throw serveFailure;
+      // The waiter's own marks complete the job's, so roundTripProfile can name every phase of the trip (#8129).
+      if (result?.phases) result.phases = { ...result.phases, dispatch: dispatchStart, submitted: queuedAt, ...(needAt ? { need: needAt } : {}), done: doneAt, end: Date.now() };
       return result;
     } catch (failure) {
       if (submitted && !finished) { finished = true; await call('--finish', { id: submitted.id, reason: 'canceled', readyAt }, { root, runner: options.runner }).catch(() => {}); }
@@ -126,7 +135,7 @@ export async function runPulled(root, command, options, ports = {}) {
   } catch (failure) {
     recordRunnerDispatch({ ...span, endedAt: Date.now(), error: failure });
     throw failure;
-  } finally { custody.close(); }
+  } finally { custody.close(); held?.cleanup(); }
 }
 
 /** Isolate asynchronous execution: the controller path by default, the pull path under the machine setting gate.runnerDispatch. */
