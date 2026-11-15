@@ -105,24 +105,24 @@ test('real spec check refuses future grammar in either configured file [A5]', as
   assert.equal((await box.spec('check')).status, 0);
 });
 
-test('spec check names both locations when ids repeat within or across configured files [A5]', (t) => {
+test('spec check names both locations when ids repeat within or across configured files [A5]', async (t) => {
   const practiceRow = '# Practice\n\n## P\n- P1 [draft] A local rule.\n';
   const crossFile = specBox(t, { practice: practiceRow });
   writeFileSync(join(crossFile.root, crossFile.practiceName), practiceRow.replace('P1', 'G1'));
-  const cross = crossFile.run('check');
+  const cross = await crossFile.spec('check');
   assert.equal(cross.status, 1);
   assert.match(cross.stdout, /SPEC\.md:6 G1 error: duplicate id; also appears at PRACTICE\.md:4/u);
   assert.match(cross.stdout, /PRACTICE\.md:4 G1 error: duplicate id; also appears at SPEC\.md:6/u);
 
   const duplicateSpec = specBox(t);
   writeFileSync(join(duplicateSpec.root, 'SPEC.md'), SPEC.replace('- G1.2 [draft, aim]', '- G1 [draft, aim]'));
-  const duplicateSpecResult = duplicateSpec.run('check');
+  const duplicateSpecResult = await duplicateSpec.spec('check');
   assert.equal(duplicateSpecResult.status, 1);
   assert.match(duplicateSpecResult.stdout, /SPEC\.md:7 G1 error: duplicate id; also appears at SPEC\.md:6/u);
 
   const duplicatePractice = specBox(t, { practice: practiceRow });
   writeFileSync(join(duplicatePractice.root, 'PRACTICE.md'), practiceRow.replace('- P1 [draft] A local rule.', '- P1 [draft] First.\n- P1 [draft] Second.'));
-  const duplicatePracticeResult = duplicatePractice.run('check');
+  const duplicatePracticeResult = await duplicatePractice.spec('check');
   assert.equal(duplicatePracticeResult.status, 1);
   assert.match(duplicatePracticeResult.stdout, /PRACTICE\.md:5 P1 error: duplicate id; also appears at PRACTICE\.md:4/u);
 });
