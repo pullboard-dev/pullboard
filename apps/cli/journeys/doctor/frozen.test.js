@@ -33,7 +33,7 @@ import { assertSpecCorrectionRefreezesCitations } from "../../tests/fixtures/ref
 import {
   recordFixtureAcceptance,
   recordFixtureSubmission,
-} from '../../tests/fixtures/kit/lifecycle.js';
+} from '../../tests/fixtures/board/lifecycle.js';
 import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
 import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 
