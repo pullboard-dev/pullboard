@@ -1,5 +1,5 @@
 /**
- * The pre-push full gate as pull shard jobs: the gate's tracked test files split by recorded weight, heaviest first
+ * The pre-push full gate as pull shard jobs: the gate's tracked test files split into at most eight partitions balanced by recorded time
  * (planPushShards), each shard the whole gate command over its own files (valueGateCommand), offered as a gate-shard
  * job with no item that any free runner pulls. The hook waits until the last shard posts and is red when any shard is.
  *
@@ -21,14 +21,12 @@ import { withBoardRead } from '../context.js';
 
 /** Budget: a shard a runner holds must post within pushGate.shardMinutes, 20 by default like the runner's per-job ceiling (packages/runners RUN_CEILING_MS) [#7810]. */
 const DEFAULT_SHARD_MINUTES = 20;
-/** Budget: each shard's summed recorded file time stays under this quarter of the default limit, so the heaviest shard still finishes when its runner claims it late (#7790). */
-export const PUSH_SHARD_BUDGET_MS = DEFAULT_SHARD_MINUTES * 60_000 / 4;
+/** Budget: the push gate offers at most this many shards, each a balanced partition of the gate's files by recorded time [C7,#8047]. */
+export const PUSH_MAX_SHARDS = 8;
 /** Budget: the time assumed for a non-journey test file with no record, about 1.5 times the 6.6 s mean wall per file of the 14 Nov census chunks. */
 export const PUSH_DEFAULT_FILE_MS = 10_000;
 /** Budget: the time assumed for an apps/<app>/journeys file with no record, about twice the 29.5 s mean wall per journey of the 14 Nov census chunks (near their 90th percentile). */
 export const PUSH_DEFAULT_JOURNEY_MS = 60_000;
-/** Budget: at most this many files in one shard, like the 40-file census jobs that finished, so cheap files never pile past what a runner's workers clear. */
-export const PUSH_MAX_SHARD_FILES = 40;
 /** Budget: the waiting hook says its shards are still wanted every 30 s, well inside the 5 minutes after which a claim ends them (PUSH_ALIVE_MS). */
 const ALIVE_MS = 30_000;
 /** Budget: the waiting hook reads its shard rows once a second, one small local read. */
@@ -52,19 +50,18 @@ export function pushShardLimitMs(config, env = process.env) {
 }
 
 /**
- * Split the gate's files into shards whose summed recorded time stays under PUSH_SHARD_BUDGET_MS, heaviest file first
- * (first-fit decreasing), so shard 1 holds the heaviest, and no shard holds over PUSH_MAX_SHARD_FILES files. A file with
- * no record counts PUSH_DEFAULT_JOURNEY_MS under a journeys folder, else PUSH_DEFAULT_FILE_MS; one file over the budget
- * gets a shard of its own. Never fewer than two shards for two files. Why by time, not by count: 18 shards of 10 minutes
- * each claimed late by busy runners, and the heaviest ran past the job ceiling (#7790). Why journeys apart: after the
- * Cells move only 144 of 2,421 files had a record, and ~119 journeys at 5 s each packed one shard past 40 minutes.
+ * Split the gate's files into at most PUSH_MAX_SHARDS partitions balanced by recorded time: heaviest file first, each into
+ * the lightest partition so far (longest-processing-time first), so partition 1 starts with the heaviest file. A file with
+ * no record counts PUSH_DEFAULT_JOURNEY_MS under a journeys folder, else PUSH_DEFAULT_FILE_MS. Every file lands in exactly
+ * one partition; two files make two partitions, never fewer. Why a fixed few: a time budget plus a file cap gave dozens of
+ * shards on main, each claimed late by a busy runner (#7790); a few balanced partitions keep every runner busy to the end.
  *
  * @param {string[]} files
  * @param {Record<string, number>} times - Last wall time in ms by repository-relative path (a leading ./ is ignored).
- * @param {number} [budgetMs]
+ * @param {number} [maxShards]
  * @returns {{ files: string[], weight: number }[]}
  */
-export function planPushShards(files, times, budgetMs = PUSH_SHARD_BUDGET_MS) {
+export function planPushShards(files, times, maxShards = PUSH_MAX_SHARDS) {
   const weight = file => {
     const path = file.replace(/^\.\//u, '');
     const ms = times[path];
@@ -72,19 +69,28 @@ export function planPushShards(files, times, budgetMs = PUSH_SHARD_BUDGET_MS) {
     return /^apps\/[^/]+\/journeys\//u.test(path) ? PUSH_DEFAULT_JOURNEY_MS : PUSH_DEFAULT_FILE_MS;
   };
   const ordered = [...new Set(files)].sort((a, b) => weight(b) - weight(a) || a.localeCompare(b));
-  const shards = [];
+  const shards = Array.from({ length: Math.min(Math.max(1, Math.floor(maxShards)), ordered.length) }, () => ({ files: [], weight: 0 }));
   for (const file of ordered) {
-    const ms = weight(file);
-    const room = shards.find(shard => shard.weight + ms < budgetMs && shard.files.length < PUSH_MAX_SHARD_FILES);
-    if (room) { room.files.push(file); room.weight += ms; } else shards.push({ files: [file], weight: ms });
-  }
-  if (shards.length < 2 && ordered.length >= 2) {
-    const halves = [[], []];
-    ordered.forEach((file, at) => halves[at % 2].push(file));
-    return halves.map(half => ({ files: half.sort((a, b) => a.localeCompare(b)), weight: half.reduce((sum, file) => sum + weight(file), 0) }));
+    const lightest = shards.reduce((best, shard) => (shard.weight < best.weight ? shard : best));
+    lightest.files.push(file);
+    lightest.weight += weight(file);
   }
   for (const shard of shards) shard.files.sort((a, b) => a.localeCompare(b));
-  return shards;
+  return shards.sort((a, b) => b.weight - a.weight || a.files[0].localeCompare(b.files[0]));
+}
+
+/**
+ * How long the gate waits on one held shard: the pushGate.shardMinutes limit, or the heaviest partition's estimated time
+ * when that is longer. Why: with at most eight partitions each holds far more than the old 5-minute shards, so a flat
+ * 20-minute limit would give up on a healthy run of main.
+ *
+ * @param {{ weight: number }[]} shards
+ * @param {{ pushGate?: { shardMinutes?: number } } | undefined} config
+ * @param {Record<string, string|undefined>} [env]
+ * @returns {number} Milliseconds.
+ */
+export function pushPlanLimitMs(shards, config, env = process.env) {
+  return Math.max(pushShardLimitMs(config, env), ...shards.map(shard => shard.weight));
 }
 
 /**
@@ -94,18 +100,20 @@ export function planPushShards(files, times, budgetMs = PUSH_SHARD_BUDGET_MS) {
  *
  * @param {string} root
  * @param {{ gate: string }} config
- * @returns {Promise<{ main: string, source: string, shards: { files: string[], command: string }[] } | null>}
+ * @returns {Promise<{ main: string, source: string, shards: { files: string[], command: string }[], limitMs: number } | null>}
  */
 export async function pushShardPlan(root, config) {
   if (runnerDispatchMode() !== 'pull' || !isClean(root) || untracked(root).length) return null;
   const { readFileTimes, trackedDefaultTestFiles, valueGateCommand } = await import('../../../../../packages/gate/index.js');
   const files = trackedDefaultTestFiles(root, process.env);
   if (files.length < 2 || !valueGateCommand(root, config.gate, files)) return null;
-  const shards = planPushShards(files, readFileTimes(root), pushShardLimitMs(config) / 4).map(shard => ({ files: shard.files, command: valueGateCommand(root, config.gate, shard.files) }));
+  const planned = planPushShards(files, readFileTimes(root));
+  const shards = planned.map(shard => ({ files: shard.files, command: valueGateCommand(root, config.gate, shard.files) }));
+  const limitMs = pushPlanLimitMs(planned, config);
   const source = headCommit(root);
   const trunk = trunkRef(root);
   const main = (trunk && tryGit(root, ['rev-parse', '--verify', '--quiet', `refs/heads/${trunk}^{commit}`]).stdout.trim()) || source;
-  return { main, source, shards };
+  return { main, source, shards, limitMs };
 }
 
 /**
@@ -244,7 +252,7 @@ export async function pushShardGate(ctx, { say, wait, pollMs } = {}) {
   const { jobs, ref } = await offerPushShards(ctx, plan);
   const files = plan.shards.reduce((sum, shard) => sum + shard.files.length, 0);
   say?.(`pre-push: the full gate's ${files} test files are offered as ${jobs.length} shard jobs at ${plan.source.slice(0, 12)}; every free runner pulls them`);
-  const settled = await awaitAndWithdraw(ctx, jobs, { say, wait, pollMs, after: () => { try { git(root, ['update-ref', '-d', ref]); } catch { /* a pin left behind only keeps a commit reachable */ } } });
+  const settled = await awaitAndWithdraw(ctx, jobs, { say, wait, pollMs, limitMs: plan.limitMs, after: () => { try { git(root, ['update-ref', '-d', ref]); } catch { /* a pin left behind only keeps a commit reachable */ } } });
   if (!Array.isArray(settled)) return { isGreen: false, problem: `the gate did not finish: ${settled.refused}`, jobs };
   const { combinedReceipt, failingParts } = await import('../../../../../packages/api/index.js');
   const combined = combinedReceipt({ status: 0, gate: { green: true, phases: [] } }, settled);
