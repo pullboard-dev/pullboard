@@ -191,6 +191,8 @@ async function staleHeadFixture(t) {
     box.git(seat, 'add', path);
     box.git(seat, 'commit', '-q', '-m', `feat(web): ${title.toLowerCase()} [G1]`);
     json((await box.runLocal(seat, 'submit', String(id), '--json')));
+    // Submit returns once the pulled gate is offered; the item turns submitted when the runner's receipt applies (c77c8f38cf, #6832) [C7].
+    await helpers.waitFor(async () => json((await box.runLocal(box.repo, 'show', String(id), '--json'))).item_status === 'submitted', `#${id} submitted`, 60_000); // budget: failure hang ceiling; no elapsed-time assertion.
     return id;
   };
   const conflicted = await build('Show the list', 'web/list.html', '<ul>from the branch</ul>\n');
