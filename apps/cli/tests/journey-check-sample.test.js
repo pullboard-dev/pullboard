@@ -11,7 +11,7 @@ test('a 4-journey sample of the delete-tag check on this repository ends within 
   const started = Date.now();
   const lines = [];
   const say = line => { lines.push(line); process.stderr.write(`${Math.round((Date.now() - started) / 1000)}s ${line}\n`); };
-  const { status, stdout } = await runJourneyCheck(['--limit', '4', '--cells', '2', '--faults', '3', ROOT], { mutate: mutateCell, say });
+  const { status, stdout } = await runJourneyCheck(['--limit', '4', '--cells', '2', '--faults', '3', ROOT], { mutate: mutateCell, say, trace: say });
   assert.equal(status, 0);
   assert.ok(Date.now() - started < TEN_MINUTES_MS, 'the sample took over 10 minutes');
   const last = stdout.trimEnd().split('\n').pop();

@@ -98,12 +98,13 @@ function spread(list, count) {
  *   extra are root-relative test files outside the cell (such as a journey) run against each fault too; sample caps the faults seeded per source file, spread evenly;
  *   reach maps a root-relative test file to the root-relative files its imports reach, and a fault then runs only the tests that reach the seeded file;
  *   note gets a line per phase and per test run with its seconds, for a run that must be watched;
+ *   deadline is an epoch time after which no new fault is started, the rest counted in `skipped`;
  *   extraLast runs the extra files only against a fault no reaching cell test caught, and re-runs the cell's other tests on a fault only an extra file caught,
  *   so every fault's catch-or-miss by the extra files beside the cell's tests is the same as running everything, at the cost of a few runs
  * @param {{faults: Function, changedLines: Function}} seams the pure fault and diff readers, passed in because a package never imports an app
  * @returns {Promise<{cell: string, base: string, all: boolean, redBefore: string[], tests: {file: string, caught: number, total: number}[], faults: object[], caught: number, missed: number}>}
  */
-export async function mutateCell(root, cell, { all = false, base = 'main', extra = [], sample = Infinity, reach = null, extraLast = false, note = () => {} } = {}, { faults, changedLines }) {
+export async function mutateCell(root, cell, { all = false, base = 'main', extra = [], sample = Infinity, reach = null, extraLast = false, note = () => {}, deadline = null } = {}, { faults, changedLines }) {
   const name = String(cell).replace(/\\/gu, '/').replace(/^\.\//u, '').replace(/\/+$/u, '');
   const source = join(root, name);
   let stat = null;
@@ -137,52 +138,60 @@ export async function mutateCell(root, cell, { all = false, base = 'main', extra
     const needed = (test) => !reaches || seeded.some((file) => covers(test, file));
     const redBefore = [];
     const tree = join(temp, 'tree');
-    const extraRed = [];
-    const redOfExtra = new Map();
-    /** Whether an extra file passes unmutated, run once per file and only when first needed; a red one is left out and listed. */
-    const extraLive = async (file) => {
-      if (!redOfExtra.has(file)) {
-        const at = Date.now();
-        const ok = await passes(tree, file);
-        note(`  ${ok ? 'passed' : 'failed'} unmutated ${file} in ${((Date.now() - at) / 1000).toFixed(1)}s`);
-        redOfExtra.set(file, ok);
-        if (!ok) extraRed.push(file);
+    const outsideSet = new Set(extra);
+    const dirOf = (file) => (outsideSet.has(file) ? tree : copy);
+    /** Whether a file passes on the unmutated copy, run once and only when it first fails against a fault; a red one catches every fault and is left out. */
+    const baselines = new Map();
+    const healthy = (file) => {
+      if (!baselines.has(file)) {
+        baselines.set(file, (async () => {
+          const at = Date.now();
+          const ok = await passes(dirOf(file), file);
+          note(`  ${ok ? 'passed' : 'failed'} unmutated ${file} in ${((Date.now() - at) / 1000).toFixed(1)}s`);
+          if (!ok) redBefore.push(file);
+          return ok;
+        })());
       }
-      return redOfExtra.get(file);
+      return baselines.get(file);
     };
-    note(`${name}: ${tests.length} tests, ${plan.reduce((sum, row) => sum + row.faults.length, 0)} faults seeded in ${seeded.length} files; ${tests.filter(needed).length} tests needed`);
-    for (const file of tests) if (needed(file) && !await passes(copy, file)) redBefore.push(file);
-    note(`${name}: ${redBefore.length} tests red before any fault`);
-    if (!extraLast) for (const file of extra) if (needed(file)) await extraLive(file);
-    const live = tests.filter((file) => needed(file) && !redBefore.includes(file));
-    const outside = extraLast ? extra : extra.filter((file) => needed(file) && !extraRed.includes(file));
-    const run = async (file) => { const at = Date.now(); const ok = await passes(outside.includes(file) ? tree : copy, file); note(`  ${name} ${ok ? 'passed' : 'failed'} ${file} in ${((Date.now() - at) / 1000).toFixed(1)}s`); return ok; };
-    const tally = Object.fromEntries([...live, ...outside].map((file) => [file, { file, caught: 0, total: 0 }]));
+    const candidates = [...tests.filter(needed), ...(extraLast ? [] : extra.filter(needed))];
+    const tally = Object.fromEntries([...new Set([...candidates, ...extra])].map((file) => [file, { file, caught: 0, total: 0 }]));
+    note(`${name}: ${tests.length} tests, ${plan.reduce((sum, row) => sum + row.faults.length, 0)} faults seeded in ${seeded.length} files; ${candidates.length} tests can reach one`);
+    /** Run tests against one seeded fault, one at a time, and return those that failed on it and pass unmutated. */
+    const attempt = async (file, text, fault, list) => {
+      const failed = [];
+      writeFileSync(join(copy, file), fault.mutated);
+      try {
+        for (const test of list) {
+          const at = Date.now();
+          const ok = await passes(dirOf(test), test);
+          tally[test].total += 1;
+          note(`  ${name} ${ok ? 'passed' : 'failed'} ${test} in ${((Date.now() - at) / 1000).toFixed(1)}s`);
+          if (!ok) failed.push(test);
+        }
+      } finally { writeFileSync(join(copy, file), text); }
+      const caughtBy = [];
+      for (const test of failed) if (await healthy(test)) { caughtBy.push(test); tally[test].caught += 1; }
+      return caughtBy;
+    };
     const results = [];
-    /** Run tests against the seeded copy in order, keeping the ones that fail. */
-    const catches = async (list, caughtBy) => {
-      for (const test of list) { tally[test].total += 1; if (!await run(test)) { caughtBy.push(test); tally[test].caught += 1; } }
-    };
-    for (const { file, text, faults: seeds } of plan) {
-      const reaching = [...live, ...(extraLast ? [] : outside)].filter((test) => covers(test, file));
-      for (const fault of seeds) {
-        writeFileSync(join(copy, file), fault.mutated);
-        const caughtBy = [];
-        try {
-          await catches(reaching, caughtBy);
-          if (extraLast && !caughtBy.length) {
-            const lives = [];
-            for (const test of outside) if (await extraLive(test)) lives.push(test);
-            await catches(lives, caughtBy);
-            if (caughtBy.length) await catches(live.filter((test) => !reaching.includes(test)), caughtBy);
-          }
-        } finally { writeFileSync(join(copy, file), text); }
-        results.push({ file, line: fault.line, operator: fault.operator, before: fault.before, after: fault.after, caught: caughtBy.length > 0, caughtBy });
+    // Faults are taken round-robin over the source files so a deadline leaves a spread sample, not the first files only.
+    const queue = [];
+    for (let at = 0; plan.some((row) => at < row.faults.length); at++) for (const row of plan) if (at < row.faults.length) queue.push({ row, fault: row.faults[at] });
+    let skipped = 0;
+    for (const { row: { file, text }, fault } of queue) {
+      if (deadline && Date.now() > deadline) { skipped += 1; continue; }
+      const reaching = candidates.filter((test) => covers(test, file));
+      const caughtBy = await attempt(file, text, fault, reaching);
+      if (extraLast && !caughtBy.length) {
+        const found = await attempt(file, text, fault, extra);
+        caughtBy.push(...found);
+        if (found.length) caughtBy.push(...await attempt(file, text, fault, candidates.filter((test) => !reaching.includes(test) && !outsideSet.has(test))));
       }
+      results.push({ file, line: fault.line, operator: fault.operator, before: fault.before, after: fault.after, caught: caughtBy.length > 0, caughtBy });
     }
-    redBefore.push(...extraRed);
     const caught = results.filter((row) => row.caught).length;
-    return { cell: name, base: all ? null : base, all, redBefore, tests: Object.values(tally), faults: results, caught, missed: results.length - caught };
+    return { cell: name, base: all ? null : base, all, redBefore, tests: Object.values(tally), faults: results, caught, missed: results.length - caught, skipped };
   } finally {
     rmSync(temp, { recursive: true, force: true });
   }

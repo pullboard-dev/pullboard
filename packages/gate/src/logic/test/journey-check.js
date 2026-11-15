@@ -29,14 +29,14 @@ export function coveringCells(rows, journey, limit = 3) {
  *
  * @param {string} journey the journey's path, as listed in the report
  * @param {{ faults: { caughtBy?: string[] }[] }} report a mutate report
- * @returns {{ seeded: number, with: number, without: number, dropped: boolean, blind: boolean }} blind is true when the journey failed before any fault, so its score says nothing
+ * @returns {{ seeded: number, with: number, without: number, dropped: boolean, blind: boolean, skipped: number }} blind is true when the journey failed before any fault, so its score says nothing
  */
 export function scoreWithAndWithout(journey, report) {
   const faults = report.faults ?? [];
   const caughtBy = fault => fault.caughtBy ?? [];
   const withJourney = faults.filter(fault => caughtBy(fault).length).length;
   const without = faults.filter(fault => caughtBy(fault).some(file => file !== journey)).length;
-  return { seeded: faults.length, with: withJourney, without, dropped: without < withJourney, blind: (report.redBefore ?? []).includes(journey) };
+  return { seeded: faults.length, with: withJourney, without, dropped: without < withJourney, blind: (report.redBefore ?? []).includes(journey), skipped: report.skipped ?? 0 };
 }
 
 /**
