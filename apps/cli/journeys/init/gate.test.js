@@ -76,6 +76,16 @@ function writeGateSentinel(file, marker) {
   chmodSync(file, 0o755);
 }
 
+/**
+ * Run a printed `pullboard ...` line as the person would paste it: a real shell parses its words, and the production CLI
+ * answers them in this process. Why: a node start-up per setter cost seconds on a loaded runner; the shell still proves the quoting [C7].
+ */
+async function runPrinted(box, cwd, line) {
+  const words = runFixtureChild('sh', ['-c', `pullboard() { printf '%s\\0' "$@"; }\n${line}`], { cwd, env: box.env, encoding: 'utf8' });
+  assert.equal(words.status, 0, words.failure || words.stderr);
+  return box.runLocal(cwd, ...words.stdout.split('\0').slice(0, -1));
+}
+
 test('init says when its gate command cannot run [I1, I2]', async () => {
   const box = e2e.sandbox();
   for (const name of ['UV_PROJECT_ENVIRONMENT', 'POETRY_ACTIVE', 'POETRY_VIRTUALENVS_PATH', 'VIRTUAL_ENV']) delete box.env[name];
@@ -332,7 +342,7 @@ test('NO_GATE names the project test before a spec-only fallback [I1,C3,B26]', a
   assert.equal(suggested, "pullboard gate set 'make test'", 'the next step keeps the actual project test');
   assert.doesNotMatch(refusal.next, /pullboard spec check/u, 'a known test command is not replaced with a spec check');
   assert.equal(existsSync(marker), false, 'finding a test command never executes it');
-  const configured = runFixtureChild('sh', ['-c', suggested], { cwd: root, env: box.env, encoding: 'utf8' });
+  const configured = await runPrinted(box, root, suggested);
   assert.equal(configured.status, 0, configured.failure || configured.stderr || configured.stdout);
   assert.equal(JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8')).gate, 'make test');
   assert.equal(existsSync(marker), false, 'the printed setter does not execute the test');
@@ -394,7 +404,7 @@ test('NO_GATE preserves a failing Makefile test with ordinary multiple targets [
   assert.equal(refusal.code, 'NO_GATE');
   const printed = /pullboard gate set '[^']*'/u.exec(refusal.next)?.[0];
   assert.ok(printed, 'the current refusal must provide the executable setter');
-  const set = runFixtureChild('sh', ['-c', printed], { cwd: root, env: box.env, encoding: 'utf8' });
+  const set = await runPrinted(box, root, printed);
   assert.equal(set.status, 0, set.failure || set.stderr || set.stdout);
   assert.equal(existsSync(marker), false, 'detection and configuration must not run the project gate');
   box.git(root, 'add', 'pullboard.json');
@@ -439,7 +449,7 @@ test('NO_GATE finds test anywhere in literal Makefile target lists [C3,I1,B26]',
     assert.equal(refusal.code, 'NO_GATE');
     const printed = /pullboard gate set '[^']*'/u.exec(refusal.next)?.[0];
     assert.equal(printed, `pullboard gate set '${target ? 'make test' : 'pullboard spec check'}'`, rule);
-    const configured = runFixtureChild('sh', ['-c', printed], { cwd: root, env: box.env, encoding: 'utf8' });
+    const configured = await runPrinted(box, root, printed);
     assert.equal(configured.status, 0, configured.failure || configured.stderr || configured.stdout);
     assert.equal(existsSync(marker), false, 'finding and setting the gate never runs Makefile code');
     box.git(root, 'add', 'pullboard.json');
