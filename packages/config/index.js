@@ -16,6 +16,7 @@ export {
   frozenCheckCeilingMs,
   cadenceMilliseconds,
   DEFAULT_VIEW_PORT,
+  saveKeyedResult,
   defaultViewPort,
 } from './src/io/main.js';
 export { trunkRemote } from './src/io/trunk.js';

@@ -89,26 +89,6 @@ function keyedResultPath(folder, key) {
 }
 
 /**
- * Save the bytes of one key's result through a temporary file and a rename, so a reader sees the old result or the
- * new one, never half of one.
- *
- * @param {string} folder
- * @param {string} key
- * @param {Uint8Array} bytes
- */
-export function saveKeyedResult(folder, key, bytes) {
-  mkdirSync(folder, { recursive: true });
-  const path = keyedResultPath(folder, key);
-  const temporary = `${path}.${process.pid}.partial`;
-  try {
-    writeFileSync(temporary, bytes);
-    renameSync(temporary, path);
-  } finally {
-    rmSync(temporary, { force: true });
-  }
-}
-
-/**
  * The saved bytes of one key's result, or null when there is none.
  *
  * @param {string} folder
