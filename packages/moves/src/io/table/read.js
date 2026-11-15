@@ -107,7 +107,7 @@ export function listMoveTables(root = REPO_ROOT) {
   if (!existsSync(packages)) return [];
   const found = [];
   for (const cell of readdirSync(packages, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
-    const logic = join(packages, cell.name, 'src', 'logic');
+    const logic = join(packages, cell.name, 'src/logic');
     if (cell.isDirectory() && existsSync(logic)) walk(logic, found);
   }
   return found.map(path => path.slice(root.length).replace(/^[\\/]+/u, '').split('\\').join('/')).sort();
