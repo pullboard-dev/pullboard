@@ -7,7 +7,7 @@ import { mutateCell } from '../src/io/mutate/run.js';
 const TEN_MINUTES_MS = 10 * 60 * 1000;
 const ROOT = new URL('../../../', import.meta.url).pathname;
 
-test('a 4-journey sample of the delete-tag check on this repository ends within 10 minutes with the hold share [C7]', { timeout: TEN_MINUTES_MS }, async () => {
+test('clause 1: [C7] a 4-journey sample of the delete-tag check ends within 10 minutes; clause 2: it prints the share of delete tags that hold', { timeout: TEN_MINUTES_MS }, async () => {
   const started = Date.now();
   const lines = [];
   const say = line => { lines.push(line); process.stderr.write(`${Math.round((Date.now() - started) / 1000)}s ${line}\n`); };
