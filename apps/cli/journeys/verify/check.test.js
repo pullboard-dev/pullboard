@@ -3,14 +3,13 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { writeFileSync } from 'node:fs';
 import { test } from 'node:test';
-import * as store from "../../../../packages/store/src/io/board.js";
-import { openCellBoard as openBoard } from "../../../../packages/store/tests/fixtures/cell.js";
 import { sandbox } from '../../tests/fixtures/verdict-check.js';
 import { project } from '../../tests/fixtures/verdict-check.js';
 import { succeeds } from '../../tests/fixtures/verdict-check.js';
 import { submitted } from '../../tests/fixtures/verdict-check.js';
 import { submitSettled } from '../../tests/fixtures/verdict-check.js';
 import { clean } from '../../tests/fixtures/verdict-check.js';
+import { legacyAccept } from '../../tests/fixtures/verdict-check.js';
 
 test('accept says when no frozen check ran and records none in its event and JSON [V19,V8]', async () => {
   const box = sandbox();
@@ -68,15 +67,7 @@ test('historical accepts read unknown in show and unchecked accepts are marked i
     const { repo, web } = await project(box);
     const historical = await submitted(box, repo, web, 'Historical accept');
     const common = box.git(repo, 'rev-parse', '--path-format=absolute', '--git-common-dir');
-    // @pullboard-board-file journey: read verdicts from the board file the real CLI wrote
-    const board = openBoard(join(common, 'pullboard', 'board.sqlite'));
-    try {
-      const item = store.getItem(board, historical.id);
-      store.verify(board, historical.id, {
-        agentId: 'coordinator', decision: 'ACCEPT', reason: 'CRITERION_MET', note: 'legacy event fixture',
-        head: historical.commit, digest: item.item_frozen_digest, policy: 'any', familyPolicy: 'off',
-      });
-    } finally { store.closeBoard(board); }
+    legacyAccept(join(common, 'pullboard', 'board.sqlite'), historical);
     const shown = await succeeds(box, repo, 'show', String(historical.id));
     assert.match(shown, /check: unknown/);
     box.git(repo, 'switch', 'main');

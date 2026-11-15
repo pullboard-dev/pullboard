@@ -34,10 +34,25 @@ const isTest = (file) => /\.test\.(?:js|mjs)$/u.test(file);
 /** Whether a cell-relative path is source a fault may be seeded into: a non-test .js or .mjs file. */
 const isSource = (file) => /\.(?:js|mjs)$/u.test(file) && !isTest(file);
 
-/** The environment a nested `node --test` needs: the parent's test-runner markers would make it report to the parent. */
-function childEnv() {
-  const env = { ...process.env };
+/**
+ * The environment a nested `node --test` needs: the parent's test-runner markers would make it report to the parent.
+ * Why the browser markers go too: a runner job that did not declare a browser marks itself slot none and puts a guard in
+ * NODE_OPTIONS, so every Chrome journey it started failed BROWSER_UNDECLARED before any fault was seeded (#8137). The child
+ * is its own test file, and the mutation run starts one at a time, so it takes no marker from a parent that held no lease.
+ *
+ * @param {NodeJS.ProcessEnv} [from] the parent environment
+ * @returns {NodeJS.ProcessEnv}
+ */
+export function childEnv(from = process.env) {
+  const env = { ...from };
   delete env.NODE_TEST_CONTEXT;
+  if (env.PULLBOARD_TEST_BROWSER_SLOT === 'none') {
+    delete env.PULLBOARD_TEST_BROWSER_SLOT;
+    delete env.PULLBOARD_TEST_FILE;
+    const kept = String(env.NODE_OPTIONS ?? '').split(/\s+/u).filter((word) => word && !/browser\/guard\.js$/u.test(word));
+    if (kept.length) env.NODE_OPTIONS = kept.join(' ');
+    else delete env.NODE_OPTIONS;
+  }
   return env;
 }
 
