@@ -61,6 +61,7 @@ export function parityText(text, dir) {
     .replace(/(<hex>\.)[\w-]{20,}\.[\w-]{20,}/gu, '$1<token>')
     .replace(/\b\d+(?:\.\d+)? ?(?:ms|s)\b/gu, '<duration>')
     .replace(/(gate:\d+:<hex>):[0-9a-z]+/gu, '$1:<job>')
+    .replace(/"steps":\{[^}]*\}/gu, '"steps":"<steps>"')
     .replace(/\(pid \d+\)/gu, '(pid <pid>)')
     .replace(/"pid":\d+/gu, '"pid":"<pid>"')
     // Whether init's background view starts or finds port 4890 taken depends on what else runs on the machine, not on the runtime.

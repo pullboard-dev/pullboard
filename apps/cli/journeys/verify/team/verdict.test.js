@@ -291,11 +291,7 @@ test('an accepted verdict reads stale through the CLI once main moves under its 
   assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', 'feature = 1\nmain = 0\n', 'feat(web): feature [G1]').status, 0);
   const submitted = box.git(box.web, 'rev-parse', 'HEAD');
   await run(box, box.web, 'submit', '1');
-  const reviewer = join(box.dir, 'web-2');
-  box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, submitted);
-  await run(box, reviewer, 'join', 'web', '--route', 'strong');
-  await run(box, reviewer, 'next', '--verify', '1');
-  await run(box, reviewer, 'verify', '1', 'accept', '--note', 'The feature changes its first line and the frozen check observes it.');
+  // The submitted source's comparison worker records its result at no fixed moment; wait so no later call sees it land.
   await waitForCondition(() => {
     const db = new DatabaseSync(join(box.repo, '.git/pullboard/board.sqlite'), { readOnly: true });
     try {
@@ -303,6 +299,11 @@ test('an accepted verdict reads stale through the CLI once main moves under its 
       return Boolean(latest) && !latest.event_detail.includes('pending');
     } finally { db.close(); }
   }, 'the detached review comparison to record its result', { signal: t.signal });
+  const reviewer = join(box.dir, 'web-2');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, submitted);
+  await run(box, reviewer, 'join', 'web', '--route', 'strong');
+  await run(box, reviewer, 'next', '--verify', '1');
+  await run(box, reviewer, 'verify', '1', 'accept', '--note', 'The feature changes its first line and the frozen check observes it.');
   // Main moves under the reviewed file; the one caller that moved it needs no seat of its own to commit on main.
   assert.equal(helpers.commitFile(box, box.repo, 'web/feature.js', 'feature = 0\nmain = 1\n', 'feat(web): change main caller [G1]').status, 0);
   const stale = JSON.parse(await run(box, box.repo, 'show', '1', '--json'));
