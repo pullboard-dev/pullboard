@@ -13,6 +13,7 @@ import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { statSync } from 'node:fs';
@@ -106,6 +107,19 @@ export function settlePulledJobs(cwd, args, env) {
   }
 }
 
+/** The pids of the background views a sandbox's commands started, from the session files in its private Pullboard home. */
+function sandboxViewPids(dir) {
+  const home = join(dir, 'pullboard-home');
+  let names = [];
+  try { names = readdirSync(home).filter(name => /^view-\d+\.json$/u.test(name)); } catch { return []; }
+  return names.flatMap(name => {
+    try {
+      const pid = Number(JSON.parse(readFileSync(join(home, name), 'utf8')).pid);
+      return Number.isSafeInteger(pid) && pid > 1 && pid !== process.pid ? [pid] : [];
+    } catch { return []; }
+  });
+}
+
 /** Create isolated real-repository helpers for one parallel end-to-end test file. */
 export function createE2eHelpers() {
   const sandboxes = [];
@@ -115,18 +129,17 @@ export function createE2eHelpers() {
    * to 30 s for it to stop; the 1 s budget failed pending-refreeze with ENOTEMPTY (#3192).
    */
   const cleanup = () => {
-    const __c0 = Date.now();
-    try { process.stderr.write(`DIAG children-before ${runFixtureChild('ps', ['-A', '-o', 'pid=,ppid=,etime=,command='], { encoding: 'utf8' }).stdout.split('\n').filter(l => sandboxes.some(d => l.includes(d)) || l.trim().split(/\s+/)[1] === String(process.pid)).map(l => l.slice(0, 300)).join(' || ')}\n`); } catch (e) { process.stderr.write(`DIAG ps failed ${e.message}\n`); }
+    // A background view an in-process init started is this process's own child, and the test file cannot end while it runs [C7].
+    const views = sandboxes.flatMap(sandboxViewPids);
+    for (const pid of views) { try { process.kill(pid, 'SIGTERM'); } catch { /* it has exited */ } }
     // Every runner is signalled before any is awaited, so five sandboxes cost one stop, not five [C7].
-    const __n = stopFixtureLocalRunners(sandboxes.map(dir => join(dir, 'machine-home')));
-    process.stderr.write(`DIAG runners-stopped ${__n} in ${Date.now() - __c0}ms\n`);
+    stopFixtureLocalRunners(sandboxes.map(dir => join(dir, 'machine-home')));
+    for (const pid of views) { try { process.kill(pid, 'SIGKILL'); } catch { /* it has stopped */ } }
     for (const dir of sandboxes) {
-      const __d0 = Date.now(); let __tries = 0;
-      const __w = stopComparisonWorkers(dir);
+      stopComparisonWorkers(dir);
       const deadline = Date.now() + 30_000;
       for (;;) {
-        __tries += 1;
-        try { rmSync(dir, { recursive: true, force: true }); if (Date.now() - __d0 > 500 || __w) process.stderr.write(`DIAG rm ${dir} ${Date.now() - __d0}ms tries=${__tries} workers=${__w}\n`); break; }
+        try { rmSync(dir, { recursive: true, force: true }); break; }
         catch (error) {
           if (!['ENOTEMPTY', 'EBUSY', 'EPERM', 'EMFILE', 'ENFILE'].includes(error.code) || Date.now() >= deadline) throw error;
           // A writer can recreate files after traversal; retry the whole tree, not just the failed rmdir.
