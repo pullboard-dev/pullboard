@@ -5991,9 +5991,6 @@
     }
   },
   "packageApps": {
-    "packages/gate/tests/fixtures/cockpit/probe.mjs": [
-      "apps/cli"
-    ],
     "packages/gate/tests/fixtures/pipeline/spec.js": [
       "apps/runner"
     ],

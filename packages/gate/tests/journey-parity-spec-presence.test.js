@@ -6,18 +6,14 @@
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parityDifferences } from './fixtures/journey-parity.js';
-import { runSample } from './fixtures/journey-parity.js';
+import { sampleDifferences } from './fixtures/journey-parity.js';
 
 const SAMPLES = [
   { journey: 'apps/cli/journeys/spec/main.test.js', cases: ['spec check names both locations when ids repeat within or across configured files'] },
   { journey: 'apps/cli/journeys/resume/presence/heartbeat.test.js', cases: ['plain status counts large seat history and hides gone seats behind --all'] },
 ];
 
-test('clause 1: the spec/main and heartbeat journeys give the same exit codes, JSON results and board state in a real process and in-process [C7]', () => {
-  const real = runSample('process', SAMPLES);
-  const inprocess = runSample('inprocess', SAMPLES);
-  assert.ok(real.length >= 4, `the sample made its CLI calls (${real.length})`);
-  const differences = parityDifferences(real, inprocess);
+test('clause 1: the spec/main and heartbeat journeys give the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
+  const differences = await sampleDifferences(SAMPLES);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });

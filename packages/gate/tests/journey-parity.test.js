@@ -2,25 +2,23 @@
 /**
  * The parity check for journeys moved in-process (#8257, U149): the gate runs a sample of one converted journey's cases twice,
  * once with every CLI call a real process and once in-process, and fails on any difference in exit code, JSON result or
- * board state [C7]. Each later batch keeps its own sample in its own journey-parity-<batch>.test.js (#8267).
+ * board state [C7].
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parityDifferences } from './fixtures/journey-parity.js';
-import { runSample } from './fixtures/journey-parity.js';
+import { sampleDifferences } from './fixtures/journey-parity.js';
 
-/** The converted journey, and the cases of it the sample runs both ways. */
-const SAMPLES = [{ journey: 'apps/cli/journeys/spec/e2e/gates.test.js', cases: [
-  'unsupported spec grammar keeps claim, refreeze, submit and verify refusals typed',
-  'pullboard worktree makes a joined worktree for a lane in one command',
-] }];
+/** The converted journey, and the cases of it the sample runs both ways. Later batches sample in their own files (each case runs twice). */
+const SAMPLES = [
+  { journey: 'apps/cli/journeys/spec/e2e/gates.test.js', cases: [
+    'unsupported spec grammar keeps claim, refreeze, submit and verify refusals typed',
+    'pullboard worktree makes a joined worktree for a lane in one command',
+  ] },
+];
 
-test('clause 1: a sample of a converted journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', () => {
-  const real = runSample('process', SAMPLES);
-  const inprocess = runSample('inprocess', SAMPLES);
-  assert.ok(real.length >= 15, `the sample made its CLI calls (${real.length})`);
-  assert.ok(real.some(row => row.board?.items.length), 'the records carry board state');
-  const differences = parityDifferences(real, inprocess);
+test('clause 1: a sample of a converted journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
+  const differences = await sampleDifferences(SAMPLES);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });
 
