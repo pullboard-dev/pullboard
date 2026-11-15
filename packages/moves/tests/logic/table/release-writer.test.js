@@ -1,16 +1,17 @@
-/** @pullboard-world-pin: reads the moves cell's recorded release history to replay the same releases through the store writer [C7,#8246]. @pullboard-test-input packages/moves/tests/fixtures/table/release-history.json packages/store/src/logic/board/claim.js packages/store/src/logic/board/release-table.js */
+/** @pullboard-world-pin reads the release history fixture to drive the store release writer with the same releases. The store release writer applies the release table and agrees on every replayed release [C7,#8246]. */
+/** @pullboard-test-input packages/moves/tests/fixtures/table/release-history.json */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { diagnosisBrief } from '../../../../items/index.js';
-import { boardReleaseEngine } from '../../../../moves/index.js';
-import { readReleaseRecords } from '../../../../moves/index.js';
-import { runTable } from '../../../../moves/index.js';
-import { release } from '../../../index.js';
-import { cellBoard } from '../../fixtures/cell.js';
+import { boardReleaseEngine } from '../../../index.js';
+import { readReleaseRecords } from '../../../index.js';
+import { runTable } from '../../../index.js';
+import { release } from '../../../../store/index.js';
+import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
 
-const HISTORY = JSON.parse(readFileSync(new URL('../../../../moves/tests/fixtures/table/release-history.json', import.meta.url), 'utf8'));
+const HISTORY = JSON.parse(readFileSync(new URL('../../fixtures/table/release-history.json', import.meta.url), 'utf8'));
 const FAR = '2099-01-01T00:00:00.000Z';
 
 /** The recorded events on a scratch in-memory board, read the way the replay reads them. */
