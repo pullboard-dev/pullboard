@@ -6,15 +6,12 @@ import { delimiter, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { privateFixtureFiles } from '../../apps/cli/tests/fixtures/child.js';
+import { findChromeExecutable } from '../../apps/cli/tests/fixtures/chrome.js';
 
 const SOURCE = fileURLToPath(new URL('../../', import.meta.url));
 
-test('the Roadmap capture finishes on a release of 350 items [I11,C7]', { timeout: 840_000 }, () => {
-  const chrome = process.env.PULLBOARD_CHROME || [
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser',
-  ].find((candidate) => { try { return spawnSync(candidate, ['--version'], { stdio: 'ignore' }).status === 0; } catch { return false; } });
-  assert.ok(chrome, 'the Roadmap capture requires installed headless Chrome');
+test('the Roadmap capture finishes on a release of 350 items [I11,C7]', { timeout: 840_000, skip: !findChromeExecutable() && 'Chrome is not installed' }, () => {
+  const chrome = findChromeExecutable();
   const fixture = privateFixtureFiles('rc-');
   try {
     const root = join(fixture.root, 'repo');
