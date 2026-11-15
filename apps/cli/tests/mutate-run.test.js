@@ -9,8 +9,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../packages/gate/tests/fixtures/child.js';
-import { runFixtureSetupGit } from '../../../packages/gate/tests/fixtures/child.js';
+import { privateFixtureFiles } from './fixtures/child.js';
+import { runFixtureSetupGit } from './fixtures/child.js';
 import { runCliInProcess } from './fixtures/process.js';
 
 const dirs = [];
