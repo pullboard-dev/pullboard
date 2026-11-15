@@ -646,6 +646,8 @@ function serializeState(state, fields, reportJson, validator = false) {
   const encoded = fields.map((field) => {
     if (field.static !== undefined) return field.static;
     if (field.dynamic === 'statsComparison' && validator) return jsonField(field.dynamic, comparisonForValidation(state.statsComparison));
+    // The hero window's since and until move with every read clock (3a91cbbc28, #7964), so a poll's validator blanks them like observedAt.
+    if (field.dynamic === 'dashboardRecent' && validator && state.dashboardRecent && typeof state.dashboardRecent === 'object') return jsonField(field.dynamic, { ...state.dashboardRecent, since: null, until: null });
     if (field.dynamic === 'claimOverlaps' || field.dynamic === 'unseen' || field.dynamic === 'observedAt' || field.dynamic === 'capacityForecast' || field.dynamic === 'statsComparison' || field.dynamic === 'dashboardRecent') return jsonField(field.dynamic, state[field.dynamic]);
     if (field.dynamic === 'proofStats') {
       const value = state.proofStats?.flow;
