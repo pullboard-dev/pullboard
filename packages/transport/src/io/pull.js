@@ -64,22 +64,28 @@ function signedBy(publicKey, text, signature) {
 export function pullAdapter({ trusted, lease, record, checkResult, bundle, secret = randomBytes(32), now = Date.now, tokenMs = TOKEN_MS, skewMs = SKEW_MS, seenMs = SEEN_MS, store = null }) {
   const runners = new Map();
   const offers = new Map();
+  // Runners the board has revoked, and the keys they held: neither may register or pull again.
+  const revoked = new Set();
+  const revokedKeys = new Set();
   // Why: pull offers and registrations are the board's promise to its runners, so they ride a store the board
   // restarts from; without one the adapter is in-memory, as before [C7].
   const held = store?.load() ?? null;
+  // Nonces of accepted takes, each kept until its request can no longer be fresh, so a replay inside the window finds it,
+  // including a replay after the board restarted [C7].
+  const spent = new Map(held?.spent ?? []);
   for (const runner of held?.runners ?? []) runners.set(runner.runner, { ...runner });
   for (const offer of held?.offers ?? []) offers.set(offer.job, { ...offer, shards: new Map(offer.shards.map(shard => [shard.shard, { ...shard }])) });
   /** Write the registrations and offers to the store, after every change to either. */
   const persist = () => store?.save({
+    spent: [...spent],
     runners: [...runners.values()].map(({ runner, publicKey, seen }) => ({ runner, publicKey, seen })),
-    offers: [...offers.values()].map(({ job, tree, runner, shards }) => ({ job, tree, runner, shards: [...shards.values()] })),
+    offers: [...offers.values()].map(({ job, tree, base, tooling, attempt, runner, shards }) => ({ job, tree, base, tooling, attempt, runner, shards: [...shards.values()] })),
   });
-  // Nonces of accepted takes, each kept until its request can no longer be fresh, so a replay inside the window finds it.
-  const spent = new Map();
   const trustedKeys = () => new Set(typeof trusted === 'function' ? trusted() : trusted);
 
   /** The registered, still trusted runner a request or token names, or a refusal saying how to get admitted. */
   const admitted = id => {
+    if (revoked.has(id)) throw new Refused('PULL_RUNNER_REVOKED', `runner ${id}'s credential was revoked; ask the person to issue it a new key`);
     const runner = runners.get(id);
     if (!runner) throw new Refused('PULL_RUNNER_UNKNOWN', `runner ${id} is not registered; register its trusted key first`);
     if (!trustedKeys().has(runner.publicKey)) throw new Refused('PULL_RUNNER_UNTRUSTED', `runner ${id}'s key is no longer trusted on the board; ask the person to trust it again`);
@@ -99,6 +105,7 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
     const key = `${id} ${nonce}`;
     if (spent.has(key)) throw new Refused('PULL_REPLAY', `runner ${id}'s take with this nonce was already accepted; sign a new take with a fresh nonce`);
     spent.set(key, at + 2 * skewMs);
+    persist();
   };
 
   /** The job a token names, its runner admitted and the job still offered. */
@@ -131,6 +138,11 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
   const readShard = ({ job, shard, digest }) => {
     const known = offers.get(job)?.shards.get(shard);
     if (!known) return { state: 'absent' };
+    if (known.invalid) {
+      const reason = known.invalid;
+      known.invalid = null;
+      return { state: 'import.invalid', reason, digest: null, reset: true };
+    }
     if (!known.result) return { state: 'running' };
     if (digest && digest !== known.result.digest) {
       const held = known.result.digest;
@@ -178,10 +190,25 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
     register({ runner, publicKey, at, signature }) {
       if (!RUNNER.test(String(runner ?? ''))) throw new Refused('PULL_RUNNER_ID', 'a runner id is a plain name: letters, digits, dot, dash or underscore');
       if (!trustedKeys().has(publicKey)) throw new Refused('PULL_RUNNER_UNTRUSTED', `runner ${runner}'s key is not trusted on this board; ask the person to trust it with the runner's public key`);
+      if (revoked.has(runner) || revokedKeys.has(publicKey)) throw new Refused('PULL_RUNNER_REVOKED', `runner ${runner}'s credential was revoked; ask the person to issue it a new key`);
+      // Why: a key is one runner's credential; two runners behind one key could not be told apart or revoked singly [C7].
+      for (const other of runners.values()) if (other.runner !== runner && other.publicKey === publicKey) throw new Refused('PULL_KEY_SHARED', `this key is already runner ${other.runner}'s credential; give runner ${runner} a key of its own`);
       checkSigned('register', runner, at, signature, publicKey);
       runners.set(runner, { runner, publicKey, seen: now() });
       persist();
       return { runner };
+    },
+
+    /**
+     * Revoke one runner's credential: its pulls, heartbeats and results are refused from now on, and every other runner is untouched.
+     * @param {string} runner
+     * @returns {{ revoked: boolean }}
+     */
+    revoke(runner) {
+      const held = runners.get(runner);
+      revoked.add(runner);
+      if (held) { revokedKeys.add(held.publicKey); runners.delete(runner); persist(); }
+      return { revoked: Boolean(held) };
     },
 
     /**
@@ -238,7 +265,10 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
       const known = offer.shards.get(shard);
       if (!known) throw new Refused('PULL_SHARD_UNKNOWN', `job ${scope.job} has no shard ${shard}; post only the shards take returned`);
       const signed = checkResult({ bytes, signature, publicKey: runner.publicKey, job: scope.job, shard, tree: offer.tree, base: offer.base, tooling: offer.tooling, command: known.command, attempt: offer.attempt });
-      if (!signed.valid) throw new Refused('PULL_RESULT_INVALID', `the result for shard ${shard} of job ${scope.job} is import.invalid: ${signed.reason}; rerun it and sign with the registered key`);
+      if (!signed.valid) {
+        known.invalid = signed.reason;
+        throw new Refused('PULL_RESULT_INVALID', `the result for shard ${shard} of job ${scope.job} is import.invalid: ${signed.reason}; rerun it and sign with the registered key`);
+      }
       const parsed = parseResult(bytes);
       if (!parsed.valid) throw new Refused('PULL_RESULT_INVALID', `the result for shard ${shard} of job ${scope.job} is import.invalid: ${parsed.reason}; rerun it`);
       record(scope.job, shard, { state: 'done', status: parsed.status, digest: parsed.digest, tree: offer.tree, runner: scope.runner, key: signed.keyId, signature });
