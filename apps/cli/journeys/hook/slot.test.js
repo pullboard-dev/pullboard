@@ -5,6 +5,10 @@ import {
   after,
   test,
 } from 'node:test';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { takeResource } from '../../../../packages/resources/index.js';
@@ -14,19 +18,29 @@ import { loadClock } from '../../tests/fixtures/load.js';
 
 const helpers = createE2eHelpers();
 
-/** Audited exceptions at measured own time (#6525, run b9b81cc9: commit 4273 ms at load 2.0x); targets 2000 and 1000 ms. */
-const COMMIT_EXCEPTION_MS = 4500;
-const PRE_COMMIT_EXCEPTION_MS = 2500;
+/** Pre-commit meets its 1000 ms target (702-855 ms own). The commit keeps an audited exception lowered to 4000 ms from 4500 (own time 2016-5299 ms across loaded runs; commit-msg reads the board three times); target 2000 ms (#6764). */
+const COMMIT_EXCEPTION_MS = 4000;
+const PRE_COMMIT_EXCEPTION_MS = 1000;
 after(helpers.cleanup);
+
+/** Each hook child's wall time from git's trace file, so a slow commit names the hook that spent it. */
+function hookSpans(file) {
+  try {
+    return readFileSync(file, 'utf8').split('\n').filter(line => /\| (?:child_start|child_exit)/u.test(line)).map(line => line.replace(/^.*?\| /u, '').replace(/\s+/gu, ' ').slice(0, 110)).join('; ');
+  } catch { return 'no trace'; } finally { rmSync(file, { force: true }); }
+}
 
 /** Run one git commit as the session that owns the checkout; return its refusal text and wall time. */
 function commitAs(box, cwd, session, path, message) {
   box.env.CODEX_SESSION_ID = session;
+  const perf = join(tmpdir(), `slot-trace-${process.pid}-${Date.now()}.txt`);
+  box.env.GIT_TRACE2_PERF = perf;
   try {
     const stop = loadClock();
     const result = helpers.commitFile(box, cwd, path, `${path}\n`, message);
-    return { status: result.status, text: `${result.stderr ?? ''}${result.stdout ?? ''}`, time: stop() };
-  } finally { delete box.env.CODEX_SESSION_ID; }
+    const time = stop();
+    return { status: result.status, text: `${result.stderr ?? ''}${result.stdout ?? ''}`, time, hooks: hookSpans(perf) };
+  } finally { delete box.env.CODEX_SESSION_ID; delete box.env.GIT_TRACE2_PERF; }
 }
 
 test('clause 1; clause 2; clause 3: with every local slot held, a one-line commit passes its hooks without queueing and a lane violation is refused [C7]', { timeout: 60_000 }, async () => {
@@ -54,7 +68,7 @@ test('clause 1; clause 2; clause 3: with every local slot held, a one-line commi
     // over the frozen #2505 2 s and 1 s ceilings, so each holds an audited exception at its measured value, ratchet-only:
     // lower it as work is cut, never raise it. The 0.9.5 remainder of #6525 removes both.
     assert.ok(ok.time.ms < COMMIT_EXCEPTION_MS && hook.ms < PRE_COMMIT_EXCEPTION_MS, // budget: audited exception #6525 at measured run b9b81cc9; target 2 s and 1 s (#2505).
-      `the commit with its hooks took ${chargedText(ok.time)} and pre-commit ${chargedText(hook)} with every slot held`);
+      `the commit with its hooks took ${chargedText(ok.time)} [${ok.hooks}] and pre-commit ${chargedText(hook)} with every slot held`);
     const refused = commitAs(box, box.web, session, 'api/other.js', 'feat(web): outside the lane [G1]');
     assert.notEqual(refused.status, 0, 'a lane violation is still refused');
     assert.match(refused.text, /lane/iu);

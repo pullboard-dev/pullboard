@@ -1,12 +1,12 @@
 /** @pullboard-module-loads packages/moves/src/logic/table/*.table.js */
 /** Load a move table by name and report on it: how often it agrees with the board, and what it says in order [C7,#8071,#8072]. */
 import { basename } from 'node:path';
-import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Refused } from '../../../../kernel/light.js';
 import { tryGit } from '../../../../git/index.js';
 import { explainTable } from '../../logic/table/explain.js';
 import { replayTable } from '../../logic/table/replay.js';
+import { loadDiscovered } from '../registry.js';
 import { listMoveTables } from './read.js';
 import { readMoveRecords } from './read.js';
 
@@ -36,7 +36,7 @@ export async function loadMoveTable(root, name, code) {
     throw new Refused(code, `${name ? `no move table is called ${name}` : `${verb} needs the name of a move table`}; the known tables are ${known.join(', ') || 'none'}`,
       `run pullboard ${verb} <table> with one of: ${known.join(', ') || '(none found)'}`);
   }
-  const module = await import(pathToFileURL(join(root, file)).href);
+  const module = loadDiscovered(file, pathToFileURL(root.endsWith('/') ? root : `${root}/`));
   const pick = (suffix) => Object.entries(module).find(([key]) => key.endsWith(suffix))?.[1];
   const table = pick('_TABLE');
   const rules = pick('_RULES');

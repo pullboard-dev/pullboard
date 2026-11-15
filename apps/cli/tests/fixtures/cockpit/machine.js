@@ -165,6 +165,20 @@ function machine() {
     settleOfferedJobs(cwd, args, commandEnv);
     return result.stdout;
   };
+  /**
+   * Await a CLI call in this process without waiting for the jobs it offered, so several submits' gates run on the
+   * runner together; settled() then waits once. Why: each submit's gate cost 7 to 20 s on its own, and a journey that
+   * seeds several submitted items paid them one after another.
+   */
+  const inProcessQueued = async (cwd, ...args) => {
+    fixtureJoinRoute(args, MACHINE_MODEL);
+    invocations.push({ args, hasModel: true, model: MACHINE_MODEL });
+    const result = await runCliInProcess(args, { cwd, env: { ...env, PULLBOARD_MODEL: MACHINE_MODEL } });
+    assert.equal(result.status, 0, `pullboard ${args.join(' ')}: ${result.stderr}${result.stdout}`);
+    return result.stdout;
+  };
+  /** Wait until the board `cwd` belongs to has settled the gate of submitted item `id`, as a settled submit would. */
+  const settled = (cwd, id) => settleOfferedJobs(cwd, ['submit', String(id)], { ...env, PULLBOARD_MODEL: MACHINE_MODEL });
   /** Run the CLI with the machine environment used by later agent commands. */
   const run = (cwd, ...args) => runWithEnv(cwd, { ...env, PULLBOARD_MODEL: MACHINE_MODEL }, ...args);
   /** The in-process twin of run: await it. */
@@ -205,7 +219,7 @@ function machine() {
     }
     return Object.freeze({ root, readFile, files });
   }
-  return { dir, env, git, run, inProcess, runWithEnv, invocations, exportSnapshot };
+  return { dir, env, git, run, inProcess, inProcessQueued, settled, runWithEnv, invocations, exportSnapshot };
 }
 
 /**
