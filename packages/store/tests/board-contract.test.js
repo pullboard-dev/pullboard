@@ -35,9 +35,9 @@ function script({ board, tick }) {
   const other = cellSeat(board, { lane: 'core', path: '/other', family: 'Contract Reviewer Vendor', route: 'mid' });
   requireFixtureReviewFamilies(board);
   const filed = [
-    cellItem(board, { lane: 'core', title: 'first', criterion: 'one', specIds: ['B13'], route: 'mid', check: 'true', brief: 'Files: src/a.js' }),
-    cellItem(board, { lane: 'core', title: 'second', criterion: 'two', specIds: ['B13'], route: 'mid', check: 'true' }),
-    cellItem(board, { lane: 'core', title: 'third', criterion: 'three', route: 'mid', check: 'true' }),
+    cellItem(board, { lane: 'core', title: 'first', criterion: 'one', specIds: ['B13'], route: 'mid', check: 'true', brief: 'Files: src/a.js\nTest: proves the first' }),
+    cellItem(board, { lane: 'core', title: 'second', criterion: 'two', specIds: ['B13'], route: 'mid', check: 'true', brief: 'Files: src/b.js\nTest: proves the second' }),
+    cellItem(board, { lane: 'core', title: 'third', criterion: 'three', route: 'mid', check: 'true', brief: 'Files: src/c.js\nTest: proves the third' }),
   ];
   seen.filed = filed.map(item => [item.item_id, item.item_state, item.item_title, item.item_lane]);
   const freeze = item => ({ text: JSON.stringify({ criterion: item.item_criterion, policy: POLICY }), digest: `digest:${item.item_title}` });
