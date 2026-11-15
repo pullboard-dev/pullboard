@@ -6,7 +6,6 @@ import { test } from 'node:test';
 import { currentGitAdapter } from '../../git/index.js';
 import { headCommit } from '../../git/index.js';
 import { realGitAdapter } from '../../git/index.js';
-import { runFixtureGit } from '../../gate/tests/fixtures/child.js';
 import { cellBoard } from './fixtures/cell.js';
 import { cellProject } from './fixtures/cell.js';
 import { cellRepo } from './fixtures/cell.js';
@@ -34,7 +33,7 @@ test('clause 3: a fixture that asks for real git gets a real repository, and a r
   assert.equal(repo.real, true);
   assert.equal(repo.adapter, null);
   assert.ok(existsSync(join(repo.root, '.git', 'HEAD')), 'a real .git folder exists');
-  assert.equal(runFixtureGit(['rev-parse', 'HEAD'], { cwd: repo.root }), repo.commit);
+  assert.equal(headCommit(repo.root), repo.commit);
   const board = cellBoard(t, repo.boardFile, undefined, { real: true });
   assert.ok(board.db);
   assert.ok(existsSync(repo.boardFile), 'the board file is on disk');
