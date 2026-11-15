@@ -4,7 +4,10 @@ import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 import { changedStaticFailures } from '../../../../../packages/gate/heavy.js';
+import { recentReceipts } from '../../../../../packages/gate/index.js';
 import { staticScopeFromEnv } from '../../../../../packages/gate/index.js';
+import { tripOverheadReport } from '../../../../../packages/gate/index.js';
+import { gateTripOverheadBudgetMs } from '../../../../../packages/config/index.js';
 import { viewPureGate } from './view.js';
 
 /**
@@ -74,6 +77,8 @@ const failures = await staticFailures([
 ]);
 for (const row of failures) console.error(row);
 const failed = failures.length > 0;
+// Report only: a runner trip over its overhead budget is printed with its runner and trip, and never turns this stage red [C7].
+try { for (const line of tripOverheadReport(recentReceipts(root), gateTripOverheadBudgetMs())) console.log(line); } catch { /* No receipt log yet: nothing to report. */ }
 if (!failed) console.log('static style, prose declarations, clock budgets and doctrine hold');
 process.exitCode = failed ? 1 : 0;
 }
