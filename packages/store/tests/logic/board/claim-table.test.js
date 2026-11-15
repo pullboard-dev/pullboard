@@ -33,6 +33,8 @@ function recorded() {
 const stored = ({ model, ...rest }) => {
   const copy = JSON.parse(JSON.stringify(rest));
   delete copy.detail?.model;
+  // The record keeps a refusal's full note only in the cause; the claim stores the note cut short, and the writer rebuilds the cause from that cut note.
+  if (copy.detail?.submitOutcome?.pipelineCause) delete copy.detail.submitOutcome.pipelineCause.text;
   if (copy.kind === 'fact') delete copy.detail.id;
   return copy;
 };
