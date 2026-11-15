@@ -24,6 +24,7 @@ import {
   closeSnapshotChrome,
   tabBar,
 } from '../../../tests/fixtures/cockpit/harness.js';
+import { pressTab } from '../../../tests/fixtures/cockpit/stable.js';
 
 
 test('the view never scrolls sideways at 320px [N26]', { timeout: 120_000 }, async (t) => {
@@ -46,7 +47,7 @@ test('the view never scrolls sideways at 320px [N26]', { timeout: 120_000 }, asy
     await chrome.waitFor("typeof data === 'object' && !!data?.project");
     // A fresh board opens on the first-run Dashboard (0de17112c6); set it aside so the tabs under test render.
     await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
-    await chrome.click("document.querySelector('[data-tab=\"items\"]')");
+    await pressTab(chrome, 'items');
     await chrome.waitFor('document.querySelectorAll("#chain .row").length === 2');
     // This machine's fonts first, then a wide one (Verdana here, DejaVu Sans on Linux) at 320 and at 305,
     // the room a 320px screen leaves beside a classic 15px scrollbar: Linux CI measured 324px of tabs there.
@@ -55,7 +56,7 @@ test('the view never scrolls sideways at 320px [N26]', { timeout: 120_000 }, asy
     await chrome.stable(`document.documentElement.style.setProperty('--sans', ${JSON.stringify(font || 'system-ui, sans-serif')})`);
     await chrome.waitFor(`innerWidth === ${width}`);
     for (const tab of ['dashboard', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap']) {
-      await chrome.click(`document.querySelector('[data-tab="${tab}"]')`);
+      await pressTab(chrome, `${tab}`);
       await chrome.waitFor(`!document.querySelector('[data-pane="${tab}"]').hidden`);
       const seen = JSON.parse(await chrome.stable(`JSON.stringify((() => {
         const edge = document.documentElement.clientWidth;
@@ -86,22 +87,28 @@ test('phone tab labels keep their two pixel inset under real wide fonts [N26]', 
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.waitFor('!!data?.project && document.querySelectorAll("#tabs .tab").length === 8');
+    await chrome.waitFor('!!data?.project && document.querySelectorAll("#tabs .tab").length > 0');
     for (const [width, font] of [[375, 'system-ui, sans-serif'], [375, 'Verdana, "DejaVu Sans", sans-serif'],
       [320, 'Verdana, "DejaVu Sans", sans-serif'], [305, 'Verdana, "DejaVu Sans", sans-serif'], [1280, 'system-ui, sans-serif']]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.stable(`document.documentElement.style.setProperty('--sans', ${JSON.stringify(font)})`);
       await chrome.waitFor(`innerWidth === ${width}`);
       const bar = await tabBar(chrome);
+      // The grouped top nav keeps Dashboard, Items and the Rules and Insights menus on the strip; the other tabs sit in the menus.
+      const strip = JSON.parse(await chrome.stable(`JSON.stringify((() => {
+        const e = document.querySelector('#tabs').closest('.strip') || document.querySelector('#tabs');
+        return { tabs: document.querySelectorAll('#tabs .tab').length, scrolls: e.scrollWidth > e.clientWidth, overflowX: getComputedStyle(e).overflowX, page: document.documentElement.scrollWidth, wide: [...document.body.querySelectorAll('*')].map(e => { const r = e.getBoundingClientRect(); return { e: e.tagName + (e.id ? '#' + e.id : '') + '.' + (e.getAttribute('class') || '').split(' ')[0], l: Math.round(r.left), r: Math.round(r.right) }; }).filter(x => x.r > document.documentElement.clientWidth + 1 || x.l < -1).slice(0, 8) };
+      })())`));
+      assert.equal(strip.tabs, 9, `${width}/${font}: Dashboard and all retained tabs remain`);
+      // Approved behaviour: at phone width the strip scrolls sideways itself; the page never does.
+      assert.ok(strip.page <= bar.client, `${width}/${font}: the page never scrolls sideways, ${strip.page} wide in ${bar.client}: ${JSON.stringify(strip.wide)}`);
+      if (strip.scrolls) assert.equal(strip.overflowX, 'auto', `${width}/${font}: a strip wider than the screen scrolls sideways inside itself`);
       for (const layout of bar.layouts) {
         const where = `${width}/${font}/${layout.on}`;
-        assert.equal(layout.tabs.length, 8, where + ': Dashboard and all retained complete labels remain');
-        for (const tab of layout.tabs) assert.ok(tab.labelLeft >= tab.left + 2 && tab.labelRight <= tab.right - 2,
+        if (width < 480) for (const tab of layout.tabs) assert.ok(tab.labelLeft >= tab.left + 2 && tab.labelRight <= tab.right - 2,
           `${where}: ${tab.tab} retains the original two-pixel inset: ${JSON.stringify(tab)}`);
-        assert.equal(new Set(layout.tabs.map(tab => Math.round(tab.top))).size, width < 480 ? 2 : 1, where + ': the phone has two rows and desktop one');
-        layout.tabs.forEach((tab, index) => { if (index) assert.ok(tab.top >= layout.tabs[index - 1].bottom - 0.5 || tab.left >= layout.tabs[index - 1].right - 0.5, where + ': tabs never overlap'); });
-        assert.ok(layout.tabs[0].left >= layout.bar[0] - 0.5 && layout.tabs.at(-1).right <= layout.bar[1] + 0.5
-          && layout.bar[1] <= bar.client, where + ': the whole tab bar fits the actual content width');
+        assert.equal(new Set(layout.tabs.map(tab => Math.round(tab.top))).size, 1, where + ': the strip is one row');
+        layout.tabs.forEach((tab, index) => { if (index) assert.ok(tab.left >= layout.tabs[index - 1].right - 0.5, where + ': tabs never overlap'); });
       }
     }
     assert.deepEqual(chrome.exceptions, [], 'the real page raises no uncaught exception');

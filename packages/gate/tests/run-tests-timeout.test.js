@@ -176,13 +176,13 @@ test('landing idle target [C7,V10]', async () => {
   assert.doesNotMatch(output, /Landing gate stopped early|Files not run:/u);
 });
 
-test('a busy descendant keeps its test file alive for two minutes [C7,V10]', t => {
+test('a busy descendant keeps its test file alive far past the idle timeout [C7,V10]', t => {
   const result = runFixture(t, `import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
 test('working child [C7,V10]', () => {
-  execFileSync(process.execPath, ['-e', 'const end=Date.now()+120000; while(Date.now()<end) {}']);
+  execFileSync(process.execPath, ['-e', 'const end=Date.now()+12000; while(Date.now()<end) {}']);
 });
-`, '180000', { PULLBOARD_TEST_IDLE_TIMEOUT_MS: '2000', PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS: '180000' });
+`, '60000', { PULLBOARD_TEST_IDLE_TIMEOUT_MS: '2000', PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS: '60000' });
   assert.equal(result.status, 0, outputOf(result));
   assert.match(outputOf(result), /ok \d+ - working child \[C7,V10\]/u);
   assert.doesNotMatch(outputOf(result), /HUNG file/u);

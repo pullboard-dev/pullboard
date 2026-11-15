@@ -3,14 +3,12 @@ import { gitSpawnSync } from '../../../../git/index.js';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { isAbsolute } from 'node:path';
@@ -21,6 +19,8 @@ import { dropStagingFolder } from '../keyed.js';
 import { placeKeyedFolder } from '../keyed.js';
 import { touchKeyedFolder } from '../keyed.js';
 import { writeKeyedLease } from '../keyed.js';
+import { scratchFolder } from '../../../../config/index.js';
+import { scratchRoot } from '../../../../config/index.js';
 
 const OID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const MANIFEST = '.pullboard-runner-source.json';
@@ -53,6 +53,14 @@ export function archivedToolingSource(root) {
 const PREFIX = 'pullboard-committed-runner-';
 /** The most shared controller folders left in the temp directory after a sweep, newest kept. */
 export const SHARED_KEEP_COUNT = 8;
+
+/**
+ * The runner controller entry inside a repository tree.
+ * Why: dispatch callers without a committed export run the checkout's own controller, and only this file names where it lives.
+ *
+ * @param {string} root
+ */
+export function runnerControllerEntry(root) { return join(root, 'apps/runner/src/io/controller.js'); }
 /** Shared folders this process is running from, by path, with their run counts; a sweep never removes one. */
 const inUse = new Map();
 /** The folder beside the shared exports holding one empty lease file per export and process: `<key>.<pid>`. */
@@ -129,7 +137,7 @@ function sharedExport(directory, root, commit, tree) {
 }
 
 /** Remove all but the newest SHARED_KEEP_COUNT shared controller folders, never one in use here or elsewhere, or `keep`. */
-export function pruneSharedExports(keep, parent = tmpdir()) {
+export function pruneSharedExports(keep, parent = scratchRoot()) {
   const shared = new RegExp(`^${PREFIX}[a-f0-9]{32}$`, 'u');
   let names = [];
   try { names = readdirSync(parent); } catch { return []; }
@@ -148,6 +156,23 @@ export function pruneSharedExports(keep, parent = tmpdir()) {
 }
 
 /**
+ * The commit and tree a repository's HEAD names, or null when the root is not a repository.
+ * Why: the committed export is a function of this pair alone, so callers key what they derive from it (#8133) [C7].
+ *
+ * @param {string} root
+ * @returns {{ commit: string, tree: string }|null}
+ */
+export function committedToolingId(root) {
+  if (!existsSync(join(root, '.git'))) return null;
+  const commit = toolingGit(root, ['rev-parse', '--verify', 'HEAD']);
+  const tree = toolingGit(root, ['rev-parse', `${commit}^{tree}`]);
+  if (!OID.test(commit) || !OID.test(tree) || toolingGit(root, ['rev-parse', '--show-toplevel']) !== resolve(root)) {
+    throw new Refused('RUNNER_TOOLING_FILES', 'runner tooling must name its exact committed repository');
+  }
+  return { commit, tree };
+}
+
+/**
  * Make one owned git-archive installation; callers drain their controller before removing it. With `shared`, the
  * export of a commit is made once and reused by every later dispatch of that commit, whose cleanup leaves it in place.
  * Why: every runner dispatch exported and unpacked the whole tooling tree twice, about a second each when idle and far
@@ -157,13 +182,10 @@ export function pruneSharedExports(keep, parent = tmpdir()) {
  * @param {{ shared?: boolean }} [options]
  */
 export function committedRunnerController(root, { shared = false } = {}) {
-  if (!existsSync(join(root, '.git'))) return null;
-  const commit = toolingGit(root, ['rev-parse', '--verify', 'HEAD']);
-  const tree = toolingGit(root, ['rev-parse', `${commit}^{tree}`]);
-  if (!OID.test(commit) || !OID.test(tree) || toolingGit(root, ['rev-parse', '--show-toplevel']) !== resolve(root)) {
-    throw new Refused('RUNNER_TOOLING_FILES', 'runner tooling must name its exact committed repository');
-  }
-  const target = shared ? join(tmpdir(), PREFIX + createHash('sha256').update(`${resolve(root)}\0${commit}`).digest('hex').slice(0, 32)) : null;
+  const id = committedToolingId(root);
+  if (!id) return null;
+  const { commit, tree } = id;
+  const target = shared ? join(scratchRoot(), PREFIX + createHash('sha256').update(`${resolve(root)}\0${commit}`).digest('hex').slice(0, 32)) : null;
   // Leased before it is checked, so a process releasing it concurrently sees this one and leaves it.
   if (target) acquire(target);
   const reused = target && sharedExport(target, root, commit, tree);
@@ -172,7 +194,7 @@ export function committedRunnerController(root, { shared = false } = {}) {
     const cleanup = handle(reused);
     return { root: reused, entry: join(reused, 'apps/runner/src/io/controller.js'), commit, tree, cleanup };
   }
-  const directory = mkdtempSync(join(tmpdir(), PREFIX));
+  const directory = scratchFolder(PREFIX);
   try {
     // A repository's local attributes and CRLF filters can alter git-archive bytes too. An
     // isolated object view overrides every conversion without touching the user's Git settings.

@@ -1,5 +1,13 @@
 /** Shared kit for the liveness chaos children: run one flow, break a holder at a named step, read what the board did alone [C7]. */
-import { rmSync } from 'node:fs';
+import {
+  mkdirSync,
+  rmSync,
+} from 'node:fs';
+import { join } from 'node:path';
+import {
+  claimJob,
+  offerJob,
+} from '../../../../packages/api/index.js';
 import { Refused } from '../../../../packages/kernel/light.js';
 import {
   cli,
@@ -24,7 +32,7 @@ async function readItem(box, id) {
 
 /**
  * The flow steps the kit can break. Each runs the real CLI up to its step and returns the item and the holder it left.
- * Children for submit, gate, verify and land add their step here.
+ * Children for land add their step here.
  */
 const STEPS = {
   async claim(box, id) {
@@ -35,6 +43,32 @@ const STEPS = {
   async submit(box, id) {
     box.submit(id); // the submit is the work done: past it the board owns the item, so a dead holder cannot strand it
     return { holder: box.seats.builder, done: item => item.item_status !== 'claimed' };
+  },
+  async verify(box, id) {
+    box.submit(id);
+    // A second seat, in another family, holds the verify claim: the reviewer's own `next --verify` reserves the submitted item for it.
+    const reviewer = box.seats.outside;
+    const reserved = await cli(box, reviewer.path, ['next', '--verify', String(id)]);
+    if (reserved.code !== 0) throw new Refused('LIVENESS_STEP_FAILED', `the verify claim ran red before the fault: ${reserved.out}${reserved.err}`);
+    // Done: the board freed the reservation or finished the review, so the dead reviewer no longer holds the item.
+    // A live reviewer under another parent session asks for the review each tick: once the dead holder's reservation counts for nothing, it takes it over.
+    const taker = box.seats.sameFamily;
+    return { holder: reviewer, done: item => item.item_status !== 'submitted' || (Boolean(item.item_review_by) && item.item_review_by !== reviewer.id),
+      recover: () => cli(box, taker.path, ['next', '--verify', String(id)]) };
+  },
+  async gate(box, id) {
+    box.submit(id); // the real submit comes first: the gate job belongs to the submitted item
+    const head = box.git(box.seats.builder.path, 'rev-parse', 'HEAD');
+    const job = `gate-${id}`;
+    const now = box.clock.now().getTime();
+    offerJob(box.board.db, { id: job, kind: 'gate', item: id, candidate: head, now });
+    // A fixture runner: its checkout is a folder a kill removes; a cut link only stops it renewing the lease it holds.
+    const path = join(box.root, '..', `runner-${id}`);
+    mkdirSync(path, { recursive: true });
+    const runner = `runner-fixture-${id}`;
+    const claim = claimJob(box.board.db, { runner, kinds: ['gate'], now });
+    if (claim?.job !== job) throw new Refused('LIVENESS_STEP_FAILED', `the fixture runner could not take gate job ${job}`);
+    return { holder: { id: runner, path, lane: 'runner' }, job, done: item => item.item_status !== 'submitted' };
   },
 };
 
@@ -69,10 +103,12 @@ export async function runLivenessFlow(t, { step, fault = 'kill', seed = 1 } = {}
   if (fault === 'kill') rmSync(victim.path, { recursive: true, force: true });
   const start = box.clock.now().getTime();
   let item = await readItem(box, id);
+  let recovered = null;
   while (!flow.done(item) && box.clock.now().getTime() - start <= 2 * LIVENESS_BOUND_MS) {
     box.advance(TICK_MS);
+    if (flow.recover) recovered = await flow.recover();
     await cli(box, survivor.path, ['shout', 'all', '--kind', 'idea', 'Liveness kit: the surviving seat writes while a holder is gone.']);
     item = await readItem(box, id);
   }
-  return { step, fault, victim: victim.id, state: item.item_status, owner: item.item_owner ?? null, elapsedMs: box.clock.now().getTime() - start, id };
+  return { step, fault, victim: victim.id, state: item.item_status, owner: item.item_owner ?? null, elapsedMs: box.clock.now().getTime() - start, id, ...(recovered ? { recovery: `${recovered.code}: ${recovered.out}${recovered.err}`.slice(0, 400) } : {}) };
 }

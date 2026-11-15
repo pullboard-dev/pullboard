@@ -309,5 +309,6 @@ test('a real worktree under .claude/worktrees leaves status clean and coordinato
   const submitted = await box.invoke('submit', id);
   assert.equal(submitted.code, 0, JSON.stringify(submitted.document));
   assert.equal(submitted.document.id, Number(id));
-  assert.equal(submitted.document.gate.green, true);
+  // A pulled submit returns queued at once; the gate settles on a runner, so a settled gate must be green [C7,#7932].
+  assert.ok(submitted.document.queued === true || submitted.document.gate?.green === true, JSON.stringify(submitted.document));
 });

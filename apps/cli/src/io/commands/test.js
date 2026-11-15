@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Refused } from '../../../../../packages/kernel/light.js';
 import { queuesTestRun } from '../../../../../packages/drive/index.js';
 import { testRunItem } from '../../../../../packages/drive/index.js';
@@ -12,6 +13,9 @@ import { headCommit } from '../../../../../packages/git/index.js';
 import { context } from '../context.js';
 import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
+
+/** The CLI entry a queued run's worker runs: this build, named here so packages/drive never reaches into apps/. */
+const CLI_ENTRY = fileURLToPath(new URL('../../../pullboard.js', import.meta.url));
 
 /**
  * The seat's live build claims: `item` is its sole claim, since ambiguous or absent ownership grants no item priority,
@@ -33,6 +37,7 @@ async function seatClaims(ctx, agent) {
  * at once with its run id; `pullboard next` hands the result back. A seat holding a claim always queues, even with
  * `--wait`. For a person or a script with no claim, `--wait` runs it here and blocks: 0 when every named file passes.
  * `--status <id>` prints one run's state once; `--cancel <id>` stops the seat's own queued or running run.
+ * `--census [--out <jsonl>]` runs every tracked test file as a few shards per runner and writes a row per file.
  *
  * Why queue for seats: seats sat 16-54 min in sleep-and-pgrep loops on runner-queued runs; waiting is an error [C7].
  */
@@ -40,6 +45,9 @@ export async function run(io, { first, second, rest, values }) {
   const ctx = context(io);
   if (values.status !== undefined) return sayTestRunStatus(io, ctx, values.status);
   if (values.cancel !== undefined) return cancelRun(io, ctx, values.cancel);
+  if (values.census === true) {
+    return (await import('../test/census.js')).runCensus(io, ctx, values, { prefixes: [first, second, ...rest].filter(prefix => prefix !== undefined && prefix !== '') });
+  }
   const { expandTestFolders } = await import('../../../../../packages/runners/index.js');
   const files = expandTestFolders(ctx.info.root, [first, second, ...rest].filter((file) => file !== undefined && file !== ''));
   if (values.diagnose === true && (files.length !== 1 || values.affected === true)) throw new Refused('USAGE', '--diagnose requires exactly one named test file');
@@ -77,7 +85,8 @@ async function queueSeatRun(io, ctx, { agent, item, items, files, values }, pull
   }
   // A pulled run fetches only the committed source, so its refusal of an uncommitted change comes now, not through next [P7].
   if (pulledRun?.pullTestWanted(item, values)) await pulledRun.refuseUncommitted(ctx.info.root);
-  const queued = queueTestRun(ctx, work => withBoard(ctx, work), { agent, item, items, named: values.item !== undefined, head: headCommit(ctx.info.root), files, affected, compareMain: values['compare-main'] === true });
+  const queued = queueTestRun(ctx, work => withBoard(ctx, work), { agent, item, items, named: values.item !== undefined, head: headCommit(ctx.info.root), files, affected, compareMain: values['compare-main'] === true, noFileLimit: values['no-file-limit'] === true },
+    { bin: CLI_ENTRY });
   io.result?.({ queued: true, run: queued.id, status: queued.status, files: queued.files, log: queued.log });
   if (values.wait === true || process.env.PULLBOARD_TEST_WAIT === '1') io.say('a seat holding a claim never blocks on its own test run; it queues');
   io.say(`queued test run ${queued.id}; the board runs it and pullboard next brings the result; read it any time with pullboard test --status ${queued.id}; take your next item now: pullboard next --take`);

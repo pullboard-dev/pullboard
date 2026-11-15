@@ -13,8 +13,8 @@ test('clause 1: CONTRIBUTING is the approved guide, asks for no sign-off, and th
   const contributing = read('CONTRIBUTING.md');
   assert.doesNotMatch(contributing, /sign-off|signoff|Signed-off-by|git commit -s/iu, 'the DCO is dropped (RFC 0009)');
   assert.equal(createHash('sha256').update(contributing).digest('hex'),
-    '5cb38501a620e23a161270b8bee536e341f4118abefb9355122e013b38922e16',
-    'CONTRIBUTING.md is the guide Corey approved on 8 Nov, byte for byte');
+    '74bc3356f9ae2c8436180046adad27d0bf05a442635133e790a833ab4ad496a6',
+    'CONTRIBUTING.md is the guide Corey approved on 14 Nov, byte for byte');
   for (const phrase of ['RFC 0009', 'CLA.md', 'Apache Individual CLA v2.2', 'you keep it', 'patents included', 'within 7 days']) {
     assert.ok(contributing.includes(phrase), phrase);
   }

@@ -24,7 +24,6 @@ import {
   sendBack,
   startView,
   styleOf,
-  element,
   storage,
   openPage,
   drawing,
@@ -110,7 +109,7 @@ test('the activity tab draws the lifecycle from the declaration, as the README d
       'open>withdrawn': verifiedIsFinal ? 'withdraw 4' : 'withdraw 1',
       'claimed>withdrawn': verifiedIsFinal ? null : 'withdraw 2',
       'submitted>withdrawn': verifiedIsFinal ? null : 'withdraw 1',
-      ...(!verifiedIsFinal ? { 'verified>open': 'reject · reopen · refreeze (none yet)' } : {}),
+      ...(!verifiedIsFinal ? { 'verified>open': 'reject · reopen · refreeze (none yet)', 'verified>withdrawn': 'withdraw (none yet)' } : {}),
     });
 
     // Every route is square, and the ones back to an earlier state are dashed, each at its own height.
@@ -118,14 +117,14 @@ test('the activity tab draws the lifecycle from the declaration, as the README d
       route.points.slice(1).forEach(([x, y], n) => assert.ok(x === route.points[n][0] || y === route.points[n][1], `${route.pair} runs square: ${JSON.stringify(route.points)}`));
     }
     const backs = routes.filter((route) => route.back);
-    const row = ['open', 'claimed', 'verified', 'submitted', 'withdrawn'];
+    const row = ['open', 'claimed', 'submitted', 'verified', 'withdrawn'];
     const rowBoxes = [...svg.matchAll(/<g class="s-([^"]+)"><title>[^<]*<\/title><rect class="box" x="([\d.]+)" y="([\d.]+)"/g)]
       .map(([, state, x, y]) => ({ state, x: Number(x), y: Number(y) }));
     assert.deepEqual(rowBoxes.toSorted((a, b) => a.x - b.x).map((box) => box.state), row,
       'the declared longest path orders every state on the main row');
     assert.equal(new Set(rowBoxes.map((box) => box.y)).size, 1, 'all main-row boxes align');
     assert.deepEqual(backs.map((route) => route.pair).sort(),
-      ['claimed>open', 'submitted>open', 'submitted>verified', 'verified>open'],
+      ['claimed>open', 'submitted>open', 'verified>open', 'verified>submitted'],
       'every return to an earlier main-row state is dashed');
     const lanes = backs.map((route) => {
       const [from, to] = route.pair.split('>');
@@ -180,29 +179,21 @@ test('a closed lifecycle stays closed, across a reload and a restart of the view
     port = first.link.port;
     const page = await openPage(first, { store });
     await page.click({ tab: 'activity' });
-    assert.equal(page.element('flow-panel').hidden, true, 'Activity starts with its feed');
-    assert.equal(page.element('flow').writes, 0, 'the default-hidden chart is not rendered');
-    await page.fire('flow-show', 'click');
-    assert.equal(page.element('flow-panel').hidden, false, 'the ghost button opens the chart');
-    await page.fire('flow-show', 'click');
-    assert.equal(page.element('flow-panel').hidden, true, 'the same ghost button closes it');
-
-    const reloaded = await openPage(first, { store });
-    assert.equal(reloaded.element('flow-panel').hidden, true, 'a reload keeps it closed');
-    assert.equal(reloaded.element('flow').writes, 0, 'and a closed figure is not drawn');
+    // The redesigned Activity (#6916) draws the hour cards, rows and Bottlenecks inline and has no lifecycle figure to open or
+    // close: the ghost button, #flow-panel and the pb.flow choice are retired, so the closed-figure assertions have no equivalent.
+    assert.ok(!page.html.includes('id="flow-panel"') && !page.html.includes('id="flow-show"'), 'Activity has no lifecycle figure toggle');
+    assert.ok(page.html.includes('id="activity"'), 'Activity is drawn into its own pane');
+    assert.equal(store.getItem('pb.flow'), null, 'no figure choice is kept');
   } finally {
     await first.stop();
   }
-  // The browser keeps the choice per address, so the view comes back on the port it last used.
+  // The browser keeps per-address choices, so the view comes back on the port it last used.
   const second = await startView(box);
   try {
-    assert.equal(second.link.port, port, 'a restarted view serves from the same port, where the browser kept the choice');
+    assert.equal(second.link.port, port, 'a restarted view serves from the same port, where the browser kept its choices');
     const page = await openPage(second, { store });
-    assert.equal(page.element('flow-panel').hidden, true, 'still closed');
-    await page.fire('flow-show', 'click');
-    assert.equal(page.element('flow-panel').hidden, false, 'shown again on request');
-    assert.match(page.show('flow'), /^<svg /, 'and drawn');
-    assert.equal(store.getItem('pb.flow'), 'shown');
+    await page.click({ tab: 'activity' });
+    assert.ok(page.html.includes('id="activity"'), 'Activity still draws after the restart');
   } finally {
     await second.stop();
   }

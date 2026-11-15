@@ -22,13 +22,18 @@ export const WAIT_STEP_NAMES = [...QUEUE_STEPS, ...START_STEPS];
  */
 export function waitRows(jobs) {
   return jobs.map(job => {
-    const queued = job.steps.filter(step => QUEUE_STEPS.has(step.name)).map(step => step.at);
-    const started = job.steps.filter(step => START_STEPS.has(step.name)).map(step => step.at);
+    let queuedAt = job.created;
+    let startedAt = null;
+    let queued = false;
+    for (const step of job.steps) {
+      if (QUEUE_STEPS.has(step.name) && (!queued || step.at < queuedAt)) { queuedAt = step.at; queued = true; }
+      if (START_STEPS.has(step.name) && (startedAt === null || step.at < startedAt)) startedAt = step.at;
+    }
     return {
       id: job.id,
       kind: job.kind,
-      queuedAt: queued.length ? Math.min(...queued) : job.created,
-      startedAt: started.length ? Math.min(...started) : null,
+      queuedAt,
+      startedAt,
       open: WAITING_STEPS.has(job.step),
     };
   });
@@ -62,7 +67,8 @@ export function runnerWaits(rows, { from, until, abandonedAfterMs = ABANDONED_AF
       /** Jobs waiting at an instant: queued at or before it, not yet started. */
       const depthAt = instant => own.filter(span => span.from <= instant && instant < span.to).length;
       const arrivals = own.filter(span => span.from > start && span.from < end).map(span => span.from);
-      const depthPeak = Math.max(depthAt(start), ...arrivals.map(depthAt));
+      let depthPeak = depthAt(start);
+      for (const arrival of arrivals) depthPeak = Math.max(depthPeak, depthAt(arrival));
       if (!waits.length && !depthPeak && !depthAt(end)) continue;
       hours.push({ hour: new Date(start).toISOString(), kind, count: waits.length,
         p50Ms: nearestRank(waits, 0.5), p90Ms: nearestRank(waits, 0.9), maxMs: waits.length ? waits.at(-1) : null,

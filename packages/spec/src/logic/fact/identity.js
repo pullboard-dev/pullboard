@@ -1,5 +1,5 @@
 /** Indexed global fact identities, including supported legacy JSON5 and SQLite JSONB [B29,C7]. */
-import { Refused } from '../../../../kernel/light.js';
+import { Refused } from '../../../../kernel/browser.js';
 
 const warnedUnknown = new WeakSet();
 

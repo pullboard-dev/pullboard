@@ -49,7 +49,7 @@ import {
   withBoard,
 } from '../entry.js';
 import { actOn } from '../board/access.js';
-import { dropWithdrawnHandoffTicket } from '../submit/handoff.js';
+import { dropHandoffTicket } from '../../../../../packages/resources/index.js';
 import { submitHandoff } from '../../../../../packages/store/index.js';
 
 /** Run `pullboard gate` and return its exit code. */
@@ -122,7 +122,7 @@ async function withdrawGate(io, value) {
     const item = idArg(value);
     const handoff = submitHandoff(board, item);
     const result = await ordered(ctx, board, 'completeSubmitHandoff', [item, { agentId: me.id, job: handoff?.id, withdrawn: true }]);
-    dropWithdrawnHandoffTicket(handoff);
+    if (handoff && ['queued', 'running'].includes(handoff.state)) dropHandoffTicket(handoff.id);
     io.result?.({ item, withdrawn: true, job: result?.id ?? handoff?.id ?? null });
     io.say(`gate withdrawn for #${item}; pullboard submit ${item} starts a new one`);
     return 0;

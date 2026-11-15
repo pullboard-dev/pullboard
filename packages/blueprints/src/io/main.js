@@ -60,6 +60,7 @@ import {
   insertSectionRows,
   nextRowId,
 } from '../../../spec/index.js';
+import { storeName } from './store-names.js';
 
 /** The blueprint file format this Pullboard reads and writes. */
 export const BLUEPRINT_FORMAT = 1;
@@ -113,7 +114,7 @@ export function readBlueprint(reference, cwd) {
     throw new Refused('BLUEPRINT_URL', `a blueprint is read from the bundled set or a local file, never a URL; download ${text} yourself, read it, then run pullboard blueprint add <file>`);
   }
   const bundled = NAME_RE.test(text) && bundledBlueprints().includes(text);
-  const file = bundled ? resolve(BUNDLED_DIR, `${text}.json`) : resolve(cwd, text);
+  const file = bundled ? resolve(BUNDLED_DIR, `${storeName(text)}`) : resolve(cwd, text);
   if (!bundled && !existsSync(file)) {
     throw new Refused('NO_BLUEPRINT', `no blueprint "${text}"; use a bundled one (${bundledBlueprints().join(', ')}) or a path to a blueprint JSON file`);
   }

@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { agentFloorHtml } from '../../../../src/logic/agent/floor/render.js';
 import { agentFloorModel } from '../../../../src/logic/agent/floor/model.js';
-import { dashboardHtml } from '../../../../src/logic/render/dashboard.js';
 import { dashboardModel } from '../../../../src/io/dashboard/model.js';
 import { agentFloorData } from '../../../fixtures/cockpit/floor.js';
 
@@ -67,7 +66,7 @@ test('the floor\'s full row of numbers names every count the person asked for [N
   assert.deepEqual(shown.map(([, , label]) => label), labels);
   for (const [key, value] of shown) assert.equal(value, String(expected[key]), `${key} reads the seeded board`);
   assert.match(band, /4 seen in 4 h/u, 'every seat seen in the window, quiet ones included');
-  assert.match(band, /1 waiting for a reviewer/u);
+  assert.match(band, /1 pending review/u);
   assert.equal(floor.numbers.unreviewed, 1);
 });
 
@@ -95,7 +94,7 @@ test('every agent has a four-hour line with what it holds, its times and shouts,
   const { floor, html } = floorAt(seeded.now);
   const agents = section(html, 'Agents');
   assert.doesNotMatch(agents, /<details/u, 'no agent is folded away');
-  for (const [group, count] of [['Building', 1], ['Reviewing', 1], ['Between items', 1], ['Quiet for 20 min or more', 1]]) {
+  for (const [group, count] of [['Building', 1], ['Reviewing', 1], ['Idle', 1], ['Quiet for 20 min or more', 1]]) {
     assert.match(agents, new RegExp(`<h3 class="floor-group">${group} · ${count}</h3>`, 'u'));
   }
   const line = id => agents.match(new RegExp(`data-floor-agent="${id}"[\\s\\S]*?</span></div>`, 'u'))?.[0] ?? '';
@@ -188,10 +187,8 @@ test('a ready item\'s age counts from the moment it came free, lapsed leases inc
   assert.deepEqual(ready, [[1, 60], [2, 30], [3, 45]], 'free since the lease ran out, the renewed lease ran out, or the release');
 });
 
-test('the Dashboard\'s Agents card ends with the link to the floor at its own address [N26,N38]', () => {
-  const model = dashboardModel(seeded.input.project, seeded.input.events, { now: seeded.now, complete: true });
-  const agents = section(dashboardHtml(model, { floorHref: '/dashboard/floor' }), 'Agents');
-  assert.match(agents, /<a class="link dash-floor-link" href="\/dashboard\/floor" data-tab="dashboard" data-detail="floor">Open the agent floor →<\/a>$/u);
+test('the floor keeps its own address and its way back to the Dashboard [N26,N38]', () => {
+  // The /live-style Dashboard (#6847) draws its own Agents table, which the Agents notch opens; the floor stays at /dashboard/floor.
   assert.match(agentFloorHtml(floorAt(seeded.now).floor, { back: '/dashboard' }), /<a class="link" href="\/dashboard" data-tab="dashboard">← Dashboard<\/a>/u);
   // The page embeds these two functions' text; neither can reach a board by itself, so the floor reads what the Dashboard read.
   for (const embedded of [agentFloorModel, agentFloorHtml]) {

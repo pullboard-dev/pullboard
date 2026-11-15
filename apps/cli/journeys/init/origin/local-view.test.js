@@ -20,6 +20,7 @@ import {
   closeSnapshotChrome,
   styleOf,
 } from '../../../tests/fixtures/cockpit/harness.js';
+import { privateFixtureFiles } from '../../../tests/fixtures/child.js';
 import {
   HOSTED,
   namedWaits,
@@ -226,18 +227,33 @@ test('the local view hands its secret only to the hosted page [N26,A2]', { timeo
   }
 });
 
-test('a browser without the key gets a page that sends it to app.pullboard.dev [N26,A2]', { timeout: 60_000 }, async () => { // budget: hang ceiling for one native view and local HTTP requests.
+test('a browser without the key gets the no-link page: 401, what to do, and app.pullboard.dev [N26,A2]', { timeout: 60_000 }, async () => { // budget: hang ceiling for one native view and local HTTP requests.
   const box = machine();
   project(box, 'bare-view-guidance');
   const view = await startView(box);
   try {
     const refusal = 'this view needs its own address and secret: open the link pullboard view printed';
     const page = await call(view, '/', { headers: { accept: 'text/html', 'sec-fetch-dest': 'document' } });
-    assert.ok([200, 401].includes(page.status), 'a browser receives a usable guidance page');
+    assert.equal(page.status, 401, 'the no-link page still answers 401');
     assert.match(page.headers['content-type'], /^text\/html\b/);
     assert.match(page.body, /href=["']https:\/\/app\.pullboard\.dev\/?["']/);
     assert.match(page.body, /board.*app\.pullboard\.dev/iu);
-    assert.ok(!page.body.includes(view.key), 'the public guidance contains no view key');
+    assert.match(page.body, /<h1>This board needs its private link<\/h1>/u, 'it says the board needs its private link');
+    assert.match(page.body, /Ask the person who shared this board to send you its link\./u, 'and to ask the person who shared it');
+    assert.match(page.body, /To open your own boards, go to <a href="https:\/\/app\.pullboard\.dev">app\.pullboard\.dev<\/a>\./u, 'and how to open your own boards');
+    assert.match(page.body, /<link rel="stylesheet" href="\/no-link\.css">/u, 'it is styled by the view, not left to browser defaults');
+    assert.match(page.body, /<span>Pullboard<\/span>/u, 'and carries the Pullboard mark');
+    const sheet = await call(view, '/no-link.css', { headers: { accept: 'text/css', 'sec-fetch-dest': 'style' } });
+    assert.equal(sheet.status, 200, 'its stylesheet opens without the link');
+    assert.match(sheet.headers['content-type'], /^text\/css\b/);
+    assert.match(sheet.headers['content-security-policy'], /style-src 'self'/u, 'the page keeps the view\'s strict policy, which allows only its own stylesheet');
+    const viewTokens = /^:root \{[\s\S]*?\n\}/mu.exec(await styleOf(view))?.[0];
+    assert.ok(viewTokens && sheet.body.startsWith(viewTokens), 'the stylesheet carries the view\'s own fonts and colours');
+    for (const [what, body] of [['page', page.body], ['stylesheet', sheet.body]]) {
+      assert.ok(!body.includes(view.key), `the no-link ${what} contains no view key`);
+      assert.ok(!body.includes('bare-view-guidance'), `the no-link ${what} shows nothing from the board`);
+      assert.ok(!body.includes(box.dir), `the no-link ${what} names no folder`);
+    }
     const ordinary = await call(view, '/', { headers: { accept: 'text/html' } });
     assert.ok([200, 401].includes(ordinary.status));
     assert.match(ordinary.headers['content-type'], /^text\/html\b/, 'ordinary HTML clients need not send Fetch Metadata');
@@ -266,6 +282,50 @@ test('a browser without the key gets a page that sends it to app.pullboard.dev [
     assert.ok(cookie, 'the exchange sets the private-view cookie');
     const clean = await call(view, authenticated.headers.location ?? '/', { headers: { accept: 'text/html', cookie } });
     assert.equal(clean.status, 200, 'the clean private address opens with the cookie alone');
-    assert.ok(!clean.body.includes('The board opens at app.pullboard.dev'), 'authenticated board is not replaced by public guidance');
+    assert.ok(!clean.body.includes('This board needs its private link'), 'authenticated board is not replaced by public guidance');
   } finally { await view.stop(); }
+});
+
+test('in Chrome, the no-link page wears the view\'s fonts and colours, not browser defaults [N26]', { timeout: 60_000 }, async () => { // budget: one native view and one Chrome page load.
+  const executable = chromeExecutable();
+  assert.ok(executable, 'the no-link page\'s look needs real Chrome');
+  const box = machine();
+  project(box, 'no-link-look');
+  const profile = privateFixtureFiles('pullboard-no-link-').root;
+  let view, chrome;
+  try {
+    view = await startView(box);
+    chrome = await openSnapshotChrome(executable, view.base + '/', profile);
+    await chrome.waitFor(`document.readyState === 'complete' && document.querySelector('main.no-link') !== null`, 20_000); // budget: hang ceiling for one local page load.
+    const seen = JSON.parse(await chrome.stable(`JSON.stringify((() => {
+      const tokens = getComputedStyle(document.documentElement);
+      const card = getComputedStyle(document.querySelector('main.no-link'));
+      const probe = (value) => { const el = document.createElement('i'); el.style.color = value; document.body.append(el); const out = getComputedStyle(el).color; el.remove(); return out; };
+      return {
+        sheets: [...document.styleSheets].map((sheet) => sheet.cssRules.length),
+        font: getComputedStyle(document.body).fontFamily,
+        sans: tokens.getPropertyValue('--sans').trim(),
+        cardBackground: card.backgroundColor,
+        surface: probe('var(--surface)'),
+        radius: card.borderTopLeftRadius,
+        heading: document.querySelector('h1')?.textContent ?? null,
+        mark: document.querySelector('.no-link-brand svg') !== null,
+        link: document.querySelector('.no-link-own a')?.href ?? null,
+      };
+    })())`));
+    assert.ok(seen.sheets.length === 1 && seen.sheets[0] > 0, `the view's stylesheet loaded under its policy: ${JSON.stringify(seen)}`);
+    assert.ok(seen.sans.length > 0 && seen.font === seen.sans, `the page reads in the view's own font, not the browser's serif: ${JSON.stringify(seen)}`);
+    assert.equal(seen.cardBackground, seen.surface, 'the card takes the view\'s surface colour');
+    assert.notEqual(seen.radius, '0px', 'and the view\'s rounded card');
+    assert.equal(seen.heading, 'This board needs its private link');
+    assert.equal(seen.mark, true, 'the Pullboard mark shows');
+    assert.equal(seen.link, 'https://app.pullboard.dev/');
+    assert.deepEqual(chrome.exceptions, [], 'Chrome reports no uncaught exceptions');
+  } finally {
+    try { if (chrome) await closeSnapshotChrome(chrome); }
+    finally {
+      try { if (view) await view.stop(); }
+      finally { rmSync(profile, { recursive: true, force: true }); }
+    }
+  }
 });

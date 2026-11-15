@@ -10,20 +10,39 @@ import { RunnerDropped } from '../main.js';
 import { forgetRuntimeHeld } from '../runtime.js';
 import { recordRuntimeHeld } from '../runtime.js';
 import { committedRunnerController } from '../tooling/committed.js';
+import { runnerControllerEntry } from '../tooling/committed.js';
 import { loadedToolingFiles } from '../tooling/remote.js';
 import { probeRunnerJob } from '../health.js';
 import { watchSource } from './observe.js';
 import { spawn } from 'node:child_process';
-import { tmpdir } from 'node:os';
+import { mkdirSync } from 'node:fs';
+import { statSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { scratchRoot } from '../../../../config/index.js';
+
+/**
+ * The environment of a short controller: this user's private V8 compile cache, when it is a folder only this user can
+ * write. Why: each pulled trip starts three controllers from one unchanged export, and each compiled the whole
+ * controller graph again, 2-8 s apiece beside four other jobs (#8145); V8 keys each entry by its source's hash.
+ */
+function controllerEnvironment() {
+  const folder = join(scratchRoot(), 'pullboard-controller-compile-cache');
+  try {
+    mkdirSync(folder, { recursive: true, mode: 0o700 });
+    const state = statSync(folder);
+    if (!state.isDirectory() || state.uid !== process.getuid?.() || (state.mode & 0o077) !== 0) return process.env;
+  } catch { return process.env; }
+  return { ...process.env, NODE_COMPILE_CACHE: folder };
+}
 
 /** Run one short controller mode and return its decoded answer, with the controller's own refusal and drop shapes. */
 async function shortController(mode, payload, { root, runner, signal }) {
   const installation = committedRunnerController(fileURLToPath(new URL('../../../../../', import.meta.url)), { shared: true });
   try {
     if (!installation) loadedToolingFiles({ rescan: false });
-    const entry = installation?.entry ?? fileURLToPath(new URL('../../../../../apps/runner/src/io/controller.js', import.meta.url));
-    const child = spawn(process.execPath, [entry, '--pullboard-runner-controller', mode], { cwd: mode === '--submit' ? root : tmpdir(), stdio: ['pipe', 'pipe', 'pipe'] });
+    const entry = installation?.entry ?? runnerControllerEntry(fileURLToPath(new URL('../../../../../', import.meta.url)));
+    const child = spawn(process.execPath, [entry, '--pullboard-runner-controller', mode], { cwd: mode === '--submit' ? root : scratchRoot(), env: controllerEnvironment(), stdio: ['pipe', 'pipe', 'pipe'] });
     const output = [], diagnostics = [];
     let bytes = 0, error;
     const stop = () => child.kill('SIGTERM');
@@ -61,7 +80,13 @@ export async function runPulled(root, command, options, ports = {}) {
   const dispatchStart = Date.now();
   const { signal, ...plainOptions } = options;
   const call = ports.call ?? shortController;
-  const custody = (ports.controllerDeadline ?? controllerDeadline)(options.metadata?.resourceOwner, process.pid, root);
+  // One shared tooling export serves the trip's submit, serve-need and finish controllers, and this process keeps its
+  // latest one for its next trip: each short controller releases its export, and the last release deleted it, so every
+  // trip exported the tooling tree three times, about 2 s each on a loaded runner (#8129). keepExport bounds the hold.
+  const held = ports.call ? null : committedRunnerController(fileURLToPath(new URL('../../../../../', import.meta.url)), { shared: true });
+  let custody;
+  try { custody = (ports.controllerDeadline ?? controllerDeadline)(options.metadata?.resourceOwner, process.pid, root); }
+  catch (failure) { held?.cleanup(); throw failure; }
   const span = { startedAt: dispatchStart, host: options.runner?.host ?? null, kind: options.metadata?.kind ?? null };
   const spawned = Date.now();
   const attempt = async () => {
@@ -69,7 +94,7 @@ export async function runPulled(root, command, options, ports = {}) {
     const local = new AbortController();
     const abort = () => local.abort();
     signal?.addEventListener('abort', abort, { once: true });
-    let submitted, readyAt = null, serving = null, serveFailure = null, finished = false;
+    let submitted, readyAt = null, needAt = null, serving = null, serveFailure = null, finished = false;
     try {
       submitted = await call('--submit', { root, command, options: plainOptions, parentPid: process.pid }, { root, runner: options.runner, signal });
       // The job exists on the runner only now: a status mirror that began earlier may not list it, and is never read as a lost job.
@@ -90,6 +115,7 @@ export async function runPulled(root, command, options, ports = {}) {
           return null;
         },
         onNeed: (id, inventory) => {
+          needAt ??= Date.now();
           serving ??= call('--serve-need', { id, inventory }, { root, runner: options.runner }).catch(failure => { serveFailure = failure; throw failure; });
           return serving;
         },
@@ -104,8 +130,11 @@ export async function runPulled(root, command, options, ports = {}) {
       // A waiter's own fault or a failed pack upload ends the job as canceled; the fault is what the caller sees.
       const reason = signal?.aborted || serveFailure || end.end === 'error' ? 'canceled' : end.end === 'result' ? 'result' : end.finishReason;
       finished = true;
+      const doneAt = Date.now();
       const result = await finish({ reason, exit: end.job?.exit, unavailable: end.unavailable, cancellation: end.cancellation }).catch(failure => { throw serveFailure ?? end.error ?? failure; });
       if (serveFailure) throw serveFailure;
+      // The waiter's own marks complete the job's, so roundTripProfile can name every phase of the trip (#8129).
+      if (result?.phases) result.phases = { ...result.phases, dispatch: dispatchStart, submitted: queuedAt, ...(needAt ? { need: needAt } : {}), done: doneAt, end: Date.now() };
       return result;
     } catch (failure) {
       if (submitted && !finished) { finished = true; await call('--finish', { id: submitted.id, reason: 'canceled', readyAt }, { root, runner: options.runner }).catch(() => {}); }
@@ -125,7 +154,22 @@ export async function runPulled(root, command, options, ports = {}) {
   } catch (failure) {
     recordRunnerDispatch({ ...span, endedAt: Date.now(), error: failure });
     throw failure;
-  } finally { custody.close(); }
+  } finally { custody.close(); if (held) keepExport(held); }
+}
+
+/** The tooling export this process keeps between its pulled trips; at most one, so each process holds at most one idle export. */
+let keptExport = null;
+
+/**
+ * Keep this trip's export for the process's next trip, releasing the one kept before unless it is the same folder.
+ * Why: a gate sends its shards and proofs one after another from one process, and each paid a whole export (#8129).
+ * A kept export holds a lease like any run, so another process never removes it; once this process exits, its lease
+ * is dead and the next sweep (SHARED_KEEP_COUNT) or release removes the folder.
+ */
+function keepExport(held) {
+  const previous = keptExport;
+  keptExport = held;
+  previous?.cleanup();
 }
 
 /** Isolate asynchronous execution: the controller path by default, the pull path under the machine setting gate.runnerDispatch. */

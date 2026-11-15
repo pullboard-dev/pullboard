@@ -56,6 +56,7 @@ function fixture(t, sealed = ['alpha', 'apps/gamma']) {
     [LINTS_TEST]: '// Reads the cells plan shards: packages/codemap/data/plan/01-alpha.json\nimport "../packages/alpha/index.js";\nimport "../packages/beta/index.js";\nimport { readFileSync } from "node:fs";\nreadFileSync("packages/codemap/data/plan/01-alpha.json");\n',
     'packages/gate/data/tests/test-cells.json': listing(sealed),
     'packages/gate/data/ceilings/cells-edges.json': edges({ 'packages/alpha/src/core/a.js': { cells: 0, deep: 0 }, 'packages/beta/src/core/b.js': { cells: 0, deep: 0 } }, { alpha: { imports: [], deepImporters: 0 }, beta: { imports: [], deepImporters: 0 } }),
+    'packages/gate/data/tests/test-fixtures.json': { [ALPHA_TEST]: { tempdir: 1 }, 'packages/beta/tests/b.test.js': { tempdir: 1 } },
     'packages/codemap/data/plan/01-alpha.json': shard(1, 'alpha', 'packages/alpha', [['src/a.js', 'packages/alpha/src/core/a.js', 'seed']]),
     'packages/codemap/data/plan/02-beta.json': shard(2, 'beta', 'packages/beta', [['src/b.js', 'packages/beta/src/core/b.js', 'seed']]),
   };
@@ -143,6 +144,21 @@ test('#4633 clause 3: a change touching an unsealed cell or shared code is not c
   assert.ok(selectTestTiers(root, { base, commit: open }).journeys.includes('test/journey.test.js'), 'beta is not sealed');
   const shared = commit(root, { 'packages/alpha/src/core/a.js': 'export const a = 3;\n', 'lib/shared.js': 'export const shared = 2;\n' });
   assert.ok(selectTestTiers(root, { base: open, commit: shared }).journeys.includes('test/journey.test.js'), 'shared code is not a cell');
+});
+
+test('#4638 clause 1: a sealed-cell change plus only its own test-fixtures.json rows confines [C7]', t => {
+  const { root, base } = fixture(t);
+  const head = alphaChange(root, { 'packages/gate/data/tests/test-fixtures.json': { [ALPHA_TEST]: { tempdir: 2 }, 'packages/alpha/tests/a2.test.js': { tempdir: 1 }, 'packages/beta/tests/b.test.js': { tempdir: 1 } } });
+  const plan = selectTestTiers(root, { base, commit: head });
+  assert.ok(plan.changed.includes('packages/gate/data/tests/test-fixtures.json'), 'the registry rides with the change');
+  assert.ok(!plan.journeys.includes('test/journey.test.js'), 'rows for the cell\'s own tests keep the change confined');
+});
+
+test('#4638 clause 2: a test-fixtures.json row for an unchanged cell breaks confinement [C7]', t => {
+  const { root, base } = fixture(t);
+  const head = alphaChange(root, { 'packages/gate/data/tests/test-fixtures.json': { [ALPHA_TEST]: { tempdir: 1 }, 'packages/beta/tests/b.test.js': { tempdir: 2 } } });
+  const plan = selectTestTiers(root, { base, commit: head });
+  assert.ok(plan.journeys.includes('test/journey.test.js'), 'beta is not a changed cell');
 });
 
 test('#5671 clause 1: a unit narrowed to a sealed cell passes the guard [C7]', t => {

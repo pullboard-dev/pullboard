@@ -11,7 +11,7 @@ const now = Date.parse('2026-11-11T19:00:00.000Z');
 const ago = minutes => new Date(now - minutes * MINUTE).toISOString();
 const BATCH = '0f6a2b7e-1111-4222-8333-944455556666';
 /** Real-looking private names that must never leave the machine. */
-const SECRETS = ['runner-a.example.test', '192.0.2.98', 'user', 'core-1898', 'auxiliary-53-runner-8b9e36', '/home/user/Code/pullboard', 'gate:52:abc:x', BATCH, 'view-336'];
+const SECRETS = ['runner-a.example.test', '192.0.2.98', 'user', 'core-1898', 'pool-53-runner-8b9e36', '/home/user/Code/pullboard', 'gate:52:abc:x', BATCH, 'view-336'];
 
 /** Raw runner records as readLiveRunners returns them: two pushed runners on a landing and a test, one idle, one pulling a gate. */
 function sources({ job = {} } = {}) {
@@ -26,7 +26,7 @@ function sources({ job = {} } = {}) {
       { host: '192.0.2.98', holders: [{ agent: 'view-336', repo: `/home/user/landings/${BATCH}/x/`, since: ago(30), item: '', kind: 'landing', landing: 1 }] },
       { host: 'user@mini', holders: [] },
     ],
-    jobs: [{ id: 'gate:52:abc:x', kind: 'gate', item: 52, runner: 'auxiliary-53-runner-8b9e36', claimedAt: now - 2 * MINUTE,
+    jobs: [{ id: 'gate:52:abc:x', kind: 'gate', item: 52, runner: 'pool-53-runner-8b9e36', claimedAt: now - 2 * MINUTE,
       files: ['apps/a.test.js', 'apps/b.test.js', 'apps/c.test.js', '/home/user/Code/pullboard/private.test.js'], progress: null, ...job }],
     landings: [{ batch: BATCH, items: [1196, 1197], startedAt: now - 30 * MINUTE, label: 'candidate', files: null, selected: 4, progress: null }],
     fileTimes: { 'apps/a.test.js': 2 * MINUTE, 'apps/b.test.js': 4 * MINUTE, 'apps/c.test.js': 6 * MINUTE },

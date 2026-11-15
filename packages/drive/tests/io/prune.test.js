@@ -8,6 +8,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { serveRunner } from '../../index.js';
+import { testGit as pullGit } from '../fixtures/git.js';
 import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 
 const BOARD = 'http://board.invalid/api/v1/boards/b?k=x';
@@ -33,7 +34,7 @@ function leaveSlots(cache, id, slots, ageMs) {
 async function serveOnce(cache, id) {
   const stop = new AbortController();
   const fetchImpl = async () => ({ status: 200, json: async () => ({ trunk: 'x', claim: null }) });
-  await serveRunner({ board: BOARD, runner: id, capabilities: [], cache, jobs: 2, signal: stop.signal, fetchImpl, sleep: async () => { stop.abort(); }, timing: { idleMs: 1 } });
+  await serveRunner({ git: pullGit, board: BOARD, runner: id, capabilities: [], cache, jobs: 2, signal: stop.signal, fetchImpl, sleep: async () => { stop.abort(); }, timing: { idleMs: 1 } });
 }
 
 test('restarting serve twice leaves only the current instance slots [P7]', async t => {

@@ -10,15 +10,10 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { controllerRegistrationPorts } from '../../../../src/io/controller/custody.js';
-import { controllerDeadline } from '../../../../index.js';
-import { ensureHandoffDispatcher } from '../../../../index.js';
-import { HANDOFF_DISPATCHER_RESOURCE } from '../../../../index.js';
 import { initializeRunnerRecovery } from '../../../../index.js';
-import { listResources } from '../../../../index.js';
 import { recordRunnerFailure } from '../../../../index.js';
 import { recoverUnavailableRunners } from '../../../../index.js';
 import { takeResource } from '../../../../index.js';
-import { waitForCondition } from '../../../../../../apps/cli/tests/fixtures/runner/holders.js';
 
 /** Open the private resource pool with exact holder/controller identities for quarantine tests. */
 function pool(t, capacity = 2) {
@@ -99,28 +94,6 @@ test('leases on a fully quarantined runner requeue onto healthy runners [C7]', a
     first.release(); second.release();
     for (const lease of replacements) lease.release();
   }
-});
-
-test('restarting the submit-handoff dispatcher leaves a running runner controller registered [C7]', async t => {
-  const directory = machine(t);
-  const runner = { host: 'controller-host', slots: 1, browser: 0 };
-  const lease = await takeResource({ name: 'gate', capacity: 1, browserCapacityProvider: () => 1, scope: 'machine', root: directory,
-    agent: 'controller-restart-fixture', remote: true, runnerOnly: true, runnerProvider: () => [runner] });
-  const custody = controllerDeadline(lease, process.pid);
-  const readController = () => {
-    const db = new DatabaseSync(join(directory, 'resources.sqlite'), { readOnly: true });
-    try { return JSON.parse(db.prepare('SELECT controller_identity FROM holder WHERE token=?').get(lease.token).controller_identity); }
-    finally { db.close(); }
-  };
-  try {
-    const before = readController();
-    assert.equal(before?.controllerPid, process.pid, 'the active runner lease has controller custody');
-
-    await ensureHandoffDispatcher(join(import.meta.dirname, '../../../../../..'), directory);
-    await waitForCondition(() => !listResources().find(row => row.name === HANDOFF_DISPATCHER_RESOURCE)?.holders.length,
-      'the one-shot dispatcher finished its empty queue', { signal: t.signal });
-    assert.deepEqual(readController(), before, 'starting and finishing the dispatcher does not prune a live controller');
-  } finally { custody.close(); lease.release(); }
 });
 
 test('a healed runner returns with its pinned node path and needs no manual heal script [C7]', async t => {

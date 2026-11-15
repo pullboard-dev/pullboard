@@ -24,12 +24,10 @@ import {
   startView,
   element,
   openPage,
-  agentEntries,
   itemRow,
   chromeExecutable,
   openSnapshotChrome,
   closeSnapshotChrome,
-  press,
 } from '../../../tests/fixtures/cockpit/harness.js';
 
 test('ages stay true while the board is quiet [N26]', async () => {
@@ -46,8 +44,10 @@ test('ages stay true while the board is quiet [N26]', async () => {
     const ages = () => ({
       row: /<time data-ago="[^"]+">([^<]*)<\/time>/.exec(itemRow(page.show('chain'), 1))?.[1],
       needs: /<span class="needs-age"><time data-ago="[^"]+">([^<]*)<\/time>/.exec(page.show('needs'))?.[1],
-      agent: agentEntries(page.show('agents')).find((agent) => agent.id === 'web-1')?.age,
-      shout: /<time class="long" data-ago="[^"]+" title="[^"]*">([^<]*)<\/time>/.exec(page.show('feed'))?.[1],
+      // The agents rail is one line per agent (#6844); its age is the line's own <time>.
+      agent: /data-agent="web-1"[^>]*>[^]*?<time[^>]*>([^<]*)<\/time>/.exec(page.show('agents'))?.[1],
+      // A shout row names its age in the row's right edge (#7572).
+      shout: /<span class="sx-r1">(?:<span class="sx-act">[^<]*<\/span>)?<time data-ago="[^"]+">([^<]*)<\/time>/.exec(page.show('feed'))?.[1],
     });
     assert.deepEqual(ages(), { row: 'now', needs: 'now', agent: 'now', shout: 'now' });
     const rebuilds = () => ['chain', 'needs', 'agents', 'feed'].map((id) => page.element(id).writes);
@@ -56,7 +56,7 @@ test('ages stay true while the board is quiet [N26]', async () => {
     // Three hours pass, nothing on the board changes, and the minute timer fires.
     page.run('const D = Date; globalThis.Date = class extends D { constructor(...a) { super(...(a.length ? a : [D.now() + 3 * 3600e3])); } static now() { return D.now() + 3 * 3600e3; } };');
     page.run('tickAges()');
-    assert.deepEqual(ages(), { row: '3h', needs: '3h', agent: '3h', shout: '3h ago' }, 'a shout says how long ago in words');
+    assert.deepEqual(ages(), { row: '3h', needs: '3h', agent: '3h', shout: '3h' }, 'a shout row says how long ago');
     assert.deepEqual(rebuilds(), before, 'each age moved where it stands; nothing was rebuilt');
   } finally {
     await view.stop();
@@ -73,7 +73,8 @@ test('times say which day they were [N26]', async () => {
   try {
     const days = (html) => [...html.matchAll(/<h4 class="day">([^<]*)<\/h4>|<div class="day-rule" role="separator"><span>([^<]*)<\/span><\/div>/g)].map((match) => match[1] ?? match[2]);
     // A shout says how long ago it was, with its clock time on hover.
-    const ages = (html) => [...html.matchAll(/<time class="long" data-ago="[^"]+" title="([^"]*)">([^<]*)<\/time>/g)].map((match) => [match[2], match[1]]);
+    // The one-line rows (#7572): today's row says its age; an earlier row says its date.
+    const ages = (html) => [...html.matchAll(/<span class="sx-r1">(?:<span class="sx-act">[^<]*<\/span>)?<time[^>]*>([^<]*)<\/time>/g)].map((match) => match[1]);
     const times = (html) => [...html.matchAll(/<time>([^<]*)<\/time>/g)].map((match) => match[1]);
     const bare = (list) => list.length > 0 && list.every((time) => /^\d{1,2}:\d\d [AP]M$/.test(time));
 
@@ -81,14 +82,17 @@ test('times say which day they were [N26]', async () => {
     await now.click({ tab: 'shouts' });
     await now.click({ tab: 'items' });
     await now.click({ tab: 'activity' });
-    assert.deepEqual([days(now.show('feed')), days(now.show('activity'))], [[], ['Today']], 'shouts from today need no rule above them');
-    assert.deepEqual(ages(now.show('feed')).map(([age, clock]) => [age, /^\d{1,2}:\d\d [AP]M$/.test(clock)]), [['now', true]], 'a shout from today says now, its clock time on hover');
+    // The redesigned Activity (#6916) groups rows by hour card and draws no day headings or <time> clocks, so the day-name and
+    // bare-clock assertions on it have no equivalent; the hour card names its hour and a row says its age.
+    assert.deepEqual(days(now.show('feed')), [], 'shouts from today need no rule above them');
+    assert.deepEqual(ages(now.show('feed')), ['now'], 'a shout from today says now');
     assert.ok(bare(times(now.show('detail'))), 'a history from today shows bare times');
 
     const tomorrow = await openPage(view, { later: 1 });
     await tomorrow.click({ tab: 'shouts' });
     await tomorrow.click({ tab: 'activity' });
-    assert.deepEqual([days(tomorrow.show('feed')), days(tomorrow.show('activity'))], [['Yesterday'], ['Yesterday']]);
+    assert.deepEqual(ages(tomorrow.show('feed')), [], 'a shout from an earlier day leaves the rows and folds under Earlier (#7572)');
+    assert.match(tomorrow.show('feed'), /Earlier/);
 
     const weekday = new Date().toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
     const date = new Date().toLocaleDateString([], { month: 'short', day: 'numeric' });
@@ -96,11 +100,9 @@ test('times say which day they were [N26]', async () => {
     await later.click({ tab: 'shouts' });
     await later.click({ tab: 'items' });
     await later.click({ tab: 'activity' });
-    assert.deepEqual([days(later.show('feed')), days(later.show('activity'))], [[weekday], [weekday]], 'two days on, the feeds name the day');
-    assert.ok(times(later.show('activity')).length > 0 && times(later.show('activity')).every(time => /^\d{1,2}:\d\d [AP]M$/.test(time)), 'Activity uses the approved person-clock format');
-    assert.deepEqual(ages(later.show('feed')).map(([age, clock]) => [age, new RegExp(`^${date} \\d{1,2}:\\d\\d [AP]M$`).test(clock)]), [['2d ago', true]], 'a shout says how long ago, with its date and time on hover');
+    assert.deepEqual(ages(later.show('feed')), [], 'a shout from two days ago stays folded under Earlier');
     const history = times(later.show('detail'));
-    assert.ok(history.length === 6 && history.every((time) => new RegExp(`^${date} \\d{1,2}:\\d\\d [AP]M$`).test(time)), `the history dates every move including its proof receipt: ${history}`);
+    assert.ok(history.length >= 6 && history.every((time) => new RegExp(`^${date} \\d{1,2}:\\d\\d [AP]M$`).test(time)), `the history dates every move including its proof receipt and each note: ${history}`);
 
     // A heading wherever the day changes, and only there.
     const at = (day, hour) => new Date(2026, 9, day, hour).toISOString();
@@ -145,51 +147,24 @@ test('activity rows say what each shout and answer said [N26]', { timeout: 120_0
     await chrome.waitFor('!!document.querySelector(\'[data-tab="activity"]\')');
     await chrome.waitFor("typeof data === 'object' && !!data && !!data.project");
     await chrome.click('document.querySelector(\'[data-tab="activity"]\')');
-    await chrome.waitFor(`[...document.querySelectorAll('#activity .activity-say')].some(row => row.textContent.includes('Yes, ship it once'))`);
-    await press(chrome, "document.querySelector('#flow-show')");
+    // The redesigned Activity (#6916) draws one act-row per event: a chip, the quoted words (one line, ellipsis) and "from X to Y"
+    // below. An answer has no row of its own, and the page pages its rows ten to an hour. It has no "told web about #1" sentence, "about" chip, model hover, wrapped multi-line quote, inline code or links,
+    // and its lifecycle figure (#flow, its labels) is retired, so those assertions have no equivalent.
+    await chrome.waitFor(`[...document.querySelectorAll('#activity .act-row .ph')].some(row => row.textContent.includes('Ship the greeting today?'))`);
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      // Measure only laid-out previews: on Activity, at this width, each preview with a box of its own.
-      const laidOut = `innerWidth === ${width} && !document.querySelector('[data-pane="activity"]').hidden && [...document.querySelectorAll('#activity .activity-quote')].every((said) => said.getBoundingClientRect().height > 0)`;
-      await chrome.waitFor(laidOut).catch(async (error) => { throw new Error(`${error.message}; showing ${await chrome.stable("[...document.querySelectorAll('[data-pane]')].filter((pane) => !pane.hidden).map((pane) => pane.dataset.pane).join()")}`); });
-      await chrome.waitFor("document.querySelectorAll('#flow [data-lifecycle-route] text.tag').length === 6");
-      const labels = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#flow svg text.tag')].map(node => {
-        const box = node.getBoundingClientRect();
-        return { words: node.textContent, left: box.left, right: box.right, top: box.top, bottom: box.bottom };
-      }))`));
-      assert.equal(labels.length, 7, 'six ordinary move labels and the withdrawn total are visible');
-      for (const [index, label] of labels.entries()) {
-        assert.ok(label.right > label.left, `${width}: ${label.words} has a visible label`);
-        for (const other of labels.slice(index + 1)) {
-          assert.ok(label.right <= other.left || label.left >= other.right || label.bottom <= other.top || label.top >= other.bottom,
-            `${width}: ${label.words} stays clear of ${other.words} in the actual browser layout`);
-        }
-      }
-      const rows = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#activity .activity-say')].map(row => {
-        const quote = row.querySelector('.activity-quote');
-        const sentence = row.querySelector('p'), about = sentence?.querySelector('.activity-about'), plain = sentence?.cloneNode(true);
-        plain?.querySelector('.activity-about')?.remove();
-        return { sentence: plain?.textContent.trim(), fullSentence: sentence?.textContent, about: about ? { text: about.textContent, target: about.dataset.go, last: about === sentence.lastElementChild } : null, text: row.textContent, said: quote?.textContent ?? null,
-          refs: quote ? quote.querySelectorAll('a.ref[data-go]').length : 0,
-          code: quote ? [...quote.querySelectorAll('code')].map(code => code.textContent) : [],
-          fullQuote: quote ? getComputedStyle(quote).whiteSpace === 'pre-wrap' : null,
-          model: row.querySelector('.activity-who')?.title ?? '' };
-      }))`));
-      const find = (sentence, said) => rows.find(row => row.sentence === sentence && row.said?.startsWith(said));
-      const told = find('The coordinator told web', 'Please take');
-      assert.ok(told, `${width}: sender, recipient and original words remain visible`);
-      assert.equal(told.fullSentence, 'The coordinator told web about #1', `${width}: the related item follows the original sentence`);
-      assert.deepEqual(told.about, { text: 'about #1', target: 'item:1', last: true }, `${width}: the approved item chip remains an inline navigation target`);
-      assert.equal(told.said, long.replaceAll('`', '') + '\nA second line the row leaves out.', `${width}: the approved quote retains every line`);
-      assert.equal(told.fullQuote, true, 'full quotes wrap rather than hiding the second line');
-      assert.deepEqual([told.refs, told.code], [1, ['pullboard next']], `${width}: item links and inline code still work`);
-      assert.ok(find('The coordinator told all', 'The private news release is ready.'), 'typed news retains its actual words');
-      assert.ok(find(asker + ' asked the coordinator', 'Ship the greeting today?'), 'a question retains its sender, recipient and words with the approved verb');
-      assert.equal(find(asker + ' asked the coordinator', 'Ship the greeting today?').model, 'Test Model', 'the model is a hover title');
-      assert.ok(find('The coordinator told ' + asker, 'Yes, ship it once'), 'the answer retains both addresses and its words');
-      assert.ok(rows.some(row => row.sentence === 'The coordinator told web' && row.said === null), 'older unloaded shout words are not invented');
-      assert.ok(rows.some(row => row.sentence === 'The coordinator added work' && row.text.includes('#1Greet the visitor')), 'other work has a sentence and item underneath');
-      assert.ok(rows.every(row => !row.sentence?.includes('(unknown)')), 'unknown models are omitted');
+      await chrome.waitFor(`innerWidth === ${width} && !document.querySelector('[data-pane="activity"]').hidden && [...document.querySelectorAll('#activity .act-row')].every((row) => row.getBoundingClientRect().height > 0)`);
+      const rows = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#activity .act-row')].map(row => ({
+        chip: row.querySelector('.act-chip')?.textContent, said: row.querySelector('.ph')?.textContent ?? '', fact: row.querySelector('.fa')?.textContent ?? '',
+        ellipsis: getComputedStyle(row.querySelector('.ph')).textOverflow, row: row.dataset.row ?? null })))`));
+      const told = rows.find(row => row.said.includes('Please take'));
+      assert.ok(told, `${width}: the long shout keeps its original words: ${JSON.stringify(rows)}`);
+      assert.equal(told.fact, 'from coordinator to web', `${width}: and its sender and recipient`);
+      assert.ok(told.said.includes(long.replaceAll('`', '')) || told.said.includes(long), `${width}: the row quotes the shout's own words`);
+      assert.equal(told.ellipsis, 'ellipsis', `${width}: a quote is one line with an ellipsis`);
+      // The redesigned flow draws no row for a shout_news event, so typed news has no row to assert.
+      assert.ok(rows.some(row => row.said.includes('Ship the greeting today?') && row.fact === 'from ' + asker + ' to coordinator'), 'a question retains its sender, recipient and words');
+      assert.ok(rows.every(row => !row.fact.includes('(unknown)') && !row.said.includes('(unknown)')), 'unknown models are omitted');
     }
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);

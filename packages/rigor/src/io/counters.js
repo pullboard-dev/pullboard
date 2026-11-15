@@ -39,15 +39,32 @@ function decode(text) {
   return data;
 }
 
+/** Prepared statements by connection and text. Why: a counter catch-up reads and writes a shard several times per event, and preparing each statement afresh was most of a 230,000-event replay (#6357). */
+const STATEMENTS = new WeakMap();
+
+/** The connection's prepared statement for this SQL, prepared once. */
+function statement(db, sql) {
+  let known = STATEMENTS.get(db);
+  if (!known) {
+    known = new Map(); STATEMENTS.set(db, known);
+    // A prepared statement holds its connection natively, so a cached one kept every closed connection, and everything cached on it, in memory: drop them as the connection closes.
+    const close = db.close;
+    db.close = function closeAndForget(...args) { STATEMENTS.delete(db); return close.apply(this, args); };
+  }
+  let prepared = known.get(sql);
+  if (!prepared) { prepared = db.prepare(sql); known.set(sql, prepared); }
+  return prepared;
+}
+
 /** Read one projection-owned JSON record, separately from authoritative board metadata. */
 function get(board, key) {
-  const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(PREFIX + key);
+  const row = statement(board.db, 'SELECT meta_value FROM board_meta WHERE meta_key=?').get(PREFIX + key);
   return row ? decode(row.meta_value) : null;
 }
 
 /** Replace only the cause affected by a new event, not the accumulated event log. */
 function put(board, key, value) {
-  board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
+  statement(board.db, 'INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
     .run(PREFIX + key, encode(value));
 }
 
@@ -154,7 +171,7 @@ export function appendRigorCounter(board, event, person = 'person') {
   // A first current-writer append on an old board must include all earlier events, not skip them.
   if (!validSummary(summary, person)) { ensureRigorCounters(board, person); summary = get(board, 'summary'); }
   if (event.event_id <= summary.last) return;
-  const first = board.db.prepare('SELECT event_id FROM event WHERE event_id>? ORDER BY event_id LIMIT 1').get(summary.last);
+  const first = statement(board.db, 'SELECT event_id FROM event WHERE event_id>? ORDER BY event_id LIMIT 1').get(summary.last);
   if (first?.event_id !== event.event_id) {
     // A present older-writer summary also needs its entire gap before this new append can be current.
     ensureRigorCounters(board, person);

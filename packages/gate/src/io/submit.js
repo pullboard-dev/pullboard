@@ -1,4 +1,5 @@
 import { submitReusePlanDigest } from '../../../verify/index.js';
+import { affectedCommand } from './test/affected-command.js';
 import { countTrialGate } from './refusal/trial.js';
 import { runMachineryGuard } from './refusal/trial.js';
 import { requireTestTierAccount } from './test/tier/selection.js';
@@ -72,6 +73,7 @@ import {
   runProfiledShellAsync,
   safeLog,
 } from './execution.js';
+import { tableReplayEnabled } from '../../../config/index.js';
 import { shardSlotOptions } from './shards/proof.js';
 import { shardStartupMs } from './shards/proof.js';
 import { freeRunnerSlots } from './shards/proof.js';
@@ -84,7 +86,6 @@ import { readFileTimes } from './test/value/timing.js';
 import { progressingWait } from './progress.js';
 import { whileGateRuns } from './progress.js';
 import {
-  commandWord,
   runStaticChecks,
 } from './static/check.js';
 /** Freeze submission execution policy with the same accepted-main floors at every origin and run. */
@@ -133,11 +134,11 @@ export function submitGatePlan(root, config, { base, trunk, changed, check, sour
   // A bar-named or call-adjacent file the frozen check already runs completely is not run a second time [C7].
   const crossRunUnrun = crossRunTests.length ? testTierProofFiles({ runner: testRunner, units: crossRunTests }, check) : [];
   const proofFiles = [...new Set([...(testTiers ? testTierProofFiles(testTiers, check) : [...(deferFullFallback || deferSelection ? [] : selection.files), ...invariants, ...registryGuards]), ...crossRunUnrun])].sort();
-  const guardCommand = registryGuards.length ? `${testRunner.trimEnd()} ${registryGuards.map(path => commandWord('./' + path)).join(' ')}` : '';
+  const guardCommand = registryGuards.length ? affectedCommand({ affectedTests: testRunner }, registryGuards) : '';
   const fullConfig = guardCommand ? { ...config, gate: `(${config.gate}) && ${guardCommand}` } : config;
   const hasFinalProof = !deferFullFallback && !deferSelection && selection.full || proofFiles.length > 0;
   const proofCommand = !deferFullFallback && !deferSelection && selection.full ? fullConfig.gate
-    : proofFiles.length ? `${testRunner.trimEnd()} ${proofFiles.map(path => commandWord('./' + path)).join(' ')}` : '';
+    : proofFiles.length ? affectedCommand({ affectedTests: testRunner }, proofFiles) : '';
   const phases = [...(check ? [{ role: 'criterion', command: check }] : []),
     ...(hasFinalProof ? [{ role: 'proof', command: proofCommand }] : [])];
   return { check, selection, deferred, deferFullFallback, deferSelection, invariants, registryGuards,
@@ -304,7 +305,7 @@ function reusedCheckNote(lease) {
  * @param {{base:string|null, trunk?:string, changed?:string[], check:string, timing?:boolean, agent?:string, item?:string|number, kind?:string, onWait?:(state:object)=>void, onBrowserFallback?:(decision:{file:string,reason:string})=>void}} options
  * @returns {Promise<any>}
  */
-export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onStart, onBrowserFallback, onFailure, proofContext, earlyCriterion, sourceAdvance = false, outputRoot = root, outputLog, runnerAdmission = {}, executionServices, signatureCapture, staticChecked = false, plan: planned, admission, crossRunTests = [], countTrials = true, onMachineryNote = text => process.stderr.write(text + '\n'),
+export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onStart, onBrowserFallback, onFailure, proofContext, earlyCriterion, sourceAdvance = false, outputRoot = root, outputLog, runnerAdmission = {}, executionServices, signatureCapture, staticChecked = false, plan: planned, admission, crossRunTests = [], countTrials = true, tableReplay, onMachineryNote = text => process.stderr.write(text + '\n'),
   planners = { plan: submitGatePlan, admission: submitGateAdmission }, signal }) {
 
   if (!config.gate.trim()) throw missingGate(root);
@@ -313,6 +314,8 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     throw new Refused('SUBMIT_PIN_NOT_MAIN', `submit pinned main ${trunk.slice(0, 12)}, which is not an ancestor of main; run pullboard submit again so it captures main`);
   }
   if (!staticChecked) await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback, runnerAdmission, executionServices, artifactDirectory: outputLog ? dirname(outputLog) : undefined });
+  // A changed move table must still agree with the board; the setting is off until the person turns it on [C7,#8073].
+  if (tableReplay && tableReplayEnabled()) await tableReplay({ root, changed });
   // A remote plan is reused only when it covers the required call-adjacent tests.
   const plan = planned ?? planners.plan(root, config, { base, trunk, changed, check, sourceAdvance, crossRunTests });
   const { selection, deferred, deferFullFallback, deferSelection, invariants, registryGuards,
@@ -370,7 +373,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       if (!(proofFiles.length > 1 && !(!deferFullFallback && selection.full))) await gateLaneFree;
       if (!deferFullFallback && selection.full) return fullGateRunAsync(root, fullConfig, false, { waitMs: proofWait, log: proofLog, gateLease: proofLease, stages: true, kind: 'submit', signal });
       if (!proofFiles.length) return { isGreen: true, output: '', seconds: 0, isCached: false, log: '' };
-      const filesCommand = files => `${config.affectedTests.trimEnd()} ${files.map(path => commandWord('./' + path)).join(' ')}`;
+      const filesCommand = files => affectedCommand(config, files);
       const command = filesCommand(proofFiles);
       const options = { waitMs: proofWait, profileFile: `${proofLog}.profile.json`, gateLease: proofLease, stages: true, signal };
       // The files run from a queue of batches every slot the gate gets pulls from; the one receipt still names the whole command [C7].
@@ -481,7 +484,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       : selection.full ? 'full gate' : 'affected tests';
     writeFileSync(log, `item check:\n${criterion.output}\n${phase}:\n${proof.output}`);
     if (!proof.isGreen && onFailure) diagnostics.push([proof, { root,
-      command: !deferFullFallback && selection.full ? fullConfig.gate : `${config.affectedTests.trimEnd()} ${proofFiles.map(path => commandWord('./' + path)).join(' ')}`, lease: proofLease }]);
+      command: !deferFullFallback && selection.full ? fullConfig.gate : affectedCommand(config, proofFiles), lease: proofLease }]);
     await recordRun(onFailure, proof);
     refuseSandboxBlocked(criterion);
     const result = finish(proof);

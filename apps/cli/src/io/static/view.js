@@ -117,7 +117,13 @@ export function viewPureReport(root, { roles = VIEW_TEST_ROLES, coverage = VIEW_
     const batch = [];
     for (const file of pending.splice(0)) {
       if (sources.has(file) || unknown.has(file)) continue;
-      try { const source = readSource(file); sources.set(file, source); batch.push({ file, source }); }
+      try {
+        const source = readSource(file);
+        sources.set(file, source);
+        // A JSON module is data: it must parse, it imports nothing, so the walk ends there (as the move registry walk does).
+        if (file.endsWith('.json')) { JSON.parse(source); edges.set(file, []); continue; }
+        batch.push({ file, source });
+      }
       catch (error) { unknown.set(file, 'source missing or unreadable: ' + error.message); }
     }
     if (!batch.length) continue;

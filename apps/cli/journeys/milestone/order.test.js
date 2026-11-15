@@ -105,7 +105,8 @@ test('Roadmap lifecycle groups outrank shuffled and pinned queue order while pre
   assert.equal(queueIds[0], 8, 'the real coordinator pin puts an unclaimed item first in the native work queue');
   const head = box.git(demo.repo, 'rev-parse', 'HEAD');
   const worktree = box.git(demo.repo, 'status', '--porcelain');
-  const expected = queueIds.map(id => '#' + id).concat(['#2', '#1']);
+  // Lifecycle leads the Roadmap list (36add4ed61, f8e8ce444a): building, review, accepted, then the rest in queue order, landed last.
+  const expected = ['#5', '#4', '#2'].concat(queueIds.map(id => '#' + id).filter(id => !['#5', '#4', '#2'].includes(id)), ['#1']);
   assert.deepEqual([...expected].sort(), ['#1', '#2', '#3', '#4', '#5', '#6', '#7', '#8'], 'queue ordering retains every original milestone member');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-milestone-order-chrome-'));
@@ -121,7 +122,7 @@ test('Roadmap lifecycle groups outrank shuffled and pinned queue order while pre
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor(`innerWidth === ${width}`);
       const rows = await readRows(chrome);
-      assert.deepEqual(rows.map(row => row.id), expected, `${width}: backend queue positions, then unpositioned accepted and landed items`);
+      assert.deepEqual(rows.map(row => row.id), expected, `${width}: lifecycle groups first, then backend queue positions, with landed last`);
       assert.equal(new Set(rows.map(row => row.id)).size, 8, `${width}: no duplicate or missing native items`);
       assert.ok(rows.every(row => row.visible), `${width}: every milestone row is visibly rendered`);
       assert.deepEqual(rows.map(row => row.key), expected.map(id => `i:${id}`), `${width}: native row tokens remain unchanged`);

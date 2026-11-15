@@ -99,94 +99,75 @@ test('the item panel presents native verdicts, checks, files and newest-first hi
     href.pathname = '/items/' + id;
     chrome = await openSnapshotChrome(executable, href.href, profile);
     await chrome.send('Emulation.setTimezoneOverride', { timezoneId: 'America/Chicago' });
-    await chrome.waitFor(`view.item === ${id} && !!document.querySelector('#detail .item-panel')`);
+    await chrome.waitFor(`view.item === ${id} && !!document.querySelector('#detail .item-panel .ip-cl') && !document.querySelector('#detail [aria-busy]')`);
     const fullCommit = item.verdict.commit;
+    const standardCheck = 'node packages/gate/src/io/run/tests.js apps/cli/journeys/verify/item/panel.test.js';
     for (const [width, mobile] of [[1440, false], [375, true]]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile });
-      await press(chrome, "document.querySelector('#detail [data-item-panel-tab=overview]')");
       const shown = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-        const panel = document.querySelector('#detail .item-panel'), latest = panel.querySelector('.item-panel-latest .verdict'), note = latest.querySelector('.note');
-        const title = panel.querySelector('.item-panel-head h2'), files = panel.querySelector('.item-panel-files'), criterion = panel.querySelector('.item-panel-expand-text');
+        const panel = document.querySelector('#detail .item-panel'), latest = panel.querySelector('.item-panel-latest'), note = latest.querySelector('.note');
+        const title = panel.querySelector('.item-panel-head h2'), files = panel.querySelector('.item-panel-files'), clause = panel.querySelector('.ip-cl');
         const style = getComputedStyle(note), rect = note.getBoundingClientRect(), lineHeight = parseFloat(style.lineHeight);
-        return { title: title.textContent, titleSize: getComputedStyle(title).fontSize, where: panel.querySelector('.item-panel-where').innerText,
-          status: panel.querySelector('.item-panel-status').innerText, selected: panel.querySelector('[role=tab][aria-selected=true]').textContent.trim(),
-          verdicts: Number(panel.querySelector('#item-panel-tab-verdicts b').textContent), historyCount: Number(panel.querySelector('#item-panel-tab-history b').textContent),
-          latest: latest.textContent, latestMeta: latest.querySelector('.by')?.innerText,
-          latestTint: getComputedStyle(latest.querySelector('.item-panel-verdict-label')).backgroundColor,
-          reasonCode: panel.querySelector('.item-panel-verdicts details summary b [title]')?.title,
-          noteHeight: rect.height, noteLines: Math.round(rect.height / lineHeight), noteClamp: style.webkitLineClamp,
-          criterionLines: Math.round(criterion.getBoundingClientRect().height / parseFloat(getComputedStyle(criterion).lineHeight)),
-          criterionClamp: getComputedStyle(criterion).webkitLineClamp,
+        const brief = panel.querySelector('.item-panel-brief');
+        return { title: title.textContent, titleSize: getComputedStyle(title).fontSize, id: panel.querySelector('.item-panel-head .id').textContent, chip: panel.querySelector('.item-panel-head .ip-chip').textContent,
+          who: panel.querySelector('.item-panel-head .ip-who').innerText, meta: panel.querySelector('.ip-meta').innerText, tabs: panel.querySelectorAll('[role=tab]').length, chipRows: panel.querySelectorAll('.item-panel-where, .item-panel-status').length,
+          labels: [...panel.querySelectorAll('.ip-lbl')].map(label => label.textContent), latest: latest.textContent, latestChip: latest.querySelector('.ip-chip').textContent, latestCaption: latest.closest('section').querySelector('.ip-cap').textContent,
+          noteLines: Math.round(rect.height / lineHeight), noteClamp: style.webkitLineClamp, briefClamp: getComputedStyle(brief).webkitLineClamp,
+          clauses: [...panel.querySelectorAll('.ip-cl')].map(row => [row.querySelector('.n').textContent, row.querySelector('.k').textContent, row.querySelector('.pv').textContent.trim(), row.querySelector('.pv').className]),
+          clauseCaption: clause.closest('section').querySelector('.ip-cap').textContent,
           sha: [...panel.querySelectorAll('.hash-copy')].map(button => [button.textContent, button.dataset.copy, button.title, button.getAttribute('aria-label')]),
           files: [...files.querySelectorAll('.item-file')].map(file => ({ path: file.dataset.file, icon: file.querySelector('svg path').getAttribute('d') })),
-          fileColumns: getComputedStyle(files).gridTemplateColumns.split(' ').length,
-          counts: panel.querySelector('.item-panel-section-head .item-panel-count').textContent,
-          baseline: panel.querySelector('.item-panel-baseline').innerText,
-          sentence: panel.querySelector('.item-panel-check p').innerText,
-          brief: panel.querySelector('.item-panel-brief')?.innerText,
+          check: [...panel.querySelectorAll('.ip-fr')].filter(row => row.closest('section').querySelector('.ip-lbl').textContent === 'Check').map(row => [row.title, row.textContent.trim()]),
+          checkCaption: [...panel.querySelectorAll('.ip-lbl')].find(label => label.textContent === 'Check').parentElement.querySelector('.ip-cap').textContent,
+          brief: brief?.innerText, summaryRows: panel.querySelectorAll('.ip-hrs .ip-hr').length, historyCaption: panel.querySelector('.item-panel-history .ip-cap').textContent,
           overflow: document.documentElement.scrollWidth > innerWidth, viewport: innerWidth, exceptions: window.__unused }; })())`));
-      assert.equal(shown.title, '#1Long item panel fixture', `${width}px title is readable with its mono id`);
+      assert.equal(shown.title, 'Long item panel fixture', `${width}px title is readable`);
       assert.equal(shown.titleSize, '17px');
-      assert.match(shown.where, /web[\s\S]*strong[\s\S]*Panel release/u);
-      assert.match(shown.status, /Verified[\s\S]*Resubmitted after a send-back[\s\S]*Built by/u);
-      assert.equal(shown.selected, 'Overview');
-      assert.equal(shown.verdicts, 2);
-      assert.ok(shown.historyCount > 5, 'the native lifecycle provides a countable history disclosure');
-      assert.match(shown.latest, /Passed/u);
-      assert.match(shown.latestMeta, /\S+\s+·\s+\S/u, 'the latest verdict keeps its seat and local time together');
-      assert.notEqual(shown.latestTint, 'rgba(0, 0, 0, 0)', 'the passed verdict receives its accent tint');
-      assert.equal(shown.noteClamp, '4');
-      assert.ok(shown.noteLines <= 4, `${width}px latest verdict note is clamped to four measured lines`);
-      assert.equal(shown.criterionClamp, '4');
-      assert.ok(shown.criterionLines <= 4, `${width}px Done when text is clamped to four measured lines`);
-      assert.equal(shown.reasonCode, 'BEHAVIOR_MISMATCH', 'a sent-back verdict keeps its native code on the plain reason tooltip');
+      assert.equal(shown.id, '#1');
+      assert.match(shown.chip, /^(?:Verified|Landed)$/u);
+      assert.match(shown.meta, /^web · strong · Panel release$/u, 'one quiet meta line: lane, route, milestone');
+      assert.equal(shown.tabs, 0, 'no tabs');
+      assert.equal(shown.chipRows, 0, 'no chip rows');
+      assert.deepEqual(shown.labels, ['Passed', 'Journey', 'Done when', 'Check', 'Brief', 'Files', 'History'], 'one scroll of sections in the approved order, each with content');
+      assert.match(shown.latestChip, /criterion met/iu);
+      assert.match(shown.latestCaption, /\S+ · \S+/u, 'the verdict keeps its local time and seat together');
+      assert.equal(shown.noteClamp, '3');
+      assert.ok(shown.noteLines <= 3, `${width}px latest verdict note is clamped to three measured lines`);
+      assert.equal(shown.briefClamp, '3');
+      assert.deepEqual(shown.clauses, [['1', '', 'Proven', 'pv ok']], 'a passed item proves its clause');
+      assert.equal(shown.clauseCaption, '1 of 1 proven');
       assert.ok(shown.sha.some(([text, full, title, label]) => text === fullCommit.slice(0, 12) && full === fullCommit
         && title === fullCommit && label === `Copy full hash ${fullCommit}`), 'the short SHA retains its full hover and copy value');
-      assert.match(shown.counts, /Passed 1 time · sent back 1/u);
-      assert.match(shown.baseline, /Red on main[\s\S]*as it should be: the check fails before the change/u);
-      assert.match(shown.sentence, /Passes when apps\/cli\/journeys\/verify\/item\/panel\.test\.js runs with no failures/u);
-      assert.match(shown.sentence, /its case "the item panel presents native verdicts, checks, files and newest-first history at desktop and phone widths \[N26,B23\]" passes/u,
-        'the single recorded baseline case is named exactly as recorded');
-      assert.equal(shown.brief.includes('Files:'), false, 'the paths are shown once as chips');
+      assert.deepEqual(shown.check, [[standardCheck, 'apps/cli/journeys/verify/item/panel.test.js']], 'the check is its test file, with the whole command on hover');
+      assert.equal(shown.checkCaption, 'passes with no failures · red on main');
+      assert.equal(shown.brief.includes('Files:'), false, 'the paths are shown once as rows');
       assert.deepEqual(shown.files.map(file => file.path), ['web/item-panel.js', 'apps/cli/journeys/verify/item/panel.test.js']);
-      assert.equal(shown.files.length, 2);
-      assert.equal(shown.fileColumns, 2);
+      assert.ok(shown.summaryRows <= 6 && shown.summaryRows >= 1, 'the history shows its newest rows');
+      assert.match(shown.historyCaption, /^\d+ events$/u);
       assert.equal(shown.overflow, false, `${width}px remains within the viewport`);
 
-      await press(chrome, "document.querySelector('#detail [data-item-panel-more]')");
+      await press(chrome, "document.querySelector('#detail .item-panel-latest [data-item-panel-more]')");
       assert.equal(await chrome.stable("document.querySelector('#detail .item-panel-latest').classList.contains('expanded')"), true);
-      await press(chrome, "document.querySelector('#detail [data-item-panel-more]')");
+      await press(chrome, "document.querySelector('#detail .item-panel-latest [data-item-panel-more]')");
       assert.equal(await chrome.stable("document.querySelector('#detail .item-panel-latest').classList.contains('expanded')"), false);
-      await press(chrome, "document.querySelector('#detail .item-panel-expand [data-item-panel-more]')");
-      assert.equal(await chrome.stable("document.querySelector('#detail .item-panel-expand').classList.contains('expanded')"), true);
-      await press(chrome, "document.querySelector('#detail .item-panel-expand [data-item-panel-more]')");
-      assert.equal(await chrome.stable("document.querySelector('#detail .item-panel-expand').classList.contains('expanded')"), false);
-      await press(chrome, "document.querySelector('#detail .item-panel-command summary')");
-      assert.equal(await chrome.stable("document.querySelector('#detail .item-panel-command').open"), true);
-      await press(chrome, "document.querySelector('#detail [data-item-panel-tab=verdicts]')");
-      assert.equal(await chrome.stable("document.querySelector('#detail [data-item-panel-panel=verdicts]').hidden"), false);
-      const verdictOrder = JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#detail [data-item-panel-panel=verdicts] > li')].map(row => row.querySelector('details summary b').textContent))"));
-      assert.equal(verdictOrder.length, 2);
-      assert.match(verdictOrder[0], /Passed/u, 'the latest accepted verdict is first');
-      assert.match(verdictOrder[1], /Sent back/u, 'the sent-back verdict remains below it');
-      await press(chrome, "document.querySelector('#detail [data-item-panel-panel=verdicts] li details summary')");
-      assert.equal(await chrome.stable("document.querySelector('#detail [data-item-panel-panel=verdicts] li details').open"), true);
-      assert.match(await chrome.stable("document.querySelector('#detail [data-item-panel-panel=verdicts] li details .verdict .note').textContent"),
-        /The accepted fixture note keeps the complete review on line 8\./u, 'the verdict disclosure retains its complete note');
-      await press(chrome, "document.querySelector('#detail [data-item-panel-tab=history]')");
+      assert.equal(await chrome.stable("document.querySelector('#detail .item-panel-expand [data-item-panel-more]')"), null, 'a short brief has nothing to expand');
+      await press(chrome, "document.querySelector('#detail [data-item-clause]')");
+      assert.equal(await chrome.stable("document.querySelector('#detail [data-item-clause]').classList.contains('open')"), true, 'a click opens the clause evidence in place');
+      await press(chrome, "document.querySelector('#detail [data-item-clause]')");
+      assert.equal(await chrome.stable("document.querySelector('#detail [data-item-clause]').classList.contains('open')"), false);
       const eventIds = JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#detail .item-panel-history-list .tl > li')].map(row => Number(row.dataset.eventId)))"));
-      assert.ok(eventIds[0] > eventIds.at(-1), 'history reads newest first while retaining native event ids');
+      assert.ok(eventIds[0] > eventIds.at(-1), 'the full history reads newest first while retaining native event ids');
       // An expanded history is remembered across renders [B23], so the phone pass finds the desktop pass's expansion still open.
       const remembered = width !== 1440;
-      assert.match(await chrome.stable("document.querySelector('#detail [data-item-panel-history]').textContent"), remembered ? /^Show less$/u : /^Show all \d+$/u);
+      assert.match(await chrome.stable("document.querySelector('#detail [data-item-panel-history]').textContent"), remembered ? /^Less$/u : /^All ›$/u);
       if (!remembered) await press(chrome, "document.querySelector('#detail [data-item-panel-history]')");
       assert.equal(await chrome.stable("document.querySelector('#detail .item-panel-history-list').classList.contains('expanded')"), true);
       assert.equal(await chrome.stable("document.querySelector('#detail [data-item-panel-history]').getAttribute('aria-expanded')"), 'true');
     }
     await press(chrome, "document.querySelector('#chain [data-item=\"2\"]')");
-    await chrome.waitFor("view.item === 2 && document.querySelector('#detail .item-panel-check')");
-    assert.match(await chrome.stable("document.querySelector('#detail .item-panel-check p').textContent"), /^Runs: node --check web\/other\.js$/u);
-    assert.match(await chrome.stable("document.querySelector('#detail .item-panel-baseline').textContent"), /Green on mainthe check passed on main before this change/u);
+    await chrome.waitFor("view.item === 2 && [...document.querySelectorAll('#detail .ip-lbl')].some(label => label.textContent === 'Check')");
+    assert.equal(await chrome.stable("document.querySelector('#detail .ip-fr .p').textContent"), 'node --check web/other.js', 'a command that is no test file is shown as the command');
+    assert.equal(await chrome.stable("[...document.querySelectorAll('#detail .ip-lbl')].find(label => label.textContent === 'Check').parentElement.querySelector('.ip-cap').textContent"), 'runs one command · green on main');
     assert.deepEqual(chrome.exceptions, []);
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);

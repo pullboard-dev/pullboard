@@ -5,10 +5,9 @@ import { Refused } from '../../../../../packages/kernel/index.js';
 /** Dry-run the landing gate over a batch of accepted items, changing neither the board nor main [V4,C7]. */
 import { context } from '../entry.js';
 import { withBoardRead } from '../entry.js';
-import { mkdtempSync } from 'node:fs';
+import { scratchFolder } from '../../../../../packages/config/index.js';
 import { rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const USAGE = 'use pullboard shadow-batch <id> <id>... [--json] to run the tier-2 checks once over accepted items composed onto main';
@@ -56,7 +55,7 @@ export function run(io, { first, second, rest, values }) {
   const items = withBoardRead(ctx, board => acceptedItems(board, ids));
   const root = ctx.info.root;
   const main = git(root, ['rev-parse', 'refs/heads/main']).trim();
-  const scratch = mkdtempSync(join(tmpdir(), 'pullboard-shadow-batch-'));
+  const scratch = scratchFolder('pullboard-shadow-batch-');
   const started = performance.now();
   let merged = [], conflict = null, results = [];
   try {

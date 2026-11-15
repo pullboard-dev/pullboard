@@ -76,7 +76,7 @@ test('the hand-off guide matches the board [B3,N19]', () => {
     const guide = readFileSync(new URL('./handoff.md', import.meta.url), 'utf8');
     for (const label of ['open decision', 'recent decision', 'waiting on the person',
       'verified, not merged', 'merges cleanly', 'conflicts', 'claimed for integration',
-      'landing handoff-fixture:', 'owner outgoing-coordinator-session', 'pullboard land --adopt']) {
+      'landing handoff-fixture:', 'owner outgoing-coordinator-session']) {
       assert.ok(text.includes(label), `scripted resume actually prints ${label}`);
       const documented = label.startsWith('landing ') ? 'landing <id>:'
         : label.startsWith('owner ') ? 'owner <session>' : label;

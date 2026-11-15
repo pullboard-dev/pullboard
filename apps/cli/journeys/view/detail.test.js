@@ -42,22 +42,24 @@ const OBSERVE = `(() => {
 const itemReads = (reads) => reads.filter((path) => /\/api\/v1\/boards\/[^/]+\/items(\/|\?|$)/.test(path))
   .map((path) => path.replace(/^.*\/items/, 'items'));
 
+/** The same reads, sorted: the Roadmap's read-ahead and the search finish in no fixed order (#1039). */
+const readSet = (reads) => itemReads(reads).sort();
+
 /** What the detail pane shows of an item: its heading, criterion, check, brief, verdicts, moves and facts. */
 const DETAIL = `(() => {
   const detail = document.querySelector('#detail');
-  const part = (name) => [...detail.querySelectorAll('h3')].find((heading) => heading.textContent === name)?.parentElement;
+  const part = (name) => [...detail.querySelectorAll('.ip-lbl')].find((label) => label.textContent === name)?.closest('section');
   return {
-    title: detail.querySelector('h2')?.innerText ?? null,
+    title: detail.querySelector('h2') ? (detail.querySelector('.item-panel-head .id')?.innerText ?? '') + detail.querySelector('h2').innerText : null,
     waiting: detail.querySelector('.detail-wait')?.textContent ?? null,
     busy: !!detail.querySelector('[aria-busy]'),
-    criterion: part('Done when')?.querySelector('.item-panel-expand-text').innerText ?? null,
-    check: part('Check') ? [part('Check').querySelector('.item-panel-command pre').textContent, part('Check').querySelector('.chip').textContent] : null,
-    brief: part('Brief')?.closest('section').querySelector('.item-panel-brief')?.innerText ?? null,
-    // The Verdicts tab and the History tab list newest first; the helper reads them oldest first.
-    verdicts: [...detail.querySelectorAll('#item-panel-panel-verdicts .verdict')].reverse().map((verdict) => [verdict.classList.contains('yes') ? 'ACCEPT' : 'REJECT', verdict.querySelector('.note').innerText.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gu, '<run>')]),
+    criterion: part('Done when')?.querySelector('.ip-cl .t').innerText ?? null,
+    check: part('Check') ? [part('Check').querySelector('.ip-fr').title, part('Check').querySelector('.ip-cap').textContent] : null,
+    brief: part('Brief')?.querySelector('.item-panel-brief')?.innerText ?? null,
+    // The opened history lists newest first; the helper reads it oldest first. The latest verdict has its own section.
     moves: [...detail.querySelectorAll('.tl > li:not(.tl-fact)')].reverse().flatMap((move) => move.dataset.eventIds.split(' ').reverse().map(() => move.dataset.timelineKind)),
     // Gate bookkeeping facts (shadow receipts, review comparisons) are not findings; fact/snapshot.test.js drops them the same way.
-    facts: [...detail.querySelectorAll('.tl > .tl-fact .tl-body')].map((fact) => fact.textContent).filter((text) => !/^(?:Tier-1 shadow for gate receipt|Review comparison: )/u.test(text)),
+    facts: [...detail.querySelectorAll('.tl > .tl-fact .tl-body')].map((fact) => fact.textContent).filter((text) => !/^(?:Tier-1 shadow for gate receipt|Review comparison: |Gate job gate:|Not a duplicate of #)/u.test(text)),
   };
 })()`;
 
@@ -96,7 +98,9 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
       })`);
       assert.equal(listed.tab, 'shouts');
       assert.equal(listed.summaries, true, 'the view sends item summaries: no history, criterion or thread');
-      // Lazy panes render when opened; Roadmap still needs no item-detail request.
+      // Lazy panes render when opened. Roadmap reads the detail of each folded row on screen ahead (#1039; it fires
+      // here since 1e15b0a535 put the finished items in the rows), so hold those reads to see the loading state later.
+      await chrome.stable('window.__pbHold = true');
       await press(chrome, "document.querySelector('[data-tab=roadmap]')");
       await chrome.waitFor("document.querySelectorAll('#roadmap .milestone-item').length === 2");
       listed.roadmap = await chrome.stable("[...document.querySelectorAll('#roadmap .milestone-item')].map((row) => row.querySelector('.id').textContent + ' ' + row.querySelector('.stage-word').textContent)");
@@ -104,26 +108,27 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
       // Positioned work follows the backend queue; accepted items have no queue position.
       assert.deepEqual(listed.roadmap, ['#2 In review', '#1 Verified'], 'the roadmap shows queue-positioned work before unpositioned accepted items');
       assert.deepEqual(itemReads(listed.reads), [], 'Shouts renders the board summaries with no item detail fetched');
-      assert.deepEqual(itemReads(await chrome.stable('window.__pbReads')), [], 'opening Roadmap renders summaries without fetching item detail');
+      await chrome.waitFor("window.__pbReads.some((path) => /\\/items\\/2$/.test(path))", 15_000); // budget: hang-only ceiling for the Roadmap's read-ahead frame.
+      assert.ok(itemReads(await chrome.stable('window.__pbReads')).every((path) => ['items/2', 'items/1'].includes(path)), 'opening Roadmap reads ahead only the detail of its folded rows (#1039)');
       await press(chrome, "document.querySelector('[data-tab=shouts]')");
 
       // Search asks the API, which matches the criterion the summaries leave out, and its result opens the item.
-      await chrome.stable('window.__pbHold = true');
       await searchFor(chrome, 'zeppelin', 15_000); // budget: hang-only ceiling for one search answer from the local view.
       await chrome.waitFor("!!document.querySelector('#find-results [data-find=\"item:2\"]')");
-      assert.deepEqual(itemReads(await chrome.stable('window.__pbReads')), ['items?q=zeppelin'], 'the search sends its words to the API once');
+      assert.equal(itemReads(await chrome.stable('window.__pbReads')).filter((path) => path === 'items?q=zeppelin').length, 1, 'the search sends its words to the API once');
       await press(chrome, "document.querySelector('#find-results [data-find=\"item:2\"]')");
       await chrome.waitFor("view.tab === 'items' && view.item === 2 && !!document.querySelector('#detail [aria-busy] h2')");
       const waiting = await chrome.stable(DETAIL);
-      assert.equal(waiting.waiting, null, 'no loading line shows while the detail is on its way');
+      assert.equal(waiting.waiting, null, 'no loading line shows while the detail, already asked for ahead, is on its way');
       assert.match(waiting.title, /#2\s*Farewell page/u, 'the item paints its heading from its summary at once');
       assert.equal(waiting.criterion, null, 'the omitted fields wait for the detail');
       await chrome.stable('window.__pbRelease()');
       await chrome.waitFor("view.item === 2 && !document.querySelector('#detail [aria-busy]') && !!document.querySelector('#detail .tl')");
       const farewell = await chrome.stable(DETAIL);
       assert.equal(farewell.criterion, 'The farewell mentions the zeppelin.');
-      assert.deepEqual(farewell.moves, ['add', 'claim', 'renew', 'proof-run', 'submit']);
-      assert.deepEqual(itemReads(await chrome.stable('window.__pbReads')), ['items?q=zeppelin', 'items/2'], 'opening an item makes exactly one detail request');
+      // The Launch placement folds into the add row, so its event id counts as a second add (b86bdc79c0).
+      assert.deepEqual(farewell.moves, ['add', 'add', 'claim', 'renew', 'proof-run', 'submit']);
+      assert.deepEqual(readSet(await chrome.stable('window.__pbReads')).filter((path) => path !== 'items/1'), ['items/2', 'items?q=zeppelin'], 'opening an item adds no detail request beyond its read ahead');
 
       // The verified item opens with its criterion, check, brief, verdicts and thread from one more request.
       await chrome.stable("(() => { const q = document.querySelector('#q'); q.value = ''; q.dispatchEvent(new Event('input', { bubbles: true })); q.blur(); })()");
@@ -141,13 +146,12 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
       assert.deepEqual(greeting, {
         title: '#1Offline greeting',
         criterion: 'The greeting renders from the snapshot alone.',
-        check: ['true', 'Pending on main'],
+        check: ['true', 'runs one command · green on main'],
         brief: 'Keep the greeting short.',
-        verdicts: [['REJECT', 'the first greeting needs a correction'], ['ACCEPT', 'the page shows it\nreused submit proof <run>, <run>']],
-        moves: ['add', 'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'reject', 'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'accept'],
+        moves: ['add', 'add', 'check-baseline', 'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'reject', 'claim', 'renew', 'proof-run', 'proof-run', 'submit', 'accept', 'accept'], // a folded placement and a folded landing event each count as a second row kind.
         facts: ['The corrected greeting renders offline.'],
       }, 'the detail carries what the summary leaves out');
-      assert.deepEqual(itemReads(await chrome.stable('window.__pbReads')), ['items?q=zeppelin', 'items/2', 'items/1']);
+      assert.deepEqual(readSet(await chrome.stable('window.__pbReads')), ['items/1', 'items/2', 'items?q=zeppelin'], 'both details were read once, ahead');
 
       // Reopening an item, and refreshes while the board changes elsewhere, ask for nothing more.
       await press(chrome, "document.querySelector('#chain .row[data-item=\"2\"]')");
@@ -155,19 +159,19 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
       const states = await chrome.stable("window.__pbReads.filter((path) => /\\/state(\\?|$)/.test(path)).length");
       await box.inProcess(alpha.web, 'claim', '3');
       await chrome.waitFor(`window.__pbReads.filter((path) => /\\/state(\\?|$)/.test(path)).length > ${states} && !!document.querySelector('#chain .row[data-item="3"] .item-stage[data-stage="building"]')`, 15_000); // budget: hang-only ceiling for the page's 3-second board poll.
-      assert.deepEqual(itemReads(await chrome.stable('window.__pbReads')), ['items?q=zeppelin', 'items/2', 'items/1'], 'a refresh does not refetch items that have not changed');
+      assert.deepEqual(readSet(await chrome.stable('window.__pbReads')), ['items/1', 'items/2', 'items?q=zeppelin'], 'a refresh does not refetch items that have not changed');
 
       // A change to the opened item asks for its detail once more.
       await box.inProcess(alpha.repo, 'fact', '2', 'note', 'The farewell was checked after it opened.');
       await chrome.waitFor("[...document.querySelectorAll('#detail .tl-fact .tl-body')].some((fact) => fact.textContent === 'The farewell was checked after it opened.')", 15_000); // budget: hang-only ceiling for the page's 3-second board poll and one detail read.
-      assert.deepEqual(itemReads(await chrome.stable('window.__pbReads')), ['items?q=zeppelin', 'items/2', 'items/1', 'items/2'], 'only the changed item is read again');
+      assert.deepEqual(readSet(await chrome.stable('window.__pbReads')), ['items/1', 'items/2', 'items/2', 'items?q=zeppelin'], 'only the changed item is read again');
 
-      // The pipeline counts each stage from the summaries, with no further read.
-      await press(chrome, "document.querySelector('[data-items-view=\"pipeline\"]')");
+      // The Items Pipeline view (its control moved to the page controls in bc76548477) counts each stage from the summaries, with no further read.
+      await press(chrome, "document.querySelector('[data-page-ctl=\"view\"][data-value=\"pipeline\"]')");
       await chrome.waitFor("!!document.querySelector('#pipeline [data-stage-count=\"building\"]')");
       const stages = await chrome.stable("Object.fromEntries([...document.querySelectorAll('#pipeline [data-stage-count]')].map((count) => [count.dataset.stageCount, count.textContent]))");
-      assert.deepEqual(stages, { gated: '0', ready: '0', building: '1', 'in-review': '1', verified: '1', landing: '0', merged: '0' });
-      assert.deepEqual(itemReads(await chrome.stable('window.__pbReads')), ['items?q=zeppelin', 'items/2', 'items/1', 'items/2']);
+      assert.deepEqual(stages, { blocked: '0', ready: '0', building: '1', 'in-review': '1', verified: '1', landing: '0', merged: '0' });
+      assert.deepEqual(readSet(await chrome.stable('window.__pbReads')), ['items/1', 'items/2', 'items/2', 'items?q=zeppelin']);
       assert.deepEqual(chrome.exceptions, [], 'the live view opens items without browser exceptions');
       await view.stop();
 
@@ -179,7 +183,6 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
       await chrome.waitFor("document.body.classList.contains('snapshot') && !!data?.project && snapshotReplay.index === snapshotReplay.events.length && view.item === 1 && !!document.querySelector('#detail .tl')");
       const exported = await chrome.stable(DETAIL);
       assert.equal(exported.criterion, 'The greeting renders from the snapshot alone.');
-      assert.deepEqual(exported.verdicts, [['REJECT', 'the first greeting needs a correction'], ['ACCEPT', 'the page shows it\nreused submit proof <run>, <run>']]);
       assert.deepEqual(exported.facts, ['The corrected greeting renders offline.']);
       await searchFor(chrome, 'zeppelin', 15_000); // budget: hang-only ceiling for a search the page answers itself.
       await chrome.waitFor("!!document.querySelector('#find-results [data-find=\"item:2\"]')");

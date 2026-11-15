@@ -62,14 +62,14 @@ async function sealedFixtureRelay(options, legacySnapshots) {
 }
 
 /** Create a real private CLI board, actual stand-in GitHub sign-in, and an ephemeral relay server. */
-export async function fixture(t, { machineCredentials = true, legacySnapshots = false } = {}) {
+export async function fixture(t, { machineCredentials = true, legacySnapshots = false, moveBodyBytes } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-sealed-http-')));
   const root = join(directory, 'repo');
   const home = join(directory, 'home');
   const data = join(directory, 'relay');
   const privateBin = join(directory, 'bin');
   mkdirSync(root); mkdirSync(home); mkdirSync(privateBin);
-  const env = { ...process.env, HOME: home, PULLBOARD_HOME: home, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+  const env = { ...process.env, HOME: home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: home, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
   delete env.PULLBOARD_RELAY_TOKEN;
   const quoteShell = value => `'${String(value).replaceAll("'", "'\\''")}'`;
   const cliPath = resolve(import.meta.dirname, '../../../pullboard.js');
@@ -110,7 +110,7 @@ export async function fixture(t, { machineCredentials = true, legacySnapshots = 
   const tokenIssuer = machines[0]?.token ?? person.token;
   const one = await auth.issueToken(tokenIssuer, { board: id, agent: 'client-one' });
   const two = await auth.issueToken(machines[1]?.token ?? tokenIssuer, { board: id, agent: 'client-two' });
-  const relay = await sealedFixtureRelay({ directory: data, auth, port: 0, pollMs: 20, publicOrigin: 'http://127.0.0.1:44444' }, legacySnapshots);
+  const relay = await sealedFixtureRelay({ directory: data, auth, port: 0, pollMs: 20, publicOrigin: 'http://127.0.0.1:44444', moveBodyBytes }, legacySnapshots);
   t.after(async () => { await relay.close(); auth.close(); rmSync(directory, { recursive: true, force: true }); });
   const origin = 'http://127.0.0.1:' + relay.port;
   const key = randomBytes(32);

@@ -1,4 +1,5 @@
 import { committedRunnerController } from './tooling/committed.js';
+import { runnerControllerEntry } from './tooling/committed.js';
 
 /** How often a waiting controller re-reads its runner's lease before the job is READY. */
 const LEASE_WATCH_MS = 5_000;
@@ -84,8 +85,8 @@ export function runOnRunner(root, command, options) {
   const request = { root, command, options, parentPid: process.pid, parentPipe: PARENT_PIPE_FD };
   const installation = committedRunnerController(fileURLToPath(new URL('../../../../', import.meta.url)), { shared: true });
   try {
-  const child = spawnSync(process.execPath, [installation?.entry ?? fileURLToPath(new URL('../../../../apps/runner/src/io/controller.js', import.meta.url)), '--pullboard-runner-controller'], {
-    cwd: root, input: JSON.stringify(request), encoding: 'utf8', maxBuffer: MAX_OUTPUT_BYTES * 6 + 1024 ** 2,
+  const child = spawnSync(process.execPath, [installation?.entry ?? runnerControllerEntry(fileURLToPath(new URL('../../../../', import.meta.url))), '--pullboard-runner-controller'], {
+    cwd: root, env: { ...process.env }, input: JSON.stringify(request), encoding: 'utf8', maxBuffer: MAX_OUTPUT_BYTES * 6 + 1024 ** 2,
     stdio: ['pipe', 'pipe', 'pipe', 'pipe'],
   });
   return bridgeResult(request, child, 'sync-bridge');
@@ -104,8 +105,8 @@ export async function runOnRunnerAsync(root, command, options) {
   const { signal, ...plainOptions } = options;
   const request = { root, command, options: plainOptions, parentPid: process.pid, parentPipe: PARENT_PIPE_FD };
   const input = JSON.stringify(request);
-  const child = spawn(process.execPath, [installation?.entry ?? fileURLToPath(new URL('../../../../apps/runner/src/io/controller.js', import.meta.url)), '--pullboard-runner-controller'], {
-    cwd: root, stdio: ['pipe', 'pipe', 'pipe', 'pipe'],
+  const child = spawn(process.execPath, [installation?.entry ?? runnerControllerEntry(fileURLToPath(new URL('../../../../', import.meta.url))), '--pullboard-runner-controller'], {
+    cwd: root, env: { ...process.env }, stdio: ['pipe', 'pipe', 'pipe', 'pipe'],
   });
   const output = [], diagnostics = [];
   let bytes = 0, error;

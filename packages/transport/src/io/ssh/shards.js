@@ -22,6 +22,8 @@ function shardFolder(root, ids) {
 /**
  * Start one shard: write its job and command files, then run the command detached so it writes its result file
  * whether or not this channel or its driver is still there. A shard already started or done is left alone.
+ * Why no nohup: macOS nohup refuses to start under a runner's LaunchDaemon ("can't detach from console") and the shard never ran,
+ * so the worker ignores HUP itself, which survives the exec (#7817, as #6917 found for the runner agent).
  *
  * @param {{ run: Function, runner: object }} shell - The SSH channel's shell.
  * @param {{ job: string, shard: string, command: string, cwd?: string, owner?: string }} spec
@@ -46,7 +48,7 @@ export async function sshStartShard(shell, { job, shard, command, cwd, owner }) 
     `printf '%s' ${shellWord(record)} > "$d/job.json" || exit 3`,
     `printf '%s\\n' ${shellWord(command)} > "$d/command" || exit 3`,
     `: > "$d/started"`,
-    `nohup sh -c ${shellWord(worker)} pullboard-shard "$d" >/dev/null 2>&1 </dev/null &`,
+    `( trap '' HUP; exec sh -c ${shellWord(worker)} pullboard-shard "$d" ) >/dev/null 2>&1 </dev/null &`,
     `printf started`,
   ].join('\n'));
   const state = reply.output.toString('utf8');

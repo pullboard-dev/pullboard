@@ -13,6 +13,7 @@ import {
   chromeExecutable,
   openSnapshotChrome,
   closeSnapshotChrome,
+  press,
 } from '../../tests/fixtures/cockpit/harness.js';
 
 test('machine Settings remain reachable without any boards and use only the global read API [O5,O6,N26]', async () => {
@@ -67,8 +68,12 @@ test('Settings render hostile values as read-only text in a narrow real browser 
     chrome = await openSnapshotChrome(executable, view.link.href, join(box.dir, 'settings-chrome'));
     await chrome.waitFor('document.body.classList.contains("loading") === false');
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 320, height: 800, deviceScaleFactor: 1, mobile: false });
-    await chrome.click(`document.querySelector('#proj-switch')`);
-    await chrome.click(`document.querySelector('[data-tab="settings"]')`);
+    // Under 900 px the project switcher lives in the Menu drawer, whose project button opens the list (dcf117ebc6).
+    await chrome.click("document.querySelector('#menu-btn')");
+    await chrome.click("document.querySelector('#mdrawer-proj')");
+    // Settings now lives in the account menu, which draws its rows when it opens.
+    await press(chrome, 'document.querySelector("#account")');
+    await chrome.click(`document.querySelector('#account-menu [data-tab="settings"]')`);
     await chrome.waitFor('document.querySelectorAll("#settings-content .set[data-setting-key]").length > 0');
     await chrome.click(`document.querySelector('[data-settings-scope="repo"]')`);
     await chrome.waitFor('document.querySelector("#settings-content").textContent.includes("settings-owned")');

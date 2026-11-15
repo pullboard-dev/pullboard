@@ -8,6 +8,7 @@ import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { storeName } from '../store-names.js';
 
 /** A job id is a UUID; anything else never becomes a path. */
 const JOB_ID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u;
@@ -18,7 +19,7 @@ export function jobsDirectory() { return join(machineHome(), 'runner-jobs'); }
 /** The record file of one job id; refuses a name that is not a job id. */
 export function jobFile(id) {
   if (typeof id !== 'string' || !JOB_ID.test(id)) throw new Refused('RUNNER_PULL_JOB', 'the runner job id is not valid; resubmit the run');
-  return join(jobsDirectory(), `${id}.json`);
+  return join(jobsDirectory(), storeName(id));
 }
 
 /** Write the record whole or not at all, so a reader never sees half of it. */

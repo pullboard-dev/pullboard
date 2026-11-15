@@ -1,5 +1,5 @@
 import { MILESTONE_LIMIT_ENGINE } from "../../../../state/light.js";
-import { MILESTONE_PERSON_LIMIT_ENGINE } from "../../../../state/index.js";
+import { MILESTONE_PERSON_LIMIT_ENGINE } from "../../../../state/light.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by editMilestone, discovered without a shared registry edit [C7,V4,H16]. */
 import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";

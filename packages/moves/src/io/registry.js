@@ -1,4 +1,4 @@
-/** @pullboard-module-loads packages/moves/src/logic/moves/*.js packages/moves/src/io/moves/*.js */
+/** @pullboard-module-loads packages/moves/src/logic/moves/*.js packages/moves/src/io/moves/*.js packages/moves/src/logic/table/*.table.js */
 import { sourceAdvanceFloor } from "../../../verify/index.js";
 import { SOURCE_ADVANCE_ENGINE } from "../../../state/light.js";
 /**
@@ -47,6 +47,18 @@ function addSteps(target, source, owner) {
 }
 
 /**
+ * Load one discovered module beneath a folder: the single computed load in this file.
+ * Why: the replay report finds move tables by name and loads them here, so the P3 scan declares one loader instead of two.
+ *
+ * @param {string} file a file name or relative path beneath the folder
+ * @param {URL} directory the folder's URL, ending in a slash
+ * @returns {Record<string, any>} the module's exports
+ */
+export function loadDiscovered(file, directory) {
+  return loadMove(fileURLToPath(new URL(file, directory)));
+}
+
+/**
  * Discover strict operation modules in deterministic order, also usable with isolated fixture folders.
  * New moves may omit order and append by file name; existing moves retain their historical order.
  *
@@ -55,7 +67,7 @@ function addSteps(target, source, owner) {
  */
 export function discoverMoves(folders = MOVE_DIRECTORIES) {
   const entries = (Array.isArray(folders) ? folders : [folders]).flatMap(directory => discovered(readdirSync(directory), MOVE_CANDIDATE, MOVE_FILE, 'move').map(file => ({ file, directory })));
-  const declarations = entries.map(({ file, directory }) => declarationFor(file, loadMove(fileURLToPath(new URL(file, directory))).default));
+  const declarations = entries.map(({ file, directory }) => declarationFor(file, loadDiscovered(file, directory).default));
   declarations.sort((a, b) => a.order - b.order || (a.operation < b.operation ? -1 : a.operation > b.operation ? 1 : 0));
   const registry = {};
   const nextSteps = {};

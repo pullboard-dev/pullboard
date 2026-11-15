@@ -1,5 +1,4 @@
 /** Advisory peak occupancy from retained physical receipts, never guessed idle capacity [C7]. */
-import { retainedReceipts } from '../../../gate/index.js';
 import { runnerStage } from '../logic/stage.js';
 import { readRunnerCapacities } from './capacity.js';
 
@@ -57,8 +56,11 @@ export function runnerUtilization(runners, receipts, { from, to }) {
     runners: rows, warnings: rows.flatMap(row => row.warning ? [row.warning] : []) };
 }
 
-/** Read existing observations for status without starting probes or changing any runner capacity. */
-export function readRunnerUtilization(root, now = Date.now()) {
+/**
+ * Read existing observations for status without starting probes or changing any runner capacity.
+ * The caller passes the receipt reader (the gate's retainedReceipts): this cell stays off the gate's index, so a cold whoami never loads it [C7].
+ */
+export function readRunnerUtilization(root, retainedReceipts, now = Date.now()) {
   const window = { from: new Date(now - HOUR).toISOString(), to: new Date(now).toISOString() };
   try {
     const receipts = retainedReceipts(root, window);

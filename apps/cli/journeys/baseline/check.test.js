@@ -282,7 +282,9 @@ test('[V2,N23] only the coordinator sets checks and agents confirm them before e
 
 /** Wait for a real baseline worker to start its held check before the test body ends. */
 async function waitForFile(filename, child, description) {
-  const deadline = Date.now() + 10_000;
+  // budget: a pulled check starts only after its enqueue, the runner agent and the job's worker each boot; at runner load
+  // that passed 10 s on the pull runners (#6917).
+  const deadline = Date.now() + 60_000;
   while (!existsSync(filename) && child.exitCode === null && child.signalCode === null && Date.now() < deadline) {
     await new Promise(resolvePromise => setTimeout(resolvePromise, 10));
   }

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../../../../../store/index.js';
 import { REVIEW_COVER_WAIT_MS } from '../../../../../health/index.js';
-import { submitFixture } from '../../../../../../apps/cli/tests/fixtures/board/submit.js';
+import { submitFixture } from '../../../../../store/tests/fixtures/submit.js';
 import { fixture } from '../../../fixtures/next.js';
 import { next } from '../../../fixtures/next.js';
 

@@ -62,13 +62,14 @@ test('clause 1: a new cross-cell import and a deep import beyond the ceiling are
   assert.doesNotMatch(text, /clean\.js/u);
 });
 
-test('clause 2: the same new edge passes once the plan declares it and the refusal names the declaration [C7]', () => {
+test('clause 2: the same new edge passes once the plan declares it and the refusal names the lower front door or the coordinator [C7]', () => {
   const files = { ...BASE, 'packages/b/deep.js': "import { inner } from '../a/src/inner.js';\nexport const deep = inner;\n" };
   const before = fixture({ ...BASE });
   const ceilings = ceilingsOf(cellsEdgeReport(before));
   const refused = fixture(files);
   const problems = cellsEdgeProblems(refused, { ceilings });
-  assert.ok(problems.some(row => row.text.includes('add "b->a/src" to allowedEdges in packages/codemap/data/plan/cells.json')), JSON.stringify(problems));
+  assert.ok(problems.some(row => row.text.includes('import through a lower cell front door, or ask the coordinator')), JSON.stringify(problems));
+  assert.ok(problems.every(row => !/add "[^"]*" to allowedEdges/u.test(row.text)), 'the refusal no longer suggests adding the edge');
   const declared = fixture(files, ['b->a/src']);
   assert.deepEqual(cellsEdgeProblems(declared, { ceilings }), []);
 });

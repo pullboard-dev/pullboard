@@ -12,6 +12,7 @@ import { mainPolicy } from '../../../../../sandbox/light.js';
 import { DEFAULT_TEST_FILE_BUDGET_MS } from '../../../logic/test/budget/file.js';
 import { requireTestFileRatchet } from '../../../logic/test/budget/file.js';
 import { testFileLimit } from '../../../logic/test/budget/file.js';
+import { storeName } from '../../store-names.js';
 
 const DIRECTORY = '.pullboard/test-file-budgets';
 export function testFileRelative(root, file) { return relative(root, resolve(root, file)).split(sep).join('/'); }
@@ -19,7 +20,7 @@ export function testFileRelative(root, file) { return relative(root, resolve(roo
 /** Hash names so paths never escape the tracked table directory. */
 export function testFileBudgetPath(file) {
   if (typeof file !== 'string' || !file || file.startsWith('/') || file.split('/').some(part => !part || part === '.' || part === '..')) throw new TypeError('invalid test file path');
-  return `${DIRECTORY}/${createHash('sha256').update(file).digest('hex')}.json`;
+  return `${DIRECTORY}/${storeName(createHash('sha256').update(file).digest('hex'))}`;
 }
 
 /** A runner's linked item worktree shares its primary checkout's admitted trunk, not its HEAD. */

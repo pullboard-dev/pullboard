@@ -1,5 +1,5 @@
 /** Clause inspection: a numbered criterion is ticked clause by clause, each with its evidence, before submit (#2050). */
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/light.js';
 
 export const EVIDENCE_KINDS = Object.freeze(['test', 'command', 'screenshot', 'measurement', 'reasoning']);
 const KINDS = EVIDENCE_KINDS.join('|');
@@ -191,6 +191,34 @@ export function checkRunTickNotes(item, head) {
 function testClauseTickNotes(clauses, run, head) {
   return clauses.filter(clause => clause.kind === null || clause.kind === 'test')
     .map(clause => `clause ${clause.number} [test]: green pullboard ${run} at ${head}`);
+}
+
+/** The most case names one gate tick note lists; the receipt keeps the rest. */
+const NAMED_CASES = 5;
+
+/**
+ * One tick note per [test] clause the builder has not ticked whose named test file the gate ran green, naming the cases
+ * the receipt observed passing in it. Why: submit no longer waits on a builder-run proof, so the gate records the
+ * evidence itself, wherever the gate ran, and a red gate records none [C7,V4].
+ *
+ * @param {object} item - The submitted item.
+ * @param {object[]} thread - The item's thread, to leave builder ticks alone.
+ * @param {{ gateFiles: Set<string>, outcomes: { file: string, name: string, passed: boolean, skipped: boolean }[], head: string }} run - Files the gate ran, the receipts' per-test outcomes and the head proved.
+ * @returns {string[]} Note texts for the item's thread.
+ */
+export function gateClauseTickNotes(item, thread, { gateFiles, outcomes, head }) {
+  const ticks = clauseTicks(thread, item.item_owner, { criterion: item.item_criterion, head });
+  const notes = [];
+  for (const clause of criterionClauses(item.item_criterion)) {
+    if (ticks.has(clause.number)) continue;
+    const file = gateNamedFile(clause, gateFiles, item);
+    if (!file) continue;
+    const passed = outcomes.filter(row => row.file === file && row.passed && !row.skipped).map(row => row.name);
+    if (!passed.length || outcomes.some(row => row.file === file && !row.passed && !row.skipped)) continue;
+    const listed = passed.slice(0, NAMED_CASES).join('; ');
+    notes.push(`clause ${clause.number} [test]: gate run of ${file} green at ${head.slice(0, 12)}: ${passed.length} case${passed.length === 1 ? '' : 's'} passed (${listed}${passed.length > NAMED_CASES ? '; ...' : ''})`);
+  }
+  return notes;
 }
 
 /** One reviewer-facing line per clause with its evidence; reasoning is flagged as the weakest kind. */

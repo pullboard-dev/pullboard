@@ -3,11 +3,11 @@
 /** @pullboard-test-journey Native long-note expansion and full-hash copy in Timeline, Needs you, and Items [N26]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { boardOf } from '../../tests/fixtures/cockpit/harness.js';
+import { openItemsNeeds } from '../../tests/fixtures/cockpit/harness.js';
 import { chromeExecutable } from '../../tests/fixtures/cockpit/harness.js';
 import { closeSnapshotChrome } from '../../tests/fixtures/cockpit/harness.js';
 import { machine } from '../../tests/fixtures/cockpit/harness.js';
@@ -15,17 +15,12 @@ import { openSnapshotChrome } from '../../tests/fixtures/cockpit/harness.js';
 import { press } from '../../tests/fixtures/cockpit/harness.js';
 import { project } from '../../tests/fixtures/cockpit/harness.js';
 import { startView } from '../../tests/fixtures/cockpit/harness.js';
-import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 
 /** Seed a private native board and inspect its actual HTTP and Chrome presentation. */
 test('long timeline notes expand in place and hashes show twelve characters with full copy [N26]', { timeout: 180_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'The timeline note and hash journey requires real Chrome.');
   const box = machine();
-  // The Items row reads the commit a controller submit records at once; pull leaves it to the gate job, so this pins controller until #5821 [P7].
-  const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
-  const settings = JSON.parse(readFileSync(settingsFile, 'utf8'));
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { ...settings, gate: { ...settings.gate, runnerDispatch: 'controller' } });
   const spec = '# Needs review\n\n## G · Goals\n- G1 [approved, must] The approved requirement carries an agent commit into Needs you. | gate: review\n';
   const demo = project(box, 'timeline-notes', spec, {}, { agentApproved: true });
   box.run(demo.repo, 'add', 'web', 'Long note and hashes', '--specs', 'G1', '--criterion', 'The actual item retains its submitted commit.');
@@ -61,12 +56,12 @@ test('long timeline notes expand in place and hashes show twelve characters with
     chrome = await openSnapshotChrome(executable, href.href, join(box.dir, 'timeline-notes-chrome'));
     await chrome.waitFor('!!document.querySelector(\'[data-tab="items"]\')');
     await chrome.click(`document.querySelector('[data-tab="items"]')`);
-    await chrome.waitFor('view.item === 1 && !!document.querySelector("#detail [data-item-panel-tab=history]")');
-    await chrome.click(`document.querySelector('#detail [data-item-panel-tab=history]')`);
+    await chrome.waitFor('view.item === 1 && !!document.querySelector("#detail [data-item-panel-history]")');
+    if (await chrome.stable("(more => !!more && more.getAttribute('aria-expanded') !== 'true')(document.querySelector('#detail [data-item-panel-history]'))")) await chrome.click("document.querySelector('#detail [data-item-panel-history]')");
     await chrome.waitFor('!!document.querySelector("#detail .tl-note")');
-    await chrome.click(`document.querySelector('#detail [data-item-panel-history]')`);
-    // The timeline lists newest first, so the long note is the last note row.
-    const noteSelector = '#detail .tl-fact[data-timeline-kind="note"]:not(:has(~ .tl-fact[data-timeline-kind="note"])) .tl-note';
+    // Other notes sit around it (the add records a short one), so the long note is found by its first line.
+    const noteKey = await chrome.stable(`[...document.querySelectorAll('#detail .tl-note')].find(note => note.textContent.includes('Line 1: the complete note')).querySelector('[data-timeline-more]').dataset.timelineMore`);
+    const noteSelector = '#detail .tl-note:has([data-timeline-more=' + JSON.stringify(noteKey) + '])';
     const bodySelector = noteSelector + ' .tl-body';
     assert.equal(await chrome.stable(`getComputedStyle(document.querySelector(${JSON.stringify(bodySelector)})).webkitLineClamp`), '3');
     assert.equal(await chrome.stable(`(() => { const body = document.querySelector(${JSON.stringify(bodySelector)}), style = getComputedStyle(body); return body.getBoundingClientRect().height <= parseFloat(style.lineHeight) * 3 + 1; })()`), true, 'the note is clamped to three visible lines');
@@ -79,29 +74,33 @@ test('long timeline notes expand in place and hashes show twelve characters with
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(timelineHash)}).textContent`), commit.slice(0, 12));
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(timelineHash)}).title`), commit);
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(timelineHash)}).dataset.copy`), commit);
+    await chrome.stable(`(() => { const button = document.querySelector(${JSON.stringify(timelineHash)}); window.__titles = []; new MutationObserver(() => window.__titles.push(button.title)).observe(button, { attributes: true, attributeFilter: ['title'] }); return true; })()`);
     await press(chrome, `document.querySelector(${JSON.stringify(timelineHash)})`);
-    assert.match(await chrome.stable(`document.querySelector(${JSON.stringify(timelineHash)}).title`), /^(Copied|Could not copy) full hash$/u);
+    assert.match(await chrome.stable(`window.__titles[0]`), /^(Copied|Could not copy) full hash$/u);
 
     await chrome.click(`document.querySelector('[data-tab="items"]')`);
     await chrome.waitFor('view.tab === "items" && !!document.querySelector("#needs")');
+    await openItemsNeeds(chrome);
     const needHash = '#needs [data-agent-approved="G1"] [data-needs-field="commit"] .hash-copy';
     await chrome.click(`document.querySelector(${JSON.stringify('#needs [data-agent-approved="G1"] summary')})`);
     await chrome.waitFor(`document.querySelector(${JSON.stringify(needHash)})`);
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(needHash)}).textContent`), approval.slice(0, 12));
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(needHash)}).title`), approval);
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(needHash)}).dataset.copy`), approval);
+    await chrome.stable(`(() => { const button = document.querySelector(${JSON.stringify(needHash)}); window.__titles = []; new MutationObserver(() => window.__titles.push(button.title)).observe(button, { attributes: true, attributeFilter: ['title'] }); return true; })()`);
     await press(chrome, `document.querySelector(${JSON.stringify(needHash)})`);
-    assert.match(await chrome.stable(`document.querySelector(${JSON.stringify(needHash)}).title`), /^(Copied|Could not copy) full hash$/u);
+    assert.match(await chrome.stable(`window.__titles[0]`), /^(Copied|Could not copy) full hash$/u);
 
     await chrome.send('Page.navigate', { url: href.href });
     await chrome.waitFor('view.item === 1 && !!document.querySelector("#detail [data-copy]")');
     // The item panel's header names the submitted commit beside the item's status.
-    const itemHash = '#detail .item-panel-status .item-head-hash [data-copy]';
+    const itemHash = '#detail .item-panel-head .ip-who [data-copy]';
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(itemHash)}).textContent`), commit.slice(0, 12));
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(itemHash)}).title`), commit);
     assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(itemHash)}).dataset.copy`), commit);
+    await chrome.stable(`(() => { const button = document.querySelector(${JSON.stringify(itemHash)}); window.__titles = []; new MutationObserver(() => window.__titles.push(button.title)).observe(button, { attributes: true, attributeFilter: ['title'] }); return true; })()`);
     await press(chrome, `document.querySelector(${JSON.stringify(itemHash)})`);
-    assert.match(await chrome.stable(`document.querySelector(${JSON.stringify(itemHash)}).title`), /^(Copied|Could not copy) full hash$/u);
+    assert.match(await chrome.stable(`window.__titles[0]`), /^(Copied|Could not copy) full hash$/u);
     assert.deepEqual(chrome.exceptions, []);
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);

@@ -246,10 +246,15 @@ export const READ_SCREEN = `(() => {
  */
 export const OPEN_BOARD = `(() => {
   const tab = document.querySelector('.tab[data-tab="items"]');
+  const shown = (node) => { if (!node) return false; const rect = node.getBoundingClientRect(); const style = getComputedStyle(node); return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none'; };
   if (tab && !tab.classList.contains('on')) {
-    const rect = tab.getBoundingClientRect();
-    const style = getComputedStyle(tab);
-    if (rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none') tab.click();
+    if (shown(tab)) tab.click();
+    else {
+      // Under 900 px the tabs live in the Menu drawer (dcf117ebc6): open it once, then press its Items row; never close it here.
+      const drawer = document.querySelector('#mdrawer'), menu = document.querySelector('#menu-btn'), row = drawer?.querySelector('[data-tab="items"]');
+      if (drawer && drawer.hidden && shown(menu) && !drawer.querySelector('[data-later]')) menu.click();
+      else if (drawer && !drawer.hidden && shown(row)) row.click();
+    }
   }
   return (${READ_SCREEN}).board;
 })()`;
@@ -329,7 +334,15 @@ export async function visit(context, { route, phone, bootstrap, localView = null
         shown = await page.poll(OPEN_BOARD, BOARD_MS + 2_000);
       }
       const seen = await page.evaluate(READ_CAPTURE);
-      return { ...seen, ms: shown ? Date.now() - started : null, exceptions: page.exceptions.length,
+      const ms = shown ? Date.now() - started : null; // the board's own clock stops here, before the notices are read
+      // Items opens on its list alone and hides the relay's notices (#6648, view/io/main.css); they stay on the
+      // Dashboard. The board is witnessed above on Items; the notices are read here, from the tab that shows them.
+      if (seen.board) {
+        await page.evaluate(`document.querySelector('.tab[data-tab="dashboard"]')?.click()`);
+        const notices = await page.poll(`document.querySelector('#relay-notice')?.getClientRects().length ? (${READ_SCREEN}).words : ''`, 500);
+        if (notices) seen.words = notices;
+      }
+      return { ...seen, ms, exceptions: page.exceptions.length,
         capture: visitCapture(seen, started, wantsBoard) };
     }
     // A blocker screen settles when it has stopped changing for half a second and is not still checking.

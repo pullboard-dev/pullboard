@@ -17,6 +17,7 @@ import { runFixtureChild } from './child.js';
 import { runFixtureGit } from './child.js';
 import { createE2eHelpers } from './e2e.js';
 import { runCliInProcess } from './process.js';
+import { runCliSync } from './sync/cli.js';
 import { writeLegacyWebQuestions } from './blueprint/question.js';
 
 /** @pullboard-test-input apps/cli/pullboard.js packages/blueprints/data/blueprints/web-app.json */
@@ -28,11 +29,25 @@ export const LEGACY_FRAMEWORK = { key: 'Q1', ask: 'The app is built with', choic
 export const MARKERS = ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SESSION_ID', 'AI_AGENT', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_CI', 'CODEX_SHELL'];
 export const DIRS = [];
 
+/**
+ * How a blueprint journey's synchronous calls reach the CLI: 'process' spawns node pullboard.js, 'inprocess' answers the
+ * same argv with the production dispatch in a warm worker thread (no node start-up). One file uses one mode; the
+ * pilot's baseline (item 8058) sets PULLBOARD_JOURNEY_MODE=process to run the same cases as real processes.
+ */
+export const JOURNEY_MODES = Object.freeze(['process', 'inprocess']);
+let defaultMode = JOURNEY_MODES.includes(process.env.PULLBOARD_JOURNEY_MODE) ? process.env.PULLBOARD_JOURNEY_MODE : 'process';
+
+/** Make every board this test file builds from here on answer in the given mode, unless the environment pins one. */
+export function useJourneyMode(mode) {
+  if (!JOURNEY_MODES.includes(mode)) throw new Error(`unknown journey mode ${mode}`);
+  if (!JOURNEY_MODES.includes(process.env.PULLBOARD_JOURNEY_MODE)) defaultMode = mode;
+}
+
 after(() => { for (const dir of DIRS) rmSync(dir, { recursive: true, force: true }); });
 
 /** A freshly initialized repo with a private board, Pullboard home and Git identity. */
-export function freshBoard(config = {}) {
-  const { dir, repo, run, runIn, runLocal, runInLocal, env } = emptyRepo();
+export function freshBoard(config = {}, { mode = defaultMode } = {}) {
+  const { dir, repo, run, runIn, runLocal, runInLocal, env } = emptyRepo({ mode });
   const git = (...args) => runFixtureGit(args, { cwd: repo, env });
   const init = run('init');
   assert.equal(init.status, 0, init.stdout + init.stderr);
@@ -80,7 +95,7 @@ export function boardCreated(repo) {
 }
 
 /** A Git repository with history but no Pullboard yet, using the same private homes as freshBoard. */
-export function emptyRepo() {
+export function emptyRepo({ mode = defaultMode } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-blueprint-init-'));
   DIRS.push(dir);
   const bin = join(dir, 'bin');
@@ -91,14 +106,16 @@ export function emptyRepo() {
   for (const key of Object.keys(env)) if (key.startsWith('GIT_') || MARKERS.includes(key)) delete env[key];
   Object.assign(env, {
     PATH: `${bin}:${process.env.PATH}`,
-    PULLBOARD_HOME: join(dir, 'home'), PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
+    PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(dir, 'home'), PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Blueprint fixture', GIT_AUTHOR_EMAIL: 'blueprint@example.invalid',
     GIT_COMMITTER_NAME: 'Blueprint fixture', GIT_COMMITTER_EMAIL: 'blueprint@example.invalid',
   });
   const repo = join(dir, 'repo');
   mkdirSync(repo);
-  const runIn = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+  const runIn = mode === 'inprocess'
+    ? (cwd, ...args) => ({ ...runCliSync(args, { cwd, env }), failure: null })
+    : (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   const run = (...args) => runIn(repo, ...args);
   /** The same command through the production dispatch in this process; same result shape as runIn, awaited [C7]. */
   const runInLocal = (cwd, ...args) => runCliInProcess(args, { cwd, env });

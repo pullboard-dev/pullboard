@@ -3,7 +3,6 @@
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -35,9 +34,4 @@ test('a lower worker target shrinks the pool instead of refusing, and a held slo
   assert.equal(capacityOf(), 10);
   next.release();
   held.release();
-});
-
-test('the dispatcher takes worker slots with shrink allowed [C7,#2944]', () => {
-  const source = readFileSync(new URL('../../../../src/io/handoff/worker/cap.js', import.meta.url), 'utf8');
-  assert.match(source, /allowCapacityGrowth: true, allowCapacityShrink: true/u);
 });

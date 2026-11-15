@@ -769,7 +769,7 @@ export async function everyBoardJourney(t, slow = null, { restart = false } = {}
     await chromeB.waitFor("view.root === data.projects.find(row => row.id === " + JSON.stringify(boardAId) + ").root && document.querySelector('#chain')?.textContent.includes('linked machine A board')");
     const updatedTitle = 'A live move visible on B';
     await chromeB.stable(`(() => { const chain = document.querySelector('#chain'); window.__journeyUpdateAt = null; window.__journeyUpdateObserver = new MutationObserver(() => { if (chain.textContent.includes(${JSON.stringify(updatedTitle)})) { window.__journeyUpdateAt = performance.timeOrigin + performance.now(); window.__journeyUpdateObserver.disconnect(); } }); window.__journeyUpdateObserver.observe(chain, { childList: true, subtree: true, characterData: true }); return true; })()`);
-    await chromeA.click("document.querySelector('#new-item')");
+    await chromeA.click("document.querySelector('[data-page-ctl=new]')");
     await chromeA.stable(`document.querySelector('#add-title').value = ${JSON.stringify(updatedTitle)}; window.__journeyMoveStarted = null; document.addEventListener('pointerdown', event => { if (event.isTrusted && event.target.closest('#add-form button.go')) window.__journeyMoveStarted = performance.timeOrigin + performance.now(); }, { capture: true, once: true }); 'ready'`);
     await press(chromeA, "document.querySelector('#add-form button.go')");
     await chromeA.waitFor("Number.isFinite(window.__journeyMoveStarted)");
@@ -787,7 +787,7 @@ export async function everyBoardJourney(t, slow = null, { restart = false } = {}
     const localRow = "Array.from(document.querySelectorAll('#proj-list .proj.repo')).find(row => row.textContent.includes('local-machine-b'))";
     await pickProject(chromeB, localRow);
     await press(chromeB, "document.querySelector('[data-tab=items]')");
-    await chromeB.waitFor("view.root === data.projects.find(row => row.name === 'local-machine-b')?.root && data.project.items.length === 40 && document.querySelector('#chain')?.textContent.includes('local B item 40')");
+    await chromeB.waitFor("view.root === data.projects.find(row => row.name === 'local-machine-b')?.root && data.project.items.length === 40 && document.querySelectorAll('#chain [data-item]').length >= 2"); // The Items list draws only the rows near the viewport (#6676), so two rows stand for the loaded list.
     const selectedItem = JSON.parse(await chromeB.stable(`JSON.stringify((() => { const first = document.querySelector('#chain [data-item]')?.dataset.item; const row = [...document.querySelectorAll('#chain [data-item]')].find(node => node.dataset.item !== String(view.item) && node.dataset.item !== first); const item = data.project.items.find(candidate => String(candidate.id) === row?.dataset.item); return row && item ? { id: row.dataset.item, title: item.title } : null; })())`));
     assert.ok(selectedItem?.id && selectedItem?.title, 'the 40-item board has an unopened item row');
     const { id: itemId, title: detailTitle } = selectedItem;

@@ -66,10 +66,11 @@ import {
   runFixtureChild,
   runFixtureGit,
 } from '../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
-import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
-const SUBMIT_REFUSALS = 'AGENT_APPROVAL_REQUIRED BAD_BUILD_ESTIMATE BOARD_SCHEMA_BEHIND BOARD_UNAVAILABLE CLAUSE_EVIDENCE_KIND CLAUSE_EVIDENCE_REQUIRED CLAUSE_REASONING_ONLY EMPTY_SUBMIT GIT_SYNC_FOLDER KERNEL_EXPORT_APPROVAL KERNEL_EXPORT_SOURCE MILESTONES_CORRUPT SEAL_REVISION SEAL_STALE SEAL_STORE SHIM_IMPORT_PARSER UNKNOWN_SPEC'.split(' ');
+const SUBMIT_REFUSALS = 'AGENT_APPROVAL_REQUIRED BAD_BUILD_ESTIMATE BOARD_UNAVAILABLE CLAUSE_EVIDENCE_KIND CLAUSE_EVIDENCE_REQUIRED CLAUSE_REASONING_ONLY EMPTY_SUBMIT GIT_SYNC_FOLDER KERNEL_EXPORT_APPROVAL KERNEL_EXPORT_SOURCE MILESTONES_CORRUPT SEAL_REVISION SEAL_STALE SEAL_STORE UNKNOWN_SPEC'.split(' ');
 /**
  * Where each move starts in the code. Accept and reject share the board's verify and the CLI's, so
  * they answer for its refusals together.
@@ -77,7 +78,8 @@ const SUBMIT_REFUSALS = 'AGENT_APPROVAL_REQUIRED BAD_BUILD_ESTIMATE BOARD_SCHEMA
 const ENTRY_POINTS = [
   { verbs: ['claim'], at: ['../packages/store/src/io/board.js#claim'] },
   { verbs: ['release'], at: ['../packages/store/src/io/board.js#release'] },
-  { verbs: ['submit'], at: ['../packages/store/src/io/board.js#submit', '../apps/cli/src/io/commands/submit.js#submitHere'] },
+  // submitHere loads the pulled gate offer lazily, which the walk does not follow, so the offer is its own submit entry [#6807].
+  { verbs: ['submit'], at: ['../packages/store/src/io/board.js#submit', '../apps/cli/src/io/commands/submit.js#submitHere', '../apps/cli/src/io/submit/pull.js#offerSubmitGate'] },
   { verbs: ['reserve'], at: ['../packages/store/src/io/board.js#reserveReview', '../packages/store/src/io/board.js#reserveNextReview'] },
   { verbs: ['accept', 'reject'], at: ['../packages/store/src/io/board.js#verify', '../apps/cli/src/io/commands/verify.js#verifyHere'] },
   { verbs: ['escalate'], at: ['../packages/store/src/logic/board/escalate.js#escalate'] },
@@ -89,6 +91,8 @@ const ENTRY_POINTS = [
 /** Runner refusals reach lifecycle checks through these package and worker entry points. */
 const RUNNER_ENTRY_FILES = ['../packages/runners/index.js', '../packages/gate/src/io/slot.js', '../packages/runners/src/io/result.js',
   '../packages/runners/src/io/dispatch.js', '../apps/runner/src/io/worker/entry.js'];
+// The pulled gate runs the doctrine hold through injected runner services (apps/cli/src/io/runner/handoff/services.js), which a static walk cannot follow [#6807].
+const INJECTED_GATE_FILES = ['../packages/doctrine/src/io/checks.js'];
 const NON_MOVE_ENTRY_POINTS = [
   '../apps/lib/src/logic/native.js#openBoard', // Physical storage is composed before any item move.
   '../packages/store/index.js#recordSpecApprovalBaseline', // A distinct bootstrap operation precedes the requested move.
@@ -120,8 +124,8 @@ const CAUGHT = {
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
   '../packages/seats/src/logic/line/capacity/board.js#oldestCapacityReview': ['../packages/store/src/io/board.js#reviewerChecks'],
   '../apps/cli/src/io/commands/submit.js#submitHere': ['../apps/cli/src/io/commands/land.js#landAfterAcceptance', '../packages/flakes/src/io/native.js#observeFailure', '../apps/cli/src/io/entry.js#freezer', '../apps/cli/src/io/claim.js#freezer', '../packages/landing/src/io/main/red.js#compareMainFailures', '../packages/landing/src/io/main/red.js#matchingReworks', '../packages/doctrine/src/io/checks.js#checkRulesAt'],
-  // Machine-verified submit lands after its record, and that landing call is caught like verify's.
-  // The same catches as reached at the CLI's moved source (#2886).
+  '../apps/cli/src/io/submit/pull.js#offerSubmitGate': ['../packages/stats/index.js#checkpointAfterMove', '../packages/stats/src/io/cost/checkpoint.js#checkpointAfterMove'], // A pulled submit's usage checkpoint catches every usage failure as USAGE_PENDING [N2].
+  // Machine-verified submit lands after its record, and that landing call is caught like verify's; the same catches as reached at the CLI's moved source (#2886).
   // The exact post-verdict landing call and optional flake observations are caught; neither can refuse an already-recorded verdict.
   '../apps/cli/src/io/commands/verify.js#verifyHere': ['../apps/cli/src/io/commands/land.js#landAfterAcceptance', '../packages/flakes/src/io/native.js#observeFailure'],
   // Invalid approval evidence is data, not a lifecycle refusal; runtime controls keep it unconfirmed.
@@ -255,7 +259,7 @@ function codeProblems(machine, read = fromDisk) {
   }
   const commandFiles = fs.readdirSync(new URL('../../src/io/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `../apps/cli/src/io/commands/${name}`);
   const moveFiles = new Set([...read('../packages/store/src/io/board.js').matchAll(/^import \{ \w+ \} from (['"])(\.\/(?:board-[\w-]+|board\/[\w/-]+)\.js)\1;$/gmu)].map((match) => posix.join('../packages/store/src/io', match[2]))), raised = new Set([
-    '../packages/store/src/io/board.js', ...moveFiles, '../apps/cli/src/io/entry.js', '../packages/spec/src/io/main.js', '../packages/gate/src/io/submit.js', ...RUNNER_ENTRY_FILES, ...commandFiles,
+    '../packages/store/src/io/board.js', ...moveFiles, '../apps/cli/src/io/entry.js', '../packages/spec/src/io/main.js', '../packages/gate/src/io/submit.js', ...RUNNER_ENTRY_FILES, ...INJECTED_GATE_FILES, ...commandFiles,
   ].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
   for (const code of declaredCodes(machine)) if (!raised.has(code)) problems.add(`${code} is declared but the board, CLI and spec parser never raise it`);
   return [...problems];
@@ -484,12 +488,9 @@ test('clause 1: every refusal code that submit and release raise is declared on 
   for (const code of ['NOT_CLAIMABLE', 'LANE_HELD', 'GATE_RED', 'NO_GATE', 'NOT_AT_COMMIT', 'SELF_VERIFY', 'BAD_DECISION']) {
     assert.ok(ENTRY_POINTS.some(({ at }) => at.some((entry) => walk.refusalsOf(entry).has(code))), `the walk finds ${code}`);
   }
-  for (const code of Object.keys(NOT_MOVES)) {
-    const moveRaises = ENTRY_POINTS.some(({ at }) => at.some((entry) => walk.refusalsOf(entry).has(code)));
-    const setupRaises = [...NON_MOVE_ENTRY_POINTS, ...RUNNER_ENTRY_FILES.flatMap((file) => walk.functions(file).map((name) => `${file}#${name}`))]
-      .some((entry) => walk.refusalsOf(entry).has(code));
-    assert.ok(moveRaises || setupRaises, `${code} is listed as not a move because a move or setup code path raises it`);
-  }
+  const setupEntries = [...NON_MOVE_ENTRY_POINTS, ...RUNNER_ENTRY_FILES.flatMap((file) => walk.functions(file).map((name) => `${file}#${name}`))];
+  const unraised = Object.keys(NOT_MOVES).filter((code) => !ENTRY_POINTS.some(({ at }) => at.some((entry) => walk.refusalsOf(entry).has(code))) && !setupEntries.some((entry) => walk.refusalsOf(entry).has(code)));
+  assert.deepEqual(unraised, [], 'every code listed as not a move is raised by a move or setup code path');
 });
 
 test('clause 1: submit refusals are declared or classified as setup [M1]', () => {
@@ -812,12 +813,11 @@ test('an older board gets the triggers quietly on its next open; one dropped by 
     tampered.exec('DROP TRIGGER machine_proof_verified');
     tampered.exec('DROP TRIGGER machine_item_move');
     tampered.exec('CREATE TRIGGER machine_item_move BEFORE UPDATE OF item_status ON item WHEN 0 BEGIN SELECT 1; END');
-    // Only a board whose user_version is behind is audited on open (#1047); a guarded older board still reports.
-    tampered.exec('PRAGMA user_version = 1');
+    tampered.exec('PRAGMA user_version = 3'); // current, so drifted and left alone on open; behind it is refused (#7767)
     tampered.close();
 
     const restored = openBoard(lab.file);
-    try {
+    try { store.guardStore(restored); // the install that audits a hand-dropped guard, as a migration runs it
       assert.deepEqual(triggerNames(restored), every);
       const logged = restored.db.prepare("SELECT event_by, event_detail FROM event WHERE event_kind = 'guards'").all();
       assert.deepEqual(logged.map((row) => [row.event_by, JSON.parse(row.event_detail)]), [['board', { missing: ['machine_proof_verified'], changed: ['machine_item_move'], stale: [] }]]);
@@ -892,7 +892,7 @@ const BIN = join(import.meta.dirname, '../../pullboard.js');
 /** Guards checked before the explicit transition: CLI facts and optional roadmap selection. */
 const PRECHECKED = {
   claim: ['joined', 'checkProvesSomething'],
-  submit: ['joined', 'checkProvesSomething', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'withinLane', 'trunkMergeClean', 'sourcePlaced', 'trunkInCandidate', 'infraExplained', 'doctrineHolds', 'clausesInspected', 'gateConfigured', 'queuedItemLease', 'gateGreen', 'proofRecorded', 'treeStillDuringGate', 'noUnverifiedStack'],
+  submit: ['joined', 'checkProvesSomething', 'criterionUnchanged', 'treeClean', 'nothingUntracked', 'hasCommit', 'withinLane', 'trunkMergeClean', 'trunkInCandidate', 'infraExplained', 'doctrineHolds', 'clausesInspected', 'gateConfigured', 'queuedItemLease', 'gateGreen', 'proofRecorded', 'noUnverifiedStack'],
   reserve: ['coordinatorSaysAs', 'joined', 'roadmapReadable', 'companionWindow'],
   accept: ['coordinatorSaysAs', 'joined', 'companionWindow', 'atSubmittedCommit', 'reviewTreeCurrent', 'trunkMergeClean', 'queuedItemLease', 'itemCheckGreen', 'proofRecorded', 'noUnverifiedStack'],
   reject: ['coordinatorSaysAs', 'joined', 'companionWindow', 'atSubmittedCommit', 'reviewTreeCurrent'],
@@ -1155,7 +1155,7 @@ test('a reserved review refuses every other verdict while its lease lives, and o
   ]);
 });
 
-test('next --verify reserves the review for the reviewLease and says until when; show names the holder; another verifier is passed over and refused [V15]', () => {
+test('next --verify reserves the review for the reviewLease and says until when; show names the holder; another verifier is passed over and refused [V15]', async (t) => {
   const dir = fs.realpathSync(fs.mkdtempSync(join(tmpdir(), 'pullboard-reserve-')));
   try {
     // A fixture seat never inherits the running agent's session: it joins with its own declared model.
@@ -1170,9 +1170,6 @@ test('next --verify reserves the review for the reviewLease and says until when;
       PULLBOARD_HOME: join(dir, 'home'),
       PULLBOARD_MACHINE_HOME: join(dir, 'home'),
     };
-    // This journey submits through a real machine home and holds the gate in the submitting process, so it pins controller dispatch (#6182-#6185).
-    fs.mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
-    fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
     const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
     // The test runner's per-test timeout bounds hangs without killing this CLI early under load.
     // Each worktree is its own native session, so a peer's review is never skipped as the builder's own session.
@@ -1202,8 +1199,15 @@ test('next --verify reserves the review for the reviewLease and says until when;
     git(builder, 'add', '-A');
     git(builder, 'commit', '-q', '-m', 'feat(web): greet [G1]');
     const commit = git(builder, 'rev-parse', 'HEAD');
-    const submitted = run(builder, 'submit', '1');
+    const submitted = run(builder, 'submit', '1', '--json');
     assert.equal(submitted.status, 0, submitted.stderr);
+    // The submit queues its gate for the local runner; the review waits for that pulled gate to finish [P7].
+    const showInProcess = async (cwd, ...args) => {
+      const shown = await runCliInProcess(args, { cwd, env });
+      return { code: shown.status, out: shown.stdout, err: shown.stderr };
+    };
+    const settled = await settleSubmit(t, { repo, env, run: showInProcess }, JSON.parse(submitted.stdout));
+    assert.equal(settled.gate?.green ?? settled.gate?.ok, true, `the pulled gate is green: ${JSON.stringify(settled.gateJob)}`);
     const commonDir = git(repo, 'rev-parse', '--path-format=absolute', '--git-common-dir');
     assert.equal(git(holder, 'rev-parse', '--path-format=absolute', '--git-common-dir'), commonDir,
       'the verifier worktree reads the builder repo common dir');

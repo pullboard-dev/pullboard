@@ -11,7 +11,8 @@ import { flakyProject } from '../../../../../packages/git/tests/fixtures/flakes.
 import { TITLE } from '../../../../../packages/git/tests/fixtures/flakes.js';
 import { copyCommittedPackageFiles } from '../copy.js';
 import { runFixtureGit } from '../child.js';
-import { fixtureSettledMachine } from '../testkit.js';
+import { startFixtureLocalRunner } from '../runner/local-start.js';
+import { whenRunnerSettles } from '../runner/local-start.js';
 import { openBoard } from '../../../../lib/index.js';
 import { flakeQuarantines } from '../../../../lib/index.js';
 import { gateRuns } from '../../../../lib/index.js';
@@ -31,8 +32,6 @@ export function fixture(t, deterministic = false, companion = false) {
     writeFileSync(listing, JSON.stringify(cells, null, 2) + '\n');
     return join(root, 'apps/cli/pullboard.js');
   } });
-  // These cases read the submit's gate result at once, so it settles whatever the machine's dispatch default is [P7].
-  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME);
   const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
   config.lanes = { core: { owns: ['src/', 'test/', 'packages/controlled/'], specs: [] } };
   config.flakes = { rerun: true, quarantine: true };
@@ -55,6 +54,8 @@ export function fixture(t, deterministic = false, companion = false) {
   const cli = (...args) => box.cliAt(root, ...args);
   const git = (...args) => runFixtureGit(args, { cwd: root, env: box.env });
   if (!deterministic) writeFileSync(box.counter, 'run\n'); // Baseline executes a genuine pass; no legacy one-pair quarantine is seeded.
+  // The baseline and every Submit gate are pulled jobs on the machine's loopback local runner; the scratch teardown stops it [P7,C7].
+  startFixtureLocalRunner(box.env, box.root);
   const added = box.cli('add', 'core', 'Controlled native Submit', '--route', 'strong', '--criterion', 'Retain the actual initial failure.', '--brief', 'Files:\n- packages/controlled/src/behavior.js\n- test/alternating.test.mjs\nTest:\n- the controlled Submit receipt retains the real initial failure and paired pass', '--check', 'true', '--wait');
   assert.equal(added.code, 0, JSON.stringify(added.document));
   assert.equal(added.document.item.item_check, 'true', JSON.stringify(added.document));
@@ -95,4 +96,20 @@ export function snapshot(box) {
 export function submit(box) {
   writeFileSync(box.counter, '');
   return box.builder.cli('submit', String(box.id), '--infra', 'private controlled native fixture', '--no-next');
+}
+
+/**
+ * Begin a Submit and await its pulled gate job's receipt: code 1 while the red keeps the item with its builder, 0 once
+ * the board submitted it. Why: a pulled Submit returns as soon as its gate job is queued, so its verdict is the receipt's [P7,C7].
+ */
+export async function settledSubmit(box) {
+  const queued = submit(box);
+  assert.equal(queued.code, 0, JSON.stringify(queued.document));
+  const shown = await whenRunnerSettles(box.env, () => {
+    const document = box.cli('show', String(box.id)).document;
+    // The job reads done once its receipt records; the board applies it just after, ending in a submit or a red measurement.
+    const applied = document?.item_status === 'submitted' || document?.thread?.some(row => String(row.text ?? '').startsWith(`Gate job ${document.gateJob?.id} `) && / red at |passed but not submitted/u.test(row.text));
+    return document?.gateJob?.step === 'done' && applied ? document : null;
+  }, { deadlineMs: 180_000, what: `the gate for #${box.id}` });
+  return { code: shown.item_status === 'submitted' ? 0 : 1, document: shown };
 }

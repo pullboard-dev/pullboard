@@ -20,6 +20,7 @@ import {
   closeSnapshotChrome,
   press,
 } from '../../../tests/fixtures/cockpit/harness.js';
+import { pressTab } from '../../../tests/fixtures/cockpit/stable.js';
 import {
   openRoadmapChrome,
   watchRoadmapPress,
@@ -42,7 +43,7 @@ test('a refresh between pointer down and up preserves a roadmap release click [N
     await chrome.waitFor('data?.project?.milestones?.length === 8');
     for (const width of [375,1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height:900, deviceScaleFactor:1, mobile:false });
-      await press(chrome, "document.querySelector('[data-tab=roadmap]')");
+      await pressTab(chrome, 'roadmap');
       const key = 'm:0.8.7';
       trace = await watchRoadmapPress(chrome, key);
       const message = `roadmap refresh while pointer held ${width}`;
@@ -99,7 +100,7 @@ test('a release jump on a phone leaves its heading below the top bar [N26]', { t
     await chrome.waitFor('data?.project?.milestones?.length === 12');
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 1, mobile: false });
     await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
-    await press(chrome, "document.querySelector('[data-tab=roadmap]')");
+    await pressTab(chrome, 'roadmap');
     await chrome.stable(`(() => {
       window.__roadmapJump = [];
       const observer = new MutationObserver(records => {
@@ -124,9 +125,10 @@ test('a release jump on a phone leaves its heading below the top bar [N26]', { t
         documentHeight, viewportHeight:window.innerHeight, scrollY:window.scrollY, maxScroll, remainingScroll:maxScroll-window.scrollY };
     })())`));
     console.log('phone release jump geometry', JSON.stringify(position));
-    assert.ok(position.barHeight > 56, `the phone header must wrap beyond its desktop height: ${JSON.stringify(position)}`);
+    // Under 900 px the top bar is one 48 px bar with a menu drawer (dcf117ebc6), not a header that wraps to extra rows.
+    assert.ok(position.barHeight > 0 && position.barHeight <= 56, `the phone top bar is the one-row drawer bar: ${JSON.stringify(position)}`);
     assert.ok(position.remainingScroll > 300, `the jump is not clamped near the document bottom: ${JSON.stringify(position)}`);
-    assert.ok(position.headingTop >= position.barBottom, `the entire release heading sits below the wrapped header: ${JSON.stringify(position)}`);
+    assert.ok(position.headingTop >= position.barBottom, `the entire release heading sits below the top bar: ${JSON.stringify(position)}`);
     assert.ok(position.scrollY > 0, `the release jump scrolls the page: ${JSON.stringify(position)}`);
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 812, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('innerWidth === 1280');
@@ -138,7 +140,8 @@ test('a release jump on a phone leaves its heading below the top bar [N26]', { t
       return { margin:getComputedStyle(target).scrollMarginTop, barBottom:bar.bottom, headingTop:heading.top };
     })())`));
     console.log('desktop release jump geometry', JSON.stringify(desktop));
-    assert.equal(desktop.margin, '72px', `desktop keeps today's scroll offset: ${JSON.stringify(desktop)}`);
+    // The two-tier top bar is 74px high (1586f48a53), and a release scrolls to sit 16px below it (b94d43bd4a).
+    assert.equal(desktop.margin, `${Math.round(desktop.barBottom) + 16}px`, `desktop scrolls a release 16px below the top bar: ${JSON.stringify(desktop)}`);
     assert.ok(desktop.headingTop >= desktop.barBottom, `desktop heading stays below the top bar: ${JSON.stringify(desktop)}`);
     assert.deepEqual(chrome.exceptions, []);
   } finally {
@@ -165,19 +168,19 @@ test('the release chevron lines up with its title [N26]', { timeout: 90_000 }, a
   let chrome;
   /** Each visible release head: its chevron's centre against the centre of its title's first line of text. */
   const offsets = async () => JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#roadmap-list .milestone-head')].filter((head) => head.getClientRects().length).map((head) => {
-    // A release with a shared header (0ab202b994) carries its chevron beside the header, not inside the title.
-    const caret = head.querySelector('h2 > .caret') || head.querySelector(':scope > .caret'), title = head.querySelector('h2');
+    // A release with a shared header (0ab202b994) carries no chevron since #7547 (897349c90b): its whole header is the toggle.
+    const shared = head.classList.contains('release-header-toggle'), caret = head.querySelector('h2 > .caret') || head.querySelector(':scope > .caret'), title = head.querySelector('h2');
     const walker = document.createTreeWalker(title, NodeFilter.SHOW_TEXT, { acceptNode: (node) => node.textContent.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP });
     const text = walker.nextNode(), range = document.createRange();
     range.selectNodeContents(text);
     const line = range.getClientRects()[0], mark = caret?.getBoundingClientRect();
-    return { key: head.dataset.roadmapKey, open: head.getAttribute('aria-expanded'), svg: caret?.tagName.toLowerCase() || null, size: mark ? [Math.round(mark.width), Math.round(mark.height)] : null,
+    return { key: head.dataset.roadmapKey, shared, open: head.getAttribute('aria-expanded'), svg: caret?.tagName.toLowerCase() || null, size: mark ? [Math.round(mark.width), Math.round(mark.height)] : null,
       offset: mark ? Math.round(((mark.top + mark.height / 2) - (line.top + line.height / 2)) * 10) / 10 : null };
   }))`));
   try {
     chrome = await openRoadmapChrome(executable, view.link.href, profile);
     await chrome.waitFor('data?.project?.milestones?.length === 3');
-    await press(chrome, "document.querySelector('[data-tab=roadmap]')");
+    await pressTab(chrome, 'roadmap');
     await chrome.waitFor("!document.querySelector('[data-pane=roadmap]').hidden && document.querySelector('[data-key=\"shipped\"] > .milestone-head')");
     for (const width of [1280, 375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -185,6 +188,7 @@ test('the release chevron lines up with its title [N26]', { timeout: 90_000 }, a
         const heads = await offsets();
         assert.ok(heads.length >= 3, `${width} ${pass}: every release head is read: ${JSON.stringify(heads)}`);
         for (const head of heads) {
+          if (head.shared) { assert.equal(head.svg, null, `${width} ${pass} ${head.key}: the shared release header carries no chevron`); continue; }
           assert.equal(head.svg, 'svg', `${width} ${pass} ${head.key}: the disclosure is the view's stroke chevron`);
           assert.ok(head.size[0] >= 15 && head.size[0] <= 17, `${width} ${pass} ${head.key}: the chevron is about 16px: ${head.size}`);
           assert.ok(Math.abs(head.offset) <= 2, `${width} ${pass} ${head.key} (${head.open}): the chevron centres on the title's first line: ${head.offset}px`);

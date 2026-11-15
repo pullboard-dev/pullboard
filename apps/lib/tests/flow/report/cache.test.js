@@ -147,10 +147,11 @@ test('an item fact after claim expiry cannot reclassify the preceding active bui
   const observed = flowStats(history.slice(0, 3), null, base + 35 * 60_000, counts);
   assert.equal(observed.queues.open.size, 1, 'clock projection still exposes an expired claim after a non-lifecycle fact');
   assert.deepEqual(observed.report.items[0].stages.build, { minutes: 10, unknown: 0 });
-  assert.deepEqual(observed.report.items[0].stages.rework, { minutes: 15, unknown: 0 });
+  // An expired claim waits as ready work; only a reject or reopen starts rework (#7261 clause 2).
+  assert.deepEqual(observed.report.items[0].stages.rework, { minutes: 0, unknown: 0 });
   const completed = flowStats(history, null, base + 50 * 60_000, counts).report.items[0];
   assert.deepEqual(completed.stages.build, { minutes: 20, unknown: 0 });
-  assert.deepEqual(completed.stages.rework, { minutes: 20, unknown: 0 });
+  assert.deepEqual(completed.stages.rework, { minutes: 0, unknown: 0 });
 });
 
 

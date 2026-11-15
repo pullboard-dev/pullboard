@@ -2,7 +2,7 @@
  * The /live runners widget [N26]: one dense row per runner with its CPU, RAM, a fire when it is busy and its item with
  * test progress, then one row per running task with how many agents work it and a bar that fills with its tests.
  *
- * Why: Corey on 11 Nov said the widget was not dense enough, its columns moved, and its bar did not show progress.
+ * Why: on 11 Nov the person said the widget was not dense enough, its columns moved, and its bar did not show progress.
  * Every column has a width set in the table's colgroup, so no refresh can resize one; this file only reads the public
  * snapshot (publicRunners), so it never sees a host, address or user name.
  */
@@ -19,6 +19,13 @@ export const TASK_COLUMNS = Object.freeze([
   ['task', 'Item', 14], ['agents', 'Agents', 7], ['tests', 'Tests', 11], ['failing', 'Red', 5], ['bar', 'Progress', null], ['left', 'Left', 6],
 ]);
 
+/** One class per fixed column, so a width comes from the stylesheet and never from a style attribute. */
+const COLUMN_WIDTH_RULES = [...new Map([...RUNNER_COLUMNS, ...TASK_COLUMNS].filter(([, , width]) => width).map(([key, , width]) => [key, width])).entries()]
+  .map(([key, width]) => `.lr-c-${key}{width:${width + 2}ch}`).join('\n');
+
+/** One class per whole percent, so a bar's fill comes from the stylesheet and never from a style attribute. */
+const FILL_WIDTH_RULES = Array.from({ length: 101 }, (_, percent) => `.lr-w-${percent}{width:${percent}%}`).join('');
+
 /** The widget's styles: solid fills, tabular figures and a fixed table layout. */
 export const RUNNERS_WIDGET_CSS = `.lr{width:100%;table-layout:fixed;border-collapse:collapse;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
 .lr th,.lr td{padding:1px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}
@@ -28,10 +35,12 @@ export const RUNNERS_WIDGET_CSS = `.lr{width:100%;table-layout:fixed;border-coll
 .lr-bar{height:8px;background:var(--track,#e5e7eb);border-radius:2px;overflow:hidden}
 .lr-fill{height:100%;background:var(--ok,#16a34a)}
 .lr-fill.lr-red{background:var(--bad,#dc2626)}
-.lr-cap{margin:10px 0 2px;font:600 12px/1.4 system-ui,sans-serif}`;
+.lr-cap{margin:10px 0 2px;font:600 12px/1.4 system-ui,sans-serif}
+${COLUMN_WIDTH_RULES}
+${FILL_WIDTH_RULES}`;
 
 /** The colgroup that fixes a table's column widths, the same for every snapshot. */
-const colgroup = columns => `<colgroup>${columns.map(([key, , width]) => `<col class="lr-c-${key}"${width ? ` style="width:${width + 2}ch"` : ''}>`).join('')}</colgroup>`;
+const colgroup = columns => `<colgroup>${columns.map(([key]) => `<col class="lr-c-${key}">`).join('')}</colgroup>`;
 
 /** The left-aligned class for the text columns, nothing for the right-aligned figures. */
 const align = key => ['task', 'bar'].includes(key) ? ' class="lr-l"' : '';
@@ -64,7 +73,7 @@ export function progressPercent(job) {
 function bar(job) {
   const filled = progressPercent(job);
   const red = Number.isFinite(job?.failing) && job.failing > 0;
-  return `<div class="lr-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${filled}"><div class="lr-fill${red ? ' lr-red' : ''}" style="width:${filled}%"></div></div>`;
+  return `<div class="lr-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${filled}"><div class="lr-fill${red ? ' lr-red' : ''} lr-w-${filled}"></div></div>`;
 }
 
 /** One table row from cells keyed by column. */
@@ -91,7 +100,7 @@ export function renderRunnersWidget(live) {
     tests: testsLabel(run), failing: num(run.failing), bar: bar(run), left: leftLabel(run) }));
   const busyCount = runners.filter(runner => runner.busy ?? runner.state === 'busy').length;
   return `<section class="lr-w"><div class="lr-cap">Runners ${busyCount}/${runners.length} busy</div>`
-    + `<table class="lr lr-runners" style="table-layout:fixed">${colgroup(RUNNER_COLUMNS)}${head(RUNNER_COLUMNS)}<tbody>${runnerRows.join('')}</tbody></table>`
+    + `<table class="lr lr-runners">${colgroup(RUNNER_COLUMNS)}${head(RUNNER_COLUMNS)}<tbody>${runnerRows.join('')}</tbody></table>`
     + `<div class="lr-cap">Tasks ${runs.length}</div>`
-    + `<table class="lr lr-tasks" style="table-layout:fixed">${colgroup(TASK_COLUMNS)}${head(TASK_COLUMNS)}<tbody>${taskRows.join('')}</tbody></table></section>`;
+    + `<table class="lr lr-tasks">${colgroup(TASK_COLUMNS)}${head(TASK_COLUMNS)}<tbody>${taskRows.join('')}</tbody></table></section>`;
 }

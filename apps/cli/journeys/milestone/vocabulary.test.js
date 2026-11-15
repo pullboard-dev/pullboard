@@ -10,23 +10,25 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
 import { openBoard } from '../../../lib/index.js';
-import { accept } from '../../tests/fixtures/cockpit/harness.js';
-import { build } from '../../tests/fixtures/cockpit/harness.js';
+import { acceptLocal } from '../../tests/fixtures/cockpit/harness.js';
+import { buildLocal } from '../../tests/fixtures/cockpit/harness.js';
 import { chromeExecutable } from '../../tests/fixtures/cockpit/harness.js';
+import { chooseFilter } from '../../tests/fixtures/cockpit/harness.js';
 import { closeSnapshotChrome } from '../../tests/fixtures/cockpit/harness.js';
 import { machine } from '../../tests/fixtures/cockpit/harness.js';
 import { openSnapshotChrome } from '../../tests/fixtures/cockpit/harness.js';
 import { pickProject } from '../../tests/fixtures/cockpit/harness.js';
 import { project } from '../../tests/fixtures/cockpit/harness.js';
 import { press } from '../../tests/fixtures/cockpit/harness.js';
+import { pressTab } from '../../tests/fixtures/cockpit/harness.js';
 import { searchFor } from '../../tests/fixtures/cockpit/harness.js';
-import { sendBack } from '../../tests/fixtures/cockpit/harness.js';
 import { startView } from '../../tests/fixtures/cockpit/harness.js';
 
 /** Prove stage words, detail lines and state marks through an authenticated native board and real Chrome. */
 test('every screen shows an item\'s stage from the seven approved words, in order, with marks beside them [N28]', { timeout: 180_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the stage vocabulary journey.');
+  // Setup builds run in this process, not as launches: seven launched builds alone took 79 s under runner load (the 180 s budget).
   const box = machine();
   const alpha = project(box, 'stage-vocabulary', undefined, {
     lanes: { web: { owns: ['web/'], specs: ['G'] }, docs: { owns: ['docs/'], specs: ['G'] }, tests: { owns: [], specs: ['G'] } },
@@ -36,29 +38,33 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
   for (const [index, title] of titles.entries()) {
     const lane = index === 8 ? 'docs' : 'web';
     const after = index === 1 ? ['--after', '1'] : [];
-    box.run(alpha.repo, 'add', lane, title, '--specs', 'G1', '--criterion', 'Stage words stay consistent.', ...after);
+    await box.inProcess(alpha.repo, 'add', lane, title, '--specs', 'G1', '--criterion', 'Stage words stay consistent.', ...after);
   }
-  build(box, alpha, 4, 'review.txt');
-  build(box, alpha, 5, 'landing.txt');
-  accept(box, alpha, 5);
-  build(box, alpha, 6, 'merged.txt');
-  accept(box, alpha, 6);
+  await buildLocal(box, alpha, 4, 'review.txt');
+  await buildLocal(box, alpha, 5, 'landing.txt');
+  await acceptLocal(box, alpha, 5);
+  await buildLocal(box, alpha, 6, 'merged.txt');
+  await acceptLocal(box, alpha, 6);
   const mergeBranch = alpha.itemBranches.get(`${alpha.baseBranch}:6`);
   box.git(alpha.repo, 'merge', '--no-ff', '-m', 'chore: merge stage fixture', mergeBranch);
-  box.run(alpha.repo, 'merged', '6', box.git(alpha.repo, 'rev-parse', 'HEAD'));
-  build(box, alpha, 7, 'verified.txt');
-  accept(box, alpha, 7);
-  box.run(alpha.repo, 'hold', '8', 'Waiting for a supplier answer.');
-  box.run(alpha.repo, 'hold', 'docs', '--reason', 'The docs lane waits for copy.');
-  build(box, alpha, 10, 'returned.txt');
-  sendBack(box, alpha, 10, 'The first draft needs a clear label.');
-  box.run(alpha.web, 'claim', '11');
-  box.run(alpha.repo, 'withdraw', '11', 'The feature is no longer needed.');
-  box.run(alpha.web, 'claim', '3');
-  box.run(alpha.repo, 'milestone', 'add', 'Stage list', '--items', '1,2,3,4,5,6,7,8,9,10,11', '--reason', 'stage fixture');
+  await box.inProcess(alpha.repo, 'merged', '6', box.git(alpha.repo, 'rev-parse', 'HEAD'));
+  await buildLocal(box, alpha, 7, 'verified.txt');
+  await acceptLocal(box, alpha, 7);
+  await box.inProcess(alpha.repo, 'hold', '8', 'Waiting for a supplier answer.');
+  await box.inProcess(alpha.repo, 'hold', 'docs', '--reason', 'The docs lane waits for copy.');
+  await buildLocal(box, alpha, 10, 'returned.txt');
+  // sendBack launches the verifier's reject as a child process; in this process it costs no start-up on a loaded runner.
+  box.git(alpha.repo, 'switch', '-q', '--detach', alpha.itemBranches.get(`${alpha.baseBranch}:10`));
+  const sent = JSON.parse((await box.inProcess(alpha.repo, 'show', '10', '--json')).out);
+  await box.inProcess(alpha.repo, 'verify', '10', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', JSON.parse(sent.item_frozen).criterion, '--note', 'The first draft needs a clear label.', '--as', 'coordinator');
+  box.git(alpha.repo, 'switch', '-q', 'main');
+  await box.inProcess(alpha.web, 'claim', '11');
+  await box.inProcess(alpha.repo, 'withdraw', '11', 'The feature is no longer needed.');
+  await box.inProcess(alpha.web, 'claim', '3');
+  await box.inProcess(alpha.repo, 'milestone', 'add', 'Stage list', '--items', '1,2,3,4,5,6,7,8,9,10,11', '--reason', 'stage fixture');
   const reviewer = join(box.dir, 'stage-vocabulary-reviewer');
   box.git(alpha.repo, 'worktree', 'add', '-q', '-b', 'tests/stage-vocabulary-reviewer', reviewer, 'main');
-  box.run(reviewer, 'join', 'tests', '--model', 'Stage reviewer');
+  await box.inProcess(reviewer, 'join', 'tests', '--model', 'Stage reviewer');
   // @pullboard-board-file journey: the authenticated Chrome view reads this persisted fixture board over HTTP.
   const board = openBoard(join(alpha.repo, '.git/pullboard/board.sqlite'));
   try {
@@ -76,10 +82,11 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
     await chrome.waitFor('!!data?.project');
     await pickProject(chrome, `document.querySelector('[data-root=${JSON.stringify(alpha.repo)}]')`);
     await chrome.waitFor(`data?.project?.root === ${JSON.stringify(alpha.repo)}`);
-    await press(chrome, "document.querySelector('[data-tab=items]')");
+    await chrome.waitFor('!!data?.project');
+    await pressTab(chrome, 'items');
     await chrome.waitFor("!document.querySelector('[data-pane=items]').hidden");
-    await press(chrome, "document.querySelector('[data-filter-toggle]')");
-    await press(chrome, "document.querySelector('[data-state=all]')");
+    // The Show control sits in the page strip, not behind a filter toggle (bc76548477).
+    await chooseFilter(chrome, 'state:all');
     await chrome.waitFor("document.querySelector('#chain [data-item=\\\"10\\\"] .item-stage')");
     await chrome.stable(`(() => { const item = data.project.items.find(entry => entry.id === 7); item.verdictState = { code: 'STALE_VERDICT', file: 'web/verified.txt', commit: 'a'.repeat(40), main: 'b'.repeat(40) }; render(); return true; })()`);
     const list = JSON.parse(await chrome.stable(`JSON.stringify(Object.fromEntries([...document.querySelectorAll('#chain [data-item]')].map(row => [row.dataset.item,
@@ -88,9 +95,14 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
         marks: [...row.querySelectorAll('.stage-marks > *')].map(mark => mark.textContent.trim()),
         reasons: [...row.querySelectorAll('.stage-marks > *')].map(mark => mark.getAttribute('title') || mark.getAttribute('aria-label') || '') }])) )`));
     assert.deepEqual(list['1'].stage, 'Ready');
-    for (const entry of Object.values(list)) { assert.ok(entry.accessible.includes(entry.stage) && entry.accessible.includes(entry.detail)); assert.equal(entry.hover, entry.detail, 'compact rows keep the full native detail available on hover'); }
+    // A blocked row's tooltip is its stage sentence, "Blocked by #1" or "Blocked: held: ..." (stageSentence); every other row's is the detail itself.
+    for (const entry of Object.values(list)) {
+      assert.ok(entry.accessible.includes(entry.stage) && entry.accessible.includes(entry.detail));
+      const phrase = entry.stage !== 'Blocked' ? entry.detail : /^by /u.test(entry.detail) ? `Blocked ${entry.detail}` : `Blocked: ${entry.detail}`;
+      assert.equal(entry.hover, phrase, 'compact rows keep the full native detail available on hover');
+    }
     assert.match(list['1'].detail, /strong route/u);
-    assert.deepEqual(list['2'].stage, 'Gated');
+    assert.deepEqual(list['2'].stage, 'Blocked');
     assert.match(list['2'].detail, /#1/u);
     assert.deepEqual(list['3'].stage, 'Building');
     assert.equal(list['3'].seat, 'web-1', 'the held row keeps the approved visible seat name');
@@ -111,10 +123,10 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
     assert.equal(list['7'].detail, 'queued for the train');
     assert.ok(list['7'].marks.includes('stale'));
     assert.ok(list['7'].reasons.some(reason => /main changed/u.test(reason)), 'the Stale mark explains the changed main on hover');
-    assert.deepEqual(list['8'].stage, 'Gated');
+    assert.deepEqual(list['8'].stage, 'Blocked');
     assert.ok(list['8'].marks.includes('Held'));
     assert.ok(list['8'].reasons.some(reason => /supplier answer/u.test(reason)), 'the Held mark explains its reason on hover');
-    assert.deepEqual(list['9'].stage, 'Gated');
+    assert.deepEqual(list['9'].stage, 'Blocked');
     assert.ok(list['9'].marks.includes('Lane held'));
     assert.ok(list['9'].reasons.some(reason => /waits for copy/u.test(reason)), 'the Lane held mark explains its reason on hover');
     assert.deepEqual(list['10'].stage, 'Ready');
@@ -136,15 +148,15 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
     await press(chrome, "document.querySelector('[data-items-view=pipeline]')");
     await chrome.waitFor("!document.querySelector('#pipeline').hidden && document.querySelector('#pipeline [data-stage=landing]')");
     const pipelineOrder = JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#pipeline [data-pipeline-stage]')].map(stage => stage.querySelector('h2').textContent))"));
-    assert.deepEqual(pipelineOrder, ['Gated', 'Ready', 'Building', 'In review', 'Verified', 'Landing', 'Merged']);
+    assert.deepEqual(pipelineOrder, ['Blocked', 'Ready', 'Building', 'In review', 'Verified', 'Landing', 'Merged']);
     const pipelineStage = await chrome.stable("document.querySelector('#pipeline [data-item=\\\"5\\\"] .stage-word')?.textContent");
     assert.equal(pipelineStage, 'Landing');
-    await press(chrome, "document.querySelector('[data-tab=roadmap]')");
+    await pressTab(chrome, 'roadmap');
     await chrome.waitFor("!document.querySelector('[data-pane=roadmap]').hidden && document.querySelector('#roadmap-list [data-roadmap-key=\\\"i:#5\\\"] .stage-word')");
     const roadmapStages = await chrome.stable(`JSON.stringify({ landing: document.querySelector('#roadmap-list [data-roadmap-key="i:#5"] .stage-word')?.textContent,
       hidden: !document.querySelector('#roadmap-list [data-roadmap-key="i:#11"]') })`);
     assert.deepEqual(JSON.parse(roadmapStages), { landing: 'Landing', hidden: true }, 'Roadmap uses the same stage and continues hiding withdrawn rows');
-    await press(chrome, "document.querySelector('[data-tab=dashboard]')");
+    await pressTab(chrome, 'dashboard');
     await chrome.waitFor("!document.querySelector('[data-pane=dashboard]').hidden && document.querySelector('#dashboard [data-go=\\\"item:5\\\"] .stage-word')");
     const dashboardStages = JSON.parse(await chrome.stable(`JSON.stringify({ landing: document.querySelector('#dashboard [data-go="item:5"] .stage-word')?.textContent,
       landingDetail: document.querySelector('#dashboard [data-go="item:5"] .stage-detail')?.textContent,

@@ -34,6 +34,9 @@ export function seedRealSize(box) {
     for (let n = 0; n < REAL_SIZE.events; n++) {
       event.run(at, `real-${n % REAL_SIZE.agents}`, 'edit', ids[n % ids.length], '{}');
     }
+    // A real board's writers fold each event into its derived counters as they record it; raw inserts skip that, so the
+    // seed catches them up here, as a writable open would, rather than inside the first measured next (#6357).
+    box.board.runtimePorts.lifecycle.ensureProofCounters(box.board, { refresh: false });
     db.exec('COMMIT');
   } catch (error) { db.exec('ROLLBACK'); throw error; }
   return { events: REAL_SIZE.events, agents: REAL_SIZE.agents, buildItems: REAL_SIZE.buildItems, reviewItems: REAL_SIZE.reviewItems };

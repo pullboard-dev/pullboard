@@ -1,4 +1,7 @@
 import { viewApiPorts } from '../../../view/index.js';
+
+/** The view's API ports, handed on so the settings fixture reaches the view through this file, not directly. */
+export { viewApiPorts };
 /** Shared assertions and request helpers for local API fixtures. */
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
@@ -18,9 +21,14 @@ import { serveApi } from '../../../../packages/api/index.js';
 import { apiBoardOpeners } from './board.js';
 import { main } from './native.js';
 import { runCliInProcess } from './process.js';
+import { fixtureSettledMachine } from './testkit.js';
+import { fixtureProjectPolicy } from './testkit.js';
 import { refusalDocument } from '../../index.js';
 import { JSON_SHAPES } from '../../../../packages/config/index.js';
 import { fetchFresh } from './http.js';
+import { startFixtureLocalRunner } from './runner/local-start.js';
+import { whenRunnerSettles } from './runner/local-start.js';
+import { stopFixtureLocalRunner } from './runner/local-stop.js';
 import { safeFixtureDiagnostic } from './child.js';
 import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import {
@@ -97,8 +105,10 @@ export { apiFetch, apiError, assertRequiredShape, hasType, nextSseEvent, timedMs
 /** Build the actual HTTP fixture child's private terminal and Git identity. */
 export function apiFixtureEnvironment(directory, bin) {
   const env = {
-    ...process.env, HOME: join(directory, 'home'), PULLBOARD_HOME: join(directory, 'home'),
+    ...process.env, HOME: join(directory, 'home'), PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(directory, 'home'),
     PULLBOARD_MACHINE_HOME: join(directory, 'machine-home'),
+    // Fixture items carry near-identical titles; the duplicate check at add would refuse them.
+    PULLBOARD_FIXTURE_ADD_DISTINCT: '1',
     PATH: bin + ':' + process.env.PATH, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'HTTP Agent', GIT_AUTHOR_EMAIL: 'agent@example.invalid',
     GIT_COMMITTER_NAME: 'HTTP Agent', GIT_COMMITTER_EMAIL: 'agent@example.invalid',
@@ -116,8 +126,9 @@ export function bindApiFixtureMachine(t, env) {
     const previous = process.env.PULLBOARD_MACHINE_HOME;
     const markers = new Map(AGENT_SHELL_MARKERS.map(name => [name, process.env[name]]));
     for (const name of AGENT_SHELL_MARKERS) delete process.env[name];
+    // In-process adds meet the duplicate guard too, so the fixture's distinct-title switch binds with the identity.
     // In-process landing commits merges; a runner has no Git identity of its own, so the fixture's identity binds here too.
-    const identity = new Map(['GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL'].map(name => [name, process.env[name]]));
+    const identity = new Map(['GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL', 'PULLBOARD_FIXTURE_ADD_DISTINCT'].map(name => [name, process.env[name]]));
     for (const name of identity.keys()) process.env[name] = env[name];
     fixtureMachineTests.add(t);
     t.after(() => {
@@ -195,7 +206,8 @@ const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 /** Create a private, committed project, with an exact-build hook shim and no personal Git config. */
 export function apiHttpFixture(t) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-http-')));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  // A pulled submit starts the loopback local runner in this machine home; it stops before the sandbox goes, or it keeps writing into it.
+  t.after(() => { stopFixtureLocalRunner(join(dir, 'machine-home')); rmSync(dir, { recursive: true, force: true }); });
   const root = join(dir, 'repo');
   const bin = join(dir, 'bin');
   mkdirSync(root);
@@ -204,6 +216,8 @@ export function apiHttpFixture(t) {
   chmodSync(join(bin, 'pullboard'), 0o755);
   const env = apiFixtureEnvironment(dir, bin);
   bindApiFixtureMachine(t, env);
+  // A fixture's submit settles the same way whatever the machine's dispatch default is, so the review it queues is ready [P7].
+  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
   mkdirSync(env.HOME);
   /** Run Git only inside the private fixture. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env, stdio: 'pipe', encoding: 'utf8' });
@@ -247,6 +261,10 @@ export function apiHttpFixture(t) {
 /** Serve this fixture's explicit project, avoiding any registry outside its private home. */
 export async function apiHttpBox(t, { includeMissing = false, onStateBuild, additionalProjects = [] } = {}) {
   const box = apiHttpFixture(t);
+  // The in-process API runs the merge hook on this process's PATH, whose first pullboard is the test runner's refusal shim; put the fixture's real one first, restored at teardown.
+  const previousPath = process.env.PATH;
+  process.env.PATH = box.env.PATH;
+  t.after(() => { process.env.PATH = previousPath; });
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, onStateBuild, projects: () => [...(includeMissing ? [{ root: join(box.dir, 'gone'), name: 'Missing fixture' }] : []), { root: box.root, name: 'HTTP fixture' }, ...additionalProjects] });
   t.after(() => api.close());
   const url = new URL(api.url);
@@ -299,3 +317,28 @@ export function withoutClaimHealth({ claimHealth, ...rest }) {
 export const FIXTURE_BRIEF = 'Files:\n- app/fixture.js\nChange:\n- Keep the fixture valid.\nTest:\n- the fixture case passes';
 /** The brief the summary case checks stays out of summaries and shows in the detail. */
 export const DETAIL_BRIEF = 'Files:\n- app/fixture.js\nTest:\n- A brief only the detail carries';
+
+/**
+ * Submit one claimed item through the served board and wait for its pulled gate to settle.
+ *
+ * Why: a pulled submit leaves the item claimed until the host's local runner posts the gate receipt, so a review or a
+ * snapshot read right after the move would see no submission [P7,N26].
+ */
+export async function submitSettled(t, box, move, id, agent) {
+  if (!box.localRunnerStarted) {
+    // The runner also pulls the board's automatic land job; a person lands by hand here, so accepted items stay accepted.
+    const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
+    fixtureProjectPolicy(box.root, { config: { ...config, landing: { ...config.landing, manualOverride: true } } });
+    // Only policy committed to trunk grants the override (mainPolicy reads trunk), so commit it or the board still offers land jobs whose push fails and retries.
+    runFixtureGit(['add', 'pullboard.json'], { cwd: box.root, env: box.env, stdio: 'pipe' });
+    runFixtureGit(['commit', '-q', '-m', 'chore: fixture lands by hand'], { cwd: box.root, env: box.env, stdio: 'pipe' });
+    startFixtureLocalRunner(box.env, box.root);
+    box.localRunnerStarted = true;
+  }
+  const result = await move({ verb: 'submit', item: id, agent });
+  await whenRunnerSettles(box.env, async () => {
+    const row = (await box.call(box.path + '/state')).document.state.items.find((entry) => entry.id === id);
+    return row.status === 'claimed' ? null : row;
+  }, { deadlineMs: 60_000, what: `the pulled gate of #${id}` });
+  return result;
+}

@@ -11,7 +11,7 @@ export { requireHandoffActive } from './src/logic/handoff.js';
 export { lineSettings } from './src/logic/settings.js';
 export { REWORK_SAME_FAMILY_ENGINE } from './src/logic/engines/rework-same-family-engine.js';
 export { manualLandingFailureQuoted } from './src/logic/landing.js';
-export { canonicalMilestoneTarget } from './src/logic/target.js';
+export { canonicalMilestoneTarget } from './src/logic/settings.js';
 export { IMPLYING_OPERATIONS } from './src/logic/move/implies.js';
 export { carriesImplies } from './src/logic/move/implies.js';
 export { rejectedWorkReturns } from './src/logic/returns.js';
@@ -40,6 +40,7 @@ export { assignEngineNumbers } from "./src/io/engine/numbers.js";
 export { appliedSequence } from "./src/io/engine.js";
 export { checkpointSequence } from "./src/io/engine.js";
 export { startRelayEpoch } from "./src/io/engine.js";
+export { restoreRelayEpoch } from "./src/io/engine.js";
 export { prepareEngineMove } from "./src/io/engine.js";
 export { requireSupportedEngine } from "./src/io/engine.js";
 export { executableArgs } from "./src/io/engine.js";
@@ -174,6 +175,7 @@ export { HANDOFF_ENGINE } from './src/logic/engines/handoff-engine.js';
 export { RULING_OWNER_ENGINE } from './src/logic/engines/ruling-owner-engine.js';
 export { DECISION_QUEUE_ENGINE } from './src/logic/engines/decision-queue-engine.js';
 export { KNOWN_MAIN_RUNNING_FILE_ENGINE } from './src/logic/engines/known-main-running-file-engine.js';
+export { KNOWN_MAIN_RECEIPT_ENGINE } from './src/logic/engines/known-main-receipt-engine.js';
 
 export { CLAIM_PROGRESS_ENGINE } from './src/logic/engines/claim-progress-engine.js';
 
@@ -183,7 +185,8 @@ export { CLAIM_RETURNS_ENGINE } from './src/logic/engines/claim-returns-engine.j
 export { COORDINATOR_ACTIONS_ENGINE } from './src/logic/engines/coordinator-actions-engine.js';
 
 export { earlierHeadFacts, staleHeadClauses, staleHeadLines, linkEarlierFacts, namedEvidence } from './src/logic/stale.js';
-export { criterionClauses, clauseTicks, clauseInspectionProblem, clauseInspectionSummary, gateNamedFile, testRunTickNotes, checkRunTickNotes } from './src/logic/clauses.js';
+export { criterionClauses, clauseTicks, clauseInspectionProblem, clauseInspectionSummary, gateClauseTickNotes, gateNamedFile, testRunTickNotes, checkRunTickNotes } from './src/logic/clauses.js';
+export { failBeforePassAfter, clauseReceiptProblem, clauseReceiptNotes, clauseReceipts } from './src/logic/clause-receipt.js';
 
 export { STRICT_RENAME_ENGINE } from './src/logic/engines/strict-rename-engine.js';
 
@@ -199,5 +202,8 @@ export { CLAUSE_EVIDENCE_ENGINE } from './src/logic/engines/clause-evidence-engi
 export { lintBar, MAX_BAR_CLAUSES } from './src/logic/bar-lint.js';
 export { requireCriterionEvidence, clauseEvidenceWarnings, guardBar } from './src/logic/evidence.js';
 export { FORCED_MERGE_ENGINE } from './src/logic/engines/forced-merge-engine.js';
+export { LANDED_VERDICT_ENGINE } from './src/logic/engines/landed-verdict-engine.js';
+export { ASK_CLOSE_ENGINE } from './src/logic/engines/ask-close-engine.js';
+export { PULLED_RED_COUNT_ENGINE } from './src/logic/engines/pulled-red-count-engine.js';
 export { DEFAULT_NEXT_STEPS } from './src/logic/defaults.js';
 export { INFRA_RELEASE_ENGINE } from './src/logic/engines/infra-release-engine.js';

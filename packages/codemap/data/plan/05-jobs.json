@@ -4,6 +4,7 @@
  "kind": "package",
  "root": "packages/jobs",
  "frontDoor": "packages/jobs/index.js",
+ "lightFrontDoor": "packages/jobs/light.js",
  "paths": [],
  "reexports": [],
  "imports": [

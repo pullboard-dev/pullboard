@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { STATIC_CHECKS } from '../../../../index.js';
+import { STATIC_CHECKS } from '../../../../heavy.js';
 import { INVENTORY_FILE } from '../../../../../config/index.js';
 
 const ROOT = new URL('../../../../../../', import.meta.url);

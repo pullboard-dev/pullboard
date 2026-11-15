@@ -3,7 +3,9 @@ import { relative } from 'node:path';
 import { resolve } from 'node:path';
 import { sep } from 'node:path';
 
-const PREFIX = '# pullboard test outcomes ';
+/** The line prefix a test runner frames each case outcome under; a pulled job's entry reads the same frames. */
+export const TEST_OUTCOMES_PREFIX = '# pullboard test outcomes ';
+const PREFIX = TEST_OUTCOMES_PREFIX;
 const ID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u;
 
 import { testOutcomeFields } from '../../../../verify/light.js';
@@ -22,7 +24,7 @@ export function testOutcomeCollector(root) {
   return {
     /**
      * Preserve actual test identities; suites and cancelled work never become positive verdicts. `testFile` is the
-     * test file the dispatcher ran this event's worker for, when it knows one.
+     * file the dispatcher ran this event's worker for, if known.
      */
     observe(event, testFile = null) {
       if (!['test:pass', 'test:fail'].includes(event.type) || event.data?.details?.type === 'suite') return;
@@ -30,15 +32,15 @@ export function testOutcomeCollector(root) {
       if (!file || ['cancelledByParent', 'testAborted', 'subtestsFailed'].includes(details?.error?.failureType)) {
         invalid = true; return;
       }
-      rows.push({ file: portable(root, file), name,
-        passed: event.type === 'test:pass', skipped: skip !== undefined || todo !== undefined });
+      const passed = event.type === 'test:pass', skipped = skip !== undefined || todo !== undefined;
+      const failure = details?.error?.cause?.code === 'ERR_ASSERTION' ? 'assertion' : 'error';
+      rows.push({ file: portable(root, file), name, passed, skipped, ...passed || skipped ? {} : { failure } });
       owners.push(testFile ? portable(root, resolve(root, testFile)) : null);
     },
     /**
-     * Publish only after all selected native file workers and their reporters have drained. A case defined once in a
-     * shared fixture module and run by two test files reaches Node under the fixture's path both times; those rows
-     * take the test file that ran each, so the run keeps every case instead of failing closed on the duplicate. Why:
-     * #3253's two check files load one fixture, and its receipts kept no case outcome at all [C7,V4].
+     * Publish only after every selected file worker and reporter has drained. A case from a fixture shared by two test
+     * files reaches Node under the fixture's path both times; those rows take the file that ran each, so the run keeps
+     * every case instead of failing closed on the duplicate (#3253's receipts kept none) [C7,V4].
      */
     finish(complete, tests) {
       if (!complete || invalid || tests !== rows.length) return null;
@@ -74,6 +76,22 @@ export function readTestOutcomes(output, id) {
     rows.push(...tests);
   }
   return found ? testOutcomeFields(rows) : null;
+}
+
+/**
+ * Every outcome row in a merged log, whatever run id framed it, skipping malformed frames. A census reads many shards'
+ * output at once, each framed by its own run id, and wants a per-file verdict rather than one run's proof.
+ */
+export function allTestOutcomes(output) {
+  const rows = [];
+  for (const line of String(output ?? '').split('\n')) {
+    if (!line.startsWith(PREFIX)) continue;
+    let frame;
+    try { frame = JSON.parse(line.slice(PREFIX.length)); } catch { continue; }
+    const tests = testOutcomeFields(frame?.tests);
+    if (frame?.version === 1 && tests) rows.push(...tests);
+  }
+  return rows;
 }
 
 /** Bind every observed source path to one immutable regular-file inventory, without one Git child per test. */

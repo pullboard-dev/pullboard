@@ -1,0 +1,10 @@
+{
+  "name": "contribute",
+  "help": "  pullboard contribute check <file> [shape]  print every failure of a contribution record file with its rule, fix and skill command; exits 1 when any\n",
+  "required": {
+    "file": "string",
+    "shape": "string",
+    "ok": "boolean",
+    "failures": "array"
+  }
+}

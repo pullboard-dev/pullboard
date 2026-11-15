@@ -36,7 +36,7 @@ test('Rigor drafts and executed sentinels do not create agent rows or increase a
     await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
     await chrome.waitFor(`!!document.querySelector('#dashboard [data-dashboard-agent="web-1"]')`);
     const beforeFloor = await chrome.stable('Array.from(document.querySelectorAll("#dashboard [data-dashboard-agent]"), row => row.dataset.dashboardAgent)');
-    const beforeHeadline = await chrome.stable('document.querySelector("#dashboard h1").textContent');
+    const beforeHeadline = await chrome.stable('document.querySelector("#dashboard [aria-label=Agents] .dash-lbl").textContent');
     earlier(alpha.repo, Date.now(), board => store.appendFact(board, 1, {
       agentId: 'coordinator', kind: 'root-cause', text: 'Keep board actors separate from seats.',
       cause: 'row:G1', neverAgain: true, asPerson: true, channel: 'terminal',
@@ -57,7 +57,7 @@ test('Rigor drafts and executed sentinels do not create agent rows or increase a
     await chrome.waitFor('data.project.sequence >= ' + after.sequence);
     await chrome.waitFor('!document.querySelector("#dashboard").textContent.includes("Complete history is loading")');
     assert.deepEqual(await chrome.stable('Array.from(document.querySelectorAll("#dashboard [data-dashboard-agent]"), row => row.dataset.dashboardAgent)'), beforeFloor, 'automation cannot create Dashboard agent rows');
-    assert.equal(await chrome.stable('document.querySelector("#dashboard h1").textContent'), beforeHeadline, 'the Dashboard agent count stays unchanged');
+    assert.equal(await chrome.stable('document.querySelector("#dashboard [aria-label=Agents] .dash-lbl").textContent'), beforeHeadline, 'the Dashboard agent count stays unchanged');
     for (const actor of ['rigor', 'sentinel']) assert.ok(!after.agents.some(agent => agent.agent_id === actor), actor + ' is not a joined API seat');
     await press(chrome, 'document.querySelector("[data-tab=shouts]")');
     await chrome.waitFor('view.tab === "shouts"');

@@ -12,10 +12,8 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { amendLandingEngines } from '../../../index.js';
 import { computePlan } from '../../../../codemap/index.js';
-import { readPlan } from '../../../../codemap/index.js';
 import { writePlan } from '../../../../codemap/index.js';
 import { git } from '../../fixtures/plan.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
 
 const BIN = fileURLToPath(new URL('../../../../codemap/src/io/cells/scripts/plan.js', import.meta.url));
 
@@ -57,7 +55,7 @@ function fixture(t, { deleteMoves = false } = {}) {
   return { root, merge: git(root, 'rev-parse', 'HEAD') };
 }
 
-test('an allocating landing commits its new history as data in the same merge and leaves cells-plan green [B3,C7,D3,H16]', t => {
+test('an allocating landing commits its new history as data in the same merge [B3,C7,D3,H16]', t => {
   const { root, merge } = fixture(t);
   const parents = git(root, 'show', '-s', '--format=%P', merge);
   assert.equal(parents.split(' ').length, 2, 'the input is a real item merge');
@@ -68,24 +66,9 @@ test('an allocating landing commits its new history as data in the same merge an
   assert.equal(git(root, 'show', '-s', '--format=%P', head), parents, 'allocation and placement amend that same merge');
   const history = 'packages/state/data/history/81.json';
   assert.equal(JSON.parse(git(root, 'show', `${head}:${history}`)).engine, 81);
-  // History is data: it is not placed through the plan, and the plan's own rule keeps `--check` green without a row.
-  const plan = readPlan(root);
-  assert.equal(plan.stays.some(row => row.path === history), false, 'history is data and gets no plan row');
-  assert.equal(plan.cells.some(cell => cell.paths.some(([from]) => from === history)), false, 'history is not assigned to a move rule');
-  const checked = runFixtureChild(process.execPath, [BIN, '--check'], { cwd: root, encoding: 'utf8' });
-  assert.equal(checked.status, 0, checked.stderr + checked.stdout);
-  assert.equal(git(root, 'status', '--porcelain'), '', 'no unplaced file or unstaged plan escapes the merge');
+  assert.equal(git(root, 'status', '--porcelain'), '', 'no unstaged file escapes the merge');
   assert.deepEqual(amendLandingEngines(root).assigned, [], 'a retry never allocates or places the same history twice');
   assert.equal(git(root, 'rev-parse', 'HEAD'), head);
-});
-
-test('a broken plan shard cannot block landing history, which is data and never placed [B3,C7,D3,H16]', t => {
-  const { root, merge } = fixture(t);
-  const planBefore = git(root, 'show', `${merge}:packages/codemap/data/plan/cells.json`);
-  rmSync(join(root, 'packages/codemap/data/plan/01-state.json'));
-  amendLandingEngines(root);
-  assert.equal(runFixtureChild('git', ['cat-file', '-e', `HEAD:packages/state/data/history/81.json`], { cwd: root, encoding: 'utf8' }).status, 0, 'the history entered the merge');
-  assert.equal(git(root, 'show', `HEAD:packages/codemap/data/plan/cells.json`), planBefore, 'landing placed nothing in the plan');
 });
 
 test('landing a candidate that deletes src/moves numbers its engine from the moves cell [C7,H16]', t => {

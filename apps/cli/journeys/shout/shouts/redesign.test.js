@@ -53,7 +53,8 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor('!!data?.project && !!document.querySelector("[data-tab=shouts]")');
     await press(chrome, 'document.querySelector("[data-tab=shouts]")');
-    await chrome.waitFor('document.querySelectorAll(".conversation-row").length === 4');
+    await chrome.waitFor('document.querySelectorAll("#feed .sx-th").length === 4');
+    const escape = () => chrome.stable("(document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })), true)");
     for (const width of [1280, 320]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor('innerWidth === ' + width);
@@ -63,97 +64,91 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
         const status = document.querySelector('.status'), style = getComputedStyle(status);
         const surface = document.createElement('i'); surface.style.background = 'var(--surface)'; document.body.append(surface);
         const opaqueSurface = getComputedStyle(surface).backgroundColor; surface.remove();
+        const row = document.querySelector('#feed .sx-th');
         return { pageWidth:document.documentElement.scrollWidth, viewport:innerWidth, feed:box('#feed'), panel:box('#shouts-pane > aside'),
-          composer:box('#shout-form .composer'), toggle:box('#asks-slot .seg'), status:{...box('.status'),visible:style.display !== 'none',background:style.backgroundColor,expected:opaqueSurface},
-          component:document.querySelector('#asks-slot .seg').dataset.segmentedControl,
-          rows:[...document.querySelectorAll('.conversation-row')].map(row => ({key:row.dataset.shoutThread,title:row.querySelector('.conversation-title').textContent,preview:row.querySelector('.conversation-preview').textContent,chip:row.querySelector('.chip').textContent})),
-          decisions:!document.querySelector('#coordinator-decisions').hidden,
-          agent:{name:document.querySelector('#agents .agent-row .agent-who b')?.textContent,model:document.querySelector('#agents .agent-model')?.textContent,
-            avatars:document.querySelectorAll('#agents .avatar').length,title:document.querySelector('#agents .agent-row')?.title,
-            age:document.querySelector('#agents .agent-state time')?.textContent,item:document.querySelector('#agents .agent-doing')?.textContent,
-            state:document.querySelector('#agents .agent-state .stage-word')?.textContent} };
+          composer:document.querySelector('#shout-form').getClientRects().length, status:{...box('.status'),visible:style.display !== 'none',background:style.backgroundColor,expected:opaqueSurface},
+          component:document.querySelector('#page-controls [data-page-ctl=shouts]').dataset.pageCtl, rowBox:{height:row.getBoundingClientRect().height,lines:getComputedStyle(row).whiteSpace},
+          open:document.querySelectorAll('#feed .sx-th.open').length, panels:document.querySelectorAll('#feed .sx-tp').length,
+          needs:[...document.querySelectorAll('#shouts-needs .sx-th')].map(r => r.dataset.shoutThread), threads:[...document.querySelectorAll('#shouts-threads > .sx-th')].map(r => r.dataset.shoutThread),
+          rows:[...document.querySelectorAll('#feed .sx-th')].map(r => ({key:r.dataset.shoutThread,title:r.querySelector('.sx-tt').textContent,count:r.querySelector('.sx-n').textContent,text:r.querySelector('.sx-tx').textContent,textLeft:r.querySelector('.sx-tx').getBoundingClientRect().left,textWidth:r.querySelector('.sx-tx').getBoundingClientRect().width,titleRight:r.querySelector('.sx-tt').getBoundingClientRect().right})),
+          agent:{seat:document.querySelector('#agents .sx-ag .sx-seat')?.textContent,title:document.querySelector('#agents .sx-ag')?.title,
+            age:document.querySelector('#agents .sx-ag time')?.textContent,item:document.querySelector('#agents .sx-ag .sx-it')?.textContent,
+            group:document.querySelector('#agents .sx-grp')?.textContent, height:document.querySelector('#agents .sx-ag')?.getBoundingClientRect().height} };
       })()`);
       console.log('PULLBOARD_SHOUTS_REDESIGN ' + JSON.stringify({ width, list }));
-      assert.equal(list.pageWidth, list.viewport, 'the feed and compact composer never widen the viewport');
+      assert.equal(list.pageWidth, list.viewport, 'the feed never widens the viewport');
       if (width === 1280) assert.ok(list.feed.right <= list.panel.left, 'the feed column ends before Agents begins');
-      assert.ok(Math.min(list.composer.bottom, list.toggle.bottom) > Math.max(list.composer.top, list.toggle.top), 'composer and shared toggle occupy one row');
-      assert.ok(Math.abs((list.composer.bottom - list.composer.top) - (list.toggle.bottom - list.toggle.top)) <= 16, 'the empty composer stays one line tall beside the toggle');
-      assert.equal(list.component, 'data-shout-filter');
-      assert.equal(list.rows.filter(row => row.key === 'item:2').length, 1, 'one item has one conversation');
-      assert.equal(list.rows.find(row => row.key === 'item:2').chip, '2 messages');
-      assert.ok(list.rows.find(row => row.key === 'item:2').preview.startsWith('coordinator: #2: Coordinator reply'));
-      assert.equal(list.rows.find(row => row.key === 'item:1').chip, 'Question open');
-      assert.equal(list.decisions, false, 'there is no pinned coordinator decisions wall');
-      assert.equal(list.agent.name, 'web-1');
-      assert.equal(list.agent.model, MACHINE_MODEL);
-      assert.equal(list.agent.avatars, 0);
-      assert.match(list.agent.title, /\+1 more item/);
+      assert.equal(list.composer, 0, 'the composer waits out of sight: replies are sent from inside a thread');
+      assert.equal(list.component, 'shouts', 'the one filter set lives in the strip');
+      assert.ok(list.rowBox.height <= 64 && list.rowBox.lines === 'nowrap', 'a thread is a two-line row that never wraps: ' + JSON.stringify([width, list.rowBox]));
+      assert.deepEqual([list.open, list.panels], [0, 0], 'no thread is open until one is pressed');
+      assert.deepEqual(list.needs, ['item:3'], 'the ask waiting on the person sits first, under Needs your answer');
+      assert.deepEqual([...list.threads].sort(), ['item:1', 'item:2', 'none']);
+      assert.equal(list.rows.find(row => row.key === 'item:2').count, '2');
+      assert.equal(list.rows.find(row => row.key === 'item:1').count, '1');
+      assert.ok(list.rows.find(row => row.key === 'item:2').text.startsWith('#2: Coordinator reply'), 'the row shows the latest words');
+      assert.ok(list.rows.every(row => row.textWidth > 20 && row.textLeft >= 0), 'each row shows its latest words: ' + JSON.stringify([width, list.rows]));
+      assert.equal(list.agent.seat, 'web-1');
+      assert.equal(list.agent.group, 'Building1');
+      assert.match(list.agent.title, /web-1 holds #2 and 1 more/);
+      assert.ok(list.agent.title.includes(MACHINE_MODEL));
       assert.match(list.agent.age, /^(now|\d+[mhd])$/);
-      assert.ok(list.agent.item.includes('#2 '));
-      assert.equal(list.agent.state, 'Building');
+      assert.ok(list.agent.item.includes('#2'));
+      assert.ok(list.agent.height <= 48, 'an agent is one line, a 44px target');
       if (list.status.visible) {
         assert.equal(list.status.background, list.status.expected, 'the status bar uses the opaque surface token');
         assert.equal(list.status.bottom, 900, 'the measured status surface covers the foot of the viewport');
       }
+      // A thread opens in place under its row, one at a time, and closes with a second press, Esc or its x; the address keeps it.
       await press(chrome, 'document.querySelector(' + JSON.stringify('[data-shout-thread="item:2"]') + ')');
-      await chrome.waitFor('document.querySelectorAll("#feed .shout").length === 2');
+      await chrome.waitFor('document.querySelectorAll("#feed .sx-tp").length === 1 && document.querySelectorAll("#feed .sx-msg").length === 2');
       const conversation = await observe(chrome, `(() => {
-        const message = [...document.querySelectorAll('#feed .shout')].find(node => node.querySelector('.who').textContent === 'web-1');
-        const lead = document.querySelector('#feed .shout.lead'), text = message.querySelector('.text'), css = getComputedStyle(text), bounds = text.getBoundingClientRect();
-        return {words:text.textContent,clamp:css.webkitLineClamp,height:bounds.height,lineHeight:parseFloat(css.lineHeight),
-          more:message.querySelector('[data-more]').textContent,model:message.querySelector('.who').title,
-          clock:message.querySelector('time').textContent,avatars:document.querySelectorAll('#feed .avatar').length,
-          coordinatorBackground:getComputedStyle(lead).backgroundColor, hash:lead.querySelector('code.sha')?.textContent,
-          path:lead.querySelector('code.path')?.textContent,code:lead.querySelector('code.code')?.textContent};
+        const message = [...document.querySelectorAll('#feed .sx-msg')].find(node => node.querySelector('.sx-sn').textContent === 'web-1');
+        const row = document.querySelector('[data-shout-thread="item:2"]');
+        return {words:message.querySelector('.sx-tx').textContent,clock:message.querySelector('time').textContent,
+          under:row.nextElementSibling.classList.contains('sx-tp'),expanded:row.getAttribute('aria-expanded'),reply:document.querySelector('#feed [data-reply] input')?.placeholder,
+          address:location.pathname + location.hash, hash:document.querySelector('#feed .sx-msg:not(.quiet) .sx-tx')?.textContent,
+          item:document.querySelector('#feed .sx-ph a')?.textContent, coordinator:document.querySelectorAll('#feed .sx-si.coord').length > 0};
       })()`);
       assert.equal(conversation.words, longWords, 'native message words are never rewritten');
-      assert.equal(conversation.clamp, '3');
-      assert.ok(conversation.height <= conversation.lineHeight * 3 + 1, 'long messages occupy at most three lines');
-      assert.equal(conversation.more, 'Show all');
-      assert.equal(conversation.model, MACHINE_MODEL);
       assert.match(conversation.clock, /^\d{1,2}:\d{2} [AP]M$/, 'the opened conversation keeps the approved person clock');
-      assert.equal(conversation.avatars, 0);
-      assert.notEqual(conversation.coordinatorBackground, 'rgba(0, 0, 0, 0)');
-      assert.equal(conversation.hash, '0123456789ab');
-      assert.equal(conversation.path, 'src/cockpit.js');
-      assert.equal(conversation.code, 'ABC_CODE');
-      await press(chrome, 'document.querySelector("#feed .shout:not(.lead) [data-more]")');
-      await chrome.waitFor('document.querySelector("#feed .shout:not(.lead)").classList.contains("open")');
-      const expanded = await observe(chrome, `(() => { const text=document.querySelector('#feed .shout:not(.lead) .text');return {height:text.getBoundingClientRect().height,lineHeight:parseFloat(getComputedStyle(text).lineHeight)}; })()`);
-      assert.ok(expanded.height > expanded.lineHeight * 3, 'Show all actually reveals the complete message');
-      await press(chrome, 'document.querySelector("#feed .shout:not(.lead) [data-more]")');
-      await chrome.waitFor('!document.querySelector("#feed .shout:not(.lead)").classList.contains("open")');
-      await press(chrome, 'document.querySelector("[data-shout-filter=questions]")');
-      await chrome.waitFor('document.querySelectorAll(".conversation-row").length === 2');
-      await press(chrome, 'document.querySelector("[data-shout-filter=you]")');
-      await chrome.waitFor('document.querySelectorAll(".conversation-row").length === 1 && document.querySelector(".conversation-row").dataset.shoutThread === "item:3"');
-      await press(chrome, 'document.querySelector(\'[data-shout-thread="item:3"]\')');
-      await chrome.waitFor('!!document.querySelector("#feed .answer[data-go]")');
-      await press(chrome, 'document.querySelector("#feed .answer[data-go]")');
-      await chrome.waitFor('!document.querySelector("#answering").hidden');
-      const answering = await observe(chrome, `(() => {
-        const composer = document.querySelector('#shout-form .composer').getBoundingClientRect();
-        const toggle = document.querySelector('#asks-slot .seg').getBoundingClientRect();
-        return { overlap:Math.min(composer.bottom,toggle.bottom)-Math.max(composer.top,toggle.top),
-          width:document.documentElement.scrollWidth, viewport:innerWidth,
-          question:document.querySelector('#answering-q').textContent,
-          locked:document.querySelector('#shout-to').disabled, action:document.querySelector('#shout-send').getAttribute('aria-label') };
-      })()`);
-      assert.ok(answering.overlap > 0, 'the answer form keeps the composer beside the shared filter');
-      assert.equal(answering.width, answering.viewport, 'answering never widens the phone or desktop');
-      assert.equal(answering.question, '#3: Which greeting should we use?', 'the complete native question reaches the answer form');
-      assert.equal(answering.locked, true);
-      assert.equal(answering.action, 'Answer');
-      await press(chrome, 'document.querySelector("#answer-cancel")');
-      await chrome.waitFor('document.querySelector("#answering").hidden && !document.querySelector("#shout-to").disabled');
-      await press(chrome, 'document.querySelector("[data-shout-filter=all]")');
-      await chrome.waitFor('document.querySelectorAll(".conversation-row").length === 4');
+      assert.equal(conversation.under, true, 'the thread opens right under its row');
+      assert.equal(conversation.expanded, 'true');
+      assert.equal(conversation.reply, 'Reply on #2');
+      assert.match(conversation.address, /\/shouts\/\d+$/, 'the open thread is kept in the address: ' + conversation.address);
+      assert.equal(conversation.item, 'Item #2 ›');
+      assert.equal(conversation.coordinator, true, 'the coordinator has its own mark');
+      await press(chrome, 'document.querySelector("#feed [data-shout-thread=\\"item:1\\"]")');
+      await chrome.waitFor('document.querySelectorAll("#feed .sx-tp").length === 1 && document.querySelector("#feed .sx-th.open").dataset.shoutThread === "item:1"');
+      await press(chrome, 'document.querySelector("#feed [data-shout-thread=\\"item:1\\"]")');
+      await chrome.waitFor('document.querySelectorAll("#feed .sx-tp").length === 0');
+      assert.doesNotMatch(await chrome.stable('location.pathname + location.hash'), /\/shouts\/\d+$/, 'closing a thread takes it out of the address');
+      await press(chrome, 'document.querySelector("#feed [data-shout-thread=\\"item:2\\"]")');
+      await chrome.waitFor('document.querySelectorAll("#feed .sx-tp").length === 1');
+      await escape();
+      await chrome.waitFor('document.querySelectorAll("#feed .sx-tp").length === 0');
+      await press(chrome, 'document.querySelector("#feed [data-shout-thread=\\"item:2\\"]")');
+      await chrome.waitFor('document.querySelectorAll("#feed .sx-tp").length === 1');
+      await press(chrome, 'document.querySelector("#feed .sx-xb")');
+      await chrome.waitFor('document.querySelectorAll("#feed .sx-tp").length === 0');
+      await press(chrome, 'document.querySelector("[data-page-ctl=shouts][data-value=questions]")');
+      await chrome.waitFor('document.querySelectorAll("#feed .sx-th").length === 2');
+      await press(chrome, 'document.querySelector("[data-page-ctl=shouts][data-value=you]")');
+      await chrome.waitFor('document.querySelectorAll("#feed .sx-th").length === 1 && document.querySelector("#feed .sx-th").dataset.shoutThread === "item:3"');
+      await press(chrome, 'document.querySelector("[data-page-ctl=shouts][data-value=all]")');
+      await chrome.waitFor('document.querySelectorAll("#feed .sx-th").length === 4');
     }
+    // The ask waiting on the person is answered from inside its thread.
+    await press(chrome, 'document.querySelector("#feed [data-shout-thread=\\"item:3\\"]")');
+    await chrome.waitFor('!!document.querySelector("#feed [data-reply][data-ask] input")');
+    assert.equal(await chrome.stable('document.querySelector("#feed [data-reply] input").placeholder'), 'Answer on #3');
+    await chrome.stable('(() => { const input = document.querySelector("#feed [data-reply] input"); input.value = "Use the first greeting."; input.dispatchEvent(new Event("input", { bubbles: true })); input.closest("form").requestSubmit(); return true; })()');
+    await chrome.waitFor('data.project.shouts.some(x => x.shout_text === "Use the first greeting.")');
     await box.inProcess(demo.repo, 'answer', String(question.shout_id), 'Ship the greeting.');
-    await press(chrome, 'document.querySelector("[data-shout-filter=questions]")');
-    await chrome.waitFor('document.querySelectorAll(".conversation-row").length === 1 && document.querySelector(".conversation-row").dataset.shoutThread === "item:3"');
-    await press(chrome, 'document.querySelector("[data-shout-filter=all]")');
-    await chrome.waitFor('document.querySelector(\'[data-shout-thread="item:1"] .chip\')?.textContent === "2 messages"');
+    await press(chrome, 'document.querySelector("[data-page-ctl=shouts][data-value=questions]")');
+    await chrome.waitFor('document.querySelectorAll("#feed .sx-th").length === 0');
+    await press(chrome, 'document.querySelector("[data-page-ctl=shouts][data-value=all]")');
+    await chrome.waitFor('document.querySelector(\'[data-shout-thread="item:1"] .sx-n\')?.textContent === "2"');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     await view.stop();

@@ -31,7 +31,7 @@ export function runnerRemoveKeepsSettings(t, e2e) {
   const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const removed = { host: 'runner-one.example.invalid', slots: 2, browser: 1, node: 'node', root: '/srv/runner-one' };
   const remaining = { host: 'runner-two.example.invalid', slots: 1, browser: 0 };
-  const original = { gateSlots: 3, browserSlots: 2, gate: { shortSlots: 1, runnerDispatch: 'controller', queue: { reviewsFirst: true } },
+  const original = { gateSlots: 3, browserSlots: 2, gate: { shortSlots: 1, queue: { reviewsFirst: true } },
     relay: { offerAtInit: true }, custom: { keep: 'unchanged' } };
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   writeFileSync(settingsFile, JSON.stringify(original, null, 2));
@@ -96,7 +96,7 @@ export async function removingBusyRunnerDrains(t, { cli, git, observe, startQueu
   const remoteMachineHome = join(remoteHome, '.pullboard'), worker = join(directory, 'worker');
   const bin = join(directory, 'bin'), markers = join(directory, 'markers');
   for (const path of [repo, home, machineHome, remoteHome, remoteMachineHome, worker, bin, markers]) mkdirSync(path, { recursive: true });
-  const env = { ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
+  const env = { ...process.env, HOME: home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
     PATH: `${bin}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Runner Drain Fixture', GIT_AUTHOR_EMAIL: 'runner-drain@example.invalid',
     GIT_COMMITTER_NAME: 'Runner Drain Fixture', GIT_COMMITTER_EMAIL: 'runner-drain@example.invalid' };
@@ -106,9 +106,7 @@ export async function removingBusyRunnerDrains(t, { cli, git, observe, startQueu
   writeFileSync(join(repo, 'tracked.txt'), 'private runner drain source\n');
   git(repo, env, 'add', 'pullboard.json', 'tracked.txt');
   git(repo, env, 'commit', '-q', '-m', 'test: prepare runner drain fixture');
-  // The stand-in worker's own machine home pins controller dispatch too [P7].
-  fixtureMachineSettings(remoteMachineHome, { gate: { runnerDispatch: 'controller' } });
-  fixtureMachineSettings(machineHome, { gateSlots: 1, browserSlots: 1, gate: { runnerDispatch: 'controller' }, custom: { preserve: true } });
+  fixtureMachineSettings(machineHome, { gateSlots: 1, browserSlots: 1, custom: { preserve: true } });
   installSshStandIn({ bin, worker, home: remoteHome, machineHome: remoteMachineHome, requests: join(directory, 'ssh-requests.jsonl') });
   const added = cli(repo, env, 'runner', 'add', HOST, '--slots', '2', '--browser', '0', '--json');
   assert.equal(added.status, 0, added.context);

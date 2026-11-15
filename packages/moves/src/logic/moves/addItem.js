@@ -3,7 +3,7 @@ import { CHECK_TIMING_ENGINE } from "../../../../state/light.js";
 import { REVIEW_INDEPENDENCE_ENGINE } from "../../../../state/light.js";
 import { REFERENCE_ENGINE } from "../../../../state/light.js";
 import { CROSS_REPO_DEPENDENCY_ENGINE } from "../../../../state/light.js";
-import { hasForeignDependencies } from "../../../../items/light.js";
+import { hasForeignDependencies } from "../../../../items/browser.js";
 import { AUTOMATIC_DISPATCH_ENGINE } from "../../../../state/light.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by addItem, discovered without a shared registry edit [C7,V4,H16]. */

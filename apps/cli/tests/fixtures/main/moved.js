@@ -1,6 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-module-loads apps/lib/index.js */
 /** Real Git and native historical state are setup; only the production worker supplies rerun evidence [C7,V4,H16]. */
+import { stopFixtureLocalRunner } from '../runner/local-stop.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -20,9 +21,36 @@ import { exportBoard } from '../../../../../packages/store/index.js';
 import { copyPackageFiles } from '../../../../../packages/runners/index.js';
 
 const SOURCE = new URL('../../../../../', import.meta.url);
+/** A worker that has left no state yet is still starting; the smoke canary runs at load 20, where node start alone can pass 8 s [C7]. */
+const WORKER_START_GRACE_MS = 90000;
+const WORKER_QUIET_MS = 8000;
 
-/** Copy actual installed code, create a real tracked project and seed one explicitly synthetic prior acceptance. */
-export async function mainMovedFixture(t, { conflict = false, generated = false, red = false, submitted = false, dirty = false, outside = false, selective = false, blocked = false, manualLanding = false } = {}) {
+/**
+ * Track how long a trigger's worker has been quiet, and say when it counts as dead.
+ * Why: wake.json lands a few ms before owner.json, so a poll in that gap must not inherit the
+ * quiet time spent waiting for the worker to start; and each trigger earns its own start grace,
+ * because the wake file of an earlier trigger is still on disk when the next one fires.
+ */
+export function quietWindow(now = Date.now()) {
+  let quietSince = now, signature = '', woken = false;
+  return {
+    /** A new trigger: the worker must start again, so the long start grace applies again. */
+    trigger(at = Date.now()) { quietSince = at; woken = false; },
+    /** One poll; returns true when the worker made no progress for longer than its allowance. */
+    expired({ at = Date.now(), live, wakeGeneration, expectedGeneration, rowsSignature }) {
+      if (rowsSignature !== signature) { signature = rowsSignature; quietSince = at; }
+      if (!woken && wakeGeneration >= expectedGeneration) { woken = true; quietSince = at; }
+      return !live && at - quietSince > (woken ? WORKER_QUIET_MS : WORKER_START_GRACE_MS);
+    },
+  };
+}
+
+/**
+ * Copy actual installed code, create a real tracked project and seed one explicitly synthetic prior acceptance.
+ * Why manual landing by default: under pull the board's automatic lander offers a land job for the accepted item, and the
+ * loopback local runner lands it into the fixture's own checkout, racing the source-advance worker this fixture observes.
+ */
+export async function mainMovedFixture(t, { conflict = false, generated = false, red = false, submitted = false, dirty = false, outside = false, selective = false, blocked = false, manualLanding = true } = {}) {
   const scratch = mkdtempSync(join(tmpdir(),'pullboard-main-moved-'));
   const installed = join(scratch,'installed'), repo = join(scratch,'repo'), machine = join(scratch,'machine');
   for (const folder of [installed,repo,machine]) mkdirSync(folder);
@@ -35,7 +63,7 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
     writeFileSync(join(repo,'apps/cli/pullboard.js'),`/** @pullboard-module-loads .tooling/apps/cli/pullboard.js */\nimport {spawnSync} from 'node:child_process';\nimport {fileURLToPath} from 'node:url';\nconst entry=fileURLToPath(new URL('../../.tooling/apps/cli/pullboard.js',import.meta.url));\nconst child=spawnSync(process.execPath,[...process.execArgv,entry,...process.argv.slice(2)],{stdio:'inherit'});\nif(child.error)throw child.error;\nif(child.signal)process.kill(process.pid,child.signal);\nelse process.exitCode=child.status??1;\n`);
   }
   writeFileSync(join(repo,'package.json'),JSON.stringify({private:true,type:'module'}));
-  const env = { ...process.env, HOME: join(scratch,'home'), PULLBOARD_HOME: join(scratch,'home','pullboard'),
+  const env = { ...process.env, HOME: join(scratch,'home'), PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(scratch,'home','pullboard'),
     PULLBOARD_MACHINE_HOME: machine, GIT_CONFIG_GLOBAL:'/dev/null', GIT_CONFIG_NOSYSTEM:'1',
     GIT_AUTHOR_NAME:'Fixture', GIT_AUTHOR_EMAIL:'fixture@example.invalid', GIT_COMMITTER_NAME:'Fixture', GIT_COMMITTER_EMAIL:'fixture@example.invalid' };
   for (const key of Object.keys(env)) if (key.startsWith('GIT_') && !/^(?:GIT_CONFIG_|GIT_AUTHOR_|GIT_COMMITTER_)/u.test(key)) delete env[key];
@@ -98,9 +126,9 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
   const trunk = git(repo,'rev-parse','HEAD');
   const directory = join(repo,'.git','pullboard','source-advances');
   let expectedGeneration = 1;
+  const quiet = quietWindow();
   /** Observe actual native state and worker terminal custody, allowing live admission without a fake timer success. */
   async function settled() {
-    let quietSince=Date.now(), last='';
     for (;;) {
       const rows=existsSync(directory)?readdirSync(directory).filter(name=>name.endsWith('.json')&&!['wake.json','owner.json','settled.json'].includes(name)).map(name=>JSON.parse(readFileSync(join(directory,name),'utf8'))):[];
       const ownerFile=join(directory,'owner.json');
@@ -108,21 +136,22 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
       try { owner=JSON.parse(readFileSync(ownerFile,'utf8')); }
       catch (error) { if(error.code!=='ENOENT') throw error; }
       const signature=JSON.stringify(rows.map(row=>[row.state,row.head,row.reason]));
-      if(signature!==last){last=signature;quietSince=Date.now();}
       const current=board(db=>store.getItem(db,id));
       const done=existsSync(join(directory,'settled.json'))?JSON.parse(readFileSync(join(directory,'settled.json'),'utf8')):null;
       if(!owner&&done?.generation>=expectedGeneration&&(current.item_effective_head||current.item_status==='open'||rows.some(row=>row.state==='incomplete'))) return {item:current,rows};
       let live=false;try{if(owner?.pid){process.kill(owner.pid,0);live=true;}}catch{/* A dead private owner provides no progress. */}
-      if(!live&&Date.now()-quietSince>8000) assert.fail(`automatic main merge made no native progress: ${JSON.stringify({item:current,rows})}`);
+      let wake=null;try{wake=JSON.parse(readFileSync(join(directory,'wake.json'),'utf8'));}catch(error){if(error.code!=='ENOENT'&&!(error instanceof SyntaxError)) throw error;}
+      if(quiet.expired({live,wakeGeneration:wake?.generation??0,expectedGeneration,rowsSignature:signature})) assert.fail(`automatic main merge made no native progress: ${JSON.stringify({item:current,rows})}`);
       await pause(25);
     }
   }
   t.after(()=>{
+    stopFixtureLocalRunner(machine);
     const owner=join(directory,'owner.json');
     assert.equal(existsSync(owner),false,`private worker custody remains live; preserve ${scratch}`);
     rmSync(scratch,{recursive:true,force:true});
   });
   /** The ordinary health worker is the production automatic entry point; old source has no replacement stub. */
-  function trigger() { const wake=join(directory,'wake.json');expectedGeneration=(existsSync(wake)?JSON.parse(readFileSync(wake,'utf8')).generation:0)+1;const run=cli('sentinel','run','--health-only','--json');assert.equal(run.status,0,run.context ?? run.stderr);return run; }
+  function trigger() { const wake=join(directory,'wake.json');expectedGeneration=(existsSync(wake)?JSON.parse(readFileSync(wake,'utf8')).generation:0)+1;quiet.trigger();const run=cli('sentinel','run','--health-only','--json');assert.equal(run.status,0,run.context ?? run.stderr);return run; }
   return {repo,installed,env,store,board,git,cli,trigger,settled,id,actors,accepted,trunk,tree,base,original,marker,directory,scratch,gateEntered,gateRelease};
 }

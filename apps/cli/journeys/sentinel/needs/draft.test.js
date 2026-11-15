@@ -18,10 +18,12 @@ import {
   openSnapshotChrome,
   closeSnapshotChrome,
   press,
+  pressTab,
   proofShot,
+  openItemsNeeds,
 } from '../../../tests/fixtures/cockpit/harness.js';
 
-test('clause 1: sentinel draft Command, Directory and Schedule labels never overlap long values in Dashboard or Items at desktop and phone widths [N26]', { timeout: 120_000 }, async () => {
+test('clause 1: sentinel draft Command, Directory and Schedule labels never overlap long values in Items at desktop and phone widths [N26]', { timeout: 120_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required to measure the sentinel draft card.');
   const box = machine(), alpha = project(box, 'sentinel-labels');
@@ -39,8 +41,10 @@ test('clause 1: sentinel draft Command, Directory and Schedule labels never over
     for (const width of [1440, 375]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 700 });
       await chrome.waitFor('innerWidth === ' + width);
-      for (const [tab, root] of [['dashboard', '#dashboard'], ['items', '#needs']]) {
-        await press(chrome, 'document.querySelector("#tabs [data-tab=' + tab + ']")');
+      // The approved Dashboard shows only the Rulings count, so the card is measured on Items [N26].
+      for (const [tab, root] of [['items', '#needs']]) {
+        await pressTab(chrome, tab);
+        if (tab === 'items') await openItemsNeeds(chrome);
         const selector = root + ' [data-sentinel-draft] details';
         await chrome.waitFor('!!document.querySelector(' + JSON.stringify(selector) + ')');
         const disclosure = 'document.querySelector(' + JSON.stringify(selector) + ')';

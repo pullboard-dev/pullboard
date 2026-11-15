@@ -185,7 +185,8 @@ test('[R1,R2,A2] local HTTP state exposes exactly the command statistics', async
   const observed = Date.parse(document.state.proofStats.flow.asOf);
   /** The public view keeps totals and grouped flow, while detailed CLI collections remain on demand. */
   const publicSummary = stats => {
-    const { agents: _agents, bars: _bars, caught: _caught, ...summary } = stats;
+    // notesPerSubmit and workFreeReleases are read only by pullboard stats, so the view state drops them (34682dda64, #6666).
+    const { agents: _agents, bars: _bars, caught: _caught, notesPerSubmit: _notes, workFreeReleases: _releases, ...summary } = stats;
     const { items: _items, ...report } = summary.flow.report;
     return { ...summary, flow: { ...summary.flow, report } };
   };

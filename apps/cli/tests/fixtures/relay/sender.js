@@ -1,5 +1,6 @@
 /** Scope test cleanup to background relay senders created inside one fixture checkout [H21,H16]. */
 import { execFileSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import {
   existsSync,
   readlinkSync,
@@ -53,4 +54,9 @@ export async function stopSender(root) {
       signal: AbortSignal.timeout(5000), state: () => senderProcesses(root).owned.find(candidate => candidate.pid === record.pid) ?? null,
     });
   }
+}
+
+/** Start a node child (the older-sender stand-in script, or the real sender worker) from the fixture kit, so journeys never spawn [H21,H16]. */
+export function spawnSenderChild(args, options) {
+  return spawn(process.execPath, args, options);
 }

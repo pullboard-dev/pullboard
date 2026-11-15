@@ -7,6 +7,7 @@ import {
 } from 'node:test';
 import { createE2eHelpers } from "../../tests/fixtures/e2e.js";
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import {
   mkdirSync,
   writeFileSync,
@@ -35,12 +36,16 @@ function commitFile(box, name, contents) {
   return box.git(box.web, 'rev-parse', 'HEAD');
 }
 
-test('clause 1: [V1,V17,C7] a head that merges in another unverified item commit is refused STACKED_ON_UNVERIFIED naming that item', async () => {
+test('clause 1: [V1,V17,C7] a head that merges in another unverified item commit is refused STACKED_ON_UNVERIFIED naming that item', async t => {
   const box = e2e.project('true');
   const first = await add(box, 'First submission');
   assert.equal((await box.runLocal(box.web, 'claim', String(first))).code, 0);
   const firstCommit = commitFile(box, 'web/first.txt', 'first submission');
-  assert.equal((await box.runLocal(box.web, 'submit', String(first))).code, 0);
+  const queued = await box.runLocal(box.web, 'submit', String(first), '--json');
+  assert.equal(queued.code, 0, queued.out + queued.err);
+  // The first item is unverified only once its pulled gate's receipt applies; the job row alone is done a moment earlier [#7283].
+  const settled = await settleSubmit(t, { ...box, run: box.runLocal }, JSON.parse(queued.out));
+  assert.equal(settled.gate?.green, true, 'the first submission settled green');
 
   const base = box.git(box.repo, 'rev-parse', 'main');
   const second = await add(box, 'Merged submission');

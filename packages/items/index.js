@@ -74,3 +74,4 @@ export { dependencyWaiters, dependencyWorkAt } from './src/logic/progress.js';
 export { parseDiagnosis, diagnosisBrief } from './src/logic/diagnosis.js';
 export { itemFolderIdentity, itemFolderPath, writeItemMarker } from './src/io/claim.js';
 export { mainRedRootCause, mainRedKey, mainRedKeyLines, mainRedEvidenceLines, splitMainReds, mainRedFact, fileMainRed } from './src/logic/audit/main-red.js';
+export { vendorOfModel } from './src/logic/vendors.js';

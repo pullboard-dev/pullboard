@@ -4,6 +4,7 @@
  "kind": "package",
  "root": "packages/transport",
  "frontDoor": "packages/transport/index.js",
+ "lightFrontDoor": "packages/transport/light.js",
  "paths": [],
  "reexports": [],
  "imports": [
