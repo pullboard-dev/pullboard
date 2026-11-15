@@ -1,21 +1,21 @@
 /** A gate reads main's receipt from an earlier main whose inputs to the test file are the same; a missing one reads unknown [C7,SC11]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
-import { cellClaim } from '../../../../store/tests/fixtures/cell.js';
-import { cellItem } from '../../../../store/tests/fixtures/cell.js';
-import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
-import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
-import { CELL_CONFIG } from '../../../../store/tests/fixtures/cell.js';
-import * as store from '../../../../store/index.js';
-import { classifyGateRed } from '../../../../drive/index.js';
-import { testActionKeys } from '../../../../gate/index.js';
-import { mainReceipts } from '../../../../landing/index.js';
-import { recordMainTestReceipt } from '../../../../landing/index.js';
-import { boardJobQueueCall } from '../../../index.js';
-import { claimJob } from '../../../index.js';
-import { compareGateWithMain } from '../../../index.js';
-import { offerJob } from '../../../index.js';
+import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellClaim } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellItem } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellRepo } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../../packages/store/tests/fixtures/cell.js';
+import { CELL_CONFIG } from '../../../../../packages/store/tests/fixtures/cell.js';
+import * as store from '../../../../../packages/store/index.js';
+import { classifyGateRed } from '../../../../../packages/drive/index.js';
+import { testActionKeys } from '../../../../../packages/gate/index.js';
+import { mainReceipts } from '../../../../../packages/landing/index.js';
+import { recordMainTestReceipt } from '../../../../../packages/landing/index.js';
+import { boardJobQueueCall } from '../../../../../packages/api/index.js';
+import { claimJob } from '../../../../../packages/api/index.js';
+import { compareGateWithMain } from '../../../../../packages/api/index.js';
+import { offerJob } from '../../../../../packages/api/index.js';
 
 const FILE = 'web/page.test.js';
 const CASE = 'the page renders';
