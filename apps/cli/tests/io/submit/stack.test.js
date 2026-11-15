@@ -5,7 +5,10 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { refuseUnsubmittableStack } from '../../../src/io/submit.js';
 import { fixtureBoard } from '../../fixtures/board.js';
-import { runFixtureGit } from '../../fixtures/child.js';
+import {
+  runFixtureGit,
+  runFixtureSetupGit,
+} from '../../fixtures/child.js';
 import { temporaryRepository } from '../../fixtures/board/submit.js';
 
 const AT = '2026-10-23T00:00:00.000Z';
@@ -14,7 +17,7 @@ const AT = '2026-10-23T00:00:00.000Z';
 function commit(root, file, text) {
   writeFileSync(join(root, file), text);
   runFixtureGit(['add', file], { cwd: root });
-  runFixtureGit(['commit', '-q', '-m', `test: ${file} [G1]`], { cwd: root });
+  runFixtureSetupGit(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-q', '-m', `test: ${file} [G1]`], { cwd: root });
   return runFixtureGit(['rev-parse', 'HEAD'], { cwd: root });
 }
 
