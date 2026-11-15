@@ -1,6 +1,6 @@
 /** The command line side of `pullboard next`'s selection: its wait labels and the ports the moves cell selects through [C7]. */
 import { claimWorktreeSnapshot } from '../../../../packages/seats/index.js';
-import { nextOnce as nextOnceThrough } from '../../../../packages/moves/index.js';
+import { nextOnce as nextOnceThrough } from '../../../../packages/moves/light.js';
 import { mainLaneWork } from './next/steps.js';
 import { withBoardRead } from './context.js';
 import { agentDisplayName } from './context.js';

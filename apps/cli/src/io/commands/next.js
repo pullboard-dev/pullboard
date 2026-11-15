@@ -9,7 +9,7 @@ import { recordedClaimWorktrees } from '../../../../../packages/activity/index.j
 import { takeWaitShouts } from '../../../../../packages/activity/index.js';
 import { coordinatorCalloutLine } from '../../../../../packages/activity/index.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
-import { shoutReviewCoverStuck } from '../../../../../packages/health/index.js';
+import { shoutReviewCoverStuck } from '../../../../../packages/health/light.js';
 /** The pullboard next command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
 import { startNextProgressMonitor } from '../next/monitor.js';
@@ -72,7 +72,7 @@ import {
   heldCounted,
   inboxReasons,
   ownWaitingLines,
-} from '../../../../../packages/moves/index.js';
+} from '../../../../../packages/moves/light.js';
 
 /** Watch symbolic ref targets as well as HEAD, including projects whose trunk is not named main. */
 function nextChangeInputs(ctx) {

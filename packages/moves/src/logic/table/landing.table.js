@@ -2,33 +2,8 @@
 import { Refused } from '../../../../kernel/light.js';
 import { defineRules } from './rules.js';
 import { runTable } from './run.js';
-
-/**
- * The next step the landing commands print for each refusal code the landing tables share; the live commands' next-step maps read these.
- * Why: one sentence per code, so the table and the commands can never word the same refusal two ways.
- */
-export const LANDING_NEXT = Object.freeze({
-  LAND_BATCH: 'adopt the recorded batch: pullboard land --adopt',
-  LAND_ITEM_MOVED: 'rebuild the batch from current verified work: pullboard land',
-  LAND_NOT_PUSHED: 'push the batch, then pullboard land --adopt',
-  LAND_TEST_DEFECT: 'commit a correction to the test named by the held defect, or ask the person for an expiring test waiver; then run pullboard land again',
-  FORCED_REASON: 'name why this merge bypassed the gate: pullboard merged <id> <commit> --forced "<why>"',
-  NOT_VERIFIED: 'merge only verified items; see pullboard list --all',
-  COORDINATOR_ONLY: 'ask the coordinator to do it: pullboard shout coordinator --kind question "<what you need>"',
-  LAND_LEASE_LOST: 'stop, read pullboard resume, and adopt only after the holder finishes',
-  LAND_ADOPT: 'pullboard land --adopt',
-  LAND_TRUNK: 'return the checkout to the trunk, then run pullboard land',
-  NOT_PENDING: 'nothing to do: only a verified item with no landing receipt lands',
-  ITEM_HELD: 'ask the coordinator to lift the hold: pullboard shout coordinator --kind question "lift the hold on #<id>"',
-  STALE_VERDICT: 'merge main, resubmit, and verify again',
-  LAND_KNOWN_RED: 'fix the failing tests and resubmit, or ask the person for an expiring test waiver',
-  LAND_RUNNER_SOURCE_HELD: 'wait for a new head or a new main',
-  LAND_REPEATED_RED: 'fix what the landing batches found red, then resubmit',
-  WAITS_ON_ITEM: 'land the dependency first: pullboard show <id>',
-  STACKED_UNVERIFIED: 'verify the carried submission first',
-  PUBLISH_RED_FILE: 'fix the red publish; the item waits until it is green',
-  LAND_FILE_OVERLAP: 'it leads the next batch; nothing to do',
-});
+import { LANDING_NEXT } from './next.js';
+export { LANDING_NEXT } from './next.js';
 
 const ITEM_REFUSALS = Object.freeze(['LAND_HEADER', 'LAND_PLAN_UNPLACED', 'LAND_ENGINE_UNNUMBERED', 'LAND_COMPANION_MISSING', 'LAND_MODULE_PARSE', 'LAND_STATIC_RED', 'RATCHET_ROSE']);
 const HOLDING_DEFECT = Object.freeze(['open', 'claimed', 'submitted']);

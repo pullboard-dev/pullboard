@@ -18,14 +18,14 @@ import {
   relative,
   resolve,
 } from 'node:path';
-import { displayAgentName } from '../../../../packages/seats/light.js';
+import { displayAgentName } from '../../../../packages/seats/browser.js';
 import * as store from '../../../../packages/store/light.js';
 import {
   CONFIG_FILE,
   COORDINATOR,
   loadConfig,
 } from '../../../../packages/config/light.js';
-import { loadDoctrine } from '../../../../packages/doctrine/light.js';
+import { createRequire } from 'node:module';
 import {
   codeIsFromMain,
   differFromHead,
@@ -101,6 +101,10 @@ export function sayBrief(io, brief) {
   brief.split('\n').forEach((line) => io.say(`  ${line}`.trimEnd()));
 }
 
+const requireModule = createRequire(import.meta.url);
+/** The doctrine reader, loaded at the first ctx.doctrine read: a list or show never reads doctrine and never pays for it [C7,#7081]. */
+const doctrineLoader = () => requireModule('../../../../packages/doctrine/light.js').loadDoctrine;
+
 /**
  * Everything a command needs: the repo, its config, the board's file, and where output goes.
  *
@@ -118,7 +122,7 @@ export function context(io) {
   let allowSchemaUpgrade;
   let doctrine;
   const ctx = { info, config, file, nativeBoard: io.nativeBoard, get allowSchemaUpgrade() { return allowSchemaUpgrade ??= codeIsFromMain(); },
-    get doctrine() { return doctrine ??= loadDoctrine(info.root, config); }, io, clock: io.clock ?? store.systemClock };
+    get doctrine() { return doctrine ??= doctrineLoader()(info.root, config); }, io, clock: io.clock ?? store.systemClock };
   if (config.worktreeMaintenance?.enabled === true) io.worktreeMaintenanceContext = ctx;
   if (config.toolBuild?.autoGate === true) io.toolBuildGateContext = ctx;
   return ctx;

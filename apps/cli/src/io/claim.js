@@ -90,7 +90,7 @@ async function maintainLapsedBeforeWrite(ctx, board, operation, args, actor) {
   if (relayRecovered(ctx.info.root, { includePending: true }, ctx.io)) return;
   LAPSE_MAINTENANCE.add(board);
   try {
-    const { captureLapsedClaims } = await import('../../../../packages/health/index.js');
+    const { captureLapsedClaims } = await import('../../../../packages/health/light.js');
     const snapshot = captureLapsedClaims(ctx, board, actor, { lapsedOnly: true });
     if (!snapshot) return;
     const io = { ...ctx.io, personRequest: undefined, personRequestMoveId: undefined, relayCommand: undefined, requestedCommand: undefined };

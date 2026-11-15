@@ -15,7 +15,7 @@ import { rejectionReturnEnabled } from '../../../store/index.js';
 import { awaitingGateOrReview } from '../../../store/index.js';
 import * as store from '../../../store/index.js';
 import { agentSessionDigest } from '../../../person/index.js';
-import { shoutReviewCoverStuck } from '../../../health/index.js';
+import { shoutReviewCoverStuck } from '../../../health/light.js';
 import { mainRedReviewItems } from '../../../landing/index.js';
 import { computedReturnArgs } from '../../../landing/index.js';
 import { mainRedReworkItems } from '../../../landing/index.js';
