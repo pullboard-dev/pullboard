@@ -6,6 +6,7 @@
   "submitGate": "landing",
   "submitDeferAbove": 20,
   "landingShards": 6,
+  "pushGate": { "shardMinutes": 40 },
   "landing": {
     "manualOverride": false,
     "publish": "separate",
