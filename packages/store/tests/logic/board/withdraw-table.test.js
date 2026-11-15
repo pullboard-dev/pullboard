@@ -29,7 +29,7 @@ function boardFor(t, item) {
   sql.prepare(`INSERT INTO item (item_id, item_lane, item_title, item_route, item_status, item_created_by, item_created_at, item_updated_at) VALUES (?, 'core', 'recorded', 'strong', 'open', 'coordinator', ?, ?)`).run(item.id, STAMP, STAMP);
   const walk = (state, fields) => { const all = { ...fields, item_status: state }; sql.prepare(`UPDATE item SET ${Object.keys(all).map(k => `${k}=?`).join(', ')} WHERE item_id=?`).run(...Object.values(all), item.id); };
   sql.exec('INSERT INTO temp.moving VALUES (1)');
-  if (item.status !== 'open') walk('claimed', { item_owner: 'core-1', item_lease_until: '2099-01-01T00:00:00.000Z' });
+  if (item.status !== 'open') walk('claimed', { item_owner: 'core-1', item_lease_until: '2099-01-01T00:00:00.000Z', item_frozen_digest: 'd'.repeat(64) });
   if (item.status === 'submitted') walk('submitted', { item_built_by: 'core-1', item_commit: 'a'.repeat(40) });
   sql.exec('DELETE FROM temp.moving');
   return board;
