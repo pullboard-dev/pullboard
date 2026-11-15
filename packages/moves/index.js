@@ -9,6 +9,7 @@ export { explainTable, tableCoverage } from "./src/logic/table/explain.js";
 export { replayTable } from "./src/logic/table/replay.js";
 export { HOP_ATTEMPT_CAP, HOP_MOVES, hopEngine } from "./src/logic/table/hop.table.js";
 export { BACKBONE_RULES, BACKBONE_STATES, BACKBONE_TABLE, JOB_KINDS, servesRule } from "./src/logic/table/backbone.table.js";
+export { OUTBOX_LEGAL, OUTBOX_MOVES, OUTBOX_RULES, OUTBOX_STATES, OUTBOX_TABLE } from "./src/logic/table/outbox.table.js";
 export { breakOne, seeded, tableCases } from "./src/logic/table/cases.js";
 export { answerFirstReasons, foldedReasons, heldCounted, inboxReasons, ownWaitingLines } from "./src/logic/reasons.js";
 export { default as reopen } from "./src/logic/moves/reopen.js";
