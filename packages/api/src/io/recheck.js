@@ -49,7 +49,8 @@ export function provideMainTestRecorder(write) {
  * verdict and failing cases, read with main's own TAP reader when main has one. Why main's reader: the checkout is
  * main itself, so its reader is the one main's gate trusts.
  */
-const ENTRY = `import { spawnSync } from 'node:child_process';
+/** The job's entry source, exported so a unit can run it against a fixture command. */
+export const MAIN_TEST_ENTRY = `import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -62,7 +63,12 @@ const text = (ran.stdout ?? '') + (ran.stderr ?? '') + (ran.error ? String(ran.e
 let failing = ran.status === 0 ? [] : null, signatures = ran.status === 0 ? [] : null;
 if (ran.status !== 0) {
   let rows = null;
-  try { rows = (await import(pathToFileURL(join(process.cwd(), 'packages', 'gate', 'light.js')).href)).tapFailures(text, process.cwd()); }
+  try {
+    // The run's own outcome frames carry its id; without it the reader refuses every run that printed them, so no case was ever named.
+    let outcomeRunId = null;
+    try { outcomeRunId = JSON.parse(text.split('\\n').find(line => line.startsWith('# pullboard test outcomes ')).slice('# pullboard test outcomes '.length)).id ?? null; } catch { outcomeRunId = null; }
+    rows = (await import(pathToFileURL(join(process.cwd(), 'packages', 'gate', 'light.js')).href)).tapFailures(text, process.cwd(), { outcomeRunId, nativeLeaves: outcomeRunId !== null });
+  }
   catch {
     // A project without Pullboard's TAP reader on main: its plain TAP 'not ok' case lines, never a file-level wrapper,
     // so a main red is named by case and a pulled gate can judge it main-owned [V4,B3,C7].
@@ -132,7 +138,7 @@ export function offerMainTests(board, { now = Date.now() } = {}) {
       continue;
     }
     const pinned = atomically(db, () => pinQueuedJob(db, id, commit, { now })
-      && writeStep(db, id, 'offered', { priority: 'background', needs: NEEDS, run: ['node', '--input-type=module', '-e', ENTRY, at.command, at.file] }, { now }).written);
+      && writeStep(db, id, 'offered', { priority: 'background', needs: NEEDS, run: ['node', '--input-type=module', '-e', MAIN_TEST_ENTRY, at.command, at.file] }, { now }).written);
     if (pinned) offered.push(id);
   }
   return offered;
@@ -156,6 +162,8 @@ export function applyMainTestReceipt(board, { job, receipt }, { now = Date.now()
   let ran = null;
   try { ran = line ? JSON.parse(line.slice(MAIN_TEST_LINE.length)) : null; } catch { ran = null; }
   if (!at || typeof ran?.green !== 'boolean') return { applied: false, outcome: 'unread' };
+  // A red whose cases could not be read keys nothing: a receipt naming none would excuse no case and bounce the builder for main's own red [C7].
+  if (!ran.green && !(Array.isArray(ran.failing) && ran.failing.length)) return { applied: false, outcome: 'unnamed' };
   const named = ran.green || !Array.isArray(ran.failing) ? [] : ran.failing.map((name, index) => ({ name, signature: ran.signatures?.[index] })).filter(row => typeof row.name === 'string');
   const failing = named.map(row => row.name);
   // A case's diagnostic signature rides beside its name; one the run could not sign is null and never matches a gate's case [V4,B3].
