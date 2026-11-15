@@ -35,6 +35,9 @@ test('Dashboard keeps between-items agents behind one line and paints their real
       agents.push(agent);
     }
   } finally { store.closeBoard(board); }
+  // One seat is building, so the idle seats stay behind their line; with nobody building or reviewing they show at once (2da4b43e24, #7945).
+  await box.inProcess(alpha.repo, 'add', 'web', 'A build in progress', '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(alpha.web, 'claim', '1');
   const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-dashboard-rows-'));
   let chrome;
   try {
