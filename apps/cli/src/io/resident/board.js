@@ -401,7 +401,13 @@ listen();
 
 /** Retire once nothing has run for the idle limit, or at once when a successor owns the socket path. */
 function watchIdle() {
-  setInterval(checkIdle, Math.min(IDLE_MS, REPLACED_CHECK_MS)).unref();
+  let probeIdleRunners = null;
+  // Loaded after the process serves, so a resident that only runs commands pays nothing for it [C7,#8325].
+  void (async () => {
+    const [{ idleRunnerTick }, { loadMachineSettings }] = await Promise.all([import('../../../../../packages/landing/index.js'), import('../../../../../packages/config/index.js')]);
+    probeIdleRunners = idleRunnerTick({ settings: loadMachineSettings, clock });
+  })().catch(() => {});
+  setInterval(() => { if (!checkIdle()) probeIdleRunners?.(); }, Math.min(IDLE_MS, REPLACED_CHECK_MS)).unref();
 }
 
 /** Retire when nothing has run for the idle limit or the socket path is another's; true when this check retired it. */
