@@ -4,9 +4,11 @@
  * adding a command adds its own new file and no line of any shared one, so two items adding different commands never
  * conflict, even at the same sorted spot [C7,V4]. Modules load on first use, so a command that is not run costs nothing.
  */
-import { COMMAND_CANDIDATE } from '../../../../../packages/kernel/index.js';
-import { COMMAND_FILE } from '../../../../../packages/kernel/index.js';
-import { discovered } from '../../../../../packages/kernel/index.js';
+import {
+  COMMAND_CANDIDATE,
+  COMMAND_FILE,
+  discovered,
+} from '../../../../../packages/kernel/light.js';
 import { readdirSync } from 'node:fs';
 
 const FOLDER = new URL('./', import.meta.url);

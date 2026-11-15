@@ -1,4 +1,4 @@
-import { proofEventDetail } from '../../../kernel/index.js';
+import { proofEventDetail } from '../../../kernel/light.js';
 /** Public proof numbers derived from the append-only event log [R1,R2]. */
 import { Refused } from '../../../kernel/light.js';
 import { flowStats } from '../logic/flow.js';

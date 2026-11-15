@@ -8,8 +8,10 @@ import {
   join,
   relative,
 } from 'node:path';
-import { lex } from "../../../../kernel/index.js";
-import { lineAt } from "../../../../kernel/index.js";
+import {
+  lex,
+  lineAt,
+} from "../../../../kernel/light.js";
 
 const SKIPPED_DIRECTORIES = new Set(['node_modules', 'tests', 'test']);
 const ADAPTERS = new Set(['packages/git/index.js', 'packages/git/src/io/adapter.js']);

@@ -1,7 +1,7 @@
 /** Scoped relay HTTP boundary: callers keep origin, authentication, and retry policy [C7]. */
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { createRelayAdapter } from '../../../kernel/index.js';
-export { createFakeRelayAdapter } from '../../../kernel/index.js';
+import { createRelayAdapter } from '../../../kernel/light.js';
+export { createFakeRelayAdapter } from '../../../kernel/light.js';
 
 /** Node's live relay transport; resolve fetch at call time to preserve its semantics. */
 export const realRelayAdapter = createRelayAdapter((url, options) => globalThis.fetch(url, options));

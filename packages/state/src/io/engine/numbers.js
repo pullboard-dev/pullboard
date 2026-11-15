@@ -16,9 +16,11 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { ENGINE_CANDIDATE } from '../../../../kernel/index.js';
-import { ENGINE_FILE } from '../../../../kernel/index.js';
-import { discovered } from '../../../../kernel/index.js';
+import {
+  ENGINE_CANDIDATE,
+  ENGINE_FILE,
+  discovered,
+} from '../../../../kernel/light.js';
 import { storeName } from '../store-names.js';
 
 /** The folder that holds the engine leaves, one constant per file so two items adding engines never conflict [V4]. */
