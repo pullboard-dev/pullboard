@@ -14,6 +14,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { fixtureJoin } from './testkit.js';
+import { withFixtureBoard } from './testkit.js';
+import { getItem } from '../../../../packages/store/index.js';
+import { verify } from '../../../../packages/store/index.js';
 import { fixtureProjectPolicy } from './testkit.js';
 import { FIXTURE_MODEL } from './testkit.js';
 import { fixtureSettledMachine } from './testkit.js';
@@ -133,4 +136,24 @@ export async function submitted(box, repo, web, title, check) {
 export function clean(box) {
   for (const pid of box.runnerPids ?? []) { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } }
   rmSync(box.dir, { recursive: true, force: true, maxRetries: 60, retryDelay: 500 }); // a just-finished in-process submit or a detached board writer may still be writing its last files; retry ENOTEMPTY rather than fail the case [C7]
+}
+
+/**
+ * Write a legacy accept straight into the board file the CLI wrote, so no `check` field is recorded in its event.
+ *
+ * Why: only the board file can hold a verdict from before the frozen check travelled with accepts; keeping the store
+ * calls here leaves the journey test free of a static store import.
+ *
+ * @param {string} boardFile - The project's board.sqlite path.
+ * @param {{ id: number, commit: string }} submittedItem - The submitted item as `submitted` returns it.
+ */
+export function legacyAccept(boardFile, submittedItem) {
+  // @pullboard-board-file journey: read verdicts from the board file the real CLI wrote
+  withFixtureBoard(boardFile, (board) => {
+    const item = getItem(board, submittedItem.id);
+    verify(board, submittedItem.id, {
+      agentId: 'coordinator', decision: 'ACCEPT', reason: 'CRITERION_MET', note: 'legacy event fixture',
+      head: submittedItem.commit, digest: item.item_frozen_digest, policy: 'any', familyPolicy: 'off',
+    });
+  });
 }
