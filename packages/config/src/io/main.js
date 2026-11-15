@@ -65,12 +65,12 @@ export function defaults() {
     reviewLease: '30m',
     worktrees: 'beside',
     worktreeMaintenance: maintenanceSettings.maintenanceDefaults(),
-    verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true },
+    verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true, failBefore: false },
     review: { starveMinutes: 5, independence: 'off', excludeEarlierHolders: false },
-    // Explicit vendor spellings: canonical family -> declared alias names. Never inferred from a model [#1762].
+    // Vendor spellings: canonical family -> alias names; never inferred [#1762].
     families: {},
     labels: {},
-    // The route table is data, not code: packages/config/data/ceilings/model-tiers.json (a fresh copy per call) [P5].
+    // The route table is data: packages/config/data/ceilings/model-tiers.json (fresh per call) [P5].
     modelTiers: JSON.parse(readFileSync(new URL('../../data/ceilings/model-tiers.json', import.meta.url), 'utf8')),
     // Off by default: next and claim print an item's code map slice only when map.slice is true [1203].
     map: { slice: false },
@@ -184,7 +184,7 @@ function merge(base, raw) {
 const isStringList = (value) =>
   Array.isArray(value) && value.every((entry) => typeof entry === 'string');
 
-/** Whether a setting is anything but a plain object: one home for the shape check every block below repeats. */
+/** Whether a setting is not a plain object: the shape check every block below repeats. */
 const notPlain = value => !value || typeof value !== 'object' || Array.isArray(value);
 
 /**
@@ -320,7 +320,7 @@ export function configProblems(config) {
   if (config.landing?.pauseOnRed !== undefined && typeof config.landing.pauseOnRed !== 'boolean') problems.push('"landing.pauseOnRed" is a boolean, off by default; true pauses landing after an unproven red publish full suite');
   const cadenceError = cadenceProblem(config.landing?.cadence);
   if (cadenceError) problems.push(cadenceError);
-  // landing.stall: how long a landing batch may make no progress before it ends (2 minutes when unset, #3186, #3477, #5816).
+  // landing.stall: how long a landing batch may stall before it ends (2 minutes when unset, #3186).
   for (const key of ['timeout', 'stall']) {
     const value = config.landing?.[key];
     const match = typeof value === 'string' ? CHECK_TIMEOUT_RE.exec(value) : null;
@@ -353,15 +353,15 @@ export function configProblems(config) {
     && (!Number.isSafeInteger(config.verify.familyRelaxAt) || config.verify.familyRelaxAt < 1)) {
     problems.push('"verify.familyRelaxAt" is off or a positive integer');
   }
-  if (typeof config.verify?.inspectClauses !== 'boolean') {
-    problems.push('"verify.inspectClauses" is true or false');
+  if (typeof config.verify?.inspectClauses !== 'boolean' || typeof config.verify.failBefore !== 'boolean') {
+    problems.push('"verify.inspectClauses" and "verify.failBefore" are true or false');
   }
   if (notPlain(config.families)
     || Object.entries(config.families).some(([name, aliases]) => !name.trim() || name.length > 80
       || !Array.isArray(aliases) || aliases.some(alias => typeof alias !== 'string' || !alias.trim() || alias.length > 80))) {
     problems.push('"families" maps each canonical vendor family to a list of declared alias names');
   } else {
-    // One spelling names one family: an alias listed under two canonical families is refused, never guessed.
+    // An alias listed under two canonical families is refused, never guessed.
     const owners = new Map();
     for (const [canonical, aliases] of Object.entries(config.families)) {
       for (const name of [canonical, ...aliases]) {
