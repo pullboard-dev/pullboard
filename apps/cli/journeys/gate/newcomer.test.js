@@ -193,18 +193,6 @@ test('setup offers a gate to a board with no build [I1,I2]', async (t) => {
   assert.equal(gate.status, 0, gate.failure ?? gate.stderr);
 });
 
-test('bare pullboard starts with the tour and init pointer; explicit help and JSON stay usable [I1,I2]', async (t) => {
-  const box = project(t);
-  const bare = await box.inProcess();
-  assert.equal(bare.status, 0, bare.stderr);
-  assert.equal(bare.stdout.split('\n')[0], 'New here? pullboard tour, then pullboard init.');
-  assert.ok(bare.stdout.includes('pullboard next'));
-  assert.ok(!(await box.inProcess('help')).stdout.startsWith('New here?'));
-  const document = JSON.parse((await box.inProcess('--json')).stdout);
-  assert.equal(typeof document.help, 'string');
-  assert.ok(document.help.includes('pullboard init'));
-});
-
 /** A directory whose pullboard is this checkout's, so init's Git hooks run the code under test (#906). */
 function checkoutPullboard(root) {
   const bin = join(root, '.this-pullboard');

@@ -1,5 +1,7 @@
 /** Generate the test manifest, one row per test file with its kind, cost and what it spawns, never hand-kept [C7]. */
+import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { resolve } from 'node:path';
@@ -12,6 +14,7 @@ import { manifestRows } from '../../logic/test/manifest.js';
 import { JOURNEY_TAGS } from '../../logic/test/manifest.js';
 import { TEST_KINDS } from '../../logic/test/manifest.js';
 
+export const GOLDEN_FILE = 'packages/gate/data/tests/golden.json';
 export const TEST_MANIFEST_FILE = 'packages/gate/data/tests/test-manifest.json';
 const TEST = /\.(?:test|spec)\.[cm]?js$/u;
 const SUPPORT = /(?:^|\/)(?:tests?|fixtures?)\//u;
@@ -41,6 +44,19 @@ function spawnEvidence(sources, reached, file) {
 }
 
 /**
+ * The files the golden registry names, or none when the project has no registry.
+ * Why: the registry decides which journeys are harness, so the generator reads it instead of guessing from the path [C7].
+ *
+ * @param {string} root project root
+ * @returns {Set<string>}
+ */
+function goldenFiles(root) {
+  const path = resolve(root, GOLDEN_FILE);
+  if (!existsSync(path)) return new Set();
+  return new Set(JSON.parse(readFileSync(path, 'utf8')).paths.map(entry => entry.file));
+}
+
+/**
  * The manifest rows for a project root, read without running any test.
  * Why: one derived record lets the census, the journey cut and review read the same facts.
  *
@@ -58,7 +74,7 @@ export function generateTestManifest(root, { times = { ...readFileTimes(root), .
   const inputs = tiers.files.map(row => ({ file: row.file, ...spawnEvidence(sources, evidence.get(row.file), row.file),
     specs: testNameIds(sources.get(row.file)?.toString('utf8') ?? ''),
     ms: Object.hasOwn(times, row.file) ? Math.round(times[row.file]) : null }));
-  return { version: 1, files: manifestRows(inputs) };
+  return { version: 1, files: manifestRows(inputs, goldenFiles(root)) };
 }
 
 /** One row per line so a changed row is a small, readable diff. */
