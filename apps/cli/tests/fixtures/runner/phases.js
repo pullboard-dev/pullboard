@@ -239,7 +239,8 @@ export async function profiledRoundTrips(t, count, { otherJobs: busy = 0 } = {})
     if (index === 0) assert.match(result.output, /EXECUTED-ROUND-TRIP/u, 'the runner really runs the test body');
     const profile = roundTripProfile(result.phases), line = roundTripLine(profile);
     t.diagnostic(line);
-    t.diagnostic('raw marks ' + JSON.stringify(Object.entries(result.phases).sort((a, b) => a[1] - b[1]).map(([k, v]) => `${k}+${v - result.phases.dispatch}`)));
+    process.stderr.write(`# ${line}\n`);
+    process.stderr.write('# raw marks ' + JSON.stringify(Object.entries(result.phases).sort((a, b) => a[1] - b[1]).map(([k, v]) => `${k}+${v - result.phases.dispatch}`)) + '\n');
     profiles.push({ ...profile, line });
   }
   return profiles;
