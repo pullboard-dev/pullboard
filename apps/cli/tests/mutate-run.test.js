@@ -94,7 +94,7 @@ test('clause 1: [C7] mutate refuses a folder that is not in the checkout, and a 
   assert.match(bare.stderr, /\[NO_TESTS\]/u);
 });
 
-test('#8099 clause 1-3: [C7] a cell that imports a sibling folder runs green in the copy, a judge-flipping fault is caught, and the tree is unchanged', async () => {
+test('clause 1: [C7,#8099] a cell importing a sibling folder runs green in the copy; clause 2: a judge-flipping fault is caught; clause 3: the tree is unchanged', async () => {
   const repo = privateFixtureFiles('mutate-import-').root;
   const tmp = privateFixtureFiles('mutate-import-tmp-').root;
   dirs.push(repo, tmp);
