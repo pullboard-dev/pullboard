@@ -15,3 +15,10 @@ test('clause 1: verify.failBefore defaults to false and must be a boolean [C7]',
 test('clause 3: verify.failBefore is described for pullboard settings [C7]', () => {
   assert.match(JSON.stringify(describeSetting('verify.failBefore')), /fail-before|failed on an assertion/u);
 });
+
+test('verify.frozenTests defaults to false, must be a boolean, and is described [C7]', () => {
+  assert.equal(defaults().verify.frozenTests, false);
+  const bad = { ...defaults(), verify: { ...defaults().verify, frozenTests: 'yes' } };
+  assert.ok(configProblems(bad).some(p => p.includes('frozenTests')));
+  assert.match(JSON.stringify(describeSetting('verify.frozenTests')), /test file/u);
+});
