@@ -489,10 +489,7 @@
   "apps/cli/journeys/verify/accept/receipt.test.js": {
     "model": 2
   },
-  "apps/lib/tests/rebuild.test.js": {
-    "hand-policy": 1
-  },
-  "apps/lib/tests/rebuild/producer.test.js": {
+  "apps/lib/tests/fixtures/test/rebuild.js": {
     "hand-policy": 1
   },
   "apps/cli/journeys/reopen/relands.test.js": {
