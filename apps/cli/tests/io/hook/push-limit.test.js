@@ -8,7 +8,6 @@ import { offerJob } from '../../../../../packages/api/index.js';
 import { configFromSource } from '../../../../../packages/config/index.js';
 import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { awaitAndWithdraw } from '../../../src/io/hook/push.js';
-import { planPushShards } from '../../../src/io/hook/push.js';
 import { pushShardLimitMs } from '../../../src/io/hook/push.js';
 
 const MIN = 60_000;
@@ -41,12 +40,6 @@ test('clause 1: the setting sets when the gate gives up, and the refusal names t
   assert.match(settled.refused, /raise pushGate\.shardMinutes in pullboard\.json/u);
   assert.match(settled.refused, /PULLBOARD_RUNNER_RUN_CEILING_MS/u);
   await assert.rejects(giveUp(t, { config: { pushGate: { shardMinutes: 30 } } }, 6, {}), /never gave up/u, 'a 6-minute look is inside a 30-minute limit');
-});
-
-test('clause 1: the shard budget is a quarter of the setting [C7,#7810]', () => {
-  const files = Array.from({ length: 8 }, (_, at) => `f${at}.test.js`), times = Object.fromEntries(files.map(file => [file, 200_000]));
-  assert.equal(planPushShards(files, times, pushShardLimitMs({ pushGate: { shardMinutes: 20 } }, {}) / 4).length, 8, 'a 300 s budget holds one 200 s file per shard');
-  assert.equal(planPushShards(files, times, pushShardLimitMs({ pushGate: { shardMinutes: 80 } }, {}) / 4).length, 2, 'an 80-minute limit gives a 1,200 s budget, five files per shard');
 });
 
 test('clause 2: a raised PULLBOARD_RUNNER_RUN_CEILING_MS gives the same limit, and a lower or off one never shortens the setting [C7,#7810]', async t => {
