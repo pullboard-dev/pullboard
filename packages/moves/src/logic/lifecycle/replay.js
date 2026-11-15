@@ -11,7 +11,7 @@ import { readiness } from './rules.js';
 import { ruleOf } from './rules.js';
 
 /** The moves that run the clock's lapse first: after a lease ends, the board treats the claim as gone. */
-const SKIPS_LAPSE = new Set(['claim', 'renew', 'release', 'withdraw', 'hold', 'unhold', 'refreeze', 'edit-after', 'merged', 'review-landed']);
+export const SKIPS_LAPSE = new Set(['claim', 'renew', 'release', 'withdraw', 'hold', 'unhold', 'refreeze', 'edit-after', 'merged', 'review-landed']);
 
 /**
  * Turn one event row into a lifecycle fact.
