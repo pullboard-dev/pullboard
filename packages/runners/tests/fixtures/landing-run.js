@@ -129,7 +129,7 @@ export function makeShardFixture(t) {
     writeFileSync(join(tests, name), `import { appendFileSync } from 'node:fs';
 import { test } from 'node:test';
 /** Record the actual file Node assigned to this shard. */
-export function recordSelectedFile() { appendFileSync(process.env.PULLBOARD_SHARD_CAPTURE, '${name}\\n'); }
+function recordSelectedFile() { appendFileSync(process.env.PULLBOARD_SHARD_CAPTURE, '${name}\\n'); }
 test('record ${name} [C7]', recordSelectedFile);
 `);
   }
@@ -226,22 +226,22 @@ export function installLandingPidReusePsShim(fixture, unrelatedPid) {
   const source = `#!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-export const realPs = ${JSON.stringify(realPs)};
-export const args = process.argv.slice(2);
-export const target = '-axo pid=,ppid=,pgid=,stat=,lstart=,command=';
-export const output = execFileSync(realPs, args, { encoding: 'utf8' });
+const realPs = ${JSON.stringify(realPs)};
+const args = process.argv.slice(2);
+const target = '-axo pid=,ppid=,pgid=,stat=,lstart=,command=';
+const output = execFileSync(realPs, args, { encoding: 'utf8' });
 if (args.join(' ') !== target) { process.stdout.write(output); process.exit(0); }
-export function parse(line) {
+function parse(line) {
   const match = line.match(/^\\s*(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\S+)\\s+(.+)$/u);
   if (!match) return null;
   const fields = match[5].trim().split(/\\s+/u);
   return { pid: Number(match[1]), ppid: Number(match[2]), pgid: Number(match[3]), state: match[4],
     started: fields.slice(0, 5).join(' '), command: fields.slice(5).join(' ') };
 }
-export function format(row) { return [row.pid, row.ppid, row.pgid, row.state, row.started, row.command].join(' '); }
+function format(row) { return [row.pid, row.ppid, row.pgid, row.state, row.started, row.command].join(' '); }
 let rows = output.split(/\\r?\\n/u).map(parse).filter(Boolean);
-export const starts = process.env.PULLBOARD_LANDING_WORKER_STARTS;
-export const outsiderPid = ${Number(unrelatedPid)};
+const starts = process.env.PULLBOARD_LANDING_WORKER_STARTS;
+const outsiderPid = ${Number(unrelatedPid)};
 if (starts) {
   let receipts = [];
   try { receipts = readFileSync(starts, 'utf8').split(/\\r?\\n/u).filter(Boolean).map(line => JSON.parse(line)); } catch {}

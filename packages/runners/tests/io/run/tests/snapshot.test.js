@@ -30,10 +30,6 @@ import { waitForFixtureIdentityDrain } from '../../../fixtures/landing-run.js';
 import { waitForFixtureMarker } from '../../../fixtures/landing-run.js';
 import { readFixtureJournalTail } from '../../../fixtures/landing-run.js';
 import { makeShardFixture } from '../../../fixtures/landing-run.js';
-import { args } from '../../../fixtures/landing-run.js';
-import { output } from '../../../fixtures/landing-run.js';
-import { parse } from '../../../fixtures/landing-run.js';
-import { starts } from '../../../fixtures/landing-run.js';
 
 test('a green landing run retries transient process snapshot timeouts [C7,V4]', async t => {
   const fixture = makeShardFixture(t);

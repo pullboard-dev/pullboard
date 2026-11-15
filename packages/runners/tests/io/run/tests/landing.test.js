@@ -27,8 +27,6 @@ import { waitForFixtureIdentityDrain } from '../../../fixtures/landing-run.js';
 import { waitForFixtureMarker } from '../../../fixtures/landing-run.js';
 import { makeLandingStopFixture } from '../../../fixtures/landing-run.js';
 import { installLandingPidReusePsShim } from '../../../fixtures/landing-run.js';
-import { args } from '../../../fixtures/landing-run.js';
-import { output } from '../../../fixtures/landing-run.js';
 import { installLandingSignalFailureShim } from '../../../fixtures/landing-run.js';
 
 test('a failed test completion without a type still stops a landing run [C7,V4]', async t => {

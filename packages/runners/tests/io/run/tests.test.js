@@ -19,9 +19,6 @@ import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js
 import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { stageFixtureTests } from '../../fixtures/tests.js';
 import { makeShardFixture } from '../../fixtures/landing-run.js';
-import { args } from '../../fixtures/landing-run.js';
-import { output } from '../../fixtures/landing-run.js';
-import { parse } from '../../fixtures/landing-run.js';
 
 const runner = fileURLToPath(new URL('../../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 /** Build a copied production runner with tracked, ignored, and untracked test files. */
