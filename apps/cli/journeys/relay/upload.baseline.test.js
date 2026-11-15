@@ -14,6 +14,9 @@ import {
   uploadedState,
 } from '../../tests/fixtures/relay/upload.js';
 
+// Under load the loopback relay answers after the 250 ms a paused baseline waits (#7779); fixtures wait longer.
+process.env.PULLBOARD_FIXTURE_PAUSED_WAIT_MS = '10000';
+
 // The subtests each start their own private relay fixture, so they run side by side.
 test('an existing or paused remote baseline never lets a refused upload fall back locally [H16]', { concurrency: 4 }, async (t) => {
   const pending = [];
