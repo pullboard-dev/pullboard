@@ -11,7 +11,7 @@ import { runSample } from './fixtures/journey-parity.js';
 const SAMPLES = [
   { journey: 'apps/cli/journeys/verify/trunk.test.js', cases: ['[B34,P2] add --check reports an unavailable baseline for a detached coordinator'] },
   { journey: 'apps/cli/journeys/engine/merged.test.js', cases: ['[R3,R1] --note records an otherwise uncarried merge receipt'] },
-  { journey: 'apps/cli/journeys/gate/slot.test.js', cases: ['pre-push keeps its machine gate slot until the hook check finishes'] },
+  { journey: 'apps/cli/journeys/gate/slot.test.js', cases: ['submit needs a clean tree, nothing untracked, and the gate green at HEAD'] },
 ];
 
 test('clause 1: a sample of trunk, merged and slot gives the same exit codes, JSON results and board state in a real process and in-process [C7]', () => {
