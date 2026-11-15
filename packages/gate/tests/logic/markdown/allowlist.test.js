@@ -68,6 +68,6 @@ test('clause 1: the refusal ships off, so a repository without the enforce switc
 });
 
 test('clause 2: every .md this checkout tracks is allowed, so turning the switch on stays green [C7]', () => {
-  const tracked = runFixtureGit(['ls-files', '-z', '--', '*.md'], { cwd: ROOT }).stdout.split('\0').filter(Boolean);
+  const tracked = runFixtureGit(['ls-files', '-z', '--', '*.md'], { cwd: ROOT, encoding: 'utf8', stdio: 'pipe' }).split('\0').filter(Boolean);
   assert.deepEqual(markdownProblems(REAL, tracked), []);
 });
