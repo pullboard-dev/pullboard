@@ -8,6 +8,7 @@ import { openBoard } from '../../../lib/index.js';
 import * as serve from '../../src/io/view.js';
 import { addMilestone } from '../../../../packages/store/index.js';
 import { projectItemState } from '../../../../packages/api/index.js';
+import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
 import { lifecycleEvent } from '../../../../packages/items/index.js';
 import { withdrawnFrom } from '../../../../packages/items/index.js';
 import {
@@ -91,8 +92,13 @@ test('the item projector matches the full projection [A2,N26]', async () => {
   const withdrawn = await add('Withdrawn', '--criterion', 'nobody builds it');
   await box.inProcess(p.repo, 'withdraw', String(withdrawn), 'a duplicate of the open item');
 
+  // The pulled submits above started the loopback local runner, whose heartbeat moves the projection's runner rows between two reads: stop it so the projections compare [C7].
+  stopFixtureLocalRunner(join(box.dir, 'machine-home'));
   const file = join(p.repo, '.git', 'pullboard', 'board.sqlite');
-  const board = openBoard(file);
+  // @pullboard-board-file journey: reads the projection from the board the CLI children wrote
+  // Both projections read one fixed clock, so the dashboard's four-hour window and pace rows cannot move between the two reads [C7].
+  const at = Date.now();
+  const board = openBoard(file, { now: () => new Date(at) });
   try {
     const all = store.listItems(board, { all: true });
     const status = new Map(all.map((item) => [item.item_id, item.item_status]));
@@ -110,7 +116,10 @@ test('the item projector matches the full projection [A2,N26]', async () => {
     // A pass-through callback changes nothing, and is offered each item in order with the board and the status map.
     const offered = [];
     const passed = serve.projectState(p.repo, { board, itemProjector: (item, context) => { offered.push([item.item_id, context.board === board, context.status.get(item.item_id)]); return context.project(); } });
-    assert.equal(JSON.stringify(passed), JSON.stringify(full), 'projectState with a pass-through callback equals it too');
+    const text = [JSON.stringify(passed), JSON.stringify(full)];
+    let at = 0;
+    while (at < text[0].length && text[0][at] === text[1][at]) at += 1;
+    assert.ok(text[0] === text[1], `DIFF at ${at}: ${text[0].slice(Math.max(0, at - 150), at + 100)} <> ${text[1].slice(Math.max(0, at - 150), at + 100)}`);
     assert.deepEqual(offered, all.map((item) => [item.item_id, true, item.item_status]), 'the callback is offered every item with its board and status');
 
     // Each item projected on its own is that item in the full projection, a fresh object each time, and it changes
