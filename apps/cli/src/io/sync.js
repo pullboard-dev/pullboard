@@ -100,6 +100,12 @@ function tellConflicts(io, link) {
 /** How long a command waits on a relay that does not answer while this board's baseline is paused (#7779). */
 const PAUSED_BASELINE_WAIT_MS = 250;
 
+/** The paused-baseline wait: 250 ms for people; a fixture board may widen it, since its loopback relay shares a loaded event loop. */
+function pausedBaselineWaitMs() {
+  const widened = Number(process.env.PULLBOARD_FIXTURE_PAUSED_WAIT_MS);
+  return process.env.PULLBOARD_FIXTURE_BOARD === '1' && widened > 0 ? widened : PAUSED_BASELINE_WAIT_MS;
+}
+
 /** Whether this checkout's relay link holds a paused baseline upload: its saved pause, read from one small local file. */
 function pausedBaseline(io) {
   try {
@@ -119,7 +125,7 @@ export async function retrySync(io) {
     return;
   }
   // A paused baseline waits for the relay in the background; a relay that does not answer costs this command one short wait.
-  if (pausedBaseline(io)) io.relayDeadlineAt = Date.now() + PAUSED_BASELINE_WAIT_MS;
+  if (pausedBaseline(io)) io.relayDeadlineAt = Date.now() + pausedBaselineWaitMs();
   try {
     if (io.relayCommand?.cliOperation !== 'sync' && gitSyncLinked(io.cwd)) {
       const ctx = context(io);
