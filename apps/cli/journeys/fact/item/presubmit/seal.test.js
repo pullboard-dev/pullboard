@@ -78,6 +78,10 @@ test('coordinator removal during the actual gate prevents sealing its superseded
     const read = JSON.parse((await f.box.run(f.box.repo, 'show', String(f.id), '--json', '--no-next')).out);
     return read.gateJob?.step === 'done' ? read : null;
   }, { deadlineMs: 120_000, what: 'the held companion gate job' }); // Budget: runaway ceiling for the runner to finish the held check.
+  // The receipt applies after the job reads done (the refusal is recorded by that apply, c77c8f38cf), so wait for it, naming the thread if it never lands [C7].
+  const refused = () => JSON.stringify(store.itemThread(f.board, f.id)).includes('ITEM_PATCH_CHANGED');
+  try { await f.helpers.waitFor(refused, 'the board refusing to seal the removed companion', 60000); } // budget: failure hang ceiling; no elapsed-time assertion.
+  catch (error) { throw new Error(error.message + '; thread ' + JSON.stringify(store.itemThread(f.board, f.id).map(entry => entry.text ?? entry.kind)).slice(0, 3000)); }
   assert.match(JSON.stringify(shown) + JSON.stringify(store.itemThread(f.board, f.id)), /ITEM_PATCH_CHANGED/u);
   assert.equal(store.getItem(f.board, f.id).item_status, 'claimed');
   assert.equal(store.events(f.board).filter(event => event.item_id === f.id && event.event_kind === 'submit').length, 0);
