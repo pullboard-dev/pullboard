@@ -180,6 +180,21 @@ export function committedToolingId(root) {
 }
 
 /**
+ * The commit and tree a tooling root names, from its own repository or, on a runner, from its archive's manifest.
+ * Why: a runner job's work dir is an unpacked export with no .git, so only the manifest names its revision (#8426).
+ * Only the key for a saved capture: the bytes are never trusted from it, they are re-hashed when the capture is read.
+ *
+ * @param {string} root
+ * @returns {{ commit: string, tree: string }|null}
+ */
+export function committedToolingKey(root) {
+  const id = committedToolingId(root);
+  if (id) return id;
+  const archived = archivedToolingSource(root);
+  return archived && { commit: archived.commit, tree: archived.tree };
+}
+
+/**
  * Make one owned git-archive installation; callers drain their controller before removing it. With `shared`, the
  * export of a commit is made once and reused by every later dispatch of that commit, whose cleanup leaves it in place.
  * Why: every runner dispatch exported and unpacked the whole tooling tree twice, about a second each when idle and far

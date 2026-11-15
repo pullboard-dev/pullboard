@@ -19,6 +19,8 @@ import { JOB_CLASSES } from '../../../jobs/index.js';
 import { claimableJobs } from '../../../jobs/index.js';
 import { backOffLease } from '../../../jobs/index.js';
 import { ledgerHits } from '../../../store/index.js';
+import { recordShadow } from '../../../store/index.js';
+import { firstDifference } from '../../../store/index.js';
 import { touchLive } from '../../../jobs/index.js';
 import { liveSince } from '../../../jobs/index.js';
 import { endJob } from '../../../jobs/index.js';
@@ -397,22 +399,60 @@ function jobSnapshot(db, job, now) {
   return { job: { kind: row.job_kind, step: row.job_step, attempt: row.job_attempt, owner: row.job_lease_owner, leaseUntil: row.job_lease_until, claim }, now };
 }
 
+/** The job table's decision the serving app provides: `(snapshot, move) => answer`. Why provided: the api cell sits below moves, so the app that composes both hands the table in [C7,#8381]. */
+let jobTable = null;
+/** The moves.shadow machine setting, handed in with the table because the api cell may not read config [C7,#8381]. */
+let shadowEnabled = () => false;
+
 /**
- * Run a runner's move through the writer and, when the db carries a `jobQueueShadow`, hand it the job table's answer beside the writer's.
- * The hook brings the table as `decide(snapshot, move)`, the job table run over the row before the move, and gets `seen({ move, job, decided, wrote })`.
- * Why shadow first and injected: the writer stays the authority until every compare agrees, a db without the hook runs no table,
- * and the api cell sits below moves, so the caller hands the table in rather than this file importing it [C7,#8310].
+ * Provide the job table the writer's shadow compare decides with, once per serving process or handler worker.
  *
- * @param {import('node:sqlite').DatabaseSync & { jobQueueShadow?: { decide: Function, seen: Function } }} db
+ * @param {((snapshot: object, move: object) => { refused?: object, patch?: { job: object } }) | null} decide
+ * @param {() => boolean} [enabled] - Reads the moves.shadow machine setting; the shadow stays off without it.
+ */
+export function provideJobTable(decide, enabled = () => false) {
+  jobTable = typeof decide === 'function' ? decide : null;
+  shadowEnabled = typeof enabled === 'function' ? enabled : () => false;
+}
+
+/** Where the job table's answer and the writer's row part: the first differing path, or null when they agree. */
+function jobDiffers({ decided, wrote }) {
+  if (decided?.threw) return `threw ${decided.threw}`;
+  return firstDifference(decided, wrote);
+}
+
+/**
+ * The shadow the job writer hands its compare to: the db's own `jobQueueShadow` when a caller set one (a test), else, with moves.shadow on
+ * and a provided table, one that records each compare in the board's counts for the `job` table, else null so the writer runs no table at all.
+ * A db's own `movesShadow` stands in for the machine setting, as a board's does for the store writers [C7,#8381].
+ */
+function shadowOf(db) {
+  const own = db.jobQueueShadow;
+  if (typeof own?.decide === 'function' && typeof own.seen === 'function') return own;
+  if (!jobTable || !(db.movesShadow ?? shadowEnabled())) return null;
+  const decide = jobTable;
+  return { recorder: true,
+    decide: (snapshot, move) => { try { return decide(snapshot, move); } catch (error) { return { threw: error?.code ?? String(error?.message ?? error) }; } },
+    seen: compare => recordShadow({ db }, 'job', compare.job, jobDiffers(compare)) };
+}
+
+/**
+ * Run a runner's move through the writer and, when a shadow is set, hand it the job table's answer beside the writer's.
+ * The shadow brings the table as `decide(snapshot, move)`, the job table run over the row before the move, and gets `seen({ move, job, decided, wrote })`:
+ * a test's `jobQueueShadow` on the db, or, with moves.shadow on, the recorder that counts each compare on the board.
+ * Why shadow first and injected: the writer stays the authority until every compare agrees, a db without a shadow runs no table,
+ * and the api cell sits below moves, so the caller hands the table in rather than this file importing it [C7,#8310,#8381].
+ *
+ * @param {import('node:sqlite').DatabaseSync & { jobQueueShadow?: { decide: Function, seen: Function }, movesShadow?: boolean }} db
  * @param {{ name: string, job: string, runner: string, token: string, free?: boolean }} move
  * @param {number} now
  * @param {() => any} write - The writer's own move.
  */
 function shadowed(db, move, now, write) {
-  const shadow = db.jobQueueShadow;
-  if (typeof shadow?.decide !== 'function' || typeof shadow.seen !== 'function') return write();
+  const shadow = shadowOf(db);
+  if (!shadow) return write();
   const answer = shadow.decide(jobSnapshot(db, move.job, now), { ...move, token: tokenHash(move.token ?? '') });
-  const decided = answer.refused ? { refused: answer.refused.code } : { job: answer.patch.job };
+  const decided = answer.threw ? { threw: answer.threw } : answer.refused ? { refused: answer.refused.code } : { job: answer.patch?.job };
   let result;
   try { result = write(); } catch (error) {
     shadow.seen({ move: move.name, job: move.job, decided, wrote: { refused: error.code } });
