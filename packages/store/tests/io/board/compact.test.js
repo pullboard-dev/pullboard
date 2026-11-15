@@ -19,8 +19,8 @@ const NOW = Date.parse('2026-11-13T12:00:00Z');
 
 /** A board on a real file with the job tables a writable open installs. */
 function boardOf(t) {
-  const { boardFile } = cellProject(t, {});
-  const board = cellBoard(t, boardFile, undefined, {});
+  const { boardFile } = cellProject(t, { real: true });
+  const board = cellBoard(t, boardFile, undefined, { real: true });
   return { board, db: board.db, file: boardFile };
 }
 
