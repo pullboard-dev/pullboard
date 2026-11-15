@@ -55,6 +55,7 @@ export const JOURNEY_MODE = process.env.PULLBOARD_JOURNEY_MODE === 'process' ? '
 export function parityText(text, dir) {
   return String(text ?? '').split(dir).join('<dir>')
     .replace(/\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z/gu, '<time>')
+    .replace(/\d{4}-\d\d-\d\dT\d\d:\d\d(?=  )/gu, '<time>')
     .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gu, '<uuid>')
     .replace(/\b[0-9a-f]{7,64}\b/gu, '<hex>')
     .replace(/\b\d+(?:\.\d+)? ?(?:ms|s)\b/gu, '<duration>')
@@ -78,8 +79,9 @@ function parityRecord({ dir, env, cwd, args, result }) {
     // @pullboard-board-file journey: a read-only look at the rows the command wrote, for the parity check.
     const db = new DatabaseSync(file, { readOnly: true });
     try {
+      // api_stall records a slow machine, not a product result: the parity runs share a loaded machine, so it is left out.
       board = { items: db.prepare('SELECT item_id, item_status, item_lane FROM item ORDER BY item_id').all().map(row => ({ ...row })),
-        events: db.prepare('SELECT event_kind, count(*) AS n FROM event GROUP BY event_kind ORDER BY event_kind').all().map(row => ({ ...row })) };
+        events: db.prepare("SELECT event_kind, count(*) AS n FROM event WHERE event_kind <> 'api_stall' GROUP BY event_kind ORDER BY event_kind").all().map(row => ({ ...row })) };
     } finally { db.close(); }
   }
   return JSON.parse(parityText(JSON.stringify({ cwd, args, code: result.code, json, out: json ? null : result.out, err: result.stderr, board }), dir));
@@ -222,6 +224,8 @@ function sandbox({ declareFamilies = false } = {}) {
     PULLBOARD_INFRA_RETRY_BACKOFF_MS: '0',
     // A fixture's claims start no detached claim beater bound to the test process; its own journey turns it on (#5726).
     PULLBOARD_CLAIM_BEATER: '0',
+    // init and resume start no background view in a fixture, in a real process or in-process: a busy port must not change an answer [C7].
+    PULLBOARD_VIEW_BACKGROUND: '0',
     // A fixed fixture model, so no fixture reads the machine's or the agent seat's identity [C7].
     PULLBOARD_MODEL: FIXTURE_MODEL,
     // The loopback local runner a pull submit starts stops with this test process, never outliving the journey [P7].

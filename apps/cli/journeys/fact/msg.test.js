@@ -40,6 +40,7 @@ test('a push whose base has no maintainers list passes with the policy not activ
   /** Run the public CI entry point against a real push event and exact Git objects. */
   const checkPush = before => {
     writeFileSync(event, JSON.stringify({ before, after: box.git(repo, 'rev-parse', 'HEAD').trim() }));
+    // Process-level: the CI sign-off check is a script entry that reads GITHUB_EVENT_* and answers by exit status.
     return runFixtureChild(process.execPath, [resolve(import.meta.dirname, '../../../../packages/gate/src/io/check/signoffs.js')], {
       cwd: repo, encoding: 'utf8',
       env: { ...box.env, GITHUB_EVENT_NAME: 'push', GITHUB_EVENT_PATH: event },
@@ -135,6 +136,7 @@ test('an outside commit without a sign-off is refused with its fix [C1,C7]', asy
     writeFileSync(event, JSON.stringify({ pull_request: {
       base: { sha: base }, head: { sha: box.git(incoming, 'rev-parse', 'HEAD').trim() },
     } }));
+    // Process-level: the CI sign-off check is a script entry that reads GITHUB_EVENT_* and answers by exit status.
     return runFixtureChild(process.execPath, [resolve(import.meta.dirname, '../../../../packages/gate/src/io/check/signoffs.js')], {
       cwd: incoming, encoding: 'utf8',
       env: { ...box.env, GITHUB_EVENT_NAME: 'pull_request', GITHUB_EVENT_PATH: event },

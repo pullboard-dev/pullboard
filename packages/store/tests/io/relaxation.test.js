@@ -10,7 +10,7 @@ import { confirmRelaxation } from '../../src/io/relaxation.js';
 import { itemReviewPolicy } from '../../../verify/index.js';
 import { seatFamily } from '../../../verify/index.js';
 import { familiesDiffer } from '../../../verify/index.js';
-import { fixtureBoard } from '../../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../../board/tests/fixtures/board.js';
 import { submitFixture } from '../fixtures/submit.js';
 
 /** The model name the fixture seats register with. */
