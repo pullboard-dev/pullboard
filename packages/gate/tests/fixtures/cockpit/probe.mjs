@@ -1,4 +1,5 @@
 // pullboard: browser
+/** @pullboard-module-loads apps/cli/tests/fixtures/chrome/args.js apps/cli/tests/fixtures/chrome.js apps/cli/tests/fixtures/cockpit/harness.js */
 /**
  * A stand-in test file for packages/gate/tests/stable.test.js: it opens Chrome through one launcher, reports ready, and idles [C7].
  * Why: the launchers live in the CLI's fixtures, so the test hands in their folder as PROBE_KIT and this package file imports no app.
