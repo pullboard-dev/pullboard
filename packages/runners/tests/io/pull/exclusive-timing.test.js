@@ -5,7 +5,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { serveRunner } from '../../../../drive/index.js';
-import { testGit as pullGit } from '../../../../drive/tests/fixtures/git.js';
+import { testGit as pullGit } from '../../fixtures/git.js';
 import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
 
