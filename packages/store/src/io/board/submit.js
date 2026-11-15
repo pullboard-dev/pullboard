@@ -44,6 +44,10 @@ import { prepareMergeOnlySubmit } from "../../../../merge/index.js";
 import { MERGE_ONLY_VERDICT_ENGINE } from "../../../../state/light.js";
 import { atomic } from "./event/log.js";
 import { movesShadowEnabled } from "../../../../config/index.js";
+import { movesLiveEnabled } from "../../../../config/index.js";
+
+/** A moves.live machine setting, a file read: call it before a board write opens, never inside one [C7,#8385]. */
+export const liveSetting = table => movesLiveEnabled(table);
 
 /** The moves.shadow machine setting, a file read: call it before a board write opens, never inside one [C7,#8379]. */
 export const shadowSetting = () => movesShadowEnabled();

@@ -32,6 +32,12 @@ function decision(answer, snapshot, move) {
  * Why: the writer's own checks and the table must give one answer, and the shadow compare shows it [C7,#8279].
  */
 export function startDecision(board, id, options, limits, hookProblem) {
+  const { answer, snapshot, move } = startAnswer(board, id, options, limits, hookProblem);
+  return decision(answer, snapshot, move);
+}
+
+/** The START table run over the board as it stands, with the snapshot and move it read. */
+function startAnswer(board, id, options, limits, hookProblem) {
   const handoff = submitHandoff(board, id);
   const snapshot = { now: board.clock.now().toISOString(), actor: { id: options.agentId }, item: itemOf(board, id), handoff,
     io: { companionDigest: options.retryJob && handoff ? board.enginePorts.itemPatchDigest(board, id, handoff.commit) : null },
@@ -40,7 +46,21 @@ export function startDecision(board, id, options, limits, hookProblem) {
     ...(options.hookProjection ? { hook: options.hookProjection } : {}),
     ...(options.unrecoverable ? { unrecoverable: options.unrecoverable } : {}),
     ...(options.retryJob ? { retryJob: options.retryJob } : {}) };
-  return decision(runSubmitTable('START', limits, snapshot, move), snapshot, move);
+  return { answer: runSubmitTable('START', limits, snapshot, move), snapshot, move };
+}
+
+/**
+ * What the START table decides for a live hand-off start: `{ refused: { code, message, next } }`, or `{ via, job, events }`, the record it keeps and the events it writes.
+ * Why a second reader beside startDecision: the live writer needs the refusal's next step and the events, which the shadow compare leaves out [C7,#8385].
+ */
+export function liveStartDecision(board, id, options, limits, hookProblem) {
+  const { answer, snapshot, move } = startAnswer(board, id, options, limits, hookProblem);
+  if (answer.refused) {
+    const injected = answer.refused.code.startsWith('deferred:') ? snapshot.deferred[answer.refused.code.slice('deferred:'.length)] : null;
+    return { refused: injected ? { code: injected.code, message: bare(injected.message), next: injected.next } : { code: answer.refused.code, message: answer.refused.message, next: answer.refused.next } };
+  }
+  const outcome = answer.table.outcomes.find(entry => entry.id === answer.via[0]);
+  return { via: answer.via[0], job: outcome.record ? outcome.record(snapshot, move) : snapshot.handoff, events: answer.events };
 }
 
 /**
