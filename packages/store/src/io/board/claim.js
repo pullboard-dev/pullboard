@@ -386,10 +386,11 @@ function commitClaim(board, id, prepared, binding, ports) {
   const { snapshot, plan } = binding;
   const { agentId, head = null, reviewSkipped = null } = prepared;
   const { leaseUntil, isRenewal, admission, outcome, adopts, refreshes } = plan;
+  // Shadow compare: a board that carries `claimShadow` hands it the table's answer and what the writer wrote. The table reads
+  // seat presence from disk, so it runs before the write opens; no file I/O happens inside the board write [C7,#8270].
+  const decided = typeof board.claimShadow === 'function' ? claimDecision(board, id, { options, plan }) : null;
   return atomic(board, () => {
-    // Shadow compare: a board that carries `claimShadow` hands it the table's answer (taken before any write) and what the writer wrote.
-    const shadow = typeof board.claimShadow === 'function' ? { before: board.db.prepare('SELECT COALESCE(MAX(event_id),0) id FROM event').get().id,
-      decided: claimDecision(board, id, { options, plan }) } : null;
+    const shadow = decided ? { before: board.db.prepare('SELECT COALESCE(MAX(event_id),0) id FROM event').get().id, decided } : null;
     // Under the lock only the claim's own rows are compared; the guards below read the current board (#6016).
     if (!claimStillPrepared(board, id, binding)) throw staleBoardRefusal(board, snapshot, 'claim');
     const item = moveItem(board, id, 'claim', plan.how);
