@@ -56,8 +56,8 @@ export function parityText(text, dir) {
   return String(text ?? '').split(dir).join('<dir>')
     .replace(/\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z/gu, '<time>')
     .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gu, '<uuid>')
-    .replace(/(<hex>\.)[\w-]{20,}\.[\w-]{20,}/gu, '$1<token>')
     .replace(/\b[0-9a-f]{7,64}\b/gu, '<hex>')
+    .replace(/(<hex>\.)[\w-]{20,}\.[\w-]{20,}/gu, '$1<token>')
     .replace(/\b\d+(?:\.\d+)? ?(?:ms|s)\b/gu, '<duration>')
     .replace(/(gate:\d+:<hex>):[0-9a-z]+/gu, '$1:<job>')
     .replace(/\(pid \d+\)/gu, '(pid <pid>)');
