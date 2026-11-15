@@ -9,5 +9,5 @@ export async function readStdin(stdin) {
   if (!stdin || stdin.isTTY) return '';
   const chunks = [];
   for await (const chunk of stdin) chunks.push(chunk);
-  return Buffer.concat(chunks).toString('utf8');
+  return Buffer.concat(chunks.map(chunk => Buffer.from(chunk))).toString('utf8');
 }
