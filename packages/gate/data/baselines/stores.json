@@ -599,6 +599,10 @@
       "kind": "json",
       "owner": "apps/runner/src/io/worker/cleanup.js"
     },
+    "cli-child-importers.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/test/child-fixture.js"
+    },
     "cli-launches.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/static/registry.js"
