@@ -59,12 +59,15 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   await run(box, reviewer, 'join', 'web', '--route', 'strong');
   await run(box, reviewer, 'next', '--verify', '1');
   await run(box, reviewer, 'verify', '1', 'accept', '--note', 'The feature changes its first line and the frozen check observes it.');
-  // The accepted review detaches a comparison worker that records its fact a few seconds later. In-process calls are quick enough
-  // for that fact to land mid-journey and move the board sequence, so wait for it here and the later sequence checks read a quiet board.
+  // The accepted review detaches a comparison worker that records a pending fact and then its result a few seconds later. In-process
+  // calls are quick enough for the result to land mid-journey and move the board sequence, so wait for it and the sequence checks read a quiet board.
   await waitForCondition(() => {
     const db = new DatabaseSync(join(box.repo, '.git/pullboard/board.sqlite'), { readOnly: true });
-    try { return db.prepare("SELECT count(*) AS n FROM event WHERE event_kind = 'fact' AND event_detail LIKE '%Review comparison%'").get().n > 0; } finally { db.close(); }
-  }, 'the detached review comparison to record its fact', { signal: t.signal });
+    try {
+      const latest = db.prepare("SELECT event_detail FROM event WHERE event_kind = 'fact' AND event_detail LIKE '%Review comparison%' ORDER BY event_id DESC LIMIT 1").get();
+      return Boolean(latest) && !latest.event_detail.includes('pending');
+    } finally { db.close(); }
+  }, 'the detached review comparison to record its result', { signal: t.signal });
   assert.equal(withBoard(box.repo, board => store.getItem(board, 1)).item_review_by,
     withBoard(box.repo, board => store.getItem(board, 1)).item_verified_by,
     'the original reservation stays in history after acceptance; it is not a live review lease');
@@ -105,7 +108,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   const initialState = (await http('/state')).state;
   const phoneBefore = relaySnapshot(reviewer, {}, RELAY_PRESENTATION_PORTS);
   await http('/state');
-  assert.equal(builds, 1, 'unchanged HTTP reads reuse the state cache ' + (() => { const db = new DatabaseSync(join(box.repo, '.git/pullboard/board.sqlite'), { readOnly: true }); try { return JSON.stringify(db.prepare('SELECT event_id, event_at, event_by, event_kind, substr(event_detail,1,50) AS d FROM event ORDER BY event_id DESC LIMIT 5').all().map(r => ({ ...r }))); } finally { db.close(); } })() + ' at ' + new Date().toISOString());
+  assert.equal(builds, 1, 'unchanged HTTP reads reuse the state cache');
   await http('/items/1'); // Warm the independent detail freshness projection for a verified item.
   const processMethods = ['spawn', 'spawnSync', 'exec', 'execSync', 'execFile', 'execFileSync'];
   const originals = new Map(processMethods.map(method => [method, childProcess[method]]));
@@ -153,7 +156,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   }
   assert.equal(box.git(reviewer, 'rev-parse', 'HEAD'), beforeMoveHead, 'the served worktree HEAD stayed fixed while main moved');
   const apiStale = (await http('/state')).state;
-  assert.equal(apiStale.sequence, initialState.sequence, 'Git movement needs no board event to invalidate the state cache ' + (() => { const db = new DatabaseSync(join(box.repo, '.git/pullboard/board.sqlite'), { readOnly: true }); try { return JSON.stringify(db.prepare('SELECT event_id, event_by, event_kind, substr(event_detail,1,60) AS d FROM event ORDER BY event_id DESC LIMIT 4').all().map(r => ({ ...r }))); } finally { db.close(); } })());
+  assert.equal(apiStale.sequence, initialState.sequence, 'Git movement needs no board event to invalidate the state cache');
   assert.equal(apiStale.items[0].verdictState?.code, 'STALE_VERDICT');
   assert.equal(apiStale.items[0].verdictState.commit, movingCommit);
   const coldGit = [];
