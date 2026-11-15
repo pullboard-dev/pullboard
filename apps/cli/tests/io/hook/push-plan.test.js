@@ -1,7 +1,9 @@
-/** The pre-push gate sizes its shards by recorded file time: each under a quarter of the job ceiling, heaviest first, unrecorded files at a default [C7,#7790]. */
+/** The pre-push gate sizes its shards by recorded file time: each under a quarter of the job ceiling, heaviest first, unrecorded files at a default by kind, at most PUSH_MAX_SHARD_FILES each [C7,#7790,#8026]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { PUSH_DEFAULT_FILE_MS } from '../../../src/io/hook/push.js';
+import { PUSH_DEFAULT_JOURNEY_MS } from '../../../src/io/hook/push.js';
+import { PUSH_MAX_SHARD_FILES } from '../../../src/io/hook/push.js';
 import { PUSH_SHARD_BUDGET_MS } from '../../../src/io/hook/push.js';
 import { planPushShards } from '../../../src/io/hook/push.js';
 
@@ -34,4 +36,35 @@ test('clause 1: a leading ./ reads the same record, a repeated file runs once, a
   assert.equal(shards.length, 2, 'never fewer than two shards for two files');
   assert.deepEqual(shards.flatMap(shard => shard.files).sort(), ['./a.test.js', './b.test.js']);
   assert.equal(shards.reduce((total, shard) => total + shard.weight, 0), 1_000 + PUSH_DEFAULT_FILE_MS);
+});
+
+test('clause 1: an unrecorded journey counts the journey estimate and an unrecorded unit test the file estimate, each above its measured mean wall [C7,#8026]', () => {
+  const shards = planPushShards(['apps/cli/journeys/a/new.test.js', 'apps/relay/journeys/b.test.js', 'packages/gate/tests/new.test.js'], {}, 60 * 60_000);
+  assert.equal(shards.reduce((total, shard) => total + shard.weight, 0), 2 * PUSH_DEFAULT_JOURNEY_MS + PUSH_DEFAULT_FILE_MS);
+  assert.ok(PUSH_DEFAULT_JOURNEY_MS >= 2 * 29_500, 'a journey counts at least twice the 29.5 s census mean');
+  assert.ok(PUSH_DEFAULT_FILE_MS >= 1.5 * 6_600 && PUSH_DEFAULT_FILE_MS < PUSH_DEFAULT_JOURNEY_MS, 'a unit test stays cheaper than a journey yet above its 6.6 s mean');
+});
+
+test('clause 1: on a main-sized gate with 144 recorded files, no shard estimates below its real run at the census mean walls or holds over the file cap [C7,#8026]', () => {
+  const journeys = Array.from({ length: 1448 }, (_, at) => `apps/cli/journeys/j${at}.test.js`);
+  const units = Array.from({ length: 829 }, (_, at) => `packages/gate/tests/u${at}.test.js`);
+  const recorded = Array.from({ length: 144 }, (_, at) => `packages/store/tests/r${at}.test.js`);
+  const times = Object.fromEntries(recorded.map((file, at) => [file, 47 + (at * 7919) % 30_000]));
+  const budget = 40 * 60_000 / 4;
+  const shards = planPushShards([...journeys, ...units, ...recorded], times, budget);
+  const real = shard => shard.files.reduce((total, file) => total + (times[file] ?? (file.includes('/journeys/') ? 29_500 : 6_600)), 0);
+  for (const shard of shards) {
+    assert.ok(shard.weight >= real(shard), `a shard of ${shard.files.length} files estimates ${shard.weight} ms but runs ${real(shard)} ms`);
+    assert.ok(shard.weight < budget, `a shard estimates ${shard.weight} ms, over the ${budget} ms budget`);
+    assert.ok(shard.files.length <= PUSH_MAX_SHARD_FILES, `a shard holds ${shard.files.length} files`);
+  }
+  const most = Math.max(...shards.map(shard => shard.files.filter(file => file.includes('/journeys/')).length));
+  assert.ok(most <= budget / PUSH_DEFAULT_JOURNEY_MS, `at most ten journeys per 10-minute shard, never the 119 of the overrun; got ${most}`);
+});
+
+test('clause 1: many cheap recorded files split at the file cap though their summed time fits one shard [C7,#8026]', () => {
+  const files = Array.from({ length: 3 * PUSH_MAX_SHARD_FILES }, (_, at) => `packages/store/tests/t${at}.test.js`);
+  const shards = planPushShards(files, Object.fromEntries(files.map(file => [file, 50])));
+  assert.equal(shards.length, 3);
+  for (const shard of shards) assert.equal(shard.files.length, PUSH_MAX_SHARD_FILES);
 });
