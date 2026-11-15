@@ -33,8 +33,9 @@ function tree() {
 }
 
 /** A board on real SQLite: two adds before the cut, a claim whose recorded detail the demo table would not write, and a submit it would. */
+let boards = 0;
 function board() {
-  const file = join(files.root, 'board.sqlite');
+  const file = join(files.root, `board-${++boards}.sqlite`);
   const db = new DatabaseSync(file);
   db.exec(`CREATE TABLE event (event_id INTEGER PRIMARY KEY AUTOINCREMENT, event_at TEXT NOT NULL, event_by TEXT NOT NULL, event_kind TEXT NOT NULL, item_id INTEGER, event_detail TEXT NOT NULL DEFAULT '{}')`);
   const add = db.prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)');

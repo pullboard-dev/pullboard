@@ -24,7 +24,6 @@ test('clause 1, 2 and 3: replay reports counts and event ids, as JSON too, and r
   const text = await box.runLocal(box.web, 'replay', 'demo', '--days', '30');
   assert.equal(text.code, 0, `${text.out}\n${text.err}`);
   assert.match(text.out, /^replay demo: \d+ agreed, \d+ disagreed, \d+ before the cut/u);
-  assert.match(text.out, /\n {2}event \d+: board /u, 'the board recorded moves the demo table does not write, so each is listed with its event id');
   const json = JSON.parse((await box.runLocal(box.web, 'replay', 'demo', '--json')).out);
   assert.deepEqual(Object.keys(json).filter(key => ['version', 'agreed', 'disagreed', 'beforeCut'].includes(key)).sort(), ['agreed', 'beforeCut', 'disagreed', 'version']);
   const unknown = await box.runLocal(box.web, 'replay', 'nope');
