@@ -274,7 +274,7 @@ test('generated: a refusal writes nothing and carries its row\'s code, the shell
     const { refused } = c.result, row = c.engine.tables[c.table].guards.find(each => each.id === refused.row);
     assert.ok(!('patch' in c.result) && !('events' in c.result), `seed ${c.seed}`);
     const [kind, field] = row.code.split(':'), shell = { io: c.s.io, deferred: c.s.deferred }[kind]?.[field] ?? (row.id === 'gate' ? c.s.gate.refusal : null);
-    if (shell) { assert.deepEqual([refused.code, refused.message, refused.next], [row.code, shell.message, shell.next], `seed ${c.seed}`); continue; }
+    if (shell) { assert.deepEqual([refused.code, refused.message, refused.next], [row.id === 'gate' ? shell.code : row.code, shell.message, shell.next], `seed ${c.seed}`); continue; }
     assert.equal(refused.code, row.code, `seed ${c.seed}`);
     const next = { joined: c.s.io.notJoinedGuidance?.next ?? SUBMIT_NEXT.NOT_JOINED, 'held-here': `submit it from that seat's checkout: cd ${c.s.io.heldElsewhere?.path === '/w/a' ? '/w/a' : "'/w/it'\\''s'"} && pullboard submit 42` }[row.id];
     assert.equal(refused.next, next ?? SUBMIT_NEXT[refused.code], `seed ${c.seed} ${row.id}`);
@@ -318,7 +318,7 @@ test('metamorphic: break one fact of an accepted submit, commit, outcome or hand
     PENDING_REFREEZE: c => ({ s: { ...c.s, history: [...c.s.history, edit] } }), NOT_YOURS: c => item(c, { owner: 'stranger' }) };
   const BREAKS = { SUBMIT: { ...common, NOT_JOINED: c => ({ s: { ...c.s, actor: { joined: false } } }), NO_ITEM: c => ({ s: { ...c.s, item: null } }),
     USAGE: c => ({ m: { ...c.m, companion: { file: 'f', key: 'k' } } }), CRITERIA_CHANGED: c => (c.s.item.frozenDigest ? { s: { ...c.s, io: { ...c.s.io, currentDigest: { digest: 'f'.repeat(64) } } } } : null) },
-  COMMIT: { ...common, USAGE: c => ({ m: { ...c.m, note: 'two\nlines' } }), 'io:gate': c => ({ s: { ...c.s, gate: { refusal: bad('GATE_RED') } } }) },
+  COMMIT: { ...common, USAGE: c => ({ m: { ...c.m, note: 'two\nlines' } }), GATE_RED: c => ({ s: { ...c.s, gate: { refusal: bad('GATE_RED') } } }) },
   OUTCOME: { USAGE: c => ({ m: { ...c.m, refusal: { ...c.m.refusal, text: ' ' } } }) },
   START: { SUBMIT_HANDOFF_CHANGED: c => ({ m: { ...c.m, job: 'gone' } }) }, COMPLETE: { SUBMIT_HANDOFF_CHANGED: c => ({ m: { ...c.m, actor: 'stranger' } }) } };
   for (const c of ok) {
@@ -326,6 +326,15 @@ test('metamorphic: break one fact of an accepted submit, commit, outcome or hand
       const broken = apply(c);
       if (broken) assert.equal(run(c, broken.s ?? c.s, broken.m ?? c.m).refused?.code, code, `seed ${c.seed} ${c.table}: breaking ${code}`);
     }
+  }
+});
+
+test('clause 1: a submit refused by a red gate carries the code GATE_RED, not io:gate [C7,#8329]', () => {
+  const reds = results.filter(c => c.table === 'COMMIT' && !c.result.refused && c.s.item);
+  assert.ok(reds.length > 0);
+  for (const c of reds) {
+    const refused = run(c, { ...c.s, gate: { refusal: bad('GATE_RED') } }, c.m).refused;
+    assert.deepEqual([refused?.row, refused?.code], ['gate', 'GATE_RED'], `seed ${c.seed}`);
   }
 });
 
