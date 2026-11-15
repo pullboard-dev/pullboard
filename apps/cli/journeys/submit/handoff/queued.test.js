@@ -21,8 +21,8 @@ import {
 import { settledGateJob } from '../../../tests/fixtures/submit/settle.js';
 
 test('queued submit returns before its gate and remains bound when the builder commits and claims again [B5,V4,H16,E18]', async t => {
-  // The builder holds its next two builds beside the gated ones, so the seat names a cap of two [B5].
-  const box = fixture(t, { companion: true, perSeat: 2 });
+  // The builder holds two queued builds beside its second and third live claims, so the seat names a cap of four [B5].
+  const box = fixture(t, { companion: true, perSeat: 4 });
   // The gate holds on its release file while the builder moves on, so no submit waits for the queue to settle.
   box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
   const author = join(box.dir, 'companion-author');

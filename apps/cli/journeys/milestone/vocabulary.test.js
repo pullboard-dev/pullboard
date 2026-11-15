@@ -22,7 +22,6 @@ import { project } from '../../tests/fixtures/cockpit/harness.js';
 import { press } from '../../tests/fixtures/cockpit/harness.js';
 import { pressTab } from '../../tests/fixtures/cockpit/harness.js';
 import { searchFor } from '../../tests/fixtures/cockpit/harness.js';
-import { sendBack } from '../../tests/fixtures/cockpit/harness.js';
 import { startView } from '../../tests/fixtures/cockpit/harness.js';
 
 /** Prove stage words, detail lines and state marks through an authenticated native board and real Chrome. */
@@ -54,7 +53,11 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
   await box.inProcess(alpha.repo, 'hold', '8', 'Waiting for a supplier answer.');
   await box.inProcess(alpha.repo, 'hold', 'docs', '--reason', 'The docs lane waits for copy.');
   await buildLocal(box, alpha, 10, 'returned.txt');
-  sendBack(box, alpha, 10, 'The first draft needs a clear label.');
+  // sendBack launches the verifier's reject as a child process; in this process it costs no start-up on a loaded runner.
+  box.git(alpha.repo, 'switch', '-q', '--detach', alpha.itemBranches.get(`${alpha.baseBranch}:10`));
+  const sent = JSON.parse((await box.inProcess(alpha.repo, 'show', '10', '--json')).out);
+  await box.inProcess(alpha.repo, 'verify', '10', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', JSON.parse(sent.item_frozen).criterion, '--note', 'The first draft needs a clear label.', '--as', 'coordinator');
+  box.git(alpha.repo, 'switch', '-q', 'main');
   await box.inProcess(alpha.web, 'claim', '11');
   await box.inProcess(alpha.repo, 'withdraw', '11', 'The feature is no longer needed.');
   await box.inProcess(alpha.web, 'claim', '3');
@@ -92,10 +95,10 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
         marks: [...row.querySelectorAll('.stage-marks > *')].map(mark => mark.textContent.trim()),
         reasons: [...row.querySelectorAll('.stage-marks > *')].map(mark => mark.getAttribute('title') || mark.getAttribute('aria-label') || '') }])) )`));
     assert.deepEqual(list['1'].stage, 'Ready');
-    // A blocked row's tooltip names its blocker as one phrase, "Blocked by #1" (#6870, de61d929f9); every other row's is the detail itself.
+    // A blocked row's tooltip is its stage sentence, "Blocked by #1" or "Blocked: held: ..." (stageSentence); every other row's is the detail itself.
     for (const entry of Object.values(list)) {
       assert.ok(entry.accessible.includes(entry.stage) && entry.accessible.includes(entry.detail));
-      const phrase = entry.stage === 'Blocked' && /^by /u.test(entry.detail) ? `Blocked ${entry.detail}` : entry.detail;
+      const phrase = entry.stage !== 'Blocked' ? entry.detail : /^by /u.test(entry.detail) ? `Blocked ${entry.detail}` : `Blocked: ${entry.detail}`;
       assert.equal(entry.hover, phrase, 'compact rows keep the full native detail available on hover');
     }
     assert.match(list['1'].detail, /strong route/u);

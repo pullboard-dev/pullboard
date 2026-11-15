@@ -99,16 +99,16 @@ export function fixture(t, { enabled = true, result = 'green', companion = false
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const check = `${word(process.execPath)} ${word(script)}`;
-  const id = document(fixtureAdd(box.run, box.repo, 'web', cells ? 'Cells move 1/1: captured submit source' : 'Captured submit source', '--specs', 'G1',
+  const id = document(fixtureAdd(box.runSync, box.repo, 'web', cells ? 'Cells move 1/1: captured submit source' : 'Captured submit source', '--specs', 'G1',
     '--criterion', 'The captured candidate passes its real gate.', '--check', check, '--wait', '--json')).item.item_id;
-  const third = document(fixtureAdd(box.run, box.repo, 'web', 'Third ordinary build', '--specs', 'G1',
+  const third = document(fixtureAdd(box.runSync, box.repo, 'web', 'Third ordinary build', '--specs', 'G1',
     '--criterion', 'An ordinary third build stays refused.', '--check', 'true', '--wait', '--json')).item.item_id;
-  const second = document(fixtureAdd(box.run, box.repo, 'web', 'Independent second build', '--specs', 'G1',
+  const second = document(fixtureAdd(box.runSync, box.repo, 'web', 'Independent second build', '--specs', 'G1',
     '--criterion', 'The second build remains separate.', '--check', 'true', '--accept-green', 'filler build that only holds a second claim', '--wait', '--json')).item.item_id;
-  const claim = document(box.run(box.web, 'claim', String(id), '--json'));
+  const claim = document(box.runSync(box.web, 'claim', String(id), '--json'));
   const source = firstFolder ? claim.itemFolder : box.web;
   // B5: with a second live claim, the commit hook must still stamp the folder's own item.
-  const secondFolder = firstFolder ? document(box.run(box.web, 'claim', String(second), '--json')).itemFolder : null;
+  const secondFolder = firstFolder ? document(box.runSync(box.web, 'claim', String(second), '--json')).itemFolder : null;
   assert.equal(helpers.commitFile(box, source, 'web/snapshot.txt', result + '\n', 'feat(web): captured candidate [G1]').status, 0);
   const commit = box.git(source, 'rev-parse', 'HEAD');
   writeFileSync(armed, 'armed\n');

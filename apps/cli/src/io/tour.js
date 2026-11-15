@@ -248,7 +248,10 @@ export async function tour(io) {
     await pb('coordinator', ['init'], { label: '', show: null });
     write('coordinator', { 'pullboard.json': `${JSON.stringify(CONFIG, null, 2)}\n`, 'SPEC.md': SPEC });
     run('coordinator', 'git', ['add', '-A'], { label: '' });
-    run('coordinator', 'git', ['commit', '-q', '-m', 'chore: the greeter, on pullboard'], { label: '' });
+    // The first commit is hidden and no step shows its hook, so plumbing writes it and the hook's seconds are not spent here.
+    const tree = run('coordinator', 'git', ['write-tree'], { label: '', show: null });
+    const root = run('coordinator', 'git', ['commit-tree', tree, '-m', 'chore: the greeter, on pullboard'], { label: '', show: null });
+    run('coordinator', 'git', ['update-ref', 'HEAD', root], { label: '', show: null });
 
     step(1, 'The person approved one spec row. The coordinator files it as work.');
     io.say('   G1: greet(name) returns "Hello, <name>!"; a blank name greets the world: "Hello, world!"');

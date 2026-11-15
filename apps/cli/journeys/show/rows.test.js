@@ -2,29 +2,48 @@
 /** @pullboard-test-gui */
 /** Native lifecycle rows retain their identities while the approved compact presentation changes [N26]. */
 import assert from 'node:assert/strict';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import {
   machine,
   project,
-  build,
   sendBack,
-  accept,
+  acceptLocal,
   startView,
   chromeExecutable,
   openSnapshotChrome,
   closeSnapshotChrome,
 } from '../../tests/fixtures/cockpit/harness.js';
 
+/**
+ * Claim, commit and queue the submit of one item, leaving its gate to the runner; settled() waits for it later.
+ * Why: the gates ran one after another at 7 to 20 s each, and hooks and CLI launches added their own seconds.
+ */
+async function queueBuild(box, p, id, file) {
+  const branch = `${p.baseBranch}-item-${id}`;
+  box.git(p.web, 'switch', '-q', '-c', branch, p.baseBranch);
+  p.itemBranches.set(`${p.baseBranch}:${id}`, branch);
+  p.branch = branch;
+  await box.inProcess(p.web, 'claim', String(id));
+  mkdirSync(join(p.web, 'web'), { recursive: true });
+  writeFileSync(join(p.web, 'web', file), `${file}\n`);
+  box.git(p.web, 'add', '-A');
+  box.git(p.web, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', `feat(web): ${file} [G1]`);
+  await box.inProcessQueued(p.web, 'submit', String(id), '--no-next');
+}
+
 test('Items uses compact shared rows with native state icons, plain reasons and whole seat chips [N26]', { timeout: 180_000 }, async () => { // budget: five native lifecycle fixtures and real Chrome at desktop and phone widths.
   const box = machine(), demo = project(box, 'items-rows');
   const longTitle = 'Keep this complete native title available while a narrow row truncates its long visible wording';
-  for (let id = 1; id <= 5; id++) box.run(demo.repo, 'add', 'web', longTitle + ' ' + id, '--specs', 'G1', '--criterion', 'Render the actual native row.');
-  build(box, demo, 3, 'review.txt');
-  build(box, demo, 4, 'back.txt');
+  for (let id = 1; id <= 5; id++) await box.inProcess(demo.repo, 'add', 'web', longTitle + ' ' + id, '--specs', 'G1', '--criterion', 'Render the actual native row.');
+  await queueBuild(box, demo, 3, 'review.txt');
+  await queueBuild(box, demo, 4, 'back.txt');
+  await queueBuild(box, demo, 5, 'verified.txt');
+  for (const id of [3, 4, 5]) box.settled(demo.web, id);
   sendBack(box, demo, 4, 'Keep the complete reviewer explanation available when this long sentence is cut off at phone width.');
-  build(box, demo, 5, 'verified.txt');
-  accept(box, demo, 5);
+  await acceptLocal(box, demo, 5);
   const reviewer = JSON.parse(box.run(demo.repo, 'worktree', 'web', '--model', 'A deliberately long reviewer model name', '--json'));
   const submitted = JSON.parse(box.run(demo.repo, 'show', '3', '--json'));
   box.git(reviewer.path, 'switch', '--detach', submitted.item_commit);
