@@ -1,0 +1,13 @@
+{
+  "name": "mutate",
+  "help": "  pullboard mutate <cell> [--all]      seed single-line faults in a throwaway copy of a cell and say which of its own tests catch each; changed lines vs main, --all for every line; report only\n",
+  "required": {
+    "cell": "string",
+    "all": "boolean",
+    "redBefore": "array",
+    "tests": "array",
+    "faults": "array",
+    "caught": "number",
+    "missed": "number"
+  }
+}
