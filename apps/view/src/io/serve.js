@@ -308,9 +308,9 @@ function machineResourcesFile() { return join(dirname(machineSettingsFile()), 'r
  * per-file state and minutes left, from this machine's runner leases and settings; nothing that names the machine [N26].
  *
  * @param {string} root
- * @param {{ now?: number }} [options]
+ * @param {{ now?: number, registeredOnly?: boolean }} [options] - registeredOnly: the Dashboard's own read, which lists the registered runners only (#8060).
  */
-export function publicLiveSnapshot(root, { now = Date.now() } = {}) {
+export function publicLiveSnapshot(root, { now = Date.now(), registeredOnly = false } = {}) {
   const { commonDir } = repoInfo(root);
   const board = openBoardForRead(join(commonDir, 'pullboard', 'board.sqlite'));
   if (!board) throw new Refused('NO_BOARD', 'no readable board to export; run pullboard init in this repo');
@@ -318,7 +318,7 @@ export function publicLiveSnapshot(root, { now = Date.now() } = {}) {
   try { privateBoard = Boolean(board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key = ?').get('private_repo_board_id')); } finally { store.closeBoard(board); }
   // The machine's runner leases sit beside its settings file, in the machine home.
   return publicLiveRunners(commonDir, { resources: machineResourcesFile(), configured: loadMachineSettings().runners ?? [],
-    openBoardReadOnly: store.openBoardReadOnly, now, privateBoard });
+    openBoardReadOnly: store.openBoardReadOnly, now, privateBoard, registeredOnly });
 }
 
 /**
@@ -361,7 +361,12 @@ function dashboardRunners(root, commonDir, now) {
   const kept = runnerReads.get(commonDir);
   if (kept && now >= kept.at && now - kept.at < 15_000) return kept.value;
   let value = null;
-  try { value = publicLiveSnapshot(root, { now }); } catch { value = null; }
+  try { value = publicLiveSnapshot(root, { now, registeredOnly: true }); } catch { value = null; }
+  // The person's own page names each registered runner (the host without its user) and marks one with no fresh heartbeat offline (#8060).
+  if (value) {
+    const names = [...new Set((loadMachineSettings().runners ?? []).map(runner => runner?.host).filter(host => typeof host === 'string'))].map(host => host.replace(/^.*@/u, ''));
+    value = { ...value, runners: value.runners.map(runner => ({ ...runner, name: names[runner.runner - 1] ?? null, offline: runner.cpu === null && runner.ram === null })) };
+  }
   // The runs already done sit beside those in flight, so a runner that ran jobs never reads as one that ran none (#7945).
   if (value) value = { ...value, finished: finishedRuns(commonDir, now) };
   runnerReads.set(commonDir, { at: now, value });
