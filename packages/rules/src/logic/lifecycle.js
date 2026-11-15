@@ -55,42 +55,74 @@ export function unmetWaits(item, items) {
 }
 
 /**
- * Derived readiness: the one definition of ready and blocked.
- * ready = open, not held, and every dependency verified. blocked = open and waiting on something unverified.
+ * The named rules, as data in the shape of the move tables' derived-facts layer (#8063): each has `says`, the facts it
+ * `reads`, and a pure `holds(snapshot, move, fact)` that returns a boolean. The snapshot is `{ item, items }` and the move is the recorded fact.
+ * Why this shape: there is one rules engine, so these definitions move to that layer unchanged once it lands.
+ */
+export const RULES = {
+  itemExists: { says: 'an add event came before this move', holds: ({ item }) => item.created !== false },
+  isOpen: { says: 'the item is open, waiting for a builder', holds: ({ item }) => item.status === 'open' },
+  notHeld: { says: 'the coordinator has not put the item on hold', holds: ({ item }) => !item.held },
+  dependenciesVerified: { says: 'every item it waits on is verified', holds: ({ item, items }) => !unmetWaits(item, items).length },
+  ready: { says: 'open, not held, and waiting on nothing unverified', reads: ['isOpen', 'notHeld', 'dependenciesVerified'],
+    holds: (snapshot, move, fact) => fact('isOpen') && fact('notHeld') && fact('dependenciesVerified') },
+  blocked: { says: 'open and waiting on something unverified', reads: ['isOpen', 'dependenciesVerified'],
+    holds: (snapshot, move, fact) => fact('isOpen') && !fact('dependenciesVerified') },
+  notHeldByAnother: { says: 'no other agent holds it under a live lease', holds: ({ item }, move) => !(item.status === 'claimed' && item.owner !== move.by && leaseLive(item, move.at)) },
+  isHolder: { says: 'the caller holds the claim', holds: ({ item }, move) => item.owner === move.by },
+  holderOrCoordinator: { says: 'the holder, the coordinator or a maintenance sweep makes the move', holds: ({ item }, move) => move.by === 'coordinator' || item.owner === move.by || Boolean(move[MAINTENANCE]) },
+  notBuilder: { says: 'the caller did not build the item', holds: ({ item }, move) => !(item.builder && item.builder === move.by) },
+  coordinatorOnly: { says: 'the caller is the coordinator', holds: (snapshot, move) => move.by === 'coordinator' },
+  notMerged: { says: 'the item has no recorded merge receipt', holds: ({ item }) => !item.merged },
+  verifiedToLand: { says: 'only a verified item lands', holds: ({ item }) => item.status === 'verified' },
+};
+
+/**
+ * The refusal each rule would have been when it does not hold: the board's code and why, so a disagreement reads like a refusal.
+ *
+ * @type {Record<string, (snapshot: { item: object, items: Map<number, object> }, move: object) => { code: string, why: string }>}
+ */
+const REFUSALS = {
+  itemExists: () => ({ code: 'NO_ITEM', why: 'no add event came before this move' }),
+  notHeld: () => ({ code: 'ITEM_HELD', why: 'the coordinator held it and had not lifted the hold' }),
+  dependenciesVerified: ({ item, items }) => { const [first] = unmetWaits(item, items); return { code: `BLOCKED (waits on a ${first.state} item)`, why: `#${first.id} is ${first.state}` }; },
+  notHeldByAnother: ({ item }) => ({ code: 'HELD', why: `${item.owner} held it under a live lease until ${item.leaseUntil}` }),
+  isHolder: ({ item }, move) => ({ code: 'NOT_YOURS', why: `${item.owner ?? 'nobody'} held it, not ${move.by}` }),
+  holderOrCoordinator: ({ item }, move) => ({ code: 'NOT_YOURS', why: `${item.owner ?? 'nobody'} held it, not ${move.by}` }),
+  notBuilder: (snapshot, move) => ({ code: 'SELF_VERIFY', why: `${move.by} built it` }),
+  coordinatorOnly: (snapshot, move) => ({ code: 'COORDINATOR_ONLY', why: `${move.by} is not the coordinator` }),
+  notMerged: () => ({ code: 'ALREADY_MERGED', why: 'a merge receipt was already recorded' }),
+  verifiedToLand: ({ item }, move) => ({ code: `NOT_VERIFIED (${move.forced ? 'forced ' : ''}from ${move.from ?? item.status})`, why: `the item was ${item.status} in the replay when it landed` }),
+};
+
+/**
+ * Private evaluator with the call shape of the move tables' deriveFact (#8063): derive a named fact over a snapshot and move.
+ * Not exported from the package. It switches to #8063's deriveFact once that lands, so there is one engine.
+ *
+ * @param {string} name
+ * @param {{ item: object, items: Map<number, object> }} snapshot
+ * @param {object} move
+ * @returns {boolean}
+ */
+function derive(name, snapshot, move) {
+  const rule = RULES[name];
+  return rule.holds(snapshot, move, read => {
+    if (!(rule.reads ?? []).includes(read)) throw new Error(`rule ${name} read ${read} without declaring it`);
+    return derive(read, snapshot, move);
+  });
+}
+
+/**
+ * Derived readiness: the one definition of ready and blocked, derived from named rules.
  *
  * @param {object} item
  * @param {Map<number, object>} items
  * @returns {{ ready: boolean, blocked: boolean, held: boolean, unmet: { id: number, state: string }[] }}
  */
 export function readiness(item, items) {
-  const unmet = item.status === 'open' ? unmetWaits(item, items) : [];
-  return { ready: item.status === 'open' && !item.held && !unmet.length, blocked: unmet.length > 0, held: item.held, unmet };
+  const snapshot = { item, items };
+  return { ready: derive('ready', snapshot, {}), blocked: derive('blocked', snapshot, {}), held: item.held, unmet: item.status === 'open' ? unmetWaits(item, items) : [] };
 }
-
-/**
- * Named guards. Each returns null when it holds, or `{ code, why }` when it does not.
- * The codes are the board's refusal codes, so a disagreement reads like the refusal it would have been.
- *
- * @type {Record<string, (c: { item: object, fact: object, items: Map<number, object> }) => ({ code: string, why: string } | null)>}
- */
-export const GUARDS = {
-  itemExists: ({ item }) => (item.created === false ? { code: 'NO_ITEM', why: 'no add event came before this move' } : null),
-  dependenciesVerified: ({ item, items }) => {
-    const unmet = unmetWaits(item, items);
-    return unmet.length ? { code: `BLOCKED (waits on a ${unmet[0].state} item)`, why: `#${unmet[0].id} is ${unmet[0].state}` } : null;
-  },
-  itemNotHeld: ({ item }) => (item.held ? { code: 'ITEM_HELD', why: 'the coordinator held it and had not lifted the hold' } : null),
-  notHeldByAnother: ({ item, fact }) => (item.status === 'claimed' && item.owner !== fact.by && leaseLive(item, fact.at)
-    ? { code: 'HELD', why: `${item.owner} held it under a live lease until ${item.leaseUntil}` } : null),
-  isHolder: ({ item, fact }) => (item.owner !== fact.by ? { code: 'NOT_YOURS', why: `${item.owner ?? 'nobody'} held it, not ${fact.by}` } : null),
-  holderOrCoordinator: ({ item, fact }) => (fact.by === 'coordinator' || item.owner === fact.by || fact[MAINTENANCE] ? null
-    : { code: 'NOT_YOURS', why: `${item.owner ?? 'nobody'} held it, not ${fact.by}` }),
-  notBuilder: ({ item, fact }) => (item.builder && item.builder === fact.by ? { code: 'SELF_VERIFY', why: `${fact.by} built it` } : null),
-  coordinatorOnly: ({ fact }) => (fact.by === 'coordinator' ? null : { code: 'COORDINATOR_ONLY', why: `${fact.by} is not the coordinator` }),
-  notMerged: ({ item }) => (item.merged ? { code: 'ALREADY_MERGED', why: 'a merge receipt was already recorded' } : null),
-  verifiedToLand: ({ item, fact }) => (item.status === 'verified' ? null
-    : { code: `NOT_VERIFIED (${fact.forced ? 'forced ' : ''}from ${fact.from ?? item.status})`, why: `the item was ${item.status} in the replay when it landed` }),
-};
 
 /**
  * The move rows. `from` lists the states a move may start in; `to` is where it ends (null keeps the state).
@@ -99,7 +131,7 @@ export const GUARDS = {
  * @type {{ id: string, from: string[], to: string | null, guards: string[], says: string }[]}
  */
 export const MOVE_RULES = [
-  { id: 'claim', from: ['open', 'claimed'], to: 'claimed', guards: ['notHeldByAnother', 'itemNotHeld', 'dependenciesVerified'], says: 'an open item that is not held and waits on nothing unverified can be claimed; a live lease is not taken from its holder' },
+  { id: 'claim', from: ['open', 'claimed'], to: 'claimed', guards: ['notHeldByAnother', 'notHeld', 'dependenciesVerified'], says: 'an open item that is not held and waits on nothing unverified can be claimed; a live lease is not taken from its holder' },
   { id: 'renew', from: ['claimed'], to: 'claimed', guards: ['isHolder'], says: 'only the holder renews a claim' },
   { id: 'release', from: ['open', 'claimed'], to: 'open', guards: ['holderOrCoordinator'], says: 'the holder, the coordinator or a maintenance sweep returns a claim to the queue' },
   { id: 'release-review', from: ['submitted'], to: null, guards: [], says: 'a review reservation is freed and the item stays submitted' },
@@ -158,13 +190,11 @@ export function judge(item, fact, items) {
   const rule = ruleOf(fact);
   if (!rule) return { rule: null, ok: false, code: 'NO_RULE', why: `no rule describes a ${fact.kind} move` };
   const row = MOVE_RULES.find(entry => entry.id === rule);
-  const exists = GUARDS.itemExists({ item, fact, items });
-  if (exists) return { rule, ok: false, ...exists };
+  const snapshot = { item, items };
+  if (!derive('itemExists', snapshot, fact)) return { rule, ok: false, ...REFUSALS.itemExists(snapshot, fact) };
   if (!row.from.includes(item.status)) return { rule, ok: false, code: `WRONG_STATE (from ${item.status})`, why: `a ${fact.kind} cannot start from ${item.status}` };
-  const ctx = { item, fact, items };
   for (const name of row.guards) {
-    const failed = GUARDS[name](ctx);
-    if (failed) return { rule, ok: false, ...failed };
+    if (!derive(name, snapshot, fact)) return { rule, ok: false, ...REFUSALS[name](snapshot, fact) };
   }
   return { rule, ok: true };
 }
