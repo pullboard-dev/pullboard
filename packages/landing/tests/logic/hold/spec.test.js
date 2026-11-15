@@ -20,7 +20,7 @@ import {
   startFixtureChild,
   runFixtureChildAsync,
   runFixtureGit,
-} from '../../../../../apps/cli/tests/fixtures/child.js';
+} from '../../../../gate/tests/fixtures/child.js';
 import { fixtureSettledMachine } from '../../../../../apps/cli/tests/fixtures/testkit.js';
 import {
   HOST,

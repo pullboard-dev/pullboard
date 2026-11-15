@@ -5,8 +5,8 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 import { takeResource } from '../../../../resources/index.js';
 import { queuedSource } from '../../../index.js';
 

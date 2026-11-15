@@ -10,7 +10,7 @@ import { consumeControllerDisposition } from '../../../../src/io/controller/disp
 import { initializeRunnerRecovery } from '../../../../index.js';
 import { recordRunnerFailure } from '../../../../index.js';
 import { recoverUnavailableRunners } from '../../../../index.js';
-import { privateFixtureFiles } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../../gate/tests/fixtures/child.js';
 
 const HOST = 'orphan-host';
 const HOLDER = { pid: 4101, started: 'holder-start', controllerPid: 4102, controllerStarted: 'controller-start' };

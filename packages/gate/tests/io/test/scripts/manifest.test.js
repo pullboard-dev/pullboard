@@ -8,7 +8,7 @@ import { runManifestCommand } from '../../../../src/io/test/manifest.js';
 import { JOURNEY_TAGS } from '../../../../src/logic/test/manifest.js';
 import { TEST_KINDS } from '../../../../src/logic/test/manifest.js';
 import { privateFixtureFiles } from '../../../fixtures/child.js';
-import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../fixtures/child.js';
 
 const SPAWN = 'import { spawnSync } from "node:child_process"; export const run = () => spawnSync("git");';
 

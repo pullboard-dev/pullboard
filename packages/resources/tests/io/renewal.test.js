@@ -19,7 +19,7 @@ import { test } from 'node:test';
 import {
   runFixtureChildAsync,
   startFixtureChild,
-} from '../../../../apps/cli/tests/fixtures/child.js';
+} from '../../../gate/tests/fixtures/child.js';
 import { takeResource } from '../../index.js';
 import { renewWithBeat } from '../../src/io/renewal.js';
 import { tuneRenewalBeat } from '../../src/io/renewal.js';

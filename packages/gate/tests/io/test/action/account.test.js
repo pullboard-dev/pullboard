@@ -10,7 +10,7 @@ import { phaseLedger } from '../../../../src/io/test/account.js';
 import { readTestOutcomes } from '../../../../src/io/test/outcomes.js';
 import { requireTestTierAccount } from '../../../../src/io/test/tier/selection.js';
 import { fixtureCommittedGraph } from '../../../../../../apps/cli/tests/fixtures/testkit.js';
-import { privateFixtureFiles } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../fixtures/child.js';
 import { runFocusedRunner } from '../../../fixtures/focused-runner.js';
 
 const FILES = ['tests/one.test.js', 'tests/two.test.js'];

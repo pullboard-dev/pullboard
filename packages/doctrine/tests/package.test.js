@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import {
   startFixtureChild as spawn,
   runFixtureChild as spawnSync,
-} from '../../../apps/cli/tests/fixtures/child.js';
+} from '../../gate/tests/fixtures/child.js';
 import { once } from 'node:events';
 import {
   existsSync,
