@@ -6,9 +6,6 @@ import { test } from 'node:test';
 import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
 import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { jobView } from '../../../../jobs/index.js';
-import { leaseLapsed } from '../../../../jobs/index.js';
-import { hopEngine } from '../../../../moves/index.js';
-import { runTable } from '../../../../moves/index.js';
 import { readGateHop } from '../../../../store/index.js';
 import { claimJob } from '../../../index.js';
 import { gateClaimHop } from '../../../index.js';
@@ -28,8 +25,19 @@ function board(t, ids = ['gate:7:a']) {
   return db;
 }
 
-/** The hop table as pullboard serve provides it: the moves cell's table over the jobs lease rule. */
-provideGateHopTable(leaseMs => { const { rules, table } = hopEngine({ leaseMs, leaseLapsed }); return (snapshot, move) => runTable(table, rules, snapshot, move); });
+/**
+ * The hop table's rows the claim needs, as pullboard serve provides the moves cell's table (a cell test may not import it): create, acquire a queued
+ * or lapsed hop at the next epoch, and step only as the owner at its epoch.
+ */
+provideGateHopTable(leaseMs => ({ hop, now }, { name, actor, epoch }) => {
+  if (name === 'create') return { patch: { hop: { state: 'queued', owner: null, epoch: 0, leaseUntil: 0, attempts: 0, commit: CANDIDATE, digest: CANDIDATE } } };
+  if (name === 'acquire') {
+    return hop.state === 'queued' || hop.leaseUntil < now ? { patch: { hop: { ...hop, state: 'driven', owner: actor, epoch: hop.epoch + 1, leaseUntil: now + leaseMs } } }
+      : { refused: { code: 'HOP_HELD', message: `the hop is driven by ${hop.owner} and its lease has not lapsed` } };
+  }
+  return hop.owner === actor && hop.epoch === epoch ? { patch: { hop: { ...hop, leaseUntil: now + leaseMs } } }
+    : { refused: { code: 'HOP_FENCED', message: `${actor} at epoch ${epoch} does not own this hop (owner ${hop.owner} at epoch ${hop.epoch})` } };
+});
 
 const claim = (db, runner, now, fencedHop = true) => claimJob(db, { runner, now, leaseMs: LEASE, hop: gateClaimHop(fencedHop) });
 const claimedEpoch = (db, job) => jobView(db, job).steps.filter(step => step.name === 'claimed').at(-1).payload.hopEpoch;
