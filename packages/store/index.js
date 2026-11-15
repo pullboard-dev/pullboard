@@ -128,4 +128,4 @@ export { relandAccepted, acceptedRelandCandidate, relandConflictRecorded } from 
 export { boardHoldLog, boardHoldPercentiles, boardHoldStats, boardHoldLines, longestRecentHolds } from './src/io/board/hold/log.js';
 export { readBoardHoldBaseline, boardHoldBaselineProblems, committedBoardHoldBaselineProblems } from './src/io/board/hold/ratchet.js';
 export { GATE_HOP_SCHEMA_SQL, ensureGateHopTable, readGateHop, gateHopMove } from './src/io/board/hop.js';
-export { recordShadow, readShadow, shadowHook, claimDiffers } from './src/io/board/shadow-record.js';
+export { recordShadow, readShadow, shadowHook, claimDiffers, firstDifference } from './src/io/board/shadow-record.js';
