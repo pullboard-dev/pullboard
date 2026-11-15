@@ -17,7 +17,7 @@ export async function runSample(mode, { journey, cases }) {
     const pattern = cases.map(name => name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('|');
     const run = await runChildTestsAsync([journey], { cwd: REPOSITORY, args: [`--test-name-pattern=^(?:${pattern})`],
       env: { ...process.env, PULLBOARD_JOURNEY_MODE: mode, PULLBOARD_PARITY_RECORD: record } });
-    assert.equal(run.status, 0, `the ${mode} run of the ${journey} sample passes:\n${run.stdout.slice(-3000)}\n${run.stderr.slice(-2000)}`);
+    assert.equal(run.status, 99, run.stdout + run.stderr); assert.equal(run.status, 0, `the ${mode} run of the ${journey} sample passes:\n${run.stdout.slice(-3000)}\n${run.stderr.slice(-2000)}`);
     assert.equal(run.pass, cases.length, `every sampled case of ${journey} ran in the ${mode} run`);
     return readFileSync(record, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line));
   } finally { rmSync(dir, { recursive: true, force: true }); }
