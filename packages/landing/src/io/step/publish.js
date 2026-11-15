@@ -224,13 +224,7 @@ export async function publish(state) {
     publicationInputs(state, batch);
     const pushRoot = parallelPublicationRoot(state, batch);
     const alreadyPushed = tryGit(batch.root, ['ls-remote', remote, batch.branch]).stdout.split(/\s+/u)[0] === batch.tip;
-    if (!alreadyPushed) {
-      const enabled = fencedHopEnabled();
-      if (enabled && !batch.hops) batch = await save(state, { hops: carryLandingHops(state.board.db, batch.items, { enabled }) });
-      await timedPhase(state.say, 'lease check', () => state.checkLeaseNow());
-      const pushed = await timedPhase(state.say, 'push', () => pushLandingTrunk(pushRoot, state.board.db, { remote, branch: batch.branch, base: batch.base, enabled, hops: batch.hops ?? [] }));
-      if (pushed.status !== 0) throw pushRefused(pushed.stderr || pushed.stdout);
-    }
+    if (!alreadyPushed) batch = await pushCarryingHops(state, batch, { pushRoot, remote, enabled: fencedHopEnabled() });
     await save(state, { state: 'pushed' });
   }
   if (tryGit(batch.root, ['ls-remote', remote, batch.branch]).stdout.split(/\s+/u)[0] !== batch.tip) {
@@ -244,6 +238,23 @@ export async function publish(state) {
   await finishLanding(state, { earlier: AUTOMATIC_EARLIER, steps: { moveMain: () => { if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]); }, refreshMainReds: () => refreshPublishedMainReds(state, batch.base) } });
   state.say(`landed ${state.batch.items.map((entry) => `#${entry.id}`).join(', ')} at ${state.batch.tip}`);
   return state.batch;
+}
+
+/**
+ * Publish's trunk push: with gate.fencedHop on (`enabled`) it first saves each item's hop epoch on the batch, then checks the lease and pushes through the fences.
+ * Why save before the push: a resumed batch must carry the epochs it pushed under, never re-read ones a newer owner wrote; a batch that already carries hops keeps them [C7,#8320,#8326].
+ *
+ * @param {{ board: { db: import('node:sqlite').DatabaseSync }, write: Function, checkLeaseNow: Function, say?: Function, batch: object }} state
+ * @param {{ items: { id: number }[], branch: string, base: string, hops?: { item: number, epoch: number }[] }} batch
+ * @param {{ pushRoot: string, remote: string, enabled: boolean }} options
+ * @returns {Promise<object>} The batch as saved.
+ */
+export async function pushCarryingHops(state, batch, { pushRoot, remote, enabled }) {
+  if (enabled && !batch.hops) batch = await save(state, { hops: carryLandingHops(state.board.db, batch.items, { enabled }) });
+  await timedPhase(state.say, 'lease check', () => state.checkLeaseNow());
+  const pushed = await timedPhase(state.say, 'push', () => pushLandingTrunk(pushRoot, state.board.db, { remote, branch: batch.branch, base: batch.base, enabled, hops: batch.hops ?? [] }));
+  if (pushed.status !== 0) throw pushRefused(pushed.stderr || pushed.stdout);
+  return batch;
 }
 
 /**
