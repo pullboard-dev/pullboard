@@ -23,7 +23,7 @@ function fakeReplay(byTable, calls) {
   };
 }
 
-test('a diff that changes a move table replays that table [C7,#8073 clause 1]', async () => {
+test('clause 1: a diff that changes a move table replays that table [C7,#8073]', async () => {
   const boardFile = boardBox();
   const calls = [];
   const rows = await replayChangedTables('/unused', { changed: ['packages/moves/src/logic/table/backbone.table.js', 'README.md'], boardFile, replay: fakeReplay({}, calls) });
@@ -32,14 +32,14 @@ test('a diff that changes a move table replays that table [C7,#8073 clause 1]', 
   assert.deepEqual(rows, [{ table: 'backbone', total: 10, agreed: 10, disagreed: 0 }]);
 });
 
-test('a disagreement is a TABLE_REPLAY refusal naming each disagreeing event id [C7,#8073 clause 2]', async () => {
+test('clause 2: a disagreement is a TABLE_REPLAY refusal naming each disagreeing event id [C7,#8073]', async () => {
   const boardFile = boardBox();
   await assert.rejects(
     replayChangedTables('/unused', { changed: ['a/hop.table.js'], boardFile, replay: fakeReplay({ hop: [4412, 4420] }, []) }),
     error => error.code === 'TABLE_REPLAY' && /hop disagrees with the board on 2 recorded moves \(event 4412, 4420\)/u.test(error.message) && /pullboard replay hop/u.test(error.next ?? error.message));
 });
 
-test('a diff that changes no move table runs no replay [C7,#8073 clause 3]', async () => {
+test('clause 3: a diff that changes no move table runs no replay [C7,#8073]', async () => {
   const boardFile = boardBox();
   const calls = [];
   assert.deepEqual(changedTables(['packages/gate/src/io/submit.js', 'docs/table.js.md']), []);
