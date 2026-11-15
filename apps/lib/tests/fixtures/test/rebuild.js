@@ -10,6 +10,8 @@ import {
 import {
   dirname,
   join,
+  relative,
+  resolve,
 } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -50,9 +52,32 @@ export function copyFiles(root, files) {
   }
 }
 
-/** Code and data a producer needs to run: every tracked file under packages and apps except the test scripts. */
+/** The relative files a source names: import and export specifiers, dynamic imports and `new URL('./x', import.meta.url)` references. */
+const REFERENCE = /(?:\bfrom\s*|\bimport\s*\(?\s*|\bimport\s+)['"](\.{1,2}\/[^'"]+)['"]|new URL\(\s*['"](\.{1,2}\/[^'"]+)['"]\s*,\s*import\.meta\.url/gu;
+/** The producer's process entry: the files it starts from. */
+const PRODUCER_ENTRY = 'apps/cli/src/io/landing/audit.js';
+let runnableCache = null;
+
+/**
+ * Code and data a producer needs to run: the producer entry's import closure plus the checker folders.
+ * Why not every tracked file: the producer checks the tree out twice and its census parses every file in it, so the
+ * time scales with the file count; the closure is what the entry can load, and the pinned fingerprint covers only the checker folders [C7,#8125].
+ */
 export function runnableFiles() {
-  return trackedFiles('packages', 'apps', 'package.json').filter(file => !(file.includes('/tests/') && file.endsWith('.js')));
+  if (runnableCache) return runnableCache;
+  const tracked = new Set(trackedFiles('packages', 'apps', 'package.json').filter(file => !(file.includes('/tests/') && file.endsWith('.js'))));
+  const keep = new Set(['package.json', ...trackedFiles(...CHECKER_PATHS)]), queue = [PRODUCER_ENTRY, ...keep];
+  while (queue.length) {
+    const file = queue.pop();
+    keep.add(file);
+    if (!/\.(?:js|mjs|cjs)$/u.test(file) || !existsSync(join(REPO, file))) continue;
+    for (const match of readFileSync(join(REPO, file), 'utf8').matchAll(REFERENCE)) {
+      const target = relative(REPO, resolve(REPO, dirname(file), match[1] ?? match[2]));
+      if (tracked.has(target) && !keep.has(target)) { keep.add(target); queue.push(target); }
+    }
+  }
+  runnableCache = [...keep].filter(file => tracked.has(file)).sort();
+  return runnableCache;
 }
 
 /**
