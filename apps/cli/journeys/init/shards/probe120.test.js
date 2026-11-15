@@ -1,5 +1,6 @@
 /** @pullboard-test-input source-tree */
 import { test } from 'node:test';
+import crypto from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -11,7 +12,7 @@ test('probe [C7]', { timeout: 170_000 }, async t => {
   const box = await mainAuditFixture(t); lap('fixture');
   runFixtureChild('git', ['merge', '--ff-only', box.tip], { cwd: box.repo, env: box.env, encoding: 'utf8' });
   const audit = join(box.repo, 'apps/cli/src/io/landing/audit.js');
-  const r = await runFixtureChildAsync(process.execPath, [audit, box.repo, 'tok'], { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 120_000 });
+  const r = await runFixtureChildAsync(process.execPath, [audit, box.repo, crypto.randomUUID()], { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 120_000 });
   lap('worker status=' + r.status + ' signal=' + r.signal);
   console.log('LAP OUT', JSON.stringify(String(r.stdout).slice(-800)), JSON.stringify(String(r.stderr).slice(-1500)));
   console.log('LAP FILES', readdirSync(box.directory).join(','));
