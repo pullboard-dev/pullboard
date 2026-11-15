@@ -40,7 +40,7 @@ import {
   mainCheckout,
   tryGit,
 } from '../../../git/index.js';
-import { gateControlFindings } from '../../../gate/index.js';
+import { gateControlFindings } from '../../../gate/light.js';
 import { boardBusyError } from '../../../store/index.js';
 import { buildOrder } from '../../../store/index.js';
 import { nextFor } from '../../../store/index.js';
