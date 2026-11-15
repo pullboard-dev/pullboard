@@ -9,8 +9,7 @@
   ["src/relay-device-keys.js","packages/keys/src/logic/device.js","seed"],
   ["src/relay-key.js","packages/keys/src/io/relay.js","seed"],
   ["src/relay-pairing-client.js","packages/keys/src/io/relay/client.js","seed"],
-  ["src/relay-person-enrollment.js","packages/keys/src/io/relay/enrollment.js","seed"],
-  ["test/relay-pairing-options.test.js","packages/keys/tests/relay-pairing-options.test.js","seed"]
+  ["src/relay-person-enrollment.js","packages/keys/src/io/relay/enrollment.js","seed"]
  ],
  "reexports": [],
  "imports": [
