@@ -17,6 +17,7 @@ import { stopSender } from './sender.js';
 import { runCliInProcess } from '../process.js';
 import { runScriptInProcess } from './script.js';
 import {
+  appendFileSync,
   cpSync,
   existsSync,
   lstatSync,
@@ -222,6 +223,22 @@ async function inProcessResult(root, env, args, observedSnapshotUploads, initial
 export { childResult as relayFixtureChild };
 
 /**
+ * A journey's CLI call against this fixture: in this process by default, or a real process under PULLBOARD_JOURNEY_MODE=process
+ * so the gate's parity check can run one journey both ways (#8283). PULLBOARD_PARITY_RECORD appends each call's record with the
+ * scratch folder and relay address masked [C7].
+ */
+async function journeyResult(root, env, args, masks) {
+  const real = process.env.PULLBOARD_JOURNEY_MODE === 'process';
+  const result = real ? await childResult(root, env, [CLI, ...args, '--json']) : await inProcessResult(root, env, args);
+  if (process.env.PULLBOARD_PARITY_RECORD) {
+    const { parityRecord } = await import('../e2e.js');
+    const record = parityRecord({ dir: masks.scratch, env, cwd: root, args, result: { code: result.code, out: JSON.stringify(result.document), stderr: '' } });
+    appendFileSync(process.env.PULLBOARD_PARITY_RECORD, `${JSON.stringify(JSON.parse(JSON.stringify(record).split(masks.origin).join('<relay>')))}\n`);
+  }
+  return result;
+}
+
+/**
  * Run a childResult-style command line in this process: `[CLI, ...args, '--json']` becomes the in-process `args`.
  * Why: a real child costs a full Node start per call, seconds on a loaded runner; callers that need only the answer
  * keep their argv and environment exactly and skip the process [C7].
@@ -383,6 +400,14 @@ globalThis.fetch = function tracedFetch(input, init) {
   /** Invoke the production CLI in-process under the same budget; the answer is the childResult shape without a fetch trace. */
   async function cliLocal(...args) {
     return runCliChild(args, undefined, false);
+  }
+  /** A journey's CLI call from this fixture's repository, optionally under extra environment (an agent session); see journeyResult. */
+  function journeyCli(...args) {
+    return journeyResult(root, env, args, { scratch, origin });
+  }
+  /** The same call from a named agent session of this computer. */
+  function journeyCliAs(session, ...args) {
+    return journeyResult(root, { ...env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: session }, args, { scratch, origin });
   }
   /** Invoke the production CLI in-process from another worktree sharing this fixture's repository and home. */
   async function cliAtLocal(cwd, ...args) {
@@ -561,7 +586,7 @@ globalThis.fetch = function tracedFetch(input, init) {
     return (await run('relay', 'off')).code;
   }
   /** Clone the same committed project into a separate repository/home, then join through a printed code. */
-  async function otherDeviceJoin(code, name) {
+  async function otherDeviceJoin(code, name, { inProcess = false } = {}) {
     const bare = join(scratch, 'project.git');
     const otherRoot = join(scratch, 'paired-clone');
     const otherHome = join(scratch, 'paired-home');
@@ -570,10 +595,11 @@ globalThis.fetch = function tracedFetch(input, init) {
     assert.equal(runFixtureChild('git', ['clone', '--bare', root, bare], { cwd: scratch, env: otherEnv, encoding: 'utf8' }).status, 0, 'fixture project creates a private bare remote');
     assert.equal(runFixtureChild('git', ['clone', bare, otherRoot], { cwd: scratch, env: otherEnv, encoding: 'utf8' }).status, 0, 'second device is a real clone');
     assert.equal(runFixtureChild('git', ['remote', 'set-url', 'origin', 'git@github.com:fixture/repository.git'], { cwd: otherRoot, env: otherEnv, encoding: 'utf8' }).status, 0, 'clone names the same authorized repository');
-    const run = (...args) => childResult(otherRoot, otherEnv, [CLI, ...args, '--json']);
+    // A journey's setup (inProcess) answers in this process: no node start-up for the init, join and export of a second device (#8283).
+    const run = (...args) => (inProcess ? inProcessResult(otherRoot, otherEnv, args) : childResult(otherRoot, otherEnv, [CLI, ...args, '--json']));
     const initEnv = { ...otherEnv };
     delete initEnv.PULLBOARD_MODEL; // Pairing imports the source coordinator's declaration.
-    assert.equal((await childResult(otherRoot, initEnv, [CLI, 'init', '--json'])).code, 0, 'the cloned project initializes its private local board');
+    assert.equal((await (inProcess ? inProcessResult(otherRoot, initEnv, ['init']) : childResult(otherRoot, initEnv, [CLI, 'init', '--json']))).code, 0, 'the cloned project initializes its private local board');
     const joined = await run('relay', 'join', code, '--url', origin, ...(name === undefined ? [] : ['--name', name]));
     const document = joined.document;
     if (joined.code !== 0) {
@@ -593,6 +619,10 @@ globalThis.fetch = function tracedFetch(input, init) {
       return childResult(otherRoot, envKey, [CLI, ...args, '--json']);
     }
     return { joined: document, machine: link.machine, exported: exported.document, cli: run, root: otherRoot, env: otherEnv, syncWithEnvironmentKey,
+      /** A journey's call from this device; see journeyResult. */
+      journeyCli: (...args) => journeyResult(otherRoot, otherEnv, args, { scratch, origin }),
+      /** The same call from a named agent session of this device. */
+      journeyCliAs: (session, ...args) => journeyResult(otherRoot, { ...otherEnv, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: session }, args, { scratch, origin }),
       /** Run a second-device worktree with that device's own keys and bounded asynchronous child. */
       cliAt(cwd, ...args) { return childResult(cwd, otherEnv, [CLI, ...args, '--json']); },
       /** Check that the paired clone still has no persisted board-key file. */
@@ -630,7 +660,7 @@ globalThis.fetch = function tracedFetch(input, init) {
   }
   return {
     ...serverApi, authDatabase, auth, otherDeviceJoin,
-    root, env, origin, lane, before, linkFile, readLink, keyFile, readKey, copyOwnBoardMetadata, copyOwnKey, privateTreeBytes, cli, cliAt, cliLocal, cliAtLocal, cliWithSnapshotUploads, cliWithSnapshotTrace, startCli, link, requireEngineThree, otherDeviceOff, additionalBoard, script, scriptLocal,
+    root, env, origin, lane, before, linkFile, readLink, keyFile, readKey, copyOwnBoardMetadata, copyOwnKey, privateTreeBytes, cli, cliAt, cliLocal, journeyCli, journeyCliAs, cliAtLocal, cliWithSnapshotUploads, cliWithSnapshotTrace, startCli, link, requireEngineThree, otherDeviceOff, additionalBoard, script, scriptLocal,
     /** Assert the test consumed every declared child budget, with no hidden CLI calls. */
     assertCliChildrenComplete() {
       if (cliChildren) assert.equal(cliChildIndex, cliChildren.length, 'every planned private CLI child ran exactly once');
