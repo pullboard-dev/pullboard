@@ -87,6 +87,7 @@ export { pushOnlyTests } from './src/io/test/push-only.js';
 export { requireTestTierAccount, requireSealedSkips, hasTestTiers, generateTestTiersAt, selectTestTiers, testTierProofFiles, testTierCommand, testTierCheckCommand, testTierReport } from './src/io/test/tier/selection.js';
 export { testRunPhaseClock } from './src/io/test/run/phases.js';
 
+export { duplicateClaims, requireUniqueClaims } from './src/io/test/duplicate-claims.js';
 export { testTimeBudget, testTimeBudgetLines } from './src/logic/test/budget/time.js';
 
 export { runGateStages } from "./src/logic/stages.js";
