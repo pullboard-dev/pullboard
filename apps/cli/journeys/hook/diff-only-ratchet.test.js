@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell gate */
 /** The commit hook judges only what the item's diff adds: a ratchet main already exceeds elsewhere never blocks a commit [C7]. */
 import assert from 'node:assert/strict';
 import { copyFileSync } from 'node:fs';
