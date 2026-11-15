@@ -174,6 +174,7 @@ export { landingFlakes, landingWaiverCovers, landingWaiverKind };
 export { acceptCheck } from "../../../verify/index.js";
 export { declareJob, recordJobRun } from "../logic/board/jobs.js";
 export { recordUsage } from "../../../stats/light.js";
+export { recordCoordinatorUsage } from "../../../stats/light.js";
 export { recordUsageBatch } from "../../../stats/light.js";
 export { recordSharedUsage } from "../../../stats/light.js";
 export { proofReceipts, recordProofRun, storeTestReceipt } from "./receipts.js";

@@ -74,7 +74,7 @@ export function recordUsage(board, { agentId, item, revision, records, observedA
  * Record a coordinator session's cumulative usage under board_meta `coordinator:<session id>` with no claimed item.
  * Why: the coordinator never claims an item, so item-keyed recordUsage cannot hold its tokens; repeating a payload is a no-op [C7].
  */
-export function recordCoordinatorUsage(board, { session, records, observedAt }) {
+export function recordCoordinatorUsage(board, { agentId = 'coordinator', session, records, observedAt }) {
   if (typeof session !== 'string' || !/^[A-Za-z0-9._-]{1,128}$/u.test(session)) throw new Refused('USAGE_RECORD', 'coordinator usage names its session id');
   if (!Number.isSafeInteger(observedAt) || observedAt < 0) throw new Refused('USAGE_RECORD', 'coordinator usage carries a nonnegative observedAt');
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
@@ -89,6 +89,8 @@ export function recordCoordinatorUsage(board, { session, records, observedAt }) 
       return { duplicate: true };
     }
     writeUsageMeta(board, key, value);
+    // The ordered move needs a native receipt like every other move, so peers replay it; item histories never show it.
+    board.nativePorts.logEvent(board, agentId, 'coordinator-usage', null, { session, observedAt, records: rows, estimate: true });
     return { recorded: true };
   });
 }
