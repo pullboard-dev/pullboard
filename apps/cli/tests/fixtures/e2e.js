@@ -55,6 +55,7 @@ export const JOURNEY_MODE = process.env.PULLBOARD_JOURNEY_MODE === 'process' ? '
 export function parityText(text, dir) {
   return String(text ?? '').split(dir).join('<dir>')
     .replace(/\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z/gu, '<time>')
+    .replace(/^\d{4}-\d\d-\d\dT\d\d:\d\d(?=  )/gmu, '<time>')
     .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gu, '<uuid>')
     .replace(/\b[0-9a-f]{7,64}\b/gu, '<hex>')
     .replace(/\b\d+(?:\.\d+)? ?(?:ms|s)\b/gu, '<duration>')
