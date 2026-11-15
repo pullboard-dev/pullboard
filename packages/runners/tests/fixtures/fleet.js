@@ -98,7 +98,7 @@ test('unchanged companion closure [C7,V4]', () => { console.log('EXECUTED-STABLE
           policyCommit, trunk: { ref: 'refs/heads/main', commit: policyCommit }, guard: null },
         rawOutputPath: join(directory, `private-${invocation}.raw.log`) } : {}),
     });
-    console.log(`# trip ${invocation} ${stage} ${((Date.now() - began) / 1000).toFixed(1)} s`);
+    console.log(`# trip ${invocation} ${stage} ${((Date.now() - began) / 1000).toFixed(1)} s, worker ${((result.remoteWallMs ?? 0) / 1000).toFixed(1)} s`);
     if (composition && stage === 'verify') assert.equal(result.privateCheck.state, 'pass', result.output);
     return result;
   };
