@@ -225,48 +225,34 @@ function machine() {
 /**
  * A project registered on the machine: a repo set up by `pullboard init`, one web lane, and a
  * worktree joined to it as web-1. `extra` adds to its pullboard.json, such as products.
+ * `bare` stops once the board is registered and configured: no setup commit, no worktree, no seat. Why: a board the
+ * case only lists in its sidebar or breaks on purpose costs a hook commit (7 to 8 s) it never reads [C7,#8366].
  */
-function project(box, name, spec = SPEC, extra = {}, { agentApproved = false, joinSeat = true } = {}) {
-  let __t = Date.now(); const lap = (l) => { console.log(`PLAP ${name} ${l} ${Date.now() - __t}`); __t = Date.now(); };
+function project(box, name, spec = SPEC, extra = {}, { agentApproved = false, joinSeat = true, bare = false } = {}) {
   const repo = join(box.dir, name);
-  lap('const repo = join(box.dir, nam');
   mkdirSync(repo);
-  lap('mkdirSync(repo);');
   box.git(repo, 'init', '-q', '-b', 'main');
-  lap('box.git(repo, init, -q, -');
   const initEnv = { ...box.env };
-  lap('const initEnv = { ...box.env }');
   delete initEnv.PULLBOARD_MODEL;
-  lap('delete initEnv.PULLBOARD_MODEL');
   // Set the fixture-only opt-out in the machine home that this exact init environment will use.
   disableFixtureBackgroundView(initEnv, box.dir);
-  lap('disableFixtureBackgroundView(i');
   // The spec is in place before init, so the board's approval baseline holds its approved rows as the person's (#960);
   // agentApproved writes it after init instead, so its approved rows read as an agent's.
   if (!agentApproved) writeFileSync(join(repo, 'SPEC.md'), spec);
   box.runWithEnv(repo, initEnv, 'init');
-  lap('box.runWithEnv(repo, initEnv, ');
   // Accepted items stay verified until the journey lands them: the loopback local runner would otherwise take the board's
   // automatic land job and land them into this checkout, as no controller-held fixture ever did [P7,#5821].
   const config = { gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h', lanes: { web: { owns: ['web/'], specs: ['G'] } }, shared: [], landing: { manualOverride: true }, ...extra };
-  lap('const config = { gate: true,');
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify(config, null, 2));
-  lap('writeFileSync(join(repo, pull');
   writeFileSync(join(repo, 'SPEC.md'), spec);
-  lap('writeFileSync(join(repo, SPEC');
+  if (bare) return { repo, web: null, branch: null, baseBranch: null, itemBranches: new Map() };
   box.git(repo, 'add', '-A');
-  lap('box.git(repo, add, -A);');
   box.git(repo, 'commit', '-q', '-m', 'chore: set up pullboard');
-  lap('box.git(repo, commit, -q, ');
   const branch = `web/${name.replace(/[^a-z]/g, '')}`;
-  lap('const branch = `web/${name.rep');
   const web = join(box.dir, `${name}-web`);
-  lap('const web = join(box.dir, `${n');
   box.git(repo, 'worktree', 'add', '-q', web, '-b', branch);
-  lap('box.git(repo, worktree, add');
   // The seat joins on the strong route so it can claim the strong fixture items.
   if (joinSeat) joinFixtureSeat(box, web, 'web', { model: MACHINE_MODEL });
-  lap('if (joinSeat) joinFixtureSeat(');
   return { repo, web, branch, baseBranch: branch, itemBranches: new Map() };
 }
 

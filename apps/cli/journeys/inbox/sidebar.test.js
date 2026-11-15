@@ -25,40 +25,24 @@ async function sendBackLocal(box, p, id, note) {
   box.git(p.repo, 'switch', '-q', 'main');
 }
 
-let __t=Date.now();const lap=(l)=>{console.log('LAP '+l+' '+(Date.now()-__t));__t=Date.now();};
 test('unreadable boards collapse to one line with Forget all while projects group readable repos with combined needs and activity [N33, N34, N36]', async () => {
   const box = machine();
-  lap('const box = machine();');
   const core = project(box, 'core', `${SPEC}- G3 [pending] Should #1 greet in French?\n`, { name: 'Core API', project: 'Atlas' });
-  lap("const core = project(box, 'core', `${SPE");
   await box.inProcess(core.repo, 'add', 'web', 'Core target #1', '--specs', 'G1', '--criterion', 'greets');
-  lap("await box.inProcess(core.repo, 'add', 'w");
   await buildLocal(box, core, 1, 'greeting.html', { queued: true });
-  lap("await buildLocal(box, core, 1, 'greeting");
   const web = project(box, 'web', SPEC, { name: 'Web UI', project: 'Atlas' });
-  lap("const web = project(box, 'web', SPEC, { ");
   await box.inProcess(web.repo, 'add', 'web', 'Target for #1', '--specs', 'G1', '--criterion', 'has a header');
-  lap("await box.inProcess(web.repo, 'add', 'we");
   await buildLocal(box, web, 1, 'header.html', { queued: true });
-  lap("await buildLocal(box, web, 1, 'header.ht");
   box.settled(core.repo, 1);
   box.settled(web.repo, 1);
   await sendBackLocal(box, core, 1, 'the page needs a greeting');
-  lap("await sendBackLocal(box, core, 1, 'the p");
   await box.inProcess(web.repo, 'shout', 'person', 'Ship #1 today?', '--decision');
-  lap("await box.inProcess(web.repo, 'shout', '");
-  const standalone = project(box, 'standalone', SPEC, { name: 'Scratchpad' }, { joinSeat: false });
-  lap("const standalone = project(box, 'standal");
-  const broken = project(box, 'broken', SPEC, { name: 'Broken repo', project: 'Atlas' }, { joinSeat: false });
-  lap("const broken = project(box, 'broken', SP");
-  const brokenTwo = project(box, 'broken-two', SPEC, { name: 'Broken repo two', project: 'Atlas' }, { joinSeat: false });
-  lap("const brokenTwo = project(box, 'broken-t");
-  const brokenThree = project(box, 'broken-three', SPEC, { name: 'Broken repo three', project: 'Elsewhere' }, { joinSeat: false });
-  lap("const brokenThree = project(box, 'broken");
+  const standalone = project(box, 'standalone', SPEC, { name: 'Scratchpad' }, { joinSeat: false, bare: true });
+  const broken = project(box, 'broken', SPEC, { name: 'Broken repo', project: 'Atlas' }, { joinSeat: false, bare: true });
+  const brokenTwo = project(box, 'broken-two', SPEC, { name: 'Broken repo two', project: 'Atlas' }, { joinSeat: false, bare: true });
+  const brokenThree = project(box, 'broken-three', SPEC, { name: 'Broken repo three', project: 'Elsewhere' }, { joinSeat: false, bare: true });
   const recoveredConfig = readFileSync(join(brokenThree.repo, 'pullboard.json'));
-  lap('const recoveredConfig = readFileSync(joi');
   const view = await startView(box);
-  lap('const view = await startView(box);');
   try {
     const headers = { 'x-pullboard-key': view.key };
     let response = await fetchLive(`${view.base}/api/v1/boards`, { headers });
