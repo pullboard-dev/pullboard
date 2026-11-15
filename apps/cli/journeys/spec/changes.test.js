@@ -1,5 +1,6 @@
 /** Approved-row edits need an exact person decision or staged SSH receipt [S19,V3]. */
 import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { journeyCall } from '../../tests/fixtures/e2e.js';
 import assert from 'node:assert/strict';
 import {
   startFixtureChild as spawn,
@@ -111,7 +112,7 @@ async function fixture(t, { signer = false, doctrine = false } = {}) {
   }
   /** Run Pullboard in the fixture repo and retain both output streams for assertions. */
   function pullboard(...args) {
-    return runCliInProcess(args, { cwd: root, env });
+    return journeyCall({ dir, env, cwd: root, args, inProcess: () => runCliInProcess(args, { cwd: root, env }), real: () => runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8' }) });
   }
   git('init', '-q', '-b', 'main');
   git('config', 'user.name', 'Approved-row fixture');
@@ -273,6 +274,7 @@ function setRowText(box, id, text) {
   writeFileSync(file, source.replace(row, (_, prefix, _oldText, fields) => `${prefix}${text}${fields ? ' ' : ''}${fields}`));
 }
 
+// Process-level on purpose: the commit runs git, which launches the installed hooks (a child-process claim, no in-process form).
 /** Attempt a real commit through the installed Pullboard pre-commit and commit-msg hooks. */
 function commit(box, subject = 'docs: update approved row') {
   return runFixtureChild('git', ['commit', '-m', subject], { cwd: box.root, env: box.env, encoding: 'utf8' });

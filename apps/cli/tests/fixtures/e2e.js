@@ -82,7 +82,26 @@ function parityRecord({ dir, env, cwd, args, result }) {
         events: db.prepare('SELECT event_kind, count(*) AS n FROM event GROUP BY event_kind ORDER BY event_kind').all().map(row => ({ ...row })) };
     } finally { db.close(); }
   }
-  return JSON.parse(parityText(JSON.stringify({ cwd, args, code: result.code, json, out: json ? null : result.out, err: result.stderr, board }), dir));
+  // Mask string values only: a bare number of 7 or more digits would read as a hash and break the JSON it sits in.
+  const mask = value => typeof value === 'string' ? parityText(value, dir) : Array.isArray(value) ? value.map(mask)
+    : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([key, inner]) => [key, mask(inner)])) : value;
+  return mask({ cwd, args, code: result.code, json, out: json ? null : result.out, err: result.stderr, board });
+}
+
+/**
+ * One journey CLI call for a fixture of its own: answered in this process by default, or as a real process under
+ * PULLBOARD_JOURNEY_MODE=process, and appended to PULLBOARD_PARITY_RECORD when the parity check asks for it (#8267) [C7].
+ * Why: the same record shape as runIn, so files whose box is not createE2eHelpers can join the parity sample.
+ * @param {{ dir: string, env: object, cwd: string, args: string[], inProcess: () => Promise<{status: number, stdout: string, stderr: string}>, real: () => {status: number, stdout: string, stderr: string} }} call The call, both ways.
+ * @returns {Promise<{status: number, stdout: string, stderr: string}>} The answer.
+ */
+export async function journeyCall({ dir, env, cwd, args, inProcess, real }) {
+  const result = JOURNEY_MODE === 'process' ? real() : await inProcess();
+  if (process.env.PULLBOARD_PARITY_RECORD) {
+    const answer = { code: result.status, out: result.stdout, stderr: result.stderr };
+    appendFileSync(process.env.PULLBOARD_PARITY_RECORD, `${JSON.stringify(parityRecord({ dir, env, cwd, args, result: answer }))}\n`);
+  }
+  return result;
 }
 
 /** The model every fixture board runs as, whatever the parent process was launched with [C7]. */
