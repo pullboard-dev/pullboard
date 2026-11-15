@@ -23,7 +23,11 @@ function board(credentials) {
     record: () => {}, checkResult: () => ({ valid: true }), bundle: () => '/dev/null',
   });
   const register = (runner, credential) => adapter.register({ runner, publicKey: credential.pub, at: AT, signature: credential.sign(pullStatement('register', runner, AT)) });
-  const take = (runner, credential) => adapter.take({ runner, at: AT, signature: credential.sign(pullStatement('take', runner, AT)) });
+  let taken = 0;
+  const take = (runner, credential) => {
+    const nonce = `credentials-nonce-${String(++taken).padStart(6, '0')}`;
+    return adapter.take({ runner, at: AT, nonce, signature: credential.sign(pullStatement('take', runner, AT, nonce)) });
+  };
   const offer = job => adapter.open({ host: 'pool' }).startShard({ job, shard: 's1', command: 'sh run.sh', tree: TREE });
   return { adapter, register, take, offer };
 }
