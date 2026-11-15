@@ -1,5 +1,4 @@
 /** The gate hop as one fenced store row: one owner, and a compare-and-set write so only one racing writer wins [C7,#8269]. */
-import { fencedHopEnabled } from '../../../../config/index.js';
 import { Refused } from '../../../../kernel/light.js';
 
 /** One row per item: the hop's state, its one owner and owner epoch, and a version every write bumps. */
@@ -43,18 +42,18 @@ function lostRace(db, item, actor) {
 
 /**
  * Apply one hop move to the item's row: read it, let `decide` (the hop table, handed in by its caller) answer, then write only
- * if the row is unchanged since the read. Off (gate.fencedHop false, the default) it reads and writes nothing and answers `{ off: true }`.
+ * if the row is unchanged since the read. Unless `enabled` is true (the caller passes gate.fencedHop, off by default) it reads and writes nothing and answers `{ off: true }`.
  * Why compare-and-set rather than a lock: two drivers on two connections may both read the queued hop; the version check makes
  * exactly one write land, and the other is refused HOP_FENCED naming the winner, so no gate is ever driven twice [C7].
- * Why `decide` is passed in: the hop table lives in the moves cell, above the store; the caller wires it, as the lease rule is wired.
+ * Why `decide` and `enabled` are passed in: the hop table lives in the moves cell, above the store, and the store reads no settings; the caller wires both.
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {{ item: number, actor?: string, decide: (hop: ReturnType<typeof readGateHop>) => ({ refused: { code: string, message: string, next?: string } } | { hop: object }),
- *   enabled?: boolean, beforeWrite?: () => void }} options - `beforeWrite` is a test seam run between the read and the write.
+ *   enabled: boolean, beforeWrite?: () => void }} options - `beforeWrite` is a test seam run between the read and the write.
  * @returns {{ off: true } | { hop: ReturnType<typeof readGateHop> }}
  */
-export function gateHopMove(db, { item, actor, decide, enabled = fencedHopEnabled(), beforeWrite }) {
-  if (!enabled) return { off: true };
+export function gateHopMove(db, { item, actor, decide, enabled, beforeWrite }) {
+  if (enabled !== true) return { off: true };
   if (!Number.isSafeInteger(item) || item < 1) throw new Refused('HOP_ITEM', 'a hop move names its item as a whole number', 'pass the item id');
   ensureGateHopTable(db);
   const read = readGateHop(db, item);
