@@ -855,7 +855,7 @@ async function act(command, args, anchor) {
       if (!requestMode || request.status === 'done') view.closing = setTimeout(() => { if (latest()) out.hidden = true; }, 6000);
     }
     // The result was already revealed. A late refresh must not scroll after the person aims at the next action.
-    refresh().catch((error) => { $('live').textContent = 'offline: ' + String(error.message || error); });
+    refreshThrough(result?.event?.event_id).catch((error) => { $('live').textContent = 'offline: ' + String(error.message || error); });
     return !requestMode || request.status !== 'refused';
   } catch (error) {
     if (latest()) {
