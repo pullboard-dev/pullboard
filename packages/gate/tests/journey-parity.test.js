@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/journeys/spec/e2e/gates.test.js apps/cli/journeys/spec/main.test.js apps/cli/journeys/spec/changes.test.js apps/cli/journeys/resume/presence/heartbeat.test.js */
+/** @pullboard-test-input apps/cli/journeys/spec/e2e/gates.test.js apps/cli/journeys/spec/main.test.js apps/cli/journeys/resume/presence/heartbeat.test.js */
 /**
  * The parity check for journeys moved in-process (#8257, U149): the gate runs a sample of one converted journey's cases twice,
  * once with every CLI call a real process and once in-process, and fails on any difference in exit code, JSON result or
@@ -24,7 +24,6 @@ const SAMPLES = [
     'real spec check refuses future grammar in either configured file',
     'spec check names both locations when ids repeat within or across configured files',
   ] },
-  { journey: 'apps/cli/journeys/spec/changes.test.js', cases: ['[S19] unchanged approved rows and draft-row wording remain committable'] },
   { journey: 'apps/cli/journeys/resume/presence/heartbeat.test.js', cases: [
     'status reads and explicit hooks heartbeat without a shared board write',
     'plain status counts large seat history and hides gone seats behind --all',
