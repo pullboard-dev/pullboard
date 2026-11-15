@@ -16,6 +16,8 @@ export { recordNativeProof } from './src/logic/proof/native.js';
 export { counterCaught, counterProofStats } from './src/io/proof/caught.js';
 export { PROOF_COUNTER_PREFIX, appendProofCounter, clearProofCounters, currentProofCounters, ensureProofCounters, proofCounter, proofCounterRows, rebuildProofCounters } from './src/io/proof/counters.js';
 export { refreshCapacityOutsideWrite } from './src/io/proof/counters.js';
+export { registryFindings, registryOutcome } from './src/logic/registry.js';
+export { registryStrictEnabled as registryStrict } from '../config/index.js';
 export { tier1Shadow, tier1ShadowFields } from './src/logic/shadow.js';
 export { observedFailureSignatures, proofCounts, proofFields, receiptFields, runTimingFields, sameEnvironment, testRuntimeEnvironment, testRuntimeRows } from './src/logic/proof/provenance.js';
 export { anyRequiredReviewFamilyEngine, projectReviewFamily, requiredReviewFamily, requiredReviewFamilyEngine, requiredReviewFamilyProblem, saveReviewFamily, validateReviewFamily } from './src/logic/required.js';

@@ -87,14 +87,14 @@ const CASES = 6000;
 const results = Array.from({ length: CASES }, (_, seed) => { const c = scenario(seed + 1); return { seed: seed + 1, ...c, result: run(c.s, c.m) }; });
 const ok = results.filter(c => !c.result.refused);
 
-test('generated: every guard, outcome and follow-up row of the withdraw table fires on some seeded case [C7,#8264]', () => {
+test('moves.withdraw.rows-fire: generated: every guard, outcome and follow-up row of the withdraw table fires on some seeded case [C7,#8264]', () => {
   const fired = new Set(results.flatMap(c => (c.result.refused ? [c.result.refused.row] : c.result.via)));
   assert.deepEqual([...TABLE.guards, ...TABLE.outcomes, ...TABLE.followups].map(row => row.id).filter(row => !fired.has(row)), []);
   assert.deepEqual(Object.keys(CODES), TABLE.guards.map(row => row.id));
   assert.ok(ok.length > CASES / 5, `only ${ok.length} accepted withdrawals`);
 });
 
-test('generated: every withdrawal refuses at the guard the restated rules name, writes nothing, and carries its code, message and WITHDRAW_NEXT step [C7,#8264]', () => {
+test('moves.withdraw.refusal-rows: generated: every withdrawal refuses at the guard the restated rules name, writes nothing, and carries its code, message and WITHDRAW_NEXT step [C7,#8264]', () => {
   const words = { 'note-given': 'say why it is withdrawn', 'item-exists': `no item #${ID}; see: pullboard list`, 'main-red-unchanged': `item #${ID} changed after its Main red audit` };
   for (const c of results) {
     const row = firstRefusal(c), { refused } = c.result;
@@ -108,13 +108,13 @@ test('generated: every withdrawal refuses at the guard the restated rules name, 
   for (const status of STATES) assert.equal(run({ actor: { id: 'coordinator' }, item: { id: ID, status } }, { id: ID, actor: 'coordinator', reason: 'r' }).refused?.row ?? null, FROM.includes(status) ? null : 'in-state', status);
 });
 
-test('generated: each accepted withdrawal writes the patch, events and cause fact the restated rule gives [C7,#8264]', () => {
+test('moves.withdraw.accepted-writes: generated: each accepted withdrawal writes the patch, events and cause fact the restated rule gives [C7,#8264]', () => {
   for (const c of ok) assert.deepEqual(c.result, expected(c), `seed ${c.seed}`);
   assert.ok(ok.filter(c => c.m.expected).length > 200, 'audit-bound withdrawals accepted');
   for (const c of ok.filter(each => each.m.expected)) assert.match(c.result.events[1].detail.id, /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-8[0-9a-f]{3}-[0-9a-f]{12}$/u, `seed ${c.seed}`);
 });
 
-test('generated: the table is deterministic and reads its snapshot without changing it [C7,#8264]', () => {
+test('moves.withdraw.deterministic: generated: the table is deterministic and reads its snapshot without changing it [C7,#8264]', () => {
   for (const c of results.slice(0, 2000)) {
     const snapshot = structuredClone(c.s), move = structuredClone(c.m);
     assert.deepEqual(runTable(TABLE, RULES, snapshot, move), c.result, `seed ${c.seed}`);
@@ -122,7 +122,7 @@ test('generated: the table is deterministic and reads its snapshot without chang
   }
 });
 
-test('metamorphic: break one fact of an accepted withdrawal and it refuses with that fact\'s code [C7,#8264]', () => {
+test('moves.withdraw.fact-breaks: metamorphic: break one fact of an accepted withdrawal and it refuses with that fact\'s code [C7,#8264]', () => {
   for (const c of ok) {
     const audit = Boolean(c.m.expected);
     const breaks = [
@@ -134,7 +134,7 @@ test('metamorphic: break one fact of an accepted withdrawal and it refuses with 
   }
 });
 
-test('metamorphic: padding the reason, the caller\'s seat id, the old holder or another audit head changes only what it names [C7,#8264]', () => {
+test('moves.withdraw.padding: metamorphic: padding the reason, the caller\'s seat id, the old holder or another audit head changes only what it names [C7,#8264]', () => {
   for (const c of ok) {
     assert.deepEqual(run({ ...c.s, actor: { id: 'seat-9', joined: true }, item: { ...c.s.item, owner: null, leaseUntil: null } }, { ...c.m, reason: ` ${c.m.reason}\n` }), c.result, `seed ${c.seed}`);
     if (!c.m.expected) continue;
@@ -144,7 +144,7 @@ test('metamorphic: padding the reason, the caller\'s seat id, the old holder or 
   }
 });
 
-test('generated: the withdraw engine refuses WITHDRAW_TABLE_INPUTS without a list of starting states [C7,#8264]', () => {
+test('moves.withdraw.table-inputs: generated: the withdraw engine refuses WITHDRAW_TABLE_INPUTS without a list of starting states [C7,#8264]', () => {
   for (const board of [undefined, {}, { from: [] }, { from: 'open' }]) assert.throws(() => withdrawEngine(board), { code: 'WITHDRAW_TABLE_INPUTS' }, JSON.stringify(board));
   const narrow = withdrawEngine({ from: ['open'] });
   assert.equal(runTable(narrow.table, narrow.rules, { actor: { id: 'coordinator' }, item: { id: ID, status: 'claimed' } }, { id: ID, actor: 'coordinator', reason: 'r' }).refused?.code, 'CLOSED');
