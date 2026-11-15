@@ -22,6 +22,8 @@ const OUTPUT = fileURLToPath(new URL('./', import.meta.url));
 const THEMES = ['light', 'dark'];
 const DEMO_OUTPUT = join(ROOT, 'docs', 'demo');
 const DEMO_BOARD_ID = 'demo-board';
+/** Extra open items placed in the demo release, so the capture can be proved against a board the size of a real roadmap. */
+const FILLER_ITEMS = Number(process.env.PULLBOARD_DEMO_FILLER_ITEMS || 0);
 const CHROME = [process.env.PULLBOARD_CHROME, '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'].filter(Boolean);
 
 /** Set the deterministic lifecycle clock used by the next isolated board command. */
@@ -257,7 +259,13 @@ async function buildBoard(base, env) {
   pb(app, 'inbox');
   pb(repo, 'shout', 'app-1', '#4 can continue while #3 waits for review.');
   pb(repo, 'hold', 'review', '--reason', 'Waiting for the next demo item.');
-  pb(repo, 'milestone', 'add', 'Demo release', '--items', '1,2,3,4,5', '--note', 'A demo release with reviewed, active and future work.', '--reason', 'The demo release groups the demo items.');
+  const fillerIds = [];
+  for (let n = 1; n <= FILLER_ITEMS; n += 1) {
+    const made = pb(repo, 'add', 'app', `Filler item ${n}`, '--specs', 'G2', '--criterion', `Filler criterion ${n} stays open.`).match(/#(\d+)/)?.[1];
+    if (!made) throw new Error('The demo filler item was not recorded.');
+    fillerIds.push(made);
+  }
+  pb(repo, 'milestone', 'add', 'Demo release', '--items', ['1', '2', '3', '4', '5', ...fillerIds].join(','), '--note', 'A demo release with reviewed, active and future work.', '--reason', 'The demo release groups the demo items.');
   if (!/1 withdrawn/.test(pb(repo, 'status'))) throw new Error('The demo board must include a withdrawn item.');
   const item = JSON.parse(pb(repo, 'show', '1', '--json'));
   if (item.item_builder_family !== 'codex' || item.verdicts.at(-1)?.verdict_verifier_family !== 'claude') {
@@ -346,7 +354,7 @@ async function captureRoadmap(view, repo, observation) {
         history: row.parentElement.querySelector('.roadmap-history')?.textContent, time: release.querySelector('.roadmap-left')?.textContent,
         itemTop: rect.top, itemBottom: rect.bottom, pageWidth: document.documentElement.scrollWidth };
     })())`));
-    if (reading.theme !== theme || !/4 to go.*1 of 5 landed/u.test(reading.count) || ![6, 7].includes(reading.legend) || reading.rows !== 5 || reading.expanded !== 1
+    if (reading.theme !== theme || !new RegExp(`${4 + FILLER_ITEMS} to go.*1 of ${5 + FILLER_ITEMS} landed`, 'u').test(reading.count) || ![6, 7].includes(reading.legend) || reading.rows !== 5 + FILLER_ITEMS || reading.expanded !== 1
       || !reading.history?.includes('sent back') || !reading.history?.includes('accepted') || !reading.time
       || reading.itemTop < 0 || reading.itemBottom > reading.height || reading.pageWidth > reading.width) {
       throw new Error('The demo Roadmap capture is incomplete: ' + JSON.stringify(reading));
