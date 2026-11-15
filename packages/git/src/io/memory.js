@@ -294,7 +294,7 @@ function worktree(repositories, repo, rest, cwd) {
   const found = revision(repo, names[1] ?? 'HEAD');
   if (!found || found.type !== 'commit') return outcome(128, '', 'fatal: invalid reference\n');
   const main = mainOf(repo);
-  if (branch && main.refs.has(`refs/heads/${branch}`)) return outcome(128, '', `fatal: a branch named '${branch}' already exists\n`);
+  if (branch && main.refs.has(`refs/heads/${branch}`)) return outcome(255, '', `fatal: a branch named '${branch}' already exists\n`);
   if (!branch && !detach) unsupported('worktree add without --detach or -b');
   if (branch) main.refs.set(`refs/heads/${branch}`, found.oid);
   const files = found.commit.files;
