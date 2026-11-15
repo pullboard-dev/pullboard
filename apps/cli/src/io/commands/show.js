@@ -1,3 +1,4 @@
+import { clauseReceipts } from '../../../../../packages/state/index.js';
 import { recordedVerificationComparison } from '../../../../../packages/verify/index.js';
 import { renderVerificationComparison } from '../../../../../packages/verify/index.js';
 import { machineVerification } from '../../../../../packages/verify/index.js';
@@ -227,6 +228,7 @@ export async function run(io, { first, values }) {
   });
   if (notes.some((note, index) => note !== verdicts[index].verdict_note)) io.say(`(earlier verdicts shortened; every note in full: pullboard show ${id} --history)`);
   for (const correction of barCorrections(thread)) io.say(barCorrectionLine(correction));
+  for (const receipt of clauseReceipts(thread)) io.say(`fail-before, pass-after receipt, clause ${receipt.number}: ${receipt.text}`);
   for (const line of mainMerge ? mainMergeLines(item, mainMerge, agentName) : []) io.say(line);
   if (item.item_merged_commit) io.say(`merged as ${item.item_merged_commit}`);
   if (item.item_withdrawn_reason) io.say(`withdrawn: ${item.item_withdrawn_reason}`);

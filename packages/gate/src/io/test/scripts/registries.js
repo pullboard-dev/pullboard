@@ -2,6 +2,8 @@
 /** Rebuild the shared test registries after an item merge and print the files that changed, one JSON list [C7,V24]. */
 import { git } from '../../../../../git/index.js';
 import { deriveTestRegistries } from '../../../../index.js';
+import { idRenames } from '../../../../index.js';
+import { testIdIndex } from '../../../../index.js';
 
 /**
  * What the item merge changed in test files: each rename (old path to new) and every path added, copied, modified or renamed to.
@@ -17,6 +19,9 @@ export function mergeTestChanges(root, base = 'HEAD^1') {
     if (status.startsWith('R')) { renamed.set(from, to); touched.push(to); }
     else if (status !== 'D') touched.push(from);
   }
+  try {
+    for (const [from, to] of idRenames(testIdIndex(root, base), testIdIndex(root))) if (!renamed.has(from)) { renamed.set(from, to); touched.push(to); }
+  } catch { /* A base with no registries has no IDs to follow. */ }
   return { renamed, touched };
 }
 
