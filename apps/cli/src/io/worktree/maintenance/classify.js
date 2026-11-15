@@ -50,6 +50,13 @@ function seatActivity(seat) {
   return values.length ? Math.max(...values) : null;
 }
 
+/** A joined seat is idle past the takeover window only when a real activity time is older than that window and it is not live (#8199). */
+function idlePastTakeover(seat, takeoverMs, now) {
+  if (!Number.isSafeInteger(takeoverMs) || takeoverMs <= 0 || seat.presence === 'live') return false;
+  const activity = seatActivity(seat);
+  return activity !== null && now >= activity && now - activity >= takeoverMs;
+}
+
 /** Resolve configured worktree placement and test whether this registered tree is in that exact root. */
 function expectedWorktreeRoot(treePath, mainRoot, placement) {
   if (!treePath || !mainRoot || !['inside', 'beside'].includes(placement)) return false;
@@ -94,18 +101,19 @@ function itemObligation(item, now) {
 /** Classify one registered Git worktree using only canonical board rows and prior sweep observations.
  * Conservative uncertainty stays protected because the caller may later archive or prune this tree.
  * @param {{ path?: string, head?: string, locked?: boolean, bare?: boolean }} tree
- * @param {{ mainRoot: string, currentRoot?: string, config?: object, seats?: object[], items?: object[], previous?: object|null, now?: number, workingDirectories?: (string|object)[]|null }} context
- * @returns {{ path: string, kind: 'active'|'finished'|'orphaned'|'scratch', protected: boolean, reason: string, agents: string[], items: (string|number)[], inactiveSince: number|null, oldEnough: boolean }}
+ * @param {{ mainRoot: string, currentRoot?: string, config?: object, seats?: object[], items?: object[], previous?: object|null, now?: number, workingDirectories?: (string|object)[]|null, takeoverMs?: number|null }} context
+ * @returns {{ path: string, kind: 'active'|'finished'|'orphaned'|'scratch', protected: boolean, reason: string, agents: string[], items: (string|number)[], inactiveSince: number|null, oldEnough: boolean, retiredIdle?: boolean }}
  */
 export function classifyMaintenanceTree(tree, {
-  mainRoot, currentRoot, config = {}, seats = [], items = [], previous = null, now = Date.now(), workingDirectories = null,
+  mainRoot, currentRoot, config = {}, seats = [], items = [], previous = null, now = Date.now(), workingDirectories = null, takeoverMs = null,
 } = {}) {
   const path = absolutePath(tree?.path);
   const main = absolutePath(mainRoot), current = absolutePath(currentRoot);
+  let retiredIdle = false;
   const result = (kind, protectedTree, reason, agents = [], linkedItems = [], inactiveSince = null, oldEnough = false) => ({
     path: path ?? String(tree?.path ?? ''), kind, protected: protectedTree, reason,
     agents: [...new Set(agents)].sort(), items: [...new Set(linkedItems)].sort((a, b) => Number(a) - Number(b)),
-    inactiveSince, oldEnough,
+    inactiveSince, oldEnough, ...(retiredIdle ? { retiredIdle: true } : {}),
   });
   if (!path || !main || !Number.isFinite(now)) return result('active', true, 'path-or-clock-unknown');
   if (maintenanceProtectedPath(path)) return result('active', true, 'recovery-checkout');
@@ -162,9 +170,13 @@ export function classifyMaintenanceTree(tree, {
   for (const seat of matchingSeats) {
     // A joined seat keeps its checkout until a completed takeover retires it. Presence comes from hook heartbeats,
     // which a hookless, rejoined or pooled seat never refreshes, so "gone" never proves the seat has left (#5969).
+    // A joined seat idle past the takeover window that holds no claim (checked above) is retired the same way (#8199).
     if (timestamp(seat.completedTakeoverAt) === null) {
-      const reason = seat.presence === 'live' || seat.presence === 'idle' ? `seat-${seat.presence}` : 'seat-joined';
-      return result('active', true, reason, agentIds, itemIds);
+      if (!idlePastTakeover(seat, takeoverMs, now)) {
+        const reason = seat.presence === 'live' || seat.presence === 'idle' ? `seat-${seat.presence}` : 'seat-joined';
+        return result('active', true, reason, agentIds, itemIds);
+      }
+      retiredIdle = true;
     }
     const activity = seatActivity(seat);
     if (activity === null) return result('active', true, 'seat-age-unknown', agentIds, itemIds);
