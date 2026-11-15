@@ -127,3 +127,4 @@ export { deferOwnership, ownershipWait, ownershipWaiting, ownershipWaitForJob } 
 export { relandAccepted, acceptedRelandCandidate, relandConflictRecorded } from "./src/logic/board/reland.js";
 export { boardHoldLog, boardHoldPercentiles, boardHoldStats, boardHoldLines, longestRecentHolds } from './src/io/board/hold/log.js';
 export { readBoardHoldBaseline, boardHoldBaselineProblems, committedBoardHoldBaselineProblems } from './src/io/board/hold/ratchet.js';
+export { GATE_HOP_SCHEMA_SQL, ensureGateHopTable, readGateHop, gateHopMove } from './src/io/board/hop.js';
