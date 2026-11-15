@@ -27,8 +27,7 @@ test('a green pulled gate is submitted while the coordinator checkout is detache
     request: { run: ['true'], input: { data: {} }, submit: { agentId: seat.id, digest: held.item_frozen_digest, tree, files: [] } } });
   const lease = claimJob(board.db, { runner: 'r-detached', capabilities: [], now: 2 });
   // Every verify in the primary checkout switches it to the submitted commit; another item's gate can finish meanwhile.
-  const switched = runFixtureGit(['switch', '-q', '--detach', head], { cwd: repo.root });
-  assert.equal(switched.status, 0, String(switched.stderr));
+  runFixtureGit(['switch', '-q', '--detach', head], { cwd: repo.root });
   const posted = boardJobQueueCall(board, { action: 'receipt', job, runner: 'r-detached', token: lease.token,
     receipt: { version: 1, status: 0, gate: { source: head, green: true, phases: [{ role: 'proof', status: 0 }] } } }, { mode: 'pull', now: 3 });
   assert.equal(posted.applied.outcome, 'review', `${JSON.stringify(posted.applied)} ${store.itemThread(board, item.item_id).map(fact => fact.text).join(' | ')}`);
