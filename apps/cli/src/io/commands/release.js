@@ -1,8 +1,6 @@
 import { existsSync } from 'node:fs';
 import { claimWorktreeSnapshot } from '../../../../../packages/seats/index.js';
 import { relayRecovered } from '../../../../../packages/link/index.js';
-import { prepareStaleObservation } from '../../../../../packages/health/index.js';
-import { pinClaimHandoff } from '../../../../../packages/health/index.js';
 import { staleReleaseNote } from '../../../../../packages/store/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { releaseReasonProblem } from '../../../../../packages/store/index.js';
@@ -28,6 +26,7 @@ async function releaseOnSessionEnd(io) {
     const held = store.itemsInStatus(board, 'claimed', me.id).filter(item => item.item_parent_id === null);
     const released = [];
     for (const item of held) {
+      const { pinClaimHandoff } = await import('../../../../../packages/health/index.js');
       const handoff = pinClaimHandoff(board, { id: item.item_id, actor: me.id }, item);
       const shown = handoff.changedFiles.slice(0, 8);
       const more = handoff.changedCount - shown.length;
@@ -58,6 +57,7 @@ export async function run(io, args) {
     const problem = releaseReasonProblem(reasonCode, args[2]);
     if (problem) throw problem;
     staleReleaseNote(args[2]);
+    const { prepareStaleObservation } = await import('../../../../../packages/health/index.js');
     const snapshot = await prepareStaleObservation(ctx, board, ordered, { relayRecovered: (root, options) => relayRecovered(root, options, ctx.io), specApprovalBaselineExists: store.specApprovalBaselineExists });
     const row = snapshot.claims.find(entry => entry.id === args[0]);
     if (!row) throw new Refused('NOT_YOURS', 'this item has no current claim to release as stale');

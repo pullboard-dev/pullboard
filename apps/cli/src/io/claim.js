@@ -56,7 +56,7 @@ import { isReturnedRework } from '../../../../packages/store/index.js';
 import { sealReworkRoutingPolicy } from '../../../../packages/store/index.js';
 import { SEAT_LIVE_WINDOW_MS } from '../../../../packages/store/index.js';
 import { maintenanceDurations } from '../../../../packages/config/index.js';
-import { criterionFreezer } from '../../../../packages/moves/index.js';
+import { criterionFreezer } from '../../../../packages/moves/src/io/freezer.js';
 import { sessionRoute } from './route.js';
 
 /** Capture accepted coordinator retirement grace beside the native line takeover window. */
