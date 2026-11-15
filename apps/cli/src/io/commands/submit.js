@@ -594,8 +594,8 @@ export async function run(io, { first, values }) {
     io.cwd = await handOffHostedSubmit(ctx, id, hostRunner);
     ctx = { ...context(io), submissionResult, precheck: ctx.precheck, json: ctx.json };
   }
-  /** Dispatch before optional verdict waiting, retaining this exact submission document. */
-  ctx.afterSubmission = submission => completeMoveHandoff(ctx, id, values, submission, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest, topUp: target => topUpClaims(target, {}, { most: 1 }) });
+  /** Dispatch before optional verdict waiting, retaining this exact submission document; a pulled one marks the submit queued for --wait [P7]. */
+  ctx.afterSubmission = submission => { if (submission?.queued) Object.assign(submissionResult, { queued: true, value: submission }); return completeMoveHandoff(ctx, id, values, submission, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest, topUp: target => topUpClaims(target, {}, { most: 1 }) }); };
   const previous = io.onOrderedMove;
   io.onOrderedMove = receipt => {
     previous?.(receipt);
@@ -634,7 +634,7 @@ export async function run(io, { first, values }) {
     io.say(`a seat holding a claim never blocks on its own gate; a red gate comes back through pullboard next, and pullboard show ${id} reads it any time`);
     return code;
   }
-  return waitForSubmitGate(ctx, id, submissionResult.value, submissionResult.job,
+  return submissionResult.value?.gateJob ? code : waitForSubmitGate(ctx, id, submissionResult.value, submissionResult.job,
     { withBoardRead: waitBoardRead, submitHandoff, getItem: store.getItem, ownershipWait: store.ownershipWait, ownershipWaitForJob: store.ownershipWaitForJob });
 }
 import { SUBMISSION_SIZE_METHOD } from '../../../../../packages/state/light.js';

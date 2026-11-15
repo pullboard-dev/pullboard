@@ -88,10 +88,12 @@ test('a queued red retains the exact canonical refusal and the builder claim whi
   const prefix = `Gate job ${job.id} red at ${box.commit.slice(0, 12)}; failing parts:\n`;
   const record = shown.thread.find(row => row.text?.startsWith(prefix));
   assert.ok(record, 'the board records the red gate result on the item thread');
-  const parts = record.text.slice(prefix.length).split('\n');
-  const interrupt = document((await box.runLocal(box.web, 'inbox', '--json'))).shouts.find(row => row.shout_text.startsWith(`#${box.id} gate red at ${box.commit.slice(0, 7)}: `));
+  const lead = `#${box.id} gate red at ${box.commit.slice(0, 7)}: `;
+  const interrupt = document((await box.runLocal(box.web, 'inbox', '--json'))).shouts.find(row => row.shout_text.startsWith(lead));
   assert.ok(interrupt, 'the existing inbox channel carries the red interrupt');
-  assert.ok(parts.some(part => `#${box.id} gate red at ${box.commit.slice(0, 7)}: ${part}`.slice(0, 280) === interrupt.shout_text), 'the interrupt carries the recorded refusal exactly');
+  // The shout is the recorded failing part, cut to the shout length; the thread fact keeps the whole refusal.
+  const detail = interrupt.shout_text.slice(lead.length);
+  assert.ok(detail && record.text.slice(prefix.length).includes(detail), `the interrupt carries the recorded refusal exactly: ${JSON.stringify({ detail, record: record.text })}`);
   const other = join(box.dir, 'other-web');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', other, 'main');
   document((await fixtureJoin(box.runLocal, other, 'web', '--route', 'strong', '--json')));

@@ -8,7 +8,7 @@ import { submitHandoffHookActor } from '../../../../../packages/sandbox/index.js
  * so a fix commit still cites the item while the gate runs [C7,#2882].
  *
  * @param {any[]} claims - This seat's claimed items.
- * @param {(item: any) => unknown} pending - Whether the item's submit handoff is queued or running.
+ * @param {(item: any) => unknown} pending - Whether the item waits on its own queued or running gate, hand-off or pulled.
  * @returns {any[]}
  */
 export function submittedClaimsFallback(claims, pending) {
@@ -19,7 +19,7 @@ export function submittedClaimsFallback(claims, pending) {
 /** The pullboard hook command, in its own module so an item adding another command never edits these lines. */
 import { busyRefusal } from '../../../../../packages/store/light.js';
 import { openBoardReadOnly } from '../../../../../packages/store/light.js';
-import { pendingSubmitHandoff } from '../../../../../packages/store/light.js';
+import { awaitingGateOrReview } from '../../../../../packages/store/light.js';
 import { readBoardSnapshot } from '../../../../../packages/store/light.js';
 import { systemClock } from '../../../../../packages/store/light.js';
 import { rowDecisions } from '../../../../../packages/spec/index.js';
@@ -123,7 +123,7 @@ function seatItemFolderHints(ctx, root) {
     const seat = store.agentAt(board, root);
     if (!seat?.agent_path) return [];
     return store.listItems(board, { lane: seat.agent_lane })
-      .filter((item) => item.item_status === 'claimed' && item.item_owner === seat.agent_id && !pendingSubmitHandoff(board, item))
+      .filter((item) => item.item_status === 'claimed' && item.item_owner === seat.agent_id && !awaitingGateOrReview(board, item))
       .map((item) => { const folder = itemFolderPath(seat.agent_path, item.item_id); return `this is the seat checkout; build and commit #${item.item_id} in its item folder ${folder}, then cd ${folder} && pullboard submit ${item.item_id}`; });
   }) ?? [];
 }
@@ -156,7 +156,7 @@ export async function hookCommand(io, { first, second }) {
       const folderItem = itemFolderIdentity(board, info.root)?.item;
       const claims = store.listItems(board).filter(item => item.item_status === 'claimed'
         && item.item_owner === agent.agent_id && (folderItem === undefined || item.item_id === folderItem)
-        && !pendingSubmitHandoff(board, item));
+        && !awaitingGateOrReview(board, item));
       return claims.length === 1 && claims[0].item_frozen ? JSON.parse(claims[0].item_frozen).criterion ?? '' : '';
     }) ?? '' : '';
     const trunk = trunkRef(info.root);
@@ -176,7 +176,7 @@ export async function hookCommand(io, { first, second }) {
         migration: landing && existsSync(gitPath(info.root, 'MERGE_HEAD'))
           ? { base: headCommit(info.root), side: tryGit(info.root, ['rev-parse', '--verify', 'MERGE_HEAD']).stdout } : null,
         claims: submittedClaimsFallback(items.filter(item => item.item_status === 'claimed' && item.item_owner === agent?.agent_id && (folderItem === undefined || item.item_id === folderItem)),
-          item => pendingSubmitHandoff(board, item)),
+          item => awaitingGateOrReview(board, item)),
         landings: info.isMain ? items.filter(item => item.item_status === 'verified' && !item.item_merged_commit)
           : landingBatchItemsAtRoot(landingBatches(board), info.root, items, item => checkedLandingCommit(board, item)),
       };
@@ -194,7 +194,7 @@ export async function hookCommand(io, { first, second }) {
     const claimedItems = spec.rows.some(row => row.status === 'approved') ? [] : (hookRead(ctx, board => {
       const agent = (store.agentAt(board, info.root) ?? itemFolderIdentity(board, info.root)?.agent);
       return agent ? store.listItems(board, { lane: agent.agent_lane }).filter(item =>
-        item.item_status === 'claimed' && item.item_owner === agent.agent_id && !pendingSubmitHandoff(board, item)).map(item => item.item_id) : [];
+        item.item_status === 'claimed' && item.item_owner === agent.agent_id && !awaitingGateOrReview(board, item)).map(item => item.item_id) : [];
     }) ?? []);
     // Only the main checkout or a landing worktree merges a verified item; elsewhere no trailer exempts a header.
     const rowlessLandings = (metadataContext.landings ?? []).filter(item => !landingRows(item).length).map(item => item.item_id);
