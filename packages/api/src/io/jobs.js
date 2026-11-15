@@ -448,6 +448,26 @@ export function offerLandShards(db, { job, runner, token, merged, plan, gate, no
 }
 
 /**
+ * The receipts a land job's shards have posted so far, for the land job's holder only: each shard's newest receipt step, or
+ * null while it has none. Why: the runner holding the land job pushes trunk only when every shard is green, so it reads them back through the board API [P7,C7,#7818].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{ job: string, runner: string, token: string, shards: string[] }} request - shards: ids offerLandShards returned.
+ * @returns {{ shards: { job: string, posted: { runner?: string, receipt?: object } | null }[] }}
+ */
+export function landShardReceipts(db, { job, runner, token, shards }) {
+  heldBy(db, job, runner, token);
+  const prefix = `${job}:shard:`;
+  if (!Array.isArray(shards) || shards.length > MAX_LAND_SHARDS || shards.some(id => typeof id !== 'string' || !id.startsWith(prefix))) {
+    throw new Refused('LAND_SHARDS', `a land job reads only its own shards, named ${prefix}<n>`, 'send the shard ids the shards action returned');
+  }
+  return { shards: shards.map(id => {
+    const step = jobView(db, id)?.steps?.findLast(row => row.name === 'receipt');
+    return { job: id, posted: step?.payload ?? null };
+  }) };
+}
+
+/**
  * Hand a job back to the queue, before its lease would lapse, with the runner's reason: a runner that could not run it
  * frees it, and claim skips it for a backoff that grows per attempt so a failing job never spins (#6545). A stopping
  * runner passes backoff false and the job is free at once.
@@ -550,7 +570,7 @@ export function jobArtifacts(db, job) {
 }
 
 /**
- * Answer one queue call as the board API carries it: `{ action: 'claim' | 'request' | 'renew' | 'shards' | 'release' | 'progress' | 'artifact' | 'receipt', ... }`.
+ * Answer one queue call as the board API carries it: `{ action: 'claim' | 'request' | 'renew' | 'shards' | 'shardReceipts' | 'release' | 'progress' | 'artifact' | 'receipt', ... }`.
  * The queue answers only while the machine runs runner jobs by pull, so today's path never sees it. A claim also names
  * the board's trunk remote, the one place a runner fetches the candidate from, kept apart from the board host [P7].
  *
@@ -572,6 +592,7 @@ export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => n
   }
   if (action === 'request') return jobRequest(db, { job, runner, token });
   if (action === 'renew') return renewJob(db, { job, runner, token, now });
+  if (action === 'shardReceipts') return landShardReceipts(db, { job, runner, token, shards: body.shards });
   if (action === 'shards') return offerLandShards(db, { job, runner, token, merged: body.merged, plan: body.plan, gate: body.gate, now });
   if (action === 'release') return releaseJob(db, { job, runner, token, reason, backoff, draining: drained().includes(runner), now });
   if (action === 'progress') return postProgress(db, { job, runner, token, progress, now });
@@ -582,5 +603,5 @@ export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => n
     try { return { ...posted, applied: onReceipt(posted) }; }
     catch (error) { if (!error?.code) throw error; return { ...posted, applied: { applied: false, outcome: 'refused', reason: `${error.code}: ${error.message}` } }; }
   }
-  throw new Refused('JOB_ACTION', 'a job queue call names its action: claim, request, renew, shards, release, progress, artifact or receipt');
+  throw new Refused('JOB_ACTION', 'a job queue call names its action: claim, request, renew, shards, shardReceipts, release, progress, artifact or receipt');
 }
