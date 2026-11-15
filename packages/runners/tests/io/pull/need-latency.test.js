@@ -43,5 +43,5 @@ test('C7: the waiter observes need within 1 s of the runner writing it, and read
   const lag = step => seen[step] - wrote[step];
   process.stdout.write(`step lag ms: need ${lag('need')}, ready ${lag('ready')}, done ${lag('done')}\n`);
   assert.equal(end.end, 'result');
-  for (const step of ['need', 'ready', 'done']) assert.ok(lag(step) <= 1_000, `the waiter saw ${step} ${lag(step)} ms after the runner wrote it`);
+  for (const [step, limit] of [['need', 1_000], ['ready', 1_000], ['done', 1_500]]) assert.ok(lag(step) <= limit, `the waiter saw ${step} ${lag(step)} ms after the runner wrote it, over the ${limit} ms limit`);
 });

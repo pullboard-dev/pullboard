@@ -67,7 +67,7 @@ function decideClock(mirror, job, { startupDeadline, ceilingMs, readyAt }) {
  * @param {(job: object, mirror: object) => void} [options.onReady] Called once when the mirror first shows the job ready; it may throw to end the wait.
  * @param {(id: string, need: string) => Promise<void>} [options.onNeed] Called once with the runner's base64 source inventory; a rejection ends the wait.
  * @param {object} [options.mirror] `dir`, `ssh`, `env`, `now`, `intervalMs` passed to the refresh.
- * @param {number} [options.tickMs] Milliseconds between ticks; default half the current refresh cadence.
+ * @param {number} [options.tickMs] Milliseconds between ticks; default a quarter of the current refresh cadence.
  * @param {number} [options.parentPid] The process whose life keeps the job wanted.
  * @returns {Promise<{ end: string, finishReason: string|null, cancel: boolean, job?: object, error?: Error }>} The end state; never rejects.
  */
@@ -108,7 +108,7 @@ export function waitRunnerJob({ runner, id, startupDeadline = null, ceilingMs = 
       finally { busy = false; }
     };
     /** Look again after one tick; the chain ends with the wait, so it is never a standing loop. */
-    const schedule = () => { timer = setTimeout(async () => { await tick(); if (!ended) schedule(); }, tickMs ?? Math.max(50, (mirrorOptions.intervalMs ?? cadence) / 2)); };
+    const schedule = () => { timer = setTimeout(async () => { await tick(); if (!ended) schedule(); }, tickMs ?? Math.max(50, (mirrorOptions.intervalMs ?? cadence) / 4)); };
     if (signal?.aborted) { onAbort(); return; }
     signal?.addEventListener('abort', onAbort, { once: true });
     schedule();
