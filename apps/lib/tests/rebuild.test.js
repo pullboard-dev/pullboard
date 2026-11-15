@@ -36,17 +36,17 @@ const REPO = fileURLToPath(new URL('../../..', import.meta.url));
 
 after(cleanupFixtureChildren);
 
-/** Isolate the machine cache for one test and restore the caller's setting. */
-function isolateMachine(t) {
+/** Isolate the machine cache for one test and restore the caller's setting; a `shared` folder outlives the test. */
+function isolateMachine(t, shared) {
   const previous = process.env.PULLBOARD_MACHINE_HOME, options = process.env.NODE_OPTIONS;
   // The runner's own preloads are foreign to the inventory fingerprint; the producer must see a plain Node.
   delete process.env.NODE_OPTIONS;
-  const directory = temporaryDirectory('accepted-identity-machine-');
+  const directory = shared ?? temporaryDirectory('accepted-identity-machine-');
   process.env.PULLBOARD_MACHINE_HOME = directory;
   t.after(() => {
     if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previous;
     if (options !== undefined) process.env.NODE_OPTIONS = options;
-    rmSync(directory, { recursive: true, force: true });
+    if (!shared) rmSync(directory, { recursive: true, force: true });
   });
   return directory;
 }
@@ -67,25 +67,51 @@ function copyFiles(root, files) {
   }
 }
 
+/** Code and data a producer needs to run: every tracked file under packages and apps except the test scripts. */
+function runnableFiles() {
+  return trackedFiles('packages', 'apps', 'package.json').filter(file => !(file.includes('/tests/') && file.endsWith('.js')));
+}
+
 /**
- * Build a real repository holding the checker's tooling plus a cells plan, committed on main.
- * Why only the checker folders: the producer's census parses every file in this tree, and the whole checkout cost it
- * about 95 s a case; the pinned fingerprint covers only these folders, so the identity under test is unchanged.
+ * Build a real repository holding the checker's tooling plus a cells plan, committed on main; `runnable` adds the code a producer
+ * runs from the pinned checkout.
+ * Why not the whole checkout: the producer's census parses every file in this tree and cost about 95 s a case; the pinned
+ * fingerprint covers only the checker folders, so the identity under test is unchanged.
  */
-function toolingRepo(t) {
+function toolingRepo(t, { runnable = false } = {}) {
   const root = temporaryRepository(t, 'accepted-identity-repo-');
-  copyFiles(root, trackedFiles(...CHECKER_PATHS, 'package.json'));
+  copyFiles(root, [...new Set([...trackedFiles(...CHECKER_PATHS, 'package.json'), ...(runnable ? runnableFiles() : [])])]);
   writeFileSync(join(root, 'packages/codemap/data/plan/cells.json'), '{}\n');
   git(root, 'add', '-A');
   git(root, 'commit', '-q', '-m', 'fixture');
   return { root, commit: git(root, 'rev-parse', 'HEAD').trim() };
 }
 
+/** One runnable repository and machine cache for the producer cases: the census runs once, and the second case builds on it. */
+let sharedProducer = null;
+/** Cleanup for the shared producer fixture, run once when the file ends. */
+const sharedCleanups = [];
+after(() => { for (const work of sharedCleanups.reverse()) work(); });
+
+/** Build (once) the producer cases' repository; its child commit changes only a file outside the checker, so its inventory is a new one. */
+function producerFixture() {
+  if (sharedProducer) return sharedProducer;
+  const owner = { after: work => sharedCleanups.push(work) };
+  const machine = temporaryDirectory('accepted-identity-machine-');
+  sharedCleanups.push(() => rmSync(machine, { recursive: true, force: true }));
+  const { root, commit } = toolingRepo(owner, { runnable: true });
+  writeFileSync(join(root, 'fixture-note.txt'), 'a later accepted commit\n');
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'fixture: later commit');
+  sharedProducer = { machine, root, commit, later: git(root, 'rev-parse', 'HEAD').trim() };
+  return sharedProducer;
+}
+
 /** A runnable copy of this checkout's code (no tests) with one checker file changed: what a candidate that edits the gate runs. */
 function modifiedToolingCopy(t, note) {
   const copy = temporaryDirectory('accepted-identity-copy-');
   t.after(() => rmSync(copy, { recursive: true, force: true }));
-  copyFiles(copy, trackedFiles('packages', 'apps', 'package.json').filter(file => !(file.includes('/tests/') && file.endsWith('.js'))));
+  copyFiles(copy, runnableFiles());
   const checker = join(copy, 'packages/codemap/src/io/module/imports.js');
   writeFileSync(checker, `${readFileSync(checker, 'utf8')}\n// ${note}\n`);
   return copy;
@@ -113,8 +139,8 @@ test('clause 1: nudgeAcceptedCells treats a ready record whose checker differs f
 });
 
 test('clause 2: a producer nudged from a modified tooling copy records the pinned commit\'s checker and preloads [C7]', { timeout: 590_000 }, async t => {
-  isolateMachine(t);
-  const { root, commit } = toolingRepo(t);
+  const { machine, root, commit } = producerFixture();
+  isolateMachine(t, machine);
   const copy = modifiedToolingCopy(t, 'modified tooling copy');
   const identity = acceptedCellsIdentity(root, commit, { pinned: true }), key = acceptedInventoryKey(identity);
   assert.equal(toolingIsPinned(root, commit), true, 'this checkout carries the pinned tooling');
@@ -129,8 +155,8 @@ test('clause 2: a producer nudged from a modified tooling copy records the pinne
 });
 
 test('a gate whose own checker files differ from the pinned main gets the inventory its cells-inventory job built from the pinned tooling, never a pending stop [C7]', { timeout: 590_000 }, async t => {
-  const machine = isolateMachine(t);
-  const { root, commit } = toolingRepo(t);
+  const { machine, root, later: commit } = producerFixture();
+  isolateMachine(t, machine);
   const copy = modifiedToolingCopy(t, 'candidate changes the checker');
   const boards = temporaryDirectory('accepted-identity-board-');
   t.after(() => rmSync(boards, { recursive: true, force: true }));
