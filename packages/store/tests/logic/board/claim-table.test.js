@@ -44,7 +44,11 @@ function boardFor(t, record) {
   const sql = board.db;
   const seat = (id, lane, route) => sql.prepare('INSERT OR IGNORE INTO agent (agent_id, agent_lane, agent_path, agent_route, agent_created_at) VALUES (?, ?, ?, ?, ?)').run(id, lane ?? 'core', `/seat/${id}`, route ?? 'strong', STAMP);
   if (snapshot.actor.joined) seat(snapshot.actor.id, snapshot.actor.lane, snapshot.actor.route);
+  const stub = (id, lane) => { if (id != null && !sql.prepare('SELECT 1 FROM item WHERE item_id=?').get(id)) file({ id, status: 'verified' }, lane); };
   const file = (row, lane) => {
+    for (const who of [row.owner, row.builtBy]) if (who) seat(who, lane, 'strong');
+    stub(row.parentId, lane);
+    if (sql.prepare('SELECT 1 FROM item WHERE item_id=?').get(row.id)) return;
     sql.prepare(`INSERT INTO item (item_id, item_lane, item_title, item_route, item_status, item_owner, item_lease_until, item_after, item_hold_reason, item_hold_by, item_parent_id,
       item_frozen, item_frozen_digest, item_built_by, item_verdict, item_created_by, item_created_at, item_updated_at) VALUES (?, ?, 'recorded', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'coordinator', ?, ?)`)
       .run(row.id, row.lane ?? lane, row.route ?? 'strong', row.status, row.owner ?? null, row.leaseUntil ?? null, (row.after ?? []).join(','), row.holdReason ?? null, row.holdReason ? 'coordinator' : null,
@@ -55,6 +59,7 @@ function boardFor(t, record) {
   for (const [id, other] of Object.entries(snapshot.items)) if (Number(id) !== snapshot.item.id) file({ id: Number(id), ...other, route: 'strong', after: [] }, other.lane);
   for (const mine of snapshot.actorClaims) if (mine.id !== snapshot.item.id && !snapshot.items[mine.id]) file({ id: mine.id, status: 'claimed', owner: snapshot.actor.id, leaseUntil: mine.leaseUntil, parentId: mine.parentId, verdict: mine.verdict, builtBy: mine.builtBy }, snapshot.actor.lane);
   file(snapshot.item, snapshot.item.lane);
+  for (const e of snapshot.history) seat(e.by, snapshot.item.lane, 'strong');
   for (const e of snapshot.history) sql.prepare('INSERT INTO event (event_id, event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?, ?)').run(e.id, e.at, e.by, e.kind, snapshot.item.id, JSON.stringify(e.detail));
   if (snapshot.claimWaiting.length) sql.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(`claim_waiting:${snapshot.item.id}`, JSON.stringify(snapshot.claimWaiting));
   if (snapshot.laneHold) sql.prepare('INSERT INTO hold (hold_lane, hold_by, hold_reason, hold_at) VALUES (?, ?, ?, ?)').run(snapshot.item.lane, snapshot.laneHold.by, snapshot.laneHold.reason, STAMP);
