@@ -123,8 +123,8 @@ export async function main(rawArgv, streams) {
   }
 }
 
-// The commands a seat with board.url set sends to the board host: two reads and the worker loop's moves [P7].
-const REMOTE_COMMANDS = new Set(['show', 'whoami', 'next', 'claim', 'fact', 'release', 'submit', 'done', 'verify', 'test']);
+// The commands a seat with board.url set sends to the board host: two reads, the worker loop's moves and shout [P7].
+const REMOTE_COMMANDS = new Set(['show', 'whoami', 'next', 'claim', 'fact', 'release', 'submit', 'done', 'verify', 'shout', 'test']);
 
 /** Parse and execute one CLI command, binding its checkout session and Git-fact scope. */
 async function runMain(argv, streams) {
