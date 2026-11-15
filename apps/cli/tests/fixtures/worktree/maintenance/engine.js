@@ -515,7 +515,7 @@ export function registerMaintenanceIdleSeatTests() {
     assert.equal(fs.existsSync(idle.path), false, `the idle seat's clean, merged tree is pruned: ${row(idle).reason}`);
     assert.equal(row(idle).action, 'pruned');
     assert.equal(report.pruned, 1);
-    for (const [tree, reason] of [[claimed, 'claim'], [dirty, /uncommitted changes/u], [ahead, /unmerged commits/u], [recent, 'seat-recent-or-clock-rollback']]) {
+    for (const [tree, reason] of [[claimed, 'claim'], [dirty, /uncommitted changes/u], [ahead, /unmerged commits/u], [recent, 'seat-live']]) {
       assert.equal(fs.existsSync(tree.path), true, `${tree.path} is kept`);
       assert.match(row(tree).reason, typeof reason === 'string' ? new RegExp(`^${reason}$`, 'u') : reason);
     }
