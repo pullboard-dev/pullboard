@@ -57,12 +57,23 @@ function signedBy(publicKey, text, signature) {
  * @param {{ trusted: string[] | (() => string[]), lease: { take: (job: string, runner: string) => boolean,
  *   renew: (job: string, runner: string) => boolean }, record: (job: string, shard: string, payload: object) => void,
  *   checkResult: (posted: object) => { valid: boolean, reason?: string, keyId?: string }, bundle: (tree: string) => string,
- *   secret?: Buffer, now?: () => number, tokenMs?: number, skewMs?: number, seenMs?: number }} ports
+ *   secret?: Buffer, now?: () => number, tokenMs?: number, skewMs?: number, seenMs?: number,
+ *   store?: { load: () => (object | null), save: (state: object) => void } }} ports
  * @returns {object} The adapter: open and probe for the channel interface, and the runner-facing protocol calls.
  */
-export function pullAdapter({ trusted, lease, record, checkResult, bundle, secret = randomBytes(32), now = Date.now, tokenMs = TOKEN_MS, skewMs = SKEW_MS, seenMs = SEEN_MS }) {
+export function pullAdapter({ trusted, lease, record, checkResult, bundle, secret = randomBytes(32), now = Date.now, tokenMs = TOKEN_MS, skewMs = SKEW_MS, seenMs = SEEN_MS, store = null }) {
   const runners = new Map();
   const offers = new Map();
+  // Why: pull offers and registrations are the board's promise to its runners, so they ride a store the board
+  // restarts from; without one the adapter is in-memory, as before [C7].
+  const held = store?.load() ?? null;
+  for (const runner of held?.runners ?? []) runners.set(runner.runner, { ...runner });
+  for (const offer of held?.offers ?? []) offers.set(offer.job, { ...offer, shards: new Map(offer.shards.map(shard => [shard.shard, { ...shard }])) });
+  /** Write the registrations and offers to the store, after every change to either. */
+  const persist = () => store?.save({
+    runners: [...runners.values()].map(({ runner, publicKey, seen }) => ({ runner, publicKey, seen })),
+    offers: [...offers.values()].map(({ job, tree, base, tooling, attempt, runner, shards }) => ({ job, tree, base, tooling, attempt, runner, shards: [...shards.values()] })),
+  });
   // Nonces of accepted takes, each kept until its request can no longer be fresh, so a replay inside the window finds it.
   const spent = new Map();
   const trustedKeys = () => new Set(typeof trusted === 'function' ? trusted() : trusted);
@@ -101,17 +112,18 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
   };
 
   /** Offer one shard to pull runners; it is the channel's startShard. */
-  const offerShard = ({ job, shard, command, tree }) => {
+  const offerShard = ({ job, shard, command, tree, base = '', tooling = '', attempt = '' }) => {
     shardIds({ job, shard });
     if (typeof command !== 'string' || !command) throw new Refused('TRANSPORT_SHARD_COMMAND', 'a shard needs the project command to run');
     if (!isObjectId(tree)) throw new Refused('PULL_TREE', `shard ${shard} of job ${job} needs the full tree id its runner fetches`);
-    const offer = offers.get(job) ?? { job, tree, runner: null, shards: new Map() };
+    const offer = offers.get(job) ?? { job, tree, base: String(base), tooling: String(tooling), attempt: String(attempt), runner: null, shards: new Map() };
     if (offer.tree !== tree) throw new Refused('PULL_TREE', `job ${job} is offered on tree ${offer.tree}, not ${tree}`);
     offers.set(job, offer);
     const known = offer.shards.get(shard);
     if (known?.result) return { state: 'done', job, shard };
     if (known) return { state: 'running', job, shard };
     offer.shards.set(shard, { shard, command, result: null });
+    persist();
     return { state: 'started', job, shard };
   };
 
@@ -123,6 +135,7 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
     if (digest && digest !== known.result.digest) {
       const held = known.result.digest;
       known.result = null;
+      persist();
       return { state: 'import.invalid', reason: `digest ${held.slice(0, 12)} is not the recorded ${String(digest).slice(0, 12)}`, digest: held, reset: true };
     }
     return { state: 'done', status: known.result.status, output: known.result.output, digest: known.result.digest };
@@ -139,7 +152,7 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
         runner,
         startShard: async spec => offerShard(spec),
         fetchResult: async spec => readShard(spec),
-        resetShard: async ({ job, shard }) => { const known = offers.get(job)?.shards.get(shard); if (known) known.result = null; },
+        resetShard: async ({ job, shard }) => { const known = offers.get(job)?.shards.get(shard); if (known) { known.result = null; persist(); } },
         get alive() { return alive; },
         onLost(listener) { listeners.add(listener); return () => listeners.delete(listener); },
         close() {
@@ -167,6 +180,7 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
       if (!trustedKeys().has(publicKey)) throw new Refused('PULL_RUNNER_UNTRUSTED', `runner ${runner}'s key is not trusted on this board; ask the person to trust it with the runner's public key`);
       checkSigned('register', runner, at, signature, publicKey);
       runners.set(runner, { runner, publicKey, seen: now() });
+      persist();
       return { runner };
     },
 
@@ -185,8 +199,9 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
         const owed = [...offer.shards.values()].filter(shard => !shard.result);
         if (!owed.length || !lease.take(offer.job, runner)) continue;
         offer.runner = runner;
+        persist();
         const token = mintJobToken({ job: offer.job, runner, tree: offer.tree, secret, now: now(), ttlMs: tokenMs });
-        return { job: offer.job, tree: offer.tree, shards: owed.map(({ shard, command }) => ({ shard, command })), token };
+        return { job: offer.job, tree: offer.tree, base: offer.base, tooling: offer.tooling, attempt: offer.attempt, shards: owed.map(({ shard, command }) => ({ shard, command })), token };
       }
       return null;
     },
@@ -222,12 +237,13 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
       const { scope, runner, offer } = tokenJob(token);
       const known = offer.shards.get(shard);
       if (!known) throw new Refused('PULL_SHARD_UNKNOWN', `job ${scope.job} has no shard ${shard}; post only the shards take returned`);
-      const signed = checkResult({ bytes, signature, publicKey: runner.publicKey, job: scope.job, shard, tree: offer.tree });
+      const signed = checkResult({ bytes, signature, publicKey: runner.publicKey, job: scope.job, shard, tree: offer.tree, base: offer.base, tooling: offer.tooling, command: known.command, attempt: offer.attempt });
       if (!signed.valid) throw new Refused('PULL_RESULT_INVALID', `the result for shard ${shard} of job ${scope.job} is import.invalid: ${signed.reason}; rerun it and sign with the registered key`);
       const parsed = parseResult(bytes);
       if (!parsed.valid) throw new Refused('PULL_RESULT_INVALID', `the result for shard ${shard} of job ${scope.job} is import.invalid: ${parsed.reason}; rerun it`);
       record(scope.job, shard, { state: 'done', status: parsed.status, digest: parsed.digest, tree: offer.tree, runner: scope.runner, key: signed.keyId, signature });
       known.result = { status: parsed.status, output: parsed.output, digest: parsed.digest };
+      persist();
       return { job: scope.job, shard, status: parsed.status, digest: parsed.digest };
     },
   };
