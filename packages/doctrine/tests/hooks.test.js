@@ -14,7 +14,7 @@ import { hookFixtures } from "./fixtures/hooks.js";
 import { runFixtureGit } from "../../gate/tests/fixtures/child.js";
 import { defaults } from "../../config/index.js";
 
-const { fixture, git } = hookFixtures({ runFixtureChild, runFixtureGit, defaults });
+const { diverge, fixture, git } = hookFixtures({ runFixtureChild, runFixtureGit, defaults });
 
 
 
