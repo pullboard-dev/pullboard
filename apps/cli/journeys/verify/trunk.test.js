@@ -1,23 +1,11 @@
 /** Branch-name-independent check baselines and lane merge ownership [B34,P2,L3]. */
-import { runCliInProcess } from '../../tests/fixtures/process.js';
 import assert from 'node:assert/strict';
+import { runFixtureChild } from '../../tests/fixtures/child.js';
 import {
-  runFixtureExecFile as execFileSync,
-  runFixtureChild as spawnSync,
-  runFixtureChild,
-  runFixtureGit,
-} from '../../tests/fixtures/child.js';
-import {
-  chmodSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
-  rmSync,
   writeFileSync,
 } from 'node:fs';
-import {
-  tmpdir,
-} from 'node:os';
 import {
   join,
   resolve,
@@ -35,55 +23,20 @@ import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 import { FIXTURE_MODEL } from '../../tests/fixtures/e2e.js';
+import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 
-const BIN = resolve(import.meta.dirname, '../../pullboard.js');
-const TEMP_DIRS = [];
+const e2e = createE2eHelpers();
+after(e2e.cleanup);
 const SPEC = '# Trunk fixture\n\n## G · Goals\n- G1 [approved, must] The fixture works. | gate: true\n';
 
-/** Remove isolated fixture repositories after their child processes finish. */
-function cleanupFixtures() {
-  for (const dir of TEMP_DIRS) rmSync(dir, { recursive: true, force: true });
-}
-
-after(cleanupFixtures);
-
-/** Build an offline CLI fixture with private Git identity and machine settings. */
+/**
+ * Build an offline CLI fixture with private Git identity and machine settings. Every CLI call goes through runIn: in this process
+ * by default, a real process under PULLBOARD_JOURNEY_MODE=process, which the gate's parity check compares (#8266). No case here
+ * tests argv, a child's exit code, hooks or child cleanup, so none keeps its own process.
+ */
 function sandbox() {
-  const dir = mkdtempSync(join(tmpdir(), 'pullboard-trunk-'));
-  TEMP_DIRS.push(dir);
-  const bin = join(dir, 'bin');
-  mkdirSync(bin);
-  writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec ${shellWord(process.execPath)} ${shellWord(BIN)} "$@"\n`);
-  chmodSync(join(bin, 'pullboard'), 0o755);
-  const env = { ...process.env };
-  for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
-  Object.assign(env, {
-    HOME: join(dir, 'home'),
-    PULLBOARD_HOME: join(dir, 'pullboard-home'),
-    PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
-    GIT_CONFIG_GLOBAL: '/dev/null',
-    GIT_CONFIG_NOSYSTEM: '1',
-    GIT_AUTHOR_NAME: 'Trunk fixture',
-    GIT_AUTHOR_EMAIL: 'trunk@example.invalid',
-    GIT_COMMITTER_NAME: 'Trunk fixture',
-    GIT_COMMITTER_EMAIL: 'trunk@example.invalid',
-    PATH: `${bin}:${process.env.PATH}`,
-  });
-  /** Run isolated Git commands. */
-  function git(cwd, ...args) {
-    return runFixtureGit(args, { cwd, env });
-  }
-  /** Run the real Pullboard CLI in this process in the fixture environment. */
-  async function go(cwd, ...args) {
-    const result = await runCliInProcess(args, { cwd, env });
-    return { code: result.status, out: result.stdout, err: result.stderr, failure: null };
-  }
-  return { dir, env, git, go };
-}
-
-/** Quote a shell word for the fixture's local Pullboard executable. */
-function shellWord(value) {
-  return `'${String(value).replaceAll("'", "'\\''")}'`;
+  const box = e2e.sandbox();
+  return { dir: box.dir, env: box.env, git: (cwd, ...args) => box.git(cwd, ...args), go: box.runIn };
 }
 
 /** Initialize a committed repo whose primary branch has the supplied name. */
