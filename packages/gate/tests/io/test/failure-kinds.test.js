@@ -34,7 +34,7 @@ test('clause 1: an assertion failure is recorded as assertion, a load error as e
     'a.test.js': "import test from 'node:test'; import assert from 'node:assert/strict';\ntest('asserts', () => assert.equal(1, 2));\ntest('throws', () => { throw new Error('boom'); });\ntest('ok', () => {});\n",
     'b.test.js': "import './missing.js';\n",
   });
-  const by = name => rows.find(row => row.name === name);
+  const by = name => rows.find(row => row.name === name) ?? assert.fail(JSON.stringify(rows));
   assert.equal(by('asserts').failure, 'assertion');
   assert.equal(by('throws').failure, 'error');
   assert.equal(by('ok').failure, undefined);
