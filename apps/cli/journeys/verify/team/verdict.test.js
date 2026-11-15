@@ -291,14 +291,6 @@ test('an accepted verdict reads stale through the CLI once main moves under its 
   assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', 'feature = 1\nmain = 0\n', 'feat(web): feature [G1]').status, 0);
   const submitted = box.git(box.web, 'rev-parse', 'HEAD');
   await run(box, box.web, 'submit', '1');
-  // The submitted source's comparison worker records its result at no fixed moment; wait so no later call sees it land.
-  await waitForCondition(() => {
-    const db = new DatabaseSync(join(box.repo, '.git/pullboard/board.sqlite'), { readOnly: true });
-    try {
-      const latest = db.prepare("SELECT event_detail FROM event WHERE event_kind = 'fact' AND event_detail LIKE '%Review comparison%' ORDER BY event_id DESC LIMIT 1").get();
-      return Boolean(latest) && !latest.event_detail.includes('pending');
-    } finally { db.close(); }
-  }, 'the detached review comparison to record its result', { signal: t.signal });
   const reviewer = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, submitted);
   await run(box, reviewer, 'join', 'web', '--route', 'strong');
