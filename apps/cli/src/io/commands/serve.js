@@ -41,10 +41,9 @@ import { provideGateHopTable } from '../../../../../packages/api/index.js';
 import { provideJobTable } from '../../../../../packages/api/index.js';
 import { JOB_MAX_ATTEMPTS } from '../../../../../packages/api/index.js';
 import { jobEngine } from '../../../../../packages/moves/index.js';
-import { LEASE_MS } from '../../../../../packages/jobs/index.js';
-import { hopEngine } from '../../../../../packages/moves/index.js';
 import { runTable } from '../../../../../packages/moves/index.js';
-import { leaseLapsed } from '../../../../../packages/jobs/index.js';
+import { LEASE_MS } from '../../../../../packages/jobs/index.js';
+import { gateHopTable } from '../submit/hop.js';
 import { provideCompanionInheritance } from '../../../../../packages/api/index.js';
 import { provideMainRedNotes } from '../../../../../packages/api/index.js';
 import { provideRefusalTrials } from '../../../../../packages/api/index.js';
@@ -243,12 +242,6 @@ export function boardStatePorts() {
 /** The job table the writer's shadow compare decides with, over the jobs cell's lease and the api's claim cap, so each stays one source [C7,#8381]. */
 function jobShadowTable() {
   const { rules, table } = jobEngine({ leaseMs: LEASE_MS, maxAttempts: JOB_MAX_ATTEMPTS });
-  return (snapshot, move) => runTable(table, rules, snapshot, move);
-}
-
-/** The hop table the claim route decides with under gate.fencedHop, over the jobs cell's own lease rule [C7,#8352]. */
-function gateHopTable(leaseMs) {
-  const { rules, table } = hopEngine({ leaseMs, leaseLapsed });
   return (snapshot, move) => runTable(table, rules, snapshot, move);
 }
 

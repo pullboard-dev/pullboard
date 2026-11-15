@@ -51,6 +51,8 @@ export { applyOutsideIntake, approveOutside as outside_store_approveOutside } fr
 export { boundProofReceipt, proofRunReceipt, refuseLongShout } from './src/io/receipts.js';
 export { SEAT_LIVE_WINDOW_MS, heartbeatSeat, importSeatObservations, withSeatPresence, withLocalSeatPresence, seatGone } from './src/io/presence.js';
 export { sourceAdvanceReturnProblem } from './src/logic/advance.js';
+export { commitDiffers } from './src/io/submission.js';
+export { queueDiffers } from './src/io/submit/handoff/shadow.js';
 export { submissionItemValues, recordSubmissionEvent, submissionChildrenProblem } from './src/io/submission.js';
 export { TYPED_REQUEST_CAUSES, TYPED_REQUEST_VERBS } from './src/io/requests.js';
 export { boardEnginePorts } from './src/io/board/ports.js';
@@ -129,3 +131,4 @@ export { boardHoldLog, boardHoldPercentiles, boardHoldStats, boardHoldLines, lon
 export { readBoardHoldBaseline, boardHoldBaselineProblems, committedBoardHoldBaselineProblems } from './src/io/board/hold/ratchet.js';
 export { GATE_HOP_SCHEMA_SQL, ensureGateHopTable, readGateHop, gateHopMove } from './src/io/board/hop.js';
 export { recordShadow, readShadow, shadowHook, claimDiffers, firstDifference } from './src/io/board/shadow-record.js';
+export { reopenDecision, reopenDiffers } from './src/io/board/reopen-table.js';

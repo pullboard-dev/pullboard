@@ -1,6 +1,10 @@
 /** What the START and SUBMIT tables say the hand-off writers do over the board as it stands, for a shadow compare [C7,#8279,#8280]. */
 import { runSubmitTable } from "../../../logic/board/landing/lease.js";
 import { submitHandoff } from "./records.js";
+import { shadowSetting } from "../../board/submit.js";
+import { shadowHook } from "../../board/shadow-record.js";
+import { shadowDecide } from "../../board/shadow-record.js";
+import { firstDifference } from "../../board/shadow-record.js";
 
 /** The item, as the submit tables read it, from its board row (null when there is none). */
 function itemOf(board, id) {
@@ -56,15 +60,27 @@ export function queueDecision(board, id, options, limits) {
 }
 
 /**
- * Run a hand-off writer on a board that carries the named hook, and hand the hook what the table decided beside what the writer returned or refused with.
- * A board without the hook, or one the table does not model (`modelled` false), runs the writer alone.
+ * Run a hand-off writer with its table shadowed: the board's own hook (a store test), else, with moves.shadow on, a recorder
+ * that counts `record.differs(answer)` under `record.table`, else the writer alone. The table's answer and what the writer
+ * returned or refused with go to the hook; a board the table does not model (`modelled` false) runs the writer alone.
+ * The setting is read here, before the writer's own board write opens, so no file I/O runs inside it [C7,#8379].
  */
-export function shadowed(board, hook, id, modelled, decide, write) {
-  if (typeof board[hook] !== 'function' || !modelled) return write();
-  const decided = decide();
+export function shadowed(board, hook, id, modelled, decide, write, record) {
+  const live = !modelled ? null : record ? shadowHook(board, hook, record.table, record.differs, shadowSetting) : typeof board[hook] === 'function' ? board[hook] : null;
+  if (!live) return write();
+  const decided = shadowDecide(live, decide);
   let wrote;
   try { wrote = { returned: write() }; } catch (error) { wrote = { refused: { code: error.code, message: bare(error.message) }, error }; }
-  board[hook]({ id, decided, wrote: wrote.refused ? { refused: wrote.refused } : { returned: wrote.returned } });
+  live({ id, decided, wrote: wrote.refused ? { refused: wrote.refused } : { returned: wrote.returned } });
   if (wrote.error) throw wrote.error;
   return wrote.returned;
+}
+
+/** Where the SUBMIT table's queue answer and the queue writer's part: the refusals, or else the kept hand-off record. */
+export function queueDiffers({ decided, wrote }) {
+  if (decided?.threw) return `threw ${decided.threw}`;
+  if (decided?.refused || wrote.refused) return firstDifference(decided?.refused ?? null, wrote.refused ?? null, 'refused') ?? 'refused';
+  const via = wrote.returned.created ? 'queue' : 'queue-existing';
+  if (decided.via !== via) return 'via';
+  return firstDifference(decided.job, JSON.parse(JSON.stringify(wrote.returned.job)), 'job');
 }
