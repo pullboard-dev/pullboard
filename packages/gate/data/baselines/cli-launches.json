@@ -255,7 +255,13 @@
     "launch": 12
   },
   "packages/runners/tests/io/run/tests.test.js": {
-    "launch": 23
+    "launch": 8
+  },
+  "packages/runners/tests/io/run/tests/snapshot.test.js": {
+    "launch": 5
+  },
+  "packages/runners/tests/io/run/tests/landing.test.js": {
+    "launch": 10
   },
   "apps/cli/journeys/gate/drift.test.js": {
     "launch": 1
@@ -567,7 +573,13 @@
     "launch": 1
   },
   "packages/runners/tests/io/package/files.test.js": {
-    "launch": 12
+    "launch": 2
+  },
+  "packages/runners/tests/io/package/compiler.test.js": {
+    "launch": 5
+  },
+  "packages/runners/tests/io/package/installed.test.js": {
+    "launch": 5
   },
   "packages/runners/tests/io/run/identity.test.js": {
     "launch": 1
@@ -1493,7 +1505,7 @@
   "packages/gate/tests/io/test/shards.test.js": {
     "launch": 4
   },
-  "apps/lib/tests/rebuild.test.js": {
+  "apps/lib/tests/rebuild/producer.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/relay/sync.test.js": {

@@ -1,5 +1,6 @@
 /** Contract: the in-process Git stand-in answers the scripted sequence journeys use exactly as real Git does [C7]. */
 import assert from 'node:assert/strict';
+import { realpathSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
@@ -89,12 +90,13 @@ function script(system) {
 /** Real Git in a throwaway directory, with the machine's own configuration shut out. */
 function realSystem(t) {
   const files = privateFixtureFiles('pullboard-git-journey-');
-  const root = files.root;
+  const root = realpathSync(files.root);
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const base = { ...cleanGitEnvironment(), GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
   return {
-    git(args, env) {
-      const done = runFixtureChild('git', args, { cwd: root, env: { ...base, ...identity(), ...env }, encoding: 'utf8' });
+    root,
+    git(args, env, cwd = root) {
+      const done = runFixtureChild('git', args, { cwd, env: { ...base, ...identity(), ...env }, encoding: 'utf8' });
       return { status: done.status, stdout: done.stdout ?? '' };
     },
     write(path, body) {
@@ -114,8 +116,9 @@ function memorySystem() {
   const root = resolve('/virtual/pullboard-git-journey');
   const adapter = createMemoryGitAdapter([]);
   return {
-    git(args, env) {
-      const done = adapter.spawnSync(args, { cwd: root, env: { ...identity(), ...env }, encoding: 'utf8' });
+    root,
+    git(args, env, cwd = root) {
+      const done = adapter.spawnSync(args, { cwd, env: { ...identity(), ...env }, encoding: 'utf8' });
       return { status: done.status, stdout: done.stdout };
     },
     write: (path, body) => adapter.write(root, path, body === null ? null : Buffer.from(body)),
@@ -145,4 +148,61 @@ test('git.stand-in.journey-bounds: [C7] the stand-in refuses what it does not mo
   assert.throws(() => run('commit', '-q', '-m', 'x'), /DATE/u, 'a clock is never guessed');
   assert.throws(() => run('rebase', 'main'), { code: 'GIT_ADAPTER_UNSUPPORTED' });
   assert.throws(() => run('switch', '-q', 'main'), /uncommitted/u);
+});
+
+/** Run worktrees, remotes and the common-dir lookup through a `system`, hiding its root so two roots compare equal. */
+function linkedScript(system) {
+  const seen = [];
+  let tick = 0;
+  /** Run git in the root or a linked worktree and keep the status and stdout, with the root replaced by a marker. */
+  const step = (args, { cwd = system.root, commit = false } = {}) => {
+    const date = `${1_700_000_000 + tick++} +0000`;
+    const result = system.git(args, commit ? { GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date } : {}, cwd);
+    seen.push([args.join(' ').replaceAll(system.root, '<root>'), cwd.replaceAll(system.root, '<root>'), result.status, result.stdout.replaceAll(system.root, '<root>')]);
+    return result.stdout.trim();
+  };
+  const web = `${system.root}-web`;
+  const deploy = `${system.root}-deploy`;
+  step(['init', '-q', '-b', 'main']);
+  step(['config', 'user.name', 'Contract Agent']);
+  step(['config', 'user.email', 'agent@example.test']);
+  system.write('a.txt', 'one\n');
+  step(['add', '-A']);
+  step(['commit', '-q', '-m', 'chore: set up'], { commit: true });
+  step(['rev-parse', '--git-common-dir']);
+  step(['rev-parse', '--path-format=absolute', '--git-common-dir']);
+  step(['rev-parse', '--path-format=absolute', '--git-common-dir', '--show-toplevel', 'HEAD']);
+  step(['worktree', 'list', '--porcelain']);
+  step(['worktree', 'add', '-q', web, '-b', 'web/one']);
+  step(['worktree', 'add', '-q', web, '-b', 'web/other']);
+  step(['worktree', 'add', '-q', '--detach', deploy, 'main']);
+  step(['worktree', 'add', '-q', `${system.root}-again`, '-b', 'web/one']);
+  step(['worktree', 'list', '--porcelain']);
+  step(['worktree', 'list', '--porcelain', '-z']);
+  step(['rev-parse', '--git-common-dir'], { cwd: web });
+  step(['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: deploy });
+  step(['rev-parse', '--show-toplevel'], { cwd: web });
+  step(['branch', '--show-current'], { cwd: web });
+  step(['branch', '--show-current'], { cwd: deploy });
+  step(['rev-parse', 'HEAD', 'web/one'], { cwd: web });
+  step(['remote', 'add', 'origin', 'https://example.test/one.git']);
+  step(['remote', 'get-url', 'origin']);
+  step(['remote', 'add', 'origin', 'https://example.test/two.git']);
+  step(['remote', 'get-url', 'missing']);
+  step(['remote', 'get-url', 'origin'], { cwd: web });
+  step(['config', '--get', 'remote.origin.url']);
+  return seen;
+}
+
+test('git.stand-in.linked-worktrees-remotes: [C7] the in-process Git gives the same statuses and output as real Git for worktree add and list, remote add and get-url, and rev-parse --git-common-dir', t => {
+  const real = linkedScript(realSystem(t));
+  const stand = linkedScript(memorySystem());
+  assert.ok(real.length > 25, 'the script ran its steps');
+  assert.deepEqual(stand.map(([args, cwd]) => [args, cwd]), real.map(([args, cwd]) => [args, cwd]));
+  for (const [index, [args, , status, stdout]] of real.entries()) {
+    assert.equal(stand[index][2], status, `exit status of git ${args}`);
+    assert.equal(stand[index][3], stdout, `output of git ${args}`);
+  }
+  assert.ok(real.some(([args, , status]) => args.startsWith('worktree add') && status !== 0), 'a taken path or branch refuses in both');
+  assert.ok(real.some(([args, , status]) => args.startsWith('remote add') && status !== 0), 'a repeated remote refuses in both');
 });
