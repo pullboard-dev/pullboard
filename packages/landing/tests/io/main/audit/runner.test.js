@@ -19,7 +19,7 @@ import { recordReceipt } from '../../../../../gate/index.js';
 import { failureSignatures } from '../../../../index.js';
 import { matchingMainFailures } from '../../../../index.js';
 import { takeResource } from '../../../../../resources/index.js';
-import { captureCommandInProcess } from '../../../../../../apps/cli/tests/fixtures/process.js';
+import { withProcessEnvironment } from '../../../fixtures/environment.js';
 import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
 import { executionServices } from '../../../../../../apps/cli/tests/fixtures/gate/execution.js';
 import { HOST } from '../../../../../../apps/cli/tests/fixtures/runner/ssh.js';
@@ -38,7 +38,7 @@ const roots = [];
 function withEnvironment(box, agent, body) {
   const env = Object.assign({ ...process.env }, { PULLBOARD_HOME: box.home, PULLBOARD_MACHINE_HOME: box.machine,
     PULLBOARD_AGENT: agent, PATH: box.env.PATH, HOME: box.home });
-  return captureCommandInProcess(async () => { await body(); return 0; }, [], { env });
+  return withProcessEnvironment(env, body);
 }
 
 /** Serial on purpose: the cases share one process-wide environment, so a queued case's timeout must not run while another holds it. */
