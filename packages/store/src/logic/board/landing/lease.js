@@ -8,6 +8,7 @@ import { COORDINATOR } from "../../../../../config/index.js";
 import { Refused } from "../../../../../kernel/light.js";
 import { leaseEngine } from "../../../../../moves/light.js";
 import { runTable } from "../../../../../moves/light.js";
+import { withdrawEngine } from "../../../../../moves/light.js";
 import { ENGINE_VERSION } from "../../../../../state/index.js";
 import { LANDING_LOCAL_LEASE_ENGINE } from "../../../../../state/light.js";
 import {
@@ -16,6 +17,13 @@ import {
 } from "./local.js";
 
 const KEY = 'landing_lease';
+let withdrawBuilt = null;
+/** Run the withdraw table over a snapshot and a move; `from` is the lifecycle machine's list of states a withdrawal may start from [C7,#8273]. */
+export function runWithdrawTable(from, snapshot, move) {
+  withdrawBuilt ??= withdrawEngine({ from });
+  return runTable(withdrawBuilt.table, withdrawBuilt.rules, snapshot, move);
+}
+
 export const LANDING_LEASE_MS = 120_000; // 30 s died under a 22 s board write; a dead holder is still reclaimed at expiry [C7].
 
 /** Validate every queue identity before it becomes durable or controls admission. */
