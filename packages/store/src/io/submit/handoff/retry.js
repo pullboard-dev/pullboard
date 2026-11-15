@@ -1,5 +1,6 @@
 import { shadowed } from "./shadow.js";
 import { startDecision } from "./shadow.js";
+import { queueDecision } from "./shadow.js";
 import { ownershipWaitForJob } from '../../board/wait.js';
 import { INFRA_HANDOFF_RECOVERY_ENGINE } from '../../../../../state/light.js';
 import { DEAD_HANDOFF_RETRY_ENGINE } from '../../../../../state/index.js';
@@ -170,8 +171,16 @@ export function prepareQueueSubmitHandoff(board, id, options) {
   return prepared;
 }
 
-/** Record one candidate for the existing live holder; repeated sends never schedule another gate. */
+/**
+ * Record one candidate for the existing live holder; repeated sends never schedule another gate.
+ * A board that carries `queueSubmitHandoffShadow` is handed the SUBMIT table's answer beside what this returned or refused with, for the store test to compare [C7,#8280].
+ */
 export function queueSubmitHandoff(board, id, options) {
+  return shadowed(board, 'queueSubmitHandoffShadow', id, true, () => queueDecision(board, id, options, { retryLimit: INFRASTRUCTURE_RETRY_LIMIT, infrastructureCodes: INFRASTRUCTURE_CODES }), () => writeQueueHandoff(board, id, options));
+}
+
+/** The writer's own checks and the record it keeps. */
+function writeQueueHandoff(board, id, options) {
   candidate(options);
   const prepared = board.executionEngineVersion === undefined ? prepareQueueSubmitHandoff(board, id, options) : options;
   const snapshot = PREPARED.get(prepared)?.snapshot;

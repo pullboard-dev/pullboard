@@ -1,4 +1,4 @@
-/** What the START table says the hand-off start writer does over the board as it stands, for a shadow compare [C7,#8279]. */
+/** What the START and SUBMIT tables say the hand-off writers do over the board as it stands, for a shadow compare [C7,#8279,#8280]. */
 import { runSubmitTable } from "../../../logic/board/landing/lease.js";
 import { submitHandoff } from "./records.js";
 
@@ -37,6 +37,22 @@ export function startDecision(board, id, options, limits, hookProblem) {
     ...(options.unrecoverable ? { unrecoverable: options.unrecoverable } : {}),
     ...(options.retryJob ? { retryJob: options.retryJob } : {}) };
   return decision(runSubmitTable('START', limits, snapshot, move), snapshot, move);
+}
+
+/**
+ * What the SUBMIT table says queuing a gate does: `{ refused }`, or `{ via, job }` (`queue`, or `queue-existing` with the pending job).
+ * Only the queue rows are compared: the digest the caller captured against the frozen one stays the writer's own check.
+ * Why: the writer's own checks and the table must give one answer, and the shadow compare shows it [C7,#8280].
+ */
+export function queueDecision(board, id, options, limits) {
+  const item = itemOf(board, id);
+  const children = board.db.prepare('SELECT item_id, item_status FROM item WHERE item_parent_id = ?').all(id).map(row => ({ id: row.item_id, status: row.item_status }));
+  const snapshot = { now: board.clock.now().toISOString(), config: { handoff: true, leaseMs: options.leaseMs }, actor: { id: options.agentId, joined: true, lane: item?.lane },
+    item, children, rejects: [], history: [], submits: [], receipts: [], handoff: submitHandoff(board, id),
+    io: { head: { commit: options.commit, tree: options.tree, main: options.main, executionCommit: options.executionCommit, executionTree: options.executionTree },
+      companionDigest: options.companionDigest }, deferred: {}, gate: null };
+  const move = { id, actor: options.agentId, job: options.job };
+  return decision(runSubmitTable('SUBMIT', limits, snapshot, move), snapshot, move);
 }
 
 /**
