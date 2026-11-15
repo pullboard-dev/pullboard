@@ -9231,6 +9231,28 @@
       ],
       "coveredBy": "packages/landing/tests/logic/cadence.test.js",
       "because": "the cadence policy's validation and its two exact due boundaries (age and count) are proven in the landing cell on a board seeded with real verdict rows, without submitting items through the CLI"
+    },
+    {
+      "file": "apps/cli/journeys/relay/client/order.test.js",
+      "specs": [
+        "H16",
+        "H3",
+        "V1",
+        "V17"
+      ],
+      "coveredBy": "packages/moves/tests/engine.test.js",
+      "because": "a future engine move is refused before the cursor advances and leaves every replica unchanged, with the engine-version and upgrade wording, proven in the moves cell"
+    },
+    {
+      "file": "apps/cli/journeys/relay/client/claims/later.test.js",
+      "specs": [
+        "H16",
+        "H3",
+        "V1",
+        "V17"
+      ],
+      "coveredBy": "apps/cli/journeys/relay/client/claims.test.js",
+      "because": "the same ten-round paired claim loop as the kept golden replica race, run over item ids eleven to twenty; the race and its refusal receipts are proven once"
     }
   ]
 }
