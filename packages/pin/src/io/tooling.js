@@ -60,6 +60,35 @@ function signedPinRequired(repo) {
 }
 
 /**
+ * Whether a pin file predates signing: it carries no signature and the board has no signing key yet.
+ *
+ * Why: once a key exists every pin was written signed, so an unsigned file beside a key is tampering, never an upgrade.
+ *
+ * @param {string} file - The pin file path.
+ * @param {object} pin - The parsed pin file.
+ * @returns {boolean}
+ */
+function isLegacyPin(file, pin) {
+  return pin.signature === undefined && isObjectId(pin.commit) && !existsSync(`${file}.key`);
+}
+
+/**
+ * Sign a legacy pin file in place, once: create the key and rewrite the file atomically with its signature.
+ *
+ * Why: the first gate after an upgrade must run, not refuse; the file it signs is the one the old landing wrote.
+ *
+ * @param {string} file - The pin file path.
+ * @param {{ tree: string, commit: string }} pin - The parsed legacy pin.
+ * @returns {{ tree: string, commit: string }} The pin, now signed on disk.
+ */
+function signLegacyPin(file, pin) {
+  const partial = `${file}.${process.pid}.partial`;
+  writeFileSync(partial, `${JSON.stringify({ tree: pin.tree, commit: pin.commit, signature: pinSignature(pinKey(file), pin.tree, pin.commit) })}\n`);
+  renameSync(partial, file);
+  return { tree: pin.tree, commit: pin.commit };
+}
+
+/**
  * Record the tooling pin for a landing: the tree of the landed commit.
  *
  * Why: the landing is the one moment trunk's tooling changes, so it is the one writer; the write is atomic
@@ -95,6 +124,7 @@ export function toolingPin(repo) {
   catch { throw new Refused('PIN_TOOLING_CORRUPT', `The tooling pin file ${file} is unreadable; delete it and the next landing rewrites it.`); }
   if (!isObjectId(pin?.tree)) throw new Refused('PIN_TOOLING_CORRUPT', `The tooling pin file ${file} holds no tree id; delete it and the next landing rewrites it.`);
   if (!signedPinRequired(repo)) return { tree: pin.tree, commit: pin.commit };
+  if (isLegacyPin(file, pin)) return signLegacyPin(file, pin);
   const expected = existsSync(`${file}.key`) && isObjectId(pin.commit) ? pinSignature(pinKey(file), pin.tree, pin.commit) : '';
   const given = String(pin.signature ?? '');
   if (!expected || given.length !== expected.length || !timingSafeEqual(Buffer.from(given), Buffer.from(expected))) {
