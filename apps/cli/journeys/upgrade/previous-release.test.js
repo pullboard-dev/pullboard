@@ -16,6 +16,7 @@ import {
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
+import { pathToFileURL } from 'node:url';
 import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { SSH_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { codeIsFromMain } from '../../../../packages/git/index.js';
@@ -31,6 +32,8 @@ import { withFixtureBoard } from '../../tests/fixtures/testkit.js';
 
 const FIXTURE = join(import.meta.dirname, '../../tests/fixtures/upgrade-093');
 const BIN = join(import.meta.dirname, '../../pullboard.js');
+/** The CLI's answer to a git hook's version probe (#7760), which the version shim below asks. */
+const PROBE = pathToFileURL(join(import.meta.dirname, '../../src/io/hook/probe.js')).href;
 /** The folder 0.9.3 built the fixture board in; its seats' recorded paths point here until a test moves them. */
 const MADE_IN = '/private/tmp/pbfx/repo';
 /** The version the CLI under test reports, which the 0.9.3 hooks are compared with. */
@@ -92,9 +95,11 @@ function project(t) {
   const repo = join(dir, 'repo');
   const bin = join(dir, 'bin');
   mkdirSync(bin);
-  // The release after 0.9.3 is 0.9.4; until the package version says so, the hooks' version probe sees it from this shim.
+  // The release after 0.9.3 is 0.9.4; until the package version says so, this shim answers the version probe as 0.9.4
+  // through the CLI's own hook probe, which tells hooks one release back their own version, as an installed 0.9.4 does (#7760).
   const probe = OWN_VERSION === '0.9.3' ? '0.9.4' : OWN_VERSION;
-  writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nif [ "$1" = --version ]; then echo ${probe}; exit 0; fi\nexec "${process.execPath}" "${BIN}" "$@"\n`);
+  const answer = `const { hookProbeVersion } = await import(process.argv[1]); process.stdout.write(hookProbeVersion(process.argv[2], { cwd: process.cwd(), env: process.env }) + '\\n');`;
+  writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nif [ "$1" = --version ]; then exec "${process.execPath}" --input-type=module -e "${answer}" "${PROBE}" ${probe}; fi\nexec "${process.execPath}" "${BIN}" "$@"\n`);
   chmodSync(join(bin, 'pullboard'), 0o755);
   const env = {
     ...withoutPullboardEnv(process.env), PATH: `${bin}:${process.env.PATH}`,
@@ -137,7 +142,7 @@ function project(t) {
 /** One shell-free command line split on spaces: a refusal's `Run:` step is a plain command. */
 const words = line => line.trim().split(/\s+/u);
 
-test('a seat commits through the hooks 0.9.3 installed, or is told one command that clears it from its worktree [R4,I1]', { todo: 'the hook refusal and its repair from a worktree depend on #7760' }, async t => {
+test('a seat commits through the hooks 0.9.3 installed, or is told one command that clears it from its worktree [R4,I1]', async t => {
   const box = project(t);
   writeFileSync(join(box.worktree, 'src/web/index.js'), "export const y = 1;\nexport function footer() { return '<p>bye</p>'; }\n");
   assert.equal(box.git(box.worktree, 'add', '-A').status, 0);
@@ -169,6 +174,7 @@ test('doctor on the upgraded board ends clean after the steps it names [R4,A5]',
     assert.equal(after.status, 0, after.stdout + after.stderr);
     assert.match(after.stdout, /board is clean/u);
   } else {
-    assert.match(after.stdout + after.stderr, /repair: (?:run pullboard status|merge this code into the main checkout first)/u, 'doctor still names a repair');
+    // A changed trigger's repair is a board write, inbox, since 443661e6e2 (#7924).
+    assert.match(after.stdout + after.stderr, /repair: (?:run pullboard (?:status|inbox)|merge this code into the main checkout first)/u, 'doctor still names a repair');
   }
 });
