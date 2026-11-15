@@ -25,10 +25,7 @@ async function sendBackLocal(box, p, id, note) {
   box.git(p.repo, 'switch', '-q', 'main');
 }
 
-import { appendFileSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-mkdirSync('/tmp/p8366', { recursive: true });
-let __t=Date.now();const lap=(l)=>{appendFileSync('/tmp/p8366/lap.txt',l+' '+(Date.now()-__t)+'\n');__t=Date.now();};
+let __t=Date.now();const lap=(l)=>{console.log('LAP '+l+' '+(Date.now()-__t));__t=Date.now();};
 test('unreadable boards collapse to one line with Forget all while projects group readable repos with combined needs and activity [N33, N34, N36]', async () => {
   const box = machine();
   lap('const box = machine();');
