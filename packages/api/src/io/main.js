@@ -584,7 +584,7 @@ function readProjection(state, root, preparedFlow, refreshFlow, isMain, observed
 /** Cache JSON fragments for state fields whose values stay fixed across a cache hit. */
 function prepareStateJson(state) {
   const fields = Object.entries(state).map(([key, value]) => {
-    if (key === 'claimOverlaps' || key === 'unseen' || key === 'observedAt' || key === 'capacityForecast' || key === 'statsComparison') return { dynamic: key };
+    if (key === 'claimOverlaps' || key === 'unseen' || key === 'observedAt' || key === 'capacityForecast' || key === 'statsComparison' || key === 'dashboardRecent') return { dynamic: key };
     if (key === 'proofStats') {
       const stats = Object.entries(value).filter(([name]) => name !== 'flow').map(([name, entry]) => jsonField(name, entry)).filter(Boolean);
       return { dynamic: key, stats };
@@ -646,7 +646,7 @@ function serializeState(state, fields, reportJson, validator = false) {
   const encoded = fields.map((field) => {
     if (field.static !== undefined) return field.static;
     if (field.dynamic === 'statsComparison' && validator) return jsonField(field.dynamic, comparisonForValidation(state.statsComparison));
-    if (field.dynamic === 'claimOverlaps' || field.dynamic === 'unseen' || field.dynamic === 'observedAt' || field.dynamic === 'capacityForecast' || field.dynamic === 'statsComparison') return jsonField(field.dynamic, state[field.dynamic]);
+    if (field.dynamic === 'claimOverlaps' || field.dynamic === 'unseen' || field.dynamic === 'observedAt' || field.dynamic === 'capacityForecast' || field.dynamic === 'statsComparison' || field.dynamic === 'dashboardRecent') return jsonField(field.dynamic, state[field.dynamic]);
     if (field.dynamic === 'proofStats') {
       const value = state.proofStats?.flow;
       const flow = reportJson === undefined || !value ? jsonField('flow', value)
