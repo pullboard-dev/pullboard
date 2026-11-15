@@ -12,7 +12,7 @@ const SELF = 'packages/doctrine/tests/kit-board-fixture.test.js';
 /** Tracked package test files that name the CLI app's board fixture (a package test importing the app kit). */
 function importersOfAppBoardFixture() {
   try {
-    return execFileSync('git', ['grep', '-lE', 'apps/cli/tests/fixtures/board(\\.js|/)', '--', 'packages/*/tests/*.js', 'packages/*/tests/**/*.js'],
+    return execFileSync('git', ['grep', '-lE', 'apps/cli/tests/fixtures/board\\.js', '--', 'packages/*/tests/*.js', 'packages/*/tests/**/*.js'],
       { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(file => file && file !== SELF);
   } catch (error) {
     if (error.status === 1) return [];
