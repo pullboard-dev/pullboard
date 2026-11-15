@@ -318,7 +318,7 @@ test('opening an older board names and logs its genuine index-building write [C7
   try {
     assert.equal(indexes.length, 3);
     for (const index of indexes) fixture.exec(`DROP INDEX "${index.name}"`);
-    fixture.exec(`PRAGMA user_version = ${version - 1}; PRAGMA application_id = 0`);
+    fixture.exec("UPDATE board_meta SET meta_value = '0' WHERE meta_key = 'event_log_version'; PRAGMA application_id = 0"); // the oldest upgradable schema is the current one, so an old event log version is the genuine pending migration
   } finally { fixture.close(); }
   const releaseFile = join(box.dir, 'release-private-index');
   const preload = join(box.dir, 'hold-private-index.mjs');
@@ -546,7 +546,7 @@ test('a failed owning migration rolls back schema, index and stamp work together
   try {
     assert.equal(indexes.length, 3);
     for (const index of indexes) db.exec(`DROP INDEX "${index.name}"`);
-    db.exec(`PRAGMA user_version=${version - 1}; PRAGMA application_id=0`);
+    db.exec("UPDATE board_meta SET meta_value = '0' WHERE meta_key = 'event_log_version'; PRAGMA application_id=0");
   } finally { db.close(); }
   const preload = join(box.dir, 'fail-private-index.mjs');
   writeFileSync(preload, `
@@ -568,7 +568,7 @@ test('a failed owning migration rolls back schema, index and stamp work together
   assert.deepEqual(snapshot(file), before, 'native rows remain unchanged after failed schema work');
   const unchanged = new DatabaseSync(file, { readOnly: true });
   try {
-    assert.equal(unchanged.prepare('PRAGMA user_version').get().user_version, version - 1);
+    assert.equal(unchanged.prepare("SELECT meta_value FROM board_meta WHERE meta_key = 'event_log_version'").get().meta_value, '0');
     assert.equal(unchanged.prepare('PRAGMA application_id').get().application_id, 0);
     assert.equal(unchanged.prepare("SELECT count(*) AS n FROM sqlite_master WHERE type='index' AND name LIKE 'event_fact_%_v2'").get().n, 0);
   } finally { unchanged.close(); }
