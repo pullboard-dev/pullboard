@@ -12,3 +12,5 @@ export function withMoveNextSteps(defaults) { return withRegistrySteps(defaults)
 /** The landing lease table's engine, for the store cell's lease rules to read [C7,#8164]. */
 export { LEASE_MOVES, leaseEngine } from './src/logic/table/lease.table.js';
 export { runTable } from './src/logic/table/run.js';
+/** The release move table's engine, for the store's release writer to run [C7,#8246]. */
+export { releaseEngine } from './src/logic/table/release.table.js';
