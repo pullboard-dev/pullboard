@@ -202,6 +202,22 @@ function scanSourceObjects(root, source) {
  */
 const FIXTURE_BOARD = /^apps\/cli\/tests\/fixtures\/[^/]+\/board\.sqlite$/u;
 
+/**
+ * The historical blobs the transfer secret scan skips, by full object id. Why: two old versions of the upgrade-093
+ * fixture board carry only random lease fencing tokens from a throwaway board, and history cannot be rewritten
+ * [C7,#7919]. A full id pins exact bytes, so a new version of that file, or the same value in any other blob, is
+ * scanned as usual. Blocked paths are still refused.
+ */
+const HISTORICAL_SCAN_EXEMPT_BLOBS = new Set([
+  '04f366c14bcff002de322adaa655d93f4a64477f',
+  '62068207fe7f881651fc26192e870d8b67c7f27b',
+]);
+
+/** Whether one historical blob is exempt from the transfer secret scan by its exact full id [C7,#7919]. */
+export function historicalScanExempt(object, type) {
+  return type === 'blob' && HISTORICAL_SCAN_EXEMPT_BLOBS.has(object);
+}
+
 /** Reject blocked historical paths as well as current ones before an object pack crosses SSH. */
 export function protectedHistoryPath(path, protect) {
   if (FIXTURE_BOARD.test(path)) return false;

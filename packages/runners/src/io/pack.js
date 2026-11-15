@@ -7,6 +7,7 @@ import { Refused } from '../../../kernel/index.js';
 import { MAX_BLOB_BYTES } from './source/scan.js';
 import { objectRecord } from './source/scan.js';
 import { cachedScan } from './source/scan.js';
+import { historicalScanExempt } from './source/scan.js';
 import { protectedHistoryPath } from './source/scan.js';
 import { scannerTree } from './source/scan.js';
 import { sourceGit } from './source/scan.js';
@@ -223,8 +224,8 @@ export function historyPack(root, source, tips, directory, tags = [], knownTagOb
             cursor = nul + 1 + source.commit.length / 2;
           }
           if (cursor !== data.length) throw new Refused('RUNNER_SOURCE', 'invalid historical tree; keep this run local');
-        } else if (protectedHistoryPath(path, config.protect)
-          || secretsIn(data.toString('utf8').split(/\r?\n/u).map((text, line) => ({ path, line: line + 1, text }))).length) {
+        } else if (protectedHistoryPath(path, config.protect) || (!historicalScanExempt(object, type)
+          && secretsIn(data.toString('utf8').split(/\r?\n/u).map((text, line) => ({ path, line: line + 1, text }))).length)) {
           throw new Refused('RUNNER_SECRET', 'historical source failed its transfer scan; remove the private history or keep this run local');
         }
       }
