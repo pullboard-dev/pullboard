@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { closeBoard } from '../../../index.js';
 import { events } from '../../../index.js';
 import { register } from '../../../index.js';
+import { GATE_HOP_SCHEMA_SQL } from '../../../src/io/board/hop.js';
 import { openKitBoard } from '../../fixtures/cell.js';
 import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
 
@@ -74,5 +75,18 @@ test('clause 3: a non-owner whose code declares every shared column still opens 
     const before = events(board).length;
     register(board, { lane: 'web', path: '/fixture/web' });
     assert.equal(events(board).length, before + 1, 'the ordinary write still lands');
+  } finally { closeBoard(board); }
+});
+
+test('clause 1: a board whose gate took a fenced hop still opens from another worktree, without UNMERGED_SCHEMA [C7]', t => {
+  const file = trunkBoard(t);
+  const trunk = new DatabaseSync(file);
+  trunk.exec(GATE_HOP_SCHEMA_SQL);
+  trunk.close();
+  const board = openKitBoard(file, undefined, { isMain: false });
+  try {
+    const before = events(board).length;
+    register(board, { lane: 'web', path: '/fixture/web' });
+    assert.equal(events(board).length, before + 1, 'the worktree opens the board and writes as before');
   } finally { closeBoard(board); }
 });
