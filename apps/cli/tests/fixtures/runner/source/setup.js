@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { takeResource } from '../../../../../../packages/resources/index.js';
+import { withEnvironment } from '../../../../../../packages/resources/index.js';
 import {
   HOST,
   SECRET,
@@ -75,11 +76,10 @@ syncBuiltinESMExports();\n`);
   const rootArgs = mode === 'custom-filesystem' ? ['--root', configuredRoot] : [];
   const added = cli(repo, env, 'runner', 'add', HOST, '--slots', '1', '--browser', '1', ...rootArgs, '--json');
   assert.equal(added.status, 0, added.context);
-  const previous = [process.env.PULLBOARD_HOME, process.env.PULLBOARD_MACHINE_HOME];
-  process.env.PULLBOARD_HOME = home; process.env.PULLBOARD_MACHINE_HOME = machineHome;
+  // The case's own env (its controller home) reaches takeResource through its env option, so cases may run concurrently.
   let held;
   try {
-    held = await takeResource({ name: 'gate', capacity: 1, scope: 'machine', root: repo, agent: 'setup-holder' });
+    held = await takeResource({ env: env, name: 'gate', capacity: 1, scope: 'machine', root: repo, agent: 'setup-holder' });
     const command = `node -e ${shellQuote(`require('node:fs').writeFileSync(${JSON.stringify(executed)}, 'ran')`)}`;
     const result = await runThroughGate(repo, env, command, { requests });
     assert.equal(gateResult(result.stdout).isGreen, false, 'the failed setup is not a successful run');
@@ -103,9 +103,6 @@ syncBuiltinESMExports();\n`);
     assert.ok(!result.stdout.includes(configuredRoot), 'a configured runner root outside HOME and TMPDIR stays private too');
     completed = true;
   } finally {
-    held?.release();
-    for (const [index, key] of ['PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME'].entries()) {
-      if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index];
-    }
+    if (held) withEnvironment(env, () => held.release());
   }
 }
