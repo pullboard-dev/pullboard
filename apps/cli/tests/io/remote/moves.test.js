@@ -168,7 +168,7 @@ test('a seat joined by URL claims, commits in its own clone and submits, exiting
 onRemoteSeats(async (seats) => {
   const id = await seats.add('Remote clone item');
   const own = (...args) => runCliInProcess(args, { cwd: seats.clone, env: { ...seats.box.env, PULLBOARD_MACHINE_HOME: seats.machine, PULLBOARD_AGENT: '' } });
-  const joined = await own('join', 'app', '--model', FIXTURE_MODEL, '--json');
+  const joined = await own('join', 'app', '--model', FIXTURE_MODEL, '--route', 'strong', '--json');
   assert.equal(joined.status, 0, joined.stdout + joined.stderr);
   const claimed = await own('claim', String(id), '--json');
   assert.equal(claimed.status, 0, claimed.stdout + claimed.stderr);
