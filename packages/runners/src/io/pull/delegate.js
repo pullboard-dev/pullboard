@@ -87,7 +87,7 @@ export async function runPulled(root, command, options, ports = {}) {
   let custody;
   try { custody = (ports.controllerDeadline ?? controllerDeadline)(options.metadata?.resourceOwner, process.pid, root); }
   catch (failure) { held?.cleanup(); throw failure; }
-  const span = { startedAt: dispatchStart, host: options.runner?.host ?? null, kind: options.metadata?.kind ?? null };
+  const span = { root, startedAt: dispatchStart, host: options.runner?.host ?? null, kind: options.metadata?.kind ?? null, item: options.metadata?.item ?? null };
   const spawned = Date.now();
   const attempt = async () => {
     const watch = watchSource(root, options, custody, ports);

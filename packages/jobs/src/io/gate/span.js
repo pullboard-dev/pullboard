@@ -52,6 +52,30 @@ export function appendGateSpan(folder, line) {
 }
 
 /**
+ * The folder holding the machine's daily runner-time files, a sibling of the gate spans: one line per runner dispatch,
+ * written whether or not a gate or landing run is open, so no runner time goes unrecorded (#8183).
+ *
+ * @param {string} commonDir - The repository's common Git directory.
+ * @returns {string}
+ */
+export function runnerTimeFolder(commonDir) {
+  return join(commonDir, 'pullboard', 'runner-time');
+}
+
+/**
+ * Read the runner dispatches that ended at or after `since`, from the day files that can hold them. A line that is not
+ * a whole record (host, item, kind and minutes) is skipped.
+ *
+ * @param {string} folder
+ * @param {{ since: number, now?: number }} window
+ * @returns {{ v: 1, host: string, item: string, kind: string, minutes: number, start: string, end: string, outcome: string }[]}
+ */
+export function readRunnerTime(folder, window) {
+  return readDayLines(folder, window, line => typeof line.host === 'string' && typeof line.item === 'string'
+    && typeof line.kind === 'string' && Number.isFinite(line.minutes) && line.minutes >= 0);
+}
+
+/**
  * Read the spans that ended at or after `since`, from the day files that can hold them. A line that is not a whole
  * span is skipped.
  *
@@ -59,7 +83,12 @@ export function appendGateSpan(folder, line) {
  * @param {{ since: number, now?: number }} window
  * @returns {object[]}
  */
-export function readGateSpans(folder, { since, now = Date.now() }) {
+export function readGateSpans(folder, window) {
+  return readDayLines(folder, window, span => typeof span.job === 'string' && typeof span.phase === 'string');
+}
+
+/** The version-1 lines of the day files a window can touch that end inside it and pass `whole`; a torn line is skipped. */
+function readDayLines(folder, { since, now = Date.now() }, whole) {
   if (!existsSync(folder)) return [];
   const first = dayOf(since);
   const last = dayOf(now);
@@ -70,7 +99,7 @@ export function readGateSpans(folder, { since, now = Date.now() }) {
       if (!text) continue;
       let span;
       try { span = JSON.parse(text); } catch { continue; /* a torn line is skipped */ }
-      if (span?.v === 1 && typeof span.job === 'string' && typeof span.phase === 'string' && Date.parse(span.end) >= since) spans.push(span);
+      if (span?.v === 1 && whole(span) && Date.parse(span.end) >= since) spans.push(span);
     }
   }
   return spans;

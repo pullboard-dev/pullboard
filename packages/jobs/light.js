@@ -1,2 +1,2 @@
 /** Jobs light door: only the gate-span readers and writer the runner worker loads; the cell index stays for the store and lease side [C7]. */
-export { appendGateSpan, gateSpanFolder, readGateSpans } from './src/io/gate/span.js';
+export { appendGateSpan, gateSpanFolder, readGateSpans, readRunnerTime, runnerTimeFolder } from './src/io/gate/span.js';

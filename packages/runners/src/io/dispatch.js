@@ -130,7 +130,7 @@ export async function runOnRunnerAsync(root, command, options) {
   child.stdin.on('error', caught => { error ??= caught; });
   child.stdin.end(input);
   // Each dispatch records its transfer, READY and run spans for an open gate's telemetry [C7].
-  const span = { startedAt: dispatchStart, host: options.runner?.host ?? null, kind: options.metadata?.kind ?? null };
+  const span = { root, startedAt: dispatchStart, host: options.runner?.host ?? null, kind: options.metadata?.kind ?? null, item: options.metadata?.item ?? null };
   const spawned = Date.now();
   try {
     const { status, signal: stopped } = await new Promise(resolve => child.once('close', (status, signal) => resolve({ status, signal })));

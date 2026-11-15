@@ -5,6 +5,7 @@
  */
 import { appendGateSpan } from '../../../../jobs/light.js';
 import { recordLandingSpan } from './landing.js';
+import { recordRunnerTime } from './runner-time.js';
 
 /** The typed failure causes a span may carry: readiness-miss, transport-lost, runner-dropped, deadline, infra-retry. */
 
@@ -122,9 +123,11 @@ function runnerDispatchSpans({ startedAt, endedAt, host = null, kind = null, pha
 /**
  * Record every span of one runner dispatch for the open gate, or, with no gate open, for the open landing run.
  *
- * @param {Parameters<typeof runnerDispatchSpans>[0]} run
+ * @param {Parameters<typeof runnerDispatchSpans>[0] & { root?: string, item?: unknown }} run - `root` and `item` also feed the runner-time sidecar.
  */
 export function recordRunnerDispatch(run) {
+  // Every dispatch also lands in the runner-time sidecar, so runner time is recorded with no gate or landing run open (#8183).
+  if (run.root !== undefined) recordRunnerTime(run.root, run);
   if (sink) {
     for (const span of runnerDispatchSpans(run)) recordGateSpan(span);
     return;
