@@ -96,7 +96,8 @@ function settleOfferedJobs(cwd, args, env) {
     try {
       const db = new DatabaseSync(file, { readOnly: true });
       try {
-        open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_step <> 'done' LIMIT 1").get());
+        // A review job is a reviewer's reservation that stays open until a verdict, never work a runner takes (next --verify, 7 Nov: bb9a8cfcd2).
+        open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_step <> 'done' AND job_kind <> 'review' LIMIT 1").get());
         if (!open && submitted !== null) {
           if (!graceUntil) graceUntil = Date.now() + SUBMIT_GRACE_MS;
           open = db.prepare('SELECT item_status FROM item WHERE item_id = ?').get(submitted)?.item_status === 'claimed' && Date.now() < graceUntil;

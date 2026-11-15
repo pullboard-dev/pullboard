@@ -92,6 +92,7 @@ test('the item projector matches the full projection [A2,N26]', async () => {
   await box.inProcess(p.repo, 'withdraw', String(withdrawn), 'a duplicate of the open item');
 
   const file = join(p.repo, '.git', 'pullboard', 'board.sqlite');
+  // @pullboard-board-file journey: reads the projection from the board the CLI children wrote
   const board = openBoard(file);
   try {
     const all = store.listItems(board, { all: true });
