@@ -14,7 +14,6 @@
   ["src/infra-note.js","packages/commits/src/io/note.js","seed"],
   ["src/why-file.js","packages/commits/src/logic/why.js","seed"],
   ["test/agent-guidance.test.js","packages/commits/tests/guidance.test.js","seed"],
-  ["test/landing-message.test.js","packages/commits/tests/landing-message.test.js","seed"],
   ["src/plan-row-change.js","packages/commits/src/logic/change/row/plan.js","rule"],
   ["src/tier-row-change.js","packages/commits/src/logic/change/row/tier.js","rule"],
   ["src/import-only-change.js","packages/commits/src/logic/import-only-change.js","rule"]
