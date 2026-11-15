@@ -36,6 +36,10 @@ import { serveListen } from '../../../../../packages/config/index.js';
 import { mainComparisonMode } from '../../../../../packages/config/index.js';
 import { criterionMainReceipts } from '../submit/receipt.js';
 import { provideMainComparison } from '../../../../../packages/api/index.js';
+import { provideGateHopTable } from '../../../../../packages/api/index.js';
+import { hopEngine } from '../../../../../packages/moves/index.js';
+import { runTable } from '../../../../../packages/moves/index.js';
+import { leaseLapsed } from '../../../../../packages/jobs/index.js';
 import { provideCompanionInheritance } from '../../../../../packages/api/index.js';
 import { provideMainRedNotes } from '../../../../../packages/api/index.js';
 import { provideRefusalTrials } from '../../../../../packages/api/index.js';
@@ -107,6 +111,7 @@ export async function serveHere(io, values) {
   const networked = address !== LOOPBACK;
   // A pulled gate's red cases are read against main's receipts like a submit gate's, unless gate.mainComparison is off [P7].
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
+  provideGateHopTable(gateHopTable);
   provideCompanionInheritance(companionMainFailuresUntouched);
   provideMainTestRecorder(recordMainTestReceipt);
   provideMainRedNotes(MAIN_RED_NOTES);
@@ -200,6 +205,7 @@ const MAIN_RED_NOTES = { message: (root, board, comparison) => mainRedMessage(ro
 export async function loopbackBoardApi(io, { projects, secret }) {
   const ctx = context(io), openers = { ...nativeBoardOpeners(io), launchRelaySender: io.launchRelaySender, trunkPack: servedTrunkPack }, ids = new Map();
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
+  provideGateHopTable(gateHopTable);
   provideCompanionInheritance(companionMainFailuresUntouched);
   provideMainTestRecorder(recordMainTestReceipt);
   provideMainRedNotes(MAIN_RED_NOTES);
@@ -227,6 +233,12 @@ export function boardStatePorts() {
     snapshotStore: { load: loadKeyedResult, save: saveKeyedResult, saved: savedKeyedResults } };
 }
 
+/** The hop table the claim route decides with under gate.fencedHop, over the jobs cell's own lease rule [C7,#8352]. */
+function gateHopTable(leaseMs) {
+  const { rules, table } = hopEngine({ leaseMs, leaseLapsed });
+  return (snapshot, move) => runTable(table, rules, snapshot, move);
+}
+
 /**
  * The ports the API's handler pool workers run with: the native board openers, and the gate's main comparison and
  * main-test and baseline recorders a posted receipt reaches; provided inside each worker thread, which cannot be
@@ -234,6 +246,7 @@ export function boardStatePorts() {
  */
 export async function boardHandlerPorts({ isMain } = {}) {
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
+  provideGateHopTable(gateHopTable);
   provideCompanionInheritance(companionMainFailuresUntouched);
   provideMainTestRecorder(recordMainTestReceipt);
   provideMainRedNotes(MAIN_RED_NOTES);
