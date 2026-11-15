@@ -9,14 +9,13 @@
 export const IDLE_PROBE_INTERVAL_MS = 15_000;
 
 /**
- * The ports a pass needs, loaded on first use so the resident starts without them and the runner worker bundle never
- * pulls them in.
+ * The ports a pass needs, built from the runner services the CLI passes in; resources loads on first use so the resident
+ * starts without it.
+ * Why a parameter: landing may not import the runners front door itself, which reaches the CLI entry [C7].
  */
-async function loadPorts() {
-  const [{ recoverIdleRunners }, { effectiveRunners, probeRunnerHealth, probeRunnerTransport }] = await Promise.all([
-    import('../../../resources/index.js'),
-    import('../../../runners/index.js'),
-  ]);
+async function loadPorts(services) {
+  const { recoverIdleRunners } = await import('../../../resources/index.js');
+  const { effectiveRunners, probeRunnerHealth, probeRunnerTransport } = services.runners;
   return {
     recoverIdleRunners,
     runners: settings => effectiveRunners(settings),
@@ -35,10 +34,10 @@ async function loadPorts() {
  * never delays the tick; a call while a pass runs, or inside the interval, does nothing. The first pass waits one
  * interval, so a resident that serves a command and retires never loads the probes.
  *
- * @param {{ settings: () => object, clock?: () => number, intervalMs?: number, load?: Function }} options `settings` reads the machine settings fresh each pass
+ * @param {{ settings: () => object, executionServices: { runners: object }, clock?: () => number, intervalMs?: number, load?: Function }} options `settings` reads the machine settings fresh each pass
  * @returns {() => Promise<void> | null} the running pass's promise, or null when this call started none
  */
-export function idleRunnerTick({ settings, clock = Date.now, intervalMs = IDLE_PROBE_INTERVAL_MS, load = loadPorts }) {
+export function idleRunnerTick({ settings, executionServices, clock = Date.now, intervalMs = IDLE_PROBE_INTERVAL_MS, load = loadPorts }) {
   let last = clock();
   let pass = null;
   return () => {
@@ -46,7 +45,7 @@ export function idleRunnerTick({ settings, clock = Date.now, intervalMs = IDLE_P
     if (pass || now - last < intervalMs) return null;
     last = now;
     pass = (async () => {
-      const ports = await load();
+      const ports = await load(executionServices);
       const runners = ports.runners(settings());
       if (runners.length) await ports.recoverIdleRunners(runners, { ...ports.probes, now: Date.now() });
     })().catch(() => { /* A failed pass leaves the quarantine as it was; the next interval tries again. */ }).finally(() => { pass = null; });

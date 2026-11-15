@@ -404,8 +404,8 @@ function watchIdle() {
   let probeIdleRunners = null;
   // Loaded after the process serves, so a resident that only runs commands pays nothing for it [C7,#8325].
   void (async () => {
-    const [{ idleRunnerTick }, { loadMachineSettings }] = await Promise.all([import('../../../../../packages/landing/index.js'), import('../../../../../packages/config/index.js')]);
-    probeIdleRunners = idleRunnerTick({ settings: loadMachineSettings, clock });
+    const [{ idleRunnerTick }, { loadMachineSettings }, { idleRunnerServices }] = await Promise.all([import('../../../../../packages/landing/index.js'), import('../../../../../packages/config/index.js'), import('../ports/suite.js')]);
+    probeIdleRunners = idleRunnerTick({ settings: loadMachineSettings, executionServices: idleRunnerServices(), clock });
   })().catch(() => {});
   setInterval(() => { if (!checkIdle()) probeIdleRunners?.(); }, Math.min(IDLE_MS, REPLACED_CHECK_MS)).unref();
 }
