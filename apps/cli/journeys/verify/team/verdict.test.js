@@ -42,7 +42,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   const box = helpers.project();
   /** Run a fixture CLI command through the journey seam and return its output, failing on a refusal. */
   const run = async (fixture, root, ...args) => {
-    const t0 = Date.now(); console.error('TIMING start', args.join(' ')); const result = await fixture.runIn(root, ...args); console.error('TIMING', args.join(' '), Date.now() - t0);
+    const result = await fixture.runIn(root, ...args);
     assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}${result.out}`);
     return result.out;
   };
@@ -279,7 +279,7 @@ test('an accepted verdict reads stale through the CLI once main moves under its 
   const box = helpers.project();
   /** Run a fixture CLI command through the journey seam and return its output, failing on a refusal. */
   const run = async (fixture, root, ...args) => {
-    const t0 = Date.now(); console.error('TIMING start', args.join(' ')); const result = await fixture.runIn(root, ...args); console.error('TIMING', args.join(' '), Date.now() - t0);
+    const result = await fixture.runIn(root, ...args);
     assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}${result.out}`);
     return result.out;
   };
