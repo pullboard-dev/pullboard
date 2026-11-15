@@ -16,14 +16,6 @@ function portable(root, file) {
   return relative(root, file).split(sep).join('/');
 }
 
-/**
- * Why a case failed: 'assertion' when the test body's own assertion threw, otherwise 'error' (a load error, crash or
- * any other throw). Why: a clause is bound to a change only by an assertion that fails at base, never a load error [C7].
- */
-export function failureKind(error) {
-  return error?.cause?.code === 'ERR_ASSERTION' ? 'assertion' : 'error';
-}
-
 /** Observe the controller's actual Node events before public reporters can interpret their output. */
 export function testOutcomeCollector(root) {
   const rows = [];
@@ -32,7 +24,7 @@ export function testOutcomeCollector(root) {
   return {
     /**
      * Preserve actual test identities; suites and cancelled work never become positive verdicts. `testFile` is the
-     * test file the dispatcher ran this event's worker for, when it knows one.
+     * file the dispatcher ran this event's worker for, if known.
      */
     observe(event, testFile = null) {
       if (!['test:pass', 'test:fail'].includes(event.type) || event.data?.details?.type === 'suite') return;
@@ -41,14 +33,14 @@ export function testOutcomeCollector(root) {
         invalid = true; return;
       }
       const passed = event.type === 'test:pass', skipped = skip !== undefined || todo !== undefined;
-      rows.push({ file: portable(root, file), name, passed, skipped, ...(passed || skipped ? {} : { failure: failureKind(details?.error) }) });
+      const failure = details?.error?.cause?.code === 'ERR_ASSERTION' ? 'assertion' : 'error';
+      rows.push({ file: portable(root, file), name, passed, skipped, ...passed || skipped ? {} : { failure } });
       owners.push(testFile ? portable(root, resolve(root, testFile)) : null);
     },
     /**
-     * Publish only after all selected native file workers and their reporters have drained. A case defined once in a
-     * shared fixture module and run by two test files reaches Node under the fixture's path both times; those rows
-     * take the test file that ran each, so the run keeps every case instead of failing closed on the duplicate. Why:
-     * #3253's two check files load one fixture, and its receipts kept no case outcome at all [C7,V4].
+     * Publish only after every selected file worker and reporter has drained. A case from a fixture shared by two test
+     * files reaches Node under the fixture's path both times; those rows take the file that ran each, so the run keeps
+     * every case instead of failing closed on the duplicate (#3253's receipts kept none) [C7,V4].
      */
     finish(complete, tests) {
       if (!complete || invalid || tests !== rows.length) return null;

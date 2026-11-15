@@ -2,35 +2,35 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
+import { run } from 'node:test';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { runClauseBaseComparison } from '../../../index.js';
 import { receiptFields } from '../../../index.js';
+import { testOutcomeCollector } from '../../../index.js';
 import { testOutcomeFields } from '../../../index.js';
 
-const GATE = new URL('../../../index.js', import.meta.url).href;
-
 /** Drive real node:test events for fixture files through the collector and return its rows. */
-function collect(files) {
+async function collect(files) {
   const box = privateFixtureFiles('failure-kinds-');
   for (const [name, body] of Object.entries(files)) box.write(name, body);
-  box.write('driver.mjs', [
-    "import { run } from 'node:test';",
-    `import { testOutcomeCollector } from ${JSON.stringify(GATE)};`,
-    `const collector = testOutcomeCollector(${JSON.stringify(box.root)});`,
-    'let count = 0;',
-    `for await (const event of run({ files: ${JSON.stringify(Object.keys(files).map(name => join(box.root, name)))} })) {`,
-    "  collector.observe(event); if (event.type === 'test:summary') count = event.data.counts.tests;",
-    '}',
-    'console.log(JSON.stringify(collector.finish(true, count)));',
-  ].join('\n'));
-  const env = { ...process.env }; delete env.NODE_TEST_CONTEXT;
-  const result = spawnSync(process.execPath, [join(box.root, 'driver.mjs')], { encoding: 'utf8', env });
-  return JSON.parse(result.stdout.trim().split('\n').pop());
+  const collector = testOutcomeCollector(box.root);
+  let count = 0;
+  const context = process.env.NODE_TEST_CONTEXT;
+  delete process.env.NODE_TEST_CONTEXT;
+  try {
+    for await (const event of run({ files: Object.keys(files).map(name => join(box.root, name)) })) {
+      collector.observe(event);
+      if (event.type === 'test:summary') count = event.data.counts.tests;
+    }
+  } finally {
+    if (context !== undefined) process.env.NODE_TEST_CONTEXT = context;
+  }
+  return collector.finish(true, count);
 }
 
-test('clause 1: an assertion failure is recorded as assertion, a load error as error [C7]', () => {
-  const rows = collect({
+test('clause 1: an assertion failure is recorded as assertion, a load error as error [C7]', async () => {
+  const rows = await collect({
     'a.test.js': "import test from 'node:test'; import assert from 'node:assert/strict';\ntest('asserts', () => assert.equal(1, 2));\ntest('throws', () => { throw new Error('boom'); });\ntest('ok', () => {});\n",
     'b.test.js': "import './missing.js';\n",
   });
