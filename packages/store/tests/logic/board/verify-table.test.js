@@ -31,6 +31,12 @@ function recorded() {
 /** What the board stores for an event, without the actor's model, which the event writer stamps on every event and no move decides. */
 const stored = ({ model, ...rest }) => JSON.parse(JSON.stringify(rest));
 
+/** The frozen bar with its reviewer-family rule off: the records were reviewed by seats of declared vendor families the scratch board does not model, and no table row reads that rule. */
+function openPolicy(frozen) {
+  const bar = JSON.parse(frozen);
+  return JSON.stringify({ ...bar, policy: { ...bar.policy, verify: { ...bar.policy.verify, family: 'off' } } });
+}
+
 /** A real board holding exactly what the replay record says the verdict saw, on a clock at the verdict's own instant. */
 function boardFor(t, record) {
   const at = new Date(record.event.at);
@@ -43,7 +49,7 @@ function boardFor(t, record) {
   sql.prepare(`INSERT INTO item (item_id, item_lane, item_title, item_route, item_status, item_created_by, item_created_at, item_updated_at) VALUES (?, ?, 'recorded', ?, 'open', 'coordinator', ?, ?)`)
     .run(item.id, item.lane ?? 'core', item.route, STAMP, STAMP);
   // The board's machine only lets an item reach a state by its declared moves, so the item walks to where the record found it.
-  const fields = { item_owner: item.owner, item_built_by: item.builtBy, item_commit: item.commit, item_frozen: item.frozen, item_frozen_digest: item.frozenDigest };
+  const fields = { item_owner: item.owner, item_built_by: item.builtBy, item_commit: item.commit, item_frozen: openPolicy(item.frozen), item_frozen_digest: item.frozenDigest };
   const set = (state, extra) => { const all = { ...extra, item_status: state }; sql.prepare(`UPDATE item SET ${Object.keys(all).map(k => `${k}=?`).join(', ')} WHERE item_id=?`).run(...Object.values(all), item.id); };
   // Only a board move may change a status; the seed holds the same token a move holds while it writes.
   sql.exec('INSERT INTO temp.moving VALUES (1)');
