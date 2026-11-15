@@ -1,4 +1,6 @@
 /** @pullboard-test-loads packages/store/src/io/board.js packages/state/src/io/engine.js src/exchange.js src/person-signing.js apps/relay/src/io/passkeys.js */
+import { readdirSync } from 'node:fs';
+import { waitForCondition } from '../../../tests/fixtures/runner/holders.js';
 import { viewApiPorts } from '../../../../view/index.js';
 /** Scenario partition: original case bytes and deadlines remain unchanged. */
 import { apiBoardOpeners } from '../../../tests/fixtures/board.js';
@@ -57,6 +59,11 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   await run(box, reviewer, 'join', 'web', '--route', 'strong');
   await run(box, reviewer, 'next', '--verify', '1');
   await run(box, reviewer, 'verify', '1', 'accept', '--note', 'The feature changes its first line and the frozen check observes it.');
+  // The accepted review detaches a comparison worker that records a board fact when it ends; in-process calls are fast enough
+  // for that fact to land mid-journey, so settle it first and the sequence checks below read a quiet board.
+  const comparisons = join(box.repo, '.git/pullboard/review-comparisons');
+  await waitForCondition(() => !existsSync(comparisons) || readdirSync(comparisons).every(job => existsSync(join(comparisons, job, 'result.json'))),
+    'the detached comparison to finish', { signal: t.signal });
   assert.equal(withBoard(box.repo, board => store.getItem(board, 1)).item_review_by,
     withBoard(box.repo, board => store.getItem(board, 1)).item_verified_by,
     'the original reservation stays in history after acceptance; it is not a live review lease');
