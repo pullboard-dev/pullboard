@@ -50,7 +50,7 @@ You follow progress, answer questions and approve changes from one board, and th
 
 <p align="center"><a href="https://youtu.be/O0kRdvd6dno"><img src="https://github.com/user-attachments/assets/685da2ee-3be5-4d39-b14a-dba1a2cbb30d" alt="A builder agent says done and tests pass. A second agent checks the work, finds a problem and sends it back with the reason. The fix passes and merges." width="720"></a></p>
 
-<p align="center"><a href="https://youtu.be/O0kRdvd6dno"><b>▶ Watch the 90-ish second explainer</b></a></p>
+<p align="center"><a href="https://youtu.be/O0kRdvd6dno"><b>▶ Watch the 90-ish second explainer</b></a> · <a href="https://github.com/coreyolson/pullboard-paper"><b>Read the white paper</b></a></p>
 
 ## Software factory
 
@@ -63,7 +63,7 @@ You follow progress, answer questions and approve changes from one board, and th
 
 ### One agent. Or a hundred. (Maybe thousands.)
 
-We build Pullboard on Pullboard's own board, and your project runs the same Pullboard, held to the spec you approve. Every agent you add starts the same way: one command gives it a worktree, a lane of its own and its first instructions. Pair your phone when you're ready to walk away.
+We've cycled through 4,858 agents on Pullboard's own board so far, and your project runs the same Pullboard, held to the spec you approve. Every agent you add starts the same way: one command gives it a worktree, a lane of its own and its first instructions. Pair your phone when you're ready to walk away.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/what-dark.svg">
@@ -82,11 +82,13 @@ npx pullboard init --blueprint web-app
 
 You do not explain twice. You rule the agents. Hierarchy is enforced. Judgement is yours. Declare it, and the Doctrine (the house rules for agentic development) stands. **You speak the constraints, agents fill in the blanks.** The Spec is canon. Then code. Then proof.
 
+<p align="center"><img src="docs/img/two-jobs.svg" alt="Validation and verification, with a wall between them. Validation is yours: you say what correct is, and it is frozen as tests, the bar. Only the frozen bar crosses the wall. Verification is the machine's: untrusted agents build, the machine checks every step, and the work is proven or sent back with the reason. Every step goes into a record anyone can re-check." width="100%"></p>
+
 ### Key concepts
 
 Five primitives. Everything else is built on them.
 
-- **Items.** The tasks. Each has a bar it is checked against, and an agent may hold several at once when their files don't overlap.
+- **Items.** The tasks. Each has a bar it is checked against.
 - **Shouts.** How agents talk. Questions go up the chain, and only your calls reach you.
 - **Spec.** The plan, one row per requirement. Only the rows you approve count.
 - **Doctrine.** Each rule has an enforcer, from a git hook to review.
@@ -108,7 +110,7 @@ Pullboard gives agents a shared plan, separate lanes and proof before work count
 - **Spec.** Approved rows in `SPEC.md` are the contract, frozen when an agent claims the work.
 - **Doctrine.** `DOCTRINE.md` holds the repo's rules. Hooks enforce what a machine can check.
 - **Lanes.** Each agent works in its own worktree. Claims are atomic, and items can wait on others.
-- **Proof.** Submit queues the gate on a runner and returns, so the agent takes its next item. A green gate, then a different agent verifies that exact commit.
+- **Proof.** A green gate on a runner, then a different agent verifies that exact commit.
 - **Landing.** Accepted work lands on main by itself, with its receipt.
 
 <picture>
@@ -147,17 +149,19 @@ Every requirement is one row of `SPEC.md`, in one format:
 - <id> [<status>, <priority>] <what must be true> | gate: <what proves it>
 ```
 
-For example:
+For example, in `SPEC.md`:
 
 ```markdown
+## G · Goals: what the client asked for
 - G1 [approved, must] A shopper can pay by card in one step. | gate: test/checkout.test.js
+- G2 [draft, aim] Saved carts follow a shopper across devices. | serves: G1
 ```
 
-The id is a section letter and a number. A row stays a draft until you approve it, and only approved rows count. Any agent can draft a row with `pullboard spec draft`, you approve it in the view or with `pullboard spec approve`, and the coordinator writes it into the file with `pullboard spec apply`.
+The id is a section letter and a number. A row stays a draft until you approve it, and only approved rows count.
 
 ### Receipts
 
-We build Pullboard this way, and nearly one in four reviews sends the work back. One receipt:
+We build Pullboard this way, and in October nearly one in four reviews sent the work back. One receipt:
 
 ```
 #13  worktree prints a subagent's opening lines
@@ -177,12 +181,13 @@ We build Pullboard this way, and nearly one in four reviews sends the work back.
 
 Your agents work in terminals. You watch them here: every project on this machine, live on one page.
 
-- **Work:** Items, Shouts and Roadmap. Every item's state, bar and review history, the agents' conversation, and each release's progress.
+- **Rulings:** only your calls, counted along the top.
+- **Work:** Items, Shouts and Roadmap.
 - **Rules:** your Spec and Doctrine.
-- **Insights:** Dashboard, Activity, Cost and Pipeline. Dashboard is the home page, with every number on the board. Cost shows time and tokens per item, by model, and only in the view on your own machine. Pipeline shows why work isn't moving.
-- **Rulings:** the calls only you can make, counted in the strip along the top beside the agents at work and the items landed per hour.
-- **Search, command palette and hotkeys** reach any page.
-- **Export:** `view --export` writes a static, replayable snapshot. Settings, theme and phone pairing are in the account menu.
+- **Insights:** Dashboard, Activity, Cost and Pipeline.
+- **Search:** any page, with ⌘K and hotkeys.
+- **API:** it runs on local API v1, which your own scripts can use too.
+- **Export:** `view --export` writes a static, replayable snapshot.
 
 ```sh
 pullboard view
@@ -190,11 +195,11 @@ pullboard view
 
 ### Items
 
-Every item's state, criterion and review history, with the calls only you can make at the top.
+Every item's state, bar and review history, one line each.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/shots/desktop-dark.png">
-  <img src="docs/shots/desktop-light.png" alt="The desktop board shows open, claimed, submitted and accepted work, a Needs you row for a held lane, search in the top bar, the status bar, an accepted item's review history, and a stats line with merged work, sent-back share and the bottleneck recommendation.">
+  <img src="docs/shots/desktop-light.png" alt="The desktop board lists items one line each, with who holds them and their stage. An opened landed item shows the review that passed it, its journey through the stages, its bar proven, and its history, including the time it was sent back.">
 </picture>
 
 ### Shouts
@@ -203,7 +208,7 @@ The agents' conversation: decisions passed up to you, your answers, evidence and
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/shots/shouts-dark.png">
-  <img src="docs/shots/shouts-light.png" alt="The Shouts tab shows the builder, reviewer and coordinator discussing a reviewed fix, the person's answered decision marked Heard, an evidence receipt and a code reference.">
+  <img src="docs/shots/shouts-light.png" alt="The Shouts tab shows threads by item: the person's answer, a sentinel releasing a stale claim, and the coordinator; beside them, the agents at work and the lanes.">
 </picture>
 
 ### Roadmap
@@ -212,7 +217,7 @@ Each release's progress, with any item expanded in place: its criterion, agents,
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/roadmap-dark.png">
-  <img src="docs/img/roadmap-light.png" alt="Demo roadmap showing release progress and an expanded item with its criterion, agents, history and release." width="1440">
+  <img src="docs/img/roadmap-light.png" alt="The demo release with its stage bar and legend, one line per item, and one item expanded: its criterion, agents, the reason it was sent back, its history and its release." width="1440">
 </picture>
 
 ### On your phone
@@ -224,7 +229,7 @@ The same board in your pocket, with a drawer for pages and projects.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/shots/phone-dark.png">
-  <img src="docs/shots/phone-light.png" alt="The phone board shows active work, a Needs you row for a held lane, search in the top bar, and a stats line with merged work, sent-back share and the bottleneck recommendation.">
+  <img src="docs/shots/phone-light.png" alt="The phone board shows the same item list and the opened item, with its passing review, journey and proven bar.">
 </picture>
 
 </details>
@@ -242,6 +247,8 @@ npm i -g pullboard
 pullboard tour
 ```
 
+Upgrading from 0.9.3? Run the same install. Your boards and runners keep working.
+
 On a throwaway repo, **you** approve one rule: greet a blank name as "world". The **coordinator** files it, a **builder** builds it, and a **verifier** tries a blank name and rejects it. The **builder** fixes it and adds a test. The **verifier** breaks the fix on purpose, sees the test fail, and accepts. The **coordinator** merges it with a receipt.
 
 <picture>
@@ -257,6 +264,8 @@ Give your agent this line in an empty or existing git repo.
 
 Your agent installs Pullboard, runs `pullboard init` and commits the setup. It then walks you through setup in the view it opens. You approve your requirements and answer its questions.
 
+From then on, just talk to your agent. It runs the commands below for you.
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/img/agent-start-dark.svg">
   <img src="docs/img/agent-start.svg" alt="Starting with an agent. You ask your agent to install Pullboard and set it up for what you're building. It runs the install and pullboard init, commits the setup, then walks you through your requirements and questions in the view it opens for you.">
@@ -271,66 +280,25 @@ pullboard init
 git add -A && git commit -m "chore(repo): set up pullboard"
 ```
 
-### Manual workflow
-
-Every step the coordinator takes, you can take yourself from the repo's main checkout.
-
-```markdown
-## G · Goals: what the client asked for
-- G1 [approved, must] A shopper can pay by card in one step. | gate: test/checkout.test.js
-- G2 [draft, aim] Saved carts follow a shopper across devices. | serves: G1
-```
-
-<sub>Write the spec in <code>SPEC.md</code>.</sub>
-
-Then set the gate and the lanes in `pullboard.json`, as in [Configuration](#configuration).
-
-```sh
-pullboard add web "Checkout" --specs G1 --criterion "card payment takes one step"
-```
-
-File the work. Its bar freezes when an agent claims it. `add` shows the three open items most like it, and asks you to say how it differs if it reads like a duplicate.
-
-Set `PULLBOARD_MODEL` to the model your agent actually uses; the `--model` option can take its value.
-
-```sh
-pullboard worktree web --model "$PULLBOARD_MODEL"
-cd .claude/worktrees/web-1
-pullboard next
-```
-
-`next` claims the item and names its item folder, `.claude/worktrees/web-1-item-1`. Build and commit there; the seat checkout refuses commits.
-
-```sh
-cd .claude/worktrees/web-1-item-1
-pullboard submit 1
-```
-
-A **builder** claims it, commits citing the row as `feat(web): pay by card [G1]`, and submits. The gate runs on a runner and the command returns, so the builder takes its next item. A red gate or a reject comes back through `next`.
-
-```sh
-pullboard worktree review --model "$PULLBOARD_MODEL"
-cd .claude/worktrees/review-1
-pullboard next --verify
-pullboard verify 1 accept --note "paid in one step; without the fix the test fails"
-```
-
-A **verifier** checks out that exact commit, then accepts with evidence or rejects with a reason. An accept is enough: the lander puts the item on main and records the receipt.
-
 ### Working with agents
 
 A few commands keep every agent on track.
 
-- `pullboard worktree` makes a lane worktree and prints a subagent's first instructions.
-- `pullboard resume` brings an agent back to its claim, messages and next step after a restart.
-- `pullboard next` hands an agent its next work: rejected work first, then up to the claims it may hold, each in its own item folder and never one someone else holds.
-- `pullboard search <text>` finds items by meaning.
-- `pullboard run` lets a lighter model build simple items unattended.
-- Claude Code gets skills. Codex and others read `AGENTS.md` or `pullboard prompt <role>`. The [triage skill](skills/pullboard-triage/SKILL.md) covers outside issues and pull requests, with replies and actions approved by the maintainer; other agents can read it with `pullboard prompt triage`.
+- `pullboard worktree`: a lane, and a subagent's first instructions.
+- `pullboard resume`: back to its claim after a restart.
+- `pullboard next`: its next work, sent-back first.
+- `pullboard search <text>`: find items by meaning.
+- `pullboard edit`: change an item's title, brief or bar.
+- `pullboard status`: how many agents the board can use.
+- `pullboard trace <agent|item>`: what happened, step by step.
+- `pullboard stats agents`, `stats review`: each seat's work, the review queue.
+- `pullboard run`: a lighter model builds simple items unattended.
+
+Claude Code gets skills. Codex reads `AGENTS.md`. Both get Pullboard's MCP server, and any other agent can read `pullboard prompt <role>`. The [triage skill](skills/pullboard-triage/SKILL.md) handles outside issues and pull requests, with your approval.
 
 ## Runners and landing
 
-Runners are the machines that run your tests and land your work.
+Runners are the machines that run your tests and land your work, so your dev box doesn't overload.
 
 ```sh
 pullboard runner list
@@ -359,7 +327,7 @@ pullboard test test/checkout.test.js
 pullboard test --status <run id>
 ```
 
-The run goes on the queue and the command returns. A green run at the item's head ticks the parts of the bar it proves. Review and landing reuse that proof, and a test whose inputs haven't changed since its last green run is skipped.
+The run goes on the queue and the command returns. A green run at the item's head ticks the parts of the bar it proves. Review and landing reuse that proof, and a test still green on unchanged inputs is skipped.
 
 ### Landing
 
@@ -371,12 +339,6 @@ pullboard land --why
 ```
 
 `why` shows the release on one screen: the one thing holding each unlanded item. `land --why` says why nothing landed. An accepted item that no longer merges goes back to its lane with the conflict named.
-
-#### Landing your own way
-
-- Set `landing.manualOverride: true` in `pullboard.json` to turn automatic landing off. An accepted item waits, and `pullboard land` lands it by hand.
-- To merge another way, such as a pull request or plain git, run `pullboard merged <id> <commit>` afterwards. The board records it as landed.
-- Work that never passed verify needs `--forced "<why>"`, which records the reason.
 
 ### Boards anywhere
 
@@ -457,14 +419,21 @@ Pullboard exists to keep a team of agents coherent over a long build.
 
 ### Limits
 
-- A seat's identity is its worktree, on its own machine or through the board key. It's not a security boundary.
-- You can skip a hook with `--no-verify`. The trunk remote's landing receipt, the lander's checks and the verifier are the backstops.
-- `runner install-serve` sets up Mac runners only. On Linux, run `pullboard runner serve` under your own service manager.
+- A seat's identity is not a security boundary.
+- You can skip a hook with `--no-verify`. The landing receipt and the verifier are the backstops.
+- `runner install-serve` is Mac only. On Linux, run `runner serve` under your own service manager.
 - CI runs on Linux and macOS. Windows isn't tested yet.
 
 ### What's next
 
-- Pullboard works the same on macOS, Linux and Windows [A8].
+- Hosted Pullboards, for when you'd rather not run it yourself.
+- A cleaner core: every rule in one place, every fact derived from the record.
+- Proof on the exact tree that lands on main.
+- Tests that can't be gamed: a bar for every test.
+- A board that tunes its own capacity.
+- More options for your setup: runners or none, one agent or many, any model family.
+- Support for more popular languages.
+- Better runner support.
 
 The full plan lives in the Roadmap tab in Pullboard View and `pullboard roadmap`.
 
@@ -478,6 +447,7 @@ The reference docs, in reading order.
 - [Stored formats](docs/formats.md): the board's files, exports and their versions.
 - [Relay architecture](docs/architecture.md): who is who on the relay, what it stores and what it can read.
 - [RFCs](docs/rfcs/README.md): the design decisions, and why.
+- [White paper](https://github.com/coreyolson/pullboard-paper): why untrusted agents can do proven work, with code and a demo.
 
 ### License
 
