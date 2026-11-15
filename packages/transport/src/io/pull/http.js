@@ -204,8 +204,10 @@ export function pullRunner({ board, runner, publicKey, privateKey, workdir, now 
         const { status, output } = await runCommand(command, tree);
         const bytes = Buffer.concat([Buffer.from(`PBRESULT 1 ${status} ${output.length}\n`), output]);
         const digest = createHash('sha256').update(bytes).digest('hex');
-        // The receipt cell's resultStatement: PBSIGNED 1 <job> <shard> <tree> <digest>.
-        const signature = signText(`PBSIGNED 1 ${job.job} ${shard} ${job.tree} ${digest}`);
+        // The receipt cell's resultStatement, built independently: PBSIGNED 2 with every field length-prefixed.
+        const field = value => `${Buffer.byteLength(String(value))}:${value}`;
+        const statement = ['PBSIGNED 2', job.job, shard, job.tree, digest, job.base ?? '', job.tooling ?? '', command, job.attempt ?? ''].map(field).join('\n');
+        const signature = signText(statement);
         posted.push(await answer(await post(`/pull/result/${shard}`, bytes, { ...auth, 'x-pullboard-signature': signature })));
       }
       return { job: job.job, tree: job.tree, fetched, posted };

@@ -85,11 +85,11 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
   };
 
   /** Offer one shard to pull runners; it is the channel's startShard. */
-  const offerShard = ({ job, shard, command, tree }) => {
+  const offerShard = ({ job, shard, command, tree, base = '', tooling = '', attempt = '' }) => {
     shardIds({ job, shard });
     if (typeof command !== 'string' || !command) throw new Refused('TRANSPORT_SHARD_COMMAND', 'a shard needs the project command to run');
     if (!isObjectId(tree)) throw new Refused('PULL_TREE', `shard ${shard} of job ${job} needs the full tree id its runner fetches`);
-    const offer = offers.get(job) ?? { job, tree, runner: null, shards: new Map() };
+    const offer = offers.get(job) ?? { job, tree, base: String(base), tooling: String(tooling), attempt: String(attempt), runner: null, shards: new Map() };
     if (offer.tree !== tree) throw new Refused('PULL_TREE', `job ${job} is offered on tree ${offer.tree}, not ${tree}`);
     offers.set(job, offer);
     const known = offer.shards.get(shard);
@@ -168,7 +168,7 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
         if (!owed.length || !lease.take(offer.job, runner)) continue;
         offer.runner = runner;
         const token = mintJobToken({ job: offer.job, runner, tree: offer.tree, secret, now: now(), ttlMs: tokenMs });
-        return { job: offer.job, tree: offer.tree, shards: owed.map(({ shard, command }) => ({ shard, command })), token };
+        return { job: offer.job, tree: offer.tree, base: offer.base, tooling: offer.tooling, attempt: offer.attempt, shards: owed.map(({ shard, command }) => ({ shard, command })), token };
       }
       return null;
     },
@@ -204,7 +204,7 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
       const { scope, runner, offer } = tokenJob(token);
       const known = offer.shards.get(shard);
       if (!known) throw new Refused('PULL_SHARD_UNKNOWN', `job ${scope.job} has no shard ${shard}; post only the shards take returned`);
-      const signed = checkResult({ bytes, signature, publicKey: runner.publicKey, job: scope.job, shard, tree: offer.tree });
+      const signed = checkResult({ bytes, signature, publicKey: runner.publicKey, job: scope.job, shard, tree: offer.tree, base: offer.base, tooling: offer.tooling, command: known.command, attempt: offer.attempt });
       if (!signed.valid) throw new Refused('PULL_RESULT_INVALID', `the result for shard ${shard} of job ${scope.job} is import.invalid: ${signed.reason}; rerun it and sign with the registered key`);
       const parsed = parseResult(bytes);
       if (!parsed.valid) throw new Refused('PULL_RESULT_INVALID', `the result for shard ${shard} of job ${scope.job} is import.invalid: ${parsed.reason}; rerun it`);
