@@ -25,9 +25,11 @@ test('a version cut walks the CLI from a clean board to a recorded release at ma
   const id = Number(/#(\d+)/u.exec(added.out)?.[1]);
   assert.equal((await run('milestone', 'items', '1.0', '--add', String(id), '--reason', 'the cut scope')).code, 0);
 
+  assert.equal((await run('milestone', 'add', '1.1')).code, 0);
   const main = box.git(box.repo, 'rev-parse', 'main');
   const shipped = await json('milestone', 'ship', '1.0');
   assert.equal(shipped.milestone.shipped.commit, main, "the release is recorded at main's commit");
+  assert.deepEqual([shipped.into, shipped.moved], ['1.1', [id]], 'the unlanded item carries into the next release');
   const roadmap = await json('roadmap');
   const text = JSON.stringify(roadmap);
   assert.ok(text.includes(main), 'the roadmap shows the recorded release commit');
