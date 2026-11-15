@@ -65,3 +65,14 @@ test('without an extra the cell tests alone score, and sample caps the faults se
   const sampled = await run(repo, tmp, { sample: 1 });
   assert.equal(sampled.faults.length, 1);
 });
+
+test('with reach, a fault runs only the tests whose imports reach the seeded file, and a test reaching nothing seeded is never run [C7]', async () => {
+  const { repo, tmp } = fixture();
+  const reach = { 'cells/calc/calc.test.js': ['cells/calc/calc.js'], 'journeys/adult.test.js': ['cells/calc/calc.js'], 'journeys/broken.test.js': [] };
+  const report = await run(repo, tmp, { extra: ['journeys/adult.test.js', 'journeys/broken.test.js'], reach });
+  assert.deepEqual(report.redBefore, [], 'the red journey reaches no seeded file, so it is not even run');
+  assert.deepEqual(report.tests.map(row => row.file).sort(), ['calc.test.js', 'journeys/adult.test.js']);
+  const narrow = await run(repo, tmp, { extra: ['journeys/adult.test.js'], reach: { 'cells/calc/calc.test.js': ['cells/other/x.js'], 'journeys/adult.test.js': ['cells/calc/calc.js'] } });
+  assert.ok(narrow.faults.every(fault => fault.caughtBy.every(file => file === 'journeys/adult.test.js')), 'the cell test is skipped when it does not reach the seeded file');
+  assert.equal(narrow.tests.find(row => row.file === 'calc.test.js'), undefined);
+});

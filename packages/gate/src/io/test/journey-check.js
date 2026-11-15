@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 import { TEST_MANIFEST_FILE } from './manifest.js';
 import { formatTestManifest } from './manifest.js';
 import { generateTestManifest } from './manifest.js';
+import { generateTestTiers } from './tiers.js';
 import { coveringCells } from '../../logic/test/journey-check.js';
 import { holdShare } from '../../logic/test/journey-check.js';
 import { judgeJourney } from '../../logic/test/journey-check.js';
@@ -40,6 +41,26 @@ function spread(list, count) {
   return Array.from({ length: count }, (_, at) => list[Math.floor((at * list.length) / count)]);
 }
 
+/**
+ * Every test file's reached files, by walking imports as the manifest does.
+ * Why: a seeded fault can only be caught by a test whose imports reach the seeded file, so the rest need not run.
+ *
+ * @param {string} root project root
+ * @returns {Map<string, Set<string>>} reached files by test file, root-relative
+ */
+export function testReach(root) {
+  const found = new Map();
+  generateTestTiers(root, { onReach: row => { found.set(row.file, row.reached); } });
+  return found;
+}
+
+/** The reach of the tests one mutation run can use: the cell's own tests and the journey, as plain lists. */
+function reachFor(reached, cell, journey) {
+  const out = {};
+  for (const [file, set] of reached) if (file === journey || file.startsWith(`${cell}/`)) out[file] = [...set];
+  return out;
+}
+
 /** The manifest rows: the written file when it exists, else generated from source. */
 function manifestRows(root, manifest) {
   const path = resolve(root, manifest);
@@ -52,22 +73,23 @@ function manifestRows(root, manifest) {
  * Why a sample flag: a mutation run executes the cell's tests once per fault, so a full pass is slow.
  *
  * @param {string[]} args see USAGE
- * @param {{ mutate: Function }} seams the mutation runner `(root, cell, { all, extra, sample }) => report`, passed in because a package never imports an app
+ * @param {{ mutate: Function, reachOf?: Function }} seams the mutation runner `(root, cell, { all, extra, sample, reach }) => report`, passed in because a package never imports an app; reachOf reads every test's reached files and defaults to walking the imports
  * @returns {Promise<{ status: number, stdout: string, stderr: string }>}
  */
-export async function runJourneyCheck(args, { mutate }) {
+export async function runJourneyCheck(args, { mutate, reachOf = testReach }) {
   const options = parse(args);
   if (!options) return { status: 1, stdout: '', stderr: USAGE };
   const root = resolve(options.root);
   const rows = manifestRows(root, options.manifest);
   const deletes = rows.filter(row => row.tag === 'delete').sort((a, b) => (a.file < b.file ? -1 : 1));
   const sampled = spread(deletes, options.limit);
+  const reached = reachOf(root);
   const verdicts = [];
   const lines = [];
   for (const journey of sampled) {
     const reports = [];
     for (const { cell } of coveringCells(rows, journey, options.cells)) {
-      reports.push({ cell, report: await mutate(root, cell, { all: true, extra: [journey.file], sample: options.faults }) });
+      reports.push({ cell, report: await mutate(root, cell, { all: true, extra: [journey.file], sample: options.faults, reach: reachFor(reached, cell, journey.file) }) });
     }
     const verdict = judgeJourney(journey.file, reports);
     verdicts.push(verdict);
