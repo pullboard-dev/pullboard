@@ -113,8 +113,11 @@ function commonEdges(files, edges, unknown) {
   return rows;
 }
 
-/** Compute every test's reached packages and one stable witness for each journey reason. */
-export function generateTestTiers(root, { onInventory, onReach } = {}) {
+/**
+ * Compute every test's reached packages and one stable witness for each journey reason.
+ * `depth` bounds how many import hops from the test count as reached (default: the whole closure), for callers that only need near neighbours.
+ */
+export function generateTestTiers(root, { onInventory, onReach, depth = Infinity } = {}) {
   return withImportParseCache(() => {
     const inventory = cellInventory(root, { importsIn: tierImports, commonJsIn });
     const { files, edges, unknown } = inventory;
@@ -132,9 +135,9 @@ export function generateTestTiers(root, { onInventory, onReach } = {}) {
     }
     const rows = [...files.keys()].filter(file => TEST.test(file)).sort().map(file => {
       const reached = new Set(), packages = new Set(), witnesses = new Map();
-      const pending = [file];
-      while (pending.length) {
-        const current = pending.pop();
+      const pending = [file], hops = new Map([[file, 0]]);
+      for (let next = 0; next < pending.length; next++) {
+        const current = pending[next];
         if (reached.has(current)) continue;
         reached.add(current);
         // Helpers do not acquire ownership merely by living beside the repository's root package.json.
@@ -146,7 +149,8 @@ export function generateTestTiers(root, { onInventory, onReach } = {}) {
           const category = reason.split(':')[0];
           if (!witnesses.has(category) || reason < witnesses.get(category)) witnesses.set(category, reason);
         }
-        for (const edge of edges.get(current) ?? []) pending.push(edge.target);
+        if (hops.get(current) >= depth) continue;
+        for (const edge of edges.get(current) ?? []) { if (!hops.has(edge.target)) hops.set(edge.target, hops.get(current) + 1); pending.push(edge.target); }
       }
       if (!packages.size) witnesses.set('no package', 'no package: no implementation import');
       if (packages.size > 1) witnesses.set('cross-package', 'cross-package: imports more than one package');
