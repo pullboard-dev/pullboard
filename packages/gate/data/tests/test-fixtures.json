@@ -2422,7 +2422,7 @@
   "apps/cli/tests/fixtures/budget-measure.js": {
     "raw-board": 2
   },
-  "packages/runners/tests/io/package/files.test.js": {
+  "packages/runners/tests/fixtures/package-files.js": {
     "tempdir": 1
   },
   "packages/runners/tests/io/package/graph.test.js": {
