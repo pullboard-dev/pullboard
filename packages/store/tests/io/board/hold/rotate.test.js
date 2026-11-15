@@ -8,7 +8,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { cellProject } from '../../../fixtures/cell.js';
-import { BOARD_WRITES_MAX_BYTES } from '../../../../src/io/board/hold/log.js';
+import { BOARD_WRITES_MAX_BYTES } from '../../../../src/io/board/hold/rotate.js';
+import { rotateBoardWritesLog } from '../../../../src/io/board/hold/rotate.js';
 import { recordBoardHold } from '../../../../src/io/board/hold/log.js';
 
 /** Run a body with the machine home pointed at a fresh directory, then restore it. */
@@ -28,6 +29,7 @@ test('clause 1: a log past 64 MB moves to one prior file and the current write l
   const log = join(home, 'board-writes.jsonl');
   writeFileSync(log, 'old\n');
   truncateSync(log, BOARD_WRITES_MAX_BYTES + 1);
+  assert.equal(rotateBoardWritesLog(), true);
   write('after');
   assert.equal(existsSync(log + '.1'), true, 'the prior file exists');
   assert.equal(readFileSync(log, 'utf8').trim().split('\n').length, 1, 'the fresh log holds exactly the current write');
@@ -38,11 +40,14 @@ test('clause 1: a second rotation replaces the prior file and a small log is nev
   const log = join(home, 'board-writes.jsonl');
   write('first');
   write('second');
+  assert.equal(rotateBoardWritesLog(), false);
   assert.equal(existsSync(log + '.1'), false, 'a small log stays in place');
   assert.equal(readFileSync(log, 'utf8').trim().split('\n').length, 2);
   truncateSync(log, BOARD_WRITES_MAX_BYTES + 1);
+  rotateBoardWritesLog();
   write('third');
   truncateSync(log, BOARD_WRITES_MAX_BYTES + 1);
+  rotateBoardWritesLog();
   write('fourth');
   assert.equal(existsSync(log + '.2'), false, 'only one prior file is kept');
   assert.match(readFileSync(log, 'utf8'), /"command":"fourth"/u);

@@ -117,6 +117,7 @@ export async function main(rawArgv, streams) {
   try { status = await timedMain(argv, { ...streams, traceRecord: traced }); return status; }
   catch (error) { thrown = error; status = 1; throw error; }
   finally {
+    try { (await import('../../../../../packages/store/light.js')).rotateBoardWritesLog(); } catch { /* A log that cannot rotate never changes a command's outcome. */ }
     stopBeat(); finish(); if (previous) globalThis[lockPort] = previous; else delete globalThis[lockPort];
     // One line per run on every exit path, a thrown Refused or an uncaught error included [C7].
     appendTrace({ argv, cwd, startedAt, status, error: thrown, refusal: traced.refusal, seat: binding?.seat ?? null, why });

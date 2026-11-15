@@ -5,8 +5,6 @@ import { fstatSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { openSync } from 'node:fs';
 import { readSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { statSync } from 'node:fs';
 import { writeSync } from 'node:fs';
 import { join } from 'node:path';
 import { processMachineHome as machineHome } from '../../../../../kernel/light.js';
@@ -18,8 +16,6 @@ export const HOLD_LOG_ALL_ENV = 'PULLBOARD_BOARD_HOLD_LOG_ALL';
 /** Whether the machine records every write hold in the holds log, so the median and p90 are readable. */
 export function holdLogAll() { return process.env[HOLD_LOG_ALL_ENV] === '1'; }
 const DAY_MS = 86_400_000;
-/** The size past which the every-write log moves to its one prior file, so the log cannot grow without bound [C7]. */
-export const BOARD_WRITES_MAX_BYTES = 64 * 1024 * 1024;
 const MAX_READ_BYTES = 32 * 1024 * 1024;
 
 /** Resolve private machine storage independently of any repository or relay. */
@@ -27,13 +23,6 @@ export function boardHoldLog() { return join(machineHome(), 'board-holds.jsonl')
 
 /** Resolve the machine's every-write log, read back to name the writers a stale preparation saw. */
 export function boardWritesLog() { return join(machineHome(), 'board-writes.jsonl'); }
-
-/** Move a log past the size cap to `<log>.1`, replacing any older prior file; the caller then appends its row to a fresh log, so no write is lost. */
-function rotateLog(file) {
-  try {
-    if (statSync(file).size > BOARD_WRITES_MAX_BYTES) renameSync(file, file + '.1');
-  } catch { /* A missing log has nothing to rotate, and a failed rename leaves the log growing, which loses nothing. */ }
-}
 
 /** Keep only bounded operational labels, never CLI arguments, notes, SQL or session material. */
 function label(value, fallback) {
@@ -47,7 +36,6 @@ export function recordBoardHold({ command, seat, item, pid, durationMs, outcome,
   try {
     const directory = machineHome();
     mkdirSync(directory, { recursive: true, mode: 0o700 });
-    if (allWrites) rotateLog(boardWritesLog());
     fd = openSync(allWrites ? boardWritesLog() : boardHoldLog(), constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT | constants.O_NOFOLLOW, 0o600);
     if (!fstatSync(fd).isFile()) throw new Error('hold log is not a regular file');
     const row = { version: 1, at: new Date(acquiredAt).toISOString(), command: label(command, 'api'),
