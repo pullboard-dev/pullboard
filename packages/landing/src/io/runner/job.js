@@ -449,7 +449,7 @@ export async function takeLandingJob({ call, runner, capabilities = [], workdir,
   const moved = Array.isArray(claim.payload?.requested) && claim.payload.requested.length ? (await call({ action: 'request', job, runner, token }))?.request?.land : null;
   const landing = moved ? { ...claim.payload, ...moved } : claim.payload;
   // landing.shardProof: the holder offers its proof's files as shard jobs and reads their receipts back, through the board API like its renewals [C7,#7818].
-  const shards = landing.shardProof ? { job, cores: availableParallelism(), offer: ({ merged, plan, gate }) => call({ action: 'shards', job, runner, token, merged, plan, gate }),
+  const shards = landing.shardProof ? { job, cores: availableParallelism(), offer: ({ merged, ref, plan, gate }) => call({ action: 'shards', job, runner, token, merged, ref, plan, gate }),
     receipts: async ids => (await call({ action: 'shardReceipts', job, runner, token, shards: ids })).shards } : null;
   const receipt = await runLandingJob(landing, { workdir, checks, renew, env, diagnose, shards, pushOptions: () => permit ? permitPushOptions(permit) : [] });
   try {

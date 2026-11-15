@@ -1,3 +1,4 @@
+import { VERIFY_WORDS } from '../../../../../packages/moves/index.js';
 import { privateCheckAdmission } from '../../../../../packages/gate/index.js';
 import { launchComparisonWorker } from '../../../../../packages/verify/index.js';
 import { comparisonRestartPlan } from '../../../../../packages/verify/index.js';
@@ -262,7 +263,7 @@ function sameVerdictNote(recorded, given) {
  */
 export async function verifyHere(ctx, id, { second, values }) {
   const decision = { accept: 'ACCEPT', reject: 'REJECT' }[String(second ?? '').toLowerCase()];
-  if (!decision) throw new Refused('USAGE', 'pullboard verify <id> accept, or reject --reason CODE --note "..."');
+  if (!decision) throw new Refused('USAGE', VERIFY_WORDS.usage);
   const runnerAdmission = decision === 'ACCEPT' ? gateRunnerAdmission() : {};
   const implies = parseImplies(values.implies);
   const { root } = ctx.info;
@@ -299,7 +300,7 @@ export async function verifyHere(ctx, id, { second, values }) {
     // The builder is always refused on its own forced landing, whatever the commit authors say: the claim history names it [V1,H16].
     if (item.item_status === 'withdrawn' && item.item_merged_commit &&
         (item.item_built_by === me.id || store.events(board, { itemId: id }).some(event => event.event_kind === 'claim' && event.event_by === me.id))) {
-      throw new Refused('SELF_VERIFY', 'the builder never verifies its own work; another agent must');
+      throw new Refused('SELF_VERIFY', VERIFY_WORDS.selfVerify);
     }
     // A forced-landed item takes one verdict: a second one, by any seat, is refused before the move [V1,H16].
     if (item.item_status === 'withdrawn' && item.item_merged_commit && item.item_verdict) {
@@ -339,12 +340,12 @@ export async function verifyHere(ctx, id, { second, values }) {
       `the review tree lacks companions ${missing.keys.join(', ')} for patch-set ${missing.digest}; run pullboard next --verify ${id} to check out the composed source`);
     digest = verificationCriterionDigest(freezer(ctx, { board }), item);
     if (fromPacket) {
-      if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
+      if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', VERIFY_WORDS.criteriaMoved);
       refuseUnverifiedStack(root, board, item, commit, requireTrunkMerge(root, commit));
       check = { state: 'pass', checked: true, reused: true, executionNote: `\n${fromPacket}` };
       ctx.io.say(fromPacket);
     } else if (decision === 'ACCEPT') {
-      if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', 'the criterion changed; ask the coordinator to refreeze this item before checking it');
+      if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', VERIFY_WORDS.criteriaMoved);
       // Patch inputs must be composed before browser/GUI classification reads their exact source.
       let checkedCommit = companionDigest || item.item_effective_head ? prepareItemPatchReview(root, board, item, { effectiveItemHead, itemPolicy, requireTrunkMerge, retryReviewCommit, getItem: store.getItem }).commit : reReview ? head : commit;
       let checkedLabel = reReview ? 'reviewed composition' : 'submitted commit';

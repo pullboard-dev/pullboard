@@ -111,6 +111,24 @@ function tailCounts(text) {
 }
 
 /**
+ * Write the timing receipt of a pulled gate the runner held exclusively, in the board's gate receipt log where a local
+ * gate slot writes it, so `pullboard stats` and review read one timing record whichever machine ran the gate.
+ * Why only a runner-posted `timing: true` receipt: the runner alone saw its slots, and its exclusive evidence is
+ * what the frozen bar's timing asked for [C7,#8188].
+ */
+function recordTimedSubmitReceipt(board, { job, receipt, runner }) {
+  const recordReceipt = board.runtimePorts?.sourceAdvanceReceipts?.recordReceipt;
+  if (receipt?.timing !== true || !board.gitRoot || typeof recordReceipt !== 'function') return;
+  const admitted = Date.parse(receipt.admittedAt), finished = Date.parse(receipt.finishedAt);
+  if (!Number.isFinite(admitted) || !Number.isFinite(finished) || finished < admitted || receipt.exclusive !== true) return;
+  recordReceipt(board.gitRoot, { at: receipt.finishedAt, kind: 'submit', waitMs: 0, admissionMs: 0, setupMs: 0, runMs: finished - admitted, evidenceMs: 0,
+    slot: { kind: 'runner', reason: `runner ${runner ?? 'unknown'} held every slot for the timed gate` }, environment: receipt.gate?.environment ?? null,
+    runner: { id: runner ?? 'unknown', kind: 'pull' }, admittedAt: receipt.admittedAt, finishedAt: receipt.finishedAt, timing: true, inherited: false,
+    timingOperation: 'submit', occupiedSlots: Number.isSafeInteger(receipt.occupiedSlots) && receipt.occupiedSlots > 0 ? receipt.occupiedSlots : 1, load: null,
+    exclusive: true, unfencedClients: Array.isArray(receipt.unfencedClients) ? receipt.unfencedClients : [], job });
+}
+
+/**
  * Record a green gate job's phases as the item's native proof-run receipts, the evidence today's submit records and
  * pullboard show lists: one version-two submit receipt per phase, stored in the board's gate receipt folder beside
  * its database and then bound to the item by recordProofRun, so the board reads the same bytes it stored.
@@ -589,6 +607,7 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
     : item?.item_status !== 'claimed' || item.item_owner !== submit.agentId ? 'the item is no longer claimed by the seat that submitted it'
     : item.item_frozen_digest !== submit.digest ? 'the item\'s bar was refrozen since the submit' : null;
   if (stale) return { applied: false, outcome: 'stale', reason: stale };
+  recordTimedSubmitReceipt(board, { job, receipt, runner: postedReceipt(board.db, job)?.runner });
   // A gate that left its proof to shards waits for them; the gate result applies when the last shard posts [P7].
   if (receipt?.gate?.proofPlan) {
     const sharded = offerProofShards(board, { job, receipt, offered });
