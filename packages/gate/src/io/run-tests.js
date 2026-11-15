@@ -89,9 +89,9 @@ const LANDING_SHARD_ENV = 'PULLBOARD_LANDING_SHARD';
 const LANDING_FILE_TIMES_ENV = 'PULLBOARD_LANDING_FILE_TIMES';
 export const DEFAULT_TEST_TIMEOUT_MS = 660_000;
 export { DEFAULT_TEST_FILE_TIMEOUT_MS };
-// Worker identity startup retries stay below the ordinary per-file ceiling even if ps is unavailable.
-const LANDING_WORKER_IDENTITY_TIMEOUT_MS = 12_000;
-const LANDING_CHILD_CUSTODY_TIMEOUT_MS = 12_000;
+// Worker identity startup retries stay below the ordinary per-file ceiling even if ps is unavailable; PULLBOARD_LANDING_IDENTITY_WAIT_MS (1 to 999999 ms) shortens both waits for fixtures that make ps fail on purpose [C7].
+const LANDING_WORKER_IDENTITY_TIMEOUT_MS = /^[1-9]\d{0,5}$/u.test(process.env.PULLBOARD_LANDING_IDENTITY_WAIT_MS ?? '') ? Number(process.env.PULLBOARD_LANDING_IDENTITY_WAIT_MS) : 12_000;
+const LANDING_CHILD_CUSTODY_TIMEOUT_MS = LANDING_WORKER_IDENTITY_TIMEOUT_MS;
 let reportFileTest = () => {};
 
 /**

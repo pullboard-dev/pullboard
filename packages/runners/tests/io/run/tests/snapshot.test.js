@@ -239,7 +239,7 @@ if (process.argv[1]?.endsWith('/worker-start.test.js')) {
 `);
 
   stageFixtureTests(root, ['test/worker-start.test.js']);
-  const env = { ...process.env, PULLBOARD_LANDING_RUN: '1',
+  const env = { ...process.env, PULLBOARD_LANDING_RUN: '1', PULLBOARD_LANDING_IDENTITY_WAIT_MS: '5000', // the persistent-failure waits end in 5 s, since the case proves the outcome, not the wait
     PULLBOARD_MACHINE_HOME: join(root, 'machine'),
     NODE_OPTIONS: [process.env.NODE_OPTIONS, '--import=' + pathToFileURL(preload).href].filter(Boolean).join(' ') };
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete env[key];
@@ -435,7 +435,7 @@ if (process.argv[1] === runner) {
   syncBuiltinESMExports();
 }
 `);
-  const env = { ...process.env, PULLBOARD_LANDING_RUN: '1',
+  const env = { ...process.env, PULLBOARD_LANDING_RUN: '1', PULLBOARD_LANDING_IDENTITY_WAIT_MS: '5000', // the persistent-failure waits end in 5 s, since the case proves the outcome, not the wait
     PULLBOARD_MACHINE_HOME: join(fixture.root, 'machine'),
     NODE_OPTIONS: [process.env.NODE_OPTIONS, '--import=' + pathToFileURL(preload).href].filter(Boolean).join(' ') };
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete env[key];
