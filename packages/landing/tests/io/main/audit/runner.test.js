@@ -39,10 +39,11 @@ function caseEnvironment(box, agent) {
     PULLBOARD_AGENT: agent, PATH: box.env.PATH, HOME: box.home });
 }
 
-/** Serial: both real-gate cases name the same runner hosts, and the gate's per-host unavailability and avoidance state is process-wide, so a concurrent case's runner failure makes the other refuse BAD_RUNNER_POOL [C7]. */
+/** Concurrent: each real-gate case names its own runner hosts, so the gate's per-host unavailability and avoidance state is never shared [C7]. */
 describe('registered runner selection for a pinned main comparison [V4,C7]', { concurrency: true }, () => {
 test('main comparison selects a matching registered peer only when the preferred runner is busy [V4,C7]', { timeout: 60000 }, async t => {
-  const box = fixture(t);
+  const box = fixture(t, 'peer');
+  const { A, B, C } = box.hosts;
   const environment = executionEnvironment();
   const env = caseEnvironment(box, 'comparison-peer-fixture');
   await withEnvironment(env, async () => {
@@ -138,7 +139,8 @@ function selectWith(t, record) {
 }
 
 test('clause 1: the real compare-main path runs main on the red host when no receipt matches, never BAD_RUNNER_POOL [C7]', { timeout: 60000 }, async t => {
-  const box = fixture(t);
+  const box = fixture(t, 'red');
+  const { A, B, C } = box.hosts;
   const environment = executionEnvironment();
   const env = caseEnvironment(box, 'comparison-red-host-fixture');
   await withEnvironment(env, async () => {
@@ -201,7 +203,8 @@ function receipt(root, host, environment) {
 }
 
 /** Create a private committed project, machine runner pool and local SSH worker stand-in. */
-function fixture(t) {
+function fixture(t, tag) {
+  const hosts = tag ? { A: `${HOST}-${tag}`, B: `${HOST}-${tag}-drop`, C: `${HOST}-${tag}-setup` } : { A, B, C };
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-compare-any-runner-'));
   roots.push(directory);
   t.after(() => rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }));
@@ -231,11 +234,11 @@ function fixture(t) {
   ].join('\n') + '\n');
   runFixtureGit(['add', '-A'], { cwd: paths.repo, env });
   runFixtureGit(['commit', '-qm', 'test: pin a named main failure'], { cwd: paths.repo, env });
-  const runners = [A, B, C].map(host => ({ host, slots: 1, browser: 0, node: process.execPath, root: remoteRoot }));
+  const runners = Object.values(hosts).map(host => ({ host, slots: 1, browser: 0, node: process.execPath, root: remoteRoot }));
   writeFileSync(join(paths.machine, 'settings.json'), JSON.stringify({ gateSlots: 0, browserSlots: 0, gate: { browserFreeChecks: true, timingRunner: false }, runners }) + '\n', { mode: 0o600 });
   const requests = join(directory, 'ssh-requests.jsonl');
   installSshStandIn({ bin: paths.bin, worker: paths.worker, home: paths['remote-home'], machineHome: remoteMachine,
-    requests, nodeCommand: process.execPath });
-  return { ...paths, root: paths.repo, machine: paths.machine, home: paths.home, runners, requests,
+    requests, nodeCommand: process.execPath, hosts: Object.values(hosts) });
+  return { ...paths, hosts, root: paths.repo, machine: paths.machine, home: paths.home, runners, requests,
     main: runFixtureGit(['rev-parse', 'HEAD'], { cwd: paths.repo, env }).trim(), env };
 }
