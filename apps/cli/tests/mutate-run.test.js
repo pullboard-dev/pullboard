@@ -93,3 +93,27 @@ test('clause 1: [C7] mutate refuses a folder that is not in the checkout, and a 
   const bare = await runCliInProcess(['mutate', 'cells/bare'], { cwd: repo, env });
   assert.match(bare.stderr, /\[NO_TESTS\]/u);
 });
+
+test('#8099 clause 1-3: [C7] a cell that imports a sibling folder runs green in the copy, a judge-flipping fault is caught, and the tree is unchanged', async () => {
+  const repo = privateFixtureFiles('mutate-import-').root;
+  const tmp = privateFixtureFiles('mutate-import-tmp-').root;
+  dirs.push(repo, tmp);
+  const options = { cwd: repo, env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } };
+  runFixtureSetupGit(['init', '-q', '-b', 'main'], options);
+  mkdirSync(join(repo, 'kernel'), { recursive: true });
+  mkdirSync(join(repo, 'pkg', 'src'), { recursive: true });
+  writeFileSync(join(repo, 'kernel', 'light.js'), 'export const LIMIT = 10;\n');
+  writeFileSync(join(repo, 'pkg', 'src', 'judge.js'), "import { LIMIT } from '../../kernel/light.js';\nexport const judge = (n) => n < LIMIT;\n");
+  writeFileSync(join(repo, 'pkg', 'judge.test.js'), "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\nimport { judge } from './src/judge.js';\ntest('judge', () => { assert.equal(judge(3), true); assert.equal(judge(30), false); });\n");
+  runFixtureSetupGit(['add', '-A'], options);
+  runFixtureSetupGit(['commit', '-q', '-m', 'base'], options);
+  const before = snapshot(repo);
+  const ran = await runCliInProcess(['mutate', 'pkg', '--all', '--json'], { cwd: repo, env: { ...process.env, PULLBOARD_SCRATCH: tmp } });
+  assert.equal(ran.status, 0, ran.stdout + ran.stderr);
+  const report = JSON.parse(ran.stdout);
+  assert.deepEqual(report.redBefore, [], 'no test is dropped as red-before');
+  assert.deepEqual(report.tests.map((row) => row.file), ['judge.test.js']);
+  assert.ok(report.faults.some((fault) => fault.file === 'src/judge.js' && fault.caught), 'a seeded fault in the judge is caught');
+  assert.deepEqual(snapshot(repo), before, 'the working tree is unchanged');
+  assert.deepEqual(readdirSync(tmp), []);
+});
