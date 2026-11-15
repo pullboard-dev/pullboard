@@ -129,3 +129,4 @@ export { boardHoldLog, boardHoldPercentiles, boardHoldStats, boardHoldLines, lon
 export { readBoardHoldBaseline, boardHoldBaselineProblems, committedBoardHoldBaselineProblems } from './src/io/board/hold/ratchet.js';
 export { GATE_HOP_SCHEMA_SQL, ensureGateHopTable, readGateHop, gateHopMove } from './src/io/board/hop.js';
 export { recordShadow, readShadow, shadowHook, claimDiffers } from './src/io/board/shadow-record.js';
+export { reopenDecision, reopenDiffers } from './src/io/board/reopen-table.js';
