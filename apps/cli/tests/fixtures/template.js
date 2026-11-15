@@ -42,7 +42,8 @@ function* walk(root, rel = '') {
   for (const name of readdirSync(join(root, rel))) {
     const next = rel ? `${rel}/${name}` : name;
     if (next === SKIPPED) continue;
-    const stat = lstatSync(join(root, next));
+    let stat;
+    try { stat = lstatSync(join(root, next)); } catch (error) { if (error.code === 'ENOENT') continue; throw error; } // A database's -shm file vanishes when it closes.
     yield { rel: next, abs: join(root, next), stat };
     if (stat.isDirectory()) yield* walk(root, next);
   }
@@ -66,7 +67,7 @@ function signature(box) {
 
 /** Fold every database write back into its file, so the copy holds no write-ahead log; false when one cannot be. */
 function settleDatabases(root) {
-  for (const { abs, stat } of walk(root)) {
+  for (const { abs, stat } of [...walk(root)]) {
     if (!stat.isFile() || !/\.sqlite$/u.test(abs)) continue;
     try {
       const db = new DatabaseSync(abs);
