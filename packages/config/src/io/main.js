@@ -118,6 +118,11 @@ export function durationMs(text, setting = 'lease') {
   return Number(match[1]) * UNIT_MS[/** @type {'m'|'h'|'d'} */ (match[2])];
 }
 
+/** A settings group merged field by field over its default; a non-object value is kept for the checks to refuse. */
+function section(raw, base) {
+  return raw === undefined ? base : raw && typeof raw === 'object' && !Array.isArray(raw) ? { ...base, ...raw } : raw;
+}
+
 /**
  * The config with each nested group merged field by field, so a repo can set one commit rule
  * without restating the rest.
@@ -153,31 +158,14 @@ function merge(base, raw) {
       : { ...base.verify, ...(raw.verify ?? {}) },
     review: raw.review && typeof raw.review === 'object' && !Array.isArray(raw.review)
       ? { ...base.review, ...raw.review } : raw.review === undefined ? base.review : raw.review,
-    inbox: raw.inbox === undefined ? base.inbox
-      : raw.inbox && typeof raw.inbox === 'object' && !Array.isArray(raw.inbox)
-        ? { ...base.inbox, ...raw.inbox } : raw.inbox,
-    agents: raw.agents === undefined ? base.agents
-      : raw.agents && typeof raw.agents === 'object' && !Array.isArray(raw.agents)
-        ? { ...base.agents, ...raw.agents }
-        : raw.agents,
+    inbox: section(raw.inbox, base.inbox),
+    agents: section(raw.agents, base.agents),
     claims: raw.claims && typeof raw.claims === 'object' && !Array.isArray(raw.claims)
       ? { ...base.claims, ...raw.claims } : raw.claims === undefined ? base.claims : raw.claims,
-    claim: raw.claim === undefined ? base.claim
-      : raw.claim && typeof raw.claim === 'object' && !Array.isArray(raw.claim)
-        ? { ...base.claim, ...raw.claim }
-        : raw.claim,
-    check: raw.check === undefined ? base.check
-      : raw.check && typeof raw.check === 'object' && !Array.isArray(raw.check)
-        ? { ...base.check, ...raw.check }
-        : raw.check,
-    submit: raw.submit === undefined ? base.submit
-      : raw.submit && typeof raw.submit === 'object' && !Array.isArray(raw.submit)
-        ? { ...base.submit, ...raw.submit }
-        : raw.submit,
-    pin: raw.pin === undefined ? base.pin
-      : raw.pin && typeof raw.pin === 'object' && !Array.isArray(raw.pin)
-        ? { ...base.pin, ...raw.pin }
-        : raw.pin,
+    claim: section(raw.claim, base.claim),
+    check: section(raw.check, base.check),
+    submit: section(raw.submit, base.submit),
+    pin: section(raw.pin, base.pin),
   };
 }
 
