@@ -22,6 +22,7 @@ import { loadConfig } from '../../../../config/index.js';
 import { testWaitReport } from '../test/waits.js';
 import { cliLaunchReport } from '../test/launches.js';
 import { cliLaunchGrowth } from '../test/launches.js';
+import { cliChildImportProblems } from '../test/child-fixture.js';
 import { operationEntryProblems } from './operations.js';
 import { layoutProblems } from './layout.js';
 import { testWaitGrowth } from '../test/waits.js';
@@ -144,6 +145,9 @@ export const STATIC_TREE_CHECKS = Object.freeze([
   { name: 'test-waits', reads: TEST, run: (root, sources, context = MEMORY) => testWaitGrowth(testWaitReport(root, { cache: context.cache('test-waits', 1), only: context.changed }), JSON.parse(readFileSync(join(root, 'packages/gate/data/baselines/test-waits-baseline.json'), 'utf8')))
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
   { name: 'cli-launches', reads: TEST, run: (root, sources, context = MEMORY) => cliLaunchGrowth(cliLaunchReport(root, { cache: context.cache('cli-launches', 1), only: context.changed }), JSON.parse(readFileSync(join(root, CLI_LAUNCHES_FILE), 'utf8')))
+    .map(row => `${row.path}:${row.line}: ${row.text}`) },
+  // A new package test may not import the CLI app's child fixture outside the named exceptions; judged against where the branch met main [#8435].
+  { name: 'cli-child-import', reads: TEST, run: (root, sources, context = MEMORY) => cliChildImportProblems(root, { only: context.changed })
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
   // A second entry point for an operation the registry names once, and a baseline that grows past main's (#5846).
   { name: 'operation-entries', reads: SOURCE, run: root => operationEntryProblems(root) },
