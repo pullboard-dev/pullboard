@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell gate */
 /** The static stage refuses a new package test importing the CLI child fixture, and only a new one [C7,#8435]. */
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
