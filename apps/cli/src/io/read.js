@@ -1,4 +1,3 @@
-import { itemFolderIdentity } from './item/folder/identity.js';
 import { seatFamily } from '../../../../packages/items/light.js';
 import {
   dependencyReferences,
@@ -104,6 +103,8 @@ export function sayBrief(io, brief) {
 const requireModule = createRequire(import.meta.url);
 /** The doctrine reader, loaded at the first ctx.doctrine read: a list or show never reads doctrine and never pays for it [C7,#7081]. */
 const doctrineLoader = () => requireModule('../../../../packages/doctrine/light.js').loadDoctrine;
+/** The item-folder identity reader, loaded only when no seat is registered at this checkout [C7,#7081]. */
+const folderIdentity = () => requireModule('./item/folder/identity.js').itemFolderIdentity;
 
 /**
  * Everything a command needs: the repo, its config, the board's file, and where output goes.
@@ -452,7 +453,7 @@ export function identifyCaller(ctx, board, { environmentAgent, relayLinked }, re
     const agent = registered ?? readers.agentAt(board, ctx.info.root);
     return { id, lane: COORDINATOR, family: agent ? seatFamily(board, agent.agent_id) : null, model: agent?.agent_model ?? 'unknown', displayName: displayAgentName(agent ?? { agent_id: id }, ctx.config.agents.names) };
   }
-  const agent = readers.agentAt(board, ctx.info.root) ?? itemFolderIdentity(board, ctx.info.root)?.agent;
+  const agent = readers.agentAt(board, ctx.info.root) ?? folderIdentity()(board, ctx.info.root)?.agent;
   if (!agent) {
     throw new Refused('NOT_JOINED', 'this worktree has not joined a lane: pullboard join <lane> --model "<model name>" (see: pullboard lanes)');
   }
