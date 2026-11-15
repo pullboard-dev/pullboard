@@ -44,7 +44,7 @@ function freshness(mainFile, { review = {}, trunkOnMain = false } = {}) {
   return { state: projector.state(item), trunk, base };
 }
 
-test('clause 1: an accept whose reviewed trunk is not an ancestor of main is judged from merge-base(trunk, main) with the same overlap rule [C7]', () => {
+test('verify.freshness.trunk-merge-base: clause 1: an accept whose reviewed trunk is not an ancestor of main is judged from merge-base(trunk, main) with the same overlap rule [C7]', () => {
   const unrelated = freshness('x.txt');
   assert.equal(unrelated.state, null, 'main touching a file the review never read leaves the accept fresh');
   const overlapping = freshness('y.txt');
@@ -53,7 +53,7 @@ test('clause 1: an accept whose reviewed trunk is not an ancestor of main is jud
   assert.equal(overlapping.state.reason, undefined, 'a judged overlap carries no history-unavailable reason');
 });
 
-test('clause 2: each failure cause of the freshness check has its own reason text [C7]', () => {
+test('verify.freshness.reasons: clause 2: each failure cause of the freshness check has its own reason text [C7]', () => {
   const noHistory = freshness('x.txt', { review: { trunk: 'a'.repeat(40) } }).state.reason;
   assert.match(noHistory, /reviewed trunk aaaaaaaaaaaa is missing from this replica/u);
   const noChecked = freshness('x.txt', { review: { head: 'b'.repeat(40) } }).state.reason;
