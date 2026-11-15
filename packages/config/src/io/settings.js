@@ -75,6 +75,11 @@ export function fencedHopEnabled() {
   return loadMachineSettings().gate?.fencedHop === true;
 }
 
+/** Record each move table shadow compare on the board only when this machine opted in [C7,#8376]. */
+export function movesShadowEnabled() {
+  return loadMachineSettings().moves?.shadow === true;
+}
+
 /** Run the full suite after each landed train batch only when this machine opted in. */
 export function postLandSuiteEnabled() {
   return loadMachineSettings().gate?.postLandSuite === true;
