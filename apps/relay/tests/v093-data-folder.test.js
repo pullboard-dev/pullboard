@@ -1,7 +1,9 @@
 /** A relay data folder written by v0.9.3 opens on the current service with its journals and credentials intact [C7,H16]. */
 import assert from 'node:assert/strict';
+import { chmodSync } from 'node:fs';
 import { cpSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -20,6 +22,11 @@ async function openRecorded(t) {
   const recorded = JSON.parse(readFileSync(join(RECORDED, 'credentials.json'), 'utf8'));
   const directory = privateFixtureFiles('pullboard-relay-v093-').root;
   cpSync(join(RECORDED, 'data'), join(directory, 'data'), { recursive: true });
+  // Git keeps no modes: give the copy the private modes the deployed service prepares at startup (server.mjs prepareStorage).
+  for (const folder of [join(directory, 'data'), join(directory, 'data', 'boards')]) {
+    chmodSync(folder, 0o700);
+    for (const name of readdirSync(folder, { withFileTypes: true })) if (name.isFile()) chmodSync(join(folder, name.name), 0o600);
+  }
   const provider = await githubFixture(t);
   const auth = createRelayAuth({ database: join(directory, 'data', 'auth.sqlite'), github: createGitHubClient(provider.config), now: () => recorded.recordedAt + 3600_000 });
   const relay = await serveRelay({ directory: join(directory, 'data', 'boards'), auth, maintenanceMs: 0, pollMs: 10 });
