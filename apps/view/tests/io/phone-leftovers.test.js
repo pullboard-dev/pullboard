@@ -27,8 +27,8 @@ test('clause 1: Spec and Doctrine tab labels have a one-word phone form and keep
   assert.match(tabs('doctrine'), /<span class="seg-full">To review<\/span><span class="seg-short">Review<\/span>/u);
   const css = composeViewStyles();
   assert.match(css, /#spec-chips \.seg-full, #doctrine-chips \.seg-full \{ display: none; \}/u, 'the phone shows the short word');
-  assert.match(css, /#spec-chips \.seg-label, #doctrine-chips \.seg-label \{[^}]*overflow: visible/u, 'a label is never cut mid-word');
-  assert.doesNotMatch(css.match(/@media \(max-width: 700px\) \{\n  #spec-chips \.seg, [\s\S]*?\n\}/u)?.[0] ?? '', /text-overflow: ellipsis/u, 'no phone tab label ends in an ellipsis');
+  assert.match(css, /#spec-chips \.seg-label, #doctrine-chips \.seg-label \{[^}]*overflow: hidden; text-overflow: ellipsis/u, 'a cut label ends in an ellipsis instead of running over its count (#7839)');
+  assert.match(css.match(/@media \(max-width: 700px\) \{\n  #spec-chips \.seg, [\s\S]*?\n\}/u)?.[0] ?? '', /text-overflow: ellipsis/u, 'a phone tab label too wide for its chip ends in an ellipsis');
 });
 
 test('clause 2: a Settings row with a copy button reserves the copy column, and one without it ends flush at the value [N26,#7718]', () => {
