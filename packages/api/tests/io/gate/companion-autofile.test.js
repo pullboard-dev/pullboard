@@ -35,12 +35,12 @@ t => {
   // A real docs companion: the patch is a Git diff of one new file, attached against the builder's head and composed, not committed, on that head.
   repo.put('docs/companion.md', 'After.\n');
   runFixtureGit(['add', '-N', 'docs/companion.md'], { cwd: repo.root });
-  const patch = String(runFixtureGit(['diff', 'HEAD', '--', 'docs/companion.md'], { cwd: repo.root }).stdout);
+  const patch = runFixtureGit(['diff', 'HEAD', '--', 'docs/companion.md'], { cwd: repo.root }) + '\n';
   runFixtureGit(['rm', '-q', '--cached', 'docs/companion.md'], { cwd: repo.root });
   rmSync(join(repo.root, 'docs'), { recursive: true, force: true });
   store.attachItemPatch(board, item.item_id, { agentId: 'coordinator', key: 'docs', commit: main, patch, author: seat.id, presubmit: true });
   const held = store.getItem(board, item.item_id);
-  const tree = String(runFixtureGit(['rev-parse', `${main}^{tree}`], { cwd: repo.root }).stdout).trim();
+  const tree = runFixtureGit(['rev-parse', `${main}^{tree}`], { cwd: repo.root });
   const companion = { ...prepareItemPatchSubmit(repo.root, board, held, main), receiptIds: [], phases: [] };
   // The landing cell's closure check is the board host's provider; here it answers that the companion touched no failing test's input.
   provideCompanionInheritance(() => true);
