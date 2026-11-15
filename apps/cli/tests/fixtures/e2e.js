@@ -99,6 +99,7 @@ export function parityRecord({ dir, env, cwd, args, result }) {
   const DISK_MEASURED = ['total', 'stores', 'measuredAt', 'measuring', 'warning'];
   const mask = (value, key) => key === 'comparison' ? '<comparison>'
     : key === 'steps' && value && typeof value === 'object' && Object.values(value).every(Number.isFinite) ? '<steps>' // gate step timings, in milliseconds
+    : typeof value === 'number' && /Ms$/u.test(key ?? '') ? '<ms>' // a measured duration
     : typeof value === 'string' ? parityText(value, dir).replace(/^disk use under \.git\/pullboard: .*$/gmu, 'disk use under .git/pullboard: <measured>')
     : Array.isArray(value) ? value.map(inner => mask(inner))
     : value && typeof value === 'object' ? Object.fromEntries([...Object.entries(value).filter(([name]) => key !== 'disk' || !DISK_MEASURED.includes(name)).map(([name, inner]) => [name, mask(inner, name)]),
