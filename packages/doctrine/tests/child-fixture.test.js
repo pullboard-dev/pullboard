@@ -44,7 +44,6 @@ const CLI_SHIM_IMPORTERS = [
   'drive/tests/io/pull/checkout.test.js',
   'drive/tests/io/pull/claims.test.js',
   'drive/tests/io/pull/handled.test.js',
-  'drive/tests/io/pull/landing-ref.test.js',
   'drive/tests/io/pull/leftover-chrome.test.js',
   'drive/tests/io/pull/prune-chrome.test.js',
   'drive/tests/io/pull/workers.test.js',
