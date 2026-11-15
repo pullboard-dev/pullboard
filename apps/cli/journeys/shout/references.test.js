@@ -212,40 +212,62 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
   }
 });
 
+let __t=Date.now();const lap=(l)=>{console.log('RLAP '+l+' '+(Date.now()-__t));__t=Date.now();};
 test('committed shout and fact references stay local, expand safely at phone and desktop widths, and explain relay snapshots [N26,B33]', { timeout: 180_000 }, async (t) => {
   const executable = chromeExecutable();
+  lap('const executable = chromeExecuta');
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME to run code-reference viewport checks.');
   const box = machine();
+  lap('const box = machine();');
   const alpha = project(box, 'local-code');
+  lap('const alpha = project(box, loca');
   await box.inProcess(alpha.repo, 'add', 'web', 'Referenced source', '--specs', 'G1');
+  lap('await box.inProcess(alpha.repo, ');
   mkdirSync(join(alpha.web, 'web'), { recursive: true });
   const sourceText = ['const localOnlyFixture = 42;', ...Array.from({ length: 99 }, (_, index) => `export const row${index + 1} = ${index + 1};`)].join('\n') + '\n';
+  lap('const sourceText = [const local');
   writeFileSync(join(alpha.web, 'web', 'reference.js'), sourceText);
   await buildLocal(box, alpha, 1, 'submitted.txt');
+  lap('await buildLocal(box, alpha, 1, ');
   const sha = box.git(alpha.web, 'rev-parse', 'HEAD');
+  lap('const sha = box.git(alpha.web, ');
   const ref = `web/reference.js:1-100@${sha}`;
+  lap('const ref = `web/reference.js:1-');
   await box.inProcess(alpha.web, 'fact', '1', 'note', 'review the source block', '--ref', ref);
+  lap('await box.inProcess(alpha.web, ');
   await box.inProcess(alpha.web, 'shout', 'all', `source: ${ref}`);
+  lap('await box.inProcess(alpha.web, ');
   await box.inProcess(alpha.web, 'shout', 'all', 'missing commit: web/reference.js:1@deadbee');
+  lap('await box.inProcess(alpha.web, ');
   await box.inProcess(alpha.web, 'shout', 'all', `missing path: :1@${sha.slice(0, 7)}`);
+  lap('await box.inProcess(alpha.web, ');
 
   const presentation = JSON.stringify(relayPresentation(alpha.repo, {}, RELAY_PRESENTATION_PORTS));
+  lap('const presentation = JSON.string');
   assert.ok(presentation.includes('"path":"web/reference.js"') && presentation.includes('"commit":"' + sha + '"'), 'relay projection carries the typed reference');
   assert.ok(!presentation.includes('localOnlyFixture') && !presentation.includes('row99'), 'relay projection contains no source code');
 
   const view = await startView(box);
+  lap('const view = await startView(box');
   let chrome;
+  lap('let chrome;');
   try {
     const link = new URL(view.link.href);
+  lap('const link = new URL(view.link.h');
     link.pathname = '/items/1';
     chrome = await openSnapshotChrome(executable, link.href, join(box.dir, 'local-code-chrome'));
+  lap('chrome = await openSnapshotChrom');
     await chrome.waitFor('typeof data === "object" && data?.project?.shouts?.length >= 3 && !!document.querySelector("#detail .fact-code button[data-code]")');
+  lap('await chrome.waitFor(typeof dat');
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor(`innerWidth === ${width}`);
       await pressTab(chrome, 'shouts');
+  lap('await pressTab(chrome, shouts)');
       await openShoutConversation(chrome);
+  lap('await openShoutConversation(chro');
       await chrome.click(`document.querySelector('#feed button[data-code^="web/reference.js:1-100@"]')`);
+  lap('await chrome.click(`document.que');
       await chrome.waitFor(`document.querySelector('#feed .code-wrap pre.code .tok-keyword')?.textContent === 'const'`);
       assert.equal(await chrome.stable(`document.querySelector('#feed pre.code').textContent.includes('localOnlyFixture = 42')`), true, 'the open local preview reads the exact committed text');
       assert.equal(await chrome.stable(`document.querySelector('#feed pre.code .tok-number')?.textContent`), '42', 'source tokens receive syntax highlighting');
@@ -258,6 +280,7 @@ test('committed shout and fact references stay local, expand safely at phone and
       assert.equal(await chrome.stable('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), true, `${width}px page has no sideways overflow`);
 
       await pressTab(chrome, 'items');
+  lap('await pressTab(chrome, items);');
       await chrome.click(`document.querySelector('#chain [data-item="1"]')`);
       assert.equal(await chrome.stable(`!!document.querySelector('#detail .fact-code .code-ref:not(.open) > button.ref.block[aria-expanded="false"]')`), true, 'a fact\'s reference is a collapsed block too');
       await chrome.click(`document.querySelector('#detail .fact-code button[data-code]')`);
@@ -266,22 +289,30 @@ test('committed shout and fact references stay local, expand safely at phone and
       assert.equal(await chrome.stable('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), true, `${width}px thread ref has no sideways overflow`);
       await chrome.click(`document.querySelector('#detail .fact-code button[data-code]')`);
       await pressTab(chrome, 'shouts');
+  lap('await pressTab(chrome, shouts)');
       await openShoutConversation(chrome);
+  lap('await openShoutConversation(chro');
       await chrome.click(`document.querySelector('#feed button[data-code^=\"web/reference.js:1-100@\"]')`);
       await chrome.waitFor(`document.querySelector('#feed button[data-code^=\"web/reference.js:1-100@\"]').getAttribute('aria-expanded') === 'false'`);
     }
     await chrome.click(`document.querySelector('#feed button[data-code^="web/reference.js:1@deadbee"]')`);
+  lap('await chrome.click(`document.que');
     await chrome.waitFor(`document.querySelector('#feed button[data-code^=\"web/reference.js:1@deadbee\"] + .code-ref .code, #feed button[data-code^=\"web/reference.js:1@deadbee\"] + .code')?.textContent.includes('[NO_COMMIT]')`);
+  lap('await chrome.waitFor(`document.q');
     assert.equal(await chrome.stable(`document.querySelector('#feed button[data-code^=\"web/reference.js:1@deadbee\"] + .code-ref .code, #feed button[data-code^=\"web/reference.js:1@deadbee\"] + .code').textContent.includes('deadbee')`), true, 'a missing commit produces its readable refusal');
     assert.equal(await chrome.stable(`document.querySelector('#feed .ref-missing')?.textContent.includes('missing the repository path')`), true, 'a reference with no path gives a clear note');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     await view.stop();
+  lap('await view.stop();');
   }
 
   const snapshotDir = mkdtempSync(join(box.dir, 'relay-snapshot-'));
+  lap('const snapshotDir = mkdtempSync(');
   const exported = await exportView(alpha.repo, snapshotDir, { runCommand: nativeTestMain });
+  lap('const exported = await exportVie');
   const exportedFiles = [];
+  lap('const exportedFiles = [];');
   const walk = (directory) => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const path = join(directory, entry.name);
@@ -293,30 +324,46 @@ test('committed shout and fact references stay local, expand safely at phone and
   assert.ok(!exportedFiles.join('\n').includes('localOnlyFixture'), 'the static relay artifact never contains the source text');
   const snapshotServer = createServer((request, response) => {
     const pathname = new URL(request.url, 'http://127.0.0.1').pathname;
+  lap('const pathname = new URL(request');
     const relativePath = pathname === '/' ? 'index.html' : pathname.slice(1);
+  lap('const relativePath = pathname ==');
     const target = resolve(exported.path, relativePath);
+  lap('const target = resolve(exported.');
     if (!target.startsWith(resolve(exported.path) + '/') || !existsSync(target)) { response.writeHead(404).end(); return; }
     const type = target.endsWith('.css') ? 'text/css; charset=utf-8' : target.endsWith('.json') ? 'application/json; charset=utf-8' : 'text/html; charset=utf-8';
+  lap('const type = target.endsWith(.c');
     response.writeHead(200, { 'content-type': type, 'cache-control': 'no-store' });
     response.end(readFileSync(target));
   });
   await new Promise((resolve) => snapshotServer.listen(0, '127.0.0.1', resolve));
+  lap('await new Promise((resolve) => s');
   let snapshotChrome;
+  lap('let snapshotChrome;');
   try {
     const address = snapshotServer.address();
+  lap('const address = snapshotServer.a');
     snapshotChrome = await openSnapshotChrome(executable, `http://127.0.0.1:${address.port}/`, join(box.dir, 'relay-snapshot-chrome'));
     await snapshotChrome.waitFor('data?.project');
+  lap('await snapshotChrome.waitFor(da');
     await pressTab(snapshotChrome, 'shouts');
+  lap('await pressTab(snapshotChrome, ');
     await openShoutConversation(snapshotChrome);
+  lap('await openShoutConversation(snap');
     await snapshotChrome.waitFor(`document.querySelector('#feed button[data-code^=\"web/reference.js:1-100@\"]')`);
+  lap('await snapshotChrome.waitFor(`do');
     await pressTab(snapshotChrome, 'shouts');
+  lap('await pressTab(snapshotChrome, ');
     await openShoutConversation(snapshotChrome);
+  lap('await openShoutConversation(snap');
     await snapshotChrome.click(`document.querySelector('#feed button[data-code^="web/reference.js:1-100@"]')`);
+  lap('await snapshotChrome.click(`docu');
     await snapshotChrome.waitFor(`document.querySelector('#feed button[data-code^=\"web/reference.js:1-100@\"]')?.getAttribute('aria-expanded') === 'true'`);
+  lap('await snapshotChrome.waitFor(`do');
     assert.match(await snapshotChrome.stable(`document.querySelector('#feed button[data-code^=\"web/reference.js:1-100@\"] + .code-ref .code, #feed button[data-code^=\"web/reference.js:1-100@\"] + .code')?.textContent || ''`), /Source code is not included in this relay snapshot/);
     assert.ok(snapshotChrome.requests.every((request) => !request.url.includes('/code?')), 'relay snapshot serves only the reference and sends no code read');
   } finally {
     if (snapshotChrome) await closeSnapshotChrome(snapshotChrome);
     await new Promise((resolve) => snapshotServer.close(resolve));
+  lap('await new Promise((resolve) => s');
   }
 });
