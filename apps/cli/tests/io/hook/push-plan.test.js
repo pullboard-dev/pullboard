@@ -1,4 +1,4 @@
-/** The pre-push gate splits into at most eight partitions balanced by recorded file time, unrecorded files at a default by kind [C7,#7790,#8026,#8047]. */
+/** The pre-push gate splits into at most eight partitions balanced by recorded file time, unrecorded files at a default by kind, and its shard count can be sized from board data [C7,#7790,#8026,#8047,U151]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { PUSH_DEFAULT_FILE_MS } from '../../../src/io/hook/push.js';
@@ -6,6 +6,7 @@ import { PUSH_DEFAULT_JOURNEY_MS } from '../../../src/io/hook/push.js';
 import { PUSH_MAX_SHARDS } from '../../../src/io/hook/push.js';
 import { planPushShards } from '../../../src/io/hook/push.js';
 import { pushPlanLimitMs } from '../../../src/io/hook/push.js';
+import { pushShardCount } from '../../../src/io/hook/push.js';
 
 /** A main-sized synthetic gate: 2,371 files, one in seven unrecorded, recorded times spread from 0.5 s to 40 s. */
 function mainSized() {
@@ -53,4 +54,26 @@ test('clause 1: the wait limit is the pushGate.shardMinutes setting, or the heav
   const config = { pushGate: { shardMinutes: 20 } };
   assert.equal(pushPlanLimitMs([{ weight: 5 * 60_000 }], config, {}), 20 * 60_000, 'a light plan keeps the setting');
   assert.equal(pushPlanLimitMs([{ weight: 90 * 60_000 }, { weight: 80 * 60_000 }], config, {}), 90 * 60_000, 'a heavy plan is never given up on early');
+});
+
+test('clause 1: the push shard count is ceil(recorded total / per-shard target), at least 1 and at most PUSH_MAX_SHARDS [C7,U151]', () => {
+  assert.equal(pushShardCount({ totalMs: 50 * 60_000, runners: 12, targetMs: 20 * 60_000 }), 3, '50 min at 20 min a shard is 3');
+  assert.equal(pushShardCount({ totalMs: 60 * 60_000, runners: 12, targetMs: 20 * 60_000 }), 3, 'an exact fit adds no shard');
+  assert.equal(pushShardCount({ totalMs: 1_000, runners: 12, targetMs: 20 * 60_000 }), 1, 'a tiny gate is one shard');
+  assert.equal(pushShardCount({ totalMs: 1_500 * 60_000, runners: 40, targetMs: 20 * 60_000 }), PUSH_MAX_SHARDS, 'a huge gate stops at the cap');
+});
+
+test('clause 2: the push shard count never exceeds the live runner count it is given [C7,U151]', () => {
+  assert.equal(pushShardCount({ totalMs: 200 * 60_000, runners: 3, targetMs: 20 * 60_000 }), 3);
+  assert.equal(pushShardCount({ totalMs: 200 * 60_000, runners: 1, targetMs: 20 * 60_000 }), 1);
+  assert.equal(pushShardCount({ totalMs: 200 * 60_000, runners: 2.7, targetMs: 20 * 60_000 }), 2, 'a part runner is no runner');
+});
+
+test('clause 3: an unknown runner count or total time gives PUSH_MAX_SHARDS, today\'s fixed plan [C7,U151]', () => {
+  const target = 20 * 60_000;
+  for (const unknown of [0, undefined, Number.NaN, Number.POSITIVE_INFINITY, -1]) {
+    assert.equal(pushShardCount({ totalMs: 200 * 60_000, runners: unknown, targetMs: target }), PUSH_MAX_SHARDS, `runners ${unknown}`);
+    assert.equal(pushShardCount({ totalMs: unknown, runners: 6, targetMs: target }), PUSH_MAX_SHARDS, `total ${unknown}`);
+  }
+  assert.equal(pushShardCount(), PUSH_MAX_SHARDS, 'no board data at all');
 });
