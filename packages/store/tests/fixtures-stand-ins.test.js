@@ -29,12 +29,12 @@ test('clause 2: a fixture board built without asking for a real board is an in-m
 });
 
 test('clause 3: a fixture that asks for real git gets a real repository, and a real board file [C7]', t => {
-  const repo = cellRepo(t, {});
+  const repo = cellRepo(t, { real: true });
   assert.equal(repo.real, true);
   assert.equal(repo.adapter, null);
   assert.ok(existsSync(join(repo.root, '.git', 'HEAD')), 'a real .git folder exists');
   assert.equal(headCommit(repo.root), repo.commit);
-  const board = cellBoard(t, repo.boardFile, undefined, {});
+  const board = cellBoard(t, repo.boardFile, undefined, { real: true });
   assert.ok(board.db);
   assert.ok(existsSync(repo.boardFile), 'the board file is on disk');
 });

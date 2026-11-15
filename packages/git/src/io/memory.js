@@ -508,3 +508,45 @@ export function createMemoryGitAdapter(seeds) {
   };
   return adapter;
 }
+
+/*
+ * Package test files that keep `real: true` because the stand-in still cannot serve them [C7, #8098].
+ * Gaps: disk-written fixtures (the test writes files with writeFileSync, which the stand-in cannot see), killSignal
+ * (the code under test passes a process option the contract lacks), child process (a spawned node process cannot reach
+ * the in-process Git), board busy (the test needs an on-disk board shared between connections).
+ * packages/activity/tests/io/next-wait-shout-scope.test.js: killSignal
+ * packages/activity/tests/io/worktrees.test.js: disk-written fixtures
+ * packages/api/tests/io/gate/detached.test.js: killSignal
+ * packages/api/tests/io/gate/ordered.test.js: killSignal
+ * packages/api/tests/io/gate/overtaken.test.js: killSignal
+ * packages/api/tests/io/handoff.test.js: child process
+ * packages/api/tests/io/main.test.js: disk-written fixtures
+ * packages/api/tests/io/pool.test.js: child process
+ * packages/api/tests/io/pool/reads.test.js: child process
+ * packages/api/tests/io/relink-alias.test.js: board busy
+ * packages/api/tests/io/remote-join.test.js: killSignal
+ * packages/flakes/tests/logic/ratchet.test.js: board busy
+ * packages/flakes/tests/verdict.test.js: disk-written fixtures
+ * packages/gate/tests/io/changed/scripts/static.test.js: disk-written fixtures
+ * packages/gate/tests/io/requeue/retry.test.js: child process
+ * packages/gate/tests/io/test/shards.test.js: child process
+ * packages/gate/tests/runner/probe.test.js: child process
+ * packages/landing/tests/io/deferred/notices.test.js: killSignal
+ * packages/landing/tests/io/main/nearby.test.js: disk-written fixtures
+ * packages/landing/tests/io/main/red/refresh/single.test.js: killSignal
+ * packages/landing/tests/io/reuse/refresh.test.js: disk-written fixtures
+ * packages/landing/tests/io/step/gate/affected.test.js: disk-written fixtures
+ * packages/moves/tests/logic/moves/holdItem.test.js: disk-written fixtures
+ * packages/moves/tests/reopen.test.js: disk-written fixtures
+ * packages/runners/tests/io/pack/flight.test.js: disk-written fixtures
+ * packages/runners/tests/machine-home.test.js: board busy
+ * packages/runners/tests/run-updates-main-reds.test.js: disk-written fixtures
+ * packages/seats/tests/io/checkout.test.js: killSignal
+ * packages/shouts/tests/main.test.js: board busy
+ * packages/store/tests/any.test.js: disk-written fixtures
+ * packages/store/tests/cli.test.js: killSignal
+ * packages/store/tests/corrections.test.js: disk-written fixtures
+ * packages/store/tests/fixtures-stand-ins.test.js: disk-written fixtures
+ * packages/store/tests/implies.test.js: disk-written fixtures
+ * packages/store/tests/io/board/blobs.test.js: board busy
+ */

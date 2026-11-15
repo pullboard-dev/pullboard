@@ -49,7 +49,7 @@ test('a refresh launched while one runs gets no lock and leaves the one process 
 });
 
 test('a running refresh comparison holds no checkout lease, so a board write in that checkout finishes in under 1 s [C7]', async (t) => {
-  const box = cellProject(t, {});
+  const box = cellProject(t, { real: true });
   const saved = { ...process.env };
   Object.assign(process.env, { PULLBOARD_MACHINE_HOME: box.env.PULLBOARD_MACHINE_HOME, PULLBOARD_HOME: box.env.PULLBOARD_HOME });
   t.after(() => {

@@ -22,7 +22,7 @@ const FILES = ['test/a.test.js', 'test/b.test.js'];
  * @returns {object} The project box.
  */
 function fixture(t, hosts = HOSTS) {
-  const box = cellProject(t, { gate: 'true' });
+  const box = cellProject(t, { real: true, gate: 'true' });
   const bin = join(box.dir, 'shards-bin'), worker = join(box.dir, 'shards-worker');
   const home = join(box.dir, 'shards-home'), machineHome = join(home, '.pullboard');
   for (const folder of [bin, worker, home, machineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(folder, { recursive: true });

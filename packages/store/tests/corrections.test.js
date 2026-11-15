@@ -32,14 +32,14 @@ const freeze = (item) => {
 
 /** A real-Git project and a board with a coordinator, a web builder, a reviewer and three web items, no CLI. */
 function fixture(t) {
-  const project = cellProject(t, {});
+  const project = cellProject(t, { real: true });
   mkdirSync(join(project.repo, 'web'), { recursive: true });
   writeFileSync(join(project.repo, 'web', 'shared.txt'), 'base\n');
   project.git(project.repo, 'add', '-A');
   project.git(project.repo, 'commit', '-q', '-m', 'chore: create bar fixture');
   const web = join(project.dir, 'web');
   project.git(project.repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
-  const board = cellBoard(t, project.boardFile, undefined, { gitRoot: project.repo });
+  const board = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: project.repo });
   cellSeat(board, { lane: 'coordinator', path: project.repo });
   const builder = cellSeat(board, { lane: 'web', path: web }).id;
   const reviewer = cellSeat(board, { lane: 'web', path: join(project.dir, 'review') }).id;

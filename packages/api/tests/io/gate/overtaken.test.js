@@ -40,8 +40,8 @@ function overtakenOnce(t, board, file) {
 }
 
 test('a green pulled gate is submitted even when another connection writes while its submission is prepared [C7,#8011]', t => {
-  const repo = cellRepo(t, {});
-  const board = cellBoard(t, repo.boardFile, undefined, { gitRoot: repo.root });
+  const repo = cellRepo(t, { real: true });
+  const board = cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
   board.gitRoot = repo.root;
   const seat = cellSeat(board, { lane: 'web', path: `${repo.root}/seat` });
   const item = cellItem(board, { lane: 'web', title: 'Build the page' });

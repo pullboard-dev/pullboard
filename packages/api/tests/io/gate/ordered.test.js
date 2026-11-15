@@ -15,8 +15,8 @@ import { offerJob } from '../../../index.js';
 
 /** A claimed item with a gate job offered for its head, as a pulled submit leaves it; post(receipt, options) answers as the jobs route. */
 function pulledSubmit(t) {
-  const repo = cellRepo(t, {});
-  const board = cellBoard(t, repo.boardFile, undefined, { gitRoot: repo.root });
+  const repo = cellRepo(t, { real: true });
+  const board = cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
   board.gitRoot = repo.root;
   const seat = cellSeat(board, { lane: 'web', path: `${repo.root}/seat` });
   const item = cellItem(board, { lane: 'web', title: 'Build the page' });

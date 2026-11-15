@@ -42,7 +42,7 @@ export function boardHandlerPorts({ isMain }) {
 
 /** Serve one fixture board; returns the API and the board's id. */
 async function served(t, handlerPorts, options = {}) {
-  const project = cellProject(t, {});
+  const project = cellProject(t, { real: true });
   const board = openCellBoard(project.boardFile);
   let id;
   try { id = boardId(board); } finally { closeCellBoard(board); }
@@ -120,7 +120,7 @@ test('clause 1 [A2,C7]: the item detail read runs in a pool worker, so a detail 
 });
 
 test('clause 1 [A2,C7]: an item detail read answers from the pool worker with the item the board holds', { timeout: 60_000 }, async (t) => {
-  const project = cellProject(t, {});
+  const project = cellProject(t, { real: true });
   const board = openCellBoard(project.boardFile);
   let id, filed;
   try { id = boardId(board); filed = cellItem(board, { lane: 'core', title: 'Pooled detail', criterion: '1. It reads [test]' }); } finally { closeCellBoard(board); }
