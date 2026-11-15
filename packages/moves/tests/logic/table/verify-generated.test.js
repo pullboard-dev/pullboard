@@ -226,7 +226,7 @@ const CASES = 8_000;
 const results = Array.from({ length: CASES }, (_, i) => { const { s, move } = scenario(i + 1); return { seed: i + 1, s, move, result: run(s, move) }; });
 const ok = results.filter(c => !c.result.refused);
 
-test('generated: every guard, outcome and follow-up row of the verify table fires on some seeded case [C7,#8264]', () => {
+test('moves.verify.rows-fire: generated: every guard, outcome and follow-up row of the verify table fires on some seeded case [C7,#8264]', () => {
   const fired = new Set(results.flatMap(c => (c.result.refused ? [c.result.refused.row] : c.result.via)));
   const rows = [...TABLE.guards, ...TABLE.outcomes, ...TABLE.followups].map(row => row.id);
   assert.deepEqual(rows.filter(row => !fired.has(row)), []);
@@ -235,7 +235,7 @@ test('generated: every guard, outcome and follow-up row of the verify table fire
   assert.match(learnt.barKey, /^[0-9a-f]{64}$/u);
 });
 
-test('generated: a refusal writes nothing and carries the first failing guard, its code, its message and the next step VERIFY_NEXT gives [C7,#8264]', () => {
+test('moves.verify.refusal-rows: generated: a refusal writes nothing and carries the first failing guard, its code, its message and the next step VERIFY_NEXT gives [C7,#8264]', () => {
   for (const c of results) {
     const guard = GUARDS.find(([, , refuses]) => refuses(c.s, c.move));
     assert.equal(c.result.refused?.row, guard?.[0], `seed ${c.seed}`);
@@ -251,7 +251,7 @@ test('generated: a refusal writes nothing and carries the first failing guard, i
   }
 });
 
-test('generated: each accepted verdict writes the verdict, cause and follow-ups the rule in words gives, and no one verifies their own work [C7,#8264]', () => {
+test('moves.verify.accepted-verdict: generated: each accepted verdict writes the verdict, cause and follow-ups the rule in words gives, and no one verifies their own work [C7,#8264]', () => {
   for (const c of ok) {
     const pipelineCause = c.result.events[0]?.detail.pipelineCause;
     if (c.result.via[0] === 'reject') assert.deepEqual([pipelineCause.cause, pipelineCause.reason], [c.result.events[0].detail.cause, c.move.reason], `seed ${c.seed}`);
@@ -261,7 +261,7 @@ test('generated: each accepted verdict writes the verdict, cause and follow-ups 
   }
 });
 
-test('generated: the same snapshot and move give the same answer, and the run never mutates them [C7,#8264]', () => {
+test('moves.verify.deterministic: generated: the same snapshot and move give the same answer, and the run never mutates them [C7,#8264]', () => {
   for (const c of results.slice(0, 1500)) {
     const snapshot = structuredClone(c.s), move = structuredClone(c.move);
     assert.deepEqual(runTable(TABLE, RULES, snapshot, move), c.result, `seed ${c.seed}`);
@@ -269,7 +269,7 @@ test('generated: the same snapshot and move give the same answer, and the run ne
   }
 });
 
-test('generated: stepInMessage reads the step a first line spells out after a separator, never a --reason CODE usage line [C7,#8264]', () => {
+test('moves.verify.step-in-message: generated: stepInMessage reads the step a first line spells out after a separator, never a --reason CODE usage line [C7,#8264]', () => {
   const g = seeded(8264);
   const VERBS = ['run', 'Install', 'upgrade', 'fix', 'restore', 'commit', 'merge', 'test', 'check out', 'set', 'give', 'use', 'reject', 'ask your coordinator', 'the coordinator runs', 'to keep looking', 'never work around'];
   for (let i = 0; i < 2000; i++) {
@@ -280,7 +280,7 @@ test('generated: stepInMessage reads the step a first line spells out after a se
   }
 });
 
-test('generated: the verify engine refuses VERIFY_TABLE_INPUTS when any board input is missing or the wrong kind [C7,#8264]', () => {
+test('moves.verify.table-inputs: generated: the verify engine refuses VERIFY_TABLE_INPUTS when any board input is missing or the wrong kind [C7,#8264]', () => {
   const board = { acceptReason: 'CRITERION_MET', rejectReasons: ['OTHER'], wording: String, frozenBar: () => ({}), namedClause: () => null, causeProblem: () => null, pipelineCause: () => ({}), strongNoticeEngine: 54 };
   assert.equal(typeof verifyEngine(board).table, 'object');
   const breaks = [{ acceptReason: 7 }, { rejectReasons: 'OTHER' }, { rejectReasons: [] }, { strongNoticeEngine: 1.5 }, { strongNoticeEngine: '54' },
@@ -288,7 +288,7 @@ test('generated: the verify engine refuses VERIFY_TABLE_INPUTS when any board in
   for (const change of [...breaks, null]) assert.throws(() => verifyEngine(change && { ...board, ...change }), { code: 'VERIFY_TABLE_INPUTS' }, JSON.stringify(change));
 });
 
-test('metamorphic: break any one fact of an accepted verdict and it refuses at that guard with its code [C7,#8264]', () => {
+test('moves.verify.fact-breaks: metamorphic: break any one fact of an accepted verdict and it refuses at that guard with its code [C7,#8264]', () => {
   for (const c of ok.slice(0, 250)) {
     for (const [row, spoil] of Object.entries(SPOILERS)) {
       if (ONLY[c.move.decision === 'ACCEPT' ? 'REJECT' : 'ACCEPT'].includes(row) || (row === 'review-recorded' && c.move.knownMainFailures)) continue;
@@ -301,7 +301,7 @@ test('metamorphic: break any one fact of an accepted verdict and it refuses at t
   }
 });
 
-test('metamorphic: a new note, trunk, checkout root or unrelated history keeps the outcome of an accepted verdict [C7,#8264]', () => {
+test('moves.verify.unrelated-facts: metamorphic: a new note, trunk, checkout root or unrelated history keeps the outcome of an accepted verdict [C7,#8264]', () => {
   for (const c of ok.filter(each => each.move.knownMainFailures === undefined).slice(0, 800)) {
     const s = structuredClone(c.s), move = { ...structuredClone(c.move), note: `${c.move.note} again`, review: { ...c.move.review, trunk: 'a'.repeat(40) } };
     s.io.root = '/elsewhere';

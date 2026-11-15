@@ -51,16 +51,16 @@ export function gateClaimHop(enabled) {
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {{ table: NonNullable<typeof hopTable> }} hop - From gateClaimHop.
- * @param {{ item: number, candidate: string, runner: string, move: 'acquire' | 'step', epoch?: number, now: number, leaseMs: number }} claim
+ * @param {{ item: number, candidate: string, runner: string, move: 'acquire' | 'step', epoch?: number, job?: string, now: number, leaseMs: number }} claim - job: the gate job an acquire claims.
  * @returns {{ owner: string | null, epoch: number }}
  */
-export function moveGateClaimHop(db, hop, { item, candidate, runner, move, epoch, now, leaseMs }) {
+export function moveGateClaimHop(db, hop, { item, candidate, runner, move, epoch, job, now, leaseMs }) {
   const decide = hop.table(leaseMs);
   const waiting = { status: 'claimed', commit: candidate, digest: candidate };
-  const write = name => gateHopMove(db, { item, actor: runner, enabled: true, decide: row => {
+  const write = (name, at = epoch) => gateHopMove(db, { item, actor: runner, enabled: true, decide: row => {
     // A hop that is over at another candidate is the resubmitted item's old hop: the new candidate's create replaces it, keeping its epoch so no old claim's epoch comes back [C7,#8353].
     const replaced = name === 'create' && row && overAt(row, candidate);
-    const answer = decide({ item: waiting, hop: replaced ? null : row, now }, { name, actor: runner, epoch });
+    const answer = decide({ item: waiting, hop: replaced ? null : row, now }, { name, actor: runner, epoch: at });
     if (answer.refused) return { refused: answer.refused };
     return { hop: replaced ? { ...answer.patch.hop, epoch: Math.max(answer.patch.hop.epoch, row.epoch) } : answer.patch.hop };
   } }).hop;
@@ -70,6 +70,8 @@ export function moveGateClaimHop(db, hop, { item, candidate, runner, move, epoch
     ensureGateHopTable(db);
     const row = readGateHop(db, item);
     if (!row || overAt(row, candidate)) write('create');
+    // A runner that released this gate job still owns its live hop: its re-claim steps the hop at its own epoch instead of waiting out its own lease [C7,#8439].
+    else if (ownLiveHop(db, row, { item, candidate, runner, job, now })) return write('step', row.epoch);
     return write('acquire');
   } catch (error) {
     if (error.code === 'HOP_HELD') throw new Refused('HOP_FENCED', error.message, 'leave the gate job to the runner that owns its hop; claim again once its lease lapses');
@@ -81,6 +83,15 @@ export function moveGateClaimHop(db, hop, { item, candidate, runner, move, epoch
 
 /** Refusals a step gets when its hop was ended or replaced by a resubmit rather than taken at a later epoch. */
 const STALE_STEP = new Set(['HOP_OVER', 'HOP_ITEM_MOVED', 'HOP_MISSING']);
+
+/**
+ * Whether the runner owns the item's live hop at this candidate and holds no other live gate claim on the item.
+ * Why the second check: two live claims sharing one epoch could both land, so only a released claim's runner takes its hop back; its old token is already dead at the job.
+ */
+function ownLiveHop(db, row, { item, candidate, runner, job, now }) {
+  if (row.state !== 'driven' || row.owner !== runner || row.commit !== candidate || leaseLapsed(row.leaseUntil, now)) return false;
+  return !db.prepare("SELECT 1 FROM job WHERE job_kind = 'gate' AND job_item = ? AND job_lease_owner = ? AND job_lease_until >= ? AND job_id <> ?").get(item, runner, now, job ?? '');
+}
 
 /** Whether the hop row is over (done or ended) and was for another candidate than this one. */
 function overAt(row, candidate) {
