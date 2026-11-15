@@ -18,5 +18,5 @@ test('clause 2: scan.js and parser.js import saveKeyedResult from the config cel
     assert.doesNotMatch(read(file), /pin\/index\.js/u, file);
   }
   const cells = JSON.parse(read('packages/gate/data/ceilings/cells-edges.json')).cells;
-  assert.ok(!cells['packages/runners'].imports.includes('pin'), 'runners must not list pin');
+  assert.ok(!cells.runners.imports.includes('pin'), 'runners must not list pin');
 });
