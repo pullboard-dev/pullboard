@@ -158,6 +158,7 @@ function merge(base, raw) {
       : { ...base.verify, ...(raw.verify ?? {}) },
     review: raw.review && typeof raw.review === 'object' && !Array.isArray(raw.review)
       ? { ...base.review, ...raw.review } : raw.review === undefined ? base.review : raw.review,
+    pushGate: section(raw.pushGate, base.pushGate),
     inbox: section(raw.inbox, base.inbox),
     agents: section(raw.agents, base.agents),
     claims: raw.claims && typeof raw.claims === 'object' && !Array.isArray(raw.claims)

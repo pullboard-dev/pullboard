@@ -1,6 +1,7 @@
 /** pushGate.sizeFromBoard is a boolean setting, off by default, refused when not a boolean, and described [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { configFromSource } from '../../src/io/main.js';
 import { configProblems } from '../../src/io/main.js';
 import { defaults } from '../../src/io/main.js';
 import { describeSetting } from '../../src/io/settings/descriptions.js';
@@ -20,4 +21,9 @@ test('clause 2: a non-boolean pushGate.sizeFromBoard is refused with a message n
 
 test('clause 3: pushGate.sizeFromBoard has a settings description row [C7]', () => {
   assert.match(JSON.stringify(describeSetting('pushGate.sizeFromBoard')), /shard count/u);
+});
+
+test('a repo setting only shardMinutes keeps sizeFromBoard at its default [C7]', () => {
+  const merged = configFromSource('{"pushGate":{"shardMinutes":30}}').pushGate;
+  assert.deepEqual(merged, { shardMinutes: 30, sizeFromBoard: false });
 });
