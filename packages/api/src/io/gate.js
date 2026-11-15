@@ -39,7 +39,6 @@ import { fileMainLines } from './gate/files.js';
 import { applyTestReceipt } from './test/receipt.js';
 import { caseReworkLines } from './gate/files.js';
 import { companionInherits } from './gate/companion.js';
-import { strandedGateReceipts } from './gate/stranded.js';
 
 /** The extension of one gate run receipt file: a receipt is named by its run id [CD2]. */
 const RECEIPT_EXT = '.json';
@@ -517,6 +516,22 @@ function recordClauseInspection(board, { id, receipt, head, agentId, green }) {
   store.clauseInspectionNotes(board, id, { gateFiles, outcomes, head, green }, text => store.appendFact(board, id, { agentId, kind: 'note', text }));
 }
 
+/** Budget: how many times a pulled gate's submission is prepared again after another board write overtook it. */
+const SUBMIT_OVERTAKEN_TRIES = 5;
+
+/**
+ * store.submit, prepared again while another connection's write overtakes its preparation. Why: submit seals its
+ * repository reads against a board snapshot and refuses BOARD_BUSY "changed while preparing" when any other command
+ * wrote meanwhile; a receipt has no caller to retry it, so a green gate on a busy board was recorded as "passed but
+ * not submitted" and its item stayed claimed until the builder ran the whole gate again [C7,#8011].
+ */
+function submitOvertaken(board, id, options) {
+  for (let tries = 1; ; tries += 1) {
+    try { return store.submit(board, id, options); }
+    catch (error) { if (error?.code !== 'BOARD_BUSY' || !/changed while preparing/u.test(String(error.message)) || tries >= SUBMIT_OVERTAKEN_TRIES) throw error; }
+  }
+}
+
 /**
  * Apply one newly recorded gate-job receipt to its item. The receipt counts only while it is for the item's current
  * candidate: the newest gate job offered for the item, its source, still claimed by the seat that submitted it at the
@@ -608,7 +623,7 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
       if (submit.companion && !proved) phaseReceipts = recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit, check: offered.check });
       const companion = submit.companion ? { ...submit.companion, receiptIds: phaseReceipts.map(row => row.id),
         phases: phaseReceipts.map(({ role, command }) => ({ role, command })) } : null;
-      store.submit(board, id, { agentId: submit.agentId, commit: companion?.source ?? candidate, tree: submit.tree, files: submit.files ?? [], policyCommit: main, gateGreen, ...(submit.tooling ? { tooling: submit.tooling } : {}), ...(submit.infra ? { infra: submit.infra } : {}),
+      submitOvertaken(board, id, { agentId: submit.agentId, commit: companion?.source ?? candidate, tree: submit.tree, files: submit.files ?? [], policyCommit: main, gateGreen, ...(submit.tooling ? { tooling: submit.tooling } : {}), ...(submit.infra ? { infra: submit.infra } : {}),
         ...(deferred && typeof receipt.gate.deferNote === 'string' ? { note: receipt.gate.deferNote.replace(/[\r\n\u2028\u2029]/gu, ' ') } : {}),
         ...(companion ? { companion, pulledPlan: { phases: companion.phases, proofFiles: files, full: receipt.gate?.full === true, deferred, deferredFiles } } : {}),
         submissionProof: { version: 1, files, full: receipt.gate?.full === true, deferred, ...(deferredFiles ? { deferredFiles } : {}), reason: `pulled gate job ${job}${mainOnly ? '; red only in cases that also fail on main' : waived ? '; red only in tests the person waived' : excused && !green ? '; red only in quarantined cases' : ''}`,
@@ -779,29 +794,6 @@ export function provideMainComparison(lookup) {
 }
 
 /**
- * Apply again each gate receipt the board recorded but never applied (gate/stranded.js). A busy board leaves it for the
- * next claim; any other refusal is written on the item's thread with its next step, which also ends the retries.
- */
-function settleStrandedGates(board, { compareWithMain, ordered, now }) {
-  let stranded = [];
-  try { stranded = strandedGateReceipts(board.db, { now }); } catch { return; } // a claim never fails for this look
-  for (const posted of stranded) {
-    const apply = () => applyGateReceipt(board, posted, { compareWithMain });
-    try {
-      if (!Array.isArray(ordered)) { apply(); continue; }
-      const { moves } = orderedReceiptMoves(board, apply);
-      ordered.push(...moves);
-    } catch (error) {
-      if (/BUSY|locked/u.test(`${error?.code} ${error?.message}`)) continue;
-      const item = board.db.prepare('SELECT job_item FROM job WHERE job_id = ?').get(posted.job)?.job_item;
-      const why = `${error?.code ?? 'GATE_APPLY_FAILED'}: ${error?.message ?? String(error)}`;
-      try { store.appendFact(board, item, { agentId: 'coordinator', kind: 'note', text: `Gate job ${posted.job} receipt was recorded but not applied: ${why}; next: submit again`.slice(0, 2000) }); }
-      catch { /* the next claim tries again */ }
-    }
-  }
-}
-
-/**
  * Answer one job queue call on an open board, applying each newly recorded receipt to it: the board API's jobs route.
  *
  * @param {any} board - The open board, gitRoot set to the board host's repository.
@@ -815,8 +807,6 @@ function settleStrandedGates(board, { compareWithMain, ordered, now }) {
 export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, ...options }) {
   // Queued main-test jobs are offered before each claim, so a free runner takes one in the same call (#6063).
   if (body?.action === 'claim' && options.mode === 'pull') offerMainTests(board, { now: options.now });
-  // A recorded receipt whose apply failed would leave its item claimed for good; each claim offers it again [C7,#8011].
-  if (body?.action === 'claim' && options.mode === 'pull') settleStrandedGates(board, { compareWithMain, ordered, now: options.now ?? Date.now() });
   const answer = jobQueueCall(board.db, body, { onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain, ordered }) });
   return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
 }
