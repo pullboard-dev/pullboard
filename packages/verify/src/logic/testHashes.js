@@ -77,3 +77,34 @@ export function testHashProblem(item, thread, { atHead, atMain, person }) {
   return new Refused('TEST_HASH_CHANGED', `#${item.item_id} changed a test file its bar froze at claim: ${list}`,
     `restore ${first.path} to the frozen content, or ask the coordinator to bring the change to the person for a ruling: pullboard fact ${item.item_id} decision "test-hash ${first.path} ${first.now ?? '<sha256>'}" --as person`);
 }
+
+/** The author record a submit writes for a test file: `test author <path>: seat <id>, family <name>, sha256 <hash>`. */
+const AUTHOR = /^test author (\S+): seat (\S+), family (.+), sha256 ([a-f0-9]{64})$/u;
+
+/** The newest author record per test file on an item's thread: `{ path: { seat, family, hash, factId } }`. */
+export function testAuthors(thread) {
+  const out = {};
+  for (const entry of thread) {
+    const match = entry.type === 'fact' && entry.kind === 'note' ? AUTHOR.exec(String(entry.text).trim()) : null;
+    if (match) out[match[1]] = { seat: match[2], family: match[3], hash: match[4], factId: entry.id };
+  }
+  return out;
+}
+
+/**
+ * The author notes a submit records: one per test file its bar names that the submitted head added or changed against accepted main.
+ * Why: the builder seat and model family of each test are the data a separate-test-author mode needs [C7,V4].
+ *
+ * @param {{ item_frozen?: string, item_criterion?: string }} item
+ * @param {any[]} thread the item's thread, so a file whose newest record already has this content is not recorded twice
+ * @param {{ atHead: (path: string) => string | null, atMain: (path: string) => string | null, seat: string, family: string | null }} source
+ * @returns {string[]} note texts
+ */
+export function testAuthorNotes(item, thread, { atHead, atMain, seat, family }) {
+  const known = testAuthors(thread);
+  return barTestFiles(item).criterion.sort().flatMap(path => {
+    const hash = contentHash(atHead(path));
+    return hash && hash !== contentHash(atMain(path)) && known[path]?.hash !== hash
+      ? [`test author ${path}: seat ${seat}, family ${family || 'unknown'}, sha256 ${hash}`] : [];
+  });
+}

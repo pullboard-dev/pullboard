@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { submitFixture } from './board/submit.js';
+import { templatedProject } from './template.js';
 import assert from 'node:assert/strict';
 import { startFixtureChild as spawn } from './child.js';
 import { reportFixtureChildFailure } from './child.js';
@@ -247,7 +248,13 @@ const SPEC = `# Demo spec
  * stays deliberately undeclared; later agents retain the runner's model.
  * Coordinator-only fixtures may omit the unused worktree and its join.
  */
-function project(gate = CONFIG.gate, box = sandbox(), { separateGitDir = false, withWorktree = true } = {}) {
+function project(gate = CONFIG.gate, box = sandbox(), options = {}) {
+  // The first case in a process builds; every later case of the same shape copies that project [C7,#8088].
+  return templatedProject(box, JSON.stringify([gate, options]), () => buildProject(gate, box, options));
+}
+
+/** Build one project from nothing; project() calls it once per shape and process. */
+function buildProject(gate, box, { separateGitDir = false, withWorktree = true }) {
   const repo = join(box.dir, 'repo');
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main', ...(separateGitDir ? ['--separate-git-dir', join(box.dir, 'separate-git')] : []));
