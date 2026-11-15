@@ -27,3 +27,23 @@ test('receipt.review.by-key: [C7] review reads a receipt by key', () => {
   assert.equal(receiptByKey(new Map([[receiptKey('c2', 'b1'), other]]), receiptKey('c2', 'b1')), other);
   assert.equal(receiptByKey([receipt], receiptKey('x', 'y')), null);
 });
+
+test('receipt.reuse.refusals: [C7] clause 1: every refusal of reusable says reuse is false, and only a full match says true', () => {
+  const same = { candidate: 'c1', base: 'b1' };
+  const cases = [
+    [null, 'NO_RECEIPT'],
+    [undefined, 'NO_RECEIPT'],
+    [{ ...receipt, verdict: 'red' }, 'NOT_GREEN'],
+    [{ ...receipt, candidate: 'c2' }, 'CANDIDATE_CHANGED'],
+    [{ ...receipt, base: 'b2' }, 'BASE_MOVED'],
+  ];
+  for (const [given, code] of cases) assert.deepEqual(reusable(given, same), { reuse: false, code }, code);
+  assert.equal(reusable(receipt, same).reuse, true);
+});
+
+test('receipt.key.types: [C7] receiptKey refuses a candidate or base that is empty, missing or not a string', () => {
+  for (const [candidate, base] of [['', 'b'], [5, 'b'], [null, 'b'], [undefined, 'b'], ['c', ''], ['c', 5], ['c', null], ['c', undefined]]) {
+    assert.throws(() => receiptKey(candidate, base), { code: 'RECEIPT_KEY' }, JSON.stringify([candidate, base]));
+  }
+  assert.equal(receiptKey('c', 'b'), 'c@b');
+});
