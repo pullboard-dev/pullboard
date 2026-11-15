@@ -8,6 +8,9 @@ import { initializeRunnerRecovery } from '../../src/io/recovery.js';
 import { recordRunnerFailure } from '../../src/io/recovery.js';
 import { recoverUnavailableRunners } from '../../src/io/recovery.js';
 
+/** The wait audit's waiterMs budget (packages/sentinels waitBudgets); a runner-unavailable wait answers to it [C7]. */
+const WAITER_MS = 120_000;
+
 /** A slot database whose one due unavailable runner cannot be claimed because the file is locked. */
 function lockedDb(message) {
   const row = { host: 'runner-1', since: 1, failure: '{}', probe_after: 0, probe_until: 0 };
@@ -28,9 +31,9 @@ test('any other database error still surfaces [C7]', async () => {
   await assert.rejects(recoverUnavailableRunners(lockedDb('no such table: runner_unavailable'), [{ host: 'runner-1' }], { probe: async () => ({ healthy: true }), now: 10 }), /no such table/u);
 });
 
-test('a vanilla runner held CLEANUP_UNVERIFIED by an orphaned controller is back within the 5 min runnerUnavailableMs budget [C7]', async t => {
+test('a vanilla runner held CLEANUP_UNVERIFIED by an orphaned controller is back within the 120 s waiterMs budget [C7]', async t => {
   // The evidence of #7214: vanilla went unavailable on a dead controller's cleanup and was held past five minutes
-  // (14:51:21 to 14:59:04 on 13 Nov, with no recovery event between). Here its transport answers 150 s in, and the
+  // (14:51:21 to 14:59:04 on 13 Nov, with no recovery event between). Here its transport answers 60 s in, and the
   // passes run as the row schedules them; the hold must end on the first pass after that answer.
   const db = new DatabaseSync(':memory:');
   t.after(() => db.close());
@@ -41,7 +44,7 @@ test('a vanilla runner held CLEANUP_UNVERIFIED by an orphaned controller is back
   recordRunnerFailure(db, runner.host, 'cleanup-unverified', { reason: 'controller-orphan', phase: 'cleanup', cause: 'holder process is gone', remoteCleanup: 'unknown', recovery });
   const held = db.prepare('SELECT * FROM runner_unavailable WHERE host=?').get(runner.host);
   assert.equal(held.detail, 'CLEANUP_UNVERIFIED');
-  const since = Date.parse(held.since), answersAt = since + 150_000;
+  const since = Date.parse(held.since), answersAt = since + 60_000;
   let now = since + 1_000, passes = 0, lastPass = since, longestGap = 0, probesAt = null;
   const options = () => ({
     now,
@@ -49,7 +52,7 @@ test('a vanilla runner held CLEANUP_UNVERIFIED by an orphaned controller is back
     transportProbe: async () => ({ healthy: now >= answersAt }),
   });
   while (db.prepare('SELECT 1 FROM runner_unavailable WHERE host=?').get(runner.host)) {
-    assert.ok(now - since <= 300_000, `still held ${now - since} ms after it went unavailable, past the 300000 ms budget (${passes} passes)`);
+    assert.ok(now - since <= WAITER_MS, `still held ${now - since} ms after it went unavailable, past the ${WAITER_MS} ms waiterMs budget (${passes} passes)`);
     await recoverUnavailableRunners(db, [runner], options());
     passes += 1;
     longestGap = Math.max(longestGap, now - lastPass);
