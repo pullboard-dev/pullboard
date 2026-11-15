@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { readSubmitRecords } from '../../../../moves/index.js';
+import { board_ensureCoordinator as ensureCoordinator } from '../../../index.js';
 import { completeSubmitHandoff } from '../../../index.js';
 import { cellBoard } from '../../fixtures/cell.js';
 
@@ -37,6 +38,7 @@ function boardFor(t, snapshot, handoff = snapshot.handoff) {
   const board = cellBoard(t, ':memory:', { now: () => new Date(snapshot.now) });
   const sql = board.db;
   for (const { name } of sql.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'machine_item%'").all()) sql.exec(`DROP TRIGGER ${name}`);
+  ensureCoordinator(board, '/seat/coordinator');
   const { item } = snapshot;
   for (const agent of new Set([item.owner, handoff.agentId, ...snapshot.submits.map(event => event.by)].filter(Boolean))) {
     sql.prepare('INSERT OR IGNORE INTO agent (agent_id, agent_lane, agent_path, agent_route, agent_created_at) VALUES (?, ?, ?, ?, ?)').run(agent, 'core', `/seat/${agent}`, 'strong', STAMP);
