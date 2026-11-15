@@ -44,8 +44,11 @@ test('clause 2: a slow probe never delays the resident tick past its interval [C
   release();
   await pass;
   now = 6_000;
-  await tick();
+  const second = tick();
+  await new Promise(done => setImmediate(done));
   assert.equal(calls.length, 2, 'the next interval after the slow probe probes again');
+  release();
+  await second;
 });
 
 test('clause 1: a failing pass is swallowed and a runnerless machine makes no call [C7,#8325]', async () => {
