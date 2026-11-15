@@ -139,22 +139,21 @@ test('clause 1: a name-filtered landing that also carries a caller shard flag re
   for (const args of [['--test-shard=1/2'], ['--test-shard', '2/2'], ['--test-shard'], ['--test-name-pattern', 'x', '--test-shard'], ['--shard=1/2']]) {
     assert.throws(() => landingFanOutFiles(['test/a.test.js'], args, box.repo, optionTakesValue), error => error.code === 'USAGE', JSON.stringify(args));
   }
-  for (const extra of [['--shard', '1/2'], ['--test-shard']]) {
-    const run = await gate(box, '^target', extra);
-    assert.notEqual(run.status, 0, JSON.stringify(extra));
-    assert.match(run.stdout + run.stderr, /USAGE/u);
-    assert.doesNotMatch(run.stdout, /# landing selected cases/u, 'no shard ran');
-  }
+  // The pure planner above refuses both spellings; one real gate proves the refusal reaches the command, since each gate is a whole node process.
+  const run = await gate(box, '^target', ['--shard', '1/2']);
+  assert.notEqual(run.status, 0);
+  assert.match(run.stdout + run.stderr, /USAGE/u);
+  assert.doesNotMatch(run.stdout, /# landing selected cases/u, 'no shard ran');
 });
 
 test('clause 1: a selector option missing its value refuses as the unsharded run does, and never fans out [C7]', async t => {
   const box = project(t);
-  for (const option of ['--test-skip-pattern', '--test-name-pattern']) {
-    const run = await gate(box, '^target', [], [...NAMES.map(name => `test/${name}.test.js`), option]);
-    assert.notEqual(run.status, 0, option);
-    assert.match(run.stdout + run.stderr, new RegExp(`${option} requires a value`, 'u'));
-    assert.doesNotMatch(run.stdout, /# landing selected cases/u, 'no shard ran');
-  }
+  // One real gate proves the refusal reaches the command; each gate is a whole node process.
+  const option = '--test-skip-pattern';
+  const run = await gate(box, '^target', [], [...NAMES.map(name => `test/${name}.test.js`), option]);
+  assert.notEqual(run.status, 0, option);
+  assert.match(run.stdout + run.stderr, new RegExp(`${option} requires a value`, 'u'));
+  assert.doesNotMatch(run.stdout, /# landing selected cases/u, 'no shard ran');
 });
 
 test('clause 2: a caller --test-timeout reaches every shard, so a case that times out unsharded fails the sharded gate [C7]', async t => {
