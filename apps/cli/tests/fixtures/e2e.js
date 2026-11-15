@@ -82,7 +82,10 @@ export function parityRecord({ dir, env, cwd, args, result }) {
         events: db.prepare('SELECT event_kind, count(*) AS n FROM event GROUP BY event_kind ORDER BY event_kind').all().map(row => ({ ...row })) };
     } finally { db.close(); }
   }
-  return JSON.parse(parityText(JSON.stringify({ cwd, args, code: result.code, json, out: json ? null : result.out, err: result.stderr, board }), dir));
+  // Mask string values only: a bare number of 7 or more digits would read as a hash and break the JSON it sits in.
+  const mask = value => typeof value === 'string' ? parityText(value, dir) : Array.isArray(value) ? value.map(mask)
+    : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([key, inner]) => [key, mask(inner)])) : value;
+  return mask({ cwd, args, code: result.code, json, out: json ? null : result.out, err: result.stderr, board });
 }
 
 /** The model every fixture board runs as, whatever the parent process was launched with [C7]. */
