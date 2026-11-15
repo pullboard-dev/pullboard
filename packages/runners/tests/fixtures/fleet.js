@@ -33,7 +33,7 @@ const EXECUTED = 'EXECUTED-FLEET-CACHE-PROBE';
  */
 export async function fleetTestResultReuse(t, { composition = false } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-result-fleet-')));
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  t.after(() => rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
   const repo = join(directory, 'repo');
   const bin = join(directory, 'bin');
   const worker = join(directory, 'worker');
