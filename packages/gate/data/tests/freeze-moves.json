@@ -9177,6 +9177,28 @@
       ],
       "coveredBy": "apps/cli/tests/logic/shout/restated-report.test.js",
       "because": "its refusal rules are proven in-process in the cli cell: a report restating a recorded submit or verdict, the ten-minute window, and integration evidence"
+    },
+    {
+      "file": "apps/cli/journeys/relay/client/order.test.js",
+      "specs": [
+        "H16",
+        "H3",
+        "V1",
+        "V17"
+      ],
+      "coveredBy": "packages/moves/tests/engine.test.js",
+      "because": "a future engine move is refused before the cursor advances and leaves every replica unchanged, with the engine-version and upgrade wording, proven in the moves cell"
+    },
+    {
+      "file": "apps/cli/journeys/relay/client/claims/later.test.js",
+      "specs": [
+        "H16",
+        "H3",
+        "V1",
+        "V17"
+      ],
+      "coveredBy": "apps/cli/journeys/relay/client/claims.test.js",
+      "because": "the same ten-round paired claim loop as the kept golden replica race, run over item ids eleven to twenty; the race and its refusal receipts are proven once"
     }
   ]
 }
