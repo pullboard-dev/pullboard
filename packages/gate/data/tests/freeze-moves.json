@@ -1,6 +1,14 @@
 {
   "version": 1,
-  "moved": [],
+  "moved": [
+    {
+      "from": "apps/cli/journeys/gate/red-state.test.js",
+      "to": "apps/cli/tests/journeys/gate/red-state.test.js",
+      "action": "convert",
+      "because": "cites a spec id no cell unit or contract test cites",
+      "idsFollowed": true
+    }
+  ],
   "deleted": [
     {
       "file": "apps/cli/journeys/add/baseline-local-runner.test.js",
