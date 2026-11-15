@@ -7,8 +7,5 @@ test('probe [C7]', { timeout: 175_000 }, async t => {
   const box = await mainAuditFixture(t, { landingShards: 1 }); L('fixture');
   await box.runWorker(); L('worker1 noFF');
   runFixtureChild('git', ['merge', '--ff-only', box.tip], { cwd: box.repo, env: box.env, encoding: 'utf8' });
-  await box.runWorker(); L('worker2 audit');
-  await box.runWorker(); L('worker3 repeat');
-  box.appendBatch(); L('append');
-  await box.runWorker(); L('worker4 B');
+  {const w=box.startWorker();w.child.stderr.on('data',b=>{for(const l of String(b).split('\n'))if(l.startsWith('TT'))L(l);});await w.finish();} L('worker2 audit');
 });
