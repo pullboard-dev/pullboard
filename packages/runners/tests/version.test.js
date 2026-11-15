@@ -1,10 +1,13 @@
 /** Unmerged source protects both shared formats, including indirect openers and real hooks [A5,A6]. */
 import { copyPackageFiles } from '../index.js';
+import { packageFiles } from '../index.js';
 import { toolSourcePath } from '../index.js';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { chmodSync } from 'node:fs';
 import { cpSync } from 'node:fs';
+import { lstatSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -20,25 +23,39 @@ import {
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 
-/** Copy the actual candidate into an isolated primary and linked source checkout. */
-function fixture(t) {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-shared-version-')));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+/** The built project, made once per file; every case gets a private copy [C7,#8131]. */
+let template = null;
+
+/** A private empty directory; every one has the same path length, which the retargeting relies on. */
+function sandbox() { return realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-shared-version-'))); }
+
+/** Replace one sandbox path with another of the same length in every file but compressed git objects. */
+function retarget(root, from, to) {
+  const needle = Buffer.from(from); const next = Buffer.from(to);
+  for (const name of readdirSync(root)) {
+    const path = join(root, name); const stat = lstatSync(path);
+    if (stat.isDirectory()) { if (!(name === 'objects' && root.endsWith('/.git'))) retarget(path, from, to); continue; }
+    if (!stat.isFile()) continue;
+    const data = readFileSync(path); let at = data.indexOf(needle); if (at < 0) continue;
+    for (; at >= 0; at = data.indexOf(needle, at + needle.length)) next.copy(data, at);
+    writeFileSync(path, data);
+  }
+}
+
+/** Build the project the ordinary way, once: the actual candidate as a primary and a joined linked source checkout. */
+function buildTemplate() {
+  const dir = sandbox();
+  process.once('exit', () => rmSync(dir, { recursive: true, force: true }));
   const root = join(dir, 'repo'); const lane = join(dir, 'lane');
   const executables = join(dir, 'executables'); mkdirSync(executables);
   writeFileSync(join(executables, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "$(git rev-parse --show-toplevel)/apps/cli/pullboard.js" "$@"\n`);
   chmodSync(join(executables, 'pullboard'), 0o755);
   mkdirSync(root);
-  copyPackageFiles(resolve(import.meta.dirname, '../../..'), root);
-  const env = { ...process.env, HOME: join(dir, 'home'), PULLBOARD_HOME: join(dir, 'board-home'), PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'), PATH: executables + ':' + process.env.PATH };
-  for (const name of Object.keys(env)) if (name.startsWith('GIT_')) delete env[name];
-  delete env.PULLBOARD_RELAY_TOKEN;
-  Object.assign(env, { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Version Fixture', GIT_AUTHOR_EMAIL: 'version@example.test', GIT_COMMITTER_NAME: 'Version Fixture', GIT_COMMITTER_EMAIL: 'version@example.test' });
-  /** Execute a fixture command and retain its real status and diagnostic. */
+  const source = resolve(import.meta.dirname, '../../..'); // The docs and archived board history are never read here; init reads the view app and skills.
+  copyPackageFiles(source, root, { files: packageFiles(source).filter(file => !/^(?:docs|packages\/state\/data)\//u.test(file)) });
+  const env = environment(dir);
   const run = (cwd, program, args) => spawnSync(program, args, { cwd, env, encoding: 'utf8' });
-  /** Require a real Git operation to succeed without bypassing hooks. */
   const git = (cwd, ...args) => { const r = run(cwd, 'git', args); assert.equal(r.status, 0, r.stderr + r.stdout); return r.stdout.trim(); };
-  /** Run source from the chosen checkout, independently of the command's working directory. */
   const cli = (code, cwd, ...args) => run(cwd, process.execPath, [join(code, 'apps/cli/pullboard.js'), ...args]);
   git(root, 'init', '-q', '-b', 'main');
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true', lanes: { core: { owns: ['src/', 'packages/store/src/io/board/schema/source.js'] } } }));
@@ -48,6 +65,32 @@ function fixture(t) {
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'chore: install source fixture hooks');
   git(root, 'worktree', 'add', '-q', '-b', 'core/future', lane, 'main');
   const joined = cli(root, lane, 'join', 'core', '--route', 'strong', '--json'); assert.equal(joined.status, 0, joined.stderr + joined.stdout);
+  return dir;
+}
+
+/** The private environment of one sandbox directory. */
+function environment(dir) {
+  const env = { ...process.env, HOME: join(dir, 'home'), PULLBOARD_HOME: join(dir, 'board-home'), PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'), PATH: join(dir, 'executables') + ':' + process.env.PATH };
+  for (const name of Object.keys(env)) if (name.startsWith('GIT_')) delete env[name];
+  delete env.PULLBOARD_RELAY_TOKEN;
+  return Object.assign(env, { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Version Fixture', GIT_AUTHOR_EMAIL: 'version@example.test', GIT_COMMITTER_NAME: 'Version Fixture', GIT_COMMITTER_EMAIL: 'version@example.test' });
+}
+
+/** A private copy of the built project: the actual candidate as an isolated primary and linked source checkout. */
+function fixture(t) {
+  template ??= buildTemplate();
+  const dir = sandbox();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  cpSync(template, dir, { recursive: true, force: true, preserveTimestamps: true, verbatimSymlinks: true });
+  retarget(dir, template, dir);
+  const root = join(dir, 'repo'); const lane = join(dir, 'lane');
+  const env = environment(dir);
+  /** Execute a fixture command and retain its real status and diagnostic. */
+  const run = (cwd, program, args) => spawnSync(program, args, { cwd, env, encoding: 'utf8' });
+  /** Require a real Git operation to succeed without bypassing hooks. */
+  const git = (cwd, ...args) => { const r = run(cwd, 'git', args); assert.equal(r.status, 0, r.stderr + r.stdout); return r.stdout.trim(); };
+  /** Run source from the chosen checkout, independently of the command's working directory. */
+  const cli = (code, cwd, ...args) => run(cwd, process.execPath, [join(code, 'apps/cli/pullboard.js'), ...args]);
   const file = join(root, '.git/pullboard/board.sqlite');
   /** Run a source-level probe in a fresh process, always under the private fixture environment. */
   const probe = (source) => { const path = join(lane, 'probe.mjs'); writeFileSync(path, source); const r = run(lane, process.execPath, [path]); assert.equal(r.status, 0, r.stderr + r.stdout); return JSON.parse(r.stdout); };
