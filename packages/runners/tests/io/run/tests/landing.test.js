@@ -31,7 +31,6 @@ import { args } from '../../../fixtures/landing-run.js';
 import { output } from '../../../fixtures/landing-run.js';
 import { installLandingSignalFailureShim } from '../../../fixtures/landing-run.js';
 
-const runner = fileURLToPath(new URL('../../../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 test('a failed test completion without a type still stops a landing run [C7,V4]', async t => {
   const fixture = makeLandingStopFixture(t);
   const preload = join(fixture.root, 'untyped-completion.mjs');

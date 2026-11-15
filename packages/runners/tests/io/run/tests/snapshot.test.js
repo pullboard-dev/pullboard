@@ -34,9 +34,7 @@ import { args } from '../../../fixtures/landing-run.js';
 import { output } from '../../../fixtures/landing-run.js';
 import { parse } from '../../../fixtures/landing-run.js';
 import { starts } from '../../../fixtures/landing-run.js';
-import { fileURLToPath } from 'node:url';
 
-const runner = fileURLToPath(new URL('../../../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 test('a green landing run retries transient process snapshot timeouts [C7,V4]', async t => {
   const fixture = makeShardFixture(t);
   const ready = join(fixture.root, 'snapshot-ready');
