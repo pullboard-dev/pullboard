@@ -65,6 +65,7 @@ function buildTemplate() {
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'chore: install source fixture hooks');
   git(root, 'worktree', 'add', '-q', '-b', 'core/future', lane, 'main');
   const joined = cli(root, lane, 'join', 'core', '--route', 'strong', '--json'); assert.equal(joined.status, 0, joined.stderr + joined.stdout);
+  git(root, 'gc', '-q', '--prune=now'); // One pack file instead of thousands of loose objects: every case copies this tree.
   return dir;
 }
 
