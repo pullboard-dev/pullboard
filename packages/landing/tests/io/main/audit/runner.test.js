@@ -184,7 +184,7 @@ test('clause 2: a peer whose recorded environment differs from the red run is ne
 });
 
 after(() => {
-  for (const root of roots) rmSync(root, { recursive: true, force: true });
+  for (const root of roots) rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
 });
 
 /** Build one recent structured receipt; null models a newer incomplete observation. */
@@ -204,7 +204,7 @@ function receipt(root, host, environment) {
 function fixture(t) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-compare-any-runner-'));
   roots.push(directory);
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  t.after(() => rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }));
   const paths = Object.fromEntries(['repo', 'bin', 'home', 'machine', 'worker', 'remote-home'].map(name => [name, join(directory, name)]));
   const remoteMachine = join(paths['remote-home'], '.pullboard');
   const remoteRoot = join(paths['remote-home'], '.pullboard-runner');
