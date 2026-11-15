@@ -32,7 +32,7 @@ test('the prepared move runs the store function and a replay changes nothing [C7
   assert.equal(row.agent, 'coordinator');
   assert.equal(row.records[0].outputTokens, 4);
   const receipts = board.db.prepare("SELECT item_id, event_by FROM event WHERE event_kind='coordinator-usage'").all();
-  assert.deepEqual(receipts, [{ item_id: null, event_by: 'coordinator' }]);
+  assert.deepEqual(receipts.map(row => ({ ...row })), [{ item_id: null, event_by: 'coordinator' }]);
   const stored = () => board.db.prepare("SELECT * FROM board_meta WHERE meta_key LIKE 'coordinator:%'").all();
   const before = stored();
   applyRelayMove(board, { ...move, id: 'replay' }, { ...transport, sequence: 2 });
