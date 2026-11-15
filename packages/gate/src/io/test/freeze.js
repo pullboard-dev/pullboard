@@ -96,7 +96,8 @@ export function applyFreeze(root, plan) {
   for (const change of plan) {
     if (change.action === 'delete') {
       git(root, ['rm', '-q', '--', change.file]);
-      deleted.push({ file: change.file, coveredBy: change.coveredBy, because: change.because });
+      // The covering files are counted, not listed: a broad spec id is cited by hundreds of tests, so lists made the record 36 MB; the committed manifest rederives them.
+      deleted.push({ file: change.file, specs: change.specs ?? [], coveredBy: change.coveredBy.length, because: change.because });
     } else if (change.action === 'move' || change.action === 'convert') {
       mkdirSync(dirname(join(root, change.to)), { recursive: true });
       git(root, ['mv', '--', change.file, change.to]);
