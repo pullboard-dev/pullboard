@@ -8,6 +8,7 @@ export { runTable } from "./src/logic/table/run.js";
 export { explainTable, tableCoverage } from "./src/logic/table/explain.js";
 export { replayTable } from "./src/logic/table/replay.js";
 export { HOP_ATTEMPT_CAP, HOP_MOVES, hopEngine } from "./src/logic/table/hop.table.js";
+export { CLAIM_IO, CLAIM_NEXT, claimEngine } from "./src/logic/table/claim.table.js";
 export { DEFERRED_FIELDS, IO_FIELDS, SHELL_INPUTS, SUBMIT_COMMAND_NEXT, SUBMIT_NEXT, pendingRefreeze, pipelineCause, submitEngine } from "./src/logic/table/submit.table.js";
 export { BACKBONE_RULES, BACKBONE_STATES, BACKBONE_TABLE, JOB_KINDS, servesRule } from "./src/logic/table/backbone.table.js";
 export { OUTBOX_LEGAL, OUTBOX_MOVES, OUTBOX_RULES, OUTBOX_STATES, OUTBOX_TABLE } from "./src/logic/table/outbox.table.js";
@@ -25,6 +26,8 @@ export { RULES_VERSION, STATES, MOVE_RULES, RULES, newItem, leaseLive, unmetWait
 export { lifecycleFact, replay, compareFinal, readinessCounts, topKinds, trial } from "./src/logic/lifecycle/replay.js";
 export { LIFECYCLE_KINDS, readLifecycleLog } from "./src/io/lifecycle-log.js";
 export { listMoveTables, readMoveRecords } from "./src/io/table/read.js";
+export { readClaimRecords } from "./src/io/table/claim-records.js";
+export { boardClaimEngine } from "./src/io/table/board-claim.js";
 export { boardSubmitEngine } from "./src/io/table/board-submit.js";
 export { readSubmitRecords } from "./src/io/table/submit-records.js";
 export { explainReport, loadMoveTable, replayReport } from "./src/io/table/report.js";
