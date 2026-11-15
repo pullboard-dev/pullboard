@@ -37,10 +37,10 @@ test('unreadable boards collapse to one line with Forget all while projects grou
   box.settled(web.repo, 1);
   await sendBackLocal(box, core, 1, 'the page needs a greeting');
   await box.inProcess(web.repo, 'shout', 'person', 'Ship #1 today?', '--decision');
-  const standalone = project(box, 'standalone', SPEC, { name: 'Scratchpad' }, { joinSeat: false });
-  const broken = project(box, 'broken', SPEC, { name: 'Broken repo', project: 'Atlas' }, { joinSeat: false });
-  const brokenTwo = project(box, 'broken-two', SPEC, { name: 'Broken repo two', project: 'Atlas' }, { joinSeat: false });
-  const brokenThree = project(box, 'broken-three', SPEC, { name: 'Broken repo three', project: 'Elsewhere' }, { joinSeat: false });
+  const standalone = project(box, 'standalone', SPEC, { name: 'Scratchpad' }, { joinSeat: false, bare: true });
+  const broken = project(box, 'broken', SPEC, { name: 'Broken repo', project: 'Atlas' }, { joinSeat: false, bare: true });
+  const brokenTwo = project(box, 'broken-two', SPEC, { name: 'Broken repo two', project: 'Atlas' }, { joinSeat: false, bare: true });
+  const brokenThree = project(box, 'broken-three', SPEC, { name: 'Broken repo three', project: 'Elsewhere' }, { joinSeat: false, bare: true });
   const recoveredConfig = readFileSync(join(brokenThree.repo, 'pullboard.json'));
   const view = await startView(box);
   try {
