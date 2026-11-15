@@ -17,7 +17,7 @@ const REPOSITORY = resolve(import.meta.dirname, '../../..');
 /** The converted journey, and its one representative case, run both ways (each case runs twice, so one keeps the file in its budget). */
 const JOURNEY = 'apps/cli/journeys/spec/e2e/gates.test.js';
 const SAMPLE = [
-  'unsupported spec grammar keeps claim, refreeze, submit and verify refusals typed',
+  'decisions default up the chain, pass to the person, and return to the original asker',
 ];
 
 /** Run the sample in a child node --test in one mode and return each CLI call's record, in call order. */
