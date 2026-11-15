@@ -16,7 +16,7 @@ async function quarantined(t) {
   const dir = privateFixtureFiles('pullboard-idle-recovery-').root;
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const file = join(dir, 'resources.sqlite');
-  await recoverIdleRunners([RUNNER], {}, { file }); // creates the queue's tables
+  await recoverIdleRunners([RUNNER], { file }); // creates the queue's tables
   const db = new DatabaseSync(file);
   try {
     const recovery = { version: 1, launchFence: 1, request: randomUUID(), nonce: randomUUID(), tooling: 'a'.repeat(64) };
@@ -38,20 +38,20 @@ test('clause 1: a quarantined runner with no waiting gate gets a recovery probe 
   const { file, since, due } = await quarantined(t);
   let probes = 0;
   const failing = { probe: async () => { probes += 1; return { healthy: false, step: 'worker readiness', reason: 'not ready' }; }, transportProbe: async () => { probes += 1; return { healthy: false }; } };
-  await recoverIdleRunners([RUNNER], failing, { file, now: Math.max(since, due) });
+  await recoverIdleRunners([RUNNER], { ...failing, file, now: Math.max(since, due) });
   assert.ok(probes > 0, 'a due quarantine is probed though nothing waits');
   const row = unavailable(file);
   assert.ok(row, 'a failed probe keeps the quarantine');
   assert.ok(row.probe_after - Math.max(since, due) <= 30_000, `the next probe is due within the 30 s retry cap, got ${row.probe_after - Math.max(since, due)} ms`);
   const before = probes;
-  await recoverIdleRunners([RUNNER], failing, { file, now: Math.max(since, due) });
+  await recoverIdleRunners([RUNNER], { ...failing, file, now: Math.max(since, due) });
   assert.equal(probes, before, 'a runner not yet due is not probed again');
 });
 
 test('clause 2: a probe that answers clears the quarantine row with no gate involved [C7]', async t => {
   const { file, since, due } = await quarantined(t);
   const healthy = { probe: async () => ({ healthy: true }), transportProbe: async () => ({ healthy: true }) };
-  const cleared = await recoverIdleRunners([RUNNER], healthy, { file, now: Math.max(since, due) });
+  const cleared = await recoverIdleRunners([RUNNER], { ...healthy, file, now: Math.max(since, due) });
   assert.equal(cleared, true, 'the pass reports a runner returned to service');
   assert.equal(unavailable(file), undefined, 'the quarantine row is gone');
   const db = new DatabaseSync(file);
