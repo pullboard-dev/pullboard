@@ -79,11 +79,12 @@ function gate(box, pattern = '^target', extra = [], files = NAMES.map(name => `t
 /** The cases share nothing but the read-only template, so they run side by side; each gate child is async for that. */
 describe('name-filtered landing shards [C7]', { concurrency: 10 }, () => {
 test('clause 1: a name-filtered landing gate with landingShards 2 runs as two shards, each with the name filter [C7]', async t => {
-  const run = await gate(project(t));
+  // Overlapping globs ride the same gate: each of the two target cases still runs once.
+  const run = await gate(project(t), '^target', [], ['test/*.test.js', 'test/[ab].test.js']);
   assert.equal(run.status, 0, run.context ?? run.stdout + run.stderr);
   assert.match(run.stdout, /# landing shards: 2 /u, 'two shards, not one local pass');
-  assert.equal([...run.stdout.matchAll(/^# landing selected cases (\d+)$/gmu)].reduce((sum, match) => sum + Number(match[1]), 0), 2,
-    'every shard ran only its target case');
+  const cases = [...run.stdout.matchAll(/^# landing selected cases (\d+)$/gmu)].reduce((sum, match) => sum + Number(match[1]), 0);
+  assert.equal(cases, 2, 'every shard ran only its target case, and overlapping globs run each of the two target cases once');
 });
 
 test('clause 2: a red in any name-filtered shard fails the gate and names the test; a filter matching nothing fails too [C7]', async t => {
@@ -127,10 +128,6 @@ test('clause 1: the fan-out expands globs and folds spellings into one file list
     NAMES.map(name => `test/${name}.test.js`), 'globs expand to files, overlaps and absolute spellings fold');
   assert.deepEqual(landingFanOutFiles(['test/a.test.js'], ['--test-name-pattern', '--test-shard=2/2'], box.repo, optionTakesValue), ['test/a.test.js'],
     'a pattern value that looks like a shard flag is a pattern');
-  const run = await gate(box, '^target', [], ['test/*.test.js', 'test/[ab].test.js']);
-  assert.equal(run.status, 0, run.context ?? run.stdout + run.stderr);
-  const cases = [...run.stdout.matchAll(/^# landing selected cases (\d+)$/gmu)].reduce((sum, match) => sum + Number(match[1]), 0);
-  assert.equal(cases, 2, 'overlapping globs run each of the two target cases once');
 });
 
 test('clause 1: a name-filtered landing that also carries a caller shard flag refuses USAGE and never fans out [C7]', async t => {
