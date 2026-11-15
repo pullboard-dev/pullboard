@@ -15,6 +15,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { describe } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   RUNNER_PID_ENV,
@@ -90,31 +91,34 @@ const VICTIMS = {
   'runner started after a data: import': ['--import', 'data:text/javascript,globalThis.__probe=1', 'packages/gate/src/io/run/tests.js'],
 };
 
-for (const [launcher, name] of Object.entries(LAUNCHERS)) {
-  for (const killed of Object.keys(VICTIMS)) {
-    test(`Chrome from ${name} exits within 10 s of its ${killed} dying by SIGKILL [C7]`, {
-      timeout: READY_BUDGET_MS + DEATH_BUDGET_MS + 30_000,
-      skip: !findChromeExecutable() && 'Chrome is not installed',
-    }, async (t) => {
-      const directory = mkdtempSync(join(tmpdir(), 'pullboard-owner-death-'));
-      const profile = join(directory, 'profile');
-      const readyFile = join(directory, 'ready');
-      const recorded = [];
-      t.after(() => { stopRecorded(profile, recorded); rmSync(directory, { recursive: true, force: true }); });
-      const env = { ...process.env, PROBE_LAUNCHER: launcher, PROBE_PROFILE: profile, PROBE_READY: readyFile };
-      // The runner case starts the probe the way the gate does, as a test file under packages/gate/src/io/run/tests.js.
-      const victim = killed === 'owner'
-        ? spawn(process.execPath, [PROBE], { cwd: ROOT, env, stdio: 'ignore' })
-        : spawn(process.execPath, [...VICTIMS[killed], 'packages/gate/tests/fixtures/cockpit/probe.mjs'], { cwd: ROOT, env, stdio: 'ignore' });
-      recorded.push(victim.pid);
-      recorded.push(await waitForReady(readyFile, victim, READY_BUDGET_MS)); // budget: hang ceiling for Chrome to start, including a gate browser-slot wait; no speed claim.
-      const before = chromeProcesses(profile);
-      assert.ok(before.length > 0, 'the owner holds a live Chrome before it is killed');
-      const ended = new Promise((resolve) => victim.once('exit', (code, signal) => resolve(signal)));
-      process.kill(victim.pid, 'SIGKILL');
-      assert.equal(await ended, 'SIGKILL', `the ${killed} died by SIGKILL`);
-      const gone = await waitForChromeGone(profile, DEATH_BUDGET_MS); // budget: the item's declared bound on Chrome outliving its dead owner.
-      assert.notEqual(gone, null, `Chrome (${before.length} processes, pids ${before.map(row => row.pid).join(',')}) survived its ${killed} for ${DEATH_BUDGET_MS}ms`); // budget: the item's declared 10 s bound.
-    });
+// The twelve cases share nothing (each owns its profile, owner and Chrome), so they run together: 93 s serial becomes the slowest one [C7].
+describe('a test Chrome never outlives its owner [C7]', { concurrency: true }, () => {
+  for (const [launcher, name] of Object.entries(LAUNCHERS)) {
+    for (const killed of Object.keys(VICTIMS)) {
+      test(`Chrome from ${name} exits within 10 s of its ${killed} dying by SIGKILL [C7]`, {
+        timeout: READY_BUDGET_MS + DEATH_BUDGET_MS + 30_000,
+        skip: !findChromeExecutable() && 'Chrome is not installed',
+      }, async (t) => {
+        const directory = mkdtempSync(join(tmpdir(), 'pullboard-owner-death-'));
+        const profile = join(directory, 'profile');
+        const readyFile = join(directory, 'ready');
+        const recorded = [];
+        t.after(() => { stopRecorded(profile, recorded); rmSync(directory, { recursive: true, force: true }); });
+        const env = { ...process.env, PROBE_LAUNCHER: launcher, PROBE_PROFILE: profile, PROBE_READY: readyFile };
+        // The runner case starts the probe the way the gate does, as a test file under packages/gate/src/io/run/tests.js.
+        const victim = killed === 'owner'
+          ? spawn(process.execPath, [PROBE], { cwd: ROOT, env, stdio: 'ignore' })
+          : spawn(process.execPath, [...VICTIMS[killed], 'packages/gate/tests/fixtures/cockpit/probe.mjs'], { cwd: ROOT, env, stdio: 'ignore' });
+        recorded.push(victim.pid);
+        recorded.push(await waitForReady(readyFile, victim, READY_BUDGET_MS)); // budget: hang ceiling for Chrome to start, including a gate browser-slot wait; no speed claim.
+        const before = chromeProcesses(profile);
+        assert.ok(before.length > 0, 'the owner holds a live Chrome before it is killed');
+        const ended = new Promise((resolve) => victim.once('exit', (code, signal) => resolve(signal)));
+        process.kill(victim.pid, 'SIGKILL');
+        assert.equal(await ended, 'SIGKILL', `the ${killed} died by SIGKILL`);
+        const gone = await waitForChromeGone(profile, DEATH_BUDGET_MS); // budget: the item's declared bound on Chrome outliving its dead owner.
+        assert.notEqual(gone, null, `Chrome (${before.length} processes, pids ${before.map(row => row.pid).join(',')}) survived its ${killed} for ${DEATH_BUDGET_MS}ms`); // budget: the item's declared 10 s bound.
+      });
+    }
   }
-}
+});
