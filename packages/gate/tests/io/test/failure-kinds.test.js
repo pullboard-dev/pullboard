@@ -2,41 +2,31 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
-import { run } from 'node:test';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../fixtures/child.js';
 import { runClauseBaseComparison } from '../../../index.js';
 import { receiptFields } from '../../../index.js';
 import { testOutcomeCollector } from '../../../index.js';
 import { testOutcomeFields } from '../../../index.js';
 
-/** Drive real node:test events for fixture files through the collector and return its rows. */
-async function collect(files) {
-  const box = privateFixtureFiles('failure-kinds-');
-  for (const [name, body] of Object.entries(files)) box.write(name, body);
-  const collector = testOutcomeCollector(box.root);
-  let count = 0;
-  const context = process.env.NODE_TEST_CONTEXT;
-  delete process.env.NODE_TEST_CONTEXT;
-  try {
-    for await (const event of run({ files: Object.keys(files).map(name => join(box.root, name)) })) {
-      collector.observe(event);
-      if (event.type === 'test:stderr' || event.type === 'test:stdout') (globalThis.dbg ??= []).push(event.data.message);
-      if (event.type === 'test:fail' && !event.data.name.includes(' ')) throw new Error(String(globalThis.dbg.join('|')).slice(0, 2500) + String(process.env.NODE_OPTIONS));
-      if (event.type === 'test:summary') count = event.data.counts.tests;
-    }
-  } finally {
-    if (context !== undefined) process.env.NODE_TEST_CONTEXT = context;
+/** Feed the collector events shaped as node:test emits them (captured from a real run) and return its rows. */
+function collect(events) {
+  const root = '/repo';
+  const collector = testOutcomeCollector(root);
+  for (const [type, file, name, error] of events) {
+    collector.observe({ type, data: { file: `${root}/${file}`, name, details: { type: 'test', error } } });
   }
-  return collector.finish(true, count);
+  return collector.finish(true, events.length);
 }
 
-test('clause 1: an assertion failure is recorded as assertion, a load error as error [C7]', async () => {
-  const rows = await collect({
-    'a.test.js': "import test from 'node:test'; import assert from 'node:assert/strict';\ntest('asserts', () => assert.equal(1, 2));\ntest('throws', () => { throw new Error('boom'); });\ntest('ok', () => {});\n",
-    'b.test.js': "import './missing.js';\n",
-  });
-  const by = name => rows.find(row => row.name === name) ?? assert.fail(JSON.stringify(rows));
+test('clause 1: an assertion failure is recorded as assertion, a load error as error [C7]', () => {
+  const failed = (cause) => ({ message: 'x', failureType: 'testCodeFailure', cause });
+  const rows = collect([
+    ['test:fail', 'a.test.js', 'asserts', failed({ code: 'ERR_ASSERTION', name: 'AssertionError' })],
+    ['test:fail', 'a.test.js', 'throws', failed(new Error('boom'))],
+    ['test:pass', 'a.test.js', 'ok'],
+    ['test:fail', 'b.test.js', '/repo/b.test.js', failed({})],
+  ]);
+  const by = name => rows.find(row => row.name === name);
   assert.equal(by('asserts').failure, 'assertion');
   assert.equal(by('throws').failure, 'error');
   assert.equal(by('ok').failure, undefined);
