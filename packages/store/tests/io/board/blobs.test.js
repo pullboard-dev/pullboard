@@ -34,7 +34,7 @@ function body(seed, kilobytes) {
 
 /** A board on a real file with the job tables a writable open installs. */
 function boardOf(t) {
-  const board = cellBoard(t, cellProject(t).boardFile);
+  const board = cellBoard(t, cellProject(t, { real: true }).boardFile, undefined, { real: true });
   return { board, db: board.db, dir: blobDirOf(board.db) };
 }
 
@@ -82,7 +82,7 @@ test('clause 1: a gate hand-off record stays in the row whatever its size [C7]',
 });
 
 test('clause 2: the upgrade moves oversized payloads, keeps only the newest cells-inventory body and compacts the file [C7]', (t) => {
-  const project = cellProject(t);
+  const project = cellProject(t, { real: true });
   // Only code run from the main checkout upgrades a repository board, and a runner's worktree is not it; a plain board file is upgraded by whoever opens it.
   const file = join(project.dir, 'upgrade', 'board.sqlite');
   let board = openCellBoard(file);

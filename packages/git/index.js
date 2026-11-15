@@ -20,3 +20,4 @@ export { blobOid, indexedFiles } from './src/io/check/project-files.js';
 export { landingPermit, permitPushOptions, readPermitOptions, trunkPushVerdict } from "./src/logic/permit.js";
 export { runTrunkGuard, trunkGuardMain } from "./src/io/trunk/guard.js";
 export { installTrunkGuard, landingGuardKey, ensureLandingGuardKey } from "./src/io/trunk/install.js";
+export * from "./src/io/enter.js";
