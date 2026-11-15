@@ -347,7 +347,13 @@ async function captureRoadmap(view, repo, observation) {
     if (head.getAttribute('aria-expanded') !== 'true') head.click();
     return true;
   })()`);
-  await view.waitFor("document.querySelector('[data-key=\"m:Demo release\"] .milestone-item[data-roadmap-key=\"i:#1\"]')", 'the demo release items');
+  // The release lists landed items one page at a time, so on a long release the accepted item may sit on a later page: step to it.
+  await view.waitFor(`(() => {
+    const release = document.querySelector('[data-key="m:Demo release"]');
+    if (release.querySelector('.milestone-item[data-roadmap-key="i:#1"]')) return true;
+    release.querySelector('.roadmap-page-step:not([disabled])[data-page]:last-of-type')?.click();
+    return false;
+  })()`, 'the demo release items');
   await view.evaluate(`(() => {
     const release = document.querySelector('[data-key="m:Demo release"]');
     for (const row of release.querySelectorAll('.milestone-item[aria-expanded="true"]')) row.click();
@@ -368,6 +374,8 @@ async function captureRoadmap(view, repo, observation) {
     const reading = JSON.parse(await view.evaluate(`JSON.stringify((() => {
       const release = document.querySelector('[data-key="m:Demo release"]');
       const row = release.querySelector('.milestone-item[data-roadmap-key="i:#1"]');
+      // On a long release the item sits far down the page; bring it into the picture before measuring and shooting.
+      row.parentElement.scrollIntoView({ block: 'center', behavior: 'instant' });
       const rect = row.parentElement.getBoundingClientRect();
       return { theme: document.documentElement.dataset.theme, width: innerWidth, height: innerHeight,
         count: release.querySelector('.roadmap-left')?.textContent, legend: release.querySelectorAll('[data-summary-state]').length,
