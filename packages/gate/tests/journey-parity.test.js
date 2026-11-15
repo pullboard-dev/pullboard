@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/journeys/spec/e2e/gates.test.js */
+/** @pullboard-test-input apps/cli/journeys/spec/e2e/gates.test.js apps/cli/journeys/fact/msg.test.js apps/cli/journeys/fact/board/busy.test.js apps/cli/journeys/fact/board/schema.test.js */
 /**
  * The parity check for journeys moved in-process (#8257, U149): the gate runs a sample of one converted journey's cases twice,
  * once with every CLI call a real process and once in-process, and fails on any difference in exit code, JSON result or
