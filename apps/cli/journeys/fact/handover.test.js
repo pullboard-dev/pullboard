@@ -8,9 +8,13 @@ import {
 import { runnersOnlyRefusalStaysOnRunner } from '../../tests/fixtures/runner/browser/free.js';
 import { INFRASTRUCTURE_CODES } from '../../../../packages/store/index.js';
 
-test('clause 2: no gate run falls back to the coordinator when a runner refuses its request; the refusal ends it and it requeues [C7]', { timeout: 180_000 }, async t => { // budget: one runner round trip.
+test('clause 2: a runner refusal code stops the gate as infrastructure, so it requeues [C7]', () => {
   for (const code of ['RUNNER_REQUEST_LIMIT', 'RUNNER_SCAN_LIMIT', 'RUNNER_BROWSER_SLOT_REQUIRED']) {
     assert.equal(INFRASTRUCTURE_CODES.has(code), true, `${code} stops the gate as infrastructure, so it requeues`);
   }
+});
+
+// The stand-in runner rode the SSH controller transport deleted with the dispatcher (1e1a9586af); #7526 removes the rest.
+test('clause 2: no gate run falls back to the coordinator when a runner refuses its request; the refusal ends it and it requeues [C7]', { timeout: 180_000, skip: 'CONTROLLER_ONLY: deleted with #7526' }, async t => { // budget: one runner round trip.
   await runnersOnlyRefusalStaysOnRunner(t, { cli, git });
 });
