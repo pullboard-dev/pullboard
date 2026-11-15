@@ -32,6 +32,7 @@ function recorded() {
 /** What the board stores for an event, without the actor's model, which the event writer stamps on every event, and without a fact's random id. */
 const stored = ({ model, ...rest }) => {
   const copy = JSON.parse(JSON.stringify(rest));
+  delete copy.detail?.model;
   if (copy.kind === 'fact') delete copy.detail.id;
   return copy;
 };
