@@ -23,8 +23,12 @@ import { withBoardRead } from '../context.js';
 const DEFAULT_SHARD_MINUTES = 20;
 /** Budget: each shard's summed recorded file time stays under this quarter of the default limit, so the heaviest shard still finishes when its runner claims it late (#7790). */
 export const PUSH_SHARD_BUDGET_MS = DEFAULT_SHARD_MINUTES * 60_000 / 4;
-/** Budget: the time assumed for a test file with no record, about the mean file of the full gate. */
-export const PUSH_DEFAULT_FILE_MS = 5_000;
+/** Budget: the time assumed for a non-journey test file with no record, about 1.5 times the 6.6 s mean wall per file of the 14 Nov census chunks. */
+export const PUSH_DEFAULT_FILE_MS = 10_000;
+/** Budget: the time assumed for an apps/<app>/journeys file with no record, about twice the 29.5 s mean wall per journey of the 14 Nov census chunks (near their 90th percentile). */
+export const PUSH_DEFAULT_JOURNEY_MS = 60_000;
+/** Budget: at most this many files in one shard, like the 40-file census jobs that finished, so cheap files never pile past what a runner's workers clear. */
+export const PUSH_MAX_SHARD_FILES = 40;
 /** Budget: the waiting hook says its shards are still wanted every 30 s, well inside the 5 minutes after which a claim ends them (PUSH_ALIVE_MS). */
 const ALIVE_MS = 30_000;
 /** Budget: the waiting hook reads its shard rows once a second, one small local read. */
@@ -49,9 +53,11 @@ export function pushShardLimitMs(config, env = process.env) {
 
 /**
  * Split the gate's files into shards whose summed recorded time stays under PUSH_SHARD_BUDGET_MS, heaviest file first
- * (first-fit decreasing), so shard 1 holds the heaviest. A file with no record counts PUSH_DEFAULT_FILE_MS; one file over
- * the budget gets a shard of its own. Never fewer than two shards for two files. Why by time, not by count: 18 shards
- * of 10 minutes each claimed late by busy runners, and the heaviest ran past the job ceiling (#7790).
+ * (first-fit decreasing), so shard 1 holds the heaviest, and no shard holds over PUSH_MAX_SHARD_FILES files. A file with
+ * no record counts PUSH_DEFAULT_JOURNEY_MS under a journeys folder, else PUSH_DEFAULT_FILE_MS; one file over the budget
+ * gets a shard of its own. Never fewer than two shards for two files. Why by time, not by count: 18 shards of 10 minutes
+ * each claimed late by busy runners, and the heaviest ran past the job ceiling (#7790). Why journeys apart: after the
+ * Cells move only 144 of 2,421 files had a record, and ~119 journeys at 5 s each packed one shard past 40 minutes.
  *
  * @param {string[]} files
  * @param {Record<string, number>} times - Last wall time in ms by repository-relative path (a leading ./ is ignored).
@@ -59,12 +65,17 @@ export function pushShardLimitMs(config, env = process.env) {
  * @returns {{ files: string[], weight: number }[]}
  */
 export function planPushShards(files, times, budgetMs = PUSH_SHARD_BUDGET_MS) {
-  const weight = file => { const ms = times[file.replace(/^\.\//u, '')]; return Number.isFinite(ms) && ms >= 0 ? ms : PUSH_DEFAULT_FILE_MS; };
+  const weight = file => {
+    const path = file.replace(/^\.\//u, '');
+    const ms = times[path];
+    if (Number.isFinite(ms) && ms >= 0) return ms;
+    return /^apps\/[^/]+\/journeys\//u.test(path) ? PUSH_DEFAULT_JOURNEY_MS : PUSH_DEFAULT_FILE_MS;
+  };
   const ordered = [...new Set(files)].sort((a, b) => weight(b) - weight(a) || a.localeCompare(b));
   const shards = [];
   for (const file of ordered) {
     const ms = weight(file);
-    const room = shards.find(shard => shard.weight + ms < budgetMs);
+    const room = shards.find(shard => shard.weight + ms < budgetMs && shard.files.length < PUSH_MAX_SHARD_FILES);
     if (room) { room.files.push(file); room.weight += ms; } else shards.push({ files: [file], weight: ms });
   }
   if (shards.length < 2 && ordered.length >= 2) {
