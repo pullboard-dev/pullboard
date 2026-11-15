@@ -160,6 +160,7 @@ const ROWS = [
   ['landing.pauseOnRed', 'Pause landing on red', 'Landing pauses after a publish full suite fails without proof it is unrelated.', 'Landing', 'on/off'],
   ['landing.trunkRemote', 'Trunk remote (old name)', 'Deprecated: the old name for trunk.remote, read for one release when trunk.remote is empty and removed after it; set trunk.remote instead.', 'Landing', 'text', { compat: true, removeBy: '2026-12-31' }],
   ['pushGate.shardMinutes', 'Push shard time limit', 'How long a pre-push gate shard may run before the push gate gives up, and a quarter of it sizes each shard; a longer runner ceiling raises it.', 'Landing', 'minutes'],
+  ['pushGate.sizeFromBoard', 'Size push shards from the board', 'On, the pre-push gate sizes its shard count from the board\'s own data (runners and recorded times) instead of a fixed number; off, it keeps the fixed count.', 'Landing', 'on/off'],
   ['landing.environment', 'Required landing machine', 'The platform, architecture and Node version the landing gate must run on.', 'Landing', 'list'],
   // This repo: Commits
   ['commits.types', 'Commit types', 'The types a commit header may start with.', 'Commits', 'list'],

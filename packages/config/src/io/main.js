@@ -56,7 +56,7 @@ export function defaults() {
     testEconomics: { costOfEscape: 3600, costOfWaiting: 1, costOfFalseRed: 300 },
     itemSizeBudget: 100,
     itemBuildBudgetMinutes: 30,
-    pushGate: { shardMinutes: 20 },
+    pushGate: { shardMinutes: 20, sizeFromBoard: false },
     submitInvariants: [],
     registryGuards: [],
     staticChecks: '',
@@ -385,9 +385,11 @@ export function configProblems(config) {
     || Object.keys(config.withdraw).some(key => key !== 'review') || typeof config.withdraw.review !== 'boolean')) {
     problems.push('"withdraw" is { "review": true or false }: true makes a withdrawal wait for another seat to confirm it');
   }
-  if (notPlain(config.pushGate) || Object.keys(config.pushGate).some(key => key !== 'shardMinutes')
+  if (notPlain(config.pushGate) || Object.keys(config.pushGate).some(key => !['shardMinutes', 'sizeFromBoard'].includes(key))
     || !Number.isSafeInteger(config.pushGate.shardMinutes) || config.pushGate.shardMinutes < 1 || config.pushGate.shardMinutes > 1440) {
     problems.push('"pushGate.shardMinutes" is a whole number of minutes, 1 to 1440, 20 by default: how long a push gate shard may run before the push gate gives up; raise it with PULLBOARD_RUNNER_RUN_CEILING_MS on the runners');
+  } else if (typeof config.pushGate.sizeFromBoard !== 'boolean') {
+    problems.push('"pushGate.sizeFromBoard" is true or false, false by default: true sizes the push gate\'s shard count from board data instead of a fixed number');
   }
   if (notPlain(config.claims)
     || Object.keys(config.claims).some(key => !['releaseGone', 'releaseCooldownMinutes', 'perSeat'].includes(key)) || typeof config.claims.releaseGone !== 'boolean'
