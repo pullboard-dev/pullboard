@@ -19,6 +19,7 @@ import {
 } from 'node:test';
 import { fixtureAdd } from '../../cli/tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../cli/tests/fixtures/testkit.js';
+import { settledGateJob } from '../../cli/tests/fixtures/submit/settle.js';
 
 const candidateRoot = process.env.PULLBOARD_409_CANDIDATE_ROOT ?? resolve(import.meta.dirname, '../../..');
 assert.ok(candidateRoot, 'set PULLBOARD_409_CANDIDATE_ROOT to the candidate checkout');
@@ -57,7 +58,8 @@ function submitShared(box, itemId) {
 }
 
 /** Accept the exact submitted commit through the public CLI, then restore the main checkout. */
-function acceptSubmitted(box, itemId, submitted) {
+async function acceptSubmitted(box, itemId, submitted) {
+  await settledGateJob(box, itemId); // under pull the gate settles on the runner; verify before it fails NOT_SUBMITTED [C7,#7283]
   box.git(box.repo, 'switch', '-q', '--detach', submitted);
   const accepted = box.run(box.repo, 'verify', String(itemId), 'accept', '--as', 'coordinator',
     '--note', 'The submitted change passed its frozen check.');
@@ -76,7 +78,7 @@ test('coordinator resume guides and groups the checked composition after stale r
 
     const itemId = addAndClaim(box, 'Fresh composition');
     const submitted = submitShared(box, itemId);
-    acceptSubmitted(box, itemId, submitted);
+    await acceptSubmitted(box, itemId, submitted);
 
     writeFileSync(join(box.repo, 'web/shared.txt'), 'main side\n');
     commit(box, box.repo, 'feat(web): update the same line on main [G1]');
