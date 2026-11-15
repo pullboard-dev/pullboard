@@ -41,16 +41,21 @@ function spread(list, count) {
   return Array.from({ length: count }, (_, at) => list[Math.floor((at * list.length) / count)]);
 }
 
+/** Import hops from a test that count as reached: the test, the module it imports, and what that module imports (a barrel's re-exports). */
+const REACH_DEPTH = 2;
+
 /**
- * Every test file's reached files, by walking imports as the manifest does.
- * Why: a seeded fault can only be caught by a test whose imports reach the seeded file, so the rest need not run.
+ * Every test file's nearby files, by walking imports a few hops as the manifest does.
+ * Why only a few hops: through shared barrels the full closure of every test is most of the repository (about 1,450 files), so a filter on it selected every test for every fault.
+ * A fault in a file a test only reaches deeper than that is left to the cell's other tests; the journey is still judged on the same faults.
  *
  * @param {string} root project root
+ * @param {number} [depth] import hops counted
  * @returns {Map<string, Set<string>>} reached files by test file, root-relative
  */
-export function testReach(root) {
+export function testReach(root, depth = REACH_DEPTH) {
   const found = new Map();
-  generateTestTiers(root, { onReach: row => { found.set(row.file, row.reached); } });
+  generateTestTiers(root, { depth, onReach: row => { found.set(row.file, row.reached); } });
   return found;
 }
 
@@ -73,10 +78,10 @@ function manifestRows(root, manifest) {
  * Why a sample flag: a mutation run executes the cell's tests once per fault, so a full pass is slow.
  *
  * @param {string[]} args see USAGE
- * @param {{ mutate: Function, reachOf?: Function }} seams the mutation runner `(root, cell, { all, extra, sample, reach }) => report`, passed in because a package never imports an app; reachOf reads every test's reached files and defaults to walking the imports
+ * @param {{ mutate: Function, reachOf?: Function, say?: (line: string) => void }} seams the mutation runner `(root, cell, { all, extra, sample, extraLast, reach }) => report`, passed in because a package never imports an app; reachOf reads every test's reached files and defaults to walking the imports; say gets each line the moment it is known, so a run that is cut short has still printed its verdicts
  * @returns {Promise<{ status: number, stdout: string, stderr: string }>}
  */
-export async function runJourneyCheck(args, { mutate, reachOf = testReach }) {
+export async function runJourneyCheck(args, { mutate, reachOf = testReach, say = () => {} }) {
   const options = parse(args);
   if (!options) return { status: 1, stdout: '', stderr: USAGE };
   const root = resolve(options.root);
@@ -86,18 +91,20 @@ export async function runJourneyCheck(args, { mutate, reachOf = testReach }) {
   const reached = reachOf(root);
   const verdicts = [];
   const lines = [];
-  for (const journey of sampled) {
+  const add = line => { lines.push(line); say(line); };
+  for (const [at, journey] of sampled.entries()) {
+    say(`checking ${at + 1} of ${sampled.length}: ${journey.file}`);
     const reports = [];
     for (const { cell } of coveringCells(rows, journey, options.cells)) {
-      reports.push({ cell, report: await mutate(root, cell, { all: true, extra: [journey.file], sample: options.faults, reach: reachFor(reached, cell, journey.file) }) });
+      reports.push({ cell, report: await mutate(root, cell, { all: true, extra: [journey.file], sample: options.faults, extraLast: true, reach: reachFor(reached, cell, journey.file) }) });
     }
     const verdict = judgeJourney(journey.file, reports);
     verdicts.push(verdict);
-    lines.push(`${verdict.verdict}  ${journey.file}  ${verdict.because}`);
-    for (const cell of verdict.cells) lines.push(`  ${cell.cell}  with ${cell.with}/${cell.seeded}  without ${cell.without}/${cell.seeded}`);
+    add(`${verdict.verdict}  ${journey.file}  ${verdict.because}`);
+    for (const cell of verdict.cells) add(`  ${cell.cell}  with ${cell.with}/${cell.seeded}  without ${cell.without}/${cell.seeded}`);
   }
   const { sampled: total, held, converted, unmeasured, share } = holdShare(verdicts);
-  lines.push(`${held} of ${total} sampled delete tags hold (${Math.round(share * 100)}%); ${converted} retagged convert, ${unmeasured} unmeasured, of ${deletes.length} delete tags`);
+  add(`${held} of ${total} sampled delete tags hold (${Math.round(share * 100)}%); ${converted} retagged convert, ${unmeasured} unmeasured, of ${deletes.length} delete tags`);
   if (options.write && converted) writeFileSync(resolve(root, options.manifest), formatTestManifest({ files: retagChecked(rows, verdicts) }));
   return { status: 0, stdout: lines.join('\n') + '\n', stderr: '' };
 }

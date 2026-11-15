@@ -29,14 +29,14 @@ export function coveringCells(rows, journey, limit = 3) {
  *
  * @param {string} journey the journey's path, as listed in the report
  * @param {{ faults: { caughtBy?: string[] }[] }} report a mutate report
- * @returns {{ seeded: number, with: number, without: number, dropped: boolean }}
+ * @returns {{ seeded: number, with: number, without: number, dropped: boolean, blind: boolean }} blind is true when the journey failed before any fault, so its score says nothing
  */
 export function scoreWithAndWithout(journey, report) {
   const faults = report.faults ?? [];
   const caughtBy = fault => fault.caughtBy ?? [];
   const withJourney = faults.filter(fault => caughtBy(fault).length).length;
   const without = faults.filter(fault => caughtBy(fault).some(file => file !== journey)).length;
-  return { seeded: faults.length, with: withJourney, without, dropped: without < withJourney };
+  return { seeded: faults.length, with: withJourney, without, dropped: without < withJourney, blind: (report.redBefore ?? []).includes(journey) };
 }
 
 /**
@@ -51,7 +51,7 @@ export function judgeJourney(journey, reports) {
   const cells = reports.map(({ cell, report }) => ({ cell, ...scoreWithAndWithout(journey, report) }));
   const dropped = cells.filter(row => row.dropped);
   if (dropped.length) return { file: journey, cells, verdict: 'convert', because: `without it ${dropped.map(row => `${row.cell} falls from ${row.with} to ${row.without} of ${row.seeded} faults caught`).join('; ')}` };
-  if (!cells.some(row => row.seeded)) return { file: journey, cells, verdict: 'unmeasured', because: cells.length ? 'no fault was seeded in its covering cells' : 'no cell test cites its spec ids' };
+  if (!cells.some(row => row.seeded && !row.blind)) return { file: journey, cells, verdict: 'unmeasured', because: cells.some(row => row.blind) ? 'it fails before any fault is seeded, so its coverage cannot be measured' : cells.length ? 'no fault was seeded in its covering cells' : 'no cell test cites its spec ids' };
   return { file: journey, cells, verdict: 'hold', because: 'no covering cell scores lower without it' };
 }
 
