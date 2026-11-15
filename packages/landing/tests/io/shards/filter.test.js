@@ -12,6 +12,7 @@ import { after } from 'node:test';
 import { describe } from 'node:test';
 import { test } from 'node:test';
 import { copyPackageFiles } from '../../../../runners/index.js';
+import { packageFiles } from '../../../../runners/index.js';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { runFixtureChildAsync } from '../../../../gate/tests/fixtures/child.js';
 
@@ -53,7 +54,8 @@ function projectTemplate() {
   mkdirSync(join(repo, 'test'), { recursive: true });
   mkdirSync(join(home, '.pullboard'), { recursive: true });
   writeFileSync(join(home, '.pullboard', 'settings.json'), JSON.stringify({ gateSlots: 3, browserSlots: 1 }));
-  copyPackageFiles(SOURCE, repo);
+  // The gate under test runs from source, never from the shipped test files: leaving them out halves the copy, the commit, and every shard's checkout and cleanup.
+  copyPackageFiles(SOURCE, repo, { files: packageFiles(SOURCE).filter(file => !/(?:^|\/)tests?\//u.test(file) && !/\.test\.js$/u.test(file)) });
   for (const name of NAMES) writeFileSync(join(repo, `test/${name}.test.js`), fixtureTest(name));
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node apps/cli/src/io/run/tests.js', landingShards: 2 }));
   const env = projectEnv(dir);
