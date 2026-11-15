@@ -60,6 +60,7 @@ import { REWORK_SAME_FAMILY_ENGINE } from "../../../../state/index.js";
 import { CLAIM_RETURNS_ENGINE } from "../../../../state/index.js";
 import { claimProblem } from "../../../../seats/index.js";
 import { randomUUID } from 'node:crypto';
+import { claimDecision } from "./claim-table.js";
 import { availableParallelism } from 'node:os';
 import { withLocalSeatPresence } from "../presence.js";
 import {
@@ -386,6 +387,9 @@ function commitClaim(board, id, prepared, binding, ports) {
   const { agentId, head = null, reviewSkipped = null } = prepared;
   const { leaseUntil, isRenewal, admission, outcome, adopts, refreshes } = plan;
   return atomic(board, () => {
+    // Shadow compare: a board that carries `claimShadow` hands it the table's answer (taken before any write) and what the writer wrote.
+    const shadow = typeof board.claimShadow === 'function' ? { before: board.db.prepare('SELECT COALESCE(MAX(event_id),0) id FROM event').get().id,
+      decided: claimDecision(board, id, { options, plan }) } : null;
     // Under the lock only the claim's own rows are compared; the guards below read the current board (#6016).
     if (!claimStillPrepared(board, id, binding)) throw staleBoardRefusal(board, snapshot, 'claim');
     const item = moveItem(board, id, 'claim', plan.how);
@@ -431,6 +435,7 @@ function commitClaim(board, id, prepared, binding, ports) {
         logEvent(board, 'board', 'fact', id, { id: factId, kind: 'note', text: `No live ${route.builderFamily} family seat was available for rework #${id}; checked families: ${route.checkedFamilies.join(', ') || 'none'}. The ordinary queue assigned it to ${agentId}.`, ref: null, supersedes: null });
       }
     }
+    if (shadow) board.claimShadow({ id, ...shadow, wrote: board.db.prepare('SELECT event_kind kind, event_by by, event_detail detail FROM event WHERE event_id>? ORDER BY event_id').all(shadow.before) });
     return { leaseUntil, digest, renewed, ...(continuationSummary ? { continuationSummary } : {}) };
   });
 }
