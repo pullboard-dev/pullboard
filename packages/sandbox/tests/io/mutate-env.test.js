@@ -4,11 +4,15 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
-import { runFixtureChild } from '../../../gate/tests/fixtures/child.js';
-import { runFixtureSetupGit } from '../../../gate/tests/fixtures/child.js';
-import { childEnv } from '../../src/io/mutate.js';
-import { mutateCell } from '../../src/io/mutate.js';
+import {
+  privateFixtureFiles,
+  runFixtureChild,
+  runFixtureSetupGit,
+} from '../../../gate/tests/fixtures/child.js';
+import {
+  childEnv,
+  mutateCell,
+} from '../../src/io/mutate.js';
 
 const GUARD = '--import=file:///work/packages/gate/src/io/browser/guard.js';
 
