@@ -36,6 +36,11 @@ const e2e = createE2eHelpers();
 const { openRawBoard, olderDeclaration, observe, privateMainSource } = createSchemaFixture({
   MACHINE, storeTriggers, SCHEMA_DIGEST, SCHEMA_VERSION, boardStanding, recordSchemaStamp, copyPackageFiles });
 after(e2e.cleanup);
+// Clause 3: the file ends with no network socket or server alive, so the runner's file-exit timeout never waits on one [C7].
+after(() => {
+  const open = process.getActiveResourcesInfo().filter(name => /^(TCP|UDP)/u.test(name));
+  assert.deepEqual(open, [], 'schema.test.js leaves no socket open when it ends');
+});
 
 /** Create a file-backed private board with ordinary native data and a valid legacy stamp. */
 function legacyBoard(t) {
