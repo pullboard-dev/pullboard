@@ -16,6 +16,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   ENGINE_CANDIDATE,
   ENGINE_FILE,
@@ -54,6 +55,25 @@ export function readEngineLeaves(directory) {
  */
 export function nextEngineNumber(leaves) {
   return Math.max(0, ...leaves.map((leaf) => leaf.number ?? 0)) + 1;
+}
+
+let byName;
+/**
+ * One engine leaf's number by its constant name, read once from the leaves' text, so no leaf module loads [C7].
+ * Why: the state doors re-exported every leaf, so each command loaded about 191 one-line modules it never ran.
+ * An unlanded leaf reads as one above the landed engines, exactly as unassignedEngine() gives it on its branch.
+ *
+ * @param {string} name a leaf's constant, such as BAR_ENGINE
+ * @returns {number}
+ */
+export function engineNumber(name) {
+  if (!byName) {
+    const leaves = readEngineLeaves(fileURLToPath(new URL('../../logic/engines/', import.meta.url)));
+    const unlanded = nextEngineNumber(leaves);
+    byName = new Map(leaves.map((leaf) => [leaf.name, leaf.number ?? unlanded]));
+  }
+  if (!byName.has(name)) throw new Error(`no engine leaf declares ${name}; add packages/state/src/logic/engines/<name>-engine.js with \`export const ${name} = unassignedEngine();\``);
+  return byName.get(name);
 }
 
 /**
