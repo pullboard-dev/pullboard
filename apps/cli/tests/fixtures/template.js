@@ -9,6 +9,7 @@
  */
 import { createHash } from 'node:crypto';
 import { cpSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -17,8 +18,6 @@ import { readlinkSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename } from 'node:path';
-import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
@@ -81,13 +80,18 @@ function settleDatabases(root) {
 }
 
 /**
- * Whether git tracks this file of the live project. Why: a tracked file's committed blob holds the sandbox path and cannot
- * be rewritten, so its working copy keeps that path too; rewriting it would show as a change the hooks then refuse.
+ * The files git tracks in the live project, as paths relative to the sandbox: one listing per working tree. Why: a tracked
+ * file's committed blob holds the sandbox path and cannot be rewritten, so its working copy keeps that path too;
+ * rewriting it would show as a change the hooks then refuse.
  */
-function tracked(box, rel) {
-  if (rel === '.git' || rel.startsWith('.git/') || rel.includes('/.git/')) return false;
-  const file = join(box.dir, rel);
-  return box.tryGit(dirname(file), 'ls-files', '--error-unmatch', '--', basename(file)).status === 0;
+function trackedFiles(box) {
+  const tracked = new Set();
+  for (const top of readdirSync(box.dir)) {
+    if (!existsSync(join(box.dir, top, '.git'))) continue;
+    const listed = box.tryGit(join(box.dir, top), 'ls-files', '-z');
+    if (listed.status === 0) for (const name of String(listed.stdout).split('\0')) if (name) tracked.add(`${top}/${name}`);
+  }
+  return tracked;
 }
 
 /** Snapshot a freshly built project into a template, or null when it holds something a copy cannot carry. */
@@ -101,10 +105,11 @@ function snapshot(box, built) {
   for (const name of names) cpSync(join(box.dir, name), join(root, name), { recursive: true, preserveTimestamps: true, verbatimSymlinks: true });
   const needle = Buffer.from(box.dir);
   const hits = [];
+  const tracked = trackedFiles(box);
   for (const { rel, abs, stat } of walk(root)) {
     if (stat.isSymbolicLink() && readlinkSync(abs).includes(box.dir)) return drop(root);
     if (!stat.isFile() && !stat.isDirectory() && !stat.isSymbolicLink()) return drop(root); // A socket or pipe cannot be copied.
-    if (stat.isFile() && readFileSync(abs).includes(needle) && !tracked(box, rel)) hits.push(rel);
+    if (stat.isFile() && readFileSync(abs).includes(needle) && !tracked.has(rel)) hits.push(rel);
   }
   const fields = {};
   for (const [key, value] of Object.entries(built)) if (typeof value === 'string' && value.startsWith(`${box.dir}/`) && box[key] !== value) fields[key] = value.slice(box.dir.length + 1);
