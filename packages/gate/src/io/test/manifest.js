@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 import { generateTestTiers } from './tiers.js';
 import { latestRunnerFileTimes } from './budget-rows.js';
 import { readFileTimes } from './value/timing.js';
+import { testNameIds } from './names.js';
 import { spawnCategories } from '../../logic/test/spawns.js';
 import { manifestRows } from '../../logic/test/manifest.js';
 import { TEST_KINDS } from '../../logic/test/manifest.js';
@@ -54,6 +55,7 @@ export function generateTestManifest(root, { times = { ...readFileTimes(root), .
     onReach: row => { evidence.set(row.file, row.reached); },
   });
   const inputs = tiers.files.map(row => ({ file: row.file, ...spawnEvidence(sources, evidence.get(row.file), row.file),
+    specs: testNameIds(sources.get(row.file)?.toString('utf8') ?? ''),
     ms: Object.hasOwn(times, row.file) ? Math.round(times[row.file]) : null }));
   return { version: 1, files: manifestRows(inputs) };
 }
@@ -90,5 +92,6 @@ export function runManifestCommand(args, { times } = {}) {
   const { manifest } = writeTestManifest(resolve(rest[0] ?? '.'), { out, times });
   const counts = TEST_KINDS.map(kind => `${manifest.files.filter(row => row.kind === kind).length} ${kind}`);
   const timed = manifest.files.filter(row => row.cost.ms !== null).length;
-  return { status: 0, stdout: `${manifest.files.length} test files; ${counts.join(', ')}; ${timed} with a recorded runtime\n`, stderr: '' };
+  const unproven = manifest.files.filter(row => row.unproven).length;
+  return { status: 0, stdout: `${manifest.files.length} test files; ${counts.join(', ')}; ${timed} with a recorded runtime; ${unproven} unproven (cite no spec id)\n`, stderr: '' };
 }
