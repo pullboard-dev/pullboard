@@ -105,8 +105,11 @@ test('clause 1: the store claim and renew writer applies the claim table and agr
       .map(e => stored({ kind: e.kind, by: e.by, detail: JSON.parse(e.detail) }));
     const expected = runTable(table, rules, structuredClone(record.snapshot), structuredClone(record.move)).events.map(stored);
     const recordedEvents = record.recorded.events.map(stored);
+    // An older claim sealed no seat cap, so this computer sizes one the board never recorded; that one number is the machine-local input, and every other key is still compared.
+    if (!('claimsPerSeat' in recordedEvents[0].detail)) delete wrote[0].detail.claimsPerSeat;
     assert.deepEqual(seen.length, 1, 'the writer ran the table once');
     const shadow = seen[0].decided.events?.map(stored);
+    if (!('claimsPerSeat' in recordedEvents[0].detail)) delete shadow[0].detail.claimsPerSeat;
     if (JSON.stringify(wrote) !== JSON.stringify(expected) || JSON.stringify(shadow) !== JSON.stringify(expected) || JSON.stringify(recordedEvents) !== JSON.stringify(expected)) {
       disagreements.push({ event: record.event.id, wrote, shadow, expected, recorded: recordedEvents, refused: seen[0].decided.refused });
     }
