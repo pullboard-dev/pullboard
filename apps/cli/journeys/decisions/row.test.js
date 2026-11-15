@@ -108,8 +108,7 @@ function sandbox() {
   async function runLocal(cwd, args, extraEnv = {}) {
     const callEnv = { ...personEnvironment(env), ...FIXTURE_GIT_ENV, ...extraEnv };
     // PULLBOARD_JOURNEY_MODE=process answers the same call as a real process, so the gate's parity check can compare the two (#8276).
-    const result = await journeyCall({ dir, env: callEnv, cwd, args, inProcess: () => runCliInProcess(args, { cwd, env: callEnv }),
-      real: () => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env: callEnv, encoding: 'utf8' }) });
+    const result = await journeyCall({ dir, env: callEnv, cwd, args, inProcess: () => runCliInProcess(args, { cwd, env: callEnv }), bin: BIN });
     return { status: result.status, stdout: result.stdout, stderr: result.stderr };
   }
   return { dir, env, git, runLocal };
