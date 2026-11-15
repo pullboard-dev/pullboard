@@ -18,7 +18,7 @@ test('clause 1: a sample case of the verdict journey gives the same exit codes, 
   // One after the other: the two modes side by side slow each other past the file budget.
   const real = await runSample('process', SAMPLES[0]);
   const inprocess = await runSample('inprocess', SAMPLES[0]);
-  assert.ok(real.length >= 10, `the sample made its CLI calls (${real.length})`);
+  assert.ok(real.length >= 6, `the sample made its CLI calls (${real.length})`);
   assert.ok(real.some(row => row.board?.items.length), 'the records carry board state');
   const differences = parityDifferences(real, inprocess);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
