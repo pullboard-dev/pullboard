@@ -32,9 +32,16 @@ import {
 } from '../entry.js';
 import { agentHookStatus } from '../../../../../packages/seats/index.js';
 import { runnerServiceProblems } from '../../../../../packages/runners/index.js';
+import { spawnReachable } from '../../../../../packages/jobs/index.js';
 import { unclaimedGateJobs } from '../../../../../packages/jobs/index.js';
+
+/** The jobs cell's reachable launcher, for the resident client: it starts a daemon as a launchd job, as doctor expects every daemon to be [C7,#5760]. */
+export { spawnReachable };
 import { trunkUpdateInsteadProblem } from '../landing/checkout.js';
 import { anyRunnerLive } from '../runner/local.js';
+import { residentDaemons } from '../resident/daemons.js';
+import { appDaemonProblems } from '../../logic/runner/daemons.js';
+import { loadMachineSettings } from '../../../../../packages/config/index.js';
 
 /** `pullboard doctor --hosts`: one line per role naming the hosts and ports it needs, for a sandbox allowlist [P7]. */
 function runHosts(io) {
@@ -73,6 +80,7 @@ export async function run(io, { values = {} } = {}) {
   if (!problems.some(problem => incompatible.has(problem.code)) && !anyRunnerLive()) for (const job of withBoardRead(ctx, board => unclaimedGateJobs(board.db))) problems.push({ code: 'GATE_NO_RUNNER',
     message: `gate job ${job.id} waited over 2 min with no runner`,
     next: 'run pullboard runner add <ssh-host> or pullboard submit again to start the local runner' });
+  problems.push(...appDaemonProblems({ daemons: residentDaemons(ctx.info.root), runners: loadMachineSettings().runners ?? [] }));
   const trunkProblem = trunkUpdateInsteadProblem(trunkRemote(io.cwd), ctx.info.root, 'refs/heads/main');
   if (trunkProblem) problems.push(trunkProblem);
   const outdated = outdatedSender();
