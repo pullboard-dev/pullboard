@@ -70,9 +70,9 @@ export function tableReplayEnabled() {
   return loadMachineSettings().gate?.tableReplay === true;
 }
 
-/** Write gate hops through the fenced, compare-and-set hop row only when this machine opted in [C7,#8269]. */
+/** Write gate hops through the fenced, compare-and-set hop row unless this machine turned it off [C7,#8269,#8327]. */
 export function fencedHopEnabled() {
-  return loadMachineSettings().gate?.fencedHop === true;
+  return loadMachineSettings().gate?.fencedHop !== false;
 }
 
 /** Record each move table shadow compare on the board only when this machine opted in [C7,#8376]. */
