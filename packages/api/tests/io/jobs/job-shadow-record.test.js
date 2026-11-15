@@ -49,7 +49,7 @@ test('clause 1: with moves.shadow on, a renew whose job table answer differs add
   const counts = readShadow({ db }, 'job');
   assert.equal(counts.compared, 2);
   assert.equal(counts.disagreed, 2);
-  assert.deepEqual(counts.last.map(({ id: job, differs }) => ({ job, differs })), [{ job: id, differs: 'job.leaseUntil' }, { job: id, differs: 'job.leaseUntil' }]);
+  assert.deepEqual(counts.last.map(({ id: job, differs }) => ({ job, differs })), [{ job: id, differs: 'job.leaseUntil' }, { job: id, differs: 'job.owner' }]);
 });
 
 test('clause 1: a job table that throws is recorded as a disagreement and never refuses the runner\'s move [C7,#8381]', t => {
