@@ -9168,6 +9168,15 @@
       ],
       "coveredBy": 771,
       "because": "every spec id it cites is also cited by a cell unit or contract test"
+    },
+    {
+      "file": "apps/cli/journeys/shout/refusal.test.js",
+      "specs": [
+        "B22",
+        "C7"
+      ],
+      "coveredBy": "apps/cli/tests/logic/shout/restated-report.test.js",
+      "because": "its refusal rules are proven in-process in the cli cell: a report restating a recorded submit or verdict, the ten-minute window, and integration evidence"
     }
   ]
 }
