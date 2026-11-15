@@ -47,6 +47,7 @@ import { outsideBuildProblem } from "../../../../items/index.js";
 import { barReadyProblem } from "../../../../verify/index.js";
 import { COORDINATOR } from "../../../../config/index.js";
 import { movesShadowEnabled } from "../../../../config/index.js";
+import { movesLiveEnabled } from "../../../../config/index.js";
 import { shadowHook } from "./shadow-record.js";
 import { claimDiffers } from "./shadow-record.js";
 import { shadowDecide } from "./shadow-record.js";
@@ -393,10 +394,14 @@ function commitClaim(board, id, prepared, binding, ports) {
   // Shadow compare: a board that carries `claimShadow` hands it the table's answer and what the writer wrote. The table reads
   // seat presence from disk, so it runs before the write opens; no file I/O happens inside the board write [C7,#8270].
   // With moves.shadow on and no test hook, the compare is recorded on the board instead [C7,#8376].
-  const hook = shadowHook(board, 'claimShadow', 'claim', claimDiffers, movesShadowEnabled);
-  const decided = hook ? shadowDecide(hook, () => claimDecision(board, id, { options, plan })) : null;
+  // With moves.live.claim on (a board's own `movesLive.claim` stands in for the setting in a store test) the table decides instead: it
+  // refuses before any write opens, and the events it names are the ones written. Boards below the grant engine keep the writer's rules [C7,#8383].
+  const live = (board.executionEngineVersion ?? ENGINE_VERSION) >= AGENT_GRANT_ENGINE && (board.movesLive?.claim ?? movesLiveEnabled('claim')) === true;
+  const hook = live ? null : shadowHook(board, 'claimShadow', 'claim', claimDiffers, movesShadowEnabled);
+  const decided = live ? claimDecision(board, id, { options, plan }) : hook ? shadowDecide(hook, () => claimDecision(board, id, { options, plan })) : null;
+  if (live && decided.refused) throw new Refused(decided.refused.code, decided.refused.message, decided.refused.next);
   return atomic(board, () => {
-    const shadow = decided ? { before: board.db.prepare('SELECT COALESCE(MAX(event_id),0) id FROM event').get().id, decided } : null;
+    const shadow = decided && !live ? { before: board.db.prepare('SELECT COALESCE(MAX(event_id),0) id FROM event').get().id, decided } : null;
     // Under the lock only the claim's own rows are compared; the guards below read the current board (#6016).
     if (!claimStillPrepared(board, id, binding)) throw staleBoardRefusal(board, snapshot, 'claim');
     const item = moveItem(board, id, 'claim', plan.how);
@@ -421,13 +426,14 @@ function commitClaim(board, id, prepared, binding, ports) {
     }
     const continuationSummary = !renewed ? exitContinuationSummary(board, id) : null;
     if (!renewed && continuationSummary) board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run(`exit-handoff:${id}`);
-    logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest, ...(!renewed && (board.executionEngineVersion ?? ENGINE_VERSION) >= UNTOUCHED_CLAIM_ENGINE && options.autoNext === true && options.autoNextSnapshot?.head === head && /^[0-9a-f]{64}$/u.test(options.autoNextSnapshot?.digest ?? '') ? { autoNextSnapshot: options.autoNextSnapshot } : {}), ...(!renewed && options.itemFolder === true ? { itemFolder: true } : {}), ...(!renewed && plan.seatN() !== null ? { claimsPerSeat: plan.seatN() } : {}), ...(!renewed && exitRules ? { exitRules, exitClaimKey: options.exitClaimKey } : {}), ...(adopts ? { adoptedCorrection: digest } : {}), ...(refreshes && frozen ? { policyRefreshed: digest } : {}), ...(!renewed && reviewSkipped ? { reviewSkipped } : {}),
+    if (live) for (const event of decided.events) logEvent(board, event.by, event.kind, id, event.detail);
+    else logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest, ...(!renewed && (board.executionEngineVersion ?? ENGINE_VERSION) >= UNTOUCHED_CLAIM_ENGINE && options.autoNext === true && options.autoNextSnapshot?.head === head && /^[0-9a-f]{64}$/u.test(options.autoNextSnapshot?.digest ?? '') ? { autoNextSnapshot: options.autoNextSnapshot } : {}), ...(!renewed && options.itemFolder === true ? { itemFolder: true } : {}), ...(!renewed && plan.seatN() !== null ? { claimsPerSeat: plan.seatN() } : {}), ...(!renewed && exitRules ? { exitRules, exitClaimKey: options.exitClaimKey } : {}), ...(adopts ? { adoptedCorrection: digest } : {}), ...(refreshes && frozen ? { policyRefreshed: digest } : {}), ...(!renewed && reviewSkipped ? { reviewSkipped } : {}),
       ...(!renewed && item.item_expected_build_minutes != null && (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE ? { buildBudgetMinutes: options.buildBudgetMinutes ?? 30, expectedBuildMinutes: item.item_expected_build_minutes ?? null } : {}),
       ...(admission ? { submitAdmission: admission } : {}),
       ...(outcome ? { submitOutcome: outcome } : {}),
       ...((board.executionEngineVersion ?? ENGINE_VERSION) >= AGENT_GRANT_ENGINE ? { grantEngine: AGENT_GRANT_ENGINE } : {}) });
     const policyRefreeze = plan.policyRefreeze();
-    if (!renewed && policyRefreeze) logEvent(board, agentId, 'fact', id, {
+    if (!live && !renewed && policyRefreeze) logEvent(board, agentId, 'fact', id, {
       id: randomUUID(), kind: 'note',
       text: `policy re-frozen automatically: ${policyRefreeze.before} -> ${policyRefreeze.after}; only ${policyRefreeze.changed.join(', ')} changed`,
       ref: null, supersedes: null,
