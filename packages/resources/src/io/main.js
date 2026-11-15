@@ -10,6 +10,7 @@ import { resourceWriteError } from './write/lock.js';
 import { enqueueResourceWrite } from './write/queue.js';
 import { enterResourceQueue } from './write/queue.js';
 import { beatingProbes } from './heartbeat/waiter.js';
+import { idleRunnerRecovery } from './runner/idle.js';
 import { retainConnection } from './connections.js';
 import { reuseResourceConnections } from './connections.js';
 import { renewWithBeat } from './renewal.js';
@@ -879,6 +880,7 @@ export function runnerResourceStatus(runners) {
   } finally { db.close(); }
 }
 
+export const recoverIdleRunners = idleRunnerRecovery({ open, machineResourceFile, validatedRunners });
 /** Persist a configured host's authenticated GUI observation; unknown replaces stale positive capability. */
 export function recordRunnerGui(host, gui) {
   if (typeof host !== 'string' || !host.trim() || ![true, false, null].includes(gui)) throw new Refused('BAD_RUNNER_POOL', 'runner GUI observations require a host and true, false, or unknown');
