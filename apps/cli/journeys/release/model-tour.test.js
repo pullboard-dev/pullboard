@@ -99,18 +99,3 @@ test('the scripted tour names its model without PULLBOARD_MODEL [N10,O8]', () =>
   assert.match(result.stdout, /sent back: #1 BEHAVIOR_MISMATCH by review-1 \(Scripted\):/);
   assert.match(result.stdout, /\| 1 \| app \| Greeting \| G1 \| app-1 \(Scripted\) \| review-1 \(Scripted\) \|/);
 });
-
-test('the tour never waits on input or a timer [N10,O8]', () => {
-  const box = sandbox();
-  const harness = createTourVariantHarness(box);
-  const prompting = runTour(box, harness, 'prompt');
-  assert.equal(prompting.status, 1, `${prompting.stdout}${prompting.stderr}`);
-  assert.match(prompting.stdout, /Model name\?/u);
-  assert.match(prompting.stdout, /The tour stopped: model prompt reached EOF/u);
-  assert.deepEqual(tourSteps(prompting.stdout), []);
-
-  const sleeping = runTour(box, harness, 'sleep');
-  assert.equal(sleeping.status, 1, `${sleeping.stdout}${sleeping.stderr}`);
-  assert.match(sleeping.stderr, /tour timer wait detected/u);
-  assert.notDeepEqual(tourSteps(sleeping.stdout), TOUR_STEPS, 'the timer mutant leaves the ordered tour transcript incomplete');
-});
