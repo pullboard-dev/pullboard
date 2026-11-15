@@ -9243,6 +9243,14 @@
       ],
       "coveredBy": "apps/cli/journeys/relay/client/claims.test.js",
       "because": "the same ten-round paired claim loop as the kept golden replica race, run over item ids eleven to twenty; the race and its refusal receipts are proven once"
+    },
+    {
+      "file": "apps/cli/journeys/resume/tour-slow.test.js",
+      "specs": [
+        "N10"
+      ],
+      "coveredBy": "apps/cli/tests/logic/tour-steps.test.js",
+      "because": "a slow tour names its three slowest steps with their times, the slowed git commit among them, proven on the step ranking and labelling in the cli cell instead of a tour with a 15 s sleeping git shim"
     }
   ]
 }
