@@ -34,6 +34,7 @@ import {
   runBridgeCLIAs,
 } from '../../tests/fixtures/bridge.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 
 test('changelog matching distinguishes issue numbers and accepts Markdown acknowledgement links [C7]', () => {
   const reference = { target: 'https://github.com/example/project/issues/1', handle: 'Reporter' };
@@ -199,6 +200,8 @@ async function submitReferenceFixture(t, { handled, matchingAddition }) {
   assert.equal(committed.status, 0, committed.stderr || committed.stdout);
   const submitted = await box.runLocal(box.web, 'submit', String(id), '--json');
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
+  // A pulled submit returns queued; read the item once the board has applied its gate receipt [C7,#7283].
+  if (JSON.parse(submitted.out).queued) await settledGateJob(box, id);
   const shown = await box.runLocal(box.repo, 'show', String(id), '--json');
   assert.equal(shown.code, 0, shown.err || shown.out);
   assert.equal(JSON.parse(shown.out).item_status, 'submitted', 'the reminder never prevents the native submission');
