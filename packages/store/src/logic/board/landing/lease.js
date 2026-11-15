@@ -8,6 +8,7 @@ import { COORDINATOR } from "../../../../../config/index.js";
 import { Refused } from "../../../../../kernel/light.js";
 import { leaseEngine } from "../../../../../moves/light.js";
 import { runTable } from "../../../../../moves/light.js";
+import { submitEngine } from "../../../../../moves/light.js";
 import { ENGINE_VERSION } from "../../../../../state/index.js";
 import { LANDING_LOCAL_LEASE_ENGINE } from "../../../../../state/light.js";
 import {
@@ -141,4 +142,19 @@ export function landingLeaseMove(board, { agentId, action, token, branch, pid, g
     return { holder: state.holder, position: state.line.findIndex(entry => entry.token === token) + 1,
       acquired: state.holder?.token === token, generation: state.holder?.token === token ? state.holder.generation : null };
   });
+}
+
+let submitTables = null;
+/**
+ * Run one submit-family table (SUBMIT, COMMIT, OUTCOME, START or COMPLETE) over a snapshot and move.
+ * Why here: this file is the store's one reader of the moves cell; the caller passes the retry limit and infrastructure codes, as the tables take them by injection [C7,#8271].
+ *
+ * @param {'SUBMIT' | 'COMMIT' | 'OUTCOME' | 'START' | 'COMPLETE'} name
+ * @param {{ retryLimit: number, infrastructureCodes: Iterable<string> }} limits
+ * @returns {{ refused?: object, patch?: object, events?: object[], via?: string[], table: object }}
+ */
+export function runSubmitTable(name, limits, snapshot, move) {
+  submitTables ??= submitEngine(limits);
+  const table = submitTables.tables[name];
+  return { ...runTable(table, submitTables.rules, snapshot, move), table };
 }
