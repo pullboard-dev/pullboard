@@ -6,7 +6,7 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
-import { fixtureCommittedGraph } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureCommittedGraph } from '../../../../gate/tests/fixtures/testkit.js';
 import { copyRunnerPackage } from '../../fixtures/package.js';
 
 const SOURCE = fileURLToPath(new URL('../../../../../', import.meta.url));

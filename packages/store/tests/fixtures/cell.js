@@ -4,8 +4,9 @@ import { resolve } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { closeBoard } from '../../index.js';
-import { openKitBoard } from '../../../../apps/cli/tests/fixtures/testkit.js';
-import { FIXTURE_MODEL } from '../../../../apps/cli/tests/fixtures/testkit.js';
+import { FIXTURE_MODEL } from '../../../../apps/cli/tests/fixtures/child.js';
+// The board composition root through the board package's fixture, which tests already use (#8202).
+import { openKitBoard } from '../../../board/tests/fixtures/board.js';
 import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureChild } from '../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
@@ -22,6 +23,10 @@ import { headCommit } from '../../../git/index.js';
 import { repoInfo } from '../../../git/index.js';
 import { createMemoryGitAdapter } from '../../../git/index.js';
 import { enterGitAdapter } from '../../../git/index.js';
+
+export { FIXTURE_MODEL, openKitBoard };
+/** A second model name, so a later seat must register against the earlier one. */
+export const FIXTURE_MODEL_EARLIER = 'Earlier Fixture Model';
 
 /**
  * A private Git repository for tests of how committed files are read: write files, commit them, repeat.

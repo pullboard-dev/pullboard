@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../../../gate/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../../gate/tests/fixtures/child.js';
-import { fixtureProjectPolicy } from '../../../../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureProjectPolicy } from '../../../../../gate/tests/fixtures/testkit.js';
 import { withGateProgress } from '../../../../../gate/index.js';
 import { compareMainFailures } from '../../../../index.js';
 

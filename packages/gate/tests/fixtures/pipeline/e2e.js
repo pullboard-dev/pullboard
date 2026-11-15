@@ -26,7 +26,7 @@ import {
   mainTooling,
 } from './project.js';
 
-const { joinFixtureSeat } = await from('apps/cli/tests/fixtures/testkit.js');
+const { joinFixtureSeat } = await from('packages/gate/tests/fixtures/testkit.js');
 const { gateSpanFolder, readGateSpans } = await from('packages/jobs/index.js');
 
 /** The widest stretch of a gate no recorded phase may leave uncovered, on the local runner stand-in [C7]. */
