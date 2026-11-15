@@ -111,7 +111,9 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 150_
   try {
     chrome=await openRoadmapChrome(executable,view.link.href,profile);await chrome.waitFor('data?.project?.milestones?.length===6');
     const apiSummary=JSON.parse(await chrome.stable("JSON.stringify(data.project.milestones.find(m=>m.name==='State summary').summary)"));
-    assert.deepEqual(apiSummary,rawRoadmap.milestones.find(m=>m.name==='State summary').summary,'the live API carries the real CLI summary unchanged');
+    // The page's read splits the ready items out of waiting (c4317a9bd1, #7763); every other field is the CLI's own.
+  const cliSummary=rawRoadmap.milestones.find(m=>m.name==='State summary').summary;
+  assert.deepEqual(apiSummary,{...cliSummary,ready:1,waiting:cliSummary.waiting-1},'the live API carries the real CLI summary, its ready item split out of waiting');
     await press(chrome,"document.querySelector('[data-tab=roadmap]')");
     await chrome.waitFor(`${milestone('Past target')}?.querySelector('.milestone-head')`);
     const nativeForecast=JSON.parse(await chrome.stable(`JSON.stringify({rate:${milestone('State summary')}?.querySelector('.roadmap-estimate')?.textContent||'',pace:${milestone('State summary')}?.querySelector('.roadmap-pace')?.textContent||'',completion:${milestone('State summary')}?.querySelector('.roadmap-completion')?.textContent||''})`));
