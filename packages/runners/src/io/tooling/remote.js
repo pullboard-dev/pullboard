@@ -132,14 +132,14 @@ export function trustedTooling() {
   const id = committedToolingKey(TOOL_ROOT);
   const held = id && CAPTURED.get(TOOL_ROOT);
   if (held && held.commit === id.commit && held.tree === id.tree) return held.captured;
-  const saved = id && (loadTrustedCapture(TOOL_ROOT, id) ?? bundledTooling(id));
+  const saved = id && loadTrustedCapture(TOOL_ROOT, id);
   if (saved) { CAPTURED.set(TOOL_ROOT, { commit: id.commit, tree: id.tree, captured: saved }); return saved; }
-  const { captured, installation, order } = captureTrustedTooling();
+  const { captured, installation, order, bundled } = (id && bundledTooling(id)) ?? captureTrustedTooling();
   const key = installation ?? (captured.tooling.commit && { commit: captured.tooling.commit, tree: captured.tooling.tree });
   if (key) {
     CAPTURED.set(TOOL_ROOT, { commit: key.commit, tree: key.tree, captured });
     saveTrustedCapture(TOOL_ROOT, key, captured, order);
-    saveToolingBundle(TOOL_ROOT, captured, order);
+    if (!bundled) saveToolingBundle(TOOL_ROOT, captured, order);
   }
   return captured;
 }
@@ -150,7 +150,8 @@ export function trustedTooling() {
  */
 function bundledTooling(id) {
   const gitRoot = existsSync(join(TOOL_ROOT, '.git')) ? TOOL_ROOT : archivedToolingSource(TOOL_ROOT)?.root;
-  return gitRoot ? loadToolingBundle(TOOL_ROOT, id, gitRoot, committedToolingMatches) : null;
+  const found = gitRoot && loadToolingBundle(TOOL_ROOT, id, gitRoot, committedToolingMatches);
+  return found ? { ...found, installation: id, bundled: true } : null;
 }
 
 /** Export, scan and describe the trusted tooling once; the installation it came from, if committed, rides along for its key. */

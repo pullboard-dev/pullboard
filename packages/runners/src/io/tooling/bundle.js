@@ -67,7 +67,7 @@ export function saveToolingBundle(root, captured, order) {
  * @param {{ commit: string, tree: string }} id The commit and tree the capture must describe.
  * @param {string} gitRoot The repository holding that commit.
  * @param {(root: string, commit: string, files: object) => boolean} matches Compares files with the commit's blobs.
- * @returns {object|null}
+ * @returns {{ captured: object, order: string[] }|null}
  */
 export function loadToolingBundle(root, id, gitRoot, matches) {
   try {
@@ -86,6 +86,6 @@ export function loadToolingBundle(root, id, gitRoot, matches) {
     const earlier = ENTRIES.slice(0, Math.max(0, ENTRIES.indexOf(runtime.entry)));
     if (!ENTRIES.includes(runtime.entry) || (earlier.length && sourceGit(gitRoot, ['--literal-pathspecs', 'ls-tree', '--name-only', id.commit, '--', ...earlier]))) return null;
     if (!matches(gitRoot, id.commit, files)) return null;
-    return { ...captured, tooling: { ...tooling, commit: id.commit, tree: id.tree } };
+    return { captured: { ...captured, tooling: { ...tooling, commit: id.commit, tree: id.tree } }, order };
   } catch { return null; }
 }
