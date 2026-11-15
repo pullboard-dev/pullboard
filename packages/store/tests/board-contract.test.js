@@ -1,25 +1,24 @@
 /** Contract: an in-memory board answers the same writes and reads as an on-disk board, for what tests use [C7]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
-import { rmSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { test } from 'node:test';
 import * as store from '../index.js';
 import { cellBoard } from './fixtures/cell.js';
 import { cellItem } from './fixtures/cell.js';
 import { cellSeat } from './fixtures/cell.js';
 import { submitFixture } from './fixtures/submit.js';
-import { privateFixtureFiles } from '../../../apps/cli/tests/fixtures/child.js';
+import { temporaryRepository } from './fixtures/submit.js';
 import { requireFixtureReviewFamilies } from '../../../apps/cli/tests/fixtures/review/family.js';
 
 const COMMIT = 'a'.repeat(40);
 const POLICY = { version: 1, commit: COMMIT, verify: { policy: 'any', family: 'off' } };
 
-/** Open one board, on disk or in memory, on a fixed clock that the script advances the same way for both. */
-function open(t, where) {
+/** Open a board on a fixed clock the script advances the same way for both; both name the one repository, so sealed policy matches. */
+function open(t, where, repo) {
   let at = Date.parse('2026-03-01T00:00:00Z');
-  const file = where === 'disk' ? join(privateFixtureFiles('pullboard-board-contract-').root, 'board.sqlite') : ':memory:';
-  if (where === 'disk') t.after(() => rmSync(join(file, '..'), { recursive: true, force: true }));
-  return { board: cellBoard(t, file, { now: () => new Date(at) }), tick: minutes => { at += minutes * 60_000; } };
+  const file = where === 'disk' ? join(repo, '.git', 'pullboard', 'board.sqlite') : ':memory:';
+  return { board: cellBoard(t, file, { now: () => new Date(at) }, { gitRoot: repo }), tick: minutes => { at += minutes * 60_000; } };
 }
 
 /** The refusal code a move raises, or null when it succeeds; a code the stand-in must reproduce. */
@@ -75,8 +74,10 @@ function dump(db) {
 }
 
 test('store.stand-in.board-parity: [C7] the same writes and reads give the same tables, rows, events and refusal codes on an in-memory board as on an on-disk one', t => {
-  const disk = script(open(t, 'disk'));
-  const memory = script(open(t, 'memory'));
+  const repo = temporaryRepository(t, 'pullboard-board-contract-');
+  mkdirSync(join(repo, '.git', 'pullboard'));
+  const disk = script(open(t, 'disk', repo));
+  const memory = script(open(t, 'memory', repo));
   assert.ok(disk.events.length > 10, 'the script wrote real events');
   assert.ok(Object.values(disk.tables.rows).some(rows => rows.length), 'tables hold rows');
   assert.deepEqual(disk.doubleClaim, memory.doubleClaim);
