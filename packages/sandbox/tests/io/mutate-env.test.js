@@ -5,6 +5,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../gate/tests/fixtures/child.js';
+import { runFixtureSetupGit } from '../../../gate/tests/fixtures/child.js';
 import { childEnv } from '../../src/io/mutate.js';
 import { mutateCell } from '../../src/io/mutate.js';
 
@@ -27,6 +29,10 @@ test('a journey that launches Chrome passes before any fault is seeded when the 
   writeFileSync(join(box.root, 'cell', 'a.js'), 'export const a = 1;\n');
   writeFileSync(join(box.root, 'cell', 'a.test.js'), "import { test } from 'node:test';\ntest('cell', () => {});\n");
   writeFileSync(join(box.root, 'journey.test.js'), "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\ntest('journey', () => { assert.notEqual(process.env.PULLBOARD_TEST_BROWSER_SLOT, 'none'); assert.doesNotMatch(process.env.NODE_OPTIONS ?? '', /guard\\.js/u); });\n");
+  const git = (...args) => runFixtureSetupGit(['-c', 'user.name=t', '-c', 'user.email=t@example.test', ...args], { cwd: box.root });
+  assert.equal(runFixtureChild('git', ['init', '-q', '-b', 'main'], { cwd: box.root }).status, 0);
+  git('add', '-A');
+  git('commit', '-q', '-m', 'fixture');
   const saved = { slot: process.env.PULLBOARD_TEST_BROWSER_SLOT, options: process.env.NODE_OPTIONS };
   t.after(() => {
     for (const [key, value] of [['PULLBOARD_TEST_BROWSER_SLOT', saved.slot], ['NODE_OPTIONS', saved.options]]) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
