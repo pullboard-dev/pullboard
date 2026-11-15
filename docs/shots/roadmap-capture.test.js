@@ -1,3 +1,5 @@
+// pullboard: browser
+/** @pullboard-test-gui */
 /** The Roadmap capture finishes on a release the size of a real one, not only on the five-item demo [I11,C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
