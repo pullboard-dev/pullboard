@@ -146,6 +146,7 @@ export function nextFor(board, options) {
   // A session that declared a lighter model than its seat joined with is offered only its own route (#3678).
   const route = cappedRoute(routeOf(board, agentId), routeCap);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
+  listItems(board, { all: true }); // read once: the open list below and the in-flight list further on both derive from it (#8432)
   const allItems = listItems(board).reverse().map(entry => lightDiagnosisProblem(board, entry) ? { ...entry, item_route: 'mid' } : entry);
   if (observeIdle) for (const entry of allItems) {
     if (entry.item_status !== (verify ? 'submitted' : 'open') || !verify && !(lanes ?? [lane]).includes(entry.item_lane)) continue;
@@ -277,7 +278,7 @@ export function nextFor(board, options) {
   const mine = laneItems
     // The listed row carries the hold: a full getItem per open item cost next 190 ms on a 2,500-item board (#5329).
     .filter((entry) => { const held = Boolean(entry.item_hold_reason); if (held) skip(entry, 'ITEM_HELD'); return !held; })
-    .map((entry, order) => ({ entry, order, shared: itemFiles(entry).filter((path) => recent.has(path)) }))
+    .map((entry, order) => ({ entry, order, shared: recent.size ? itemFiles(entry).filter((path) => recent.has(path)) : [] }))
     .sort((first, second) => compare(first.entry, second.entry));
   const familyRework = lineSettings(board).reworkSameFamily === true;
   if (familyRework || rejectionReturnEnabled(board)) for (const candidate of mine) {
