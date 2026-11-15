@@ -2,42 +2,69 @@
 /** A name-filtered landing gate shards like any other landing gate, and a red in any shard still fails it [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { cpSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
+import { after } from 'node:test';
 import { test } from 'node:test';
 import { copyPackageFiles } from '../../../../runners/index.js';
 import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 
 const SOURCE = resolve(import.meta.dirname, '../../../../..');
 const NAMES = ['a', 'b', 'c', 'd', 'e', 'f'];
 
-/** A private project with six test files, each holding a target case and an unrelated one, and landingShards 6. */
-function project(t, redFile = null, slowFile = null) {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-name-shards-')));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+let template = null;
+after(() => { if (template) rmSync(template, { recursive: true, force: true }); });
+
+/** The environment a gate child runs in, for a project folder. */
+function projectEnv(dir) {
+  const home = join(dir, 'home');
+  const env = { ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: join(home, '.pullboard'), GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid', GIT_COMMITTER_NAME: 'Fixture',
+    GIT_COMMITTER_EMAIL: 'fixture@example.invalid', PULLBOARD_LANDING_RUN: '1' };
+  for (const key of Object.keys(env)) if (/^PULLBOARD_(GATE_SLOT|BROWSER_SLOT|LANDING_SHARD)/u.test(key) || key === 'NODE_TEST_CONTEXT') delete env[key];
+  return env;
+}
+
+/** The text of one fixture test file: a target case and an unrelated one; the target is red or slow when asked. */
+function fixtureTest(name, redFile, slowFile) {
+  return `import assert from 'node:assert/strict';\nimport { test } from 'node:test';\n`
+    + (name === slowFile ? `test('target ${name} [C7]', () => new Promise(done => setTimeout(done, 6_000)));\n`
+      : `test('target ${name} [C7]', () => assert.equal(${JSON.stringify(name === redFile ? 'red' : 'green')}, 'green'));\n`)
+    + `test('unrelated ${name} [C7]', () => assert.fail('the name filter must skip this case'));\n`;
+}
+
+/** The project every case copies: built once per file, because copying the package and committing it costs seconds per case. */
+function projectTemplate() {
+  if (template) return template;
+  const dir = privateFixtureFiles('pullboard-name-shards-template-').root;
+  template = dir;
   const repo = join(dir, 'repo'), home = join(dir, 'home');
   mkdirSync(join(repo, 'test'), { recursive: true });
   mkdirSync(join(home, '.pullboard'), { recursive: true });
   writeFileSync(join(home, '.pullboard', 'settings.json'), JSON.stringify({ gateSlots: 2, browserSlots: 1 }));
   copyPackageFiles(SOURCE, repo);
-  for (const name of NAMES) {
-    writeFileSync(join(repo, `test/${name}.test.js`), `import assert from 'node:assert/strict';\nimport { test } from 'node:test';\n`
-      + (name === slowFile ? `test('target ${name} [C7]', () => new Promise(done => setTimeout(done, 6_000)));\n`
-        : `test('target ${name} [C7]', () => assert.equal(${JSON.stringify(name === redFile ? 'red' : 'green')}, 'green'));\n`)
-      + `test('unrelated ${name} [C7]', () => assert.fail('the name filter must skip this case'));\n`);
-  }
+  for (const name of NAMES) writeFileSync(join(repo, `test/${name}.test.js`), fixtureTest(name));
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node apps/cli/src/io/run/tests.js', landingShards: 6 }));
-  const env = { ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: join(home, '.pullboard'), GIT_CONFIG_GLOBAL: '/dev/null',
-    GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid', GIT_COMMITTER_NAME: 'Fixture',
-    GIT_COMMITTER_EMAIL: 'fixture@example.invalid', PULLBOARD_LANDING_RUN: '1' };
-  for (const key of Object.keys(env)) if (/^PULLBOARD_(GATE_SLOT|BROWSER_SLOT|LANDING_SHARD)/u.test(key) || key === 'NODE_TEST_CONTEXT') delete env[key];
+  const env = projectEnv(dir);
   for (const args of [['init', '-q', '-b', 'main'], ['add', '.'], ['commit', '-q', '-m', 'test: name-filtered shards fixture']]) execFileSync('git', args, { cwd: repo, env });
+  return dir;
+}
+
+/** A private project with six test files, each holding a target case and an unrelated one, and landingShards 6: a copy of the template, with one file made red or slow when asked. */
+function project(t, redFile = null, slowFile = null) {
+  const dir = privateFixtureFiles('pullboard-name-shards-').root;
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  cpSync(projectTemplate(), dir, { recursive: true });
+  const repo = join(dir, 'repo'), env = projectEnv(dir);
+  if (redFile || slowFile) {
+    for (const name of [redFile, slowFile].filter(Boolean)) writeFileSync(join(repo, `test/${name}.test.js`), fixtureTest(name, redFile, slowFile));
+    for (const args of [['add', '.'], ['commit', '-q', '-m', 'test: a red or slow case']]) execFileSync('git', args, { cwd: repo, env });
+  }
   return { repo, env };
 }
 
