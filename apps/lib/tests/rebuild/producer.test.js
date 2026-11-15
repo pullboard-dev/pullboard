@@ -1,19 +1,12 @@
 /** A stale accepted-inventory identity rebuilds from the pinned commit's own tooling through a real producer instead of staying pending [C7]. */
 import assert from 'node:assert/strict';
 import {
-  cpSync,
   existsSync,
-  mkdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import {
-  dirname,
-  join,
-} from 'node:path';
-import { execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { once } from 'node:events';
 import { after } from 'node:test';
@@ -30,62 +23,13 @@ import { cleanupFixtureChildren } from '../../../cli/tests/fixtures/child.js';
 import { fixtureChildMessage } from '../../../cli/tests/fixtures/child.js';
 import { runFixtureChildAsync } from '../../../cli/tests/fixtures/child.js';
 import { temporaryDirectory } from '../../../cli/tests/fixtures/board.js';
-import { temporaryRepository } from '../../../cli/tests/fixtures/board/submit.js';
-
-const REPO = fileURLToPath(new URL('../../../..', import.meta.url));
+import {
+  isolateMachine,
+  modifiedToolingCopy,
+  toolingRepo,
+} from '../fixtures/test/rebuild.js';
 
 after(cleanupFixtureChildren);
-
-/** Isolate the machine cache for one test and restore the caller's setting; a `shared` folder outlives the test. */
-function isolateMachine(t, shared) {
-  const previous = process.env.PULLBOARD_MACHINE_HOME, options = process.env.NODE_OPTIONS;
-  // The runner's own preloads are foreign to the inventory fingerprint; the producer must see a plain Node.
-  delete process.env.NODE_OPTIONS;
-  const directory = shared ?? temporaryDirectory('accepted-identity-machine-');
-  process.env.PULLBOARD_MACHINE_HOME = directory;
-  t.after(() => {
-    if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previous;
-    if (options !== undefined) process.env.NODE_OPTIONS = options;
-    if (!shared) rmSync(directory, { recursive: true, force: true });
-  });
-  return directory;
-}
-
-/** The checker's own tooling folders: the pinned fingerprint hashes exactly these, so a fixture needs no more to carry the pinned checker. */
-const CHECKER_PATHS = ['packages/codemap', 'packages/kernel', 'packages/git', 'packages/gate/src'];
-
-/** List this checkout's tracked files under some paths, skipping any that are gone from the working tree. */
-function trackedFiles(...paths) {
-  return execFileSync('git', ['-C', REPO, 'ls-files', '-z', ...paths], { encoding: 'utf8' }).split('\0').filter(file => file && existsSync(join(REPO, file)));
-}
-
-/** Copy tracked files from this checkout into a folder. */
-function copyFiles(root, files) {
-  for (const file of files) {
-    mkdirSync(dirname(join(root, file)), { recursive: true });
-    cpSync(join(REPO, file), join(root, file));
-  }
-}
-
-/** Code and data a producer needs to run: every tracked file under packages and apps except the test scripts. */
-function runnableFiles() {
-  return trackedFiles('packages', 'apps', 'package.json').filter(file => !(file.includes('/tests/') && file.endsWith('.js')));
-}
-
-/**
- * Build a real repository holding the checker's tooling plus a cells plan, committed on main; `runnable` adds the code a producer
- * runs from the pinned checkout.
- * Why not the whole checkout: the producer's census parses every file in this tree and cost about 95 s a case; the pinned
- * fingerprint covers only the checker folders, so the identity under test is unchanged.
- */
-function toolingRepo(t, { runnable = false } = {}) {
-  const root = temporaryRepository(t, 'accepted-identity-repo-');
-  copyFiles(root, [...new Set([...trackedFiles(...CHECKER_PATHS, 'package.json'), ...(runnable ? runnableFiles() : [])])]);
-  writeFileSync(join(root, 'packages/codemap/data/plan/cells.json'), '{}\n');
-  git(root, 'add', '-A');
-  git(root, 'commit', '-q', '-m', 'fixture');
-  return { root, commit: git(root, 'rev-parse', 'HEAD').trim() };
-}
 
 /** One runnable repository and machine cache for the producer cases: the census runs once, and the second case builds on it. */
 let sharedProducer = null;
@@ -105,16 +49,6 @@ function producerFixture() {
   git(root, 'commit', '-q', '-m', 'fixture: later commit');
   sharedProducer = { machine, root, commit, later: git(root, 'rev-parse', 'HEAD').trim() };
   return sharedProducer;
-}
-
-/** A runnable copy of this checkout's code (no tests) with one checker file changed: what a candidate that edits the gate runs. */
-function modifiedToolingCopy(t, note) {
-  const copy = temporaryDirectory('accepted-identity-copy-');
-  t.after(() => rmSync(copy, { recursive: true, force: true }));
-  copyFiles(copy, runnableFiles());
-  const checker = join(copy, 'packages/codemap/src/io/module/imports.js');
-  writeFileSync(checker, `${readFileSync(checker, 'utf8')}\n// ${note}\n`);
-  return copy;
 }
 
 /** Wait for the detached producer to exit, then read its ready record if it published one. */
