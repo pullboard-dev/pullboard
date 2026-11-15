@@ -77,8 +77,16 @@ function replyAt(file, id, count) {
   return reply.results;
 }
 
-/** Run synchronous cell analysis with one lazy, owned parser; cached checks need no process at all. */
-export function withCellLintParser(work, { directory: cacheDirectory } = {}) {
+/**
+ * Run synchronous cell analysis with one lazy, owned parser; cached checks need no process at all.
+ *
+ * @param {(parse: Function) => *} work - The analysis, given the session compiler.
+ * @param {object} [options] - Private directory and, for tests only, the batch waits.
+ * @param {string} [options.directory] - Where the parser keeps its private transport.
+ * @param {{baseMs: number, extensionMs: number}} [options.waits] - Replaces the production batch waits so a test can prove the timeout in milliseconds; absent, the load-scaled production waits apply.
+ * @returns {*} What the analysis returns.
+ */
+export function withCellLintParser(work, { directory: cacheDirectory, waits } = {}) {
   if (parsers.getStore()) return work(parsers.getStore());
   let child = null, directory = null, sequence = 0, failed = null, closed = false;
   const sleeper = new Int32Array(new SharedArrayBuffer(4));
@@ -145,8 +153,9 @@ export function withCellLintParser(work, { directory: cacheDirectory } = {}) {
     const request = join(directory, `request-${id}.json`), reply = join(directory, `reply-${id}.json`);
     const temporary = request + '.tmp';
     const load = loadavg()[0], cores = availableParallelism();
-    const extension = Math.min(120_000, Math.max(30_000, Math.ceil(10_000 * (1 + load / cores))));
-    const deadline = process.hrtime.bigint() + BigInt(10_000 + extension) * 1_000_000n;
+    const base = waits?.baseMs ?? 10_000;
+    const extension = waits?.extensionMs ?? Math.min(120_000, Math.max(30_000, Math.ceil(10_000 * (1 + load / cores))));
+    const deadline = process.hrtime.bigint() + BigInt(base + extension) * 1_000_000n;
     try {
       writeFileSync(temporary, input, { flag: 'wx', mode: 0o600 });
       renameSync(temporary, request);
@@ -159,7 +168,7 @@ export function withCellLintParser(work, { directory: cacheDirectory } = {}) {
         // Budget: poll only this private reply; the bounded extension accommodates a loaded machine.
         Atomics.wait(sleeper, 0, 0, 2);
       }
-      throw Object.assign(new Error(`cell binding compiler timeout after extended batch wait (${10_000 + extension} ms; load ${load.toFixed(2)}, ${cores} cores)`), { code: 'CELL_BINDING_TIMEOUT' });
+      throw Object.assign(new Error(`cell binding compiler timeout after extended batch wait (${base + extension} ms; load ${load.toFixed(2)}, ${cores} cores)`), { code: 'CELL_BINDING_TIMEOUT' });
     } catch (error) { failed = error; throw error; }
     finally { rmSync(request, { force: true }); rmSync(reply, { force: true }); }
   }

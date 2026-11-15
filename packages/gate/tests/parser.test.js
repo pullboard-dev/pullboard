@@ -151,22 +151,23 @@ await import(${JSON.stringify(pathToFileURL(entry).href)});`);
   assert.deepEqual(await reply(2), { version: 1, id: 2, results: [{ compiles: true, imports: ['./second.js'] }] });
 });
 
-test('a slow real batch worker survives the old deadline and a hung worker reports timeout [C7,P3]', { timeout: 180_000 }, async t => { // budget: the load-scaled production timeout can reach 130 seconds.
+test('a slow real batch worker survives the old deadline and a hung worker reports timeout [C7,P3]', async t => {
   const files = privateFixtureFiles('pullboard-parser-delay-');
   t.after(() => rmSync(files.root, { recursive: true, force: true }));
-  files.write('slow.cjs', "Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 11000);\n");
-  files.write('hung.cjs', "Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 180000);\n");
+  files.write('slow.cjs', "Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2500);\n");
+  files.write('hung.cjs', "Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 60000);\n");
   const spawn = childProcess.spawn;
   let preload = 'slow.cjs';
   t.mock.method(childProcess, 'spawn', (command, args, options) => spawn(command,
     ['--require', join(files.root, preload), ...args], options));
   syncBuiltinESMExports();
   t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
-  const result = withCellLintParser(parse => parse(["import './real.js';", 'export const broken = ;']));
+  // The production waits are 10 s plus a load-scaled extension; the same shape at a smaller scale: the worker outlasts the base wait and still answers inside the extension.
+  const result = withCellLintParser(parse => parse(["import './real.js';", 'export const broken = ;']), { waits: { baseMs: 1000, extensionMs: 30_000 } });
   assert.deepEqual(result[0], { compiles: true, imports: ['./real.js'] });
   assert.deepEqual(result[1], { compiles: false, imports: [] }, 'a real syntax failure remains a failed source');
   preload = 'hung.cjs';
-  assert.throws(() => withCellLintParser(parse => parse(['export const value = 1;'])),
+  assert.throws(() => withCellLintParser(parse => parse(['export const value = 1;']), { waits: { baseMs: 500, extensionMs: 1500 } }),
     error => error.code === 'CELL_BINDING_TIMEOUT' && /extended batch wait/u.test(error.message));
 });
 
