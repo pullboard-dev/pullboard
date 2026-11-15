@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell apps/cli apps/lib apps/runner codemap config doctrine flakes gate git items kernel landing link person resources rigor runners seats spec state stats store verify */
 /** @pullboard-world-pin: the audit reads the CLI's command files and the packages' source, to find the refusals the code raises. */
 /** @pullboard-test-loads packages/store/src/io/board.js */
 import { assertPostVerdictLandingAudit } from '../../../../packages/gate/tests/fixtures/functions.js';
