@@ -14,7 +14,7 @@ test('a version cut walks the CLI from a clean board to a recorded release at ma
   const run = (...args) => box.runIn(box.repo, ...args);
   const json = async (...args) => {
     const result = await run(...args, '--json');
-    assert.equal(result.code, 0, result.err);
+    assert.equal(result.code, 0, result.err + result.out);
     return JSON.parse(result.out);
   };
 
