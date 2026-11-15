@@ -352,20 +352,6 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 | `running` | `collected` | the gate returned, or GATE_INFRA_EXHAUSTED after one stall retry | `driveOnce` in `packages/drive/src/io/once.js` |
 | `collected` | `verdict` | the receipt cell judges; lease released | `recordJobRow` in `packages/drive/src/io/once.js` |
 
-#### `dispatcher`: gate dispatcher
-
-- **Id:** `dispatcher`. Created by `ensureDispatcher` in `packages/drive/src/io/dispatcher.js`.
-- **Serves:** no item: one per machine while tickets wait or drivers run.
-- **States:** `dispatcher.spawned`. Terminal: none (released, never done).
-- **Lease:** LEASE_MS 120 s; renewed every 5 s per pass; released when the queue empties; never done.
-- **Ends when its item moves on:** held, at `ensureDispatcher` in `packages/drive/src/io/dispatcher.js`: the row launches nothing since #6579 deleted the hand-off dispatcher; it holds only its own lease
-- **Harness:** `apps/lib/tests/durable/drive.test.js`.
-
-| From | To | Trigger | Where |
-|---|---|---|---|
-| (lapsed) | `dispatcher.spawned` | submit, next or claim ensures it; takes the row only where the lease lapsed | `ensureDispatcher` in `packages/drive/src/io/dispatcher.js` |
-| `dispatcher.spawned` | `dispatcher.spawned` | each pass renews, or retakes a lapsed row | `renewDispatcher` in `packages/drive/src/io/dispatcher.js` |
-
 #### `review`: review reservation
 
 - **Id:** `review:<item>`. Created by `reserveReview` in `packages/jobs/src/io/review.js`.

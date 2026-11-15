@@ -23,7 +23,7 @@ test('the backbone item rows are the declared moves, one row each, with no secon
 
 test('every job kind in the state map is one backbone row whose serves fact is a rule, and the words match the map [C7,#8067]', () => {
   assert.deepEqual(BACKBONE_TABLE.jobs.map(row => row.kind), FIXTURE.jobs.map(job => job.kind));
-  assert.equal(BACKBONE_TABLE.jobs.length, 15);
+  assert.equal(BACKBONE_TABLE.jobs.length, 14);
   for (const job of FIXTURE.jobs) {
     const row = BACKBONE_TABLE.jobs.find(entry => entry.kind === job.kind);
     assert.equal(row.serves, servesRule(job.kind));
@@ -38,8 +38,8 @@ test('serves facts derive over a snapshot and trace what they read [C7,#8067]', 
   assert.equal(gate.holds, true);
   assert.deepEqual(gate.trace.map(step => step.fact), ['claimed', 'atJobCommit', 'serves.gate']);
   assert.equal(deriveFact(BACKBONE_RULES, servesRule('gate'), { item, job: { kind: 'gate', seat: 's2', commit: 'c1', digest: 'd1' } }).holds, false);
-  assert.equal(deriveFact(BACKBONE_RULES, servesRule('dispatcher'), { job: { kind: 'dispatcher' } }).holds, true);
-  assert.equal(deriveFact(BACKBONE_RULES, servesRule('dispatcher'), { item, job: { kind: 'dispatcher' } }).holds, false);
+  assert.equal(deriveFact(BACKBONE_RULES, servesRule('main-test'), { job: { kind: 'main-test' } }).holds, true);
+  assert.equal(deriveFact(BACKBONE_RULES, servesRule('main-test'), { item, job: { kind: 'main-test' } }).holds, false);
 });
 
 test('tableCoverage over the stored item statuses and job kinds reports no gap, and explain names every kind [C7,#8067]', () => {
