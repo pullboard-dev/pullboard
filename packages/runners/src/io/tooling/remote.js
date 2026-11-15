@@ -1,6 +1,6 @@
 import { archivedToolingSource } from './committed.js';
 import { committedRunnerController } from './committed.js';
-import { committedToolingId } from './committed.js';
+import { committedToolingKey } from './committed.js';
 import { runnerPackage } from '../package.js';
 /** Pin, scan and install the trusted runner tooling bytes a remote worker runs [C7]. */
 import { runnerSource } from '../../../../gate/light.js';
@@ -127,15 +127,16 @@ const CAPTURED = new Map();
  * export (an installed package, or a generation pin) is captured every time, as it can change under the process.
  */
 export function trustedTooling() {
-  const id = committedToolingId(TOOL_ROOT);
+  const id = committedToolingKey(TOOL_ROOT);
   const held = id && CAPTURED.get(TOOL_ROOT);
   if (held && held.commit === id.commit && held.tree === id.tree) return held.captured;
   const saved = id && loadTrustedCapture(TOOL_ROOT, id);
   if (saved) { CAPTURED.set(TOOL_ROOT, { commit: id.commit, tree: id.tree, captured: saved }); return saved; }
   const { captured, installation, order } = captureTrustedTooling();
-  if (installation) {
-    CAPTURED.set(TOOL_ROOT, { commit: installation.commit, tree: installation.tree, captured });
-    saveTrustedCapture(TOOL_ROOT, installation, captured, order);
+  const key = installation ?? (captured.tooling.commit && { commit: captured.tooling.commit, tree: captured.tooling.tree });
+  if (key) {
+    CAPTURED.set(TOOL_ROOT, { commit: key.commit, tree: key.tree, captured });
+    saveTrustedCapture(TOOL_ROOT, key, captured, order);
   }
   return captured;
 }
