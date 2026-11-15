@@ -209,6 +209,27 @@ export function redShardFiles(shard, receipt) {
 }
 
 /**
+ * The refusal a not-green set of shards makes: red shards name their failing files, and a shard that posted no
+ * receipt reads unknown, counted as neither red nor green, so the tree is never stamped green on it [C7,#8046].
+ *
+ * @param {{ gate: { shards: { job: string, green: boolean }[] } }} combined - combinedReceipt's result.
+ * @param {{ posted?: { receipt?: object } }[]} settled - Each shard's awaited result, in plan order.
+ * @param {{ shards: { files: string[] }[] }} plan
+ * @param {string[]} jobs
+ * @param {(receipt: object) => string[]} failingParts
+ * @returns {string}
+ */
+export function shardProblem(combined, settled, plan, jobs, failingParts) {
+  const notGreen = combined.gate.shards.map((part, at) => ({ ...part, at })).filter(part => !part.green);
+  const unknown = notGreen.filter(part => !settled[part.at].posted?.receipt);
+  const reds = notGreen.filter(part => settled[part.at].posted?.receipt);
+  const failing = [...new Set(reds.flatMap(part => redShardFiles(plan.shards[part.at], settled[part.at].posted?.receipt)))].sort();
+  const redText = reds.length ? `the gate is red in ${reds.length} of ${jobs.length} shard jobs (${reds.map(part => part.job).join(', ')}); failing files: ${failing.join(', ')}. fix them before pushing.\n${failingParts(combined).join('\n')}` : '';
+  const unknownText = unknown.length ? `the gate is unknown in ${unknown.length} of ${jobs.length} shard jobs (${unknown.map(part => part.job).join(', ')}): no receipt was posted, so they count as neither red nor green and the tree is not stamped green. push again to rerun them.` : '';
+  return [redText, unknownText].filter(Boolean).join('\n');
+}
+
+/**
  * Run the pre-push full gate as pull shard jobs, or return null when pushShardPlan keeps the one-command gate.
  * Green stamps the pushed tree, as a full gate run does, so a retried push of it is not gated twice.
  *
@@ -232,7 +253,5 @@ export async function pushShardGate(ctx, { say, wait, pollMs } = {}) {
     stampGreen(root, tryGit(root, ['rev-parse', `${plan.source}^{tree}`]).stdout.trim());
     return { isGreen: true, problem: null, jobs };
   }
-  const reds = combined.gate.shards.map((part, at) => ({ ...part, at })).filter(part => !part.green);
-  const failing = [...new Set(reds.flatMap(part => redShardFiles(plan.shards[part.at], settled[part.at].posted?.receipt)))].sort();
-  return { isGreen: false, jobs, problem: `the gate is red in ${reds.length} of ${jobs.length} shard jobs (${reds.map(part => part.job).join(', ')}); failing files: ${failing.join(', ')}. fix them before pushing.\n${failingParts(combined).join('\n')}` };
+  return { isGreen: false, jobs, problem: shardProblem(combined, settled, plan, jobs, failingParts) };
 }
