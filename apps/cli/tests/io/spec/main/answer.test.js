@@ -2,19 +2,19 @@
  * The spec (S1–S5): parsing SPEC.md rows, the lint, the frozen criterion and sign-offs.
  */
 import assert from 'node:assert/strict';
-import * as store from '../../../../../packages/store/index.js';
+import * as store from '../../../../../../packages/store/index.js';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { AGENT_SHELL_MARKERS } from '../../../../../packages/kernel/index.js';
-import { RECORDED_GENERIC_NEXT } from '../../../../../packages/state/index.js';
-import { specBox } from '../../../tests/fixtures/spec/box.js';
-import { QUESTION_SPEC } from '../../../tests/fixtures/spec/box.js';
-import { runInProcessAt } from '../../../tests/fixtures/spec/box.js';
-import { viewMove } from '../../../tests/fixtures/spec/box.js';
-import { boardRowDecisions } from '../../../tests/fixtures/spec/box.js';
+import { AGENT_SHELL_MARKERS } from '../../../../../../packages/kernel/index.js';
+import { RECORDED_GENERIC_NEXT } from '../../../../../../packages/state/index.js';
+import { specBox } from '../../../fixtures/spec/box.js';
+import { QUESTION_SPEC } from '../../../fixtures/spec/box.js';
+import { runInProcessAt } from '../../../fixtures/spec/box.js';
+import { viewMove } from '../../../fixtures/spec/box.js';
+import { boardRowDecisions } from '../../../fixtures/spec/box.js';
 
 test("spec answer records the person's choice [S1,E3,P6]", async (t) => {
   const box = specBox(t, { specSource: QUESTION_SPEC });

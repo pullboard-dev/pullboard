@@ -6,10 +6,10 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { standardDoctrine } from '../../../../../packages/doctrine/index.js';
-import { parseSpec } from '../../../../../packages/spec/index.js';
-import { SPEC } from '../../../tests/fixtures/spec/box.js';
-import { specBox } from '../../../tests/fixtures/spec/box.js';
+import { standardDoctrine } from '../../../../../../packages/doctrine/index.js';
+import { parseSpec } from '../../../../../../packages/spec/index.js';
+import { SPEC } from '../../../fixtures/spec/box.js';
+import { specBox } from '../../../fixtures/spec/box.js';
 
 test('spec draft files a row in the named section [S1,C7]', async (t) => {
   const specSource = `# Demo
