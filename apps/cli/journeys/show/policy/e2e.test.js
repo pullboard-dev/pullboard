@@ -11,6 +11,7 @@ import {
 import { join } from 'node:path';
 import {
   after,
+  describe,
   test,
 } from 'node:test';
 import * as store from '../../../../../packages/store/index.js';
@@ -53,6 +54,8 @@ async function assertWaitsOnOwner(t, box, id, submitted, paths, label = '') {
 }
 
 
+/** Each case builds its own project and machine, so the cases overlap their waits on the pulled gate instead of queueing them [C7]. */
+describe('policy end to end on real repos [V4,V16,L3,M3]', { concurrency: true }, () => {
 test('the blind gate-bypass repro refuses submit and accept, and doctor audits pre-merge policy [V4,V16,L3,M3]', async t => {
   const box = project('true');
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Append notes', '--specs', 'G1', '--criterion', 'append one note', '--brief', LIGHT_BRIEF, '--check', 'test ! -f web/RED_CHECK').code, 0);
@@ -147,7 +150,7 @@ test('accepted-main merges carry foreign files without granting permission to al
 });
 
 test('foreign changes before claiming and cross-lane renames cannot hide from submit [L3,V4]', async t => {
-  for (const mode of ['before-claim', 'rename', 'delete']) {
+  await Promise.all(['before-claim', 'rename', 'delete'].map(async mode => {
     const box = project('true');
     writeFileSync(join(box.repo, 'foreign file.txt'), 'coordinator-owned');
     box.git(box.repo, 'add', '-A');
@@ -165,7 +168,7 @@ test('foreign changes before claiming and cross-lane renames cannot hide from su
     writeFileSync(join(box.web, 'web/index.html'), 'owned');
     attackCommit(box, box.web);
     await assertWaitsOnOwner(t, box, 1, await box.inProcess(box.web, 'submit', '1', '--json'), ['foreign file.txt'], mode);
-  }
+  }));
 });
 
 test('accept reruns the frozen check at the submission even when the reviewer repaired its HEAD [V4,M3]', async t => {
@@ -189,4 +192,5 @@ test('accept reruns the frozen check at the submission even when the reviewer re
   assert.equal(refused.code, 1);
   assert.equal(JSON.parse(refused.out).error.code, 'CHECK_RED');
   assert.equal(JSON.parse((await box.inProcess(review, 'show', '1', '--json')).out).item_status, 'submitted');
+});
 });
