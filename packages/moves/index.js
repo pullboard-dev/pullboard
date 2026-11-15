@@ -1,4 +1,4 @@
-/** Board move declarations, their registry, the claim criterion freezer, the bar-ready setting, the derived-facts rules layer, the lifecycle rules and read-only event-log replay on it, the table engine with its explain and coverage and generated-test kit, the backbone table, the fenced gate hop table, the lease and job queue tables, the replay core and its read-only reader with table discovery, and next's selection and the reason lines it prints, behind one front door [C7,CD60,CD64]. */
+/** Board move declarations, their registry, the claim criterion freezer, the bar-ready setting, the derived-facts rules layer, the lifecycle rules and read-only event-log replay on it, the table engine with its explain and coverage and generated-test kit, the backbone table, the fenced gate hop table, the lease and job queue tables, the landing select, admit, record, merged and outcome tables with their history reader, the replay core and its read-only reader with table discovery, and next's selection and the reason lines it prints, behind one front door [C7,CD60,CD64]. */
 export * from "./src/logic/bar/ready.js";
 export * from "./src/io/registry.js";
 export * from "./src/io/freezer.js";
@@ -8,6 +8,7 @@ export { runTable } from "./src/logic/table/run.js";
 export { explainTable, tableCoverage } from "./src/logic/table/explain.js";
 export { replayTable } from "./src/logic/table/replay.js";
 export { HOP_ATTEMPT_CAP, HOP_MOVES, hopEngine } from "./src/logic/table/hop.table.js";
+export { LANDING_NEXT, batchOutcome, itemRefusal, landingEngine, landingOrder, repeatedReds, selectBatch } from "./src/logic/table/landing.table.js";
 export { BACKBONE_RULES, BACKBONE_STATES, BACKBONE_TABLE, JOB_KINDS, servesRule } from "./src/logic/table/backbone.table.js";
 export { OUTBOX_LEGAL, OUTBOX_MOVES, OUTBOX_RULES, OUTBOX_STATES, OUTBOX_TABLE } from "./src/logic/table/outbox.table.js";
 export { breakOne, seeded, tableCases } from "./src/logic/table/cases.js";
@@ -24,6 +25,8 @@ export { RULES_VERSION, STATES, MOVE_RULES, RULES, newItem, leaseLive, unmetWait
 export { lifecycleFact, replay, compareFinal, readinessCounts, topKinds, trial } from "./src/logic/lifecycle/replay.js";
 export { LIFECYCLE_KINDS, readLifecycleLog } from "./src/io/lifecycle-log.js";
 export { listMoveTables, readMoveRecords } from "./src/io/table/read.js";
+export { readLandingMoveRecords } from "./src/io/table/landing-records.js";
+export { boardLandingEngine } from "./src/io/table/board-landing.js";
 export { explainReport, loadMoveTable, replayReport } from "./src/io/table/report.js";
 export { LEASE_MOVES, leaseEngine } from "./src/logic/table/lease.table.js";
 export { GATE_JOB_KINDS, JOB_QUEUE_MOVES, jobEngine, releaseBackoff } from "./src/logic/table/job.table.js";
