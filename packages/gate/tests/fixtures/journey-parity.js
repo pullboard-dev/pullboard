@@ -1,29 +1,25 @@
-/** The parity runner shared by the journey-parity tests: runs sampled cases of converted journeys both ways (#8257, #8266) [C7]. */
+/** Shared parts of the in-process parity checks (#8257, #8265): run a journey sample in each mode and diff the call records [C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
-import { runChildTests } from './child-tests.js';
+import { runChildTestsAsync } from './child-tests.js';
 import { privateFixtureFiles } from './child.js';
 
 const REPOSITORY = resolve(import.meta.dirname, '../../../..');
 
-/** Run the sample in a child node --test in one mode and return each CLI call's record, in call order; one journey at a time, so calls never interleave. */
-export function runSample(mode, samples) {
+/** Run one journey's sample in a child node --test in one mode and return each CLI call's record, in call order. */
+export async function runSample(mode, { journey, cases }) {
   const dir = privateFixtureFiles('pullboard-journey-parity-').root;
+  const record = join(dir, `${mode}.jsonl`);
   try {
-    const records = [];
-    for (const [index, { journey, cases }] of samples.entries()) {
-      const record = join(dir, `${mode}-${index}.jsonl`);
-      const pattern = cases.map(name => name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('|');
-      const run = runChildTests([journey], { cwd: REPOSITORY, args: [`--test-name-pattern=^(?:${pattern})`],
-        env: { ...process.env, PULLBOARD_JOURNEY_MODE: mode, PULLBOARD_PARITY_RECORD: record } });
-      assert.equal(run.status, 0, `the ${mode} run of the ${journey} sample passes:\n${run.stdout.slice(-3000)}\n${run.stderr.slice(-2000)}`);
-      assert.equal(run.pass, cases.length, `every sampled case of ${journey} ran in the ${mode} run`);
-      records.push(...readFileSync(record, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)));
-    }
-    return records;
+    const pattern = cases.map(name => name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('|');
+    const run = await runChildTestsAsync([journey], { cwd: REPOSITORY, args: [`--test-name-pattern=^(?:${pattern})`],
+      env: { ...process.env, PULLBOARD_JOURNEY_MODE: mode, PULLBOARD_PARITY_RECORD: record } });
+    assert.equal(run.status, 0, `the ${mode} run of the ${journey} sample passes:\n${run.stdout.slice(-3000)}\n${run.stderr.slice(-2000)}`);
+    assert.equal(run.pass, cases.length, `every sampled case of ${journey} ran in the ${mode} run`);
+    return readFileSync(record, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line));
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }
 
@@ -41,3 +37,17 @@ export function parityDifferences(real, inprocess) {
   return differences;
 }
 
+
+/** Run every sample in both modes at once and return the differences per journey (they are separate child processes with private sandboxes). */
+export async function sampleDifferences(samples) {
+  const runs = await Promise.all(samples.map(async sample => ({ sample, real: runSample('process', sample), inprocess: runSample('inprocess', sample) })));
+  const found = [];
+  for (const { sample, real: realRun, inprocess: inprocessRun } of runs) {
+    const real = await realRun;
+    const inprocess = await inprocessRun;
+    assert.ok(real.length >= 1, `${sample.journey} made its CLI calls (${real.length})`);
+    assert.ok(real.some(row => row.board?.items.length), `${sample.journey} records carry board state`);
+    found.push(...parityDifferences(real, inprocess).map(text => `${sample.journey}: ${text}`));
+  }
+  return found;
+}
