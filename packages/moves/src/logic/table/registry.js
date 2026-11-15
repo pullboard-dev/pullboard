@@ -30,3 +30,36 @@ export function tableTestRegistryProblems(files, records) {
   for (const id of Object.keys(records)) if (!seen.has(id)) problems.push(`registry.json: record ${id} names no generated test`);
   return problems;
 }
+
+/**
+ * Report each move-table row that a registry record outside the moves cell also claims, so a journey's move-rule assertion shows up as a duplicate claim.
+ * Report only: it returns findings and never refuses. Why: the table test owns the row; a second claim elsewhere is the journey assertion to remove.
+ *
+ * @param {{ cell: string, records: Record<string, { proves?: { move?: string } }> }[]} registries every cell's registry records, each with its cell name ("moves" is the owner)
+ * @returns {{ row: string, owner: string, duplicates: string[] }[]} one finding per owned row claimed outside the moves cell, sorted by row; IDs are `<cell>:<test id>` for the outsiders
+ */
+export function duplicateMoveClaims(registries) {
+  const owners = new Map();
+  for (const { cell, records } of registries) {
+    if (cell !== 'moves') continue;
+    for (const [id, record] of Object.entries(records)) {
+      const row = record?.proves?.move;
+      if (typeof row === 'string' && MOVE.test(row) && !owners.has(row)) owners.set(row, id);
+    }
+  }
+  const found = new Map();
+  for (const { cell, records } of registries) {
+    if (cell === 'moves') continue;
+    for (const [id, record] of Object.entries(records)) {
+      const row = record?.proves?.move;
+      if (typeof row !== 'string' || !MOVE.test(row)) continue;
+      const [table] = row.split(':');
+      if (!owners.has(row) && !owners.has(`${table}:*`)) continue;
+      found.set(row, [...(found.get(row) ?? []), `${cell}:${id}`]);
+    }
+  }
+  return [...found].sort(([a], [b]) => a.localeCompare(b)).map(([row, duplicates]) => {
+    const table = row.split(':')[0];
+    return { row, owner: owners.get(row) ?? owners.get(`${table}:*`), duplicates: duplicates.sort() };
+  });
+}
