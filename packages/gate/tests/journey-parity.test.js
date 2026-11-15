@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/journeys/spec/e2e/gates.test.js */
+/** @pullboard-test-input apps/cli/journeys/spec/e2e/gates.test.js apps/cli/journeys/verify/trunk.test.js apps/cli/journeys/engine/merged.test.js apps/cli/journeys/gate/slot.test.js */
 /**
  * The parity check for journeys moved in-process (#8257, U149): the gate runs a sample of one converted journey's cases twice,
  * once with every CLI call a real process and once in-process, and fails on any difference in exit code, JSON result or
@@ -14,24 +14,40 @@ import { runChildTests } from './fixtures/child-tests.js';
 import { privateFixtureFiles } from './fixtures/child.js';
 
 const REPOSITORY = resolve(import.meta.dirname, '../../..');
-/** The converted journey, and the cases of it the sample runs both ways. */
-const JOURNEY = 'apps/cli/journeys/spec/e2e/gates.test.js';
-const SAMPLE = [
-  'unsupported spec grammar keeps claim, refreeze, submit and verify refusals typed',
-  'pullboard worktree makes a joined worktree for a lane in one command',
+/** The converted journeys, and the cases of each the sample runs both ways (#8266 added verify/trunk, engine/merged and gate/slot). */
+const SAMPLES = [
+  { journey: 'apps/cli/journeys/spec/e2e/gates.test.js', cases: [
+    'unsupported spec grammar keeps claim, refreeze, submit and verify refusals typed',
+    'pullboard worktree makes a joined worktree for a lane in one command',
+  ] },
+  { journey: 'apps/cli/journeys/verify/trunk.test.js', cases: [
+    '[B34,P2] add --check reports an unavailable baseline for a detached coordinator',
+    '[B34,V6] conflicting submit names files and refuses without changing any checkout or index',
+  ] },
+  { journey: 'apps/cli/journeys/engine/merged.test.js', cases: [
+    '[R3,R1] merged refuses the root and deleted side-branch commits',
+    '[R3,R1] --note records an otherwise uncarried merge receipt',
+  ] },
+  { journey: 'apps/cli/journeys/gate/slot.test.js', cases: [
+    'submit needs a clean tree, nothing untracked, and the gate green at HEAD',
+  ] },
 ];
 
-/** Run the sample in a child node --test in one mode and return each CLI call's record, in call order. */
+/** Run the sample in a child node --test in one mode and return each CLI call's record, in call order; one journey at a time, so calls never interleave. */
 function runSample(mode) {
   const dir = privateFixtureFiles('pullboard-journey-parity-').root;
-  const record = join(dir, `${mode}.jsonl`);
   try {
-    const pattern = SAMPLE.map(name => name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('|');
-    const run = runChildTests([JOURNEY], { cwd: REPOSITORY, args: [`--test-name-pattern=^(?:${pattern})`],
-      env: { ...process.env, PULLBOARD_JOURNEY_MODE: mode, PULLBOARD_PARITY_RECORD: record } });
-    assert.equal(run.status, 0, `the ${mode} run of the sample passes:\n${run.stdout.slice(-3000)}\n${run.stderr.slice(-2000)}`);
-    assert.equal(run.pass, SAMPLE.length, `every sampled case ran in the ${mode} run`);
-    return readFileSync(record, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line));
+    const records = [];
+    for (const [index, { journey, cases }] of SAMPLES.entries()) {
+      const record = join(dir, `${mode}-${index}.jsonl`);
+      const pattern = cases.map(name => name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('|');
+      const run = runChildTests([journey], { cwd: REPOSITORY, args: [`--test-name-pattern=^(?:${pattern})`],
+        env: { ...process.env, PULLBOARD_JOURNEY_MODE: mode, PULLBOARD_PARITY_RECORD: record } });
+      assert.equal(run.status, 0, `the ${mode} run of the ${journey} sample passes:\n${run.stdout.slice(-3000)}\n${run.stderr.slice(-2000)}`);
+      assert.equal(run.pass, cases.length, `every sampled case of ${journey} ran in the ${mode} run`);
+      records.push(...readFileSync(record, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)));
+    }
+    return records;
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }
 
