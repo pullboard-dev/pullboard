@@ -141,6 +141,7 @@ const ROWS = [
   ['claims.releaseCooldownMinutes', 'Release cooldown', 'After a seat releases an item, next offers it other work for this many minutes unless nothing else is open.', 'Claims', 'minutes'],
   ['claims.perSeat', 'Live claims per seat', 'How many build claims one seat may hold at once; blank lets the board set N = clamp(1, 5, floor(free test-run slots / live seats)), counting local cores when no runner serves.', 'Claims', 'count'],
   ['claims.releaseGone', 'Release claims of gone agents', 'Claims held by agents that have disappeared are released automatically.', 'Claims', 'on/off'],
+  ['pin.signed', 'Require a signed tooling pin', 'On, no run uses a tooling pin file that is unsigned or edited after it was signed; off, the pin file is read as written.', 'Checks', 'on/off'],
   ['claim.returnToBoard', 'Return reds to the board', 'A red or refused queued gate releases the builder claim at once, so any free seat of the lane and route takes it.', 'Claims', 'on/off'],
   ['modelTiers', 'Model routes', 'Which route a seat serves, light, mid or strong, from a fragment of its model name; an unmatched model serves mid.', 'Claims', 'list'],
   ['claim.reopenFirstRefusalMinutes', 'Builder repair window', 'After a reopen, the original builder gets this long to repair it first; 0 turns it off.', 'Claims', 'minutes'],

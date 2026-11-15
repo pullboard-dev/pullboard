@@ -43,6 +43,21 @@ export function gateNamedFile(clause, gateFiles, item = null) {
   return [...gateFiles].find(file => file && (text.includes(file.toLowerCase()) || text.includes(file.split('/').pop().toLowerCase()))) ?? null;
 }
 
+/** A test file path or base name a clause's text quotes, such as `web/page.test.js`. */
+const QUOTED_TEST = /[\w./-]+\.(?:test|spec)\.[cm]?js\b/u;
+
+/**
+ * The gate-run test files that tick a [test] clause: the file it names, or, when its text names no test file, the item
+ * check's own files, which every gate runs. [] when neither applies. Why: most bars say "X passes on a runner [test]" and
+ * keep the file in the check line, so submit refused CLAUSE_UNTICKED and builders ran the check before the gate ran it
+ * again (#6675) [C7].
+ */
+export function gateCoveredFiles(clause, gateFiles, item = null) {
+  const named = gateNamedFile(clause, gateFiles, item);
+  if (named) return [named];
+  return clause.kind === 'test' && !QUOTED_TEST.test(clause.text) ? checkTestFiles(item?.item_check) : [];
+}
+
 /**
  * The latest tick each clause carries, read from ordinary note facts under the bar now in force. The holder's ticks count; an
  * earlier holder's count only when they cite `head`, the commit being submitted. A tick recorded before the criterion was edited
@@ -123,7 +138,7 @@ export function clauseInspectionProblem(item, thread, { greenFiles = new Set(), 
     const tick = ticks.get(clause.number);
     const label = `clause ${clause.number} (${clause.text.slice(0, 80)})`;
     const proven = () => RUN_EVIDENCE.test(tick.evidence) || [...greenFiles].some(file => file && tick.evidence.includes(file));
-    if (!tick && gateNamedFile(clause, new Set([...gateFiles, ...greenFiles]), item)) continue;
+    if (!tick && gateCoveredFiles(clause, new Set([...gateFiles, ...greenFiles]), item).length) continue;
     if (!tick) { problems.push(`${label} has no evidence`); if (clause.kind === null || clause.kind === 'test') testClauses.push(clause); }
     else if (clause.kind && clause.kind !== tick.kind) {
       problems.push(`${label} needs ${clause.kind} evidence, not ${tick.kind}${tick.kind === 'reasoning' ? ' (the weakest kind)' : ''}`);
@@ -211,10 +226,12 @@ export function gateClauseTickNotes(item, thread, { gateFiles, outcomes, head })
   const notes = [];
   for (const clause of criterionClauses(item.item_criterion)) {
     if (ticks.has(clause.number)) continue;
-    const file = gateNamedFile(clause, gateFiles, item);
-    if (!file) continue;
-    const passed = outcomes.filter(row => row.file === file && row.passed && !row.skipped).map(row => row.name);
-    if (!passed.length || outcomes.some(row => row.file === file && !row.passed && !row.skipped)) continue;
+    const files = gateCoveredFiles(clause, gateFiles, item);
+    if (!files.length) continue;
+    const ran = row => files.includes(row.file) && !row.skipped;
+    const passed = outcomes.filter(row => ran(row) && row.passed).map(row => row.name);
+    if (files.some(file => !outcomes.some(row => ran(row) && row.file === file && row.passed)) || outcomes.some(row => ran(row) && !row.passed)) continue;
+    const file = files.join(' ');
     const listed = passed.slice(0, NAMED_CASES).join('; ');
     notes.push(`clause ${clause.number} [test]: gate run of ${file} green at ${head.slice(0, 12)}: ${passed.length} case${passed.length === 1 ? '' : 's'} passed (${listed}${passed.length > NAMED_CASES ? '; ...' : ''})`);
   }
@@ -227,8 +244,8 @@ export function clauseInspectionSummary(item, thread, { gateFiles = new Set(), h
   if (!clauses.length) return null;
   const ticks = clauseTicks(thread, item.item_owner, { criterion: item.item_criterion, head });
   return `inspection, clause by clause: ${clauses.map(clause => {
-    const named = ticks.has(clause.number) ? null : gateNamedFile(clause, gateFiles, item);
-    const tick = named ? { kind: 'test', evidence: `ticked by the gate run of ${named}` } : ticks.get(clause.number);
+    const named = ticks.has(clause.number) ? [] : gateCoveredFiles(clause, gateFiles, item);
+    const tick = named.length ? { kind: 'test', evidence: `ticked by the gate run of ${named.join(' ')}` } : ticks.get(clause.number);
     return `${clause.number}. ${clause.text.slice(0, 80)} -> ${tick.kind}${tick.kind === 'reasoning' ? ' (weakest evidence)' : ''}: ${tick.evidence}`;
   }).join(' | ')}`;
 }

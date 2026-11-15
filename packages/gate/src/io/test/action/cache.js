@@ -303,8 +303,10 @@ export async function testActionKeys(root, { commit = 'HEAD', options = [], env 
   // Store upkeep reads every key memo and result record; a runner dispatch never pays it (maintain: false) [C7].
   if (maintain) maintainPartsStore(store, env);
   return withDeclaredValues(await memoizedActionKeys(store, identity, files, async () => {
-  const { testClosures, codeMapGraph } = await import('../../affected/tests.js');
-  const { closures, modules, blobs, reach } = testClosures(root, commit, priorGraph(root, env, codeMapGraph));
+  const { testClosures, codeMapGraph, scopedTestClosures } = await import('../../affected/tests.js');
+  // An explicit file list closes only what those files and the runner reach; the whole-tree graph is the fallback [C7,#8140].
+  const { closures, modules, blobs, reach } = (files && scopedTestClosures(root, commit, files, RUNNER_INPUTS))
+    || testClosures(root, commit, priorGraph(root, env, codeMapGraph));
   const index = treeIndex(blobs);
   // A test runs inside the harness, so everything the harness reaches (its isolation, dispatch, admission
   // and reporting modules) is an input of every result, as well as the runner files themselves.

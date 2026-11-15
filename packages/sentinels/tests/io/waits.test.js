@@ -206,6 +206,23 @@ test('a gate with no span progress past five minutes and a landing run past fift
   assert.equal(m.board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE event_kind = 'shout'").get().n >= 1, true, 'the run is recorded on the board');
 });
 
+test('clause 1 [test]: a runner whose worker is running a job is busy, not unavailable, so no runner-unavailable row is judged or filed [C7,#7626]', async t => {
+  const m = machine(t);
+  const since = new Date(Date.now() - 20 * MINUTE).toISOString();
+  const file = join(m.paths.machineHome, 'resources.sqlite');
+  resourceDatabase(file, [], []);
+  const db = new DatabaseSync(file);
+  for (const host of ['busy@10.0.0.53', 'idle@10.0.0.54']) db.prepare('INSERT INTO runner_unavailable (host, since, detail) VALUES (?, ?, ?)').run(host, since, 'CLEANUP_UNVERIFIED');
+  db.close();
+  const ps = ['  500   90  01:00 /u/bin/node /Users/example/.pullboard-runner/runtime/abc/src/runner-worker.js',
+    '  501  500     00:50 /u/bin/node /Users/example/.pullboard-runner/jobs/job-1/checkout/test/a.test.js'].join('\n');
+  const exec = (command, args, options, done) => done(null, args.includes('busy@10.0.0.53') ? `${ps}\n__CWD__\n` : '\n__CWD__\n');
+  const snapshot = await m.snapshot({ hosts: ['busy@10.0.0.53', 'idle@10.0.0.54'], readers: { runners: (hosts, now, options) => readRunnerJobs(hosts, now, { ...options, exec }) } });
+  const down = snapshot.rows.filter(entry => entry.surface === 'runner-unavailable');
+  assert.deepEqual(down.map(entry => entry.holder), ['idle@10.0.0.54']);
+  assert.equal(down[0].breach, true);
+});
+
 test('a runner job past twenty minutes is filed with its host, job folder and test [C7]', async t => {
   const m = machine(t);
   const ps = ['  500   90  11:32:22 /u/bin/node /Users/example/.pullboard-runner/runtime/abc/src/runner-worker.js',
@@ -359,14 +376,14 @@ test('clause 2: the hold read from #6121\'s job ends within budget: its age coun
   assert.ok(gate.ageMs < 60_000, 'it is a renewal old, not the six minutes since the claim');
 });
 
-test('clause 1: a runner unavailable for 279 s is inside the audited runnerUnavailableMs row; one past 300 s still breaches [C7]', () => {
+test('clause 1: a runner unavailable inside waiterMs is no breach, one past it is, and no audited runnerUnavailableMs row exists [C7]', () => {
   const budgets = waitBudgets();
-  assert.equal(budgets.runnerUnavailableMs, 300_000);
+  assert.equal(budgets.runnerUnavailableMs, undefined, 'the audited five-minute row is gone');
   assert.equal(budgets.waiterMs, 120_000, 'the handoff queue keeps its two-minute budget');
   const row = ageMs => ({ surface: 'runner-unavailable', key: 'h', holder: 'h', pid: null, ageMs, waiters: [] });
-  const [inside, past] = judgeWaits([row(279_000), row(301_000)], budgets);
+  const [inside, past] = judgeWaits([row(119_000), row(121_000)], budgets);
   assert.equal(inside.breach, false);
-  assert.equal(inside.budgetName, 'runnerUnavailableMs');
+  assert.equal(inside.budgetName, 'waiterMs');
   assert.equal(past.breach, true);
 });
 
@@ -378,12 +395,6 @@ test('a board write held 5.1 s is inside the audited boardWriteMs row; one past 
   assert.equal(board.breach, false);
   assert.equal(slow.breach, true);
   assert.equal(resource.breach, true, 'the resource write queue keeps databaseMs');
-});
-
-test('clause 2: the 147 s, 155 s and 279 s runner-unavailable episodes read from #6777, #6779 and #6800 each end within the budget [C7]', () => {
-  const budgets = waitBudgets();
-  const rows = [147_000, 155_000, 279_000].map(ageMs => ({ surface: 'runner-unavailable', key: 'h', holder: 'h', pid: null, ageMs, waiters: [] }));
-  assert.deepEqual(judgeWaits(rows, budgets).map(row => row.breach), [false, false, false]);
 });
 
 test('a wait key is repo-relative, so a checkout path with a space never reaches a filed bar [C7,#6763]', () => {

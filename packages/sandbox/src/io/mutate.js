@@ -34,10 +34,25 @@ const isTest = (file) => /\.test\.(?:js|mjs)$/u.test(file);
 /** Whether a cell-relative path is source a fault may be seeded into: a non-test .js or .mjs file. */
 const isSource = (file) => /\.(?:js|mjs)$/u.test(file) && !isTest(file);
 
-/** The environment a nested `node --test` needs: the parent's test-runner markers would make it report to the parent. */
-function childEnv() {
-  const env = { ...process.env };
+/**
+ * The environment a nested `node --test` needs: the parent's test-runner markers would make it report to the parent.
+ * Why the browser markers go too: a runner job that did not declare a browser marks itself slot none and puts a guard in
+ * NODE_OPTIONS, so every Chrome journey it started failed BROWSER_UNDECLARED before any fault was seeded (#8137). The child
+ * is its own test file, and the mutation run starts one at a time, so it takes no marker from a parent that held no lease.
+ *
+ * @param {NodeJS.ProcessEnv} [from] the parent environment
+ * @returns {NodeJS.ProcessEnv}
+ */
+export function childEnv(from = process.env) {
+  const env = { ...from };
   delete env.NODE_TEST_CONTEXT;
+  if (env.PULLBOARD_TEST_BROWSER_SLOT === 'none') {
+    delete env.PULLBOARD_TEST_BROWSER_SLOT;
+    delete env.PULLBOARD_TEST_FILE;
+    const kept = String(env.NODE_OPTIONS ?? '').split(/\s+/u).filter((word) => word && !/browser\/guard\.js$/u.test(word));
+    if (kept.length) env.NODE_OPTIONS = kept.join(' ');
+    else delete env.NODE_OPTIONS;
+  }
   return env;
 }
 
@@ -96,11 +111,16 @@ function spread(list, count) {
  * @param {string} cell cell folder relative to root
  * @param {{all?: boolean, base?: string, extra?: string[], sample?: number, reach?: Record<string, string[]>}} [options] all seeds every line; base is the ref changed lines are read against;
  *   extra are root-relative test files outside the cell (such as a journey) run against each fault too; sample caps the faults seeded per source file, spread evenly;
- *   reach maps a root-relative test file to the root-relative files its imports reach, and a fault then runs only the tests that reach the seeded file
+ *   reach maps a root-relative test file to the root-relative files its imports reach, and a fault then runs only the tests that reach the seeded file;
+ *   note gets a line per phase and per test run with its seconds, for a run that must be watched;
+ *   deadline is an epoch time checked before every test run: no new fault is started after it, and a fault it cuts short is dropped and counted in `skipped`, never as caught or missed;
+ *   maxTests caps the cell tests run against one fault (those named for the seeded file first, then those reaching the fewest files); a fault that still escapes them is run by the journey, which can only lower a cell's score without it, so a cap never turns a convert into a hold; such faults are counted in `capped`;
+ *   extraLast runs the extra files only against a fault no reaching cell test caught, and re-runs the cell's other tests on a fault only an extra file caught,
+ *   so every fault's catch-or-miss by the extra files beside the cell's tests is the same as running everything, at the cost of a few runs
  * @param {{faults: Function, changedLines: Function}} seams the pure fault and diff readers, passed in because a package never imports an app
  * @returns {Promise<{cell: string, base: string, all: boolean, redBefore: string[], tests: {file: string, caught: number, total: number}[], faults: object[], caught: number, missed: number}>}
  */
-export async function mutateCell(root, cell, { all = false, base = 'main', extra = [], sample = Infinity, reach = null } = {}, { faults, changedLines }) {
+export async function mutateCell(root, cell, { all = false, base = 'main', extra = [], sample = Infinity, reach = null, extraLast = false, note = () => {}, deadline = null, maxTests = Infinity } = {}, { faults, changedLines }) {
   const name = String(cell).replace(/\\/gu, '/').replace(/^\.\//u, '').replace(/\/+$/u, '');
   const source = join(root, name);
   let stat = null;
@@ -126,33 +146,88 @@ export async function mutateCell(root, cell, { all = false, base = 'main', extra
     /** Whether a test's imports reach a seeded source; a test with no reach data is assumed to, so it still runs. */
     const outsideOf = new Set(extra);
     const covers = (test, target) => {
+      if (extraLast && outsideOf.has(test)) return true;
       const set = reaches?.get(outsideOf.has(test) ? test : `${name}/${test}`);
       return !set || set.has(`${name}/${target}`);
     };
     const seeded = plan.filter((row) => row.faults.length).map((row) => row.file);
     const needed = (test) => !reaches || seeded.some((file) => covers(test, file));
     const redBefore = [];
-    for (const file of tests) if (needed(file) && !await passes(copy, file)) redBefore.push(file);
     const tree = join(temp, 'tree');
-    const extraRed = [];
-    for (const file of extra) if (needed(file) && !await passes(tree, file)) extraRed.push(file);
-    redBefore.push(...extraRed);
-    const live = tests.filter((file) => needed(file) && !redBefore.includes(file));
-    const outside = extra.filter((file) => needed(file) && !extraRed.includes(file));
-    const run = (file) => passes(outside.includes(file) ? tree : copy, file);
-    const tally = Object.fromEntries([...live, ...outside].map((file) => [file, { file, caught: 0, total: 0 }]));
-    const results = [];
-    for (const { file, text, faults: seeds } of plan) {
-      const ours = [...live, ...outside].filter((test) => covers(test, file));
-      for (const fault of seeds) {
-        writeFileSync(join(copy, file), fault.mutated);
-        const caughtBy = [];
-        try { for (const test of ours) { tally[test].total += 1; if (!await run(test)) { caughtBy.push(test); tally[test].caught += 1; } } } finally { writeFileSync(join(copy, file), text); }
-        results.push({ file, line: fault.line, operator: fault.operator, before: fault.before, after: fault.after, caught: caughtBy.length > 0, caughtBy });
+    const outsideSet = new Set(extra);
+    const dirOf = (file) => (outsideSet.has(file) ? tree : copy);
+    /** Whether a file passes on the unmutated copy, run once and only when it first fails against a fault; a red one catches every fault and is left out. */
+    const baselines = new Map();
+    const healthy = (file) => {
+      if (!baselines.has(file)) {
+        baselines.set(file, (async () => {
+          const at = Date.now();
+          const ok = await passes(dirOf(file), file);
+          note(`  ${ok ? 'passed' : 'failed'} unmutated ${file} in ${((Date.now() - at) / 1000).toFixed(1)}s`);
+          if (!ok) redBefore.push(file);
+          return ok;
+        })());
       }
+      return baselines.get(file);
+    };
+    const candidates = [...tests.filter(needed), ...(extraLast ? [] : extra.filter(needed))];
+    const tally = Object.fromEntries([...new Set([...candidates, ...extra])].map((file) => [file, { file, caught: 0, total: 0 }]));
+    note(`${name}: ${tests.length} tests, ${plan.reduce((sum, row) => sum + row.faults.length, 0)} faults seeded in ${seeded.length} files; ${candidates.length} tests can reach one`);
+    /** Run tests against one seeded fault, one at a time, and return those that failed on it and pass unmutated. */
+    const attempt = async (file, text, fault, list) => {
+      const failed = [];
+      writeFileSync(join(copy, file), fault.mutated);
+      try {
+        for (const test of list) {
+          if (deadline && Date.now() > deadline) return null;
+          const at = Date.now();
+          const ok = await passes(dirOf(test), test);
+          tally[test].total += 1;
+          note(`  ${name} ${ok ? 'passed' : 'failed'} ${test} in ${((Date.now() - at) / 1000).toFixed(1)}s`);
+          if (!ok) failed.push(test);
+        }
+      } finally { writeFileSync(join(copy, file), text); }
+      const caughtBy = [];
+      for (const test of failed) if (await healthy(test)) { caughtBy.push(test); tally[test].caught += 1; }
+      return caughtBy;
+    };
+    const results = [];
+    // Faults are taken round-robin over the source files so a deadline leaves a spread sample, not the first files only.
+    // Files few tests reach go first and hub files (reached by most tests) last, so a deadline cuts the slow faults and not the cheap ones.
+    const fan = new Map(plan.map((row) => [row.file, candidates.filter((test) => covers(test, row.file)).length]));
+    const ordered = [...plan].sort((a, b) => fan.get(a.file) - fan.get(b.file));
+    const queue = [];
+    for (let at = 0; ordered.some((row) => at < row.faults.length); at++) for (const row of ordered) if (at < row.faults.length) queue.push({ row, fault: row.faults[at] });
+    /** At most `limit` tests, those named for the seeded file first, then those reaching the fewest files (the fewest hops away). */
+    const nearest = (list, file, limit) => {
+      if (list.length <= limit) return list;
+      const stem = file.replace(/^.*\//u, '').replace(/\.m?js$/u, '');
+      const rank = (test) => [test.includes(`/${stem}.test.`) || test.startsWith(`${stem}.test.`) ? 0 : 1, reaches?.get(`${name}/${test}`)?.size ?? Infinity];
+      return [...list].sort((a, b) => { const [x, y] = [rank(a), rank(b)]; return x[0] - y[0] || x[1] - y[1] || (a < b ? -1 : 1); }).slice(0, limit);
+    };
+    let skipped = 0;
+    let capped = 0;
+    for (const { row: { file, text }, fault } of queue) {
+      if (deadline && Date.now() > deadline) { skipped += 1; continue; }
+      const reachable = candidates.filter((test) => covers(test, file));
+      const reaching = nearest(reachable, file, maxTests);
+      if (reaching.length < reachable.length) capped += 1;
+      const caughtBy = await attempt(file, text, fault, reaching);
+      if (!caughtBy) { skipped += 1; continue; }
+      if (extraLast && !caughtBy.length) {
+        const found = await attempt(file, text, fault, extra);
+        if (!found) { skipped += 1; continue; }
+        caughtBy.push(...found);
+        if (found.length) {
+          const others = await attempt(file, text, fault, candidates.filter((test) => !reaching.includes(test) && !outsideSet.has(test) && !(reachable.includes(test) && maxTests < reachable.length)));
+          if (!others) { skipped += 1; continue; }
+          caughtBy.push(...others);
+        }
+      }
+      results.push({ file, line: fault.line, operator: fault.operator, before: fault.before, after: fault.after, caught: caughtBy.length > 0, caughtBy });
     }
     const caught = results.filter((row) => row.caught).length;
-    return { cell: name, base: all ? null : base, all, redBefore, tests: Object.values(tally), faults: results, caught, missed: results.length - caught };
+    return { cell: name, base: all ? null : base, all, redBefore, tests: Object.values(tally).filter((row) => row.total > 0 && !redBefore.includes(row.file)), faults: results, caught, missed: results.length - caught, skipped, capped };
   } finally {
     rmSync(temp, { recursive: true, force: true });
   }

@@ -36,8 +36,10 @@ export async function waitsSnapshot({ paths, now = Date.now(), budgets, hosts = 
   const machine = readPools(machineResources, 'machine', now, census);
   const repo = readPools(repoResources, 'repo', now, census);
   const runners = await (readers.runners ?? readRunnerJobs)(hosts, now, { timeoutMs: runnerTimeoutMs });
+  // A runner whose worker is running a job right now is busy, not unavailable: a quarantine row it still carries is no wait (#7626).
+  const busyHosts = new Set(runners.rows.filter(row => row.working).map(row => row.host));
   const rows = [
-    ...repo.rows, ...machine.rows, ...machine.unavailable,
+    ...repo.rows, ...machine.rows, ...machine.unavailable.filter(row => !busyHosts.has(row.holder)),
     ...readCheckoutWriters(paths.commonDir, now, census),
     ...readBoardWriters(paths.boardFile, now, census),
     ...readResourceWriteQueue(machineResources, now, census),
