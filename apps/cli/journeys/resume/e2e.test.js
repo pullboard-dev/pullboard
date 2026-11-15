@@ -19,7 +19,8 @@ import {
 } from 'node:path';
 import {
   after,
-  test,
+  describe,
+  it,
 } from 'node:test';
 import { claudeLoopRules } from '../../../../packages/config/index.js';
 
@@ -30,6 +31,11 @@ import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { fixtureAddRoute } from '../../tests/fixtures/testkit.js';
 import { fixtureJoinRoute } from '../../tests/fixtures/testkit.js';
+/** Cases are collected, then run concurrently: each owns its sandbox, repo and machine home, so they overlap their waits instead of adding them [C7]. */
+const cases = [];
+/** Register one case; it runs inside the concurrent suite at the end of this file. */
+const test = (name, body) => cases.push([name, body]);
+
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
@@ -251,4 +257,8 @@ test('check runs the item\'s own check command, yours by default, and prints a d
   assert.equal((await box.runLocal(box.repo, 'check', '1')).code, 1, 'named, from another checkout: there the file is missing');
   assert.match((await box.runLocal(box.web, 'check', '2')).err, /NO_CHECK.*#2 has no check command/);
   assert.match((await box.runLocal(box.repo, 'help', '--all')).out, /pullboard check \[id\]/);
+});
+
+describe('resume journeys [I6,N21,V10,V11,S10,N23,C7]', { concurrency: true }, () => {
+  for (const [name, body] of cases) it(name, body);
 });

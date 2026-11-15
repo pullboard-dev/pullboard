@@ -70,9 +70,14 @@ export function tableReplayEnabled() {
   return loadMachineSettings().gate?.tableReplay === true;
 }
 
-/** Write gate hops through the fenced, compare-and-set hop row only when this machine opted in [C7,#8269]. */
+/** Write gate hops through the fenced, compare-and-set hop row unless this machine turned it off [C7,#8269,#8327]. */
 export function fencedHopEnabled() {
-  return loadMachineSettings().gate?.fencedHop === true;
+  return loadMachineSettings().gate?.fencedHop !== false;
+}
+
+/** Fail the registry check on an unregistered test only when this machine opted in; off, it reports [C7,#8374]. */
+export function registryStrictEnabled() {
+  return loadMachineSettings().tests?.registryStrict === true;
 }
 
 /** Record each move table shadow compare on the board only when this machine opted in [C7,#8376]. */

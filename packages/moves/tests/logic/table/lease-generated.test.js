@@ -58,14 +58,14 @@ const intact = (lease) => Number.isSafeInteger(lease?.generation) && lease.gener
   && (!lease.holder || lease.holder.generation === lease.generation && lease.generation >= 1)
   && [lease.holder, ...lease.line].filter(Boolean).every(valid) && new Set(tokensOf(lease)).size === tokensOf(lease).length;
 
-test('generated: every guard and outcome row of the lease table fires on some seeded case [C7,#8252]', () => {
+test('moves.lease.rows-fire: generated: every guard and outcome row of the lease table fires on some seeded case [C7,#8252]', () => {
   const fired = new Set(results.flatMap(c => (c.result.refused ? [c.result.refused.row] : c.result.via)));
   const rows = [...TABLE.guards.map(row => row.id), ...TABLE.outcomes.map(row => row.id)];
   assert.deepEqual(rows.filter(row => !fired.has(row)), []);
   assert.ok(ok.length > CASES / 4, `only ${ok.length} accepted moves`);
 });
 
-test('generated: a refusal writes nothing and names a lease code, a message and a next step; a corrupt queue refuses every known move [C7,#8252]', () => {
+test('moves.lease.refusal-writes-nothing: generated: a refusal writes nothing and names a lease code, a message and a next step; a corrupt queue refuses every known move [C7,#8252]', () => {
   for (const c of results.filter(each => each.result.refused)) {
     const { refused } = c.result;
     assert.ok(!('patch' in c.result) && !('events' in c.result), `seed ${c.seed}`);
@@ -78,7 +78,7 @@ test('generated: a refusal writes nothing and names a lease code, a message and 
   }
 });
 
-test('generated: every accepted move leaves a whole queue, the generation rising by at most one and only when the trunk changes hands [C7,#8252]', () => {
+test('moves.lease.whole-queue: generated: every accepted move leaves a whole queue, the generation rising by at most one and only when the trunk changes hands [C7,#8252]', () => {
   for (const c of ok) {
     const before = c.s.lease, after = c.result.patch.lease;
     assert.ok(intact(after), `seed ${c.seed}: ${JSON.stringify(after)}`);
@@ -89,7 +89,7 @@ test('generated: every accepted move leaves a whole queue, the generation rising
   }
 });
 
-test('generated: only the live holder renews, binds or asserts, and those moves keep the holder, the generation and the line [C7,#8252]', () => {
+test('moves.lease.live-holder-only: generated: only the live holder renews, binds or asserts, and those moves keep the holder, the generation and the line [C7,#8252]', () => {
   for (const c of ok.filter(each => HOLDER_MOVES.includes(each.move.name))) {
     const { holder } = c.s.lease;
     const timed = holder.lineage === null || Boolean(c.s.heartbeat) || c.s.legacyShared;
@@ -112,7 +112,7 @@ test('generated: only the live holder renews, binds or asserts, and those moves 
   }
 });
 
-test('generated: a release takes its token out of the line and frees the holder only at its own generation [C7,#8252]', () => {
+test('moves.lease.release-frees: generated: a release takes its token out of the line and frees the holder only at its own generation [C7,#8252]', () => {
   for (const c of ok.filter(each => each.move.name === 'release')) {
     const before = c.s.lease, after = c.result.patch.lease;
     const frees = before.holder?.token === c.move.token && before.holder.generation === c.move.generation;
@@ -122,7 +122,7 @@ test('generated: a release takes its token out of the line and frees the holder 
   }
 });
 
-test('generated: a request never steals a live trunk, keeps every live waiter in order, drops the lapsed and names its outcome truly [C7,#8252]', () => {
+test('moves.lease.request-order: generated: a request never steals a live trunk, keeps every live waiter in order, drops the lapsed and names its outcome truly [C7,#8252]', () => {
   for (const c of ok.filter(each => each.move.name === 'request')) {
     const before = c.s.lease, after = c.result.patch.lease, me = c.move.token;
     assert.equal(tokensOf(after).filter(each => each === me).length, 1, `seed ${c.seed}: the caller is in the queue once`);
@@ -139,14 +139,14 @@ test('generated: a request never steals a live trunk, keeps every live waiter in
   }
 });
 
-test('generated: each writing move records one landing_lease event that matches the queue it leaves [C7,#8252]', () => {
+test('moves.lease.event-per-move: generated: each writing move records one landing_lease event that matches the queue it leaves [C7,#8252]', () => {
   for (const c of ok.filter(each => each.move.name !== 'assert' && each.move.name !== 'inspect')) {
     const after = c.result.patch.lease;
     assert.deepEqual(c.result.events, [{ kind: 'landing_lease', action: c.move.name, token: c.move.token, holder: after.holder?.label ?? null, generation: after.generation, queued: after.line.length }], `seed ${c.seed}`);
   }
 });
 
-test('generated: the table is deterministic and reads its snapshot without changing it [C7,#8252]', () => {
+test('moves.lease.deterministic: generated: the table is deterministic and reads its snapshot without changing it [C7,#8252]', () => {
   for (const c of results.slice(0, 2000)) {
     const snapshot = structuredClone(c.s), move = structuredClone(c.move);
     assert.deepEqual(runTable(TABLE, RULES, snapshot, move), c.result, `seed ${c.seed}`);
@@ -154,7 +154,7 @@ test('generated: the table is deterministic and reads its snapshot without chang
   }
 });
 
-test('metamorphic: break any one fence fact of an accepted renew, bind or assert and it is refused LAND_LEASE_LOST [C7,#8252]', () => {
+test('moves.lease.fence-breaks: metamorphic: break any one fence fact of an accepted renew, bind or assert and it is refused LAND_LEASE_LOST [C7,#8252]', () => {
   const held = ok.filter(c => HOLDER_MOVES.includes(c.move.name));
   assert.ok(held.length > 200, `only ${held.length} accepted holder moves`);
   const breaks = {
@@ -174,7 +174,7 @@ test('metamorphic: break any one fence fact of an accepted renew, bind or assert
   }
 });
 
-test('metamorphic: change the branch, process or lineage of an accepted repeat request and it is refused LAND_LEASE_REQUEST [C7,#8252]', () => {
+test('moves.lease.repeat-request: metamorphic: change the branch, process or lineage of an accepted repeat request and it is refused LAND_LEASE_REQUEST [C7,#8252]', () => {
   const repeats = ok.filter(c => c.move.name === 'request' && [c.s.lease.holder, ...c.s.lease.line].some(each => each?.token === c.move.token && !lapsed(c.s, each)));
   assert.ok(repeats.length > 100, `only ${repeats.length} accepted repeat requests`);
   for (const c of repeats) {
@@ -184,7 +184,7 @@ test('metamorphic: change the branch, process or lineage of an accepted repeat r
   }
 });
 
-test('metamorphic: shifting every clock reading by the same amount changes no outcome, only the deadlines it writes [C7,#8252]', () => {
+test('moves.lease.clock-shift: metamorphic: shifting every clock reading by the same amount changes no outcome, only the deadlines it writes [C7,#8252]', () => {
   const shift = (s, by) => {
     const move = (each) => each && { ...each, since: iso(Date.parse(each.since) + by), until: iso(Date.parse(each.until) + by) };
     return { ...s, now: s.now + by, heartbeat: s.heartbeat && { until: iso(Date.parse(s.heartbeat.until) + by) }, lease: { ...s.lease, holder: move(s.lease.holder), line: s.lease.line.map(move) } };
@@ -198,7 +198,7 @@ test('metamorphic: shifting every clock reading by the same amount changes no ou
   }
 });
 
-test('metamorphic: a lapsed stranger anywhere in the line changes no request, and a request repeated with the same identity changes no place [C7,#8252]', () => {
+test('moves.lease.lapsed-stranger: metamorphic: a lapsed stranger anywhere in the line changes no request, and a request repeated with the same identity changes no place [C7,#8252]', () => {
   for (const c of ok.filter(each => each.move.name === 'request')) {
     const stranger = { token: token(7), branch: 'trunk', pid: 107, label: 'coordinator landing 77777777', lineage: null, since: iso(c.s.now - 9000), until: iso(c.s.now - 1) };
     for (const at of [0, c.s.lease.line.length]) {
@@ -214,7 +214,7 @@ test('metamorphic: a lapsed stranger anywhere in the line changes no request, an
   }
 });
 
-test('generated: the lease engine refuses LAND_LEASE_RULE for any lease length that is not a positive finite number, or a missing entry check [C7,#8252]', () => {
+test('moves.lease.lease-rule: generated: the lease engine refuses LAND_LEASE_RULE for any lease length that is not a positive finite number, or a missing entry check [C7,#8252]', () => {
   for (const leaseMs of [0, -1, Number.NaN, Number.POSITIVE_INFINITY, undefined, '120000']) {
     assert.throws(() => leaseEngine({ leaseMs, valid }), { code: 'LAND_LEASE_RULE' }, String(leaseMs));
   }
