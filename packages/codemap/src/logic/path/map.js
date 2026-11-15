@@ -5,7 +5,7 @@ import {
   tryGit,
 } from '../../../../git/index.js';
 import { gitExecFileSync } from '../../../../git/index.js';
-import { literalShellWords } from '../../../../kernel/light.js';
+import { literalShellWords } from '../../../../kernel/index.js';
 import { pathMapFileWords } from './map/operands.js';
 import { Refused } from '../../../../kernel/light.js';
 

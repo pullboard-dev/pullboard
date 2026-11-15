@@ -6,7 +6,7 @@
  */
 import { gitExecFileSync } from '../../../../git/light.js';
 import { Refused } from '../../../../kernel/index.js';
-import { literalShellWords } from '../../../../kernel/light.js';
+import { literalShellWords } from '../../../../kernel/index.js';
 
 /** Run git in the reviewer's checkout and return its trimmed output. */
 function git(root, args) {

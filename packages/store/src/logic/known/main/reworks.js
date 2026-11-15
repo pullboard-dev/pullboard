@@ -1,5 +1,5 @@
 /** Exact failure-to-repair links, checked before submission and again by the ordered board move [V4,B3]. */
-import { literalShellWords } from "../../../../../kernel/light.js";
+import { literalShellWords } from "../../../../../kernel/index.js";
 import { Refused } from "../../../../../kernel/light.js";
 
 /** A repair is still open until its accepted source lands; a broad spec-row match grants nothing. */
