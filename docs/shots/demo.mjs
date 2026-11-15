@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { browser, waitForDemoBoard } from './capture-browser.mjs';
 import { FIXED_TIME, isolatedEnv } from './demo-env.mjs';
 import { renderTour } from './tour-renderer.mjs';
+import { centerScroll, pagerAction } from './roadmap-steps.mjs';
 import { themeVariants } from '../img/theme.mjs';
 import { AGENT_SHELL_MARKERS } from '../../packages/kernel/index.js';
 
@@ -349,10 +350,12 @@ async function captureRoadmap(view, repo, observation) {
   })()`);
   // The release lists landed items one page at a time, so on a long release the accepted item may sit on a later page: step to it.
   await view.waitFor(`(() => {
+    const ${pagerAction.name} = ${pagerAction};
     const release = document.querySelector('[data-key="m:Demo release"]');
-    if (release.querySelector('.milestone-item[data-roadmap-key="i:#1"]')) return true;
-    release.querySelector('.roadmap-page-step:not([disabled])[data-page]:last-of-type')?.click();
-    return false;
+    const next = release.querySelector('.roadmap-page-step:not([disabled])[data-page]:last-of-type');
+    const action = ${pagerAction.name}({ keys: [...release.querySelectorAll('.milestone-item')].map(node => node.dataset.roadmapKey), target: 'i:#1', nextEnabled: !!next });
+    if (action === 'step') next.click();
+    return action === 'found';
   })()`, 'the demo release items');
   await view.evaluate(`(() => {
     const release = document.querySelector('[data-key="m:Demo release"]');
@@ -375,7 +378,9 @@ async function captureRoadmap(view, repo, observation) {
       const release = document.querySelector('[data-key="m:Demo release"]');
       const row = release.querySelector('.milestone-item[data-roadmap-key="i:#1"]');
       // On a long release the item sits far down the page; bring it into the picture before measuring and shooting.
-      row.parentElement.scrollIntoView({ block: 'center', behavior: 'instant' });
+      const ${centerScroll.name} = ${centerScroll};
+      const before = row.parentElement.getBoundingClientRect();
+      scrollTo(0, ${centerScroll.name}({ top: before.top, height: before.height, viewport: innerHeight, scrollY }));
       const rect = row.parentElement.getBoundingClientRect();
       return { theme: document.documentElement.dataset.theme, width: innerWidth, height: innerHeight,
         count: release.querySelector('.roadmap-left')?.textContent, legend: release.querySelectorAll('[data-summary-state]').length,
