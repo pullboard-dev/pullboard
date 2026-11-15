@@ -54,7 +54,8 @@ export async function mainAuditFixture(t, { initialGreen = false, requireRealGit
   mkdirSync(installed);mkdirSync(repo);mkdirSync(machine);
   // This full-audit project deliberately has only its three test files; copied documentation tests are not its suite.
   const source=fileURLToPath(SOURCE),files=packageFiles(source).filter(file=>file==='package.json'||file==='packages/gate/tests/fixtures/budgets.js'||/^(?:src|bin|packages|apps)\//u.test(file)&&!/^(?:test\/|packages\/[^/]+\/tests\/|apps\/[^/]+\/(?:tests|journeys)\/)/u.test(file));
-  for(const folder of [installed,repo])copyPackageFiles(source,folder,{files});
+  // The audited repo has no cell plan: with one, the audit worker also builds the accepted inventory of the whole source tree (about 2 minutes), work these cases do not exercise [C7].
+  copyPackageFiles(source,installed,{files});copyPackageFiles(source,repo,{files:files.filter(file=>file!=='packages/codemap/data/plan/cells.json')});
   assert.equal(existsSync(join(installed,'.git')),false);
   const env={...process.env,HOME:join(scratch,'home'),PULLBOARD_FIXTURE_BOARD:'1',PULLBOARD_HOME:join(scratch,'pullboard'),PULLBOARD_MACHINE_HOME:machine,
     GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1',GIT_AUTHOR_NAME:'Fixture',GIT_AUTHOR_EMAIL:'fixture@example.invalid',GIT_COMMITTER_NAME:'Fixture',GIT_COMMITTER_EMAIL:'fixture@example.invalid'};
