@@ -193,7 +193,7 @@ const CASES = 15_000;
 const results = Array.from({ length: CASES }, (_, seed) => { const { s, m, x } = scenario(seed + 1); return { seed: seed + 1, s, m, x, result: run(s, m) }; });
 const ok = results.filter(c => !c.result.refused);
 
-test('generated: every guard, outcome and follow-up row of the release table fires on some seeded case [C7,#8264]', () => {
+test('moves.release.rows-fire: generated: every guard, outcome and follow-up row of the release table fires on some seeded case [C7,#8264]', () => {
   const fired = new Set(results.flatMap(c => (c.result.refused ? [c.result.refused.row] : c.result.via)));
   const rows = [...TABLE.guards, ...TABLE.outcomes, ...TABLE.followups].map(row => row.id);
   assert.deepEqual(rows.filter(row => !fired.has(row)), []);
@@ -201,7 +201,7 @@ test('generated: every guard, outcome and follow-up row of the release table fir
   assert.ok(ok.length > CASES / 5, `only ${ok.length} accepted releases`);
 });
 
-test('generated: every release refuses at the guard the restated rules name, writes nothing, and carries that row\'s code and next step [C7,#8264]', () => {
+test('moves.release.refusal-rows: generated: every release refuses at the guard the restated rules name, writes nothing, and carries that row\'s code and next step [C7,#8264]', () => {
   for (const c of results) {
     const row = firstRefusal(c.s, c.m), { refused } = c.result;
     assert.equal(refused?.row ?? null, row, `seed ${c.seed}`);
@@ -215,12 +215,12 @@ test('generated: every release refuses at the guard the restated rules name, wri
   }
 });
 
-test('generated: each accepted release writes the patch, events and follow-ups the restated rule gives [C7,#8264]', () => {
+test('moves.release.accepted-writes: generated: each accepted release writes the patch, events and follow-ups the restated rule gives [C7,#8264]', () => {
   for (const c of ok) assert.deepEqual(c.result, expected(c.s, c.m, c.x), `seed ${c.seed}`);
   for (const via of ['route-calibration', 'released-twice']) assert.ok(ok.filter(c => c.result.via.includes(via)).length > 20, via);
 });
 
-test('generated: the table is deterministic and reads its snapshot without changing it [C7,#8264]', () => {
+test('moves.release.deterministic: generated: the table is deterministic and reads its snapshot without changing it [C7,#8264]', () => {
   for (const c of results.slice(0, 2000)) {
     const snapshot = structuredClone(c.s), move = structuredClone(c.m);
     assert.deepEqual(runTable(TABLE, RULES, snapshot, move), c.result, `seed ${c.seed}`);
@@ -228,7 +228,7 @@ test('generated: the table is deterministic and reads its snapshot without chang
   }
 });
 
-test('metamorphic: break one fact of an accepted release and it refuses with that fact\'s code [C7,#8264]', () => {
+test('moves.release.fact-breaks: metamorphic: break one fact of an accepted release and it refuses with that fact\'s code [C7,#8264]', () => {
   const breaks = {
     NOT_YOUR_CHECKOUT: (c) => [{ ...c.s, io: { checkoutOwner: 'session-b' } }, c.m], NOT_JOINED: (c) => [{ ...c.s, actor: { ...c.s.actor, joined: false } }, c.m],
     RELEASE_REASON: (c) => [c.s, { ...c.m, reason: 'NOPE' }], NO_ITEM: (c) => [{ ...c.s, item: null }, c.m],
@@ -243,7 +243,7 @@ test('metamorphic: break one fact of an accepted release and it refuses with tha
   }
 });
 
-test('metamorphic: an unrelated item, a stale-only fact on an ordinary release, or another first-refusal builder on a held claim changes no outcome [C7,#8264]', () => {
+test('moves.release.unrelated-facts: metamorphic: an unrelated item, a stale-only fact on an ordinary release, or another first-refusal builder on a held claim changes no outcome [C7,#8264]', () => {
   for (const c of results.filter(each => each.s.item && each.s.item.status !== 'open').slice(0, 5000)) {
     const same = (s, m) => assert.deepEqual(run(s, m), c.result, `seed ${c.seed}`);
     same({ ...c.s, items: { ...c.s.items, 50: { status: 'withdrawn', after: [99] } } }, c.m);
@@ -252,7 +252,7 @@ test('metamorphic: an unrelated item, a stale-only fact on an ordinary release, 
   }
 });
 
-test('generated: the release engine refuses RELEASE_TABLE_INPUTS without a reason list and a stale-limit rule [C7,#8264]', () => {
+test('moves.release.table-inputs: generated: the release engine refuses RELEASE_TABLE_INPUTS without a reason list and a stale-limit rule [C7,#8264]', () => {
   const staleLimits = () => ({ claim: 1, blocker: 1 });
   const boards = [undefined, {}, { reasons: [], staleLimits }, { reasons: 'BLOCKED', staleLimits }, { reasons: KNOWN }, { reasons: KNOWN, staleLimits: 'fn' }];
   for (const board of boards) assert.throws(() => releaseEngine(board), { code: 'RELEASE_TABLE_INPUTS' }, JSON.stringify(board));

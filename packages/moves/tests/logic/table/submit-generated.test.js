@@ -252,14 +252,14 @@ function outcome({ table, s, m, engine: { limit, infra } }) {
 }
 const expect = (c) => { const first = guards(c.table, c.s, c.m).find(([, refuses]) => refuses()); return first ? { row: first[0] } : outcome(c); };
 
-test('generated: every guard, outcome and follow-up row of the five submit tables fires on some seeded case [C7,#8264]', () => {
+test('moves.submit.rows-fire: generated: every guard, outcome and follow-up row of the five submit tables fires on some seeded case [C7,#8264]', () => {
   const fired = new Set(results.flatMap(c => (c.result.refused ? [c.result.refused.row] : c.result.via).map(row => `${c.table}:${row}`)));
   const rows = NAMES.flatMap(name => ['guards', 'outcomes', 'followups'].flatMap(kind => ENGINES[0].tables[name][kind].map(row => `${name}:${row.id}`)));
   assert.deepEqual(rows.filter(row => !fired.has(row)), []);
   for (const name of NAMES) assert.ok(ok.filter(c => c.table === name).length > CASES / 25, `${name}: too few accepted moves`);
 });
 
-test('generated: each move does what the rules restated here say: the first broken guard refuses, else the outcome row, patch, events, record and renewal [C7,#8264]', () => {
+test('moves.submit.rule-restated: generated: each move does what the rules restated here say: the first broken guard refuses, else the outcome row, patch, events, record and renewal [C7,#8264]', () => {
   for (const c of results) {
     const want = expect(c);
     if (want.row) { assert.equal(c.result.refused?.row, want.row, `seed ${c.seed} ${c.table}`); continue; }
@@ -269,7 +269,7 @@ test('generated: each move does what the rules restated here say: the first brok
   }
 });
 
-test('generated: a refusal writes nothing and carries its row\'s code, the shell\'s or its own words, and the next step SUBMIT_NEXT gives [C7,#8264]', () => {
+test('moves.submit.refusal-writes-nothing: generated: a refusal writes nothing and carries its row\'s code, the shell\'s or its own words, and the next step SUBMIT_NEXT gives [C7,#8264]', () => {
   for (const c of results.filter(each => each.result.refused)) {
     const { refused } = c.result, row = c.engine.tables[c.table].guards.find(each => each.id === refused.row);
     assert.ok(!('patch' in c.result) && !('events' in c.result), `seed ${c.seed}`);
@@ -284,7 +284,7 @@ test('generated: a refusal writes nothing and carries its row\'s code, the shell
   }
 });
 
-test('generated: the rows mark io, deferred and outcome-recording rules as the command reads them [C7,#8264]', () => {
+test('moves.submit.row-marks: generated: the rows mark io, deferred and outcome-recording rules as the command reads them [C7,#8264]', () => {
   const { tables } = ENGINES[0], cut = tables.SUBMIT.guards.findIndex(row => row.id === 'correction-refrozen');
   for (const name of NAMES) {
     for (const [i, row] of tables[name].guards.entries()) {
@@ -294,7 +294,7 @@ test('generated: the rows mark io, deferred and outcome-recording rules as the c
   }
 });
 
-test('generated: the tables are deterministic and read the snapshot and move without changing them [C7,#8264]', () => {
+test('moves.submit.deterministic: generated: the tables are deterministic and read the snapshot and move without changing them [C7,#8264]', () => {
   for (const c of results.slice(0, 2000)) {
     const snapshot = structuredClone(c.s), move = structuredClone(c.m);
     assert.deepEqual(runTable(c.engine.tables[c.table], c.engine.rules, snapshot, move), c.result, `seed ${c.seed}`);
@@ -302,7 +302,7 @@ test('generated: the tables are deterministic and read the snapshot and move wit
   }
 });
 
-test('generated: the engine refuses SUBMIT_TABLE_INPUTS without a whole retry limit and iterable codes, and a cause keeps its code or bounded words [C7,#8264]', () => {
+test('moves.submit.table-inputs: generated: the engine refuses SUBMIT_TABLE_INPUTS without a whole retry limit and iterable codes, and a cause keeps its code or bounded words [C7,#8264]', () => {
   for (const board of [{ retryLimit: 0, infrastructureCodes: [] }, { retryLimit: 1.5, infrastructureCodes: [] }, { retryLimit: '2', infrastructureCodes: [] }, { retryLimit: 2 }, { retryLimit: 2, infrastructureCodes: 7 }, null]) {
     assert.throws(() => submitEngine(board), { code: 'SUBMIT_TABLE_INPUTS' }, JSON.stringify(board));
   }
@@ -311,7 +311,7 @@ test('generated: the engine refuses SUBMIT_TABLE_INPUTS without a whole retry li
     [{ type: 'flake', code: 'FLAKE' }, { type: 'other', text: 'GATE_RED', code: 'GATE_RED' }, { type: 'other', text: 'No structured cause was supplied' }, { type: 'other', text: LONG.slice(0, 4000), code: 'X' }]);
 });
 
-test('metamorphic: break one fact of an accepted submit, commit, outcome or hand-off move and it refuses with that fact\'s code [C7,#8264]', () => {
+test('moves.submit.fact-breaks: metamorphic: break one fact of an accepted submit, commit, outcome or hand-off move and it refuses with that fact\'s code [C7,#8264]', () => {
   const item = (c, fields) => ({ s: { ...c.s, item: { ...c.s.item, ...fields } } }), edit = { id: 99, kind: 'edit', detail: { pendingRefreeze: ['check'] } };
   const heads = (c) => ({ s: { ...c.s, rejects: [{ commit: c.m.commit ?? c.s.io.head.commit, digest: c.s.item.frozenDigest }] } });
   const common = { HEAD_NOT_NEW: heads, CHILDREN_OPEN: c => ({ s: { ...c.s, children: [{ status: 'claimed' }] } }), OUTSIDE_NATIVE_BUILD: c => item(c, { outside: 'pull-request' }),
@@ -329,7 +329,7 @@ test('metamorphic: break one fact of an accepted submit, commit, outcome or hand
   }
 });
 
-test('clause 1: a submit refused by a red gate carries the code GATE_RED, not io:gate [C7,#8329]', () => {
+test('moves.submit.gate-red-code: clause 1: a submit refused by a red gate carries the code GATE_RED, not io:gate [C7,#8329]', () => {
   const reds = results.filter(c => c.table === 'COMMIT' && !c.result.refused && c.s.item);
   assert.ok(reds.length > 0);
   for (const c of reds) {
@@ -338,7 +338,7 @@ test('clause 1: a submit refused by a red gate carries the code GATE_RED, not io
   }
 });
 
-test('metamorphic: an unrelated board event, reject, receipt or done child changes no outcome or refusal [C7,#8264]', () => {
+test('moves.submit.unrelated-events: metamorphic: an unrelated board event, reject, receipt or done child changes no outcome or refusal [C7,#8264]', () => {
   for (const c of results.filter(each => each.s.item).slice(0, 6000)) {
     const s = { ...c.s, history: [...c.s.history, { id: 100, kind: 'note', detail: {} }], rejects: [...c.s.rejects, { commit: 'f'.repeat(40), digest: c.s.item.frozenDigest }],
       receipts: [...c.s.receipts, { kind: 'verify', seat: 'other' }], children: [...c.s.children, { status: 'accepted' }] };
