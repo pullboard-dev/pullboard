@@ -94,6 +94,6 @@ test('clause 1: no refusal reads a mutation score, so a score of 0 cannot block 
   walk(join(here, 'apps', 'cli', 'src'));
   walk(join(here, 'packages'));
   const names = readers.map((file) => file.slice(here.length));
-  assert.deepEqual(names.filter((name) => !/(?:logic\/mutate\/score|commands\/mutate|commands\/show)\.js$/u.test(name)), [], 'only the score, mutate and show files mention it');
+  assert.deepEqual(names.filter((name) => !/(?:logic\/mutate\/score|commands\/mutate|commands\/show|io\/mutate\/journey-check|logic\/test\/journey-check|io\/test\/journey-check)\.js$/u.test(name)), [], 'only the score, mutate, show and journey-check files mention it (journey-check reports and retags tags, it refuses nothing, since 2a4a65f1b7)');
   for (const name of names) assert.doesNotMatch(readFileSync(join(here, name), 'utf8'), /new Refused\([^)]*mutation score/u, `${name} refuses on a score`);
 });
