@@ -36,6 +36,7 @@ import {
 } from "../../../../packages/kernel/index.js";
 import { fetchFresh } from "../../tests/fixtures/http.js";
 import { runCliInProcess } from "../../tests/fixtures/process.js";
+import { journeyCall } from "../../tests/fixtures/e2e.js";
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const SPEC_FILE = 'SPEC.md';
@@ -105,7 +106,10 @@ function sandbox() {
   }
   /** Run the production CLI dispatch in this process with a clean person environment and optional explicit markers. */
   async function runLocal(cwd, args, extraEnv = {}) {
-    const result = await runCliInProcess(args, { cwd, env: { ...personEnvironment(env), ...FIXTURE_GIT_ENV, ...extraEnv } });
+    const callEnv = { ...personEnvironment(env), ...FIXTURE_GIT_ENV, ...extraEnv };
+    // PULLBOARD_JOURNEY_MODE=process answers the same call as a real process, so the gate's parity check can compare the two (#8276).
+    const result = await journeyCall({ dir, env: callEnv, cwd, args, inProcess: () => runCliInProcess(args, { cwd, env: callEnv }),
+      real: () => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env: callEnv, encoding: 'utf8' }) });
     return { status: result.status, stdout: result.stdout, stderr: result.stderr };
   }
   return { dir, env, git, runLocal };
