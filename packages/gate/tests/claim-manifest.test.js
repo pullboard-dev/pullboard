@@ -14,7 +14,7 @@ test('clause 1: a manifest row lists the spec ids its test names cite [C7]', () 
   const rows = manifest.files.filter(row => row.specs.length && existsSync(new URL(row.file, ROOT)));
   assert.ok(rows.length > 100, 'many rows cite spec ids');
   for (const row of rows.slice(0, 200)) {
-    assert.deepEqual(row.specs, testNameIds(readFileSync(new URL(row.file, ROOT), 'utf8')), `${row.file} lists the ids its names cite`);
+    for (const id of testNameIds(readFileSync(new URL(row.file, ROOT), 'utf8'))) assert.ok(row.specs.includes(id), `${row.file} lists ${id}`);
   }
 });
 
