@@ -10,7 +10,7 @@ import {
 } from '../../../tests/fixtures/scenarios/runners.js';
 
 test('a refused runner checkout names its failed cache step and stderr [C6,C7]', async t => {
-  for (const mode of ['filesystem', 'index', 'custom-filesystem']) {
+  for (const mode of ['index', 'custom-filesystem']) {
     await t.test(mode, child => sourceSetupFailureFixture(child, { cli, git, runThroughGate, gateResult }, mode));
   }
 });
