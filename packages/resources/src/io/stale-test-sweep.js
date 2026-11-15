@@ -12,8 +12,10 @@ const RUNNER_JOB = /\.pullboard-runner\/jobs\//u;
  * its lease lapses and the queue ends it as lost if it dies, so the sweep never stops it, orphaned or old.
  * Why old too: a driver waits on its runner job, which runs past 15 minutes on a loaded runner; the age rule killed
  * live drivers and their runs read "the worker stopped before recording it" (#8193). Its test processes stay swept.
+ * A `pullboard test --census` process is such a driver too: it only waits on its shards' runner jobs, and the age rule
+ * killed it at about 17 minutes, so every shard still running got no rows (#8305).
  */
-const TEST_RUN_DRIVER = /pullboard\.js\s+test\s+--test-run\s/u;
+const TEST_RUN_DRIVER = /pullboard\.js\s+test\s+(?:--test-run\s|(?:\S+\s+)*--census\b)/u;
 
 /** Only node processes are swept: a shell whose command line merely mentions a test command is an agent's shell. */
 const NODE_PROCESS = /^(?:\S*\/)?node(?:\s|$)/u;
