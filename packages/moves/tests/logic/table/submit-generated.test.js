@@ -69,7 +69,7 @@ function scenario(seed) {
       files: g.pick([[], ['a.js'], ['a.js', 'b.js']]), builtBy: null },
     children: flip(g, r) ? [{ status: g.pick(['open', 'claimed', 'submitted']) }] : g.pick([[], [{ status: 'accepted' }], [{ status: 'withdrawn' }]]),
     rejects: flip(g, r) ? [{ commit: head.commit, digest: frozen }] : g.pick([[], [{ commit: hex(g, 40), digest: frozen }], [{ commit: head.commit, digest: hex(g, 64) }]]),
-    config: { handoff: g.pick([true, true, false, 'yes']), leaseMs: flip(g, r) ? g.pick([0, -1, 1.5, '120000']) : 120_000 } };
+    config: { handoff: g.pick([true, true, false, 'yes']), leaseMs: flip(g, r) ? g.pick([0, 1, -1, 1.5, '120000']) : 120_000 } };
   let m = { id: 42, actor };
   if (table === 'SUBMIT') {
     if (flip(g, r)) head[g.pick(['commit', 'tree', 'main'])] = 'abc';
