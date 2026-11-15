@@ -5,11 +5,11 @@ import { join } from 'node:path';
 import { relative } from 'node:path';
 import { test } from 'node:test';
 import { jobEnvironment } from '../../../src/io/pull.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { temporaryDirectory } from '../../../../../apps/cli/tests/fixtures/board.js';
 
 /** A throwaway runner cache folder, removed when the test ends. */
 function cacheFolder(t) {
-  const { root: cache } = privateFixtureFiles('pullboard-job-machine-');
+  const cache = temporaryDirectory('pullboard-job-machine-');
   t.after(() => rmSync(cache, { recursive: true, force: true }));
   return cache;
 }
