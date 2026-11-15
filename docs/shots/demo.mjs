@@ -259,12 +259,7 @@ async function buildBoard(base, env) {
   pb(app, 'inbox');
   pb(repo, 'shout', 'app-1', '#4 can continue while #3 waits for review.');
   pb(repo, 'hold', 'review', '--reason', 'Waiting for the next demo item.');
-  const fillerIds = [];
-  for (let n = 1; n <= FILLER_ITEMS; n += 1) {
-    const made = pb(repo, 'add', 'app', `Filler item ${n}`, '--specs', 'G2', '--criterion', `Filler criterion ${n} stays open.`).match(/#(\d+)/)?.[1];
-    if (!made) throw new Error('The demo filler item was not recorded.');
-    fillerIds.push(made);
-  }
+  const fillerIds = await addFillerItems(repo, env);
   pb(repo, 'milestone', 'add', 'Demo release', '--items', ['1', '2', '3', '4', '5', ...fillerIds].join(','), '--note', 'A demo release with reviewed, active and future work.', '--reason', 'The demo release groups the demo items.');
   if (!/1 withdrawn/.test(pb(repo, 'status'))) throw new Error('The demo board must include a withdrawn item.');
   const item = JSON.parse(pb(repo, 'show', '1', '--json'));
@@ -276,6 +271,33 @@ async function buildBoard(base, env) {
   // Item 3's gate has run beside the commands above; the board is final once it reads submitted.
   await settleSubmitted(pb, folder, '3');
   return repo;
+}
+
+/**
+ * File the open filler items of a large demo release, twenty at a time.
+ * Why: one add costs about a second, so 350 in a row outlast the test's budget; the adds only append rows, so parallel batches are safe.
+ * The withdrawn item is #6, so the filler ids run on from #7 in the order filed.
+ *
+ * @param {string} repo the demo board's repo
+ * @param {NodeJS.ProcessEnv} env the demo environment
+ * @returns {Promise<string[]>} the filler item ids
+ */
+async function addFillerItems(repo, env) {
+  const ids = [];
+  for (let first = 1; first <= FILLER_ITEMS; first += 20) {
+    const batch = [];
+    for (let n = first; n < Math.min(first + 20, FILLER_ITEMS + 1); n += 1) {
+      batch.push(new Promise((resolveAdd, reject) => {
+        const child = spawn(process.execPath, [BIN, 'add', 'app', `Filler item ${n}`, '--specs', 'G2', '--criterion', `Filler criterion ${n} stays open [test].`], { cwd: repo, env, stdio: ['ignore', 'ignore', 'pipe'] });
+        let stderr = '';
+        child.stderr.on('data', (chunk) => { stderr += chunk; });
+        child.once('close', (status) => status === 0 ? resolveAdd() : reject(new Error(`filler item ${n} failed: ${stderr.trim()}`)));
+      }));
+      ids.push(String(6 + n));
+    }
+    await Promise.all(batch);
+  }
+  return ids;
 }
 
 /** Capture the tour's own terminal-paced output and encode each line with its observed delay. */
