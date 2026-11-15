@@ -39,6 +39,7 @@ import { fileMainLines } from './gate/files.js';
 import { applyTestReceipt } from './test/receipt.js';
 import { caseReworkLines } from './gate/files.js';
 import { companionInherits } from './gate/companion.js';
+import { strandedGateReceipts } from './gate/stranded.js';
 
 /** The extension of one gate run receipt file: a receipt is named by its run id [CD2]. */
 const RECEIPT_EXT = '.json';
@@ -778,6 +779,29 @@ export function provideMainComparison(lookup) {
 }
 
 /**
+ * Apply again each gate receipt the board recorded but never applied (gate/stranded.js). A busy board leaves it for the
+ * next claim; any other refusal is written on the item's thread with its next step, which also ends the retries.
+ */
+function settleStrandedGates(board, { compareWithMain, ordered, now }) {
+  let stranded = [];
+  try { stranded = strandedGateReceipts(board.db, { now }); } catch { return; } // a claim never fails for this look
+  for (const posted of stranded) {
+    const apply = () => applyGateReceipt(board, posted, { compareWithMain });
+    try {
+      if (!Array.isArray(ordered)) { apply(); continue; }
+      const { moves } = orderedReceiptMoves(board, apply);
+      ordered.push(...moves);
+    } catch (error) {
+      if (/BUSY|locked/u.test(`${error?.code} ${error?.message}`)) continue;
+      const item = board.db.prepare('SELECT job_item FROM job WHERE job_id = ?').get(posted.job)?.job_item;
+      const why = `${error?.code ?? 'GATE_APPLY_FAILED'}: ${error?.message ?? String(error)}`;
+      try { store.appendFact(board, item, { agentId: 'coordinator', kind: 'note', text: `Gate job ${posted.job} receipt was recorded but not applied: ${why}; next: submit again`.slice(0, 2000) }); }
+      catch { /* the next claim tries again */ }
+    }
+  }
+}
+
+/**
  * Answer one job queue call on an open board, applying each newly recorded receipt to it: the board API's jobs route.
  *
  * @param {any} board - The open board, gitRoot set to the board host's repository.
@@ -791,6 +815,8 @@ export function provideMainComparison(lookup) {
 export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, ...options }) {
   // Queued main-test jobs are offered before each claim, so a free runner takes one in the same call (#6063).
   if (body?.action === 'claim' && options.mode === 'pull') offerMainTests(board, { now: options.now });
+  // A recorded receipt whose apply failed would leave its item claimed for good; each claim offers it again [C7,#8011].
+  if (body?.action === 'claim' && options.mode === 'pull') settleStrandedGates(board, { compareWithMain, ordered, now: options.now ?? Date.now() });
   const answer = jobQueueCall(board.db, body, { onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain, ordered }) });
   return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
 }
