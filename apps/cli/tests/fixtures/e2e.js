@@ -8,6 +8,7 @@ import { runFixtureChild } from './child.js';
 import { runFixtureChildAsync } from './child.js';
 import { runFixtureSetupGit } from './child.js';
 import { performance } from 'node:perf_hooks';
+import { appendFileSync } from 'node:fs';
 import { chmodSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -43,6 +44,46 @@ import { fixtureJoinRoute } from './testkit.js';
 import { fixtureSettledMachine } from './testkit.js';
 import { fixtureProjectPolicy } from './testkit.js';
 import { joinFixtureSeat } from './testkit.js';
+
+/**
+ * How runIn and runLocal reach the CLI: in this process by default. PULLBOARD_JOURNEY_MODE=process runs the same call as its own
+ * process instead, so the gate's parity check can run one journey both ways and compare them (#8257) [C7].
+ */
+export const JOURNEY_MODE = process.env.PULLBOARD_JOURNEY_MODE === 'process' ? 'process' : 'inprocess';
+
+/** Machine-dependent text in a CLI answer: the private sandbox folder, times, ids, hashes and durations. */
+export function parityText(text, dir) {
+  return String(text ?? '').split(dir).join('<dir>')
+    .replace(/\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z/gu, '<time>')
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gu, '<uuid>')
+    .replace(/\b[0-9a-f]{7,64}\b/gu, '<hex>')
+    .replace(/\b\d+(?:\.\d+)? ?(?:ms|s)\b/gu, '<duration>')
+    .replace(/(gate:\d+:<hex>):[0-9a-z]+/gu, '$1:<job>')
+    .replace(/\(pid \d+\)/gu, '(pid <pid>)');
+}
+
+/**
+ * One call's result for the parity check: argv, exit code, the JSON result or the printed text, and the board's items and
+ * event counts after the call, all with machine-dependent text masked. Read-only: the board is opened read-only [C7].
+ */
+function parityRecord({ dir, env, cwd, args, result }) {
+  let json = null;
+  try { json = JSON.parse(result.out); } catch { /* a text answer */ }
+  let board = null;
+  const common = runFixtureChild('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd, env, encoding: 'utf8' });
+  const file = common.status === 0 ? join(common.stdout.trim(), 'pullboard', 'board.sqlite') : null;
+  // A command that hands a gate job on finishes its board writes when a runner posts the receipt, at no fixed moment after it
+  // returns, so its own record carries no board state; the next call's record compares the settled board instead.
+  if (file && existsSync(file) && !(result.code === 0 && JOB_OFFERING.has(args[0]))) {
+    // @pullboard-board-file journey: a read-only look at the rows the command wrote, for the parity check.
+    const db = new DatabaseSync(file, { readOnly: true });
+    try {
+      board = { items: db.prepare('SELECT item_id, item_status, item_lane FROM item ORDER BY item_id').all().map(row => ({ ...row })),
+        events: db.prepare('SELECT event_kind, count(*) AS n FROM event GROUP BY event_kind ORDER BY event_kind').all().map(row => ({ ...row })) };
+    } finally { db.close(); }
+  }
+  return JSON.parse(parityText(JSON.stringify({ cwd, args, code: result.code, json, out: json ? null : result.out, err: result.stderr, board }), dir));
+}
 
 /** The model every fixture board runs as, whatever the parent process was launched with [C7]. */
 export const FIXTURE_MODEL = 'fixture-model';
@@ -223,7 +264,7 @@ function sandbox({ declareFamilies = false } = {}) {
     prepare(cwd, args);
     const result = await runFixtureChildAsync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
     if (result.status === 0) settlePulledJobs(cwd, args, env);
-    return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure };
+    return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure, rawStderr: result.stderr };
   };
   /** The same call as run, answered by the production dispatcher in this process; no node start-up (about 1 s saved). */
   const inProcess = async (cwd, ...args) => {
@@ -239,7 +280,15 @@ function sandbox({ declareFamilies = false } = {}) {
     return { code: result.status, out: result.stdout, err: result.stderr, failure: null, status: result.status, stdout: result.stdout, stderr: result.stderr };
   };
   runSync.of = run;
-  return { dir, env, git, tryGit, run, runAsync, inProcess, runLocal: inProcess, runIn: inProcess, runSync, declareFamilies, declareFamily };
+  /** The journey's call: inProcess, or a real process under PULLBOARD_JOURNEY_MODE=process; PULLBOARD_PARITY_RECORD appends each call's record. */
+  const runIn = async (cwd, ...args) => {
+    const called = [...args];
+    const result = JOURNEY_MODE === 'process' ? await runAsync(cwd, ...args) : await inProcess(cwd, ...args);
+    const answer = { ...result, status: result.code, stdout: result.out, stderr: result.rawStderr ?? result.err };
+    if (process.env.PULLBOARD_PARITY_RECORD) appendFileSync(process.env.PULLBOARD_PARITY_RECORD, `${JSON.stringify(parityRecord({ dir, env, cwd, args: called, result: answer }))}\n`);
+    return answer;
+  };
+  return { dir, env, git, tryGit, run, runAsync, inProcess, runLocal: runIn, runIn, runSync, declareFamilies, declareFamily };
 }
 
 const CONFIG = {
