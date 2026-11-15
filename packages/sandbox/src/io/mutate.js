@@ -98,13 +98,14 @@ function spread(list, count) {
  *   extra are root-relative test files outside the cell (such as a journey) run against each fault too; sample caps the faults seeded per source file, spread evenly;
  *   reach maps a root-relative test file to the root-relative files its imports reach, and a fault then runs only the tests that reach the seeded file;
  *   note gets a line per phase and per test run with its seconds, for a run that must be watched;
- *   deadline is an epoch time after which no new fault is started, the rest counted in `skipped`;
+ *   deadline is an epoch time checked before every test run: no new fault is started after it, and a fault it cuts short is dropped and counted in `skipped`, never as caught or missed;
+ *   maxTests caps the cell tests run against one fault (those named for the seeded file first, then those reaching the fewest files); a fault that still escapes them is run by the journey, which can only lower a cell's score without it, so a cap never turns a convert into a hold; such faults are counted in `capped`;
  *   extraLast runs the extra files only against a fault no reaching cell test caught, and re-runs the cell's other tests on a fault only an extra file caught,
  *   so every fault's catch-or-miss by the extra files beside the cell's tests is the same as running everything, at the cost of a few runs
  * @param {{faults: Function, changedLines: Function}} seams the pure fault and diff readers, passed in because a package never imports an app
  * @returns {Promise<{cell: string, base: string, all: boolean, redBefore: string[], tests: {file: string, caught: number, total: number}[], faults: object[], caught: number, missed: number}>}
  */
-export async function mutateCell(root, cell, { all = false, base = 'main', extra = [], sample = Infinity, reach = null, extraLast = false, note = () => {}, deadline = null } = {}, { faults, changedLines }) {
+export async function mutateCell(root, cell, { all = false, base = 'main', extra = [], sample = Infinity, reach = null, extraLast = false, note = () => {}, deadline = null, maxTests = Infinity } = {}, { faults, changedLines }) {
   const name = String(cell).replace(/\\/gu, '/').replace(/^\.\//u, '').replace(/\/+$/u, '');
   const source = join(root, name);
   let stat = null;
@@ -163,6 +164,7 @@ export async function mutateCell(root, cell, { all = false, base = 'main', extra
       writeFileSync(join(copy, file), fault.mutated);
       try {
         for (const test of list) {
+          if (deadline && Date.now() > deadline) return null;
           const at = Date.now();
           const ok = await passes(dirOf(test), test);
           tally[test].total += 1;
@@ -176,22 +178,41 @@ export async function mutateCell(root, cell, { all = false, base = 'main', extra
     };
     const results = [];
     // Faults are taken round-robin over the source files so a deadline leaves a spread sample, not the first files only.
+    // Files few tests reach go first and hub files (reached by most tests) last, so a deadline cuts the slow faults and not the cheap ones.
+    const fan = new Map(plan.map((row) => [row.file, candidates.filter((test) => covers(test, row.file)).length]));
+    const ordered = [...plan].sort((a, b) => fan.get(a.file) - fan.get(b.file));
     const queue = [];
-    for (let at = 0; plan.some((row) => at < row.faults.length); at++) for (const row of plan) if (at < row.faults.length) queue.push({ row, fault: row.faults[at] });
+    for (let at = 0; ordered.some((row) => at < row.faults.length); at++) for (const row of ordered) if (at < row.faults.length) queue.push({ row, fault: row.faults[at] });
+    /** At most `limit` tests, those named for the seeded file first, then those reaching the fewest files (the fewest hops away). */
+    const nearest = (list, file, limit) => {
+      if (list.length <= limit) return list;
+      const stem = file.replace(/^.*\//u, '').replace(/\.m?js$/u, '');
+      const rank = (test) => [test.includes(`/${stem}.test.`) || test.startsWith(`${stem}.test.`) ? 0 : 1, reaches?.get(`${name}/${test}`)?.size ?? Infinity];
+      return [...list].sort((a, b) => { const [x, y] = [rank(a), rank(b)]; return x[0] - y[0] || x[1] - y[1] || (a < b ? -1 : 1); }).slice(0, limit);
+    };
     let skipped = 0;
+    let capped = 0;
     for (const { row: { file, text }, fault } of queue) {
       if (deadline && Date.now() > deadline) { skipped += 1; continue; }
-      const reaching = candidates.filter((test) => covers(test, file));
+      const reachable = candidates.filter((test) => covers(test, file));
+      const reaching = nearest(reachable, file, maxTests);
+      if (reaching.length < reachable.length) capped += 1;
       const caughtBy = await attempt(file, text, fault, reaching);
+      if (!caughtBy) { skipped += 1; continue; }
       if (extraLast && !caughtBy.length) {
         const found = await attempt(file, text, fault, extra);
+        if (!found) { skipped += 1; continue; }
         caughtBy.push(...found);
-        if (found.length) caughtBy.push(...await attempt(file, text, fault, candidates.filter((test) => !reaching.includes(test) && !outsideSet.has(test))));
+        if (found.length) {
+          const others = await attempt(file, text, fault, candidates.filter((test) => !reaching.includes(test) && !outsideSet.has(test) && !(reachable.includes(test) && maxTests < reachable.length)));
+          if (!others) { skipped += 1; continue; }
+          caughtBy.push(...others);
+        }
       }
       results.push({ file, line: fault.line, operator: fault.operator, before: fault.before, after: fault.after, caught: caughtBy.length > 0, caughtBy });
     }
     const caught = results.filter((row) => row.caught).length;
-    return { cell: name, base: all ? null : base, all, redBefore, tests: Object.values(tally), faults: results, caught, missed: results.length - caught, skipped };
+    return { cell: name, base: all ? null : base, all, redBefore, tests: Object.values(tally), faults: results, caught, missed: results.length - caught, skipped, capped };
   } finally {
     rmSync(temp, { recursive: true, force: true });
   }

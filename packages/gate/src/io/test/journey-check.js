@@ -12,14 +12,16 @@ import { holdShare } from '../../logic/test/journey-check.js';
 import { judgeJourney } from '../../logic/test/journey-check.js';
 import { retagChecked } from '../../logic/test/journey-check.js';
 
-const USAGE = 'usage: journey-check [--limit n] [--cells n] [--faults n] [--budget seconds] [--manifest file] [--write] [project-root]\n';
+const USAGE = 'usage: journey-check [--limit n] [--cells n] [--faults n] [--budget seconds] [--max-tests n] [--manifest file] [--write] [project-root]\n';
 /** The whole run's time, so a sample always ends and prints its share; 0 means no limit. */
 const DEFAULT_BUDGET_SECONDS = 480;
-const NUMBERS = { '--limit': 'limit', '--cells': 'cells', '--faults': 'faults' };
+/** Cell tests run against one fault at most, so one fault in a hub file cannot take minutes. */
+const DEFAULT_MAX_TESTS = 20;
+const NUMBERS = { '--limit': 'limit', '--cells': 'cells', '--faults': 'faults', '--max-tests': 'maxTests' };
 
 /** Parse the flags into options, or null when anything is unknown or a number is missing. */
 function parse(args) {
-  const options = { limit: Infinity, cells: 3, faults: 6, budget: DEFAULT_BUDGET_SECONDS, manifest: TEST_MANIFEST_FILE, write: false, root: '.' };
+  const options = { limit: Infinity, cells: 3, faults: 6, maxTests: DEFAULT_MAX_TESTS, budget: DEFAULT_BUDGET_SECONDS, manifest: TEST_MANIFEST_FILE, write: false, root: '.' };
   const rest = [];
   for (let at = 0; at < args.length; at++) {
     const arg = args[at];
@@ -105,11 +107,11 @@ export async function runJourneyCheck(args, { mutate, reachOf = testReach, say =
     // Each journey gets an equal share of what is left of the budget; its covering cells run at once and stop starting faults at its end.
     const deadline = options.budget ? Date.now() + (startedAt + options.budget * 1000 - Date.now()) / (sampled.length - at) : null;
     const cells = coveringCells(rows, journey, options.cells).map(row => row.cell);
-    const reports = await Promise.all(cells.map(async cell => ({ cell, report: await mutate(root, cell, { all: true, extra: [journey.file], sample: options.faults, extraLast: true, deadline, note: trace, reach: reachFor(reached, cell, journey.file) }) })));
+    const reports = await Promise.all(cells.map(async cell => ({ cell, report: await mutate(root, cell, { all: true, extra: [journey.file], sample: options.faults, extraLast: true, maxTests: options.maxTests, deadline, note: trace, reach: reachFor(reached, cell, journey.file) }) })));
     const verdict = judgeJourney(journey.file, reports);
     verdicts.push(verdict);
     add(`${verdict.verdict}  ${journey.file}  ${verdict.because}`);
-    for (const cell of verdict.cells) add(`  ${cell.cell}  with ${cell.with}/${cell.seeded}  without ${cell.without}/${cell.seeded}${cell.skipped ? `  (${cell.skipped} more faults not run: time budget)` : ''}`);
+    for (const cell of verdict.cells) add(`  ${cell.cell}  with ${cell.with}/${cell.seeded}  without ${cell.without}/${cell.seeded}${cell.skipped ? `  (${cell.skipped} more faults not run: time budget)` : ''}${cell.capped ? `  (${cell.capped} faults run against the ${options.maxTests} nearest tests only)` : ''}`);
   }
   const { sampled: total, held, converted, unmeasured, share } = holdShare(verdicts);
   add(`${held} of ${total} sampled delete tags hold (${Math.round(share * 100)}%); ${converted} retagged convert, ${unmeasured} unmeasured, of ${deletes.length} delete tags`);
