@@ -2,8 +2,8 @@
 import { tryGit } from '../../../../git/index.js';
 import { timeoutDetail } from './deadline.js';
 
-/** The ref a land job pins its merged commit under, which a shard's runner fetches (#8198). */
-export const landingRef = job => `refs/pullboard/landing/${job}`;
+/** The ref a land job pins its merged commit under, which a shard's runner fetches (#8198): the job id with each character git refuses in a ref name (its colons) made a hyphen. */
+export const landingRef = job => `refs/pullboard/landing/${String(job).replaceAll(/[^\w.-]/gu, '-')}`;
 // Budget: the waiting land job reads its shards' receipts this often; each read is one small board call, and each pass renews the lease.
 const POLL_MS = 2_000;
 const NO_PUSH_OPTIONS = /does not support push options/u;

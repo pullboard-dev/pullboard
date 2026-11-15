@@ -9,7 +9,8 @@ import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { runFixtureSetupGit } from '../../../../gate/tests/fixtures/child.js';
 
 const JOB = 'land:1:abcd';
-const REF = `refs/pullboard/landing/${JOB}`;
+// The job id's colons are not valid in a ref name, so the ref spells them as hyphens.
+const REF = 'refs/pullboard/landing/land-1-abcd';
 const FILES = ['test/a.test.js', 'test/b.test.js', 'test/c.test.js'];
 const GATE = { run: ['node', '-e', 'x'], entry: 'gate.js' };
 const ENV = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
