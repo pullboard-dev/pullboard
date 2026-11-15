@@ -15,6 +15,8 @@ import { statSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
+/** The one saveKeyedResult is the pin cell's, reached through the transport cell this cell already imports, so no pin edge is added. */
+export { saveKeyedResult } from '../../../transport/index.js';
 
 /**
  * Move a finished staging folder to its keyed name, unless a folder already holds that name; a staging folder that

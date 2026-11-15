@@ -14,7 +14,7 @@ import { statSync } from 'node:fs';
 import { scratchFolder } from '../../../../config/index.js';
 import { scratchRoot } from '../../../../config/index.js';
 import { loadKeyedResult } from '../keyed.js';
-import { saveKeyedResult } from '../../../../config/index.js';
+import { saveKeyedResult } from '../keyed.js';
 import { sweepKeyedFolders } from '../keyed.js';
 import { sharedCacheFolder } from '../keyed.js';
 

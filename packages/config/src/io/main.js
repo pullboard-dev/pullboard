@@ -22,8 +22,6 @@ export { CONFIG_FILE };
 import { COORDINATOR } from '../../../queue/light.js';
 export { COORDINATOR } from '../../../queue/light.js';
 import { labelDeclarationProblems } from '../../../queue/light.js';
-/** The one saveKeyedResult, the pin cell's: runners reach it through config, which they already import, so they gain no pin edge. */
-export { saveKeyedResult } from '../../../pin/index.js';
 export const DOCTRINE_FILE = 'DOCTRINE.md';
 export const LEGACY_DOCTRINE_FILE = 'PRACTICE.md';
 

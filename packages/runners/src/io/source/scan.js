@@ -7,7 +7,7 @@ import { secretsIn } from '../../../../commits/index.js';
 import { Refused } from '../../../../kernel/index.js';
 import { gitSpawnSync } from '../../../../git/index.js';
 import { loadKeyedResult } from '../keyed.js';
-import { saveKeyedResult } from '../../../../config/index.js';
+import { saveKeyedResult } from '../keyed.js';
 import { sharedCacheFolder } from '../keyed.js';
 import { fileURLToPath } from 'node:url';
 import { closeSync } from 'node:fs';
