@@ -1,6 +1,9 @@
 /** Classify test files into the registry's kinds from their path and spawn evidence, purely [C7]. */
 
 export const TEST_KINDS = ['cell unit', 'contract', 'journey', 'harness'];
+export const JOURNEY_TAGS = ['keep', 'convert', 'delete'];
+
+const GOLDEN = new Set(['init', 'add', 'next', 'submit', 'verify', 'land', 'release', 'upgrade']);
 
 const HARNESS = /(?:^|[/.-])(?:fixtures?|harness|testkit)(?:[/.-]|$)/u;
 const JOURNEY = /(?:^|\/)journeys\//u;
@@ -23,13 +26,49 @@ export function testKind({ file, spawns }) {
 }
 
 /**
+ * The golden user path a journey file walks, or null: the folder under journeys/ names the path, and relay and view
+ * count only for the pairing and opening files inside them.
+ * Why: a simple, visible rule, since the tags are a proposal the freeze script applies later [C7].
+ *
+ * @param {string} file journey path
+ * @returns {string|null} the golden path name
+ */
+export function goldenPath(file) {
+  const [, area, name] = /(?:^|\/)journeys\/([^/]+)\/(.*)$/u.exec(file) ?? [];
+  if (!area) return null;
+  if (GOLDEN.has(area)) return area;
+  if (area === 'relay' && /pair/u.test(name)) return 'relay pair';
+  if (area === 'view' && /open/u.test(name)) return 'view open';
+  return null;
+}
+
+/**
+ * Tag each journey row keep, convert or delete, with the rule that chose it.
+ * Keep when it walks a golden path. Delete only when every spec id it cites is also cited by a non-journey test, so
+ * another test proves the same ids. Everything else converts, as does a journey that cites none, since nothing else proves it [C7].
+ *
+ * @param {object[]} rows manifest rows with kind and specs
+ * @returns {object[]} the rows, journeys now carrying tag and tagBecause
+ */
+export function tagJourneys(rows) {
+  const proven = new Set(rows.filter(row => row.kind !== 'journey').flatMap(row => row.specs));
+  return rows.map(row => {
+    if (row.kind !== 'journey') return row;
+    const path = goldenPath(row.file);
+    if (path) return { ...row, tag: 'keep', tagBecause: `walks the golden path ${path}` };
+    if (row.specs.length && row.specs.every(id => proven.has(id))) return { ...row, tag: 'delete', tagBecause: 'every spec id it cites is also cited by a cell unit or contract test' };
+    return { ...row, tag: 'convert', tagBecause: row.specs.length ? 'cites a spec id no cell unit or contract test cites' : 'cites no spec id, so nothing else proves it' };
+  });
+}
+
+/**
  * Turn per-file evidence into sorted manifest rows.
  *
  * @param {{ file: string, ms: number|null, specs?: string[], direct: Set<string>, via: Map<string, Set<string>> }[]} inputs
  * @returns {object[]} one row per file, sorted by file
  */
 export function manifestRows(inputs) {
-  return inputs.map(({ file, ms, specs = [], direct, via }) => {
+  return tagJourneys(inputs.map(({ file, ms, specs = [], direct, via }) => {
     const started = category => direct.has(category) || [...via.values()].some(found => found.has(category));
     const spawns = {
       process: started('process') || started('runner'),
@@ -40,5 +79,5 @@ export function manifestRows(inputs) {
     };
     const { kind, because } = testKind({ file, spawns });
     return { file, kind, because, specs, unproven: specs.length === 0, cost: { ms }, spawns };
-  }).sort((a, b) => (a.file < b.file ? -1 : 1));
+  }).sort((a, b) => (a.file < b.file ? -1 : 1)));
 }

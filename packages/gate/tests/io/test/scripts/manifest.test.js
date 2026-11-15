@@ -5,6 +5,7 @@ import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import { generateTestManifest } from '../../../../src/io/test/manifest.js';
 import { runManifestCommand } from '../../../../src/io/test/manifest.js';
+import { JOURNEY_TAGS } from '../../../../src/logic/test/manifest.js';
 import { TEST_KINDS } from '../../../../src/logic/test/manifest.js';
 import { privateFixtureFiles } from '../../../fixtures/child.js';
 import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
@@ -117,4 +118,46 @@ test('the command prints how many files are unproven [C7]', t => {
   const files = fixture(t, CITING);
   const result = runManifestCommand(['--out', 'rows.json', files.root], { times: {} });
   assert.match(result.stdout, /1 unproven/u);
+});
+
+const JOURNEYS = {
+  'packages/math/index.js': 'export const add = (a, b) => a + b;',
+  'packages/math/tests/cell.test.js': 'import { test } from "node:test"; test("adds [C7, D1]", () => {});',
+  'apps/cli/journeys/submit/main.test.js': 'import { test } from "node:test"; test("submits [S1]", () => {});',
+  'apps/cli/journeys/relay/pair.test.js': 'import { test } from "node:test"; test("pairs [R1]", () => {});',
+  'apps/cli/journeys/relay/sync.test.js': 'import { test } from "node:test"; test("syncs [R2]", () => {});',
+  'apps/cli/journeys/view/open.test.js': 'import { test } from "node:test"; test("opens [W1]", () => {});',
+  'apps/cli/journeys/edges/covered.test.js': 'import { test } from "node:test"; test("covered [C7]", () => {});',
+  'apps/cli/journeys/edges/other.test.js': 'import { test } from "node:test"; test("other [C7, Q9]", () => {});',
+  'apps/cli/journeys/edges/bare.test.js': 'import { test } from "node:test"; test("bare", () => {});',
+};
+const tagOf = (manifest, file) => row(manifest, `apps/cli/journeys/${file}.test.js`);
+
+test('each journey row carries a tag of keep, convert or delete with the rule that chose it, and other kinds carry none [C7]', t => {
+  const manifest = generateTestManifest(fixture(t, JOURNEYS).root, { times: {} });
+  for (const entry of manifest.files.filter(item => item.kind === 'journey')) {
+    assert.ok(JOURNEY_TAGS.includes(entry.tag), entry.file);
+    assert.equal(typeof entry.tagBecause, 'string');
+  }
+  assert.equal(row(manifest, 'packages/math/tests/cell.test.js').tag, undefined);
+});
+
+test('a journey on a golden path is tagged keep, relay and view only for their pairing and opening files [C7]', t => {
+  const manifest = generateTestManifest(fixture(t, JOURNEYS).root, { times: {} });
+  assert.deepEqual(['submit/main', 'relay/pair', 'view/open'].map(file => tagOf(manifest, file).tag), ['keep', 'keep', 'keep']);
+  assert.notEqual(tagOf(manifest, 'relay/sync').tag, 'keep');
+  assert.match(tagOf(manifest, 'relay/pair').tagBecause, /relay pair/u);
+});
+
+test('a journey is tagged delete only when a non-journey test cites every spec id it cites, otherwise convert [C7]', t => {
+  const manifest = generateTestManifest(fixture(t, JOURNEYS).root, { times: {} });
+  assert.equal(tagOf(manifest, 'edges/covered').tag, 'delete');
+  assert.equal(tagOf(manifest, 'edges/other').tag, 'convert');
+  assert.equal(tagOf(manifest, 'edges/bare').tag, 'convert');
+  assert.equal(tagOf(manifest, 'relay/sync').tag, 'convert');
+});
+
+test('the command prints the count of each journey tag [C7]', t => {
+  const result = runManifestCommand(['--out', 'rows.json', fixture(t, JOURNEYS).root], { times: {} });
+  assert.match(result.stdout, /journey tags: 3 keep, 3 convert, 1 delete/u);
 });
