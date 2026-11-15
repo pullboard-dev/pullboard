@@ -212,6 +212,7 @@ test('[V17] a trunk-merged unverified commit is outside a newer candidate range'
   assert.notEqual(stackedCommit, firstCommit);
   const submitted = (await box.runLocal(box.web, 'submit', String(stacked), '--json'));
   assert.equal(submitted.code, 0, submitted.out + submitted.err);
+  await settled(box, stacked); // the submit is queued and returns at once (c77c8f38cf), so the commit binds a moment later
   assert.equal(JSON.parse((await box.runLocal(box.web, 'show', String(stacked), '--json')).out).item_commit, stackedCommit);
   assert.equal(JSON.parse((await box.runLocal(box.web, 'show', String(first), '--json')).out).item_status, 'submitted');
 });
