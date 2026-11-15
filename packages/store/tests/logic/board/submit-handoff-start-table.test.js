@@ -1,4 +1,4 @@
-/** @pullboard-world-pin reads the recorded submit history fixture to drive the hand-off start writer with it. The store hand-off start writer applies the START table and agree on every replayed move [C7,#8279].
+/** @pullboard-world-pin reads the recorded submit history fixture to drive the hand-off start writer with it. The store hand-off start writer applies the START table and agrees on every replayed move [C7,#8279].
  * @pullboard-test-input packages/moves/tests/fixtures/table/submit-history.json packages/store/src/io/submit/handoff/retry.js */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
