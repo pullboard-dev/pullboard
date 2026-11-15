@@ -5,7 +5,7 @@ export { milestones } from './src/logic/board/milestones.js';
 export { landingMayWait, openBoardReadOnly, boardId, listItems, busyRefusal, readBoardSnapshot, systemClock, agentAt, rowDrafts } from './src/io/board/read/light.js';
 export { landingTestDefects } from './src/logic/board/landing/test/history.js';
 export { hasPendingCpuNotices, hasPendingDispatchNotices } from './src/logic/board/receipts.js';
-export { pendingSubmitHandoff, submitHandoff } from './src/io/submit/handoff/records.js';
+export { awaitingGateOrReview, pendingSubmitHandoff, submitHandoff } from './src/io/submit/handoff/records.js';
 export { syncMayAct, baselineReceiptsPending, relayStateExists } from './src/io/home.js';
 export { openBoardForRead, closeBoard } from './src/io/board/read/snapshot.js';
 export { schemaMissing, writeRefused } from './src/io/board/migrate.js';

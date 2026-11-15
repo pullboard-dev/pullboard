@@ -124,11 +124,13 @@ export function countPairs() {
   if (view.tab === 'dashboard' && view.addressDetail !== 'floor') {
     // The /live-style Dashboard (#6847): every group, list and count agrees with the rows it labels and the board.
     let shown = 0;
+    // With nobody building or reviewing the idle seats are the table and draw no idle button (2da4b43e24, #7945); behind a button they are counted by it.
+    const folded = Boolean(document.querySelector('#dashboard [data-dashboard-quiet]'));
     for (const head of all('#dashboard .dash-agt tbody:not([hidden]) tr.grp')) {
       let rows = 0, node = head.nextElementSibling;
       while (node?.matches('[data-dashboard-agent]')) { rows++; node = node.nextElementSibling; }
       add('Dashboard/agent group/' + head.textContent, Number(head.textContent.split('·').at(-1).trim()), rows);
-      if (!head.closest('[data-dashboard-quiet-rows]')) shown += rows;
+      if (!folded || !head.closest('[data-dashboard-quiet-rows]')) shown += rows;
     }
     const between = number(document.querySelector('#dashboard [data-dashboard-quiet] b'));
     add('Dashboard/agents at work', number(document.querySelector('#dashboard [aria-label="Agents"] h2 .dash-pill')), shown + between);

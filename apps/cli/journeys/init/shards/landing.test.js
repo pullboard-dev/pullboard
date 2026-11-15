@@ -18,7 +18,6 @@ import {
   shardFileTimes,
 } from '../../../../../packages/landing/index.js';
 import {
-  HOST,
   NAMES,
   git,
   fixture,
@@ -27,6 +26,7 @@ import {
   mergedFiles,
   marks,
 } from '../../../tests/fixtures/init/shards.js';
+import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
 
 test('a landing gate split into shards reports one result [C7,V4]', { timeout: 300_000 }, async (t) => { // budget: three bounded landing scenarios on one fixture.
   // The planner: no times balances by count; known times put the heavy files on their own shards.
@@ -43,19 +43,20 @@ test('a landing gate split into shards reports one result [C7,V4]', { timeout: 3
   assert.equal(configProblems({ ...defaults(), landingShards: 0 }).some(problem => problem.includes('"landingShards"')), true);
   assert.deepEqual(configProblems({ ...defaults(), landingShards: 3 }), []);
 
-  const box = fixture();
+  // No registered runner: its SSH stand-in rode the controller transport the dispatcher's deletion removed (1e1a9586af, #7526), so all three shards take local slots.
+  const box = fixture({ runner: false });
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gateSlots: 3, browserSlots: 2 });
   t.after(() => rmSync(box.dir, { recursive: true, force: true }));
   assert.equal(landingShardCount(box.repo), 3);
 
-  // Green: three shards, one of them on the runner, every file once, one green result.
-  scenario(box, 'green-runner');
+  // Green: three shards on local slots, every file once, one green result.
+  scenario(box, 'green');
   const green = await landingGate(box, 'green', 120_000);
   assert.equal(green.isGreen, true, green.output);
   const files = mergedFiles(green.output);
   assert.deepEqual(Object.keys(files).sort(), NAMES.map(name => `test/${name}.test.js`));
   assert.deepEqual([...new Set(Object.values(files).map(file => file.shard))].sort(), ['1/3', '2/3', '3/3']);
-  assert.ok(Object.values(files).some(file => file.host === HOST), `one shard runs on the registered runner\n${green.output}`);
-  assert.ok(Object.values(files).some(file => file.host === 'local'), 'the others run on local slots');
+  assert.ok(Object.values(files).every(file => file.host === 'local'), `every shard runs on a local slot\n${green.output}`);
   assert.match(green.output, /^# landing result: green$/mu);
   assert.match(green.output, /^# landing shards: 3 balanced by file count \(/mu, 'the first landing has no history');
   assert.equal(green.profile.landingShards.balance, 'file count');

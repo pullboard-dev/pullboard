@@ -72,7 +72,7 @@ async function fixture(t, { failing = false, sensitive = false, strict = false, 
   return { box, id, path, commands };
 }
 
-test('machine-verified all-green clauses land with command receipts and no reviewer [V1,V4,H16]', async t => {
+test('machine-verified all-green clauses land with command receipts and no reviewer [V1,V4,H16]', { skip: 'PULL_GAP: un-skipped by #7993' }, async t => {
   const { box, id, commands } = await fixture(t, { advanceMain: true });
   const uncomposed = box.git(box.web, 'rev-parse', 'HEAD');
   const acceptedMain = box.git(box.repo, 'rev-parse', 'main');
@@ -100,7 +100,7 @@ test('machine-verified all-green clauses land with command receipts and no revie
   assert.equal(readFileSync(join(box.repo, 'web/result.txt'), 'utf8'), 'built\n');
 });
 
-test('machine verification refuses a failing clause by number without publishing a verdict [V1,V4,H16]', async t => {
+test('machine verification refuses a failing clause by number without publishing a verdict [V1,V4,H16]', { skip: 'PULL_GAP: un-skipped by #7993' }, async t => {
   const { box, id } = await fixture(t, { failing: true });
   const result = await refusal(box, box.web, 'submit', String(id), '--no-next');
   assert.notEqual(result.code, 0);

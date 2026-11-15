@@ -35,6 +35,9 @@ test('Dashboard keeps between-items agents behind one line and paints their real
       agents.push(agent);
     }
   } finally { store.closeBoard(board); }
+  // One seat is building, so the idle seats stay behind their line; with nobody building or reviewing they show at once (2da4b43e24, #7945).
+  await box.inProcess(alpha.repo, 'add', 'web', 'A build in progress', '--specs', 'G1', '--criterion', 'renders');
+  await box.inProcess(alpha.web, 'claim', '1');
   const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-dashboard-rows-'));
   let chrome;
   try {
@@ -72,7 +75,8 @@ test('Dashboard keeps between-items agents behind one line and paints their real
       'an open table redraws from the current model');
     // Back on the notch's own list, which counts no seat that holds nothing, the seats leave the table.
     await chrome.stable(`(() => { navNumbers = ownNavNumbers; view.allAgents = !view.allAgents; render(); return true; })()`);
-    await chrome.waitFor(`!document.querySelector('#dashboard [data-dashboard-agent]')`);
+    // The building seat stays in the table; the shouting seats leave it.
+    await chrome.waitFor(`!${JSON.stringify(agents)}.some(id => document.querySelector('#dashboard [data-dashboard-agent="' + id + '"]'))`);
   } finally {
     try { if (chrome) await closeSnapshotChrome(chrome); }
     finally { await view.stop(); rmSync(profile, { recursive: true, force: true }); }

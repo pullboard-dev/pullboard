@@ -489,6 +489,8 @@ test('the page moves on by itself when the view starts [N26,H5]', { timeout: 120
     await chrome.stable('refresh().then(() => true, () => true)');
     await chrome.send('Page.navigate', { url: HOSTED + '/?recover' });
     try {
+      // The click comes after the new document starts: one on the departing page would be lost with its count (466d9e3f1c).
+      await chrome.waitFor('performance.timeOrigin !== ' + departingTime + " && !!document.querySelector('[data-tab=\"items\"]')", 30_000); // budget: hang ceiling for the recovering page's load.
       await openItems(chrome);
       await chrome.waitFor('performance.timeOrigin !== ' + departingTime + ' && ' + opened + " && document.getElementById('local-note').hidden && !document.body.classList.contains('open-board')", 30_000); // budget: hang ceiling for one round trip, the failed list, a re-read two seconds on and the first board read.
     } catch (error) {

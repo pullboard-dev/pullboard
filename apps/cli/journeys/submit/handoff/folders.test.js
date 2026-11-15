@@ -1,8 +1,7 @@
-/** Queued submissions from two item folders stay bound to their own claims and sources [B5,V4,H16,E18]. */
+/** Pulled submissions from two item folders stay bound to their own claims and sources [B5,V4,H16,E18,C7]. */
 import assert from 'node:assert/strict';
 import {
   existsSync,
-  readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -13,12 +12,15 @@ import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
 import {
   document,
   fixture,
+  gateJob,
   state,
-  waitJob,
 } from '../../../tests/fixtures/submit/handoff.js';
+import { settledGateJob } from '../../../tests/fixtures/submit/settle.js';
 
 test('two item folders stamp and queue their own claims while the first gate runs [B5,V4]', async t => {
   const box = fixture(t, { firstFolder: true });
+  // The first gate holds on its release file while the second folder submits, so no submit waits for the queue to settle.
+  box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
   assert.match(box.git(box.source, 'log', '-1', '--format=%B'), new RegExp(`Pullboard-Item: #${box.id}\\b`));
   assert.equal(box.helpers.commitFile(box, box.secondFolder, 'web/second.txt', 'second\n', 'feat(web): second folder [G1]').status, 0);
   assert.match(box.git(box.secondFolder, 'log', '-1', '--format=%B'), new RegExp(`Pullboard-Item: #${box.second}\\b`));
@@ -36,20 +38,21 @@ test('two item folders stamp and queue their own claims while the first gate run
   const renewed = document((await box.runLocal(box.source, 'claim', String(box.id), '--json')));
   assert.equal(renewed.itemFolder, box.source, 'renewing inside the folder reopens the same folder beside the seat');
   const first = document((await box.runLocal(box.source, 'submit', String(box.id), '--no-next', '--json')));
+  assert.equal(first.queued, true);
   assert.equal(first.commit, box.commit);
-  await box.helpers.waitFor(() => existsSync(box.started), 'first folder gate started', 120000); // budget: observed worker progress ceiling, not a timing assertion.
+  await box.helpers.waitFor(() => existsSync(box.started), 'first folder gate started', 120000); // budget: observed runner progress ceiling, not a timing assertion.
   const queued = document((await box.runLocal(box.secondFolder, 'submit', String(box.second), '--no-next', '--json')));
   assert.equal(queued.queued, true);
-  assert.equal(state(box, box.second).job.commit, box.git(box.secondFolder, 'rev-parse', 'HEAD'), 'the queued seal captures the second folder, not the seat checkout');
+  const secondHead = box.git(box.secondFolder, 'rev-parse', 'HEAD');
+  assert.equal(queued.commit, secondHead);
+  assert.equal(gateJob({ ...box, id: box.second }).candidate, secondHead, 'the queued gate job captures the second folder, not the seat checkout');
+  assert.equal(gateJob(box).candidate, box.commit, 'the first gate job still judges the first folder');
   assert.equal(existsSync(box.release), false);
   writeFileSync(box.release, 'release\n');
-  await waitJob(box, 'green');
-  await box.helpers.waitFor(() => { // budget: worker cleanup hang ceiling, not a timing assertion.
-    const job = state(box, box.second).job;
-    return job && job.state === 'green' && !existsSync(join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id, 'source'));
-  }, 'second folder worker cleanup', 120000);
-  assert.equal(state(box, box.id).item.item_status, 'submitted');
-  assert.equal(state(box, box.second).item.item_status, 'submitted');
+  assert.equal((await settledGateJob(box, box.id)).gate.green, true);
+  assert.equal((await settledGateJob(box, box.second)).gate.green, true);
+  assert.deepEqual([state(box, box.id).item.item_status, state(box, box.id).item.item_commit], ['submitted', box.commit]);
+  assert.deepEqual([state(box, box.second).item.item_status, state(box, box.second).item.item_commit], ['submitted', secondHead]);
 });
 
 test('foreground submit from each of two item folders submits that folder\'s item [B5,V4]', async t => {
@@ -67,21 +70,30 @@ test('foreground submit from each of two item folders submits that folder\'s ite
 
 test('a queued red retains the exact canonical refusal and the builder claim while another claim stays owned [B5,V4,H16]', async t => {
   const box = fixture(t, { result: 'red' });
-  document((await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json')));
+  box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
+  const queued = document((await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json')));
+  assert.equal(queued.queued, true);
   await box.helpers.waitFor(() => existsSync(box.started), 'actual red candidate execution', 120000); // budget: hang ceiling for observed real child/gate progress; no elapsed-time assertion.
+  // B5: an item whose own gate is running frees its seat's claim slot for the next build.
   document((await box.runLocal(box.web, 'claim', String(box.second), '--json')));
+  const builder = state(box, box.id).item.item_owner;
   writeFileSync(box.release, 'release\n');
-  await waitJob(box, 'red');
+  const job = await settledGateJob(box, box.id);
+  assert.equal(job.id, queued.gateJob);
+  assert.equal(job.gate.green, false, 'the pulled gate receipt is red');
   const completed = state(box, box.id);
-  assert.equal(completed.item.item_status, 'claimed');
-  assert.equal(completed.job.error.code, 'GATE_RED');
-  const retained = JSON.parse(readFileSync(join(box.repo, '.git', 'pullboard', 'submit-handoffs', completed.job.id, 'refusal.json'), 'utf8'));
-  assert.deepEqual(completed.job.error, retained.error);
-  assert.equal(state(box, box.second).item.item_owner, completed.job.agentId);
+  assert.deepEqual([completed.item.item_status, completed.item.item_owner], ['claimed', builder], 'a red gate keeps the builder claim');
+  assert.equal(state(box, box.second).item.item_owner, builder);
   const shown = document((await box.runLocal(box.web, 'show', String(box.id), '--json')));
-  assert.deepEqual(shown.queuedSubmit.error, retained.error);
-  const interrupt = document((await box.runLocal(box.web, 'inbox', '--json'))).shouts.find(row => row.shout_text.includes(`Queued submit #${box.id} was refused`));
+  const prefix = `Gate job ${job.id} red at ${box.commit.slice(0, 12)}; failing parts:\n`;
+  const record = shown.thread.find(row => row.text?.startsWith(prefix));
+  assert.ok(record, 'the board records the red gate result on the item thread');
+  const lead = `#${box.id} gate red at ${box.commit.slice(0, 7)}: `;
+  const interrupt = document((await box.runLocal(box.web, 'inbox', '--json'))).shouts.find(row => row.shout_text.startsWith(lead));
   assert.ok(interrupt, 'the existing inbox channel carries the red interrupt');
+  // The shout is the recorded failing part, cut to the shout length; the thread fact keeps the whole refusal.
+  const detail = interrupt.shout_text.slice(lead.length);
+  assert.ok(detail && record.text.slice(prefix.length).includes(detail), `the interrupt carries the recorded refusal exactly: ${JSON.stringify({ detail, record: record.text })}`);
   const other = join(box.dir, 'other-web');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', other, 'main');
   document((await fixtureJoin(box.runLocal, other, 'web', '--route', 'strong', '--json')));
@@ -92,5 +104,5 @@ test('a queued red retains the exact canonical refusal and the builder claim whi
   assert.equal(state(box, box.id).item.item_owner, state(box, box.second).item.item_owner, 'B5 permits the builder to reclaim alongside another item');
   document((await box.runLocal(box.web, 'release', String(box.second), '--reason', 'ROUTED_ELSEWHERE', '--no-next', '--json')));
   document((await box.runLocal(box.web, 'claim', String(box.id), '--json')));
-  assert.equal(state(box, box.id).item.item_owner, completed.job.agentId, 'the same seat resumes at a natural break');
+  assert.equal(state(box, box.id).item.item_owner, builder, 'the same seat resumes at a natural break');
 });
