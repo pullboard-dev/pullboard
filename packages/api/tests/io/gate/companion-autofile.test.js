@@ -1,5 +1,7 @@
 /** An opted-in submit with a docs companion files its untouched main failure when the pulled gate's receipt posts [V4,B3,C7]. */
 import assert from 'node:assert/strict';
+import { rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
 import { cellClaim } from '../../../../store/tests/fixtures/cell.js';
@@ -9,6 +11,7 @@ import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
 import { CELL_CONFIG } from '../../../../store/tests/fixtures/cell.js';
 import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
 import * as store from '../../../../store/index.js';
+import { prepareItemPatchSubmit } from '../../../../items/index.js';
 import { boardJobQueueCall } from '../../../index.js';
 import { claimJob } from '../../../index.js';
 import { offerJob } from '../../../index.js';
@@ -24,21 +27,27 @@ t => {
   const repo = cellRepo(t, { config, real: true });
   const board = cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
   board.gitRoot = repo.root;
-  const seat = cellSeat(board, { lane: 'web', path: `${repo.root}/seat` });
+  const seat = cellSeat(board, { lane: 'web', path: repo.root });
   const item = cellItem(board, { lane: 'web', title: 'Build the page' });
   cellClaim(board, item.item_id, seat, { root: repo.root });
-  const held = store.getItem(board, item.item_id);
   const main = repo.commit;
+  // A real docs companion: the patch is a Git diff of one new file, attached against the builder's head and composed, not committed, on that head.
   repo.put('docs/companion.md', 'After.\n');
-  const composed = repo.commitAll();
-  const tree = String(runFixtureGit(['rev-parse', `${composed}^{tree}`], { cwd: repo.root }).stdout).trim();
+  runFixtureGit(['add', '-N', 'docs/companion.md'], { cwd: repo.root });
+  const patch = String(runFixtureGit(['diff', '--', 'docs/companion.md'], { cwd: repo.root }).stdout);
+  runFixtureGit(['rm', '-q', '--cached', 'docs/companion.md'], { cwd: repo.root });
+  rmSync(join(repo.root, 'docs'), { recursive: true, force: true });
+  store.attachItemPatch(board, item.item_id, { agentId: 'coordinator', key: 'docs', commit: main, patch, author: seat.id, presubmit: true });
+  const held = store.getItem(board, item.item_id);
+  const tree = String(runFixtureGit(['rev-parse', `${main}^{tree}`], { cwd: repo.root }).stdout).trim();
+  const companion = { ...prepareItemPatchSubmit(repo.root, board, held, main), receiptIds: [], phases: [] };
   // The landing cell's closure check is the board host's provider; here it answers that the companion touched no failing test's input.
   provideCompanionInheritance(() => true);
   t.after(() => provideCompanionInheritance(null));
   const job = `gate:${item.item_id}:companion`;
   offerJob(board.db, { id: job, kind: 'gate', needs: [], item: item.item_id, candidate: main, base: main, now: 1,
     request: { run: ['true'], input: { data: {} }, submit: { agentId: seat.id, digest: held.item_frozen_digest, tree, files: [],
-      companion: { source: main, commit: composed, tree } } } });
+      companion } } });
   const lease = claimJob(board.db, { runner: 'r-companion', capabilities: [], now: 2 });
   // The main-receipt lookup says main fails the same case the same way, from a main-test receipt that is not in the board.
   const compareWithMain = ({ cases }) => ({ classes: [...new Set(cases.map(row => row.file))].map(file => ({ file, owner: 'main', own: [], receipt: 'main-test-1' })) });
