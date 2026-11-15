@@ -1,6 +1,8 @@
 import { parseSpec } from '../../../../../packages/spec/light.js';
 import { submitReferenceReminders } from '../../../../../packages/spec/index.js';
+import { committedReader } from '../../../../../packages/moves/index.js';
 import { requireKernelApproval } from '../../../../../packages/verify/index.js';
+import { testHashProblem } from '../../../../../packages/verify/index.js';
 import { itemFolderIdentity } from '../item/folder.js';
 import { itemFolderPath } from '../item/folder/identity.js';
 import { seatRoot } from '../item/folder/identity.js';
@@ -365,6 +367,12 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     }
   }
   authorizationStep('non-empty', () => requireNonEmptySubmit(root, id, commit, acceptedMain.commit));
+  // A test file the bar froze at claim keeps its content unless the person ruled on the new content [C7,V4].
+  authorizationStep('test-hashes', () => withBoard(ctx, (board) => {
+    const problem = testHashProblem(held, store.itemThread(board, id),
+      { atHead: committedReader(root, commit), atMain: committedReader(root, acceptedMain.commit), person: store.PERSON });
+    if (problem) throw problem;
+  }));
   let trunk;
   let regenerated = null;
   try { trunk = authorizationStep('trunk-merge', () => requireTrunkMerge(root, commit, isSubmitHandoffWorker(ctx) ? acceptedMain.commit : undefined)); }
