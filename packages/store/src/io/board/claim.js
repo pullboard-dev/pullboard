@@ -46,6 +46,10 @@ import {
 import { outsideBuildProblem } from "../../../../items/index.js";
 import { barReadyProblem } from "../../../../verify/index.js";
 import { COORDINATOR } from "../../../../config/index.js";
+import { movesShadowEnabled } from "../../../../config/index.js";
+import { shadowHook } from "./shadow-record.js";
+import { claimDiffers } from "./shadow-record.js";
+import { shadowDecide } from "./shadow-record.js";
 import { Refused } from "../../../../kernel/index.js";
 import { routeOf } from "../../../../seats/index.js";
 import { canTake } from "../../../../seats/index.js";
@@ -388,7 +392,9 @@ function commitClaim(board, id, prepared, binding, ports) {
   const { leaseUntil, isRenewal, admission, outcome, adopts, refreshes } = plan;
   // Shadow compare: a board that carries `claimShadow` hands it the table's answer and what the writer wrote. The table reads
   // seat presence from disk, so it runs before the write opens; no file I/O happens inside the board write [C7,#8270].
-  const decided = typeof board.claimShadow === 'function' ? claimDecision(board, id, { options, plan }) : null;
+  // With moves.shadow on and no test hook, the compare is recorded on the board instead [C7,#8376].
+  const hook = shadowHook(board, 'claimShadow', 'claim', claimDiffers, movesShadowEnabled);
+  const decided = hook ? shadowDecide(hook, () => claimDecision(board, id, { options, plan })) : null;
   return atomic(board, () => {
     const shadow = decided ? { before: board.db.prepare('SELECT COALESCE(MAX(event_id),0) id FROM event').get().id, decided } : null;
     // Under the lock only the claim's own rows are compared; the guards below read the current board (#6016).
@@ -436,7 +442,7 @@ function commitClaim(board, id, prepared, binding, ports) {
         logEvent(board, 'board', 'fact', id, { id: factId, kind: 'note', text: `No live ${route.builderFamily} family seat was available for rework #${id}; checked families: ${route.checkedFamilies.join(', ') || 'none'}. The ordinary queue assigned it to ${agentId}.`, ref: null, supersedes: null });
       }
     }
-    if (shadow) board.claimShadow({ id, ...shadow, wrote: board.db.prepare('SELECT event_kind kind, event_by by, event_detail detail FROM event WHERE event_id>? ORDER BY event_id').all(shadow.before) });
+    if (shadow) hook({ id, ...shadow, wrote: board.db.prepare('SELECT event_kind kind, event_by by, event_detail detail FROM event WHERE event_id>? ORDER BY event_id').all(shadow.before) });
     return { leaseUntil, digest, renewed, ...(continuationSummary ? { continuationSummary } : {}) };
   });
 }
