@@ -74,7 +74,7 @@ function focusedRunner(root, main) {
  * @param {any} board - The open board, gitRoot set to the board host's repository.
  * @param {Record<string, any>} receipt
  * @param {string} main - The accepted main the gate job was offered against.
- * @param {((request: { root: string, db: import('node:sqlite').DatabaseSync, main: string, cases: object[], files: string[] }) =>
+ * @param {((request: { root: string, db: import('node:sqlite').DatabaseSync, main: string, cases: object[], files: string[], inputKeys: Record<string, string> }) =>
  *   { files?: { file: string, result: 'red' | 'green' | null, receipt: string | null, job: string | null }[] } | null) | null} lookup
  * @returns {{ main: string, files: { file: string, result: 'red' | 'green' | null, receipt: string | null, job: string | null }[], jobs: string[], unavailable?: string } | null}
  *   unavailable says why main was not checked, with no files: main's config names no focused runner (affectedTests), or no
@@ -93,7 +93,7 @@ export function compareFilesWithMain(board, receipt, main, lookup) {
   // A red that names neither cases nor files is never guessed to be main's: it says why main was not checked.
   if (!files.length) return { main, files: [], jobs: [], unavailable: 'could not read which tests failed' };
   let found = null;
-  try { found = lookup({ root: board.gitRoot, db: board.db, main, cases: [], files }); } catch (error) { if (!error?.code) throw error; }
+  try { found = lookup({ root: board.gitRoot, db: board.db, main, cases: [], files, inputKeys: ledgerInputKeys(red) }); } catch (error) { if (!error?.code) throw error; }
   const rows = new Map((Array.isArray(found?.files) ? found.files : []).map(row => [row.file, row]));
   if (files.some(file => !rows.has(file))) return null;
   const compared = files.map(file => {
@@ -101,6 +101,24 @@ export function compareFilesWithMain(board, receipt, main, lookup) {
     return { file, result: ['red', 'green'].includes(row.result) ? row.result : null, receipt: row.receipt ?? null, job: row.job ?? null };
   });
   return { main, files: compared, jobs: [...new Set(compared.map(row => row.job).filter(Boolean))] };
+}
+
+/**
+ * Each failed file's test input key, read from the red phases' proof-ledger rows: the key hashes the file, its whole
+ * import closure and its declared inputs. Why: main's lookup then takes a receipt another main recorded under the same
+ * key, so a main that moved only outside the file's closure still answers [C7,SC11]. A file with no keyed row is left out.
+ *
+ * @param {Record<string, any>[]} phases
+ * @returns {Record<string, string>}
+ */
+export function ledgerInputKeys(phases) {
+  const keys = {};
+  for (const phase of phases) {
+    for (const row of Array.isArray(phase?.ledger?.files) ? phase.ledger.files : []) {
+      if (Array.isArray(row) && typeof row[0] === 'string' && PROJECT_FILE.test(row[0]) && /^[0-9a-f]{64}$/u.test(row[1] ?? '')) keys[row[0]] = row[1];
+    }
+  }
+  return keys;
 }
 
 /**
