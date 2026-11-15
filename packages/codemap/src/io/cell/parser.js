@@ -84,9 +84,10 @@ function replyAt(file, id, count) {
  * @param {object} [options] - Private directory and, for tests only, the batch waits.
  * @param {string} [options.directory] - Where the parser keeps its private transport.
  * @param {{baseMs: number, extensionMs: number}} [options.waits] - Replaces the production batch waits so a test can prove the timeout in milliseconds; absent, the load-scaled production waits apply.
+ * @param {number} [options.supervisorBudget] - A smaller number of compiler rotations per supervisor, so a test reaches a supervisor rotation in a few batches; never larger than the production bound.
  * @returns {*} What the analysis returns.
  */
-export function withCellLintParser(work, { directory: cacheDirectory, waits } = {}) {
+export function withCellLintParser(work, { directory: cacheDirectory, waits, supervisorBudget } = {}) {
   if (parsers.getStore()) return work(parsers.getStore());
   let child = null, directory = null, sequence = 0, failed = null, closed = false;
   const sleeper = new Int32Array(new SharedArrayBuffer(4));
@@ -121,7 +122,7 @@ export function withCellLintParser(work, { directory: cacheDirectory, waits } = 
   /** Start an owned supervisor at the last completed sequence, never before a rotation witness. */
   function startSupervisor(previous) {
     child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning',
-      fileURLToPath(new URL('./parser/worker.js', import.meta.url)), directory, String(process.pid), '--supervise', String(previous)],
+      fileURLToPath(new URL('./parser/worker.js', import.meta.url)), directory, String(process.pid), '--supervise', String(previous), ...(supervisorBudget ? [String(supervisorBudget)] : [])],
     { stdio: 'ignore' });
     child.on('error', error => { failed ??= error; });
     child.unref();

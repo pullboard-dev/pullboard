@@ -66,12 +66,12 @@ test('compiler rotations hand off to a fresh supervisor without losing replies [
   t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
   const sources = Array.from({ length: 128 }, (_, index) => `import value from './leaf-${index}.js'; export default value;`);
   withCellLintParser(parse => {
-    for (let batch = 0; batch < 512; batch++) {
+    for (let batch = 0; batch < 8; batch++) { // Production rotates a supervisor every 256 compiler rotations; a budget of 4 reaches the same hand-off twice in 8 batches.
       const rows = parse(sources);
       assert.equal(rows.length, 128);
       assert.deepEqual(rows[0], { compiles: true, imports: ['./leaf-0.js'] });
     }
-  });
+  }, { supervisorBudget: 4 });
   assert.equal(starts, 2, 'the controller replaces its supervisor and can close at a rotation boundary');
 });
 
@@ -154,7 +154,7 @@ await import(${JSON.stringify(pathToFileURL(entry).href)});`);
 test('a slow real batch worker survives the old deadline and a hung worker reports timeout [C7,P3]', async t => {
   const files = privateFixtureFiles('pullboard-parser-delay-');
   t.after(() => rmSync(files.root, { recursive: true, force: true }));
-  files.write('slow.cjs', "Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2500);\n");
+  files.write('slow.cjs', "Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1200);\n");
   files.write('hung.cjs', "Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 60000);\n");
   const spawn = childProcess.spawn;
   let preload = 'slow.cjs';
@@ -163,11 +163,11 @@ test('a slow real batch worker survives the old deadline and a hung worker repor
   syncBuiltinESMExports();
   t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
   // The production waits are 10 s plus a load-scaled extension; the same shape at a smaller scale: the worker outlasts the base wait and still answers inside the extension.
-  const result = withCellLintParser(parse => parse(["import './real.js';", 'export const broken = ;']), { waits: { baseMs: 1000, extensionMs: 30_000 } });
+  const result = withCellLintParser(parse => parse(["import './real.js';", 'export const broken = ;']), { waits: { baseMs: 500, extensionMs: 30_000 } });
   assert.deepEqual(result[0], { compiles: true, imports: ['./real.js'] });
   assert.deepEqual(result[1], { compiles: false, imports: [] }, 'a real syntax failure remains a failed source');
   preload = 'hung.cjs';
-  assert.throws(() => withCellLintParser(parse => parse(['export const value = 1;']), { waits: { baseMs: 500, extensionMs: 1500 } }),
+  assert.throws(() => withCellLintParser(parse => parse(['export const value = 1;']), { waits: { baseMs: 300, extensionMs: 700 } }),
     error => error.code === 'CELL_BINDING_TIMEOUT' && /extended batch wait/u.test(error.message));
 });
 
