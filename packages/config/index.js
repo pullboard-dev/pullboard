@@ -48,6 +48,7 @@ export {
   postLandSuiteEnabled,
   tableReplayEnabled,
   fencedHopEnabled,
+  movesShadowEnabled,
   gateRunnerAdmission,
   setGateRunnersOnly,
   gateRunnerWaitMs,
