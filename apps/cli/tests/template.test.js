@@ -66,3 +66,33 @@ test('a copied project is isolated: its paths, seat and writes belong to it alon
   assert.equal(a.git(a.web, 'rev-parse', '--show-toplevel').trim(), a.web);
   assert.equal(b.git(b.web, 'rev-parse', '--show-toplevel').trim(), b.web);
 });
+
+test('clause 1: the template is built once and each later case gets a copy-on-write clone, or a copy where clones are unsupported [C7,#8319]', t => {
+  const boxes = [createE2eHelpers(), createE2eHelpers(), createE2eHelpers()];
+  for (const box of boxes) t.after(box.cleanup);
+  const before = templateStats();
+  for (const box of boxes) box.project('test -f CLONED');
+  const after = templateStats();
+  assert.equal(after.builds - before.builds, 1, 'one build serves three cases');
+  assert.equal(after.copies - before.copies, 2, 'the other two cases take the template');
+  assert.ok(['clone', 'copy'].includes(after.method), after.method);
+  // A clone the file system refused falls back to a copy, so a clone count is only owed where cloning works.
+  if (after.method === 'clone') assert.ok(after.clones - before.clones >= 2, 'every taken template is a clone');
+  if (process.platform === 'darwin') assert.equal(after.method, 'clone', 'APFS clones');
+});
+
+test('clause 2: two cases writing to their clones never see each other files [C7,#8319]', t => {
+  const [builder, first, second] = [createE2eHelpers(), createE2eHelpers(), createE2eHelpers()];
+  t.after(builder.cleanup); t.after(first.cleanup); t.after(second.cleanup);
+  builder.project('test -f WRITES'); // builds the template, so both cases below are clones of it
+  const a = first.project('test -f WRITES');
+  const b = second.project('test -f WRITES');
+  const shared = join('.git', 'description'); // a file both clones took from the template's blocks
+  const original = readFileSync(join(b.repo, shared), 'utf8');
+  writeFileSync(join(a.repo, shared), 'only the first case\n');
+  writeFileSync(join(a.repo, 'only-in-a.txt'), 'a\n');
+  writeFileSync(join(b.repo, 'only-in-b.txt'), 'b\n');
+  assert.equal(readFileSync(join(b.repo, shared), 'utf8'), original, 'an overwrite in one clone leaves the other clone file as it was');
+  assert.equal(readdirSync(b.repo).includes('only-in-a.txt'), false);
+  assert.equal(readdirSync(a.repo).includes('only-in-b.txt'), false);
+});
