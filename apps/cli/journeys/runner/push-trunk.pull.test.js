@@ -8,13 +8,11 @@ import { join } from 'node:path';
 import { boardJobQueueCall } from '../../../../packages/api/index.js';
 import { SHARD_JOB_KIND } from '../../../../packages/api/index.js';
 import { jobsOf } from '../../../../packages/jobs/index.js';
-import { runFixtureChildAsync } from '../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { pullProject } from '../../tests/fixtures/pull.js';
 import { pullQueue } from '../../tests/fixtures/pull.js';
 import { serveOnce } from '../../tests/fixtures/pull.js';
 import { fixtureProjectPolicy } from '../../tests/fixtures/testkit.js';
-
-const BIN = join(import.meta.dirname, '../../pullboard.js');
 
 /** Four node:test files; every one named in `red` fails its one case. */
 function testFiles(red) {
@@ -35,7 +33,7 @@ async t => {
   const head = box.git(box.repo, 'rev-parse', 'HEAD').trim();
   // The exact line git sends for a push of main to a remote that does not have it yet.
   const refs = `refs/heads/main ${head} refs/heads/main ${'0'.repeat(40)}\n`;
-  const pushing = runFixtureChildAsync('sh', ['-c', `printf '%s' "$REFS" | "${process.execPath}" "${BIN}" hook pre-push origin file:///nowhere`], { cwd: box.repo, env: { ...box.env, REFS: refs }, encoding: 'utf8' });
+  const pushing = runCliInProcess(['hook', 'pre-push', 'origin', 'file:///nowhere'], { cwd: box.repo, env: box.env, input: refs });
   const served = await Promise.all(['r-one', 'r-two'].map(runner => serveOnce(box, url, runner)));
   for (const run of served) assert.equal(run.code, 0, run.output);
   const pushed = await pushing;
