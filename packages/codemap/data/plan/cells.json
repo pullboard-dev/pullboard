@@ -2206,6 +2206,8 @@
     "apps/cli->commits",
     "apps/cli->moves",
     "apps/cli->search",
+    "apps/cli->sandbox",
+    "sandbox->kernel",
     "apps/cli->state",
     "apps/lib->transport",
     "apps/cli->kernel",
