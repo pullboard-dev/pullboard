@@ -14,9 +14,9 @@ const WAIT_BUDGET_DEFAULTS = Object.freeze({
   file: true,
   leaseMs: 120_000,
   waiterMs: 120_000,
-  // Audited exception [C7]: board writes measured p95 4.6 s, p99 9.3 s, edit up to 5.1 s on 13 Nov (#6793); the native
-  // move itself is the cost, so the remainder is filed for 0.9.5. Ratchet-only.
-  boardWriteMs: 10_000,
+  // Board writes answer to the two second database budget again: the native move was made fast enough (#8147), and the
+  // measured p99 is held under it by the scale test. Ratchet-only; it may tighten and never loosen.
+  boardWriteMs: 2_000,
   gateProgressMs: 300_000,
   runnerJobMs: 1_200_000,
   orphanMs: 300_000,
