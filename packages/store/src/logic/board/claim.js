@@ -23,6 +23,10 @@ import { RELEASE_TWICE_HOLD_ENGINE } from "../../../../state/light.js";
 import { RELEASE_REASONS_ENGINE } from "../../../../state/index.js";
 import { ROUTE_CALIBRATION_ENGINE } from "../../../../state/light.js";
 import { RELEASE_TWICE_ROUTE_ENGINE } from "../../../../state/light.js";
+import { TWO_TIER_DIAGNOSIS_ENGINE } from "../../../../state/light.js";
+import { TAKEN_OVER_RELEASE_ENGINE } from "../../../../state/light.js";
+import { INFRA_RELEASE_ENGINE } from "../../../../state/light.js";
+import { releaseDecision } from "./release-table.js";
 
 /**
  * The id of the item's latest escalation that actually changed its route (0 when none).
@@ -70,6 +74,23 @@ function chosenQualityRelease(board, id, row, detail) {
   return previous?.event_kind === 'claim' && previous.event_by === row.event_by;
 }
 
+/** The engine from which the release table decides an ordinary or review release; older boards replay on the rules they were written under. */
+const RELEASE_TABLE_FROM = Math.max(RELEASE_REASONS_ENGINE, UNTOUCHED_CLAIM_ENGINE, RELEASE_QUALITY_HOLD_ENGINE, ROUTE_CALIBRATION_ENGINE,
+  RELEASE_TWICE_HOLD_ENGINE, RELEASE_TWICE_ROUTE_ENGINE, REOPEN_FIRST_REFUSAL_ENGINE, BLOCKED_DEPENDENCIES_ENGINE, TWO_TIER_DIAGNOSIS_ENGINE,
+  TAKEN_OVER_RELEASE_ENGINE, INFRA_RELEASE_ENGINE);
+
+/** Write the automatic escalation or hold the table decided after a release. */
+function applyAutomatic(board, id, events, { escalate, setItem, logEvent, insertShout }) {
+  for (const event of events) {
+    if (event.kind === 'escalate') escalate(board, id, { agentId: event.by, note: event.detail.note });
+    else if (event.kind === 'hold_item') {
+      setItem(board, id, { item_hold_reason: event.detail.reason, item_hold_by: event.by, item_hold_at: board.clock.now().toISOString() });
+      logEvent(board, event.by, 'hold_item', id, event.detail);
+      insertShout(board, { from: 'sentinel', to: 'coordinator', text: `#${id} held after two releases: ${event.detail.reason.replace(/^Released twice: /u, '')}`, lanes: [], detail: { item: id } });
+    }
+  }
+}
+
 /** Apply the existing ordinary release transition with narrowly frozen maintenance authority. */
 export function releaseClaim(board, id, agentId, note, observation, dependencies, reasonCode) {
   const { atomic, itemById, reviewHolder, reviewReleaseNoteProblem, setItem, moveItem, logEvent, insertShout, validateItemDependencies, escalate } = dependencies;
@@ -104,7 +125,15 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
     if (reasonCode === 'DIAGNOSIS_WRONG' && (!wrongDiagnosis || item.item_status !== 'claimed' || item.item_owner !== agentId)) throw new Refused('DIAGNOSIS_WRONG', 'claim a diagnosed item before returning it for a new diagnosis');
     const stale = staleClaimRelease(board, item, agentId, note, observation);
     const gone = stale ? null : goneRelease(board, item, agentId, observation);
+    const viaTable = !stale && !gone && reasonCode !== undefined && (board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_TABLE_FROM;
     if (item.item_status === 'submitted') {
+      if (viaTable) {
+        const decided = releaseDecision(board, item, { agentId, note, reasonCode, reviewer: reviewHolder(board, item), diagnosed: false });
+        if (decided.refused) throw new Refused(decided.refused.code, decided.refused.message);
+        setItem(board, id, { item_review_by: null, item_review_until: null });
+        logEvent(board, agentId, 'release', id, decided.events[0].detail);
+        return true;
+      }
       if (reviewHolder(board, item) !== agentId) {
         throw new Refused('NOT_YOURS', `item #${id} review is not reserved by you; ask its current reviewer to release it, or take a free review with pullboard next --verify`);
       }
@@ -119,6 +148,9 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
     }
     const window = (board.executionEngineVersion ?? ENGINE_VERSION) >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusal(board, id) : null;
     const exitHandoff = releaseExitClaim(board, id, agentId, note);
+    const decided = viaTable && !exitHandoff ? releaseDecision(board, item, { agentId, note, reasonCode, blockedOn, worktreeSnapshot,
+      diagnosed: Boolean(wrongDiagnosis), firstRefusalBuilder: window?.builder ?? null }) : null;
+    if (decided?.refused) throw new Refused(decided.refused.code, decided.refused.message);
     moveItem(board, id, 'release', {
       transition: (board.executionEngineVersion ?? ENGINE_VERSION) < REOPEN_FIRST_REFUSAL_ENGINE ? { ...MOVES.find(move => move.verb === 'release'), from: ['claimed'] } : null,
       checks: {
@@ -137,6 +169,11 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
       const upsert = board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value');
       upsert.run(`claim_waiting:${id}`, JSON.stringify(blockedOn));
       upsert.run(`blocked_release_waiting:${id}`, JSON.stringify(blockedOn));
+    }
+    if (decided) {
+      logEvent(board, agentId, 'release', id, decided.events[0].detail);
+      applyAutomatic(board, id, decided.events.slice(1), { escalate, setItem, logEvent, insertShout });
+      return false;
     }
     const lastClaim = board.db.prepare("SELECT event_by, event_detail FROM event WHERE item_id = ? AND event_kind = 'claim' ORDER BY event_id DESC LIMIT 1").get(id);
     const claimDetail = JSON.parse(lastClaim?.event_detail ?? '{}');

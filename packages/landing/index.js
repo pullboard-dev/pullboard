@@ -1,6 +1,6 @@
 /** Landing's automatic wake custody behind its cell front door [B35,C7]. */
 /** Landing retry and backoff policy for the automatic lander [C7]. */
-export { retryableLandingRefusal, HELD_TRUNK_REFUSALS, LANDING_ADOPT_REFUSALS, NOTHING_TO_LAND, landingWakeTrigger, nextLandingBackoff } from './src/logic/retry.js';
+export { LANDING_FAULT_CODES, retryableLandingRefusal, HELD_TRUNK_REFUSALS, LANDING_ADOPT_REFUSALS, NOTHING_TO_LAND, landingWakeTrigger, nextLandingBackoff } from './src/logic/retry.js';
 /** Landing, queue and main-red front door [C7] */
 export * from "./src/io/computed/conflict/receipt.js";
 export * from "./src/io/computed/conflict/return.js";
