@@ -26,12 +26,6 @@ import { recordItemSession } from '../../../../packages/items/index.js';
 import { dispatchHealth } from '../../../../packages/sentinels/index.js';
 import { healthReport } from '../../../../packages/health/index.js';
 import { deliverHealthNotices } from '../../../../packages/store/index.js';
-import { phaseMark as __pm } from '../../../../packages/gate/tests/fixtures/phase.js';
-import { phaseAdd as __pa } from '../../../../packages/gate/tests/fixtures/phase.js';
-import { beforeEach as __be } from 'node:test';
-import { afterEach as __ae } from 'node:test';
-__pm('loaded');
-let __t0 = 0; __be(() => { __t0 = performance.now(); }); __ae((t) => { __pa(`test:${t.name.slice(0, 50)}`, performance.now() - __t0); });
 
 
 test('a free seat is handed one eligible item without screening [N2,V1,B3]', async t => {

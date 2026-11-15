@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto';
-import { phaseTime } from '../../../../packages/gate/tests/fixtures/phase.js';
 import { submitFixture } from './board/submit.js';
 import { templatedProject } from './template.js';
 import assert from 'node:assert/strict';
@@ -85,8 +84,7 @@ function controllerDispatch(env) {
  * @param {string[]} args - The command's arguments.
  * @param {object} env - The fixture environment.
  */
-export function settlePulledJobs(cwd, args, env) { return phaseTime(`settle:${args[0]}`, () => settlePulledJobs0(cwd, args, env)); }
-function settlePulledJobs0(cwd, args, env) {
+export function settlePulledJobs(cwd, args, env) {
   // A status or cancel read offers no job and must not hold the command; a journey serving its own runner returns at once (#6660).
   // A controller-dispatch fixture drives its gate in the command's own detached workers, whose rows (the hand-off gate, its
   // drive job, the dispatcher lease) stay open while the journey still holds its gate, so waiting here deadlocked it.
@@ -116,8 +114,7 @@ export function createE2eHelpers() {
    * fixture command started) can still be flushing into the tree on a loaded runner, so the removal waits up
    * to 30 s for it to stop; the 1 s budget failed pending-refreeze with ENOTEMPTY (#3192).
    */
-  const cleanup = () => phaseTime('cleanup:e2e', cleanup0);
-  const cleanup0 = () => {
+  const cleanup = () => {
     // Every runner is signalled before any is awaited, so five sandboxes cost one stop, not five [C7].
     stopFixtureLocalRunners(sandboxes.map(dir => join(dir, 'machine-home')));
     for (const dir of sandboxes) {
@@ -140,8 +137,7 @@ const cockpitSource = () => readFileSync(resolve(import.meta.dirname, '../../src
  * A scratch directory with a `pullboard` shim on the PATH, so the hooks git runs find the CLI, and
  * git isolated from the machine's own config.
  */
-function sandbox(o) { return phaseTime('setup:sandbox', () => sandbox0(o)); }
-function sandbox0({ declareFamilies = false } = {}) {
+function sandbox({ declareFamilies = false } = {}) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-e2e-')));
   sandboxes.push(dir);
   const shims = join(dir, 'bin');
@@ -254,7 +250,7 @@ const SPEC = `# Demo spec
  */
 function project(gate = CONFIG.gate, box = sandbox(), options = {}) {
   // The first case in a process builds; every later case of the same shape copies that project [C7,#8088].
-  return phaseTime('setup:project', () => templatedProject(box, JSON.stringify([gate, options]), () => phaseTime('setup:project-build', () => buildProject(gate, box, options))));
+  return templatedProject(box, JSON.stringify([gate, options]), () => buildProject(gate, box, options));
 }
 
 /** Build one project from nothing; project() calls it once per shape and process. */

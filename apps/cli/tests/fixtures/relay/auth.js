@@ -1,5 +1,4 @@
 /** Relay auth fixtures shared by the relay journey files [H8, H1]. */
-import { phaseTime } from '../../../../../packages/gate/tests/fixtures/phase.js';
 import assert from 'node:assert/strict';
 import { runFixtureChild as spawnSync } from '../../../tests/fixtures/child.js';
 import { existsSync } from 'node:fs';
@@ -232,8 +231,7 @@ export async function registerSecondProject(box) {
 }
 
 /** Use real private SQLite and an actual HTTP provider with a controllable expiry clock. */
-export async function fixture(t, options = {}) { return phaseTime('setup:relay-auth-fixture', () => fixture0(t, options)); }
-async function fixture0(t, options = {}) {
+export async function fixture(t, options = {}) {
   const provider = await githubFixture(t);
   const root = mkdtempSync(join(tmpdir(), 'pullboard-relay-auth-'));
   const database = join(root, 'auth.sqlite');

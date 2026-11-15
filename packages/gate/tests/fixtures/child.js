@@ -20,7 +20,6 @@ import { refuseTestsOnCoordinator } from '../../index.js';
 import { loadMachineSettings } from '../../../config/index.js';
 import { tmpdir } from 'node:os';
 
-import { phaseAdd } from './phase.js';
 export { AGENT_SHELL_MARKERS } from '../../../kernel/index.js';
 export { SSH_SHELL_MARKERS } from '../../../kernel/index.js';
 
@@ -110,10 +109,6 @@ export function reportFixtureChildFailure(options) {
 export function runFixtureChild(command, args = [], options = {}) {
   if (!Array.isArray(args)) { options = args; args = []; }
   const started = performance.now();
-  const __cat = command === 'git' ? `git:${args.find(a => !a.startsWith('-') && !a.includes('=')) ?? '?'}` : command === process.execPath ? `node-child:${String(args[1] ?? '?')}` : `child:${String(command).split('/').pop()}`;
-  try { return runFixtureChild0(command, args, options, started); } finally { phaseAdd(`spawnSync ${__cat}`, performance.now() - started); }
-}
-function runFixtureChild0(command, args, options, started) {
   const stderrIgnored = options.stdio === 'ignore' || (Array.isArray(options.stdio) && options.stdio[2] === 'ignore');
   const childOptions = stderrIgnored ? { ...options, stdio: options.stdio === 'ignore'
     ? ['ignore', 'ignore', 'pipe'] : [options.stdio[0], options.stdio[1], 'pipe'] } : options;
@@ -180,7 +175,6 @@ export function runFixtureChildAsync(command, args, options = {}) {
     });
   });
   result.child = child;
-  result.then(() => phaseAdd(`spawnAsync ${command === process.execPath ? 'node:' + args[1] : command}`, performance.now() - started));
   return result;
 }
 
@@ -247,7 +241,6 @@ export function startFixtureChild(command, args = [], options = {}) {
   if (stderrIgnored) { child.stderr = null; child.stdio[2] = null; }
   child.once('error', error => { spawnError = error; });
   child.once('close', (status, signal) => {
-    phaseAdd(`startChild ${command === process.execPath ? 'node:' + args[1] : command}`, performance.now() - started);
     if (status !== 0 || signal || spawnError) {
       child.fixtureFailure = reportFixtureChildFailure({ command, args, status, signal,
         elapsedMs: performance.now() - started, stderr, env: options.env ?? process.env,
