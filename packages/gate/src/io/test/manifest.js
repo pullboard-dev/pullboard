@@ -2,12 +2,11 @@
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { generateTestTiers } from './tiers.js';
-import { infrastructure } from './tiers.js';
 import { latestRunnerFileTimes } from './budget-rows.js';
 import { readFileTimes } from './value/timing.js';
+import { spawnCategories } from '../../logic/test/spawns.js';
 import { manifestRows } from '../../logic/test/manifest.js';
 import { TEST_KINDS } from '../../logic/test/manifest.js';
 
@@ -32,7 +31,7 @@ function spawnEvidence(sources, reached, file) {
     if (!own && !(SUPPORT.test(path) && !SRC.test(path) && !TEST.test(path))) continue;
     const source = sources.get(path);
     if (!source) continue;
-    const found = new Set(infrastructure(path, source.toString('utf8')).map(reason => reason.split(':')[0]));
+    const found = spawnCategories(source.toString('utf8'));
     if (own) for (const category of found) direct.add(category);
     else if (found.size) via.set(path, found);
   }
@@ -67,7 +66,7 @@ export function formatTestManifest(manifest) {
 /** Write the manifest to its file, or to another path when asked. */
 export function writeTestManifest(root, { out = TEST_MANIFEST_FILE, times } = {}) {
   const manifest = generateTestManifest(root, { times });
-  const path = join(root, out);
+  const path = resolve(root, out);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, formatTestManifest(manifest));
   return { manifest, path };

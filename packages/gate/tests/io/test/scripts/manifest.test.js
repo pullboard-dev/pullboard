@@ -3,9 +3,9 @@
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
-import { generateTestManifest } from '../../../../index.js';
-import { runManifestCommand } from '../../../../index.js';
-import { TEST_KINDS } from '../../../../index.js';
+import { generateTestManifest } from '../../../../src/io/test/manifest.js';
+import { runManifestCommand } from '../../../../src/io/test/manifest.js';
+import { TEST_KINDS } from '../../../../src/logic/test/manifest.js';
 import { privateFixtureFiles } from '../../../fixtures/child.js';
 import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
 

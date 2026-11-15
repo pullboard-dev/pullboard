@@ -62,7 +62,7 @@ export function ownerOf(file, files, owners) {
 }
 
 /** Retain infrastructure imports and calls even when a test reaches them through a fixture helper. */
-export function infrastructure(file, source) {
+function infrastructure(file, source) {
   const reasons = new Set();
   const { code } = lex(source);
   // Follow named aliases of process starters as well as their original names; importing a

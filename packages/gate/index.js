@@ -79,8 +79,6 @@ export { failedAssertionLines, retainedGateAssertions, testOutputSummary, retain
 export { cachedAffectedGraph } from "./src/io/affected/graph/cache.js";
 export { checkCoordinatorRelease, recordCoordinatorRelease, readCoordinatorRelease } from './src/io/coordinator/release.js';
 export { TEST_TIERS_FILE, generateTestTiers, formatTestTiers, writeTestTiers } from './src/io/test/tiers.js';
-export { TEST_MANIFEST_FILE, generateTestManifest, formatTestManifest, writeTestManifest, runManifestCommand } from './src/io/test/manifest.js';
-export { TEST_KINDS, testKind } from './src/logic/test/manifest.js';
 export { testIdIndex, resolveIdRows, idRenames } from './src/io/test/ids.js';
 
 export { reviewCitations, citedReceiptsNote, citedReceipts, landingRunFiles } from './src/io/once.js';
