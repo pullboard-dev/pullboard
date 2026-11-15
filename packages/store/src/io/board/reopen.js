@@ -36,6 +36,7 @@ import { postRigorNotices } from "../board.js";
 import { persistShout } from "./shout.js";
 import { endReviewLease } from "./review/lease.js";
 import { movesShadowEnabled } from "../../../../config/index.js";
+import { movesLiveEnabled } from "../../../../config/index.js";
 import { shadowHook } from "./shadow-record.js";
 import { reopenDecision } from "./reopen-table.js";
 import { reopenDiffers } from "./reopen-table.js";
@@ -65,8 +66,10 @@ export function reopen(board, id, { agentId, note = '', conflict, cause, reopenF
     const forMerge = conflict !== undefined && conflict !== null;
     let supersedes, landingFailure, withdrawnVerdict;
     // With moves.shadow on (or a test's `reopenShadow`), the reopen table decides over the item as it stood before the move, and the compare is recorded [C7,#8388].
-    const hook = shadowHook(board, 'reopenShadow', 'reopen', reopenDiffers, movesShadowEnabled);
-    const beforeRow = hook ? board.db.prepare('SELECT item_status, item_commit, item_merged_commit FROM item WHERE item_id = ?').get(id) : null;
+    // With moves.live.reopen on (a board's own `movesLive.reopen` stands in for the setting in a store test) the table's answer is applied instead: it refuses what it refuses, and its decided parts are the ones written [C7,#8390].
+    const live = (board.movesLive?.reopen ?? movesLiveEnabled('reopen')) === true;
+    const hook = live ? null : shadowHook(board, 'reopenShadow', 'reopen', reopenDiffers, movesShadowEnabled);
+    const beforeRow = hook || live ? board.db.prepare('SELECT item_status, item_commit, item_merged_commit FROM item WHERE item_id = ?').get(id) : null;
     const beforeEvent = hook ? board.db.prepare('SELECT COALESCE(MAX(event_id),0) id FROM event').get().id : 0;
     const forWithdrawal = withdrawVerdict === true;
     const currentEngine = board.executionEngineVersion ?? ENGINE_VERSION;
@@ -126,14 +129,18 @@ export function reopen(board, id, { agentId, note = '', conflict, cause, reopenF
     endReviewLease(board, id);
     const shadowReopen = () => hook({ id, decided: reopenDecision(id, { before: beforeRow, agentId, joined: true, note, cause, conflict, withdrawVerdict: forWithdrawal, supersedes, landingFailure, conflictAccepted: true, withdrawnVerdict, conflictNote: forMerge ? conflictNote(conflict) : '' }),
       wrote: board.db.prepare("SELECT event_kind kind, event_by by, event_detail detail FROM event WHERE event_id>? AND event_kind='reopen' AND item_id=? ORDER BY event_id").all(beforeEvent, id) });
+    const liveAnswer = live ? reopenDecision(id, { before: beforeRow, agentId, joined: true, note, cause, conflict, withdrawVerdict: forWithdrawal, supersedes, landingFailure, conflictAccepted: true, withdrawnVerdict, conflictNote: forMerge ? conflictNote(conflict) : '' }) : null;
+    // A refusal rolls the whole move back; a table that throws never takes the move down, so the writer's own event is written [C7,#8390].
+    if (liveAnswer?.refused) throw new Refused(liveAnswer.refused.code, liveAnswer.refused.message, liveAnswer.refused.next);
+    const decidedEvent = liveAnswer?.events?.find(event => event.kind === 'reopen');
     const returnedAt = (forMerge || landingFailure || forWithdrawal) && currentEngine >= REOPEN_FIRST_REFUSAL_ENGINE && reopenFirstRefusalMinutes > 0 && item.item_built_by ? board.clock.now() : undefined;
     const reservation = (forMerge || landingFailure || forWithdrawal) && currentEngine >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalDetail(board, item, reopenFirstRefusalMinutes, returnedAt) : {};
     const returned = forWithdrawal ? { supersedes, withdrawnVerdict } : forMerge ? { supersedes, ...conflictDetail(conflict), ...(computedConflict !== undefined ? { computedConflict } : {}) } : supersedes ? { supersedes, landingFailure } : {};
     const derivedCause = currentEngine >= RIGOR_AUTO_ENGINE
       ? board.nativePorts.deriveRigorCause(board, item, { cause, conflict, landingFailure, agentId }) : cause != null ? { cause } : {};
     const returnedWithCause = currentEngine >= RIGOR_AUTO_ENGINE ? { ...returned, ...derivedCause } : { ...derivedCause, ...returned };
-    const trigger = logEvent(board, agentId, 'reopen', id, { ...(sourceAdvanceReturn ? { sourceAdvanceReturn } : {}), commit: submittedCommit, note: note.trim() || conflictNote(conflict), judgment: null, ...reservation,
-      ...returnedWithCause, ...(currentEngine >= board.enginePorts.pipelineCauseEngines().pipeline ? { pipelineCause: pipelineCause({ ...derivedCause, conflict, landingFailure, note }) } : {}) }, returnedAt);
+    const trigger = logEvent(board, decidedEvent?.by ?? agentId, 'reopen', id, { ...(sourceAdvanceReturn ? { sourceAdvanceReturn } : {}), commit: submittedCommit, note: note.trim() || conflictNote(conflict), judgment: null, ...reservation,
+      ...returnedWithCause, ...(currentEngine >= board.enginePorts.pipelineCauseEngines().pipeline ? { pipelineCause: pipelineCause({ ...derivedCause, conflict, landingFailure, note }) } : {}), ...(decidedEvent ? decidedEvent.detail : {}) }, returnedAt);
     if (hook) shadowReopen();
     tellFirstRefusal(board, item, reservation, persistShout);
     if (!reservation.reopenFirstRefusal && forMerge && supersedes === undefined && item.item_built_by) persistShout(board, { from: agentId, to: item.item_built_by, text: returnedHeadNotice(id, submittedCommit, conflict) });
