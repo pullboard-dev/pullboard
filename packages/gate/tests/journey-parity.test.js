@@ -14,23 +14,30 @@ import { runChildTests } from './fixtures/child-tests.js';
 import { privateFixtureFiles } from './fixtures/child.js';
 
 const REPOSITORY = resolve(import.meta.dirname, '../../..');
-/** The converted journey, and the cases of it the sample runs both ways. */
-const JOURNEY = 'apps/cli/journeys/spec/e2e/gates.test.js';
-const SAMPLE = [
-  'unsupported spec grammar keeps claim, refreeze, submit and verify refusals typed',
-  'pullboard worktree makes a joined worktree for a lane in one command',
+/** The converted journeys, and the cases of each the sample runs both ways (#8265 adds fact/msg, fact/board/busy and fact/board/schema). */
+const SAMPLES = [
+  { journey: 'apps/cli/journeys/spec/e2e/gates.test.js', cases: [
+    'unsupported spec grammar keeps claim, refreeze, submit and verify refusals typed',
+    'pullboard worktree makes a joined worktree for a lane in one command',
+  ] },
+  { journey: 'apps/cli/journeys/fact/msg.test.js', cases: ['a fresh board accepts a first commit that cites its item'] },
+  { journey: 'apps/cli/journeys/fact/board/busy.test.js', cases: [
+    'native import observes committed and rolled-back write ownership without changing restored rows',
+    'a standalone native attempt and nested rollback each observe only their actual outer write',
+  ] },
+  { journey: 'apps/cli/journeys/fact/board/schema.test.js', cases: ['a stamped pre-carry board upgrades on main open and completes a native merge-only submission'] },
 ];
 
-/** Run the sample in a child node --test in one mode and return each CLI call's record, in call order. */
-function runSample(mode) {
+/** Run one journey's sample in a child node --test in one mode and return each CLI call's record, in call order. */
+function runSample(mode, { journey, cases }) {
   const dir = privateFixtureFiles('pullboard-journey-parity-').root;
   const record = join(dir, `${mode}.jsonl`);
   try {
-    const pattern = SAMPLE.map(name => name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('|');
-    const run = runChildTests([JOURNEY], { cwd: REPOSITORY, args: [`--test-name-pattern=^(?:${pattern})`],
+    const pattern = cases.map(name => name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('|');
+    const run = runChildTests([journey], { cwd: REPOSITORY, args: [`--test-name-pattern=^(?:${pattern})`],
       env: { ...process.env, PULLBOARD_JOURNEY_MODE: mode, PULLBOARD_PARITY_RECORD: record } });
-    assert.equal(run.status, 0, `the ${mode} run of the sample passes:\n${run.stdout.slice(-3000)}\n${run.stderr.slice(-2000)}`);
-    assert.equal(run.pass, SAMPLE.length, `every sampled case ran in the ${mode} run`);
+    assert.equal(run.status, 0, `the ${mode} run of the ${journey} sample passes:\n${run.stdout.slice(-3000)}\n${run.stderr.slice(-2000)}`);
+    assert.equal(run.pass, cases.length, `every sampled case of ${journey} ran in the ${mode} run`);
     return readFileSync(record, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line));
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }
@@ -50,12 +57,14 @@ function parityDifferences(real, inprocess) {
 }
 
 test('clause 1: a sample of a converted journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', () => {
-  const real = runSample('process');
-  const inprocess = runSample('inprocess');
-  assert.ok(real.length >= 15, `the sample made its CLI calls (${real.length})`);
-  assert.ok(real.some(row => row.board?.items.length), 'the records carry board state');
-  const differences = parityDifferences(real, inprocess);
-  assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
+  for (const sample of SAMPLES) {
+    const real = runSample('process', sample);
+    const inprocess = runSample('inprocess', sample);
+    assert.ok(real.length >= 3, `${sample.journey} made its CLI calls (${real.length})`);
+    assert.ok(real.some(row => row.board?.items.length), `${sample.journey} records carry board state`);
+    const differences = parityDifferences(real, inprocess);
+    assert.deepEqual(differences, [], `the two runtimes disagree on ${sample.journey}:\n${differences.join('\n')}`);
+  }
 });
 
 test('clause 1: the parity comparison fails on any difference in exit code, JSON result or board state [C7]', () => {
