@@ -11,13 +11,21 @@ import { runSourceAdvances } from '../../../../../packages/sandbox/index.js';
 import { context } from '../../../index.js';
 import { ordered } from '../../../index.js';
 import { withBoard } from '../../../index.js';
-import { runSubmitGate } from '../../../../../packages/gate/index.js';
+import { runSubmitGate as gateRun } from '../../../../../packages/gate/index.js';
+import { replayChangedTables } from '../../../../../packages/gate/index.js';
+import { replayReport } from '../../../../../packages/moves/index.js';
+import { boardFilePath } from '../../../../../packages/store/index.js';
+import { repoInfo } from '../../../../../packages/git/index.js';
 import { withFileLock } from '../../../../../packages/outbox/index.js';
 import { readMainAudit } from '../../../../../packages/gate/index.js';
 import { saveMainAudit } from '../../../../../packages/gate/index.js';
 import { landingLeaseState } from '../../../../../packages/store/index.js';
 import { openLandingJob } from '../../../../../packages/api/index.js';
 import { takeLandingResource } from '../../../../../packages/landing/index.js';
+
+/** The gate with the move-table replay wired to this repository's board, so a changed table is checked against what the board recorded [C7,#8073]. */
+const runSubmitGate = (dir, config, options) => gateRun(dir, config, { ...options,
+  tableReplay: ({ root: tree, changed }) => replayChangedTables(tree, { changed, replay: replayReport, boardFile: boardFilePath(repoInfo(root).commonDir) }) });
 
 const [root, token, ...extra] = process.argv.slice(2);
 if (extra.length || typeof root !== 'string' || !isAbsolute(root)

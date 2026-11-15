@@ -65,6 +65,11 @@ export function gateRunnersFirstEnabled() {
   return loadMachineSettings().gate?.runnersFirst === true;
 }
 
+/** Replay a changed move table in the submit gate only when this machine opted in [C7,#8073]. */
+export function tableReplayEnabled() {
+  return loadMachineSettings().gate?.tableReplay === true;
+}
+
 /** Run the full suite after each landed train batch only when this machine opted in. */
 export function postLandSuiteEnabled() {
   return loadMachineSettings().gate?.postLandSuite === true;

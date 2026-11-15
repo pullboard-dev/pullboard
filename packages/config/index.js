@@ -46,6 +46,7 @@ export {
   browserFreeChecksEnabled,
   gateRunnersFirstEnabled,
   postLandSuiteEnabled,
+  tableReplayEnabled,
   gateRunnerAdmission,
   setGateRunnersOnly,
   gateRunnerWaitMs,

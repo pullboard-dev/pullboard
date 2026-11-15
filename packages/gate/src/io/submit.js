@@ -73,6 +73,7 @@ import {
   runProfiledShellAsync,
   safeLog,
 } from './execution.js';
+import { tableReplayEnabled } from '../../../config/index.js';
 import { shardSlotOptions } from './shards/proof.js';
 import { shardStartupMs } from './shards/proof.js';
 import { freeRunnerSlots } from './shards/proof.js';
@@ -304,7 +305,7 @@ function reusedCheckNote(lease) {
  * @param {{base:string|null, trunk?:string, changed?:string[], check:string, timing?:boolean, agent?:string, item?:string|number, kind?:string, onWait?:(state:object)=>void, onBrowserFallback?:(decision:{file:string,reason:string})=>void}} options
  * @returns {Promise<any>}
  */
-export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onStart, onBrowserFallback, onFailure, proofContext, earlyCriterion, sourceAdvance = false, outputRoot = root, outputLog, runnerAdmission = {}, executionServices, signatureCapture, staticChecked = false, plan: planned, admission, crossRunTests = [], countTrials = true, onMachineryNote = text => process.stderr.write(text + '\n'),
+export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onStart, onBrowserFallback, onFailure, proofContext, earlyCriterion, sourceAdvance = false, outputRoot = root, outputLog, runnerAdmission = {}, executionServices, signatureCapture, staticChecked = false, plan: planned, admission, crossRunTests = [], countTrials = true, tableReplay, onMachineryNote = text => process.stderr.write(text + '\n'),
   planners = { plan: submitGatePlan, admission: submitGateAdmission }, signal }) {
 
   if (!config.gate.trim()) throw missingGate(root);
@@ -313,6 +314,8 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     throw new Refused('SUBMIT_PIN_NOT_MAIN', `submit pinned main ${trunk.slice(0, 12)}, which is not an ancestor of main; run pullboard submit again so it captures main`);
   }
   if (!staticChecked) await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback, runnerAdmission, executionServices, artifactDirectory: outputLog ? dirname(outputLog) : undefined });
+  // A changed move table must still agree with the board; the setting is off until the person turns it on [C7,#8073].
+  if (tableReplay && tableReplayEnabled()) await tableReplay({ root, changed });
   // A remote plan is reused only when it covers the required call-adjacent tests.
   const plan = planned ?? planners.plan(root, config, { base, trunk, changed, check, sourceAdvance, crossRunTests });
   const { selection, deferred, deferFullFallback, deferSelection, invariants, registryGuards,
