@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /**
  * The parity check for the in-process journey pilot (#8058): the same blueprint commands run once as real processes and
  * once through the in-process dispatch, and any difference in exit code, stdout or stderr fails the test [S1,I1,C7].

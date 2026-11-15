@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /**
  * The real-process contract for blueprint init and add: one journey per command through node pullboard.js, so argv,
  * exit codes and output streams stay proven through a real process while init.test.js answers its permutations in-process [S1,I1,C7].

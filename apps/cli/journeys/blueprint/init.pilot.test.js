@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/pullboard.js packages/blueprints/src/io/main.js packages/blueprints/src/io/report.js packages/blueprints/src/io/set.js apps/cli/tests/fixtures/blueprint/pilot-record.json */
 /**
  * The record of the in-process journey pilot (#8058, U149): both versions' runtimes and the share of seeded faults each
  * catches, kept beside the tools that measured them. The record is re-derivable (a driver file named pilot-run.<fault>.<leg>.<n>.test.js runs one leg through pilot-driver.js); this test keeps
