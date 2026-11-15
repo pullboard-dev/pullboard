@@ -57,9 +57,9 @@ test('clause 2: replaying a fixture board\'s recorded add, claim, submit and acc
 });
 
 test('clause 2: a move the board accepted but a guard refuses is reported as a disagreement with its event id [C7,#8100]', () => {
-  const rows = [...LIFECYCLE.slice(0, 4), ['2026-11-10T02:00:00.000Z', 'core-1', 'accept', 1, {}], ['2026-11-10T03:00:00.000Z', 'core-9', 'claim', 2, { leaseUntil: '2026-11-10T09:00:00.000Z' }]];
+  const rows = [...LIFECYCLE.slice(0, 4), ['2026-11-10T01:30:00.000Z', 'core-9', 'claim', 2, { leaseUntil: '2026-11-10T09:00:00.000Z' }], ['2026-11-10T02:00:00.000Z', 'core-1', 'accept', 1, {}]];
   const report = replayTable(BACKBONE_TABLE, BACKBONE_RULES, readMoveRecords(board(rows), { since: CUT }), { cut: CUT });
-  assert.deepEqual(report.disagreements.map(entry => [entry.event, entry.table.code]), [[5, 'SELF_VERIFY'], [6, 'BLOCKED']]);
+  assert.deepEqual(report.disagreements.map(entry => [entry.event, entry.table.code]), [[5, 'BLOCKED'], [6, 'SELF_VERIFY']]);
 });
 
 test('clause 3: a record built by readMoveRecords is matched by runTable on the field it was written with [C7,#8100]', () => {
