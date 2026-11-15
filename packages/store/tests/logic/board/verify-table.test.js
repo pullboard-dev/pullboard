@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { boardVerifyEngine } from '../../../../moves/index.js';
-import { readVerifyRecords } from '../../../../moves/index.js';
-import { runTable } from '../../../../moves/index.js';
 import { verify } from '../../../index.js';
+import { boardVerifyEngine } from '../../fixtures/cell.js';
 import { cellBoard } from '../../fixtures/cell.js';
+import { readVerifyRecords } from '../../fixtures/cell.js';
+import { runTable } from '../../fixtures/cell.js';
 
 const HISTORY = JSON.parse(readFileSync(new URL('../../../../moves/tests/fixtures/table/verify-history.json', import.meta.url), 'utf8'));
 const STAMP = '2026-01-01T00:00:00.000Z';
