@@ -1,4 +1,4 @@
-/** A timed gate's exclusive receipt becomes the submit receipt in the board's gate receipt log, and submit no longer refuses it [C7,#8188]. @pullboard-test-input source-cell apps/cli */
+/** A timed gate's exclusive receipt becomes the submit receipt in the board's gate receipt log, [C7,#8188]. @pullboard-test-input source-cell apps/cli */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
@@ -34,7 +34,7 @@ function postGate(t, extra) {
   return { repo, board, item, posted };
 }
 
-test('clause 1 [C7]: a pulled timed gate receipt writes the submit receipt in the gate receipt log [C7]', t => {
+test('clause 1: a pulled timed gate receipt writes the submit receipt in the gate receipt log [C7]', t => {
   const { repo, item, board, posted } = postGate(t, { timing: true, exclusive: true, unfencedClients: [], occupiedSlots: 4,
     admittedAt: '2026-11-15T18:00:00.000Z', finishedAt: '2026-11-15T18:00:30.000Z' });
   assert.equal(posted.applied.outcome, 'review', JSON.stringify(posted.applied));
@@ -45,7 +45,7 @@ test('clause 1 [C7]: a pulled timed gate receipt writes the submit receipt in th
     { kind: 'submit', timing: true, exclusive: true, occupiedSlots: 4, admittedAt: '2026-11-15T18:00:00.000Z', finishedAt: '2026-11-15T18:00:30.000Z', runMs: 30_000 });
 });
 
-test('clause 1 [C7]: an untimed pulled gate receipt writes no submit receipt', t => {
+test('clause 1: an untimed pulled gate receipt writes no submit receipt [C7]', t => {
   const { repo } = postGate(t, {});
   assert.throws(() => readFileSync(receiptLog(repo.root), 'utf8'), { code: 'ENOENT' });
 });
