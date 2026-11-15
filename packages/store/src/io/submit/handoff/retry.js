@@ -25,6 +25,7 @@ import {
   proofReceipts,
 } from "../../board/query.js";
 import { Refused } from "../../../../../kernel/index.js";
+import { runSubmitTable } from "../../../logic/board/landing/lease.js";
 
 /** Requeues of the same candidate after a spent gate infrastructure retry budget. */
 const EXHAUSTED_RETRIES = 2;
@@ -287,8 +288,56 @@ export function startSubmitHandoff(board, id, options) {
   });
 }
 
-/** Store the canonical result without performing any submission transition or accepting new proof. */
-export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMinutes, ...options }) {
+/**
+ * What the COMPLETE table says storing this result does over the board as it stands: the path it takes, the hand-off record it saves and the events it writes, or its refusal.
+ * Why: the writer's own checks and the table must give one answer, and the shadow compare shows it [C7,#8282].
+ *
+ * @returns {{ refused?: object, via?: string, record?: object, events?: object[] }}
+ */
+export function completionDecision(board, id, { result, agentId, job: jobId, returnToBoard: toBoard }) {
+  const saved = submitHandoff(board, id);
+  if (!saved || saved.id !== jobId || saved.agentId !== agentId) return { refused: { code: 'SUBMIT_HANDOFF_CHANGED' } };
+  const item = getItem(board, id);
+  const wait = ownershipWaitForJob(board, saved.id);
+  const events = board.db.prepare("SELECT event_by AS by, event_detail AS detail FROM event WHERE item_id=? AND event_kind='submit' ORDER BY event_id").all(id).map(row => ({ by: row.by, detail: JSON.parse(row.detail) }));
+  const snapshot = { now: now(board), actor: { id: agentId, joined: true },
+    item: { id, status: item.item_status, owner: item.item_owner, leaseUntil: item.item_lease_until, frozenDigest: item.item_frozen_digest, builtBy: item.item_built_by, commit: item.item_commit },
+    children: [], rejects: [], history: [], submits: events, receipts: proofReceipts(board, id), handoff: saved, io: {}, deferred: { ownershipWait: wait ? { key: wait.key } : null } };
+  const move = { id, actor: agentId, job: jobId, result, ...(toBoard === true ? { returnToBoard: true } : {}), ...(result?.windowSpent === true ? { windowSpent: true } : {}) };
+  const answer = runSubmitTable('COMPLETE', { retryLimit: INFRASTRUCTURE_RETRY_LIMIT, infrastructureCodes: INFRASTRUCTURE_CODES }, snapshot, move);
+  if (answer.refused) return { refused: { code: answer.refused.code, message: answer.refused.message } };
+  const outcome = answer.table.outcomes.find(o => o.id === answer.via[0]);
+  return { via: answer.via[0], events: answer.events, record: outcome.record?.(snapshot, move) };
+}
+
+/** The events a write left on the thread since `after`, in the shape the table writes them: shouts by recipient and text, the rest by kind, writer and detail. */
+function eventsSince(board, after) {
+  const shouts = new Map(board.db.prepare('SELECT shout_id, shout_text FROM shout').all().map(row => [row.shout_id, row.shout_text]));
+  return board.db.prepare('SELECT event_by AS by, event_kind AS kind, event_detail AS detail FROM event WHERE event_id > ? ORDER BY event_id').all(after).map(row => {
+    const { model, ...detail } = JSON.parse(row.detail);
+    return row.kind === 'shout' ? { kind: 'shout', by: row.by, item: null, detail: { to: detail.to, text: detail.text ?? shouts.get(detail.shout) } } : { kind: row.kind, by: row.by, detail };
+  });
+}
+
+/**
+ * Store the canonical result without performing any submission transition or accepting new proof.
+ * A board that carries `submitCompleteShadow` is handed the table's answer beside what this saved and wrote, for the store test to compare [C7,#8282].
+ */
+export function completeSubmitHandoff(board, id, options) {
+  const { result, withdrawn } = options;
+  const modeled = (board.executionEngineVersion ?? ENGINE_VERSION) >= Math.max(QUEUED_RED_RETURN_ENGINE, PIPELINE_CAUSE_ENGINE, CONVEYOR_RETURN_ENGINE, INFRA_HANDOFF_RECOVERY_ENGINE, DEAD_HANDOFF_RETRY_ENGINE);
+  if (typeof board.submitCompleteShadow !== 'function' || withdrawn === true || result == null || !modeled) return writeCompletion(board, id, options);
+  const decided = completionDecision(board, id, options);
+  const after = board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id;
+  let wrote;
+  try { wrote = { record: writeCompletion(board, id, options), events: eventsSince(board, after) }; } catch (error) { wrote = { refused: { code: error.code, message: error.message } }; }
+  board.submitCompleteShadow({ id, decided, wrote });
+  if (wrote.refused) throw new Refused(wrote.refused.code, wrote.refused.message);
+  return wrote.record;
+}
+
+/** The writer's own checks, the hand-off record it saves and the events it writes. */
+function writeCompletion(board, id, { result, reopenFirstRefusalMinutes, ...options }) {
   return atomic(board, () => {
     if (options.withdrawn === true) return withdrawGate(board, id, options);
     const saved = matching(board, id, options);
