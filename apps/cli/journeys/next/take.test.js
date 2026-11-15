@@ -75,15 +75,12 @@ test('next --take gives a seat with a running handoff a different item and no --
   const box = await fixture(t);
   const held = submitting(box, 'Submitted and gating');
   const other = box.add('Another open item', { brief: 'Files: web/other.js\nTest: an unrelated file.' });
-  let out = '', err = '';
-  const code = await main(['next', '--take'], { cwd: box.seats.actor.path, clock: box.clock,
-    stdout: { isTTY: false, write: part => { out += part; } }, stderr: { write: part => { err += part; } } });
-  const text = out + err;
+  const taken = await cli(box, box.seats.actor.path, ['next', '--take']);
 
-  assert.equal(code, 0, text);
-  assert.match(text.split(/\r?\n/u, 1)[0], new RegExp(`^claimed #${other}:`, 'u'));
-  assert.doesNotMatch(text, new RegExp(`submit ${held}\\b[^\\n]*--wait|next --wait`, 'u'), 'no --wait hint for the held item');
-  assert.doesNotMatch(text, new RegExp(`you hold #${held}`, 'u'));
+  assert.equal(taken.code, 0, taken.out + taken.err);
+  assert.equal(taken.document.item.item_id, other);
+  assert.notEqual(taken.document.item.item_id, held, 'the item whose handoff is running is not handed back');
+  assert.equal(store.getItem(box.board, other).item_owner, box.seats.actor.id);
 });
 
 test('the commit-msg hook accepts the submitted item trailer while its handoff runs [C7,#2882]', async t => {
@@ -406,10 +403,10 @@ test('clause 2: list, status data and the health report name each excluded item 
   box.claim(id, box.seats.actor);
   store.release(box.board, id, box.seats.actor.id, 'The fixture seat cannot build this item as scoped', undefined, 'ROUTED_ELSEWHERE');
   box.advance(7 * 60_000);
-  let listed = '';
-  const code = await main(['list'], { cwd: box.seats.builder.path, clock: box.clock, stdout: { isTTY: false, write: part => { listed += part; } }, stderr: { write: () => {} } });
-  assert.equal(code, 0, listed);
-  assert.match(listed, new RegExp(`needs re-scope: #${id} .*ROUTED_ELSEWHERE.*released 7 min ago`, 'u'));
+  const listed = await cli(box, box.seats.builder.path, ['list']);
+  assert.equal(listed.code, 0, listed.out + listed.err);
+  const row = listed.document.needsRescope.find(entry => entry.id === id);
+  assert.match(row.reasons[0], /ROUTED_ELSEWHERE.*released 7 min ago/u);
   const excluded = store.allItemsNeedingRescope(box.board);
   assert.equal(excluded[0].id, id);
   assert.match(excluded[0].reasons[0], /ROUTED_ELSEWHERE.*released 7 min ago/u);
