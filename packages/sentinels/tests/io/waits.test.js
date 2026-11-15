@@ -209,8 +209,9 @@ test('a gate with no span progress past five minutes and a landing run past fift
 test('clause 1 [test]: a runner whose worker is running a job is busy, not unavailable, so no runner-unavailable row is judged or filed [C7,#7626]', async t => {
   const m = machine(t);
   const since = new Date(Date.now() - 20 * MINUTE).toISOString();
-  const db = new DatabaseSync(join(m.paths.machineHome, 'resources.sqlite'));
-  db.exec("CREATE TABLE runner_unavailable (host TEXT PRIMARY KEY, since TEXT, detail TEXT DEFAULT '')");
+  const file = join(m.paths.machineHome, 'resources.sqlite');
+  resourceDatabase(file, [], []);
+  const db = new DatabaseSync(file);
   for (const host of ['busy@10.0.0.53', 'idle@10.0.0.54']) db.prepare('INSERT INTO runner_unavailable (host, since, detail) VALUES (?, ?, ?)').run(host, since, 'CLEANUP_UNVERIFIED');
   db.close();
   const ps = ['  500   90  01:00 /u/bin/node /Users/example/.pullboard-runner/runtime/abc/src/runner-worker.js',
