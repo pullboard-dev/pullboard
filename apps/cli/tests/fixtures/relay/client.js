@@ -15,7 +15,7 @@ import { performance } from 'node:perf_hooks';
 import { once } from 'node:events';
 import { stopSender } from './sender.js';
 import { runCliInProcess } from '../process.js';
-import { runScriptInProcess } from '../process.js';
+import { runScriptInProcess } from './script.js';
 import {
   cpSync,
   existsSync,
