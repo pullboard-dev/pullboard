@@ -67,15 +67,17 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
   // Why: pull offers and registrations are the board's promise to its runners, so they ride a store the board
   // restarts from; without one the adapter is in-memory, as before [C7].
   const held = store?.load() ?? null;
+  // Nonces of accepted takes, each kept until its request can no longer be fresh, so a replay inside the window finds it,
+  // including a replay after the board restarted [C7].
+  const spent = new Map(held?.spent ?? []);
   for (const runner of held?.runners ?? []) runners.set(runner.runner, { ...runner });
   for (const offer of held?.offers ?? []) offers.set(offer.job, { ...offer, shards: new Map(offer.shards.map(shard => [shard.shard, { ...shard }])) });
   /** Write the registrations and offers to the store, after every change to either. */
   const persist = () => store?.save({
+    spent: [...spent],
     runners: [...runners.values()].map(({ runner, publicKey, seen }) => ({ runner, publicKey, seen })),
-    offers: [...offers.values()].map(({ job, tree, runner, shards }) => ({ job, tree, runner, shards: [...shards.values()] })),
+    offers: [...offers.values()].map(({ job, tree, base, tooling, attempt, runner, shards }) => ({ job, tree, base, tooling, attempt, runner, shards: [...shards.values()] })),
   });
-  // Nonces of accepted takes, each kept until its request can no longer be fresh, so a replay inside the window finds it.
-  const spent = new Map();
   const trustedKeys = () => new Set(typeof trusted === 'function' ? trusted() : trusted);
 
   /** The registered, still trusted runner a request or token names, or a refusal saying how to get admitted. */
@@ -99,6 +101,7 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
     const key = `${id} ${nonce}`;
     if (spent.has(key)) throw new Refused('PULL_REPLAY', `runner ${id}'s take with this nonce was already accepted; sign a new take with a fresh nonce`);
     spent.set(key, at + 2 * skewMs);
+    persist();
   };
 
   /** The job a token names, its runner admitted and the job still offered. */
