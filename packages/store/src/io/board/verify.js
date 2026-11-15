@@ -1,5 +1,7 @@
 import { REJECT_OPEN_ENGINE } from '../../../../state/index.js';
 import { LANDED_VERDICT_ENGINE } from '../../../../state/index.js';
+import { LANDED_REJECT_ENGINE } from '../../../../state/index.js';
+import { addItem } from './add.js';
 import { setItem } from "../board.js";
 import { rejectionReturnEnabled } from '../../logic/rework.js';
 import { finishVerdict } from "../../../../verify/index.js";
@@ -212,7 +214,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
  */
 function landedVerdict(board, id, { agentId, isAccept, decision, code, reason, note, policy, familyPolicy, engine }) {
   if (engine < LANDED_VERDICT_ENGINE) throw new Refused('ENGINE_VERSION', `a verdict on a forced landing requires engine ${LANDED_VERDICT_ENGINE}; upgrade Pullboard before recording one`);
-  if (!isAccept) throw new Refused('NOT_SUBMITTED', `item #${id} already landed; only an accept is recorded on a forced landing`);
+  if (!isAccept && engine < LANDED_REJECT_ENGINE) throw new Refused('ENGINE_VERSION', `a reject on a landed item requires engine ${LANDED_REJECT_ENGINE}; upgrade Pullboard before recording one`);
   const suppliedNote = note.trim();
   return atomic(board, () => {
     const found = getItem(board, id);
@@ -225,11 +227,19 @@ function landedVerdict(board, id, { agentId, isAccept, decision, code, reason, n
       const refusal = checks[guard](judged);
       if (refusal) throw refusal;
     }
-    if (reason && reason !== ACCEPT_REASON) throw new Refused('BAD_REASON', `accept means ${ACCEPT_REASON}; a failed criterion is a reject`);
-    if (!suppliedNote) throw new Refused('PROOF_REQUIRED', 'an accept says how you proved it: --note "what you broke or which edge you tried, and what happened"; passing tests alone are not proof');
+    if (!isAccept) {
+      if (!reason || !REJECT_REASONS.includes(reason)) throw new Refused('BAD_REASON', `a reject names one of: ${REJECT_REASONS.join(', ')}`);
+      if (!suppliedNote) throw new Refused('NOTE_REQUIRED', 'a reject says what failed: --note "..."');
+    }
+    if (isAccept && reason && reason !== ACCEPT_REASON) throw new Refused('BAD_REASON', `accept means ${ACCEPT_REASON}; a failed criterion is a reject`);
+    if (isAccept && !suppliedNote) throw new Refused('PROOF_REQUIRED', 'an accept says how you proved it: --note "what you broke or which edge you tried, and what happened"; passing tests alone are not proof');
     recordVerdict(board, { ...found, item_commit: found.item_commit ?? found.item_merged_commit }, { agentId, decision, reason: code, note, digest: found.item_frozen_digest ?? '', head: found.item_merged_commit });
     setItem(board, id, { item_verdict: decision, item_verified_by: agentId });
-    logEvent(board, agentId, 'verify', id, { reason: code, commit: found.item_merged_commit, landed: true, note: suppliedNote });
-    return { decision, reason: code };
+    // A landed item cannot move back, so a reject opens a follow-up item in its lane for the builder to fix.
+    const followUp = isAccept ? null : addItem(board, { by: agentId, lane: found.item_lane, title: `Fix after review of #${id}: ${found.item_title}`.slice(0, 120), route: found.item_route ?? 'strong',
+      specIds: [], parentId: null, after: [], criterion: `1. The ${reason} that review found in landed #${id} is fixed on main: ${suppliedNote} [reasoning]`,
+      brief: `Landed #${id} at ${found.item_merged_commit} was rejected after landing (${reason}). Builder: ${found.item_built_by ?? 'unknown'}. Review note: ${suppliedNote}` });
+    logEvent(board, agentId, 'verify', id, { reason: code, commit: found.item_merged_commit, landed: true, note: suppliedNote, ...(followUp ? { followUp } : {}) });
+    return { decision, reason: code, ...(followUp ? { followUp } : {}) };
   });
 }
