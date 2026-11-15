@@ -12,6 +12,10 @@ import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 
+const FLAG_MODEL = 'CLI Coordinator';
+const ENV_MODEL = 'Environment Coordinator';
+const LATER_MODEL = 'Later Coordinator';
+
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox } = e2e;
@@ -44,29 +48,29 @@ test('clause 1: the coordinator declares its model [O8,O3]', async (t) => {
   delete box.env.PULLBOARD_MODEL;
 
   const flaggedRepo = coordinatorRepo(box, 'init-flag');
-  const flaggedInit = await box.inProcess(flaggedRepo, 'init', '--model', 'CLI Coordinator', '--json');
+  const flaggedInit = await box.inProcess(flaggedRepo, 'init', '--model', FLAG_MODEL, '--json');
   assert.equal(flaggedInit.code, 0, flaggedInit.err || flaggedInit.out);
   const flaggedWho = await box.inProcess(flaggedRepo, 'whoami', '--json');
   assert.equal(flaggedWho.code, 0, flaggedWho.err || flaggedWho.out);
   const flaggedIdentity = JSON.parse(flaggedWho.out);
-  assert.equal(flaggedIdentity.model, 'CLI Coordinator');
-  assert.equal(flaggedIdentity.displayName, 'coordinator (CLI Coordinator)');
+  assert.equal(flaggedIdentity.model, FLAG_MODEL);
+  assert.equal(flaggedIdentity.displayName, `coordinator (${FLAG_MODEL})`);
   const flaggedJoin = coordinatorEvents(flaggedRepo).find(event => event.event_kind === 'join');
   assert.ok(flaggedJoin, 'init records the coordinator registration');
-  assert.equal(JSON.parse(flaggedJoin.event_detail).model, 'CLI Coordinator');
+  assert.equal(JSON.parse(flaggedJoin.event_detail).model, FLAG_MODEL);
 
   const envRepo = coordinatorRepo(box, 'init-environment');
-  box.env.PULLBOARD_MODEL = 'Environment Coordinator';
+  box.env.PULLBOARD_MODEL = ENV_MODEL;
   const environmentInit = await box.inProcess(envRepo, 'init', '--json');
   assert.equal(environmentInit.code, 0, environmentInit.err || environmentInit.out);
   const environmentWho = await box.inProcess(envRepo, 'whoami', '--json');
   assert.equal(environmentWho.code, 0, environmentWho.err || environmentWho.out);
   const environmentIdentity = JSON.parse(environmentWho.out);
-  assert.equal(environmentIdentity.model, 'Environment Coordinator');
-  assert.equal(environmentIdentity.displayName, 'coordinator (Environment Coordinator)');
+  assert.equal(environmentIdentity.model, ENV_MODEL);
+  assert.equal(environmentIdentity.displayName, `coordinator (${ENV_MODEL})`);
   const environmentJoin = coordinatorEvents(envRepo).find(event => event.event_kind === 'join');
   assert.ok(environmentJoin, 'environment-backed init records the coordinator registration');
-  assert.equal(JSON.parse(environmentJoin.event_detail).model, 'Environment Coordinator');
+  assert.equal(JSON.parse(environmentJoin.event_detail).model, ENV_MODEL);
 
   delete box.env.PULLBOARD_MODEL;
   const unknownRepo = coordinatorRepo(box, 'init-unknown');
@@ -82,11 +86,11 @@ test('clause 1: the coordinator declares its model [O8,O3]', async (t) => {
   const declaredRepo = coordinatorRepo(box, 'later-declaration');
   const undeclaredInit = await box.inProcess(declaredRepo, 'init');
   assert.equal(undeclaredInit.code, 0, undeclaredInit.err || undeclaredInit.out);
-  const declaration = fixtureJoin(box.run, declaredRepo, 'coordinator', '--model', 'Later Coordinator', '--json');
+  const declaration = fixtureJoin(box.run, declaredRepo, 'coordinator', '--model', LATER_MODEL, '--json');
   assert.equal(declaration.code, 0, declaration.err || declaration.out);
   const declaredIdentity = JSON.parse(declaration.out);
-  assert.equal(declaredIdentity.model, 'Later Coordinator');
-  assert.equal(declaredIdentity.displayName, 'coordinator (Later Coordinator)');
+  assert.equal(declaredIdentity.model, LATER_MODEL);
+  assert.equal(declaredIdentity.displayName, `coordinator (${LATER_MODEL})`);
   const move = await box.inProcess(declaredRepo, 'shout', 'all', 'the declared coordinator acts');
   assert.equal(move.code, 0, move.err || move.out);
   const declaredEvents = coordinatorEvents(declaredRepo);
@@ -94,8 +98,8 @@ test('clause 1: the coordinator declares its model [O8,O3]', async (t) => {
   const shoutEvent = declaredEvents.find(event => event.event_kind === 'shout');
   assert.ok(modelEvent, 'the later declaration is an ordered model event');
   assert.ok(shoutEvent, 'the coordinator records a later move');
-  assert.equal(JSON.parse(modelEvent.event_detail).model, 'Later Coordinator');
-  assert.equal(JSON.parse(shoutEvent.event_detail).model, 'Later Coordinator');
+  assert.equal(JSON.parse(modelEvent.event_detail).model, LATER_MODEL);
+  assert.equal(JSON.parse(shoutEvent.event_detail).model, LATER_MODEL);
 
   const canonicalRelay = await relayClientFixture(t, { coordinatorModel: null });
   assert.equal(coordinatorModel(canonicalRelay.root), null, 'the canonical coordinator begins unknown');

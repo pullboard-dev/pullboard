@@ -32,7 +32,7 @@ function twoBranches(t, files) {
   return { root, heads };
 }
 
-test('two branches that each add a plan shard row and a data-read row compose with both rows in both orders on review retry [C7,D3]', async t => {
+test('verify.review.plan-compose: two branches that each add a plan shard row and a data-read row compose with both rows in both orders on review retry [C7,D3]', async t => {
   const { root, heads } = twoBranches(t, {
     [SHARD_FILE]: [shard([row(1)]), shard([row(1), row(2)]), shard([row(1), row(3)])],
     [READS_FILE]: [reads([read(1)]), reads([read(1), read(2)]), reads([read(1), read(3)])],
@@ -44,7 +44,7 @@ test('two branches that each add a plan shard row and a data-read row compose wi
   }
 });
 
-test('a data-read row and a shard row edited differently on both sides still refuse MERGE_CONFLICT on review retry [C7,D3]', async t => {
+test('verify.review.plan-conflict: a data-read row and a shard row edited differently on both sides still refuse MERGE_CONFLICT on review retry [C7,D3]', async t => {
   for (const [file, base, left, right] of [
     [SHARD_FILE, shard([row(1)]), shard([[...row(1).slice(0, 2), 'imports']]), shard([[...row(1).slice(0, 2), 'seed']])],
     [READS_FILE, reads([read(1)]), reads([read(1, 'left')]), reads([read(1, 'right')])],
