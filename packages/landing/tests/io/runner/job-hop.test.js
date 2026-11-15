@@ -37,11 +37,11 @@ function landFixture(t, epoch) {
   git(work, 'push', '-q', remote, 'main:refs/heads/main', `item:refs/heads/item-${ITEM}`);
   const pushes = join(dir, 'pushes.log');
   writeFileSync(pushes, '');
-  writeFileSync(join(remote, 'hooks', 'pre-receive'), `#!/bin/sh\nrefs=$(cut -d' ' -f3 | sort | tr '\\n' ' ')\necho "$refs" >> '${pushes}'\n`);
+  writeFileSync(join(remote, 'hooks', 'pre-receive'), `#!/bin/sh\necho $(cut -d' ' -f3) >> '${pushes}'\n`);
   chmodSync(join(remote, 'hooks', 'pre-receive'), 0o755);
   const ref = name => git(dir, '--git-dir', remote, 'for-each-ref', '--format=%(objectname)', name).trim();
   const payload = { shape: 3, remote, trunk: 'refs/heads/main', expect: ref('refs/heads/main'), publish: 'separate', items: [{ id: ITEM, commit, ref: `refs/heads/item-${ITEM}` }], hops: [{ item: ITEM, epoch }] };
-  return { work, remote, payload, workdir: join(dir, 'runner'), tip: () => ref('refs/heads/main'), fence: () => ref(hopFenceRef(ITEM)), pushes: () => readFileSync(pushes, 'utf8').trim().split('\n').filter(Boolean) };
+  return { work, remote, payload, workdir: join(dir, 'runner'), tip: () => ref('refs/heads/main'), fence: () => ref(hopFenceRef(ITEM)), pushes: () => readFileSync(pushes, 'utf8').trim().split('\n').filter(Boolean).map(line => line.trim().split(/\s+/u).sort().join(' ')) };
 }
 
 test('clause 1: with gate.fencedHop on, the runner land job moves refs/pullboard/hop/<item> to the item epoch in the same push as trunk [C7,#8437]', async t => {
@@ -53,7 +53,7 @@ test('clause 1: with gate.fencedHop on, the runner land job moves refs/pullboard
   assert.deepEqual(receipt.landed, [ITEM]);
   assert.equal(box.tip(), receipt.trunk, 'trunk moved to the landed tip');
   assert.equal(box.fence(), hopFenceObject(box.work, { item: ITEM, epoch: 2 }), 'the fence names the item epoch the job carried');
-  assert.deepEqual(box.pushes().slice(before), [`${hopFenceRef(ITEM)} refs/heads/main `], 'one push moved the fence and trunk together');
+  assert.deepEqual(box.pushes().slice(before), [`refs/heads/main ${hopFenceRef(ITEM)}`], 'one push moved the fence and trunk together');
 });
 
 test('clause 2: a runner land job holding a stale epoch is refused HOP_FENCED and leaves trunk unmoved [C7,#8437]', async t => {
