@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { judge } from '../index.js';
 import { SECTIONS } from '../index.js';
 
-test('clause 1: [C7] a result in which every section is skip judges red with a reason naming the all-skip', () => {
+test('receipt.judge.all-skip: [C7] a result in which every section is skip judges red with a reason naming the all-skip', () => {
   const skipped = Object.fromEntries(SECTIONS.map((name) => [name, { outcome: 'skip' }]));
   const one = judge(skipped);
   assert.deepEqual([one.verdict, one.code], ['red', 'ALL_SKIP']);

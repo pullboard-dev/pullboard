@@ -15,7 +15,7 @@ const bound = { job: 'j', shard: 's', tree: 't'.repeat(40), base: 'b'.repeat(40)
 const signed = fields => sign(null, Buffer.from(resultStatement({ ...fields, digest })), keys.privateKey).toString('base64url');
 const check = (signature, fields) => checkSignedResult({ bytes, signature, publicKey, ...fields });
 
-test('clause 1: [C7] a signed runner result whose fields are concatenated differently fails to verify', () => {
+test('receipt.signed.concat: [C7] a signed runner result whose fields are concatenated differently fails to verify', () => {
   assert.notEqual(resultStatement({ ...bound, job: 'a b', shard: 'c', digest }), resultStatement({ ...bound, job: 'a', shard: 'b c', digest }));
   assert.notEqual(resultStatement({ ...bound, command: 'x', attempt: '12', digest }), resultStatement({ ...bound, command: 'x1', attempt: '2', digest }));
   const signature = signed({ ...bound, job: 'a b', shard: 'c' });
@@ -23,7 +23,7 @@ test('clause 1: [C7] a signed runner result whose fields are concatenated differ
   assert.equal(check(signature, { ...bound, job: 'a', shard: 'b c' }).valid, false);
 });
 
-test('clause 2: [C7] a result signed for one attempt, base, tooling pin or command fails to verify for any other', () => {
+test('receipt.signed.binding: [C7] a result signed for one attempt, base, tooling pin or command fails to verify for any other', () => {
   const signature = signed(bound);
   assert.equal(check(signature, bound).valid, true);
   for (const change of [{ attempt: '2' }, { base: 'c'.repeat(40) }, { tooling: 'q'.repeat(40) }, { command: 'sh ./other.sh' }]) {
