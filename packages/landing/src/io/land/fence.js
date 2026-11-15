@@ -39,7 +39,8 @@ export function fenceHop(root, { remote, item, epoch }) {
   const ref = hopFenceRef(item);
   const next = hopFenceObject(root, { item, epoch });
   const lease = epoch === 1 ? `--force-with-lease=${ref}:` : `--force-with-lease=${ref}:${hopFenceObject(root, { item, epoch: epoch - 1 })}`;
-  const pushed = tryGit(root, ['push', '--atomic', '--quiet', lease, remote, `+${next}:${ref}`]);
+  // No '+' on the refspec: a forced refspec skips the lease, and the lease is the fence.
+  const pushed = tryGit(root, ['push', '--atomic', '--quiet', lease, remote, `${next}:${ref}`]);
   if (pushed.status !== 0) throw fenced(root, { remote, item, epoch }, pushed);
   return next;
 }
