@@ -93,9 +93,15 @@
     "hand-policy": 1,
     "model": 1
   },
-  "packages/doctrine/tests/hooks.test.js": {
+  "packages/doctrine/tests/fixtures/hooks.js": {
     "tempdir": 4,
-    "hand-policy": 9
+    "hand-policy": 6
+  },
+  "packages/doctrine/tests/hooks-inherited-main.test.js": {
+    "hand-policy": 2
+  },
+  "packages/doctrine/tests/hooks-main-merge.test.js": {
+    "hand-policy": 1
   },
   "packages/seats/tests/io/lanes.test.js": {
     "tempdir": 3,
