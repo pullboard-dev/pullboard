@@ -1,9 +1,9 @@
 /** Every banner the view shows, built from the seeded refusal board, shows no code, command, token or relay term [C6,N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { personSurfaceLeaks } from '../../../tests/fixtures/person-surfaces.js';
-import { seededPersonBoard } from '../../../tests/fixtures/person-surfaces.js';
-import { hostedState } from '../../../../view/src/logic/hosted/render.js';
+import { personSurfaceLeaks } from '../../../../cli/tests/fixtures/person-surfaces.js';
+import { seededPersonBoard } from '../../../../cli/tests/fixtures/person-surfaces.js';
+import { hostedState } from '../../../src/logic/hosted/render.js';
 
 const STATES = ['looking', 'local-open', 'asking', 'blocked', 'not-running', 'mismatch', 'problem', 'signed-out', 'no-linked', 'unpaired', 'signed-out-paired', 'linked-failed', 'local-failed'];
 // The copy box's command and the sentence for the agent are the one thing the screen asks the person to do, so they are not banner prose.
