@@ -66,7 +66,7 @@ export function parityText(text, dir) {
  * One call's result for the parity check: argv, exit code, the JSON result or the printed text, and the board's items and
  * event counts after the call, all with machine-dependent text masked. Read-only: the board is opened read-only [C7].
  */
-function parityRecord({ dir, env, cwd, args, result }) {
+export function parityRecord({ dir, env, cwd, args, result }) {
   let json = null;
   try { json = JSON.parse(result.out); } catch { /* a text answer */ }
   let board = null;
