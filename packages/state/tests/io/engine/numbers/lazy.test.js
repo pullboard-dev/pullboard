@@ -6,7 +6,6 @@
  */
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { test } from 'node:test';
 import * as light from '../../../../light.js';
 import * as door from '../../../../index.js';
@@ -15,28 +14,27 @@ import { engineFolderViolations } from '../../../../src/io/engine/folder.js';
 import { ENGINE_REGISTRY } from '../../../../src/io/engine/metadata.js';
 
 const ENGINES = new URL('../../../../src/logic/engines/', import.meta.url);
-const load = createRequire(import.meta.url);
 
 /** Every engine number the leaves give when each is loaded as a module: the eager registry. */
-function eagerNumbers() {
+async function eagerNumbers() {
   const numbers = new Map();
   for (const file of readdirSync(ENGINES).filter(name => /^[\w-]+-engine\.js$/u.test(name))) {
-    for (const [name, value] of Object.entries(load(new URL(file, ENGINES).pathname))) {
+    for (const [name, value] of Object.entries(await import(new URL(file, ENGINES).href))) {
       if (name.endsWith('_ENGINE') && typeof value === 'number') numbers.set(name, value);
     }
   }
   return numbers;
 }
 
-test('clause 1: every engine number read from leaf text equals the number loading its leaf gives [C7]', () => {
-  const eager = eagerNumbers();
+test('clause 1: every engine number read from leaf text equals the number loading its leaf gives [C7]', async () => {
+  const eager = await eagerNumbers();
   assert.ok(eager.size >= 190, `found ${eager.size} engine leaves`);
   for (const [name, value] of eager) assert.equal(engineNumber(name), value, `${name} keeps engine ${value}`);
   assert.throws(() => engineNumber('NO_SUCH_ENGINE'), /no engine leaf declares NO_SUCH_ENGINE/u);
 });
 
-test('clause 1: the light and full state doors give each leaf engine exactly as the leaf declares it [C7]', () => {
-  const eager = eagerNumbers();
+test('clause 1: the light and full state doors give each leaf engine exactly as the leaf declares it [C7]', async () => {
+  const eager = await eagerNumbers();
   let read = 0;
   for (const exports of [light, door]) {
     for (const [name, value] of Object.entries(exports)) {
