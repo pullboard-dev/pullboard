@@ -3,6 +3,7 @@ import { submitReferenceReminders } from '../../../../../packages/spec/index.js'
 import { committedReader } from '../../../../../packages/moves/index.js';
 import { requireKernelApproval } from '../../../../../packages/verify/index.js';
 import { frozenTestsProblem } from '../../../../../packages/verify/index.js';
+import { authorSplitProblem } from '../../../../../packages/verify/index.js';
 import { testAuthorNotes } from '../../../../../packages/verify/index.js';
 import { seatFamily } from '../../../../../packages/items/index.js';
 import { itemFolderIdentity } from '../item/folder.js';
@@ -362,10 +363,11 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     }
   }
   authorizationStep('non-empty', () => requireNonEmptySubmit(root, id, commit, acceptedMain.commit));
-  // A test file the bar froze at claim keeps its content unless the person ruled on the new content [C7,V4].
+  // A test file the bar froze at claim keeps its content unless the person ruled; under the test-author split another seat wrote it [C7,V4].
   authorizationStep('test-hashes', () => withBoard(ctx, (board) => {
-    const problem = frozenTestsProblem(submitVerify, held, store.itemThread(board, id),
-      { atHead: committedReader(root, commit), atMain: committedReader(root, acceptedMain.commit), person: store.PERSON });
+    const source = { atHead: committedReader(root, commit), atMain: committedReader(root, acceptedMain.commit), person: store.PERSON, seat: submitVerify?.testAuthorSplit === true ? whoAmI(ctx, board).id : null };
+    const problem = frozenTestsProblem(submitVerify, held, store.itemThread(board, id), source)
+      ?? authorSplitProblem(submitVerify, held, store.itemThread(board, id), source);
     if (problem) throw problem;
   }));
   let trunk;

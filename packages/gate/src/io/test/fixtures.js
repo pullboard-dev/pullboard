@@ -168,11 +168,18 @@ export function fixtureGrowth(problems, ceilings) {
 
 /**
  * The trunk commit this tree was composed on: the second parent of a merge HEAD (the gate merges main into the builder's
- * source), else null. Why: a ratchet written at one trunk must not blame an item for rows its trunk already carries [C7].
+ * source), else the point where this tree last met main (a branch that merged main and then committed has no merge HEAD),
+ * else null. Why: a ratchet written at one trunk must not blame an item for rows its trunk already carries [C7,#8368].
  */
 export function compositionBase(root) {
-  const result = spawnSync('git', ['rev-parse', '--verify', '--quiet', 'HEAD^2^{commit}'], { cwd: root, encoding: 'utf8' });
-  return result.status === 0 && /^[0-9a-f]{40,64}$/u.test(result.stdout.trim()) ? result.stdout.trim() : null;
+  const commit = args => {
+    const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+    return result.status === 0 && /^[0-9a-f]{40,64}$/u.test(result.stdout.trim()) ? result.stdout.trim() : null;
+  };
+  const second = commit(['rev-parse', '--verify', '--quiet', 'HEAD^2^{commit}']);
+  if (second) return second;
+  const met = commit(['merge-base', 'HEAD', 'refs/heads/main']);
+  return met && met !== commit(['rev-parse', 'HEAD']) ? met : null;
 }
 
 /** One file's text at the base commit, or null when the base does not have it. */
