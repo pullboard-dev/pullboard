@@ -69,7 +69,15 @@ if (ran.status !== 0) {
     // The run's own outcome frames carry its id; without it the reader refuses every run that printed them, so no case was ever named.
     let outcomeRunId = null;
     try { outcomeRunId = JSON.parse(text.split('\\n').find(line => line.startsWith('# pullboard test outcomes ')).slice('# pullboard test outcomes '.length)).id ?? null; } catch { outcomeRunId = null; }
-    rows = (await import(pathToFileURL(join(process.cwd(), 'packages', 'gate', 'light.js')).href)).tapFailures(text, process.cwd(), { outcomeRunId, nativeLeaves: outcomeRunId !== null });
+    // The runner prints its own suite timing frame after TAP's final count, which the strict reader refuses as a trailer; the gate
+    // reads the run through its timing strip, so this does too, binding the frame to the source it names itself [C7].
+    let reading = text;
+    try {
+      const frame = text.split('\\n').find(line => line.startsWith('# pullboard suite timing '));
+      const bound = frame ? JSON.parse(frame.slice('# pullboard suite timing '.length)) : null;
+      if (bound?.id) reading = (await import(pathToFileURL(join(process.cwd(), 'packages', 'gate', 'index.js')).href)).timingAccountingOutput(text, bound.id, { head: bound.head, tree: bound.tree });
+    } catch { reading = text; }
+    rows = (await import(pathToFileURL(join(process.cwd(), 'packages', 'gate', 'light.js')).href)).tapFailures(reading, process.cwd(), { outcomeRunId, nativeLeaves: outcomeRunId !== null });
   }
   catch {
     // A project without Pullboard's TAP reader on main: its plain TAP 'not ok' case lines, never a file-level wrapper,
