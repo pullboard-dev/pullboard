@@ -78,6 +78,7 @@ export { failedAssertionLines, retainedGateAssertions, testOutputSummary, retain
 export { cachedAffectedGraph } from "./src/io/affected/graph/cache.js";
 export { checkCoordinatorRelease, recordCoordinatorRelease, readCoordinatorRelease } from './src/io/coordinator/release.js';
 export { TEST_TIERS_FILE, generateTestTiers, formatTestTiers, writeTestTiers } from './src/io/test/tiers.js';
+export { testIdIndex, resolveIdRows, idRenames } from './src/io/test/ids.js';
 
 export { reviewCitations, citedReceiptsNote, citedReceipts, landingRunFiles } from './src/io/once.js';
 export { redGateScope, redGateReport, runnerErrors } from './src/io/red.js';
