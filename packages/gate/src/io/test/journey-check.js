@@ -96,7 +96,7 @@ export async function runJourneyCheck(args, { mutate, reachOf = testReach, say =
     say(`checking ${at + 1} of ${sampled.length}: ${journey.file}`);
     const reports = [];
     for (const { cell } of coveringCells(rows, journey, options.cells)) {
-      reports.push({ cell, report: await mutate(root, cell, { all: true, extra: [journey.file], sample: options.faults, extraLast: true, reach: reachFor(reached, cell, journey.file) }) });
+      reports.push({ cell, report: await mutate(root, cell, { all: true, extra: [journey.file], sample: options.faults, extraLast: true, note: say, reach: reachFor(reached, cell, journey.file) }) });
     }
     const verdict = judgeJourney(journey.file, reports);
     verdicts.push(verdict);

@@ -97,12 +97,13 @@ function spread(list, count) {
  * @param {{all?: boolean, base?: string, extra?: string[], sample?: number, reach?: Record<string, string[]>}} [options] all seeds every line; base is the ref changed lines are read against;
  *   extra are root-relative test files outside the cell (such as a journey) run against each fault too; sample caps the faults seeded per source file, spread evenly;
  *   reach maps a root-relative test file to the root-relative files its imports reach, and a fault then runs only the tests that reach the seeded file;
+ *   note gets a line per phase and per test run with its seconds, for a run that must be watched;
  *   extraLast runs the extra files only against a fault no reaching cell test caught, and re-runs the cell's other tests on a fault only an extra file caught,
  *   so every fault's catch-or-miss by the extra files beside the cell's tests is the same as running everything, at the cost of a few runs
  * @param {{faults: Function, changedLines: Function}} seams the pure fault and diff readers, passed in because a package never imports an app
  * @returns {Promise<{cell: string, base: string, all: boolean, redBefore: string[], tests: {file: string, caught: number, total: number}[], faults: object[], caught: number, missed: number}>}
  */
-export async function mutateCell(root, cell, { all = false, base = 'main', extra = [], sample = Infinity, reach = null, extraLast = false } = {}, { faults, changedLines }) {
+export async function mutateCell(root, cell, { all = false, base = 'main', extra = [], sample = Infinity, reach = null, extraLast = false, note = () => {} } = {}, { faults, changedLines }) {
   const name = String(cell).replace(/\\/gu, '/').replace(/^\.\//u, '').replace(/\/+$/u, '');
   const source = join(root, name);
   let stat = null;
@@ -141,17 +142,21 @@ export async function mutateCell(root, cell, { all = false, base = 'main', extra
     /** Whether an extra file passes unmutated, run once per file and only when first needed; a red one is left out and listed. */
     const extraLive = async (file) => {
       if (!redOfExtra.has(file)) {
+        const at = Date.now();
         const ok = await passes(tree, file);
+        note(`  ${ok ? 'passed' : 'failed'} unmutated ${file} in ${((Date.now() - at) / 1000).toFixed(1)}s`);
         redOfExtra.set(file, ok);
         if (!ok) extraRed.push(file);
       }
       return redOfExtra.get(file);
     };
+    note(`${name}: ${tests.length} tests, ${plan.reduce((sum, row) => sum + row.faults.length, 0)} faults seeded in ${seeded.length} files; ${tests.filter(needed).length} tests needed`);
     for (const file of tests) if (needed(file) && !await passes(copy, file)) redBefore.push(file);
+    note(`${name}: ${redBefore.length} tests red before any fault`);
     if (!extraLast) for (const file of extra) if (needed(file)) await extraLive(file);
     const live = tests.filter((file) => needed(file) && !redBefore.includes(file));
     const outside = extraLast ? extra : extra.filter((file) => needed(file) && !extraRed.includes(file));
-    const run = (file) => passes(outside.includes(file) ? tree : copy, file);
+    const run = async (file) => { const at = Date.now(); const ok = await passes(outside.includes(file) ? tree : copy, file); note(`  ${name} ${ok ? 'passed' : 'failed'} ${file} in ${((Date.now() - at) / 1000).toFixed(1)}s`); return ok; };
     const tally = Object.fromEntries([...live, ...outside].map((file) => [file, { file, caught: 0, total: 0 }]));
     const results = [];
     /** Run tests against the seeded copy in order, keeping the ones that fail. */
