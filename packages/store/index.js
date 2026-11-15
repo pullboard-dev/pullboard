@@ -64,7 +64,7 @@ export { activityDeliveryState as board_activity_delivery_store_activityDelivery
 export { itemActivity, activityEventDetail, activityInterests, isActivityNews, projectAgentActivity } from './src/logic/board/activity/feed.js';
 export { activityNewsFlag } from './src/logic/board/activity/news.js';
 export { LANDING_FAULT_CODES, LANDING_RED_LIMIT, REPEATED_LANDING_HOLD, RUNNER_SOURCE_RETRIES } from './src/logic/board/landing/limits.js';
-export { LANDING_LEASE_MS, renewLocalLanding, assertLandingLease, requireConfirmedLanding, guardLandingWrite } from './src/logic/board/landing/lease.js';
+export { provideMoveTables, LANDING_LEASE_MS, renewLocalLanding, assertLandingLease, requireConfirmedLanding, guardLandingWrite } from './src/logic/board/landing/lease.js';
 export { LANDING_LOCAL_PREFIX, localLandingEntry, rememberLocalLanding, forgetLocalLanding } from './src/logic/board/landing/local.js';
 export { COORDINATION_SHOUT, itemShoutTarget, itemShoutReader, shoutMatchesAudience, UNREAD_SHOUT_SQL, unreadShoutBindings, checkEvidence } from './src/logic/board/audience.js';
 export { workerInboxSeats, workerInboxQuery } from './src/logic/board/worker.js';
@@ -128,3 +128,4 @@ export { relandAccepted, acceptedRelandCandidate, relandConflictRecorded } from 
 export { boardHoldLog, boardHoldPercentiles, boardHoldStats, boardHoldLines, longestRecentHolds } from './src/io/board/hold/log.js';
 export { readBoardHoldBaseline, boardHoldBaselineProblems, committedBoardHoldBaselineProblems } from './src/io/board/hold/ratchet.js';
 export { GATE_HOP_SCHEMA_SQL, ensureGateHopTable, readGateHop, gateHopMove } from './src/io/board/hop.js';
+export { recordShadow, readShadow, shadowHook, claimDiffers } from './src/io/board/shadow-record.js';

@@ -6,15 +6,9 @@ import {
 } from "../../../io/board.js";
 import { COORDINATOR } from "../../../../../config/index.js";
 import { Refused } from "../../../../../kernel/light.js";
-import { leaseEngine } from "../../../../../moves/light.js";
-import { releaseEngine } from "../../../../../moves/light.js";
 import { RELEASE_REASONS } from "../../reasons.js";
 import { staleStateLimits } from "../stale/state/policy.js";
-import { runTable } from "../../../../../moves/light.js";
-import { withdrawEngine } from "../../../../../moves/light.js";
-import { claimEngine } from "../../../../../moves/light.js";
 import { AGENT_GRANT_ENGINE } from "../../../../../state/light.js";
-import { submitEngine } from "../../../../../moves/light.js";
 import { ENGINE_VERSION } from "../../../../../state/index.js";
 import { LANDING_LOCAL_LEASE_ENGINE } from "../../../../../state/light.js";
 import {
@@ -23,11 +17,24 @@ import {
 } from "./local.js";
 
 const KEY = 'landing_lease';
+let provided = null;
+/**
+ * Hand the store the move-table engines it runs: leaseEngine, releaseEngine, withdrawEngine, claimEngine, submitEngine and runTable.
+ * Why injection: the moves cell already reads the store, so the store importing moves would close a cell cycle; the board composition root, which sees both, calls this once [C7].
+ *
+ * @param {{ leaseEngine: Function, releaseEngine: Function, withdrawEngine: Function, claimEngine: Function, submitEngine: Function, runTable: Function }} engines
+ */
+export function provideMoveTables(engines) { provided = Object.freeze({ ...engines }); }
+/** The injected engines; a store used without its composition root refuses by name. */
+function moveTables() {
+  if (!provided) throw new Refused('MOVE_TABLES_MISSING', 'the store runs its move tables through the board composition root; open the board through packages/board or call provideMoveTables first');
+  return provided;
+}
 let withdrawBuilt = null;
 /** Run the withdraw table over a snapshot and a move; `from` is the lifecycle machine's list of states a withdrawal may start from [C7,#8273]. */
 export function runWithdrawTable(from, snapshot, move) {
-  withdrawBuilt ??= withdrawEngine({ from });
-  return runTable(withdrawBuilt.table, withdrawBuilt.rules, snapshot, move);
+  withdrawBuilt ??= moveTables().withdrawEngine({ from });
+  return moveTables().runTable(withdrawBuilt.table, withdrawBuilt.rules, snapshot, move);
 }
 
 
@@ -37,8 +44,8 @@ let claimTable = null;
  * Why here: this file is the store's one reader of the moves cell, so the claim writer reaches the table without a second cross-cell edge [C7,#8270].
  */
 export function runClaimTable(snapshot, move) {
-  claimTable ??= claimEngine({ grantEngine: AGENT_GRANT_ENGINE });
-  return runTable(claimTable.table, claimTable.rules, snapshot, move);
+  claimTable ??= moveTables().claimEngine({ grantEngine: AGENT_GRANT_ENGINE });
+  return moveTables().runTable(claimTable.table, claimTable.rules, snapshot, move);
 }
 export const LANDING_LEASE_MS = 120_000; // 30 s died under a 22 s board write; a dead holder is still reclaimed at expiry [C7].
 
@@ -54,7 +61,7 @@ function validEntry(entry) {
 
 /** The lease table over this file's 120 s rule and entry check, built on first use so the moves cell is never read while it loads. */
 let engine;
-const leaseTable = () => engine ??= leaseEngine({ leaseMs: LANDING_LEASE_MS, valid: validEntry });
+const leaseTable = () => engine ??= moveTables().leaseEngine({ leaseMs: LANDING_LEASE_MS, valid: validEntry });
 
 let release;
 /**
@@ -66,8 +73,8 @@ let release;
  * @returns {{ refused?: object, patch?: object, events?: object[], via?: string[] }}
  */
 export function runReleaseTable(snapshot, move) {
-  const { rules, table } = release ??= releaseEngine({ reasons: RELEASE_REASONS, staleLimits: staleStateLimits });
-  return runTable(table, rules, snapshot, move);
+  const { rules, table } = release ??= moveTables().releaseEngine({ reasons: RELEASE_REASONS, staleLimits: staleStateLimits });
+  return moveTables().runTable(table, rules, snapshot, move);
 }
 
 /**
@@ -79,7 +86,7 @@ function leaseMove(board, state, move, over = {}) {
   const { rules, table } = leaseTable();
   const snapshot = { lease: structuredClone(state), now: (board.clock?.now() ?? new Date()).getTime(), lineage: 'lineage' in over ? over.lineage : coordinatorHolder(board)?.lineage ?? null,
     modern: (board.executionEngineVersion ?? ENGINE_VERSION) >= LANDING_LOCAL_LEASE_ENGINE, shared: true, legacyShared: false, heartbeat: null, ...over };
-  const answer = runTable(table, rules, snapshot, move);
+  const answer = moveTables().runTable(table, rules, snapshot, move);
   if (answer.refused) throw new Refused(answer.refused.code, answer.refused.message);
   return answer;
 }
@@ -191,7 +198,7 @@ let submitTables = null;
  * @returns {{ refused?: object, patch?: object, events?: object[], via?: string[], table: object }}
  */
 export function runSubmitTable(name, limits, snapshot, move) {
-  submitTables ??= submitEngine(limits);
+  submitTables ??= moveTables().submitEngine(limits);
   const table = submitTables.tables[name];
-  return { ...runTable(table, submitTables.rules, snapshot, move), table };
+  return { ...moveTables().runTable(table, submitTables.rules, snapshot, move), table };
 }
