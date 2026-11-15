@@ -50,6 +50,10 @@ test('generated: every accepted move leaves by an outcome row of its own move [C
   const rows = { offer: ['offer', 'offer-again'], claim: ['claim', 'runaway'], renew: ['renew', 'renew-lost'], release: ['release', 'release-free', 'release-lost'],
     progress: ['progress'], receipt: ['receipt', 'receipt-again'], shards: ['shards'] };
   for (const c of ok) assert.ok(rows[c.move.name].includes(c.result.via[0]), `seed ${c.seed}: ${c.move.name} left by ${c.result.via[0]}`);
+  for (const c of ok.filter(each => each.move.name === 'shards')) assert.equal(c.s.job.kind, 'land', `seed ${c.seed}: shards for a ${c.s.job.kind} job`);
+  for (const c of results.filter(each => each.move.name === 'shards' && each.s.job && each.s.job.step !== 'done' && each.s.job.kind !== 'land' && holds(each))) {
+    assert.equal(c.result.refused?.code, 'JOB_NOT_LAND', `seed ${c.seed}`);
+  }
 });
 
 test('generated: a refusal writes nothing and names a job code, a message and a next step [C7,#8252]', () => {
