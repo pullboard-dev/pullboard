@@ -45,9 +45,12 @@ function boardFor(t, record) {
   // The board's machine only lets an item reach a state by its declared moves, so the item walks to where the record found it.
   const fields = { item_owner: item.owner, item_built_by: item.builtBy, item_commit: item.commit, item_frozen: item.frozen, item_frozen_digest: item.frozenDigest };
   const set = (state, extra) => { const all = { ...extra, item_status: state }; sql.prepare(`UPDATE item SET ${Object.keys(all).map(k => `${k}=?`).join(', ')} WHERE item_id=?`).run(...Object.values(all), item.id); };
+  // Only a board move may change a status; the seed holds the same token a move holds while it writes.
+  sql.exec('INSERT INTO temp.moving VALUES (1)');
   set('claimed', { ...fields, item_lease_until: '2099-01-01T00:00:00.000Z' });
   set('submitted', {});
   if (item.status === 'verified') set('verified', { item_verified_by: 'someone-else', item_verdict: 'ACCEPT' });
+  sql.exec('DELETE FROM temp.moving');
   const event = sql.prepare('INSERT INTO event (event_id, event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?, ?)');
   for (const e of history) event.run(e.id, STAMP, e.by, e.kind, item.id, JSON.stringify(e.detail));
   for (const e of record.snapshot.actorFlakeObservations) event.run(e.id, STAMP, actor.id, 'flake-observation', null, JSON.stringify(e.detail));
