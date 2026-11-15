@@ -16,8 +16,8 @@ import {
 } from "./local.js";
 
 const KEY = 'landing_lease';
-/** Run the verify move table over a snapshot and a move, for the store's verify writer [C7,#8272]. */
-export function runVerifyTable({ rules, table }, snapshot, move) { return runTable(table, rules, snapshot, move); }
+/** Run a move table, built by its engine, over a snapshot and a move, for the store's verify, withdraw and reopen writers [C7,#8272,#8273]. */
+export function runMoveTable({ rules, table }, snapshot, move) { return runTable(table, rules, snapshot, move); }
 
 export const LANDING_LEASE_MS = 120_000; // 30 s died under a 22 s board write; a dead holder is still reclaimed at expiry [C7].
 

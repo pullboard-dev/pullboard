@@ -1,6 +1,6 @@
 /** The verify move table run over the live board: the store's verify writer reads the verdict event and its automatic follow-ups from it [C7,#8272]. */
 import { causeProblem } from "../../logic/board/rigor.js";
-import { runVerifyTable } from "../../logic/board/landing/lease.js";
+import { runMoveTable } from "../../logic/board/landing/lease.js";
 import { ACCEPT_REASON } from "../board.js";
 import { REJECT_REASONS } from "../board.js";
 
@@ -73,7 +73,7 @@ export function verifyDecision(board, item, call, deps) {
     ...(call.check !== undefined ? { check: call.check } : {}), ...(call.knownMainFailures !== undefined ? { knownMainFailures: call.knownMainFailures } : {}),
     ...(call.quarantineProofId !== undefined ? { quarantineProofId: call.quarantineProofId } : {}), ...(call.sandbox !== undefined ? { sandbox: call.sandbox } : {}),
     ...(call.implies ? { implies: call.implies } : {}) };
-  const answer = runVerifyTable(tableEngine(deps), structuredClone(snapshot), structuredClone(move));
+  const answer = runMoveTable(tableEngine(deps), structuredClone(snapshot), structuredClone(move));
   return answer.refused ? null : { events: answer.events };
 }
 
