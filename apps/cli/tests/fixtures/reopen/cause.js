@@ -10,6 +10,7 @@ import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { eventCauses } from '../../../../../packages/store/index.js';
 import { joinFixtureSeat } from '../testkit.js';
+import { verifySettled } from '../submit/settle.js';
 
 /** Bind the kit to one test file's e2e helpers, which own its sandboxes and their cleanup, and to the merge cell's trunkMerge it hands in. */
 export function causeKit(helpers, { trunkMerge } = {}) {
@@ -66,7 +67,11 @@ export function causeKit(helpers, { trunkMerge } = {}) {
   /** Independently check the private fixture submission before restoring its main checkout. */
   async function accept(box, entry) {
     box.git(box.repo, 'switch', '-q', '--detach', entry.commit);
-    try { (await json(box, box.repo, 'verify', String(entry.id), 'accept', '--as', 'coordinator', '--note', 'Both modules parse at the exact submitted commit.')); }
+    // The pulled gate's receipt lands just after its job reads done; verify again until the item has left claimed [C7,#7283].
+    try {
+      const verdict = await verifySettled(box, box.runLocal, box.repo, ['verify', String(entry.id), 'accept', '--as', 'coordinator', '--note', 'Both modules parse at the exact submitted commit.', '--json']);
+      assert.equal(verdict.code, 0, verdict.out + verdict.err);
+    }
     finally { box.git(box.repo, 'switch', '-q', 'main'); }
   }
 

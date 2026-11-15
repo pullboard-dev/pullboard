@@ -21,13 +21,11 @@ import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { waitForCondition } from '../../../tests/fixtures/runner/holders.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 import { settleLand } from '../../../tests/fixtures/land/settle.js';
+import { verifySettled } from '../../../tests/fixtures/submit/settle.js';
 
 const e2e = createE2eHelpers();
-const projects = [];
-after(async () => {
-  for (const box of projects) await drainComparisons(box);
-  e2e.cleanup();
-});
+// Cleanup stops comparison workers still running, so the file exits without waiting on them [C7,#8011].
+after(e2e.cleanup);
 
 /** Await the fixture's actual diagnostic child result before another phase uses its files or removes its repository. */
 async function drainComparisons(box, signal) {
@@ -64,7 +62,6 @@ async function localProject({ batch = false } = {}) {
     return run(cwd, ...args);
   };
   const project = { ...box, repo, runLocal: command };
-  projects.push(project);
   return project;
 }
 
@@ -90,7 +87,8 @@ async function buildAndAccept(box, entry, header = `feat(web): build ${entry.fil
   const head = JSON.parse(submitted.out).commit;
   box.git(box.repo, 'switch', '-q', '--detach', head);
   try {
-    const verdict = await box.runLocal(box.repo, 'verify', String(entry.id), 'accept', '--as', 'coordinator', '--note', `${entry.file} exists at the submitted commit`);
+    // The pulled gate's receipt lands just after its job reads done; verify again until the item has left claimed [C7,#7283].
+    const verdict = await verifySettled(box, box.runLocal, box.repo, ['verify', String(entry.id), 'accept', '--as', 'coordinator', '--note', `${entry.file} exists at the submitted commit`]);
     assert.equal(verdict.code, 0, `${verdict.err}\nsubmit said: ${submitted.out}${submitted.err}`);
   } finally { box.git(box.repo, 'switch', '-q', 'main'); }
 }
