@@ -61,7 +61,7 @@ export async function submitJob(payload, ports) {
   try {
     const mark = phase => { request.phase = phase; (request.phaseAt ??= { start: Date.now() })[phase] = Date.now(); };
     mark('connect');
-    Object.assign(request.phaseAt, request.subMarks, { 'ctl-origin': CONTROLLER_ORIGIN, 'ctl-start': CONTROLLER_START, prepare: preparing, prepared });
+    Object.assign(request.phaseAt, request.subMarks, globalThis.PB_MARKS, { 'ctl-origin': CONTROLLER_ORIGIN, 'ctl-start': CONTROLLER_START, prepare: preparing, prepared });
     if (request.rawOutputPath) closeSync(openSync(request.rawOutputPath, 'wx', 0o600));
     const job = { version: 1, id: request.spec.id, runner: request.runner, spec: { ...request.spec, ...(request.spec.testResults ? { testResults: { ...request.spec.testResults, packet: null } } : {}) },
       phaseAt: request.phaseAt, phase: request.phase, root: request.root, source: request.source, args: request.args,

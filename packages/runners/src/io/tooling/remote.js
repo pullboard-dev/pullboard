@@ -138,13 +138,16 @@ function captureTrustedTooling() {
   const installation = committedRunnerController(TOOL_ROOT, { shared: true });
   try {
   const root = installation?.root ?? TOOL_ROOT;
+  (globalThis.PB_MARKS ??= {})['t-start'] = Date.now();
   const { entry, files } = installation ? runnerPackage(root) : loadedToolingFiles();
+  (globalThis.PB_MARKS ??= {})['t-loaded'] = Date.now();
   for (const [name, source] of Object.entries(files)) {
     if (Buffer.byteLength(source) > MAX_BLOB_BYTES
       || secretsIn(source.split(/\r?\n/u).map((text, index) => ({ path: `tooling/${name}`, line: index + 1, text }))).length) {
       throw new Refused('RUNNER_TOOLING_SECRET', 'the selected runner tooling failed its transfer scan; restore a trusted Pullboard installation');
     }
   }
+  (globalThis.PB_MARKS ??= {})['t-secrets'] = Date.now();
   const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
   if (manifest.name !== 'pullboard' || typeof manifest.version !== 'string') {
     throw new Refused('RUNNER_TOOLING_IDENTITY', 'runner tooling must come from a named Pullboard installation; reinstall Pullboard');
@@ -158,6 +161,7 @@ function captureTrustedTooling() {
     }
     provenance = { ...provenance, kind: 'git-checkout', commit: selected.commit, tree: selected.tree };
   }
+  (globalThis.PB_MARKS ??= {})['t-matches'] = Date.now();
   const tooling = { ...provenance, sha256: createHash('sha256').update(JSON.stringify(files)).digest('hex') };
   const runtimeFiles = Object.fromEntries(Object.entries(files).filter(([name]) => name !== entry));
   return { installation: installation && { commit: installation.commit, tree: installation.tree }, captured: { worker: files[entry], tooling,
