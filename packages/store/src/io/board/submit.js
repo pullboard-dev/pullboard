@@ -43,6 +43,11 @@ import { mergeOnlyProblem } from "../../../../merge/index.js";
 import { prepareMergeOnlySubmit } from "../../../../merge/index.js";
 import { MERGE_ONLY_VERDICT_ENGINE } from "../../../../state/light.js";
 import { atomic } from "./event/log.js";
+import { movesShadowEnabled } from "../../../../config/index.js";
+
+/** The moves.shadow machine setting, a file read: call it before a board write opens, never inside one [C7,#8379]. */
+export const shadowSetting = () => movesShadowEnabled();
+
 import { logEvent } from "./event/log.js";
 import { acceptedVerdict } from "../../../../verify/index.js";
 import { ENGINE_VERSION } from "../../../../state/index.js";
