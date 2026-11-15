@@ -17,13 +17,14 @@ import { events } from '../../tests/fixtures/land/board.js';
 import { calls } from '../../tests/fixtures/land/board.js';
 import { json } from '../../tests/fixtures/land/board.js';
 import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
+// land and submit gates now run as runner jobs (the host batch is deleted, 9069644c61; the pulled waiver cases are land/waiver-pull.test.js), as #7994 skipped land/waivers.test.js.
 /** Exercise legacy waiver markers and waived submit gates against real private Git worktrees [B3,R3,C7,V4]. */
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, project, commitFile, BIN } = e2e;
 const { FILES, landProject, itemWorktree, verifiedFour } = makeLandProjectFixtures({ sandbox, project, commitFile });
 
-test('a waiver after an early-stopped gate runs the gate again with legacy oversized markers [C7,V4]', () => {
+test('a waiver after an early-stopped gate runs the gate again with legacy oversized markers [C7,V4]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, () => {
   const box = landProject();
   const gate = join(box.dir, 'land-gate.cjs');
   writeFileSync(gate, [
@@ -69,7 +70,7 @@ test('a waiver after an early-stopped gate runs the gate again with legacy overs
   assert.equal(box.git(box.remote, 'rev-parse', 'main'), result.batch.tip);
 });
 
-test("a person's waiver lets a submit and a landing gate through only the waived test [B3,R3,C7]", () => {
+test("a person's waiver lets a submit and a landing gate through only the waived test [B3,R3,C7]", { skip: 'CONTROLLER_ONLY: deleted with #6579' }, () => {
   const box = landProject();
   const past = { now: () => new Date('2000-01-01T00:00:00Z') };
   const stampOf = (cwd) => {
