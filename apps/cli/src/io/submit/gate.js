@@ -19,6 +19,10 @@ import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runnerPhaseFields } from '../../../../../packages/gate/index.js';
+import { replayChangedTables } from '../../../../../packages/gate/index.js';
+import { replayReport } from '../../../../../packages/moves/index.js';
+import { boardFilePath } from '../../../../../packages/store/index.js';
+import { repoInfo } from '../../../../../packages/git/index.js';
 import { git } from '../../../../../packages/git/index.js';
 import { gitPath } from '../../../../../packages/git/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
@@ -531,9 +535,24 @@ export async function gateWithRunnerPlan(remoteMode, selection, pinned, runGate,
   catch (error) { early?.abort(); throw error; }
 }
 
+/**
+ * The submit gate's move-table replay, wired to this repository's board as the lander's source advance wires it.
+ * Why: the gate runs it only when gate.tableReplay is on and the diff changes a move table, so a submit is held to what the board recorded [C7,#8117].
+ *
+ * @param {string} root - The repository whose board holds the recorded moves.
+ * @param {typeof replayReport} [replay] - The moves cell's report; a test hands in its own.
+ * @returns {({ root, changed }: { root: string, changed?: string[] }) => Promise<object[]>}
+ */
+export function submitTableReplay(root, replay = replayReport) {
+  return ({ root: tree, changed }) => replayChangedTables(tree, { changed, replay, boardFile: boardFilePath(repoInfo(root).commonDir) });
+}
+
+/** The runner app's timed-shell entry, handed to the gate because the gate package names no app path [C7]. */
+const TIMED_SHELL = fileURLToPath(new URL('../../../../runner/src/io/shell.js', import.meta.url));
+
 /** Pass the runner's accepted selection into the controller's gate entry point without replanning locally. */
 export function runSubmitGateWithRunnerPlan(runSubmitGate, root, config, runnerPlan, options) {
-  return runSubmitGate(root, config, { ...options, ...runnerPlan });
+  return runSubmitGate(root, config, { tableReplay: submitTableReplay(root), timedShell: TIMED_SHELL, ...options, ...runnerPlan });
 }
 
 /** Sum sequential worker intervals only when every attempted run has complete measurements. */

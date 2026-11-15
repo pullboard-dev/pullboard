@@ -2,10 +2,16 @@
 import { spawn } from 'node:child_process';
 import { Refused } from '../../../../../packages/kernel/light.js';
 import { git } from '../../../../../packages/git/index.js';
+import { checkReceiptKey } from '../../../../../packages/git/index.js';
+import { readCheckReceipt } from '../../../../../packages/git/index.js';
+import { receiptLine } from '../../../../../packages/git/index.js';
+import { writeCheckReceipt } from '../../../../../packages/git/index.js';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 
 const CHANGED_STATIC = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/gate/src/io/changed/static.js')).href;
+// The file runStaticChecks names as its code: a preflight receipt keyed the same way is the one review and check cite [V4].
+const STATIC_CHECK_CODE = resolve(import.meta.dirname, '../../../../../packages/gate/src/io/static/check.js');
 const REGISTRY = pathToFileURL(resolve(import.meta.dirname, '../../../../../packages/gate/src/io/static/check/registry.js')).href;
 const LIST_CHILD = `const { STATIC_CHECKS } = await import(${JSON.stringify(REGISTRY)}); process.stdout.write(JSON.stringify(STATIC_CHECKS.map(check => check.name)));`;
 const CHILD = `const { changedStaticFailures } = await import(${JSON.stringify(CHANGED_STATIC)});
@@ -112,15 +118,25 @@ function runConfigured(root, command, timeoutMs) {
  * @param {string} root - Checkout root.
  * @param {string|undefined} command - The configured staticChecks command.
  * @param {string[]} files - Root-relative changed files.
- * @param {{ timeoutMs?: number }} [options]
- * @returns {Promise<{ ok: boolean, results: { name: string, failures: string[], ms: number }[], ms: number }>}
+ * @param {{ timeoutMs?: number }} [options] - timeoutMs: the configured check timeout; unset runs up to 10 minutes.
+ * @returns {Promise<{ ok: boolean, results: { name: string, failures: string[], ms: number }[], ms: number, receipt?: object | null, reused?: boolean }>}
  */
-export async function runStaticPreflight(root, command, files, { timeoutMs = 600_000 } = {}) {
+export async function runStaticPreflight(root, command, files, { timeoutMs } = {}) {
   const started = performance.now();
   if (!command?.trim()) return { ok: true, results: [], ms: 0 };
   if (OWN_CHECKER.test(command)) return runPreflight(root, files);
-  const result = await runConfigured(root, command.trim(), timeoutMs);
-  return { ok: !result.failures.length, results: [result], ms: performance.now() - started };
+  // A green run on this exact tree, command, config and runner code is cited, not repeated: an unchanged resubmit, and a
+  // review's check of the same tree, reuse it as runStaticChecks would (#2230). Pullboard's own checker above judges only
+  // the changed files, so it never records a whole-tree receipt.
+  const key = checkReceiptKey(root, { kind: 'static', definition: command.trim(), config: { staticChecks: command.trim(), timeoutMs: timeoutMs ?? null }, code: [STATIC_CHECK_CODE] });
+  const kept = readCheckReceipt(root, key);
+  if (kept) {
+    process.stderr.write(`${receiptLine(kept)}\n`);
+    return { ok: true, results: [], ms: performance.now() - started, receipt: kept, reused: true };
+  }
+  const result = await runConfigured(root, command.trim(), timeoutMs ?? 600_000);
+  const ok = !result.failures.length;
+  return { ok, results: [result], ms: performance.now() - started, ...(ok ? { receipt: writeCheckReceipt(root, key, { by: 'submit preflight' }) } : {}) };
 }
 
 /**

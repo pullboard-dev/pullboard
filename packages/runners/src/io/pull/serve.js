@@ -1,5 +1,6 @@
 /** The short controller modes of a pulled job: submit, serve-need and finish, each its own brief process [C7,#5465]. */
 import { Refused } from '../../../../kernel/index.js';
+import { keepParserResults } from '../module/parser.js';
 import { historyPack } from '../pack.js';
 import { exchangeStore } from '../request.js';
 import { requestFor } from '../request.js';
@@ -208,6 +209,7 @@ export function requireRunnerTools(env = process.env, tools = REQUIRED_TOOLS) {
 
 /** Read the JSON request from stdin, run one mode and write the same `{result}` or `{error}` envelope the controller does. */
 export async function servePullController(mode, ports) {
+  keepParserResults();
   let input = '';
   for await (const chunk of process.stdin) input += chunk;
   try {

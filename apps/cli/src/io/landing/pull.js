@@ -19,12 +19,17 @@ import { Refused } from '../../../../../packages/kernel/index.js';
 import { checkLandingMessages } from '../../../../../packages/landing/index.js';
 import { landingContext } from '../../../../../packages/landing/index.js';
 import { withoutStaleVerdicts } from '../../../../../packages/landing/index.js';
+import { requirePublishGreen } from '../../../../../packages/landing/index.js';
+import { publishRedTouched } from '../../../../../packages/landing/index.js';
+import { landingChangedFiles } from '../../../../../packages/landing/index.js';
 import { relandAcceptedItems } from '../../../../../packages/landing/index.js';
 import { ordered } from '../../../index.js';
 import { withBoard } from '../context.js';
 import { BOARD_HOST } from '../runner/local.js';
 import { ensureLocalRunner } from '../runner/local.js';
 import { pullGit } from '../runner/git.js';
+import { openLandJobs } from './waiting.js';
+import { trunkCheckedOut } from './checkout.js';
 
 const TRUNK = 'refs/heads/main';
 
@@ -85,13 +90,7 @@ export function hostUpstream(root, config) {
  * names one twice, so no two jobs push the same land ref or merge the same item [C7,#7728].
  */
 function openLandingItems(db) {
-  const rows = db.prepare(`SELECT step.job_step_payload FROM job JOIN job_step AS step ON step.job_step_job = job.job_id
-    AND step.job_step_name = 'offered' AND step.job_step_seq = 0 WHERE job.job_kind = 'land' AND job.job_step <> 'done'`).all();
-  const ids = new Set();
-  for (const row of rows) {
-    try { for (const entry of JSON.parse(row.job_step_payload)?.payload?.items ?? []) ids.add(entry.id); } catch { /* an unreadable offer names nothing */ }
-  }
-  return ids;
+  return new Set(openLandJobs(db).keys());
 }
 
 /**
@@ -167,19 +166,21 @@ function landingFlakes(root, policy, item, head, pairPrefix) {
  *
  * @param {object} ctx - The command context at the main checkout.
  * @param {string} root - The main checkout.
- * @param {{ pairPrefix?: Function, quarantineWaivers?: Function, mainPolicy: (root: string) => { config: object, commit: string }, listItems: Function, checkedLandingCommit: Function, badgeDocuments?: (board: object) => { path: string, text: string }[] }} reads - The
+ * @param {{ pairPrefix?: Function, quarantineWaivers?: Function, gateRuns?: Function, mainPolicy: (root: string) => { config: object, commit: string }, listItems: Function, checkedLandingCommit: Function, badgeDocuments?: (board: object) => { path: string, text: string }[] }} reads - The
  *   policy and board reads the lander already holds.
  * @param {{ local?: typeof ensureLocalRunner, ids?: number[] | null, forced?: string | null, board?: object | null }} [options] - board: the
  *   board a command already holds open, so a hand landing writes its offer there.
  * @returns {Promise<{ offered: string | null, items: number[], waiting: boolean, forced?: string } | null>}
  */
-export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, checkedLandingCommit, badgeDocuments, pairPrefix, quarantineWaivers }, { local = ensureLocalRunner, ids = null, forced = null, board: opened = null } = {}) {
+export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, checkedLandingCommit, badgeDocuments, pairPrefix, quarantineWaivers, gateRuns = () => [] }, { local = ensureLocalRunner, ids = null, forced = null, board: opened = null } = {}) {
   const policy = mainPolicy(root);
   const configured = configTrunkRemote(policy.config);
   // No trunk remote: the board host's repository is trunk, landed by the local runner, which this starts again if it died.
   const hosted = !configured && runnerDispatchMode() === 'pull' && (await local(root)).running;
   if (!configured && !hosted) return null;
   const remote = configured ?? root;
+  // A trunk remote of record that is a checkout here with trunk checked out (pb-trunk links to this one) takes its push in place [C7,#7951].
+  const intoCheckout = Boolean(configured) && trunkCheckedOut(configured, root, trunkRef(root));
   return (opened ? work => work(opened) : work => withBoard(ctx, work))(async board => {
     // An open land job keeps its own items; this offer takes only the accepted items no open job names [C7,#7728].
     const taken = ids ? new Set() : openLandingItems(board.db);
@@ -201,13 +202,17 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     // An item stacked on another's unverified submission waits, named; a named one refuses; forced is the person's call [B3,E8,#7395].
     const candidates = all.filter(wanted);
     const unverified = forced || !candidates.length ? [] : unverifiedSubmissions(board);
+    // landing.pauseOnRed: a red publish holds the items touching its files, and every item when it names none or no item is left [C7,V4].
+    const publishHold = forced ? null : requirePublishGreen(root, board, policy.config, { gateRuns }, { perItem: true });
     const chosen = candidates.filter(item => {
+      if (publishHold && publishRedTouched(publishHold.files, landingChangedFiles(root, trunkTip, commitOf(item))).length) return false;
       const stacked = stackedUnverified(root, trunkTip, unverified, item, commitOf(item));
       if (stacked && ids) throw new Refused('STACKED_UNVERIFIED', `#${item.item_id} holds #${stacked.item_id}'s unverified submission ${stacked.item_commit.slice(0, 12)}`, `land #${stacked.item_id} after its verify, or rebuild #${item.item_id} without it`);
       if (stacked) ctx.io.say?.(`#${item.item_id} waits: STACKED_UNVERIFIED on #${stacked.item_id} ${stacked.item_commit.slice(0, 12)}`);
       return !stacked;
     }).sort((left, right) => pin(left) - pin(right) || rank(left) - rank(right) || left.item_id - right.item_id);
     // Each merge carries the engine's landing message from the item's frozen rows, so spec coverage reads its trailers [B3,R3,C7].
+    if (publishHold && !chosen.length) throw publishHold.refusal;
     const messages = checkLandingMessages(chosen, landingContext(root, policy.commit, policy.config, commitOf));
     const items = chosen.map(item => {
       const message = messages.get(item.item_id);
@@ -234,7 +239,7 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
         // The runner names a red's failing cases whether or not it pairs them; the prefixes are main's accepted policy, as the pulled gate's are [C7,H16].
         const flakes = typeof pairPrefix === 'function' ? landingFlakes(root, policy, chosen.find(item => item.item_id === batch[0].id), batch[0].commit, pairPrefix) : null;
         const job = offerLandingJob(board.db, { items: batch, expect, trunk: trunkRef(root), forced, deferred, flakes, badges: badgeDocuments?.(board) ?? [],
-          ...(hosted ? { config: { ...policy.config, trunk: { ...policy.config.trunk, remote } }, needs: [BOARD_HOST], checkout: true, upstream: hostUpstream(root, policy.config) } : { config: policy.config }) });
+          ...(hosted ? { config: { ...policy.config, trunk: { ...policy.config.trunk, remote } }, needs: [BOARD_HOST], checkout: true, upstream: hostUpstream(root, policy.config) } : { config: policy.config, checkout: intoCheckout }) });
         ctx.io.say?.(`offered ${forced ? 'forced ' : ''}land job ${job.id} for ${batch.map(entry => `#${entry.id}`).join(' ')}; a runner merges and pushes trunk`);
         jobs.push(job.id);
       }

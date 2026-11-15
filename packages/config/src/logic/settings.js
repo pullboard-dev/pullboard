@@ -145,6 +145,9 @@ export function loadMachineSettings() {
   if (value.gate?.postLandSuite !== undefined && typeof value.gate.postLandSuite !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.postLandSuite in ${file} must be true or false`);
   }
+  if (value.gate?.tableReplay !== undefined && typeof value.gate.tableReplay !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.tableReplay in ${file} must be true or false`);
+  }
   if (value.gate?.runnersFirst !== undefined && typeof value.gate.runnersFirst !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnersFirst in ${file} must be true or false`);
   }
@@ -158,6 +161,13 @@ export function loadMachineSettings() {
   if (value.gate?.runnerBusyCeiling !== undefined && (!Number.isFinite(value.gate.runnerBusyCeiling) || value.gate.runnerBusyCeiling < 1 || value.gate.runnerBusyCeiling > 100)) throw new Refused('BAD_MACHINE_SETTINGS', 'gate.runnerBusyCeiling must be a percentage from 1 through 100');
   if (value.gate?.runnerDispatch !== undefined && !['controller', 'pull'].includes(value.gate.runnerDispatch)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnerDispatch in ${file} must be "controller" or "pull"`);
+  }
+  if (value.gate?.refuseController !== undefined && typeof value.gate.refuseController !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.refuseController in ${file} must be true or false`);
+  }
+  // Off by default until every fixture and machine has left controller: only then does the old value become a refusal [P7].
+  if (value.gate?.refuseController === true && value.gate.runnerDispatch === 'controller') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnerDispatch "controller" in ${file} is removed: every runner job is a row a runner pulls; next: run pullboard settings gate.runnerDispatch pull`);
   }
   const reserve = value.gate?.jobReserve;
   if (reserve != null && (typeof reserve !== 'object' || Array.isArray(reserve) || Object.values(reserve).some(share => !Number.isFinite(share) || share < 0 || share > 1)

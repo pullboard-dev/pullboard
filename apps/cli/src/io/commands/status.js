@@ -39,6 +39,7 @@ import { ruleProofCounts } from '../../../../../packages/verify/index.js';
 import { bindProofRunner } from '../../../../../packages/verify/index.js';
 import { fileURLToPath } from 'node:url';
 import { memoryHeldRuns } from '../../../../../packages/store/index.js';
+import { retainedReceipts } from '../../../../../packages/gate/index.js';
 import { readRunnerUtilization } from '../../../../../packages/runners/index.js';
 import { longestRecentHolds } from '../../../../../packages/store/index.js';
 import { runnerDeadlineLine } from '../../../../../packages/resources/index.js';
@@ -117,7 +118,7 @@ export async function run(io, { values }) {
   summary.reclaim = reclaim;
   summary.memoryHeld = memoryHeldRuns();
   summary.runnerDeadlines = runnerDeadlineRuns();
-  summary.runnerUtilization = readRunnerUtilization(ctx.info.root);
+  summary.runnerUtilization = readRunnerUtilization(ctx.info.root, retainedReceipts);
   summary.longestHolds = longestRecentHolds();
   summary.disk = refusingBadPolicy(() => cachedDiskUse(join(ctx.info.commonDir, 'pullboard'), { now: ctx.clock.now().getTime(), maxAgeMs: 10 * 60_000 }), Refused);
   if (values.json) {

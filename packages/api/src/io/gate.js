@@ -13,9 +13,13 @@ import { phaseReceiptId } from '../../../jobs/index.js';
 import { jobQueueCall } from './jobs.js';
 import { offerJob } from './jobs.js';
 import { offeredRequest } from './jobs.js';
+import { SHARD_JOB_KIND } from './jobs.js';
 import { LANDING_JOB_KIND } from './landing.js';
 import { keepLandingLog } from './landing.js';
 import { livePersonWaivers } from './landing.js';
+import { reofferLandingJob } from './landing.js';
+import { landingRetries } from './landing.js';
+import { LAND_PUSH_RETRIES } from './landing.js';
 import { withLandingPermit } from './permit.js';
 import { applyMainTestReceipt } from './recheck.js';
 import { applyCheckBaselineReceipt } from './baseline.js';
@@ -25,6 +29,9 @@ import { MAIN_CASE_NAME_UNITS } from './recheck.js';
 import { offerMainTests } from './recheck.js';
 import { landingGuardKey } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
+import { plainTrunkRef } from '../../../git/index.js';
+import { resolveCommit } from '../../../git/index.js';
+import { mainCheckout } from '../../../git/index.js';
 import { CONFIG_FILE } from '../../../kernel/browser.js';
 import { judgePulledFlakes } from './flakes.js';
 import { recordLandedRed } from './flakes.js';
@@ -34,6 +41,8 @@ import { compareFilesWithMain } from './gate/files.js';
 import { fileMainLines } from './gate/files.js';
 import { applyTestReceipt } from './test/receipt.js';
 import { caseReworkLines } from './gate/files.js';
+import { ledgerInputKeys } from './gate/files.js';
+import { companionInherits } from './gate/companion.js';
 
 /** The extension of one gate run receipt file: a receipt is named by its run id [CD2]. */
 const RECEIPT_EXT = '.json';
@@ -42,8 +51,6 @@ const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const PROJECT_FILE = /^(?!\/)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r]{1,4096}$/u;
 // Budget: a red's failing parts are named one line each, bounded so a fact stays a readable record.
 const PART_TEXT = 600;
-/** The job kind of one part of a pulled gate's proof, which the board offers from the gate's plan and any runner pulls [P7]. */
-export const SHARD_JOB_KIND = 'gate-shard';
 /** Budget: a gate request with its ledger hits stays this far under the queue's 60 KiB job-request cap (jobs.js). */
 const LEDGER_REQUEST_BYTES = 56 * 1024;
 // Budget: one gate's proof splits into at most 32 shard jobs, so one receipt never floods the queue.
@@ -176,7 +183,7 @@ function pulledProofFiles(receipt) {
 function recordSubmitAdmission(board, { id, item, candidate, submit }) {
   const left = Date.parse(item.item_lease_until) - board.clock.now().getTime();
   if (!(left > 0)) return null;
-  const witness = { id: randomUUID(), commit: candidate, tree: submit.tree };
+  const witness = { id: randomUUID(), commit: candidate, tree: submit.companion?.tree ?? submit.tree };
   try {
     store.admitSubmit(board, id, { agentId: submit.agentId, lane: item.item_lane, leaseMs: left, freeze: () => null, submitAdmission: witness });
     return witness;
@@ -355,7 +362,7 @@ export function failingParts(receipt) {
  * @param {any} board - The open board, gitRoot set to the board host's repository.
  * @param {Record<string, any>} receipt
  * @param {string} main - The accepted main the gate job was offered against.
- * @param {((request: { root: string, db: import('node:sqlite').DatabaseSync, main: string, cases: { file: string, name: string }[] }) =>
+ * @param {((request: { root: string, db: import('node:sqlite').DatabaseSync, main: string, cases: { file: string, name: string }[], inputKeys: Record<string, string> }) =>
  *   { classes: { file: string, owner: string, own: string[], receipt: unknown, job: string | null }[] } | null) | null} lookup
  * @returns {{ cases: { phase: string, file: string, name: string, signature: string | null, onMain: boolean | null, receipt: string | null }[], jobs: string[] } | null}
  *   null when the red is not only test cases (a job error, infrastructure, a refusal, a phase with no case account),
@@ -371,7 +378,8 @@ export function compareGateWithMain(board, receipt, main, lookup) {
   const signed = (phase, index) => Array.isArray(phase.failureSignatures) && /^[0-9a-f]{64}$/u.test(phase.failureSignatures[index] ?? '') ? phase.failureSignatures[index] : null;
   const cases = red.flatMap(phase => phase.failures.map(({ file, name }, index) => ({ phase: String(phase.role), file, name, signature: signed(phase, index) })));
   let found = null;
-  try { found = lookup({ root: board.gitRoot, db: board.db, main, cases: cases.map(({ file, name }) => ({ file, name })) }); } catch (error) { if (!error?.code) throw error; }
+  // Each failed file's test input key rides along, so a receipt from another main with the same closure answers [C7,SC11].
+  try { found = lookup({ root: board.gitRoot, db: board.db, main, cases: cases.map(({ file, name }) => ({ file, name })), inputKeys: ledgerInputKeys(red) }); } catch (error) { if (!error?.code) throw error; }
   const classes = new Map((found?.classes ?? []).map(row => [row.file, row]));
   if (cases.some(row => !classes.has(row.file))) return null;
   const receiptId = value => typeof value === 'string' ? value : typeof value?.id === 'string' ? value.id : null;
@@ -513,6 +521,46 @@ function recordClauseInspection(board, { id, receipt, head, agentId, green }) {
   store.clauseInspectionNotes(board, id, { gateFiles, outcomes, head, green }, text => store.appendFact(board, id, { agentId, kind: 'note', text }));
 }
 
+/** Budget: how many times a pulled gate's submission is prepared again after another board write overtook it. */
+const SUBMIT_OVERTAKEN_TRIES = 5;
+
+/**
+ * Run operation with the board's mainPolicy reading the retained trunk branch's tip while the primary checkout is
+ * detached for review. Why: a pulled gate's receipt applies inside a board API request whenever its job ends, often
+ * while the coordinator verifies in the primary (every verify there detaches it); refusing there recorded a green gate
+ * "passed but not submitted" and left the item claimed. The branch is read from the config file, never by spawning Git
+ * on the request path; commands a person runs keep the refusal [C7,#8011].
+ */
+function withRetainedTrunkPolicy(board, operation) {
+  const ports = board.enginePorts, reads = ports?.sandboxPolicyReads;
+  if (!reads) return operation();
+  /** Accepted main: the primary's branch, or the retained trunk's tip while the primary is detached. */
+  const mainPolicy = root => {
+    try { return reads.mainPolicy(root); }
+    catch (error) {
+      const branch = error?.code === 'NO_POLICY' && !mainCheckout(root) ? plainTrunkRef(root) : null;
+      const commit = branch ? resolveCommit(root, branch) : null;
+      if (!commit) throw error;
+      return reads.policyAt(root, commit);
+    }
+  };
+  board.enginePorts = { ...ports, sandboxPolicyReads: { ...reads, mainPolicy } };
+  try { return operation(); } finally { board.enginePorts = ports; }
+}
+
+/**
+ * store.submit, prepared again while another connection's write overtakes its preparation. Why: submit seals its
+ * repository reads against a board snapshot and refuses BOARD_BUSY "changed while preparing" when any other command
+ * wrote meanwhile; a receipt has no caller to retry it, so a green gate on a busy board was recorded as "passed but
+ * not submitted" and its item stayed claimed until the builder ran the whole gate again [C7,#8011].
+ */
+function submitOvertaken(board, id, options) {
+  for (let tries = 1; ; tries += 1) {
+    try { return withRetainedTrunkPolicy(board, () => store.submit(board, id, options)); }
+    catch (error) { if (error?.code !== 'BOARD_BUSY' || !/changed while preparing/u.test(String(error.message)) || tries >= SUBMIT_OVERTAKEN_TRIES) throw error; }
+  }
+}
+
 /**
  * Apply one newly recorded gate-job receipt to its item. The receipt counts only while it is for the item's current
  * candidate: the newest gate job offered for the item, its source, still claimed by the seat that submitted it at the
@@ -547,12 +595,12 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
     if (sharded) return sharded;
   }
   // Quarantines filed before this receipt's pairs excuse its reds; the pairs record once, after that judgement [C7,H16].
-  const excused = judgePulledFlakes(board, { job, receipt, item: id, candidate, main, submit });
+  const excused = judgePulledFlakes(board, { job, receipt, item: id, candidate, main, submit, admit: () => recordSubmitAdmission(board, { id, item, candidate, submit }) });
   const trialNotes = [];
   // A green gate's phases become the item's native proof-run receipts before its submission, as today's submit records them [P7].
   let phaseReceipts = [];
-  const owned = ownershipOnly(receipt);
-  if (receipt?.status === 0 && receipt?.gate?.green === true || owned) {
+  const owned = ownershipOnly(receipt), proved = receipt?.status === 0 && receipt?.gate?.green === true || owned;
+  if (proved) {
     const admission = receipt?.status === 0 && receipt?.gate?.green === true && !submit.companion ? recordSubmitAdmission(board, { id, item, candidate, submit }) : null;
     try { phaseReceipts = recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit, check: offered.check, admission }); }
     catch (error) {
@@ -574,7 +622,7 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
   // as the controller's main-owned verdict asks [V4,B3]. A claim base main's receipts cannot key excuses nothing.
   const claimBase = typeof submit.claimBase === 'string' && SHA.test(submit.claimBase) && submit.claimBase !== main ? submit.claimBase : null;
   const atClaim = claimBase && compared?.cases.length && compared.cases.every(row => row.onMain === true) ? compareGateWithMain(board, receipt, claimBase, compareWithMain) : null;
-  const mainOnly = Boolean(compared?.cases.length) && compared.cases.every(row => row.onMain === true) && (!claimBase || Boolean(atClaim?.cases.every(row => row.onMain === true)));
+  const mainOnly = Boolean(compared?.cases.length) && compared.cases.every(row => row.onMain === true) && (!claimBase || Boolean(atClaim?.cases.every(row => row.onMain === true))) && companionInherits(board, submit, main, compared.cases);
   const recorded = compared ? { cases: compared.cases } : {};
   let parts = compared ? [...trials.refused, ...failingParts({ ...receipt, gate: { ...receipt.gate, phases: [] } }).filter(part => !part.startsWith('the gate job exited')), ...caseLines(compared),
     ...(claimBase && !mainOnly && compared.cases.every(row => row.onMain === true) ? (atClaim ? caseLines(atClaim) : compared.cases.map(row => `main receipt missing: ${row.phase} ${row.file} (${row.name})`)).map(line => `at claim base ${claimBase.slice(0, 12)}, ${line}`) : []),
@@ -587,6 +635,11 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
   else if (compared && !mainOnly) parts.push(...caseReworkLines(board, main, compared));
   const jobs = [...new Set([...(compared?.jobs ?? []), ...(atClaim?.jobs ?? []), ...(byFile?.jobs ?? [])])];
   if (jobs.length) parts.push(`main-test job ${jobs.join(', ')} queued for main's missing receipts; submit again once it records`);
+  // A red main's receipts cannot judge yet (some case or file has none, and main passes none of them) is unknown, not red:
+  // nothing shows it is the item's, and the queued main-test job settles it (settleWaitingGates) [C7].
+  const unknown = !trials.refused.length && !routed?.refused && !green && !mainOnly && !waived && !excused
+    && (compared ? compared.cases.some(row => row.onMain === null) && compared.cases.every(row => row.onMain !== false)
+      : Boolean(byFile?.files.some(row => row.result === null) && byFile.files.every(row => row.result !== 'green')));
   if (green || mainOnly || waived || excused && !trials.refused.length) {
     const files = pulledProofFiles(receipt);
     // A red only in main's own frozen-check cases is a green gate that names them main-owned, as the controller's verdict records [C7,#3534].
@@ -600,10 +653,11 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
     const deferred = receipt.gate?.deferred === true;
     const deferredFiles = deferred && Array.isArray(receipt.gate.deferredFiles) && receipt.gate.deferredFiles.every(file => typeof file === 'string' && PROJECT_FILE.test(file)) ? receipt.gate.deferredFiles : null;
     try {
-      // A companion submit records the builder head it composed onto, bound to the composed source's own receipts [P7].
+      // A companion submit binds the builder head it composed onto to the composed source's green phase receipts, also for an inherited red [P7,V4,B3].
+      if (submit.companion && !proved) phaseReceipts = recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit, check: offered.check });
       const companion = submit.companion ? { ...submit.companion, receiptIds: phaseReceipts.map(row => row.id),
         phases: phaseReceipts.map(({ role, command }) => ({ role, command })) } : null;
-      store.submit(board, id, { agentId: submit.agentId, commit: companion?.source ?? candidate, tree: submit.tree, files: submit.files ?? [], policyCommit: main, gateGreen, ...(submit.tooling ? { tooling: submit.tooling } : {}), ...(submit.infra ? { infra: submit.infra } : {}),
+      submitOvertaken(board, id, { agentId: submit.agentId, commit: companion?.source ?? candidate, tree: submit.tree, files: submit.files ?? [], policyCommit: main, gateGreen, ...(submit.tooling ? { tooling: submit.tooling } : {}), ...(submit.infra ? { infra: submit.infra } : {}),
         ...(deferred && typeof receipt.gate.deferNote === 'string' ? { note: receipt.gate.deferNote.replace(/[\r\n\u2028\u2029]/gu, ' ') } : {}),
         ...(companion ? { companion, pulledPlan: { phases: companion.phases, proofFiles: files, full: receipt.gate?.full === true, deferred, deferredFiles } } : {}),
         submissionProof: { version: 1, files, full: receipt.gate?.full === true, deferred, ...(deferredFiles ? { deferredFiles } : {}), reason: `pulled gate job ${job}${mainOnly ? '; red only in cases that also fail on main' : waived ? '; red only in tests the person waived' : excused && !green ? '; red only in quarantined cases' : ''}`,
@@ -628,6 +682,8 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
       const counted = green ? countGate(board, phaseReceipts.map(row => row.id).sort(), job) : [];
       if (trialNotes.length || counted.length) store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: [...trialNotes, ...counted].join('\n').slice(0, 2000) });
       if (green) startPulledComparison(board, id, submit.agentId);
+      // A carried merge-only accept leaves the item verified with no verify command to offer its land job (#7948).
+      if (store.getItem(board, id)?.item_status === 'verified') startReceiptLanding(board, id);
       return { applied: true, outcome: 'review', ...recorded, ...(owners ? { mainOwned: owners.failures, knownMainReworks: owners.known?.failures ?? [], knownMainAmbiguous: owners.ambiguous } : {}) };
     } catch (error) {
       // A green gate whose submission the board refuses goes back to the builder with the refusal, never lost in a log.
@@ -635,13 +691,14 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
       parts = [`submit ${error.code}: ${error.message}`];
     }
   }
-  store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} ${green || mainOnly || waived ? 'passed but not submitted' : 'red'} at ${candidate.slice(0, 12)}; failing parts:\n${parts.join('\n')}` });
+  const word = green || mainOnly || waived ? 'passed but not submitted' : unknown ? 'unknown' : 'red';
+  store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} ${word} at ${candidate.slice(0, 12)}${unknown ? ' until main\'s missing receipts record' : ''}; failing parts:\n${parts.join('\n')}` });
   // The shout only wakes the builder; the fact above is the record, so a refused shout leaves the red recorded.
   try {
     store.shout(board, { from: 'coordinator', to: submit.agentId, lanes: [], item: id,
-      text: `#${id} gate red at ${candidate.slice(0, 7)}: ${parts.find(part => !part.startsWith('also fails on main')) ?? parts[0] ?? 'see pullboard show'}`.slice(0, 280) });
+      text: `#${id} gate ${unknown ? 'unknown' : 'red'} at ${candidate.slice(0, 7)}: ${parts.find(part => !part.startsWith('also fails on main')) ?? parts[0] ?? 'see pullboard show'}`.slice(0, 280) });
   } catch (error) { if (error?.code === undefined) throw error; }
-  return { applied: true, outcome: 'red', ...recorded };
+  return { applied: true, outcome: unknown ? 'unknown' : 'red', ...recorded };
 }
 
 /** The review comparison starter this process's board API calls when a pulled gate goes green; null until a host provides one. */
@@ -684,6 +741,35 @@ function startPulledComparison(board, id, agentId) {
   if (started === false) return;
   const failed = started?.error ? { ...pending, status: 'unavailable', error: String(started.error?.message ?? started.error).slice(0, 500) } : null;
   store.appendFact(board, id, { agentId, kind: 'measurement', text: COMPARISON_PREFIX + JSON.stringify(failed ?? pending) });
+}
+
+/** The landing starter this process's board API calls when a gate receipt leaves an item accepted; null until a host provides one. */
+let landingStarter = null;
+
+/**
+ * Provide the function that offers the land job for an item a gate receipt left verified: start({ root, item }).
+ * Why a provider: offering a land job publishes the item's ref and reads the trunk with git from the CLI's lander, so
+ * `pullboard serve` hands it in and the board API keeps no import of the CLI [C7,#7948].
+ * @param {((request: { root: string, item: number }) => unknown) | null} start
+ */
+export function provideLandingStart(start) {
+  landingStarter = typeof start === 'function' ? start : null;
+}
+
+/**
+ * Start the land job offer for an item this receipt left verified, once the receipt's writes are done. Why: a gate that
+ * carries a merge-only accept (reopen --conflict, merge main, resubmit) verifies the item with no `verify accept` run,
+ * so nothing offered its land job and it waited accepted for good (#7948). A failed start is logged with its next
+ * step; the coordinator's `pullboard land` then offers the job.
+ */
+function startReceiptLanding(board, id) {
+  if (!landingStarter || !board.gitRoot) return;
+  const start = landingStarter, root = board.gitRoot;
+  setImmediate(() => {
+    Promise.resolve().then(() => start({ root, item: id })).catch(error => {
+      process.stderr.write(`${new Date().toISOString()} land job for #${id} not offered after its gate receipt: ${error?.code ?? error?.name ?? 'Error'}: ${error?.message ?? error}; next: pullboard land\n`);
+    });
+  });
 }
 
 /** The refusal-trial ledger this process's board API records pulled gates in; null until a host provides one. */
@@ -922,6 +1008,27 @@ export function reportRunaway(board, { job, kind, attempts, detail }) {
 }
 
 /**
+ * A land job whose push failed, or whose proof ran past its deadline, leaves its items accepted: offer the landing again,
+ * up to LAND_PUSH_RETRIES times, and past that note each item and shout the coordinator the named refusal
+ * (LAND_PUSH_FAILED, or LAND_PROOF_TIMEOUT). Why: the job was marked done and nothing offered the items again, so an
+ * accepted item waited landing for good (#7791); a proof that never ended did the same with its lease renewed forever (#7820).
+ */
+function retryFailedLanding(board, job, named, receipt, { code, what, next }) {
+  const waiting = [...named].filter(id => { const item = store.getItem(board, id); return item?.item_status === 'verified' && !item.item_merged_commit; });
+  if (!waiting.length) return;
+  const detail = String(receipt.detail ?? 'no detail recorded').trim();
+  const tries = landingRetries(job);
+  let again = null;
+  if (tries < LAND_PUSH_RETRIES) {
+    try { again = reofferLandingJob(board.db, job); } catch { again = null; }
+  }
+  const tail = again ? `offered land job ${again.id} (retry ${again.retry} of ${LAND_PUSH_RETRIES})`
+    : `${code} after ${tries + 1} tries; next: ${next}`;
+  for (const id of waiting) store.appendFact(board, id, { agentId: 'coordinator', kind: 'note', text: `Land job ${job} ${what}: ${detail}; ${tail}`.slice(0, 900) });
+  if (!again) store.persistShout(board, { from: 'coordinator', to: 'coordinator', text: `${code}: land job ${job} ${what} (${detail.slice(0, 200)}); ${waiting.map(id => `#${id}`).join(' ')} stay accepted; next: ${next}`.slice(0, 600) });
+}
+
+/**
  * Mark each item a landed receipt names merged at the trunk commit the runner pushed: the items it merged and those
  * trunk already held. An item no longer accepted and unmerged is left as it is. The items the receipt gives back (red
  * or colliding) return to their builders or park (returnLandedReds); a busy trunk or lost lease changes no item, and
@@ -937,6 +1044,8 @@ export function applyLandingReceipt(board, { job, receipt }) {
   const returned = receipt ? returnLandedReds(board, job, named, receipt, offered.payload?.publish === 'separate') : [];
   // A red's failing cases become observations after the items go back, once per receipt (the job's receipt applies once) [C7,H16].
   if (receipt?.red) { try { recordLandedRed(board, { job, receipt, item: returned[0] ?? null }); } catch { /* a diagnostic that cannot record leaves the red as it was */ } }
+  if (receipt?.outcome === 'push-failed') retryFailedLanding(board, job, named, receipt, { code: 'LAND_PUSH_FAILED', what: 'push-failed', next: 'fix the trunk push, then pullboard land' });
+  if (receipt?.outcome === 'proof-timeout') retryFailedLanding(board, job, named, receipt, { code: 'LAND_PROOF_TIMEOUT', what: 'proof ran past its deadline', next: 'find the slow or stuck test file on the runner, then pullboard land' });
   if (receipt?.outcome !== 'landed' || !SHA.test(receipt.trunk ?? '')) return { applied: returned.length > 0, outcome: String(receipt?.outcome ?? 'unknown'), returned };
   const waivers = new Map((offered.payload?.waivers ?? []).map(waiver => [waiver.id, waiver]));
   const waived = (Array.isArray(receipt.waived) ? receipt.waived : []).map(row => {

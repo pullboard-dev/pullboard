@@ -9,10 +9,13 @@ import { badgeCounts } from '../../../../view/index.js';
 import { badgeDocuments } from '../../../../view/index.js';
 import { pairPrefix } from '../../../../../packages/flakes/index.js';
 import { quarantineWaivers } from '../../../../../packages/flakes/index.js';
+import { gateRuns } from '../../../../../packages/flakes/index.js';
 /** The pullboard land command, in its own module so an item adding another command never edits these lines. */
 import { landWhy } from '../../../../../packages/landing/index.js';
 import { landWhyLines } from '../../../../../packages/landing/index.js';
 import { withBoardRead } from '../board/read.js';
+import { landingWaits } from '../landing/waiting.js';
+import { landingWaitLine } from '../landing/waiting.js';
 import { context } from '../read.js';
 import * as store from '../../../../../packages/store/index.js';
 import {
@@ -72,8 +75,13 @@ export async function run(io, { first, second, rest, values }) {
   if (first || second || rest.length || batchOption) throw new Refused('LAND_OFFER_ONLY', `pullboard land only offers the land job${batchOption ? `; --${batchOption} ran the retired host batch` : ''}`, 'run pullboard land with no option, or land <id> --forced "<why>"');
   try { requireManualLanding(mainPolicy(ctx.info.root).config); } catch (error) {
     if (!(error instanceof Refused) || error.code !== 'BOARD_LANDS_ACCEPTED') throw error;
-    // A 0.9.3 user ran land by hand; say what changed and the one setting that brings it back.
-    throw new Refused('BOARD_LANDS_ACCEPTED', 'the board lands accepted items by itself: once an item is accepted, landing starts on its own, so pullboard land is no longer needed by hand', 'to land by hand as before, set landing.manualOverride to true in pullboard.json (the person sets it); otherwise run pullboard next for other work');
+    const waits = landingWaits(board.db, store.listItems(board, { all: true }), ctx.clock.now().getTime());
+    // An accepted item no land job names would wait for good, so land offers its job as the accept should have (#7948).
+    if (!waits.some(wait => wait.state === 'none')) {
+      // A 0.9.3 user ran land by hand; say what changed, where each accepted item waits, and the one setting that brings it back.
+      throw new Refused('BOARD_LANDS_ACCEPTED', `the board lands accepted items by itself: once an item is accepted, landing starts on its own, so pullboard land is no longer needed by hand${waits.length ? `; ${waits.map(landingWaitLine).join('; ')}` : ''}`, 'to land by hand as before, set landing.manualOverride to true in pullboard.json (the person sets it); otherwise run pullboard next for other work');
+    }
+    io.say(`no land job names ${waits.filter(wait => wait.state === 'none').map(wait => `#${wait.id}`).join(' ')}; offering it now, as its accept should have`);
   }
   const offered = await offerLanding(ctx, ctx.info.root, { board });
   if (!offered) throw noLandingRunner();
@@ -90,7 +98,7 @@ function noLandingRunner() {
 
 /** Offer a runner land job from the main checkout (pull.js's offerPulledLanding), loaded only when a landing is offered. */
 async function offerLanding(ctx, root, options = {}) {
-  return (await import('../landing/pull.js')).offerPulledLanding(ctx, root, { mainPolicy, pairPrefix, quarantineWaivers, listItems: store.listItems, checkedLandingCommit: store.checkedLandingCommit, badgeDocuments: board => badgeDocuments(badgeCounts(board)) }, options);
+  return (await import('../landing/pull.js')).offerPulledLanding(ctx, root, { mainPolicy, pairPrefix, quarantineWaivers, gateRuns, listItems: store.listItems, checkedLandingCommit: store.checkedLandingCommit, badgeDocuments: board => badgeDocuments(badgeCounts(board)) }, options);
 }
 
 /**

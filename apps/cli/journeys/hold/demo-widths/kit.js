@@ -13,6 +13,7 @@ import {
   openSnapshotChrome,
   closeSnapshotChrome,
   press,
+  pressTab,
 } from '../../../tests/fixtures/cockpit/harness.js';
 import {
   armDecisionPressCapture,
@@ -127,7 +128,10 @@ export function demoWidthTest(only, phase = 'both') {
 
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('[data-tab=items]')");
-    await press(chrome, "document.querySelector('[data-tab=items]')");
+    await chrome.waitFor("document.readyState === 'complete' && !document.body.classList.contains('loading')");
+    // The Menu button's ruling badge fills in once the board loads and widens the button, so press it only after the count shows.
+    await chrome.waitFor("!!document.querySelector('#menu-rulings')?.textContent.trim()");
+    await pressTab(chrome, 'items');
     await chrome.waitFor("document.readyState === 'complete' && !!document.querySelector('#chain .row')");
     if (pages) await assertFirstStateDelay(chrome, t);
     if (pages) {
@@ -143,20 +147,20 @@ export function demoWidthTest(only, phase = 'both') {
     }
     for (const width of [only]) {
       await setViewport(width);
-      await click('.tab[data-tab="items"]');
+      await pressTab(chrome, 'items');
       if (pages) {
         if (width <= 900) {
-          await click('#proj-switch');
-          await click('[data-proj-all]');
+          await click('#menu-btn');
+          await click('#mdrawer-proj');
           await chrome.waitFor("getComputedStyle(document.querySelector('#proj-list')).display !== 'none'");
           await checkLayout(width, 'open project list');
           await click(`[data-root="${other.repo}"]`);
           await chrome.waitFor("document.querySelector('#proj-name').textContent === 'other-demo'");
-          await click('#proj-switch');
-          await click('[data-proj-all]');
+          await click('#menu-btn');
+          await click('#mdrawer-proj');
           await click(`[data-root="${demo.repo}"]`);
           await chrome.waitFor("document.querySelector('#proj-name').textContent === 'phone-demo'");
-          await click('.tab[data-tab="items"]');
+          await pressTab(chrome, 'items');
           await chrome.waitFor("!!document.querySelector('#chain .row')");
         }
         assert.ok(await chrome.stable("[...document.querySelectorAll('#proj-list .pname')].some(e=>e.textContent==='phone-demo')"), `${width}: demo appears in the project list`);
@@ -166,10 +170,8 @@ export function demoWidthTest(only, phase = 'both') {
         assert.ok(await chrome.stable("!!document.querySelector('#detail h2')"), `${width}: selected item detail is visible`);
         await checkLayout(width, 'items, Needs you and detail');
         for (const tab of ['shouts', 'spec', 'doctrine', 'activity']) {
-          // Spec and Doctrine sit in the Rules menu and Activity in the Insights menu, so open the group first [N26].
-          const group = { spec: 'rules', doctrine: 'rules', activity: 'insights' }[tab];
-          if (group) await click(`[data-nav-group="${group}"]`);
-          await click(`.tab[data-tab="${tab}"]`);
+          // pressTab opens the Menu drawer under 900 px, or the Rules or Insights menu above it [N26].
+          await pressTab(chrome, tab);
           await checkLayout(width, `${tab} tab`);
           if (tab === 'spec') {
             await waitRendered(['#spec-chips button']);
@@ -180,12 +182,12 @@ export function demoWidthTest(only, phase = 'both') {
             for (const chip of chips) assert.ok(Math.abs(chip.actualWidth - chip.naturalWidth) < 2, `${width}: ${chip.text} keeps its natural width: ${JSON.stringify(chip)}`);
           }
           if (tab === 'activity') {
-            const findTitle = `(() => [...document.querySelectorAll('#activity .activity-item')].find(node => node.title === ${JSON.stringify(wrapTitle)}))()`;
+            const findTitle = `(() => [...document.querySelectorAll('#activity .act-row .ph')].find(node => node.title === ${JSON.stringify(wrapTitle)}))()`; // the approved activity rows (648b26dc00, #6916) replaced the old .activity-item feed
             await chrome.waitFor(`(() => { const element = ${findTitle}; return element?.getBoundingClientRect().width > 0; })()`);
             const fit = JSON.parse(await chrome.stable(`JSON.stringify((() => {
               const element = ${findTitle};
               if (!element) return null;
-              const row = element.closest('.activity-event').getBoundingClientRect(), box = element.getBoundingClientRect(), style = getComputedStyle(element);
+              const row = element.closest('.act-row').getBoundingClientRect(), box = element.getBoundingClientRect(), style = getComputedStyle(element);
               return {rowRight: row.right, boxRight: box.right, boxWidth: box.width, boxHeight: box.height, lineHeight: parseFloat(style.fontSize) * 2, overflow: style.textOverflow, whiteSpace: style.whiteSpace, clipped: element.scrollWidth > element.clientWidth, title: element.title};
             })())`));
             assert.ok(fit, `${width}: the activity feed shows the long item title`);
@@ -209,7 +211,7 @@ export function demoWidthTest(only, phase = 'both') {
               `${width}: the reply box sits in the thread and is a target: ${JSON.stringify(open)}`);
           }
         }
-        await click('.tab[data-tab="items"]');
+        await pressTab(chrome, 'items');
       }
 
       if (actions) {
@@ -223,7 +225,7 @@ export function demoWidthTest(only, phase = 'both') {
         await chrome.waitFor("document.querySelector('#console.ok') && document.querySelector('#console').textContent.includes('added #')");
         await checkLayout(width, 'successful add toast');
 
-        await click('.tab[data-tab="shouts"]');
+        await pressTab(chrome, 'shouts');
         await checkLayout(width, 'shout and hold forms');
         const answerText = `Phone answer ${width}`;
         let answerLifecycleCaptureArmed = false;

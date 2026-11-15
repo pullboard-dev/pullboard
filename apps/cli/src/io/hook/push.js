@@ -1,6 +1,6 @@
 /**
- * The pre-push full gate as pull shard jobs: the gate's tracked test files split by recorded weight, heaviest first
- * (planLandingShards), each shard the whole gate command over its own files (valueGateCommand), offered as a gate-shard
+ * The pre-push full gate as pull shard jobs: the gate's tracked test files split into at most eight partitions balanced by recorded time
+ * (planPushShards), each shard the whole gate command over its own files (valueGateCommand), offered as a gate-shard
  * job with no item that any free runner pulls. The hook waits until the last shard posts and is red when any shard is.
  *
  * Why: the pre-push gate ran all 2,367 files as one command on one runner, about 3 hours; the submit gate's pull shards
@@ -9,7 +9,6 @@
 import { randomBytes } from 'node:crypto';
 import { setTimeout as pause } from 'node:timers/promises';
 import { gateRunnerWaitMs } from '../../../../../packages/config/index.js';
-import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { git } from '../../../../../packages/git/index.js';
 import { headCommit } from '../../../../../packages/git/index.js';
@@ -20,30 +19,78 @@ import { untracked } from '../../../../../packages/git/index.js';
 import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
 
-/** Budget: about this much recorded file time per shard, so one shard stays well inside the runner's 20-minute job ceiling. */
-export const PUSH_SHARD_TARGET_MS = 10 * 60_000;
-/** Budget: at most this many shard jobs for one push, the board's own cap on one proof's shards. */
-const MAX_PUSH_SHARDS = 32;
-/** Budget: a shard a runner holds must post within the 20-minute per-job ceiling (packages/runners RUN_CEILING_MS). */
-const SHARD_CEILING_MS = 20 * 60_000;
+/** Budget: a shard a runner holds must post within pushGate.shardMinutes, 20 by default like the runner's per-job ceiling (packages/runners RUN_CEILING_MS) [#7810]. */
+const DEFAULT_SHARD_MINUTES = 20;
+/** Budget: the push gate offers at most this many shards, each a balanced partition of the gate's files by recorded time [C7,#8047]. */
+export const PUSH_MAX_SHARDS = 8;
+/** Budget: the time assumed for a non-journey test file with no record, about 1.5 times the 6.6 s mean wall per file of the 14 Nov census chunks. */
+export const PUSH_DEFAULT_FILE_MS = 10_000;
+/** Budget: the time assumed for an apps/<app>/journeys file with no record, about twice the 29.5 s mean wall per journey of the 14 Nov census chunks (near their 90th percentile). */
+export const PUSH_DEFAULT_JOURNEY_MS = 60_000;
+/** Budget: the waiting hook says its shards are still wanted every 30 s, well inside the 5 minutes after which a claim ends them (PUSH_ALIVE_MS). */
+const ALIVE_MS = 30_000;
 /** Budget: the waiting hook reads its shard rows once a second, one small local read. */
 const POLL_MS = 1_000;
 
 /**
- * How many shards a push gate's files make: one per registered runner at least, more when their recorded time needs it to
- * keep each shard near PUSH_SHARD_TARGET_MS, never fewer than two nor more than MAX_PUSH_SHARDS.
+ * How long a push shard may run before the push gate gives up: pushGate.shardMinutes from pullboard.json (default 20), or a
+ * raised PULLBOARD_RUNNER_RUN_CEILING_MS when that is longer, so the gate never gives up on a shard its runner still allows.
+ * A runner ceiling of 0 (off) or unset adds nothing beyond the setting. Why: the limit was a hard-coded 20 minutes that no
+ * setting or runner override could raise [#7810].
+ *
+ * @param {{ pushGate?: { shardMinutes?: number } } | undefined} config
+ * @param {Record<string, string|undefined>} [env]
+ * @returns {number} Milliseconds.
+ */
+export function pushShardLimitMs(config, env = process.env) {
+  const minutes = config?.pushGate?.shardMinutes ?? DEFAULT_SHARD_MINUTES;
+  const raw = env.PULLBOARD_RUNNER_RUN_CEILING_MS;
+  const runner = raw === undefined || raw === '' ? 0 : Number(raw);
+  return Math.max(minutes * 60_000, Number.isSafeInteger(runner) && runner > 0 ? runner : 0);
+}
+
+/**
+ * Split the gate's files into at most PUSH_MAX_SHARDS partitions balanced by recorded time: heaviest file first, each into
+ * the lightest partition so far (longest-processing-time first), so partition 1 starts with the heaviest file. A file with
+ * no record counts PUSH_DEFAULT_JOURNEY_MS under a journeys folder, else PUSH_DEFAULT_FILE_MS. Every file lands in exactly
+ * one partition; two files make two partitions, never fewer. Why a fixed few: a time budget plus a file cap gave dozens of
+ * shards on main, each claimed late by a busy runner (#7790); a few balanced partitions keep every runner busy to the end.
  *
  * @param {string[]} files
  * @param {Record<string, number>} times - Last wall time in ms by repository-relative path (a leading ./ is ignored).
- * @param {number} runners - The registered runners.
- * @returns {number}
+ * @param {number} [maxShards]
+ * @returns {{ files: string[], weight: number }[]}
  */
-export function pushShardCount(files, times, runners) {
-  const time = file => times[file.replace(/^\.\//u, '')];
-  const known = files.map(time).filter(ms => Number.isFinite(ms));
-  const average = known.length ? known.reduce((sum, ms) => sum + ms, 0) / known.length : 0;
-  const total = files.reduce((sum, file) => sum + (Number.isFinite(time(file)) ? time(file) : average), 0);
-  return Math.min(MAX_PUSH_SHARDS, files.length, Math.max(2, runners, Math.ceil(total / PUSH_SHARD_TARGET_MS)));
+export function planPushShards(files, times, maxShards = PUSH_MAX_SHARDS) {
+  const weight = file => {
+    const path = file.replace(/^\.\//u, '');
+    const ms = times[path];
+    if (Number.isFinite(ms) && ms >= 0) return ms;
+    return /^apps\/[^/]+\/journeys\//u.test(path) ? PUSH_DEFAULT_JOURNEY_MS : PUSH_DEFAULT_FILE_MS;
+  };
+  const ordered = [...new Set(files)].sort((a, b) => weight(b) - weight(a) || a.localeCompare(b));
+  const shards = Array.from({ length: Math.min(Math.max(1, Math.floor(maxShards)), ordered.length) }, () => ({ files: [], weight: 0 }));
+  for (const file of ordered) {
+    const lightest = shards.reduce((best, shard) => (shard.weight < best.weight ? shard : best));
+    lightest.files.push(file);
+    lightest.weight += weight(file);
+  }
+  for (const shard of shards) shard.files.sort((a, b) => a.localeCompare(b));
+  return shards.sort((a, b) => b.weight - a.weight || a.files[0].localeCompare(b.files[0]));
+}
+
+/**
+ * How long the gate waits on one held shard: the pushGate.shardMinutes limit, or the heaviest partition's estimated time
+ * when that is longer. Why: with at most eight partitions each holds far more than the old 5-minute shards, so a flat
+ * 20-minute limit would give up on a healthy run of main.
+ *
+ * @param {{ weight: number }[]} shards
+ * @param {{ pushGate?: { shardMinutes?: number } } | undefined} config
+ * @param {Record<string, string|undefined>} [env]
+ * @returns {number} Milliseconds.
+ */
+export function pushPlanLimitMs(shards, config, env = process.env) {
+  return Math.max(pushShardLimitMs(config, env), ...shards.map(shard => shard.weight));
 }
 
 /**
@@ -53,20 +100,20 @@ export function pushShardCount(files, times, runners) {
  *
  * @param {string} root
  * @param {{ gate: string }} config
- * @returns {Promise<{ main: string, source: string, shards: { files: string[], command: string }[] } | null>}
+ * @returns {Promise<{ main: string, source: string, shards: { files: string[], command: string }[], limitMs: number } | null>}
  */
 export async function pushShardPlan(root, config) {
   if (runnerDispatchMode() !== 'pull' || !isClean(root) || untracked(root).length) return null;
-  const { planLandingShards, readFileTimes, trackedDefaultTestFiles, valueGateCommand } = await import('../../../../../packages/gate/index.js');
+  const { readFileTimes, trackedDefaultTestFiles, valueGateCommand } = await import('../../../../../packages/gate/index.js');
   const files = trackedDefaultTestFiles(root, process.env);
   if (files.length < 2 || !valueGateCommand(root, config.gate, files)) return null;
-  const times = readFileTimes(root);
-  const count = pushShardCount(files, times, (loadMachineSettings().runners ?? []).length);
-  const shards = planLandingShards(files, count, times, root).map(shard => ({ files: shard.files, command: valueGateCommand(root, config.gate, shard.files) }));
+  const planned = planPushShards(files, readFileTimes(root));
+  const shards = planned.map(shard => ({ files: shard.files, command: valueGateCommand(root, config.gate, shard.files) }));
+  const limitMs = pushPlanLimitMs(planned, config);
   const source = headCommit(root);
   const trunk = trunkRef(root);
   const main = (trunk && tryGit(root, ['rev-parse', '--verify', '--quiet', `refs/heads/${trunk}^{commit}`]).stdout.trim()) || source;
-  return { main, source, shards };
+  return { main, source, shards, limitMs };
 }
 
 /**
@@ -93,16 +140,22 @@ export async function offerPushShards(ctx, plan) {
 
 /**
  * Wait until every shard job has posted its receipt. Refuses when no shard changes hands or posts within
- * gate.runnerWaitMs while one still waits for a runner, or when a held shard runs past the 20-minute job ceiling.
+ * gate.runnerWaitMs while one still waits for a runner, or when a held shard runs past pushGate.shardMinutes (or a longer runner ceiling).
  *
  * @returns {Promise<{ job: string, posted: { receipt: object, runner: string | null } }[] | { refused: string }>}
  */
-export async function awaitPushShards(ctx, jobs, { say, wait = pause, pollMs = POLL_MS, now = Date.now } = {}) {
-  const { jobViews } = await import('../../../../../packages/api/index.js');
+export async function awaitPushShards(ctx, jobs, { say, wait = pause, pollMs = POLL_MS, now = Date.now, read = work => withBoardRead(ctx, work), write = work => withBoard(ctx, work), limitMs = pushShardLimitMs(ctx.config) } = {}) {
+  const { jobViews, keepJobsAlive } = await import('../../../../../packages/api/index.js');
   const claimedAt = new Map(), posted = new Map();
-  let moved = now();
+  let moved = now(), renewed = -Infinity;
   while (posted.size < jobs.length) {
-    const views = withBoardRead(ctx, board => jobViews(board.db, jobs));
+    // Say the gate is still here, so no claim ends its shards as abandoned (#7805).
+    if (now() - renewed >= ALIVE_MS) {
+      const open = jobs.filter(job => !posted.has(job));
+      write(board => keepJobsAlive(board.db, open, now()));
+      renewed = now();
+    }
+    const views = read(board => jobViews(board.db, jobs));
     for (const [at, view] of views.entries()) {
       const job = jobs[at];
       if (!view) return { refused: `shard job ${job} is gone from the board; push again` };
@@ -114,8 +167,8 @@ export async function awaitPushShards(ctx, jobs, { say, wait = pause, pollMs = P
         moved = now();
         say?.(`pre-push: runner ${view.leaseOwner} took shard job ${job}`);
       }
-      if (!posted.has(job) && claimedAt.has(job) && now() - claimedAt.get(job).at > SHARD_CEILING_MS) {
-        return { refused: `shard job ${job} ran past the ${SHARD_CEILING_MS / 60_000}-minute job ceiling on runner ${view.leaseOwner ?? 'unknown'}; push again` };
+      if (!posted.has(job) && claimedAt.has(job) && now() - claimedAt.get(job).at > limitMs) {
+        return { refused: `shard job ${job} ran past the ${Math.round(limitMs / 60_000)}-minute shard limit on runner ${view.leaseOwner ?? 'unknown'}; to allow a longer run, raise pushGate.shardMinutes in pullboard.json (default ${DEFAULT_SHARD_MINUTES}) and PULLBOARD_RUNNER_RUN_CEILING_MS on the runners to match, then push again` };
       }
     }
     if (posted.size === jobs.length) break;
@@ -125,6 +178,27 @@ export async function awaitPushShards(ctx, jobs, { say, wait = pause, pollMs = P
     await wait(pollMs);
   }
   return jobs.map(job => ({ job, posted: posted.get(job) }));
+}
+
+/**
+ * Wait for the shard jobs (awaitPushShards) and, however the wait ends, withdraw the ones unfinished: a block, a timeout,
+ * a throw, SIGINT or SIGTERM end every shard through the job API, so no runner claims one again [#7805]. `after` runs last.
+ *
+ * @param {object} ctx
+ * @param {string[]} jobs
+ * @param {{ say?: Function, wait?: Function, pollMs?: number, now?: () => number, read?: Function, write?: Function, after?: () => void, exit?: (code: number) => never, signals?: { on: Function, off: Function } }} [options]
+ * @returns {ReturnType<typeof awaitPushShards>}
+ */
+export async function awaitAndWithdraw(ctx, jobs, { after = () => {}, exit = process.exit, signals = process, write = work => withBoard(ctx, work), ...options } = {}) {
+  const { endJobs } = await import('../../../../../packages/api/index.js');
+  const withdraw = () => {
+    try { write(board => endJobs(board.db, jobs, { reason: 'the pre-push gate that offered it stopped' })); } catch { /* a shard left over ends itself once its gate stops renewing it */ }
+    after();
+  };
+  const handlers = [['SIGINT', 130], ['SIGTERM', 143]].map(([signal, code]) => [signal, () => { withdraw(); exit(code); }]);
+  for (const [signal, handler] of handlers) signals.on(signal, handler);
+  try { return await awaitPushShards(ctx, jobs, { ...options, write }); }
+  finally { for (const [signal, handler] of handlers) signals.off(signal, handler); withdraw(); }
 }
 
 /**
@@ -143,6 +217,27 @@ export function redShardFiles(shard, receipt) {
 }
 
 /**
+ * The refusal a not-green set of shards makes: red shards name their failing files, and a shard that posted no
+ * receipt reads unknown, counted as neither red nor green, so the tree is never stamped green on it [C7,#8046].
+ *
+ * @param {{ gate: { shards: { job: string, green: boolean }[] } }} combined - combinedReceipt's result.
+ * @param {{ posted?: { receipt?: object } }[]} settled - Each shard's awaited result, in plan order.
+ * @param {{ shards: { files: string[] }[] }} plan
+ * @param {string[]} jobs
+ * @param {(receipt: object) => string[]} failingParts
+ * @returns {string}
+ */
+export function shardProblem(combined, settled, plan, jobs, failingParts) {
+  const notGreen = combined.gate.shards.map((part, at) => ({ ...part, at })).filter(part => !part.green);
+  const unknown = notGreen.filter(part => !settled[part.at].posted?.receipt);
+  const reds = notGreen.filter(part => settled[part.at].posted?.receipt);
+  const failing = [...new Set(reds.flatMap(part => redShardFiles(plan.shards[part.at], settled[part.at].posted?.receipt)))].sort();
+  const redText = reds.length ? `the gate is red in ${reds.length} of ${jobs.length} shard jobs (${reds.map(part => part.job).join(', ')}); failing files: ${failing.join(', ')}. fix them before pushing.\n${failingParts(combined).join('\n')}` : '';
+  const unknownText = unknown.length ? `the gate is unknown in ${unknown.length} of ${jobs.length} shard jobs (${unknown.map(part => part.job).join(', ')}): no receipt was posted, so they count as neither red nor green and the tree is not stamped green. push again to rerun them.` : '';
+  return [redText, unknownText].filter(Boolean).join('\n');
+}
+
+/**
  * Run the pre-push full gate as pull shard jobs, or return null when pushShardPlan keeps the one-command gate.
  * Green stamps the pushed tree, as a full gate run does, so a retried push of it is not gated twice.
  *
@@ -157,9 +252,7 @@ export async function pushShardGate(ctx, { say, wait, pollMs } = {}) {
   const { jobs, ref } = await offerPushShards(ctx, plan);
   const files = plan.shards.reduce((sum, shard) => sum + shard.files.length, 0);
   say?.(`pre-push: the full gate's ${files} test files are offered as ${jobs.length} shard jobs at ${plan.source.slice(0, 12)}; every free runner pulls them`);
-  let settled;
-  try { settled = await awaitPushShards(ctx, jobs, { say, wait, pollMs }); }
-  finally { try { git(root, ['update-ref', '-d', ref]); } catch { /* a pin left behind only keeps a commit reachable */ } }
+  const settled = await awaitAndWithdraw(ctx, jobs, { say, wait, pollMs, limitMs: plan.limitMs, after: () => { try { git(root, ['update-ref', '-d', ref]); } catch { /* a pin left behind only keeps a commit reachable */ } } });
   if (!Array.isArray(settled)) return { isGreen: false, problem: `the gate did not finish: ${settled.refused}`, jobs };
   const { combinedReceipt, failingParts } = await import('../../../../../packages/api/index.js');
   const combined = combinedReceipt({ status: 0, gate: { green: true, phases: [] } }, settled);
@@ -168,7 +261,5 @@ export async function pushShardGate(ctx, { say, wait, pollMs } = {}) {
     stampGreen(root, tryGit(root, ['rev-parse', `${plan.source}^{tree}`]).stdout.trim());
     return { isGreen: true, problem: null, jobs };
   }
-  const reds = combined.gate.shards.map((part, at) => ({ ...part, at })).filter(part => !part.green);
-  const failing = [...new Set(reds.flatMap(part => redShardFiles(plan.shards[part.at], settled[part.at].posted?.receipt)))].sort();
-  return { isGreen: false, jobs, problem: `the gate is red in ${reds.length} of ${jobs.length} shard jobs (${reds.map(part => part.job).join(', ')}); failing files: ${failing.join(', ')}. fix them before pushing.\n${failingParts(combined).join('\n')}` };
+  return { isGreen: false, jobs, problem: shardProblem(combined, settled, plan, jobs, failingParts) };
 }

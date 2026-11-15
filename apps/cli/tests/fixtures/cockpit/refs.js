@@ -18,6 +18,7 @@ import {
   chromeExecutable,
   closeSnapshotChrome,
   press,
+  pressTab,
   pickProject,
   chooseFilter,
   openItemsNeeds,
@@ -51,7 +52,7 @@ export async function proseReferencesAt(t, width) {
   let chrome;
   try {
     chrome = await openRoadmapChrome(executable, view.link.href, profile);
-    await press(chrome, "document.querySelector('[data-tab=items]')");
+    await pressTab(chrome, 'items');
     await chrome.waitFor("document.querySelector('#chain .row[data-item=\"2\"]')");
     {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -66,7 +67,7 @@ export async function proseReferencesAt(t, width) {
       for (const [tab, selector, target, expands] of contexts) {
         await pickProject(chrome, `document.querySelector('[data-root=${JSON.stringify(demo.repo)}]')`);
         await chrome.waitFor("data?.project?.root === view.root && !document.body.classList.contains('switching') && document.querySelector('#proj-name').textContent === 'a-inline-prose'");
-        await chrome.click(`document.querySelector('[data-tab="${tab}"]')`);
+        await pressTab(chrome, `${tab}`);
         if (tab !== 'roadmap') await chrome.click(`document.querySelector('[data-rows="${tab}:all"]')`);
         const metrics = JSON.parse(await chrome.stable(`JSON.stringify((() => {
           const ref = document.querySelector(${JSON.stringify(selector)});
@@ -102,7 +103,7 @@ export async function proseReferencesAt(t, width) {
         assert.ok((await chrome.stable("document.querySelector('#detail h2').textContent")).includes(target), 'the reference opens its target title');
         assert.equal(await chrome.stable('view.root'), target === 'Remote target' ? other.repo : demo.repo, 'duplicate item numbers stay bound to their own board');
       }
-      await chrome.click(`document.querySelector('[data-tab="items"]')`); await chrome.click(`document.querySelector('#chain .row[data-item="2"]')`);
+      await pressTab(chrome, 'items'); await chrome.click(`document.querySelector('#chain .row[data-item="2"]')`);
       // The latest verdict has its own panel, and the history row keeps its own copy (639c16dbb5); read the panel's.
       await chrome.waitFor("document.querySelector('#detail .item-panel-latest .note')");
       assert.equal(await chrome.stable("document.querySelectorAll('#detail .item-panel-latest .note .ref').length"), 1, 'verdict prose keeps its item reference');
@@ -113,10 +114,13 @@ export async function proseReferencesAt(t, width) {
       const decision = "document.querySelector('#needs details[data-needs-key^=\"decision:\"]')";
       if (await chrome.stable(`${decision}.open`) !== true) await chrome.click(`${decision}.querySelector('summary')`);
       await chrome.click(`${decision}.querySelector('button[data-go^="decide:"]')`);
-      assert.equal(await chrome.stable("document.querySelectorAll('#answering-q .ref').length"), 1, 'the answering question keeps its inline item reference');
-      await chrome.click("document.querySelector('#answering-q .ref')");
+      // A ruling answers in its opened thread, where the message text carries the reference; the composer's answering line stays hidden (154e174c55).
+      const asked = "document.querySelector('#feed [data-thread-panel] .sx-msg .sx-tx .ref')";
+      await chrome.waitFor(asked + ' !== null');
+      assert.equal(await chrome.stable("document.querySelectorAll('#feed [data-thread-panel] .sx-msg .sx-tx .ref').length"), 1, 'the answered question keeps its inline item reference');
+      await chrome.click(asked);
       await chrome.waitFor("document.querySelector('#detail h2')?.textContent.includes('Local target') && document.querySelector('[data-tab=items].on')");
-      await chrome.click("document.querySelector('[data-tab=roadmap]')");
+      await pressTab(chrome, 'roadmap');
       const keyboardRow = "document.querySelector('#roadmap .milestone-item[role=button]:not([data-board])')";
       if (await chrome.stable(keyboardRow + ".getAttribute('aria-expanded')") === 'true') await chrome.click(keyboardRow);
       await chrome.stable(keyboardRow + ".dispatchEvent(new KeyboardEvent('keydown', {key:'Enter',bubbles:true}))");

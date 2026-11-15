@@ -9,6 +9,10 @@ import {
 import { join } from 'node:path';
 import { runFixtureChildAsync } from '../child.js';
 import {
+  verifySettled,
+  verifySettledSync,
+} from '../submit/settle.js';
+import {
   fileFixtureItem,
   joinFixtureSeat,
 } from '../testkit.js';
@@ -103,7 +107,7 @@ function acceptItem(box, entry) {
   entry.reviewedTrunk = box.git(box.repo, 'rev-parse', 'main');
   box.git(box.repo, 'switch', '-q', '--detach', entry.commit);
   try {
-    const verdict = box.run(box.repo, 'verify', String(entry.item), 'accept', '--as', 'coordinator', '--note', 'private landing fixture check passed');
+    const verdict = verifySettledSync(box, box.repo, ['verify', String(entry.item), 'accept', '--as', 'coordinator', '--note', 'private landing fixture check passed']);
     assert.equal(verdict.code, 0, verdict.err);
   } finally { box.git(box.repo, 'switch', '-q', 'main'); }
 }
@@ -133,7 +137,7 @@ async function acceptItemLocal(box, entry) {
   entry.reviewedTrunk = box.git(box.repo, 'rev-parse', 'main');
   box.git(box.repo, 'switch', '-q', '--detach', entry.commit);
   try {
-    const verdict = await box.runLocal(box.repo, 'verify', String(entry.item), 'accept', '--as', 'coordinator', '--note', 'private landing fixture check passed');
+    const verdict = await verifySettled(box, box.runLocal, box.repo, ['verify', String(entry.item), 'accept', '--as', 'coordinator', '--note', 'private landing fixture check passed']);
     assert.equal(verdict.code, 0, verdict.err);
   } finally { box.git(box.repo, 'switch', '-q', 'main'); }
 }

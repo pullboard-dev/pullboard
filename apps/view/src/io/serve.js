@@ -12,6 +12,8 @@ import { performanceCores } from "../../../../packages/gate/index.js";
 import { landingPace } from "../../../../packages/roadmap/index.js";
 import { dashboardRecent } from "./dashboard/recent.js";
 import { boardCounts } from "../logic/counts.js";
+import { firstLandings } from "../logic/counts.js";
+import { withReadySplit } from "../logic/counts.js";
 import { machineRead } from "./pipeline/machine.js";
 import { milestoneFocus } from "../../../../packages/roadmap/index.js";
 /** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/stage.css apps/view/src/io/dashboard.css apps/view/src/io/cost.css apps/view/src/io/doctrine.css apps/view/src/io/item/panel.css apps/view/src/io/item/rows.css */
@@ -306,9 +308,9 @@ function machineResourcesFile() { return join(dirname(machineSettingsFile()), 'r
  * per-file state and minutes left, from this machine's runner leases and settings; nothing that names the machine [N26].
  *
  * @param {string} root
- * @param {{ now?: number }} [options]
+ * @param {{ now?: number, registeredOnly?: boolean }} [options] - registeredOnly: the Dashboard's own read, which lists the registered runners only (#8060).
  */
-export function publicLiveSnapshot(root, { now = Date.now() } = {}) {
+export function publicLiveSnapshot(root, { now = Date.now(), registeredOnly = false } = {}) {
   const { commonDir } = repoInfo(root);
   const board = openBoardForRead(join(commonDir, 'pullboard', 'board.sqlite'));
   if (!board) throw new Refused('NO_BOARD', 'no readable board to export; run pullboard init in this repo');
@@ -316,7 +318,31 @@ export function publicLiveSnapshot(root, { now = Date.now() } = {}) {
   try { privateBoard = Boolean(board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key = ?').get('private_repo_board_id')); } finally { store.closeBoard(board); }
   // The machine's runner leases sit beside its settings file, in the machine home.
   return publicLiveRunners(commonDir, { resources: machineResourcesFile(), configured: loadMachineSettings().runners ?? [],
-    openBoardReadOnly: store.openBoardReadOnly, now, privateBoard });
+    openBoardReadOnly: store.openBoardReadOnly, now, privateBoard, registeredOnly });
+}
+
+/**
+ * How many pulled jobs finished on this board in the last four hours, by what the Dashboard's runner card names them:
+ * gates, landings and tests. Why: the card lists runs in flight, so an idle runner that just ran nine jobs read "No runs" (#7945).
+ *
+ * @param {string} commonDir - The board's git common folder.
+ * @param {number} now - The snapshot clock in milliseconds.
+ * @returns {{ gate: number, landing: number, test: number }}
+ */
+export function finishedRuns(commonDir, now) {
+  const count = { gate: 0, landing: 0, test: 0 };
+  const file = store.boardFilePath(commonDir);
+  let db = null;
+  try {
+    if (!existsSync(file)) return count;
+    db = store.openBoardReadOnly(file);
+    const rows = db.prepare("SELECT job_kind AS kind, COUNT(*) AS n FROM job WHERE job_step = 'done' AND job_updated > ? GROUP BY job_kind").all(now - 4 * 3_600_000);
+    for (const { kind, n } of rows) {
+      const key = { gate: 'gate', 'gate-shard': 'gate', land: 'landing', landing: 'landing', test: 'test', 'main-test': 'test' }[kind];
+      if (key) count[key] += Number(n);
+    }
+  } catch { /* A board with no job table or no readable file has finished nothing to show. */ } finally { try { db?.close(); } catch { /* Already closed. */ } }
+  return count;
 }
 
 /** The last runner read per board, so a burst of state reads opens the machine's lease records once. */
@@ -335,7 +361,14 @@ function dashboardRunners(root, commonDir, now) {
   const kept = runnerReads.get(commonDir);
   if (kept && now >= kept.at && now - kept.at < 15_000) return kept.value;
   let value = null;
-  try { value = publicLiveSnapshot(root, { now }); } catch { value = null; }
+  try { value = publicLiveSnapshot(root, { now, registeredOnly: true }); } catch { value = null; }
+  // The person's own page names each registered runner (the host without its user) and marks one with no fresh heartbeat offline (#8060).
+  if (value) {
+    const names = [...new Set((loadMachineSettings().runners ?? []).map(runner => runner?.host).filter(host => typeof host === 'string'))].map(host => host.replace(/^.*@/u, ''));
+    value = { ...value, runners: value.runners.map(runner => ({ ...runner, name: names[runner.runner - 1] ?? null, offline: runner.cpu === null && runner.ram === null })) };
+  }
+  // The runs already done sit beside those in flight, so a runner that ran jobs never reads as one that ran none (#7945).
+  if (value) value = { ...value, finished: finishedRuns(commonDir, now) };
   runnerReads.set(commonDir, { at: now, value });
   return value;
 }
@@ -574,7 +607,9 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
     const projected = projectSpecRevisions({ ...state, ...derived.late }, derived.rowDrafts, derived.rowDecisions);
     const read = { ...projected, needs: personNeeds(projected) };
     // One number in one place: every page reads these counts, never its own (#7310).
-    return { ...read, counts: boardCounts(read, now) };
+    const counts = boardCounts(read, now);
+    // Release and Roadmap read the same ready definition NOW does (#7763).
+    return withReadySplit({ ...read, counts });
   }, providedBoard, boardOpeners);
 }
 
@@ -585,17 +620,11 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
  * @param {any} board
  * @param {any[]} all Every item row.
  * @param {number} now
- * @returns {{ id: number, commit: string }[]}
+ * @returns {{ id: number, commit: string, at: number }[]}
  */
 function recentLandings(board, all, now) {
   const landed = new Map(all.filter(item => item.item_merged_commit).map(item => [item.item_id, item.item_merged_commit]));
-  const recent = new Map();
-  for (const event of store.eventsOfKinds(board, ['merged'])) {
-    const commit = landed.get(event.item_id);
-    if (commit === undefined || recent.has(event.item_id) || Date.parse(event.event_at) <= now - 24 * 3_600_000) continue;
-    try { if (JSON.parse(event.event_detail).commit === commit) recent.set(event.item_id, commit); } catch { /* A malformed receipt lists nothing. */ }
-  }
-  return [...recent].map(([id, commit]) => ({ id, commit }));
+  return firstLandings(landed, store.eventsOfKinds(board, ['merged'])).filter(entry => entry.at > now - 24 * 3_600_000);
 }
 
 /**

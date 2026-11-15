@@ -125,7 +125,7 @@ function seatReceipt(body, who) {
 }
 
 /** Give a snapshot its coverage cursor; clients unseal it and replay the following sealed events. */
-function state(row) { return { sequence: row.sequence, receivedAt: row.receivedAt, sender: row.sender, sealed: row.bytes.toString('base64url') }; }
+function state(row) { return { sequence: row.sequence, receivedAt: row.receivedAt, sender: row.sender, ...(row.epoch ? { epoch: row.epoch } : {}), sealed: row.bytes.toString('base64url') }; }
 
 /**
  * Project a freshly authenticated credential to public sender metadata, never taking body fields. Every record names
@@ -377,6 +377,8 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
       if (snapshot && after < snapshot.sequence) throw new Refused('SNAPSHOT_REQUIRED', 'fetch the latest sealed state, then resume after its sequence');
       return journal.after(after).map(event);
     }, false, board.engineVersion),
+    // The epoch of the board's checkpoint: a recovery raises it so a computer already at that sequence fetches it (#7776).
+    checkpointEpoch: (board) => withJournal(board.id, (journal) => journal.snapshot()?.epoch ?? 0, false, board.engineVersion),
     warning: (board) => retention.notice(board.id),
     // A waiting key request rides on the member's ordinary event read, so handing a key over costs no extra call [E17].
     warnings: (board) => [quota?.notice(board.id), keyRequestStore.count(board.id) ? { code: 'KEY_REQUESTS', count: keyRequestStore.count(board.id) } : null].filter(Boolean),
@@ -450,7 +452,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
         const principal = sender(who, 'snapshot');
         const saved = withJournal(id, (journal) => {
           if (journal.snapshot()?.apiVersion === 2) throw new Refused('RELAY_API_VERSION', 'This board requires relay API version 2. Upgrade with npm i -g pullboard@latest.');
-          const row = storing(id, principal, journal.snapshotDelta(body.sequence, bytes), () => journal.saveSnapshot(body.sequence, bytes, principal, { initialOnly: req.headers['if-none-match'] === '*' }));
+          const row = storing(id, principal, journal.snapshotDelta(body.sequence, bytes), () => journal.saveSnapshot(body.sequence, bytes, principal, { initialOnly: req.headers['if-none-match'] === '*', recovery: body.recovery === true }));
           quota?.clear(id);
           return row;
         }, true, who.engineVersion);

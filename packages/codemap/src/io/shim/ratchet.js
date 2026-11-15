@@ -100,11 +100,34 @@ export function shimImportProblems({ changes, plans, read, parseImports, criteri
   return problems;
 }
 
+/**
+ * Whether any changed module declares an import its HEAD or accepted-main text did not already declare, counted as multisets.
+ * Why: only an added import can be an import through a shim, so a commit that adds none needs no plan read [C7,H24].
+ */
+function addsImport(changes) {
+  for (const row of changes.filter(change => /\.[cm]?js$/u.test(change.file))) {
+    const counts = new Map();
+    for (const text of [row.before, row.accepted]) {
+      const own = new Map();
+      for (const entry of statements(String(text ?? ''))) own.set(entry.text, (own.get(entry.text) ?? 0) + 1);
+      for (const [key, count] of own) counts.set(key, Math.max(counts.get(key) ?? 0, count));
+    }
+    for (const entry of statements(String(row.after ?? ''))) {
+      if ((counts.get(entry.text) ?? 0) > 0) counts.set(entry.text, counts.get(entry.text) - 1);
+      else return true;
+    }
+  }
+  return false;
+}
+
 /** Read the exact staged declarations; neither unstaged fixes nor candidate prose authorize an exception. */
 export function stagedShimImportProblems({ paths, read, accepted = 'HEAD', parseImports, criterion = '' }) {
+  const changes = paths.filter(file => /\.[cm]?js$/u.test(file))
+    .map(file => ({ file, before: read('HEAD', file), after: read(':index', file), accepted: read(accepted, file) }));
+  // The cells plan is 50 shards read at three revisions; a commit that adds no import never consults it [C7,H24].
+  if (!addsImport(changes)) return [];
   const plans = [planAt(read, accepted), planAt(read, 'HEAD'), planAt(read, ':index')];
   if (!plans.some(Boolean)) return [];
   return shimImportProblems({ plans, parseImports, criterion,
-    read: (revision, file) => read(revision === 'before' ? 'HEAD' : ':index', file),
-    changes: paths.map(file => ({ file, before: read('HEAD', file), after: read(':index', file), accepted: read(accepted, file) })) });
+    read: (revision, file) => read(revision === 'before' ? 'HEAD' : ':index', file), changes });
 }

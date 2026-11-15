@@ -11,6 +11,7 @@ import {
   stableChrome,
 } from '../stable.js';
 import { removeStressBoard } from './generate.mjs';
+import { statusCounts } from './generate.mjs';
 import { awaitStressBoard } from './stress-cache.mjs';
 import {
   TAB_SPEED_GOAL_MS,
@@ -172,7 +173,10 @@ export async function checkTabSpeed(t, tabs) {
     assert.equal(board.shoutCount, 40000);
     const report = await measureTabSpeed(board, tabs);
     t.diagnostic(JSON.stringify({ population: { items: board.size, agents: board.agentCount, shouts: board.shoutCount }, ...report }));
-    assert.equal(report.items, 1600);
+    // The first load is open-first since de3affd4f4 (#6697): withdrawn items arrive only when a screen that shows them asks.
+    // The roadmap and dashboard also ask for finished work since 2da4b43e24, so a run that clicks either holds every item [C7].
+    const asksFinished = tabs.includes('roadmap') || tabs.includes('dashboard');
+    assert.equal(report.items, asksFinished ? board.size : board.size - statusCounts(board.size).withdrawn);
     // A tab that hung is recorded once in `hangs` and measured no further; every other tab keeps all its clicks.
     const hungTabs = new Set(report.hangs.map(hang => hang.tab)), live = tabs.filter(tab => !hungTabs.has(tab));
     assert.equal(report.actions.filter(sample => !hungTabs.has(sample.tab)).length, live.length * 2, 'every other tab is clicked first and again');

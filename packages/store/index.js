@@ -25,7 +25,7 @@ export { PERSON, now, isHeld, current, reviewReleasesSinceSubmit, boardId, getIt
 export { getShout, allShouts, shoutDetails, decisionAnswers, openRequests, peekShouts, projectItemThreads, unverifiedSubmissions, pendingRefreeze, pendingRefreezeProblem, milestonePriorities } from './src/io/board/read/shouts.js';
 export { readBoardSnapshot } from './src/io/board/read/snapshot.js';
 export { validateRehomeCheck, reserveRehomeItemId, itemRedirect, rehomeImport, rehomeDestinationItemId, rehomeItem } from './src/io/board/facade.js';
-export { EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION, BOARD_BUSY_TIMEOUT_MS, SCHEMA_VERSION, SCHEMA, SCHEMA_DIGEST } from './src/io/board/schema/source.js';
+export { EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION, BOARD_BUSY_TIMEOUT_MS, SCHEMA_VERSION, OLDEST_UPGRADABLE_SCHEMA, BOARD_TOO_OLD_NEXT, SCHEMA, SCHEMA_DIGEST } from './src/io/board/schema/source.js';
 export { isRepositoryBoard, boardSchema, declaredBoardSchema, sharedSchemaDiagnostic, reportSharedSchema, sharedSchemaOwner, expectedBoardSchema } from './src/io/board/schema.js';
 export { legacySigningMatchesStamp } from './src/io/board/recovery.js';
 export { recordNextIdle } from './src/logic/board/stats.js';
@@ -78,7 +78,7 @@ export { applyStaleState } from './src/logic/board/stale/apply.js';
 export { readableRigorText, automaticRigorSource, readAutomaticRigorSource, automaticSourceFromText, automaticDecisionSource, rigorDecisionKey, sameAutomaticRow, automaticRigorNeeds } from './src/logic/board/rigor/auto.js';
 export { rigorSource, readRigorSource } from './src/logic/board/rigor/provenance.js';
 export { CAUSE_FORMS, causeProblem, requireNeverAgain, testCause, isMergeConflict, causeReading, eventCauses, rigorReport, rigorLines } from './src/logic/board/rigor.js';
-export { prepareClaim as board_claim_prepareClaim, claim as board_claim_claim, claimsPerSeat } from './src/io/board/claim.js';
+export { prepareClaim as board_claim_prepareClaim, claim as board_claim_claim, claimsPerSeat, claimAdmission } from './src/io/board/claim.js';
 export { writeBoardCommand } from './src/io/board/write.js';
 export { boardWriteSnapshot, requireBoardWriteSnapshot, acknowledgeOwnWrites } from './src/io/board/write/preparation.js';
 export { insertItem } from './src/io/board/add.js';
@@ -109,7 +109,7 @@ export { createItemSlice } from "./src/io/board/item/slice.js";
 
 export { nextIdleChanged } from './src/io/board/record/idle.js';
 
-export { prepareSubmit, sealStrictRenames, clauseInspectionNotes } from './src/io/board/submit.js';
+export { prepareSubmit, sealStrictRenames, clauseInspectionNotes, recordedBaseRows } from './src/io/board/submit.js';
 export { checkpointBoard, BOARD_WAL_LIMIT_BYTES } from './src/io/board/checkpoint.js';
 
 export { endedSubmitHandoff, handoffRecord, handoffRecords } from './src/io/submit/handoff/records.js';

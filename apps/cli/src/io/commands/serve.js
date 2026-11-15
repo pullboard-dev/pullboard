@@ -36,9 +36,11 @@ import { serveListen } from '../../../../../packages/config/index.js';
 import { mainComparisonMode } from '../../../../../packages/config/index.js';
 import { criterionMainReceipts } from '../submit/receipt.js';
 import { provideMainComparison } from '../../../../../packages/api/index.js';
+import { provideCompanionInheritance } from '../../../../../packages/api/index.js';
 import { provideMainRedNotes } from '../../../../../packages/api/index.js';
 import { provideRefusalTrials } from '../../../../../packages/api/index.js';
 import { provideComparisonStart } from '../../../../../packages/api/index.js';
+import { provideLandingStart } from '../../../../../packages/api/index.js';
 import { machineryRefusal } from '../../../../../packages/gate/index.js';
 import { countTrialGate } from '../../../../../packages/gate/index.js';
 import { provideBaselineRecorder } from '../../../../../packages/api/index.js';
@@ -46,6 +48,7 @@ import { provideMainTestRecorder } from '../../../../../packages/api/index.js';
 import { recordPulledBaseline } from '../../../../../packages/gate/index.js';
 import { recordMainTestReceipt } from '../../../../../packages/landing/index.js';
 import { mainRedMessage } from '../../../../../packages/landing/index.js';
+import { companionMainFailuresUntouched } from '../../../../../packages/landing/index.js';
 import { boardKey } from '../../../../../packages/config/index.js';
 import { boardKeyFile } from '../../../../../packages/config/index.js';
 import {
@@ -76,6 +79,16 @@ const LOOPBACK = '127.0.0.1';
 /** The ledger port for a pulled gate's machinery diagnostics: the board repository's refusal-trial ledger, as the inline gate kept it [C7]. */
 const pulledRefusalTrials = { refuse: machineryRefusal, count: countTrialGate };
 
+/**
+ * What `pullboard serve` prints first: the address, that it answers JSON and no page, and the command that shows the view [C7].
+ *
+ * @param {string} url - The API's printed address.
+ * @returns {string[]}
+ */
+export function serveBanner(url) {
+  return [`Pullboard API v1 (JSON only, it has no page): ${url}`, 'To see the board in a browser, run: pullboard view'];
+}
+
 /** Serve API v1 until a shutdown signal, printing its address before waiting (A2). */
 export async function serveHere(io, values) {
   traceServeStartup('serve-context-start');
@@ -94,11 +107,13 @@ export async function serveHere(io, values) {
   const networked = address !== LOOPBACK;
   // A pulled gate's red cases are read against main's receipts like a submit gate's, unless gate.mainComparison is off [P7].
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
+  provideCompanionInheritance(companionMainFailuresUntouched);
   provideMainTestRecorder(recordMainTestReceipt);
   provideMainRedNotes(MAIN_RED_NOTES);
   provideBaselineRecorder(recordPulledBaseline);
   provideRefusalTrials(pulledRefusalTrials);
   provideComparisonStart(startPulledComparison);
+  provideLandingStart(startReceiptLanding);
   traceServeStartup('serve-listen-start');
   // The board's own checkout serves one cached trunk pack per commit to cold runners [C7].
   // serveApi passes `port` to server.listen, which takes the inherited { fd } in its place.
@@ -111,7 +126,7 @@ export async function serveHere(io, values) {
   // The one board served off loopback, by the address runner serve and install-serve take.
   const boards = networked ? [withBoardRead(ctx, board => store.boardId(board))].map(id => ({ id, runnerUrl: `${new URL(api.url).origin}/api/v1/boards/${id}` })) : [];
   io.result?.({ url: api.url, port: api.port, address, ...(networked ? { boards, keyFile: boardKeyFile() } : {}) });
-  io.say(`Pullboard API v1: ${api.url}`);
+  for (const line of serveBanner(api.url)) io.say(line);
   if (!networked) io.say('Only this machine can reach it, with its session secret. Ctrl-C stops it.');
   for (const board of boards) io.say(`Runners pull from ${board.runnerUrl} with the key in ${boardKeyFile()}:\n  pullboard runner install-serve <ssh-host> --board ${board.runnerUrl}`);
   if (networked) io.say(`Any computer that can reach ${address} and holds the board key can use this board. Ctrl-C stops it.`);
@@ -161,6 +176,17 @@ function startPulledComparison(request) {
   return import('./verify.js').then(module => module.launchPulledComparison(request)).catch(() => { /* A comparison is observation only. */ });
 }
 
+/**
+ * Offer the land job for an item a gate receipt left accepted, as `verify accept` offers it, from the board host's main
+ * checkout. Why: a carried merge-only accept runs no verify command, so without this its item waited accepted with no
+ * land job (#7948). The lander loads with the first such receipt.
+ * @param {{ root: string, item: number }} request
+ */
+export async function startReceiptLanding({ root }) {
+  const [{ wakeIo }, { landAfterAcceptance }] = await Promise.all([import('../landing/automatic.js'), import('./land.js')]);
+  return landAfterAcceptance(context(wakeIo(root)));
+}
+
 /** The inline gate's main-red wording, which pulled gate facts name an inherited red's owning rework with [V1,C7]. */
 const MAIN_RED_NOTES = { message: (root, board, comparison) => mainRedMessage(root, board, null, comparison) };
 
@@ -174,11 +200,13 @@ const MAIN_RED_NOTES = { message: (root, board, comparison) => mainRedMessage(ro
 export async function loopbackBoardApi(io, { projects, secret }) {
   const ctx = context(io), openers = { ...nativeBoardOpeners(io), launchRelaySender: io.launchRelaySender, trunkPack: servedTrunkPack }, ids = new Map();
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
+  provideCompanionInheritance(companionMainFailuresUntouched);
   provideMainTestRecorder(recordMainTestReceipt);
   provideMainRedNotes(MAIN_RED_NOTES);
   provideBaselineRecorder(recordPulledBaseline);
   provideRefusalTrials(pulledRefusalTrials);
   provideComparisonStart(startPulledComparison);
+  provideLandingStart(startReceiptLanding);
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: openers, port: 0, address: LOOPBACK, secret, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade,
     refusalDocument, projects, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url, handlerPorts: import.meta.url, watchdog: startLoopWatchdog });
   const boards = () => {
@@ -206,11 +234,13 @@ export function boardStatePorts() {
  */
 export async function boardHandlerPorts({ isMain } = {}) {
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
+  provideCompanionInheritance(companionMainFailuresUntouched);
   provideMainTestRecorder(recordMainTestReceipt);
   provideMainRedNotes(MAIN_RED_NOTES);
   provideBaselineRecorder(recordPulledBaseline);
   provideRefusalTrials(pulledRefusalTrials);
   provideComparisonStart(startPulledComparison);
+  provideLandingStart(startReceiptLanding);
   // A move runs the CLI as the standalone `pullboard` does, loaded when the first move reaches this worker [A2,C7].
   const runCommand = async (args, streams) => {
     const { loadNativeBoard, loadProcessPorts, gateWaitReporter } = await import('../ports/process.js');

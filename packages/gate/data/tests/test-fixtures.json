@@ -489,7 +489,7 @@
   "apps/cli/journeys/verify/accept/receipt.test.js": {
     "model": 2
   },
-  "apps/lib/tests/rebuild.test.js": {
+  "apps/lib/tests/fixtures/test/rebuild.js": {
     "hand-policy": 1
   },
   "apps/cli/journeys/reopen/relands.test.js": {
@@ -2422,7 +2422,7 @@
   "apps/cli/tests/fixtures/budget-measure.js": {
     "raw-board": 2
   },
-  "packages/runners/tests/io/package/files.test.js": {
+  "packages/runners/tests/fixtures/package-files.js": {
     "tempdir": 1
   },
   "packages/runners/tests/io/package/graph.test.js": {
@@ -3187,8 +3187,17 @@
     "tempdir": 1
   },
   "packages/runners/tests/io/run/tests.test.js": {
-    "tempdir": 6,
+    "tempdir": 1
+  },
+  "packages/runners/tests/io/run/tests/snapshot.test.js": {
+    "tempdir": 1
+  },
+  "packages/runners/tests/io/run/tests/landing.test.js": {
+    "tempdir": 2,
     "hand-policy": 1
+  },
+  "packages/runners/tests/fixtures/landing-run.js": {
+    "tempdir": 2
   },
   "apps/cli/journeys/run/receipts.test.js": {
     "hand-policy": 2,
@@ -3664,10 +3673,6 @@
   "packages/store/tests/logic/rework/derived.test.js": {
     "model": 7,
     "raw-board": 8
-  },
-  "apps/cli/journeys/submit/move.test.js": {
-    "model": 1,
-    "hand-policy": 1
   },
   "apps/cli/tests/fixtures/submit/gate.js": {
     "tempdir": 2,

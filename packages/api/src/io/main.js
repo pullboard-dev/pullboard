@@ -64,6 +64,7 @@ import {
 } from '../../../git/index.js';
 import {
   relayLinked,
+  relayRelink,
   relayOperation,
   relayRevoke,
   relayTokens,
@@ -567,6 +568,8 @@ function readProjection(state, root, preparedFlow, refreshFlow, isMain, observed
     const overlaps = claimOverlaps(items, recordedClaimWorktrees(items, store.listAgents(board), board));
     return Object.fromEntries([...overlaps].filter(([, value]) => value.overlaps.length || value.outOfScope.length));
   }, isMain, boardOpeners);
+  // The hero's four-hour window moves with the read clock, so a cached build is restamped, never served stale.
+  if (state.dashboardRecent) projection.dashboardRecent = { ...state.dashboardRecent, since: observedAt - 4 * 3_600_000, until: observedAt };
   if (state.capacityForecast) projection.capacityForecast = capacityAtRead(state.capacityForecast, observedAt);
   if (refreshFlow && comparisonHistory) projection.statsComparison = compareFlowWindows(comparisonHistory, { now: observedAt, windowMinutes: 120, complete: true });
   if (refreshFlow && preparedFlow) {
@@ -581,7 +584,7 @@ function readProjection(state, root, preparedFlow, refreshFlow, isMain, observed
 /** Cache JSON fragments for state fields whose values stay fixed across a cache hit. */
 function prepareStateJson(state) {
   const fields = Object.entries(state).map(([key, value]) => {
-    if (key === 'claimOverlaps' || key === 'unseen' || key === 'observedAt' || key === 'capacityForecast' || key === 'statsComparison') return { dynamic: key };
+    if (key === 'claimOverlaps' || key === 'unseen' || key === 'observedAt' || key === 'capacityForecast' || key === 'statsComparison' || key === 'dashboardRecent') return { dynamic: key };
     if (key === 'proofStats') {
       const stats = Object.entries(value).filter(([name]) => name !== 'flow').map(([name, entry]) => jsonField(name, entry)).filter(Boolean);
       return { dynamic: key, stats };
@@ -643,7 +646,9 @@ function serializeState(state, fields, reportJson, validator = false) {
   const encoded = fields.map((field) => {
     if (field.static !== undefined) return field.static;
     if (field.dynamic === 'statsComparison' && validator) return jsonField(field.dynamic, comparisonForValidation(state.statsComparison));
-    if (field.dynamic === 'claimOverlaps' || field.dynamic === 'unseen' || field.dynamic === 'observedAt' || field.dynamic === 'capacityForecast' || field.dynamic === 'statsComparison') return jsonField(field.dynamic, state[field.dynamic]);
+    // The hero window's since and until move with every read clock (3a91cbbc28, #7964), so a poll's validator blanks them like observedAt.
+    if (field.dynamic === 'dashboardRecent' && validator && state.dashboardRecent && typeof state.dashboardRecent === 'object') return jsonField(field.dynamic, { ...state.dashboardRecent, since: null, until: null });
+    if (field.dynamic === 'claimOverlaps' || field.dynamic === 'unseen' || field.dynamic === 'observedAt' || field.dynamic === 'capacityForecast' || field.dynamic === 'statsComparison' || field.dynamic === 'dashboardRecent') return jsonField(field.dynamic, state[field.dynamic]);
     if (field.dynamic === 'proofStats') {
       const value = state.proofStats?.flow;
       const flow = reportJson === undefined || !value ? jsonField('flow', value)
@@ -779,9 +784,17 @@ function projectDecisionListing(selected, projects, isMain, boardOpeners) {
   return { version: 1, project: home.project ?? '', decisions, unreadable };
 }
 
+/** The id a relink intent says the board carried before `current`, or null: a runner pointed at it keeps claiming (#7772). */
+function previousBoardId(root, current) {
+  try {
+    const relink = relayRelink(root);
+    return relink?.next === current ? relink.previous : null;
+  } catch { return null; }
+}
+
 /** Resolve only registered boards, opened read-only up to the match (#1040), so a request cannot open an arbitrary path. */
 function findBoard(id, projects, isMain, boardOpeners) {
-  return registeredBoard(id, projects, (root) => withReadBoard(root, (current) => store.boardId(current), isMain, boardOpeners));
+  return registeredBoard(id, projects, (root) => withReadBoard(root, (current) => store.boardId(current), isMain, boardOpeners), previousBoardId);
 }
 
 /** Restrict a local API to exactly one registered repository by its canonical Git common directory.

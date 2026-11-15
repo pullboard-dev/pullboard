@@ -72,8 +72,8 @@ const MODULE = /\.[cm]?js$/u;
 const RUNNER_INPUTS = ['apps/cli/src/io/run/tests.js', 'packages/gate/src/io/run-tests.js', 'packages/gate/src/io/run-tests-watchdog-source.js', 'packages/gate/src/io/test/action/reporter.js', 'package.json'];
 // The environment a test's verdict may depend on; anything else in the environment is per-run noise.
 const DECLARED_ENVIRONMENT = ['NODE_OPTIONS', 'PULLBOARD_HOSTED_SHAPES', 'PULLBOARD_TEST_TIMEOUT_MS', 'PULLBOARD_TEST_FILE_TIMEOUT_MS', 'PULLBOARD_TEST_REAL', 'PULLBOARD_ADAPTER_AUDIT', 'TZ', 'LANG', 'LC_ALL'];
-// Harness variables the runner sets per run or per machine (PULLBOARD_PULLED_JOB marks a gate job, so a land job's proof must key the same) [P7]; a run's own ids (PULLBOARD_LANDING_COLLECTION_ID, PULLBOARD_TIMING_RUN_ID) and its landing waivers are set per run by the gate or the runner, so they would key each run apart, as would a gate slot's lease marker and the runtime capture folder, new for every run; every other PULLBOARD_* variable present keys a result [#4380].
-const HARNESS_ENVIRONMENT = /^PULLBOARD_(?:(?:TEST|RUN|RUNNER|AUDIT|LEDGER|MACHINE|RELAY|VIEW|RELEASE|HANDOFF|PULLED)_|TIMING_RUN_ID$|LANDING_(?:COLLECTION_ID|COLLECT_ALL|SHARD|WAIVERS)$|GATE_SLOT_(?:HELD|POOL|TOKEN)$|BROWSER_SLOT_HELD$|RUNTIME_CAPTURE_DIR$)/u;
+// Harness variables the runner sets per run or per machine (PULLBOARD_PULLED_JOB marks a gate job, so a land job's proof must key the same) [P7]; a run's own ids (PULLBOARD_LANDING_COLLECTION_ID, PULLBOARD_TIMING_RUN_ID) and its landing waivers are set per run by the gate or the runner, so they would key each run apart, as would a pulled gate job's worker count (PULLBOARD_JOB_WORKERS) and trunk remote (PULLBOARD_TRUNK_REMOTE), which its land job's proof never carries, so a ledger row's context never matched the landing's (canary 2: 149 ran, 0 reused) [#7822], and a gate slot's lease marker the runtime capture folder and the browser-refusal receipt path, new for every run; every other PULLBOARD_* variable present keys a result [#4380].
+const HARNESS_ENVIRONMENT = /^PULLBOARD_(?:(?:TEST|RUN|RUNNER|AUDIT|LEDGER|MACHINE|RELAY|VIEW|RELEASE|HANDOFF|PULLED)_|TIMING_RUN_ID$|JOB_WORKERS$|TRUNK_REMOTE$|LANDING_(?:COLLECTION_ID|COLLECT_ALL|SHARD|WAIVERS)$|GATE_SLOT_(?:HELD|POOL|TOKEN)$|BROWSER_SLOT_HELD$|BROWSER_REFUSAL_FILE$|RUNTIME_CAPTURE_DIR$)/u;
 // Options that choose how a run reports or splits files, never what a file proves.
 const NEUTRAL_OPTION = /^--(?:test[-_]concurrency|test[-_]reporter(?:[-_]destination)?|test[-_]shard)(?:=|$)/u;
 // Release notes are prose: src reads them for headlines that tests prove against their own fixture copies. A test that
@@ -303,8 +303,10 @@ export async function testActionKeys(root, { commit = 'HEAD', options = [], env 
   // Store upkeep reads every key memo and result record; a runner dispatch never pays it (maintain: false) [C7].
   if (maintain) maintainPartsStore(store, env);
   return withDeclaredValues(await memoizedActionKeys(store, identity, files, async () => {
-  const { testClosures, codeMapGraph } = await import('../../affected/tests.js');
-  const { closures, modules, blobs, reach } = testClosures(root, commit, priorGraph(root, env, codeMapGraph));
+  const { testClosures, codeMapGraph, scopedTestClosures } = await import('../../affected/tests.js');
+  // An explicit file list closes only what those files and the runner reach; the whole-tree graph is the fallback [C7,#8140].
+  const { closures, modules, blobs, reach } = (files && scopedTestClosures(root, commit, files, RUNNER_INPUTS))
+    || testClosures(root, commit, priorGraph(root, env, codeMapGraph));
   const index = treeIndex(blobs);
   // A test runs inside the harness, so everything the harness reaches (its isolation, dispatch, admission
   // and reporting modules) is an input of every result, as well as the runner files themselves.
@@ -391,14 +393,18 @@ export function suiteProven(files, results) {
 /**
  * The board ledger's hits a pulled job named for this run, and a landing's main reds (fail rows at main), as `file\0inputKey\0context` keys
  * mapped to 'reused' or 'main red'; empty when none or unreadable, so every file runs. Why a file: the hits ride in the job [P7,CD2].
+ * `account` is true when the hit list says the run owes a test account (a pulled gate proof writes `account: true`): then a
+ * hit is reused only on a stored green with its outcomes, since the gate refuses a file it cannot account for [C7,#7937].
  */
 function ledgerHitKeys(env) {
   const keys = new Map();
+  let account = false;
   try {
-    const { contexts, files, mainRed = [] } = JSON.parse(readFileSync(env[LEDGER_HITS_ENV], 'utf8'));
+    const { contexts, files, mainRed = [], account: owed = false } = JSON.parse(readFileSync(env[LEDGER_HITS_ENV], 'utf8'));
+    account = owed === true;
     for (const [list, kind] of [[mainRed, 'main red'], [files, 'reused']]) for (const [file, inputKey, context] of list) if (typeof contexts[context] === 'string') keys.set(`${file}\0${inputKey}\0${contexts[context]}`, kind);
   } catch { /* No hit list: nothing is reused from the ledger. */ }
-  return keys;
+  return { keys, account };
 }
 
 /** The repository path of a file selector, or null when it is not a path inside the root. */
@@ -455,15 +461,18 @@ export async function planTestActions(root, args, { fullSuite, landing = false, 
   const account = [];
   const reusedTestOutcomes = [];
   const run = [];
-  const hits = recordOnly ? new Map() : ledgerHitKeys(env);
+  const { keys: hits, account: owed } = recordOnly ? { keys: new Map(), account: false } : ledgerHitKeys(env);
   for (const file of selectors) {
     // The ledger proved this file at this inputKey and context class, or main fails it at that identical key: a landing charges that red to main, never runs it [P7,CD2].
-    const hit = file.key && hits.get(`${file.path}\0${file.inputKey}\0${digest(file.context)}`); if (hit) {
+    // A run that owes a test account takes a proved hit only through a stored green below, whose outcomes are its account [C7,#7937].
+    const hit = file.key && hits.get(`${file.path}\0${file.inputKey}\0${digest(file.context)}`); if (hit === 'main red' || hit && !owed) {
       account.push(reusedAccount(store, file));
       results.set(file.path, { status: 'pass', source: 'ledger' });
       write(`# ${hit} ${file.inputKey} from ledger (${file.path})\n`);
       continue;
     }
+    // A store reuse, or an owed-account ledger hit, stands only on a stored green with its per-case outcomes; with none
+    // the file runs, since the gate refuses a file it cannot account for (TEST_SELECTION_UNVERIFIED) [C7,#7937].
     const entry = recordOnly ? null : reusableResult(store, file.key);
     const outcomes = entry && testResultOutcomes(entry);
     if (!entry || !outcomes || entry.file !== file.path || entry.inputKey !== file.inputKey
@@ -471,7 +480,7 @@ export async function planTestActions(root, args, { fullSuite, landing = false, 
     account.push(reusedAccount(store, file));
     reusedTestOutcomes.push(...outcomes);
     results.set(file.path, { status: 'pass', source: 'reused', key: entry.key, currentKey: file.key });
-    write(`# reused ${entry.key} from ${entry.stage} ${entry.commit} (${file.path})\n`);
+    write(hit ? `# ${hit} ${file.inputKey} from ledger (${file.path})\n` : `# reused ${entry.key} from ${entry.stage} ${entry.commit} (${file.path})\n`);
     write(`# result-origin ${JSON.stringify(entry.origin)}\n`);
     write(`${entry.tap.lines.join('\n')}\n# pass ${entry.tap.counts.passed}\n# fail ${entry.tap.counts.failed}\n# skipped ${entry.tap.counts.skipped}\n`);
   }

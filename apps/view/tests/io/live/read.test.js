@@ -84,8 +84,8 @@ test('a landing log names each gate it opened, its selected files and whether it
 test('the live snapshot reads every runner and each running gate or landing from the real board and leases [C7,N26]', t => {
   const { common, resources, claimedAt } = liveFixture(t);
   const sources = readLiveRunners({ roots: [{ commonDir: common }], now: Date.now(), resources, configured: [{ host: 'mini-3' }], openBoardReadOnly: store.openBoardReadOnly });
-  assert.deepEqual(sources.runners.map(runner => [runner.host, runner.holders.length]), [['mini-3', 0], ['mini-1', 1], ['mini-2', 1]],
-    'every configured runner, idle or not, and every runner holding a lease');
+  assert.deepEqual(sources.runners.map(runner => [runner.host, runner.holders.length]), [['mini-3', 0], ['mini-1', 1], ['mini-2', 1], ['aux-9', 0]],
+    'every configured runner, idle or not, every runner holding a lease and every runner that ran a job');
   assert.deepEqual(sources.jobs.map(job => [job.kind, job.item, job.runner, job.files, job.progress]), [['test', 5774, 'aux-9', FILES.slice(0, 2), { finished: 1, failures: 1 }]]);
   assert.equal(sources.jobs[0].claimedAt, claimedAt, 'a pulled job runs since its current claim step');
   assert.deepEqual(sources.landings.map(landing => [landing.batch, landing.items, landing.label, landing.selected, landing.files]), [[BATCH, [1196], 'candidate', 3, FILES]],
@@ -122,4 +122,17 @@ test('pull-dispatch leases on the board number one runner once per runner, shard
   const pulled = live.runners.filter(runner => runner.jobs.some(job => ['gate', 'test run'].includes(job.kind) && [7, null].includes(job.item)));
   assert.deepEqual(pulled.map(runner => runner.jobs.map(job => job.kind)), [['gate', 'gate'], ['test run']], 'the two shards of one restarted runner sit on one numbered entry');
   assert.equal(JSON.stringify(live).includes('mill'), false, 'no runner name leaves the machine');
+});
+
+test('registeredOnly lists the configured runners, carries each fresh heartbeat as load and folds a pull runner into its host (#8060) [C7]', t => {
+  const { repo, common, resources } = liveFixture(t);
+  const board = cellBoard(t, repo.boardFile, { now: () => new Date() });
+  const at = Date.now() - 2 * MINUTE;
+  offerJob(board.db, { id: 'gate:9:aa:s1', kind: 'gate-shard', needs: ['node22'], item: 9, candidate: 'd'.repeat(40), base: 'a'.repeat(40), request: { run: ['node', 'run.js'] }, now: at });
+  claimJob(board.db, { runner: 'auxiliary-51-mill-2cbb55', capabilities: ['node22'], now: at + 1000, leaseMs: 30 * MINUTE });
+  const configured = [{ host: 'me@10.0.0.51', cpuLoad: { at: new Date().toISOString(), busyPercent: 42, average: [1, 1, 1] } },
+    { host: 'me@10.0.0.52', cpuLoad: { at: new Date(Date.now() - 3_600_000).toISOString(), busyPercent: 90, average: [1, 1, 1] } }, { host: 'me@10.0.0.53' }];
+  const live = publicLiveRunners(common, { resources, configured, openBoardReadOnly: store.openBoardReadOnly, registeredOnly: true });
+  assert.deepEqual(live.runners.map(runner => [runner.runner, runner.cpu, runner.jobs.length]), [[1, 42, 1], [2, null, 0], [3, null, 0]],
+    'three registered runners; a stale or missing heartbeat has no load; the pull runner works on its host');
 });

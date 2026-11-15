@@ -18,6 +18,8 @@ import { runsPort } from "./runs.js";
 import {
   SCHEMA,
   SCHEMA_VERSION,
+  OLDEST_UPGRADABLE_SCHEMA,
+  BOARD_TOO_OLD_NEXT,
   SCHEMA_DIGEST,
   EVENT_LOG_VERSION,
   BOARD_BUSY_TIMEOUT_MS,
@@ -163,6 +165,30 @@ export function boardRunsPort(board, boardFile) {
 }
 
 /**
+ * Refuse a board made before the release this one upgrades from, before any write [R4].
+ * A read-only look at PRAGMA user_version, so the file stays byte-identical; 0 is a new, empty file.
+ *
+ * @param {string} file
+ * @param {{ query: { openBoardReadOnly: Function } }} runtimePorts
+ */
+function refuseBoardBeyondOneRelease(file, runtimePorts) {
+  if (file === ':memory:' || !existsSync(file)) return;
+  let version = 0;
+  let current;
+  try {
+    current = runtimePorts.query.openBoardReadOnly(file);
+    version = current.prepare('PRAGMA user_version').get().user_version;
+  } catch {
+    return;
+  } finally {
+    current?.close();
+  }
+  if (version > 0 && version < OLDEST_UPGRADABLE_SCHEMA) {
+    throw new Refused('BOARD_TOO_OLD', `this board is schema ${version}, from before pullboard 0.9.3; pullboard supports one release back, and nothing was changed`, BOARD_TOO_OLD_NEXT);
+  }
+}
+
+/**
  * Open, or create, the board at `file`. Tests pass `:memory:`.
  *
  * The busy timeout comes first, so a second process opening the board at the same moment waits for
@@ -184,6 +210,7 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
   const { boardNotWritable, boardBusyError } = runtimePorts.auth;
   const { configureBoardJournal, closeBoardWrites } = runtimePorts.lifecycle;
   isMain = sharedSchemaOwner(file, isMain);
+  refuseBoardBeyondOneRelease(file, runtimePorts);
   if (file !== ':memory:' && isMain === false) {
     let boardVersion = 0;
     let logVersion = 0;

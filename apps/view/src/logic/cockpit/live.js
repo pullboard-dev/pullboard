@@ -147,6 +147,21 @@ const canStream = () => typeof AbortController === 'function' && typeof Readable
 /** The latest event a board state already shows; its events are newest first. */
 const latestEvent = (state) => Number(state?.events?.[0]?.event_id ?? 0);
 
+/**
+ * Refresh after the page's own move, reading again until the shown board holds that move's event. Why: a page read
+ * answers from the last build and the stream announces the next (82da0e6b69, #6850), so a page with no stream, as one
+ * served on another origin, would otherwise show its own new item only at the next FALLBACK_MS read.
+ * @param {number} eventId The event the move's reply names.
+ * @param {number} [tries] Reads left before the fallback refresh takes over.
+ */
+async function refreshThrough(eventId, tries = 20) {
+  const root = view.root;
+  await refresh();
+  if (!Number.isSafeInteger(eventId) || tries <= 1 || root !== view.root || !data?.project || latestEvent(data.project) >= eventId) return;
+  await new Promise((later) => { setTimeout(later, 500); });
+  return refreshThrough(eventId, tries - 1);
+}
+
 /** Whether the page's stream is up or opening, so nothing needs a timed read. */
 const connected = () => Boolean(stream) && stream.status !== 'down';
 

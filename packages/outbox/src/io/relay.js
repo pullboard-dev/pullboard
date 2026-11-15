@@ -50,7 +50,10 @@ import {
 } from '../../../kernel/index.js';
 import { captureBoardChanges } from '../../../store/index.js';
 import { undoQueued } from './relay/undo.js';
-import { stampCoordinatorHolder } from '../../../seats/index.js';
+import {
+  requireKnownCoordinatorHold,
+  stampCoordinatorHolder,
+} from '../../../seats/index.js';
 import { Refused } from '../../../kernel/index.js';
 import {
   outboxFile,
@@ -235,6 +238,7 @@ export const ITEM_SLOTS = Object.freeze({
   reserveRehomeItemId: [], rehomeItem: [[0]], applyRehomeItem: [[0, 'destinationItemId']],
   ...Object.fromEntries(FIRST_ITEM.map((operation) => [operation, [[0]]])),
   advanceItemSource: [[0]],
+  claim: [[0], [1, 'gateWaits', '*']],
   submit: [[0], [1, 'autoMainReds', 'candidates', '*', 'proof', 'item']],
   intakeOutside: [[0, 'item', 'parentId'], [0, 'item', 'after', '*']],
   addItem: [[0, 'parentId'], [0, 'after', '*']],
@@ -437,6 +441,7 @@ export async function queueMove(link, { operation, args, command, move, error, a
     move.actor = senderPolicy.relayMoveActor(move) ?? senderPolicy.credentialActor(move);
   }
   refuseRevokedSeat(state, senderPolicy.credentialActor(move));
+  localRecords(root, (board) => requireKnownCoordinatorHold(board, move));
   const stray = strayItemRefs(outbox, move);
   if (stray.length) {
     throw new Refused('RELAY_OUTBOX_UNBOUND', `this move names #${stray[0]}, which this machine added while the relay was down, in a field the outbox cannot follow if the relay renumbers it; run it again once the relay answers`);
@@ -585,9 +590,16 @@ function restoreBase(link, image, sequence) {
   });
 }
 
+/** Drop the kept COORDINATOR_HELD refusals: the person followed their takeover step (#7939). */
+function clearHeldRefusals(state) {
+  if (state.outboxRefusals) state.outboxRefusals = state.outboxRefusals.filter((kept) => kept.code !== 'COORDINATOR_HELD');
+}
+
 /** Settle one queued move the relay ordered: report a refusal with the move that won, and note a renumbered item. */
 function settle(link, outbox, entry, receipt) {
   const { root, state, io, localRecords } = link;
+  // Taking the coordinator is the step a COORDINATOR_HELD refusal names, so once it is ordered those lines are answered.
+  if (!receipt.outcome.error && entry.move.operation === 'takeCoordinator') clearHeldRefusals(state);
   if (receipt.outcome.error) {
     const earlier = localRecords(root, (board) => earlierMoves(board, { ...entry, move: resolveMove(entry, outbox).move }, receipt.sequence));
     const line = keepRefusal(state, entry, receipt.outcome.error, earlier);
@@ -780,11 +792,13 @@ async function recoverParked(link) {
     const document = link.snapshotDocument();
     const sequence = Number(document.tables.board_meta.find((row) => row.meta_key === 'relay_applied_sequence')?.meta_value ?? 0);
     const sealed = await link.sealedRecord(key, document, state, 'snapshot', sequence);
-    const reply = await link.request(state, '/api/v1/boards/' + state.board + '/state', { method: 'PUT', body: { sequence, sealed } }, io);
+    const reply = await link.request(state, '/api/v1/boards/' + state.board + '/state', { method: 'PUT', body: { sequence, sealed, recovery: true } }, io);
     if (reply.state?.sequence !== sequence || reply.state.sealed !== sealed) throw new Refused('RELAY_RESPONSE', 'the relay did not acknowledge the recovery checkpoint; the parked moves stay parked, retry pullboard relay recover');
     removeOutbox(where);
     saveOutboxSummary(link, null);
     state.presentationDigest = link.presentationDigest(document.presentation);
+    // This machine published the recovery, so it already holds it; every other computer reads it by its epoch (#7776).
+    if (Number.isSafeInteger(reply.state.epoch)) state.checkpointEpoch = reply.state.epoch;
     delete state.checkpoint;
     delete state.checkpointPresentationDigest;
     delete state.checkpointRefusal;

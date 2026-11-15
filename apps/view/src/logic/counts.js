@@ -72,13 +72,96 @@ export function sentBackRecent(project) {
 }
 
 /**
- * The four shared counts of one board state, read once per state so every page shows the same numbers.
+ * The first recording of each item's current merge: the landing every page counts, once, at that time (#7763).
+ * Why: the Dashboard, Pace and the tour each matched merge events their own way, so one board showed 1 and 3 landed at once.
  *
- * @param {object} project - The board state, with needs, dashboardRunners and dashboardRecent.
+ * @param {Map<number, string> | Record<number, string>} commits - Each landed item's merged commit, by item id.
+ * @param {{ item_id: number, event_at: string, event_detail?: string }[]} events - The board's merged events, oldest first.
+ * @returns {{ id: number, commit: string, at: number }[]}
+ */
+export function firstLandings(commits, events) {
+  const known = commits instanceof Map ? commits : new Map(Object.entries(commits).map(([id, commit]) => [Number(id), commit]));
+  const first = new Map();
+  for (const event of events) {
+    const commit = known.get(event.item_id), at = Date.parse(event.event_at);
+    if (commit === undefined || first.has(event.item_id) || !Number.isFinite(at)) continue;
+    let seen = null;
+    try { seen = JSON.parse(event.event_detail || '{}').commit; } catch { /* A malformed receipt lists nothing. */ }
+    if (seen === commit) first.set(event.item_id, { id: event.item_id, commit, at });
+  }
+  return [...first.values()];
+}
+
+/**
+ * The landed counts of one state: every landed item, and the last four and twenty-four hours of landings.
+ *
+ * @param {{ items?: any[], dashboardLanded?: { id: number, at?: number }[] }} project - Items and the last day's landings (each with its time).
+ * @param {number} now
+ * @returns {{ total: number, last4h: number, last24h: number }}
+ */
+export function landedCounts(project, now) {
+  const recent = (project.dashboardLanded ?? []).filter(entry => Number.isFinite(entry.at) && entry.at <= now);
+  const total = (project.items ?? []).filter(item => item.status !== 'withdrawn' && (item.merged || item.stage === 'merged')).length;
+  const within = hours => recent.filter(entry => entry.at > now - hours * 3_600_000).length;
+  return { total: Math.max(total, recent.length), last4h: within(4), last24h: within(24) };
+}
+
+/**
+ * The open items the Dashboard's NOW calls ready (nothing blocks them, no hold names them or their lane), and the ones
+ * it calls blocked: the one definition Release and Roadmap read too, so no item is ready on one page and blocked on another.
+ *
+ * @param {{ items?: any[], itemHolds?: { item: number }[], holds?: { hold_lane: string }[] }} project
+ * @returns {{ ready: number[], blocked: number[] }}
+ */
+export function readyAndBlocked(project) {
+  const heldItems = new Set((project.itemHolds ?? []).map(hold => hold.item)), heldLanes = new Set((project.holds ?? []).map(hold => hold.hold_lane));
+  const ready = [], blocked = [];
+  for (const item of project.items ?? []) {
+    if (item.status !== 'open' || heldItems.has(item.id) || heldLanes.has(item.lane)) continue;
+    (item.blockedBy?.length ? blocked : ready).push(item.id);
+  }
+  return { ready, blocked };
+}
+
+/**
+ * Each release's summary with its waiting items split: the ones NOW calls ready get their own `ready` count and leave
+ * `waiting`, which then counts only what still waits on something.
+ *
+ * @param {any[]} milestones
+ * @param {number[]} ready - The ready item ids (readyAndBlocked).
+ * @returns {any[]}
+ */
+export function splitReady(milestones, ready) {
+  const ids = new Set(ready);
+  return (milestones ?? []).map(milestone => {
+    const summary = milestone?.summary;
+    if (!summary || !Number.isInteger(summary.waiting)) return milestone;
+    const count = Math.min(summary.waiting, (milestone.items ?? []).filter(entry => ids.has(entry.id) && entry.state !== 'landed').length);
+    return { ...milestone, summary: { ...summary, ready: count, waiting: summary.waiting - count } };
+  });
+}
+
+/**
+ * A board state with its releases split by the ready definition NOW uses; a state without releases comes back as it was.
+ * It never changes the state it reads, so the page can apply it to every read of a state it keeps.
+ *
+ * @param {{ milestones?: any[] }} state
+ * @returns {object}
+ */
+export function withReadySplit(state) {
+  return state?.milestones ? { ...state, milestones: splitReady(state.milestones, readyAndBlocked(state).ready) } : state;
+}
+
+/**
+ * The shared counts of one board state, read once per state so every page shows the same numbers.
+ *
+ * @param {object} project - The board state, with needs, dashboardRunners, dashboardRecent and dashboardLanded.
  * @param {number} now - The state's clock in milliseconds.
- * @returns {{ agents: number, agentIds: string[], runners: number, rulings: number, sentBack: { count: number, verdicts: number, share: number, hours: 4 } }}
+ * @returns {{ agents: number, agentIds: string[], joined: number, runners: number, rulings: number, sentBack: { count: number, verdicts: number, share: number, hours: 4 },
+ *   landed: { total: number, last4h: number, last24h: number }, ready: number, blocked: number }}
  */
 export function boardCounts(project, now) {
-  const agentIds = agentsAtWork(project, now);
-  return { agents: agentIds.length, agentIds, runners: runnersReporting(project), rulings: rulingsWaiting(project), sentBack: sentBackRecent(project) };
+  const agentIds = agentsAtWork(project, now), split = readyAndBlocked(project);
+  return { agents: agentIds.length, agentIds, joined: (project.agents ?? []).filter(agent => agent.agent_id !== 'coordinator').length, runners: runnersReporting(project), rulings: rulingsWaiting(project), sentBack: sentBackRecent(project),
+    landed: landedCounts(project, now), ready: split.ready.length, blocked: split.blocked.length };
 }

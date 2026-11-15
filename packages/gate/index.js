@@ -22,6 +22,7 @@ export { testsNeedCpuRunner, cpuRunnerRequired } from "./src/io/admission/cpu/lo
 export { detectGate, detectTestGlobs, settingCommand, missingGate, setHere } from "./src/io/config.js";
 export { recordGateRun, gateRuns, gateControlFindings, GATE_RUNS_FILE, GATE_WINDOW_MS, GATE_MIN_RUNS } from "./src/io/control.js";
 export { committedTree, isStampedGreen, stampGreen, refuseSandboxBlocked, safeLog, runProfiledShell, runFrozenProof, runProfiledShellAsync, withLandingGateSlot, landingControllerPlacement, pinRunMain, runGate, runMainComparison, recordRun, fullGateRun } from "./src/io/execution.js";
+export { runClauseBaseComparison } from "./src/io/clause-base.js";
 export { digestOf, writeTimingProfile } from "./src/io/output.js";
 export { failureSignature } from "./src/logic/failure/signature.js";
 export { runnerSource, RunnerDropped, validateRunner } from "./src/logic/policy.js";
@@ -30,6 +31,7 @@ export { receiptStore, boardReceiptStore, receiptBody, readGateReceipt, receiptB
 export { requireGateExecutionServices, settleReceipt, withGateSlot, gateRunnerLoadPolicy, withAvoidedRunners, preferOtherRunners } from "./src/io/slot.js";
 export { INFRASTRUCTURE_CODES, INFRA_RETRIES, LOCK_CODES, LOCK_WAIT_LIMIT, INVENTORY_WAITS, infrastructureFailure, submitUntilSettled } from "./src/io/requeue.js";
 export { gateStages, stagedScript, readPipes, readStages } from "./src/io/stages.js";
+export { replayChangedTables } from "./src/io/moves/replay.js";
 export { submitGateConfig, submitGatePlan, submitGateAdmission, runSubmitGate, startCriterionRun, submitLogPath, startDiagnostics, namedFileRunner } from "./src/io/submit.js";
 export { gateWaitReporter } from "./src/logic/wait.js";
 export { recordGreenRun } from "./src/io/shards/green.js";
@@ -78,12 +80,15 @@ export { failedAssertionLines, retainedGateAssertions, testOutputSummary, retain
 export { cachedAffectedGraph } from "./src/io/affected/graph/cache.js";
 export { checkCoordinatorRelease, recordCoordinatorRelease, readCoordinatorRelease } from './src/io/coordinator/release.js';
 export { TEST_TIERS_FILE, generateTestTiers, formatTestTiers, writeTestTiers } from './src/io/test/tiers.js';
+export { testIdIndex, resolveIdRows, idRenames } from './src/io/test/ids.js';
 
 export { reviewCitations, citedReceiptsNote, citedReceipts, landingRunFiles } from './src/io/once.js';
 export { redGateScope, redGateReport, runnerErrors } from './src/io/red.js';
+export { pushOnlyTests } from './src/io/test/push-only.js';
 export { requireTestTierAccount, requireSealedSkips, hasTestTiers, generateTestTiersAt, selectTestTiers, testTierProofFiles, testTierCommand, testTierCheckCommand, testTierReport } from './src/io/test/tier/selection.js';
 export { testRunPhaseClock } from './src/io/test/run/phases.js';
 
+export { duplicateClaims, requireUniqueClaims } from './src/io/test/duplicate-claims.js';
 export { testTimeBudget, testTimeBudgetLines } from './src/logic/test/budget/time.js';
 
 export { runGateStages } from "./src/logic/stages.js";
@@ -115,3 +120,4 @@ export { report } from './src/io/scan.js';
 export { walk } from './src/io/scan.js';
 export { acceptedCellsIdentity, toolingIsPinned, readAcceptedCells, warmAcceptedCells, nudgeAcceptedCells, recordAcceptedCellsFailure, waitForAcceptedCells } from './src/io/inventory.js';
 export { deriveTestRegistries } from './src/io/test/derived.js';
+export { runJourneyCheck } from "./src/io/test/journey-check.js";

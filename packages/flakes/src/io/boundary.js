@@ -1,15 +1,33 @@
 /** Where the landing flake ratchet starts counting, shared by the ratchet and quarantine backfill [C7,D1]. */
 import { flakePairs } from '../logic/ratchet.js';
+import { eventHistory } from './history.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 import { QUARANTINE_BACKFILL_ENGINE } from '../../../state/light.js';
 
-/** The last landed batch or merged ratchet receipt, its recorded snapshot, and the event its pairs count after [C7]. */
+/** One landed batch or merged ratchet receipt, reduced to what the boundary needs; null for every other event [C7]. */
+function boundaryEvent(row) {
+  let detail;
+  try { detail = JSON.parse(row.event_detail); } catch { return null; /* json_valid(...) used to skip these rows. */ }
+  if (row.event_kind === 'landing_batch') {
+    return detail?.batch?.state === 'landed' ? { event_id: row.event_id, event_kind: row.event_kind, previous: detail.batch.flakeRatchet ?? null } : null;
+  }
+  const ratchet = detail?.flakeRatchet;
+  return ratchet && typeof ratchet === 'object' && !Array.isArray(ratchet) ? { event_id: row.event_id, event_kind: row.event_kind, previous: ratchet } : null;
+}
+
+/** Every landed batch and merged ratchet receipt, read once per connection and then only the events since [C7]. */
+export function warmRatchetBoundary(board) {
+  return eventHistory(board, 'ratchet-boundary', ['landing_batch', 'merged'], boundaryEvent);
+}
+
+/**
+ * The last landed batch or merged ratchet receipt, its recorded snapshot, and the event its pairs count after [C7].
+ * Why: scanning 11,000 batch and merge events for it cost 240 ms inside every gate-run write's lock; the history keeps
+ * the answer and reads only the events after it.
+ */
 export function ratchetBoundary(board) {
-  const row = board.db.prepare(`SELECT event_id, event_kind, event_detail FROM event WHERE json_valid(event_detail) AND
-    (event_kind='landing_batch' AND json_extract(event_detail, '$.batch.state')='landed'
-      OR event_kind='merged' AND json_type(event_detail, '$.flakeRatchet')='object') ORDER BY event_id DESC LIMIT 1`).get();
-  const detail = row ? JSON.parse(row.event_detail) : null;
-  const previous = row ? (row.event_kind === 'merged' ? detail.flakeRatchet : detail.batch.flakeRatchet) ?? null : null;
+  const row = warmRatchetBoundary(board).at(-1) ?? null;
+  const previous = row?.previous ?? null;
   return { row, previous, afterEvent: previous?.eventId ?? row?.event_id ?? 0 };
 }
 

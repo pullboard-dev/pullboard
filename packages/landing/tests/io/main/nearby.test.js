@@ -24,7 +24,7 @@ function counted(work) {
 
 /** A main of `count` commits after the gate's main, each moving an unrelated file; `changeAt` edits FILE on that step. */
 function movingMain(t, count, changeAt = -1) {
-  const repo = cellRepo(t, { config: { ...CELL_CONFIG, affectedTests: 'node --test' } });
+  const repo = cellRepo(t, { real: true, config: { ...CELL_CONFIG, affectedTests: 'node --test' } });
   repo.put(FILE, "test('main case', () => { throw new Error('main'); });\n");
   repo.put('other.txt', '0\n');
   const gate = repo.commitAll();

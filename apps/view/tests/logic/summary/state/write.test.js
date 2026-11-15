@@ -67,5 +67,6 @@ test('the view state lists only the landings of the last 24 hours, each with its
   };
   merge(old, 'a'.repeat(40), new Date(Date.now() - 3 * 86_400_000).toISOString());
   merge(recent, 'b'.repeat(40), new Date(Date.now() - 3_600_000).toISOString());
-  assert.deepEqual(projectState(project.repo, { board }).dashboardLanded, [{ id: recent, commit: 'b'.repeat(40) }], 'the old landing is not listed; the recent one carries its commit');
+  // Each landing also carries the time of its first recording (#7763); this test reads which landings and their commits.
+  assert.deepEqual(projectState(project.repo, { board }).dashboardLanded.map(({ id, commit }) => ({ id, commit })), [{ id: recent, commit: 'b'.repeat(40) }], 'the old landing is not listed; the recent one carries its commit');
 });

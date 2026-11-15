@@ -25,6 +25,19 @@ if (major < 22 || (major === 22 && minor < 13)) {
   process.exit(1);
 }
 
+// Compiled module code is kept per machine, so a short command re-reads it instead of compiling ~450 ms of small modules again [C7].
+// Only a directory this account owns and nobody else can write is used: cached code runs. Any failure leaves the command uncached.
+try {
+  const { processMachineHome } = await import('../../packages/kernel/light.js');
+  const { mkdirSync, statSync } = process.getBuiltinModule('node:fs');
+  const directory = `${processMachineHome()}/compile-cache`;
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const seen = statSync(directory);
+  if (seen.isDirectory() && (process.getuid === undefined || seen.uid === process.getuid()) && (seen.mode & 0o022) === 0) {
+    process.getBuiltinModule('node:module').enableCompileCache?.(directory);
+  }
+} catch { /* An unwritable or missing machine home just compiles as before. */ }
+
 const emitWarning = process.emitWarning;
 process.emitWarning = (warning, ...rest) => {
   if (String(warning).includes('SQLite is an experimental feature')) return;
@@ -44,7 +57,9 @@ process.stdout.on('error', (error) => {
 // The common version probe needs only the release metadata, not the command dispatcher.
 if (process.argv.length === 3 && process.argv[2] === '--version') {
   const { default: packageData } = await import('../../package.json', { with: { type: 'json' } });
-  process.stdout.write(`${packageData.version}\n`);
+  // A hook one release back is told its own version, so an upgrade never stops a seat's commit (#7760).
+  const { hookProbeVersion } = process.env.GIT_EXEC_PATH ? await import('./src/io/hook/probe.js') : { hookProbeVersion: (release) => release };
+  process.stdout.write(`${hookProbeVersion(packageData.version, { cwd: process.cwd(), env: process.env })}\n`);
   process.exit(0);
 }
 

@@ -171,12 +171,14 @@ function drawNav(p, { agents = 0, agentNames = [], building = 0, review = 0, act
     const { items, oldest } = notchRulings(Array.isArray(board.needs) ? board.needs : personNeeds(board), plainNeedWords, ago);
     return notchPreviewData({ floor: notchFloor(state, notchAgents, board.dashboardPace || null), rulings: items, oldest });
   });
+  // The top bar shows the state's one agents count, as the Dashboard and Activity do (#7310); the joined seats are named in the tooltip and the Dashboard heading (#7945).
+  const seats = Number.isInteger(p.counts?.joined) ? p.counts.joined : 0;
   text($('notch')?.querySelector?.('[data-notch="agents"]'), String(agents));
   text($('notch')?.querySelector?.('[data-notch="perHour"]'), pace === null ? '—/h' : Math.round(pace) + '/h');
   const ruled = $('notch')?.querySelector?.('[data-notch="rulings"]');
   text(ruled, String(rulings));
   ruled?.classList?.toggle('a', rulings > 0);
-  $('notch')?.querySelector?.('[data-peek="agents"]')?.setAttribute('title', agents ? 'At work: ' + agentNames.join(', ') + '. Open the Agents table.' : 'No agent at work. Open the Agents table.');
+  $('notch')?.querySelector?.('[data-peek="agents"]')?.setAttribute('title', agents ? 'At work: ' + agentNames.join(', ') + '. Open the Agents table.' : seats ? seats + ' joined, none at work. Open the Agents table.' : 'No agent at work. Open the Agents table.');
   text($('proj-rulings'), rulings ? String(rulings) : '');
   // The menu drawer (under 900 px) holds the same numbers: the button's and the project's rulings, agents, pace and Rulings.
   text($('menu-rulings'), rulings ? String(rulings) : '');
@@ -295,8 +297,10 @@ function render({ tab: switching = false } = {}) {
   const scrolled = store.scrollMark([document.scrollingElement, ...SCROLLED_PARTS.map((id) => $(id))]);
   const p = privateModelProject(data.project);
   const group = data.group;
-  // An open-first state holds no finished items: the screens that show them read them now (#6697).
-  if (data.project?.itemsOmitted === 'finished' && (view.tab === 'roadmap' || view.tab === 'items' && (['verified', 'all'].includes(view.state)
+  // An open-first state holds no finished items: the screens that show them (Activity titles every row by item) read them now (#6697, #7756).
+  // The Dashboard's landed panels name items the open-first state left out, so it reads them when a recent landing has none (#7945).
+  const unnamed = view.tab === 'dashboard' && (data.project?.dashboardLanded ?? []).some((entry) => !data.project.items.some((item) => item.id === entry.id));
+  if (data.project?.itemsOmitted === 'finished' && (unnamed || view.tab === 'roadmap' || view.tab === 'activity' || view.tab === 'items' && (['verified', 'all'].includes(view.state)
     || view.itemsView === 'pipeline' || $('q').value.trim() || view.item && !data.project.items.some((item) => item.id === view.item)))) ensureFinished(data.project);
   renderSide();
   writeChrome();

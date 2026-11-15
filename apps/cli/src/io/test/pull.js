@@ -9,6 +9,7 @@
 import { randomBytes } from 'node:crypto';
 import { setTimeout as pause } from 'node:timers/promises';
 import { Refused } from '../../../../../packages/kernel/light.js';
+import { FILE_TIME_LINE } from '../../../../../packages/gate/index.js';
 import { pullGateFor } from '../../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { gateRunnerWaitMs } from '../../../../../packages/config/index.js';
@@ -19,6 +20,8 @@ import { writeStep } from '../../../../../packages/jobs/index.js';
 import { PULLED } from '../../../../../packages/drive/index.js';
 import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
+import { fileBudgetField } from './file-limit.js';
+import { fileLimitEnv } from './file-limit.js';
 
 /** The job kind of a pulled test run; the board records its receipt and applies nothing, since the caller reads it. */
 export const TEST_JOB_KIND = 'test';
@@ -34,7 +37,7 @@ const CASES = 100;
  * candidate's own focused runner in the candidate checkout and prints one receipt line with the run's output tail and
  * its failing cases, read by main's TAP reader. Why main's reader: it is the one the gate trusts to name cases.
  */
-const testJobEntry = (GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, OUTCOME_PREFIX, DIAGNOSTICS) => `import { spawnSync } from 'node:child_process';
+export const testJobEntry = (GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, OUTCOME_PREFIX, DIAGNOSTICS) => `import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
@@ -54,6 +57,9 @@ const started = performance.now();
 // The job's main names the base the candidate's import graph forks from, so its key analysis parses only what changed [C7,#6672].
 const env = { ...process.env, ${JSON.stringify(PULLED_JOB_ENV)}: '1', PULLBOARD_TEST_PRIOR: input.main };
 delete env.NODE_TEST_CONTEXT;
+// A job that names a file budget (pullboard test --no-file-limit) runs under it; any other job's limits are the runner's own [C7].
+${fileLimitEnv.toString()}
+Object.assign(env, fileLimitEnv(input));
 // A review comparison names its run id, so the test runner frames each case's outcome under it [V4,C7].
 const runId = typeof input.runId === 'string' && /^[a-f0-9-]{36}$/u.test(input.runId) ? input.runId : null;
 if (runId) env.${TIMING_RUN_ID_ENV} = runId;
@@ -91,6 +97,43 @@ const receipt = { version: 1, kind: 'test', main: input.main, source: input.sour
   phases: [{ role: 'test', status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: '', ...(ran.status !== 0 ? { failures, ...(failureSignatures ? { failureSignatures } : {}) } : {}) }] };
 // The receipt line stays under the runner's receipt-line cap: the tail shrinks until the whole line fits.
 if (runId) receipt.outcomes = framed();
+/**
+ * Each named file's verdict in a red run, read from the whole output before any tail is cut: a failing file lists its
+ * first failing cases, a file the run finished while every failing case is placed in some named file is 'green'. Why: the
+ * outcome frames are dropped whole when the receipt line is too long or a nested failure voids them, and the clipped
+ * tail then proves no file, so a whole census shard read as no-result [C7,#7920].
+ */
+const verdicts = () => {
+  if (ran.status === 0) return null;
+  const bare = value => String(value).trim().replace(/^(['"])(.*)\\1$/u, '$2').replace(/:\\d+(?::\\d+)?$/u, '').replace(/^\\.\\//u, '');
+  const named = input.files.map(bare);
+  const fileOf = value => named.find(path => bare(value) === path || bare(value).endsWith('/' + path)) ?? null;
+  const lines = text.split('\\n');
+  const out = {};
+  let unplaced = 0;
+  for (let at = 0; at < lines.length; at += 1) {
+    const row = /^(\\s*)not ok\\s+\\d+\\s+-\\s+(.*)$/u.exec(lines[at]);
+    if (!row || /#\\s*(?:SKIP|TODO)\\b/iu.test(row[2])) continue;
+    const name = row[2].replace(/\\s+#.*$/u, '');
+    // The case's own location line places it first; its name, which may merely mention another file, only when there is none.
+    let file = null, located = false;
+    for (let next = at + 1; next < lines.length && !file && /^\\s/u.test(lines[next]) && !/^\\s*(?:not )?ok\\s/u.test(lines[next]); next += 1) {
+      const location = /^\\s*location:\\s*(.*?)\\s*$/u.exec(lines[next]);
+      if (location) { located = true; file = fileOf(location[1]); }
+    }
+    if (!located) file = fileOf(name);
+    if (file) out[file] = [...new Set([...(out[file] ?? []), name.slice(0, 120)])].slice(0, 3); else unplaced += 1;
+  }
+  const finished = new Set(lines.filter(line => line.startsWith(${JSON.stringify(FILE_TIME_LINE)})).map(line => fileOf(line.slice(${FILE_TIME_LINE.length}).replace(/^\\S+ /u, ''))));
+  const stopped = /run-tests: (?:HUNG|TIMEOUT) file/u.test(text);
+  for (const file of named) {
+    if (out[file]) continue;
+    const mine = (receipt.outcomes ?? []).filter(row => fileOf(row[0]) === file);
+    if (mine.length ? mine.every(row => row[2] === true) : !receipt.outcomes && unplaced === 0 && !stopped && finished.has(file)) out[file] = 'green';
+  }
+  return out;
+};
+try { receipt.verdicts = verdicts(); } catch { receipt.verdicts = null; }
 let keep = 40000, line;
 do { receipt.phases[0].tail = text.slice(-keep); line = ${JSON.stringify(GATE_RECEIPT)} + JSON.stringify(receipt); keep = Math.floor(keep / 2); } while (Buffer.byteLength(line) > 56 * 1024 && keep > 0);
 // Outcomes too many for the line are dropped whole, so the comparison reads them unavailable, never partial.
@@ -130,17 +173,25 @@ function shellWord(value) {
 }
 
 /**
+ * The data a test job carries into its entry. `fileBudgetMs` is the file budget the runner gives this job's files
+ * (set by --no-file-limit); a job without it carries no such field and runs under the runner's own limits [C7].
+ */
+export function testJobData({ main, commit, command, files, runId = null, fileBudgetMs = null }) {
+  return { main, source: commit, command, files, ...(runId ? { runId } : {}), ...(fileBudgetMs ? { fileBudgetMs } : {}) };
+}
+
+/**
  * Pin a commit under refs/pullboard/test and offer one test job for it. Returns the job id and the pinned ref.
  * Why a ref: the trunk remote serves only reachable commits, and an agent's commit is reachable from nothing else yet.
  */
-async function offerTestJob(ctx, { item, commit, main, command, files, runId = null }) {
+async function offerTestJob(ctx, { item, commit, main, command, files, runId = null, fileBudgetMs = null }) {
   const { root } = ctx.info;
   const [{ offerJob }, { GATE_NEEDS, GATE_RECEIPT, gateJobRun }, { PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX }, { FAILURE_DIAGNOSTICS_SOURCE }] = await Promise.all([import('../../../../../packages/api/index.js'), import('../submit/pull.js'),
     import('../../../../../packages/gate/index.js'), import('../../../../../packages/kernel/index.js')]);
   const tag = randomBytes(6).toString('hex');
   const ref = `refs/pullboard/test/${tag}`;
   git(root, ['update-ref', ref, commit]);
-  const request = { run: gateJobRun(), input: { main, entry: testJobEntry(GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX, FAILURE_DIAGNOSTICS_SOURCE), data: { main, source: commit, command, files, ...(runId ? { runId } : {}) } }, commits: [main] };
+  const request = { run: gateJobRun(), input: { main, entry: testJobEntry(GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX, FAILURE_DIAGNOSTICS_SOURCE), data: testJobData({ main, commit, command, files, runId, fileBudgetMs }) }, commits: [main] };
   const job = withBoard(ctx, board => offerJob(board.db, { id: `test:${commit.slice(0, 12)}:${tag}`, kind: TEST_JOB_KIND, priority: 'interactive', needs: GATE_NEEDS,
     item: item === undefined ? null : Number(item), candidate: commit, base: main, request }));
   // With no registered runners this machine is its own runner, as a pull submit makes it: otherwise the job waits unclaimed [P7,C7].
@@ -194,7 +245,8 @@ async function runJobFor(ctx, fields, { agent, say, testRun }) {
     const output = phase?.tail ?? gate.error ?? receipt.tail ?? '';
     const outcomes = Array.isArray(gate.outcomes) ? gate.outcomes.filter(Array.isArray).map(([file, name, passed, skipped]) => ({ file, name, passed, skipped })) : null;
     return { job: offered.job, runner, green, output: String(output), failures: Array.isArray(phase?.failures) ? phase.failures : null,
-      signatures: Array.isArray(phase?.failureSignatures) && phase.failureSignatures.length === phase?.failures?.length ? phase.failureSignatures : null, durationMs: receipt.durationMs ?? null, outcomes };
+      signatures: Array.isArray(phase?.failureSignatures) && phase.failureSignatures.length === phase?.failures?.length ? phase.failureSignatures : null, durationMs: receipt.durationMs ?? null, outcomes,
+      verdicts: gate.verdicts && typeof gate.verdicts === 'object' && !Array.isArray(gate.verdicts) ? gate.verdicts : null };
   } finally {
     try { git(ctx.info.root, ['update-ref', '-d', offered.ref]); } catch { /* a pin left behind only keeps a commit reachable */ }
   }
@@ -226,11 +278,11 @@ export async function probeTestAt(ctx, { commit, file, say }) {
  * which a local pull runner never claims, so `verify --compare` and the background comparison stopped under pull [V4,C7].
  *
  * @param {object} ctx
- * @param {{ item: number, commit: string, main: string, command: string, files: string[], runId: string, say?: (line: string) => void }} fields
- * @returns {Promise<{ job: string, runner: string | null, green: boolean, output: string, outcomes: { file: string, name: string, passed: boolean, skipped: boolean }[] | null }>}
+ * @param {{ item: number, commit: string, main: string, command: string, files: string[], runId: string, say?: (line: string) => void, fileBudgetMs?: number | null }} fields
+ * @returns {Promise<{ job: string, runner: string | null, green: boolean, output: string, outcomes: { file: string, name: string, passed: boolean, skipped: boolean }[] | null, verdicts: Record<string, 'green' | string[]> | null }>}
  */
-export async function runPulledComparison(ctx, { item, commit, main, command, files, runId, say }) {
-  return runJobFor(ctx, { item, commit, main, command, files, runId }, { say });
+export async function runPulledComparison(ctx, { item, commit, main, command, files, runId, say, fileBudgetMs = null }) {
+  return runJobFor(ctx, { item, commit, main, command, files, runId, fileBudgetMs }, { say });
 }
 
 /**
@@ -356,7 +408,7 @@ export async function runPulledTests(ctx, { agent, item, files, values, knownRed
   if (!commit || !main) throw new Refused('TEST_SNAPSHOT', 'this checkout has no commit or no accepted main to test against; commit the work and run pullboard test again');
   const started = Date.now();
   const command = `${config.affectedTests.trimEnd()} ${paths.map(path => shellWord('./' + path)).join(' ')}`;
-  const ran = await runJobFor(ctx, { item, commit, main, command, files: paths }, { agent, say, testRun: values['test-run'] });
+  const ran = await runJobFor(ctx, { item, commit, main, command, files: paths, ...(fileBudgetField(values).fileBudgetMs ? { fileBudgetMs: fileBudgetField(values).fileBudgetMs } : {}) }, { agent, say, testRun: values['test-run'] });
   const summary = retainTestOutput(root, ran.output);
   // A runner's TAP names a case's file by the runner's own work folder; a failure is shown by the repo path the seat named [C7].
   for (const row of summary.failures) {

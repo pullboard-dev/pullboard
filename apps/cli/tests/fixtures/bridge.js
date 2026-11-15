@@ -15,6 +15,7 @@ import { createE2eHelpers } from './e2e.js';
 import { startFixtureChild } from './child.js';
 import { fixtureAdd } from './testkit.js';
 import { joinFixtureSeat } from './testkit.js';
+import { settledGateJob } from './submit/settle.js';
 
 /** Run the actual CLI without blocking the loopback provider's event loop. */
 export async function runBridgeCLI(box, ...args) {
@@ -118,8 +119,10 @@ export async function landBridgeItems(box, { independent = false, briefs = [] } 
     const file = `web/${name}.js`;
     assert.equal(box.commitFile(box, path, file, "export const result = 'PASS';\n", `feat(web): bridge ${name} [G1]`).status, 0);
     const commit = box.git(path, 'rev-parse', 'HEAD');
-    const submitted = await run(path, 'submit', String(id));
+    const submitted = await run(path, 'submit', String(id), '--json');
     assert.equal(submitted.code, 0, submitted.err);
+    // A pulled submit returns queued; wait until the board has applied the gate receipt before the verdict [C7,#7283].
+    if (JSON.parse(submitted.out).queued) await settledGateJob(box, id);
     box.git(box.repo, 'switch', '-q', '--detach', commit);
     try {
       const reviewed = await run(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'private bridge proof passed');

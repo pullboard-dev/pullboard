@@ -32,7 +32,7 @@ catch (error) { console.log(error.code ?? error.message); }`;
  * seconds, so every job starts while the first scan is still running.
  */
 function fixture() {
-  const box = cellProject(owner, { gate: 'true' });
+  const box = cellProject(owner, { real: true, gate: 'true' });
   const shims = join(box.dir, 'history-shims'), launches = join(box.dir, 'git-log-launches');
   mkdirSync(shims);
   writeFileSync(join(shims, 'git'), [

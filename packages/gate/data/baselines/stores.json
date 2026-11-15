@@ -394,6 +394,10 @@
       "kind": "json",
       "owner": "apps/cli/src/io/exit/rules.js"
     },
+    "import-edges-*.json": {
+      "kind": "json",
+      "owner": "packages/git/src/io/check/definition.js"
+    },
     "landing-worker-starts-*.jsonl": {
       "kind": "jsonl",
       "owner": "packages/gate/src/io/run-tests.js"
@@ -678,6 +682,10 @@
       "kind": "repo-data",
       "owner": "apps/cli/src/io/generated/declarations.js"
     },
+    "freeze-moves.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/test/freeze.js"
+    },
     "gate-receipts.jsonl": {
       "kind": "jsonl",
       "disk": "receipts",
@@ -779,6 +787,10 @@
       "kind": "json",
       "owner": "packages/codemap/src/io/no-runtime-assumptions.js"
     },
+    "push-only.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/test/push-only.js"
+    },
     "observation.json": {
       "kind": "json",
       "owner": "apps/cli/src/io/submit/gate.js"
@@ -831,6 +843,10 @@
       "kind": "json",
       "owner": "packages/landing/src/io/pause.js"
     },
+    "pull.json": {
+      "kind": "json",
+      "owner": "packages/transport/src/io/pull/store.js"
+    },
     "pullboard-activity.json": {
       "kind": "json",
       "owner": "packages/activity/src/io/inbox.js"
@@ -869,7 +885,7 @@
     },
     "pullboard.json": {
       "kind": "repo-data",
-      "owner": "packages/kernel/src/logic/config-file.js"
+      "owner": "packages/kernel/browser.js"
     },
     "pure-roots.json": {
       "kind": "repo-data",
@@ -1430,6 +1446,10 @@
     "tiers.json": {
       "kind": "repo-data",
       "owner": "packages/commits/src/logic/change/row/tier.js"
+    },
+    "test-manifest.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/test/manifest.js"
     },
     "timer.guard.sqlite": {
       "kind": "sqlite",

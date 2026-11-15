@@ -54,15 +54,20 @@ export function handoffRecord(db, item) {
  * Why one read: list, status and the sweeps look at every item, and a read per item scanned the job tables once each.
  * Only each job's last step is read, since every step the hand-off writes carries the whole record.
  *
+ * With `live`, only items not yet verified or withdrawn: itemStage reads a closed item's stage from its status and merge
+ * alone, so a lister never needs their records, and a board of thousands of closed items skips thousands of job reads [I6].
+ *
  * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{ live?: boolean }} [options]
  * @returns {Map<number, Record<string, any>>}
  */
-export function handoffRecords(db) {
+export function handoffRecords(db, { live = false } = {}) {
   const records = new Map();
   if (!hasJobTables(db)) return records;
   const rows = db.prepare(`SELECT j.job_item AS item, s.job_step_payload AS payload FROM job j
     JOIN job_step s ON s.job_step_id = (SELECT MAX(job_step_id) FROM job_step WHERE job_step_job = j.job_id)
-    WHERE j.job_kind = 'gate' AND j.job_item IS NOT NULL ORDER BY s.job_step_id DESC`).iterate();
+    WHERE j.job_kind = 'gate' AND j.job_item IS NOT NULL${live ? " AND j.job_item IN (SELECT item_id FROM item WHERE item_status NOT IN ('verified', 'withdrawn'))" : ''}
+    ORDER BY s.job_step_id DESC`).iterate();
   for (const row of rows) {
     if (records.has(row.item)) continue;
     const record = recordOf(row.payload);

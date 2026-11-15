@@ -1,5 +1,10 @@
 import { parseSpec } from '../../../../../packages/spec/light.js';
+import { submitReferenceReminders } from '../../../../../packages/spec/index.js';
+import { committedReader } from '../../../../../packages/moves/index.js';
 import { requireKernelApproval } from '../../../../../packages/verify/index.js';
+import { frozenTestsProblem } from '../../../../../packages/verify/index.js';
+import { testAuthorNotes } from '../../../../../packages/verify/index.js';
+import { seatFamily } from '../../../../../packages/items/index.js';
 import { itemFolderIdentity } from '../item/folder.js';
 import { itemFolderPath } from '../item/folder/identity.js';
 import { seatRoot } from '../item/folder/identity.js';
@@ -10,6 +15,7 @@ import { heartbeatCommand } from '../presence.js';
 import { mergeSubmissionMain } from '../../../../../packages/merge/index.js';
 import { requireNonEmptySubmit } from '../empty.js';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
+import { clauseReceiptProblem } from '../../../../../packages/state/index.js';
 import { staleHeadLines } from '../../../../../packages/state/index.js';
 import { checkRunTickNotes } from '../../../../../packages/state/index.js';
 import { testRunTickNotes } from '../../../../../packages/state/index.js';
@@ -87,6 +93,7 @@ import {
   refuseUnreviewable,
 } from '../../../../../packages/verify/index.js';
 import { changedLines } from '../../../../../packages/items/index.js';
+import { frozenCheckTiming } from '../../../../../packages/items/index.js';
 import {
   dependencySnapshots,
   frozenCheck,
@@ -110,6 +117,9 @@ import { whoAmI } from '../entry.js';
 import { claimOrdered } from '../entry.js';
 import { claimFreezer } from '../entry.js';
 import { withBoard } from '../entry.js';
+import { resourceAgent } from '../board/access.js';
+import { recordBaseRunsForSubmit } from '../submit/clause-base.js';
+import { recordMainComparison } from '../../../../../packages/flakes/index.js';
 import { actOn } from '../entry.js';
 import { recordedRecovery } from '../../../../../packages/state/index.js';
 import { topUpClaims } from '../next.js';
@@ -231,6 +241,16 @@ function knownMainReds(root, failures, main) {
   try { return redsAreMains(failures, cachedMainComparison(root, main, failures.map(row => row.file)), main); } catch { return false; }
 }
 
+/**
+ * Refuse a bar frozen with exclusive check timing: every submit gate is a pulled runner job, and pulled gates do not yet
+ * hold the exclusive slots or write the timing receipt (#7942). Why refuse: running it untimed would ignore the bar [C7].
+ */
+function refusePulledTiming(item) {
+  if (!frozenCheckTiming(item)) return;
+  throw new Refused('PULL_TIMING_UNSUPPORTED', `#${item.item_id}'s frozen check asks for exclusive timing admission, which pulled gates do not yet support; every submit gate is pulled, so it would run untimed`,
+    `ask the coordinator to leave timing off: pullboard edit ${item.item_id} --check-timing false --reason "pulled gates have no timing admission"; pullboard check still runs it with timing on this machine`);
+}
+
 /** Stop unchanged third red submissions, queued or pulled, while naming the two test failures that need repair. */
 function requireRedSubmitProgress(root, board, id, digest, candidate, main, pulledReds = () => []) {
   // A gate whose every red is a case main fails by the same name is main's red, not the item's code, so it is no loop [C7].
@@ -268,7 +288,9 @@ function restoreMergedHead(root, before) {
 
 export async function submitHere(ctx, id, infra, companionInput = null) {
   const { root } = ctx.info;
-  const inspectClauses = (submitHandoffPolicy(ctx) ?? mainPolicy(root)).config.verify.inspectClauses === true;
+  const submitVerify = (submitHandoffPolicy(ctx) ?? mainPolicy(root)).config.verify;
+  const inspectClauses = submitVerify.inspectClauses === true;
+  const failBefore = submitVerify.failBefore === true;
   const recovered = relayRecovered(root, {}, ctx.io);
   if (recovered?.operation === 'submit' && recovered.args[0] === id) {
     const preflight = withBoard(ctx, (board) => {
@@ -290,7 +312,14 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
         { green: true, report: 'recovered the original submission; its gate ran before the original send' });
     }
   }
+  // A pulled submit's own move is its gate-offer note; a lost reply to it is answered with the job it already offered [C7,H16].
+  if (recovered?.operation === 'appendFact' && recovered.args[0] === id) {
+    const offered = await (await import('../submit/pull.js')).recoverOfferedGate(ctx, id, recovered);
+    if (offered !== null) return offered;
+  }
   const preflightStart = performance.now();
+  // The fail-before check reads a base run of each [test] clause's file; produce it first, only when that check is on [C7,#8090].
+  if (inspectClauses && failBefore) await authorizationStep('clause-base-runs', () => recordBaseRunsForSubmit(ctx, id, { withBoard, ordered, resourceAgent, store, gateTestFiles, recordMainComparison }));
   const held = await authorizationStep('claim-check', () => withBoard(ctx, async (board) => {
     const me = whoAmI(ctx, board);
     const item = store.getItem(board, id);
@@ -303,6 +332,9 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     if (readiness) throw readiness;
     const clauseProblem = inspectClauses ? authorizationStep('clause-inspection', () => clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateTestFiles(root, item), head: headCommit(root) })) : null;
     if (clauseProblem) throw clauseProblem;
+    // A [test] clause also needs a recorded run that failed on an assertion at the item's base (fail-before, pass-after) [C7].
+    const receiptProblem = inspectClauses && failBefore ? clauseReceiptProblem(item, { gateFiles: gateTestFiles(root, item), baseRows: store.recordedBaseRows(board, item.item_claim_head), baseCommit: item.item_claim_head }) : null;
+    if (receiptProblem) throw new Refused('CLAUSE_UNTICKED', receiptProblem.message, receiptProblem.next);
     // A clause whose only evidence cites an earlier head is named before the gate queues, so the builder refreshes it (#3752).
     if (inspectClauses) for (const line of staleHeadLines(item, store.itemThread(board, id), headCommit(root))) ctx.io.say(line);
     const correction = store.pendingRefreezeProblem(board, id);
@@ -313,6 +345,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     }
     return item;
   }));
+  refusePulledTiming(held);
   ctx.submitAttempt = { agentId: held.item_owner, digest: held.item_frozen_digest };
   ctx.submitAttempt.stage = 'fast';
   const policy = itemPolicy(root, held);
@@ -341,6 +374,12 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     }
   }
   authorizationStep('non-empty', () => requireNonEmptySubmit(root, id, commit, acceptedMain.commit));
+  // A test file the bar froze at claim keeps its content unless the person ruled on the new content [C7,V4].
+  authorizationStep('test-hashes', () => withBoard(ctx, (board) => {
+    const problem = frozenTestsProblem(submitVerify, held, store.itemThread(board, id),
+      { atHead: committedReader(root, commit), atMain: committedReader(root, acceptedMain.commit), person: store.PERSON });
+    if (problem) throw problem;
+  }));
   let trunk;
   let regenerated = null;
   try { trunk = authorizationStep('trunk-merge', () => requireTrunkMerge(root, commit, isSubmitHandoffWorker(ctx) ? acceptedMain.commit : undefined)); }
@@ -457,6 +496,11 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     return warning;
   }));
   if (barWarning) ctx.io.say(`bar.check warning: ${barWarning}`);
+  // Which seat and model family wrote each named test file this submit adds or changes [C7,V4].
+  await withBoard(ctx, async board => {
+    const notes = testAuthorNotes(held, store.itemThread(board, id), { atHead: committedReader(root, commit), atMain: committedReader(root, acceptedMain.commit), seat: me.id, family: seatFamily(board, me.id) });
+    for (const text of notes) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text }]);
+  });
   reportSubmitStage(ctx, 'authorization and source', preflightStart);
   withBoard(ctx, (board) => refuseUnsubmittableStack(root, board, held, commit, trunk));
   machineNameProblems(root, `${acceptedMain.commit}..${commit}`, { refuse: acceptedMain.config.commits.noHostName === true, say: (line) => ctx.io.say(line) });
@@ -467,6 +511,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   if (ownershipRefusal) throw ownershipRefusal;
   // The configured static check runs in the agent's checkout before any runner job is queued, so a red one takes no trip (#5730).
   if (!companion) await requireStaticPreflight(root, acceptedMain.config.staticChecks, changedSince(root, acceptedMain.commit, commit), { timeoutMs: acceptedMain.config.check?.timeoutMs });
+  // A reminder never stops a submit: a handled reference this change leaves unacknowledged in the changelog is named (point 20) [C7].
+  for (const reminder of submitReferenceReminders(root, held, commit)) ctx.io.err(reminder);
   return (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization ? authorizationRequest() : null, full: Boolean(regenerated || regeneratedFrom), companion, infra: infraRecord }, { frozenCheck, policyAt, listItems: store.listItems, pairPrefix });
 }
 
@@ -577,8 +623,8 @@ export async function run(io, { first, values }) {
     io.cwd = await handOffHostedSubmit(ctx, id, hostRunner);
     ctx = { ...context(io), submissionResult, precheck: ctx.precheck, json: ctx.json };
   }
-  /** Dispatch before optional verdict waiting, retaining this exact submission document. */
-  ctx.afterSubmission = submission => completeMoveHandoff(ctx, id, values, submission, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest, topUp: target => topUpClaims(target, {}, { most: 1 }) });
+  /** Dispatch before optional verdict waiting, retaining this exact submission document; a pulled one marks the submit queued for --wait [P7]. */
+  ctx.afterSubmission = submission => { if (submission?.queued) Object.assign(submissionResult, { queued: true, value: submission }); return completeMoveHandoff(ctx, id, values, submission, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest, topUp: target => topUpClaims(target, {}, { most: 1 }) }); };
   const previous = io.onOrderedMove;
   io.onOrderedMove = receipt => {
     previous?.(receipt);
@@ -617,7 +663,7 @@ export async function run(io, { first, values }) {
     io.say(`a seat holding a claim never blocks on its own gate; a red gate comes back through pullboard next, and pullboard show ${id} reads it any time`);
     return code;
   }
-  return waitForSubmitGate(ctx, id, submissionResult.value, submissionResult.job,
+  return submissionResult.value?.gateJob ? code : waitForSubmitGate(ctx, id, submissionResult.value, submissionResult.job,
     { withBoardRead: waitBoardRead, submitHandoff, getItem: store.getItem, ownershipWait: store.ownershipWait, ownershipWaitForJob: store.ownershipWaitForJob });
 }
 import { SUBMISSION_SIZE_METHOD } from '../../../../../packages/state/light.js';

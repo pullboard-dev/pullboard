@@ -115,7 +115,7 @@ export function activityFlow(project, events, { now, windowHours = 24, left = nu
       else if (e.kind === 'merged') {
         if (landedAt === null) { landedAt = e.at; close(e.at); ended = true; cur = null; row(e.at, 'landed', 'in flight ' + minutes(e.at - (segs[0]?.a ?? e.at)) + 'm' + (typeof d.commit === 'string' && d.commit ? ' · ' + d.commit.slice(0, 7) : ''), { by: e.by, event: e.event }); }
       }
-      else if (e.kind === 'withdraw') { close(e.at); withdrew = true; }
+      else if (e.kind === 'withdraw') { close(e.at); withdrew = true; row(e.at, 'withdrawn', 'withdrawn by ' + e.by + (d.reason ? ' · ' + String(d.reason).slice(0, 80) : ''), { by: e.by, event: e.event }); }
       else if (e.kind === 'hold_item') { held = cur?.k ?? 'ready'; open('held', e.at); row(e.at, 'held', 'paused on purpose' + (d.reason ? ' · ' + String(d.reason).slice(0, 80) : ''), { by: e.by, event: e.event }); }
       else if (e.kind === 'unhold_item') { if (cur?.k === 'held') { open(held ?? 'ready', e.at); row(e.at, 'ready', 'hold lifted · back to ' + NAMES[held ?? 'ready'].toLowerCase(), { by: e.by, event: e.event }); } }
       else if (e.kind === 'ruling') { marks.push({ k: 'ruling', t: e.at }); row(e.at, 'ruling', 'asked by ' + e.by, { by: e.by, quote: e.text, event: e.event }); }
@@ -224,7 +224,7 @@ export function activityFlow(project, events, { now, windowHours = 24, left = nu
   const builders = new Set((project.items ?? []).filter(item => item.status === 'claimed' && item.claim?.by && Date.parse(item.claim.until) > now).map(item => item.claim.by));
   const reviewers = new Set((project.items ?? []).filter(item => item.status === 'submitted' && (item.reviewer || item.progress?.holder) && !(Date.parse(item.reviewUntil) <= now)).map(item => item.reviewer || item.progress?.holder));
   const building = seats.filter(seat => builders.has(seat)).length, reviewing = seats.filter(seat => !builders.has(seat) && reviewers.has(seat)).length;
-  const runners = (project.dashboardRunners?.runners ?? []).map(runner => ({ name: 'Runner ' + runner.runner, cpu: Number.isFinite(runner.cpu) ? runner.cpu : null, jobs: runner.jobs?.length ?? 0, busy: Boolean(runner.busy) }));
+  const runners = (project.dashboardRunners?.runners ?? []).map(runner => ({ name: runner.name ?? 'Runner ' + runner.runner, cpu: Number.isFinite(runner.cpu) ? runner.cpu : null, jobs: runner.jobs?.length ?? 0, busy: Boolean(runner.busy) }));
   const stay = key => liveList.filter(journey => journey.segs.at(-1).k === key).map(journey => now - journey.segs.at(-1).a);
   const queue = [['Gate', 'gate', 'longest'], ['Landing', 'land', 'next'], ['Pending review', 'pend', 'oldest']].map(([name, key, word]) => {
     const waits = stay(key); return { name, count: waits.length, word, age: waits.length ? Math.max(...waits) : null };

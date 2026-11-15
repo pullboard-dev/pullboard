@@ -1,3 +1,4 @@
+import packageData from '../../../../../package.json' with { type: 'json' };
 import { checkAtCommit } from '../../../../runner/index.js';
 /** The pullboard doctor command, in its own module so an item adding another command never edits these lines. */
 import {
@@ -14,6 +15,8 @@ import {
   tryGit,
 } from '../../../../../packages/git/index.js';
 import {
+  outdatedSender,
+  outdatedSenderLine,
   unlinkedRelayProjects,
 } from '../../../../../packages/link/index.js';
 import {
@@ -30,6 +33,7 @@ import {
 import { agentHookStatus } from '../../../../../packages/seats/index.js';
 import { runnerServiceProblems } from '../../../../../packages/runners/index.js';
 import { unclaimedGateJobs } from '../../../../../packages/jobs/index.js';
+import { trunkUpdateInsteadProblem } from '../landing/checkout.js';
 import { anyRunnerLive } from '../runner/local.js';
 
 /** `pullboard doctor --hosts`: one line per role naming the hosts and ports it needs, for a sandbox allowlist [P7]. */
@@ -57,9 +61,9 @@ export async function run(io, { values = {} } = {}) {
   io.nativeBoard ??= await io.loadNativeBoard();
   const ctx = context(io);
   const agentHooks = agentHookStatus(ctx.info.root);
-  const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config, { isMain: ctx.allowSchemaUpgrade, checkAtCommit }), ...skillProblems(ctx.info.root), ...doctrineProblems(ctx.info.root, ctx.config), ...unlinkedRelayProjects(), ...runnerServiceProblems()];
+  const problems = [...doctorProblems(ctx.file, ctx.info.root, tryGit, ctx.config, { isMain: ctx.allowSchemaUpgrade, checkAtCommit, release: packageData.version }), ...skillProblems(ctx.info.root), ...doctrineProblems(ctx.info.root, ctx.config), ...unlinkedRelayProjects(), ...runnerServiceProblems()];
   // Preserve doctor's read-only diagnosis of a missing or incompatible board before projecting its rows.
-  const incompatible = new Set(['BOARD_MISSING', 'SCHEMA_VERSION', 'EVENT_LOG_VERSION', 'TABLE_MISSING', 'COLUMN_MISSING', 'ITEM_FIELDS']);
+  const incompatible = new Set(['BOARD_MISSING', 'BOARD_TOO_OLD', 'SCHEMA_VERSION', 'EVENT_LOG_VERSION', 'TABLE_MISSING', 'COLUMN_MISSING', 'ITEM_FIELDS']);
   const cover = problems.some(problem => incompatible.has(problem.code)) ? { missingFamilies: [] }
     : withBoardRead(ctx, board => reviewFamilyCover(ctx.info, board, ctx.config));
   for (const family of cover.missingFamilies) problems.push({ code: 'REVIEW_FAMILY_COVER',
@@ -69,6 +73,11 @@ export async function run(io, { values = {} } = {}) {
   if (!problems.some(problem => incompatible.has(problem.code)) && !anyRunnerLive()) for (const job of withBoardRead(ctx, board => unclaimedGateJobs(board.db))) problems.push({ code: 'GATE_NO_RUNNER',
     message: `gate job ${job.id} waited over 2 min with no runner`,
     next: 'run pullboard runner add <ssh-host> or pullboard submit again to start the local runner' });
+  const trunkProblem = trunkUpdateInsteadProblem(trunkRemote(io.cwd), ctx.info.root, 'refs/heads/main');
+  if (trunkProblem) problems.push(trunkProblem);
+  const outdated = outdatedSender();
+  if (outdated) problems.push({ code: 'RELAY_SENDER_OUTDATED', message: outdatedSenderLine(outdated),
+    next: 'run pullboard relay recover to stop it and start this version\'s sender' });
   const checkpointProblem = pendingCheckpointProblem(ctx.info.root);
   if (checkpointProblem) problems.push(checkpointProblem);
   const oversizedSnapshot = checkpointProblem ? null : pendingSnapshotSize(ctx.info.root);

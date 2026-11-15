@@ -23,7 +23,7 @@ const BASELINE = join(ROOT, 'packages/gate/data/baselines/test-waits-baseline.js
 
 /** A project whose static checks name the repository checker; its shared list is the real module, so hook and gate cannot drift. */
 function staticProject(accepted = {}) {
-  const box = cellProject(owner, { gate: 'true' });
+  const box = cellProject(owner, { real: true, gate: 'true' });
   for (const [file, source] of Object.entries(accepted)) {
     mkdirSync(join(box.repo, file, '..'), { recursive: true });
     writeFileSync(join(box.repo, file), source);

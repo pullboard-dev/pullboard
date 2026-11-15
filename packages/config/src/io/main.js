@@ -56,6 +56,7 @@ export function defaults() {
     testEconomics: { costOfEscape: 3600, costOfWaiting: 1, costOfFalseRed: 300 },
     itemSizeBudget: 100,
     itemBuildBudgetMinutes: 30,
+    pushGate: { shardMinutes: 20 },
     submitInvariants: [],
     registryGuards: [],
     staticChecks: '',
@@ -64,12 +65,14 @@ export function defaults() {
     reviewLease: '30m',
     worktrees: 'beside',
     worktreeMaintenance: maintenanceSettings.maintenanceDefaults(),
-    verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true },
+    verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true, failBefore: false, frozenTests: false },
+    // Off by default: toolingPin refuses an unsigned or edited pin file only when pin.signed is true [#8038].
+    pin: { signed: false },
     review: { starveMinutes: 5, independence: 'off', excludeEarlierHolders: false },
-    // Explicit vendor spellings: canonical family -> declared alias names. Never inferred from a model [#1762].
+    // Vendor spellings: canonical family -> alias names; never inferred [#1762].
     families: {},
     labels: {},
-    // The route table is data, not code: packages/config/data/ceilings/model-tiers.json (a fresh copy per call) [P5].
+    // The route table is data: packages/config/data/ceilings/model-tiers.json (fresh per call) [P5].
     modelTiers: JSON.parse(readFileSync(new URL('../../data/ceilings/model-tiers.json', import.meta.url), 'utf8')),
     // Off by default: next and claim print an item's code map slice only when map.slice is true [1203].
     map: { slice: false },
@@ -115,6 +118,11 @@ export function durationMs(text, setting = 'lease') {
   return Number(match[1]) * UNIT_MS[/** @type {'m'|'h'|'d'} */ (match[2])];
 }
 
+/** A settings group merged field by field over its default; a non-object value is kept for the checks to refuse. */
+function section(raw, base) {
+  return raw === undefined ? base : raw && typeof raw === 'object' && !Array.isArray(raw) ? { ...base, ...raw } : raw;
+}
+
 /**
  * The config with each nested group merged field by field, so a repo can set one commit rule
  * without restating the rest.
@@ -150,27 +158,14 @@ function merge(base, raw) {
       : { ...base.verify, ...(raw.verify ?? {}) },
     review: raw.review && typeof raw.review === 'object' && !Array.isArray(raw.review)
       ? { ...base.review, ...raw.review } : raw.review === undefined ? base.review : raw.review,
-    inbox: raw.inbox === undefined ? base.inbox
-      : raw.inbox && typeof raw.inbox === 'object' && !Array.isArray(raw.inbox)
-        ? { ...base.inbox, ...raw.inbox } : raw.inbox,
-    agents: raw.agents === undefined ? base.agents
-      : raw.agents && typeof raw.agents === 'object' && !Array.isArray(raw.agents)
-        ? { ...base.agents, ...raw.agents }
-        : raw.agents,
+    inbox: section(raw.inbox, base.inbox),
+    agents: section(raw.agents, base.agents),
     claims: raw.claims && typeof raw.claims === 'object' && !Array.isArray(raw.claims)
       ? { ...base.claims, ...raw.claims } : raw.claims === undefined ? base.claims : raw.claims,
-    claim: raw.claim === undefined ? base.claim
-      : raw.claim && typeof raw.claim === 'object' && !Array.isArray(raw.claim)
-        ? { ...base.claim, ...raw.claim }
-        : raw.claim,
-    check: raw.check === undefined ? base.check
-      : raw.check && typeof raw.check === 'object' && !Array.isArray(raw.check)
-        ? { ...base.check, ...raw.check }
-        : raw.check,
-    submit: raw.submit === undefined ? base.submit
-      : raw.submit && typeof raw.submit === 'object' && !Array.isArray(raw.submit)
-        ? { ...base.submit, ...raw.submit }
-        : raw.submit,
+    claim: section(raw.claim, base.claim),
+    check: section(raw.check, base.check),
+    submit: section(raw.submit, base.submit),
+    pin: section(raw.pin, base.pin),
   };
 }
 
@@ -183,7 +178,7 @@ function merge(base, raw) {
 const isStringList = (value) =>
   Array.isArray(value) && value.every((entry) => typeof entry === 'string');
 
-/** Whether a setting is anything but a plain object: one home for the shape check every block below repeats. */
+/** Whether a setting is not a plain object: the shape check every block below repeats. */
 const notPlain = value => !value || typeof value !== 'object' || Array.isArray(value);
 
 /**
@@ -319,7 +314,7 @@ export function configProblems(config) {
   if (config.landing?.pauseOnRed !== undefined && typeof config.landing.pauseOnRed !== 'boolean') problems.push('"landing.pauseOnRed" is a boolean, off by default; true pauses landing after an unproven red publish full suite');
   const cadenceError = cadenceProblem(config.landing?.cadence);
   if (cadenceError) problems.push(cadenceError);
-  // landing.stall: how long a landing batch may make no progress before it ends (2 minutes when unset, #3186, #3477, #5816).
+  // landing.stall: how long a landing batch may stall before it ends (2 minutes when unset, #3186).
   for (const key of ['timeout', 'stall']) {
     const value = config.landing?.[key];
     const match = typeof value === 'string' ? CHECK_TIMEOUT_RE.exec(value) : null;
@@ -352,15 +347,15 @@ export function configProblems(config) {
     && (!Number.isSafeInteger(config.verify.familyRelaxAt) || config.verify.familyRelaxAt < 1)) {
     problems.push('"verify.familyRelaxAt" is off or a positive integer');
   }
-  if (typeof config.verify?.inspectClauses !== 'boolean') {
-    problems.push('"verify.inspectClauses" is true or false');
+  if (!['inspectClauses', 'failBefore', 'frozenTests'].every(key => typeof config.verify?.[key] === 'boolean')) {
+    problems.push('"verify.inspectClauses", "failBefore" and "frozenTests" are true or false');
   }
   if (notPlain(config.families)
     || Object.entries(config.families).some(([name, aliases]) => !name.trim() || name.length > 80
       || !Array.isArray(aliases) || aliases.some(alias => typeof alias !== 'string' || !alias.trim() || alias.length > 80))) {
     problems.push('"families" maps each canonical vendor family to a list of declared alias names');
   } else {
-    // One spelling names one family: an alias listed under two canonical families is refused, never guessed.
+    // An alias listed under two canonical families is refused, never guessed.
     const owners = new Map();
     for (const [canonical, aliases] of Object.entries(config.families)) {
       for (const name of [canonical, ...aliases]) {
@@ -390,6 +385,10 @@ export function configProblems(config) {
     || Object.keys(config.withdraw).some(key => key !== 'review') || typeof config.withdraw.review !== 'boolean')) {
     problems.push('"withdraw" is { "review": true or false }: true makes a withdrawal wait for another seat to confirm it');
   }
+  if (notPlain(config.pushGate) || Object.keys(config.pushGate).some(key => key !== 'shardMinutes')
+    || !Number.isSafeInteger(config.pushGate.shardMinutes) || config.pushGate.shardMinutes < 1 || config.pushGate.shardMinutes > 1440) {
+    problems.push('"pushGate.shardMinutes" is a whole number of minutes, 1 to 1440, 20 by default: how long a push gate shard may run before the push gate gives up; raise it with PULLBOARD_RUNNER_RUN_CEILING_MS on the runners');
+  }
   if (notPlain(config.claims)
     || Object.keys(config.claims).some(key => !['releaseGone', 'releaseCooldownMinutes', 'perSeat'].includes(key)) || typeof config.claims.releaseGone !== 'boolean'
     || typeof config.claims.releaseCooldownMinutes !== 'number' || !Number.isFinite(config.claims.releaseCooldownMinutes) || config.claims.releaseCooldownMinutes < 0) {
@@ -403,6 +402,7 @@ export function configProblems(config) {
   }
   if (config.claim?.returnToBoard !== undefined && typeof config.claim.returnToBoard !== 'boolean') problems.push('"claim.returnToBoard" is a boolean; true gives a red or refused queued gate back to the board for any free seat');
   if (!Array.isArray(config.claim?.barTestFiles) || !config.claim.barTestFiles.length || config.claim.barTestFiles.some(pattern => typeof pattern !== 'string' || !pattern || /[\[\]{}\\:\p{Cc}]/u.test(pattern) || pattern.startsWith('/') || pattern.split('/').includes('..'))) problems.push('claim.barTestFiles is a nonempty list of project test-path globs using *, ** or ?');
+  if (typeof config.pin?.signed !== 'boolean') problems.push('"pin.signed" is true or false; true refuses an unsigned or edited tooling pin file');
   if (typeof config.check?.install !== 'string') problems.push('"check.install" is an install command string');
   const timeout = typeof config.check?.timeout === 'string' ? CHECK_TIMEOUT_RE.exec(config.check.timeout) : null;
   const timeoutMs = timeout ? Number(timeout[1]) * CHECK_TIMEOUT_MS[timeout[2]] : NaN;

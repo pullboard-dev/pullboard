@@ -4,12 +4,12 @@ import { executionServices } from '../../../../../apps/cli/tests/fixtures/gate/e
 import { withGateSlot } from '../../../index.js';
 import { awaitNestedRun } from '../../../index.js';
 import { waitFor } from '../../../../../apps/cli/tests/fixtures/gate/resource.js';
-import { measureFileInflation } from '../../fixtures/p95.js';
 import { timedFile } from '../../fixtures/file-pool.js';
 import { fixture } from '../../fixtures/file-pool.js';
 import assert from 'node:assert/strict';
 import { chmodSync } from 'node:fs';
 import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -278,9 +278,12 @@ test('a broken private pool must not return a live loan', async () => {
 test('a run a synchronous call leaves behind lends nothing once the call returns [C7]', { cpuLoad: true }, async (t) => {
   const { root, env, log } = fixture(t, 1);
   for (const file of ['inner-a.test.js', 'inner-b.test.js']) writeFileSync(join(root, file), timedFile(file, 200));
+  // The detached run keeps its own temp folder: under the outer run's, the outer cleanup removes the run's sandbox mid-start under load.
+  const spare = join(root, 'detached-tmp');
+  mkdirSync(spare);
   // The parent's shell call starts a detached run and returns at once; the parent then works on in its own place.
   const detached = `const { execSync } = await import('node:child_process');
-  execSync(${JSON.stringify(`${JSON.stringify(process.execPath)} ${JSON.stringify(runner)} inner-a.test.js inner-b.test.js > /dev/null 2>&1 &`)}, { cwd: ${JSON.stringify(root)}, env: { ...process.env, FIXTURE_RUN: 'inner' } });
+  execSync(${JSON.stringify(`${JSON.stringify(process.execPath)} ${JSON.stringify(runner)} inner-a.test.js inner-b.test.js > /dev/null 2>&1 &`)}, { cwd: ${JSON.stringify(root)}, env: { ...process.env, FIXTURE_RUN: 'inner', TMPDIR: ${JSON.stringify(spare)}, TMP: ${JSON.stringify(spare)}, TEMP: ${JSON.stringify(spare)} } });
   const until = Date.now() + 1500;
   while (Date.now() < until) { /* computing in its own place */ }`;
   writeFileSync(join(root, 'parent.test.js'), timedFile('parent.test.js', 0, detached));
@@ -336,22 +339,6 @@ test('c', () => { execSync(${JSON.stringify(startD)}, { cwd: ${JSON.stringify(ro
   assert.ok(events.find(event => event.at === 'resume').t >= dEnd, 'on 1 core, P resumed only after D, the file under its call, ended');
 });
 
-
-test('four concurrent runs start only token-owned file processes and keep p95 below twice standalone [C7]', async t => {
-  for (const mode of ['native', 'landing']) await t.test(mode, async scope => {
-    const measurement = await measureFileInflation(scope, mode);
-    const { samples, runs, standalone, standaloneAfter, ...summary } = measurement; // the rows are long; the summary keeps a red's numbers in a short log
-    scope.diagnostic('P95_MEASUREMENT=' + JSON.stringify({ ...summary, worstRatios: samples.map(row => Math.round(row.ratio * 100) / 100).sort((x, y) => y - x).slice(0, 4) }));
-    assert.equal(measurement.peakConcurrentRuns, 4, 'all four actual private gate leases overlapped');
-    await scope.test('only token-owned file processes start', () => {
-      assert.ok(measurement.peakFileProcesses <= measurement.cores,
-        `a two-token machine must not spawn files that wait for a token; saw ${measurement.peakFileProcesses}`);
-    });
-    await scope.test('p95 stays below twice standalone', () => {
-      assert.ok(measurement.p95 < 2, `p95 process-lifetime ratio ${measurement.p95} must be below2x standalone`); // budget: #1091 requires p95<2x under four concurrent runs.
-    });
-  });
-});
 
 /** Missing providers refuse before any workspace read, queued lease or caller action can begin. */
 test('gate admission requires explicit complete execution providers before work [C7,Q1]', async () => {

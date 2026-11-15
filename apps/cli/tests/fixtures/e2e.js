@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { submitFixture } from './board/submit.js';
+import { templatedProject } from './template.js';
 import assert from 'node:assert/strict';
 import { startFixtureChild as spawn } from './child.js';
 import { reportFixtureChildFailure } from './child.js';
@@ -28,7 +29,8 @@ import { openBoard } from '../../../lib/index.js';
 import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { SSH_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { fetchFresh } from './http.js';
-import { stopFixtureLocalRunner } from './runner/local-stop.js';
+import { stopFixtureLocalRunners } from './runner/local-stop.js';
+import { stopComparisonWorkers } from './runner/comparisons.js';
 import { reviveFixtureLocalRunner } from './runner/local-start.js';
 import { runnerSwitchedEnv } from './runner/switches.js';
 import { runCliInProcess } from './process.js';
@@ -113,8 +115,10 @@ export function createE2eHelpers() {
    * to 30 s for it to stop; the 1 s budget failed pending-refreeze with ENOTEMPTY (#3192).
    */
   const cleanup = () => {
+    // Every runner is signalled before any is awaited, so five sandboxes cost one stop, not five [C7].
+    stopFixtureLocalRunners(sandboxes.map(dir => join(dir, 'machine-home')));
     for (const dir of sandboxes) {
-      stopFixtureLocalRunner(join(dir, 'machine-home'));
+      stopComparisonWorkers(dir);
       const deadline = Date.now() + 30_000;
       for (;;) {
         try { rmSync(dir, { recursive: true, force: true }); break; }
@@ -244,7 +248,13 @@ const SPEC = `# Demo spec
  * stays deliberately undeclared; later agents retain the runner's model.
  * Coordinator-only fixtures may omit the unused worktree and its join.
  */
-function project(gate = CONFIG.gate, box = sandbox(), { separateGitDir = false, withWorktree = true } = {}) {
+function project(gate = CONFIG.gate, box = sandbox(), options = {}) {
+  // The first case in a process builds; every later case of the same shape copies that project [C7,#8088].
+  return templatedProject(box, JSON.stringify([gate, options]), () => buildProject(gate, box, options));
+}
+
+/** Build one project from nothing; project() calls it once per shape and process. */
+function buildProject(gate, box, { separateGitDir = false, withWorktree = true }) {
   const repo = join(box.dir, 'repo');
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main', ...(separateGitDir ? ['--separate-git-dir', join(box.dir, 'separate-git')] : []));

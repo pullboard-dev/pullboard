@@ -535,7 +535,7 @@ test('a hook names a Pullboard version mismatch instead of running old rules [C1
   fake(bin, '0.9.9');
   result = commit();
   assert.equal(result.status, 1, 'a newer pullboard under older hooks is stopped too');
-  assert.match(result.stderr, /Pullboard 0\.9\.9\. Run: pullboard init/u, 'newer rules rewrite the hooks with init');
+  assert.match(result.stderr, /Pullboard 0\.9\.9\. Run: cd ".*" && pullboard init/u, 'newer rules rewrite the hooks with init, from the main checkout');
 
   fake(bin, '0.9.0');
   result = commit();

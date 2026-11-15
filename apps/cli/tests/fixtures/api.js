@@ -261,6 +261,10 @@ export function apiHttpFixture(t) {
 /** Serve this fixture's explicit project, avoiding any registry outside its private home. */
 export async function apiHttpBox(t, { includeMissing = false, onStateBuild, additionalProjects = [] } = {}) {
   const box = apiHttpFixture(t);
+  // The in-process API runs the merge hook on this process's PATH, whose first pullboard is the test runner's refusal shim; put the fixture's real one first, restored at teardown.
+  const previousPath = process.env.PATH;
+  process.env.PATH = box.env.PATH;
+  t.after(() => { process.env.PATH = previousPath; });
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, onStateBuild, projects: () => [...(includeMissing ? [{ root: join(box.dir, 'gone'), name: 'Missing fixture' }] : []), { root: box.root, name: 'HTTP fixture' }, ...additionalProjects] });
   t.after(() => api.close());
   const url = new URL(api.url);
@@ -325,6 +329,9 @@ export async function submitSettled(t, box, move, id, agent) {
     // The runner also pulls the board's automatic land job; a person lands by hand here, so accepted items stay accepted.
     const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
     fixtureProjectPolicy(box.root, { config: { ...config, landing: { ...config.landing, manualOverride: true } } });
+    // Only policy committed to trunk grants the override (mainPolicy reads trunk), so commit it or the board still offers land jobs whose push fails and retries.
+    runFixtureGit(['add', 'pullboard.json'], { cwd: box.root, env: box.env, stdio: 'pipe' });
+    runFixtureGit(['commit', '-q', '-m', 'chore: fixture lands by hand'], { cwd: box.root, env: box.env, stdio: 'pipe' });
     startFixtureLocalRunner(box.env, box.root);
     box.localRunnerStarted = true;
   }

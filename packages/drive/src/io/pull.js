@@ -34,6 +34,8 @@ import { fileURLToPath } from 'node:url';
 import { childEnvironment } from '../../../kernel/light.js';
 import { PROGRESS_ENV } from './progress.js';
 import { watchProgress } from './progress.js';
+import { pathProcesses } from './leftovers.js';
+import { reapLeftovers } from './leftovers.js';
 import { PRUNE_INTERVAL_MS } from './prune.js';
 import { pruneRunnerStores } from './prune.js';
 import { pruneStaleSlots } from './prune.js';
@@ -58,6 +60,8 @@ const REAP_MS = 2_000;
 const CORES_PER_JOB = 3;
 // Budget: 32 fetched-commit refs give a fetch recent haves; one ref file each.
 const FETCHED_REFS = 32;
+/** This runner's own Pullboard install, which a job's trusted step uses to judge a project whose main is not Pullboard's tree (#6265). */
+const RUNNER_TOOLS = fileURLToPath(new URL('../../../../', import.meta.url));
 /** The release tags every store refresh fetches, which proofs that unpack an old release read. */
 const RELEASE_TAGS = '+refs/tags/v*:refs/tags/v*';
 const SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
@@ -516,19 +520,21 @@ export async function jobProcesses(job, claim = null) {
  *
  * @param {string} job
  * @param {number | undefined} group - The job's process group (its first process's pid).
- * @param {{ claim?: string | null, graceMs?: number, list?: (job: string, claim: string | null) => Promise<number[]>, pause?: (ms: number) => Promise<void> }} [options]
+ * @param {{ claim?: string | null, folder?: string | string[] | null, graceMs?: number, list?: (job: string, claim: string | null) => Promise<number[]>, pause?: (ms: number) => Promise<void> }} [options] - folder: the job's
+ *   environment folder, or it and its work tree; a process whose command line names a path in one is the job's too, which is how Chrome and orphaned test processes are found (#7811, #7813); so is one whose environment names it, a fixture's local runner or view (#7819).
  * @returns {Promise<number[]>}
  */
-export async function reapJob(job, group, { claim = null, graceMs = REAP_MS, list = jobProcesses, pause = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
+export async function reapJob(job, group, { claim = null, folder = null, graceMs = REAP_MS, list: listMarked = jobProcesses, pause = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
+  const list = async () => [...new Set([...await listMarked(job, claim), ...(folder ? await pathProcesses(folder, { environment: true }) : [])])];
   const kill = (pid, name) => { try { process.kill(pid, name); } catch { /* already gone */ } };
   if (group) kill(-group, 'SIGTERM');
-  const found = await list(job, claim);
+  const found = await list();
   let left = found;
   for (const pid of left) kill(pid, 'SIGTERM');
-  for (const until = Date.now() + graceMs; left.length && Date.now() < until;) { await pause(100); left = await list(job, claim); }
+  for (const until = Date.now() + graceMs; left.length && Date.now() < until;) { await pause(100); left = await list(); }
   if (group) kill(-group, 'SIGKILL');
   for (const pid of left) kill(pid, 'SIGKILL');
-  for (let tries = 0; left.length && tries < 20; tries += 1) { await pause(50); left = await list(job, claim); }
+  for (let tries = 0; left.length && tries < 20; tries += 1) { await pause(50); left = await list(); }
   return found;
 }
 
@@ -602,6 +608,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   let prunedAt = 0;
   // Earlier serves' slot folders are dead once this one starts, so they go before the first job [P7].
   try { const gone = await pruneStaleSlots({ cache, instance: folders }); if (gone.length) say(`removed ${gone.length} stale slot folder(s)`); } catch { /* Pruning is best effort. */ }
+  // A killed serve ran no cleanup: its orphaned jobs' processes, Chrome above all, end before the first job (#7811).
+  try { const left = await reapLeftovers([join(cache, 'env'), join(cache, 'work')]); say(`killed ${left.length} leftover process(es) of earlier jobs`); } catch { /* Sweeping is best effort. */ }
   /** Prune old results and dead environment folders at most once an interval; a failure never stops serving. */
   const prune = () => {
     if (Date.now() - prunedAt < PRUNE_INTERVAL_MS) return;
@@ -627,20 +635,51 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   };
   /** Run a handled kind in this process and post its result as the receipt; a lost lease posts nothing. */
   const handled = async (claim, held, workCache, name) => {
+    // A handled job (a land job's proof) runs for minutes between its own renew() calls, so the lease is kept in the
+    // background as an argv job's is; renew() reads false only once the board refused the renewal (#7815).
+    const lease = keepLease(held);
     const renew = async () => {
-      try { return (await queueCall(endpoint, { action: 'renew', ...held }, fetchImpl)).renewed !== false; }
-      catch (error) { return error instanceof BoardUnreachable; }
+      if (lease.isLost()) return false;
+      let renewed;
+      try { renewed = (await queueCall(endpoint, { action: 'renew', ...held }, fetchImpl)).renewed !== false; }
+      catch (error) {
+        // An unreachable board keeps the job: the background renewal retries until the board answers.
+        if (error instanceof BoardUnreachable) return !lease.isLost();
+        renewed = false;
+      }
+      if (!renewed) lease.lose();
+      return renewed;
     };
-    let receipt;
+    try { return await runHandled(claim, held, workCache, name, renew); }
+    finally { lease.stop(); }
+  };
+  /** Run a handled kind's handler under a lease the caller keeps, and post its result as the receipt. */
+  const runHandled = async (claim, held, workCache, name, renew) => {
+    let receipt, environment = null;
     // A land job's proof runs under the same environment a gate job does, so its ledger context key matches the gate's [P7].
     liveEnvironments.add(name);
-    try { receipt = await handlers[claim.kind](claim, { cache: workCache, renew, env: jobEnvironment(cache, name, claim.job).env }); }
-    catch (error) {
+    try {
+      // A payload that names what moved to the job's request (a big proof) gets it back before the handler runs (#7766).
+      if (Array.isArray(claim.payload?.requested) && claim.payload.requested.length) {
+        const asked = await reliably({ action: 'request', ...held });
+        claim = { ...claim, payload: { ...claim.payload, ...asked?.request?.land } };
+      }
+      // The runner's own install rides as PULLBOARD_RUNNER_TOOLS, as a gate job's does, so a proof's trusted step judges a non-Pullboard fixture the same way (#7816).
+      environment = jobEnvironment(cache, name, claim.job);
+      receipt = await handlers[claim.kind](claim, { cache: workCache, renew, env: { ...environment.env, PULLBOARD_RUNNER_TOOLS: RUNNER_TOOLS } });
+    } catch (error) {
       // A handler that could not run (a fetch, a full disk) is an infrastructure wait: hand the job back, never a red receipt.
       say(`releasing ${claim.job}: ${error?.message ?? error}`);
       await reliably({ action: 'release', ...held, reason: String(error?.message ?? error) }).catch(refusal => { if (refusal.code !== 'JOB_LEASE_MOVED') throw refusal; });
       return { outcome: 'released' };
-    } finally { liveEnvironments.delete(name); }
+    } finally {
+      // Whatever the handler ended with, a proof that timed out included, nothing it started outlives it: processes naming its environment folder (a test's home and tmp) end before the receipt posts; never the landing checkout, which a runner may run its own code from (#7820).
+      if (environment) {
+        const survivors = await reapJob(claim.job, undefined, { folder: environment.folder, graceMs: reapMs }).catch(() => []);
+        if (survivors.length) say(`killed ${survivors.length} leftover process(es) of ${claim.job}: ${survivors.join(' ')}`);
+      }
+      liveEnvironments.delete(name);
+    }
     try {
       await reliably({ action: 'receipt', ...held, receipt });
       say(`posted ${claim.job}: ${receipt?.outcome ?? 'done'}`);
@@ -663,24 +702,30 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     if (Object.hasOwn(handlers, claim.kind)) return { job: claim.job, ...await handled(claim, held, slot === 0 ? cache : join(cache, 'slot', String(slot)), `${folders}-${slot}`) };
     // Renew from the claim on, through the request and the fetch too: a fetch longer than the 2-minute lease let another
     // runner take the job mid-fetch, and every job churned from runner to runner unrun (#5805).
+    const lease = keepLease(held);
+    try { return await runHeld(claim, trunk, slot, held, lease.isLost, lease.whenLost, claimedAt); }
+    finally { lease.stop(); }
+  };
+  /**
+   * Keep a held job's lease from its claim until stop(): renew every renewMs, and retry a renewal the board never
+   * answered every few seconds, past the lease too. Only the board's answer that another runner holds the job loses it,
+   * since the board renews a lapsed lease no one claimed (#6546); a handled job is kept the same way (#7815).
+   */
+  const keepLease = held => {
     let lost = false, onLost = () => {}, renewedAt = Date.now(), timer = null, ended = false;
-    const lose = () => { lost = true; onLost(); };
-    // A renewal the board never answered retries every few seconds, past the lease too: only the board's answer that
-    // another runner holds the job stops it, since the board renews a lapsed lease no one claimed (#6546).
+    const lose = () => { if (lost) return; lost = true; onLost(); };
     const renewOnce = () => {
       if (ended || lost) return;
       queueCall(endpoint, { action: 'renew', ...held }, fetchImpl).then(renewed => {
         if (renewed.renewed === false) { lose(); return; }
-        renewedAt = Date.now(); timer = setTimeout(renewOnce, renewMs);
+        renewedAt = Date.now(); if (!ended) timer = setTimeout(renewOnce, renewMs);
       }, error => {
         if (error instanceof Refused && error.code === 'JOB_LEASE_MOVED') { lose(); return; }
-        say(`renewal ${Date.now() - renewedAt >= leaseMs ? 'still failing past the lease' : 'skipped'}: ${error.message}`); timer = setTimeout(renewOnce, renewRetryMs);
+        say(`renewal ${Date.now() - renewedAt >= leaseMs ? 'still failing past the lease' : 'skipped'}: ${error.message}`); if (!ended) timer = setTimeout(renewOnce, renewRetryMs);
       });
     };
     timer = setTimeout(renewOnce, renewMs);
-    const renewer = { stop: () => { ended = true; clearTimeout(timer); } };
-    try { return await runHeld(claim, trunk, slot, held, () => lost, stop => { onLost = stop; }, claimedAt); }
-    finally { renewer.stop(); }
+    return { isLost: () => lost, lose, whenLost: stop => { onLost = stop; }, stop: () => { ended = true; clearTimeout(timer); } };
   };
   /** Fetch, run and report one claimed argv job while runClaim renews its lease; isLost reads whether the lease moved. */
   const runHeld = async (claim, trunk, slot, held, isLost, whenLost, claimedAt = Date.now()) => {
@@ -728,7 +773,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
       post: body => queueCall(endpoint, { action: 'progress', ...held, progress: body }, fetchImpl) });
     // The job fetches any further commit it needs, such as a claim base on another item's branch, from this same trunk remote (#5808).
     // The gate bootstrap judges a project whose main is not Pullboard's tree with this runner's own install (#6265).
-    const env = { ...job.env, PULLBOARD_RUNNER_TOOLS: fileURLToPath(new URL('../../../../', import.meta.url)), [RUNNER_CLAIM_ENV]: tag, [JOB_WORKERS_ENV]: String(jobWorkers(slots, cores, named)), PULLBOARD_TRUNK_REMOTE: trunk, [PROGRESS_ENV]: progressFile, ...(kept ? { [RUNNER_OUTPUT_ENV]: kept } : {}) };
+    const env = { ...job.env, PULLBOARD_RUNNER_TOOLS: RUNNER_TOOLS, [RUNNER_CLAIM_ENV]: tag, [JOB_WORKERS_ENV]: String(jobWorkers(slots, cores, named)), PULLBOARD_TRUNK_REMOTE: trunk, [PROGRESS_ENV]: progressFile, ...(kept ? { [RUNNER_OUTPUT_ENV]: kept } : {}) };
     const running = runJob(run[0] === 'node' ? [process.execPath, ...run.slice(1)] : run, checkout.folder, { ceilingMs, input, receiptLine: gate ? GATE_RECEIPT : null,
       env, keep: kept ? join(kept, 'job.log') : null });
     // An unreachable board only skips a renewal; a moved lease stops the job.
@@ -740,7 +785,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const result = await running.done.finally(() => { signal?.removeEventListener('abort', stopping); });
     const lost = isLost();
     // Every process the job started ends before its receipt posts, a detached one too: its group, then its marker (#5805).
-    const survivors = await reapJob(claim.job, running.pid, { claim: tag, graceMs: reapMs });
+    const survivors = await reapJob(claim.job, running.pid, { claim: tag, folder: [job.folder, checkout.folder], graceMs: reapMs });
     if (survivors.length) say(`killed ${survivors.length} leftover process(es) of ${claim.job}: ${survivors.join(' ')}`);
     await progress.stop(); rmSync(progressFile, { force: true });
     // A leftover writer still filling tmp failed this with ENOTEMPTY and stopped the whole serve, draining 10 slots (#6307).
