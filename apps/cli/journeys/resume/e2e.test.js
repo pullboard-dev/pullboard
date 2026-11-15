@@ -131,11 +131,16 @@ test('a fresh worktree with no install of its own runs pullboard from the main c
   assert.deepEqual([resume().status, resume().stdout], [0, ''], 'no install anywhere: the session still starts, silently');
   const bin = join(box.repo, 'node_modules', '.bin');
   mkdirSync(bin, { recursive: true });
-  writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "${BIN}" "$@"\n`);
+  // The shell stub notes who the session hook reached; the card itself runs in this process, because the hook's 2 s worker budget is the product's and a loaded runner cannot start two fresh nodes inside it [I6].
+  const reached = join(box.repo, 'session-hook-reached');
+  writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nif [ "$1" = hook ] && [ "$2" = SessionStart ]; then echo "$0" > "${reached}"; exit 0; fi\nexec "${process.execPath}" "${BIN}" "$@"\n`);
   chmodSync(join(bin, 'pullboard'), 0o755);
   const committed = commit();
   assert.equal(committed.status, 0, committed.stderr);
-  assert.match(JSON.parse(resume().stdout).hookSpecificOutput.additionalContext, /^resume: web-1 \(fixture-model\), web lane/);
+  assert.equal(resume().status, 0);
+  assert.equal(readFileSync(reached, 'utf8').trim(), join(box.repo, 'node_modules', '.bin', 'pullboard'), 'the session hook found the main checkout install');
+  const card = await runCliInProcess(['hook', 'SessionStart'], { cwd: box.web, env: bare });
+  assert.match(JSON.parse(card.stdout).hookSpecificOutput.additionalContext, /^resume: web-1 \(fixture-model\), web lane/);
 });
 
 test('the gate reaches the agent as a digest: one line when green, the failure when red; the whole output stays in the git dir [V10]', async t => {
