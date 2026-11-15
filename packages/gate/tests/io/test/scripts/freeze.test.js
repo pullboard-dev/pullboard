@@ -73,7 +73,7 @@ test('kept and converted files move into the owning cell tests folder, with old 
     ['apps/cli/journeys/fact/packet.test.js', 'packages/math/tests/journeys/fact/packet.test.js', 'convert'],
   ]);
   assert.ok(record.moved.every(entry => entry.idsFollowed), 'stable test IDs follow every move');
-  assert.match(readFileSync(`${repo.root}/packages/math/tests/journeys/add/main.test.js`, 'utf8'), /from '\.\.\/\.\.\/fixtures\/e2e\.js'/u);
+  assert.match(readFileSync(`${repo.root}/packages/math/tests/journeys/add/main.test.js`, 'utf8'), /from '\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/apps\/cli\/tests\/fixtures\/e2e\.js'/u);
 });
 
 test('the dry run prints every planned change and the count per action without touching files [C7]', t => {
