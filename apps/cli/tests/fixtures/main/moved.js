@@ -21,6 +21,8 @@ import { exportBoard } from '../../../../../packages/store/index.js';
 import { copyPackageFiles } from '../../../../../packages/runners/index.js';
 
 const SOURCE = new URL('../../../../../', import.meta.url);
+/** A worker that has left no state yet is still starting; the smoke canary runs at load 20, where node start alone can pass 8 s [C7]. */
+const WORKER_START_GRACE_MS = 90000;
 
 /**
  * Copy actual installed code, create a real tracked project and seed one explicitly synthetic prior acceptance.
@@ -118,7 +120,7 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
       const done=existsSync(join(directory,'settled.json'))?JSON.parse(readFileSync(join(directory,'settled.json'),'utf8')):null;
       if(!owner&&done?.generation>=expectedGeneration&&(current.item_effective_head||current.item_status==='open'||rows.some(row=>row.state==='incomplete'))) return {item:current,rows};
       let live=false;try{if(owner?.pid){process.kill(owner.pid,0);live=true;}}catch{/* A dead private owner provides no progress. */}
-      if(!live&&Date.now()-quietSince>8000) assert.fail(`automatic main merge made no native progress: ${JSON.stringify({item:current,rows})}`);
+      if(!live&&Date.now()-quietSince>(existsSync(join(directory,'wake.json'))?8000:WORKER_START_GRACE_MS)) assert.fail(`automatic main merge made no native progress: ${JSON.stringify({item:current,rows})}`);
       await pause(25);
     }
   }
