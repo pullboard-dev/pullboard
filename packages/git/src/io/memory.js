@@ -96,6 +96,158 @@ function ancestors(repo, tip) {
   return seen;
 }
 
+
+/** Hash a git object the way git does, so a stand-in commit has the same id real git gives it. */
+function objectId(type, body) {
+  return createHash('sha1').update(`${type} ${body.length}\0`).update(body).digest('hex');
+}
+
+/** Build the tree id for committed files (all mode 100644), nesting directories as git does. */
+function treeId(files) {
+  const build = entries => {
+    const dirs = new Map();
+    const items = [];
+    for (const [parts, bytes] of entries) {
+      if (parts.length === 1) items.push({ name: parts[0], mode: '100644', id: blobId(bytes), sort: parts[0] });
+      else dirs.set(parts[0], [...dirs.get(parts[0]) ?? [], [parts.slice(1), bytes]]);
+    }
+    for (const [name, inner] of dirs) items.push({ name, mode: '40000', id: build(inner), sort: `${name}/` });
+    items.sort((a, b) => pathOrder(a.sort, b.sort));
+    return objectId('tree', Buffer.concat(items.map(i => Buffer.concat([Buffer.from(`${i.mode} ${i.name}\0`), Buffer.from(i.id, 'hex')]))));
+  };
+  return build([...files].map(([path, bytes]) => [path.split('/'), bytes]));
+}
+
+/** True when two path-to-bytes maps hold the same files. */
+function sameFiles(left, right) {
+  return left.size === right.size && [...left].every(([path, bytes]) => right.get(path)?.equals(bytes));
+}
+
+/** The files at HEAD, or none on an unborn branch. */
+function headFiles(repo) {
+  return revision(repo, 'HEAD')?.commit.files ?? new Map();
+}
+
+/** Identity and pinned date for a commit: environment first, then user.* config; a clock is never guessed. */
+function signature(repo, env, commandConfig, who) {
+  const name = env[`GIT_${who}_NAME`] ?? commandConfig.get('user.name') ?? repo.config.get('user.name');
+  const email = env[`GIT_${who}_EMAIL`] ?? commandConfig.get('user.email') ?? repo.config.get('user.email');
+  const date = env[`GIT_${who}_DATE`];
+  if (!name || !email) unsupported('a commit without an identity');
+  if (!/^\d+ [+-]\d{4}$/u.test(date ?? '')) unsupported(`a commit without GIT_${who}_DATE in "<seconds> <zone>" form`);
+  return `${name} <${email}> ${date}`;
+}
+
+/** Record a commit on the current branch (or detached HEAD) and make index and worktree match it. */
+function recordCommit(repo, env, commandConfig, files, parents, message) {
+  const tree = treeId(files);
+  const body = `tree ${tree}\n${parents.map(parent => `parent ${parent}\n`).join('')}author ${signature(repo, env, commandConfig, 'AUTHOR')}\ncommitter ${signature(repo, env, commandConfig, 'COMMITTER')}\n\n${message}\n`;
+  const oid = objectId('commit', Buffer.from(body));
+  repo.commits.set(oid, copyCommit({ oid, tree, parents, files: Object.fromEntries(files) }));
+  if (repo.branch) repo.refs.set(repo.branch, oid); else repo.head = oid;
+  repo.index = new Map(files);
+  repo.work = new Map(files);
+  return oid;
+}
+
+/** Point the index and worktree at a commit; only a clean tree may move, so no dirty-file rule is modelled. */
+function checkOut(repo, oid) {
+  const files = repo.commits.get(oid).files;
+  repo.index = new Map(files);
+  repo.work = new Map(files);
+}
+
+/** Refuse to move or merge over local changes; real git sometimes allows it, the stand-in never guesses. */
+function requireClean(repo, what) {
+  const files = headFiles(repo);
+  if (!sameFiles(repo.index, files) || !sameFiles(repo.work, files)) unsupported(`${what} with uncommitted changes`);
+}
+
+/** The single best common ancestor of two commits; criss-cross histories are not modelled. */
+function mergeBase(repo, left, right) {
+  const common = [...ancestors(repo, left)].filter(oid => ancestors(repo, right).has(oid));
+  const best = common.filter(oid => !common.some(other => other !== oid && ancestors(repo, other).has(oid)));
+  if (best.length !== 1) unsupported('merging histories without exactly one merge base');
+  return best[0];
+}
+
+/** Apply the write commands journeys script, spelled exactly as the fixtures spell them; undefined when not one. */
+function mutate(repo, command, rest, env, commandConfig) {
+  if (command === 'config' && rest.length === 2 && !rest[0].startsWith('-')) { repo.config.set(configKey(rest[0]), rest[1]); return outcome(); }
+  if (command === 'add') {
+    if (rest.length !== 1 || rest[0] !== '-A') unsupported(`add ${rest.join(' ')}`);
+    repo.index = new Map(repo.work);
+    return outcome();
+  }
+  if (command === 'commit') {
+    if (rest.length !== 3 || rest[0] !== '-q' || rest[1] !== '-m') unsupported(`commit ${rest.join(' ')}`);
+    if (sameFiles(repo.index, headFiles(repo))) return outcome(1, 'nothing to commit\n');
+    const parent = revision(repo, 'HEAD')?.oid;
+    recordCommit(repo, env, commandConfig, repo.index, parent ? [parent] : [], rest[2]);
+    return outcome();
+  }
+  if (command === 'branch') {
+    if (rest.length === 1 && rest[0] === '--show-current') return outcome(0, repo.branch ? `${repo.branch.replace(/^refs\/heads\//u, '')}\n` : '\n');
+    if (rest.length !== 1 || rest[0].startsWith('-')) unsupported(`branch ${rest.join(' ')}`);
+    const tip = revision(repo, 'HEAD');
+    if (!tip) return outcome(128, '', 'fatal: not a valid object name\n');
+    if (repo.refs.has(`refs/heads/${rest[0]}`)) return outcome(128, '', 'fatal: a branch with that name already exists\n');
+    repo.refs.set(`refs/heads/${rest[0]}`, tip.oid);
+    return outcome();
+  }
+  if (command === 'switch') {
+    const words = rest.filter(word => word !== '-q');
+    requireClean(repo, 'switch');
+    if (words.length === 2 && words[0] === '--detach') {
+      const found = revision(repo, words[1]);
+      if (!found || found.type !== 'commit') return outcome(128, '', 'fatal: invalid reference\n');
+      repo.branch = null; repo.head = found.oid; checkOut(repo, found.oid);
+      return outcome();
+    }
+    if (words.length === 2 && words[0] === '-c') {
+      const tip = revision(repo, 'HEAD');
+      if (!tip || repo.refs.has(`refs/heads/${words[1]}`)) return outcome(128, '', 'fatal: cannot create branch\n');
+      repo.refs.set(`refs/heads/${words[1]}`, tip.oid); repo.branch = `refs/heads/${words[1]}`;
+      return outcome();
+    }
+    if (words.length !== 1 || words[0].startsWith('-')) unsupported(`switch ${rest.join(' ')}`);
+    const oid = repo.refs.get(`refs/heads/${words[0]}`);
+    if (!oid) return outcome(128, '', 'fatal: invalid reference\n');
+    repo.branch = `refs/heads/${words[0]}`; checkOut(repo, oid);
+    return outcome();
+  }
+  if (command === 'merge') {
+    const fastForwardOnly = rest.includes('--ff-only');
+    const words = rest.filter(word => !['-q', '--ff-only', '--no-edit'].includes(word));
+    if (words.length !== 1 || words[0].startsWith('-') || !fastForwardOnly && !rest.includes('--no-edit')) unsupported(`merge ${rest.join(' ')}`);
+    requireClean(repo, 'merge');
+    const ours = revision(repo, 'HEAD');
+    const theirs = revision(repo, words[0]);
+    if (!ours || !theirs || theirs.type !== 'commit') return outcome(128, '', 'fatal: not something we can merge\n');
+    if (ancestors(repo, ours.oid).has(theirs.oid)) return outcome();
+    if (ancestors(repo, theirs.oid).has(ours.oid)) {
+      if (repo.branch) repo.refs.set(repo.branch, theirs.oid); else repo.head = theirs.oid;
+      checkOut(repo, theirs.oid);
+      return outcome();
+    }
+    if (fastForwardOnly) return outcome(128, '', 'fatal: Not possible to fast-forward, aborting.\n');
+    const base = repo.commits.get(mergeBase(repo, ours.oid, theirs.oid)).files;
+    const merged = new Map();
+    const same = (a, b) => a === undefined ? b === undefined : b !== undefined && a.equals(b);
+    for (const path of new Set([...base.keys(), ...ours.commit.files.keys(), ...theirs.commit.files.keys()])) {
+      const [was, mine, yours] = [base.get(path), ours.commit.files.get(path), theirs.commit.files.get(path)];
+      const pick = same(mine, yours) || same(was, yours) ? mine : same(was, mine) ? yours : unsupported(`a merge that changes ${path} on both sides`);
+      if (pick) merged.set(path, pick);
+    }
+    const current = repo.branch?.replace(/^refs\/heads\//u, '');
+    const named = words[0].replace(/^refs\/heads\//u, '');
+    recordCommit(repo, env, commandConfig, merged, [ours.oid, theirs.oid],
+      `Merge branch '${named}'${current && current !== 'main' && current !== 'master' ? ` into ${current}` : ''}`);
+    return outcome();
+  }
+  return undefined;
+}
+
 /** Parse only the explicitly contracted global flags; unknown flags cannot silently change semantics. */
 function commandArgs(args, options) {
   const words = [...args];
@@ -115,8 +267,10 @@ function outcome(status = 0, stdout = '', stderr = '') {
 }
 
 /** Apply the supported read and config/ref mutation commands to the in-memory repository. */
-function execute(repo, args, commandConfig) {
+function execute(repo, args, commandConfig, env = {}) {
   const [command, ...rest] = args;
+  const written = mutate(repo, command, rest, env, commandConfig);
+  if (written) return written;
   if (command === 'rev-parse') {
     if (rest.length === 1 && rest[0] === '--show-toplevel') return outcome(0, `${repo.root}\n`);
     if (rest.length === 1 && rest[0] === '--is-shallow-repository') return outcome(0, 'false\n');
@@ -209,8 +363,9 @@ function capture(result, options) {
 
 /** Create isolated repository state; seeds use immutable real commit identities and explicit file bytes.
  * Supports the exact rev-parse, symbolic-ref, config, show, cat-file, ls-tree, ancestry, update-ref
- * and committed name-only diff forms exercised by the shared contract. It models no index, merge,
- * worktree discovery, streaming protocol, environment-selected repository, or arbitrary Git argv.
+ * and committed name-only diff forms exercised by the shared contract, plus the scripted writes of
+ * packages/git/tests/io/journey-contract.test.js: init, add -A, commit, branch, switch and merge on a
+ * clean flat-or-nested tree, with real object ids. It models no conflicts, dirty-tree moves, worktree discovery, streaming protocol, environment-selected repository, or arbitrary Git argv.
  */
 export function createMemoryGitAdapter(seeds) {
   const repositories = new Map(seeds.map(seed => {
@@ -219,7 +374,8 @@ export function createMemoryGitAdapter(seeds) {
     const commits = new Map((seed.commits ?? []).map(commit => [commit.oid, copyCommit(commit)]));
     const refs = new Map(Object.entries(seed.refs ?? {}));
     if (branch && seed.head) refs.set(branch, seed.head);
-    return [root, { root, branch, head: seed.head, commits, refs,
+    const tipFiles = commits.get(seed.head)?.files ?? new Map();
+    return [root, { root, branch, head: seed.head, commits, refs, index: new Map(tipFiles), work: new Map(tipFiles),
       config: new Map(Object.entries(seed.config ?? {}).map(([key, value]) => [configKey(key), value])) }];
   }));
   const adapter = {
@@ -230,8 +386,20 @@ export function createMemoryGitAdapter(seeds) {
         if (options.env?.[key]) unsupported(`environment selector ${key}`);
       }
       const { words, cwd } = commandArgs(args, options);
+      if (words[0] === 'init') {
+        if (words.join(' ') !== 'init -q -b main') unsupported(`init ${words.slice(1).join(' ')}`);
+        repositories.set(cwd, { root: cwd, branch: 'refs/heads/main', head: undefined, commits: new Map(),
+          refs: new Map(), index: new Map(), work: new Map(), config: new Map() });
+        return capture(outcome(), options);
+      }
       const repo = repositories.get(cwd);
-      return capture(repo ? execute(repo, words, environmentConfig(options.env)) : outcome(128, '', 'fatal: not a git repository\n'), options);
+      return capture(repo ? execute(repo, words, environmentConfig(options.env), options.env) : outcome(128, '', 'fatal: not a git repository\n'), options);
+    },
+    /** Write or delete (bytes null) a file in a repository's working tree, standing in for a test's file write. */
+    write(root, path, bytes) {
+      const repo = repositories.get(resolve(root));
+      if (!repo) unsupported(`writing into an unknown repository ${root}`);
+      if (bytes === null) repo.work.delete(path); else repo.work.set(path, Buffer.from(bytes));
     },
     /** Preserve success bytes and failure status/output used by the shared synchronous helpers. */
     execFileSync(args, options = {}) {
