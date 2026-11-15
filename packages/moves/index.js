@@ -48,3 +48,4 @@ export { WITHDRAW_NEXT, withdrawEngine } from "./src/logic/table/withdraw.table.
 export { REOPEN_NEXT, reopenEngine } from "./src/logic/table/reopen.table.js";
 export { boardReopenEngine, boardWithdrawEngine } from "./src/io/table/board-withdraw.js";
 export { readWithdrawRecords } from "./src/io/table/withdraw-records.js";
+export { tableTestRegistryProblems } from "./src/logic/table/registry.js";
