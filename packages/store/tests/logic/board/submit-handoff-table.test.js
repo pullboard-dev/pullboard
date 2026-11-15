@@ -36,6 +36,7 @@ function recorded() {
 /** A real board holding the one item a recorded move saw and the hand-off record it found, on a clock at the move's own instant. */
 function boardFor(t, snapshot, over = {}) {
   const board = cellBoard(t, ':memory:', { now: () => new Date(snapshot.now) });
+  board.executionEngineVersion = board.enginePorts.submitHandoffEngines().current;
   const sql = board.db;
   for (const { name } of sql.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'machine_item%'").all()) sql.exec(`DROP TRIGGER ${name}`);
   const { item } = snapshot;

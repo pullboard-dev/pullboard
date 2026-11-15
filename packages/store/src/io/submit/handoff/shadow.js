@@ -10,7 +10,11 @@ function itemOf(board, id) {
 
 /** What a table answer comes to for a hand-off writer: its refusal, or the record it keeps (the newest one when it writes none) and whether a gate started. */
 function decision(answer, snapshot, move) {
-  if (answer.refused) return { refused: { code: answer.refused.code, message: answer.refused.message } };
+  if (answer.refused) {
+    // A deferred row passes the writer's own refusal through, as the table reads it from the snapshot: that refusal is the answer.
+    const injected = answer.refused.code.startsWith('deferred:') ? snapshot.deferred[answer.refused.code.slice('deferred:'.length)] : null;
+    return { refused: injected ? { code: injected.code, message: injected.message } : { code: answer.refused.code, message: answer.refused.message } };
+  }
   const outcome = answer.table.outcomes.find(entry => entry.id === answer.via[0]);
   return { via: answer.via[0], job: outcome.record ? outcome.record(snapshot, move) : snapshot.handoff };
 }
@@ -56,7 +60,7 @@ export function shadowed(board, hook, id, modelled, decide, write) {
   if (typeof board[hook] !== 'function' || !modelled) return write();
   const decided = decide();
   let wrote;
-  try { wrote = { returned: write() }; } catch (error) { wrote = { refused: { code: error.code, message: error.message }, error }; }
+  try { wrote = { returned: write() }; } catch (error) { wrote = { refused: { code: error.code, message: String(error.message).replace(/^\[[A-Z0-9_]+\] /u, '') }, error }; }
   board[hook]({ id, decided, wrote: wrote.refused ? { refused: wrote.refused } : { returned: wrote.returned } });
   if (wrote.error) throw wrote.error;
   return wrote.returned;
