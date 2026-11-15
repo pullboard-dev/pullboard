@@ -455,7 +455,7 @@ export function offerLandShards(db, { job, runner, token, merged, plan, gate, no
  * @param {{ job: string, runner: string, token: string, shards: string[] }} request - shards: ids offerLandShards returned.
  * @returns {{ shards: { job: string, posted: { runner?: string, receipt?: object } | null }[] }}
  */
-export function landShardReceipts(db, { job, runner, token, shards }) {
+export function readLandShardReceipts(db, { job, runner, token, shards }) {
   heldBy(db, job, runner, token);
   const prefix = `${job}:shard:`;
   if (!Array.isArray(shards) || shards.length > MAX_LAND_SHARDS || shards.some(id => typeof id !== 'string' || !id.startsWith(prefix))) {
@@ -592,7 +592,7 @@ export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => n
   }
   if (action === 'request') return jobRequest(db, { job, runner, token });
   if (action === 'renew') return renewJob(db, { job, runner, token, now });
-  if (action === 'shardReceipts') return landShardReceipts(db, { job, runner, token, shards: body.shards });
+  if (action === 'shardReceipts') return readLandShardReceipts(db, { job, runner, token, shards: body.shards });
   if (action === 'shards') return offerLandShards(db, { job, runner, token, merged: body.merged, plan: body.plan, gate: body.gate, now });
   if (action === 'release') return releaseJob(db, { job, runner, token, reason, backoff, draining: drained().includes(runner), now });
   if (action === 'progress') return postProgress(db, { job, runner, token, progress, now });
