@@ -8,6 +8,7 @@ import { openBoard } from '../../../lib/index.js';
 import * as serve from '../../src/io/view.js';
 import { addMilestone } from '../../../../packages/store/index.js';
 import { projectItemState } from '../../../../packages/api/index.js';
+import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
 import { lifecycleEvent } from '../../../../packages/items/index.js';
 import { withdrawnFrom } from '../../../../packages/items/index.js';
 import {
@@ -91,6 +92,8 @@ test('the item projector matches the full projection [A2,N26]', async () => {
   const withdrawn = await add('Withdrawn', '--criterion', 'nobody builds it');
   await box.inProcess(p.repo, 'withdraw', String(withdrawn), 'a duplicate of the open item');
 
+  // The pulled submits above started the loopback local runner, whose heartbeat moves the projection's runner rows between two reads: stop it so the projections compare [C7].
+  stopFixtureLocalRunner(join(box.dir, 'machine-home'));
   const file = join(p.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: reads the projection from the board the CLI children wrote
   const board = openBoard(file);
