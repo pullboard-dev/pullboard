@@ -8,6 +8,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { waitForCondition } from '../../tests/fixtures/runner/holders.js';
 import { openBoard } from '../../../lib/index.js';
 import {
   closeBoard,
@@ -49,7 +50,10 @@ async function fixture(t, { command = true, fails = false, awake = false } = {})
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), clock);
   t.after(() => closeBoard(board));
   // The runner stamped the submission when it applied the gate receipt, so the injected clock starts from that stamp.
-  at = Date.parse(board.db.prepare("SELECT event_at FROM event WHERE item_id=? AND event_kind='submit' ORDER BY event_id DESC LIMIT 1").get(item).event_at);
+  // A pulled submit --wait returns once the gate is offered (15e7a4bb37, #7972), so the receipt can land just after the queue empties; poll for the stamp.
+  const stamp = () => board.db.prepare("SELECT event_at FROM event WHERE item_id=? AND event_kind='submit' ORDER BY event_id DESC LIMIT 1").get(item);
+  await waitForCondition(() => Boolean(stamp()), 'the gate receipt stamps the submission', { signal: AbortSignal.timeout(60_000), state: () => ({ status: getItem(board, item).item_status, verdict: getItem(board, item).item_verdict }) });
+  at = Date.parse(stamp().event_at);
   const output = join(box.dir, 'wake-arguments.jsonl');
   const executable = join(box.dir, 'reviewer-wake.mjs');
   writeFileSync(executable, `#!${process.execPath}\nimport { appendFileSync } from 'node:fs';\nappendFileSync(${JSON.stringify(output)},JSON.stringify(process.argv.slice(2))+'\\n');\nprocess.exitCode=${fails ? 1 : 0};\n`);
