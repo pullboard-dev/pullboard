@@ -5995,25 +5995,7 @@
     }
   },
   "packageApps": {
-    "packages/gate/tests/fixtures/clone.js": [
-      "apps/cli"
-    ],
     "packages/gate/tests/fixtures/cockpit/probe.mjs": [
-      "apps/cli"
-    ],
-    "packages/gate/tests/fixtures/diagnostics.js": [
-      "apps/cli"
-    ],
-    "packages/gate/tests/fixtures/functions.js": [
-      "apps/cli"
-    ],
-    "packages/gate/tests/fixtures/p95.js": [
-      "apps/cli"
-    ],
-    "packages/gate/tests/fixtures/pipeline/board/write.js": [
-      "apps/cli"
-    ],
-    "packages/gate/tests/fixtures/pipeline/kit.js": [
       "apps/cli"
     ],
     "packages/gate/tests/fixtures/pipeline/spec.js": [
@@ -6036,9 +6018,6 @@
       "apps/cli"
     ],
     "packages/gate/tests/fixtures/resources/verify.js": [
-      "apps/cli"
-    ],
-    "packages/gate/tests/fixtures/watchdog/legacy.js": [
       "apps/cli"
     ],
     "packages/git/tests/fixtures/flakes.js": [

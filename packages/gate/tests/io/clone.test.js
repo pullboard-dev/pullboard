@@ -16,7 +16,7 @@ import { chromeLaunchArgs } from '../../../../apps/cli/tests/fixtures/chrome/arg
 import { assertNoKilledChromeClone } from '../fixtures/clone.js';
 
 test('a killed test Chrome leaves no code-sign clone [C7]', async () => {
-  await assertNoKilledChromeClone();
+  await assertNoKilledChromeClone({ launchChromeProcess, chromeLaunchArgs });
 });
 
 /** Pause between checks while waiting for a fixture helper's readiness marker. */
