@@ -591,7 +591,7 @@ export function localLoadAdmits({ load, cores, share, running = 1 }) {
  * @param {AbortSignal} [options.signal]
  * @param {(state: { running: number }) => boolean} [options.admit] - Asked before each claim, with the jobs it holds now; false leaves the queue untouched and tries again after the idle wait.
  * @param {typeof fetch} [options.fetchImpl]
- * @param {(ms: number) => Promise<void>} [options.sleep]
+ * @param {(ms: number) => Promise<void>} [options.sleep] - Waits for idle and backoff; the default also ends when the signal aborts.
  * @param {(line: string) => void} [options.say]
  * @param {string} [options.unreachableHint] - Logged once a streak of network failures reaches HINT_AFTER: the likely
  *   cause on this host and its fix, so an installed service never retries silently.
@@ -607,12 +607,21 @@ export function localLoadAdmits({ load, cores, share, running = 1 }) {
  * @returns {Promise<{ jobs: Array<{ job: string, outcome: 'posted' | 'released' | 'lost', receipt?: object }>, waits: number[], slots: number }>}
  */
 export async function serveRunner({ board, key, runner, capabilities = hostCapabilities(), cache = join(homedir(), '.pullboard-runner', 'pull'),
-  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
+  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = null, say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
   const endpoint = boardEndpoint(board, key);
   const pack = trunkPack ?? boardTrunkPack(endpoint, fetchImpl, join(cache, 'packs'));
   const id = runner ?? `${hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner'}-${randomBytes(3).toString('hex')}`;
   const { renewMs = RENEW_MS, renewRetryMs = RENEW_RETRY_MS, leaseMs = LEASE_MS, idleMs = IDLE_MS, firstMs = BACKOFF.firstMs, maxMs = BACKOFF.maxMs, ceilingMs = CEILING_MS, reapMs = REAP_MS } = timing;
   const slots = once ? 1 : serveSlots(jobsSetting, cores);
+  // Every wait ends the moment the signal aborts, so an idle runner stops at once and its timer leaves nothing alive [C7,#8250].
+  const stopped = signal ? new Promise(resolve => { if (signal.aborted) resolve(); else signal.addEventListener('abort', resolve, { once: true }); }) : null;
+  const nap = ms => {
+    // An injected sleep is the caller's clock; the default one clears its own timer when the signal aborts first.
+    if (sleep) return stopped ? Promise.race([sleep(ms), stopped]) : sleep(ms);
+    let timer;
+    const own = new Promise(resolve => { timer = setTimeout(resolve, ms); });
+    return (stopped ? Promise.race([own, stopped]) : own).finally(() => clearTimeout(timer));
+  };
   // One checkout folder per slot, reset for each job it runs, since a fresh one cost 14 s per job (#5812) [P7].
   const jobs = [], waits = [], folders = `runner-${id.replace(/[^A-Za-z0-9._-]/gu, '-')}`;
   let delay = firstMs;
@@ -636,7 +645,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     // A board no request reaches, again and again, is likely blocked on this host: say once per streak what to fix.
     failures = error.network ? failures + 1 : 0;
     if (unreachableHint && failures === HINT_AFTER) say(`board still unreachable after ${failures} tries; likely cause: ${unreachableHint}`);
-    waits.push(delay); await sleep(delay); delay = Math.min(delay * 2, maxMs);
+    waits.push(delay); await nap(delay); delay = Math.min(delay * 2, maxMs);
   };
   /** Call the board until it answers; only the board's own refusal ends the call. */
   const reliably = async body => {
@@ -861,7 +870,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     if (exclusive) { await Promise.race(active); continue; }
     if (!admit({ running: active.size })) {
       if (once) { say('not claiming: the machine is over its load share'); break; }
-      await Promise.race([sleep(idleMs), ...active]); continue;
+      await Promise.race([nap(idleMs), ...active]); continue;
     }
     let answer;
     try { answer = await reliably({ action: 'claim', runner: id, capabilities, jobs: slots, cores, ram: totalmem() }); }
@@ -869,7 +878,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     if (!answer.claim) {
       // A one-job runner, such as a sandbox or an ephemeral CI container, exits on an empty queue instead of idling [P7].
       if (once) { say('nothing to claim: the queue is empty'); break; }
-      await Promise.race([sleep(idleMs), ...active]); continue;
+      await Promise.race([nap(idleMs), ...active]); continue;
     }
     const task = start(answer.claim, answer.trunk);
     if (once) { await task; break; }
