@@ -204,8 +204,9 @@ export function dashboardModel(project, history, { now, complete = true, working
     agent.segments = union;
     agent.idle = Math.max(0, now - (agent.start ?? start) - agent.build - agent.review);
     // Who is at work is the notch's list when the page passes it (every count of agents at work reads that one list); alone, the model's own reading.
-    // A seat that moved in the last 20 minutes is between items at least, so a board whose agents just finished still lists them (#7945).
-    const atWork = (Array.isArray(working) && working.includes(agent.id)) || agent.current.length > 0 || agent.last > now - 20 * 60_000;
+    // With the notch's list empty or absent, a seat that moved in the last 20 minutes is between items at least, so a board whose agents just finished still lists them (#7945); a list that names agents is the only one.
+    const named = Array.isArray(working) && working.length > 0;
+    const atWork = named ? working.includes(agent.id) : agent.current.length > 0 || agent.last > now - 20 * 60_000;
     agent.group = !atWork ? 'quiet' : agent.current.some(entry => entry.kind === 'build') ? 'building' : agent.current.length ? 'reviewing' : 'between items';
   }
   // The server's own four-hour counts stand in while the browser's history is incomplete; never a guess from a partial log.
