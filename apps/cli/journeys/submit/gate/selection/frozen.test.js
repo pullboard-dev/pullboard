@@ -22,6 +22,7 @@ import { test } from 'node:test';
 import { SPEC } from '../../../../tests/fixtures/submit/gate.js';
 import { coordinatorLocal } from '../local.js';
 import { runLocal } from '../local.js';
+import { submitWithEnv } from '../local.js';
 import { privateRepo } from '../../../../tests/fixtures/submit/gate.js';
 import { builderRepo } from '../../../../tests/fixtures/submit/gate.js';
 import { put } from '../../../../tests/fixtures/submit/gate.js';
@@ -48,17 +49,17 @@ test('a red gate on submit shows what the gate said [C7,V10]', async (t) => {
     assert.equal((await runLocal(box, 'claim', '1')).code, 0);
     put(box.root, 'src/RED', 'red\n');
     commitAll(box, 'feat(core): exercise gate output [G1]');
-    const submitted = await runLocal(box, 'submit', '1', '--json');
+    const submitted = await submitWithEnv(t, box, (...args) => runLocal(box, ...args));
     assert.notEqual(submitted.code, 0);
-    const refusal = JSON.parse(submitted.out).error;
-    assert.equal(refusal.code, 'GATE_RED');
+    // The settled answer's last line is the gate job's own receipt; the lines before it are the refusal's text.
+    const refusal = { message: submitted.err.split('\n').slice(0, -1).join('\n') };
     assert.ok(refusal.message.includes(first), `the first diagnostic must survive the bounded refusal: ${JSON.stringify(refusal)}`);
     assert.match(refusal.message, /\d+ nonempty output lines omitted/u);
     assert.ok(refusal.message.length < 5000, 'a refusal must remain bounded');
-    const log = box.git('rev-parse', '--git-path', 'pullboard-submit.log').trim();
-    const raw = readFileSync(resolve(box.root, log), 'utf8');
-    assert.ok(raw.includes(first));
-    assert.ok(raw.includes('detail 79:'), 'the complete gate output remains available in its log');
+    // The pulled gate keeps the complete output as the runner's proof.log; its receipt names that log and the bytes it holds.
+    const proof = submitted.receipt.gateJob.gate.phases.find(phase => phase.role === 'proof');
+    assert.equal(proof.kept, 'proof.log', 'the complete gate output remains available in its log');
+    assert.ok(proof.bytes > 8000, 'the kept log holds all eighty detail lines');
     assert.equal(JSON.parse((await runLocal(box, 'show', '1', '--json')).out).item_status, 'claimed');
   }
 });
@@ -71,7 +72,7 @@ test('an item claimed before the gate existed submits once a gate exists [C7,B26
     "import assert from 'node:assert/strict';",
     "import { appendFileSync } from 'node:fs';",
     "import { value } from '../src/a.js';",
-    "appendFileSync(process.env.GATE_MARKER, 'accepted-main\\n');",
+    "appendFileSync(process.env.FIXTURE_GATE_MARKER, 'accepted-main\\n');",
     'assert.equal(value, 2);',
   ].join('\n'));
   box = builderRepo(box);
@@ -79,7 +80,7 @@ test('an item claimed before the gate existed submits once a gate exists [C7,B26
   assert.equal((await runLocal(box, 'claim', '1')).code, 0);
   put(box.root, 'src/a.js', 'export const value = 2;\n');
   commitAll(box, 'feat(core): build the claimed item [G1]');
-  const missing = await runLocal(box, 'submit', '1', '--json');
+  const missing = await submitWithEnv(t, box, (...args) => runLocal(box, ...args));
   assert.equal(missing.code, 1, missing.err || missing.out);
   assert.equal(JSON.parse(missing.out).error.code, 'NO_GATE', 'an unconfigured board still refuses');
   const before = JSON.parse((await runLocal(box, 'show', '1', '--json')).out);
@@ -91,14 +92,14 @@ test('an item claimed before the gate existed submits once a gate exists [C7,B26
   runFixtureGit(['commit', '-q', '-m', 'chore: configure the project gate'], { cwd: mainRoot, env: box.env });
   box.git('merge', '--no-edit', 'main');
   const candidate = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
-  candidate.gate = `node -e "require('node:fs').appendFileSync(process.env.GATE_MARKER, 'candidate')"`;
+  candidate.gate = `node -e "require('node:fs').appendFileSync(process.env.FIXTURE_GATE_MARKER, 'candidate')"`;
   put(box.root, 'pullboard.json', JSON.stringify(candidate));
   commitAll(box, 'chore: expose an untrusted candidate gate');
   const marker = join(box.dir, 'gate-ran.log');
-  box.env.GATE_MARKER = marker;
-  const submitted = await runLocal(box, 'submit', '1', '--json', '--infra', 'the gate was configured after the claim');
+  box.env.FIXTURE_GATE_MARKER = marker;
+  const submitted = await submitWithEnv(t, box, (...args) => runLocal(box, ...args), ['--infra', 'the gate was configured after the claim']);
   assert.equal(submitted.code, 0, `${submitted.out}\n${submitted.err}`);
-  const receipt = JSON.parse(submitted.out);
+  const receipt = submitted.receipt;
   assert.equal(receipt.gate.green, true);
   assert.equal(receipt.gate.full, true, 'the newly configured gate really runs');
   assert.equal(readFileSync(marker, 'utf8'), 'accepted-main\n', 'only committed accepted-Main policy supplies the missing gate');
@@ -108,9 +109,9 @@ test('an item claimed before the gate existed submits once a gate exists [C7,B26
 
 test('submit runs the frozen check and affected test only; landing and explicit gate remain full [V4,C7,V16]', async (t) => {
   let box = privateRepo(t);
-  const checkCommand = 'node -e "require(\'node:fs\').appendFileSync(process.env.ITEM_CHECK_MARKER, \'check\')"';
+  const checkCommand = 'node -e "require(\'node:fs\').appendFileSync(process.env.FIXTURE_ITEM_CHECK_MARKER, \'check\')"';
   const checkMarker = join(box.dir, 'item-check.log');
-  box.env.ITEM_CHECK_MARKER = checkMarker;
+  box.env.FIXTURE_ITEM_CHECK_MARKER = checkMarker;
   put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', affectedTests: 'node --test', spec: 'SPEC.md', verify: 'any', lease: '2h' }, null, 2));
   put(box.root, 'SPEC.md', SPEC);
   put(box.root, 'src/a.js', 'export const value = 1;\n');
@@ -118,7 +119,7 @@ test('submit runs the frozen check and affected test only; landing and explicit 
     "import assert from 'node:assert/strict';",
     "import { appendFileSync } from 'node:fs';",
     "import { value } from '../src/a.js';",
-    "appendFileSync(process.env.AFFECTED_MARKER, 'affected\\n');",
+    "appendFileSync(process.env.FIXTURE_AFFECTED_MARKER, 'affected\\n');",
     "assert.equal(value, 2);",
   ].join('\n'));
   put(box.root, 'test/b.test.js', [
@@ -127,27 +128,33 @@ test('submit runs the frozen check and affected test only; landing and explicit 
   ].join('\n'));
   commitAll(box);
   box = builderRepo(box);
-  const added = await coordinatorLocal(box, 'add', 'build', 'Source change', '--check', checkCommand);
+  // --wait holds add until the check's baseline job has run at main: that job appends to the same marker, and one still
+  // queued when the marker is cleared below ran after it, so the marker read 'checkcheck' though the gate ran its check once [#7530].
+  const added = await coordinatorLocal(box, 'add', 'build', 'Source change', '--check', checkCommand, '--wait');
   assert.equal(added.code, 0, added.err);
+  assert.notEqual(JSON.parse((await coordinatorLocal(box, 'show', '1', '--json')).out).item_check_baseline?.result, 'pending', 'the baseline settled before the marker is cleared');
   assert.equal((await runLocal(box, 'claim', '1')).code, 0);
 
   put(box.root, 'src/a.js', 'export const value = 2;\n');
   const commit = commitAll(box, 'feat(core): update selected source [G1]');
   const marker = join(box.dir, 'affected-ran.log');
-  box.env.AFFECTED_MARKER = marker;
+  box.env.FIXTURE_AFFECTED_MARKER = marker;
   rmSync(checkMarker, { force: true });
   const stamp = resolve(box.root, box.git('rev-parse', '--git-path', 'pullboard-gate-green'));
   writeFileSync(stamp, 'forged-stamp-must-not-change\n');
 
-  const submitted = await runLocal(box, 'submit', '1', '--json');
+  const submitted = await submitWithEnv(t, box, (...args) => runLocal(box, ...args));
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
-  const receipt = JSON.parse(submitted.out);
+  const receipt = submitted.receipt;
   assert.equal(receipt.id, 1);
   assert.equal(receipt.commit, commit);
   assert.equal(receipt.gate.green, true);
   assert.equal(receipt.gate.full, false);
   assert.deepEqual(receipt.gate.files, ['test/a.test.js']);
-  assert.equal(receipt.gate.reason, '');
+  // The pulled receipt has no `reason`; its equivalent is that nothing widened or deferred the selection: the report names exactly the affected file.
+  assert.equal(receipt.gate.deferred, false);
+  assert.equal(receipt.gate.deferNote, undefined);
+  assert.equal(receipt.gate.report, 'affected tests: test/a.test.js');
   assert.equal(receipt.gate.check.command, checkCommand);
   assert.equal(receipt.gate.check.green, true);
   assert.ok(existsSync(checkMarker), 'submit executes the item check rather than merely reporting it');

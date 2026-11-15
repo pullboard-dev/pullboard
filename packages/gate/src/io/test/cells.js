@@ -15,6 +15,7 @@ import {
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { blobOid } from '../static/cache.js';
+import { sourceCellPrefixes } from '../affected/inputs.js';
 import {
   cellOf,
   importSpecifiers,
@@ -25,7 +26,7 @@ import {
   walk,
 } from '../scan.js';
 
-const LISTING = 'packages/gate/data/tests/test-cells.json';
+export const LISTING = 'packages/gate/data/tests/test-cells.json';
 const TEST_DIRECTORY = /^(?:test|packages\/[^/]+\/tests|apps\/[^/]+\/tests)\//u;
 const TEST = { test: file => TEST_DIRECTORY.test(file) && TEST_FILE.test(file) };
 const SOURCE = /^(?:src|packages|apps|bin)\/.*\.[cm]?js$/u;
@@ -55,13 +56,33 @@ export function installsHooks(source) {
  * path expression (join, resolve or new URL) points at apps/cli/pullboard.js. A plain data string that only mentions the path
  * launches nothing [C7].
  */
-export function spawnsCli(source) {
-  const paths = [...source.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*[^;\n]*(?:join|resolve|new\s+URL|fileURLToPath)\s*\([^;\n]*(?:bin|apps\/cli)\/pullboard\.js/gu)].map(m => m[1]);
+export function spawnsCli(source, { relative = false } = {}) {
+  const paths = relative ? cliPathNames(source) : legacyPathNames(source);
   for (const call of source.matchAll(SPAWN)) {
     if (/(?:bin|apps\/cli)\/pullboard\.js/u.test(call[1])) return true;
     if (paths.some(name => new RegExp(`(?<![\\w$])${name.replace(/\$/gu, '\\$')}(?![\\w$])`, 'u').test(call[1]))) return true;
   }
   return false;
+}
+
+/** The bin/ or apps/cli/ path variables the cell-test rule has always followed; a cell test's findings are ratcheted on this reading. */
+function legacyPathNames(source) {
+  return [...source.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*[^;\n]*(?:join|resolve|new\s+URL|fileURLToPath)\s*\([^;\n]*(?:bin|apps\/cli)\/pullboard\.js/gu)].map(m => m[1]);
+}
+
+/**
+ * The names a source binds to the CLI entry's path, read for a listed pure helper: a variable set from a path call naming pullboard.js, a function that
+ * returns one (a relative `../pullboard.js` counts, as a fixture beside the entry has no bin/ or apps/cli/ in its text),
+ * and a variable set from a call to either name, so `const BIN = resolveBin()` follows `resolveBin` [C7,#4621].
+ */
+function cliPathNames(source) {
+  const names = new Set([...source.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*[^;\n]*(?:join|resolve|new\s+URL|fileURLToPath)\s*\([^;\n]*pullboard\.js\b/gu)].map(m => m[1]));
+  for (const m of source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*\{[^}]*pullboard\.js\b[^}]*\}/gu)) names.add(m[1]);
+  for (let size = -1; size !== names.size;) {
+    size = names.size;
+    for (const m of source.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$]*)\s*\(/gu)) if (names.has(m[2])) names.add(m[1]);
+  }
+  return [...names];
 }
 
 /**
@@ -99,18 +120,26 @@ export function testCellOf(file) {
   return match[1] === 'apps' ? `apps/${match[2]}` : match[2];
 }
 
+/** The declared rule file: every cell from lowest to highest, keyed as cellOf names cells. */
+export const ORDER = 'packages/gate/data/tests/cell-order.json';
+
 /**
- * Each planned cell's order from the packages/codemap/data/plan/cells.json index, keyed as cellOf names cells (an `app:<name>` cell is
- * `apps/<name>`). A component test may import only cells below its own, so the order decides which front doors it may use.
+ * Each cell's order, read from the folders under packages/ and apps/ and the declared list in packages/gate/data/tests/cell-order.json,
+ * keyed as cellOf names cells (an app is `apps/<name>`), ordered from 1 in list order. A component test may import only cells
+ * below its own, so the order decides which front doors it may use; a listed cell with no folder is skipped, and so is a folder
+ * the list does not name [C7].
  *
  * @param {string} root
  * @returns {Map<string, number>}
  */
 export function planOrder(root) {
-  const path = resolve(root, 'packages/codemap/data/plan/cells.json');
+  const path = resolve(root, ORDER);
   if (!existsSync(path)) return new Map();
-  const cells = JSON.parse(readFileSync(path, 'utf8')).cells ?? [];
-  return new Map(cells.map(cell => [cell.name.startsWith('app:') ? `apps/${cell.name.slice(4)}` : cell.name, cell.order]));
+  const declared = JSON.parse(readFileSync(path, 'utf8')).order ?? [];
+  const present = name => existsSync(resolve(root, name.startsWith('apps/') ? name : `packages/${name}`));
+  const order = new Map();
+  for (const name of declared.filter(present)) order.set(name, declared.indexOf(name) + 1);
+  return order;
 }
 
 /** The listing's pure helpers as path to reason; an older array listing carries no reasons. */
@@ -197,7 +226,7 @@ function importFacts(root, cache) {
   return file => {
     if (!memo.has(file)) {
       const source = readFileSync(resolve(root, file), 'utf8');
-      const read = () => ({ specifiers: importSpecifiers(source).map(row => row.specifier), launches: spawnsCli(source) || installsHooks(source) });
+      const read = () => ({ specifiers: importSpecifiers(source).map(row => row.specifier), launches: spawnsCli(source, { relative: true }) || installsHooks(source) });
       memo.set(file, cache ? cache.get(file, blobOid(source), read) : read());
     }
     return memo.get(file);
@@ -211,7 +240,7 @@ function impurity(root, path, facts) {
     const file = queue[at];
     if (file !== path && CLI_ENTRIES.has(file)) return `its import closure reaches the CLI entry ${file}`;
     const { specifiers, launches } = facts(file);
-    if (file.startsWith('test/') && launches) return `${file === path ? 'it' : file} launches the CLI or installs hooks`;
+    if ((file.startsWith('test/') || /^(?:packages|apps)\/[^/]+\/tests\//u.test(file)) && launches) return `${file === path ? 'it' : file} launches the CLI or installs hooks`;
     for (const specifier of specifiers) {
       const target = posix.normalize(posix.join(posix.dirname(file), specifier));
       if (!seen.has(target) && existsSync(resolve(root, target))) { seen.add(target); queue.push(target); }
@@ -241,19 +270,54 @@ export function classifyTests(root, { files, read = file => readFileSync(resolve
 }
 
 /**
- * Per cell: whether it is sealed. A cell is sealed when it has tests, every one conforms, and no file outside it imports past its front door.
+ * The cells a test reads by path through its leading `@pullboard-test-input` header lines: every cell for `source-tree`, the
+ * named cells for `source-cell`. Imports are judged elsewhere; this is the read an import graph cannot see [C7].
+ *
+ * @param {string} source
+ * @param {string[]} cells - Every cell name, as cellOf names them.
+ * @returns {string[]} The cell names read, empty when the header declares none.
+ */
+export function declaredReads(source, cells) {
+  const read = new Set();
+  for (const raw of source.split(/\r?\n/u)) {
+    const line = raw.trim();
+    if (line === '/** @pullboard-test-input source-tree */') { for (const cell of cells) read.add(cell); continue; }
+    const prefixes = sourceCellPrefixes(line);
+    if (prefixes) {
+      for (const prefix of prefixes) {
+        const [, kind, name] = /^(packages|apps)\/([^/]+)\/$/u.exec(prefix) ?? [];
+        const cell = kind === 'apps' ? `apps/${name}` : name;
+        if (cells.includes(cell)) read.add(cell);
+      }
+      continue;
+    }
+    if (!line.startsWith('/** @pullboard-test-input ') && !line.startsWith('// pullboard:')) break;
+  }
+  return [...read].sort();
+}
+
+/**
+ * Per cell: whether it is sealed. A cell is sealed when it has tests, every one conforms, and no file outside it imports past its
+ * front door. Tests outside it that read its files by path (a declared source-tree or source-cell input) are counted as `pathReaders`, a ratchet, and never unseal it.
  *
  * @param {ReturnType<typeof classifyTests>} rows
- * @param {{ cells: string[], deepImporters?: Record<string, number> }} facts
- * @returns {{ cell: string, sealed: boolean, tests: number, findings: number, deepImporters: number }[]}
+ * @param {{ cells: string[], deepImporters?: Record<string, number>, pathReaders?: Record<string, string[]> }} facts
+ *   `pathReaders` maps each test file to the cells it reads by path.
+ * @returns {{ cell: string, sealed: boolean, tests: number, findings: number, deepImporters: number, pathReaders: number }[]}
  */
-export function sealedReport(rows, { cells, deepImporters = {} }) {
+export function sealedReport(rows, { cells, deepImporters = {}, pathReaders = {} }) {
   return [...new Set(cells)].sort().map(cell => {
     const own = rows.filter(row => row.cell === cell);
     const findings = own.filter(row => row.kind === 'finding').length;
     const deep = deepImporters[cell] ?? 0;
-    return { cell, sealed: own.length > 0 && findings === 0 && deep === 0, tests: own.length, findings, deepImporters: deep };
+    const readers = Object.entries(pathReaders).filter(([file, read]) => read.includes(cell) && testOwnerCell(file) !== cell).length;
+    return { cell, sealed: own.length > 0 && findings === 0 && deep === 0, tests: own.length, findings, deepImporters: deep, pathReaders: readers };
   });
+}
+
+/** The cell a test or journey file sits in, or null for a root test. */
+function testOwnerCell(file) {
+  return /^(?:packages|apps)\//u.test(file) ? cellOf(file).cell : null;
 }
 
 /** Names of every cell directory under packages/ and apps/, and each cell's count of outside files importing past its front door. */
@@ -269,11 +333,18 @@ function cellFacts(root) {
       if (target.deep && target.cell !== own) deepImporters[target.cell] = (deepImporters[target.cell] ?? 0) + 1;
     }
   }
-  return { cells: [...cells], deepImporters };
+  // A test that reads source by path is invisible to the import scan above, so its declared inputs are read here.
+  const pathReaders = {};
+  for (const file of files.filter(name => TEST_FILE.test(name) && /(?:^|\/)(?:tests?|journeys)\//u.test(name))) {
+    const read = declaredReads(readFileSync(resolve(root, file), 'utf8'), [...cells]);
+    if (read.length) pathReaders[file] = read;
+  }
+  return { cells: [...cells], deepImporters, pathReaders };
 }
 
 /**
- * Today's report: every row, the findings keyed by path, the root test count and the per-cell seal rows.
+ * Today's report: every row, the findings keyed by path, the root test count, the per-cell seal rows, and each test that reads
+ * a cell by path with the cells it reads.
  *
  * @param {string} root
  * @param {object} [options] - As classifyTests, plus `facts` ({ cells, deepImporters }) to skip reading the source tree.
@@ -282,7 +353,8 @@ export function testCellsReport(root, { facts, ...options } = {}) {
   const rows = classifyTests(root, options);
   const findings = {};
   for (const row of rows.filter(entry => entry.kind === 'finding')) findings[row.file] = row.problems.map(problem => problem.text);
-  return { rows, findings, rootTests: rootTestCount(rows, (options.listing ?? readListing(root)).splits), cells: sealedReport(rows, facts ?? cellFacts(root)) };
+  const seen = facts ?? cellFacts(root);
+  return { rows, findings, rootTests: rootTestCount(rows, (options.listing ?? readListing(root)).splits), cells: sealedReport(rows, seen), pathReaders: seen.pathReaders ?? {} };
 }
 
 /**
@@ -347,6 +419,10 @@ export function testCellsProblems(root, options = {}) {
     for (const problem of row.problems) add(row.file, problem.line, `new test finding exceeds the ratchet: ${problem.text}`);
   }
   if (current.rootTests > listing.rootTests) add('test', 1, `${current.rootTests} root test files exceed the ratchet of ${listing.rootTests}; put new tests in their cell's tests/ folder`);
+  for (const row of current.cells) {
+    const ceiling = (listing.pathReaders ?? {})[row.cell] ?? 0;
+    if (row.pathReaders > ceiling) add(row.cell.startsWith('apps/') ? row.cell : `packages/${row.cell}`, 1, `${row.pathReaders} tests outside cell ${row.cell} read its files by path, over the ratchet of ${ceiling}; import its front door instead of reading its source`);
+  }
   const sealedNow = new Set(current.cells.filter(row => row.sealed).map(row => row.cell));
   for (const cell of listing.sealed.filter(name => !sealedNow.has(name))) add(cell.startsWith('apps/') ? cell : `packages/${cell}`, 1, `cell ${cell} is no longer sealed: a test breaks a cell-test rule or a file imports past its front door`);
   return problems;
@@ -365,7 +441,8 @@ export function writeTestCells(root, { initialize = false } = {}) {
   }
   const findings = {};
   for (const file of Object.keys(current.findings).sort()) findings[file] = current.findings[file][0];
-  const next = { ...listing, findings, rootTests: current.rootTests, sealed: current.cells.filter(row => row.sealed).map(row => row.cell) };
+  const pathReaders = Object.fromEntries(current.cells.filter(row => row.pathReaders).map(row => [row.cell, Math.min(row.pathReaders, (listing.pathReaders ?? {})[row.cell] ?? Infinity)]));
+  const next = { ...listing, findings, rootTests: current.rootTests, pathReaders, sealed: current.cells.filter(row => row.sealed).map(row => row.cell) };
   writeFileSync(resolve(root, LISTING), `${JSON.stringify(next, null, 2)}\n`);
   return [];
 }
@@ -373,8 +450,8 @@ export function writeTestCells(root, { initialize = false } = {}) {
 if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   const flags = ['--report', '--sealed', '--write', '--init'];
   const root = resolve(process.argv.slice(2).find(argument => !flags.includes(argument)) ?? '.');
-  if (process.argv.includes('--sealed')) console.log(testCellsReport(root).cells.map(row => `${row.cell}\t${row.sealed ? 'sealed' : 'open'}\t${row.tests} tests\t${row.findings} findings\t${row.deepImporters} deep importers`).join('\n'));
-  else if (process.argv.includes('--report')) { const current = testCellsReport(root); console.log(JSON.stringify({ findings: current.findings, rootTests: current.rootTests, cells: current.cells }, null, 2)); }
+  if (process.argv.includes('--sealed')) console.log(testCellsReport(root).cells.map(row => `${row.cell}\t${row.sealed ? 'sealed' : 'open'}\t${row.tests} tests\t${row.findings} findings\t${row.deepImporters} deep importers\t${row.pathReaders} path readers`).join('\n'));
+  else if (process.argv.includes('--report')) { const current = testCellsReport(root); console.log(JSON.stringify({ findings: current.findings, rootTests: current.rootTests, cells: current.cells, pathReaders: current.pathReaders }, null, 2)); }
   else if (process.argv.includes('--write') || process.argv.includes('--init')) report(writeTestCells(root, { initialize: process.argv.includes('--init') }));
   else report(testCellsProblems(root));
 }

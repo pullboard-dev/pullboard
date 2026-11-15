@@ -5,7 +5,7 @@ import { quarantineBatchGates } from '../../../../verify/index.js';
 import { landingWaiverFor as nativeLandingWaiverFor } from '../../logic/waivers.js';
 /** Coordinator landing publish step; source-preserving partition of land.js [B3,R3,C7]. */
 import { finalizeLandingEnvelope } from '../land/envelope.js';
-import { prepareNativeTrainLanding } from '../train.js';
+import { prepareNativeTrainLanding } from '../trainrecord.js';
 import { finishLanding } from '../finish.js';
 import { mergeOnlyLandingProblem } from '../../../../merge/index.js';
 import { requireOutsideOwner } from '../../../../items/index.js';

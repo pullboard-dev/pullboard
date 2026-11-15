@@ -1,10 +1,8 @@
 import { fileURLToPath } from 'node:url';
 /** SQLite fixture boards default to memory; disk is an explicit boundary contract [C7]. */
 import {
-  mkdtempSync,
   rmSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 // The board composition root by its module, not the library front door: that door also exports the CLI's main (#3852).
 import { openBoard } from '../../../lib/index.js';
@@ -38,18 +36,16 @@ import {
 import { checkpointPublisher } from '../../../../packages/outbox/index.js';
 import { relayOrdering } from '../../../../packages/outbox/index.js';
 
+export { temporaryDirectory };
 const FILE_PURPOSES = new Set(['persistence', 'locking', 'migration']);
 
-/** Make an empty temporary directory; the caller removes it. The single place fixtures create one [C7]. */
-export function temporaryDirectory(prefix) {
-  return mkdtempSync(join(tmpdir(), prefix));
-}
+import { temporaryDirectory } from '../../../../packages/store/tests/fixtures/tmp.js';
 
 /**
  * Open the production schema and moves in memory, with cleanup owned by the test.
  * A file requires a named database boundary; an unsupported mode never silently falls back.
  */
-export function fixtureBoard(t, { clock, storage = 'memory', purpose } = {}) {
+export function fixtureBoard(t, { clock, storage = 'memory', purpose, file: existing } = {}) {
   if (storage !== 'memory' && storage !== 'file') {
     throw new Refused('TEST_BOARD_STORAGE', 'choose memory, or file with a persistence, locking or migration purpose');
   }
@@ -58,7 +54,8 @@ export function fixtureBoard(t, { clock, storage = 'memory', purpose } = {}) {
   }
   let file = ':memory:';
   let directory;
-  if (storage === 'file') {
+  if (storage === 'file' && existing) file = existing; // the caller owns this file and its folder
+  else if (storage === 'file') {
     directory = temporaryDirectory('pullboard-board-contract-');
     file = join(directory, 'board.sqlite');
   }

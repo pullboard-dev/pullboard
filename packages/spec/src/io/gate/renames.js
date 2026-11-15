@@ -1,8 +1,8 @@
 /** Real Git rename hints for approved requirements whose gate disappeared [B23,N39]. */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { gitSpawnSync } from '../../../../git/index.js';
-import { cleanGitEnvironment } from '../../../../git/index.js';
+import { gitSpawnSync } from '../../../../git/light.js';
+import { cleanGitEnvironment } from '../../../../git/light.js';
 
 /** Follow recorded renames in chronological order; never guess a replacement from similar names. */
 export function renamedGatePath(root, file) {

@@ -1,10 +1,9 @@
-/** @pullboard-test-input packages/resources/src/io/handoff/worker/cap.js */
-/** Finished submit-handoff folders are pruned within 30 minutes by the dispatcher loop [C7,#3292]. */
+/** @pullboard-test-input packages/resources/src/io/handoff/prune.js */
+/** Finished submit-handoff folders are pruned within 30 minutes by the board's sweep [C7,#3292]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -45,11 +44,4 @@ test('clause 1: A submit-handoffs folder whose gate ended (green, red or infra) 
   const removed = pruneFinishedHandoffs([root], { protect: new Set(['spared', 'running']) });
   assert.deepEqual(removed.sort(), [green, infra, red].sort());
   for (const kept of [recent, queued, running, spared]) assert.ok(existsSync(kept), kept);
-});
-
-test('clause 2: The sweep runs on its own from the dispatcher loop, with no person or agent command [C7,#3292]', () => {
-  const source = readFileSync(new URL('../../../src/io/handoff/worker/cap.js', import.meta.url), 'utf8');
-  const loop = source.slice(source.indexOf('async function dispatchWhileQueued'));
-  assert.match(loop, /sweepFinished\(running\)/u);
-  assert.match(loop, /rememberHandoffRoot\(launch\.directory\)/u);
 });

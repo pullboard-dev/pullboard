@@ -44,8 +44,6 @@ RFC 0006's K1–K10 (CD1–CD10) and the liveness invariant hold. In addition:
 - [DJ4] A payload is small JSON that names inputs by id: commit and tree ids, runner, shard list, receipt id, result digest. A payload never holds a path to something a sweep may delete.
 - [DJ5] Every step a driver takes is written before the next one starts.
 
-**As built.** Item branch `core/item-3403` adds the `job` and `job_step` tables as an additive board upgrade (`packages/store/src/io/board/jobs.js`, created on the next owning open) and the `jobs` cell's `createJob`, `writeStep` and `jobView`. Creating an existing id returns it unchanged; `writeStep` is a no-op on a repeat. Not on main as of 4032b7655e.
-
 ## 2. The state machine
 
 ```
@@ -72,8 +70,6 @@ queued ──take──► captured ──send──► running(runner R, shard 
 - [DJ17] `show` and `status` read the job view. A job whose lease lapsed shows as "stalled (reclaimable)" with its age, never as running.
 - [DJ18] Review reservations are leases on the same rules.
 
-**As built.** Item branch `core/item-3404` adds `takeJob`, `renewLease`, `reclaimLapsed` and `LEASE_MS = 120000`. `takeJob` frees a job 2 minutes after its last renewal, as DJ14 says, but `reclaimLapsed` lists a job only when its lease lapsed at least another 2 minutes ago, so a reclaim pass first finds a silent job 4 minutes after its last renewal. DJ14 asks that branch to list on `lease_until < now`.
-
 ## 4. Cells
 
 | cell | holds | front door | replaces |
@@ -87,8 +83,6 @@ queued ──take──► captured ──send──► running(runner R, shard 
 
 - [DJ19] Edges run top-down only: `land` → `receipt`, `jobs`, `pin`; `drive` → `jobs`, `transport`, `receipt`, `pin`; `receipt` → `pin`; `transport` → `pin`; `jobs` → the kernel and the store only. No cell imports `drive` or `land`. The edge ratchet enforces the table.
 - [DJ20] Existing cells shrink: `gate` keeps what runs (the test planner, shards, static checks) and loses state and dispatch; `resources` keeps runner registration and slot capacity as facts `transport` reads, and loses leases and quarantine; `landing` becomes `land` and loses its worker; submit's enqueue becomes a `jobs` call.
-
-**As built on main.** `pin`: `treeOf`, `pinFor`, `bundleFor` (a plain tar keyed by tree id, written atomically, reused when present), `cachePath`, `cacheFor` (rebuilds a missing cache from its bundle) and `sweepCaches` (keeps the trees queued jobs name). `transport`: `createTransport`, `sharedTransport`, `connect` (one reused channel per runner host), `probe` (its own call, apart from the channel), with requests framed by nonce over a plain `sh`. `receipt`: `judge`, `verdictStep`, `settle`. On item branch `core/item-3407`: the per-landing tooling pin.
 
 ## 5. Derived results and enforcement
 

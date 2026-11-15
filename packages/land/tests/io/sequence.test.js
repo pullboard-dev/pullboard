@@ -18,7 +18,7 @@ const refused = code => error => error.code === code;
 
 /** A repo with a base commit and a candidate on top, a board's db, and a landing job named `land:1`. */
 function landing(t) {
-  const repo = cellRepo(t);
+  const repo = cellRepo(t, {});
   repo.put('feature.txt', 'candidate\n');
   const candidate = repo.commitAll();
   const db = cellBoard(t, ':memory:').db;

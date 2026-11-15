@@ -131,7 +131,9 @@ test('clock windows retain cached reads and refresh exact boundaries and backwar
   const twoHours = await observe(2 * HOUR, 2);
   assert.equal(twoHours.milestones.find(row => row.name === 'Clock pace').summary.pace.last2h, 0, 'pace excludes its exact lower boundary');
   const threeHours = await observe(3 * HOUR, 3);
-  assert.equal(threeHours.items[0].progress.idleMinutes - twoHours.items[0].progress.idleMinutes, 60, 'idle time refreshes without a native move [B35]');
+  /** Idle minutes as a reader derives them: items carry no idle clock (461f2e43b1), only last activity and the read's observedAt. */
+  const idle = state => Math.floor((Date.parse(state.observedAt) - Date.parse(state.items[0].progress.lastActivity)) / 60_000);
+  assert.equal(idle(threeHours) - idle(twoHours), 60, 'idle time refreshes without a native move [B35]');
   await observe(2.5 * HOUR, 4); // A backwards clock rebuilds even without crossing a pace boundary.
   const sixHours = await observe(6 * HOUR, 5);
   assert.equal(sixHours.milestones.find(row => row.name === 'Clock pace').summary.pace.last6h, 0);

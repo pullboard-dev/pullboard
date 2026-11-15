@@ -21,6 +21,7 @@ import {
 } from '../../../intake.js';
 import * as store from '../../../../../../../packages/store/index.js';
 import { openBoard } from '../../../../../../lib/index.js';
+import { settledGateJob } from '../../../submit/settle.js';
 
 /** Observe genuine rare journeys and reject absent/non-native receipts before checking the live API.
  * Ports must run existing real CLI journeys, not return fabricated events or precomputed counts.
@@ -40,7 +41,7 @@ export async function seedRareLifecycleJourneys({ board, journeys, readProject }
   for (const [name, kinds] of requirements) {
     assert.equal(typeof journeys[name], 'function', 'wire the existing real ' + name + ' journey');
     const before = store.events(board).at(-1)?.event_id ?? 0;
-    console.log('PULLBOARD_LIFECYCLE_NATIVE ' + name);
+    console.log('PULLBOARD_LIFECYCLE_NATIVE ' + name + ' @' + Date.now());
     let id;
     try { id = await journeys[name](); }
     catch (error) { throw new Error(name + ': ' + error.message, { cause: error }); }
@@ -74,11 +75,11 @@ export function lifecycleReceiptFence(board) {
  */
 export function nativeRareJourneys(t, { box, demo, readProject }) {
   assert.equal(typeof readProject, 'function', 'use the real authenticated full-state API');
-  /** Read one ordinary native JSON result; no receipt/proof inputs are manufactured. */
-  const json = (root, ...args) => JSON.parse(box.run(root, ...args, '--json'));
+  /** Read one ordinary native JSON result, in this process so no case pays a node launch per command [C7]; no receipt/proof inputs are manufactured. */
+  const json = async (root, ...args) => JSON.parse(await box.inProcess(root, ...args, '--json'));
   /** Add a real native fixture item with an executable frozen check. */
-  const add = (root, title, check = 'node --check web/lifecycle-fixture.js') => json(root, 'add', 'web', title, '--specs', 'G1',
-    '--criterion', 'The fixture module parses.', '--check', check).item.item_id;
+  const add = async (root, title, check = 'node --check web/lifecycle-fixture.js') => (await json(root, 'add', 'web', title, '--specs', 'G1',
+    '--criterion', 'The fixture module parses.', '--check', check, '--accept-green', 'the fixture module already parses on main')).item.item_id;
   /** Commit actual private source bytes through the existing fixture hooks. */
   const commit = (root, file, content, message) => {
     mkdirSync(dirname(join(root, file)), { recursive: true });
@@ -89,17 +90,17 @@ export function nativeRareJourneys(t, { box, demo, readProject }) {
   };
   const reviewers = new Map();
   /** Keep the coordinator on main while a genuinely registered independent seat checks exact source. */
-  const seatFor = (root, lane = 'web') => {
+  const seatFor = async (root, lane = 'web') => {
     const key = root + '\0' + lane;
-    if (!reviewers.has(key)) reviewers.set(key, json(root, 'worktree', lane, '--model', 'Lifecycle reviewer fixture'));
+    if (!reviewers.has(key)) reviewers.set(key, await json(root, 'worktree', lane, '--model', 'Lifecycle reviewer fixture'));
     return reviewers.get(key);
   };
-  const reviewerFor = root => seatFor(root).path;
+  const reviewerFor = async root => (await seatFor(root)).path;
   /** Independently verify from the submitted source through its registered native reviewer. */
-  const accept = (root, id, head) => {
-    const reviewer = reviewerFor(root);
+  const accept = async (root, id, head) => {
+    const reviewer = await reviewerFor(root);
     box.git(reviewer, 'switch', '-q', '--detach', head);
-    json(reviewer, 'verify', String(id), 'accept', '--note',
+    await json(reviewer, 'verify', String(id), 'accept', '--note',
       'The actual frozen fixture command passed.', '--no-next');
   };
   /** Generate exact native companion bytes from a clean private Git index, then restore that index. */
@@ -124,10 +125,10 @@ export function nativeRareJourneys(t, { box, demo, readProject }) {
       const source = project(box, 'lifecycle-import-source');
       commit(source.repo, 'web/lifecycle-fixture.js', 'export const fixture = true;\n', 'test(web): parse imported lifecycle source');
       box.git(source.web, 'merge', '-q', '--no-edit', 'main');
-      const id = add(source.repo, 'Accepted imported work');
+      const id = await add(source.repo, 'Accepted imported work');
       build(box, source, id, 'import-proof.txt');
       const head = box.git(source.web, 'rev-parse', 'HEAD');
-      accept(source.repo, id, head);
+      await accept(source.repo, id, head);
       const from = openBoard(join(source.repo, '.git', 'pullboard', 'board.sqlite'));
       const to = openBoard(join(demo.repo, '.git', 'pullboard', 'board.sqlite'));
       try {
@@ -151,22 +152,22 @@ export function nativeRareJourneys(t, { box, demo, readProject }) {
       commit(demo.repo, file, "export const choice = 'base';\n", 'feat(web): base lifecycle choice');
       box.git(demo.web, 'switch', '-q', demo.baseBranch);
       box.git(demo.web, 'merge', '-q', '--no-edit', 'main');
-      const id = add(demo.repo, 'Keep an accepted merge choice', 'node --check ' + file);
-      json(demo.web, 'claim', String(id));
+      const id = await add(demo.repo, 'Keep an accepted merge choice', 'node --check ' + file);
+      await json(demo.web, 'claim', String(id));
       const accepted = commit(demo.web, file, "export const choice = 'accepted';\n", 'feat(web): accepted lifecycle choice');
-      json(demo.web, 'submit', String(id), '--no-next');
-      accept(demo.repo, id, accepted);
+      await json(demo.web, 'submit', String(id), '--no-next');
+      await accept(demo.repo, id, accepted);
       commit(demo.repo, file, "export const choice = 'trunk';\n", 'feat(web): changed lifecycle trunk');
-      json(demo.repo, 'reopen', String(id), '--conflict', file);
-      json(demo.web, 'claim', String(id));
+      await json(demo.repo, 'reopen', String(id), '--conflict', file);
+      await json(demo.web, 'claim', String(id));
       // This is an intentional real Git conflict, checked without treating it as a command success.
       let conflicted = false;
       try { box.git(demo.web, 'merge', '-q', '--no-edit', 'main'); }
       catch { conflicted = box.git(demo.web, 'diff', '--name-only', '--diff-filter=U').split('\n').includes(file); }
       assert.equal(conflicted, true, 'the merge-only fixture must resolve its actual named conflict');
       commit(demo.web, file, "export const choice = 'resolved';\n", 'fix(web): resolve accepted lifecycle merge');
-      json(demo.web, 'submit', String(id), '--no-next');
-      const item = json(demo.repo, 'show', String(id));
+      await json(demo.web, 'submit', String(id), '--no-next');
+      const item = await json(demo.repo, 'show', String(id));
       assert.equal(item.item_status, 'verified');
       return id;
     },
@@ -194,7 +195,7 @@ export function nativeRareJourneys(t, { box, demo, readProject }) {
     },
     /** Attach actual Git-generated companion bytes with native coordinator author/source binding. */
     patch: async () => {
-      const id = add(demo.repo, 'Attach a native lifecycle companion');
+      const id = await add(demo.repo, 'Attach a native lifecycle companion');
       build(box, demo, id, 'patch-proof.txt');
       const head = box.git(demo.web, 'rev-parse', 'HEAD');
       const file = 'docs/lifecycle-companion.txt';
@@ -207,7 +208,7 @@ export function nativeRareJourneys(t, { box, demo, readProject }) {
       unlinkSync(join(demo.repo, file));
       const path = join(box.dir, 'lifecycle-companion.patch');
       writeFileSync(path, bytes);
-      json(demo.repo, 'patch', 'attach', String(id), path, '--key', 'lifecycle-route', '--author', 'coordinator', '--source', head);
+      await json(demo.repo, 'patch', 'attach', String(id), path, '--key', 'lifecycle-route', '--author', 'coordinator', '--source', head);
       const board = openBoard(join(demo.repo, '.git', 'pullboard', 'board.sqlite'));
       try {
         assert.equal(store.itemPatches(board, id)[0].patch, bytes);
@@ -217,40 +218,40 @@ export function nativeRareJourneys(t, { box, demo, readProject }) {
     },
     /** Invalidate an actual independent ACCEPT through the distinct Verified-to-In-review patch route. */
     verifiedPatch: async () => {
-      const id = add(demo.repo, 'Update genuinely verified work');
+      const id = await add(demo.repo, 'Update genuinely verified work');
       build(box, demo, id, 'verified-patch-proof.txt');
       const head = box.git(demo.web, 'rev-parse', 'HEAD');
-      accept(demo.repo, id, head);
-      assert.equal(json(demo.repo, 'show', String(id)).item_status, 'verified');
+      await accept(demo.repo, id, head);
+      assert.equal((await json(demo.repo, 'show', String(id))).item_status, 'verified');
       const patch = patchFile('verified-lifecycle-companion');
-      json(demo.repo, 'patch', 'attach', String(id), patch.path, '--key', 'verified-lifecycle-route',
+      await json(demo.repo, 'patch', 'attach', String(id), patch.path, '--key', 'verified-lifecycle-route',
         '--author', 'coordinator', '--source', head);
-      assert.equal(json(demo.repo, 'show', String(id)).item_status, 'submitted');
+      assert.equal((await json(demo.repo, 'show', String(id))).item_status, 'submitted');
       return id;
     },
     /** Attach and remove within the same genuine claim, then run the ordinary exact-source Submit. */
     claimedPatch: async () => {
-      const id = add(demo.repo, 'Update while building then submit');
+      const id = await add(demo.repo, 'Update while building then submit');
       box.git(demo.web, 'switch', '-q', demo.baseBranch);
-      json(demo.web, 'claim', String(id));
+      await json(demo.web, 'claim', String(id));
       const head = commit(demo.web, 'web/claimed-patch-proof.js', 'export const claimed = true;\n',
         'feat(web): real claimed companion source');
-      const before = json(demo.repo, 'show', String(id));
+      const before = await json(demo.repo, 'show', String(id));
       const countsBefore = (await readProject()).moveCounts;
       const patch = patchFile('claimed-lifecycle-companion');
-      json(demo.repo, 'patch', 'attach', String(id), patch.path, '--key', 'claimed-lifecycle-route',
+      await json(demo.repo, 'patch', 'attach', String(id), patch.path, '--key', 'claimed-lifecycle-route',
         '--author', 'coordinator', '--source', head);
-      const attached = json(demo.repo, 'show', String(id));
-      json(demo.repo, 'patch', 'remove', String(id), 'claimed-lifecycle-route');
-      const removed = json(demo.repo, 'show', String(id));
+      const attached = await json(demo.repo, 'show', String(id));
+      await json(demo.repo, 'patch', 'remove', String(id), 'claimed-lifecycle-route');
+      const removed = await json(demo.repo, 'show', String(id));
       for (const actual of [attached, removed]) {
         assert.equal(actual.item_status, 'claimed');
         assert.equal(actual.item_owner, before.item_owner);
         assert.equal(actual.item_lease_until, before.item_lease_until);
         assert.equal(actual.item_frozen_digest, before.item_frozen_digest);
       }
-      json(demo.web, 'submit', String(id), '--no-next');
-      const submitted = json(demo.repo, 'show', String(id));
+      await json(demo.web, 'submit', String(id), '--no-next');
+      const submitted = await json(demo.repo, 'show', String(id));
       assert.equal(submitted.item_status, 'submitted');
       assert.equal(submitted.item_commit, head);
       const countsAfter = (await readProject()).moveCounts;
@@ -261,18 +262,24 @@ export function nativeRareJourneys(t, { box, demo, readProject }) {
     },
     /** The owning lane objects inside the window to a companion the builder recorded at Submit, reopening the item. */
     objected: async () => {
-      const id = add(demo.repo, 'Owner objects to a recorded companion');
+      const id = await add(demo.repo, 'Owner objects to a recorded companion');
       // Its own branch from main: the earlier journeys' submitted commits stay unverified and must not stack under this one.
       box.git(demo.web, 'switch', '-q', '-c', demo.baseBranch + '-objected-' + id, 'main');
-      json(demo.web, 'claim', String(id));
+      await json(demo.web, 'claim', String(id));
       commit(demo.web, 'web/objected-proof.js', 'export const objected = true;\n', 'feat(web): real objected companion source');
-      const owner = seatFor(demo.repo, 'api');
+      const owner = await seatFor(demo.repo, 'api');
       const patch = patchFile('objected-lifecycle-companion', 'api');
-      json(demo.web, 'submit', String(id), '--companion', patch.path, '--key', 'objected-lifecycle-route',
+      await json(demo.web, 'submit', String(id), '--companion', patch.path, '--key', 'objected-lifecycle-route',
         '--author', owner.agent, '--wait', '--no-next');
-      assert.equal(json(demo.repo, 'show', String(id)).item_status, 'submitted');
-      json(owner.path, 'patch', 'object', String(id), 'objected-lifecycle-route', '--note', 'The owning lane needs a different interface.');
-      assert.equal(json(demo.repo, 'show', String(id)).item_status, 'open');
+      // The gate's receipt reaches the item just after its job is done; wait on that settled gate like the other fixtures do, never read it once.
+      const run = async (cwd, ...args) => {
+        try { return { code: 0, out: await box.inProcess(cwd, ...args), err: '' }; } catch (error) { return { code: 1, out: '', err: String(error.message) }; }
+      };
+      await settledGateJob({ repo: demo.repo, env: box.env, run }, id, { until: item => item.item_status !== 'claimed' }).catch(() => null);
+      const shown = await json(demo.repo, 'show', String(id));
+      assert.equal(shown.item_status, 'submitted', 'the companion submit reached review: ' + JSON.stringify({ progress: shown.progress, refusal: shown.item_refusal, gate: shown.item_gate }));
+      await json(owner.path, 'patch', 'object', String(id), 'objected-lifecycle-route', '--note', 'The owning lane needs a different interface.');
+      assert.equal((await json(demo.repo, 'show', String(id))).item_status, 'open');
       return id;
     },
   };

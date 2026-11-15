@@ -25,7 +25,7 @@ import { workQueue } from '../../../../items/index.js';
 import { milestoneRoadmap } from '../../../../roadmap/index.js';
 import { listApiProjects } from '../../../../seats/index.js';
 import { eligibilityProblem } from '../../../../verify/index.js';
-import { submitFixture } from '../../../../../apps/cli/tests/fixtures/board/submit.js';
+import { submitFixture } from '../../fixtures/submit.js';
 import { cellBoard } from '../../fixtures/cell.js';
 import { cellItem } from '../../fixtures/cell.js';
 import { cellProject } from '../../fixtures/cell.js';
@@ -40,8 +40,8 @@ const SETUP = 'fixture release setup';
  * with a merge commit), accepted (verified only) and open. No CLI, hooks or init run, and git is isolated from the machine.
  */
 function fixture(t) {
-  const project = cellProject(t);
-  const board = cellBoard(t, project.boardFile, undefined, { gitRoot: project.repo });
+  const project = cellProject(t, { real: true });
+  const board = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: project.repo });
   store.board_ensureCoordinator(board, project.repo);
   const builder = cellSeat(board, { lane: 'web', path: `${project.dir}/builder` }).id;
   const freeze = item => ({ text: JSON.stringify({ title: item.item_title, criterion: item.item_criterion, rows: [] }), digest: 'digest:tracked' });
@@ -149,7 +149,7 @@ test('[N26] a milestone ships what landed and moves the rest', (t) => {
   const replicas = [];
   try {
     for (const name of ['UTC', 'America/Chicago']) {
-      const replica = cellBoard(t, join(box.project.dir, `zone-${name.replace('/', '-')}.sqlite`));
+      const replica = cellBoard(t, join(box.project.dir, `zone-${name.replace('/', '-')}.sqlite`), undefined, { real: true });
       importBoard(replica, snapshot);
       process.env.TZ = name;
       const refused = applyEngineMove(replica, bare, { sequence: 1, at: '2026-10-17T04:00:00.000Z' });

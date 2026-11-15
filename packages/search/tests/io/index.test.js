@@ -17,7 +17,8 @@ import { readSearchIndex } from '../../index.js';
 import { searchItems } from '../../index.js';
 
 /** The two command files that may use the search cell: search prints matches, add prints advice. */
-const COMMANDS = ['apps/cli/src/io/commands/search.js', 'apps/cli/src/io/commands/add.js'];
+// duplicate.js is the add command's likely-duplicate guard (nearest open items, cbfae54ddb), so it reads the search cell for add.
+const COMMANDS = ['apps/cli/src/io/commands/search.js', 'apps/cli/src/io/commands/add.js', 'apps/cli/src/io/item/duplicate.js'];
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 
 /** A board with items whose words sit in different fields, plus a temporary sidecar path. */

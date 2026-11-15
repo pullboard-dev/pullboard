@@ -34,7 +34,7 @@ function body(seed, kilobytes) {
 
 /** A board on a real file with the job tables a writable open installs. */
 function boardOf(t) {
-  const board = cellBoard(t, cellProject(t).boardFile);
+  const board = cellBoard(t, cellProject(t, { real: true }).boardFile, undefined, { real: true });
   return { board, db: board.db, dir: blobDirOf(board.db) };
 }
 
@@ -82,8 +82,10 @@ test('clause 1: a gate hand-off record stays in the row whatever its size [C7]',
 });
 
 test('clause 2: the upgrade moves oversized payloads, keeps only the newest cells-inventory body and compacts the file [C7]', (t) => {
-  const project = cellProject(t);
-  let board = openCellBoard(project.boardFile);
+  const project = cellProject(t, { real: true });
+  // Only code run from the main checkout upgrades a repository board, and a runner's worktree is not it; a plain board file is upgraded by whoever opens it.
+  const file = join(project.dir, 'upgrade', 'board.sqlite');
+  let board = openCellBoard(file);
   const bodies = ['t1', 't2', 't3'].map(tree => ({ result: body(tree, 600), owner: 'a' }));
   for (const [index, payload] of bodies.entries()) {
     createJob(board.db, { id: `cells-inventory:t${index + 1}`, kind: 'cells-inventory', candidate: `t${index + 1}` });
@@ -94,7 +96,6 @@ test('clause 2: the upgrade moves oversized payloads, keeps only the newest cell
   const collected = { sections: body('c', 100) };
   board.db.prepare('INSERT INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, ?, 0, ?, 0)')
     .run('gate-drive:x', 'collected', JSON.stringify(collected));
-  const file = project.boardFile;
   board.db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
   const before = statSync(file).size;
   assert.ok(before > 1_800_000);

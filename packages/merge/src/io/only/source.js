@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import {
   cleanGitEnvironment,
   mainCheckout,
-} from '../../../../git/index.js';
+} from '../../../../git/light.js';
 
 /** Read immutable objects with fixed merge rules, bounded time/output and no external diff drivers. */
 function readGit(root, args, statuses, deadline) {

@@ -25,6 +25,7 @@ import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
 import { tryGit } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
+import { storeName } from './store-names.js';
 
 const TABLES = ['packages/codemap/data/plan/renames.tsv', 'packages/codemap/data/plan/plan/renames.tsv'];
 const HISTORY = /(^|\/)(?:move-history|history)\/\d+\.json$/u;
@@ -524,7 +525,7 @@ async function raiseEdgeCeilings(root, contents, summary) {
 
 /** Add the empty per-cell baseline shard that the new path-map shard needs. */
 function emptyCellShard(contents, descriptorPath, name) {
-  const path = `${dirname(descriptorPath)}/cells/${name}.json`;
+  const path = `${dirname(descriptorPath)}/cells/${storeName(name)}`;
   if (contents.has(path)) return;
   const payload = { version: 1, cell: name, baseSha256: digest(contents.get(descriptorPath)), metrics: {} };
   contents.set(path, encodeBaseline({ ...payload, sha256: digest(encodeBaseline(payload)) }));

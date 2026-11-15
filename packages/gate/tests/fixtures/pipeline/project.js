@@ -137,7 +137,7 @@ export function dispatchers(home) {
 
 /**
  * The tooling digest a shared tools snapshot is named by: the git ids of bin, apps, packages, src and package.json at
- * the tool root's HEAD, as `toolingDigest` in apps/cli/src/io/submit/handoff.js computes it. Null outside git.
+ * the tool root's HEAD, as `toolingDigest` in apps/cli/src/io/toolsnapshot.js computes it. Null outside git.
  *
  * @param {string} root
  * @returns {string | null}

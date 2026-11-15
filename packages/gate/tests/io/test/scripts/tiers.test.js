@@ -27,6 +27,8 @@ function fixture(t, sources) {
     mkdirSync(dirname(join(root, file)), { recursive: true });
     writeFileSync(join(root, file), source);
   }
+  // The inventory reads tracked files only (6193b1e81b), so stage the synthetic sources.
+  runFixtureGit(['add', '-A'], { cwd: root });
   return root;
 }
 

@@ -15,7 +15,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from "../../../../store/index.js";
 import { openCellBoard as openBoard } from "../../../../store/tests/fixtures/cell.js";
-import { submitFixture } from "../../../../../apps/cli/tests/fixtures/board/submit.js";
+import { submitFixture } from "../../../../store/tests/fixtures/submit.js";
 
 const COMMIT = 'a'.repeat(40);
 const TRUNK = 'b'.repeat(40);

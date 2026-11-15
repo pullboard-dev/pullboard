@@ -37,11 +37,13 @@ import {
   releaseReceiptBody,
   releaseReceiptFields,
   releaseReceiptProblem,
+  releaseTiming,
   readReleaseReceipt,
 } from './release/receipt.js';
 import {
   Refused,
 } from '../../../kernel/index.js';
+import { storeName } from './store-names.js';
 
 /** Bind a release to the accepted coordinator head and accepted command, with no dirty-tree substitute. */
 export function releaseSource(root) {
@@ -51,13 +53,23 @@ export function releaseSource(root) {
   return { head, tree, command: createHash('sha256').update(policy.config.gate).digest('hex'), policy };
 }
 
+/** The folder of a repository's native release receipts: the one place that names it (registry owner, #6743). */
+export function releaseReceiptDirectory(root) {
+  return join(repoInfo(root).commonDir, 'pullboard', 'release-receipts');
+}
+
+/** The path of one native release receipt. */
+export function releaseReceiptFile(root, id) {
+  return join(releaseReceiptDirectory(root), storeName(id));
+}
+
 /** Verify only this repository's privately recorded execution and its native gate bytes, never an imported file. */
 export function verifyNativeReleaseReceipt(root, id, executionServices) {
   if (typeof id !== 'string' || !/^[a-f0-9-]{36}$/u.test(id)) return null;
   try {
     const source = releaseSource(root);
     const { releaseExecutors } = requireGateExecutionServices(executionServices).landing;
-    const file = join(repoInfo(root).commonDir, 'pullboard', 'release-receipts', `${id}.json`);
+    const file = releaseReceiptFile(root, id);
     // Current registration is independently observed; a caller cannot shrink the required machine set.
     const expected = { head: source.head, tree: source.tree, command: source.command,
       required: releaseExecutors().map(entry => entry.id) };
@@ -83,21 +95,21 @@ export async function runReleaseGate(root, { agent = 'release', onWait, executio
   const gateReceipt = readGateReceipt(receiptStore(root), run.receiptId);
   const observed = run.releaseParticipation;
   const expected = { head: source.head, tree: source.tree, command: source.command, required: executors.map(entry => entry.id) };
-  const envelope = { version: 1, gateReceipt, participation: observed };
+  const timing = releaseTiming(observed);
+  const envelope = { version: 1, gateReceipt, participation: observed, ...(timing ? { timing } : {}) };
   const problem = releaseReceiptProblem(envelope, expected);
   if (!run.isGreen || problem) {
     throw new Refused('GATE_RUN_EVIDENCE', `release gate did not produce complete green evidence: ${problem ?? 'the actual gate failed'}; inspect its native gate log`);
   }
   const coordinator = checkCoordinatorRelease(root, { personOverride });
   // Only this execution path writes native release custody. The structural reader has no writer.
-  const directory = join(repoInfo(root).commonDir, 'pullboard', 'release-receipts');
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
-  const file = join(directory, `${request.id}.json`);
+  mkdirSync(releaseReceiptDirectory(root), { recursive: true, mode: 0o700 });
+  const file = releaseReceiptFile(root, request.id);
   const body = releaseReceiptBody(envelope, expected);
   writeFileSync(file, body, { flag: 'wx', mode: 0o600 });
   recordCoordinatorRelease(root, request.id, source.head, coordinator);
   // This private execution path has now checked the actual full receipt, source and all executor custody.
   writeFileSync(gitPath(root, 'pullboard-gate-green'), `${source.tree}\n`);
-  return { receipt: releaseReceiptFields(envelope, expected), file,
-    seconds: Math.ceil((Date.now() - Date.parse(startedAt)) / 1000), gateLog: run.log, profilePath: run.profilePath };
+  return { receipt: releaseReceiptFields(envelope, expected), file, timing,
+    seconds: timing?.seconds ?? Math.ceil((Date.now() - Date.parse(startedAt)) / 1000), overBudget: timing?.status === 'OVER_BUDGET', gateLog: run.log, profilePath: run.profilePath };
 }

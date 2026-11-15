@@ -3,6 +3,7 @@
  * lease, so main moves only through a landing (#5848) [B3,P7]. A local merge in the board host's checkout is not a push
  * and never runs this hook; only pushes into the guarded repository do.
  * This file imports only node: built-ins and the permit logic, since installTrunkGuard copies both into the remote.
+ * So its one literal Git launch cannot use the adapter, and the launch allowance records it in place of a migrated caller.
  */
 import { execFile } from 'node:child_process';
 import { readFileSync } from 'node:fs';

@@ -86,7 +86,7 @@ function runnerSlots(board) {
  * Why: a seat builds its next item while the last one's tests run; free test-run slots per live seat bound that.
  * perSeat is the claims.perSeat setting the claiming command read, so a replay reads the same number.
  */
-function claimsPerSeat(board, perSeat = null) {
+export function claimsPerSeat(board, perSeat = null) {
   if (Number.isSafeInteger(perSeat) && perSeat >= 1) return { n: perSeat, how: `claims.perSeat sets ${perSeat}` };
   const runners = runnerSlots(board);
   const slots = runners ?? availableParallelism();
@@ -95,8 +95,24 @@ function claimsPerSeat(board, perSeat = null) {
   return { n, how: `N = clamp(1, 5, floor(${slots} free ${runners === null ? 'local cores' : 'runner slots'} / ${seats} live seats)) = ${n}; claims.perSeat overrides it` };
 }
 
+/**
+ * The two machine-local facts a claim's cap reads, sealed into the claim so every computer replays it alike (#7775):
+ * which of the seat's live claims wait on their own gate here, and the N this computer sizes. A pulled gate's job
+ * and the runner slots live only on the computer that submitted, so a replay elsewhere could not see them.
+ */
+export function claimAdmission(board, id, agentId, perSeat = null) {
+  const gateWaits = board.db.prepare("SELECT item_id FROM item WHERE item_owner = ? AND item_status = 'claimed' AND item_id != ? ORDER BY item_id")
+    .all(agentId, id).map(row => row.item_id).filter(item => awaitingGateOrReview(board, itemById(board, item)));
+  return { gateWaits, seatCap: claimsPerSeat(board, perSeat).n };
+}
+
+/** A claim's gate waits: the sealed list when the claim carries one, else this computer's own gate records. */
+function waitsOnGate(board, gateWaits, itemId) {
+  return Array.isArray(gateWaits) ? gateWaits.includes(itemId) : awaitingGateOrReview(board, itemById(board, itemId));
+}
+
 /** Build the original claim guards once; only a successful preflight captures source bytes. */
-function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, reviewSkipped = null, reviewPolicy = 'any', familyPolicy = 'off', submitAdmission = null, submitOutcome = null, adoptCorrection = false, refreshPolicy = false, reworkRoutingPolicy = null, itemFolder = false, buildBudgetMinutes = 30, routeCap = null, perSeat = null }, { reviewerChecks, reviewReleaseCooldown, foreignBlockers }) {
+function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, reviewSkipped = null, reviewPolicy = 'any', familyPolicy = 'off', submitAdmission = null, submitOutcome = null, adoptCorrection = false, refreshPolicy = false, reworkRoutingPolicy = null, itemFolder = false, buildBudgetMinutes = 30, routeCap = null, perSeat = null, gateWaits = null, seatCap = null }, { reviewerChecks, reviewReleaseCooldown, foreignBlockers }) {
   const admission = checkedSubmitAdmission(board, id, agentId, submitAdmission);
   const outcome = checkedSubmitOutcome(board, id, agentId, submitOutcome, admission);
   if (adoptCorrection && (board.executionEngineVersion ?? ENGINE_VERSION) < AUTOMATIC_DISPATCH_ENGINE) {
@@ -113,6 +129,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
   // builder fixing what a verifier found need not drop its other work to do it.
   const isRework = (item) => item.item_verdict === 'REJECT' && item.item_built_by === agentId;
   let reworkRouting = null;
+  let seatN = null;
   let frozen = null;
   let policyRefreeze = null;
   let prepared = false;
@@ -207,12 +224,14 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
         const modern = (board.executionEngineVersion ?? ENGINE_VERSION) >= ITEM_FOLDER_ENGINE;
         if (modern && !isRenewal(found)) {
           const held = board.db.prepare("SELECT item_id, item_parent_id, item_verdict, item_built_by FROM item WHERE item_owner = ? AND item_status = 'claimed' AND item_lease_until > ? AND item_id != ?")
-            .all(agentId, now(board), id).filter(row => !awaitingGateOrReview(board, itemById(board, row.item_id)));
+            .all(agentId, now(board), id).filter(row => !waitsOnGate(board, gateWaits, row.item_id));
           if (held.length >= 10) return new Refused('ONE_CLAIM', 'you already hold ten live claims; submit or release one before claiming another');
           // An item-folder claim may sit beside N-1 other top-level claims, N sized by the board (#6262).
           if (itemFolder === true && found.item_parent_id === null && !isRework(found)) {
             const top = held.filter(row => row.item_parent_id === null && !isRework(row));
-            const { n, how } = claimsPerSeat(board, perSeat);
+            const { n, how } = !Number.isSafeInteger(perSeat) && Number.isSafeInteger(seatCap) && seatCap >= 1
+              ? { n: seatCap, how: `the claiming computer sized N = ${seatCap}; claims.perSeat overrides it` } : claimsPerSeat(board, perSeat);
+            seatN = n;
             if (top.length >= n) return new Refused('ONE_CLAIM', `you already hold ${top.map(row => `#${row.item_id}`).join(', ')}; a seat holds up to ${n} (${how}); submit or release one first (child items are free)`);
           }
         }
@@ -225,7 +244,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
                AND NOT (COALESCE(item_verdict, '') = 'REJECT' AND COALESCE(item_built_by, '') = ?)`,
           )
           .all(agentId, now(board), id, agentId)
-          .find(row => !awaitingGateOrReview(board, itemById(board, row.item_id)));
+          .find(row => !waitsOnGate(board, gateWaits, row.item_id));
         return other ? new Refused('ONE_CLAIM', `you already hold #${other.item_id}; submit or release it first (child items are free)`) : null;
       },
       rowsInForce: (found) => {
@@ -249,7 +268,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
     }),
   };
   return { how, leaseUntil, isRenewal, admission, outcome, adopts, refreshes, frozen: () => frozen,
-    policyRefreeze: () => policyRefreeze, reworkRouting: () => reworkRouting };
+    policyRefreeze: () => policyRefreeze, reworkRouting: () => reworkRouting, seatN: () => seatN };
 }
 
 const PREPARED_CLAIMS = new WeakMap();
@@ -340,9 +359,29 @@ export function prepareClaim(board, id, options, ports) {
  * @returns {{ leaseUntil: string, digest: string, renewed: boolean }}
  */
 export function claim(board, id, options, ports) {
-  const { moveItem } = ports;
   const prepared = prepareClaim(board, id, options, ports);
-  const binding = PREPARED_CLAIMS.get(prepared);
+  return commitClaim(board, id, prepared, PREPARED_CLAIMS.get(prepared), ports);
+}
+
+/**
+ * Record a submit admission on the caller's own live claim without ever sleeping: one preparation, one write.
+ * Why: an API request records the witness for a pulled green gate, and a request must not park its thread on
+ * Atomics.wait; a board that moved under the preparation refuses BOARD_BUSY and the caller skips the witness [C7].
+ */
+export function admitSubmit(board, id, options, ports) {
+  const snapshot = boardWriteSnapshot(board);
+  const rows = claimRows(board, id);
+  const plan = claimPlan(board, id, options, ports);
+  ports.checkedItemMove(board, id, 'claim', plan.how.checks);
+  const binding = { board, id, snapshot, rows, strict: true, plan };
+  if (!claimStillPrepared(board, id, binding)) throw staleBoardRefusal(board, snapshot, 'claim');
+  return commitClaim(board, id, Object.freeze({ ...options }), binding, ports);
+}
+
+/** Write a prepared claim under the board write lock; shared by a claim and an admission. */
+function commitClaim(board, id, prepared, binding, ports) {
+  const { moveItem } = ports;
+  const options = prepared;
   const { snapshot, plan } = binding;
   const { agentId, head = null, reviewSkipped = null } = prepared;
   const { leaseUntil, isRenewal, admission, outcome, adopts, refreshes } = plan;
@@ -371,7 +410,7 @@ export function claim(board, id, options, ports) {
     }
     const continuationSummary = !renewed ? exitContinuationSummary(board, id) : null;
     if (!renewed && continuationSummary) board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run(`exit-handoff:${id}`);
-    logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest, ...(!renewed && (board.executionEngineVersion ?? ENGINE_VERSION) >= UNTOUCHED_CLAIM_ENGINE && options.autoNext === true && options.autoNextSnapshot?.head === head && /^[0-9a-f]{64}$/u.test(options.autoNextSnapshot?.digest ?? '') ? { autoNextSnapshot: options.autoNextSnapshot } : {}), ...(!renewed && options.itemFolder === true ? { itemFolder: true } : {}), ...(!renewed && exitRules ? { exitRules, exitClaimKey: options.exitClaimKey } : {}), ...(adopts ? { adoptedCorrection: digest } : {}), ...(refreshes && frozen ? { policyRefreshed: digest } : {}), ...(!renewed && reviewSkipped ? { reviewSkipped } : {}),
+    logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest, ...(!renewed && (board.executionEngineVersion ?? ENGINE_VERSION) >= UNTOUCHED_CLAIM_ENGINE && options.autoNext === true && options.autoNextSnapshot?.head === head && /^[0-9a-f]{64}$/u.test(options.autoNextSnapshot?.digest ?? '') ? { autoNextSnapshot: options.autoNextSnapshot } : {}), ...(!renewed && options.itemFolder === true ? { itemFolder: true } : {}), ...(!renewed && plan.seatN() !== null ? { claimsPerSeat: plan.seatN() } : {}), ...(!renewed && exitRules ? { exitRules, exitClaimKey: options.exitClaimKey } : {}), ...(adopts ? { adoptedCorrection: digest } : {}), ...(refreshes && frozen ? { policyRefreshed: digest } : {}), ...(!renewed && reviewSkipped ? { reviewSkipped } : {}),
       ...(!renewed && item.item_expected_build_minutes != null && (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE ? { buildBudgetMinutes: options.buildBudgetMinutes ?? 30, expectedBuildMinutes: item.item_expected_build_minutes ?? null } : {}),
       ...(admission ? { submitAdmission: admission } : {}),
       ...(outcome ? { submitOutcome: outcome } : {}),

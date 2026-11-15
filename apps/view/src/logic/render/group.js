@@ -12,7 +12,7 @@ export function groupActivityModel(repos) {
 export function groupNeedsHtml(rows) {
   /** Labels and navigation identities are data, not trusted HTML. */
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-  return rows.length ? rows.map(row => '<div class="group-need"><b>' + esc(row.repoName) + '</b><code>' + esc(row.ref) + '</code><span>' + row.textHtml + '</span><button data-root="' + esc(row.repoRoot) + '" type="button"><em>' + esc(row.actionLabel) + (row.ageHtml ? ', ' + row.ageHtml : '') + ' →</em></button></div>').join('') : '<div class="empty">Nothing needs you across this project.</div>';
+  return rows.length ? rows.map(row => '<div class="group-need"><b>' + esc(row.repoName) + '</b><code>' + esc(row.ref) + '</code><span>' + row.textHtml + '</span><button data-root="' + esc(row.repoRoot) + '" type="button"><em>' + esc(row.actionLabel) + (row.ageHtml ? ', ' + row.ageHtml : '') + ' →</em></button></div>').join('') : '<div class="empty">Nothing to rule on across this project.</div>';
 }
 
 /** Render a single event after the browser adapter has supplied dates, names and scoped rich links. */

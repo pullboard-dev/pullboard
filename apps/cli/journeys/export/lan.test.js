@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { chromeExecutable } from '../../tests/fixtures/cockpit/harness.js';
+import { pressTab } from '../../tests/fixtures/cockpit/stable.js';
 import { closeSnapshotChrome } from '../../tests/fixtures/cockpit/harness.js';
 import { fetchLive } from '../../tests/fixtures/cockpit/harness.js';
 import { machine } from '../../tests/fixtures/cockpit/harness.js';
@@ -61,18 +62,24 @@ test('clause 1: a phone reaches the board on the local network [H19]', { timeout
   // A fresh board opens on the first-run Dashboard (0de17112c6); set it aside so the board's own work shows.
   await chrome.waitFor('innerWidth === 375 && !!data?.project');
   await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
+  // The board now opens on its Dashboard; the item list is one tab away.
+  await pressTab(chrome, 'items');
   await chrome.waitFor(`innerWidth === 375 && document.body.innerText.includes(${JSON.stringify(title)})`);
   assert.equal(await chrome.stable('location.hostname'), view.link.hostname, 'the browser uses the LAN address, not a loopback stand-in');
-  await chrome.click('document.querySelector(\'[data-tab="shouts"]\')');
+  // The Shouts page folds its composer; the item's own "Shout the lane" button opens it, addressed to that lane.
+  await chrome.click(`[...document.querySelectorAll('[data-item="1"], [data-row="1"]')].find(node => node.getBoundingClientRect().width > 0)`);
+  await chrome.waitFor("document.querySelector('[data-shout]')");
+  await chrome.click("document.querySelector('[data-shout]')");
   const message = 'LAN fixture person request';
-  await chrome.stable(`document.querySelector('#shout-text').value = ${JSON.stringify(message)}`);
+  await chrome.waitFor("document.querySelector('#shout-text').getBoundingClientRect().width > 0");
+  await chrome.stable(`document.querySelector('#shout-text').value = '#1: ' + ${JSON.stringify(message)}`);
   await chrome.click("document.querySelector('#shout-send')");
-  await chrome.waitFor(`document.querySelector('#shout-text').value === '' && document.body.innerText.includes(${JSON.stringify(message)})`);
+  await chrome.waitFor(`document.querySelector('#shout-text').value === ''`);
   const native = JSON.parse(await box.inProcess(alpha.repo, 'export', '--json'));
-  const recorded = native.tables.shout.filter(row => row.shout_text === message)
-    .map(({ shout_from, shout_to, shout_request }) => ({ shout_from, shout_to, shout_request }));
-  assert.deepEqual(recorded, [{ shout_from: 'person', shout_to: 'coordinator', shout_request: 1 }],
-    'the mobile action is a real native person request, recorded exactly once');
+  const recorded = native.tables.shout.filter(row => row.shout_text.includes(message))
+    .map(({ shout_from, shout_to, shout_text }) => ({ shout_from, shout_to, shout_text }));
+  assert.deepEqual(recorded, [{ shout_from: 'person', shout_to: 'web', shout_text: '#1: ' + message }],
+    'the mobile action is a real native person shout to the item lane, recorded exactly once');
   assert.equal(await chrome.stable('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), true,
     'the phone view stays within its viewport');
 

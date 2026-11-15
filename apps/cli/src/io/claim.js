@@ -205,6 +205,13 @@ export async function ordered(ctx, board, operation, args, { prepareInWriter } =
 }
 
 /**
+ * Note a pulled submit in the agent-session ledger as the board move did: check the ledger is writable first, record once the gate job is offered.
+ *
+ * Why: the pulled submit queues its gate and the runner's receipt applies the move, so no session wrote the ledger row that `verify` reads to refuse the builder's own session [V1,B3,#7725].
+ */
+export function noteSubmitSession(info, id, record) { return record ? itemSessions.recordItemSession(info, id, 'submit', agentSessionDigest()) : itemSessions.requireLedger(info, agentSessionDigest()); }
+
+/**
  * Whether a fresh claim drops a legacy pinned policy from this item's frozen bar, re-freezing it bar-only [B4,R2].
  *
  * Why: a bar frozen by the previous release pins a whole pullboard.json commit, and every later policy commit made that
@@ -239,7 +246,7 @@ export async function claimOrdered(ctx, board, args) {
   const exitRules = accepted.exitRules;
   const held = store.getItem(board, args[0]);
   if (exitRules?.enabled && !(held.item_status === 'claimed' && held.item_owner === args[1].agentId)) {
-    const refusal = (await import('./exit/rules.js')).contextCeilingRefusal(exitRules);
+    const refusal = (await (await import('./exit/rules.js')).loadExitRules()).contextCeilingRefusal(exitRules);
     if (refusal) throw refusal;
   }
   const estimate = held.item_expected_build_minutes;
@@ -253,8 +260,10 @@ export async function claimOrdered(ctx, board, args) {
     ...(refreshPolicy && !adoptCorrection ? { refreshPolicy: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     ...(routingPolicy ? { reworkRoutingPolicy: routingPolicy } : {}),
     ...(routeCap ? { routeCap } : {}), ...(Number.isSafeInteger(ctx.config.claims?.perSeat) ? { perSeat: ctx.config.claims.perSeat } : {}),
+    // The gate waits and N this computer reads travel in the move, so a replay after an outage decides alike (#7775).
+    ...store.claimAdmission(board, args[0], args[1].agentId, Number.isSafeInteger(ctx.config.claims?.perSeat) ? ctx.config.claims.perSeat : null),
     reviewPolicy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }]);
-  if (!result.renewed && exitRules?.enabled) (await import('./exit/rules.js')).captureExitAnchor(ctx, board, args[0], args[1].agentId);
+  if (!result.renewed && exitRules?.enabled) (await (await import('./exit/rules.js')).loadExitRules()).captureExitAnchor(ctx, board, args[0], args[1].agentId);
   return result;
 }
 

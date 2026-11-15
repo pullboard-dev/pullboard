@@ -28,7 +28,7 @@ test('group person calls preserve prepared rich text, escaped identities and the
   assert.match(html, /data-root="\/repo &quot;one&quot;"/u);
   assert.match(html, /<span><b>Prepared question<\/b><\/span>/u);
   assert.match(html, /answer &lt;G1&gt;, <time>2m<\/time> →/u);
-  assert.match(groupNeedsHtml([]), /Nothing needs you across this project/u);
+  assert.match(groupNeedsHtml([]), /Nothing to rule on across this project/u);
 });
 
 test('group event links keep board scope and plain labels separate from prepared title HTML [N26,C7]', () => {

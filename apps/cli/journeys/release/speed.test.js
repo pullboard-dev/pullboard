@@ -11,20 +11,24 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { installReleaseReceiptCases } from '../../tests/fixtures/release/cases/receipt.js';
 import { installReleaseTransportCases } from '../../tests/fixtures/release/cases/transport.js';
-import { installReleaseProducerCases } from '../../tests/fixtures/release/cases/producer.js';
 import '../../tests/fixtures/cases/affinity.js';
 import {
   planReleaseShards,
   releasePlacement,
 } from '../../../../packages/landing/index.js';
 import { releaseParticipation } from '../../../../packages/gate/index.js';
+import { releaseReceiptFields } from '../../../../packages/gate/index.js';
+import { releaseReceiptProblem } from '../../../../packages/gate/index.js';
+import { releaseParticipationDigest } from '../../../../packages/gate/index.js';
+import { releaseTiming } from '../../../../packages/gate/index.js';
+import { RELEASE_BUDGET_SECONDS } from '../../../../packages/gate/index.js';
+import { releaseReceiptFixture } from '../../tests/fixtures/release/cases/receipt.js';
 import { RELEASE_PARTICIPATION_PREFIX } from '../../../../packages/gate/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { runFixtureChildAsync } from '../../tests/fixtures/child.js';
 
 installReleaseReceiptCases();
 installReleaseTransportCases();
-installReleaseProducerCases();
 
 /** An explicit model of registered capacity, not observations or receipts from the person's machines. */
 function targets() {
@@ -88,3 +92,40 @@ for (const count of [1, 7]) {
     assert.deepEqual(plan.flatMap(shard => shard.files).sort(), files.sort());
   });
 }
+
+/** A synthetic eight-executor envelope whose participation runs `minutes` long, carrying the timing a producer records. */
+function timedRelease(minutes) {
+  const { envelope, expected } = releaseReceiptFixture();
+  envelope.participation.finishedAt = new Date(Date.parse(envelope.participation.startedAt) + minutes * 60_000).toISOString();
+  envelope.gateReceipt.participationDigest = releaseParticipationDigest(envelope.participation);
+  envelope.timing = releaseTiming(envelope.participation);
+  return { envelope, expected };
+}
+
+test('a release under 15 minutes records its wall time [C7,I15]', () => {
+  assert.equal(RELEASE_BUDGET_SECONDS, 900);
+  const { envelope, expected } = timedRelease(14);
+  assert.equal(releaseReceiptProblem(envelope, expected), null);
+  const timing = releaseReceiptFields(envelope, expected).timing;
+  assert.deepEqual(timing, { startedAt: envelope.participation.startedAt, finishedAt: envelope.participation.finishedAt,
+    seconds: 840, budgetSeconds: 900, status: 'WITHIN_BUDGET' });
+  const old = structuredClone(envelope);
+  delete old.timing;
+  assert.equal(releaseReceiptProblem(old, expected), null, 'receipt bytes recorded before timing existed stay valid');
+  assert.equal(Object.hasOwn(releaseReceiptFields(old, expected), 'timing'), false);
+  const lie = structuredClone(envelope);
+  lie.timing.seconds = 1;
+  assert.notEqual(releaseReceiptProblem(lie, expected), null, 'a recorded wall time must match the observed interval');
+});
+
+test('a release over 15 minutes is marked OVER_BUDGET [C7,I15]', () => {
+  const { envelope, expected } = timedRelease(16);
+  assert.equal(releaseReceiptProblem(envelope, expected), null, 'the slow release is still a recorded, valid receipt');
+  const timing = releaseReceiptFields(envelope, expected).timing;
+  assert.equal(timing.seconds, 960);
+  assert.equal(timing.status, 'OVER_BUDGET');
+  assert.equal(releaseTiming(envelope.participation, 960).status, 'WITHIN_BUDGET', 'the verdict is exactly seconds past the budget');
+  const hidden = structuredClone(envelope);
+  hidden.timing.status = 'WITHIN_BUDGET';
+  assert.notEqual(releaseReceiptProblem(hidden, expected), null, 'a slow release cannot be relabelled within budget');
+});

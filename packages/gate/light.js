@@ -7,7 +7,7 @@ import { formatTestOutcomes } from './src/io/test/outcomes.js';
 export function sourcePreparationFields(value) {
   const stages = ['cacheWaitMs', 'inventoryMs', 'transferMs', 'validateMs', 'materializeMs'];
   const operations = new Set(['init', 'fetch', 'checkout', 'index-pack', 'cat-file', 'rev-parse', 'rev-list',
-    'for-each-ref', 'update-ref', 'merge-base', 'verify-pack', 'check-ref-format', 'config', 'status', 'unknown']);
+    'for-each-ref', 'update-ref', 'merge-base', 'verify-pack', 'check-ref-format', 'repack', 'commit-graph', 'config', 'status', 'unknown']);
   /** Preserve integer monotonic-clock durations and byte counts without coercing missing values. */
   const count = number => Number.isSafeInteger(number) && number >= 0;
   if (!value || value.version !== 1 || !count(value.packBytes) || !count(value.totalMs)

@@ -264,7 +264,7 @@ test('doctrine ids use their own namespace when an id also exists in SPEC.md [A5
   ] };
   assert.deepEqual(idProblems(spec, ['G1', 'doctrine:G1', 'doctrine:PB1'], doctrine), []);
   assert.deepEqual(idProblems(spec, ['doctrine:PB9'], doctrine), ['doctrine:PB9 is not in doctrine']);
-  assert.deepEqual(idProblems(spec, ['other:G1'], doctrine), ['other:G1 uses an unknown namespace; use doctrine:<id> for a doctrine row']);
+  assert.deepEqual(idProblems(spec, ['other:G1'], doctrine), ['other:G1 uses an unknown namespace; use doctrine:<id> for a doctrine row, or <board>:<id> for a board named in pullboard.json specBoards']);
   const frozen = frozenCriterion(spec, {
     item_title: 'Use the house rule', item_criterion: 'follow it', item_spec_ids: 'doctrine:G1',
   }, doctrine);

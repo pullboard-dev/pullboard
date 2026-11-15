@@ -40,7 +40,7 @@ export async function openAddress(chrome, server, address) {
 }
 /** Assert the detail itself, so suppressing row rendering produces an assertion failure. */
 export async function assertHeading(chrome, selector, id, text) {
-  const heading = await chrome.stable(`document.querySelector(${JSON.stringify(selector + ' h2')})?.textContent ?? null`);
+  const heading = await chrome.stable(`document.querySelector(${JSON.stringify(selector + ' .item-panel-head, ' + selector + ' h2')})?.textContent ?? null`);
   assert.ok(heading?.includes(id) && heading.includes(text), `detail heading names ${id} ${text}: ${heading}`);
 }
 /** Read the real browser stack, including same-document pushState entries. */
@@ -66,6 +66,19 @@ export function addressBoard(box, name, group) {
   box.run(p.repo, 'add', 'web', `${name} first address item`, '--specs', 'G1');
   box.run(p.repo, 'add', 'web', `${name} second address item`, '--specs', 'G1');
   box.run(p.repo, 'milestone', 'add', `${name} address milestone`, '--reason', 'Arrange fixture release', '--items', '1,2');
+  return p;
+}
+/**
+ * The in-process twin of addressBoard: the same board, with its CLI calls awaited in this process instead of launched.
+ * Why: each launch cost seconds on a loaded runner, and the journeys that use it sit near their file budget.
+ */
+export async function addressBoardLocal(box, name, group) {
+  const spec = SPEC.replace(/^- G2 .*$/m, `- G2 [pending, must] ${name} distinct specification row. | gate: review`);
+  const p = project(box, name, spec, { practice: 'DOCTRINE.md', ...(group ? { project: group } : {}) });
+  writeFileSync(join(p.repo, 'DOCTRINE.md'), `# Local rules\n\n## Team\n- PB1 [approved, must] ${name} distinct practice rule. | gate: review\n`);
+  await box.inProcess(p.repo, 'add', 'web', `${name} first address item`, '--specs', 'G1');
+  await box.inProcess(p.repo, 'add', 'web', `${name} second address item`, '--specs', 'G1');
+  await box.inProcess(p.repo, 'milestone', 'add', `${name} address milestone`, '--reason', 'Arrange fixture release', '--items', '1,2');
   return p;
 }
 /** Own one browser and server, with cleanup even if an assertion fails. */
@@ -94,7 +107,7 @@ export async function assertShout(chrome, id, text) {
   await settled(chrome, `${SCRIPT} && !document.querySelector('#shout-address-status')?.textContent.startsWith('Loading')`);
   const result = JSON.parse(await chrome.stable(`JSON.stringify((() => {
     const node=document.getElementById('shout-${id}'), rect=node?.getBoundingClientRect();
-    return { text:node?.querySelector('.text')?.textContent ?? null, heading:node?.querySelector('h2')?.textContent ?? null, marked:node?.classList.contains('found') ?? false, top:rect?.top, bottom:rect?.bottom, bar:document.querySelector('.top').getBoundingClientRect().bottom, height:innerHeight };
+    return { text:node?.querySelector('.sx-tx')?.textContent ?? null, heading:node?.querySelector('h2')?.textContent ?? null, marked:node?.classList.contains('found') ?? false, top:rect?.top, bottom:rect?.bottom, bar:document.querySelector('.top').getBoundingClientRect().bottom, height:innerHeight };
   })())`));
   assert.equal(result.text, text, 'the addressed shout body is rendered');
   assert.equal(result.heading, `Shout #${id}`, 'the addressed shout has its own heading');

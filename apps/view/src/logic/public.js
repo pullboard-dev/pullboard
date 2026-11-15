@@ -114,9 +114,17 @@ function privateBatchField(path, key, eventKind) {
     || (batch.join('/') === 'proof' || /^gateResults\/\*$/u.test(batch.join('/'))) && key === 'logPath';
 }
 
+/** A repo-relative script path (the live runs' file names): short segments, .js/.mjs, no hex or uuid run that could hide a secret. */
+function repoTestPath(value) {
+  return /\.m?js$/u.test(value) && /^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*$/u.test(value) && !value.startsWith('/') && !value.includes('..')
+    && value.split('/').every(segment => segment.length < 40) && !/[a-f0-9]{32,}/iu.test(value.replace(/[^A-Za-z0-9]/gu, ''))
+    && !/[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}/iu.test(value);
+}
+
 /** Exempt exact native paths and formats; free text and arbitrary *_id detail keys never qualify. */
 function structuredIdentity(path, value, eventKind) {
   const location = path.join('/');
+  if (/^live\/runs\/\*\/files\/\*\/file$/u.test(location)) return repoTestPath(value);
   const detailField = ['detail', 'event_detail'].includes(path.at(-2)) && EVENT_PATH.test(path.slice(0, -2).join('/'));
   const factId = eventKind === 'fact' && ['id', 'supersedes', 'answers'].includes(path.at(-1))
     && (detailField || /^state\/state\/items\/\*\/thread\/\*$/u.test(path.slice(0, -1).join('/')));

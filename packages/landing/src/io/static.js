@@ -2,6 +2,8 @@
 import { git } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
+import { STATIC_SCOPE_ENV } from '../../../gate/index.js';
+import { analysisScope } from '../../../gate/index.js';
 
 /** The `path:line: text` rows a static check prints, one per violation. */
 export function staticRows(output) {
@@ -36,4 +38,28 @@ export function entriesTouching(root, base, entries, files) {
     const changed = tryGit(root, ['--no-replace-objects', 'diff', '--name-only', `${base}...${entry.commit}`]);
     return changed.status === 0 && changed.stdout.split('\n').some(file => files.includes(file));
   });
+}
+
+/** A scope list longer than this is not exported into a shell command line; the check runs whole instead. */
+const SCOPE_PATH_LIMIT = 1000;
+
+/**
+ * The static command for a landing batch, handed the merged tree's changed paths through PULLBOARD_STATIC_SCOPE.
+ * Why: the submit gate already scopes its static run to the changed paths; the landing ran every rule on every file. A change to
+ * an input every rule reads, a deletion or an unreadable diff keeps the whole run, as submit does.
+ * @param {string} root The landing checkout holding the merged tree.
+ * @param {string} base Main's tip the batch was built on.
+ * @param {{staticChecks?: string}} config The project config.
+ * @returns {{staticChecks?: string}} The config with its static command exporting the scope, or the config unchanged.
+ */
+export function scopedStaticConfig(root, base, config) {
+  const command = config?.staticChecks?.trim();
+  if (!command) return config;
+  const ran = tryGit(root, ['--no-replace-objects', 'diff', '--no-renames', '--name-status', base, 'HEAD']);
+  if (ran.status !== 0) return config;
+  const changes = ran.stdout.split('\n').filter(Boolean).map(row => { const [status, ...path] = row.split('\t'); return { status: status[0], path: path.join('\t') }; });
+  const scope = analysisScope(changes);
+  if (scope.full || scope.files.length > SCOPE_PATH_LIMIT) return config;
+  const quoted = `'${JSON.stringify(scope.files).replaceAll("'", "'\\''")}'`;
+  return { ...config, staticChecks: `export ${STATIC_SCOPE_ENV}=${quoted}; ${command}` };
 }

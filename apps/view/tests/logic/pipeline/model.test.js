@@ -9,6 +9,7 @@ import { itemListFields } from '../../../src/logic/pipeline/model.js';
 import { withdrawnFromStatus } from '../../../src/logic/pipeline/model.js';
 import { itemStagePresentation } from '../../../src/logic/pipeline/model.js';
 import { itemStageKey } from '../../../src/logic/pipeline/model.js';
+import { stageSentence } from '../../../src/logic/pipeline/model.js';
 
 // Explicit lifecycle data, rather than importing engine discovery and its filesystem adapter.
 const FLOW = { initial: 'open', moves: [
@@ -74,8 +75,8 @@ function testWithdrawnStageRecovery() {
 
 /** Verify each approved stage and its short detail from plain item snapshots. */
 function testApprovedStagePresentations() {
-  assert.deepEqual(itemStagePresentation({ status: 'open', blockedBy: [42] }, { gated: true }), { stage: 'Gated', detail: 'by #42' });
-  assert.deepEqual(itemStagePresentation({ status: 'open' }, { gated: true, gateDetail: 'approval pending' }), { stage: 'Gated', detail: 'approval pending' });
+  assert.deepEqual(itemStagePresentation({ status: 'open', blockedBy: [42] }, { gated: true }), { stage: 'Blocked', detail: 'by #42' });
+  assert.deepEqual(itemStagePresentation({ status: 'open' }, { gated: true, gateDetail: 'approval pending' }), { stage: 'Blocked', detail: 'approval pending' });
   assert.deepEqual(itemStagePresentation({ status: 'open', route: 'strong' }), { stage: 'Ready', detail: 'strong route' });
   assert.deepEqual(itemStagePresentation({ status: 'open' }), { stage: 'Ready', detail: 'ready for a builder' });
   assert.deepEqual(itemStagePresentation({ status: 'claimed', claim: { by: 'view-1' } }), { stage: 'Building', detail: 'by view-1' });
@@ -92,11 +93,20 @@ function testApprovedStagePresentations() {
 
 /** Verify stable machine keys for every approved display stage and whitespace normalization. */
 function testApprovedStageKeys() {
-  assert.deepEqual(['Gated', 'Ready', 'Building', 'In review', 'Verified', 'Landing', 'Merged'].map(itemStageKey),
-    ['gated', 'ready', 'building', 'in-review', 'verified', 'landing', 'merged']);
+  assert.deepEqual(['Blocked', 'Ready', 'Building', 'In review', 'Verified', 'Landing', 'Merged'].map(itemStageKey),
+    ['blocked', 'ready', 'building', 'in-review', 'verified', 'landing', 'merged']);
   assert.equal(itemStageKey(' In   Review '), '-in-review-');
 }
 
 test('withdrawn stage recovery preserves each recorded prior state [N26,N28,N38]', testWithdrawnStageRecovery);
 test('stage presentation maps every lifecycle input to its approved word and detail [N26,N28,N38]', testApprovedStagePresentations);
 test('stage keys are stable for all approved display words [N26,N28,N38]', testApprovedStageKeys);
+
+test('clause 2: a blocked item says which item blocks it, in the design sheet words [N26,#6870]', () => {
+  const blocked = itemStagePresentation({ status: 'open', blockedBy: [5821] }, { gated: true });
+  assert.equal(stageSentence(blocked.stage, blocked.detail), 'Blocked by #5821');
+  const held = itemStagePresentation({ status: 'open' }, { gated: true });
+  assert.deepEqual(held, { stage: 'Blocked', detail: 'on hold' });
+  assert.equal(stageSentence(held.stage, held.detail), 'Blocked: on hold');
+  assert.equal(stageSentence('Ready', 'strong route'), 'Ready: strong route');
+});

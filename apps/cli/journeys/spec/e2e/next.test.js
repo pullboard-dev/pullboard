@@ -13,6 +13,8 @@ import { test } from 'node:test';
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
+import { failingParts } from '../../../../../packages/api/index.js';
+import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
 
@@ -42,7 +44,7 @@ function race(box, first, second, id) {
   return Promise.all([one(first), one(second)]);
 }
 
-test('a red gate refuses submit [V4]', async () => {
+test('a red gate refuses submit [V4]', async t => {
   const box = project();
   writeFileSync(join(box.repo, 'RED'), 'red');
   box.git(box.repo, 'add', 'RED');
@@ -51,17 +53,24 @@ test('a red gate refuses submit [V4]', async () => {
   assert.equal((await box.runIn(box.web, 'claim', '1')).code, 0);
   const item = `${box.web}-item-1`;
   assert.equal(commitFile(box, item, 'web/red.html', 'candidate', 'feat(web): red gate witness [G1]').status, 0);
-  const refused = await box.runIn(item, 'submit', '1');
-  assert.equal(refused.code, 1);
-  assert.match(refused.err, /GATE_RED/);
+  // A pulled submit queues its gate; the red receipt keeps the item out of review and is the refusal the builder reads [V4,C7,#7725].
+  const queued = await box.runIn(item, 'submit', '1', '--json');
+  assert.equal(queued.code, 0, queued.err + queued.out);
+  const settled = await settleSubmit(t, { repo: box.repo, env: box.env, run: box.runIn }, JSON.parse(queued.out));
+  assert.equal(settled.gate.green, false);
+  assert.match(failingParts({ status: 1, gate: settled.gate }).join('\n'), /proof (?:failed|exited)|check exited/);
+  assert.equal(JSON.parse((await box.runIn(box.repo, 'show', '1', '--json')).out).item_status, 'claimed');
 });
 
-test('verify runs at the submitted commit, against the criterion frozen at claim [V3, V7, V9, V19]', async () => {
+test('verify runs at the submitted commit, against the criterion frozen at claim [V3, V7, V9, V19]', async t => {
   const box = project();
   await fixtureAdd(box.runIn, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders a heading');
   await box.runIn(box.web, 'claim', '1');
   commitFile(box, box.web, 'web/a.html', '<h1>Hi</h1>', 'feat(web): page [G1]');
-  assert.equal((await box.runIn(box.web, 'submit', '1')).code, 0);
+  // A pulled submit returns queued; settle its gate before a verdict reads the item [V4,C7,#7897].
+  const first = await box.runIn(box.web, 'submit', '1', '--json');
+  assert.equal(first.code, 0, first.err + first.out);
+  assert.equal((await settleSubmit(t, { repo: box.repo, env: box.env, run: box.runIn }, JSON.parse(first.out))).gate.green, true);
   assert.match((await box.runIn(box.web, 'verify', '1', 'accept')).err, /SELF_VERIFY/);
   const unsaid = await box.runIn(box.repo, 'verify', '1', 'accept', '--note', 'ran it');
   assert.match(unsaid.err, /MAIN_IS_COORDINATOR\] this is the main checkout, so this verdict would be the coordinator's/);
@@ -78,8 +87,9 @@ test('verify runs at the submitted commit, against the criterion frozen at claim
   assert.equal((await box.runIn(box.web, 'claim', '1')).code, 0);
   const refrozenItem = `${box.web}-item-1`;
   assert.equal(commitFile(box, refrozenItem, 'web/a.html', '<h1>Hi again</h1>', 'feat(web): update page [G1]').status, 0);
-  const resubmitted = await box.runIn(refrozenItem, 'submit', '1');
+  const resubmitted = await box.runIn(refrozenItem, 'submit', '1', '--json');
   assert.equal(resubmitted.code, 0, resubmitted.err || resubmitted.out);
+  assert.equal((await settleSubmit(t, { repo: box.repo, env: box.env, run: box.runIn }, JSON.parse(resubmitted.out))).gate.green, true);
   const submittedHead = JSON.parse((await box.runIn(box.repo, 'show', '1', '--json')).out).item_commit;
   box.git(box.repo, 'switch', '--detach', submittedHead);
   assert.match((await box.runIn(box.repo, 'verify', '1', 'accept', '--as', 'coordinator')).err, /PROOF_REQUIRED/);

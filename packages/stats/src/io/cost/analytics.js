@@ -31,6 +31,8 @@ function median(values) {
   const n = sorted.length;
   return n ? Math.round((sorted[Math.floor((n - 1) / 2)] + sorted[Math.floor(n / 2)]) / 2) : null;
 }
+/** A landing or review move needs no parse here: its item is its own column, and only its model is read, later, when named. */
+const NO_DETAIL = Object.freeze({});
 function detail(event) {
   try { return JSON.parse(event.event_detail); } catch { return {}; }
 }
@@ -51,22 +53,36 @@ function midnight(date, timeZone) {
   return guess;
 }
 
+/** Start of a cost window in the board time zone, so a reader can fetch only the events from then on. */
+export function costWindowStart(window, now = new Date(), timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone) {
+  if (!['today', '7d', '30d'].includes(window)) throw new Refused('BAD_REQUEST', 'window must be today, 7d or 30d');
+  const today = dateInZone(new Date(now), timeZone), daysBack = window === 'today' ? 0 : window === '7d' ? 6 : 29;
+  const date = new Date(today + 'T00:00:00Z'); date.setUTCDate(date.getUTCDate() - daysBack);
+  return new Date(midnight(date.toISOString().slice(0, 10), timeZone));
+}
+
 /** Project a selected landing cohort; model presentation is supplied by the shared native naming provider. */
-export function costAnalytics({ items, agents, events, window = '30d', now = new Date(), timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone, modelPresentation }) {
+function* projectCost({ items, agents, events, window = '30d', now = new Date(), timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone, modelPresentation }) {
   if (!['today', '7d', '30d'].includes(window)) throw new Refused('BAD_REQUEST', 'window must be today, 7d or 30d');
   if (typeof modelPresentation !== 'function') throw new TypeError('cost analytics requires the native model presentation provider');
-  const to = new Date(now), today = dateInZone(to, timeZone), daysBack = window === 'today' ? 0 : window === '7d' ? 6 : 29;
-  const date = new Date(today + 'T00:00:00Z'); date.setUTCDate(date.getUTCDate() - daysBack);
-  const from = new Date(midnight(date.toISOString().slice(0, 10), timeZone));
-  const ordered = [...events].sort((a, b) => a.event_id - b.event_id), histories = new Map(), latest = new Map(), shared = new Set();
+  const to = new Date(now), from = costWindowStart(window, to, timeZone);
+  const ordered = [...events].sort((a, b) => a.event_id - b.event_id), histories = new Map(), latest = new Map(), latestByItem = new Map(), modelChanges = new Map(), shared = new Set();
+  let seen = 0;
   for (const event of ordered) {
-    const info = detail(event), id = event.item_id ?? info.item;
+    if (++seen % 2000 === 0) yield;
+    const info = event.item_id !== null && event.item_id !== undefined && !['usage', 'shared-usage'].includes(event.event_kind) ? NO_DETAIL : detail(event), id = event.item_id ?? info.item;
     if (id) { if (!histories.has(id)) histories.set(id, []); histories.get(id).push(event); }
     if (event.event_kind === 'usage') {
       if (info.shared) shared.add(info.item);
       const key = `${info.item}:${event.event_by}`, prior = latest.get(key);
-      if (!prior || info.revision > prior.revision) latest.set(key, { ...info, agent: event.event_by });
+      if (!prior || info.revision > prior.revision) {
+        const value = { ...info, agent: event.event_by };
+        latest.set(key, value);
+        if (!latestByItem.has(info.item)) latestByItem.set(info.item, new Map());
+        latestByItem.get(info.item).set(event.event_by, value);
+      }
     }
+    if (event.event_kind === 'model') { if (!modelChanges.has(event.event_by)) modelChanges.set(event.event_by, []); modelChanges.get(event.event_by).push(event); }
     if (event.event_kind === 'shared-usage') for (const allocation of info.allocations ?? []) shared.add(allocation.item);
   }
   const seats = new Map(agents.map(agent => [agent.agent_id ?? agent.id, agent]));
@@ -74,14 +90,16 @@ export function costAnalytics({ items, agents, events, window = '30d', now = new
     const seat = seats.get(actor), eventId = target?.event_id ?? Infinity;
     const recorded = target && detail(target).model;
     if (typeof recorded === 'string') return recorded.toLowerCase() === 'unknown' ? null : modelPresentation(recorded, seat?.family ?? seat?.agent_family);
-    const changes = ordered.filter(event => event.event_kind === 'model' && event.event_by === actor);
+    const changes = modelChanges.get(actor) ?? [];
     const prior = changes.filter(event => event.event_id <= eventId).at(-1);
     // A later model change makes the original unrecorded join model unknowable.
     const model = prior ? detail(prior).model : changes.length ? null : seat?.model ?? seat?.agent_model;
     return model && model.toLowerCase() !== 'unknown' ? modelPresentation(model, seat?.family ?? seat?.agent_family) : null;
   };
   const projected = [];
+  let rows = 0;
   for (const item of items) {
+    if (++rows % 200 === 0) yield;
     const id = item.item_id ?? item.id, history = histories.get(id) ?? [];
     const landing = [...history].reverse().find(event => event.event_kind === 'merged');
     const at = Date.parse(landing?.event_at);
@@ -91,7 +109,7 @@ export function costAnalytics({ items, agents, events, window = '30d', now = new
     const builder = named(firstSubmit?.event_by, firstSubmit);
     const accepts = history.filter(event => event.event_kind === 'accept' && event.event_id < landing.event_id);
     const verifier = named(accepts.at(-1)?.event_by, accepts.at(-1));
-    const allocations = [...latest.values()].filter(value => value.item === id);
+    const allocations = [...(latestByItem.get(id)?.values() ?? [])];
     const grouped = new Map();
     for (const allocation of allocations) for (const row of allocation.records ?? []) {
       const label = modelPresentation(row.model), entry = grouped.get(label.key) ?? { model: label.key, label: label.name, count: null, agentMs: 0, tokensIn: 0 };
@@ -99,15 +117,29 @@ export function costAnalytics({ items, agents, events, window = '30d', now = new
     }
     const sessions = [...grouped.values()];
     const agentMs = shared.has(id) || !sessions.length ? null : sum(sessions.map(row => row.agentMs));
-    projected.push({ id, title: item.item_title ?? item.title, landedAt: landing.event_at, date: dateInZone(new Date(at), timeZone), agentMs,
+    projected.push({ id, title: item.item_title ?? item.title, lane: item.item_lane ?? item.lane ?? null, landedAt: landing.event_at, date: dateInZone(new Date(at), timeZone), agentMs,
       sentBack: returns.length, builder, verifier, accepts, history, sessions: shared.has(id) ? [] : sessions });
   }
   const totalMs = projected.length ? knownSum(projected.map(row => row.agentMs)) : 0;
   const sent = projected.filter(row => row.sentBack), sentMs = sent.length ? knownSum(sent.map(row => row.agentMs)) : 0;
   const days = [...new Set(projected.map(row => row.date))].sort().map(day => {
     const rows = projected.filter(row => row.date === day), first = rows.filter(row => !row.sentBack), returned = rows.filter(row => row.sentBack);
-    return { date: day, firstTimeMs: first.length ? knownSum(first.map(row => row.agentMs)) : 0, sentBackMs: returned.length ? knownSum(returned.map(row => row.agentMs)) : 0, items: rows.length };
+    return { date: day, firstTimeMs: first.length ? knownSum(first.map(row => row.agentMs)) : 0, sentBackMs: returned.length ? knownSum(returned.map(row => row.agentMs)) : 0, items: rows.length,
+      timedItems: rows.filter(row => row.agentMs !== null).length, untimedItems: rows.filter(row => row.agentMs === null).length };
   });
+  /** Agent time per model and per lane: hours, share of the total and the part sent back [N26]. */
+  const spread = (entries) => [...entries.values()].filter(row => row.agentMs > 0).sort((x, y) => y.agentMs - x.agentMs || String(x.key).localeCompare(String(y.key)))
+    .map(row => ({ ...row, share: totalMs > 0 ? row.agentMs / totalMs : null, sentBackShare: row.agentMs > 0 ? row.sentBackMs / row.agentMs : null }));
+  const byModel = new Map(), byLane = new Map();
+  for (const row of projected) {
+    if (row.agentMs === null) continue;
+    for (const session of row.sessions) {
+      const entry = byModel.get(session.model) ?? { key: session.model, label: session.label, agentMs: 0, sentBackMs: 0, items: 0 };
+      entry.agentMs += session.agentMs ?? 0; entry.items++; if (row.sentBack) entry.sentBackMs += session.agentMs ?? 0; byModel.set(session.model, entry);
+    }
+    const lane = row.lane ?? 'unassigned', entry = byLane.get(lane) ?? { key: lane, label: lane, agentMs: 0, sentBackMs: 0, items: 0 };
+    entry.agentMs += row.agentMs; entry.items++; if (row.sentBack) entry.sentBackMs += row.agentMs; byLane.set(lane, entry);
+  }
   const builders = new Map(), verifiers = new Map();
   for (const row of projected) {
     if (row.builder) { const b = builders.get(row.builder.key) ?? { model: row.builder.key, label: row.builder.name, vendor: row.builder.vendor, built: 0, passedFirst: 0, times: [] }; b.built++; if (!row.sentBack) b.passedFirst++; b.times.push(row.agentMs); builders.set(b.model, b); }
@@ -119,6 +151,22 @@ export function costAnalytics({ items, agents, events, window = '30d', now = new
   }
   const builderRows = [...builders.values()].map(({ times, ...row }) => ({ ...row, rate: row.passedFirst / row.built, ...(row.built < 5 ? { low: null, high: null } : wilson(row.passedFirst, row.built)), typicalItemMs: median(times), judged: row.built >= 30, tooFew: row.built < 5 }));
   const verifierRows = [...verifiers.values()].map(row => ({ ...row, rate: row.accepts ? (row.accepts - row.reopenedLater) / row.accepts : null, ...(row.accepts < 5 ? { low: null, high: null } : wilson(row.accepts - row.reopenedLater, row.accepts)), judged: row.accepts >= 30, tooFew: row.accepts < 5 }));
-  const longest = [...projected].filter(row => row.agentMs !== null).sort((a, b) => b.agentMs - a.agentMs || a.id - b.id).slice(0, 5).map(row => ({ id: row.id, title: row.title, agentMs: row.agentMs, sentBack: row.sentBack, verifiedBy: row.verifier?.name ?? null, landedAt: row.landedAt, sessions: row.sessions }));
-  return { version: 1, window, from: from.toISOString(), to: to.toISOString(), totals: { agentMs: totalMs, itemCount: projected.length, medianItemMs: median(projected.map(row => row.agentMs)), sentBack: { items: sent.length, itemShare: projected.length ? sent.length / projected.length : 0, agentMs: sentMs, agentMsShare: totalMs > 0 && sentMs !== null ? sentMs / totalMs : totalMs === 0 ? 0 : null } }, days, builders: comparison(builderRows), verifiers: comparison(verifierRows), unknownBuilderModelShare: projected.length ? projected.filter(row => !row.builder).length / projected.length : 0, longest, allItems: projected.length };
+  const longest = [...projected].filter(row => row.agentMs !== null).sort((a, b) => b.agentMs - a.agentMs || a.id - b.id).slice(0, 10).map(row => ({ id: row.id, title: row.title, agentMs: row.agentMs, sentBack: row.sentBack, verifiedBy: row.verifier?.name ?? null, landedAt: row.landedAt, sessions: row.sessions }));
+  return { version: 1, window, from: from.toISOString(), to: to.toISOString(), totals: { agentMs: totalMs, itemCount: projected.length, medianItemMs: median(projected.map(row => row.agentMs)), sentBack: { items: sent.length, itemShare: projected.length ? sent.length / projected.length : 0, agentMs: sentMs, agentMsShare: totalMs > 0 && sentMs !== null ? sentMs / totalMs : totalMs === 0 ? 0 : null } }, days, byModel: spread(byModel), byLane: spread(byLane), builders: comparison(builderRows), verifiers: comparison(verifierRows), unknownBuilderModelShare: projected.length ? projected.filter(row => !row.builder).length / projected.length : 0, longest, allItems: projected.length };
+}
+
+/** Project a selected landing cohort in one go. */
+export function costAnalytics(input) {
+  const run = projectCost(input);
+  for (let step = run.next(); ; step = run.next()) if (step.done) return step.value;
+}
+
+/** The same projection, giving the event loop a turn every few milliseconds so other requests keep answering [6663]. */
+export async function costAnalyticsSliced(input, turn, sliceMs = 15) {
+  const run = projectCost(input);
+  let started = performance.now();
+  for (let step = run.next(); ; step = run.next()) {
+    if (step.done) return step.value;
+    if (performance.now() - started >= sliceMs) { await turn(); started = performance.now(); }
+  }
 }

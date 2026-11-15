@@ -65,7 +65,7 @@ export function receiptBody(receipt) {
 export function readGateReceipt(store, id) {
   if (!store || !ID.test(id ?? '')) return null;
   try {
-    const text = readFileSync(join(store, `${id}.json`), 'utf8');
+    const text = readFileSync(join(store, storeName(id)), 'utf8');
     const receipt = receiptFields(JSON.parse(text));
     return receipt && receiptBody(receipt) === text && receipt.id === id ? receipt : null;
   } catch { return null; }
@@ -87,6 +87,7 @@ export function receiptBinds(store, receipt) {
 /** Exact native collection reports bind completion to one gate invocation [C7,V4]. */
 export { COLLECTION_ID_ENV } from '../../logic/collection/env.js';
 import { COLLECTION_ID_ENV } from '../../logic/collection/env.js';
+import { storeName } from '../store-names.js';
 export { COLLECTION_REPORT_PREFIX, formatCollectionReport, parseCollectionReports } from '../../logic/collection/report.js';
 
 /** A release explicitly requests every registered executor; ordinary landings keep their policy. */

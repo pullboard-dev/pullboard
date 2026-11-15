@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { cliLaunchSites } from '../../../src/io/test/launches.js';
+import { cellTestProblems } from '../../../src/io/test/cells.js';
 import { cliLaunchReport } from '../../../src/io/test/launches.js';
 import { cliLaunchGrowth } from '../../../src/io/test/launches.js';
 import { cliLaunchSplit } from '../../../src/io/test/launches.js';
@@ -150,4 +151,17 @@ test('tighten refuses to raise or add a row, naming the file [C7]', () => {
   const added = 'apps/cli/journeys/example/new.test.js';
   assert.throws(() => tightenCliLaunchBaseline(cliLaunchSites('box.run(a);\nbox.run(b);', PATH), { [PATH]: { launch: 1 } }), /main\.test\.js/u);
   assert.throws(() => tightenCliLaunchBaseline(cliLaunchSites('box.run(a);', added), { [PATH]: { launch: 1 } }), /new\.test\.js/u);
+});
+
+test('clause 1: the advice for a packages/ cell test names a helper in its own cell, one the cross-cell import rule allows [C7]', () => {
+  const source = "const a = spawnSync(process.execPath, [BIN, 'show'], {});";
+  const cellPath = 'packages/landing/tests/io/example.test.js';
+  const [site] = cliLaunchSites(source, cellPath);
+  assert.match(site.text, /packages\/landing\/tests\/fixtures\//u);
+  // The suggested location is the cell's own, so importing from it passes the cross-cell rule.
+  const own = "import { withProcessEnvironment } from '../fixtures/environment.js';";
+  assert.deepEqual(cellTestProblems(cellPath, own), []);
+  const other = "import { captureCommandInProcess } from '../../../../apps/cli/tests/fixtures/process.js';";
+  assert.equal(cellTestProblems(cellPath, other).length, 1, 'the journey fixture is refused for a cell test');
+  assert.match(cliLaunchSites(source, PATH)[0].text, /apps\/cli\/tests\/fixtures\/process\.js$/u, 'a journey still gets the CLI fixture');
 });

@@ -8,7 +8,7 @@ import * as store from '../index.js';
 import { REJECT_OPEN_ENGINE } from '../../state/index.js';
 import { cellBoard } from './fixtures/cell.js';
 import { cellProject } from './fixtures/cell.js';
-import { submitFixture } from '../../../apps/cli/tests/fixtures/board/submit.js';
+import { submitFixture } from './fixtures/submit.js';
 
 /** Write one file in a checkout and commit it, as a seat building in its own worktree does. */
 function commitFile(project, cwd, path, text, message) {
@@ -20,7 +20,7 @@ function commitFile(project, cwd, path, text, message) {
 
 /** Bind native SQLite moves to real private Git history and hold the clock fixed throughout rejection and takeover. */
 function fixture(t, { engine = REJECT_OPEN_ENGINE, returnRejectedWork = true, reworkSameFamily = false } = {}) {
-  const project = cellProject(t);
+  const project = cellProject(t, { real: true });
   const web = join(project.dir, 'web');
   project.git(project.repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
   const at = Date.parse('2026-11-03T12:00:00.000Z');

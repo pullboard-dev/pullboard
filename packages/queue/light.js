@@ -2,3 +2,4 @@
 export { LINE_SETTING_DEFINITIONS, validateKnownLineSetting } from './src/logic/definitions.js';
 export * from './src/logic/order.js';
 export * from './src/logic/settings.js';
+export { labelDeclarationProblems } from './src/logic/labels.js';

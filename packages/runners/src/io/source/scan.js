@@ -10,13 +10,11 @@ import { loadKeyedResult } from '../keyed.js';
 import { saveKeyedResult } from '../keyed.js';
 import { fileURLToPath } from 'node:url';
 import { closeSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
 import { openSync } from 'node:fs';
 import { readSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { fstatSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { dirname } from 'node:path';
 import { mkdirSync } from 'node:fs';
@@ -27,6 +25,8 @@ import { renameSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
+import { scratchFolder } from '../../../../config/index.js';
+import { storeName } from '../store-names.js';
 
 export const MAX_BLOB_BYTES = 8 * 1024 ** 2;
 
@@ -36,7 +36,7 @@ export function sourceGit(root, args, options = {}) {
     cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: MAX_BLOB_BYTES, ...options,
   });
   if (result.error?.code === 'ENOBUFS') {
-    const directory = mkdtempSync(join(tmpdir(), 'pullboard-source-count-'));
+    const directory = scratchFolder('pullboard-source-count-');
     const fd = openSync(join(directory, 'stdout'), 'w+', 0o600);
     try {
       const counted = gitSpawnSync(['--no-replace-objects', '-c', 'core.hooksPath=/dev/null', ...args], {
@@ -133,7 +133,7 @@ function scanSourceObjects(root, source) {
     const match = /^(\d+) (\w+) ([a-f0-9]{40,64})\t([\s\S]+)$/u.exec(record);
     if (!match || match[2] !== 'blob') throw new Refused('RUNNER_SOURCE', 'runner source contains a submodule or unsupported object; keep this run local');
     const [, , , object, path] = match;
-    if (blockedPaths([path], protect).length || /(?:^|\/)board\.sqlite(?:-(?:wal|shm))?$/u.test(path)) {
+    if (protectedHistoryPath(path, protect)) {
       throw new Refused('RUNNER_SECRET', 'committed runner source includes a blocked private file; remove it before remote execution');
     }
     return { object, path };
@@ -153,7 +153,7 @@ function scanSourceObjects(root, source) {
       }
       return size;
     });
-    const scratch = mkdtempSync(join(tmpdir(), 'pullboard-runner-source-'));
+    const scratch = scratchFolder('pullboard-runner-source-');
     try {
       const scan = join(scratch, 'current.scan');
       for (let start = 0; start < blobs.length;) {
@@ -194,8 +194,33 @@ function scanSourceObjects(root, source) {
   return protect;
 }
 
+/**
+ * The one committed board a runner may receive: a 0.9.3 board kept as a test fixture, one folder below
+ * `apps/cli/tests/fixtures/`. Why: the upgrade journey needs a genuine 0.9.3 board that today's code cannot make, and
+ * its path made every `--diagnose` run refuse RUNNER_SECRET [C7,R4,#7894]. Any other board file, and every wal or shm
+ * sidecar, stays refused.
+ */
+const FIXTURE_BOARD = /^apps\/cli\/tests\/fixtures\/[^/]+\/board\.sqlite$/u;
+
+/**
+ * The historical blobs the transfer secret scan skips, by full object id. Why: two old versions of the upgrade-093
+ * fixture board carry only random lease fencing tokens from a throwaway board, and history cannot be rewritten
+ * [C7,#7919]. A full id pins exact bytes, so a new version of that file, or the same value in any other blob, is
+ * scanned as usual. Blocked paths are still refused.
+ */
+const HISTORICAL_SCAN_EXEMPT_BLOBS = new Set([
+  '04f366c14bcff002de322adaa655d93f4a64477f',
+  '62068207fe7f881651fc26192e870d8b67c7f27b',
+]);
+
+/** Whether one historical blob is exempt from the transfer secret scan by its exact full id [C7,#7919]. */
+export function historicalScanExempt(object, type) {
+  return type === 'blob' && HISTORICAL_SCAN_EXEMPT_BLOBS.has(object);
+}
+
 /** Reject blocked historical paths as well as current ones before an object pack crosses SSH. */
 export function protectedHistoryPath(path, protect) {
+  if (FIXTURE_BOARD.test(path)) return false;
   return blockedPaths([path], protect).length || /(?:^|\/)board\.sqlite(?:-(?:wal|shm))?$/u.test(path);
 }
 
@@ -227,7 +252,7 @@ function cleanHistoryFile(root, policies) {
   const digest = createHash('sha256').update(JSON.stringify(policies)).digest('hex').slice(0, 32);
   const partial = existsSync(join(common, 'shallow')) || existsSync(join(common, 'info', 'grafts'));
   const home = process.env.PULLBOARD_MACHINE_HOME || join(process.env.HOME || homedir(), '.pullboard');
-  return join(partial ? join(common, 'pullboard') : home, 'history-scan', `${digest}.json`);
+  return join(partial ? join(common, 'pullboard') : home, 'history-scan', storeName(digest));
 }
 
 /** Read the cached clean commits, newest first; a missing or unreadable cache is empty. */

@@ -5,7 +5,7 @@ import * as store from '../../index.js';
 import { cellBoard } from '../fixtures/cell.js';
 import { addItem } from '../../index.js';
 import { register } from '../../index.js';
-import { submitFixture } from '../../../../apps/cli/tests/fixtures/board/submit.js';
+import { submitFixture } from '../fixtures/submit.js';
 import { REJECTED_FIRST_ENGINE } from '../../../state/index.js';
 import { STUCK_RETURN_MS } from '../../src/logic/rework.js';
 

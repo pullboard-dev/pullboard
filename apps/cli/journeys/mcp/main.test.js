@@ -35,11 +35,13 @@ import { personNeedsState } from '../../../view/index.js';
 import {
   fileFixtureItem,
   fixtureJoinRoute,
-  fixtureMachineSettings,
   joinFixtureSeat,
 } from '../../tests/fixtures/testkit.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { startFixtureLocalRunner } from '../../tests/fixtures/runner/local-start.js';
+import { whenRunnerSettles } from '../../tests/fixtures/runner/local-start.js';
+import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const SPEC = `# MCP fixture
@@ -134,6 +136,7 @@ async function project(t) {
       try { tools = JSON.parse(readFileSync(request, 'utf8')).tools ?? null; } catch { return false; }
       return !existsSync(join(jobs, job, 'source')) && (!tools || !existsSync(tools));
     }), 'MCP fixture submit worker cleanup');
+    stopFixtureLocalRunner(join(dir, 'machine-home'));
     await stopFixtureLanding(join(dir, 'repo'));
     try { rmSync(dir, { recursive: true, force: true }); }
     catch (error) {
@@ -165,9 +168,7 @@ async function project(t) {
     MCP_NETWORK_LOG: join(dir, 'network.log'),
   });
   delete env.PULLBOARD_MODEL;
-  // Submits here hold the gate in the submitting process, so the machine home pins controller dispatch (#6182-#6185).
   mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
   const guard = join(dir, 'network-guard.mjs');
   writeFileSync(guard, NETWORK_GUARD);
   /** Run real Git under the fixture's isolated identity. */
@@ -192,7 +193,15 @@ async function project(t) {
   assert.equal(joined.code, 0, `${joined.out}\n${joined.err}`);
   const agent = JSON.parse(joined.out).agent;
   const runLocalArgs = (cwd, ...args) => runLocal(cwd, args);
+  // Pull dispatch is the default: the machine's local runner takes each submit's gate and posts its receipt.
+  startFixtureLocalRunner(env, repo);
   return { dir, env, runLocal, runLocalArgs, git, repo, web, agent, sessionA, guard, clients, database: join(repo, '.git', 'pullboard', 'board.sqlite') };
+}
+
+/** Wait until the item's pulled gate has settled and it left the claimed state: a pull submit returns queued at once. */
+function gateSettled(box, id) {
+  return whenRunnerSettles(box.env, async () => { const shown = await cli(box, box.repo, ['show', String(id)]); return shown.document.item_status === 'claimed' ? null : shown.document; },
+    { deadlineMs: 120_000, what: `the pulled gate of #${id}` });
 }
 
 /** Run one CLI command with --json and return its single document and status. */
@@ -503,6 +512,7 @@ test('an agent claims, submits, verifies and resumes through MCP with the CLI\'s
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): write the MCP fixture file [G1]');
   const submitted = await builder.call('submit', { id });
   assert.equal(submitted.isError, false, JSON.stringify(submitted.structuredContent));
+  await gateSettled(box, id);
   const commit = box.git(box.web, 'rev-parse', 'HEAD').trim();
 
   // A builder never verifies its own work, through MCP as through the CLI.
@@ -566,6 +576,7 @@ test('MCP rejects require and preserve caller-supplied frozen wording [A9,V6,H16
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): write the rejected MCP fixture [G1]');
   const submitted = await cli(box, box.web, ['submit', String(id)], box.sessionA);
   assert.equal(submitted.status, 0, JSON.stringify(submitted.document));
+  await gateSettled(box, id);
   const review = join(box.dir, 'clause-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, box.git(box.web, 'rev-parse', 'HEAD').trim());
   const session = { CODEX_SESSION_ID: 'mcp-clause-reviewer' };

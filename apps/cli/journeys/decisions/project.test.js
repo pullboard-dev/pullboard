@@ -56,9 +56,10 @@ test("one decision list across a project's repos [N34]", { timeout: 180_000 }, a
   assert.deepEqual(withBoard(other, board => store.openDecisions(board, store.PERSON)), []);
   assert.equal(withBoard(box.repo, board => store.openDecisions(board, store.PERSON)).length, 1);
   assert.deepEqual((await listed()).decisions.map(({ repo }) => repo), ['alpha']);
-  const unknown = (await box.runLocal(box.repo, 'answer', 'nowhere#1', 'x', '--as', 'person'));
+  const unknown = (await box.runLocal(box.repo, 'answer', 'nowhere#1', 'x', '--as', 'person', '--json'));
   assert.notEqual(unknown.code, 0);
-  assert.match(unknown.err, /PROJECT_REPO_UNKNOWN/);
+  // A person's text line is one plain sentence with no code (#3977); the json document keeps the code.
+  assert.equal(JSON.parse(unknown.out).error.code, 'PROJECT_REPO_UNKNOWN');
 });
 
 test('two repos of a project that share a name are addressed by folder, never guessed [N34]', { timeout: 120_000 }, async () => { // budget: hang ceiling for two real repos' CLI runs; not a speed target.
@@ -71,9 +72,9 @@ test('two repos of a project that share a name are addressed by folder, never gu
   const secondId = (await ask(other, 'Ship second?'));
   const listed = JSON.parse((await box.runLocal(box.repo, 'decisions', '--as', 'person', '--json')).out).decisions.map(({ repo }) => repo).sort();
   assert.deepEqual(listed, ['repo', 'repo-twin']);
-  const guessed = (await box.runLocal(box.repo, 'answer', `twin#${secondId}`, 'yes', '--as', 'person'));
+  const guessed = (await box.runLocal(box.repo, 'answer', `twin#${secondId}`, 'yes', '--as', 'person', '--json'));
   assert.notEqual(guessed.code, 0);
-  assert.match(guessed.err, /PROJECT_REPO_AMBIGUOUS/);
+  assert.equal(JSON.parse(guessed.out).error.code, 'PROJECT_REPO_AMBIGUOUS');
   assert.equal(withBoard(other, board => store.openDecisions(board, store.PERSON)).length, 1, 'nothing closed on either board');
   assert.equal((await box.runLocal(box.repo, 'answer', `repo-twin#${secondId}`, 'yes', '--as', 'person')).code, 0);
   assert.deepEqual(withBoard(other, board => store.openDecisions(board, store.PERSON)), []);

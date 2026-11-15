@@ -1,5 +1,6 @@
 /** A plain label, one sentence, group and display unit for every setting in the settings inventory [O5,O6,N26]. */
 import { Refused } from '../../../../kernel/light.js';
+import { PERSON_SET } from '../../logic/settings.js';
 
 // [key, label, one sentence on what it does, group, unit, compatibility?]. Wording is checked against each setting's reader in src/.
 // A compatibility toggle keeps an old behaviour and ends `{ compat: true, removeBy: 'YYYY-MM-DD' }`, one row per line [O6,C7].
@@ -18,6 +19,7 @@ const ROWS = [
   ['gate.loadAwareDispatch', 'Prefer quieter runners', 'On by default once a runner is measured: dispatch skips a runner above 1.5x its cores and picks the most headroom by runner-reported load.', 'Capacity', 'on/off'],
   ['gate.runnerBusyCeiling', 'Runner busy ceiling', 'Dispatch avoids runners above this CPU busy percentage when another compatible runner is below it.', 'Capacity', 'percent'],
   ['gate.runnerDispatch', 'How runner jobs are watched', 'pull (default) offers each job as a row a runner takes, the loopback local runner when none is registered, and finishes in short processes, so waiting costs none; controller keeps one controller process per runner job until its result.', 'Capacity', 'controller/pull', { compat: true, removeBy: '2026-12-31' }],
+  ['gate.refuseController', 'Refuse the controller dispatch value', 'When enabled, settings that name gate.runnerDispatch controller are refused with the step to move to pull; off leaves the old value readable until every machine has left it.', 'Capacity', 'on/off'],
   ['gate.pullPilot.items', 'Pull gate pilot items', 'While runner jobs are watched by controller, submits of these item numbers take the pull gate as one runner job and every other submit stays on the controller path.', 'Capacity', 'list', { compat: true, removeBy: '2026-12-31' }],
   ['gate.pullPilot.share', 'Pull gate pilot share', 'While runner jobs are watched by controller, this percentage of items, chosen by item number, take the pull gate on submit; 0 with no pilot items sends every submit through the controller path.', 'Capacity', 'percent', { compat: true, removeBy: '2026-12-31' }],
   ['gate.localLoadShare', 'Local runner load share', 'With no registered runners, the local runner takes a job only while this machine\'s one-minute load is under this share of its cores (default 1.0 per core); the job waits in the queue otherwise.', 'Capacity', 'number'],
@@ -26,20 +28,23 @@ const ROWS = [
   ['gate.mainComparison', 'Compare red runs with main', 'on-red (default) compares a red submit or review run with main to tell known main reds from new ones; off treats a red gate as red, with no main comparison and no carried-red acceptance.', 'Capacity', 'on-red/off'],
   ['gate.timingRunner', 'Runner for timed checks', 'With two or more runners, timed checks run only on this one and ordinary runs use the rest, and borrow it only when the rest are full and no timed check waits; auto picks the runner with the most measured headroom and off drains a busy runner instead.', 'Capacity', 'host'],
   // This machine: Order
+  ['gate.jobReserve', 'Runner job classes', 'Off by default; when set, a runner takes interactive runs, then gates, then landings, then background sweeps, while each class keeps this share of every runner\'s slots.', 'Order', 'share'],
   ['gate.queue.reviewsFirst', 'Reviews first', 'Queued checks run in the order landing, review, submit, then the rest, instead of landings first and then arrival order.', 'Order', 'on/off'],
   ['gate.queue.currentReleaseFirst', 'Current release first', 'Among otherwise tied checks on each board, work in the release being shipped goes ahead of later releases.', 'Order', 'on/off'],
   ['gate.queue.agingMinutes', 'Waiting bonus', 'A waiting check moves up one class every this many minutes, so nothing waits forever; used only while an order setting above is on.', 'Order', 'minutes'],
   ['workers.budget', 'Worker budget', 'The spend per day or week that pullboard run --scale may use across every live seat on this computer, priced by each seat\'s model; off launches no workers.', 'Capacity', 'spend'],
-  ['budget.dailyUsd', 'Daily spend ceiling', 'Off by default; the most model dollars this computer may spend in one day, refused when not a positive amount.', 'Capacity', 'USD'],
-  ['budget.totalUsd', 'Total spend ceiling', 'Off by default; the most model dollars this computer may spend in all, refused when not a positive amount.', 'Capacity', 'USD'],
+  ['budget.dailyUsd', 'Daily spend ceiling', 'Off by default; the most model dollars this computer may spend in one day, refused when not a positive amount.', 'Spending', 'USD'],
+  ['budget.totalUsd', 'Total spend ceiling', 'Off by default; the most model dollars this computer may spend in all, refused when not a positive amount.', 'Spending', 'USD'],
   // This machine: Runners
   ['runners', 'Registered runners', 'The other computers that run checks for this one, each with its slots.', 'Runners', 'list'],
+  ['runnerRates', 'Runner rate cards', 'For each runner host, its purchase price, months to pay off, load watts and power price per kWh; nothing computes with it yet.', 'Runners', 'list'],
   ['gate.runnersFirst', 'Runners before local slots', 'Registered runners are tried before this computer\'s own slots.', 'Runners', 'on/off'],
   ['serve.address', 'Board API address', 'The interface address pullboard serve listens on; off loopback every request needs this machine\'s board key, so runners on the network can pull jobs.', 'Runners', 'address'],
-  ['scratch', 'Scratch folder root', 'One absolute, existing folder for all throwaway folders (PULLBOARD_SCRATCH names it too); unset keeps the system temp folder.', 'Capacity', 'folder'],
+  ['scratch', 'Scratch folder root', 'One absolute, existing folder for all throwaway folders (PULLBOARD_SCRATCH names it too); unset keeps the system temp folder.', 'Folders', 'folder'],
   ['serve.port', 'Board API port', 'The port pullboard serve listens on; 0 chooses a free one, so set it when runners keep the board URL.', 'Runners', 'port'],
   ['gate.runnersOnly', 'Runners only', 'Submit and review checks wait for a registered runner and never fall back to this computer.', 'Runners', 'on/off'],
   ['gate.measuredSlots', 'Measured runner slots', 'Each runner offers slots computed from its own cores and memory, unless it was registered with a fixed count.', 'Runners', 'on/off'],
+  ['gate.tableReplay', 'Replay changed move tables', 'When enabled, a submit that changes a move table replays it over the board\'s recorded moves and is red on any disagreement.', 'Runners', 'on/off'],
   ['gate.postLandSuite', 'Full suite after landing', 'When enabled, each landed train batch is followed by the full suite on registered runners; newly red files get Main red owners.', 'Runners', 'on/off'],
   ['gate.handoffWorkers', 'Hand-off workers', 'Caps the submit hand-off workers this computer runs at once, computed from the runner slots when unset and lowered only by this setting, never by a launching command.', 'Capacity', 'count'],
   ['gate.runnerWaitMs', 'Wait for a runner', 'How long a runner-only check waits for a free runner before it refuses.', 'Runners', 'ms'],
@@ -81,7 +86,7 @@ const ROWS = [
   ['worktreeMaintenance.exclude', 'Worktrees kept out of maintenance', 'Explicit absolute directory paths maintenance always leaves alone.', 'Project', 'list'],
   ['lanes', 'Lanes', 'Each lane\'s owned files, owned spec rows and starting rules.', 'Project', 'list'],
   ['products', 'Products', 'Product names and the spec rows each one covers.', 'Project', 'list'],
-  ['shared', 'Shared paths', 'Path prefixes any lane may change.', 'Project', 'list'],
+  ['shared', 'Shared paths', 'Path prefixes any lane may change.', 'Folders', 'list'],
   ['trunk.remote', 'Trunk remote', 'The git URL runners fetch candidates from and landing pushes the trunk to, with gate.runnerDispatch pull as a runner job that pushes only if trunk has not moved; empty uses the board host\'s own repository.', 'Project', 'text'],
   ['fix', 'Automatic fixers', 'Commands that fix the files they are given, and which files they apply to.', 'Project', 'list'],
   ['agents.names', 'Agent name style', 'Whether an agent\'s number comes after its name or before it.', 'Project', 'choice'],
@@ -98,7 +103,7 @@ const ROWS = [
   ['affectedTests', 'Selected-test command', 'The command prefix that runs only the test files a change affects.', 'Checks', 'command'],
   ['submitInvariants', 'Always-run tests', 'Test files that run on every submit, however small the change.', 'Checks', 'list'],
   ['registryGuards', 'Registry guards', 'Source guards the selected-test runner adds when a change touches a registry.', 'Checks', 'list'],
-  ['submit.handoff', 'Return while checks run', 'Submit queues the captured candidate for runners and returns while its checks continue.', 'Checks', 'on/off'],
+  ['submit.handoff', 'Return while checks run', 'Deprecated no-op: submit always settles through the pull gate.', 'Checks', 'on/off'],
   ['submit.requireInfraNote', 'Explain test edits', 'Submit asks for a written reason when a change edits tests or infrastructure.', 'Checks', 'on/off'],
   ['submit.autoFileMainReds', 'File known main failures', 'Submit opens repair items for failures freshly confirmed to match main.', 'Checks', 'on/off'],
   ['itemBuildBudgetMinutes', 'Item build budget', 'Expected build minutes allowed before an item must be cut into children.', 'Work', 'minutes'],
@@ -122,9 +127,13 @@ const ROWS = [
   ['verify.unrelatedTrunkMoves', 'Keep verdicts through unrelated changes', 'A verdict survives main moving through commits that touch nothing the review read.', 'Review', 'on/off'],
   ['verify.composeAtAdmission', 'Compose with main at review', 'A review is judged on the item combined with the current main when it starts.', 'Review', 'on/off'],
   ['verify.inspectClauses', 'Inspect bar clauses', 'Each bar clause must name its evidence kind, and submit checks every clause against it.', 'Review', 'on/off'],
+  ['verify.failBefore', 'Require a fail-before receipt', 'Submit refuses a [test] clause unless a recorded run at the item base failed on an assertion.', 'Review', 'on/off'],
+  ['verify.frozenTests', 'Freeze named test files', 'Submit refuses an item whose bar-named test file changed after claim, unless the person ruled on the new content.', 'Review', 'on/off'],
+  ['labels', 'Label bounds', 'How many items may carry each label at once, as a minimum and a maximum per label name.', 'Order', 'list'],
   ['families', 'Model family names', 'Which vendor names count as the same model family.', 'Review', 'list'],
   ['review.independence', 'Reviewer independence', 'Off lets any seat but the builder verify, even a subagent of the builder\'s session, while session lets only a different agent session verify.', 'Review', 'choice'],
   ['review.excludeEarlierHolders', 'Exclude earlier holders from review', 'On refuses a review reservation by any seat that ever claimed, built, submitted or released the item; off excludes only its current builder and submitters.', 'Review', 'on/off'],
+  ['withdraw.review', 'Withdrawals need a second seat', 'On, a withdrawal waits as pending until another seat confirms it; off, withdraw closes the item at once.', 'Review', 'on/off'],
   ['review.starveMinutes', 'Review waiting alarm', 'A submission that has waited this long without a reviewer is marked urgent.', 'Review', 'minutes'],
   ['approvers', 'People who approve', 'The GitHub accounts allowed to act as the person on a linked board; blank means no limit.', 'Review', 'list'],
   // This repo: Claims
@@ -133,6 +142,7 @@ const ROWS = [
   ['claims.releaseCooldownMinutes', 'Release cooldown', 'After a seat releases an item, next offers it other work for this many minutes unless nothing else is open.', 'Claims', 'minutes'],
   ['claims.perSeat', 'Live claims per seat', 'How many build claims one seat may hold at once; blank lets the board set N = clamp(1, 5, floor(free test-run slots / live seats)), counting local cores when no runner serves.', 'Claims', 'count'],
   ['claims.releaseGone', 'Release claims of gone agents', 'Claims held by agents that have disappeared are released automatically.', 'Claims', 'on/off'],
+  ['pin.signed', 'Require a signed tooling pin', 'On, no run uses a tooling pin file that is unsigned or edited after it was signed; off, the pin file is read as written.', 'Checks', 'on/off'],
   ['claim.returnToBoard', 'Return reds to the board', 'A red or refused queued gate releases the builder claim at once, so any free seat of the lane and route takes it.', 'Claims', 'on/off'],
   ['modelTiers', 'Model routes', 'Which route a seat serves, light, mid or strong, from a fragment of its model name; an unmatched model serves mid.', 'Claims', 'list'],
   ['claim.reopenFirstRefusalMinutes', 'Builder repair window', 'After a reopen, the original builder gets this long to repair it first; 0 turns it off.', 'Claims', 'minutes'],
@@ -147,6 +157,7 @@ const ROWS = [
   ['landing.auditOnly', 'Audit-only tests', 'Test files the per-item landing gate leaves to the post-landing audit, which files a red there as a main red; off unless listed.', 'Landing', 'list'],
   ['landing.pauseOnRed', 'Pause landing on red', 'Landing pauses after a publish full suite fails without proof it is unrelated.', 'Landing', 'on/off'],
   ['landing.trunkRemote', 'Trunk remote (old name)', 'Deprecated: the old name for trunk.remote, read for one release when trunk.remote is empty and removed after it; set trunk.remote instead.', 'Landing', 'text', { compat: true, removeBy: '2026-12-31' }],
+  ['pushGate.shardMinutes', 'Push shard time limit', 'How long a pre-push gate shard may run before the push gate gives up, and a quarter of it sizes each shard; a longer runner ceiling raises it.', 'Landing', 'minutes'],
   ['landing.environment', 'Required landing machine', 'The platform, architecture and Node version the landing gate must run on.', 'Landing', 'list'],
   // This repo: Commits
   ['commits.types', 'Commit types', 'The types a commit header may start with.', 'Commits', 'list'],
@@ -179,7 +190,7 @@ const ROWS = [
 ];
 
 // The settings the CLI can set, by the form `pullboard settings <form> <value>` takes; apps/cli/journeys/settings/descriptions.test.js holds this equal to help.js SETTING_FORMS.
-const CLI_FORMS = new Set(['gateSlots', 'browserSlots', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'gate.runnerBusyCeiling', 'gate.runnersOnly', 'gate.runnerWaitMs', 'inspection.clauses']);
+const CLI_FORMS = new Set(['gateSlots', 'browserSlots', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'gate.runnerBusyCeiling', 'gate.runnersOnly', 'gate.runnerWaitMs', 'inspection.clauses', 'runnerRates', ...Object.keys(PERSON_SET)]);
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/u;
 

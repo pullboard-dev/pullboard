@@ -37,7 +37,7 @@ export function fixture(t, { sandbox = 'owned' } = {}) {
   const mark = name => `(await import('node:fs')).writeFileSync(root + '/.git/ran-' + ${JSON.stringify(name)}, String(process.pid));`;
   git(controller, 'config', 'pullboard.trunk', 'refs/heads/main');
   put('package.json', '{"type":"module"}\n');
-  put('packages/items/index.js', 'export function requirePlannedSource() {}\nexport function requireSubmitComposition() {}\n');
+  put('packages/items/index.js', 'export function requireSubmitComposition() {}\n');
   put('packages/gate/index.js', `export function importsIn() {} export function commonJsIn() {} export function withImportParseCache() {}
 export function foreignNodeOptions() { return false; }
 export async function submitGatePlan(root, config, options) { ${mark('selection')} return { proofFiles: ['test/a.test.js'], check: options.check }; }

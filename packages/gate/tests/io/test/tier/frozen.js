@@ -24,6 +24,8 @@ export function frozen(t) {
   put(MIXED_TEST, "import { size } from '../../src/io/size.js';\nimport { other } from '../../src/io/other.js';\nvoid [size, other];\n");
   put('packages/web/src/page.js', 'export const page = 1;\n');
   put(WEB_TEST, "import { page } from '../src/page.js';\nvoid page;\n");
+  // The inventory reads tracked files only, so stage the fixture before the manifest is written.
+  git(root, 'add', '-A');
   writeTestTiers(root);
   git(root, 'add', '-A');
   git(root, 'commit', '-q', '-m', 'freeze');
@@ -33,6 +35,7 @@ export function frozen(t) {
 /** Commit one change on top of the frozen repository and select its tiers. */
 export function change(box, files) {
   for (const [file, source] of Object.entries(files)) box.put(file, source);
+  git(box.root, 'add', '-A');
   writeTestTiers(box.root);
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-q', '-m', 'change');

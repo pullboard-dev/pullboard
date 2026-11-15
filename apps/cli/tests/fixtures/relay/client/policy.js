@@ -14,6 +14,7 @@ const INITIALIZED_REPO_FILES = [
   '.codex/hooks.json',
   '.codex/rules/pullboard.rules',
   '.githooks/commit-msg',
+  '.githooks/post-commit',
   '.githooks/pre-commit',
   '.githooks/pre-merge-commit',
   '.githooks/pre-push',
@@ -21,6 +22,7 @@ const INITIALIZED_REPO_FILES = [
   '.mcp.json',
   'AGENTS.md',
   'CLAUDE.md',
+  'COORDINATOR.md',
 ];
 
 /** Commit only the exact setup files `init` created, through the fixture's installed hooks. */

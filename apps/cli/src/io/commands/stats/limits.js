@@ -20,10 +20,11 @@ function onBoard(open, work) {
  * @param {string} key - gateSlots, workers.budget or runner.jobs.
  * @param {unknown} before
  * @param {unknown} after
+ * @param {{ atomic: Function, logEvent: Function }} store - Store's write primitives, from the caller's existing store import.
  * @returns {boolean} whether an event was written.
  */
-export function recordLimitChange(open, key, before, after) {
-  return onBoard(open, board => recordLimitEvent(board, key, before, after)) ?? false;
+export function recordLimitChange(open, key, before, after, store) {
+  return onBoard(open, board => recordLimitEvent(board, key, before, after, store)) ?? false;
 }
 
 /** The newest value recorded for a limit on the command's board, or null. */

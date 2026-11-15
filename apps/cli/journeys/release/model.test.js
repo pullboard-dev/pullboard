@@ -58,7 +58,7 @@ const TOUR_STEPS = [
   "5  The builder's next session starts from the board, not from memory.",
   '6  It fixes the edge, adds a test that pins it, and submits a new commit.',
   '7  The verifier breaks the fix on purpose, to prove the new test can fail, then restores it and accepts.',
-  '8  The coordinator merges it. The ledger is the receipt.',
+  '8  The lander lands it: a land job merges it onto main. The ledger is the receipt.',
 ];
 
 test('clause 1: the coordinator declares its model [O8,O3]', async (t) => {

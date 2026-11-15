@@ -33,13 +33,13 @@ export function installTrunkGuard(gitDir, { key, trunk = 'refs/heads/main' }) {
   // A hook's first line cannot carry a space, so node must sit on a path without one.
   if (/\s/u.test(process.execPath)) throw new Error(`node's path ${process.execPath} has a space; install node on a path without one`);
   const here = dirname(fileURLToPath(import.meta.url));
-  for (const [from, to] of [[join(here, 'guard.js'), join('src', 'io', 'trunk', 'guard.js')], [join(here, '..', '..', 'logic', 'permit.js'), join('src', 'logic', 'permit.js')]]) {
+  for (const [from, to] of [[join(here, 'guard.js'), join('src/io/trunk/guard.js')], [join(here, '..', '..', 'logic', 'permit.js'), join('src/logic/permit.js')]]) {
     mkdirSync(dirname(join(hooks, HOME, to)), { recursive: true });
     copyFileSync(from, join(hooks, HOME, to));
   }
   writeFileSync(join(hooks, HOME, 'package.json'), '{ "type": "module" }\n');
   // The hook is node itself; a dynamic import reads the same as CommonJS or as a module, whichever scope the hooks folder is in.
-  writeFileSync(hook, `#!${process.execPath}\n${MARK}\nimport('node:path').then(path => import('node:url').then(url => import(url.pathToFileURL(path.join(path.dirname(process.argv[1]), '${HOME}', 'src', 'io', 'trunk', 'guard.js')).href))).then(guard => guard.trunkGuardMain());\n`);
+  writeFileSync(hook, `#!${process.execPath}\n${MARK}\nimport('node:path').then(path => import('node:url').then(url => import(url.pathToFileURL(path.join(path.dirname(process.argv[1]), '${HOME}', 'src/io/trunk/guard.js')).href))).then(guard => guard.trunkGuardMain());\n`);
   chmodSync(hook, 0o755);
   for (const [name, value] of [['receive.advertisePushOptions', 'true'], ['pullboard.landingKey', key], ['pullboard.trunk', trunk]]) {
     const set = tryGit(gitDir, ['config', name, value]);

@@ -53,3 +53,18 @@ export function takeoverReady(board, id) {
   const since = Date.parse(activity?.event_at ?? returned.event_at);
   return Number.isFinite(since) && now >= since + minutes * 60_000;
 }
+
+/** A session that left no activity this long, with no live process, is gone: the same thirty minutes the seat presence projection uses. */
+export const SEAT_SESSION_STALE_MS = 30 * 60_000;
+
+/**
+ * Whether a seat's session has ended: its session process is known not to be running and it has done nothing for the
+ * stale interval. Why both: a quiet seat with a live session is merely idle, and a seat whose process state is unknown
+ * (`sessionLive` undefined) is never called gone from silence alone, so a hook-less seat keeps its place in the idle share.
+ *
+ * @param {{ sessionLive?: boolean, lastActivityAt: number, now: number, staleMs?: number }} seat - Times in epoch milliseconds.
+ * @returns {boolean}
+ */
+export function seatSessionGone({ sessionLive, lastActivityAt, now, staleMs = SEAT_SESSION_STALE_MS }) {
+  return sessionLive === false && Number.isFinite(lastActivityAt) && now - lastActivityAt >= staleMs;
+}

@@ -76,7 +76,7 @@ test('the tour runs a reject and its rework on a throwaway repo, in under thirty
   assert.equal(normalizeTourRoot(noColor.stdout), normalizeTourRoot(shown.stdout), 'NO_COLOR preserves the plain tour output');
 
   const repo = /Look around: cd (\S+) && pullboard log/.exec(shown.stdout)[1];
-  assert.match(box.git(repo, 'log', '--format=%an %s', '-1'), /^app-1 fix\(app\): a blank name greets the world \[G1\]$/);
+  assert.match(box.git(repo, 'log', '--no-merges', '--format=%an %s', '-1'), /^app-1 fix\(app\): a blank name greets the world \[G1\]$/);
   assert.equal(isolated.status, 0, `git settings from the environment stay out: ${isolated.stdout}`);
   assert.equal(stopped.status, 1);
   assert.match(stopped.stdout, /The tour stopped: git init -q -b main exited null/);

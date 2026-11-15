@@ -1,7 +1,7 @@
 import { TWO_TIER_DIAGNOSIS_ENGINE } from '../../../../state/light.js';
 import { QUEUE_PREEMPT_ENGINE } from '../../../../state/light.js';
 import { ITEM_NOTES_ENGINE } from "../../../../state/light.js";
-import { ITEM_NOTE_KINDS } from "../../../../items/light.js";
+import { ITEM_NOTE_KINDS } from "../../../../items/browser.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by appendFact, discovered without a shared registry edit [C7,V4,H16]. */
 import { CAUSE_ENGINE } from "../../../../state/light.js";

@@ -93,7 +93,7 @@ function nativeRows(db, table) {
  * Why: job, job_step and test_result are an additive upgrade (board-jobs-schema.js), so a board gains them on open while
  * exports made before or without them never list them. Every other table still has to match exactly.
  */
-const ADDITIVE_TABLES = new Set(['job', 'job_step', 'test_result']);
+const ADDITIVE_TABLES = new Set(['job', 'job_step', 'test_result', 'run']);
 
 /**
  * Read every exported table's rows, leaving out an additive table that holds no rows, and its counter [C7].
