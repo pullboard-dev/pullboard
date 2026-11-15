@@ -117,7 +117,7 @@ test('the item projector matches the full projection [A2,N26]', async () => {
     const text = [JSON.stringify(passed), JSON.stringify(full)];
     let at = 0;
     while (at < text[0].length && text[0][at] === text[1][at]) at += 1;
-    assert.equal(text[0], text[1], `projectState with a pass-through callback equals it too; first difference at ${at}: ${text[0].slice(Math.max(0, at - 150), at + 100)} <> ${text[1].slice(Math.max(0, at - 150), at + 100)}`);
+    assert.ok(text[0] === text[1], `DIFF at ${at}: ${text[0].slice(Math.max(0, at - 150), at + 100)} <> ${text[1].slice(Math.max(0, at - 150), at + 100)}`);
     assert.deepEqual(offered, all.map((item) => [item.item_id, true, item.item_status]), 'the callback is offered every item with its board and status');
 
     // Each item projected on its own is that item in the full projection, a fresh object each time, and it changes
