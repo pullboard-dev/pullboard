@@ -4,6 +4,8 @@ Notable changes to Pullboard, for people using it. The format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [0.9.4] - 2026-11-15
+
 Restructure for speed: runners pull their work from the board, landing runs as a runner job, the code is laid out in cells, and a seat never waits. A board now works from any machine that can reach it, a seat can hold several items at once, and the view opens a large board in seconds.
 
 ### Added
@@ -13,6 +15,7 @@ Restructure for speed: runners pull their work from the board, landing runs as a
 - Boards anywhere: with `board.url` set, `show`, `whoami`, `next`, `claim`, `fact`, `release`, `submit`, `verify` and `test` work over the board API from any machine, `join` registers a remote agent, and runners fetch code from the trunk remote or from the board itself (#5904, #5905, #5906, #5908, #5909, #5945, #5759).
 - Multi-item claims: a seat may hold several live claims, and one `next` hands it up to that many ready items whose files do not overlap, each in its own item folder. The allowance comes from board data (#6262, #6263, #6673, #7461).
 - `pullboard test` posts a proof run that a runner pulls and returns at once. It says when it is admitted and on which runner, prints progress every minute, and has `--status`, `--cancel`, `--diagnose` and `--compare-main`. A green run at the item's head ticks the clauses it proves (#3439, #4078, #5300, #5584, #5772, #5774, #5888, #3479, #3670).
+- `pullboard test --no-file-limit` and `test --census --no-file-limit` let a slow file finish under a 10-minute hard stop; gates keep the 3-minute limit (#7872).
 - The lander: accepted items land as a job on a runner. The land job takes every verified item that composes cleanly, lands them in accept order, refuses a candidate that fails the parse guard or CLI smoke, and publishes the landed tip; the trunk remote refuses a push to main without a landing receipt (#5568, #5734, #5815, #5848, #5863, #5864, #7307, #7387, #7395, #7398).
 - `pullboard search <text>` finds items by meaning across titles, bars and briefs, and `add` prints the nearest three open items. Filing a likely duplicate is refused unless you say how it differs (#5915, #5916, #5917, #6475).
 - The `withdraw.review` setting makes a withdrawal wait for a second agent to confirm it (#6474).
@@ -37,8 +40,10 @@ Restructure for speed: runners pull their work from the board, landing runs as a
 
 - The repo is laid out in cells: shared code lives in `packages/` and each program in `apps/`, and packages never import apps. One scripted change moved the code; landing refuses a new file the layout does not place, and each cell is checked against the cells it may import (#3210, #3689, #4003, #4865, #4866, #6292, #6859, #6860, #6861).
 - Boards and runners made by 0.9.3 keep working after the upgrade to 0.9.4: old move history, worker paths and manifests are still read (#4868, #4869, #4870, #6267).
+- Boards older than 0.9.3 are refused with BOARD_TOO_OLD; 0.9.4 supports one release back (#7767).
 - Pull is the default. Submit records the submit and returns; the whole gate runs as one runner job and posts one receipt. Nothing gate-related runs on the coordinator's machine (#2535, #5674, #5691, #5807, #5820, #6182).
 - Landing is automatic: accepted items land at once, the coordinator's machine only fast-forwards main, `pullboard land` offers the land job, and landing by hand says so and names `landing.manualOverride` (#3525, #5585, #6272, #6807).
+- `pullboard submit` refuses a bar frozen with check timing (PULL_TIMING_UNSUPPORTED); leave timing off or use `pullboard check`. Timing admission on pulled gates returns in 0.9.5 (#7941, #7942).
 - Runners spread work by load: a runner pulls a job only while it has spare cores, runs a job's files in parallel, keeps tooling pinned and takes source as tree ids, and reuses a warm checkout between jobs. Agent test runs go ahead of queued gate shards, and job kinds have reserved shares (#3523, #3524, #5578, #5812, #5919, #6313, #6464, #6538, #6681).
 - Proof is reused: review and landing read the gate's receipt and run no tests again, a test whose inputs have not changed since its last green run is skipped, and one ledger records every reuse (#3526, #5471, #5839, #5842, #5843, #7277).
 - Faster board commands: commands start without the runner tooling capture, heartbeat and the commit hooks run through the warm board process, board writes hold the lock for milliseconds, `next` and `claim` open an item folder in under a second, and `next` picks for a build seat in under 2 s on a large board (#2437, #3172, #3250, #3847, #5561, #5776, #6357).
@@ -76,6 +81,7 @@ Restructure for speed: runners pull their work from the board, landing runs as a
 - A verify whose checkout or trunk moves during a fresh check cannot gain proof (#3024).
 - A move the relay permanently refuses is parked, and `pullboard relay recover` resolves it (#6693; reported in [GitHub #14](https://github.com/pullboard-dev/pullboard/issues/14) by @McHersheys)
 - Relay moves never wait silently: a move over the size limit gets a refusal with its size and the limit, the hosted relay takes up to 10 MB, and every relay refusal has a next step (#1196, #1300, #6696, #6707).
+- After an upgrade from 0.9.3, a linked board's old relay sender is replaced automatically, and `doctor` names an outdated sender with RELAY_SENDER_OUTDATED (#7938).
 - The board protects itself: archives refuse when they would fill the disk, old code refuses to write a board whose schema is ahead of it, a board whose shape drifted repairs its tables and triggers, export and sync stream a large board, and a long write never blocks other writers for minutes (#2089, #4996, #5825, #5899, #7297).
 - The pre-commit scan skips binary files, so one large binary is no longer refused (#1316; reported in [GitHub #3](https://github.com/pullboard-dev/pullboard/issues/3) by @mlnj)
 - Secrets: landing refuses a candidate whose added lines contain a secret, and the pre-commit scan checks only what a merge from main adds (#3762, #5968).
@@ -85,7 +91,9 @@ Restructure for speed: runners pull their work from the board, landing runs as a
 - `pullboard publish` works from an agent's shell (#5400; reported in [GitHub #25](https://github.com/pullboard-dev/pullboard/issues/25) by @klartext79)
 - A declined Rigor rule stays declined, and reopening an item to correct its bar no longer counts as a failure (#5404; reported in [GitHub #26](https://github.com/pullboard-dev/pullboard/issues/26) by @klartext79)
 - Each subagent runs `next` as its own seat and stays in its lane (#5405; reported in [GitHub #27](https://github.com/pullboard-dev/pullboard/issues/27) by @klartext79)
+- The relay page cache no longer fails to acknowledge with "database is locked" after a concurrent write (#7560; reported in [GitHub #8](https://github.com/pullboard-dev/pullboard/issues/8) by @McHersheys)
 - A claim in the wrong lane refuses and names the lane instead of opening a seat (#5413; reported in [GitHub #27](https://github.com/pullboard-dev/pullboard/issues/27) by @klartext79)
+- When affected-test selection falls back to the full gate, it names the exact reason (#6710; reported in [GitHub #28](https://github.com/pullboard-dev/pullboard/issues/28) by @klartext79)
 - Paths with spaces work in test subprocesses and recorded wait keys (#1873, #6763).
 - Daemons started by a desktop app keep that app's macOS Local Network permission (#5699).
 - Command fixes: `status` and `resume --diagnostics` no longer throw on the shared read path, `spec draft` writes the row it prints, `doctor` names a missing spec gate file instead of hanging, `merged` records an item once, `add` and `edit` never drop a repeated `--criterion`, and `withdraw`'s hint names the right flag (#2835, #3267, #3350, #3743, #3992, #4988).
@@ -104,6 +112,10 @@ Restructure for speed: runners pull their work from the board, landing runs as a
 - Landing no longer reads the restructure plan; its plan checks went with it (#6295, #7375, #7376).
 - The view's Progress page; Dashboard is the home page (#6726).
 - `docs/lifecycle.md` and `docs/cli-help.txt` are no longer committed; help prints the same facts (#5309, #6420).
+
+### Known gaps
+
+- Items marked machine-verified go to normal review in 0.9.4: the pulled gate does not yet run clause commands for a machine verdict. This comes in 0.9.5 (#7993).
 
 ## [0.9.3] - 2026-10-26
 
