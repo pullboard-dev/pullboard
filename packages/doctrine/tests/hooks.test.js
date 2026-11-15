@@ -12,6 +12,8 @@ import {
 } from "../../gate/tests/fixtures/child.js";
 import {
   chmodSync,
+  constants as fsConstants,
+  cpSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -21,6 +23,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { after } from 'node:test';
 import { test } from 'node:test';
 import { defaults } from "../../config/index.js";
 import { preCommitProblems } from "../../commits/index.js";
@@ -56,10 +59,31 @@ function fixture(t, branch = 'main') {
   return { main, lane, config, context: { root: lane, isMain: false, config, agent: { agent_lane: 'core' } } };
 }
 
-/** Build an isolated board with the candidate CLI's real installed hooks and a joined lane. */
+let nativeTemplate = null;
+after(() => { if (nativeTemplate) rmSync(nativeTemplate.base, { recursive: true, force: true }); });
+
+/**
+ * Give a case an isolated board with the candidate CLI's real installed hooks and a joined lane.
+ * Why: init, the seed commit and join cost three CLI starts per case; the first case builds the board once at its
+ * final path and snapshots it, and every later case restores that snapshot to the same path, so the board's recorded
+ * paths stay valid. Cases run one at a time, so the shared path never holds two live boards.
+ */
 function nativeFixture(t) {
-  const dir = mkdtempSync(join(tmpdir(), 'pullboard-native-merge-hook-'));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  if (!nativeTemplate) {
+    const base = mkdtempSync(join(tmpdir(), 'pullboard-native-merge-hook-'));
+    nativeTemplate = { base, box: buildNativeFixture(join(base, 'live')), snapshot: join(base, 'snapshot') };
+    cpSync(join(base, 'live'), nativeTemplate.snapshot, { recursive: true, verbatimSymlinks: true, mode: fsConstants.COPYFILE_FICLONE });
+    return nativeTemplate.box;
+  }
+  const live = join(nativeTemplate.base, 'live');
+  rmSync(live, { recursive: true, force: true });
+  cpSync(nativeTemplate.snapshot, live, { recursive: true, verbatimSymlinks: true, mode: fsConstants.COPYFILE_FICLONE });
+  return nativeTemplate.box;
+}
+
+/** Build the native board at dir: real init, a hooked seed commit, a core worktree and a real join. */
+function buildNativeFixture(dir) {
+  mkdirSync(dir);
   const shims = join(dir, 'bin');
   const main = join(dir, 'main');
   const lane = join(dir, 'lane');
