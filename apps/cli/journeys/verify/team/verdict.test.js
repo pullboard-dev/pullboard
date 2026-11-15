@@ -105,7 +105,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   const initialState = (await http('/state')).state;
   const phoneBefore = relaySnapshot(reviewer, {}, RELAY_PRESENTATION_PORTS);
   await http('/state');
-  assert.equal(builds, 1, 'unchanged HTTP reads reuse the state cache');
+  assert.equal(builds, 1, 'unchanged HTTP reads reuse the state cache ' + (() => { const db = new DatabaseSync(join(box.repo, '.git/pullboard/board.sqlite'), { readOnly: true }); try { return JSON.stringify(db.prepare('SELECT event_id, event_at, event_by, event_kind, substr(event_detail,1,50) AS d FROM event ORDER BY event_id DESC LIMIT 5').all().map(r => ({ ...r }))); } finally { db.close(); } })() + ' at ' + new Date().toISOString());
   await http('/items/1'); // Warm the independent detail freshness projection for a verified item.
   const processMethods = ['spawn', 'spawnSync', 'exec', 'execSync', 'execFile', 'execFileSync'];
   const originals = new Map(processMethods.map(method => [method, childProcess[method]]));
