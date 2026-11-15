@@ -45,13 +45,13 @@ async function serveTwo(t, { timing }) {
   return { log, receipts };
 }
 
-test('clause 1: a runner holding a gate job with exclusive timing claims no other job until it ends [C7]', { timeout: 60_000 }, // budget: one local git checkout and two node children.
+test('#8187 clause 1: a runner holding a gate job with exclusive timing claims no other job until it ends [C7]', { timeout: 60_000 }, // budget: one local git checkout and two node children.
   async t => {
     const { log } = await serveTwo(t, { timing: true });
     assert.ok(log.indexOf('receipt g1') !== -1 && log.indexOf('claim 2') > log.indexOf('receipt g1'), `the second claim waits for the first receipt: ${log.join(', ')}`);
   });
 
-test('clause 1: the timed job posts exclusive:true timing evidence in its receipt [C7]', { timeout: 60_000 }, // budget: one local git checkout and two node children.
+test('#8187 clause 1: the timed job posts exclusive:true timing evidence in its receipt [C7]', { timeout: 60_000 }, // budget: one local git checkout and two node children.
   async t => {
     const { receipts } = await serveTwo(t, { timing: true });
     const { timing, exclusive, unfencedClients, admittedAt, finishedAt } = receipts.g1;
@@ -60,7 +60,7 @@ test('clause 1: the timed job posts exclusive:true timing evidence in its receip
     assert.equal(receipts.g1.gate.green, true);
   });
 
-test('clause 1: a gate job without timing leaves the runner free and its receipt carries no timing claim [C7]', { timeout: 60_000 }, // budget: one local git checkout and two node children.
+test('#8187 clause 1: a gate job without timing leaves the runner free and its receipt carries no timing claim [C7]', { timeout: 60_000 }, // budget: one local git checkout and two node children.
   async t => {
     const { receipts } = await serveTwo(t, { timing: false });
     assert.equal('exclusive' in receipts.g1, false);
