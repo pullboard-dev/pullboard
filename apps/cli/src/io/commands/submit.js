@@ -2,7 +2,9 @@ import { parseSpec } from '../../../../../packages/spec/light.js';
 import { submitReferenceReminders } from '../../../../../packages/spec/index.js';
 import { committedReader } from '../../../../../packages/moves/index.js';
 import { requireKernelApproval } from '../../../../../packages/verify/index.js';
-import { testHashProblem } from '../../../../../packages/verify/index.js';
+import { frozenTestsProblem } from '../../../../../packages/verify/index.js';
+import { testAuthorNotes } from '../../../../../packages/verify/index.js';
+import { seatFamily } from '../../../../../packages/items/index.js';
 import { itemFolderIdentity } from '../item/folder.js';
 import { itemFolderPath } from '../item/folder/identity.js';
 import { seatRoot } from '../item/folder/identity.js';
@@ -369,7 +371,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   authorizationStep('non-empty', () => requireNonEmptySubmit(root, id, commit, acceptedMain.commit));
   // A test file the bar froze at claim keeps its content unless the person ruled on the new content [C7,V4].
   authorizationStep('test-hashes', () => withBoard(ctx, (board) => {
-    const problem = testHashProblem(held, store.itemThread(board, id),
+    const problem = frozenTestsProblem(submitVerify, held, store.itemThread(board, id),
       { atHead: committedReader(root, commit), atMain: committedReader(root, acceptedMain.commit), person: store.PERSON });
     if (problem) throw problem;
   }));
@@ -489,6 +491,11 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     return warning;
   }));
   if (barWarning) ctx.io.say(`bar.check warning: ${barWarning}`);
+  // Which seat and model family wrote each named test file this submit adds or changes [C7,V4].
+  await withBoard(ctx, async board => {
+    const notes = testAuthorNotes(held, store.itemThread(board, id), { atHead: committedReader(root, commit), atMain: committedReader(root, acceptedMain.commit), seat: me.id, family: seatFamily(board, me.id) });
+    for (const text of notes) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text }]);
+  });
   reportSubmitStage(ctx, 'authorization and source', preflightStart);
   withBoard(ctx, (board) => refuseUnsubmittableStack(root, board, held, commit, trunk));
   machineNameProblems(root, `${acceptedMain.commit}..${commit}`, { refuse: acceptedMain.config.commits.noHostName === true, say: (line) => ctx.io.say(line) });

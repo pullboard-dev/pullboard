@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell api */
 /**
  * A big board's state loads in seconds: a read of an unchanged board is served from the record kept for it with no
  * build, a first page load may take the kept record while the next build runs, and the reply is gzip-encoded when the

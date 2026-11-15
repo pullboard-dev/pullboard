@@ -1099,11 +1099,49 @@ catalogCase('[A1,C7] red explain reports absent evidence through the catalog', a
   assert.equal(result.unavailable, 'no recorded red on main history');
 });
 
+catalogCase('[A1,C7] mutate reports caught and missed faults through the catalog', async () => {
+  const box = await project();
+  const cell = join(box.repo, 'cells', 'calc');
+  mkdirSync(cell, { recursive: true });
+  writeFileSync(join(cell, 'calc.js'), 'export function add(a, b) {\n  return a + b;\n}\n');
+  writeFileSync(join(cell, 'calc.test.js'), "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\nimport { add } from './calc.js';\ntest('add', () => { assert.equal(add(2, 3), 5); });\n");
+  await box.git(box.repo, 'add', 'cells');
+  await box.git(box.repo, 'commit', '-q', '-m', 'test(calc): add the calc cell');
+  const report = await json(box, box.repo, 'mutate', ['cells/calc', '--all']);
+  assert.equal(report.cell, 'cells/calc');
+  assert.equal(report.all, true);
+  assert.equal(report.caught + report.missed, report.faults.length, 'every seeded fault is caught or missed');
+});
+
+catalogCase('[A1,C7] rules replays the event log through the catalog', async () => {
+  const box = await project();
+  const report = await json(box, box.repo, 'rules');
+  assert.equal(report.judged, report.agreed + report.disagreementCount, 'every judged event agrees or is listed');
+});
+
 catalogCase('[A1,C7] compact reports a dry run through the catalog', async () => {
   const box = await project();
   const report = await json(box, box.repo, 'compact', ['--dry-run']);
   assert.equal(report.dryRun, true);
   assert.equal(report.rows, 0, 'a new board has no old finished steps to archive');
+});
+
+catalogCase('[A1,C7,#8071] replay reports a table through the catalog', async () => {
+  const box = await project();
+  const dir = join(box.repo, 'packages/demo/src/logic');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'demo.table.js'), 'export const DEMO_RULES = {};\nexport const DEMO_TABLE = { name: \'demo\', guards: [], outcomes: [] };\n');
+  const report = await json(box, box.repo, 'replay', ['demo']);
+  assert.equal(report.table, 'demo');
+});
+
+catalogCase('[A1,C7,#8072] explain reports a table through the catalog', async () => {
+  const box = await project();
+  const dir = join(box.repo, 'packages/demo/src/logic');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'demo.table.js'), 'export const DEMO_RULES = {};\nexport const DEMO_TABLE = { name: \'demo\', guards: [], outcomes: [] };\n');
+  const report = await json(box, box.repo, 'explain', ['demo']);
+  assert.equal(report.table, 'demo');
 });
 
 catalogCase('[A1,C7] contribute check reports an accepted record through the catalog', async () => {

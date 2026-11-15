@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { fixtureBoard } from '../../../../apps/cli/tests/fixtures/board.js';
+import { classifyGateRed } from '../../../drive/index.js';
 import { mainRedLookup } from '../../../drive/index.js';
 import { MAIN_TEST_JOB } from '../../../drive/index.js';
 import * as jobs from '../../../jobs/index.js';
@@ -88,4 +89,36 @@ test('clause 3: a gate red only on a case main also fails has its receipt record
   const receipts = returnedMainReceipts(board.db);
   assert.deepEqual(receipts[0].failing, ['main fails']);
   assert.deepEqual({ tree: receipts[0].tree, file: receipts[0].file, command: receipts[0].command, verdict: receipts[0].verdict, main: receipts[0].main }, { tree, file, command, verdict: 'red', main: 'c'.repeat(40) }, 'the receipt keys the tree, file and command a gate looks up');
+});
+
+test('clause 1: a red run that prints a suite timing frame and the phase line after the TAP summary still names its failing cases [C7,P7]', async () => {
+  const frame = '# pullboard suite timing ' + JSON.stringify({ version: 1, id, head: 'a'.repeat(40), tree: 'b'.repeat(40), full: false, node: '22.13.1', wallMs: 1200, selectionMs: 10, setupMs: 20, shards: null, compareMs: 5 }) + '\n';
+  const output = tap + formatTestOutcomes(id, rows) + frame + 'run-tests: phases select 0.1s, total 1.2s\n';
+  const { verdict } = await entryVerdict(output);
+  assert.equal(verdict.green, false);
+  assert.deepEqual(verdict.failing, ['main fails']);
+  assert.equal(verdict.signatures.length, 1);
+});
+
+test('clause 2: a main-test receipt from a run with the timing frame is keyed and names its case, so a gate red on only that case reads main-owned [C7,P7]', async t => {
+  const tree = 'e'.repeat(40);
+  const frame = '# pullboard suite timing ' + JSON.stringify({ version: 1, id, head: 'a'.repeat(40), tree: 'b'.repeat(40), full: false, node: '22.13.1', wallMs: 1200, selectionMs: 10, setupMs: 20, shards: null, compareMs: 5 }) + '\n';
+  const { tail } = await entryVerdict(tap + formatTestOutcomes(id, rows) + frame);
+  const { board, job } = queued(t, tree);
+  const result = applyMainTestReceipt(board, { job, receipt: { tail, commit: 'c'.repeat(40) } }, { now: 2000 });
+  assert.equal(result.verdict, 'red');
+  assert.deepEqual(returnedMainReceipts(board.db).map(receipt => receipt.failing), [['main fails']]);
+  const verdict = classifyGateRed(board.db, returnedMainReceipts(board.db), { tree, file, command, reds: ['main fails'], now: 3000 });
+  assert.equal(verdict.job, null, 'a recorded receipt queues no further job');
+  assert.deepEqual({ owner: verdict.owner, code: verdict.code }, { owner: 'main', code: 'MAIN_OWN_RED' });
+});
+
+test('clause 3: a red whose cases truly cannot be read, timing frame or not, still records no receipt [C7,P7]', async t => {
+  const frame = '# pullboard suite timing ' + JSON.stringify({ version: 1, id, head: 'a'.repeat(40), tree: 'b'.repeat(40), full: false, node: '22.13.1', wallMs: 1, selectionMs: 1, setupMs: 1, shards: null, compareMs: 1 }) + '\n';
+  const unreadable = formatTestOutcomes(id, rows).replace('"version":1', '"version":2');
+  const { verdict, tail } = await entryVerdict(tap + unreadable + frame);
+  assert.equal(verdict.failing, null);
+  const { board, job } = queued(t, 'f'.repeat(40));
+  assert.equal(applyMainTestReceipt(board, { job, receipt: { tail, commit: 'c'.repeat(40) } }, { now: 2000 }).applied, false);
+  assert.deepEqual(returnedMainReceipts(board.db), []);
 });

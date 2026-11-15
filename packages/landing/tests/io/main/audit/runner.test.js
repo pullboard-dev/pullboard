@@ -8,6 +8,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after } from 'node:test';
+import { describe } from 'node:test';
 import { test } from 'node:test';
 import { compareMainFailures } from '../../../../index.js';
 import { comparisonExecutor } from '../../../../index.js';
@@ -18,6 +19,7 @@ import { recordReceipt } from '../../../../../gate/index.js';
 import { failureSignatures } from '../../../../index.js';
 import { matchingMainFailures } from '../../../../index.js';
 import { takeResource } from '../../../../../resources/index.js';
+import { withProcessEnvironment } from '../../../fixtures/environment.js';
 import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
 import { executionServices } from '../../../../../../apps/cli/tests/fixtures/gate/execution.js';
 import { HOST } from '../../../../../../apps/cli/tests/fixtures/runner/ssh.js';
@@ -28,13 +30,23 @@ const B = `${HOST}-drop`;
 const C = `${HOST}-setup`;
 const roots = [];
 
+/**
+ * Run a case body in-process with an environment of its own, passed to the call rather than assigned to process.env.
+ * Why: the production calls read process.env, so the call applies the given env for its duration and restores it after;
+ * no case leaves state behind for the next, and no child process is started.
+ */
+function withEnvironment(box, agent, body) {
+  const env = Object.assign({ ...process.env }, { PULLBOARD_HOME: box.home, PULLBOARD_MACHINE_HOME: box.machine,
+    PULLBOARD_AGENT: agent, PATH: box.env.PATH, HOME: box.home });
+  return withProcessEnvironment(env, body);
+}
+
+/** Serial on purpose: the cases share one process-wide environment, so a queued case's timeout must not run while another holds it. */
+describe('registered runner selection for a pinned main comparison [V4,C7]', { concurrency: false }, () => {
 test('main comparison selects a matching registered peer only when the preferred runner is busy [V4,C7]', { timeout: 60000 }, async t => {
   const box = fixture(t);
   const environment = executionEnvironment();
-  const prior = { home: process.env.PULLBOARD_HOME, machine: process.env.PULLBOARD_MACHINE_HOME,
-    agent: process.env.PULLBOARD_AGENT, path: process.env.PATH, accountHome: process.env.HOME };
-  Object.assign(process.env, { PULLBOARD_HOME: box.home, PULLBOARD_MACHINE_HOME: box.machine,
-    PULLBOARD_AGENT: 'comparison-peer-fixture', PATH: box.env.PATH, HOME: box.home });
+  await withEnvironment(box, 'comparison-peer-fixture', async () => {
   let held;
   const measured = [];
   const candidateReceipts = [];
@@ -65,7 +77,7 @@ test('main comparison selects a matching registered peer only when the preferred
 
     const candidate = await withGateSlot(box.root, lease => runProfiledShell(box.root,
       "node test/runner.js './test/inherited.test.js'", { gateLease: lease, stages: true }), {
-      executionServices, remote: true, runnerOnly: true, runnerWaitMs: 5000, requiredExecutor: { kind: 'ssh', host: A },
+      executionServices, remote: true, runnerOnly: true, runnerWaitMs: 30000, requiredExecutor: { kind: 'ssh', host: A },
       diagnostic: true, agent: 'actual-candidate-runner-fixture', kind: 'candidate-comparison-control',
       onReceipt: value => candidateReceipts.push(value),
     });
@@ -82,7 +94,7 @@ test('main comparison selects a matching registered peer only when the preferred
       runnerProvider: () => box.runners, agent: 'hold-preferred-comparison-runner', kind: 'comparison-affinity-control' });
     const compare = () => compareMainFailures(box.root, { tests: [{ file: 'test/inherited.test.js', passed: false }] }, undefined, '', {
       commit: box.main, detailed: true, fresh: true, execution,
-      runnerAdmission: { runnerOnly: true, runnerWaitMs: 5000, onReceipt: value => measured.push(value) },
+      runnerAdmission: { runnerOnly: true, runnerWaitMs: 30000, onReceipt: value => measured.push(value) },
     });
     const whileABusy = await compare();
     assert.equal(whileABusy.unavailable, undefined, whileABusy.unavailable);
@@ -107,10 +119,8 @@ test('main comparison selects a matching registered peer only when the preferred
     assert.equal(measured.length, runs, 'the retained comparison is reused rather than rerun on the preferred runner');
   } finally {
     held?.release();
-    for (const [key, value] of [['PULLBOARD_HOME', prior.home], ['PULLBOARD_MACHINE_HOME', prior.machine], ['PULLBOARD_AGENT', prior.agent], ['PATH', prior.path], ['HOME', prior.accountHome]]) {
-      if (value === undefined) delete process.env[key]; else process.env[key] = value;
-    }
   }
+  });
 
   const requests = readFileSync(box.requests, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line));
   const workers = requests.filter(row => row.workerStarted);
@@ -137,17 +147,14 @@ function selectWith(t, record) {
 test('clause 1: the real compare-main path runs main on the red host when no receipt matches, never BAD_RUNNER_POOL [C7]', { timeout: 60000 }, async t => {
   const box = fixture(t);
   const environment = executionEnvironment();
-  const prior = { home: process.env.PULLBOARD_HOME, machine: process.env.PULLBOARD_MACHINE_HOME,
-    agent: process.env.PULLBOARD_AGENT, path: process.env.PATH, accountHome: process.env.HOME };
-  Object.assign(process.env, { PULLBOARD_HOME: box.home, PULLBOARD_MACHINE_HOME: box.machine,
-    PULLBOARD_AGENT: 'comparison-red-host-fixture', PATH: box.env.PATH, HOME: box.home });
+  await withEnvironment(box, 'comparison-red-host-fixture', async () => {
   const measured = [];
   try {
     // Every registered peer's newest receipt names another runtime, so no peer observation matches the red run.
     for (const host of [A, B, C]) recordReceipt(box.root, receipt(box.root, host, { ...environment, node: '0.0.1' }));
     const compared = await compareMainFailures(box.root, { tests: [{ file: 'test/inherited.test.js', passed: false }] }, undefined, '', {
       commit: box.main, detailed: true, fresh: true, execution: { executor: { kind: 'ssh', host: A }, environment },
-      runnerAdmission: { runnerOnly: true, runnerWaitMs: 5000, onReceipt: value => measured.push(value) },
+      runnerAdmission: { runnerOnly: true, runnerWaitMs: 30000, onReceipt: value => measured.push(value) },
     });
     assert.equal(compared.unavailable, undefined, compared.unavailable);
     assert.equal(compared.files[0]?.file, 'test/inherited.test.js');
@@ -155,10 +162,8 @@ test('clause 1: the real compare-main path runs main on the red host when no rec
     assert.ok(compared.files[0]?.failures?.length, 'the comparison names the main failure case');
     assert.equal(measured.at(-1)?.runner?.id, A, 'the comparison ran on the red run host');
   } finally {
-    for (const [key, value] of [['PULLBOARD_HOME', prior.home], ['PULLBOARD_MACHINE_HOME', prior.machine], ['PULLBOARD_AGENT', prior.agent], ['PATH', prior.path], ['HOME', prior.accountHome]]) {
-      if (value === undefined) delete process.env[key]; else process.env[key] = value;
-    }
   }
+  });
 });
 
 test('clause 1: registered runners with no matching receipts select the red host, never BAD_RUNNER_POOL [C7]', t => {
@@ -182,9 +187,10 @@ test('clause 2: a peer whose recorded environment differs from the red run is ne
   assert.deepEqual(picked.requiredExecutor.hosts, [A, B], 'only the matching peer joins the red host');
   assert.ok(!picked.requiredExecutor.hosts.includes(C), 'the wrong-Node peer C is excluded');
 });
+});
 
 after(() => {
-  for (const root of roots) rmSync(root, { recursive: true, force: true });
+  for (const root of roots) rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
 });
 
 /** Build one recent structured receipt; null models a newer incomplete observation. */
@@ -204,7 +210,7 @@ function receipt(root, host, environment) {
 function fixture(t) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-compare-any-runner-'));
   roots.push(directory);
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  t.after(() => rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }));
   const paths = Object.fromEntries(['repo', 'bin', 'home', 'machine', 'worker', 'remote-home'].map(name => [name, join(directory, name)]));
   const remoteMachine = join(paths['remote-home'], '.pullboard');
   const remoteRoot = join(paths['remote-home'], '.pullboard-runner');

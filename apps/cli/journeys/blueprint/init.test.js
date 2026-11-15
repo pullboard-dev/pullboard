@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-tree */
+/** Blueprint add, starters and init --blueprint, every permutation answered in-process [S1,I1,C7]. */
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -26,6 +27,10 @@ import { runFixtureGit } from '../../tests/fixtures/child.js';
 import { RUNNERS } from '../../tests/fixtures/blueprint.js';
 import { FRAMEWORKS } from '../../tests/fixtures/blueprint.js';
 import { draftedTexts } from '../../tests/fixtures/blueprint.js';
+import { useJourneyMode } from '../../tests/fixtures/blueprint.js';
+
+// The permutations answer in this process; init.contract.test.js keeps the real-process contract and init.parity.test.js proves the two agree (#8058).
+useJourneyMode('inprocess');
 
 test('blueprint commands say what they did [S1,I1]', async () => {
   // Every file's bytes outside Git's object store (seat timing and the command trace are per-command telemetry, not board state), and every board event, so a repeat add is proven to change nothing.

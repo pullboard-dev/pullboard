@@ -156,6 +156,23 @@ export function pruneSharedExports(keep, parent = scratchRoot()) {
 }
 
 /**
+ * The commit and tree a repository's HEAD names, or null when the root is not a repository.
+ * Why: the committed export is a function of this pair alone, so callers key what they derive from it (#8133) [C7].
+ *
+ * @param {string} root
+ * @returns {{ commit: string, tree: string }|null}
+ */
+export function committedToolingId(root) {
+  if (!existsSync(join(root, '.git'))) return null;
+  const commit = toolingGit(root, ['rev-parse', '--verify', 'HEAD']);
+  const tree = toolingGit(root, ['rev-parse', `${commit}^{tree}`]);
+  if (!OID.test(commit) || !OID.test(tree) || toolingGit(root, ['rev-parse', '--show-toplevel']) !== resolve(root)) {
+    throw new Refused('RUNNER_TOOLING_FILES', 'runner tooling must name its exact committed repository');
+  }
+  return { commit, tree };
+}
+
+/**
  * Make one owned git-archive installation; callers drain their controller before removing it. With `shared`, the
  * export of a commit is made once and reused by every later dispatch of that commit, whose cleanup leaves it in place.
  * Why: every runner dispatch exported and unpacked the whole tooling tree twice, about a second each when idle and far
@@ -165,12 +182,9 @@ export function pruneSharedExports(keep, parent = scratchRoot()) {
  * @param {{ shared?: boolean }} [options]
  */
 export function committedRunnerController(root, { shared = false } = {}) {
-  if (!existsSync(join(root, '.git'))) return null;
-  const commit = toolingGit(root, ['rev-parse', '--verify', 'HEAD']);
-  const tree = toolingGit(root, ['rev-parse', `${commit}^{tree}`]);
-  if (!OID.test(commit) || !OID.test(tree) || toolingGit(root, ['rev-parse', '--show-toplevel']) !== resolve(root)) {
-    throw new Refused('RUNNER_TOOLING_FILES', 'runner tooling must name its exact committed repository');
-  }
+  const id = committedToolingId(root);
+  if (!id) return null;
+  const { commit, tree } = id;
   const target = shared ? join(scratchRoot(), PREFIX + createHash('sha256').update(`${resolve(root)}\0${commit}`).digest('hex').slice(0, 32)) : null;
   // Leased before it is checked, so a process releasing it concurrently sees this one and leaves it.
   if (target) acquire(target);

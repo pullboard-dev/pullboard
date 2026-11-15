@@ -130,7 +130,7 @@ test('Spending and Folders are groups of their own, and every person-set machine
   assert.equal(group('scratch'), 'Folders');
   assert.equal(group('shared'), 'Folders');
   // Machine settings that hold a plain value a person types: each has a form. The rest are structured, registered by their own command, or internal switches.
-  const notPlain = new Set(['gate.runnerDispatch', 'gate.jobReserve', 'gate.pullPilot.items', 'gate.pullPilot.share', 'gate.localRunner', 'gate.localLoadShare', 'gate.mainComparison', 'gate.submitAuthorization', 'gate.handoffWorkers', 'gate.timingRunner', 'gate.postLandSuite', 'runners', 'landing.pools', 'serve.address', 'serve.port', 'view.port', 'relay.autoLink', 'relay.excluded', 'relay.owner.account', 'relay.owner.url', 'relay.session.token']);
+  const notPlain = new Set(['gate.runnerDispatch', 'gate.jobReserve', 'gate.pullPilot.items', 'gate.pullPilot.share', 'gate.localRunner', 'gate.localLoadShare', 'gate.mainComparison', 'gate.submitAuthorization', 'gate.handoffWorkers', 'gate.timingRunner', 'gate.postLandSuite', 'gate.tableReplay', 'runners', 'landing.pools', 'serve.address', 'serve.port', 'view.port', 'relay.autoLink', 'relay.excluded', 'relay.owner.account', 'relay.owner.url', 'relay.session.token']);
   const machine = inventory(box).filter(row => row.scope === 'machine');
   for (const row of machine) assert.ok(row.cli || notPlain.has(row.key), `${row.key} is person-set: give it a CLI form or name it as not plain`);
   for (const key of notPlain) assert.ok(machine.some(row => row.key === key), `${key} is still a machine setting`);

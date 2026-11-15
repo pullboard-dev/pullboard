@@ -22,5 +22,5 @@ export const GRANDFATHERED_DIRECT_SPAWNERS = Object.freeze([
   'packages/landing/tests/io/known/main/normalize.test.js',
   'packages/landing/tests/io/step/gate/reporter.test.js',
   'packages/moves/tests/reopen.test.js',
-  'packages/runners/tests/io/package/files.test.js',
+  'packages/runners/tests/io/package/installed.test.js',
 ]);
