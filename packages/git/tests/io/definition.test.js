@@ -50,7 +50,7 @@ test('an untracked file the checker loads is part of the fingerprint [C7]', () =
   assert.notEqual(JSON.stringify(changed), clean);
 });
 
-test('the git index of the checkout Pullboard runs from names its clean files by blob id, and a change there moves the fingerprint [C7]', () => {
+test('clause 1: the git index of the checkout Pullboard runs from names its clean files by blob id, and a change there moves the fingerprint [C7]', () => {
   const tool = fixture();
   const project = fixtureCommittedGraph('definition-project-');
   project.put('README.md', 'project\n');
@@ -69,7 +69,7 @@ test('the git index of the checkout Pullboard runs from names its clean files by
   assert.equal(JSON.stringify(walk()), JSON.stringify(clean), 'restoring the bytes restores the fingerprint');
 });
 
-test('import edges are saved by blob id in the git directory for the next command [C7]', () => {
+test('clause 1: import edges are saved by blob id in the git directory for the next command [C7]', () => {
   const graph = fixture();
   const clean = fingerprint(graph.root);
   const dir = join(graph.root, '.git', 'pullboard');
@@ -82,7 +82,7 @@ test('import edges are saved by blob id in the git directory for the next comman
   assert.equal(fingerprint(graph.root), clean, 'a walk reading saved edges gives the same fingerprint');
 });
 
-test('the bounded look-back before each literal reads every Pullboard source the same as the whole prefix [C7]', () => {
+test('clause 2: the bounded look-back before each literal reads every Pullboard source the same as the whole prefix [C7]', () => {
   const root = fileURLToPath(new URL('../../../../', import.meta.url));
   const files = execFileSync('git', ['ls-files', '-z', '--', 'apps/*.js', 'packages/*.js', 'bin/*.js'], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
     .split('\0').filter(Boolean);
