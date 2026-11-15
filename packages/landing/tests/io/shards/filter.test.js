@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { spawn } from 'node:child_process';
 import { cp } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -56,8 +57,9 @@ function projectTemplate() {
   mkdirSync(join(home, '.pullboard'), { recursive: true });
   writeFileSync(join(home, '.pullboard', 'settings.json'), JSON.stringify({ gateSlots: 3, browserSlots: 1 }));
   // The gate under test runs from source, never from the shipped test files: leaving them out shrinks the copy, the commit, and every shard's checkout and cleanup.
+  // The fixture has no cell plan: with one, every shard's gate also builds the accepted inventory of the whole source tree, work a name filter never exercises [C7].
   // Docs and the archived board history (22 MB of the 41 MB) are never read by a gate child, and every case and shard copies the project.
-  copyPackageFiles(SOURCE, repo, { files: packageFiles(SOURCE).filter(file => !/\.test\.js$/u.test(file) && !/^(?:docs|packages\/state\/data)\//u.test(file)) });
+  copyPackageFiles(SOURCE, repo, { files: packageFiles(SOURCE).filter(file => !/\.test\.js$/u.test(file) && file !== 'packages/codemap/data/plan/cells.json' && !/^(?:docs|packages\/state\/data)\//u.test(file)) });
   for (const name of NAMES) writeFileSync(join(repo, `test/${name}.test.js`), fixtureTest(name));
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node apps/cli/src/io/run/tests.js', landingShards: 2 }));
   const env = projectEnv(dir);
@@ -216,5 +218,10 @@ test('clause 1: files after -- stay files in every shard, under the caller spell
   const { landingFanOutFiles, optionTakesValue } = await import('../../../../gate/index.js');
   assert.deepEqual(landingFanOutFiles(['./test/a.test.js', 'test/a.test.js', '-case.test.js', `${box.repo}/test/b.test.js`], [], box.repo, optionTakesValue),
     ['./test/a.test.js', '-case.test.js', 'test/b.test.js'], 'the first spelling is kept; only an absolute one becomes repository-relative');
+});
+test('clause 1: the fixture repo carries no cell plan index, so no gate child builds the full-tree inventory [C7]', async t => {
+  const box = await project(t);
+  assert.equal(existsSync(join(box.repo, 'packages/codemap/data/plan/cells.json')), false);
+  assert.equal(existsSync(join(box.repo, 'packages/codemap/index.js')), true, 'the rest of the source tree is still copied');
 });
 });

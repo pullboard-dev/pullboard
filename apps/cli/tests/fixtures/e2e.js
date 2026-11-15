@@ -591,12 +591,14 @@ export function crossLaneFixture(t) {
   fixture.env.PULLBOARD_MODEL = 'Cross-lane test';
   const box = helpers.project('true', fixture);
   const session = 'cross-lane-owner-session';
+  /** Setup calls (seats, items, milestones) run in the warm worker, as project() does; a test that replaced box.run keeps its own [C7]. */
+  const setup = box.runSync?.of === box.run ? box.runSync : box.run;
   /** Each command gets its actual invoking session, and the surrounding fixture keeps none. */
   function runAs(identity, cwd, ...args) {
     const previous = { CLAUDECODE: box.env.CLAUDECODE, CLAUDE_CODE_SESSION_ID: box.env.CLAUDE_CODE_SESSION_ID };
     box.env.CLAUDECODE = '1';
     box.env.CLAUDE_CODE_SESSION_ID = identity;
-    try { return box.run(cwd, ...args); }
+    try { return setup(cwd, ...args); }
     finally {
       for (const [name, value] of Object.entries(previous)) {
         if (value === undefined) delete box.env[name];
@@ -630,14 +632,14 @@ export function crossLaneFixture(t) {
   }
   /** Add an ordinary routed item through the coordinator CLI with its lane's approved row; each title names its own file so items never collide on one path. */
   function add(lane, title, route = 'strong') {
-    return fileFixtureItem(box, box.repo, { lane, title, route,
+    return fileFixtureItem(box, box.repo, { lane, title, route, run: setup,
       criterion: 'The item can be built and checked from its brief.', check: 'true', diagnose: false,
       brief: `Files: ${lane}/${route}-${title.toLowerCase().replace(/[^a-z0-9]+/gu, '-').replace(/^-|-$/gu, '')}.js\nChange: build the fixture item\nTest: the check proves the fixture`,
       args: ['--specs', lane === 'api' ? 'G2' : 'G1'] }).item_id;
   }
   /** Keep the test's queue order explicit without touching a production board. */
   function milestone(name, id) {
-    json(box.run(box.repo, 'milestone', 'add', name, '--items', String(id), '--reason', 'Arrange fixture release', '--json'));
+    json(setup(box.repo, 'milestone', 'add', name, '--items', String(id), '--reason', 'Arrange fixture release', '--json'));
   }
   /** Read the local checkout binding only; a session digest must never become board metadata. */
   function binding(root) {
