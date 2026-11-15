@@ -1,5 +1,9 @@
 import { shadowed } from "./shadow.js";
 import { startDecision } from "./shadow.js";
+import { shadowHook } from "../../board/shadow-record.js";
+import { shadowDecide } from "../../board/shadow-record.js";
+import { firstDifference } from "../../board/shadow-record.js";
+import { shadowSetting } from "../../board/submit.js";
 import { queueDiffers } from "./shadow.js";
 import { queueDecision } from "./shadow.js";
 import { ownershipWaitForJob } from '../../board/wait.js';
@@ -282,7 +286,15 @@ function withdrawGate(board, id, { agentId }) {
 export function startSubmitHandoff(board, id, options) {
   const hookProblem = () => { try { requireSubmitHandoffHookProof(board, id, submitHandoff(board, id), options.hookProjection); return null; } catch (error) { return { code: error.code, message: error.message, next: error.next }; } };
   return shadowed(board, 'startSubmitHandoffShadow', id, (board.executionEngineVersion ?? ENGINE_VERSION) >= RUNNING_HANDOFF_ITEM_CHECK_ENGINE,
-    () => startDecision(board, id, options, { retryLimit: INFRASTRUCTURE_RETRY_LIMIT, infrastructureCodes: INFRASTRUCTURE_CODES }, hookProblem), () => writeStartHandoff(board, id, options));
+    () => startDecision(board, id, options, { retryLimit: INFRASTRUCTURE_RETRY_LIMIT, infrastructureCodes: INFRASTRUCTURE_CODES }, hookProblem), () => writeStartHandoff(board, id, options), { table: 'start', differs: startDiffers });
+}
+
+/** Where the START table's answer and the start writer's part: the refusals, whether a gate started, or else the kept hand-off record. */
+export function startDiffers({ decided, wrote }) {
+  if (decided?.threw) return `threw ${decided.threw}`;
+  if (decided?.refused || wrote.refused) return firstDifference(decided?.refused ?? null, wrote.refused ?? null, 'refused') ?? 'refused';
+  if ((decided.via === 'start') !== (wrote.returned.started === true)) return 'started';
+  return firstDifference(decided.job ?? null, JSON.parse(JSON.stringify(wrote.returned.job ?? null)), 'job');
 }
 
 /** The writer's own checks and the record it keeps. */
@@ -348,14 +360,23 @@ function eventsSince(board, after) {
 export function completeSubmitHandoff(board, id, options) {
   const { result, withdrawn } = options;
   const modeled = (board.executionEngineVersion ?? ENGINE_VERSION) >= Math.max(QUEUED_RED_RETURN_ENGINE, PIPELINE_CAUSE_ENGINE, CONVEYOR_RETURN_ENGINE, INFRA_HANDOFF_RECOVERY_ENGINE, DEAD_HANDOFF_RETRY_ENGINE);
-  if (typeof board.submitCompleteShadow !== 'function' || withdrawn === true || result == null || !modeled) return writeCompletion(board, id, options);
-  const decided = completionDecision(board, id, options);
+  const hook = withdrawn === true || result == null || !modeled ? null : shadowHook(board, 'submitCompleteShadow', 'complete', completeDiffers, shadowSetting);
+  if (!hook) return writeCompletion(board, id, options);
+  const decided = shadowDecide(hook, () => completionDecision(board, id, options));
   const after = board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id;
   let wrote;
   try { wrote = { record: writeCompletion(board, id, options), events: eventsSince(board, after) }; } catch (error) { wrote = { refused: { code: error.code, message: error.message } }; }
-  board.submitCompleteShadow({ id, decided, wrote });
+  hook({ id, decided, wrote });
   if (wrote.refused) throw new Refused(wrote.refused.code, wrote.refused.message);
   return wrote.record;
+}
+
+/** Where the COMPLETE table's answer and the completion writer's part: the refusals' codes, then the saved record, then the events written. */
+export function completeDiffers({ decided, wrote }) {
+  if (decided?.threw) return `threw ${decided.threw}`;
+  if (decided?.refused || wrote.refused) return firstDifference(decided?.refused?.code ?? null, wrote.refused?.code ?? null, 'refused') ?? 'refused';
+  const json = value => JSON.parse(JSON.stringify(value ?? null));
+  return firstDifference(json(decided.record), json(wrote.record), 'record') ?? firstDifference(json(decided.events), json(wrote.events), 'events');
 }
 
 /** The writer's own checks, the hand-off record it saves and the events it writes. */

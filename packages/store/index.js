@@ -51,6 +51,7 @@ export { applyOutsideIntake, approveOutside as outside_store_approveOutside } fr
 export { boundProofReceipt, proofRunReceipt, refuseLongShout } from './src/io/receipts.js';
 export { SEAT_LIVE_WINDOW_MS, heartbeatSeat, importSeatObservations, withSeatPresence, withLocalSeatPresence, seatGone } from './src/io/presence.js';
 export { sourceAdvanceReturnProblem } from './src/logic/advance.js';
+export { startDiffers, completeDiffers } from './src/io/submit/handoff/retry.js';
 export { commitDiffers } from './src/io/submission.js';
 export { queueDiffers } from './src/io/submit/handoff/shadow.js';
 export { submissionItemValues, recordSubmissionEvent, submissionChildrenProblem } from './src/io/submission.js';
