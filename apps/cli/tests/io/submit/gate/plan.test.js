@@ -71,7 +71,9 @@ test('clause 1: submit passes the accepted runner plan and admission to runSubmi
   const result = runSubmitGateWithRunnerPlan(runSubmitGate, '/controller', { affectedTests: true }, runnerPlan, { staticChecked: true });
   assert.equal(result, 'gate');
   assert.equal(typeof received.options.tableReplay, 'function', 'the move-table replay is wired in [#8117]');
+  assert.match(received.options.timedShell, /apps\/runner\/src\/io\/shell\.js$/u, 'the timed shell entry reaches runSubmitGate [#6905]');
   delete received.options.tableReplay;
+  delete received.options.timedShell;
   assert.deepEqual(received, { root: '/controller', config: { affectedTests: true }, options: {
     staticChecked: true, plan: analysis.plan, admission: analysis.admission,
   } });
