@@ -1,4 +1,4 @@
-/** Board move declarations, their registry, the claim criterion freezer, the bar-ready setting, the derived-facts rules layer, the lifecycle rules and read-only event-log replay on it, the table engine with its explain and coverage and generated-test kit, the backbone table, the fenced gate hop table, the replay core, and next's selection and the reason lines it prints, behind one front door [C7,CD60,CD64]. */
+/** Board move declarations, their registry, the claim criterion freezer, the bar-ready setting, the derived-facts rules layer, the lifecycle rules and read-only event-log replay on it, the table engine with its explain and coverage and generated-test kit, the backbone table, the fenced gate hop table, the replay core and its read-only reader with table discovery, and next's selection and the reason lines it prints, behind one front door [C7,CD60,CD64]. */
 export * from "./src/logic/bar/ready.js";
 export * from "./src/io/registry.js";
 export * from "./src/io/freezer.js";
@@ -22,3 +22,4 @@ export { default as recordSelectorGap } from "./src/logic/moves/recordSelectorGa
 export { RULES_VERSION, STATES, MOVE_RULES, RULES, newItem, leaseLive, unmetWaits, readiness, ruleOf, judge, apply } from "./src/logic/lifecycle/rules.js";
 export { lifecycleFact, replay, compareFinal, readinessCounts, topKinds, trial } from "./src/logic/lifecycle/replay.js";
 export { LIFECYCLE_KINDS, readLifecycleLog } from "./src/io/lifecycle-log.js";
+export { listMoveTables, readMoveRecords } from "./src/io/table/read.js";
