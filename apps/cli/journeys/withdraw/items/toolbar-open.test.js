@@ -131,7 +131,8 @@ test("a finished action's output steps aside [N27]", async () => {
     const page = await openPage(view);
     // The page's timers, held by the test: each pending close is recorded and fired at will.
     page.run('globalThis.pause = setTimeout; globalThis.closes = []; globalThis.setTimeout = (run, ms) => closes.push({ run, ms, live: true }); globalThis.clearTimeout = (id) => { if (closes[id - 1]) closes[id - 1].live = false; };');
-    const pending = () => JSON.parse(page.run('JSON.stringify(closes.map((close) => [close.ms, close.live]))'));
+    // Only the six-second closes: a move's own re-read sets a 500 ms timer too (127aadc765, #7957).
+    const pending = () => JSON.parse(page.run('JSON.stringify(closes.filter((close) => close.ms === 6000).map((close) => [close.ms, close.live]))'));
     const out = page.element('console');
     const shout = async (to, text) => {
       page.element('shout-to').value = to;
