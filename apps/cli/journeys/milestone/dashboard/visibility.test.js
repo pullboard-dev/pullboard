@@ -75,7 +75,8 @@ test('Dashboard keeps between-items agents behind one line and paints their real
       'an open table redraws from the current model');
     // Back on the notch's own list, which counts no seat that holds nothing, the seats leave the table.
     await chrome.stable(`(() => { navNumbers = ownNavNumbers; view.allAgents = !view.allAgents; render(); return true; })()`);
-    await chrome.waitFor(`!document.querySelector('#dashboard [data-dashboard-agent]')`);
+    // The building seat stays in the table; the shouting seats leave it.
+    await chrome.waitFor(`!${JSON.stringify(agents)}.some(id => document.querySelector('#dashboard [data-dashboard-agent="' + id + '"]'))`);
   } finally {
     try { if (chrome) await closeSnapshotChrome(chrome); }
     finally { await view.stop(); rmSync(profile, { recursive: true, force: true }); }
