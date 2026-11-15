@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { recordSubmitHandoff } from '../../jobs/index.js';
 import * as store from '../index.js';
 import { register } from '../index.js';
-import { fixtureBoard } from './fixtures/board.js';
+import { fixtureBoard } from '../../board/tests/fixtures/board.js';
 import { submitFixture } from './fixtures/submit.js';
 import { cellItem } from './fixtures/cell.js';
 
