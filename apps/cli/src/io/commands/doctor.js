@@ -33,6 +33,7 @@ import {
 import { agentHookStatus } from '../../../../../packages/seats/index.js';
 import { runnerServiceProblems } from '../../../../../packages/runners/index.js';
 import { unclaimedGateJobs } from '../../../../../packages/jobs/index.js';
+import { trunkUpdateInsteadProblem } from '../landing/checkout.js';
 import { anyRunnerLive } from '../runner/local.js';
 
 /** `pullboard doctor --hosts`: one line per role naming the hosts and ports it needs, for a sandbox allowlist [P7]. */
@@ -72,6 +73,8 @@ export async function run(io, { values = {} } = {}) {
   if (!problems.some(problem => incompatible.has(problem.code)) && !anyRunnerLive()) for (const job of withBoardRead(ctx, board => unclaimedGateJobs(board.db))) problems.push({ code: 'GATE_NO_RUNNER',
     message: `gate job ${job.id} waited over 2 min with no runner`,
     next: 'run pullboard runner add <ssh-host> or pullboard submit again to start the local runner' });
+  const trunkProblem = trunkUpdateInsteadProblem(trunkRemote(io.cwd), ctx.info.root, 'refs/heads/main');
+  if (trunkProblem) problems.push(trunkProblem);
   const outdated = outdatedSender();
   if (outdated) problems.push({ code: 'RELAY_SENDER_OUTDATED', message: outdatedSenderLine(outdated),
     next: 'run pullboard relay recover to stop it and start this version\'s sender' });

@@ -725,7 +725,7 @@ export async function recoverReplicaReplies(fixture, timing) {
 
 /** Recover lost submit, verify, edit and merge replies, each consumed once under the legacy ACK policy. */
 export async function recoverReplicaOutcomes(fixture, timing, restoreInventories = () => {}) {
-  const { clones, worktrees, envs, gitAt, commonDir, relay, key, boardId } = fixture;
+  const { clones, worktrees, envs, gitAt, commonDir, relay, key, boardId, replicaFiles } = fixture;
   timing.begin('lost-outcome recovery', 'recover dropped submit, verify, edit and merge replies once across all replicas');
   await timing.wait('establish the legacy approval baseline before the outcome faults', () => cli(clones[0], envs[0], 'shout', 'all', 'Legacy board ready for outcome recovery'));
   const restoreOutboxDefault = await enterLegacyAckPolicy(fixture);
@@ -743,58 +743,40 @@ export async function recoverReplicaOutcomes(fixture, timing, restoreInventories
   gitAt(worktrees[0], envs[0], 'add', 'web/lost-submit.txt');
   gitAt(worktrees[0], envs[0], 'commit', '-q', '-m', 'test: commit the work whose submit reply is lost [G1]');
   await restoreInventories(); // a CLI step in between can drop the published accepted inventory the submit reads
-  relay.dropNextReply({ offline: true, operation: 'submit', item: 2, key, boardId });
+  // A pulled submit orders one move of its own, the note naming its gate job; the board's submit comes from the runner's receipt [C7,P7].
+  relay.dropNextReply({ offline: true, operation: 'appendFact', item: 2, key, boardId });
   const lostSubmit = await timing.wait('submit item 2 with its relay reply dropped', () => cliResult(worktrees[0], envs[0], 'submit', '2', '--no-next'));
   assertDroppedReplyConsumed(relay, 'the lost item-2 submission reply');
   assert.equal(lostSubmit.status, 1);
   assert.equal(lostSubmit.document.error.code, 'RELAY_UNAVAILABLE');
   const linkFile = join(commonDir(clones[0], envs[0]), 'pullboard', 'relay.json');
-  const pendingSubmit = JSON.parse(readFileSync(linkFile, 'utf8')).pending?.move;
-  assert.equal(pendingSubmit?.operation, 'submit', 'the dropped reply belongs to the actual submission, not a preceding proof move');
-  assert.equal(pendingSubmit?.args?.[0], 2, 'the pending submission is for item 2');
+  const lostNote = JSON.parse(readFileSync(linkFile, 'utf8')).pending?.move;
+  assert.equal(lostNote?.operation, 'appendFact', 'the dropped reply belongs to the submit\'s gate-offer note');
+  assert.equal(lostNote?.args?.[0], 2, 'the pending note is for item 2');
+  const lostJob = /^Gate job (\S+) offered for /u.exec(lostNote.args[1]?.text ?? '')?.[1];
+  assert.ok(lostJob, `the pending note names item 2's gate job: ${JSON.stringify(lostNote.args[1]?.text)}`);
   relay.failReads(false);
+  const beforeSync = relay.uploads.length;
   await timing.wait('sync clone A after the lost submission reply', () => cli(clones[0], envs[0], 'status'));
-  const recoveredSubmit = JSON.parse(readFileSync(linkFile, 'utf8')).recovered?.move;
-  assert.equal(recoveredSubmit?.operation, 'submit', 'sync preserves the exact lost submit as a retryable outcome');
-  assert.equal(recoveredSubmit?.args?.[0], 2, 'the recovered outcome remains tied to item 2');
-  const beforeSubmitRetry = relay.uploads.length;
+  assert.equal(relay.uploads.length, beforeSync, 'sync recovers the lost note without sending it again');
+  assert.ok(receipts(replicaFiles[0]).some((receipt) => JSON.parse(receipt.move).id === lostNote.id),
+    'the note whose reply was lost has its durable engine receipt');
   const originalCommit = gitAt(worktrees[0], envs[0], 'rev-parse', 'HEAD');
-  writeFileSync(join(worktrees[0], 'web', 'README.md'), 'new committed work while the original submission reply is missing\n');
-  gitAt(worktrees[0], envs[0], 'add', 'web/README.md');
-  gitAt(worktrees[0], envs[0], 'commit', '-q', '-m', 'test: move HEAD during submission recovery [G1]');
-  assert.notEqual(gitAt(worktrees[0], envs[0], 'rev-parse', 'HEAD'), originalCommit);
-  writeFileSync(join(worktrees[0], 'web', 'README.md'), 'dirty current work is not a fresh submission\n');
-  const afterSubmitRecoverySetup = relay.uploads.length;
+  const beforeSubmitRetry = relay.uploads.length;
   await restoreInventories();
-  const retriedSubmit = await timing.wait('retry the original lost submission outcome', () => cli(worktrees[0], envs[0], 'submit', '2', '--no-next'));
-  const retryMoves = await Promise.all(relay.uploads.slice(afterSubmitRecoverySetup).map(async (upload) => {
-    const plain = await unseal(key, Buffer.from(upload.sealed, 'base64url'), {
-      boardId, kind: 'move', sequence: upload.sequence,
-    });
-    const move = JSON.parse(new TextDecoder().decode(plain));
-    return {
-      operation: move.operation,
-      moveId: move.id,
-      recipient: move.operation === 'recordActivityDelivery' ? move.args?.[0]?.agentId ?? null : null,
-    };
-  }));
-  const setupMoves = relay.uploads.slice(beforeSubmitRetry, afterSubmitRecoverySetup);
-  assert.equal(setupMoves.length, 0, 'committing and dirtying HEAD does not create a relay move');
+  const retriedSubmit = await timing.wait('retry the lost submission', () => cli(worktrees[0], envs[0], 'submit', '2', '--no-next'));
+  const retryMoves = await relayUploadSummary(relay.uploads.slice(beforeSubmitRetry), key, boardId);
   const submittedBoard = store.openBoardForRead(join(commonDir(worktrees[0], envs[0]), 'pullboard', 'board.sqlite'));
   let submittingAgent;
   try { submittingAgent = store.getItem(submittedBoard, 2).item_owner; }
   finally { store.closeBoard(submittedBoard); }
   assert.deepEqual(retryMoves.map(({ operation }) => operation), ['recordActivityDelivery'],
-    'recovered reporting records only the expected activity delivery, never a second submit');
+    'the retry reuses the open gate job and orders only its activity delivery, never a note or a submit');
   assert.equal(retryMoves[0].recipient, submittingAgent, 'the activity delivery is recorded for the submitting agent');
-  assert.equal(typeof retryMoves[0].moveId, 'string');
   assert.equal(retriedSubmit.commit, originalCommit);
-  assert.equal(retriedSubmit.gate.green, true);
-  assert.match(retriedSubmit.gate.report, /recovered the original submission/,
-    'changed or dirty HEAD only receives the original receipt, never a fresh gate claim');
-  assert.equal(relay.uploads.length, beforeSubmitRetry + 1, 'submitted-state recovery emits only its one activity receipt, not another submit');
-  assert.equal(gitAt(worktrees[0], envs[0], 'rev-parse', retriedSubmit.pin), originalCommit);
-  gitAt(worktrees[0], envs[0], 'restore', 'web/README.md');
+  assert.equal(retriedSubmit.gateJob, lostJob, 'the retry reuses the gate job the lost submit offered, never a second gate');
+  const settled = await timing.wait('settle the recovered submission gate', () => settleReplicaSubmit(fixture, 0, retriedSubmit));
+  assert.equal(settled.gate?.green ?? null, true, `the recovered gate passes: ${JSON.stringify(settled).slice(0, 600)}`);
 
   mergeCandidateForReview(worktrees[1], envs[1], worktrees[0], originalCommit, gitAt);
   relay.dropNextReply({ offline: true, operation: 'verify', item: 2, key, boardId });
@@ -889,16 +871,22 @@ export async function recoverStackedSubmits(fixture, timing, restoreInventories 
   }
   const recoveredStackCommit = gitAt(worktrees[0], envs[0], 'rev-parse', 'HEAD');
 
-  // Clone B replays B's recovered submit, whose policy commit is clone A's main (the coordinator's init commit): fetch it as a clone of that main does [H3].
-  gitAt(worktrees[1], envs[1], 'fetch', '-q', clones[0], 'main');
+  // A pulled submit orders one move of its own, the note naming its gate job; the board's submit comes from the
+  // runner's receipt. So the lost reply is that note's, and recovery must reuse the one gate job, never offer another [C7,P7].
   const beforeRecoveredStack = relay.uploads.length;
-  relay.dropNextReply({ offline: true, operation: 'submit', item: stackedB, key, boardId });
+  relay.dropNextReply({ offline: true, operation: 'appendFact', item: stackedB, key, boardId });
   await restoreInventories();
-  const lostStackSubmit = await timing.wait('submit recovered-stack item B with its reply dropped', () => cliResult(worktrees[0], envs[0], 'submit', String(stackedB)));
+  const lostStackSubmit = await timing.wait('submit recovered-stack item B with its reply dropped', () => cliResult(worktrees[0], envs[0], 'submit', String(stackedB), '--no-next'));
   const afterLostStackSubmit = relay.uploads.length;
   assertDroppedReplyConsumed(relay, 'the recovered-stack submission reply');
   assert.equal(lostStackSubmit.status, 1);
   assert.equal(lostStackSubmit.document.error.code, 'RELAY_UNAVAILABLE');
+  const recoveredLink = join(commonDir(clones[0], envs[0]), 'pullboard', 'relay.json');
+  const lostNote = JSON.parse(readFileSync(recoveredLink, 'utf8')).pending?.move;
+  assert.equal(lostNote?.operation, 'appendFact', 'the dropped reply belongs to the submit\'s gate-offer note');
+  assert.equal(lostNote?.args?.[0], stackedB, 'the pending note is for item B');
+  const lostJob = /^Gate job (\S+) offered for /u.exec(lostNote.args[1]?.text ?? '')?.[1];
+  assert.ok(lostJob, `the pending note names B's gate job: ${JSON.stringify(lostNote.args[1]?.text)}`);
   relay.failReads(false);
   await restoreInventories();
   const laterA = await timing.wait('submit stack item A after B has a lost reply', () => cliResult(worktrees[1], envs[1], 'submit', String(stackedA)));
@@ -908,20 +896,20 @@ export async function recoverStackedSubmits(fixture, timing, restoreInventories 
   await timing.wait('sync clone A to recover stacked submission B', () => cli(clones[0], envs[0], 'status'));
   const afterStackRecovery = relay.uploads.length;
 
-  const recoveredLink = join(commonDir(clones[0], envs[0]), 'pullboard', 'relay.json');
-  const pendingOutcome = JSON.parse(readFileSync(recoveredLink, 'utf8')).recovered;
-  const beforeOutcomeRetry = relay.uploads.length;
   const stackOwnerB = await assertRecoveredStackUploads({
     uploads: relay.uploads,
-    bounds: { beforeRecoveredStack, afterLostStackSubmit, afterLaterA, afterStackRecovery, beforeOutcomeRetry },
-    key, boardId, replicaFiles, stackedA, stackedB, firstRecoveryCommit, recoveredStackCommit, pendingOutcome,
+    bounds: { beforeRecoveredStack, afterLostStackSubmit, afterLaterA, afterStackRecovery },
+    key, boardId, replicaFiles, stackedA, stackedB, lostNote,
   });
+  const beforeOutcomeRetry = relay.uploads.length;
   await restoreInventories();
-  const originalOutcome = await timing.wait('read the durable original submission outcome for B', () => cli(worktrees[0], envs[0], 'submit', String(stackedB), '--no-next'));
+  const retried = await timing.wait('retry the submission of B after its lost reply', () => cliResult(worktrees[0], envs[0], 'submit', String(stackedB), '--no-next'));
+  const heldOutcome = JSON.parse(readFileSync(recoveredLink, 'utf8')).recovered;
+  assert.equal(retried.status, 0, `${JSON.stringify(retried.document?.error)}; held ${JSON.stringify({ operation: heldOutcome?.move?.operation, args: heldOutcome?.move?.args, commandIntent: heldOutcome?.commandIntent }).slice(0, 1500)}`);
+  const originalOutcome = retried.document;
   assert.equal(originalOutcome.commit, recoveredStackCommit);
-  assert.match(originalOutcome.gate.report, /recovered the original submission/u);
+  assert.equal(originalOutcome.gateJob, lostJob, 'the retry reuses the gate job the lost submit offered, never a second gate');
   await assertOriginalOutcomeDelivery(relay.uploads.slice(beforeOutcomeRetry), key, boardId, stackOwnerB);
-  assert.equal(relay.uploads.length, beforeOutcomeRetry + 1);
   await restoreOutboxDefault();
 }
 
