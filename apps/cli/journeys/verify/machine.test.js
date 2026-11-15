@@ -49,6 +49,7 @@ import { openBoard } from '../../../lib/index.js';
 import { fixtureBoard } from '../../tests/fixtures/board.js';
 import { copyPackageFiles } from '../../../../packages/runners/index.js';
 import { HELP } from '../../index.js';
+import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
 import { loadConfig } from '../../../../packages/config/index.js';
 import { Refused } from '../../../../packages/kernel/light.js';
 import { assertRehomeTriggerDeclaration } from '../../tests/fixtures/machine/rehome.js';
@@ -61,7 +62,6 @@ import {
   assertLifecycleReservation,
 } from '../../tests/fixtures/machine/reservation.js';
 import {
-  runFixtureExecFile as execFileSync,
   runFixtureGit,
 } from '../../tests/fixtures/child.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
@@ -1240,6 +1240,7 @@ test('next --verify reserves the review for the reviewLease and says until when;
     const accepted = await run(holder, 'verify', '1', 'accept', '--note', 'checked out the commit; web/greet.txt says hello');
     assert.equal(accepted.status, 0, accepted.stderr);
   } finally {
+    stopFixtureLocalRunner(join(dir, 'home'));
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
