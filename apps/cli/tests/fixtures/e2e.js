@@ -88,7 +88,8 @@ function parityRecord({ dir, env, cwd, args, result }) {
   const DISK_MEASURED = ['total', 'stores', 'measuredAt', 'measuring', 'warning'];
   const mask = (value, key) => typeof value === 'string' ? parityText(value, dir).replace(/^disk use under \.git\/pullboard: .*$/gmu, 'disk use under .git/pullboard: <measured>')
     : Array.isArray(value) ? value.map(inner => mask(inner))
-    : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([name, inner]) => [name, key === 'disk' && DISK_MEASURED.includes(name) ? '<measured>' : mask(inner, name)])) : value;
+    : value && typeof value === 'object' ? Object.fromEntries([...Object.entries(value).filter(([name]) => key !== 'disk' || !DISK_MEASURED.includes(name)).map(([name, inner]) => [name, mask(inner, name)]),
+      ...(key === 'disk' ? [['measurement', '<measured>']] : [])]) : value;
   return mask({ cwd, args, code: result.code, json, out: json ? null : result.out, err: result.stderr, board });
 }
 
