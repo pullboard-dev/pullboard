@@ -62,8 +62,6 @@ import {
 } from '../../tests/fixtures/machine/reservation.js';
 import {
   runFixtureExecFile as execFileSync,
-  runFixtureChild as spawnSync,
-  runFixtureChild,
   runFixtureGit,
 } from '../../tests/fixtures/child.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
@@ -887,8 +885,6 @@ test("a blank field in the board file is exactly what JavaScript's trim removes 
   assert.deepEqual(machineRules.BLANKS, trimmed);
 });
 
-const BIN = join(import.meta.dirname, '../../pullboard.js');
-
 /** Guards checked before the explicit transition: CLI facts and optional roadmap selection. */
 const PRECHECKED = {
   claim: ['joined', 'checkProvesSomething'],
@@ -1175,7 +1171,8 @@ test('next --verify reserves the review for the reviewLease and says until when;
     // Each worktree is its own native session, so a peer's review is never skipped as the builder's own session.
     const sessions = new Map();
     const session = (cwd) => { if (!sessions.has(cwd)) sessions.set(cwd, `00000000-0000-4000-8000-${String(sessions.size + 1).padStart(12, '0')}`); return sessions.get(cwd); };
-    const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env: { ...env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: session(cwd) }, encoding: 'utf8' });
+    // In process: a spawned CLI costs a second or more of start-up each, and this case makes eleven calls.
+    const run = async (cwd, ...args) => runCliInProcess(args, { cwd, env: { ...env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: session(cwd) } });
     const repo = join(dir, 'repo');
     fs.mkdirSync(repo);
     git(repo, 'init', '-q', '-b', 'main');
@@ -1183,23 +1180,23 @@ test('next --verify reserves the review for the reviewLease and says until when;
     fs.writeFileSync(join(repo, 'SPEC.md'), '# Demo\n\n## G · Goals\n- G1 [approved, must] It greets. | gate: test\n');
     git(repo, 'add', '-A');
     git(repo, 'commit', '-q', '-m', 'chore: a spec');
-    const [builder, holder, other] = ['web-1', 'web-2', 'web-3'].map((name) => {
+    const [builder, holder, other] = await Promise.all(['web-1', 'web-2', 'web-3'].map(async (name) => {
       const path = join(dir, name);
       git(repo, 'worktree', 'add', '-q', '--detach', path);
       // Each seat declares its model; the builder's family differs so its peers may review it.
-      const joined = fixtureJoin(run, path, 'web', '--model', name === 'web-1' ? 'Builder Model' : 'Test Model', '--route', 'strong');
+      const joined = await fixtureJoin(run, path, 'web', '--model', name === 'web-1' ? 'Builder Model' : 'Test Model', '--route', 'strong');
       assert.match(joined.stdout, new RegExp(`joined as ${name}`), joined.stderr);
       return path;
-    });
-    const added = fixtureAdd(run, repo, 'web', 'Greet', '--specs', 'G1', '--criterion', 'It greets.');
+    }));
+    const added = await fixtureAdd(run, repo, 'web', 'Greet', '--specs', 'G1', '--criterion', 'It greets.');
     assert.equal(added.status, 0, added.stderr);
-    assert.equal(run(builder, 'claim', '1').status, 0);
+    assert.equal((await run(builder, 'claim', '1')).status, 0);
     fs.mkdirSync(join(builder, 'web'));
     fs.writeFileSync(join(builder, 'web', 'greet.txt'), 'hello\n');
     git(builder, 'add', '-A');
     git(builder, 'commit', '-q', '-m', 'feat(web): greet [G1]');
     const commit = git(builder, 'rev-parse', 'HEAD');
-    const submitted = run(builder, 'submit', '1', '--json');
+    const submitted = await run(builder, 'submit', '1', '--json');
     assert.equal(submitted.status, 0, submitted.stderr);
     // The submit queues its gate for the local runner; the review waits for that pulled gate to finish [P7].
     const showInProcess = async (cwd, ...args) => {
@@ -1217,30 +1214,30 @@ test('next --verify reserves the review for the reviewLease and says until when;
     sharedBoard.close();
 
     const before = Date.now();
-    const first = run(holder, 'next', '--verify');
+    const first = await run(holder, 'next', '--verify');
     const after = Date.now();
     assert.equal(first.status, 0, first.stderr);
     const until = /reserved for you until (\S+): another agent's verdict on it is refused until then/.exec(first.stdout)?.[1];
     assert.ok(until, first.stdout);
     const lease = 45 * 60_000;
     assert.ok(Date.parse(until) >= before + lease && Date.parse(until) <= after + lease, `${until} is 45 minutes on, the repo's reviewLease`);
-    assert.ok(run(repo, 'show', '1').stdout.includes(`under review by web-2 (Test Model) until ${until}`), 'show names the holder and the time');
+    assert.ok((await run(repo, 'show', '1')).stdout.includes(`under review by web-2 (Test Model) until ${until}`), 'show names the holder and the time');
 
-    const passed = run(other, 'next', '--verify');
+    const passed = await run(other, 'next', '--verify');
     assert.equal(passed.status, 1, passed.stdout);
     assert.match(passed.stderr, /NOTHING_FREE/);
     assert.ok(passed.stderr.includes(`web-2 (Test Model) holds the review of #1 until ${until}`), passed.stderr);
     git(other, 'switch', '-q', '--detach', commit);
-    const refused = run(other, 'verify', '1', 'accept', '--note', 'it greets');
+    const refused = await run(other, 'verify', '1', 'accept', '--note', 'it greets');
     assert.equal(refused.status, 1, refused.stdout);
     assert.match(refused.stderr, /REVIEW_HELD/);
     assert.ok(refused.stderr.includes(`web-2 (Test Model) holds the review of #1 until ${until}`), refused.stderr);
 
-    const renewed = run(holder, 'next', '--verify');
+    const renewed = await run(holder, 'next', '--verify');
     const again = /reserved for you until (\S+):/.exec(renewed.stdout)?.[1];
     assert.ok(again && Date.parse(again) > Date.parse(until), `running next --verify again renews the lease: ${renewed.stdout}${renewed.stderr}`);
     git(holder, 'switch', '-q', '--detach', commit);
-    const accepted = run(holder, 'verify', '1', 'accept', '--note', 'checked out the commit; web/greet.txt says hello');
+    const accepted = await run(holder, 'verify', '1', 'accept', '--note', 'checked out the commit; web/greet.txt says hello');
     assert.equal(accepted.status, 0, accepted.stderr);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
