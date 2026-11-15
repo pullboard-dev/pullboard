@@ -19,7 +19,7 @@ import { recordReceipt } from '../../../../../gate/index.js';
 import { failureSignatures } from '../../../../index.js';
 import { matchingMainFailures } from '../../../../index.js';
 import { takeResource } from '../../../../../resources/index.js';
-import { withProcessEnvironment } from '../../../fixtures/environment.js';
+import { withEnvironment } from '../../../../../resources/index.js';
 import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
 import { executionServices } from '../../../../../../apps/cli/tests/fixtures/gate/execution.js';
 import { HOST } from '../../../../../../apps/cli/tests/fixtures/runner/ssh.js';
@@ -31,22 +31,20 @@ const C = `${HOST}-setup`;
 const roots = [];
 
 /**
- * Run a case body in-process with an environment of its own, passed to the call rather than assigned to process.env.
- * Why: the production calls read process.env, so the call applies the given env for its duration and restores it after;
- * no case leaves state behind for the next, and no child process is started.
+ * One case's complete environment: the fixture's own homes and runner stand-in, and the agent it runs as. A case passes it to
+ * the calls that take an env and runs its setup calls under it, so two cases run at once without sharing process.env.
  */
-function withEnvironment(box, agent, body) {
-  const env = Object.assign({ ...process.env }, { PULLBOARD_HOME: box.home, PULLBOARD_MACHINE_HOME: box.machine,
+function caseEnvironment(box, agent) {
+  return Object.assign({ ...process.env }, { PULLBOARD_HOME: box.home, PULLBOARD_MACHINE_HOME: box.machine,
     PULLBOARD_AGENT: agent, PATH: box.env.PATH, HOME: box.home });
-  return withProcessEnvironment(env, body);
 }
 
-/** Serial on purpose: the cases share one process-wide environment, so a queued case's timeout must not run while another holds it. */
-describe('registered runner selection for a pinned main comparison [V4,C7]', { concurrency: false }, () => {
+describe('registered runner selection for a pinned main comparison [V4,C7]', { concurrency: true }, () => {
 test('main comparison selects a matching registered peer only when the preferred runner is busy [V4,C7]', { timeout: 60000 }, async t => {
   const box = fixture(t);
   const environment = executionEnvironment();
-  await withEnvironment(box, 'comparison-peer-fixture', async () => {
+  const env = caseEnvironment(box, 'comparison-peer-fixture');
+  await withEnvironment(env, async () => {
   let held;
   const measured = [];
   const candidateReceipts = [];
@@ -77,7 +75,7 @@ test('main comparison selects a matching registered peer only when the preferred
 
     const candidate = await withGateSlot(box.root, lease => runProfiledShell(box.root,
       "node test/runner.js './test/inherited.test.js'", { gateLease: lease, stages: true }), {
-      executionServices, remote: true, runnerOnly: true, runnerWaitMs: 30000, requiredExecutor: { kind: 'ssh', host: A },
+      env, executionServices, remote: true, runnerOnly: true, runnerWaitMs: 30000, requiredExecutor: { kind: 'ssh', host: A },
       diagnostic: true, agent: 'actual-candidate-runner-fixture', kind: 'candidate-comparison-control',
       onReceipt: value => candidateReceipts.push(value),
     });
@@ -89,11 +87,11 @@ test('main comparison selects a matching registered peer only when the preferred
     execution = { executor: { kind: 'ssh', host: A }, environment: candidate.environment };
     assert.deepEqual(comparisonExecutor(box.root, execution).requiredExecutor.hosts, [A, B]);
 
-    held = await takeResource({ name: 'gate', capacity: 0, scope: 'machine', root: box.root,
+    held = await takeResource({ env, name: 'gate', capacity: 0, scope: 'machine', root: box.root,
       remote: true, requiredExecutor: { kind: 'ssh', host: A, hosts: [A] },
       runnerProvider: () => box.runners, agent: 'hold-preferred-comparison-runner', kind: 'comparison-affinity-control' });
     const compare = () => compareMainFailures(box.root, { tests: [{ file: 'test/inherited.test.js', passed: false }] }, undefined, '', {
-      commit: box.main, detailed: true, fresh: true, execution,
+      env, commit: box.main, detailed: true, fresh: true, execution,
       runnerAdmission: { runnerOnly: true, runnerWaitMs: 30000, onReceipt: value => measured.push(value) },
     });
     const whileABusy = await compare();
@@ -128,32 +126,27 @@ test('main comparison selects a matching registered peer only when the preferred
   assert.ok(requests.every(row => row.host !== C), 'the wrong-Node runner never receives a comparison');
 });
 
-/** Run comparisonExecutor against a fixture pool with the given recorded receipts, restoring the machine environment. */
+/** Run comparisonExecutor against a fixture pool with the given recorded receipts, in an environment of its own. */
 function selectWith(t, record) {
   const box = fixture(t);
   const environment = executionEnvironment();
-  const prior = { machine: process.env.PULLBOARD_MACHINE_HOME, home: process.env.PULLBOARD_HOME };
-  Object.assign(process.env, { PULLBOARD_HOME: box.home, PULLBOARD_MACHINE_HOME: box.machine });
-  try {
+  return withEnvironment(Object.assign({ ...process.env }, { PULLBOARD_HOME: box.home, PULLBOARD_MACHINE_HOME: box.machine }), () => {
     record(box.root, environment);
     return comparisonExecutor(box.root, { executor: { kind: 'ssh', host: A }, environment });
-  } finally {
-    for (const [key, value] of [['PULLBOARD_HOME', prior.home], ['PULLBOARD_MACHINE_HOME', prior.machine]]) {
-      if (value === undefined) delete process.env[key]; else process.env[key] = value;
-    }
-  }
+  });
 }
 
 test('clause 1: the real compare-main path runs main on the red host when no receipt matches, never BAD_RUNNER_POOL [C7]', { timeout: 60000 }, async t => {
   const box = fixture(t);
   const environment = executionEnvironment();
-  await withEnvironment(box, 'comparison-red-host-fixture', async () => {
+  const env = caseEnvironment(box, 'comparison-red-host-fixture');
+  await withEnvironment(env, async () => {
   const measured = [];
   try {
     // Every registered peer's newest receipt names another runtime, so no peer observation matches the red run.
     for (const host of [A, B, C]) recordReceipt(box.root, receipt(box.root, host, { ...environment, node: '0.0.1' }));
     const compared = await compareMainFailures(box.root, { tests: [{ file: 'test/inherited.test.js', passed: false }] }, undefined, '', {
-      commit: box.main, detailed: true, fresh: true, execution: { executor: { kind: 'ssh', host: A }, environment },
+      env, commit: box.main, detailed: true, fresh: true, execution: { executor: { kind: 'ssh', host: A }, environment },
       runnerAdmission: { runnerOnly: true, runnerWaitMs: 30000, onReceipt: value => measured.push(value) },
     });
     assert.equal(compared.unavailable, undefined, compared.unavailable);
