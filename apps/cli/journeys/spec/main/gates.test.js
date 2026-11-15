@@ -1,29 +1,28 @@
 /**
  * The spec (S1–S5): parsing SPEC.md rows, the lint, the frozen criterion and sign-offs.
  */
-import { repointLandingGates } from '../../../../../../packages/spec/index.js';
-import { missingGateFindings } from '../../../../../../packages/spec/index.js';
-import { boardBusyError } from '../../../../../../packages/store/index.js';
-import { openBoardReadOnly } from '../../../../../../packages/store/index.js';
-import { rowDecisions } from '../../../../../../packages/spec/index.js';
-import { checkLoosening } from '../../../../../../packages/doctrine/index.js';
+import { repointLandingGates } from '../../../../../packages/spec/index.js';
+import { missingGateFindings } from '../../../../../packages/spec/index.js';
+import { boardBusyError } from '../../../../../packages/store/index.js';
+import { openBoardReadOnly } from '../../../../../packages/store/index.js';
+import { rowDecisions } from '../../../../../packages/spec/index.js';
+import { checkLoosening } from '../../../../../packages/doctrine/index.js';
 import assert from 'node:assert/strict';
-import { FIXTURE_MODEL } from '../../../fixtures/child.js';
-import { runFixtureGit } from '../../../fixtures/child.js';
+import { runFixtureGit } from '../../../tests/fixtures/child.js';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { configFromSource } from '../../../../../../packages/config/index.js';
-import { preCommitProblems } from '../../../../../../packages/commits/index.js';
-import { requireRelayOnChannel } from '../../../../../../packages/person/index.js';
-import { parseSpec } from '../../../../../../packages/spec/index.js';
-import { SPEC } from '../../../fixtures/spec/box.js';
-import { specBox } from '../../../fixtures/spec/box.js';
-import { runInProcessAt } from '../../../fixtures/spec/box.js';
-import { SETUP_SPEC } from '../../../fixtures/spec/box.js';
-import { answerCommandCase } from '../../../fixtures/spec/box.js';
+import { configFromSource } from '../../../../../packages/config/index.js';
+import { preCommitProblems } from '../../../../../packages/commits/index.js';
+import { requireRelayOnChannel } from '../../../../../packages/person/index.js';
+import { parseSpec } from '../../../../../packages/spec/index.js';
+import { SPEC } from '../../../tests/fixtures/spec/box.js';
+import { specBox } from '../../../tests/fixtures/spec/box.js';
+import { runInProcessAt } from '../../../tests/fixtures/spec/box.js';
+import { SETUP_SPEC } from '../../../tests/fixtures/spec/box.js';
+import { answerCommandCase } from '../../../tests/fixtures/spec/box.js';
 
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
 
@@ -72,7 +71,7 @@ test('a joined seat requests answers for pending questions [S1,I1,P6]', async t 
     box.git('commit', '-q', '-m', 'chore: configure the setup fixture lane');
     const builder = join(box.root, 'builder');
     box.git('worktree', 'add', '-q', '-b', 'build/setup', builder);
-    const joined = await runInProcessAt(box, builder, ['join', 'build', '--model', FIXTURE_MODEL]);
+    const joined = await runInProcessAt(box, builder, ['join', 'build', '--model', 'Fixture']);
     assert.equal(joined.status, 0, joined.stderr + joined.stdout);
     const read = await runInProcessAt(box, builder, ['resume', '--diagnostics', '--json']);
     assert.equal(read.status, 0, read.stderr + read.stdout);

@@ -28,13 +28,6 @@
       "action": "convert",
       "because": "runs in process on real git; the cli cell proves the claim without a journey",
       "idsFollowed": true
-    },
-    {
-      "from": "apps/cli/journeys/spec/main/gates.test.js",
-      "to": "apps/cli/tests/io/spec/main/gates.test.js",
-      "action": "convert",
-      "because": "runs in process on real git; the cli cell proves the claim without a journey",
-      "idsFollowed": true
     }
   ],
   "deleted": [
