@@ -5,12 +5,14 @@ import {
   readFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { processAlive } from '../../../../packages/drive/index.js';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import {
   fixtureAdd,
   withFixtureBoard,
 } from '../../tests/fixtures/testkit.js';
+import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
 import {
   createJob,
   writeStep,
@@ -38,10 +40,14 @@ test('clause 1: next restarts the local runner when this machine\'s gate job has
     createJob(board.db, { id: `gate:${id}:dead`, kind: 'gate', item: id, candidate: 'd'.repeat(40), now: at });
     writeStep(board.db, `gate:${id}:dead`, 'offered', {}, { now: at });
   });
-  assert.equal(existsSync(state), false, 'no local runner has run yet');
+  // The waited baseline of the add above already started a local runner (default pull dispatch, c86117c949); stop it so none is live, as after a kill.
+  stopFixtureLocalRunner(sandbox.env.PULLBOARD_MACHINE_HOME);
+  const before = existsSync(state) ? JSON.parse(readFileSync(state, 'utf8')).pid : null;
+  assert.ok(before === null || !processAlive(before), 'no local runner is live');
   const next = await box.runLocal(box.web, 'next');
   const lines = next.out.split('\n').filter(line => line.includes('restarted this machine\'s local runner'));
   assert.equal(lines.length, 1, next.out + next.err);
   assert.ok(lines[0].includes(`#${id}`), lines[0]);
   assert.match(lines[0], /pid \d+/, 'the line names the started runner');
+  assert.notEqual(Number(/pid (\d+)/u.exec(lines[0])[1]), before, 'a new runner started');
 });
