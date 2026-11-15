@@ -52,6 +52,7 @@ import {
   takeResource,
   requiredExecutorOf,
 } from '../../../../resources/index.js';
+import { withEnvironment } from '../../../../resources/index.js';
 import { sameEnvironment } from '../../../../verify/light.js';
 import { Refused } from '../../../../kernel/index.js';
 import {
@@ -381,11 +382,17 @@ function storeOutcome(cache, keys, path, outcome) {
  * @param {object} profile
  * @param {(state:object)=>void} [onWait]
  * @param {string} [output] - The failed phase's unchanged reporter output.
- * @param {{commit?: string, detailed?: boolean, fresh?: boolean, allowCancelled?: boolean, onMeasuredReceipt?: (id:string)=>Promise<void>, onStart?: (start:{file:string, runner:string|null})=>void, runnerAdmission?: object, execution?: {executor:object, environment:object}}} [options] - Capture the submit base and require exact test identities; fresh bypasses completed exact-main comparisons; onMeasuredReceipt records only freshly executed native receipts; onStart is told the file and its runner once the slot is taken, before the run.
+ * @param {{env?: Record<string,string>, commit?: string, detailed?: boolean, fresh?: boolean, allowCancelled?: boolean, onMeasuredReceipt?: (id:string)=>Promise<void>, onStart?: (start:{file:string, runner:string|null})=>void, runnerAdmission?: object, execution?: {executor:object, environment:object}}} [options] - Capture the submit base and require exact test identities; fresh bypasses completed exact-main comparisons; onMeasuredReceipt records only freshly executed native receipts; onStart is told the file and its runner once the slot is taken, before the run.
  * A caller that names no runnerAdmission gets this machine's: with gate.runnersOnly on, every caller's comparison queues for a runner, never a local process (#3011).
+ * env, when given, is process.env for the whole comparison; absent, process.env is used and nothing changes.
  * @returns {Promise<{ main: string|null, files: Array<{file:string,result:'red'|'green'}>, unavailable?: string }>}
  */
 export function compareMainFailures(...args) {
+  return withEnvironment(args[4]?.env, () => compareMainFailuresIn(...args));
+}
+
+/** compareMainFailures under its environment. */
+function compareMainFailuresIn(...args) {
   // A red gate's comparison with main can run for many minutes (apps/cli/journeys/land/main.test.js: 1300-1900 s on a runner); inside a
   // driven gate it reports progress the whole time, so the drive's stall watch never restarts a gate that is still
   // comparing (#3451's gate stalled 20 min after its red). Outside a driven gate this reports nothing.
