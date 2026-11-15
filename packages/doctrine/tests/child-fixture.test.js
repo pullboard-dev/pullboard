@@ -18,7 +18,6 @@ const CLI_SHIM_IMPORTERS = [
   'api/tests/io/gate/detached.test.js',
   'api/tests/io/gate/ordered.test.js',
   'api/tests/io/gate/overtaken.test.js',
-  'api/tests/io/gate/pull-settles.test.js',
   'api/tests/io/jobs.test.js',
   'api/tests/io/jobs/claim-order.test.js',
   'api/tests/io/jobs/requested.test.js',
