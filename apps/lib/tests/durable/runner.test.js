@@ -151,7 +151,8 @@ test('clause 2: an untrusted key is refused, the receipt cell refuses an unsigne
 
     const at = Date.now();
     await call(board.url, '/pull/register', JSON.stringify({ runner: 'sandbox-2', publicKey: keys.publicKey, at, signature: sign(null, Buffer.from(`PBREGISTER 1 sandbox-2 ${at}`), keys.key).toString('base64url') }));
-    const taken = await call(board.url, '/pull/take', JSON.stringify({ runner: 'sandbox-2', at, signature: sign(null, Buffer.from(`PBTAKE 1 sandbox-2 ${at}`), keys.key).toString('base64url') }));
+    const nonce = 'raw-take-nonce-0001';
+    const taken = await call(board.url, '/pull/take', JSON.stringify({ runner: 'sandbox-2', at, nonce, signature: sign(null, Buffer.from(`PBTAKE 1 sandbox-2 ${at} ${nonce}`), keys.key).toString('base64url') }));
     assert.equal(taken.status, 200);
     const { token, tree } = taken.body;
     const auth = { authorization: `Bearer ${token}` };
@@ -162,21 +163,21 @@ test('clause 2: an untrusted key is refused, the receipt cell refuses an unsigne
     const unsigned = await call(board.url, '/pull/result/s1', bytes, auth);
     assert.equal(unsigned.body.code, 'PULL_RESULT_INVALID');
     assert.match(unsigned.body.message, /import\.invalid: the result file is unsigned/u);
-    const wrong = sign(null, Buffer.from(resultStatement({ job: 'gate-2', shard: 's1', tree, digest })), stranger.key).toString('base64url');
+    const wrong = sign(null, Buffer.from(resultStatement({ job: 'gate-2', shard: 's1', tree, digest, command: 'sh ./check.sh' })), stranger.key).toString('base64url');
     const wrongly = await call(board.url, '/pull/result/s1', bytes, { ...auth, 'x-pullboard-signature': wrong });
     assert.match(wrongly.body.message, /does not match the registered runner key/u);
-    const otherShard = sign(null, Buffer.from(resultStatement({ job: 'gate-2', shard: 's9', tree, digest })), keys.key).toString('base64url');
+    const otherShard = sign(null, Buffer.from(resultStatement({ job: 'gate-2', shard: 's9', tree, digest, command: 'sh ./check.sh' })), keys.key).toString('base64url');
     assert.equal((await call(board.url, '/pull/result/s1', bytes, { ...auth, 'x-pullboard-signature': otherShard })).body.code, 'PULL_RESULT_INVALID', 'a signature for another shard does not carry over');
     assert.equal(board.steps('gate-2'), before, 'a refused result records nothing');
 
-    assert.deepEqual(checkSignedResult({ bytes, publicKey: keys.publicKey, job: 'gate-2', shard: 's1', tree }), { valid: false, outcome: 'infra', code: 'import.invalid', reason: 'the result file is unsigned' });
-    assert.equal(checkSignedResult({ bytes, signature: wrong, publicKey: keys.publicKey, job: 'gate-2', shard: 's1', tree }).outcome, 'infra', 'a bad signature is infra, never red');
+    assert.deepEqual(checkSignedResult({ bytes, publicKey: keys.publicKey, job: 'gate-2', shard: 's1', tree, command: 'sh ./check.sh' }), { valid: false, outcome: 'infra', code: 'import.invalid', reason: 'the result file is unsigned' });
+    assert.equal(checkSignedResult({ bytes, signature: wrong, publicKey: keys.publicKey, job: 'gate-2', shard: 's1', tree, command: 'sh ./check.sh' }).outcome, 'infra', 'a bad signature is infra, never red');
 
     assert.equal((await call(board.url, '/pull/result/s1', bytes, { authorization: `Bearer ${token.slice(0, -2)}xx` })).body.code, 'PULL_TOKEN', 'a token the board did not mint is refused');
     assert.equal((await fetch(new URL(`/pull/bundle/${'0'.repeat(40)}`, board.url), { headers: auth }).then(response => response.json())).code, 'PULL_TREE', 'the token fetches only its own job bundle');
     assert.equal((await call(board.url, '/pull/result/s7', bytes, auth)).body.code, 'PULL_SHARD_UNKNOWN', 'the token posts only its own job shards');
 
-    const good = sign(null, Buffer.from(resultStatement({ job: 'gate-2', shard: 's1', tree, digest })), keys.key).toString('base64url');
+    const good = sign(null, Buffer.from(resultStatement({ job: 'gate-2', shard: 's1', tree, digest, command: 'sh ./check.sh' })), keys.key).toString('base64url');
     const accepted = await call(board.url, '/pull/result/s1', bytes, { ...auth, 'x-pullboard-signature': good });
     assert.equal(accepted.status, 200);
     assert.equal(board.steps('gate-2') - before, 1);

@@ -224,8 +224,11 @@ function capture(rows, view, repo, now, ran = null) {
  */
 async function startOwed(rows, view, channel, owner, now) {
   const { runner } = stepPayload(view, 'running');
+  const { tree, base, tooling } = stepPayload(view, 'captured');
+  // Why: a pull runner signs these into its result, so the offer must carry the gate's own base, tooling pin and attempt [C7].
+  const bound = { tree, base: base ?? '', tooling: tooling ?? '', attempt: String(view.attempt) };
   for (const shard of owedShards(view)) {
-    await (await transportCell()).startShard(channel, { job: view.id, shard: shard.shard, command: shard.command, owner });
+    await (await transportCell()).startShard(channel, { job: view.id, shard: shard.shard, command: shard.command, owner, ...bound });
     rows.step(view.id, 'shard.started', { shard: shard.shard, runner: runner.host }, { seq: shard.seq, now });
   }
 }
