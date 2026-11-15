@@ -40,8 +40,14 @@ function boardFor(t, record) {
   const seat = (id, route) => sql.prepare('INSERT OR IGNORE INTO agent (agent_id, agent_lane, agent_path, agent_route, agent_created_at) VALUES (?, ?, ?, ?, ?)').run(id, 'core', `/seat/${id}`, route ?? 'strong', STAMP);
   seat(actor.id, actor.route);
   for (const name of [item.owner, item.builtBy]) if (name) seat(name, 'strong');
-  sql.prepare(`INSERT INTO item (item_id, item_lane, item_title, item_route, item_status, item_owner, item_built_by, item_commit, item_frozen, item_frozen_digest, item_created_by, item_created_at, item_updated_at)
-    VALUES (?, ?, 'recorded', ?, ?, ?, ?, ?, ?, ?, 'coordinator', ?, ?)`).run(item.id, item.lane ?? 'core', item.route, item.status, item.owner, item.builtBy, item.commit, item.frozen, item.frozenDigest, STAMP, STAMP);
+  sql.prepare(`INSERT INTO item (item_id, item_lane, item_title, item_route, item_status, item_created_by, item_created_at, item_updated_at) VALUES (?, ?, 'recorded', ?, 'open', 'coordinator', ?, ?)`)
+    .run(item.id, item.lane ?? 'core', item.route, STAMP, STAMP);
+  // The board's machine only lets an item reach a state by its declared moves, so the item walks to where the record found it.
+  const fields = { item_owner: item.owner, item_built_by: item.builtBy, item_commit: item.commit, item_frozen: item.frozen, item_frozen_digest: item.frozenDigest };
+  const set = (state, extra) => { const all = { ...extra, item_status: state }; sql.prepare(`UPDATE item SET ${Object.keys(all).map(k => `${k}=?`).join(', ')} WHERE item_id=?`).run(...Object.values(all), item.id); };
+  set('claimed', { ...fields, item_lease_until: '2099-01-01T00:00:00.000Z' });
+  set('submitted', {});
+  if (item.status === 'verified') set('verified', { item_verified_by: 'someone-else', item_verdict: 'ACCEPT' });
   const event = sql.prepare('INSERT INTO event (event_id, event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?, ?)');
   for (const e of history) event.run(e.id, STAMP, e.by, e.kind, item.id, JSON.stringify(e.detail));
   for (const e of record.snapshot.actorFlakeObservations) event.run(e.id, STAMP, actor.id, 'flake-observation', null, JSON.stringify(e.detail));
