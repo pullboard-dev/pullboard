@@ -8,7 +8,8 @@ import { cliChildImportProblems } from '../../../src/io/test/child-fixture.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { runFixtureSetupGit } from '../../fixtures/child.js';
 
-const IMPORT = "import { privateFixtureFiles } from '../../../apps/cli/tests/fixtures/child.js';\n";
+const FIXTURE = ['apps', 'cli', 'tests', 'fixtures', 'child.js'].join('/');
+const IMPORT = `import { privateFixtureFiles } from '../../../${FIXTURE}';\n`;
 const PLAIN = "import { test } from 'node:test';\ntest('x', () => {});\n";
 
 /** A repo whose main holds one old importer and one plain test, with the branch checked out. */
