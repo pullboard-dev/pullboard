@@ -41,6 +41,8 @@ function treeRegistryFailures(program, root) {
     const err = [];
     child.stdout.on('data', chunk => out.push(chunk));
     child.stderr.on('data', chunk => err.push(chunk));
+    // Report lines (sizes, never findings) arrive on a clean child's stderr; pass them on [#8460].
+    child.on('close', status => { if (status === 0 && err.length) process.stderr.write(Buffer.concat(err)); });
     child.on('error', error => resolveRun([`packages/gate/bin/static.js:1: the static tree registry could not run: ${error.message}`]));
     child.on('close', status => resolveRun(status === 0 ? JSON.parse(Buffer.concat(out).toString('utf8')) : [`packages/gate/bin/static.js:1: the static tree registry could not run: ${crashLine(Buffer.concat(err).toString('utf8'))}`]));
   });
