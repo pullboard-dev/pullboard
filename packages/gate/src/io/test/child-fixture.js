@@ -29,7 +29,7 @@ function textAt(root, commit, path) {
  * @param {{ only?: string[] | null, base?: string | null, exceptions?: string[] }} [options]
  */
 export function cliChildImportProblems(root, { only = null, base = compositionBase(root), exceptions = cliChildExceptions() } = {}) {
-  const paths = only ? only.filter(path => PACKAGE_TEST.test(path)).sort() : walk(root, path => PACKAGE_TEST.test(path));
+  const paths = only ? only.filter(path => PACKAGE_TEST.test(path)).sort() : walk(root, /^packages\/.+\.test\.m?js$/u);
   const rows = [];
   for (const path of paths) {
     const inner = PACKAGE_TEST.exec(path)?.[1];
