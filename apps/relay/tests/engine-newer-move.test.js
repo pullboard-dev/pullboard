@@ -15,11 +15,11 @@ async function journal(box, link) {
   return JSON.stringify(await response.json());
 }
 
-test('clause 1: a reader whose engine is older than a relay move stops with ENGINE_VERSION and an upgrade next step [C7,H16]', async (t) => {
+/** Link a board, append one move sealed one engine ahead of this reader, and sync it as the reader would. */
+async function meetNewerMove(t) {
   const box = await relayDirectFixture(t);
   await box.link();
   const link = box.readLink();
-  const before = await journal(box, link);
   const future = { version: 1, engine: ENGINE_VERSION + 1, id: 'future-engine-record', operation: 'futureOperation', args: [] };
   const sequence = link.sequence + 1;
   const sealed = Buffer.from(await seal(Buffer.from(box.readKey(), 'base64url'), new TextEncoder().encode(JSON.stringify(future)), { boardId: link.board, kind: 'move', sequence })).toString('base64url');
@@ -28,8 +28,21 @@ test('clause 1: a reader whose engine is older than a relay move stops with ENGI
     headers: { authorization: `Bearer ${link.token}`, 'x-pullboard-engine': String(ENGINE_VERSION), 'content-type': 'application/json' },
   });
   assert.equal(sent.status, 200, await sent.clone().text());
-  const afterAppend = await journal(box, link);
+  const appended = await journal(box, link);
   const lines = [];
   const summary = await syncRelay(box.root, { ...box.io, err: (line) => lines.push(String(line)) });
-  console.log(JSON.stringify({ summary, lines, before: before.length, afterAppend: afterAppend.length }));
+  return { box, link, appended, lines, summary, sequence };
+}
+
+test('clause 1: a reader whose engine is older than a relay move stops with ENGINE_VERSION and an upgrade next step [C7,H16]', async (t) => {
+  const { lines, summary, link } = await meetNewerMove(t);
+  assert.equal(summary.health.code, 'ENGINE_VERSION', 'the reader stops on the engine refusal');
+  assert.equal(summary.sequence, link.sequence, 'the reader applied nothing past the newer move');
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], new RegExp(`\\[ENGINE_VERSION\\] move engine version ${ENGINE_VERSION + 1} is newer than this pullboard engine version ${ENGINE_VERSION}; upgrade pullboard`));
+});
+
+test("clause 2: the relay's journal is unchanged after the reader stops [C7,H16]", async (t) => {
+  const { box, link, appended } = await meetNewerMove(t);
+  assert.equal(await journal(box, link), appended, 'the stop leaves every journal record as the relay stored it');
 });
