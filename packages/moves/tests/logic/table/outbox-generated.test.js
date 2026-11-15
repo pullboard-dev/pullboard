@@ -65,18 +65,18 @@ const results = Array.from({ length: CASES }, (_, seed) => {
 const ok = results.filter(c => !c.result.refused);
 const only = (name) => ok.filter(c => c.move.name === name);
 
-test('generated: every guard and outcome row of the outbox table fires on some seeded case [C7,#8328]', () => {
+test('moves.outbox.rows-fire: generated: every guard and outcome row of the outbox table fires on some seeded case [C7,#8328]', () => {
   const fired = new Set(results.flatMap(c => (c.result.refused ? [c.result.refused.row] : c.result.via)));
   const rows = [...OUTBOX_TABLE.guards.map(row => row.id), ...OUTBOX_TABLE.outcomes.map(row => row.id)];
   assert.deepEqual(rows.filter(row => !fired.has(row)), []);
   assert.ok(ok.length > CASES / 10, `only ${ok.length} accepted moves`);
 });
 
-test('generated: each case is refused with the code the rules in words name, or accepted when they name none [C7,#8328]', () => {
+test('moves.outbox.refusal-codes: generated: each case is refused with the code the rules in words name, or accepted when they name none [C7,#8328]', () => {
   for (const c of results) assert.equal(c.result.refused?.code ?? null, verdict(c.s, c.move), `seed ${c.seed}: ${JSON.stringify([c.s, c.move])}`);
 });
 
-test('generated: a refusal writes nothing, and an illegal move names every legal move from its state [C7,#8328]', () => {
+test('moves.outbox.refusal-writes-nothing: generated: a refusal writes nothing, and an illegal move names every legal move from its state [C7,#8328]', () => {
   for (const c of results.filter(each => each.result.refused)) {
     assert.ok(!('patch' in c.result) && !('events' in c.result), `seed ${c.seed}`);
     assert.ok(c.result.refused.message && c.result.refused.next, `seed ${c.seed}`);
@@ -84,7 +84,7 @@ test('generated: a refusal writes nothing, and an illegal move names every legal
   }
 });
 
-test('generated: queue, send, acknowledge, park and recover change only the counts and state their rows name [C7,#8328]', () => {
+test('moves.outbox.counts-and-state: generated: queue, send, acknowledge, park and recover change only the counts and state their rows name [C7,#8328]', () => {
   for (const c of ok) {
     const o = c.s.outbox, after = c.result.patch.outbox, count = c.move.count ?? 1;
     const same = (...keys) => keys.forEach(key => assert.equal(after[key], o[key], `seed ${c.seed}: ${c.move.name} changed ${key}`));
@@ -96,7 +96,7 @@ test('generated: queue, send, acknowledge, park and recover change only the coun
   }
 });
 
-test('generated: a take-back, apply or remake leaves the rebuild step it names and keeps the tail it has not made again [C7,#8328]', () => {
+test('moves.outbox.rebuild-step: generated: a take-back, apply or remake leaves the rebuild step it names and keeps the tail it has not made again [C7,#8328]', () => {
   for (const c of only('takeBack')) assert.deepEqual([c.result.patch.outbox.state, c.result.patch.outbox.remade, c.result.patch.outbox.moves], ['undone', 0, c.s.outbox.moves], `seed ${c.seed}`);
   for (const c of only('apply')) {
     const receipted = c.move.receipted ?? c.s.outbox.receipted, after = c.result.patch.outbox;
@@ -109,7 +109,7 @@ test('generated: a take-back, apply or remake leaves the rebuild step it names a
   for (const c of only('fallback')) assert.deepEqual([c.result.patch.outbox.state, c.result.patch.outbox.remade, c.result.patch.outbox.receipted], ['applied', 0, c.s.outbox.receipted], `seed ${c.seed}`);
 });
 
-test('generated: a write leaves exactly the unacknowledged tail on the board sequence, with nothing sent, parked or made again [C7,#8328]', () => {
+test('moves.outbox.write-leaves-tail: generated: a write leaves exactly the unacknowledged tail on the board sequence, with nothing sent, parked or made again [C7,#8328]', () => {
   const writes = only('write');
   assert.ok(writes.length > 100, `only ${writes.length} accepted writes`);
   for (const c of writes) {
@@ -118,7 +118,7 @@ test('generated: a write leaves exactly the unacknowledged tail on the board seq
   }
 });
 
-test('generated: each accepted move records one outbox event of its own kind [C7,#8328]', () => {
+test('moves.outbox.event-per-move: generated: each accepted move records one outbox event of its own kind [C7,#8328]', () => {
   const kinds = { queue: 'outbox.queued', send: 'outbox.sent', acknowledge: 'outbox.acknowledged', park: 'outbox.parked', recover: 'outbox.recovered', takeBack: 'outbox.taken-back', apply: 'outbox.applied', remake: 'outbox.remade', write: 'outbox.written', resume: 'outbox.resumed', fallback: 'outbox.fell-back' };
   for (const c of ok) {
     assert.equal(c.result.events.length, 1, `seed ${c.seed}`);
@@ -130,7 +130,7 @@ test('generated: each accepted move records one outbox event of its own kind [C7
   }
 });
 
-test('generated: the table is deterministic and reads its snapshot without changing it [C7,#8328]', () => {
+test('moves.outbox.deterministic: generated: the table is deterministic and reads its snapshot without changing it [C7,#8328]', () => {
   for (const c of results.slice(0, 2000)) {
     const snapshot = structuredClone(c.s), move = structuredClone(c.move);
     assert.deepEqual(runTable(OUTBOX_TABLE, OUTBOX_RULES, snapshot, move), c.result, `seed ${c.seed}`);
@@ -138,7 +138,7 @@ test('generated: the table is deterministic and reads its snapshot without chang
   }
 });
 
-test('metamorphic: ask for one more than an accepted send, acknowledge or park has left and it is refused its own code [C7,#8328]', () => {
+test('moves.outbox.count-too-high: metamorphic: ask for one more than an accepted send, acknowledge or park has left and it is refused its own code [C7,#8328]', () => {
   const over = [
     ['send', 'OUTBOX_NOTHING_TO_SEND', c => ({ ...c.move, count: c.s.outbox.moves - c.s.outbox.parked - c.s.outbox.sent + 1 })],
     ['acknowledge', 'OUTBOX_ACK_UNSENT', c => ({ ...c.move, count: c.s.outbox.sent - c.s.outbox.receipted + 1 })],
@@ -150,7 +150,7 @@ test('metamorphic: ask for one more than an accepted send, acknowledge or park h
   for (const c of only('park')) assert.equal(run({ ...c.s, outbox: { ...c.s.outbox, parked: c.s.outbox.moves } }, c.move).refused?.code, 'OUTBOX_NOTHING_TO_PARK', `seed ${c.seed}`);
 });
 
-test('metamorphic: a board that moved past the base refuses an accepted take-back OUTBOX_BEHIND, and a board at the base refuses a resume [C7,#8328]', () => {
+test('moves.outbox.board-moved: metamorphic: a board that moved past the base refuses an accepted take-back OUTBOX_BEHIND, and a board at the base refuses a resume [C7,#8328]', () => {
   for (const c of only('takeBack').filter(each => each.s.outbox.state !== 'none')) {
     assert.equal(run({ ...c.s, board: { sequence: c.s.outbox.baseSequence + 1 } }, c.move).refused?.code, 'OUTBOX_BEHIND', `seed ${c.seed}`);
   }
@@ -159,20 +159,20 @@ test('metamorphic: a board that moved past the base refuses an accepted take-bac
   for (const c of resting) assert.equal(run({ ...c.s, board: { sequence: c.s.outbox.baseSequence } }, c.move).refused?.code, 'OUTBOX_NOT_STRANDED', `seed ${c.seed}`);
 });
 
-test('metamorphic: a checkpoint older than the base, or not a whole number, refuses an accepted fallback RELAY_OUTBOX [C7,#8328]', () => {
+test('moves.outbox.checkpoint-old: metamorphic: a checkpoint older than the base, or not a whole number, refuses an accepted fallback RELAY_OUTBOX [C7,#8328]', () => {
   assert.ok(only('fallback').length > 100, `only ${only('fallback').length} accepted fallbacks`);
   for (const c of only('fallback')) {
     for (const checkpoint of [c.s.outbox.baseSequence - 1, c.s.outbox.baseSequence + 0.5, undefined, Number.NaN]) assert.equal(run(c.s, { ...c.move, checkpoint }).refused?.code, 'RELAY_OUTBOX', `seed ${c.seed}: ${checkpoint}`);
   }
 });
 
-test('metamorphic: a count left out is the same as a count of one [C7,#8328]', () => {
+test('moves.outbox.count-default: metamorphic: a count left out is the same as a count of one [C7,#8328]', () => {
   for (const c of ok.filter(each => ['send', 'acknowledge'].includes(each.move.name) && each.move.count === undefined)) {
     assert.deepEqual(run(c.s, { ...c.move, count: 1 }), c.result, `seed ${c.seed}`);
   }
 });
 
-test('metamorphic: shifting the base, the board and the checkpoint by the same amount changes no outcome, only the sequence it writes [C7,#8328]', () => {
+test('moves.outbox.shift-invariant: metamorphic: shifting the base, the board and the checkpoint by the same amount changes no outcome, only the sequence it writes [C7,#8328]', () => {
   const shift = ({ s, move }, by) => ({ s: { outbox: { ...s.outbox, baseSequence: s.outbox.baseSequence + by }, board: { sequence: s.board.sequence + by } }, move: { ...move, sequence: move.sequence + by, checkpoint: move.checkpoint + by } });
   for (const c of results.slice(0, 5000)) {
     for (const by of [-9, 1, 1000]) {
@@ -183,7 +183,7 @@ test('metamorphic: shifting the base, the board and the checkpoint by the same a
   }
 });
 
-test('metamorphic: from any stranded state at most three resumes settle the outbox on the board with nothing receipted left in it [C7,#8328]', () => {
+test('moves.outbox.resumes-settle: metamorphic: from any stranded state at most three resumes settle the outbox on the board with nothing receipted left in it [C7,#8328]', () => {
   const stranded = results.filter(c => c.move.name === 'resume' && !c.result.refused);
   assert.ok(stranded.length > 200, `only ${stranded.length} stranded outboxes`);
   for (const c of stranded) {
@@ -199,7 +199,7 @@ test('metamorphic: from any stranded state at most three resumes settle the outb
   }
 });
 
-test('metamorphic: a whole rebuild by take-back, apply, remakes and write keeps exactly the unacknowledged tail [C7,#8328]', () => {
+test('moves.outbox.rebuild-keeps-tail: metamorphic: a whole rebuild by take-back, apply, remakes and write keeps exactly the unacknowledged tail [C7,#8328]', () => {
   const resting = results.filter(c => ['queued', 'sent', 'acknowledged'].includes(c.s.outbox.state) && c.s.board.sequence === c.s.outbox.baseSequence);
   assert.ok(resting.length > 500, `only ${resting.length} resting outboxes`);
   for (const c of resting) {

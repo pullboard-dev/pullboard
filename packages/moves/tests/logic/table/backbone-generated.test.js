@@ -51,7 +51,7 @@ const results = Array.from({ length: CASES }, (_, seed) => {
   return { seed: seed + 1, s, holds: serves(s, s.job.kind) };
 });
 
-test('generated: every job kind has one serves rule, in the table, in the kinds list and in the states list, with no kind left out [C7,#8328]', () => {
+test('moves.backbone.kinds-complete: generated: every job kind has one serves rule, in the table, in the kinds list and in the states list, with no kind left out [C7,#8328]', () => {
   assert.equal(new Set(KINDS).size, KINDS.length);
   assert.deepEqual(BACKBONE_TABLE.jobs.map(row => [row.kind, row.serves]), KINDS.map(kind => [kind, servesRule(kind)]));
   for (const kind of KINDS) assert.equal(BACKBONE_RULES[servesRule(kind)].says, JOB_KINDS.find(job => job.kind === kind).serves);
@@ -61,7 +61,7 @@ test('generated: every job kind has one serves rule, in the table, in the kinds 
   assert.equal(new Set(BACKBONE_STATES).size, BACKBONE_STATES.length);
 });
 
-test('generated: a job is served exactly when its kind needs say it is, for every kind, on seeded states [C7,#8328]', () => {
+test('moves.backbone.served-by-needs: generated: a job is served exactly when its kind needs say it is, for every kind, on seeded states [C7,#8328]', () => {
   for (const kind of KINDS) {
     const mine = results.filter(c => c.s.job.kind === kind);
     assert.ok(mine.some(c => c.holds) && mine.some(c => !c.holds), `${kind}: only ${mine.filter(c => c.holds).length} of ${mine.length} served`);
@@ -69,7 +69,7 @@ test('generated: a job is served exactly when its kind needs say it is, for ever
   }
 });
 
-test('generated: a serves fact traces only facts it reads, ending on itself, each once [C7,#8328]', () => {
+test('moves.backbone.serves-trace: generated: a serves fact traces only facts it reads, ending on itself, each once [C7,#8328]', () => {
   for (const c of results.slice(0, 3000)) {
     const { trace, fact, holds } = deriveFact(BACKBONE_RULES, servesRule(c.s.job.kind), structuredClone(c.s));
     assert.deepEqual([trace.at(-1).fact, trace.at(-1).holds, fact], [servesRule(c.s.job.kind), holds, servesRule(c.s.job.kind)], `seed ${c.seed}`);
@@ -77,14 +77,14 @@ test('generated: a serves fact traces only facts it reads, ending on itself, eac
   }
 });
 
-test('metamorphic: a job of one kind is never served as another kind, so at most one serves fact holds per state [C7,#8328]', () => {
+test('moves.backbone.one-kind-served: metamorphic: a job of one kind is never served as another kind, so at most one serves fact holds per state [C7,#8328]', () => {
   for (const c of results.slice(0, 4000)) {
     const held = KINDS.filter(kind => serves(c.s, kind));
     assert.deepEqual(held, c.holds ? [c.s.job.kind] : [], `seed ${c.seed}`);
   }
 });
 
-test('metamorphic: move the item off the job commit, digest or status, or take away what it serves, and a served job stops being served [C7,#8328]', () => {
+test('moves.backbone.moved-job-unserved: metamorphic: move the item off the job commit, digest or status, or take away what it serves, and a served job stops being served [C7,#8328]', () => {
   const breaks = {
     gate: [s => ({ ...s, item: { ...s.item, owner: 'z' } }), s => ({ ...s, item: { ...s.item, status: 'submitted' } })],
     'gate-drive': [s => ({ ...s, job: { ...s.job, status: 'done' } }), s => ({ ...s, item: { ...s.item, status: 'verified' } })],
@@ -110,7 +110,7 @@ test('metamorphic: move the item off the job commit, digest or status, or take a
   }
 });
 
-test('generated: reading a state never changes it and gives the same answer twice [C7,#8328]', () => {
+test('moves.backbone.read-is-pure: generated: reading a state never changes it and gives the same answer twice [C7,#8328]', () => {
   for (const c of results.slice(0, 2000)) {
     const before = structuredClone(c.s);
     assert.equal(deriveFact(BACKBONE_RULES, servesRule(c.s.job.kind), c.s).holds, c.holds, `seed ${c.seed}`);

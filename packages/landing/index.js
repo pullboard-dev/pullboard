@@ -35,6 +35,7 @@ export * from "./src/io/main/red/receipt.js";
 export * from "./src/io/main/red/passing.js";
 export * from "./src/io/queue.js";
 export * from "./src/io/land/envelope.js";
+export { carryLandingHops } from "./src/io/land/fence.js";
 export * from "./src/io/completion.js";
 export * from "./src/io/docs.js";
 export * from "./src/logic/envelope.js";
