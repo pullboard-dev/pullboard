@@ -6,6 +6,8 @@ import {
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { gateHealthLines } from '../../../../../packages/gate/index.js';
 import { gateHealthReport } from '../../../../../packages/gate/index.js';
+import { runnerTimeLines } from '../../../../../packages/gate/index.js';
+import { runnerTimeReport } from '../../../../../packages/gate/index.js';
 import { landingHealthLines } from '../../../../../packages/landing/index.js';
 import { landingHealthReport } from '../../../../../packages/landing/index.js';
 
@@ -24,7 +26,8 @@ export function gateHealthWindowMs(value) {
 
 /**
  * Print the gate count, total percentiles, time per phase, failure causes and slowest gates, then the landings'
- * accept-to-merged times and time per landing step, recording no move.
+ * accept-to-merged times and time per landing step, then the runner minutes by purpose and the share no item and
+ * purpose can be charged for, recording no move.
  */
 export function run(io, { first, second, rest, values }) {
   if (first || second || rest.length || Object.keys(values).some(key => !['json', 'since'].includes(key))) {
@@ -36,7 +39,8 @@ export function run(io, { first, second, rest, values }) {
   const now = ctx.clock.now().getTime();
   const { report, landing } = withBoardRead(ctx, board => ({ report: gateHealthReport(board.db, { commonDir: ctx.info.commonDir, since: now - span, now }),
     landing: landingHealthReport(board.db, { commonDir: ctx.info.commonDir, since: now - span, now }) }));
-  io.result?.({ report, landing });
-  for (const line of [...gateHealthLines(report, window), ...landingHealthLines(landing)]) io.say(line);
+  const runnerTime = runnerTimeReport({ commonDir: ctx.info.commonDir, since: now - span, now });
+  io.result?.({ report, landing, runnerTime });
+  for (const line of [...gateHealthLines(report, window), ...landingHealthLines(landing), '', ...runnerTimeLines(runnerTime)]) io.say(line);
   return 0;
 }

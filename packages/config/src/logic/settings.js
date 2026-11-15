@@ -165,6 +165,9 @@ export function loadMachineSettings() {
   if (value.gate?.refuseController !== undefined && typeof value.gate.refuseController !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.refuseController in ${file} must be true or false`);
   }
+  if (value.gate?.requireRunnerAttribution !== undefined && typeof value.gate.requireRunnerAttribution !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.requireRunnerAttribution in ${file} must be true or false`);
+  }
   // Off by default until every fixture and machine has left controller: only then does the old value become a refusal [P7].
   if (value.gate?.refuseController === true && value.gate.runnerDispatch === 'controller') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnerDispatch "controller" in ${file} is removed: every runner job is a row a runner pulls; next: run pullboard settings gate.runnerDispatch pull`);

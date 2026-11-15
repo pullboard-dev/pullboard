@@ -78,7 +78,6 @@
   ["test/gate-timing-output.test.js","packages/gate/tests/io/main/output.test.js","seed"],
   ["test/gui-admission.test.js","packages/gate/tests/io/gui/admission.test.js","seed"],
   ["test/gui-marker-guard.test.js","packages/gate/tests/io/gui/admission/guard.test.js","seed"],
-  ["test/land-affected.test.js","packages/gate/tests/land-affected.test.js","seed"],
   ["test/resources.test.js","packages/gate/tests/io/browser/admission/resources.test.js","seed"],
   ["test/runner-timing.test.js","packages/gate/tests/io/run/timing.test.js","seed"],
   ["src/git-wait-reporter.js","packages/gate/src/logic/reporter/git/wait.js","imports"],
