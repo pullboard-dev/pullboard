@@ -1058,9 +1058,6 @@
   "apps/cli/journeys/check-baseline/main.test.js": {
     "launch": 5
   },
-  "apps/cli/journeys/list/startup.test.js": {
-    "launch": 10
-  },
   "packages/gate/tests/io/edges/rule.test.js": {
     "launch": 1
   },
