@@ -4,6 +4,13 @@ import { pipelineCause } from "../../../../kernel/index.js";
 import { runSubmitTable } from "../../logic/board/landing/lease.js";
 import { INFRASTRUCTURE_CODES } from "./handoff/retry.js";
 import { INFRASTRUCTURE_RETRY_LIMIT } from "./handoff/retry.js";
+import { shadowHook } from "../board/shadow-record.js";
+import { shadowDecide } from "../board/shadow-record.js";
+import { firstDifference } from "../board/shadow-record.js";
+import { shadowSetting } from "../board/submit.js";
+
+/** Recorder compares waiting for their claim to commit, keyed by the outcome the plan carries to the claim writer [C7,#8380]. */
+const PENDING = new WeakMap();
 
 /**
  * What the OUTCOME table says a refusal renewal does over the board as it stands: the detail it records, nothing (`skipped`), or its refusal.
@@ -24,15 +31,39 @@ export function outcomeDecision(board, id, actor, value) {
 /**
  * Validate on both origin and replay before the ordinary claim guards execute.
  * A board that carries `submitOutcomeShadow` is handed the table's answer beside what this wrote or refused with, for the store test to compare [C7,#8271].
+ * With moves.shadow on and no such hook, the compare is recorded on the board when the claim commits, by `recordPendingOutcome`;
+ * a refusal never commits, so its compare is recorded now [C7,#8380].
  */
 export function checkedSubmitOutcome(board, id, actor, value, admission) {
-  if (value == null || typeof board.submitOutcomeShadow !== 'function') return writeSubmitOutcome(board, id, actor, value, admission);
-  const decided = outcomeDecision(board, id, actor, value);
+  const hook = value == null ? null : shadowHook(board, 'submitOutcomeShadow', 'outcome', outcomeDiffers, shadowSetting);
+  if (!hook) return writeSubmitOutcome(board, id, actor, value, admission);
+  const decided = shadowDecide(hook, () => outcomeDecision(board, id, actor, value));
   let wrote;
   try { wrote = { recorded: writeSubmitOutcome(board, id, actor, value, admission) }; } catch (error) { wrote = { refused: { code: error.code, message: error.message } }; }
-  board.submitOutcomeShadow({ id, decided, wrote });
+  if (hook.recorder && !wrote.refused) PENDING.set(wrote.recorded, { hook, answer: { id, decided, wrote } });
+  else hook({ id, decided, wrote });
   if (wrote.refused) throw new Refused(wrote.refused.code, wrote.refused.message);
   return wrote.recorded;
+}
+
+/** Record the compare a claim's outcome waited on; the claim writer calls it inside its own board write, so the compare lands with the claim [C7,#8380]. */
+export function recordPendingOutcome(outcome) {
+  const pending = outcome ? PENDING.get(outcome) : null;
+  if (!pending) return;
+  PENDING.delete(outcome);
+  pending.hook(pending.answer);
+}
+
+/** Where the OUTCOME table's answer and the outcome writer's part: the first differing path, or null when they agree. */
+export function outcomeDiffers({ decided, wrote }) {
+  if (decided?.threw) return `threw ${decided.threw}`;
+  if (wrote.refused) {
+    // The table skips a renewal on a claim that moved on, and the writer refuses it: one answer in two forms.
+    const same = decided.skipped ? wrote.refused.code === 'ITEM_LEASE_LOST' : decided.refused?.code === wrote.refused.code;
+    return same ? null : 'refused';
+  }
+  if (decided.skipped || decided.refused) return decided.skipped ? 'skipped' : 'refused';
+  return firstDifference(JSON.parse(JSON.stringify(decided.recorded ?? null)), JSON.parse(JSON.stringify(wrote.recorded)), 'recorded');
 }
 
 /** The writer's own checks and the outcome it records. */

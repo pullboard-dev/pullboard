@@ -2,9 +2,10 @@
 /** With gate.fencedHop on, a runner claiming a pulled gate job takes its item's hop through the fenced gate row, and a claim holding a replaced epoch is refused HOP_FENCED [C7,#8352]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
+import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { temporaryDirectory } from '../../../../../apps/cli/tests/fixtures/board.js';
 import { jobView } from '../../../../jobs/index.js';
 import { readGateHop } from '../../../../store/index.js';
 import { claimJob } from '../../../index.js';
@@ -19,7 +20,8 @@ const CANDIDATE = 'c0ffee'.padEnd(40, '0');
 
 /** A real board file with one gate job offered for ITEM at CANDIDATE, plus any more ids given. */
 function board(t, ids = ['gate:7:a']) {
-  const { root } = privateFixtureFiles('pullboard-claim-hop-');
+  const root = temporaryDirectory('pullboard-claim-hop-');
+  t.after(() => rmSync(root, { recursive: true, force: true }));
   const { db } = cellBoard(t, join(root, 'board.sqlite'));
   ids.forEach((id, at) => offerJob(db, { id, kind: 'gate', needs: [], item: ITEM, candidate: CANDIDATE, now: 1000 + at }));
   return db;

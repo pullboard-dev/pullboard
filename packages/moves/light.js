@@ -22,3 +22,5 @@ export { claimEngine } from './src/logic/table/claim.table.js';
 export { releaseEngine } from './src/logic/table/release.table.js';
 /** The gate-job queue table's engine, for the api job writer's shadow compare [C7,#8310]. */
 export { jobEngine } from './src/logic/table/job.table.js';
+/** The reopen move table's engine, for the store's reopen writer's shadow compare [C7,#8388]. */
+export { reopenEngine } from './src/logic/table/reopen.table.js';
