@@ -13,6 +13,7 @@ import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 import { fixtureProjectPolicy } from '../../tests/fixtures/testkit.js';
 
 test('next --verify reserves the review for the reviewLease and says until when; show names the holder; another verifier is passed over and refused [V15]', async (t) => {
+  const S0 = Date.now();
   const dir = privateFixtureFiles('pullboard-reserve-').root;
   try {
     // A fixture seat never inherits the running agent's session: it joins with its own declared model.
@@ -33,6 +34,7 @@ test('next --verify reserves the review for the reviewLease and says until when;
     const sessions = new Map();
     const session = (cwd) => { if (!sessions.has(cwd)) sessions.set(cwd, `00000000-0000-4000-8000-${String(sessions.size + 1).padStart(12, '0')}`); return sessions.get(cwd); };
     // In process: a spawned CLI costs a second or more of start-up each, and this case makes eleven calls.
+    process.stderr.write(`TIMING pre-T0 ${Date.now() - S0}\n`);
     const T0 = Date.now();
     const run = async (cwd, ...args) => { const r = await runCliInProcess(args, { cwd, env: { ...env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: session(cwd) } }); process.stderr.write(`TIMING ${Date.now() - T0} ${args.slice(0, 3).join(' ')}\n`); return r; };
     const repo = join(dir, 'repo');
@@ -102,7 +104,9 @@ test('next --verify reserves the review for the reviewLease and says until when;
     const accepted = await run(holder, 'verify', '1', 'accept', '--note', 'checked out the commit; web/greet.txt says hello');
     assert.equal(accepted.status, 0, accepted.stderr);
   } finally {
+    process.stderr.write(`TIMING finally ${Date.now() - S0}\n`);
     stopFixtureLocalRunner(join(dir, 'home'));
+    process.stderr.write(`TIMING stopped ${Date.now() - S0}\n`);
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
