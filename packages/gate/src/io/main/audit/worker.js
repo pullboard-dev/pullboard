@@ -298,17 +298,18 @@ async function audit(root, directory, job, write, options, testValueServices, ex
     await notifyIncomplete(file, job, 'previous controller has no durable native receipt; inspect owned processes before recovery', write);
     return;
   }
+  const T0=Date.now();const T=async l=>{process.stderr.write(`TT ${l} ${Date.now()-T0}\n`);};
   let created = false, cleanupAllowed = true;
-  try {
+  try {await T('start');
     let receipt = saved?.receiptId && readGateReceipt(receiptStore(root), saved.receiptId);
     if (!receipt) {
       saveMainAudit(file, { ...job, state: 'pending' });
       git(root, ['worktree', 'add', '--detach', source, job.tip]); created = true;
       if (git(source, ['rev-parse', 'HEAD']).trim() !== job.tip || git(source, ['rev-parse', 'HEAD^{tree}']).trim() !== job.tree
         || git(source, ['status', '--porcelain', '--untracked-files=all']) !== '') throw new Error('audit source is not the exact clean landed tree');
-      const plan = await readBoard(repoInfo(root), board => planMainAudit(source, board, directory, job, config, options, testValueServices), openBoardForRead);
-      const cellsBacklog = typeof collectCellsBacklog === 'function' ? await collectCellsBacklog(source, job) : null;
-      if (cellsBacklog !== null && cellsBacklog !== undefined) {
+      await T('worktree');const plan = await readBoard(repoInfo(root), board => planMainAudit(source, board, directory, job, config, options, testValueServices), openBoardForRead);
+      await T('plan');const cellsBacklog = typeof collectCellsBacklog === 'function' ? await collectCellsBacklog(source, job) : null;
+      await T('backlog');if (cellsBacklog !== null && cellsBacklog !== undefined) {
         if (cellsBacklog.version !== 1 || cellsBacklog.tip !== job.tip || cellsBacklog.tree !== job.tree
           || !Array.isArray(cellsBacklog.cells) || !Number.isSafeInteger(cellsBacklog.count)) {
           throw new Error('main audit cell cuts backlog is not bound to its exact source');
@@ -325,8 +326,8 @@ async function audit(root, directory, job, write, options, testValueServices, ex
       }
       saveMainAudit(file, { ...job, plan, state: 'running', source, controller: process.pid, started: processStart(process.pid) });
       cleanupAllowed = false;
-      const run = await runGate(source, config, { executionServices, landing: true, collectAll: true, auditBatchId: job.batchId, auditCoverage: true, ...(plan.reused.length ? { auditFiles: plan.run } : {}), trustStamp: false, agent: 'coordinator' });
-      cleanupAllowed = run.cleanupVerified === true && !run.cleanupUnverified
+      await T('prerun');const run = await runGate(source, config, { executionServices, landing: true, collectAll: true, auditBatchId: job.batchId, auditCoverage: true, ...(plan.reused.length ? { auditFiles: plan.run } : {}), trustStamp: false, agent: 'coordinator' });
+      await T('postrun');cleanupAllowed = run.cleanupVerified === true && !run.cleanupUnverified
         && !(run.profile?.landingShards?.unverified?.length > 0);
       receipt = run.receiptId && readGateReceipt(receiptStore(root), run.receiptId);
       const artifact = join(directory, key); mkdirSync(artifact, { recursive: true, mode: 0o700 });
@@ -338,14 +339,14 @@ async function audit(root, directory, job, write, options, testValueServices, ex
       saveMainAudit(file, saved);
     }
     if (receipt.head !== job.tip || receipt.tree !== job.tree || receipt.collection?.batchId !== job.batchId) throw new Error('retained audit receipt changed source identity');
-    await write('recordGateRun', [{ agentId: 'coordinator', receipt,
+    await T('measured');await write('recordGateRun', [{ agentId: 'coordinator', receipt,
       lane: job.items[0]?.lane ?? Object.keys(config.lanes)[0] }]);
     // Routing can be resumed with the same genuine receipt without another execution.
     // Source is needed only for immutable Git objects; original repo retains the same objects after cleanup.
-    await routeAuditFailures(root, job, receipt, config, write, saved.plan?.previousEventId ?? 0, openBoardForRead);
+    await T('recorded');await routeAuditFailures(root, job, receipt, config, write, saved.plan?.previousEventId ?? 0, openBoardForRead);
     if (receipt.collection?.complete !== true || (saved.plan?.reused.length
       ? JSON.stringify(receipt.collection.files) !== JSON.stringify(saved.plan.run) : receipt.collection.full !== true)) throw new Error('not all planned files completed; audit obligation remains incomplete');
-    await closeAuditedMainReds(root, job, saved.plan, receipt, write, openBoardForRead);
+    await T('routed');await closeAuditedMainReds(root, job, saved.plan, receipt, write, openBoardForRead);
     const { incomplete, error, noticeRecorded, ...completed } = saved;
     saveMainAudit(file, { ...completed, state: 'complete', green: receipt.green });
     retainGreenAudit(directory, job, saved, receipt);
