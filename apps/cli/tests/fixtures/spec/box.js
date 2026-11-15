@@ -1,5 +1,6 @@
 /** Shared spec project fixtures for the split spec journey files. */
 import { runCliInProcess } from '../process.js';
+import { journeyCall } from '../e2e.js';
 import assert from 'node:assert/strict';
 import { runFixtureChild as spawnSync } from '../child.js';
 import { runFixtureChild } from '../child.js';
@@ -62,7 +63,8 @@ export function specBox(t, { specName = 'SPEC.md', practiceName = 'PRACTICE.md',
   const command = (...args) => runFixtureChild(process.execPath, [resolve(import.meta.dirname, '../../../pullboard.js'), ...args], { cwd: root, env, encoding: 'utf8' });
   const run = (...args) => command('spec', ...args);
   /** The same commands in this process: awaited, same result fields, no ~1 s CLI startup [C7]. */
-  const cmd = (...args) => runCliInProcess(args, { cwd: root, env });
+  // PULLBOARD_JOURNEY_MODE=process answers the same call as a real process, so the gate's parity check can compare the two (#8267).
+  const cmd = (...args) => journeyCall({ dir: root, env, cwd: root, args, inProcess: () => runCliInProcess(args, { cwd: root, env }), real: () => command(...args) });
   const spec = (...args) => cmd('spec', ...args);
   // A --separate-git-dir repository keeps its Git metadata in another folder (#915).
   const metadata = separateGitDir ? realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-spec-git-'))) : null;
