@@ -84,7 +84,10 @@ async function claimSubmitClaim({ box, seat, items: [first, second] }) {
 /** One item's status on this computer's own board file, read without a command. */
 function localStatus(box, id) {
   const db = new DatabaseSync(join(box.root, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
-  try { return db.prepare('SELECT item_status FROM item WHERE item_id = ?').get(id)?.item_status; } finally { db.close(); }
+  // A runner's write holds the file now and then ("database is locked" in the census), so a locked read is not yet a finished gate [C7].
+  try { return db.prepare('SELECT item_status FROM item WHERE item_id = ?').get(id)?.item_status; }
+  catch (error) { if (/locked|busy/iu.test(error.message)) return 'claimed'; throw error; }
+  finally { db.close(); }
 }
 
 /** Wait until the first item's gate has finished on this computer, so its submit is recorded before boards compare. */
