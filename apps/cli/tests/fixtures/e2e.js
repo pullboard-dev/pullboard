@@ -101,7 +101,9 @@ export function parityRecord({ dir, env, cwd, args, result }) {
     : key === 'steps' && value && typeof value === 'object' && Object.values(value).every(Number.isFinite) ? '<steps>' // gate step timings, in milliseconds
     : typeof value === 'number' && /Ms$/u.test(key ?? '') ? '<ms>' // a measured duration
     : typeof value === 'string' ? parityText(value, dir).replace(/^disk use under \.git\/pullboard: .*$/gmu, 'disk use under .git/pullboard: <measured>')
-    : Array.isArray(value) ? value.map(inner => mask(inner))
+    // The late comparison fact is itself a background-measured value; it also moves every later event id by one.
+    : key === 'eventId' && typeof value === 'number' ? '<event>'
+    : Array.isArray(value) ? value.filter(inner => !(inner?.type === 'fact' && /^Review comparison: /u.test(inner.text ?? ''))).map(inner => mask(inner))
     : value && typeof value === 'object' ? Object.fromEntries([...Object.entries(value).filter(([name]) => key !== 'disk' || !DISK_MEASURED.includes(name)).map(([name, inner]) => [name, mask(inner, name)]),
       ...(key === 'disk' ? [['measurement', '<measured>']] : [])]) : value;
   return mask({ cwd, args, code: result.code, json, out: json ? null : result.out, err: result.stderr, board });
