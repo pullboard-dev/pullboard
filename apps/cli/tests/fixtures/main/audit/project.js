@@ -47,7 +47,7 @@ const SOURCE=new URL('../../../../../../',import.meta.url);
 /** Run actual Git in the private fixture and retain failures. */
 function git(root,env,...args){const ran=spawnSync('git',args,{cwd:root,env,encoding:'utf8'});assert.equal(ran.status,0,ran.stderr);return ran.stdout.trim();}
 /** Wait for an observed native ownership boundary. */
-async function observed(read,name){const deadline=Date.now()+30_000;while(Date.now()<deadline){const value=read();if(value)return value;await pause(20);}assert.fail(`missing ${name}`);}
+export async function observed(read,name){const deadline=Date.now()+30_000;while(Date.now()<deadline){const value=read();if(value)return value;await pause(20);}assert.fail(`missing ${name}`);}
 /** Copy actual installed source with spaces and a separate real tracked main project. landingShards 1 runs the audit gate in one process; each extra shard starts and installs its own runner, which is most of an audit's time [C7]. */
 export async function mainAuditFixture(t, { initialGreen = false, requireRealGit = false, landingShards = 2 } = {}) {
   const scratch=mkdtempSync(join(tmpdir(),'pullboard main audit ')),installed=join(scratch,'installed tooling'),repo=join(scratch,'repo'),machine=join(scratch,'machine');
