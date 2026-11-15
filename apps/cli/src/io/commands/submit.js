@@ -2,7 +2,7 @@ import { parseSpec } from '../../../../../packages/spec/light.js';
 import { submitReferenceReminders } from '../../../../../packages/spec/index.js';
 import { committedReader } from '../../../../../packages/moves/index.js';
 import { requireKernelApproval } from '../../../../../packages/verify/index.js';
-import { testHashProblem } from '../../../../../packages/verify/index.js';
+import { frozenTestsProblem } from '../../../../../packages/verify/index.js';
 import { testAuthorNotes } from '../../../../../packages/verify/index.js';
 import { seatFamily } from '../../../../../packages/items/index.js';
 import { itemFolderIdentity } from '../item/folder.js';
@@ -371,7 +371,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   authorizationStep('non-empty', () => requireNonEmptySubmit(root, id, commit, acceptedMain.commit));
   // A test file the bar froze at claim keeps its content unless the person ruled on the new content [C7,V4].
   authorizationStep('test-hashes', () => withBoard(ctx, (board) => {
-    const problem = testHashProblem(held, store.itemThread(board, id),
+    const problem = frozenTestsProblem(submitVerify, held, store.itemThread(board, id),
       { atHead: committedReader(root, commit), atMain: committedReader(root, acceptedMain.commit), person: store.PERSON });
     if (problem) throw problem;
   }));

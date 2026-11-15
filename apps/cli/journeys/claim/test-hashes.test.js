@@ -1,10 +1,12 @@
 /** A test file a clause names is hashed into the frozen bar; submit refuses a changed hash without a person's ruling [C7,V4]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { fixtureProjectPolicy } from '../../tests/fixtures/testkit.js';
 import { json } from '../../tests/fixtures/land/board.js';
 import { contentHash } from '../../../../packages/verify/index.js';
 
@@ -13,6 +15,8 @@ test('clauses 1-3: the claim hashes the named test, a changed hash refuses submi
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
+  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  fixtureProjectPolicy(box.repo, { config: { ...config, verify: { ...config.verify, frozenTests: true } } });
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'web/page.test.js'), "import { test } from 'node:test';\ntest('renders', () => {});\n");
   box.git(box.repo, 'add', '-A');

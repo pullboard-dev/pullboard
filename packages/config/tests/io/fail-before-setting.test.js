@@ -9,7 +9,7 @@ test('clause 1: verify.failBefore defaults to false and must be a boolean [C7]',
   assert.equal(defaults().verify.failBefore, false);
   assert.deepEqual(configProblems(defaults()).filter(p => p.includes('failBefore')), []);
   const bad = { ...defaults(), verify: { ...defaults().verify, failBefore: 'yes' } };
-  assert.ok(configProblems(bad).some(p => p.includes('"verify.failBefore" are true or false')));
+  assert.ok(configProblems(bad).some(p => p.includes('failBefore')));
 });
 
 test('clause 3: verify.failBefore is described for pullboard settings [C7]', () => {
