@@ -94,26 +94,46 @@ test('clause 1: [C7] mutate refuses a folder that is not in the checkout, and a 
   assert.match(bare.stderr, /\[NO_TESTS\]/u);
 });
 
-test('clause 1: [C7,#8099] a cell importing a sibling folder runs green in the copy; clause 2: a judge-flipping fault is caught; clause 3: the tree is unchanged', async () => {
-  const repo = privateFixtureFiles('mutate-import-').root;
-  const tmp = privateFixtureFiles('mutate-import-tmp-').root;
-  dirs.push(repo, tmp);
-  const options = { cwd: repo, env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } };
-  runFixtureSetupGit(['init', '-q', '-b', 'main'], options);
-  mkdirSync(join(repo, 'kernel'), { recursive: true });
-  mkdirSync(join(repo, 'pkg', 'src'), { recursive: true });
-  writeFileSync(join(repo, 'kernel', 'light.js'), 'export const LIMIT = 10;\n');
-  writeFileSync(join(repo, 'pkg', 'src', 'judge.js'), "import { LIMIT } from '../../kernel/light.js';\nexport const judge = (n) => n < LIMIT;\n");
-  writeFileSync(join(repo, 'pkg', 'judge.test.js'), "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\nimport { judge } from './src/judge.js';\ntest('judge', () => { assert.equal(judge(3), true); assert.equal(judge(30), false); });\n");
-  runFixtureSetupGit(['add', '-A'], options);
-  runFixtureSetupGit(['commit', '-q', '-m', 'base'], options);
-  const before = snapshot(repo);
-  const ran = await runCliInProcess(['mutate', 'pkg', '--all', '--json'], { cwd: repo, env: { ...process.env, PULLBOARD_SCRATCH: tmp } });
+let importRun = null;
+
+/** One mutate run over a cell that imports a sibling folder, shared by the three #8099 clause tests so the copy is made once. */
+function runImporting() {
+  importRun ??= (async () => {
+    const repo = privateFixtureFiles('mutate-import-').root;
+    const tmp = privateFixtureFiles('mutate-import-tmp-').root;
+    dirs.push(repo, tmp);
+    const options = { cwd: repo, env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } };
+    runFixtureSetupGit(['init', '-q', '-b', 'main'], options);
+    mkdirSync(join(repo, 'kernel'), { recursive: true });
+    mkdirSync(join(repo, 'pkg', 'src'), { recursive: true });
+    writeFileSync(join(repo, 'kernel', 'light.js'), 'export const LIMIT = 10;\n');
+    writeFileSync(join(repo, 'pkg', 'src', 'judge.js'), "import { LIMIT } from '../../kernel/light.js';\nexport const judge = (n) => n < LIMIT;\n");
+    writeFileSync(join(repo, 'pkg', 'judge.test.js'), "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\nimport { judge } from './src/judge.js';\ntest('judge', () => { assert.equal(judge(3), true); assert.equal(judge(30), false); });\n");
+    runFixtureSetupGit(['add', '-A'], options);
+    runFixtureSetupGit(['commit', '-q', '-m', 'base'], options);
+    const before = snapshot(repo);
+    const ran = await runCliInProcess(['mutate', 'pkg', '--all', '--json'], { cwd: repo, env: { ...process.env, PULLBOARD_SCRATCH: tmp } });
+    return { ran, before, after: snapshot(repo), left: readdirSync(tmp) };
+  })();
+  return importRun;
+}
+
+test('clause 1: [C7,#8099] a cell importing a sibling folder runs every test green in the copy, none dropped as red-before', async () => {
+  const { ran } = await runImporting();
   assert.equal(ran.status, 0, ran.stdout + ran.stderr);
   const report = JSON.parse(ran.stdout);
-  assert.deepEqual(report.redBefore, [], 'no test is dropped as red-before');
+  assert.deepEqual(report.redBefore, []);
   assert.deepEqual(report.tests.map((row) => row.file), ['judge.test.js']);
-  assert.ok(report.faults.some((fault) => fault.file === 'src/judge.js' && fault.caught), 'a seeded fault in the judge is caught');
-  assert.deepEqual(snapshot(repo), before, 'the working tree is unchanged');
-  assert.deepEqual(readdirSync(tmp), []);
+});
+
+test('clause 2: [C7,#8099] a seeded fault in the judge that flips its result is caught by the cell tests', async () => {
+  const { ran } = await runImporting();
+  const report = JSON.parse(ran.stdout);
+  assert.ok(report.faults.some((fault) => fault.file === 'src/judge.js' && fault.caught));
+});
+
+test('clause 3: [C7,#8099] the checkout working tree is unchanged and the copy removed after a mutate run', async () => {
+  const { before, after, left } = await runImporting();
+  assert.deepEqual(after, before);
+  assert.deepEqual(left, []);
 });
