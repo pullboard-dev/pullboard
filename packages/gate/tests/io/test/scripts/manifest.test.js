@@ -25,7 +25,7 @@ function fixture(t, sources) {
 const SOURCES = {
   'packages/math/index.js': 'export const add = (a, b) => a + b;',
   'packages/math/tests/add.test.js': 'import { add } from "../index.js"; add(1, 2);',
-  'packages/math/tests/store.test.js': 'import "../index.js"; fake.openBoard(":memory:");',
+  'packages/math/tests/store.test.js': 'import "../index.js"; fixtureBoard();',
   'packages/math/tests/git.test.js': `import "../index.js"; import { run } from "./fixtures/git.js"; run();`,
   'packages/math/tests/fixtures/git.js': SPAWN,
   'packages/math/tests/fixtures/git.test.js': 'import "./git.js";',
