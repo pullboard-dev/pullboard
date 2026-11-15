@@ -1,3 +1,4 @@
+/** @pullboard-world-pin: the record test reads pilot-record.json and the production files the seeded faults change, so a stale fault or record fails. */
 /**
  * The in-process journey pilot's measuring tools (#8058): run one journey file as real processes and in-process, time each,
  * seed one fault at a time through module hooks, and count which version fails on which fault [C7].
@@ -75,4 +76,14 @@ export function catchRates(rows) {
 /** The median runtime of each version over its unmutated runs, in milliseconds. */
 export function medianRuntimes(runs) {
   return Object.fromEntries(Object.entries(runs).map(([leg, list]) => [leg, median(list)]));
+}
+
+/** The committed record of the pilot's runs. */
+export function readPilotRecord() {
+  return JSON.parse(readFileSync(join(import.meta.dirname, 'pilot-record.json'), 'utf8'));
+}
+
+/** Whether a seeded fault's text is still in its production file, so the record can still be re-derived. */
+export function faultStillApplies(fault) {
+  return readFileSync(join(REPOSITORY, fault.file), 'utf8').includes(fault.find);
 }
