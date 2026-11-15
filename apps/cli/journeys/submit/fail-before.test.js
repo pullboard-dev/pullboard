@@ -19,8 +19,8 @@ async function submitWithoutReceipt(t, failBefore) {
   fixtureProjectPolicy(box.repo, { config: { ...config, verify } });
   const id = String(json(box, box.repo, 'add', 'web', 'Render page', '--specs', 'G1', '--criterion', '1. web/page.test.js passes [test]', '--check', 'true').item.item_id);
   json(box, box.web, 'claim', id);
-  assert.equal(helpers.commitFile(box, box.web, 'web/page.test.js', "import { test } from 'node:test';\ntest('renders', () => {});\n", 'feat(web): page test [G1]').status, 0);
-  const ticked = await box.runLocal(box.web, 'fact', id, 'note', 'clause 1 [test]: web/page.test.js "renders" passes');
+  assert.equal(helpers.commitFile(box, box.web, 'web/page.test.js', "import { test } from 'node:test';\ntest('clause 1: renders', () => {});\n", 'feat(web): page test [G1]').status, 0);
+  const ticked = await box.runLocal(box.web, 'fact', id, 'note', 'clause 1 [test]: web/page.test.js "clause 1: renders" passes');
   assert.equal(ticked.code, 0, ticked.err);
   const submitted = await box.runLocal(box.web, 'submit', id, '--no-next');
   return submitted.out + submitted.err;
