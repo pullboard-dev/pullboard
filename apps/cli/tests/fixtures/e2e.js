@@ -60,6 +60,7 @@ export function parityText(text, dir) {
     .replace(/\b\d+(?:\.\d+)? ?(?:ms|s)\b/gu, '<duration>')
     .replace(/(gate:\d+:<hex>):[0-9a-z]+/gu, '$1:<job>')
     .replace(/\(pid \d+\)/gu, '(pid <pid>)')
+    .replace(/"pid":\d+/gu, '"pid":"<pid>"')
     // Whether init's background view starts or finds port 4890 taken depends on what else runs on the machine, not on the runtime.
     .replace(/Pullboard view is running; open [^"\\]*|Port \d+ is in use; the background view did not start\./gu, '<view state>');
 }
