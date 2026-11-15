@@ -54,6 +54,7 @@ export {
   gateRunnerAdmission,
   setGateRunnersOnly,
   gateRunnerWaitMs,
+  gateTripOverheadBudgetMs,
   parseWorkerBudget,
   workerBudget,
   setWorkerBudget,

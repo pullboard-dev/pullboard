@@ -53,6 +53,7 @@ const ROWS = [
   ['gate.postLandSuite', 'Full suite after landing', 'When enabled, each landed train batch is followed by the full suite on registered runners; newly red files get Main red owners.', 'Runners', 'on/off'],
   ['gate.handoffWorkers', 'Hand-off workers', 'Caps the submit hand-off workers this computer runs at once, computed from the runner slots when unset and lowered only by this setting, never by a launching command.', 'Capacity', 'count'],
   ['gate.runnerWaitMs', 'Wait for a runner', 'How long a runner-only check waits for a free runner before it refuses.', 'Runners', 'ms'],
+  ['gate.tripOverheadBudgetMs', 'Runner trip overhead budget', 'The most time one runner trip may spend outside running tests (admission, setup, transfer, collecting the result) before gate receipts and the static stage report it; report only, never a refusal. The default is the warm trip measured on 15 Nov (about 7 s) plus margin.', 'Runners', 'ms'],
   ['inspection.clauses', 'Legacy inspection preference', 'This legacy machine value does not control submit; accepted main sets verify.inspectClauses for the board.', 'Order', 'on/off', { compat: true, removeBy: '2026-12-31' }],
   // This machine: Background
   ['health.sentinel', 'Health watch', 'The automatic health observer runs on this computer; a board can turn it off for itself too.', 'Background', 'on/off'],
