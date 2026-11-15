@@ -9,6 +9,7 @@ export { shadowSubmitHandoff, recordSubmitHandoff } from "./src/io/shadow.js";
 export { gatePanel, stalledGates, unclaimedGateJobs } from "./src/io/gate/panel.js";
 export { phaseReceiptId, settledGate } from "./src/io/gate/panel.js";
 export { gatePanelState } from "./src/logic/panel.js";
-export { appendGateSpan, gateSpanFolder, readGateSpans, readRunnerTime, runnerTimeFolder } from "./src/io/gate/span.js";
+export { appendGateSpan, gateSpanFolder, readGateSpans } from "./src/io/gate/span.js";
 export { BLOB_THRESHOLD_BYTES, blobDirOf, putBlob, readBlob, readPayload, stubOf, parseStub } from "./src/io/blobs.js";
 export { spawnReachable, spawnDetachedChild, launchJobPlist, LAUNCH_LABEL_PREFIX } from "./src/io/launch.js";
+export { readRunnerTime, runnerTimeFolder } from "./src/io/gate/runner-time.js";

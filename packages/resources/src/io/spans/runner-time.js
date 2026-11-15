@@ -4,8 +4,8 @@
  * the rest of the runner time (focused test runs, checks, comparisons) had no record and no one to charge it to.
  * The jobs cell keeps the daily files beside the gate spans; `pullboard gate-health` reads them.
  */
-import { appendGateSpan } from '../../../../jobs/light.js';
-import { runnerTimeFolder } from '../../../../jobs/light.js';
+import { appendGateSpan } from '../../../../jobs/index.js';
+import { runnerTimeFolder } from '../../../../jobs/index.js';
 import { repoInfo } from '../../../../git/light.js';
 
 /** The longest an item or kind label is kept on a line. */

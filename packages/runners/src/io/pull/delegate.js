@@ -2,6 +2,7 @@
 import { waitRunnerJob as defaultWait } from './wait.js';
 import { runnerDispatchMode } from '../../../../config/index.js';
 import { controllerDeadline } from '../../../../resources/index.js';
+import { recordRunnerTime } from '../../../../resources/index.js';
 import { recordRunnerDispatch } from '../../../../resources/index.js';
 import { runOnRunnerAsync as controllerRunOnRunnerAsync } from '../dispatch.js';
 import { bridgeResult } from '../dispatch.js';
@@ -87,7 +88,7 @@ export async function runPulled(root, command, options, ports = {}) {
   let custody;
   try { custody = (ports.controllerDeadline ?? controllerDeadline)(options.metadata?.resourceOwner, process.pid, root); }
   catch (failure) { held?.cleanup(); throw failure; }
-  const span = { root, startedAt: dispatchStart, host: options.runner?.host ?? null, kind: options.metadata?.kind ?? null, item: options.metadata?.item ?? null };
+  const span = { startedAt: dispatchStart, host: options.runner?.host ?? null, kind: options.metadata?.kind ?? null };
   const spawned = Date.now();
   const attempt = async () => {
     const watch = watchSource(root, options, custody, ports);
@@ -149,9 +150,11 @@ export async function runPulled(root, command, options, ports = {}) {
       // One refresh only, on an explicit pre-execution version mismatch, as the controller path does [C7,#2855].
       result = await attempt();
     }
+    recordRunnerTime(root, { ...span, item: options.metadata?.item, endedAt: Date.now() });
     recordRunnerDispatch({ ...span, endedAt: Date.now(), phases: result?.phases ? { ...result.phases, spawn: spawned } : null });
     return result;
   } catch (failure) {
+    recordRunnerTime(root, { ...span, item: options.metadata?.item, endedAt: Date.now(), error: failure });
     recordRunnerDispatch({ ...span, endedAt: Date.now(), error: failure });
     throw failure;
   } finally { custody.close(); if (held) keepExport(held); }

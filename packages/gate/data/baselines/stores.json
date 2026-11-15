@@ -210,7 +210,7 @@
     "runner-time": {
       "kind": "dir",
       "disk": "other",
-      "owner": "packages/jobs/src/io/gate/span.js"
+      "owner": "packages/jobs/src/io/gate/runner-time.js"
     },
     "sandbox-exports": {
       "kind": "dir",

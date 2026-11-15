@@ -12,6 +12,7 @@ import { requestFor } from './request.js';
 import { forgetRuntimeHeld } from './runtime.js';
 import { recordRuntimeHeld } from './runtime.js';
 import { spawnSsh } from '../../../transport/index.js';
+import { recordRunnerTime } from '../../../resources/index.js';
 import { recordRunnerDispatch } from '../../../resources/index.js';
 import { resultFrom } from './result.js';
 import { runnerFailure } from './result.js';
@@ -130,14 +131,16 @@ export async function runOnRunnerAsync(root, command, options) {
   child.stdin.on('error', caught => { error ??= caught; });
   child.stdin.end(input);
   // Each dispatch records its transfer, READY and run spans for an open gate's telemetry [C7].
-  const span = { root, startedAt: dispatchStart, host: options.runner?.host ?? null, kind: options.metadata?.kind ?? null, item: options.metadata?.item ?? null };
+  const span = { startedAt: dispatchStart, host: options.runner?.host ?? null, kind: options.metadata?.kind ?? null };
   const spawned = Date.now();
   try {
     const { status, signal: stopped } = await new Promise(resolve => child.once('close', (status, signal) => resolve({ status, signal })));
     const result = bridgeResult(request, { status, signal: stopped, error, stdout: Buffer.concat(output).toString('utf8'), stderr: Buffer.concat(diagnostics).toString('utf8') }, 'async-bridge');
+    recordRunnerTime(root, { ...span, item: options.metadata?.item, endedAt: Date.now() });
     recordRunnerDispatch({ ...span, endedAt: Date.now(), phases: result?.phases ? { ...result.phases, spawn: spawned } : null });
     return result;
   } catch (failure) {
+    recordRunnerTime(root, { ...span, item: options.metadata?.item, endedAt: Date.now(), error: failure });
     recordRunnerDispatch({ ...span, endedAt: Date.now(), error: failure });
     throw failure;
   } finally { signal?.removeEventListener('abort', abort); }
