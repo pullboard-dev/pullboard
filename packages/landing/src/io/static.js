@@ -63,3 +63,27 @@ export function scopedStaticConfig(root, base, config) {
   const quoted = `'${JSON.stringify(scope.files).replaceAll("'", "'\\''")}'`;
   return { ...config, staticChecks: `export ${STATIC_SCOPE_ENV}=${quoted}; ${command}` };
 }
+
+/**
+ * Judge a red static check on the merged tree against the same check on main: a row main already prints (same file and text,
+ * wherever its line moved) is main's own and never refuses; a row main does not print refuses LAND_STATIC_RED with its file and
+ * line. Why: refusing any red row held every landing behind rows main itself carried [C7,#5560].
+ *
+ * @param {unknown} error What the static runner threw on the merged tree.
+ * @param {string} baseline What the same check printed on main.
+ * @param {string} [check] The configured static check command, named in the refusal.
+ * @returns {unknown} null when every red row is main's, a LAND_STATIC_RED refusal with `files` and `rows`, or the error unchanged when it is not a static red.
+ */
+export function judgeStaticAgainstBaseline(error, baseline, check = 'staticChecks') {
+  if (!(error instanceof Refused) || error.code !== 'GATE_RED' || !/static checks are red/u.test(error.message)) return error;
+  const key = row => `${row.file}\0${row.text}`;
+  const inherited = new Set(staticRows(baseline).map(key));
+  const rows = staticRows(error.message);
+  if (!rows.length) return error;
+  const added = rows.filter(row => !inherited.has(key(row)));
+  if (!added.length) return null;
+  const refusal = new Refused('LAND_STATIC_RED', `the static check ${check} is red on the merged tree in rows main does not print: ${added.map(row => `${row.file}:${row.line}: ${row.text}`).join('; ')}; fix those lines and resubmit`);
+  refusal.files = [...new Set(added.map(row => row.file))];
+  refusal.rows = added;
+  return refusal;
+}
