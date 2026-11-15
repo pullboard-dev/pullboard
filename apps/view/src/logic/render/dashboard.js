@@ -182,9 +182,12 @@ export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 
     const pick = list.toSorted((a, b) => b.jobs.length - a.jobs.length || (b.cpu ?? 0) - (a.cpu ?? 0))[0];
     const load = cpu => '<svg class="dash-load" viewBox="0 0 100 1" preserveAspectRatio="none" aria-hidden="true"><rect class="bg" width="100" height="1"/>'+(Number.isFinite(cpu) ? '<rect class="'+(cpu >= 90 ? 'hot' : cpu >= 70 ? 'hi' : '')+'" width="'+Math.min(100, cpu)+'" height="1"/>' : '')+'</svg>';
     const pct = value => Number.isFinite(value) ? value+'%' : '—';
+    // A registered runner reads by its name; one with no fresh heartbeat reads 'offline', never a bare dash (#8060).
+    const named = runner => esc(runner.name ?? 'Runner '+runner.runner);
+    const cpuCell = runner => runner.offline ? 'offline' : pct(runner.cpu);
     const slots = n => '<span class="dash-slots">'+Array.from({ length: Math.min(n, 8) }, () => '<i></i>').join('')+'<em>'+n+'</em></span>';
     const table = '<table class="dash-tbl"><thead><tr><th>Runner</th><th class="loadh">Load</th><th class="r">CPU</th><th class="r hide">RAM</th><th>Jobs</th></tr></thead><tbody>'
-      + list.map(runner => '<tr class="'+(runner === pick ? 'sel' : '')+'"><td class="mono">Runner '+runner.runner+'</td><td>'+load(runner.cpu)+'</td><td class="dash-num ink'+(runner.cpu >= 90 ? ' back' : '')+'">'+pct(runner.cpu)+'</td><td class="dash-num hide">'+pct(runner.ram)+'</td><td>'+slots(runner.jobs.length)+'</td></tr>').join('')+'</tbody></table>';
+      + list.map(runner => '<tr class="'+(runner === pick ? 'sel' : '')+'"><td class="mono">'+named(runner)+'</td><td>'+load(runner.cpu)+'</td><td class="dash-num ink'+(runner.cpu >= 90 ? ' back' : '')+'">'+cpuCell(runner)+'</td><td class="dash-num hide">'+(runner.offline ? 'offline' : pct(runner.ram))+'</td><td>'+slots(runner.jobs.length)+'</td></tr>').join('')+'</tbody></table>';
     // Every run reads the same way: the item id when it has one, the kind, then files done of total (#7403).
     const job = entry => '<div class="dash-j"><span class="dash-id">'+(entry.item ? '#'+entry.item : '')+'</span><span class="dash-t">'+esc(entry.kind ?? 'job')+(entry.selected ? ' <small>· '+(entry.done ?? 0)+' of '+entry.selected+(entry.selected === 1 ? ' file' : ' files')+'</small>' : '')+'</span><span class="dash-age'+(entry.failing ? ' late' : '')+'">'+(entry.failing ? entry.failing+' red' : entry.minutesLeft !== null && entry.minutesLeft !== undefined ? entry.minutesLeft+'m left' : '')+'</span></div>';
     const runs = Array.isArray(live.runs) ? live.runs : [];
@@ -194,7 +197,7 @@ export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 
     const ran = ranTotal ? [['gate', 'gates'], ['landing', 'landings'], ['test', 'tests']].filter(([key]) => done[key] > 0).map(([key, word]) => done[key]+' '+word).join(', ') : '';
     return section('Runners', 'dash-runsec', label('Runners', '<span class="dash-pill static" data-count="runners">'+(m.totals?.runners ?? list.length)+'</span>'), '<div class="dash-card dash-runners"><div class="dash-l">'
       + '<p class="dash-sub"><b>'+jobs+'</b> jobs on <b>'+busy+'</b> of '+list.length+' runners</p>'+table+'</div>'
-      + '<div class="dash-node"><h3>Runner '+pick.runner+'<small>busiest</small></h3><p class="dash-facts"><b>'+pct(pick.cpu)+'</b> CPU · <b>'+pct(pick.ram)+'</b> RAM · <b>'+pick.jobs.length+'</b> jobs</p>'
+      + '<div class="dash-node"><h3>'+named(pick)+'<small>busiest</small></h3><p class="dash-facts"><b>'+cpuCell(pick)+'</b> CPU · <b>'+(pick.offline ? 'offline' : pct(pick.ram))+'</b> RAM · <b>'+pick.jobs.length+'</b> jobs</p>'
       + sub('Running here · '+pick.jobs.length)+(pick.jobs.length ? pick.jobs.map(job).join('') : '<p class="dash-empty">Nothing running.</p>')
       + sub('In flight, all runners')+(runs.length ? runs.slice(0, 4).map(run => job({ ...run, item: run.item })).join('') : '<p class="dash-empty">'+(ran ? 'None in flight. Ran in the last 4 hours: '+ran+'.' : 'No runs.')+'</p>')+'</div>'
       + '<div class="dash-rfoot"><span><b>'+kinds('gate')+'</b> gates<small>running now</small></span><span><b>'+kinds('landing')+'</b> landings<small>running now</small></span><span><b>'+(runs.length - kinds('gate') - kinds('landing'))+'</b> tests<small>running now</small></span></div></div>', { cap: busy+' busy', link: settings });

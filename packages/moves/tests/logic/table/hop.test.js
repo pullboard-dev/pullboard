@@ -1,8 +1,6 @@
 /** The fenced gate hop table: HOP_FENCED on a foreign write, acquire only on a queued or lapsed hop, and generated fault sequences over two drivers [C7,#8068]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { LEASE_MS } from '../../../../jobs/src/logic/rules.js';
-import { leaseLapsed } from '../../../../jobs/src/logic/rules.js';
 import { HOP_ATTEMPT_CAP } from '../../../index.js';
 import { HOP_MOVES } from '../../../index.js';
 import { hopEngine } from '../../../index.js';
@@ -11,6 +9,9 @@ import { runTable } from '../../../index.js';
 import { seeded } from '../../../index.js';
 import { tableCases } from '../../../index.js';
 
+/** Stand-ins for the jobs lease rule, which the wiring item passes in; same shape as packages/jobs rules. */
+const LEASE_MS = 120_000;
+const leaseLapsed = (leaseUntil, now) => leaseUntil < now;
 const { rules: HOP_RULES, table: HOP_TABLE } = hopEngine({ leaseMs: LEASE_MS, leaseLapsed });
 const NOW = 1_000_000;
 const item = (over = {}) => ({ status: 'claimed', commit: 'c1', digest: 'd1', ...over });
