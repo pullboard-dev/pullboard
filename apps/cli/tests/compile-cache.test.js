@@ -8,11 +8,8 @@ import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
 import { privateFixtureFiles } from './fixtures/child.js';
-import { runFixtureChild } from './fixtures/child.js';
-
-const BIN = fileURLToPath(new URL('../pullboard.js', import.meta.url));
+import { runHelpAt } from './fixtures/compile-cache.js';
 
 /** Every file under a folder with its modified time, for comparing two states of the cache. */
 function listing(directory) {
@@ -23,18 +20,13 @@ function listing(directory) {
   return found.sort();
 }
 
-/** One `pullboard help` against a private machine home; it needs no board, so it exercises only start-up and module loading. */
-function help(home) {
-  return runFixtureChild(process.execPath, [BIN, 'help'], { env: { PATH: process.env.PATH, PULLBOARD_MACHINE_HOME: home }, encoding: 'utf8' });
-}
-
 test('a second run reuses the first run\'s compiled modules from compile-cache under the machine home [C7]', () => {
   const home = privateFixtureFiles('pullboard-compile-cache-').root;
   try {
-    assert.equal(help(home).status, 0);
+    assert.equal(runHelpAt(home).status, 0);
     const first = listing(join(home, 'compile-cache'));
     assert.ok(first.length > 0, 'the first run stored compiled modules');
-    assert.equal(help(home).status, 0);
+    assert.equal(runHelpAt(home).status, 0);
     assert.deepEqual(listing(join(home, 'compile-cache')), first, 'the second run reads them and writes nothing new');
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
@@ -44,12 +36,12 @@ test('a foreign-writable or unusable cache folder falls back to uncached and the
   try {
     mkdirSync(join(home, 'compile-cache'));
     chmodSync(join(home, 'compile-cache'), 0o777);
-    const open = help(home);
+    const open = runHelpAt(home);
     assert.equal(open.status, 0);
     assert.deepEqual(readdirSync(join(home, 'compile-cache')), [], 'a folder others can write is not used');
     const blocked = join(home, 'blocked');
     mkdirSync(blocked);
     writeFileSync(join(blocked, 'compile-cache'), 'not a folder');
-    assert.equal(help(blocked).status, 0, 'a cache path that cannot be a folder is skipped');
+    assert.equal(runHelpAt(blocked).status, 0, 'a cache path that cannot be a folder is skipped');
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
