@@ -1,4 +1,4 @@
-/** Board move declarations, their registry, the claim criterion freezer, the bar-ready setting, the derived-facts rules layer, the table engine with its explain and coverage and generated-test kit, and next's selection and the reason lines it prints, behind one front door [C7,CD60,CD64]. */
+/** Board move declarations, their registry, the claim criterion freezer, the bar-ready setting, the derived-facts rules layer, the lifecycle rules and read-only event-log replay on it, the table engine with its explain and coverage and generated-test kit, the backbone table, and next's selection and the reason lines it prints, behind one front door [C7,CD60,CD64]. */
 export * from "./src/logic/bar/ready.js";
 export * from "./src/io/registry.js";
 export * from "./src/io/freezer.js";
@@ -6,6 +6,7 @@ export { nextOnce, nextSelection } from "./src/io/selection.js";
 export { defineRules, deriveFact } from "./src/logic/table/rules.js";
 export { runTable } from "./src/logic/table/run.js";
 export { explainTable, tableCoverage } from "./src/logic/table/explain.js";
+export { BACKBONE_RULES, BACKBONE_STATES, BACKBONE_TABLE, JOB_KINDS, servesRule } from "./src/logic/table/backbone.table.js";
 export { breakOne, seeded, tableCases } from "./src/logic/table/cases.js";
 export { answerFirstReasons, foldedReasons, heldCounted, inboxReasons, ownWaitingLines } from "./src/logic/reasons.js";
 export { default as reopen } from "./src/logic/moves/reopen.js";
@@ -16,3 +17,6 @@ export { default as finishLandingBatch } from "./src/logic/moves/finishLandingBa
 export { default as release } from "./src/logic/moves/release.js";
 export { default as recordGateRun } from "./src/logic/moves/recordGateRun.js";
 export { default as recordSelectorGap } from "./src/logic/moves/recordSelectorGap.js";
+export { RULES_VERSION, STATES, MOVE_RULES, RULES, newItem, leaseLive, unmetWaits, readiness, ruleOf, judge, apply } from "./src/logic/lifecycle/rules.js";
+export { lifecycleFact, replay, compareFinal, readinessCounts, topKinds, trial } from "./src/logic/lifecycle/replay.js";
+export { LIFECYCLE_KINDS, readLifecycleLog } from "./src/io/lifecycle-log.js";
