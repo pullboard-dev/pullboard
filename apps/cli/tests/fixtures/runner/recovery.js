@@ -61,7 +61,7 @@ export function runnerProbeRecoveryTests(failureCounts = [1, 99]) {
 import {initializeRunnerRecovery,recordRunnerFailure,recoverUnavailableRunners} from ${JSON.stringify(recovery)};
 import {DatabaseSync} from 'node:sqlite';import {readdirSync,readFileSync} from 'node:fs';import {join} from 'node:path';
 const runner=${JSON.stringify(runner)};
-const actual=await runOnRunnerAsync(process.cwd(),'true',{runner});
+const actual=await runOnRunnerAsync(process.cwd(),'true',{runner,metadata:{item:'fixture',kind:'remote-command'}});
 const directory=${JSON.stringify(join(home, '.pullboard-runner', 'recovery'))};
 const names=readdirSync(directory);if(names.length!==1)throw new Error('expected one actual completed job');
 const proof=JSON.parse(readFileSync(join(directory,names[0]),'utf8'));
@@ -136,7 +136,7 @@ export function runnerInstallerRecoveryTests({ workerFirstCases = [false, true],
       const source = `import {runOnRunnerAsync,probeRunnerHealth} from ${JSON.stringify(url)};
 import {readFileSync,existsSync} from 'node:fs';import {spawnSync} from 'node:child_process';
 const runner=${JSON.stringify(runner)};let failure;
-try{await runOnRunnerAsync(process.cwd(),'true',{runner});throw new Error('deferred request unexpectedly ran');}catch(error){if(error.name!=='RunnerDropped')throw error;failure=error.diagnostic;}
+try{await runOnRunnerAsync(process.cwd(),'true',{runner,metadata:{item:'fixture',kind:'remote-command'}});throw new Error('deferred request unexpectedly ran');}catch(error){if(error.name!=='RunnerDropped')throw error;failure=error.diagnostic;}
 const remoteEnv={PATH:process.env.PATH,HOME:${JSON.stringify(home)},PULLBOARD_FIXTURE_BOARD:'1',PULLBOARD_HOME:${JSON.stringify(home)},PULLBOARD_MACHINE_HOME:${JSON.stringify(machineHome)},LANG:'C',LC_ALL:'C',TZ:'UTC',TMPDIR:process.env.TMPDIR};
 const deferred=readFileSync(${JSON.stringify(deferred)},'utf8');
 const capsule=readFileSync(${JSON.stringify(deferred)}+'.capsule');

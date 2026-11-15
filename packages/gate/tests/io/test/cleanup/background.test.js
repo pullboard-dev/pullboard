@@ -59,7 +59,7 @@ syncBuiltinESMExports();
 import { existsSync, readdirSync } from 'node:fs';
 const started = Date.now();
 const pending = () => existsSync(process.argv[2]) && readdirSync(process.argv[2]).length > 0;
-try { const run = await runOnRunnerAsync(process.argv[1], 'true', { runner: { host: ${JSON.stringify(HOST)}, slots: 1, browser: 0 } });
+try { const run = await runOnRunnerAsync(process.argv[1], 'true', { runner: { host: ${JSON.stringify(HOST)}, slots: 1, browser: 0 }, metadata: { item: 'fixture', kind: 'remote-command' } });
 // Taken the moment the result returns: the slow cleanup is still holding the job directory.
 const cleanupPending = pending();
 process.stdout.write(JSON.stringify({ code: 'COMPLETED', exitCode: run.exitCode, green: run.isGreen, ms: Date.now() - started, cleanupPending })); }
