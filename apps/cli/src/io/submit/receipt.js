@@ -15,19 +15,20 @@ import { nearbyMainClass } from '../../../../../packages/landing/index.js';
  * content, so the gate reads it, and a missing one becomes a job any driver resumes rather than a wait inside submit.
  *
  * @param {{ root: string, db: import('node:sqlite').DatabaseSync, main: string,
- *   cases: { file: string, name: string, signature?: string }[], now?: number }} request
+ *   cases: { file: string, name: string, signature?: string }[], inputKeys?: Record<string, string>, now?: number }} request
  * @returns {{ comparison: { main: string, files: object[], receipts: string[] } | null,
  *   classes: ReturnType<typeof classifyGateRed>[], missing: string[], jobs: string[], reason: string }}
  *   `comparison` has compareMainFailures' detailed shape, built from main's receipts, and is null when any file lacks a
  *   receipt or main's tree or test command cannot be read; `reason` then says why. With no cases and `files`, it answers
  *   by file instead (mainFileReceipts).
  */
-export function criterionMainReceipts({ root, db, main, cases, files: named = [], now = Date.now() }) {
-  if (!cases.length && named.length) return mainFileReceipts({ root, db, main, files: named, now });
+export function criterionMainReceipts({ root, db, main, cases, files: named = [], inputKeys = {}, now = Date.now() }) {
+  if (!cases.length && named.length) return mainFileReceipts({ root, db, main, files: named, inputKeys, now });
   const byFile = new Map();
   for (const row of cases) byFile.set(row.file, [...(byFile.get(row.file) ?? []), row.name]);
   const files = [...byFile.keys()];
-  const known = mainReceipts(root, main, files);
+  // A receipt another main recorded under the same test input key answers for this main, and queues nothing [C7,SC11].
+  const known = mainReceipts(root, main, files, { inputKeys });
   if (!known) return { comparison: null, classes: [], missing: files, jobs: [], reason: `main ${String(main).slice(0, 12)}'s tree or test command cannot be read, so no main receipt can be keyed` };
   const classes = files.map(file => {
     // A receipt on a later main where the file is unchanged answers for this main, and queues nothing [C7].
@@ -46,11 +47,11 @@ export function criterionMainReceipts({ root, db, main, cases, files: named = []
  * its main-test job and reads null. Why by file: a red whose reporter names no cases (Node's spec reporter) can only be
  * compared with main file by file, as the inline gate compared it [V1,C7].
  *
- * @param {{ root: string, db: import('node:sqlite').DatabaseSync, main: string, files: string[], now?: number }} request
+ * @param {{ root: string, db: import('node:sqlite').DatabaseSync, main: string, files: string[], inputKeys?: Record<string, string>, now?: number }} request
  * @returns {{ files: { file: string, result: 'red' | 'green' | null, receipt: string | null, job: string | null }[], jobs: string[], reason: string }}
  */
-export function mainFileReceipts({ root, db, main, files, now = Date.now() }) {
-  const known = mainReceipts(root, main, files);
+export function mainFileReceipts({ root, db, main, files, inputKeys = {}, now = Date.now() }) {
+  const known = mainReceipts(root, main, files, { inputKeys });
   if (!known) return { files: [], jobs: [], reason: `main ${String(main).slice(0, 12)}'s tree or test command cannot be read, so no main receipt can be keyed` };
   const rows = files.map(file => {
     const found = mainRedLookup(db, known.receipts, { tree: known.tree, file, command: known.command, now });

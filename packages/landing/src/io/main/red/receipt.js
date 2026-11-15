@@ -33,19 +33,22 @@ function completeRow(row) {
 }
 
 /**
- * Main's receipts for these files at one commit, keyed by main's tree and the project's test command.
+ * Main's receipts for these files at one commit, keyed by main's tree and the project's test command. A file with no
+ * receipt at that commit takes the one another main recorded under the same test input key, when `inputKeys` names it:
+ * the key hashes the file and its whole import closure, so main moved only outside that closure [C7,SC11].
  *
  * @param {string} root
  * @param {string} commit - base main
  * @param {string[]} files
+ * @param {{ inputKeys?: Record<string, string> }} [options] - each file's test input key, as the gate's run printed it.
  * @returns {{ tree: string, command: string, receipts: Map<string, object>, rows: Map<string, object> } | null} null when
  *   main's tree or test command cannot be read, so nothing can be keyed.
  */
-export function mainReceipts(root, commit, files) {
+export function mainReceipts(root, commit, files, { inputKeys = {} } = {}) {
   const tree = treeOf(root, commit);
   const command = policyAt(root, commit)?.config?.affectedTests;
   if (!tree || typeof command !== 'string' || !command.trim()) return null;
-  return receiptsFrom(tree, command, commit, cachedMainComparison(root, commit, files).files ?? []);
+  return receiptsFrom(tree, command, commit, cachedMainComparison(root, commit, files, { inputKeys }).files ?? []);
 }
 
 /** Key one main commit's complete cached rows as receipts under that main's tree and the test command. */
