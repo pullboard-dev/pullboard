@@ -4,6 +4,7 @@ export * from './src/io/main.js';
 export * from './src/io/admission/memory.js';
 export { closeResourceConnections, reuseResourceConnections } from './src/io/connections.js';
 export * from './src/io/home.js';
+export { withEnvironment } from './src/io/environment.js';
 export * from './src/io/recovery.js';
 export * from './src/io/runner/reasons.js';
 export * from './src/io/lock.js';

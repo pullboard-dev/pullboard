@@ -22,7 +22,7 @@ import { openRoadmapChrome } from './roadmap.js';
  * hooks stay real processes, and the two board commands no longer start a Node each, which this journey's setup
  * paid for a hundred times.
  */
-async function build(box, p, id, file) {
+async function build(box, p, id, file, { queued = false } = {}) {
   const key = `${p.baseBranch}:${id}`;
   let branch = p.itemBranches.get(key);
   if (!branch) {
@@ -39,7 +39,7 @@ async function build(box, p, id, file) {
   box.git(p.web, 'add', '-A');
   // The commit-msg, pre-commit and post-commit hooks are three Node launches per commit; this journey tests the roadmap page, not the hooks.
   box.git(p.web, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', `feat(web): ${file} [G1]`);
-  await box.inProcess(p.web, 'submit', String(id), '--no-next');
+  await (queued ? box.inProcessQueued : box.inProcess)(p.web, 'submit', String(id), '--no-next');
 }
 
 /** The coordinator accepts an item from a checkout of its submitted commit, as the shared accept() does. */
@@ -71,22 +71,28 @@ export async function blockedRoadmap(t, stage) {
   await box.inProcess(alpha.repo, 'add', 'web', 'Waits on base', '--specs', 'G1', '--criterion', 'Use #1 and #3 <em>literally</em>. More detail stays in Items.', '--after', '1');
   await box.inProcess(alpha.repo, 'add', 'web', 'Free work', '--specs', 'G1', '--criterion', 'Ready.');
   await box.inProcess(alpha.repo, 'add', 'web', 'Sent back once', '--specs', 'G1', '--criterion', 'Ready.');
-  await build(box, alpha, 4, 'sent-back.html'); await sendBack(box, alpha, 4, 'The heading is missing.');
-  await box.inProcess(alpha.repo, 'edit', '4', '--after', '1', '--reason', 'Waits on the base.');
   await box.inProcess(alpha.repo, 'add', 'web', 'Landed work', '--specs', 'G1', '--criterion', 'The page renders.');
-  await build(box, alpha, 5, 'landed.html'); await accept(box, alpha, 5);
+  await box.inProcess(alpha.repo, 'add', 'web', 'Building work', '--specs', 'G1', '--criterion', 'The corrected page renders.');
+  const other = project(box, 'blocked-roadmap-other');
+  await box.inProcess(other.repo, 'add', 'web', 'Remote base', '--specs', 'G1', '--criterion', 'Ready.');
+  await box.inProcess(other.repo, 'add', 'web', 'Remote sent-back work', '--specs', 'G1', '--criterion', 'Remote renders.');
+  // The four submits queue their gates on the runner together and settle once; a gate took 7 to 20 s, one after another.
+  await build(box, alpha, 4, 'sent-back.html', { queued: true });
+  await build(box, alpha, 5, 'landed.html', { queued: true });
+  await build(box, alpha, 6, 'building.html', { queued: true });
+  await build(box, other, 2, 'remote.html', { queued: true });
+  for (const [p, id] of [[alpha, 4], [alpha, 5], [alpha, 6], [other, 2]]) box.settled(p.web, id);
+  await sendBack(box, alpha, 4, 'The heading is missing.');
+  await box.inProcess(alpha.repo, 'edit', '4', '--after', '1', '--reason', 'Waits on the base.');
+  await accept(box, alpha, 5);
   box.git(alpha.repo, '-c', 'core.hooksPath=/dev/null', 'merge', '--no-ff', '--no-edit', alpha.itemBranches.get(`${alpha.baseBranch}:5`));
   await box.inProcess(alpha.repo, 'merged', '5', box.git(alpha.repo, 'rev-parse', 'HEAD'));
-  await box.inProcess(alpha.repo, 'add', 'web', 'Building work', '--specs', 'G1', '--criterion', 'The corrected page renders.');
-  await build(box, alpha, 6, 'building.html'); await sendBack(box, alpha, 6, 'See #1 and #3 before accepting.\nMore detail stays in Items.');
+  await sendBack(box, alpha, 6, 'See #1 and #3 before accepting.\nMore detail stays in Items.');
   await box.inProcess(alpha.web, 'claim', '6');
   const second = join(box.dir, 'second-builder');
   box.git(alpha.repo, 'worktree', 'add', '-q', second, '-b', 'web/second');
   joinFixtureSeat(box, second, 'web'); await box.inProcess(second, 'claim', '1');
-  const other = project(box, 'blocked-roadmap-other');
-  await box.inProcess(other.repo, 'add', 'web', 'Remote base', '--specs', 'G1', '--criterion', 'Ready.');
-  await box.inProcess(other.repo, 'add', 'web', 'Remote sent-back work', '--specs', 'G1', '--criterion', 'Remote renders.');
-  await build(box, other, 2, 'remote.html'); await sendBack(box, other, 2, 'Remote latest finding\nMore detail stays in Items');
+  await sendBack(box, other, 2, 'Remote latest finding\nMore detail stays in Items');
   await box.inProcess(other.repo, 'edit', '2', '--after', '1', '--reason', 'Waits on remote base.');
   await box.inProcess(other.repo, 'hold', 'web', '--reason', 'Review the remote dependency');
   await box.inProcess(alpha.repo, 'milestone', 'add', 'Next', '--reason', 'Arrange fixture release', '--items', '1,2,3,4,5,6,blocked-roadmap-other#2');

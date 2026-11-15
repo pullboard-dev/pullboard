@@ -77,7 +77,8 @@ test('clause 1: a seat holding a claim queues test --wait at once with no agent 
   assert.equal(added.code, 0, `add: ${added.out}${added.err}`);
   const claimed = await box.inProcess(box.web, 'claim', '1');
   assert.equal(claimed.code, 0, `claim: ${claimed.out}${claimed.err}`);
-  const queued = await seatRun(box, { PULLBOARD_TEST_WAIT: '1' }, false, 'test', 'test/red.test.js', '--wait');
+  // The fixture would otherwise wait out its 180 s settle for the stand-in runner to finish the queued run; this call must return at once.
+  const queued = await seatRun(box, { PULLBOARD_TEST_WAIT: '1', PULLBOARD_FIXTURE_UNSETTLED: '1' }, false, 'test', 'test/red.test.js', '--wait');
   assert.equal(queued.code, 0, `${queued.out}${queued.err}`);
   assert.ok(queued.ms < 1000, `the claimed seat's call returns at once (${Math.round(queued.ms)} ms)`); // budget: the queue answer, never the run.
   const id = /queued test run ([0-9a-f-]{36})/u.exec(queued.out)?.[1];
