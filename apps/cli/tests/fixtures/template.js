@@ -154,11 +154,15 @@ export function templatedProject(box, shape, build) {
   if (sig === null || process.env.PULLBOARD_FIXTURE_TEMPLATE === 'off') return build();
   const key = `${shape}\0${sig}`;
   const have = templates.get(key);
-  if (have && have.from.length === box.dir.length && Date.now() - have.builtAt < TEMPLATE_MAX_AGE_MS) { stats.copies += 1; return instantiate(have, box); }
+  if (have && have.from.length === box.dir.length && Date.now() - have.builtAt < TEMPLATE_MAX_AGE_MS) { stats.copies += 1; const C0 = Date.now(); const r = instantiate(have, box); console.error(`TPLTIME copy-total ${Date.now() - C0}`); return r; }
   stats.builds += 1;
+  const B0 = Date.now();
   const built = build();
+  console.error(`TPLTIME build ${Date.now() - B0}`);
+  const S0 = Date.now();
   if (have) drop(have.root);
   const made = snapshot(box, built);
+  console.error(`TPLTIME snapshot-total ${Date.now() - S0} ${Boolean(made)}`);
   if (made) templates.set(key, made); else templates.delete(key);
   return built;
 }
