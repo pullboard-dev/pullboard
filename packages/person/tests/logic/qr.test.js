@@ -11,7 +11,7 @@ import {
 // https://github.com/nayuki/QR-Code-generator/blob/master/python/qrcodegen.py
 // Reference source SHA256: 9f4ed1dd201dcb92b1bc0d6e14f46c754bcff0ce48580c5d7e8ace8f6926c8ef
 // Only this independent vector is needed at runtime; no external generator or image service.
-test('a pairing QR matches the independent complete symbol and prints its quiet zone [H1,H17]', () => {
+test('person.qr.matches-reference-symbol: a pairing QR matches the independent complete symbol and prints its quiet zone [H1,H17]', () => {
   const link = 'https://app.pullboard.dev/#board=' + 'a'.repeat(32) + '&key=' + 'b'.repeat(43);
   const modules = qrModules(link);
   const bits = modules.flat().map(Number).join('');
