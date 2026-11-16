@@ -407,6 +407,11 @@ export function cascadeRejectEnabled() {
   return loadMachineSettings().spec?.cascadeReject === true;
 }
 
+/** Whether engine.nameBehindDevice is on (#9418): off by default; a caller reads it and passes it to prepareEngineMove, since a move never reads a setting. */
+export function nameBehindDeviceEnabled() {
+  return loadMachineSettings().engine?.nameBehindDevice === true;
+}
+
 /** Whether items.typedFields is on (#9350): off by default; only an exact `true` turns it on. */
 export function typedFieldsEnabled() {
   return loadMachineSettings().items?.typedFields === true;
