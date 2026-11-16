@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { sampleDifferences } from './fixtures/journey-parity.js';
 
-const SAMPLES = [{ journey: 'apps/cli/journeys/export/team/board.test.js', cases: ['a private board sits beside the repo board [E11,E13,E14,E15]'] }];
+const SAMPLES = [{ journey: 'apps/cli/journeys/export/team/board.test.js', cases: ['clause 2: a private board sits beside the repo board [E11,E13,E14,E15]'] }];
 
 test('clause 1: the export/team/board journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);
