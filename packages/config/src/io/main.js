@@ -85,7 +85,8 @@ export function defaults() {
     // Off by default: cells checks replay a saved answer for an unchanged tree [#2076].
     cells: { cache: false, shimMaxAgeDays: 7 },
     agents: { names: 'suffix' },
-    inbox: { tokenBudget: 8192 },
+    // Off by default: inbox.batchedMarks queues inbox delivery marks for one batched write instead of writing each inline [C7].
+    inbox: { tokenBudget: 8192, batchedMarks: false },
     check: { install: '', timeout: '5m' },
     claim: { reopenFirstRefusalMinutes: 0, returnToBoard: false, barTestFiles: ['**/*.test.js', '**/*.test.mjs', '**/*.test.cjs', '**/*.spec.js', '**/*.spec.mjs', '**/*.spec.cjs'] },
     // On by default: laneMode off is the switch slices 2 and 3 of #2830 read; the "lanes" key stays the lane map [C7].
@@ -280,11 +281,12 @@ export function configProblems(config) {
       || config.approvers.some((login) => typeof login !== 'string' || !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/u.test(login)))) problems.push('"approvers" lists the GitHub logins who act as the person on a linked board, at most fifty; leave it out for today\'s behaviour');
   if (!['inside', 'beside'].includes(config.worktrees)) problems.push('"worktrees" is "inside" or "beside"');
   if (notPlain(config.inbox)
-    || Object.keys(config.inbox).some(key => !['tokenBudget', 'keepUntilActed', 'escalateAfterMinutes'].includes(key))
+    || Object.keys(config.inbox).some(key => !['tokenBudget', 'keepUntilActed', 'escalateAfterMinutes', 'batchedMarks'].includes(key))
     || !Number.isSafeInteger(config.inbox.tokenBudget) || config.inbox.tokenBudget < 1024) {
     problems.push('"inbox.tokenBudget" is a whole number of at least 1024 UTF-8 bytes; 8192 by default');
   }
   if (config.inbox?.escalateAfterMinutes !== undefined && (!Number.isSafeInteger(config.inbox.escalateAfterMinutes) || config.inbox.escalateAfterMinutes < 1)) problems.push('"inbox.escalateAfterMinutes" is a whole number of minutes, off by default; with inbox.keepUntilActed on, an entry unacted this long goes to the coordinator, and twice as long to the person');
+  if (config.inbox?.batchedMarks !== undefined && typeof config.inbox.batchedMarks !== 'boolean') problems.push('"inbox.batchedMarks" is true or false, off by default; true queues inbox delivery marks for one batched write');
   if (config.inbox?.keepUntilActed !== undefined && typeof config.inbox.keepUntilActed !== 'boolean') problems.push('"inbox.keepUntilActed" is a boolean, off by default; true keeps each inbox entry listed until an action its kind allows is recorded');
   if (typeof config.itemBuildBudgetMinutes !== 'number' || !Number.isFinite(config.itemBuildBudgetMinutes) || config.itemBuildBudgetMinutes <= 0) {
     problems.push('"itemBuildBudgetMinutes" is positive finite minutes; 30 by default');

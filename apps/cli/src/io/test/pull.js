@@ -18,6 +18,7 @@ import { headCommit } from '../../../../../packages/git/index.js';
 import { jobView } from '../../../../../packages/jobs/index.js';
 import { writeStep } from '../../../../../packages/jobs/index.js';
 import { PULLED } from '../../../../../packages/drive/index.js';
+import { boardRunsHolder } from '../../../../../packages/store/index.js';
 import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
 import { fileBudgetField } from './file-limit.js';
@@ -231,11 +232,39 @@ async function startLocalRunner(ctx) {
   if (host) await ensureLocalRunner(host);
 }
 
+/**
+ * The holder of the board's runs handle while runs_store is on, else null: an interactive test job's rows live there and
+ * nowhere on the board, since no move uses them [P7,B2,#9011]. The runs file opens on first use of `holder.db`.
+ *
+ * @param {object} ctx
+ * @returns {{ readonly db: import('node:sqlite').DatabaseSync } | null}
+ */
+export function testRunsHolder(ctx) {
+  return withBoardRead(ctx, board => boardRunsHolder(board, ctx.file));
+}
+
+/**
+ * Offer a test job row to the store that holds it: the runs file when `runs` is given, else the board. With runs_store on
+ * the job gets no board run row, because nothing on the board decides on it; off, it is the board job row as on main.
+ *
+ * @param {Function} offerJob - The api's offerJob.
+ * @param {{ board?: { db: import('node:sqlite').DatabaseSync }, runs?: { db: import('node:sqlite').DatabaseSync } | null }} stores
+ * @param {object} row
+ */
+export function offerTestRow(offerJob, { board, runs = null }, row) {
+  return offerJob((runs ?? board).db, row);
+}
+
+/** A test job's view from the store that holds it: the runs file when `runs` is given, else the board. */
+export function readTestRow({ board, runs = null }, job) {
+  return jobView((runs ?? board).db, job);
+}
+
 /** Offer one test job for a commit. Returns the job id and the pinned ref. */
-async function offerTestJob(ctx, fields) {
+async function offerTestJob(ctx, fields, runs) {
   const { offerJob } = await import('../../../../../packages/api/index.js');
   const { ref, row } = await testJobRow(ctx, fields);
-  const job = withBoard(ctx, board => offerJob(board.db, row));
+  const job = runs ? offerTestRow(offerJob, { runs }, row) : withBoard(ctx, board => offerTestRow(offerJob, { board }, row));
   await startLocalRunner(ctx);
   return { job: job.id, ref };
 }
@@ -263,11 +292,11 @@ export async function offerAcceptCheck(ctx, board, { item, commit, main, command
  *
  * @returns {Promise<{ receipt: Record<string, any>, runner: string | null }>}
  */
-async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS }) {
+async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS, runs = null }) {
   const deadline = Date.now() + gateRunnerWaitMs();
   let beat = 0, claimed = null;
   for (;;) {
-    const view = withBoardRead(ctx, board => jobView(board.db, job));
+    const view = runs ? readTestRow({ runs }, job) : withBoardRead(ctx, board => readTestRow({ board }, job));
     if (!view) throw new Refused('TEST_JOB_MISSING', `test job ${job} is gone from the board; run pullboard test again`);
     const posted = [...view.steps].reverse().find(step => step.name === 'receipt');
     if (posted) return { receipt: posted.payload.receipt ?? {}, runner: posted.payload.runner ?? null };
@@ -290,11 +319,12 @@ async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS 
  * names the job on its run, so the receipt still settles the run if the worker stops before it (#7574).
  */
 async function runJobFor(ctx, fields, { agent, say, testRun }) {
-  const offered = await offerTestJob(ctx, fields);
+  const runs = testRunsHolder(ctx);
+  const offered = await offerTestJob(ctx, fields, runs);
   if (typeof testRun === 'string' && testRun) withBoard(ctx, board => writeStep(board.db, testRun, PULLED, { job: offered.job, until: Date.now() + gateRunnerWaitMs() }));
   say?.(`pullboard test: offered test job ${offered.job} for ${fields.commit.slice(0, 12)}; a runner fetches it from the trunk remote and runs it`);
   try {
-    const { receipt, runner } = await receiptOf(ctx, { job: offered.job, agent, say });
+    const { receipt, runner } = await receiptOf(ctx, { job: offered.job, agent, say, runs });
     const gate = receipt.gate ?? {};
     const phase = gate.phases?.[0] ?? null;
     const green = receipt.status === 0 && gate.green === true && phase?.status === 0;
