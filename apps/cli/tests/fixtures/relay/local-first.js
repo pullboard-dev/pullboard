@@ -93,7 +93,9 @@ function countFetches() {
  * The background sender it nudges is a separate process and is never counted.
  */
 export async function local(box, t, cwd, env, name, args, budget) {
+  process.stderr.write(`local: ${name} begin ${Date.now()}\n`);
   const budgetMs = budget ?? await loadedBudgetMs();
+  process.stderr.write(`local: ${name} budget ${budgetMs} ${Date.now()}\n`);
   countFetches();
   const counter = { fetches: 0 };
   let started = 0, finished = 0;
