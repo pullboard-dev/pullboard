@@ -14,6 +14,8 @@ import {
 } from '../../cli/tests/fixtures/relay/browser.js';
 import { stableChrome } from '../../cli/tests/fixtures/cockpit/stable.js';
 
+/** The CDP bound the stall probes run under; shorter than the shipped default so each probe waits a few seconds, not fifteen. */
+const STALL_BOUND_MS = 3000;
 const PROBE_PAGE = 'data:text/html,<body>probe</body>'; // a page whose root has a box, so the shared stable wait can settle
 
 /** Assert the fixed CDP bound reports its command and relay-request state; the stall runs through the shared stable wait, which names the command by its method. */
@@ -24,7 +26,7 @@ async function stalledCommand(chrome, pending) {
       assert.match(error.message, /Runtime[.]evaluate/);
       const elapsed = /timed out after (\d+)ms/u.exec(error.message);
       assert.ok(elapsed, 'the diagnostic reports the measured elapsed time');
-      assert.ok(Number(elapsed[1]) >= 15000, 'the command does not time out before its configured deadline'); // budget: declared CDP commandTimeoutMs is 15000 in both fixtures; the timeout may not precede that deadline.
+      assert.ok(Number(elapsed[1]) >= STALL_BOUND_MS, 'the command does not time out before its configured deadline'); // budget: declared CDP commandTimeoutMs is STALL_BOUND_MS in both stall probes; the timeout may not precede that deadline.
       assert.match(error.message, /maximum event-loop delay \d+ms/);
       assert.match(error.message, new RegExp('relay request pending: ' + pending));
       return true;
@@ -35,11 +37,11 @@ async function stalledCommand(chrome, pending) {
 test('real Chrome names a stalled command when it exceeds the CDP bound [H16,C7]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
-  const chrome = await stableChrome(await startChrome({ commandTimeoutMs: 15000 }));
+  const chrome = await stableChrome(await startChrome({ commandTimeoutMs: STALL_BOUND_MS }));
   t.after(() => chrome.close());
   await chrome.navigate(PROBE_PAGE);
   await stalledCommand(chrome, false);
-  const task = await chrome.startTask('new Promise(resolve => setTimeout(resolve, 16000))', 'navigation cleanup probe');
+  const task = await chrome.startTask('new Promise(resolve => setTimeout(resolve, 4000))', 'navigation cleanup probe');
   await chrome.navigate('about:blank');
   await assert.rejects(chrome.pollTask(task, 250, 'task lost to navigation'), /did not arrive within 250ms/);
 });
@@ -51,7 +53,7 @@ test('paired Chrome excludes idle event streams and reports only held state requ
   box.legacySnapshotApi();
   await box.link();
   const link = JSON.parse(readFileSync(box.linkFile, 'utf8'));
-  const chrome = await stableChrome(await startChrome({ commandTimeoutMs: 15000 }));
+  const chrome = await stableChrome(await startChrome({ commandTimeoutMs: STALL_BOUND_MS }));
   t.after(() => chrome.close());
   const cookie = await chrome.send('Network.setCookie', {
     name: 'pb_session', value: (await box.phoneSession()).token, url: box.origin, httpOnly: true, sameSite: 'Lax',
@@ -79,7 +81,7 @@ test('paired Chrome excludes idle event streams and reports only held state requ
   await stalledCommand(chrome, false);
 
   const before = box.stateReadStarted();
-  box.delayStateReads(30000);
+  box.delayStateReads(8000);
   const stateTask = await chrome.startTask(`fetch(${JSON.stringify('/api/v1/boards/' + link.board + '/state')}, { credentials: 'same-origin', headers: { 'x-pullboard-engine': ${ENGINE_VERSION} } })
     .then(response => response.status)`, 'held paired state read');
   const deadline = Date.now() + relayWorkBudgetMs(1);
