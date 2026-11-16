@@ -715,8 +715,12 @@
     "tempdir": 1
   },
   "apps/cli/journeys/stats/cost.test.js": {
-    "raw-board": 18,
-    "model": 16
+    "raw-board": 8,
+    "model": 9
+  },
+  "apps/cli/journeys/stats/cost-sessions.test.js": {
+    "raw-board": 10,
+    "model": 7
   },
   "apps/cli/tests/fixtures/regression.js": {
     "tempdir": 2,
