@@ -5,7 +5,7 @@ export { LANDING_FAULT_CODES, retryableLandingRefusal, HELD_TRUNK_REFUSALS, LAND
 export * from "./src/io/computed/conflict/receipt.js";
 export * from "./src/io/computed/conflict/return.js";
 export * from "./src/logic/land/collisions.js";
-export * from "./src/logic/land/guard.js";
+export * from "./src/io/land/guard.js";
 export * from "./src/io/land.js";
 export * from "./src/logic/batch/history.js";
 export * from "./src/logic/batch/size.js";
@@ -49,6 +49,7 @@ export * from "./src/io/step/gate.js";
 export { runLandingCliSmoke, runCommitCliSmoke, recordSmokeReceipt, smokeCandidate, smokeCommit } from "./src/io/smoke.js";
 export * from "./src/io/step/diagnose.js";
 export * from "./src/io/step/publish.js";
+export { PULL_OUT_KIND, pullOutJobId, runPullOutJob } from "./src/io/step/pull.js";
 export * from "./src/io/step/trunk.js";
 export { withoutStaleVerdicts } from "./src/io/pulled/fresh.js";
 export { relandAcceptedItems } from "./src/io/reland.js";

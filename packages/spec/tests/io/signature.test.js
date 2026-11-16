@@ -32,7 +32,7 @@ function withKeys(t) {
   return { dir, co: makeKey(dir, 'co', 'CO'), ab: makeKey(dir, 'ab', 'AB') };
 }
 
-test('[S19,S20] canonical text fixes the field order per record type and defaults the note', () => {
+test('spec.signature.canonical-field-order: [S19,S20] canonical text fixes the field order per record type and defaults the note', () => {
   assert.deepEqual(Object.keys(JSON.parse(canonical(ROW))), ['version', 'type', 'firstCommit', 'initialHash', 'id', 'text', 'commit', 'by', 'on', 'note']);
   assert.equal(JSON.parse(canonical(ROW)).note, '');
   assert.equal(canonical({ ...ROW, note: 'ok' }) === canonical(ROW), false, 'the note is signed content');
@@ -40,7 +40,7 @@ test('[S19,S20] canonical text fixes the field order per record type and default
   assert.deepEqual(Object.keys(JSON.parse(canonical(signers))), ['version', 'type', 'firstCommit', 'initialHash', 'previousHash', 'previousSigners', 'hash', 'by', 'on']);
 });
 
-test('[S17,S19] a signature verifies for the listed key and fails once the signed text changes', (t) => {
+test('spec.signature.verifies-listed-key: [S17,S19] a signature verifies for the listed key and fails once the signed text changes', (t) => {
   const { dir, co } = withKeys(t);
   const record = { ...ROW, signature: makeSignature(dir, ROW, co.path) };
   assert.equal(verifySignature(record, co.line), true);
@@ -48,7 +48,7 @@ test('[S17,S19] a signature verifies for the listed key and fails once the signe
   assert.throws(() => verifySignature({ ...record, note: 'added later' }, co.line), error => error.code === 'BAD_SIGNATURE');
 });
 
-test('[S19,S21] a signature never verifies against another key or an unlisted label', (t) => {
+test('spec.signature.rejects-other-key: [S19,S21] a signature never verifies against another key or an unlisted label', (t) => {
   const { dir, co, ab } = withKeys(t);
   const record = { ...ROW, signature: makeSignature(dir, ROW, co.path) };
   assert.throws(() => verifySignature(record, ab.line.replace('AB', 'CO')), error => error.code === 'BAD_SIGNATURE', 'another key under the same label');
@@ -56,7 +56,7 @@ test('[S19,S21] a signature never verifies against another key or an unlisted la
   assert.throws(() => verifySignature(record, ''), error => error.code === 'BAD_SIGNATURE', 'an empty signer list');
 });
 
-test('[S18,S21] a principal is listed by an uncommented line, alone or among comma-separated names', () => {
+test('spec.signature.principal-listing: [S18,S21] a principal is listed by an uncommented line, alone or among comma-separated names', () => {
   const text = '# CO commented out\n\nAB,CD namespaces="pullboard-signoff" ssh-ed25519 AAAA\nEF ssh-ed25519 BBBB\n';
   assert.equal(listsPrincipal(text, 'AB'), true);
   assert.equal(listsPrincipal(text, 'CD'), true);

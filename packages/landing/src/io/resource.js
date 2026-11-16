@@ -70,6 +70,25 @@ export async function renewWithBackoff(renew, { now = Date.now, pausing = pause,
   }
 }
 
+/**
+ * Run a renewal; a lease that has lapsed (LAND_LEASE_LOST) is renewed once more through renewWithBackoff, and a second
+ * lapse ends the land as LAND_GATE_TIMEOUT, a retryable timeout that is neither an item's fault nor a landing fault.
+ * Why: a lapse is the machine being too slow to renew, so one more try is fair and a second means the gate cannot finish in time (#9444).
+ *
+ * @param {() => unknown} renew - One renewal attempt.
+ * @param {object} [options] - renewWithBackoff options, plus `onLapse(error)` called for each lapse seen.
+ */
+export async function renewLapsedOnce(renew, { onLapse, ...backoff } = {}) {
+  for (let lapses = 1; ; lapses++) {
+    try { return await renewWithBackoff(renew, backoff); }
+    catch (error) {
+      if (error?.code !== 'LAND_LEASE_LOST') throw error;
+      onLapse?.(error);
+      if (lapses >= 2) throw new Refused('LAND_GATE_TIMEOUT', 'the landing lease lapsed twice; the gate timed out and no candidate is a culprit, so start the landing again');
+    }
+  }
+}
+
 /** Return a generation-bound lease whose renewal failures prevent later landing writes. */
 export async function takeLandingResource({ board, write, branch, onWait, onLost, refresh = async () => {}, headItem = null }) {
   const token = randomUUID();
@@ -109,7 +128,7 @@ export async function takeLandingResource({ board, write, branch, onWait, onLost
     const task = pending.then(async () => {
       if (lost) throw lost;
       try {
-        const result = await renewWithBackoff(() => renewLocalLanding(board, { ...parameters, generation }), { until: leaseUntil });
+        const result = await renewLapsedOnce(() => renewLocalLanding(board, { ...parameters, generation }), { until: leaseUntil, onLapse: countLapse });
         if (lost) throw lost;
         const holder = assertLandingLease(board, { token, branch, generation }); // A delayed recovered receipt is not a fresh grant.
         confirmedUntil(holder.until);

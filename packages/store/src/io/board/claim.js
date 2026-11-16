@@ -74,28 +74,50 @@ import {
   logEvent,
 } from "./event/log.js";
 
-/** Free pulled test-run slots: jobs each recently claiming runner declared, less live jobs; null when no runner serves. */
-function runnerSlots(board) {
-  if (!board.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='job_step'").get()) return null;
-  const at = board.clock.now().getTime(), serves = new Map();
-  for (const row of board.db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_name = 'claimed' AND job_step_at >= ?").all(at - 600_000)) {
+/**
+ * Free pulled test-run slots: jobs each recently claiming runner declared, less live jobs; null when no runner serves.
+ * The job tables are read from `home`: the board while runs_store is off, the runs file while it is on [B2,#9015].
+ */
+function slotsIn(home, at) {
+  if (!home?.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='job_step'").get()) return null;
+  const serves = new Map();
+  for (const row of home.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_name = 'claimed' AND job_step_at >= ?").all(at - 600_000)) {
     let step = null;
     try { step = JSON.parse(row.payload); } catch { /* an unreadable step declares nothing */ }
     if (typeof step?.runner === 'string' && Number.isSafeInteger(step.jobs) && step.jobs >= 1) serves.set(step.runner, Math.max(serves.get(step.runner) ?? 0, step.jobs));
   }
   if (serves.size === 0) return null;
-  const busy = board.db.prepare("SELECT count(*) AS n FROM job WHERE job_lease_owner IS NOT NULL AND job_lease_until >= ? AND job_step <> 'done'").get(at).n;
+  const busy = home.prepare("SELECT count(*) AS n FROM job WHERE job_lease_owner IS NOT NULL AND job_lease_until >= ? AND job_step <> 'done'").get(at).n;
   return Math.max(0, [...serves.values()].reduce((sum, jobs) => sum + jobs, 0) - busy);
+}
+
+/**
+ * The runner slots read once from the runs file, before any board write opens: a snapshot that can be one read old. A claim
+ * takes it as its input and never opens a runs handle inside its own board write [B2,#9015].
+ *
+ * @param {{ clock: { now: () => Date } }} board
+ * @param {{ db: import('node:sqlite').DatabaseSync | null }} runs - The read-only runs holder (boardRunsReader).
+ * @returns {number | null} Free slots, or null when no runner serves or there is no runs file.
+ */
+export function runnerSlotsSnapshot(board, runs) {
+  return slotsIn(runs.db, board.clock.now().getTime());
+}
+
+/** Free pulled test-run slots on the board's own job tables, as before runs_store. */
+function runnerSlots(board) {
+  return slotsIn(board.db, board.clock.now().getTime());
 }
 
 /**
  * How many live top-level build claims one seat may hold, and one line saying how N was found [C7].
  * Why: a seat builds its next item while the last one's tests run; free test-run slots per live seat bound that.
  * perSeat is the claims.perSeat setting the claiming command read, so a replay reads the same number.
+ * With runs_store on the caller reads `runs` (a read-only runs holder) here, before the claim's board write opens, so the runner
+ * slots come from a snapshot; without it the board's own job rows are read as on main [B2,#9015].
  */
-export function claimsPerSeat(board, perSeat = null) {
+export function claimsPerSeat(board, perSeat = null, { runs = null } = {}) {
   if (Number.isSafeInteger(perSeat) && perSeat >= 1) return { n: perSeat, how: `claims.perSeat sets ${perSeat}` };
-  const runners = runnerSlots(board);
+  const runners = runs ? runnerSlotsSnapshot(board, runs) : runnerSlots(board);
   const slots = runners ?? availableParallelism();
   const seats = Math.max(1, withLocalSeatPresence(board, board.db.prepare('SELECT agent_id FROM agent WHERE agent_lane != ?').all(COORDINATOR)).filter(seat => seat.presence === 'live').length);
   const n = Math.min(5, Math.max(1, Math.floor(slots / seats)));
@@ -107,10 +129,10 @@ export function claimsPerSeat(board, perSeat = null) {
  * which of the seat's live claims wait on their own gate here, and the N this computer sizes. A pulled gate's job
  * and the runner slots live only on the computer that submitted, so a replay elsewhere could not see them.
  */
-export function claimAdmission(board, id, agentId, perSeat = null) {
+export function claimAdmission(board, id, agentId, perSeat = null, { runs = null } = {}) {
   const gateWaits = board.db.prepare("SELECT item_id FROM item WHERE item_owner = ? AND item_status = 'claimed' AND item_id != ? ORDER BY item_id")
     .all(agentId, id).map(row => row.item_id).filter(item => awaitingGateOrReview(board, itemById(board, item)));
-  return { gateWaits, seatCap: claimsPerSeat(board, perSeat).n };
+  return { gateWaits, seatCap: claimsPerSeat(board, perSeat, { runs }).n };
 }
 
 /** A claim's gate waits: the sealed list when the claim carries one, else this computer's own gate records. */
@@ -130,7 +152,8 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
     throw new Refused('ENGINE_VERSION', `a lane policy refresh requires engine ${AUTOMATIC_DISPATCH_ENGINE}; upgrade Pullboard`);
   }
   const refreshes = refreshPolicy === true && !adopts;
-  const leaseUntil = new Date(board.clock.now().getTime() + leaseMs).toISOString();
+  const instant = board.clock.now();
+  const leaseUntil = new Date(instant.getTime() + leaseMs).toISOString();
   const isRenewal = (item) => item.item_owner === agentId && isHeld(board, item);
   // Reworking your own rejected item is a claim of its own, beside the one live claim (B5): the
   // builder fixing what a verifier found need not drop its other work to do it.
@@ -274,7 +297,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
       item_lease_until: leaseUntil,
     }),
   };
-  return { how, leaseUntil, isRenewal, admission, outcome, adopts, refreshes, frozen: () => frozen,
+  return { how, leaseUntil, instant, isRenewal, admission, outcome, adopts, refreshes, frozen: () => frozen,
     policyRefreeze: () => policyRefreeze, reworkRouting: () => reworkRouting, seatN: () => seatN };
 }
 

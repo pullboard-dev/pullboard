@@ -34,6 +34,7 @@ export { INFRASTRUCTURE_CODES, INFRA_RETRIES, LOCK_CODES, LOCK_WAIT_LIMIT, INVEN
 export { gateStages, stagedScript, readPipes, readStages } from "./src/io/stages.js";
 export { replayChangedTables } from "./src/io/moves/replay.js";
 export { submitImportEdges } from "./src/io/submit-edges.js";
+export { regenerateDeclaredFiles } from "./src/io/submit-generated.js";
 export { submitGateConfig, submitGatePlan, submitGateAdmission, runSubmitGate, startCriterionRun, submitLogPath, startDiagnostics, namedFileRunner } from "./src/io/submit.js";
 export { gateWaitReporter } from "./src/logic/wait.js";
 export { recordGreenRun } from "./src/io/shards/green.js";
@@ -125,3 +126,4 @@ export { walk } from './src/io/scan.js';
 export { acceptedCellsIdentity, toolingIsPinned, readAcceptedCells, warmAcceptedCells, nudgeAcceptedCells, recordAcceptedCellsFailure, waitForAcceptedCells } from './src/io/inventory.js';
 export { deriveTestRegistries } from './src/io/test/derived.js';
 export { runJourneyCheck } from "./src/io/test/journey-check.js";
+export { unregisteredNewTests } from "./src/logic/test-registry.js";

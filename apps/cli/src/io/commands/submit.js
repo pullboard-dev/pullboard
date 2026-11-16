@@ -17,6 +17,7 @@ import { mergeSubmissionMain } from '../../../../../packages/merge/index.js';
 import { requireNonEmptySubmit } from '../empty.js';
 import { proofOnlyTicked } from '../empty.js';
 import { submitProofOnly } from '../../../../../packages/config/index.js';
+import { submitClauseMarks } from '../../../../../packages/config/index.js';
 import { criterionClauses } from '../../../../../packages/state/index.js';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
 import { clauseReceiptProblem } from '../../../../../packages/state/index.js';
@@ -26,6 +27,7 @@ import { testRunTickNotes } from '../../../../../packages/state/index.js';
 import { recordedToolCommits } from '../../../../../packages/git/index.js';
 import { toolRegenerationSource } from '../../../../../packages/git/index.js';
 import { regenerateToolChange } from '../../../../../packages/sandbox/index.js';
+import { regenerateDeclaredFiles } from '../../../../../packages/gate/index.js';
 import {
   pendingSubmitHandoff,
   submitHandoff,
@@ -117,6 +119,7 @@ import { context } from '../entry.js';
 import { filesSince } from '../entry.js';
 import { gateTestFiles } from '../entry.js';
 import { titleCases } from '../submit.js';
+import { clauseMarksNote } from '../submit.js';
 import { freezer } from '../entry.js';
 import { idArg } from '../entry.js';
 import { ordered } from '../entry.js';
@@ -411,6 +414,17 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     trunk = requireTrunkMerge(root, commit, acceptedMain.commit);
     ctx.io.say(`Regenerated recorded board tools on main ${acceptedMain.commit.slice(0, 12)}; new head ${commit.slice(0, 12)} needs fresh full proof and review.`);
   }
+  // With submit.regenerateDeclared on accepted main, a stale declared generated file is regenerated in the composed tree and committed (#8876) [C7].
+  if (!isSubmitHandoffWorker(ctx) && acceptedMain.config.submit?.regenerateDeclared === true && !regenerated) {
+    let declared;
+    try { declared = regenerateDeclaredFiles(root, acceptedMain.config, { base: held.item_claim_head, item: id }); }
+    catch (error) { throw new Refused('GENERATED_STALE', `${error.message}; next: run the generator yourself, commit, and submit again`); }
+    if (declared) {
+      commit = declared.commit;
+      trunk = requireTrunkMerge(root, commit, acceptedMain.commit);
+      ctx.io.say(`Regenerated ${declared.files.join(', ')} from its declared generator; new head ${commit.slice(0, 12)}.`);
+    }
+  }
   const requireComposition = withBoard(ctx, board => barReadySetting(board).enabled);
   ctx = copySubmitHandoffOrigin(ctx, { ...ctx, config: policy.config });
   authorizationStep('proves-nothing', () => withBoard(ctx, (board) => refuseProvesNothing(() => acceptedMain.config, board, store.getItem(board, id))));
@@ -514,6 +528,11 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   await withBoard(ctx, async board => {
     const notes = testAuthorNotes(held, store.itemThread(board, id), { atHead: committedReader(root, commit), atMain: committedReader(root, acceptedMain.commit), seat: me.id, family: seatFamily(board, me.id) });
     for (const text of notes) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text }]);
+  });
+  // submit.clauseMarks (#9440): the submit records each bar clause with whether a tick covers it, for the reviewer.
+  if (submitClauseMarks()) await withBoard(ctx, async board => {
+    const text = clauseMarksNote(held, store.itemThread(board, id), commit);
+    if (text) { await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text }]); ctx.io.say(text); }
   });
   reportSubmitStage(ctx, 'authorization and source', preflightStart);
   withBoard(ctx, (board) => refuseUnsubmittableStack(root, board, held, commit, trunk));

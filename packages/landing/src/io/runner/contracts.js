@@ -55,6 +55,22 @@ export function contractFiles(root, base, { proved, derived, commits = [] }) {
 }
 
 /**
+ * The contracts account's reused and run files, apart: the files the ledger's hit list covered at unchanged inputs, and
+ * the rest, which ran (landing.reuseContractResults). Counts come from the run, so a capped file list never skews them.
+ *
+ * @param {string[]} files - Every contract file of the landing.
+ * @param {{ reused?: number, reusedFiles?: string[] } | undefined} proof - The proof run's account.
+ * @returns {{ reused: { files: string[], count: number }, run: { files: string[], count: number } }}
+ */
+export function contractAccount(files, proof) {
+  const reusedFiles = Array.isArray(proof?.reusedFiles) ? proof.reusedFiles : [];
+  const hit = new Set(reusedFiles);
+  const ran = files.filter(file => !hit.has(file));
+  const reused = Number.isSafeInteger(proof?.reused) ? proof.reused : reusedFiles.length;
+  return { reused: { files: reusedFiles.slice(0, 20), count: reused }, run: { files: ran.slice(0, 20), count: Math.max(0, files.length - reused) } };
+}
+
+/**
  * The land job's contract check: run, on the tree it is checking, the affected tests that reached main after the items
  * were submitted, or that their submits deferred to the batch (T3 journeys), with the project's runner. Why: a pulled
  * land job proved only each item's own files, so an item landed red against a test main gained after its submit; the
@@ -84,8 +100,11 @@ export function contractCheck(payload, env) {
     // The receipt names what ran, so a landing that ran no contract says why [C7].
     const contracts = { files: files.slice(0, 20), count: files.length, ...(full ? { full } : {}) };
     if (!files.length) return { ok: true, detail: null, contracts };
-    // No ledger hits: a file the merged change reaches has a new inputKey, so a hit list could reuse none of them.
-    const result = await ledgerProofCheck({ runner, files, ledger: null }, { env: own, waivers })(context);
+    // No ledger hits unless landing.reuseContractResults rides on the job: a file the merged change reaches has a new inputKey, so a hit list could reuse none of them.
+    const reuse = payload.contracts.reuse === true;
+    const result = await ledgerProofCheck({ runner, files, ledger: reuse ? payload.contracts.ledger ?? null : null }, { env: own, waivers, reuseGate: reuse })(context);
+    // With the setting on, the account names the reused files and the run files apart [C7,#9301].
+    if (reuse) Object.assign(contracts, contractAccount(files, result.proof));
     const known = result.ok ? null : await mainOwnedReds(context, result.failures, { mainReds,
       rerun: failures => baseReds(context, { runner, trunk: payload.trunk, failures, env: own }) });
     if (known) return { ok: true, detail: null, contracts: { ...contracts, mainRed: known.known, ...(known.ledger.length ? { ledgerMainRed: known.ledger } : {}) } };

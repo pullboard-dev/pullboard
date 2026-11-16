@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { BACKBONE_TABLE } from '../../../index.js';
 import { RECLAIM_TABLE } from '../../../index.js';
 import { OUTBOX_TABLE } from '../../../index.js';
+import { PULLED_TABLE } from '../../../index.js';
 import { boardClaimEngine } from '../../../index.js';
 import { boardLandingEngine } from '../../../index.js';
 import { boardReleaseEngine } from '../../../index.js';
@@ -32,6 +33,7 @@ const TABLES = {
   landing: [...new Set(Object.values(boardLandingEngine().tables).flatMap(ids))],
   lease: ids(leaseEngine({ leaseMs: 1, valid: () => true }).table),
   outbox: ids(OUTBOX_TABLE),
+  pulled: ids(PULLED_TABLE),
   reclaim: ids(RECLAIM_TABLE),
   release: ids(boardReleaseEngine().table),
   reopen: ids(boardReopenEngine().table),
@@ -78,7 +80,7 @@ test('moves.row-owners.backbone: clause 2: the backbone table has rows and exact
 
 test('moves.row-owners.landing: clause 2: the five landing tables have rows and every row has exactly one owner [C7,#8561]', () => {
   const records = JSON.parse(readFileSync(join(DIR, '../../registry.json'), 'utf8'));
-  assert.equal(TABLES.landing.length, 43);
+  assert.equal(TABLES.landing.length, 45, 'the 43 rows after the Pace slices plus strict-full-suite and merge-publish from #9326, owned by moves.landing.rows-fire');
   assert.deepEqual(moveRowOwnershipProblems({ landing: TABLES.landing }, records), []);
 });
 
@@ -86,4 +88,12 @@ test('moves.row-owners.reclaim: clause 2: the reclaim table has rows and exactly
   const records = JSON.parse(readFileSync(join(DIR, '../../registry.json'), 'utf8'));
   assert.equal(TABLES.reclaim.length, 12);
   assert.deepEqual(moveRowOwnershipProblems({ reclaim: TABLES.reclaim }, records), []);
+});
+
+test('moves.row-owners.pulled: clause 2: the pulled table is listed with its five rows and every pulled row has exactly one owner [C7,#9187]', () => {
+  const records = JSON.parse(readFileSync(join(DIR, '../../registry.json'), 'utf8'));
+  assert.deepEqual(TABLES.pulled, ['coordinator', 'item-exists', 'pulling', 'revert-named', 'pulled']);
+  assert.deepEqual(moveRowOwnershipProblems({ pulled: TABLES.pulled }, records), []);
+  const owners = TABLES.pulled.map((row) => Object.keys(records).filter((id) => records[id].proves?.move === `pulled:${row}`));
+  assert.deepEqual(owners, TABLES.pulled.map((row) => [`moves.pulled.${row}`]));
 });

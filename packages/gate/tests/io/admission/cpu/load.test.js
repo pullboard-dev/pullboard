@@ -138,3 +138,12 @@ test('batched classification preserves exact selected files across real registra
   assert.equal(testsNeedCpuRunner(directory, files.filter(file => !selected.includes(file))), false);
   assert.equal(existsSync(marker), false, 'selection only reads source; fixture programs never execute');
 });
+
+test('clause 1: CPU options continued across a newline are read whole, not cut at the line end [C7,#6902]', () => {
+  const head = "import test from 'node:test'; ";
+  for (const value of ["'title'\n&& { cpuLoad: true }", "'title'\n  ?? { cpuLoad: true }", "flag\n&& { cpuLoad: true }", "{ cpuLoad: false }\n|| { cpuLoad: true }"]) {
+    assert.equal(cpuLoadOptionsIn([`${head}const opts = ${value};\ntest(opts, () => {});`])[0], true, `${value} stays conservative`);
+  }
+  assert.equal(cpuLoadOptionsIn([`${head}const title = 'plain'\ntest(title, () => {});`])[0], false,
+    'a title that ends at the newline is still a title');
+});
