@@ -32,9 +32,10 @@ const OWN_FILE = fileURLToPath(import.meta.url);
  * The first stack frame outside this module: the caller whose write body held the lock. Naming this module's own file
  * (as the old filename check did after the rename to log.js) reports every hold as this file's line [#2282,#6825].
  * @param {string|undefined} stack - An Error stack captured inside the transaction.
- * @returns {RegExpExecArray|undefined} Match groups: path, line.
+ * @param {string} [own] - The module path to skip; this module's own file unless a test names another.
+ * @returns {Array<string>|undefined} Match groups: text, path, line.
  */
-export function writeOrigin(stack) {
+export function writeOrigin(stack, own = OWN_FILE) {
   return stack?.split('\n').slice(1).map(line => {
     const match = /(file:\/\/)?(\/[^\s():]+\.js):(\d+):\d+/u.exec(line);
     if (!match) return null;
@@ -42,7 +43,7 @@ export function writeOrigin(stack) {
     let path = match[2];
     if (match[1]) try { path = decodeURIComponent(path); } catch { /* A malformed escape keeps the raw path. */ }
     return [match[0], path, match[3]];
-  }).find(match => match && match[1] !== OWN_FILE);
+  }).find(match => match && match[1] !== own);
 }
 
 const TRANSACTION_DEPTH = new WeakMap();
