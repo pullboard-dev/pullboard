@@ -61,7 +61,7 @@ test('clause 1: two BLOCKED releases naming a structured blockedOn place no rele
   const other = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'blocker', criterion: 'prove it', route: 'strong' }); // fixture-subject: addItem
   f.claim(f.first); store.release(f.board, f.id, f.first, '', { blockedOn: [other] }, 'BLOCKED');
   f.board.db.prepare('UPDATE item SET item_after=? WHERE item_id=?').run('', f.id);
-  f.board.db.prepare('UPDATE item SET item_status=? WHERE item_id=?').run('withdrawn', other); // the blocker is gone, so the second claim is allowed
+  store.withdraw(f.board, other, { agentId: 'coordinator', reason: 'the blocker is gone, so the second claim is allowed' });
   f.claim(f.second); store.release(f.board, f.id, f.second, '', { blockedOn: [other] }, 'BLOCKED');
   assert.equal(store.getItem(f.board, f.id).item_hold_reason, null);
 });
