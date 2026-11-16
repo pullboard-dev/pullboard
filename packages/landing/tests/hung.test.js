@@ -3,16 +3,16 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
+import { after } from 'node:test';
 import { test } from 'node:test';
 import { copyPackageFiles } from '../../runners/index.js';
+import { privateFixtureFiles } from '../../gate/tests/fixtures/child.js';
 import { runFixtureChild } from '../../gate/tests/fixtures/child.js';
+import { fixtureProjectPolicy } from '../../gate/tests/fixtures/testkit.js';
 import { completeGate } from '../index.js';
 import { landingFailures } from '../index.js';
 import { watchdogStoppedOnly } from '../index.js';
@@ -21,28 +21,45 @@ const SOURCE = resolve(import.meta.dirname, '../../..');
 const PASSING = ['a', 'b', 'd', 'e'];
 const FILES = ['a', 'b', 'c', 'd', 'e'].map(name => `test/${name}.test.js`);
 
-/** A private project of five files where test/c.test.js never finishes, landing in the given number of shards. */
-function project(t, shards) {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-hung-file-')));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const repo = join(dir, 'repo'), home = join(dir, 'home');
+const TEMPLATE = {};
+const ENV_GIT = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid', GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
+
+/** The five-file project with a full package copy, copied and committed once for the file; each case clones it and sets only its shard count. */
+function template() {
+  if (TEMPLATE.repo) return TEMPLATE.repo;
+  const dir = privateFixtureFiles('pullboard-hung-template-').root;
+  after(() => rmSync(dir, { recursive: true, force: true }));
+  const repo = join(dir, 'repo');
   mkdirSync(join(repo, 'test'), { recursive: true });
-  mkdirSync(join(home, '.pullboard'), { recursive: true });
-  writeFileSync(join(home, '.pullboard', 'settings.json'), JSON.stringify({ gateSlots: 5, browserSlots: 1 }));
   copyPackageFiles(SOURCE, repo);
   // test/e.test.js passes slowly and keeps writing, so it is still running, and never idle, when the hung file times out.
   for (const name of PASSING) {
-    writeFileSync(join(repo, `test/${name}.test.js`), `import { test } from 'node:test';\ntest('case ${name} [C7]', ${name === 'e' ? '() => new Promise(done => { const tick = setInterval(() => process.stdout.write("# still running\\n"), 200); setTimeout(() => { clearInterval(tick); done(); }, 6000); })' : '() => {}'});\n`);
+    writeFileSync(join(repo, `test/${name}.test.js`), `import { after } from 'node:test';
+import { test } from 'node:test';\ntest('case ${name} [C7]', ${name === 'e' ? '() => new Promise(done => { const tick = setInterval(() => process.stdout.write("# still running\\n"), 200); setTimeout(() => { clearInterval(tick); done(); }, 6000); })' : '() => {}'});\n`);
   }
   // Busy enough never to look idle, and never done, in file setup where no case runs: an active case keeps its own
   // per-test budget past the wall (250bc82d2c, #2827), so only the whole-file wall can stop a file stuck outside a case.
   writeFileSync(join(repo, 'test/c.test.js'), "setInterval(() => { for (let i = 0; i < 1e6; i += 1); }, 5);\nawait new Promise(() => {});\n");
-  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node apps/cli/src/io/run/tests.js', landingShards: shards }));
-  const env = { ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: join(home, '.pullboard'), GIT_CONFIG_GLOBAL: '/dev/null',
-    GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid', GIT_COMMITTER_NAME: 'Fixture',
-    GIT_COMMITTER_EMAIL: 'fixture@example.invalid', PULLBOARD_LANDING_RUN: '1', PULLBOARD_TEST_FILE_LIMITS: JSON.stringify({ 'test/c.test.js': 2000 }), PULLBOARD_TEST_IDLE_TIMEOUT_MS: '1000' };
-  for (const key of Object.keys(env)) if (/^PULLBOARD_(GATE_SLOT|BROWSER_SLOT|LANDING_SHARD|LANDING_COLLECT)/u.test(key) || key === 'NODE_TEST_CONTEXT') delete env[key];
+  fixtureProjectPolicy(repo, { config: { gate: 'node apps/cli/src/io/run/tests.js', landingShards: 1 } });
+  const env = { ...process.env, ...ENV_GIT };
   for (const args of [['init', '-q', '-b', 'main'], ['add', '.'], ['commit', '-q', '-m', 'test: hung-file fixture']]) execFileSync('git', args, { cwd: repo, env });
+  TEMPLATE.repo = repo;
+  return repo;
+}
+
+/** A private project of five files where test/c.test.js never finishes, landing in the given number of shards. */
+function project(t, shards) {
+  const dir = privateFixtureFiles('pullboard-hung-file-').root;
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const repo = join(dir, 'repo'), home = join(dir, 'home');
+  mkdirSync(join(home, '.pullboard'), { recursive: true });
+  writeFileSync(join(home, '.pullboard', 'settings.json'), JSON.stringify({ gateSlots: 5, browserSlots: 1 }));
+  const env = { ...process.env, ...ENV_GIT, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: join(home, '.pullboard'),
+    PULLBOARD_LANDING_RUN: '1', PULLBOARD_TEST_FILE_LIMITS: JSON.stringify({ 'test/c.test.js': 2000 }), PULLBOARD_TEST_IDLE_TIMEOUT_MS: '1000' };
+  for (const key of Object.keys(env)) if (/^PULLBOARD_(GATE_SLOT|BROWSER_SLOT|LANDING_SHARD|LANDING_COLLECT)/u.test(key) || key === 'NODE_TEST_CONTEXT') delete env[key];
+  execFileSync('git', ['clone', '-q', '--local', template(), repo], { env });
+  fixtureProjectPolicy(repo, { config: { gate: 'node apps/cli/src/io/run/tests.js', landingShards: shards } });
+  for (const args of [['add', 'pullboard.json'], ['commit', '-q', '--allow-empty', '-m', 'test: hung-file shards']]) execFileSync('git', args, { cwd: repo, env });
   return { repo, env };
 }
 
