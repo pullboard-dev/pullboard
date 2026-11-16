@@ -48,6 +48,8 @@ export const releaseEngine = tableOnDemand('./src/logic/table/release.table.js',
 export const jobEngine = tableOnDemand('./src/logic/table/job.table.js', 'jobEngine');
 /** The reopen move table's engine, for the store's reopen writer's shadow compare [C7,#8388]. */
 export const reopenEngine = tableOnDemand('./src/logic/table/reopen.table.js', 'reopenEngine');
+/** The reclaim table's engine, for the store's stale-state maintenance shadow compare [C7,#9367]. */
+export const reclaimEngine = tableOnDemand('./src/logic/table/reclaim.table.js', 'reclaimEngine');
 /** The landing-pulled table's engine, for the store's pulled writer to run [M2,R3,#9098]. */
 export const pulledEngine = tableOnDemand('./src/logic/table/pulled.table.js', 'pulledEngine');
 

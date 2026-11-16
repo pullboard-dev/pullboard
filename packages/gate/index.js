@@ -126,3 +126,4 @@ export { walk } from './src/io/scan.js';
 export { acceptedCellsIdentity, toolingIsPinned, readAcceptedCells, warmAcceptedCells, nudgeAcceptedCells, recordAcceptedCellsFailure, waitForAcceptedCells } from './src/io/inventory.js';
 export { deriveTestRegistries } from './src/io/test/derived.js';
 export { runJourneyCheck } from "./src/io/test/journey-check.js";
+export { unregisteredNewTests } from "./src/logic/test-registry.js";
