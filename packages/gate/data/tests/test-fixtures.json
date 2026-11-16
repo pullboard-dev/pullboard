@@ -2786,7 +2786,6 @@
     "raw-board": 4
   },
   "apps/cli/journeys/relay/local/first.test.js": {
-    "model": 4,
     "tempdir": 1,
     "raw-board": 3
   },
