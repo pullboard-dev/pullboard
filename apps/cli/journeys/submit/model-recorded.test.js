@@ -45,11 +45,11 @@ async function seatsFor(t) {
   mkdirSync(machine);
   fixtureMachineSettings(machine, { gate: { localRunner: false } });
   startFixtureLocalRunner(box.env, box.root, { entry: CLI_ENTRY });
-  const remote = (seat, ...args) => runCliInProcess([...args, '--json'],
+  const remote = (seat, ...args) => runCliInProcess(args,
     { cwd: clone, env: { ...box.env, PULLBOARD_MACHINE_HOME: machine, PULLBOARD_AGENT: seat.agent } });
   assert.equal((await remote(builder, 'settings', 'board.url', box.origin)).status, 0);
   assert.equal((await remote(builder, 'settings', 'board.token', '--', box.key)).status, 0);
-  const local = (seat, ...args) => runCliInProcess([...args, '--json'], { cwd: seat.path, env: { ...box.env, PULLBOARD_AGENT: seat.agent } });
+  const local = (seat, ...args) => runCliInProcess(args, { cwd: seat.path, env: { ...box.env, PULLBOARD_AGENT: seat.agent } });
   const add = async title => (await served(box, box.root, 'add', 'app', title, '--specs', 'G1', '--criterion', CLAUSE, '--brief', FIXTURE_BRIEF)).item.item_id;
   return { box, builder, verifier, remote, local, add };
 }
@@ -107,7 +107,7 @@ async function drive(seats, run, id, verdict) {
 /** A CLI runner that asserts a zero exit and returns the parsed document. */
 function ok(seats, how) {
   return async (seat, ...args) => {
-    const ran = await seats[how](seat, ...args);
+    const ran = await seats[how](seat, ...args, '--json');
     assert.equal(ran.status, 0, `${args.join(' ')}: ${ran.stdout}${ran.stderr}`);
     return ran.stdout.trim() ? JSON.parse(ran.stdout) : null;
   };
