@@ -1,5 +1,6 @@
 import { allItemsNeedingRescope } from '../../../store/index.js';
 import { landingBatches } from '../../../store/index.js';
+import { readBoardMeta } from '../../../store/index.js';
 import { flowWhy } from '../logic/flow.js';
 import { shimLifecycle } from '../../../codemap/index.js';
 import { rankInversionHistory } from './inversion.js';
@@ -371,6 +372,22 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
           owner, detail: { reason: item.item_hold_reason, by: holder },
         }));
       }
+    }
+  }
+
+  // Behind holds.requireOwner (off by default): a hold whose recorded deadline has passed is the owner's to lift or renew [C7,#8541].
+  if (machineSettings?.holds?.requireOwner === true) {
+    for (const item of items.filter(entry => entry.item_hold_reason)) {
+      let record = null;
+      try { record = JSON.parse(readBoardMeta(db, `hold_owner:${item.item_id}`) ?? 'null'); } catch { record = null; }
+      if (!record || !(Date.parse(record.deadline) <= at)) continue;
+      found(report.stuck, finding('HOLD_LAPSED', item, {
+        since: record.deadline, now: at,
+        title: 'hold past its deadline',
+        why: `${record.owner} owns the hold, which lapsed ${record.deadline}: ${firstLine(item.item_hold_reason)}`,
+        next: `lift the hold with pullboard hold ${item.item_id} --off, or hold it again with a new --deadline`, command: `pullboard hold ${item.item_id} --off`,
+        owner: { role: 'coordinator', who: record.owner }, detail: { reason: item.item_hold_reason, owner: record.owner, deadline: record.deadline },
+      }));
     }
   }
 
