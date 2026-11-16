@@ -35,7 +35,7 @@ export function dryRunReviewChecklist({ id, clauses, criterion, barNote = null }
   lines.push('bar-check edge cases:', edge ? `  ${edge}` : `  none recorded; name them with pullboard fact ${id} bar-check "bar: ...\\nedge cases: ...\\ntest: ..."`);
   const tests = clauses.filter(clause => clause.kind === 'test').map(clause => clause.number);
   lines.push('a test that fails without the fix:', tests.length
-    ? `  clause${tests.length > 1 ? 's' : ''} ${tests.join(', ')} each need a test that fails on main and passes with your change`
+    ? `  clause${tests.length > 1 ? 's' : ''} ${tests.join(', ')} ${tests.length > 1 ? 'each need' : 'needs'} a test that fails on main and passes with your change`
     : '  name the test that fails on main and passes with your change, or say why none can');
   return lines;
 }
