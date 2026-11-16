@@ -1,5 +1,5 @@
 /**
- * End to end on real repos: runner tiers and hold (N16, N22). The dependency conflict case lives in e2e-runner-dependent.
+ * End to end on real repos: runner tiers (N16). Dependency conflicts live in e2e-runner-dependent, hold in e2e-runner-hold.
  */
 /** @pullboard-test-input source-cell apps/cli apps/lib store */
 
@@ -17,7 +17,6 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { addDiagnosedLight } from '../../tests/fixtures/runner/diagnosed-light.js';
 import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 
@@ -54,19 +53,4 @@ test('one runner climbs the tiers: an escalated item goes to the next command, w
   const packs = join(box.dir, 'repo', '.git', 'worktrees', apiRunner.split('/').at(-1), 'pullboard', 'packs');
   assert.match(readFileSync(join(packs, '2-mid-1.md'), 'utf8'), /## Earlier tries by a lighter model\n- 2 attempts stayed red/);
   assert.equal(existsSync(join(packs, '2-light-1.md')), true);
-});
-
-test('hold pauses a lane: next names who held it and why; --off lets it go [N22]', async () => {
-  const box = project();
-  await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1');
-  assert.match((await box.runLocal(box.web, 'hold', 'web', '--reason', 'mine')).err, /COORDINATOR_ONLY/);
-  assert.match((await box.runLocal(box.repo, 'hold', 'nowhere', '--reason', 'x')).err, /NO_LANE/);
-  assert.match((await box.runLocal(box.repo, 'hold', 'web', '--reason', 'G1 is being rewritten')).out, /holding the web lane: G1 is being rewritten/);
-  const held = (await box.runLocal(box.web, 'next', '--take'));
-  assert.equal(held.code, 1);
-  assert.match(held.err, /coordinator \(unknown\) holds the web lane: G1 is being rewritten/);
-  assert.match((await box.runLocal(box.web, 'claim', '1')).err, /LANE_HELD/);
-  assert.match((await box.runLocal(box.web, 'resume')).out, /the web lane is held by coordinator \(unknown\): G1 is being rewritten/);
-  assert.match((await box.runLocal(box.repo, 'hold', 'web', '--off')).out, /released the web lane/);
-  assert.match((await box.runLocal(box.web, 'next')).out, /claimed #1: Page/);
 });
