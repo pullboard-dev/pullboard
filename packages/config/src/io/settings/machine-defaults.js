@@ -104,6 +104,7 @@ export const MACHINE_DEFAULTS = {
   'sentinels.recordWriteHolder': false,
   'serve.address': '127.0.0.1',
   'serve.port': 0,
+  'serve.pullRoute': false,
   'spec.cascadeReject': false,
   'spec.commitOnApply': false,
   'submit.clauseMarks': false,
