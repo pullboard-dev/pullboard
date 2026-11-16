@@ -15,6 +15,7 @@ import { waitItemFields } from '../../../../../packages/sentinels/index.js';
 import { waitKey } from '../../../../../packages/sentinels/index.js';
 import { waitLines } from '../../../../../packages/sentinels/index.js';
 import { waitsSnapshot } from '../../../../../packages/sentinels/index.js';
+import { writeHolderRecorder } from '../../../../../packages/sentinels/index.js';
 import { context } from '../entry.js';
 import { ordered } from '../entry.js';
 import { whoAmI } from '../entry.js';
@@ -61,6 +62,7 @@ export async function run(io, { first, second, rest = [] } = {}) {
     // Only the coordinator files and releases; another seat's run reports what it saw.
     const filing = me.id === COORDINATOR;
     const outcome = await recordWaits({ ...snapshot, budgets: { ...budgets, file: budgets.file && filing, reclaim: budgets.reclaim } }, {
+      observeHolder: writeHolderRecorder(board.db),
       openKey: key => openWaitKey(board.db, key),
       repeat: async (id, text, pid) => {
         if (pid && waitPidRecorded(board.db, id, pid)) return;
