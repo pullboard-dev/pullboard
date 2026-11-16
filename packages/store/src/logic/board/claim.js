@@ -5,6 +5,7 @@ import { BLOCKED_DEPENDENCIES_ENGINE } from '../../../../state/light.js';
 import { validateNativeDependencies } from '../../../../seats/browser.js';
 import { localDependencyIds } from '../../../../seats/browser.js';
 import { releaseReasonProblem } from "../reasons.js";
+import { REVIEW_ONLY_REASONS } from "../reasons.js";
 import { releaseExitClaim } from "../exit/rules/claim.js";
 import { infraRelease } from './release.js';
 import { lastChosenReleases } from './release.js';
@@ -116,6 +117,7 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
       if (bad) throw bad;
     }
     const item = itemById(board, id);
+    if (REVIEW_ONLY_REASONS.includes(reasonCode) && item.item_status !== 'submitted') throw new Refused('RELEASE_REASON', `${reasonCode} names why a review was given back; a build release names INELIGIBLE, ROUTED_ELSEWHERE, BLOCKED, BUDGET, TAKEN_OVER, DIAGNOSIS_WRONG, INFRA or OTHER`);
     if (blockedOn) {
       if (item.item_status !== 'claimed' || item.item_owner !== agentId) throw new Refused('NOT_YOURS', `item #${id} is not claimed by you`);
       combinedAfter = [...new Set([...String(item.item_after ?? '').split(',').filter(Boolean), ...blockedOn.map(String)])];
