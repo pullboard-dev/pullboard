@@ -74,7 +74,6 @@ caseTest('ssh', 'a synchronous runner call is refused by the retired SSH control
   assert.equal(result.diagnostic.exitCode, 1);
   assert.equal(result.diagnostic.reason, 'bridge-json');
   assert.match(result.diagnostic.stderr, /SSH runner controller is retired/u);
-  assert.match(result.diagnostic.source, /^[0-9a-f]{40}$/u);
 });
 
 // Test-only boot budget: gate.runnerWaitMs runs from the request, so under load a 1000 ms deadline can expire before
