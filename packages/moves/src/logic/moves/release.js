@@ -13,6 +13,7 @@ import { firstRefusal } from "../../../../store/browser.js";
 import { REOPEN_FIRST_REFUSAL_ENGINE } from "../../../../state/light.js";
 import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
+import { RELEASE_NEXT } from "../table/next.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function existingEngine(args, board, at) {
@@ -35,10 +36,6 @@ export default Object.freeze({ operation: "release", order: 14, engine: 1,
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
   "BAD_CONFIG": "fix pullboard.json as the message says, then commit it: git commit -m \"chore: fix pullboard config\" pullboard.json",
-  "RELEASE_REASON": "name why with --reason INELIGIBLE|ROUTED_ELSEWHERE|BLOCKED|BUDGET|TAKEN_OVER|DIAGNOSIS_WRONG|OTHER (OTHER also needs --note)",
-  "NOTE_REQUIRED": "add --note \"<what happened>\"",
-  "NOT_JOINED": "join a lane from this worktree: pullboard join <lane> --model \"<model name>\" (see: pullboard lanes)",
-  "NOT_YOURS": "shout its holder or the coordinator: pullboard shout coordinator --kind question \"<what you need>\"",
-  "NO_ITEM": "find the item id: pullboard list --all",
+  ...RELEASE_NEXT,
   "SESSION_LEDGER": "make the agent-session ledger named in the message writable by this user, then run the command again"
 }) });

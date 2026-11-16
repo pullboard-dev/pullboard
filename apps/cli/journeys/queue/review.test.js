@@ -74,10 +74,10 @@ async function project(t, ratio = 3) {
     lanes: { web: { owns: ['web/'], specs: ['G1'] }, review: { owns: [], specs: ['G1'] } }, shared: [] }));
   writeFileSync(join(root, 'SPEC.md'), '# Review fixture\n## G\n- G1 [approved, must] Every move keeps its evidence. | gate: true\n');
   writeFileSync(join(root, loadConfig(root).practice), '');
-  git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'chore: initialize review fixture');
+  git(root, 'add', '-A'); git(root, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'chore: initialize review fixture'); // setup only: no hook starts a node child
   box.builder = join(dir, 'builder'); box.peer = join(dir, 'peer'); box.reviewer = join(dir, 'reviewer'); box.reviewer2 = join(dir, 'reviewer-two');
   for (const [path, branch] of [[box.builder, 'web/one'], [box.peer, 'web/two'], [box.reviewer, 'review/one'], [box.reviewer2, 'review/two']]) {
-    git(root, 'worktree', 'add', '-q', path, '-b', branch);
+    git(root, '-c', 'core.hooksPath=/dev/null', 'worktree', 'add', '-q', path, '-b', branch);
   }
   box.board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
   t.after(() => store.closeBoard(box.board));

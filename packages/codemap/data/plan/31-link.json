@@ -48,15 +48,10 @@
   ["src/relay-storage.js","packages/link/src/logic/relay/storage.js","seed"],
   ["src/relay-upload-pause.js","packages/link/src/io/relay/pause.js","seed"],
   ["src/relay.js","packages/link/src/io/relay.js","seed"],
-  ["test/relay-canary-history.test.js","packages/link/tests/relay-canary-history.test.js","seed"],
-  ["test/relay-device-confirmation.test.js","packages/link/tests/relay-device-confirmation.test.js","seed"],
   ["test/relay-device-keys.test.js","packages/link/tests/logic/relay/poll.test.js","seed"],
   ["test/relay-lock.test.js","packages/link/tests/io/relay/lock.test.js","seed"],
-  ["test/relay-machine-storage.test.js","packages/link/tests/relay-machine-storage.test.js","seed"],
   ["test/relay-phone-crypto.test.js","packages/link/tests/io/relay/phone.test.js","seed"],
-  ["test/relay-setup-once.test.js","packages/link/tests/relay-setup-once.test.js","seed"],
-  ["test/relay-stall-phases.test.js","packages/link/tests/relay-stall-phases.test.js","seed"],
-  ["test/relay-sync.test.js","packages/link/tests/relay-sync.test.js","seed"]
+  ["test/relay-stall-phases.test.js","packages/link/tests/relay-stall-phases.test.js","seed"]
  ],
  "reexports": [
   "src/relay-canary-command.js",

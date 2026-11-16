@@ -13,8 +13,8 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
-import { startFixtureChild } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../gate/tests/fixtures/child.js';
+import { startFixtureChild } from '../../../gate/tests/fixtures/child.js';
 
 /** Build an isolated real repository; no live board or user Git settings are used. */
 function repository(t) {

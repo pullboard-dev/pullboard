@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { main as nativeTestMain } from '../../tests/fixtures/native.js';
 import { runFixtureChild as spawnSync } from '../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { chmodSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -17,8 +18,24 @@ import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
 import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
 import { fetchPrintedViewLink } from '../../tests/fixtures/view/link.js';
 import { CLI } from '../../tests/fixtures/relay/auth.js';
-import { fixtureCli } from '../../tests/fixtures/relay/auth.js';
 import { fixture } from '../../tests/fixtures/relay/auth.js';
+
+/** Run the production CLI in this process with the fixture's isolated environment; no Node launch per call [C7]. */
+function inProcessCli(box) {
+  return (cwd, ...args) => runCliInProcess(args, { cwd, env: box.env });
+}
+
+/** Commit every fixture file with Git plumbing, which runs no hook: the seed is setup, and each hook run was a Node launch [C7]. */
+function seedCommit(box) {
+  const git = (...args) => {
+    const step = spawnSync('git', args, { cwd: box.root, env: box.env, encoding: 'utf8' });
+    assert.equal(step.status, 0, step.stderr);
+    return step.stdout.trim();
+  };
+  git('add', '-A');
+  const commit = git('commit-tree', git('write-tree'), '-p', 'HEAD', '-m', 'chore(test): seed fixture');
+  git('update-ref', 'HEAD', commit);
+}
 
 test('offline linked reads use the local board, moves queue locally, and the same relay receives them when it returns [H10,H21]', async (t) => {
   const box = await relayClientFixture(t);
@@ -97,19 +114,16 @@ test('offline linked reads use the local board, moves queue locally, and the sam
 test('clause 1: relay.test.js fixture seats claim on the strong route [C7]', async (t) => {
   const box = await relayClientFixture(t);
   symlinkSync(resolve(import.meta.dirname, '../../pullboard.js'), join(box.env.PATH, 'pullboard'));
-  const laneAdded = fixtureCli(box)(box.root, 'lane', 'add', 'fixture', '--owns', 'fixture/', '--json'); // the review lane owns no folder
+  const laneAdded = await inProcessCli(box)(box.root, 'lane', 'add', 'fixture', '--owns', 'fixture/', '--json'); // the review lane owns no folder
   assert.equal(laneAdded.status, 0, laneAdded.stdout + laneAdded.stderr);
-  for (const args of [['add', '-A'], ['commit', '-m', 'chore(test): seed fixture']]) {
-    const step = spawnSync('git', args, { cwd: box.root, env: box.env, encoding: 'utf8' });
-    assert.equal(step.status, 0, step.stderr);
-  }
+  seedCommit(box);
   const agentRoot = join(box.root, '..', 'strong-route-agent');
   const worktree = spawnSync('git', ['worktree', 'add', '-b', 'fixture-strong-route-agent', agentRoot, 'HEAD'], { cwd: box.root, env: box.env, encoding: 'utf8' });
   assert.equal(worktree.status, 0, worktree.stderr);
-  const run = fixtureCli(box);
-  const item = fileFixtureItem({ run }, box.root, { lane: 'fixture', title: 'strong route claim fixture' });
-  assert.equal(joinFixtureSeat({ run }, agentRoot, 'fixture').code, 0, 'the fixture seat joins on the strong route');
-  const claimed = run(agentRoot, 'claim', String(item.item_id), '--no-next', '--json');
+  const run = inProcessCli(box);
+  const item = await fileFixtureItem({ run }, box.root, { lane: 'fixture', title: 'strong route claim fixture' });
+  assert.equal((await joinFixtureSeat({ run }, agentRoot, 'fixture')).code, 0, 'the fixture seat joins on the strong route');
+  const claimed = await run(agentRoot, 'claim', String(item.item_id), '--no-next', '--json');
   assert.doesNotMatch(`${claimed.stdout}${claimed.stderr}`, /"ROUTE"|\[ROUTE\]|ROUTE:/, 'the claim is not refused ROUTE');
 });
 
@@ -117,17 +131,14 @@ test('a linked device without its key reads locally and refuses moves with both 
   const box = await relayClientFixture(t);
   // The isolated PATH must install the real CLI for Git's generated hooks in the new worktree.
   symlinkSync(resolve(import.meta.dirname, '../../pullboard.js'), join(box.env.PATH, 'pullboard'));
-  const staged = spawnSync('git', ['add', '-A'], { cwd: box.root, env: box.env, encoding: 'utf8' });
-  assert.equal(staged.status, 0, staged.stderr);
-  const seeded = spawnSync('git', ['commit', '-m', 'chore(test): seed fixture'], { cwd: box.root, env: box.env, encoding: 'utf8' });
-  assert.equal(seeded.status, 0, seeded.stderr);
+  seedCommit(box);
   const agentRoot = join(box.root, '..', 'missing-key-agent');
   const worktree = spawnSync('git', ['worktree', 'add', '-b', 'fixture-missing-key-agent', agentRoot, 'HEAD'], {
     cwd: box.root, env: box.env, encoding: 'utf8',
   });
   assert.equal(worktree.status, 0, worktree.stderr);
-  assert.equal(joinFixtureSeat({ run: fixtureCli(box) }, agentRoot, box.lane).code, 0, 'the real agent worktree joins its lane on the strong route');
-  const prepare = await box.script(`
+  assert.equal((await joinFixtureSeat({ run: inProcessCli(box) }, agentRoot, box.lane)).code, 0, 'the real agent worktree joins its lane on the strong route');
+  const prepare = await box.scriptLocal(`
     import { main } from ${JSON.stringify(box.mainURL)};
     for (const name of Object.keys(process.env)) if (name.startsWith('GIT_')) delete process.env[name];
     /** Run a real CLI command from the fixture worktree and capture its JSON result. */
@@ -150,7 +161,7 @@ test('a linked device without its key reads locally and refuses moves with both 
   rmSync(box.keyFile);
   assert.equal(existsSync(box.keyFile), false, 'the isolated device key is actually absent');
 
-  const reads = await box.script(`
+  const reads = await box.scriptLocal(`
     import { main } from ${JSON.stringify(box.mainURL)};
     for (const name of Object.keys(process.env)) if (name.startsWith('GIT_')) delete process.env[name];
     /** Run one local read and capture its JSON document and diagnostics. */
@@ -178,7 +189,7 @@ test('a linked device without its key reads locally and refuses moves with both 
   assert.ok(reads.document.decisions.document.decisions.some(ask => ask.shout_id === decision), 'decisions returns the locally stored open question');
   assert.equal(box.calls.length, callsBefore, 'missing key is detected before any relay request');
 
-  const moves = await box.script(`
+  const moves = await box.scriptLocal(`
     import { main } from ${JSON.stringify(box.mainURL)};
     for (const name of Object.keys(process.env)) if (name.startsWith('GIT_')) delete process.env[name];
     /** Run one linked move and capture its refusal document. */
@@ -206,17 +217,14 @@ test('a linked device with an unreadable key reads locally and refuses moves wit
   const box = await relayClientFixture(t);
   // The isolated PATH must install the real CLI for Git's generated hooks in the new worktree.
   symlinkSync(resolve(import.meta.dirname, '../../pullboard.js'), join(box.env.PATH, 'pullboard'));
-  const staged = spawnSync('git', ['add', '-A'], { cwd: box.root, env: box.env, encoding: 'utf8' });
-  assert.equal(staged.status, 0, staged.stderr);
-  const seeded = spawnSync('git', ['commit', '-m', 'chore(test): seed fixture'], { cwd: box.root, env: box.env, encoding: 'utf8' });
-  assert.equal(seeded.status, 0, seeded.stderr);
+  seedCommit(box);
   const agentRoot = join(box.root, '..', 'missing-key-agent');
   const worktree = spawnSync('git', ['worktree', 'add', '-b', 'fixture-missing-key-agent', agentRoot, 'HEAD'], {
     cwd: box.root, env: box.env, encoding: 'utf8',
   });
   assert.equal(worktree.status, 0, worktree.stderr);
-  assert.equal(joinFixtureSeat({ run: fixtureCli(box) }, agentRoot, box.lane).code, 0, 'the real agent worktree joins its lane on the strong route');
-  const prepare = await box.script(`
+  assert.equal((await joinFixtureSeat({ run: inProcessCli(box) }, agentRoot, box.lane)).code, 0, 'the real agent worktree joins its lane on the strong route');
+  const prepare = await box.scriptLocal(`
     import { main } from ${JSON.stringify(box.mainURL)};
     for (const name of Object.keys(process.env)) if (name.startsWith('GIT_')) delete process.env[name];
     /** Run a real CLI command from the fixture worktree and capture its JSON result. */
@@ -240,7 +248,7 @@ test('a linked device with an unreadable key reads locally and refuses moves wit
   t.after(() => { if (existsSync(box.keyFile)) chmodSync(box.keyFile, 0o600); });
   assert.throws(() => readFileSync(box.keyFile), { code: 'EACCES' }, 'the real key file is denied to this shell');
 
-  const reads = await box.script(`
+  const reads = await box.scriptLocal(`
     import { main } from ${JSON.stringify(box.mainURL)};
     for (const name of Object.keys(process.env)) if (name.startsWith('GIT_')) delete process.env[name];
     /** Run one local read and capture its JSON document and diagnostics. */
@@ -272,7 +280,7 @@ test('a linked device with an unreadable key reads locally and refuses moves wit
   assert.ok(reads.document.decisions.document.decisions.some(ask => ask.shout_id === decision), 'decisions returns the locally stored open question');
   assert.equal(box.calls.length, callsBefore, 'unreadable key is detected before any relay request');
 
-  const moves = await box.script(`
+  const moves = await box.scriptLocal(`
     import { main } from ${JSON.stringify(box.mainURL)};
     for (const name of Object.keys(process.env)) if (name.startsWith('GIT_')) delete process.env[name];
     /** Run one linked move and capture its refusal document. */

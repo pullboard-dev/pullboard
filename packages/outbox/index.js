@@ -8,5 +8,6 @@ export { relayOrdering } from "./src/io/relay/ordering.js";
 export { outboxGuardFile, withOutboxGuard, withFileLock } from "./src/io/relay/guard.js";
 export { invertChangeset } from "./src/logic/undo.js";
 export { undoQueued } from "./src/io/relay/undo.js";
-export { outboxAhead, outboxParkedOnly, readOutbox, outboxHasPendingCreatedItem, writeOutbox, removeOutbox, describeMove, outboxEntrySummary, earlierMoves, keepRefusal, refusalLine, strayItemRefs, bindRefs, resolveMove, outboxFields, outboxQueueable, outboxWaiting, outboxGeneration, queueMove, flushOutbox, ITEM_SLOTS, ACKNOWLEDGED_OPERATIONS, outboxFile, outboxSummaryFile, readOutboxSummary } from "./src/io/relay.js";
+export { outboxAhead, outboxParkedOnly, readOutbox, outboxHasPendingCreatedItem, writeOutbox, removeOutbox, describeMove, outboxEntrySummary, earlierMoves, keepRefusal, refusalLine, strayItemRefs, bindRefs, resolveMove, outboxFields, outboxQueueable, outboxWaiting, outboxGeneration, queueMove, liveOutbox, flushOutbox, ITEM_SLOTS, ACKNOWLEDGED_OPERATIONS, outboxFile, outboxSummaryFile, readOutboxSummary } from "./src/io/relay.js";
 export { runRelaySender } from "./src/io/relay/worker.js";
+export { provideOutboxTable, shadowOutbox, outboxCounts, outboxDiffers } from "./src/io/relay/shadow.js";

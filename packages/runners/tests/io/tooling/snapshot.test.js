@@ -7,7 +7,7 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { workerEntry } from '../../../src/io/package.js';
 import { captureRunnerTooling } from '../../../src/io/tooling/snapshot.js';
 import { currentRunnerTooling } from '../../../src/io/tooling/snapshot.js';

@@ -95,9 +95,8 @@ export { QUEUE_CLASSES, QUEUE_AGE_MS, queueClass } from '../../../queue/light.js
 
 const LEASE_MS = 20_000;
 /**
- * The startup budget of a lease admitted after its queue deadline, in ms. Why a fixed budget: the queue wait setting
- * (30 min for a submit, 30 s for a proof batch lane) says how long to wait for a slot, not how long a loaded
- * coordinator needs to reach a runner; reusing it gave 34 admission deadline misses and 95 dropped batches in 3 h (#3832, 8 Nov).
+ * The startup budget of a lease admitted after its queue deadline, in ms. Fixed because the queue wait setting says how
+ * long to wait for a slot, not how long a loaded coordinator needs to reach a runner: 34 deadline misses, 95 dropped batches (#3832).
  */
 export const LATE_STARTUP_MS = 90_000;
 const GATE_WAITER_HEARTBEAT_MS = 120_000;
@@ -108,9 +107,9 @@ const queueFiles = new WeakMap(); // Each open queue database's file: every writ
 const SLOT_DB_BUSY_MS = 2_000; // the longest one SQLite lock wait; a turn itself takes milliseconds [C7]
 /** How long a queued run keeps retrying a locked slot database before it stops, never having run. */
 export const SLOT_DB_LOCK_DEADLINE_MS = 5_000; // was 300 s: a runner controller sat 5 min on one write (9 Nov) [C7]
-/** The longest one attempt waits for its queue turn; a step retries with backoff until the deadline. */
+/** The longest one attempt waits for its queue turn; a step retries until the deadline. */
 const SLOT_DB_ATTEMPT_MS = 2_000;
-/** Overrides that deadline in milliseconds; tests use it to reach the deadline quickly. */
+/** Overrides that deadline in milliseconds, for tests. */
 export const SLOT_DB_LOCK_ENV = 'PULLBOARD_SLOT_DB_LOCK_MS';
 /** The exit status of a run that never started because the slot database stayed locked (EX_TEMPFAIL). */
 export const NEVER_RAN_EXIT_CODE = 75;
@@ -879,6 +878,7 @@ export function runnerResourceStatus(runners) {
   } finally { db.close(); }
 }
 
+export const recoverIdleRunners = async (r, o = {}) => { const db = open(o.file ?? machineResourceFile()); return recoverUnavailableRunners(db, validatedRunners(r), o).finally(() => db.close()); };
 /** Persist a configured host's authenticated GUI observation; unknown replaces stale positive capability. */
 export function recordRunnerGui(host, gui) {
   if (typeof host !== 'string' || !host.trim() || ![true, false, null].includes(gui)) throw new Refused('BAD_RUNNER_POOL', 'runner GUI observations require a host and true, false, or unknown');
@@ -1152,7 +1152,7 @@ async function takeResourceIn(options) {
         if (runnerDeadlineAt && (runnerDeadlinePassed || !waiter.runnerWaitBranch)) {
           const state = snapshot(db, name, order, now);
           const diagnosticRunners = restriction?.kind === 'ssh' ? runners.filter(runner => runnerAllowedNow({ requiredExecutor: restriction }, runner, runners, unavailable)) : runners;
-          runnerDeadline = { at: runnerDeadlineAt, runners: runnerWaitReasons(db, diagnosticRunners, { ...waiter, timing: Number(timing) }, unavailable),
+          runnerDeadline = { at: runnerDeadlineAt, runners: runnerWaitReasons(db, diagnosticRunners, { ...waiter, timing: Number(timing) }, unavailable, { policy: options.runnerLoadPolicyProvider?.(), now }),
             branch: localWaitBranch({ capacity: limit, browserCapacity: options.browserCapacityProvider?.() ?? 1,
               runnerOnly, browser, timing, memoryHeld: memory?.held === true, holders: state.holders }) };
           db.prepare('UPDATE waiter SET runner_wait_branch = ?, runner_wait_reasons = ? WHERE token = ?')
@@ -1196,7 +1196,7 @@ async function takeResourceIn(options) {
         let runnerWait;
         if (name === 'gate' && waiter.remote === 1) {
           const diagnosticRunners = restriction?.kind === 'ssh' ? runners.filter(runner => runnerAllowedNow({ requiredExecutor: restriction }, runner, runners, unavailable)) : runners;
-          runnerWait = { browser, gui, timing, runners: runnerWaitReasons(db, diagnosticRunners, { ...waiter, timing: Number(timing) }, unavailable) };
+          runnerWait = { browser, gui, timing, runners: runnerWaitReasons(db, diagnosticRunners, { ...waiter, timing: Number(timing) }, unavailable, { policy: options.runnerLoadPolicyProvider?.(), now }) };
           db.prepare('UPDATE waiter SET runner_wait_reasons = ? WHERE token = ?').run(JSON.stringify(runnerWait.runners), token);
         }
         const runnerHolders = name === 'gate' ? db.prepare("SELECT name, repo FROM holder WHERE name GLOB 'runner:*' ORDER BY since, token").all().map(({ name, repo }) => ({ host: name.slice('runner:'.length), repo })) : [];

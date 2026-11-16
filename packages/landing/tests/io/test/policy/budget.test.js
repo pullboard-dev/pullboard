@@ -9,7 +9,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../../gate/tests/fixtures/child.js';
 import { DEFAULT_TEST_FILE_BUDGET_MS } from '../../../../../gate/index.js';
 import { readTestFileBudgets } from '../../../../../gate/index.js';
 import { requireTestFileRatchet } from '../../../../../gate/index.js';

@@ -1,6 +1,6 @@
 /** Landing's automatic wake custody behind its cell front door [B35,C7]. */
 /** Landing retry and backoff policy for the automatic lander [C7]. */
-export { retryableLandingRefusal, HELD_TRUNK_REFUSALS, LANDING_ADOPT_REFUSALS, NOTHING_TO_LAND, landingWakeTrigger, nextLandingBackoff } from './src/logic/retry.js';
+export { LANDING_FAULT_CODES, retryableLandingRefusal, HELD_TRUNK_REFUSALS, LANDING_ADOPT_REFUSALS, NOTHING_TO_LAND, landingWakeTrigger, nextLandingBackoff } from './src/logic/retry.js';
 /** Landing, queue and main-red front door [C7] */
 export * from "./src/io/computed/conflict/receipt.js";
 export * from "./src/io/computed/conflict/return.js";
@@ -35,6 +35,7 @@ export * from "./src/io/main/red/receipt.js";
 export * from "./src/io/main/red/passing.js";
 export * from "./src/io/queue.js";
 export * from "./src/io/land/envelope.js";
+export { carryLandingHops } from "./src/io/land/fence.js";
 export * from "./src/io/completion.js";
 export * from "./src/io/docs.js";
 export * from "./src/logic/envelope.js";
@@ -67,3 +68,4 @@ export { pushTrunk, runLandingJob, takeLandingJob } from "./src/io/runner/job.js
 /** Lander v2: the pure queue planner and the chained land job built on it [C7]. */
 export { CHAIN_DEPTH, planBatches, planQueue } from './src/logic/queue.js';
 export { returnLastItem, runChainedLandingJob } from './src/io/runner/chain.js';
+export { IDLE_PROBE_INTERVAL_MS, idleRunnerTick } from "./src/io/idle-runners.js";

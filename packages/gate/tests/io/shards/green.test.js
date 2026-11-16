@@ -12,7 +12,7 @@ import { reusableProof } from '../../../src/io/shards/green.js';
 import { writeFileSync } from 'node:fs';
 import { runFixtureGit } from '../../fixtures/child.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
-import { fixtureCommittedGraph } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureCommittedGraph } from '../../fixtures/testkit.js';
 
 const RUNNER = 'node packages/gate/src/io/run/tests.js';
 const FILE = 'test/one.test.js';

@@ -12,7 +12,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { compareMainFailures } from '../../../../index.js';
-import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../../gate/tests/fixtures/child.js';
 
 const RUN_TESTS = join(import.meta.dirname, '../../../../../../apps/cli/src/io/run/tests.js');
 

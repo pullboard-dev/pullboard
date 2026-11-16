@@ -44,6 +44,9 @@ export function createBudgetMeasure(helpers) {
     export: 'prints the whole board as a data document meant for a file, never for an agent context',
   });
 
+  /** Commands whose text reads machine-wide state, which an in-process call does not isolate the way a real process does. */
+  const REAL_PROCESS = new Set(['waits']);
+
   const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 
   /**
@@ -63,24 +66,35 @@ export function createBudgetMeasure(helpers) {
   }
 
   /**
-   * Each measured command's default text in UTF-8 bytes, run through one CLI entrypoint against one board.
+   * Each measured command's default text in UTF-8 bytes, run through one CLI entrypoint against one board. This checkout's
+   * own entry runs in this process (no node start-up per command) except machine-state readers; another checkout's entry, such
+   * as merge-base main, is a real process, a few at a time [C7].
    *
-   * @param {{ repo: string, env: object }} box
+   * @param {{ repo: string, env: object, runIn?: Function }} box
    * @param {string} bin
    * @returns {Promise<Record<string, number>>}
    */
   async function measure(box, bin) {
     const sizes = {};
-    for (const command of Object.keys(COMMANDS).filter(name => !Object.hasOwn(EXCLUDED, name))) {
-      // A refusal still prints its default text; only stdout lands in a reader's context as output.
-      // Process-level: the merge-base main tree is a different checkout, so its CLI entry must be its own process.
-      const pending = runFixtureChildAsync(process.execPath, [bin, command, ...(DEFAULT_ARGS[command] ?? [])], { cwd: box.repo, env: box.env });
+    const commands = Object.keys(COMMANDS).filter(name => !Object.hasOwn(EXCLUDED, name));
+    /** A refusal still prints its default text; only stdout lands in a reader's context as output. */
+    const sizeOf = async command => {
+      const args = [command, ...(DEFAULT_ARGS[command] ?? [])];
+      if (!REAL_PROCESS.has(command) && bin === helpers.BIN && box.runIn) {
+        const result = await box.runIn(box.repo, ...args);
+        sizes[command] = Buffer.byteLength(result.stdout ?? '');
+        return;
+      }
+      const pending = runFixtureChildAsync(process.execPath, [bin, ...args], { cwd: box.repo, env: box.env });
       const timer = setTimeout(() => pending.child.kill('SIGKILL'), 20_000);
       const result = await pending;
       clearTimeout(timer);
       sizes[command] = result.signal ? Infinity : Buffer.byteLength(result.stdout ?? '');
-    }
-    return sizes;
+    };
+    const queue = [...commands];
+    const lanes = bin === helpers.BIN && box.runIn ? 1 : 6;
+    await Promise.all(Array.from({ length: lanes }, async () => { for (let command = queue.shift(); command; command = queue.shift()) await sizeOf(command); }));
+    return Object.fromEntries(commands.map(command => [command, sizes[command]]));
   }
 
   /**

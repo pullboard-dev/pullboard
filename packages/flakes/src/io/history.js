@@ -42,7 +42,7 @@ export function eventHistory(board, name, kinds, parse) {
     if (check.n !== kept.count || check.last !== kept.last) kept = undefined;
   }
   kept ??= { last: 0, count: 0, values: [] };
-  const rows = db.prepare(`SELECT event_id, event_by, item_id, event_at, event_kind, event_detail FROM event
+  const rows = db.prepare(`SELECT * FROM event
     WHERE event_kind IN (${marks}) AND event_id > ? ORDER BY event_id`).all(...kinds, kept.last);
   const fresh = [];
   for (const row of rows) {
