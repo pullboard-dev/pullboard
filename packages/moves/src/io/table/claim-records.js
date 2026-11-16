@@ -23,6 +23,11 @@ function briefDiagnosed(brief) {
   try { return Boolean(brief) && Boolean(parseDiagnosis(brief)); } catch { return false; }
 }
 
+/** Every item's brief by id; empty on a recorded board whose item table predates the brief column. */
+function readBriefs(db) {
+  try { return Object.fromEntries(db.prepare('SELECT item_id, item_brief FROM item').all().map(r => [r.item_id, r.item_brief])); } catch { return {}; }
+}
+
 /** As the board stores it, without the actor's model, which the event writer stamps on every event and no move decides. */
 const stored = ({ model, ...rest }) => JSON.parse(JSON.stringify(rest));
 
@@ -52,7 +57,7 @@ export function readClaimRecords(board, { since, only, leaseMs = LEASE_MS }) {
 function rebuild(db, since, only, leaseMs) {
   const agents = Object.fromEntries(db.prepare('SELECT agent_id, agent_lane, agent_route FROM agent').all().map(a => [a.agent_id, { lane: a.agent_lane, route: a.agent_route }]));
   const parents = Object.fromEntries(db.prepare('SELECT item_id, item_parent_id FROM item').all().map(r => [r.item_id, r.item_parent_id]));
-  const briefs = Object.fromEntries(db.prepare('SELECT item_id, item_brief FROM item').all().map(r => [r.item_id, r.item_brief]));
+  const briefs = readBriefs(db);
   const outside = new Set(db.prepare("SELECT meta_key, meta_value FROM board_meta WHERE meta_key LIKE 'outside_source:%'").all()
     .filter(r => r.meta_value.includes('pull-request')).map(r => Number(r.meta_key.split(':')[1])));
   const items = new Map();
