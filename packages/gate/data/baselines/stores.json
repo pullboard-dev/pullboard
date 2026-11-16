@@ -407,6 +407,10 @@
       "kind": "jsonl",
       "owner": "packages/gate/src/io/run-tests.js"
     },
+    "pullboard-tooling-bundle-*.json": {
+      "kind": "json",
+      "owner": "packages/runners/src/io/tooling/bundle.js"
+    },
     "reply-*.json": {
       "kind": "json",
       "owner": "packages/codemap/src/io/cell/parser.js",
