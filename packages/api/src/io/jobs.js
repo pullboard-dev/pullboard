@@ -837,8 +837,10 @@ export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => n
   if (action === 'progress') return postProgress(db, { job, runner, token, progress, now });
   if (action === 'artifact') return postArtifact(db, { job, runner, token, artifact: body.artifact, now });
   if (action === 'receipt') {
-    const posted = postReceipt(db, { job, runner, token, receipt, now, hop });
-    if (posted.recorded) withdrawLandShards(db, job, { now });
+    // With runs_store on (queue set) the job lives in the runs file, so the receipt posts there [B2,P7].
+    const home = queue ? queue.runs.db : db;
+    const posted = postReceipt(home, { job, runner, token, receipt, now, hop });
+    if (posted.recorded) withdrawLandShards(home, job, { now });
     if (!posted.recorded || !onReceipt) return posted;
     try { return { ...posted, applied: onReceipt(posted) }; }
     catch (error) { if (!error?.code) throw error; return { ...posted, applied: { applied: false, outcome: 'refused', reason: `${error.code}: ${error.message}` } }; }

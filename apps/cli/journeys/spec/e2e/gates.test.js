@@ -93,14 +93,15 @@ test('decisions default up the chain, pass to the person, and return to the orig
   assert.equal((await box.runIn(box.repo, 'answer', personDecision, 'Yes.', '--as', 'person')).code, 0);
 });
 
-test('pullboard worktree makes a joined worktree for a lane in one command [I4]', async () => {
+test('clause 1: pullboard worktree makes a joined worktree for a lane in one command [I4]', async () => {
   const box = project();
   const made = await box.runIn(box.repo, 'worktree', 'api');
   assert.equal(made.code, 0, made.err);
   const path = join(box.dir, 'repo-api-1');
   assert.match(made.out, /on branch api\/1, joined as api-1 \(fixture-model\) in the api lane/);
   assert.match(made.out, new RegExp(`start every command with: cd ${path} &&\n {2}cd ${path} && pullboard inbox\n {2}cd ${path} && pullboard next`));
-  assert.match((await box.runIn(path, 'whoami')).out, /^api-1 \(fixture-model\) \(api lane\)/);
+  const apiSeat = JSON.parse((await box.runIn(path, 'whoami', '--json')).out);
+  assert.deepEqual([apiSeat.id, apiSeat.lane, apiSeat.model], ['api-1', 'api', 'fixture-model']);
   assert.match((await box.runIn(box.repo, 'worktree', 'api')).out, /repo-api-2 on branch api\/2, joined as api-2/);
   assert.match((await box.runIn(box.repo, 'worktree', 'nope')).err, /NO_LANE/);
 });

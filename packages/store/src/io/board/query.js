@@ -49,7 +49,7 @@ import { now } from "./read/light.js";
 import { listItems } from "./read/light.js";
 export { now, boardId, listItems, listItemsSql } from "./read/light.js";
 
-const REVIEW_RESERVATION_HEARTBEAT_TIMEOUT_MS = 2 * 60_000;
+export const REVIEW_RESERVATION_HEARTBEAT_TIMEOUT_MS = 2 * 60_000;
 
 /**
  * True while someone holds the item under a lease that has not lapsed, or while the holder's own queued gate waits or
