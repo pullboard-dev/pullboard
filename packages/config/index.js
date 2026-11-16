@@ -94,6 +94,7 @@ export {
   addWarnUnnamedTest,
   holdsRequireOwner,
   nextItemNotices,
+  nextCapBuilders,
   nextReadinessCheck,
   refuseTempWorktree,
   claimKeepWhileRunning,
