@@ -23,6 +23,11 @@ import { apiBoardOpeners } from './board.js';
 import { withFixtureBoard } from './board.js';
 import { main } from './native.js';
 import { runCliInProcess } from './process.js';
+import { runCliSync } from './sync/cli.js';
+import { JOURNEY_MODE } from './e2e.js';
+import { journeyCall } from './e2e.js';
+import { parityRecord } from './e2e.js';
+import { appendFileSync } from 'node:fs';
 import { fixtureSettledMachine } from './testkit.js';
 import { fixtureProjectPolicy } from './testkit.js';
 import { refusalDocument } from '../../index.js';
@@ -267,8 +272,18 @@ export function apiHttpFixture(t) {
   mkdirSync(env.HOME);
   /** Run Git only inside the private fixture. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env, stdio: 'pipe', encoding: 'utf8' });
-  /** Exercise this worktree's real CLI with a private environment. */
-  const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+  /** One real CLI process with a private environment: the fixture's process-mode path, so PULLBOARD_JOURNEY_MODE=process still runs every call for real [C7]. */
+  const realRun = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+  /**
+   * This worktree's CLI with a private environment, answered synchronously by a warm worker thread (no node start-up), or as a real
+   * process under PULLBOARD_JOURNEY_MODE=process; PULLBOARD_PARITY_RECORD appends each call's record for the parity check [C7].
+   * Why: these are quick setup moves (init, add, fact, settings, runner add); none settles a pulled job, so none needs a process.
+   */
+  const run = (cwd, ...args) => {
+    const result = JOURNEY_MODE === 'process' ? realRun(cwd, ...args) : runCliSync(args, { cwd, env });
+    if (process.env.PULLBOARD_PARITY_RECORD) appendFileSync(process.env.PULLBOARD_PARITY_RECORD, `${JSON.stringify(parityRecord({ dir, env, cwd, args, result: { code: result.status, out: result.stdout, stderr: result.stderr } }))}\n`);
+    return result;
+  };
   /** Decode one versioned CLI result, failing with its refusal code and message when it did not succeed. */
   function decodeCli(result) {
     let reason = result.stderr;
@@ -290,7 +305,8 @@ export function apiHttpFixture(t) {
   }
   /** The same call answered by the production dispatcher in this process, without a node start-up [C7]. */
   async function cliLocal(cwd, ...args) {
-    return decodeCli(await runCliInProcess([...args, '--json'], { cwd, env }));
+    const called = [...args, '--json'];
+    return decodeCli(await journeyCall({ dir, env, cwd, args: called, inProcess: () => runCliInProcess(called, { cwd, env }), real: () => realRun(cwd, ...called) }));
   }
   git('init', '-q', '-b', 'main');
   cli(root, 'init');
