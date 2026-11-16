@@ -102,6 +102,7 @@ export {
   refuseOffMainHead,
   statusShowUsefulBuilders,
   refuseEmptyBar,
+  rejectKeepsCheck,
   viewBackgroundEnabled,
   healthSentinelEnabled,
   reviewReleaseReasonsRequired,

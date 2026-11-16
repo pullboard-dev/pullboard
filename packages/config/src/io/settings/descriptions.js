@@ -212,6 +212,7 @@ const ROWS = [
   ['verify.landedReviews', 'Review forced landings', 'On, next --verify offers an item a forced merge landed with no verdict as a review of its merged commit, after the ordinary submitted reviews; off, only submitted work is offered.', 'Review', 'on/off'],
   ['verify.policy', 'Who may review', 'Any other agent may review, or only the coordinator.', 'Review', 'choice'],
   ['verify.queueAccept', 'Queue the accept check', 'On, verify accept queues the frozen check as a runner job, reserves the review to the accepting seat and returns at once; off (default) runs the check before the accept returns.', 'Review', 'on/off'],
+  ['verify.rejectKeepsCheck', 'Landed rejects keep the check', 'On, a reviewer\'s reject of a landed item reopens it as a follow-up carrying the landed item\'s exact check, which a reviewer cannot set or edit; off (default), such a reject is refused when the item has a check only the coordinator may set.', 'Review', 'on/off'],
   ['verify.requireRowRewrite', 'Require bar rewrites for changed rows', 'On, a restructure move refuses while an open item cites a spec row whose text changed with no rewrite edit recorded for its bar, and names the coordinator; off (default) moves without checking.', 'Review', 'on/off'],
   ['verify.reviewRatio', 'Reviews to builds', 'How many builds each reviewer is scheduled against.', 'Review', 'ratio'],
   ['verify.testAuthorSplit', 'Separate test author', 'Submit refuses an item whose own seat wrote a bar-named test file; another seat must be the recorded author.', 'Review', 'on/off'],

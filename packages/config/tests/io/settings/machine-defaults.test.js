@@ -128,6 +128,7 @@ const BEFORE = {
   'tests.registryStrict': false,
   'tests.requireJourneyPath': false,
   'tests.requireRegistered': false,
+  'verify.rejectKeepsCheck': false,
   'view.background': true,
 };
 

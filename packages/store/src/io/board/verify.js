@@ -1,3 +1,4 @@
+import { rejectKeepsCheck } from '../../../../config/index.js';
 import { REJECT_OPEN_ENGINE } from '../../../../state/index.js';
 import { LANDED_VERDICT_ENGINE } from '../../../../state/index.js';
 import { LANDED_REJECT_ENGINE } from '../../../../state/index.js';
@@ -257,6 +258,11 @@ function landedFollowUpBar(found, id, reason, note, engine) {
   return { route: 'strong', criterion, brief: review };
 }
 
+/** With verify.rejectKeepsCheck on, the follow-up may carry its parent's exact check; with it off, a non-coordinator reject is refused as before [#9637]. */
+function followUpCheck(found, bar) {
+  return rejectKeepsCheck() && bar.check !== undefined && bar.check === found.item_check ? { ...bar, keptCheckFrom: found.item_check } : bar;
+}
+
 /**
  * Record a verdict on an item a forced merge landed around the gate with no review (V1).
  * An accept is recorded as a verdict and the landing stays: the item keeps its status and merged commit.
@@ -292,7 +298,7 @@ function landedVerdict(board, id, { agentId, isAccept, decision, code, reason, n
     setItem(board, id, { item_verdict: decision, item_verified_by: agentId });
     // A landed item cannot move back, so a reject opens a follow-up item in its lane for the builder to fix.
     const followUp = isAccept ? null : addItem(board, { by: agentId, lane: found.item_lane, title: `Fix after review of #${id}: ${found.item_title}`.slice(0, 120),
-      specIds: [], parentId: null, after: [], ...landedFollowUpBar(found, id, reason, suppliedNote, engine) });
+      specIds: [], parentId: null, after: [], ...followUpCheck(found, landedFollowUpBar(found, id, reason, suppliedNote, engine)) });
     logEvent(board, agentId, 'verify', id, { reason: code, commit: found.item_merged_commit, landed: true, note: suppliedNote, ...(followUp ? { followUp } : {}) });
     return { decision, reason: code, ...(followUp ? { followUp } : {}) };
   });
