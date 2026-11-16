@@ -167,10 +167,13 @@ test('clause 1: extraRoots naming the materializer worker and the rule-proof app
   assert.deepEqual(EXTRA_REQUEST_ROOTS, ['packages/api/src/io/state/materializer/worker.js', 'packages/verify/src/io/rule/proof/append.js#appendRuleProof']);
   const added = { file: 'packages/jobs/src/io/extra-root-added.js', source: "import { spawnSync } from 'node:child_process';\nexport function addedBlocker() { return spawnSync('ls'); }\n" };
   const owner = 'packages/jobs/src/io/extra-root-added.js#addedBlocker';
-  const base = apiRequestIoProblems(sources);
   const inject = (file, anchor) => [...sources.map(row => row.file === file ? { ...row, source: `import { addedBlocker } from '${'../'.repeat(file.split('/').length - 1)}packages/jobs/src/io/extra-root-added.js';\n` + row.source.replace(anchor, `${anchor}\n  addedBlocker();`) } : row), added];
   for (const [file, anchor] of [['packages/api/src/io/state/materializer/worker.js', 'function prewarm() {'], ['packages/verify/src/io/rule/proof/append.js', 'export function appendRuleProof(board, event, detail, get, put) {']]) {
-    const tree = inject(file, anchor);
+    // The append is also reached from the counters module; cut that one call so only the extra root reaches it.
+    const cut = tree => tree.map(row => row.file === 'packages/verify/src/io/proof/counters.js' ? { ...row, source: row.source.replace('  appendRuleProof(board,', '  void (board,') } : row);
+    const tree = file.endsWith('append.js') ? cut(inject(file, anchor)) : inject(file, anchor);
+    const base = apiRequestIoProblems(file.endsWith('append.js') ? cut(sources) : sources);
+    if (file.endsWith('append.js')) assert.ok(!cut(sources).find(row => row.file.endsWith('proof/counters.js')).source.includes('  appendRuleProof(board,'), 'the other caller is cut');
     assert.ok(tree.find(row => row.file === file).source.includes('addedBlocker();'), `${file} carries the seeded call`);
     assert.deepEqual(apiRequestIoProblems(tree, { extraRoots: [] }).map(row => row.owner), base.map(row => row.owner), `${file}: with extraRoots empty the report is unchanged`);
     assert.deepEqual(apiRequestIoProblems(tree).map(row => row.owner), base.map(row => row.owner), `${file}: with no option the report is unchanged`);
