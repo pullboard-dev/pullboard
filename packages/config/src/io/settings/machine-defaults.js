@@ -15,6 +15,7 @@ export const MACHINE_DEFAULTS = {
   'claim.refuseOffMainHead': false,
   'freeze.refuseEmptyBar': false,
   'gate.adapterLintClock': false,
+  'gate.adapterLintFs': false,
   'gate.adapterLintTimers': false,
   'gate.browserByLaunch': false,
   'gate.browserFreeChecks': false,
