@@ -370,5 +370,10 @@ test('clause 1: an approved revision applies while an unrelated held item cites 
   const applied = await box.spec('apply', '--json');
   assert.equal(applied.status, 0, `${applied.stdout}${applied.stderr}`);
   assert.ok(readFileSync(join(box.root, 'SPEC.md'), 'utf8').includes(text), 'the approved revision is written');
-  console.log(applied.stdout, applied.stderr);
+  const document = JSON.parse(applied.stdout);
+  assert.deepEqual(document.applied.map(row => row.id), ['G1'], 'only the approved revision is applied');
+  assert.deepEqual(document.held, [], 'the unrelated held item holds nothing back');
+  // The drift stays visible as a finding on the held item; it never blocked the apply.
+  const doctor = await runAt(box.root, 'doctor', '--json');
+  assert.match(`${doctor.stdout}${doctor.stderr}`, new RegExp(`STALE_ITEM[^]*item #${id}\\b`, 'u'));
 });
