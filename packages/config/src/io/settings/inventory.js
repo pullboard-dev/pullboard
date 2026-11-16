@@ -36,7 +36,7 @@ const MACHINE_DEFAULTS = {
   'health.sentinel': true, 'view.background': true, 'relay.offerAtInit': true, runners: [], runnerRates: {}, 'landing.pools': [], 'landing.reofferTrunkBusy': false,
   'runners.fetchFailFast': false, 'runners.drainOnFetchFailure': false,
   'submit.proofOnly': false, 'census.rerunNonGreen': false,
-  'serve.address': '127.0.0.1', 'serve.port': 0, scratch: null, 'moves.shadow': false, 'tests.registryStrict': false, 'census.balanceByTime': false, 'census.recordFileTimes': false, 'moves.live.claim': false, 'moves.live.outbox': false, 'moves.live.handoff': false, 'moves.live.submit': false, 'moves.live.outcome': false, 'moves.live.job': false, 'moves.live.reopen': false,
+  'serve.address': '127.0.0.1', 'serve.port': 0, scratch: null, 'moves.shadow': false, 'tests.registryStrict': false, 'test.statusOutcomes': false, 'census.balanceByTime': false, 'census.recordFileTimes': false, 'moves.live.claim': false, 'moves.live.outbox': false, 'moves.live.handoff': false, 'moves.live.submit': false, 'moves.live.outcome': false, 'moves.live.job': false, 'moves.live.reopen': false,
   'census.jobMinutes': null, 'census.jobsPerRunner': null, 'claim.refuseOffMainHead': false,
   'runners.yieldWhilePruning': false, 'runners.postedLineNamesCase': false,
 };
@@ -44,7 +44,7 @@ const OPTIONAL_REPO_DEFAULTS = {
   'submit.handoff': false, 'withdraw.review': false, 'withdraw.refuseLanded': false,
   project: null, name: null, generated: null, tiers: null, laneMode: 'on', 'checks.provesNothing': 'warn', 'verify.unrelatedTrunkMoves': false, 'verify.landedReviews': false, 'verify.queueAccept': false, 'verify.requireRowRewrite': false, 'resume.adoptOrphans': false, 'verify.composeAtAdmission': false, 'verify.familyRelaxAt': null,
   'flakes.rerun': false, 'flakes.quarantine': false, 'rigor.budget': 400, 'rigor.autoDraft': true, 'cells.cache': false, 'cells.shimMaxAgeDays': 7, 'relay.outbox': true, 'relay.board': null,
-  submitGate: null, submitDeferAbove: null, landingShards: 1, 'landing.publish': null, 'landing.pauseOnRed': false, 'landing.manualOverride': false, 'landing.perItem': true, 'landing.shardProof': false, 'landing.landedFromMain': false, 'landing.ledgerMainReds': false, 'landing.adaptiveBatch': false, 'landing.first': null, 'landing.auditOnly': null, 'landing.environment': null, 'landing.trunkRemote': null, positiveControl: null, affectedTests: null, affectedSuites: null,
+  submitGate: null, submitDeferAbove: null, landingShards: 1, 'landing.publish': null, 'landing.pauseOnRed': false, 'landing.manualOverride': false, 'landing.perItem': true, 'landing.shardProof': false, 'landing.pipeline': false, 'landing.landedFromMain': false, 'landing.ledgerMainReds': false, 'landing.adaptiveBatch': false, 'landing.first': null, 'landing.auditOnly': null, 'landing.environment': null, 'landing.trunkRemote': null, positiveControl: null, affectedTests: null, affectedSuites: null,
   'inbox.keepUntilActed': false, 'inbox.escalateAfterMinutes': null, 'queue.contention': false, 'queue.contentionThreshold': 1,
   'health.sentinel': true, 'testConcurrency.browser': 2, approvers: null, 'claims.perSeat': null, 'claims.itemsInGate': false, 'claims.itemsInGateMax': 3, 'claims.fileLease': false, 'claims.fileLeaseHubs': [], 'seat.checkpoints': false,
 };
