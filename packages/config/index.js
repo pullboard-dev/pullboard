@@ -21,6 +21,7 @@ export {
 export { trunkRemote } from './src/io/trunk.js';
 export { hostOf, roleHosts } from './src/logic/hosts.js';
 export { trunkProblems, configTrunkRemote } from './src/logic/trunk.js';
+export { staleGeneratedFiles } from './src/logic/generated.js';
 export { scratchRoot } from './src/logic/scratch.js';
 export { scratchFolder, moveAcross, applyMachineScratch } from './src/logic/scratch/folder.js';
 export {
@@ -49,16 +50,30 @@ export {
   censusRecordFileTimesEnabled,
   censusBalanceByTimeEnabled,
   censusJobMinutes,
+  censusSoloFileSeconds,
   censusJobsPerRunner,
+  censusJobsPerRunnerQuiet,
+  jobsAvoidRunnersEnabled,
+  pushRecordTimingEnabled,
+  pushRerunFailedShardOnceEnabled,
   tableReplayEnabled,
   testNiceEnabled,
   fencedHopEnabled,
   endStaleJobsEnabled,
+  reofferInfraEndEnabled,
+  recaptureHandoffEnabled,
   redFactLocationEnabled,
   settleOnMainReceiptEnabled,
   movesShadowEnabled,
   censusRerunNonGreenEnabled,
+  censusSelfTuneEnabled,
+  censusRerunOnSettleEnabled,
   registryStrictEnabled,
+  hunkFreshnessEnabled,
+  requireRegisteredEnabled,
+  requireJourneyPathEnabled,
+  adapterLintClockEnabled,
+  adapterLintFsEnabled,
   movesLiveEnabled,
   gateRunnerAdmission,
   setGateRunnersOnly,
@@ -77,21 +92,39 @@ export {
   staticCheckSlots,
   staticMemoOn,
   serveListen,
+  servePullRoute,
   mainComparisonMode,
   submitAuthorizationMode,
   refuseMissingCheckFile,
+  addWarnUnnamedTest,
   holdsRequireOwner,
   nextItemNotices,
+  nextCapBuilders,
+  nextReadinessCheck,
+  nextReadinessCache,
   refuseTempWorktree,
+  claimKeepWhileRunning,
   refuseOffMainHead,
+  statusShowUsefulBuilders,
+  refuseEmptyBar,
+  rejectKeepsCheck,
   viewBackgroundEnabled,
   healthSentinelEnabled,
   reviewReleaseReasonsRequired,
   lapsedSweepEnabled,
   derivedStateEnabled,
+  testStatusOutcomesEnabled,
+  cascadeRejectEnabled,
+  typedFieldsEnabled,
   recordWriteHolderEnabled,
   adaptiveBatchEnabled,
+  landingSquashEnabled,
+  strictFullSuiteEnabled,
+  commitOnApplyEnabled,
   reofferTrunkBusyEnabled,
+  archiveEventsEnabled,
+  reuseContractResultsEnabled,
+  reuseGateReceiptsEnabled,
   memoryFloorMB,
   relayOfferEnabled,
   setRelayCanary,
@@ -139,7 +172,6 @@ export {
   readGitSyncMarker,
   gitSyncMarkerLinked,
   gitSyncRecoveryNeeded,
-  readGitSyncRepairs,
 } from './src/io/git/sync.js';
 export {
   SETTING_DESCRIPTIONS,
@@ -183,11 +215,13 @@ export {
 } from './src/logic/maintenance.js';
 
 export { submitProofOnly } from './src/logic/settings.js';
+export { submitClauseMarks } from './src/logic/settings.js';
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';
-export { listThinRead, namedImportSelectionOn } from './src/logic/settings.js';
+export { listThinRead, namedImportSelectionOn, relayPruneReceipts } from './src/logic/settings.js';
 export { retireIdleSeatHours } from './src/logic/settings.js';
 export { healthDiskFloorGb } from './src/logic/settings.js';
 export { boardKey, boardKeyFile } from './src/io/settings.js';
 export { boardRemote, setBoardRemote } from './src/io/settings.js';
 export { setPersonSetting } from './src/io/settings.js';
+export { MACHINE_DEFAULTS } from './src/io/settings/machine-defaults.js';
 export { costPerMinute } from './src/logic/runner-rates.js';

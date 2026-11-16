@@ -25,12 +25,12 @@ export function reviewFamilyRelaxation(board, item, agentId, threshold, policy, 
  * Inside the write lock, confirm a witness reviewFamilyRelaxation built before it, without rebuilding it (#3156).
  * Returns the witness, or null when the frozen rule or the board no longer supports it.
  */
-export function confirmFamilyRelaxation(board, item, witness, agentId, threshold, policy, familyPolicy) {
+export function confirmFamilyRelaxation(board, item, witness, agentId, threshold, policy, familyPolicy, reviewHeartbeats = null) {
   if (frozenFamilyPolicy(item, familyPolicy) !== 'require' || itemReviewPolicy(board, item.item_id).tier !== 'standard') return null;
   const frozen = frozenRelaxAt(item);
   if (!frozen || threshold !== undefined && threshold !== frozen) return null;
   return confirmRelaxation(board, item, witness, agentId, frozen, policy,
-    { reviewerChecks, reviewHolder, reviewReleaseCooldown, listItems, getItem, seatFamily, familiesDiffer, itemReviewPolicy });
+    { reviewerChecks, reviewHolder, reviewReleaseCooldown, listItems, getItem, seatFamily, familiesDiffer, itemReviewPolicy, reviewHeartbeats });
 }
 
 export { frozenRelaxAt, reservedRelaxation } from '../../relaxation.js';

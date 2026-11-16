@@ -250,7 +250,7 @@ function enforceMilestoneLimit(board, milestone, items, itemById, plainAdd = fal
  * Edit membership atomically. A swap removes and adds in one receiver transaction, checked against
  * the final count; historical add/remove moves retain their recorded meaning [N26,H16].
  */
-export function editMilestoneItems(board, name, { agentId, add = [], remove = [], swap = [], reason }, ports) {
+export function editMilestoneItems(board, name, { agentId, add = [], remove = [], swap = [], reason, asPerson = false }, ports) {
   const { atomic, itemById, logEvent, milestones, PERSON } = milestonePorts(ports, ["atomic", "itemById", "logEvent", "milestones", "PERSON"]);
   const why = placementActor(board, agentId, PERSON, reason);
   const additions = normalizeMilestoneItems(add);
@@ -275,7 +275,9 @@ export function editMilestoneItems(board, name, { agentId, add = [], remove = []
     const nextItems = swaps.length
       ? current.items.map(id => id === swaps[0] ? additions[0] : id)
       : [...current.items.filter(id => !removed.includes(id)), ...additions];
-    if (additions.length) enforceMilestoneLimit(board, current, nextItems, itemById, swaps.length === 0);
+    // The person's signed add may grow a milestone past its limit; an agent or the coordinator may not [N26,H16].
+    const personGrows = asPerson && swaps.length === 0 && engineOf(board) >= MILESTONE_PERSON_LIMIT_ENGINE;
+    if (additions.length && !personGrows) enforceMilestoneLimit(board, current, nextItems, itemById, swaps.length === 0);
     entries[index] = { ...current, items: nextItems,
       ...((board.executionEngineVersion ?? ENGINE_VERSION) >= MILESTONE_RANK_ENGINE && current.order
         ? { order: current.order.map(id => swaps.includes(id) ? additions[0] : id).filter(id => nextItems.includes(id)) } : {}) };
@@ -284,7 +286,7 @@ export function editMilestoneItems(board, name, { agentId, add = [], remove = []
     }
     movePlacedItems(entries, index, placed);
     saveMilestones(board, entries);
-    logEvent(board, agentId, 'milestone_items', null, { name, add: additions, remove: removals, ...(swaps.length ? { swap: swaps } : {}), ...(why ? { reason: why } : {}) });
+    logEvent(board, agentId, 'milestone_items', null, { name, add: additions, remove: removals, ...(swaps.length ? { swap: swaps } : {}), ...(why ? { reason: why } : {}), ...(personGrows ? { asPerson: true } : {}) });
     for (const id of placed) logEvent(board, agentId, 'milestone_placed', id, { milestone: name, rule: 'override', reason: why, note: `placed in ${name} by override: ${why}` });
     return nextItems;
   });

@@ -6,6 +6,7 @@ import {
   parseSpec,
 } from './main.js';
 import { Refused } from '../../../kernel/index.js';
+import { servesClosure } from '../logic/row/closure.js';
 import {
   rowVerificationSource,
   verifiedRowSource,
@@ -40,8 +41,23 @@ function outsideParent(board, author, verifier) {
   if (authorParent === verifierParent) throw new Refused('ROW_VERIFY_SELF', 'the row verifier shares its author parent session; ask an outside-parent verifier to run pullboard spec verify');
 }
 
+/**
+ * Tell the author of a row marked needs-review which row was rejected, or the coordinator when no author is recorded [C7,#9342].
+ * Why the coordinator: a row nobody drafted still needs someone to re-accept or correct it.
+ */
+function sendBack(board, { served, rejected, from }, { rowDrafts, shout }) {
+  const authors = new Set(rowDrafts(board).filter(draft => draft.id === served && (draft.target ?? 'spec') === 'spec' && !draft.revises).map(draft => draft.by));
+  const to = authors.size === 1 ? [...authors][0] : 'coordinator';
+  shout(board, { from, to, lanes: [], kind: 'status', text: `${rejected} was rejected; ${served} serves it and needs review: pullboard spec show ${served}` });
+}
+
 /** Record an exact-row receipt under the authenticated operation actor, without writing a file. */
-export function recordRowVerification(board, { agentId, source, decision, reason }, { atomic, logEvent, rowDrafts, rowDecisions }) {
+/**
+ * Record a verifier's verdict on one spec row. With `cascade` (the spec's rows with their serves) given, which the caller passes only while spec.cascadeReject is on,
+ * a rejection also writes one row_needs_review event for each row that serves the rejected one, naming it [C7,#9341].
+ * Why events: needs-review is board data, never a SPEC.md status, so the approved status list stays as it is.
+ */
+export function recordRowVerification(board, { agentId, source, decision, reason, cascade }, { atomic, logEvent, rowDrafts, rowDecisions, shout }) {
   if (typeof source !== 'string' || /[\r\n]/u.test(source) || !['accepted', 'rejected'].includes(decision)
     || typeof reason !== 'string' || !reason.trim() || /[\r\n|]/u.test(reason)) {
     throw new Refused('ROW_VERIFY', 'name one row, accepted or rejected and a one-line reason: pullboard spec verify <id> accepted --reason "why"');
@@ -64,8 +80,38 @@ export function recordRowVerification(board, { agentId, source, decision, reason
     const records = [...rowVerifications(board).filter(old => old.id !== row.id), entry];
     board.db.prepare("INSERT INTO board_meta(meta_key,meta_value) VALUES ('row_verifications',?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value")
       .run(JSON.stringify(records));
+    if (decision === 'rejected' && Array.isArray(cascade)) {
+      for (const served of servesClosure({ rows: cascade }, row.id)) {
+        logEvent(board, agentId, 'row_needs_review', null, { id: served, because: row.id, verification: entry.event });
+        if (typeof shout === 'function') sendBack(board, { served, rejected: row.id, from: agentId }, { rowDrafts, shout });
+      }
+    }
     return entry;
   });
+}
+
+/**
+ * One warning per spec row that still carries a needs-review mark from a rejected row it serves [C7,#9343].
+ * A mark clears once the row has a later accepted verification, or a later applied person decision on its text; with `enabled` false (spec.cascadeReject off) there is none.
+ * Why derived: needs-review is board data read from events, never a SPEC.md status, so the approved status list stays as it is.
+ */
+export function needsReviewFindings(board, parsed, { enabled = false } = {}) {
+  if (!enabled || !board) return [];
+  const marks = board.db.prepare("SELECT event_id, event_detail FROM event WHERE event_kind='row_needs_review' ORDER BY event_id").all()
+    .map(event => ({ event: event.event_id, ...JSON.parse(event.event_detail) }));
+  const verifications = rowVerifications(board);
+  let decisions = [];
+  const stored = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='row_decisions'").get();
+  if (stored) decisions = JSON.parse(stored.meta_value);
+  const outstanding = new Map();
+  for (const mark of marks) {
+    const cleared = verifications.some(record => record.id === mark.id && record.decision === 'accepted' && record.event > mark.event)
+      || decisions.some(record => record.id === mark.id && record.applied && record.decision !== 'decline' && record.event > mark.event);
+    if (cleared) outstanding.delete(mark.id);
+    else outstanding.set(mark.id, [...new Set([...(outstanding.get(mark.id) ?? []), mark.because])]);
+  }
+  return parsed.rows.filter(row => outstanding.has(row.id)).map(row => ({ level: 'warning', line: row.line, id: row.id,
+    message: `NEEDS_REVIEW: serves rejected ${outstanding.get(row.id).join(', ')}; re-verify it (pullboard spec verify ${row.id} accepted) or correct its text` }));
 }
 
 /** Reject fabricated, stale or same-parent file annotations against the current exact receipt. */

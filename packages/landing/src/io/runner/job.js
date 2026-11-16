@@ -10,6 +10,8 @@ import { tryGit } from '../../../../git/index.js';
 import { permitPushOptions } from '../../../../git/index.js';
 import { RUNNER_POLICY_FILE } from '../../../../sandbox/light.js';
 import { runnerPolicyRecord } from '../../../../sandbox/light.js';
+import { itemKeepRef } from '../land/squash.js';
+import { squashOnto } from '../land/squash.js';
 import { amendLandingEngines } from '../derive.js';
 import { amendLandingRegistries } from '../derive.js';
 import { proofLimitMs } from './deadline.js';
@@ -249,23 +251,25 @@ async function landingCheck(payload, env, phases = null, shards = null) {
     // The board's staticChecks guard runs on the merged tree before any test; its red returns the item that turned it red [C7,#7492].
     const staticGuard = payload.staticChecks ? (await import('./static.js')).staticGuardCheck(payload.staticChecks, argv => commandCheck(argv, { deadline })) : null;
     const proveFiles = own => {
-      const here = prove(own, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [], deadline });
+      const here = prove(own, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [], deadline, reuseGate: payload.reuseGateReceipts === true });
       return sharded ? sharded(own, { ...shards, gate: payload.shardProof, deadline }, here) : here;
     };
+    // The proof and the contracts each record the milliseconds they spent, red or not, so a slow land reads its own split [C7,#9245].
+    const phaseOf = (name, part) => context => timed(phases, name, () => part(context));
     const timedGuard = staticGuard && (context => timed(phases, 'static checks', () => staticGuard(context)));
     const guard = timedGuard && carry ? (context => carry(context, timedGuard)) : timedGuard;
     const parts = [['check', landingGuards(payload, phases)], ...(guard ? [['check', guard]] : []), ...payload.items.filter(entry => merged.has(entry.id) && typeof payload.checks?.[entry.id] === 'string').map(entry => ['check', commandCheck(['sh', '-c', payload.checks[entry.id]], { deadline })]),
-      ...(payload.check ? [['proof', commandCheck(payload.check, { deadline })]] : []),
-      ...(prove && files.length ? [['proof', proveFiles({ ...payload.proof, files })]] : [])];
+      ...(payload.check ? [['proof', phaseOf('proof', commandCheck(payload.check, { deadline }))]] : []),
+      ...(prove && files.length ? [['proof', phaseOf('proof', proveFiles({ ...payload.proof, files }))]] : [])];
     // Files an item's submit deferred to this landing run on the merged tree once their item is in it; a red returns the item [C7].
     const deferred = payload.deferred && typeof payload.deferred.runner === 'string' ? payload.deferred : null;
     if (deferred && prove) for (const entry of payload.items.filter(row => merged.has(row.id))) {
       const owed = (deferred.files?.[String(entry.id)] ?? []).filter(file => existsSync(join(context.root, file)));
-      if (owed.length) parts.push(['proof', prove({ runner: deferred.runner, files: owed, ledger: null }, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [], deadline })]);
+      if (owed.length) parts.push(['proof', phaseOf('proof', prove({ runner: deferred.runner, files: owed, ledger: null }, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [], deadline }))]);
     }
     // Affected tests no submit proved (contracts main gained since, deferred journeys) run on the tree being checked [C7,#7378].
     const contractPart = payload.contracts ? (await import('./contracts.js')).contractCheck(payload, env) : null;
-    if (contractPart) parts.push(['proof', contractPart]);
+    if (contractPart) parts.push(['proof', phaseOf('contracts', contractPart)]);
     let proof = null, waived = null, contracts = null;
     for (const [role, part] of parts) {
       const result = await part(context);
@@ -278,12 +282,29 @@ async function landingCheck(payload, env, phases = null, shards = null) {
   };
 }
 
-/** Merge one item onto HEAD with --no-ff; null when it merged, else why not, with the merge aborted. */
-function mergeItem(root, entry, base) {
+/**
+ * Land one item onto HEAD; null when it landed, else why not, with the merge aborted.
+ * Off (the default) it is the --no-ff merge. With `squash` (landing.squash) it is one single-parent commit through
+ * squashOnto, with the same message, and HEAD moves to it. Why: main keeps one commit per item, and the branch stays
+ * under refs/pullboard/items/<id> for audit [C7,#9219].
+ */
+function mergeItem(root, entry, base, squash = false) {
+  if (squash) return squashItem(root, entry, base);
   const merged = tryGit(root, landingMergeArgs(root, entry));
   if (merged.status === 0) return null;
   tryGit(root, ['merge', '--abort']);
   return `#${entry.id} does not merge on ${base.slice(0, 12)}: ${(merged.stdout || merged.stderr).slice(0, 240)}`;
+}
+
+/** The squash path of mergeItem: the offered header and trailers (or the merge fallback subject) as the one commit's message. */
+function squashItem(root, entry, base) {
+  const message = typeof entry.header === 'string' && typeof entry.trailers === 'string'
+    ? `${entry.header}\n\n${entry.trailers}` : `Merge #${entry.id} onto main [${citedIds(root, entry.commit)}]`;
+  const head = must(root, ['rev-parse', 'HEAD']);
+  const squashed = squashOnto(root, { base: head, tip: entry.commit, message, item: entry.id });
+  if (squashed.conflict) return `#${entry.id} does not merge on ${base.slice(0, 12)}: conflict in ${squashed.files.join(', ').slice(0, 240)}`;
+  must(root, ['reset', '-q', '--hard', squashed.commit]);
+  return null;
 }
 
 /**
@@ -310,7 +331,7 @@ async function isolateReds(root, { base, trunk, pending, check, renew, payload }
   let detail = null;
   for (const entry of pending) {
     const before = must(root, ['rev-parse', 'HEAD']);
-    if (mergeItem(root, entry, base)) { red.push(entry.id); continue; }
+    if (mergeItem(root, entry, base, payload.squash === true)) { red.push(entry.id); continue; }
     if (!await renew()) return null;
     const derived = await deriveMerged(root, { base, badges: payload.badges });
     admitTrunk(root, { trunk, base });
@@ -331,9 +352,12 @@ async function isolateReds(root, { base, trunk, pending, check, renew, payload }
  * Each landed item's first-containing merge on the first-parent path from base to tip, by item id. Why: the board
  * records each item at its own merge, as the Mac engine did, not every item at the batch tip [B3,R3,#7506].
  */
-function firstMerges(root, base, tip, pending) {
+function firstMerges(root, base, tip, pending, squash = false) {
   const merges = {};
-  for (const merge of must(root, ['rev-list', '--reverse', '--first-parent', `${base}..${tip}`]).split('\n').filter(Boolean)) {
+  const path = must(root, ['rev-list', '--reverse', '--first-parent', `${base}..${tip}`]).split('\n').filter(Boolean);
+  // A squashed item is not an ancestor of its commit; the commits follow the order the items were squashed in [C7,#9219].
+  if (squash && path.length === pending.length) { pending.forEach((entry, index) => { merges[entry.id] = path[index]; }); return merges; }
+  for (const merge of path) {
     for (const entry of pending) if (!merges[entry.id] && tryGit(root, ['merge-base', '--is-ancestor', entry.commit, merge]).status === 0) merges[entry.id] = merge;
   }
   return merges;
@@ -373,12 +397,16 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
   const done = (outcome, fields = {}) => Object.assign(receipt, { outcome }, fields);
   // guard: the static guard row a red came from; the board returns that item to its builder even under separate publish [#7492].
   const giveBack = (id, reason, detail, guard = null) => { receipt.returned.push({ id, reason, detail, ...(guard ? { guard } : {}) }); receipt.detail ??= detail; };
+  // Renew before each synchronous fetch: git blocks this process's event loop, so the runner's background renewal cannot fire
+  // while one runs, and a fetch pair longer than the 2-minute lease let five runners in a row claim #9180's job and drop it [C7,#9250].
   for (const entry of items) {
+    if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner while it fetched the accepted items' });
     const fetched = fetchItem(root, remote, entry);
     if (fetched.moved) return done('item-moved', { detail: `#${entry.id}: ${fetched.moved}` });
   }
   for (let attempt = 1; attempt <= attempts; attempt++) {
     receipt.attempts = attempt;
+    if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner before it fetched trunk' });
     const base = fetchTrunk(root, remote, trunk);
     if (base !== (receipt.base ?? expect)) receipt.moved.push(base);
     receipt.base = base;
@@ -392,8 +420,9 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     must(root, ['clean', '-q', '-fd']);
     // A sibling that collides goes back alone, as in 0.9.3: the items that merge cleanly still land [P7].
     const mergeStart = Date.now();
+    const squash = payload.squash === true;
     let pending = waiting.filter(entry => {
-      const collided = mergeItem(root, entry, base);
+      const collided = mergeItem(root, entry, base, squash);
       if (collided) giveBack(entry.id, 'conflict', collided);
       return !collided;
     });
@@ -438,11 +467,14 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     const tip = must(root, ['rev-parse', 'HEAD']);
     const pushStart = Date.now();
     // With hops on the job (gate.fencedHop), a fence at a later epoch refuses HOP_FENCED here, before trunk is pushed [C7,#8437].
-    const fence = Array.isArray(payload.hops) && payload.hops.length ? (await import('../step/publish.js')).hopFencePush(root, remote, payload.hops) : null;
+    const hopFence = Array.isArray(payload.hops) && payload.hops.length ? (await import('../step/publish.js')).hopFencePush(root, remote, payload.hops) : null;
+    // A squash drops the item's commits from trunk's history, so the keep refs ride the same atomic push [C7,#9219].
+    const keeps = squash ? pending.map(entry => `+${itemKeepRef(entry.id)}:${itemKeepRef(entry.id)}`) : [];
+    const fence = keeps.length ? { leases: hopFence?.leases ?? [], refspecs: [...(hopFence?.refspecs ?? []), ...keeps], requireHeld: pushed => hopFence?.requireHeld(pushed) } : hopFence;
     const pushed = pushTrunk(root, { payload, trunk, base, remote, options: pushOptions(), fence });
     fence?.requireHeld(pushed);
     phases.push({ phase: 'push', ms: Date.now() - pushStart });
-    if (pushed.status === 0) return done('landed', { trunk: tip, landed: pending.map(entry => entry.id), merges: firstMerges(root, base, tip, pending), ...publishUpstream(root, { payload, trunk, tip, options: pushOptions() }) });
+    if (pushed.status === 0) return done('landed', { trunk: tip, landed: pending.map(entry => entry.id), merges: firstMerges(root, base, tip, pending, squash), ...publishUpstream(root, { payload, trunk, tip, options: pushOptions() }) });
     // A refused push is a moved trunk only when trunk really moved; anything else is a push failure to report.
     if (fetchTrunk(root, remote, trunk) === base) {
       // A trunk hook's refusal gives every pending item back with the hook's words, as a red does [C7,P7].
