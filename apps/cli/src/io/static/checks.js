@@ -36,8 +36,23 @@ export async function staticFailures(classes) {
 /** Report text from clean children, printed only when the whole stage is green [#8469]. */
 const reports = [];
 
+/**
+ * Turn a finished registry child into its finding lines. A clean child's stderr is a report (sizes, never findings): it is held
+ * and printed apart from the findings [#8460,#8469]; a failed child is one finding naming its cause.
+ *
+ * @param {number|null} status - The child's exit status.
+ * @param {string} stdout - Its JSON findings.
+ * @param {string} stderr - Its report text, or its crash output.
+ * @returns {string[]}
+ */
+export function registryFindings(status, stdout, stderr) {
+  if (status !== 0) return [`packages/gate/bin/static.js:1: the static tree registry could not run: ${crashLine(stderr)}`];
+  if (stderr) reports.push(stderr);
+  return JSON.parse(stdout);
+}
+
 /** The static tree registry run as its own process; a crash is one failure line naming its cause [C7]. */
-export function treeRegistryFailures(program, root) {
+function treeRegistryFailures(program, root) {
   return new Promise(resolveRun => {
     const child = spawn(process.execPath, [...process.execArgv, '--input-type=module', '-e', program, root, JSON.stringify(staticScopeFromEnv()), JSON.stringify(STATIC_APPS)], { stdio: ['ignore', 'pipe', 'pipe'] });
     const out = [];
@@ -45,9 +60,8 @@ export function treeRegistryFailures(program, root) {
     child.stdout.on('data', chunk => out.push(chunk));
     child.stderr.on('data', chunk => err.push(chunk));
     // Report lines (sizes, never findings) arrive on a clean child's stderr; they are held and printed apart from the findings [#8460,#8469].
-    child.on('close', status => { if (status === 0 && err.length) reports.push(Buffer.concat(err).toString('utf8')); });
     child.on('error', error => resolveRun([`packages/gate/bin/static.js:1: the static tree registry could not run: ${error.message}`]));
-    child.on('close', status => resolveRun(status === 0 ? JSON.parse(Buffer.concat(out).toString('utf8')) : [`packages/gate/bin/static.js:1: the static tree registry could not run: ${crashLine(Buffer.concat(err).toString('utf8'))}`]));
+    child.on('close', status => resolveRun(registryFindings(status, Buffer.concat(out).toString('utf8'), Buffer.concat(err).toString('utf8'))));
   });
 }
 
