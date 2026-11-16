@@ -41,6 +41,25 @@ import { shadowHook } from "./shadow-record.js";
 import { reopenDecision } from "./reopen-table.js";
 import { reopenDiffers } from "./reopen-table.js";
 
+/** The event kinds the item's landing is read from, oldest first, as the pulled writer reads them. */
+const LANDING_KINDS = Object.freeze(['merged', 'pull_out', 'pulled', 'published']);
+
+/**
+ * The pace frozen into the item's bar at its first claim, or steady when it holds none; the same reading as the moves cell's itemPace [V2].
+ * Why a copy: the moves cell imports the store, so the store cannot import it back.
+ */
+function itemPace(row) {
+  let frozen = null;
+  try { frozen = row?.item_frozen ? JSON.parse(row.item_frozen) : null; } catch { frozen = null; }
+  return frozen?.pace === 'sprint' || frozen?.pace === 'strict' ? frozen.pace : 'steady';
+}
+
+/** The item's landing events as `{ kind, by, detail }`, oldest first; a damaged detail reads as empty. */
+function landingHistory(board, id) {
+  return board.db.prepare(`SELECT event_kind kind, event_by by, event_detail d FROM event WHERE item_id=? AND event_kind IN (${LANDING_KINDS.map(() => '?').join(',')}) ORDER BY event_id`)
+    .all(id, ...LANDING_KINDS).map(event => { let detail = {}; try { detail = JSON.parse(event.d || '{}'); } catch { detail = {}; } return { kind: event.kind, by: event.by, detail }; });
+}
+
 /** Return a submission for correction, or a verified item after a recorded red landing, without
  * rewriting its prior verdict [V2,V6]. The prior commit remains the builder's rework base.
  *
@@ -69,7 +88,10 @@ export function reopen(board, id, { agentId, note = '', conflict, cause, reopenF
     // With moves.live.reopen on (a board's own `movesLive.reopen` stands in for the setting in a store test) the table's answer is applied instead: it refuses what it refuses, and its decided parts are the ones written [C7,#8390].
     const live = (board.movesLive?.reopen ?? movesLiveEnabled('reopen')) === true;
     const hook = live ? null : shadowHook(board, 'reopenShadow', 'reopen', reopenDiffers, movesShadowEnabled);
-    const beforeRow = hook || live ? board.db.prepare('SELECT item_status, item_commit, item_merged_commit FROM item WHERE item_id = ?').get(id) : null;
+    const beforeRow = hook || live ? board.db.prepare('SELECT item_status, item_commit, item_merged_commit, item_built_by, item_owner, item_frozen FROM item WHERE item_id = ?').get(id) : null;
+    // The table reads the item's frozen pace and its landing history, so sprint's pull-out row can fire; steady reads neither [M2,#9209].
+    const pace = beforeRow ? itemPace(beforeRow) : 'steady';
+    const history = beforeRow && pace !== 'steady' ? landingHistory(board, id) : [];
     const beforeEvent = hook ? board.db.prepare('SELECT COALESCE(MAX(event_id),0) id FROM event').get().id : 0;
     const forWithdrawal = withdrawVerdict === true;
     const currentEngine = board.executionEngineVersion ?? ENGINE_VERSION;
@@ -127,20 +149,30 @@ export function reopen(board, id, { agentId, note = '', conflict, cause, reopenF
       },
     });
     endReviewLease(board, id);
-    const shadowReopen = () => hook({ id, decided: reopenDecision(id, { before: beforeRow, agentId, joined: true, note, cause, conflict, withdrawVerdict: forWithdrawal, supersedes, landingFailure, conflictAccepted: true, withdrawnVerdict, conflictNote: forMerge ? conflictNote(conflict) : '' }),
-      wrote: board.db.prepare("SELECT event_kind kind, event_by by, event_detail detail FROM event WHERE event_id>? AND event_kind='reopen' AND item_id=? ORDER BY event_id").all(beforeEvent, id) });
-    const liveAnswer = live ? reopenDecision(id, { before: beforeRow, agentId, joined: true, note, cause, conflict, withdrawVerdict: forWithdrawal, supersedes, landingFailure, conflictAccepted: true, withdrawnVerdict, conflictNote: forMerge ? conflictNote(conflict) : '' }) : null;
-    // A refusal rolls the whole move back; a table that throws never takes the move down, so the writer's own event is written [C7,#8390].
-    if (liveAnswer?.refused) throw new Refused(liveAnswer.refused.code, liveAnswer.refused.message, liveAnswer.refused.next);
-    const decidedEvent = liveAnswer?.events?.find(event => event.kind === 'reopen');
     const returnedAt = (forMerge || landingFailure || forWithdrawal) && currentEngine >= REOPEN_FIRST_REFUSAL_ENGINE && reopenFirstRefusalMinutes > 0 && item.item_built_by ? board.clock.now() : undefined;
-    const reservation = (forMerge || landingFailure || forWithdrawal) && currentEngine >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalDetail(board, item, reopenFirstRefusalMinutes, returnedAt) : {};
+    const returnsToBuilder = (forMerge || landingFailure || forWithdrawal) && currentEngine >= REOPEN_FIRST_REFUSAL_ENGINE;
+    const ownReservation = returnsToBuilder ? firstRefusalDetail(board, item, reopenFirstRefusalMinutes, returnedAt) : {};
     const returned = forWithdrawal ? { supersedes, withdrawnVerdict } : forMerge ? { supersedes, ...conflictDetail(conflict), ...(computedConflict !== undefined ? { computedConflict } : {}) } : supersedes ? { supersedes, landingFailure } : {};
     const derivedCause = currentEngine >= RIGOR_AUTO_ENGINE
       ? board.nativePorts.deriveRigorCause(board, item, { cause, conflict, landingFailure, agentId }) : cause != null ? { cause } : {};
+    // The table is handed what the board derived (the cause, the conflict's detail, the window a first refusal would open) and decides which of them the event records [C7,#8285].
+    const askTable = () => reopenDecision(id, { before: beforeRow, agentId, joined: true, note, cause, conflict, withdrawVerdict: forWithdrawal, supersedes, landingFailure, conflictAccepted: true, withdrawnVerdict, conflictNote: forMerge ? conflictNote(conflict) : '',
+      derivedCause, causeOverrides: currentEngine >= RIGOR_AUTO_ENGINE, reservation: ownReservation, conflictDetail: forMerge ? conflictDetail(conflict) : undefined, computedConflict,
+      ...(pace !== 'steady' ? { pace, history, redGate: !forMerge && !forWithdrawal && manualLandingFailure(note) ? note.trim() : undefined } : {}) });
+    const shadowReopen = () => hook({ id, decided: askTable(),
+      wrote: board.db.prepare("SELECT event_kind kind, event_by by, event_detail detail FROM event WHERE event_id>? AND event_kind='reopen' AND item_id=? ORDER BY event_id").all(beforeEvent, id) });
+    const liveAnswer = live ? askTable() : null;
+    // A refusal rolls the whole move back; a table that throws never takes the move down, so the writer's own event is written [C7,#8390].
+    if (liveAnswer?.refused) throw new Refused(liveAnswer.refused.code, liveAnswer.refused.message, liveAnswer.refused.next);
+    const decidedEvent = liveAnswer?.events?.find(event => event.kind === 'reopen');
+    // Live, every other event the table decides (a sprint pull_out) is written after the reopen, in the table's order [M2,#9209].
+    const followingEvents = (liveAnswer?.events ?? []).filter(event => event !== decidedEvent);
+    // Live, the reservation and the cause are the table's: the shout and the returned cause follow what it recorded [C7,#8285].
+    const reservation = decidedEvent ? (decidedEvent.detail.reopenFirstRefusal ? { reopenFirstRefusal: decidedEvent.detail.reopenFirstRefusal } : {}) : ownReservation;
     const returnedWithCause = currentEngine >= RIGOR_AUTO_ENGINE ? { ...returned, ...derivedCause } : { ...derivedCause, ...returned };
     const trigger = logEvent(board, decidedEvent?.by ?? agentId, 'reopen', id, { ...(sourceAdvanceReturn ? { sourceAdvanceReturn } : {}), commit: submittedCommit, note: note.trim() || conflictNote(conflict), judgment: null, ...reservation,
       ...returnedWithCause, ...(currentEngine >= board.enginePorts.pipelineCauseEngines().pipeline ? { pipelineCause: pipelineCause({ ...derivedCause, conflict, landingFailure, note }) } : {}), ...(decidedEvent ? decidedEvent.detail : {}) }, returnedAt);
+    for (const event of followingEvents) logEvent(board, event.by, event.kind, id, event.detail);
     if (hook) shadowReopen();
     tellFirstRefusal(board, item, reservation, persistShout);
     if (!reservation.reopenFirstRefusal && forMerge && supersedes === undefined && item.item_built_by) persistShout(board, { from: agentId, to: item.item_built_by, text: returnedHeadNotice(id, submittedCommit, conflict) });

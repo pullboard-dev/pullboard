@@ -160,9 +160,9 @@ export async function runThroughGate(repo, env, command, { browser = true, timin
   const gateUrl = pathToFileURL(join(committedToolingSnapshot(sourceRoot, env), 'packages', 'gate', 'index.js')).href;
   const snapshot = TOOLING_SNAPSHOTS.get(sourceRoot);
   snapshot.active++;
-  const script = `const { runProfiledShell, withGateSlot } = await import(${JSON.stringify(gateUrl)});
+  const script = `const { runProfiledShellAsync, withGateSlot } = await import(${JSON.stringify(gateUrl)});
 ${executionServicesSource(gateUrl)}
-const result = await withGateSlot(${JSON.stringify(repo)}, lease => runProfiledShell(${JSON.stringify(repo)}, ${JSON.stringify(command)}, { gateLease: lease, landing: ${landing} }),
+const result = await withGateSlot(${JSON.stringify(repo)}, lease => runProfiledShellAsync(${JSON.stringify(repo)}, ${JSON.stringify(command)}, { gateLease: lease, landing: ${landing} }),
   { executionServices, browser: ${browser}, timing: ${timing}, item: ${JSON.stringify(item)}, kind: ${JSON.stringify(kind)}, landing: ${landing}, agent: 'runner-fixture' });
 process.stdout.write(result.output);
 process.stdout.write('PULLBOARD_RUN_RESULT ' + JSON.stringify({ isGreen: result.isGreen, runner: result.profile.executionRunner, sandboxBlocked: result.sandboxBlocked, profile: result.profile }) + '\\n');

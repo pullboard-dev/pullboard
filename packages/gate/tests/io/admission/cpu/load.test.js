@@ -58,6 +58,32 @@ for (const [kind, declarations, selected] of [
     'automatic semicolon insertion cannot preserve invalidated callable evidence');
 });
 
+test('clause 1: a parameter that shadows an imported test alias is not read as a registration [C7,#6900]', () => {
+  const options = "('x', { cpuLoad: true }, () => {});";
+  for (const [kind, body] of [
+    ['function parameter', `function helper(test) { test${options} }`],
+    ['arrow parameter', `const helper = (test) => { test${options} };`],
+    ['bare arrow parameter', `const helper = test => { test${options} };`],
+    ['destructured parameter', `function helper({ test }) { test${options} }`],
+    ['defaulted parameter', `function helper(first, test = null) { test${options} }`],
+    ['rest parameter', `function helper(...test) { test${options} }`],
+    ['method parameter', `class Helper { run(test) { test${options} } }`],
+    ['catch binding', `try {} catch (test) { test${options} }`],
+  ]) assert.equal(cpuLoadOptionsIn([`import { test } from 'node:test'; ${body}`])[0], false, `${kind} hides the imported alias`);
+  assert.equal(cpuLoadOptionsIn([`import { test as it } from 'node:test'; function helper(it) { it${options} }`])[0], false, 'a renamed alias is hidden too');
+});
+
+test('clause 1: a registration outside the shadowing function, or one whose key only looks like the alias, stays a registration [C7,#6900]', () => {
+  const options = "('x', { cpuLoad: true }, () => {});";
+  for (const [kind, body] of [
+    ['a later top-level call', `function helper(test) { return test; } test${options}`],
+    ['an expression arrow then a call', `const helper = (test) => test('a', 1)\ntest${options}`],
+    ['an unrelated parameter', `function helper(first, second) { test${options} }`],
+    ['a renamed destructured key', `function helper({ test: other }) { test${options} }`],
+    ['a subtest of a real registration', `test('outer', async t => { await t.test('inner', { cpuLoad: true }, () => {}); });`],
+  ]) assert.equal(cpuLoadOptionsIn([`import { test } from 'node:test'; ${body}`])[0], true, `${kind} is still a registration`);
+});
+
 test('an unmodified callable alias works with automatic semicolon insertion [C7]', () => {
   const source = "import test from 'node:test'; function callback() {} const first = callback\nconst second = first\ntest('ordinary', second);";
   assert.equal(cpuLoadOptionsIn([source])[0], false,
@@ -111,4 +137,13 @@ test('batched classification preserves exact selected files across real registra
   assert.equal(testsNeedCpuRunner(directory, files), true);
   assert.equal(testsNeedCpuRunner(directory, files.filter(file => !selected.includes(file))), false);
   assert.equal(existsSync(marker), false, 'selection only reads source; fixture programs never execute');
+});
+
+test('clause 1: CPU options continued across a newline are read whole, not cut at the line end [C7,#6902]', () => {
+  const head = "import test from 'node:test'; ";
+  for (const value of ["'title'\n&& { cpuLoad: true }", "'title'\n  ?? { cpuLoad: true }", "flag\n&& { cpuLoad: true }", "{ cpuLoad: false }\n|| { cpuLoad: true }"]) {
+    assert.equal(cpuLoadOptionsIn([`${head}const opts = ${value};\ntest(opts, () => {});`])[0], true, `${value} stays conservative`);
+  }
+  assert.equal(cpuLoadOptionsIn([`${head}const title = 'plain'\ntest(title, () => {});`])[0], false,
+    'a title that ends at the newline is still a title');
 });

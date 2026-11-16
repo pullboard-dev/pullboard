@@ -251,7 +251,7 @@
   "src/submit-gate-wait.js": "apps/cli/src/io/submit/wait.js",
   "src/submit-remote-gate.js": "apps/cli/src/io/submit/gate.js",
   "src/cli-hook-work.js": "apps/cli/src/io/hook/work.js",
-  "src/sweep.js": "apps/cli/src/logic/sweep.js",
+  "src/sweep.js": "apps/cli/src/io/sweep/problems.js",
   "src/tool-build-scheduler.js": "apps/cli/src/io/tool/build.js",
   "src/tour.js": "apps/cli/src/io/tour.js",
   "src/worker-scale.js": "apps/cli/src/io/scale.js",

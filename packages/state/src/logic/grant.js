@@ -1,11 +1,12 @@
 /** Derive authority from existing seats and claims; no mutable saved grant supplies permission [E21]. */
-import { AGENT_GRANT_ENGINE } from './engines/agent-grant-engine.js';
-import { REVIEW_GRANT_ENGINE } from './engines/review-grant-engine.js';
-import { BAR_SIGN_GRANT_ENGINE } from './engines/bar-sign-grant-engine.js';
+import { engineNumber } from './engine/number.js';
 import { Refused } from '../../../kernel/light.js';
 import { recordedGrantActivation } from '../../index.js';
 import { completesAdmittedSubmit } from '../../index.js';
-import { QUEUED_START_GRANT_ENGINE } from './engines/queued-start-grant-engine.js';
+const AGENT_GRANT_ENGINE = engineNumber('AGENT_GRANT_ENGINE');
+const REVIEW_GRANT_ENGINE = engineNumber('REVIEW_GRANT_ENGINE');
+const BAR_SIGN_GRANT_ENGINE = engineNumber('BAR_SIGN_GRANT_ENGINE');
+const QUEUED_START_GRANT_ENGINE = engineNumber('QUEUED_START_GRANT_ENGINE');
 
 // Attributed append-only findings never confer authority over item state.
 const ADMINISTRATIVE = new Set(['shout', 'claim', 'release', 'reserveReview', 'appendFact', 'recordAttempt', 'completeSubmitHandoff']);
@@ -24,6 +25,12 @@ function target(move, registry) {
  * Why here: the grant check runs inside the state cell, which reads the job tables but never writes them.
  */
 function queuedGateRecord(db, itemId) {
+  // With runs_store on the record is the gate job's run row, written in the move that saved it [B2,M3].
+  if (db.prepare("SELECT meta_value FROM board_meta WHERE meta_key = 'runs_store'").get()?.meta_value === '1') {
+    const kept = db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name = 'run'").get().n === 1
+      ? db.prepare("SELECT run_record AS record FROM run WHERE run_kind = 'gate' AND run_item = ? AND run_record IS NOT NULL ORDER BY run_updated DESC, rowid DESC LIMIT 1").get(itemId) : undefined;
+    try { return kept ? JSON.parse(kept.record) : null; } catch { return null; }
+  }
   const tables = db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name IN ('job','job_step')").get().n;
   if (tables < 2) return null;
   const row = db.prepare(`SELECT s.job_step_payload AS payload FROM job j JOIN job_step s ON s.job_step_job = j.job_id

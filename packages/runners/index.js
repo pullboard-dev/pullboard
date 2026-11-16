@@ -50,3 +50,8 @@ export { expandTestFolders } from "./src/io/pull/folders.js";
 export { mainRedUpdates } from './src/logic/main/reds.js';
 export { filesOfMain } from './src/io/main/reds.js';
 export { roundTripProfile, roundTripLine, ROUND_TRIP_PHASES } from './src/logic/roundtrip.js';
+
+/** The board's runner key book, reached through this cell so the CLI adds no edge to transport [C7]. */
+export { issueRunnerKey, revokeRunnerKey } from "../transport/index.js";
+/** The board's pull adapter and its HTTP face, reached through this cell so the CLI adds no edge to transport [C7,#8765]. */
+export { boardPullAdapter, pullHandler } from "../transport/index.js";

@@ -2,6 +2,9 @@ import { lightDiagnosisProblem } from '../../logic/item/diagnosis.js';
 import { CLAUSE_EVIDENCE_ENGINE } from '../../../../state/index.js';
 import { requireCriterionEvidence } from '../../../../state/index.js';
 import { saveExpectedBuildMinutes } from '../expected.js';
+import { saveReadinessCommand } from '../readiness.js';
+import { validateReadinessCommand } from '../readiness.js';
+import { READINESS_ENGINE } from '../../../../state/light.js';
 import { validateExpectedBuildMinutes } from '../../../../items/index.js';
 import { EXPECTED_BUILD_ENGINE } from '../../../../state/light.js';
 import { reviewPolicyChange } from "../../../../verify/index.js";
@@ -41,9 +44,9 @@ import { laneOf } from "../../../../seats/index.js";
  * @param {{ by: string, lane: string, title: string, criterion?: string, specIds?: string[], parentId?: number | null, after?: (number | string)[], brief?: string, route?: string, check?: string, checkTiming?: boolean }} item
  * @returns {number} The new item's id.
  */
-export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null, after = [], brief = '', route = 'strong', check, checkBaseline, barActor, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming, expectedBuildMinutes }) {
+export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null, after = [], brief = '', route = 'strong', check, keptCheckFrom, checkBaseline, barActor, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming, expectedBuildMinutes, readinessCommand }) {
   return atomic(board, () => {
-    const item = { by, lane, title, criterion, specIds, parentId, after, brief, route, check, checkBaseline, barActor, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming, expectedBuildMinutes };
+    const item = { by, lane, title, criterion, specIds, parentId, after, brief, route, check, keptCheckFrom, checkBaseline, barActor, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming, expectedBuildMinutes, readinessCommand };
     const id = insertItem(board, item, validateItemAddition(board, item));
     placeNewItem(board, id, item);
     return id;
@@ -67,26 +70,31 @@ export function insertItem(board, item, { command, cleanTitle, brief: normalized
   saveCheckBaseline(board, id, baseline);
   saveCheckTiming(board, id, item.checkTiming);
   saveExpectedBuildMinutes(board, id, item.expectedBuildMinutes);
+  saveReadinessCommand(board, id, item.readinessCommand);
   const reviewPolicy = twoTierReviews(board) ? reviewPolicyChange(board, null, item) : null;
   saveItemReviewPolicy(board, id, reviewPolicy);
   saveReviewFamily(board, id, reviewFamily);
-  logEvent(board, by, 'add', id, { lane, specIds, after, route, ...(evidenceWarnings.length ? { criterionEvidenceWarnings: evidenceWarnings } : {}), ...(item.expectedBuildMinutes === undefined ? {} : { expectedBuildMinutes: item.expectedBuildMinutes }), ...(item.checkTiming === undefined ? {} : { checkTiming: item.checkTiming }), ...(reviewFamily !== undefined && !twoTierReviews(board) ? { reviewFamily: reviewFamily.trim() } : {}), ...(baseline ? { checkBaseline: baseline } : {}), ...(reviewPolicy ? { reviewPolicy } : {}) });
+  logEvent(board, by, 'add', id, { lane, specIds, after, route, ...(evidenceWarnings.length ? { criterionEvidenceWarnings: evidenceWarnings } : {}), ...(item.expectedBuildMinutes === undefined ? {} : { expectedBuildMinutes: item.expectedBuildMinutes }), ...(item.readinessCommand === undefined ? {} : { readinessCommand: item.readinessCommand.trim() }), ...(item.checkTiming === undefined ? {} : { checkTiming: item.checkTiming }), ...(reviewFamily !== undefined && !twoTierReviews(board) ? { reviewFamily: reviewFamily.trim() } : {}), ...(baseline ? { checkBaseline: baseline } : {}), ...(reviewPolicy ? { reviewPolicy } : {}) });
   recordBarRevision(board, itemById(board, id), by, null, barActor);
   return id;
 }
 
 /** Validate an addition before its sender runs a new check, and again when the ordered move applies. */
-export function validateItemAddition(board, { by, lane, title, criterion = '', parentId = null, after = [], brief = '', route = 'strong', check, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming, expectedBuildMinutes }, { sourceMove = null } = {}) {
+export function validateItemAddition(board, { by, lane, title, criterion = '', parentId = null, after = [], brief = '', route = 'strong', check, keptCheckFrom, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming, expectedBuildMinutes, readinessCommand }, { sourceMove = null } = {}) {
+  // A follow-up may keep its landed parent's check unchanged, never set or edit one [#9637].
+  const kept = typeof keptCheckFrom === 'string' && check === keptCheckFrom;
   const command = sourceMove
     ? validateRehomeCheck(by, check, sourceMove)
-    : editCheck(by, check) ?? '';
-  if (board.gitRoot && by !== COORDINATOR) {
+    : kept ? check.trim() : editCheck(by, check) ?? '';
+  if (board.gitRoot && by !== COORDINATOR && !kept) {
     const actor = board.db.prepare('SELECT agent_lane FROM agent WHERE agent_id = ?').get(by);
     requireOwnLaneCheck(loadConfig(board.gitRoot), { id: by, lane: actor?.agent_lane }, lane, command, laneOf);
   }
   validateCheckTiming(board, by, checkTiming);
   validateExpectedBuildMinutes(expectedBuildMinutes);
   if (expectedBuildMinutes !== undefined && (board.executionEngineVersion ?? ENGINE_VERSION) < EXPECTED_BUILD_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade Pullboard before authoring expected build time');
+  validateReadinessCommand(readinessCommand);
+  if (readinessCommand !== undefined && (board.executionEngineVersion ?? ENGINE_VERSION) < READINESS_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade Pullboard before authoring a readiness command');
   reviewPolicyChange(board, null, { sensitive, reviewFamily });
   const cleanTitle = title.trim();
   if (!cleanTitle) throw new Refused('NO_TITLE', 'an item needs a title');
@@ -98,7 +106,7 @@ export function validateItemAddition(board, { by, lane, title, criterion = '', p
     validateReferences(brief, { actor: proof?.actor ?? by,
       authors: proof?.authors ?? referenceAuthors, authority: proof?.authority ?? referenceAuthority });
   }
-  const diagnosisProblem = lightDiagnosisProblem(board, { item_route: route });
+  const diagnosisProblem = lightDiagnosisProblem(board, { item_route: route, item_brief: brief });
   if (diagnosisProblem) throw diagnosisProblem;
   const normalizedBrief = checkRouted({ brief: brief.trim(), route, criterion, check: command }, engine);
   if (parentId !== null) {

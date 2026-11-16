@@ -3,6 +3,7 @@ import { Refused } from "../../../kernel/light.js";
 import { LEASE_MS } from "../logic/rules.js";
 import { atomically } from "./store.js";
 import { jobView } from "./store.js";
+import { noteLease } from "./store.js";
 import { writeStep } from "./store.js";
 
 /**
@@ -18,6 +19,7 @@ export function takeJob(db, job, owner, { now = Date.now(), leaseMs = LEASE_MS }
   if (!owner) throw new Refused('JOB_OWNER', 'A lease needs an owner: pass the driver id.');
   const result = db.prepare('UPDATE job SET job_lease_owner = ?, job_lease_until = ?, job_updated = ? WHERE job_id = ? AND job_lease_until < ?')
     .run(owner, now + leaseMs, now, job, now);
+  if (result.changes === 1) noteLease(db, job, 'lease.grant', { owner, until: now + leaseMs }, now);
   const view = jobView(db, job);
   if (!view) throw new Refused('JOB_MISSING', `No job ${job}: create it with createJob first.`);
   return { taken: result.changes === 1, job: view };
@@ -34,8 +36,10 @@ export function takeJob(db, job, owner, { now = Date.now(), leaseMs = LEASE_MS }
  * @returns {boolean} True when the lease was renewed.
  */
 export function renewLease(db, job, owner, { now = Date.now(), leaseMs = LEASE_MS, lapsed = false } = {}) {
-  return db.prepare('UPDATE job SET job_lease_until = ? WHERE job_id = ? AND job_lease_owner = ? AND job_lease_until >= ?')
+  const renewed = db.prepare('UPDATE job SET job_lease_until = ? WHERE job_id = ? AND job_lease_owner = ? AND job_lease_until >= ?')
     .run(now + leaseMs, job, owner, lapsed ? 0 : now).changes === 1;
+  if (renewed) noteLease(db, job, 'lease.renew', { owner, until: now + leaseMs }, now);
+  return renewed;
 }
 
 /**
@@ -56,6 +60,8 @@ export function backOffLease(db, job, owner, { attempt, reason = 'unspecified', 
   return atomically(db, () => {
     const held = db.prepare('SELECT job_step FROM job WHERE job_id = ? AND job_lease_owner = ?').get(job, owner);
     if (!held) return { released: false, until };
+    // The note goes first so the `released` step stays the job's last row, as its readers expect.
+    noteLease(db, job, 'lease.release', { owner, reason: String(reason).slice(0, 300), until }, now);
     writeStep(db, job, 'released', { runner: owner, attempt, reason: String(reason).slice(0, 300), until }, { seq: attempt, now });
     db.prepare('UPDATE job SET job_step = ?, job_lease_owner = NULL, job_lease_until = ?, job_updated = ? WHERE job_id = ?').run(held.job_step, until, now, job);
     return { released: true, until };
@@ -100,8 +106,10 @@ export function reclaimLapsed(db, { now = Date.now() } = {}) {
  * @returns {boolean} True when this owner held the lease and it is now free.
  */
 export function releaseLease(db, job, owner, { now = Date.now() } = {}) {
-  return db.prepare('UPDATE job SET job_lease_owner = NULL, job_lease_until = 0, job_updated = ? WHERE job_id = ? AND job_lease_owner = ?')
+  const released = db.prepare('UPDATE job SET job_lease_owner = NULL, job_lease_until = 0, job_updated = ? WHERE job_id = ? AND job_lease_owner = ?')
     .run(now, job, owner).changes === 1;
+  if (released) noteLease(db, job, 'lease.release', { owner }, now);
+  return released;
 }
 
 /**
@@ -117,8 +125,10 @@ export function releaseLease(db, job, owner, { now = Date.now() } = {}) {
  * @returns {boolean} True when the job is now done; false when another driver holds the lease.
  */
 export function finishJob(db, job, owner, { now = Date.now() } = {}) {
-  return db.prepare("UPDATE job SET job_step = 'done', job_lease_owner = NULL, job_lease_until = 0, job_updated = ? WHERE job_id = ? AND (job_lease_owner = ? OR job_lease_owner IS NULL OR job_lease_until < ?)")
+  const finished = db.prepare("UPDATE job SET job_step = 'done', job_lease_owner = NULL, job_lease_until = 0, job_updated = ? WHERE job_id = ? AND (job_lease_owner = ? OR job_lease_owner IS NULL OR job_lease_until < ?)")
     .run(now, job, owner, now).changes === 1;
+  if (finished) noteLease(db, job, 'end.finished', { owner }, now);
+  return finished;
 }
 
 /**
@@ -133,6 +143,20 @@ export function finishJob(db, job, owner, { now = Date.now() } = {}) {
 export function setJobRow(db, job, { step, attempt, owner = null, leaseUntil = null }, { now = Date.now() } = {}) {
   db.prepare('UPDATE job SET job_step = ?, job_attempt = ?, job_lease_owner = ?, job_lease_until = ?, job_updated = ? WHERE job_id = ?')
     .run(step, attempt, owner, leaseUntil, now, String(job));
+}
+
+/**
+ * Keep an unowned job from every claim until `until`: claim takes only a job whose lease_until has passed.
+ * Why: a land job offered again after trunk-busy waits a backoff, so trunk can settle before it tries again (#9102).
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {number} until
+ * @param {{now?: number}} [options]
+ * @returns {boolean} True when the unowned job now waits until `until`.
+ */
+export function holdJob(db, job, until, { now = Date.now() } = {}) {
+  return db.prepare('UPDATE job SET job_lease_until = ?, job_updated = ? WHERE job_id = ? AND job_lease_owner IS NULL').run(until, now, String(job)).changes === 1;
 }
 
 /**
@@ -184,6 +208,7 @@ export function endJob(db, job, name, payload = {}, { now = Date.now() } = {}) {
     if (!row || row.job_step === 'done') return false;
     writeStep(db, job, name, payload, { seq: row.job_attempt, now });
     db.prepare("UPDATE job SET job_step = 'done', job_lease_owner = NULL, job_lease_until = 0, job_updated = ? WHERE job_id = ?").run(now, job);
+    noteLease(db, job, `end.${name}`, { detail: String(payload.detail ?? '').slice(0, 300) }, now);
     return true;
   });
 }

@@ -1,5 +1,9 @@
 /** The gate hop as one fenced store row: one owner, and a compare-and-set write so only one racing writer wins [C7,#8269]. */
 import { Refused } from '../../../../kernel/light.js';
+import { boardStanding } from './migrate.js';
+import { recordSchemaStamp } from './migrate.js';
+import { SCHEMA_DIGEST } from './schema/source.js';
+import { SCHEMA_VERSION } from './schema/source.js';
 
 /** One row per item: the hop's state, its one owner and owner epoch, and a version every write bumps. */
 export const GATE_HOP_SCHEMA_SQL = `CREATE TABLE IF NOT EXISTS gate_hop (
@@ -15,9 +19,15 @@ export const GATE_HOP_SCHEMA_SQL = `CREATE TABLE IF NOT EXISTS gate_hop (
   version INTEGER NOT NULL
 )`;
 
-/** Create the hop table when it is missing; the fenced row is opt-in, so the board schema does not carry it yet. */
+/**
+ * Create the hop table when it is missing, and restamp a board that was current before it.
+ * Why: a stamped board that gained the table without a restamp read as changed outside pullboard on every open [C7,#8465].
+ */
 export function ensureGateHopTable(db) {
+  if (db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'gate_hop'").get()) return;
+  const current = boardStanding(db, SCHEMA_DIGEST, SCHEMA_VERSION) === 'current';
   db.exec(GATE_HOP_SCHEMA_SQL);
+  if (current) recordSchemaStamp(db, SCHEMA_DIGEST);
 }
 
 /**

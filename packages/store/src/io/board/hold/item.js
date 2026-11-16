@@ -1,6 +1,7 @@
 import { holdUntilKind } from "../../../logic/board/holds.js";
 import { forgetHoldMaintenance } from "../../../logic/board/holds.js";
 import { rememberHoldCondition } from "../../../logic/board/holds.js";
+import { rememberHoldOwner } from "../../../logic/board/holds.js";
 import { applyItemHold } from "../../../../../items/index.js";
 import { now } from "../query.js";
 import { getItem } from "../query.js";
@@ -11,7 +12,12 @@ import { coordinatorOnly } from "../../board.js";
 import { postRigorNotices } from "../../board.js";
 import { setItem } from "../../board.js";
 
-/** Hold an item through the unchanged coordinator transaction. */
+/**
+ * Hold an item through the unchanged coordinator transaction. With requireOwner true in the options, the hold also needs and
+ * records its owner and deadline; absent (default), nothing about a hold changes [C7,#8539]. Why no machine setting is read
+ * here: the write edge (the hold command) reads holds.requireOwner and passes the answer in the move, and the hold event
+ * records it, so every replica replays the same board whatever its own setting says [C7,#8569].
+ */
 export function holdItem(board, id, options) {
-  return applyItemHold(board, id, options, { coordinatorOnly, atomic, getItem, setItem, now, logEvent, postRigorNotices, itemHold, holdUntilKind, forgetHoldMaintenance, rememberHoldCondition, staleStateEngine: board.nativePorts.staleStateEngine });
+  return applyItemHold(board, id, options, { rememberHoldOwner, coordinatorOnly, atomic, getItem, setItem, now, logEvent, postRigorNotices, itemHold, holdUntilKind, forgetHoldMaintenance, rememberHoldCondition, staleStateEngine: board.nativePorts.staleStateEngine });
 }

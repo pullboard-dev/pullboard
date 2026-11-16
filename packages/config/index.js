@@ -21,6 +21,7 @@ export {
 export { trunkRemote } from './src/io/trunk.js';
 export { hostOf, roleHosts } from './src/logic/hosts.js';
 export { trunkProblems, configTrunkRemote } from './src/logic/trunk.js';
+export { staleGeneratedFiles } from './src/logic/generated.js';
 export { scratchRoot } from './src/logic/scratch.js';
 export { scratchFolder, moveAcross, applyMachineScratch } from './src/logic/scratch/folder.js';
 export {
@@ -46,10 +47,35 @@ export {
   browserFreeChecksEnabled,
   gateRunnersFirstEnabled,
   postLandSuiteEnabled,
+  censusRecordFileTimesEnabled,
+  censusBalanceByTimeEnabled,
+  censusJobMinutes,
+  censusSoloFileSeconds,
+  censusJobsPerRunner,
+  censusJobsPerRunnerQuiet,
+  jobsAvoidRunnersEnabled,
+  pushRecordTimingEnabled,
+  pushRerunFailedShardOnceEnabled,
   tableReplayEnabled,
+  overlapStaticProofEnabled,
+  testNiceEnabled,
   fencedHopEnabled,
+  endStaleJobsEnabled,
+  reofferInfraEndEnabled,
+  recaptureHandoffEnabled,
+  redFactLocationEnabled,
+  settleOnMainReceiptEnabled,
   movesShadowEnabled,
+  censusRerunNonGreenEnabled,
+  censusSelfTuneEnabled,
+  censusRerunOnSettleEnabled,
   registryStrictEnabled,
+  hunkFreshnessEnabled,
+  requireRegisteredEnabled,
+  requireJourneyPathEnabled,
+  adapterLintClockEnabled,
+  adapterLintFsEnabled,
+  idiomSpreadEnabled,
   movesLiveEnabled,
   gateRunnerAdmission,
   setGateRunnersOnly,
@@ -63,16 +89,54 @@ export {
   browserByLaunchEnabled,
   runnerDispatchMode,
   jobReserve,
-  pullPilot,
-  pullGateFor,
-  jobQueueMode,
   localRunnerEnabled,
   localLoadShare,
+  staticCheckSlots,
+  staticMemoOn,
+  boardOpensCheckOn,
   serveListen,
+  servePullRoute,
   mainComparisonMode,
   submitAuthorizationMode,
+  refuseMissingCheckFile,
+  addWarnUnnamedTest,
+  docsRegenerateOnCommit,
+  holdsLiftSettled,
+  holdsRequireOwner,
+  nextIdleBlockers,
+  nextAdoptPreserved,
+  nextItemNotices,
+  reviewCanonicalFamilies,
+  statsRecordCoordinatorUsage,
+  reviewStarveShout,
+  nextCapBuilders,
+  nextReadinessCheck,
+  nextReadinessCache,
+  refuseTempWorktree,
+  claimKeepWhileRunning,
+  refuseOffMainHead,
+  statusShowUsefulBuilders,
+  refuseEmptyBar,
+  rejectKeepsCheck,
   viewBackgroundEnabled,
   healthSentinelEnabled,
+  reviewReleaseReasonsRequired,
+  lapsedSweepEnabled,
+  derivedStateEnabled,
+  testStatusOutcomesEnabled,
+  cascadeRejectEnabled,
+  typedFieldsEnabled,
+  recordWriteHolderEnabled,
+  adaptiveBatchEnabled,
+  landingSquashEnabled,
+  strictFullSuiteEnabled,
+  commitOnApplyEnabled,
+  reofferTrunkBusyEnabled,
+  archiveEventsEnabled,
+  codeStampCacheEnabled,
+  reuseContractResultsEnabled,
+  reuseGateReceiptsEnabled,
+  stallStopEnabled,
   memoryFloorMB,
   relayOfferEnabled,
   setRelayCanary,
@@ -98,6 +162,9 @@ export {
   specTemplate,
   practiceTemplate,
   renderAgentsBlock,
+  SEAT_LOOP,
+  SEAT_LOOP_WORD_BUDGET,
+  renderWorkerSkill,
   renderCoordinatorGuide,
   COORDINATOR_GUIDE_FILE,
   PULLBOARD_LOOP_GIT_COMMANDS,
@@ -117,7 +184,6 @@ export {
   readGitSyncMarker,
   gitSyncMarkerLinked,
   gitSyncRecoveryNeeded,
-  readGitSyncRepairs,
 } from './src/io/git/sync.js';
 export {
   SETTING_DESCRIPTIONS,
@@ -160,7 +226,14 @@ export {
   maintenanceDurations,
 } from './src/logic/maintenance.js';
 
+export { submitProofOnly } from './src/logic/settings.js';
+export { submitClauseMarks } from './src/logic/settings.js';
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';
+export { listThinRead, namedImportSelectionOn, relayPruneReceipts } from './src/logic/settings.js';
+export { retireIdleSeatHours } from './src/logic/settings.js';
+export { healthDiskFloorGb } from './src/logic/settings.js';
 export { boardKey, boardKeyFile } from './src/io/settings.js';
 export { boardRemote, setBoardRemote } from './src/io/settings.js';
 export { setPersonSetting } from './src/io/settings.js';
+export { MACHINE_DEFAULTS } from './src/io/settings/machine-defaults.js';
+export { costPerMinute } from './src/logic/runner-rates.js';

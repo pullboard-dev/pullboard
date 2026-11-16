@@ -47,6 +47,7 @@ import { stalePlanRows } from '../../../../packages/codemap/index.js';
 import { scriptMentions } from '../../../../packages/codemap/index.js';
 import { testFile } from '../../../../packages/codemap/index.js';
 import { posix } from 'node:path';
+import { cellOfFolder } from '../logic/cell-of-folder.js';
 import { cellsReorgReason } from './cells-reorg.js';
 import { warning } from './cells-reorg.js';
 import { fixtureFinding } from './cells-reorg.js';
@@ -170,6 +171,19 @@ function allCellsReason(files, plans) {
   return policyScope(files, plans).all;
 }
 
+/**
+ * Whether the cell owns a path the move maps carry, found from the target's folder, never from the plan's path rows [C7,#8742].
+ *
+ * Why: the plan rows are being retired, and a folder already names the cell.
+ *
+ * @param {string} name cell name
+ * @param {Array<Map<string, string>>} maps path maps (from to target), one per side
+ * @returns {boolean}
+ */
+export function cellHasMovedPaths(name, maps) {
+  return maps.some(map => [...map.values()].some(to => cellOfFolder(to) === name));
+}
+
 /** Attribute changed cells and their direct importers against both immutable graphs. */
 export function touchedCells(files, before, after, inventories) {
   const plans = [before, after];
@@ -178,12 +192,11 @@ export function touchedCells(files, before, after, inventories) {
   if (scope.all) {
     return after.cells.map(cell => cell.name);
   }
+  const known = new Set(plans.flatMap(plan => plan.cells.map(cell => cell.name)));
   const byPath = new Map();
-  /** A source alias and a moved target both belong to their declared cell. */
+  /** A path's cell comes from its folder, never from the plan's rows; only a cell the plans name counts [#8555]. */
   const owners = file => {
-    if (!byPath.has(file)) byPath.set(file, plans.flatMap(plan => plan.cells.filter(cell => file === cell.frontDoor
-      || file === cell.pureFrontDoor || file === cell.lightFrontDoor || file === cell.pureDoor || file.startsWith(cell.root + '/')
-      || cell.paths.some(row => row[0] === file || row[1] === file)).map(cell => cell.name)));
+    if (!byPath.has(file)) { const name = cellOfFolder(file); byPath.set(file, name !== null && known.has(name) ? [name] : []); }
     return byPath.get(file);
   };
   const touched = new Set([...files.flatMap(owners), ...scope.cells]);
@@ -306,7 +319,13 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   const fallback = allCellsReason(changed, [before, after]);
   if (fallback) onAllCells(fallback);
   const direct = touchedCells(changed, before, after, []);
-  if (!direct.length) return { cells: [], problems: policy, warnings, reorg, ...(collectMachinery ? { machinery } : {}) };
+  // A file that newly only forwards is a shim even outside any planned cell's folder, so the shim count still runs for it [C7].
+  const addsShim = changed.some(file => {
+    const text = shimSnapshotFile(candidateRoot, file);
+    const was = shimSnapshotFile(mainRoot, file);
+    return text !== undefined && onlyForwards(text, false) && !(was !== undefined && onlyForwards(was, false));
+  });
+  if (!direct.length && !addsShim) return { cells: [], problems: policy, warnings, reorg, ...(collectMachinery ? { machinery } : {}) };
   const oldReport = inventories?.report?.(mainRoot, acceptedMain) ?? cellLintReport(mainRoot, parsers, { inventory: oldInventory });
   const newReport = cellLintReport(candidateRoot, parsers, { inventory: newInventory });
   // Advisory transition authority comes only from the immutable accepted snapshot.
@@ -319,8 +338,7 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   problems.push(...shimCountProblems({ before: oldReport, after: newReport, beforeInventory: oldInventory, afterInventory: newInventory }));
   for (const name of cells) {
     const previous = before.cells.some(cell => cell.name === name);
-    const moved = [before, after].some((plan, index) => plan.cells.find(cell => cell.name === name)?.paths
-      .some(([from, to]) => [mainMap, candidateMap][index].get(from) === to));
+    const moved = cellHasMovedPaths(name, [mainMap, candidateMap]);
     if (!moved) continue;
     const oldMoved = previous ? checkMoved(mainRoot, before, name, { acceptedBase: acceptedMain, lintReport: oldReport, lintBaseline: baseline, inventory: oldInventory }) : [];
     const newMoved = checkMoved(candidateRoot, after, name, { acceptedBase: acceptedMain, lintReport: newReport, lintBaseline: baseline, inventory: newInventory });

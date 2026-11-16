@@ -137,9 +137,6 @@
   "packages/codemap/src/io/cells-plan-model.js": {
     "cells.json": 1
   },
-  "packages/codemap/src/io/cells/backlog.js": {
-    "cells.json": 2
-  },
   "packages/codemap/src/io/cells/cache.js": {
     "pullboard.json": 1
   },

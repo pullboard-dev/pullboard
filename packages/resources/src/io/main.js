@@ -213,7 +213,9 @@ function openQueue(file) {
   queueFiles.set(db, file);
   let transaction = false, leave;
   try {
-    db.exec(`PRAGMA journal_mode = WAL; PRAGMA busy_timeout = ${Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs())}`); // WAL: readers never wait on the census writer; inside the try so a lock here closes the handle [C7,#3338].
+    db.exec(`PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = ${Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs())}`); // WAL: readers never wait on the census writer; inside the try so a lock here closes the handle [C7,#3338].
+    // NORMAL: a commit appends to the WAL without an fsync; only a checkpoint syncs. Why: on a loaded runner one commit's
+    // fsync stalled a slot take 20-65 ms, past the 50 ms p99 (#8699). WAL stays consistent; a power cut can lose the last leases, which liveness re-takes [C7].
     if (db.prepare('PRAGMA user_version').get().user_version === resourceSchemaVersion()) return db; // current schema: an open takes no write turn
     leave = enterResourceQueue(file, { apply: queuedWrites(db), deadlineMs: slotAttemptMs() });
     beginResourceWrite(db, { file, timeoutMs: Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs()) });
@@ -392,7 +394,7 @@ function custodyProcessMatches(pid, started) {
 
 /** Run a short database update as this file's single queued writer, so no caller contends for the SQLite lock [C7,#3084]. */
 function update(db, action, sweep = true) {
-  if (sweep && !openWrites) refreshIdentities(livenessPids(db)); // one batched ps before the turn, so the sweep inside it reads only the cache
+  if (sweep && !openWrites) refreshIdentities(livenessPids(db), db); // one batched ps before the turn, and a fresh read of each suspect holder, so the sweep inside it spawns nothing
   const started = Date.now();
   for (let backoff = 50; ; backoff = Math.min(backoff * 2, 400)) {
     // Each attempt waits at most about 2 s; a busy machine gets retries with backoff until the deadline, never minutes.

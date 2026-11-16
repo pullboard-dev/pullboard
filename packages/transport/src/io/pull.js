@@ -4,8 +4,8 @@ import { randomBytes } from 'node:crypto';
 import { verify } from 'node:crypto';
 import { Refused } from '../../../kernel/light.js';
 import { isObjectId } from '../../../pin/light.js';
-/** The one saveKeyedResult, the pin cell's, re-exported so the runner cell reaches it through this cell and adds no pin edge. */
-export { saveKeyedResult } from '../../../pin/light.js';
+/** The one saveKeyedResult and loadKeyedResult, the pin cell's, re-exported so the runner cell reaches it through this cell and adds no pin edge. */
+export { loadKeyedResult, saveKeyedResult } from '../../../pin/light.js';
 import { mintJobToken } from '../logic/token.js';
 import { readJobToken } from '../logic/token.js';
 import { parseResult } from '../logic/result.js';
@@ -58,12 +58,12 @@ function signedBy(publicKey, text, signature) {
  *
  * @param {{ trusted: string[] | (() => string[]), lease: { take: (job: string, runner: string) => boolean,
  *   renew: (job: string, runner: string) => boolean }, record: (job: string, shard: string, payload: object) => void,
- *   checkResult: (posted: object) => { valid: boolean, reason?: string, keyId?: string }, bundle: (tree: string) => string,
+ *   checkResult: (posted: object) => { valid: boolean, reason?: string, keyId?: string }, bundle: (tree: string) => string | null | Promise<string | null>,
  *   secret?: Buffer, now?: () => number, tokenMs?: number, skewMs?: number, seenMs?: number,
- *   store?: { load: () => (object | null), save: (state: object) => void } }} ports
+ *   store?: { load: () => (object | null), save: (state: object) => void }, revokedNames?: () => string[] }} ports
  * @returns {object} The adapter: open and probe for the channel interface, and the runner-facing protocol calls.
  */
-export function pullAdapter({ trusted, lease, record, checkResult, bundle, secret = randomBytes(32), now = Date.now, tokenMs = TOKEN_MS, skewMs = SKEW_MS, seenMs = SEEN_MS, store = null }) {
+export function pullAdapter({ trusted, lease, record, checkResult, bundle, secret = randomBytes(32), now = Date.now, tokenMs = TOKEN_MS, skewMs = SKEW_MS, seenMs = SEEN_MS, store = null, revokedNames = () => [] }) {
   const runners = new Map();
   const offers = new Map();
   // Runners the board has revoked, and the keys they held: neither may register or pull again.
@@ -76,10 +76,15 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
   // including a replay after the board restarted [C7].
   const spent = new Map(held?.spent ?? []);
   for (const runner of held?.runners ?? []) runners.set(runner.runner, { ...runner });
+  // Why: a revocation is the board's refusal, so it rides the same store; a restart that forgot it would let the revoked runner register again [C7].
+  for (const name of held?.revoked ?? []) revoked.add(name);
+  for (const key of held?.revokedKeys ?? []) revokedKeys.add(key);
   for (const offer of held?.offers ?? []) offers.set(offer.job, { ...offer, shards: new Map(offer.shards.map(shard => [shard.shard, { ...shard }])) });
   /** Write the registrations and offers to the store, after every change to either. */
   const persist = () => store?.save({
     spent: [...spent],
+    revoked: [...revoked],
+    revokedKeys: [...revokedKeys],
     runners: [...runners.values()].map(({ runner, publicKey, seen }) => ({ runner, publicKey, seen })),
     offers: [...offers.values()].map(({ job, tree, base, tooling, attempt, runner, shards }) => ({ job, tree, base, tooling, attempt, runner, shards: [...shards.values()] })),
   });
@@ -87,7 +92,7 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
 
   /** The registered, still trusted runner a request or token names, or a refusal saying how to get admitted. */
   const admitted = id => {
-    if (revoked.has(id)) throw new Refused('PULL_RUNNER_REVOKED', `runner ${id}'s credential was revoked; ask the person to issue it a new key`);
+    if (revoked.has(id) || revokedNames().includes(id)) throw new Refused('PULL_RUNNER_REVOKED', `runner ${id}'s credential was revoked; ask the person to issue a key under a new runner name`);
     const runner = runners.get(id);
     if (!runner) throw new Refused('PULL_RUNNER_UNKNOWN', `runner ${id} is not registered; register its trusted key first`);
     if (!trustedKeys().has(runner.publicKey)) throw new Refused('PULL_RUNNER_UNTRUSTED', `runner ${id}'s key is no longer trusted on the board; ask the person to trust it again`);
@@ -191,8 +196,8 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
      */
     register({ runner, publicKey, at, signature }) {
       if (!RUNNER.test(String(runner ?? ''))) throw new Refused('PULL_RUNNER_ID', 'a runner id is a plain name: letters, digits, dot, dash or underscore');
+      if (revoked.has(runner) || revokedNames().includes(runner) || revokedKeys.has(publicKey)) throw new Refused('PULL_RUNNER_REVOKED', `runner ${runner}'s credential was revoked; ask the person to issue a key under a new runner name`);
       if (!trustedKeys().has(publicKey)) throw new Refused('PULL_RUNNER_UNTRUSTED', `runner ${runner}'s key is not trusted on this board; ask the person to trust it with the runner's public key`);
-      if (revoked.has(runner) || revokedKeys.has(publicKey)) throw new Refused('PULL_RUNNER_REVOKED', `runner ${runner}'s credential was revoked; ask the person to issue it a new key`);
       // Why: a key is one runner's credential; two runners behind one key could not be told apart or revoked singly [C7].
       for (const other of runners.values()) if (other.runner !== runner && other.publicKey === publicKey) throw new Refused('PULL_KEY_SHARED', `this key is already runner ${other.runner}'s credential; give runner ${runner} a key of its own`);
       checkSigned('register', runner, at, signature, publicKey);
@@ -209,7 +214,8 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
     revoke(runner) {
       const held = runners.get(runner);
       revoked.add(runner);
-      if (held) { revokedKeys.add(held.publicKey); runners.delete(runner); persist(); }
+      if (held) { revokedKeys.add(held.publicKey); runners.delete(runner); }
+      persist();
       return { revoked: Boolean(held) };
     },
 

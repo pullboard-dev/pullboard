@@ -4,18 +4,20 @@ export { laneCheckFiles, requireOwnLaneCheck, coordinatorCheck } from './src/io/
 export { normalizeReviewDefaults } from './src/io/review/default.js';
 export { barActorForCommand, nativeBarActor, nativeBarActorForSeat, normalizeBarActor } from './src/io/bar/actor.js';
 export { barCheckEnabled, barCheckFactFields, barCheckState, barCheckWarning } from './src/logic/bar/check.js';
+export { dryRunReviewArm, dryRunReviewChecklist, dryRunReviewMode } from './src/logic/bar/dryRun.js';
 export { barCoverageCommand, barCoverageDigest, barCoverageForPolicy, barTestPath, normalizeBarCoverage, prepareBarCoverage, previewBarCoverage } from './src/io/bar/coverage.js';
 export { barDigest, barNotes, barReadiness, barReadinessRequired, barReadyProblem, recordBarRevision, setBarReady, signBar, barReadySetting } from './src/io/bar/readiness.js';
 export { PROVES_NOTHING_HOLD, PROVES_NOTHING_HOLD_REASON, acceptCheck, checkAcceptCommand, checkAcceptance, checkDigest, provingCheck, refuseClaimProvesNothing, refuseProvesNothing } from './src/io/check/accept.js';
 export { citedTestFiles, rowEvidence, rowStage } from './src/io/evidence.js';
 export { barTestFiles, frozenBar, frozenRowGates, namedClause, wording } from './src/logic/frozen.js';
 export { changedTestFiles, contentHash, frozenTestHashes, frozenTestsProblem, namedTestHashes, testHashProblem, testHashRulings, testAuthors, testAuthorNotes, authorSplitProblem } from './src/logic/testHashes.js';
-export { nextReview, ownSessionReviews, returnUnmergeable } from './src/logic/next.js';
+export { nextReview, forcedLandedUnreviewed, ownSessionReviews, returnUnmergeable } from './src/logic/next.js';
 export { completeMoveHandoff } from './src/logic/post/move.js';
 export { recordNativeProof } from './src/logic/proof/native.js';
 export { counterCaught, counterProofStats } from './src/io/proof/caught.js';
 export { PROOF_COUNTER_PREFIX, appendProofCounter, clearProofCounters, currentProofCounters, ensureProofCounters, proofCounter, proofCounterRows, rebuildProofCounters } from './src/io/proof/counters.js';
-export { refreshCapacityOutsideWrite } from './src/io/proof/counters.js';
+export { derivedProofCounter, refreshCapacityOutsideWrite } from './src/io/proof/counters.js';
+export { DERIVED_SETTING, deleteDerived, derivedRows } from './src/io/proof/derived.js';
 export { registryFindings, registryOutcome } from './src/logic/registry.js';
 export { registryStrictEnabled as registryStrict } from '../config/index.js';
 export { tier1Shadow, tier1ShadowFields } from './src/logic/shadow.js';
@@ -25,7 +27,7 @@ export { eligibilityProblem, reviewEligibility } from './src/logic/review/eligib
 export { earlierHolderProblem, committedItemAuthors, itemReviewPolicy, reviewFamilyProblem, reviewPolicyChange, saveItemReviewPolicy, strictReviewProblem, twoTierReviews } from './src/io/review/independence.js';
 export { aliasEngineOn, anyItemReviewPolicyEngine, familiesDiffer, familyAliasesOf, familyIndex, familyName, itemReviewPolicyEngine } from './src/logic/review/policy.js';
 export { reviewQueueLine } from './src/logic/review/queue.js';
-export { canonicalFamily, overdueReview, prioritizeReviews, requireStrictBuilderFamily, reviewReleaseCooldown, reviewRoutingEnabled, reviewWait, seatFamily, strictReviewProblem as routingStrictReviewProblem, builderFamilyOf } from './src/io/review/routing.js';
+export { canonicalFamily, overdueReview, prioritizeReviews, requireStrictBuilderFamily, reviewReleaseCooldown, reviewRoutingEnabled, reviewWait, seatFamily, strictReviewProblem as routingStrictReviewProblem, builderFamilyOf, declaredLimitProblem } from './src/io/review/routing.js';
 export { ruleProofCounts, ruleProofWindow } from './src/io/rule/proof/counts.js';
 export { bindProofRunner, committedRuleCoverage, proofCoverageFingerprint } from './src/io/rule/proof/coverage.js';
 export { appendRuleProof } from './src/io/rule/proof/append.js';
@@ -34,7 +36,8 @@ export { composeReview, composesAtAdmission } from './src/io/verdict/admission.j
 export { recordVerdict, reviewAssurance, verdictAssurance } from './src/logic/verdict/assurance.js';
 export { cachedVerdictStates, captureVerdictReview, composesUnchanged, staleVerdictRefusal, verdictProjector, verdictTrunk } from './src/io/verdict/freshness.js';
 export { retryReviewCommit } from './src/logic/verdict/retry.js';
-export { acceptedVerdict, checkedLandingCommit, verdictReviewProblem, verdictsFor } from './src/logic/verdict/reviews.js';
+export { ownPatchChanges } from './src/logic/verdict/own-patch.js';
+export { acceptedVerdict, checkedLandingCommit, verdictReviewProblem, verdictReads, verdictsFor } from './src/logic/verdict/reviews.js';
 export { judgeTrunkMove } from './src/io/verdict/trunk.js';
 export { itemTrunkMove } from './src/io/verdict/trunk.js';
 export { checkOptions, verdictWithdrawalTarget, verdictWithdrawals } from './src/io/verdict/withdrawal.js';
@@ -58,7 +61,7 @@ export { machineVerification, validateMachineVerification, saveMachineVerificati
 export { submitReusePlanDigest } from './src/logic/plan.js';
 
 export { kernelGateChange, kernelApprovalText, requireKernelApproval } from './src/io/kernel.js';
-export { recordReviewPacket, reviewPacketLines, reviewPacketReadNote, reviewPacketRerun, showReviewPacket } from './src/io/review/packet.js';
+export { buildReviewPacket, recordReviewPacket, reviewPacketLines, reviewPacketReadNote, reviewPacketRerun, showReviewPacket } from './src/io/review/packet.js';
 
 export { reusableSubmitProof, submittedPolicyCommit } from './src/io/reuse.js';
 export { sealedMoveOverlap } from './src/io/verdict/trunk.js';

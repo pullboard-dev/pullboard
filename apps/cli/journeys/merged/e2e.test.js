@@ -140,7 +140,7 @@ test("the coordinator's resume names its next step from the spec and the board, 
   fresh.git(repo, 'config', 'user.name', 'Test Agent');
   fresh.git(repo, 'config', 'user.email', 'agent@example.com');
   const initialized = await fresh.runLocal(repo, 'init', '--verbose', '--yes');
-  assert.match(initialized.out, /^wrote Claude Code skills: pullboard-decompose, pullboard-plan, pullboard-signoff, pullboard-spec-review, pullboard-verify, pullboard-run, pullboard-triage$/m, 'init installs the Claude Code skills');
+  assert.match(initialized.out, /^wrote Claude Code skills: pullboard-decompose, pullboard-plan, pullboard-signoff, pullboard-spec-review, pullboard-verify, pullboard-run, pullboard-triage, pullboard-worker$/m, 'init installs the Claude Code skills');
   const joined = await joinFixtureSeat(fresh, repo, 'coordinator', { run: fresh.runLocal });
   assert.equal(joined.code, 0, joined.out);
   const firstSetup = JSON.parse((await fresh.runLocal(repo, 'resume', '--diagnostics', '--json')).out).setup;

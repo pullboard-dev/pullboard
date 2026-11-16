@@ -5,7 +5,7 @@ import { recordLandingSpan } from '../../../resources/index.js';
 const SPAN_PHASE = { merge: 'compose', gate: 'prove', 'lease check': 'lease check', push: 'publish', 'static checks': 'static', 'cli smoke': 'smoke' };
 
 /** The line a timed phase says, and the test reads: the phase name and its milliseconds. */
-export const PHASE_LINE = /^landing phase (merge|static checks|cli smoke|gate|lease check|push): (\d+) ms$/u;
+export const PHASE_LINE = /^landing phase (merge|static checks|cli smoke|gate|runner wait|tests|lease check|push): (\d+) ms$/u;
 
 /**
  * Run a phase and say how long it took, even when it throws, and record it as a landing step span.
@@ -24,4 +24,24 @@ export async function timedPhase(say, name, work) {
     say?.(`landing phase ${name}: ${Date.now() - start} ms`);
     recordLandingSpan({ phase: SPAN_PHASE[name] ?? name, start, ...(failed ? { outcome: 'failed', code: failed.code ?? failed.name ?? null } : {}) });
   }
+}
+
+/**
+ * Say the two halves of a runner-run gate: the runner wait, from the gate job being queued to a runner claiming it, and
+ * the tests, from that claim to the recorded gate result. Marks missing or out of order say nothing for that half.
+ * Why: one gate phase hid whether a slow landing waited for a free runner or ran slow tests [C7,B3].
+ * @param {(line: string) => void} say
+ * @param {{ queuedAt?: number, claimedAt?: number, resultAt?: number } | null | undefined} marks - epoch ms
+ * @returns {{ phase: 'runner wait'|'tests', ms: number }[]} the phases said, in order
+ */
+export function sayGateSplit(say, marks) {
+  const mark = (name) => Number.isSafeInteger(marks?.[name]) ? marks[name] : null;
+  const halves = [['runner wait', mark('queuedAt'), mark('claimedAt')], ['tests', mark('claimedAt'), mark('resultAt')]];
+  const said = [];
+  for (const [phase, from, to] of halves) {
+    if (from === null || to === null || to < from) continue;
+    say?.(`landing phase ${phase}: ${to - from} ms`);
+    said.push({ phase, ms: to - from });
+  }
+  return said;
 }

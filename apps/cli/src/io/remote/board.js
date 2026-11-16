@@ -6,7 +6,7 @@ import { gitExecFileSync } from '../../../../../packages/git/light.js';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { Refused } from '../../../../../packages/kernel/light.js';
-import { boardRemote } from '../../../../../packages/config/index.js';
+import { boardRemote } from '../../../../../packages/config/light.js';
 
 // Budget: one small board read; a board host slower than this is treated as unreachable.
 const READ_TIMEOUT_MS = 10_000;

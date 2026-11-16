@@ -14,6 +14,9 @@ import {
   writeSealedDescriptor,
 } from "../../../index.js";
 
+/** The engine the synthetic snapshot claims; the opener only compares it with maxEngine, so no registry number is involved. */
+const snapshotEngine = 56;
+
 /** Keep synthetic cipher objects and prove every requested history path belongs to the selected root. */
 async function fixture() {
   const objects = new Map(), fingerprints = new Map(), reads = [];
@@ -40,7 +43,7 @@ async function fixture() {
   const shouts = Array.from({ length: 4200 }, (_, index) => ({ shout_id: index + 1, shout_text: 'Historical work ' + index,
     shout_decision: index === 0 ? 1 : 0, shout_answers: index === 4100 || index === 4101 ? 1 : null }));
   const document = { version: 1, tables: {
-    board_meta: [{ meta_key: 'board_id', meta_value: context.boardId }, { meta_key: 'relay_applied_sequence', meta_value: '7' }, { meta_key: 'relay_engine_version', meta_value: '56' }],
+    board_meta: [{ meta_key: 'board_id', meta_value: context.boardId }, { meta_key: 'relay_applied_sequence', meta_value: '7' }, { meta_key: 'relay_engine_version', meta_value: String(snapshotEngine) }],
     shout: shouts, event: [{ event_id: 81, event_detail: 'a historical event' }],
     item: [{ item_id: 90 }, { item_id: 2 }, { item_id: 61 }], agent: [], verdict: [], sqlite_sequence: [{ name: 'event', seq: 12345 }],
   }, presentation: { version: 1, config: { name: 'Synthetic board' }, state: {
@@ -55,7 +58,7 @@ test('current summaries read before history and a selected old shout follows onl
   const box = await fixture();
   const root = await box.publish();
   const total = box.objects.size;
-  const page = await openPagedSnapshot(root, box.context, { maxEngine: 56 });
+  const page = await openPagedSnapshot(root, box.context, { maxEngine: snapshotEngine });
   assert.deepEqual(box.reads, [root.id], 'opening the root does not fetch history');
   const boot = await page.presentation();
   assert.deepEqual(boot.state.items.map(item => item.id), [90, 2, 61]);
@@ -84,17 +87,17 @@ test('current summaries read before history and a selected old shout follows onl
 test('a paged native restore preserves every row, counter and full presentation in its original order [H15,H17]', async () => {
   const box = await fixture();
   const root = await box.publish();
-  const page = await openPagedSnapshot(root, box.context, { maxEngine: 56 });
+  const page = await openPagedSnapshot(root, box.context, { maxEngine: snapshotEngine });
   assert.deepEqual(await page.native(), box.document);
 });
 
 test('newer engines, wrong board and wrong checkpoint coverage refuse before historical reads [H15,H17]', async () => {
   const box = await fixture();
   const root = await box.publish();
-  await assert.rejects(openPagedSnapshot(root, box.context, { maxEngine: 55 }), { code: 'ENGINE_VERSION' });
+  await assert.rejects(openPagedSnapshot(root, box.context, { maxEngine: snapshotEngine - 1 }), { code: 'ENGINE_VERSION' });
   assert.deepEqual(box.reads, [root.id]);
-  await assert.rejects(openPagedSnapshot(root, { ...box.context, sequence: 8 }, { maxEngine: 56 }), { code: 'RELAY_SNAPSHOT' });
-  await assert.rejects(openPagedSnapshot(root, { ...box.context, boardId: 'd'.repeat(32) }, { maxEngine: 56 }), { code: 'SEAL_AUTH_FAILED' });
+  await assert.rejects(openPagedSnapshot(root, { ...box.context, sequence: 8 }, { maxEngine: snapshotEngine }), { code: 'RELAY_SNAPSHOT' });
+  await assert.rejects(openPagedSnapshot(root, { ...box.context, boardId: 'd'.repeat(32) }, { maxEngine: snapshotEngine }), { code: 'SEAL_AUTH_FAILED' });
   assert.ok(box.reads.every(id => id === root.id));
 });
 
@@ -104,7 +107,7 @@ test('a huge historical row stays out of current state and survives a bounded-ob
   box.document.tables.shout[0].shout_text = text;
   box.document.presentation.state.decisions = [];
   const root = await box.publish();
-  const page = await openPagedSnapshot(root, box.context, { maxEngine: 56 });
+  const page = await openPagedSnapshot(root, box.context, { maxEngine: snapshotEngine });
   await page.presentation();
   const current = new Set(box.reads);
   assert.ok(current.size < 5);
@@ -120,7 +123,7 @@ test('unchanged history reuses immutable cipher objects across newer checkpoint 
   box.document.tables.board_meta[1].meta_value = '8';
   const next = { ...box.context, sequence: 8 };
   const root = await box.publish(box.document, next);
-  const page = await openPagedSnapshot(root, next, { maxEngine: 56 });
+  const page = await openPagedSnapshot(root, next, { maxEngine: snapshotEngine });
   assert.deepEqual(await page.native(), box.document);
   assert.ok([...box.objects.keys()].filter(id => !before.has(id)).length < 5, 'only changed metadata, its index and the checkpoint root are new');
 });
@@ -133,7 +136,7 @@ test('invalid history ranges and duplicate root tables cannot become a partial b
   unsafe.tables[1] = unsafe.tables[0];
   const bad = await writeSealedDescriptor(unsafe, directory.links, box.context);
   const arbitrary = { ...box.context, get: id => box.objects.get(id).bytes };
-  await assert.rejects(openPagedSnapshot(bad, arbitrary, { maxEngine: 56 }), { code: 'RELAY_SNAPSHOT' });
+  await assert.rejects(openPagedSnapshot(bad, arbitrary, { maxEngine: snapshotEngine }), { code: 'RELAY_SNAPSHOT' });
   box.document.tables.shout[1].shout_id = 1;
   await assert.rejects(writePagedSnapshot(box.document, box.context), { code: 'RELAY_SNAPSHOT' });
 });
@@ -145,7 +148,7 @@ test('bounded current state precedes thirty thousand events and complete backgro
     lane: 'core', specs: ['H17'], criterion: 'A full governing requirement '.repeat(100), brief: 'Retained detail', verdicts: [], history: [], thread: [] }));
   const original = JSON.stringify(box.document.presentation);
   const root = await box.publish();
-  const page = await openPagedSnapshot(root, box.context, { maxEngine: 56 });
+  const page = await openPagedSnapshot(root, box.context, { maxEngine: snapshotEngine });
   const boot = await page.presentation();
   assert.ok(Buffer.byteLength(JSON.stringify(boot)) < CURRENT_SNAPSHOT_BYTES && CURRENT_SNAPSHOT_BYTES < 1_000_000);
   assert.ok(boot.state.items.length < 2000);
@@ -177,7 +180,7 @@ test('a huge current field is bounded only on first paint and remains complete i
   const direct = currentSnapshotPresentation(box.document.presentation);
   assert.ok(Buffer.byteLength(JSON.stringify(direct)) < 1_000_000);
   const root = await box.publish();
-  const page = await openPagedSnapshot(root, box.context, { maxEngine: 56 });
+  const page = await openPagedSnapshot(root, box.context, { maxEngine: snapshotEngine });
   assert.ok((await page.presentation()).state.items[0].title.length < text.length);
   assert.equal((await page.item(90)).title, text);
 });

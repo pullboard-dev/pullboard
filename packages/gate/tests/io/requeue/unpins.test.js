@@ -12,8 +12,8 @@ import { awaitNestedRun } from '../../../index.js';
 import { runFixtureChildAsync } from '../../fixtures/child.js';
 import { runFixtureGit } from '../../fixtures/child.js';
 import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
-import { HOST } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { installSshStandIn } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
+import { HOST } from '../../fixtures/runner/ssh.js';
+import { installSshStandIn } from '../../fixtures/runner/ssh.js';
 
 /** Keep the real resource database, settings, Git source and SSH stand-in private to each case. */
 function fixture(t) {
@@ -82,7 +82,7 @@ test('a quarantined pinned first runner sends the real command to the free secon
   const output = await execute(box, `
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import {withGateSlot,runProfiledShell} from ${JSON.stringify(gate)};
+import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(gate)};
 import {Refused} from ${JSON.stringify(new URL('../../../../kernel/index.js', import.meta.url).href)};
 ${executionServicesSource(gate)}
 const seen=[],deadlines=[];
@@ -93,7 +93,7 @@ const completed=await withGateSlot(process.cwd(),async lease=>{
     try {assert.ok(db.prepare('SELECT host FROM runner_unavailable WHERE host=?').get(${JSON.stringify(HOST)}),'native requeue quarantined the first runner');}
     finally {db.close();}
   }
-  const result=await runProfiledShell(process.cwd(),'printf real-runner-command',{gateLease:lease});
+  const result=await runProfiledShellAsync(process.cwd(),'printf real-runner-command',{gateLease:lease});
   assert.equal(result.isGreen,true,result.output);
   if(seen.length===1)throw new Refused('RUNNER_CLEANUP_TIMEOUT','controlled first-runner cleanup failure after real execution');
   return result;

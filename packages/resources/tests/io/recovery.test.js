@@ -31,15 +31,15 @@ test('any other database error still surfaces [C7]', async () => {
   await assert.rejects(recoverUnavailableRunners(lockedDb('no such table: runner_unavailable'), [{ host: 'runner-1' }], { probe: async () => ({ healthy: true }), now: 10 }), /no such table/u);
 });
 
-test('a vanilla runner held CLEANUP_UNVERIFIED by an orphaned controller is back within the 120 s waiterMs budget [C7]', async t => {
-  // The evidence of #7214: vanilla went unavailable on a dead controller's cleanup and was held past five minutes
+test('a studio-host runner held CLEANUP_UNVERIFIED by an orphaned controller is back within the 120 s waiterMs budget [C7]', async t => {
+  // The evidence of #7214: studio-host went unavailable on a dead controller's cleanup and was held past five minutes
   // (14:51:21 to 14:59:04 on 13 Nov, with no recovery event between). Here its transport answers 60 s in, and the
   // passes run as the row schedules them; the hold must end on the first pass after that answer.
   const db = new DatabaseSync(':memory:');
   t.after(() => db.close());
   db.exec('CREATE TABLE runner_unavailable(host TEXT PRIMARY KEY,since TEXT NOT NULL,detail TEXT NOT NULL);CREATE TABLE runner_draining(host TEXT PRIMARY KEY,runner TEXT NOT NULL)');
   initializeRunnerRecovery(db);
-  const runner = { host: 'vanilla', slots: 1, browser: 0 };
+  const runner = { host: 'studio-host', slots: 1, browser: 0 };
   const recovery = { version: 1, launchFence: 1, request: randomUUID(), nonce: randomUUID(), tooling: 'a'.repeat(64) };
   recordRunnerFailure(db, runner.host, 'cleanup-unverified', { reason: 'controller-orphan', phase: 'cleanup', cause: 'holder process is gone', remoteCleanup: 'unknown', recovery });
   const held = db.prepare('SELECT * FROM runner_unavailable WHERE host=?').get(runner.host);
@@ -63,5 +63,5 @@ test('a vanilla runner held CLEANUP_UNVERIFIED by an orphaned controller is back
   }
   assert.ok(probesAt - answersAt <= RECOVERY_RETRY_MAX_MS, `lifted ${probesAt - answersAt} ms after the transport answered`);
   assert.ok(longestGap <= RECOVERY_RETRY_MAX_MS, `passes ran at most ${RECOVERY_RETRY_MAX_MS} ms apart, saw ${longestGap}`);
-  assert.deepEqual(db.prepare("SELECT kind FROM runner_recovery_event WHERE host='vanilla' ORDER BY rowid").all().map(row => row.kind).filter(kind => kind !== 'worker-probe-failed'), ['unavailable', 'available']);
+  assert.deepEqual(db.prepare("SELECT kind FROM runner_recovery_event WHERE host='studio-host' ORDER BY rowid").all().map(row => row.kind).filter(kind => kind !== 'worker-probe-failed'), ['unavailable', 'available']);
 });

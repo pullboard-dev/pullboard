@@ -35,10 +35,12 @@ test('submit runs the move registry guard for an item that adds a move and refus
   const guard = join(box.web, 'apps/cli/journeys/relay/credential.test.js');
   writeFileSync(guard, readFileSync(guard, 'utf8').replace("['known.js']", "['known.js', 'newMove.js']"));
   commit(box, box.web, 'fix(core): map the fixture actor [G1]');
-  const repaired = (await box.runLocal(box.web, 'submit', String(box.id)));
+  // --wait ends at the gate verdict, so the submit event is recorded before the export reads it [C7].
+  const repaired = (await box.runLocal(box.web, 'submit', String(box.id), '--wait'));
   assert.equal(repaired.code, 0, repaired.err + repaired.out);
   const exported = (await box.runLocal(box.web, 'export', '--json'));
   assert.equal(exported.code, 0, exported.err);
   const event = JSON.parse(exported.out).tables.event.findLast(row => row.event_kind === 'submit');
+  assert.ok(event, 'the repaired submit recorded its event: ' + repaired.out + JSON.parse(exported.out).tables.event.map(row => row.event_kind).join(','));
   assert.ok(JSON.parse(event.event_detail).submissionProof.files.includes('apps/cli/journeys/relay/credential.test.js'));
 });

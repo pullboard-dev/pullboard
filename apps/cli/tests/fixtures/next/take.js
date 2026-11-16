@@ -53,7 +53,7 @@ async function cleanupFixture(directory, board, original) {
  * The fixture leaves gate.runnerDispatch unpinned, so it is pull, and turns the local runner off: next restarts a dead local runner
  * while a gate job waits (#6556) and a fixture must never start a real process [P7].
  */
-export async function fixture(t, { route = 'strong', family = 'off', policy = 'any', files = {}, mainRed = false, perSeat = null } = {}) {
+export async function fixture(t, { route = 'strong', family = 'off', policy = 'any', files = {}, mainRed = false, perSeat = null, projectConfig = {} } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-next-take-')));
   const root = join(directory, 'repo');
   mkdirSync(root);
@@ -75,7 +75,7 @@ export async function fixture(t, { route = 'strong', family = 'off', policy = 'a
   /** Run only real, isolated Git with the private hook executable. */
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
   git(root, 'init', '-q', '-b', 'main');
-  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true', ...(mainRed ? { affectedTests: 'node --test' } : {}), ...(perSeat ? { claims: { perSeat } } : {}), verify: { policy, family }, review: { independence: 'session' },
+  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true', ...(mainRed ? { affectedTests: 'node --test' } : {}), ...(perSeat ? { claims: { perSeat } } : {}), verify: { policy, family }, review: { independence: 'session' }, ...projectConfig,
     lanes: { web: { owns: ['web/'] }, review: { owns: [] }, docs: { owns: ['docs/'] } } }));
   writeFileSync(join(root, 'SPEC.md'), `# Dispatch fixture\n## G\n- G1 [approved, must] Work keeps its evidence. | gate: ${mainRed ? 'test/main-red.test.js' : 'true'}\n${mainRed ? '- G2 [approved, must] Other work keeps its evidence. | gate: true\n' : ''}`);
   if (mainRed) {

@@ -26,12 +26,16 @@ import { withdrawEngine } from '../moves/light.js';
 import { claimEngine } from '../moves/light.js';
 import { submitEngine } from '../moves/light.js';
 import { reopenEngine } from '../moves/light.js';
+import { verifyEngine } from '../moves/light.js';
+import { landingEngine } from '../moves/light.js';
+import { pulledEngine } from '../moves/light.js';
+import { reclaimEngine } from '../moves/light.js';
 import { provideMoveTables } from '../store/index.js';
 
 import * as self from './index.js';
 
 // The store runs the move tables but never imports the moves cell, which reads the store; this root sees both and hands them over [C7].
-provideMoveTables({ leaseEngine, releaseEngine, runTable, withdrawEngine, claimEngine, submitEngine, reopenEngine });
+provideMoveTables({ leaseEngine, releaseEngine, runTable, withdrawEngine, claimEngine, submitEngine, reopenEngine, verifyEngine, landingEngine, pulledEngine, reclaimEngine });
 
 /** The library's board surface: the store namespace plus the native operations this root composes [C7]. */
 const NATIVE_BOARD_NAMES = ['openBoardForRead', 'openBoard', 'draftSpecRow', 'decideSpecRevisions', 'recordRowVerification', 'advanceItemSource', 'proposeSentinel', 'decideSentinel', 'beginSentinelRun', 'finishSentinelRun', 'flakeLedger', 'recordFlakeObservation', 'flakeQuarantines', 'gateRuns', 'recordGateRun', 'personProposals', 'personSigning', 'proposePersonMove', 'setPersonSigning', 'recordPublishFinding', 'landingWaivers', 'landingWaiverFor', 'waivedLandingProof', 'recordTrainLanding'];

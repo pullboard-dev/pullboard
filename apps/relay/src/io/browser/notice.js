@@ -295,3 +295,23 @@ export function homeScreenLine(doc, storage) {
   line.append(text, dismiss);
   return line;
 }
+
+/**
+ * Name the real cause of a RELAY_UNAVAILABLE read from data the relay already has, each with the one command that fixes it [H5,H17].
+ * A real network failure stays a connection problem. The excluded actor and reason appear only when recorded (#1975).
+ * @param {{ error?: unknown, relayOn?: boolean, machine?: string|null, excluded?: { name?: string, by?: string|null, reason?: string|null, at?: string|null }|null, machines?: { id: string, label?: string, lastSeen?: string|null, online?: boolean }[] }} state
+ * @returns {{ cause: 'connection'|'relay_off'|'excluded'|'asleep'|'unknown', machine: string|null, fix: string|null, [field: string]: unknown }}
+ */
+export function relayUnavailableCause({ error, relayOn = true, machine = null, excluded = null, machines = [] } = {}) {
+  if (relayFault(error) === 'down') return { cause: 'connection', machine, fix: null };
+  if (excluded) {
+    return { cause: 'excluded', machine, name: excluded.name ?? null, by: excluded.by ?? null, reason: excluded.reason ?? 'unknown historical exclusion',
+      at: excluded.at ?? null, fix: 'On that computer, run pullboard relay on in this board.' };
+  }
+  if (!relayOn) return { cause: 'relay_off', machine, fix: 'On that computer, run pullboard relay on.' };
+  const seen = machines.find(entry => entry.id === machine);
+  if (seen && seen.online === false) {
+    return { cause: 'asleep', machine, label: seen.label ?? null, lastSeen: seen.lastSeen ?? null, fix: 'Wake that computer, or run pullboard relay there.' };
+  }
+  return { cause: 'unknown', machine, fix: null };
+}
