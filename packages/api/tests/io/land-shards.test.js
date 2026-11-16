@@ -57,3 +57,18 @@ test('#8196 clause 1: a plan within one runner\'s cores is not sharded, and a jo
   assert.throws(() => other.call(), error => error.code === 'JOB_NOT_LAND');
   assert.equal(board.db.prepare("SELECT COUNT(*) AS n FROM job WHERE job_kind = 'gate-shard'").get().n, 0);
 });
+
+test('#8197: the land job\'s holder reads its shards\' receipts back, and nobody else, and only its own shards [C7,#7818]', t => {
+  const { board, call, held } = landing(t);
+  const { shards } = call();
+  const read = (extra = {}) => boardJobQueueCall(board, { action: 'shardReceipts', job: 'land:1:k', runner: 'r-land', token: held.token, shards, ...extra }, { mode: 'pull', now: 7 });
+  assert.deepEqual(read().shards.map(row => row.posted), [null, null, null, null], 'no shard has posted yet');
+  const shard = claimJob(board.db, { runner: 'r-shard', capabilities: [], now: 8 });
+  const receipt = { version: 1, status: 0, gate: { green: true, phases: [{ role: 'proof', status: 0 }] } };
+  boardJobQueueCall(board, { action: 'receipt', job: shard.job, runner: 'r-shard', token: shard.token, receipt }, { mode: 'pull', now: 9 });
+  const posted = read().shards.find(row => row.job === shard.job).posted;
+  assert.equal(posted.runner, 'r-shard');
+  assert.deepEqual(posted.receipt, receipt);
+  assert.throws(() => read({ token: 'wrong' }), error => error.code === 'JOB_LEASE_MOVED');
+  assert.throws(() => read({ shards: ['land:2:z:shard:1'] }), error => error.code === 'LAND_SHARDS');
+});

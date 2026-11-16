@@ -11,6 +11,7 @@ import { offerLandingJob } from '../../../../../packages/api/index.js';
 import { openLandingJob } from '../../../../../packages/api/index.js';
 import { configTrunkRemote } from '../../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
+import { fencedHopEnabled } from '../../../../../packages/config/index.js';
 import { mainCheckout } from '../../../../../packages/git/index.js';
 import { tryGit } from '../../../../../packages/git/index.js';
 import { unverifiedSubmissions } from '../../../../../packages/store/index.js';
@@ -23,11 +24,13 @@ import { requirePublishGreen } from '../../../../../packages/landing/index.js';
 import { publishRedTouched } from '../../../../../packages/landing/index.js';
 import { landingChangedFiles } from '../../../../../packages/landing/index.js';
 import { relandAcceptedItems } from '../../../../../packages/landing/index.js';
+import { carryLandingHops } from '../../../../../packages/landing/index.js';
 import { ordered } from '../../../index.js';
 import { withBoard } from '../context.js';
 import { BOARD_HOST } from '../runner/local.js';
 import { ensureLocalRunner } from '../runner/local.js';
 import { pullGit } from '../runner/git.js';
+import { landingShardGate } from '../submit/pull.js';
 import { openLandJobs } from './waiting.js';
 import { trunkCheckedOut } from './checkout.js';
 
@@ -238,7 +241,9 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
         const deferred = deferredFilesOf(board.db, batch);
         // The runner names a red's failing cases whether or not it pairs them; the prefixes are main's accepted policy, as the pulled gate's are [C7,H16].
         const flakes = typeof pairPrefix === 'function' ? landingFlakes(root, policy, chosen.find(item => item.item_id === batch[0].id), batch[0].commit, pairPrefix) : null;
-        const job = offerLandingJob(board.db, { items: batch, expect, trunk: trunkRef(root), forced, deferred, flakes, badges: badgeDocuments?.(board) ?? [],
+        // With gate.fencedHop on, each item's gate hop epoch rides on the job, and the runner pushes trunk through the fences [C7,#8437].
+        const hops = carryLandingHops(board.db, batch, { enabled: fencedHopEnabled() });
+        const job = offerLandingJob(board.db, { items: batch, expect, trunk: trunkRef(root), forced, deferred, flakes, hops, ...(policy.config.landing?.shardProof === true ? { shardGate: landingShardGate() } : {}), badges: badgeDocuments?.(board) ?? [],
           ...(hosted ? { config: { ...policy.config, trunk: { ...policy.config.trunk, remote } }, needs: [BOARD_HOST], checkout: true, upstream: hostUpstream(root, policy.config) } : { config: policy.config, checkout: intoCheckout }) });
         ctx.io.say?.(`offered ${forced ? 'forced ' : ''}land job ${job.id} for ${batch.map(entry => `#${entry.id}`).join(' ')}; a runner merges and pushes trunk`);
         jobs.push(job.id);

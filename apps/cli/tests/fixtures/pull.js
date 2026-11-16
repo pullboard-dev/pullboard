@@ -14,7 +14,7 @@ import { resolve } from 'node:path';
 import { createE2eHelpers } from './e2e.js';
 import { fixtureAdd } from './testkit.js';
 import { fixtureMachineSettings } from './testkit.js';
-import { openKitBoard } from './testkit.js';
+import { openKitBoard } from './board.js';
 import { privateFixtureFiles } from './child.js';
 import { fetchFresh } from './http.js';
 import { closeBoard } from '../../../lib/index.js';

@@ -40,7 +40,7 @@ test('every current operation selects its native actor credential without a seco
     if (operation === 'ensureCoordinator') { args = [box.root]; kind = 'machine'; }
     if (operation === 'intakeOutside') args = [{ agentId: actor }];
     if (operation === 'openHandoff') args = [{ agentId: actor }];
-    if (['recordUsage', 'recordSharedUsage', 'recordUsageBatch'].includes(operation)) args = [{ agentId: actor }];
+    if (['recordUsage', 'recordSharedUsage', 'recordUsageBatch', 'recordCoordinatorUsage'].includes(operation)) args = [{ agentId: actor }];
     if (operation === 'recordExitProgress') args = [{ agentId: actor, item: 999999,
       claim: '00000000-0000-4000-8000-00000000c0de', tokens: null, calls: null }];
     if (operation === 'takeHandoff') args = [{ agentId: actor, item: 999999 }];
@@ -143,6 +143,7 @@ test('every current operation selects its native actor credential without a seco
     { operation: 'openHandoff', args: [{}], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'recordUsage', args: [{}], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'recordSharedUsage', args: [{}], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
+    { operation: 'recordCoordinatorUsage', args: [{}], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'takeHandoff', args: [{ item: 999999 }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'recordPublishFinding', args: [{ item: 999999 }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'maintainStaleState', args: [{ snapshot: null }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
@@ -169,7 +170,7 @@ test('every current operation selects its native actor credential without a seco
   // Each child keeps the fixture's existing deadline while all moves share one durable board.
   for (let offset = 0; offset < cases.length; offset += 8) {
     const batch = cases.slice(offset, offset + 8);
-    const result = await box.script(`
+    const result = await box.scriptLocal(`
     import { relayOperation } from ${JSON.stringify(new URL('../../../../packages/link/index.js', import.meta.url).href)};
     import { apiBoardOpeners } from ${JSON.stringify(new URL('../../tests/fixtures/board.js', import.meta.url).href)};
     import { Refused } from ${JSON.stringify(new URL('../../../../packages/kernel/src/logic/refused.js', import.meta.url).href)};
@@ -243,7 +244,7 @@ test('a person-only move is refused before the relay is asked [H2,H9,H16]', asyn
 
   /** Return one move's relay-call trace from the real linked CLI environment. */
   async function orderedMove(operation, args, io = {}) {
-    return box.script(`
+    return box.scriptLocal(`
       import { relayOperation } from ${JSON.stringify(new URL('../../../../packages/link/index.js', import.meta.url).href)};
     import { apiBoardOpeners } from ${JSON.stringify(new URL('../../tests/fixtures/board.js', import.meta.url).href)};
       const io = ${JSON.stringify(io)};
@@ -305,7 +306,7 @@ test('a person-only move is refused before the relay is asked [H2,H9,H16]', asyn
     ['releaseLane', [box.lane, { agentId: 'person', asPerson: true, channel: 'terminal' }]],
     ['shout', [{ from: 'coordinator', to: 'all', text: 'person request fixture', lanes: [box.lane], request: true }]],
   ];
-  const personResult = await box.script(`
+  const personResult = await box.scriptLocal(`
     import { relayOperation } from ${JSON.stringify(new URL('../../../../packages/link/index.js', import.meta.url).href)};
     import { apiBoardOpeners } from ${JSON.stringify(new URL('../../tests/fixtures/board.js', import.meta.url).href)};
     const cases = ${JSON.stringify(personCases)};

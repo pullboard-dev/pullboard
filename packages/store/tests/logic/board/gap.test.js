@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../../../index.js';
-import { fixtureBoard } from '../../../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../../../board/tests/fixtures/board.js';
 
 const COMMIT = 'a'.repeat(40), TREE = 'b'.repeat(40), TRUNK = 'c'.repeat(40);
 

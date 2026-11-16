@@ -9,6 +9,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { copyPackageFiles } from '../copy.js';
+import { journeyCall } from '../e2e.js';
 import {
   AGENT_SHELL_MARKERS,
   SSH_SHELL_MARKERS,
@@ -65,7 +66,8 @@ export function releaseFixture(t, { previous = null, version = '0.8.7', changelo
   /** Run the copied production CLI in the selected real checkout. */
   const run = (cwd, ...args) => runFixtureChild(process.execPath, [join(cli, 'apps/cli/pullboard.js'), ...args], { cwd, env, encoding: 'utf8' });
   /** The same call answered by the production dispatcher in this process, for cases that do not read the copied CLI's version or changelog. */
-  const runLocal = (cwd, ...args) => runCliInProcess(args, { cwd, env });
+  // PULLBOARD_JOURNEY_MODE=process answers the same call as a real process of the copied CLI, so the gate's parity check can compare the two (#8276).
+  const runLocal = (cwd, ...args) => journeyCall({ dir: root, env, cwd, args, inProcess: () => runCliInProcess(args, { cwd, env }), real: () => run(cwd, ...args) });
   /** Run Git with this fixture's private identity and configuration. */
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
   const initialized = run(repo, 'init');

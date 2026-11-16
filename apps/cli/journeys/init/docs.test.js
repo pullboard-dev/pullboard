@@ -34,6 +34,7 @@ test('committed documentation matches all source declarations [C7,A1,A5,M1]', ()
   assert.deepEqual(generatedDocDrift(join(import.meta.dirname, '../../../..'), undefined, { openBoard }), [], 'run node docs/tools/update-docs.js');
 });
 
+// Real processes by design: each call runs a script or command of the copied candidate repository (a command that exists only in the copy), which the in-process dispatcher of this checkout cannot answer (#8276).
 test('one command detects and repairs each stale output while retaining authored prose [C7,A1,A5,M1]', t => {
   const box = docsRepository(t);
   for (const file of GENERATED_DOC_PATHS) {

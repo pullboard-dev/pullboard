@@ -11,8 +11,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { fixtureMachineSettings } from '../../../../../../apps/cli/tests/fixtures/testkit.js';
+import { runFixtureChild } from '../../../fixtures/child.js';
 import { HOST } from '../../../../../../apps/cli/tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../../../../apps/cli/tests/fixtures/runner/ssh.js';
 
@@ -31,8 +30,6 @@ test('a job whose cleanup sleeps reports its result at once and its cleanup stil
   const remoteHome = join(dir, 'remote-home'), remoteMachineHome = join(remoteHome, '.pullboard');
   for (const folder of [root, bin, worker, home, join(home, '.pullboard'), remoteHome, remoteMachineHome]) mkdirSync(folder, { recursive: true });
   writeFileSync(join(bin, 'package.json'), JSON.stringify({ type: 'module' }));
-  // The test is about the controller path's receipt-before-cleanup; the machine default is pull (4ec4d14695), which would wait on a shared mirror instead.
-  fixtureMachineSettings(join(home, '.pullboard'), { gate: { runnerDispatch: 'controller' } });
   // The worker's final job-directory removal blocks for SLOW_CLEANUP_MS, as a slow disk or a stuck unlink would.
   const slow = join(dir, 'slow-cleanup.mjs');
   writeFileSync(slow, `import fs from 'node:fs';
@@ -55,7 +52,7 @@ syncBuiltinESMExports();
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true' }));
   git(root, env, 'add', '.'); git(root, env, 'commit', '-qm', 'test: cleanup fixture');
   const runner = pathToFileURL(new URL('../../../../../runners/index.js', import.meta.url).pathname).href;
-  const script = `import { runOnRunnerAsync } from ${JSON.stringify(runner)};
+  const script = `import { dispatchRunOnRunnerAsync as runOnRunnerAsync } from ${JSON.stringify(runner)};
 import { existsSync, readdirSync } from 'node:fs';
 const started = Date.now();
 const pending = () => existsSync(process.argv[2]) && readdirSync(process.argv[2]).length > 0;

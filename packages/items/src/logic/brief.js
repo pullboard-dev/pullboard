@@ -43,6 +43,22 @@ function withoutParentheticalNotes(text) {
  * @returns {string[]}
  */
 export function briefFiles(brief, options) {
+  const key = `${options?.references === false ? 0 : 1}\0${brief}`;
+  let files = FILES_BY_BRIEF.get(key);
+  if (!files) {
+    files = parseBriefFiles(brief, options);
+    if (FILES_BY_BRIEF.size >= FILES_CACHE_LIMIT) FILES_BY_BRIEF.clear();
+    FILES_BY_BRIEF.set(key, files);
+  }
+  return [...files];
+}
+
+/** Parsed Files sections by brief text: a command reads the same thousands of briefs many times and parsing each was most of next's cost (#8432). */
+const FILES_BY_BRIEF = new Map();
+const FILES_CACHE_LIMIT = 20_000;
+
+/** @param {string} brief @param {{ references?: boolean }} [options] @returns {string[]} */
+function parseBriefFiles(brief, options) {
   return (briefSections(brief, options).files ?? [])
     .flatMap((entry) => withoutParentheticalNotes(entry).split(/[,\s]+/))
     .map((token) => token.replace(/^[(`'"]+|[)\]'".,;:!?]+$/g, ''))

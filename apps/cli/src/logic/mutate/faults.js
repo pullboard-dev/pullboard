@@ -24,19 +24,25 @@ const OPERATORS = [
 export function masked(source) {
   let out = '';
   let state = 'code';
+  // One entry per open ${ } inside a template: how many plain { are open within it.
+  const frames = [];
+  const blank = (char) => (char === '\n' ? char : ' ');
   for (let at = 0; at < source.length; at++) {
     const char = source[at];
     const next = source[at + 1];
     if (state === 'code') {
-      if (char === '/' && next === '/') { state = 'line'; out += '  '; at++; } else if (char === '/' && next === '*') { state = 'block'; out += '  '; at++; } else if (char === "'" || char === '"' || char === '`') { state = char; out += char; } else out += char;
+      if (char === '/' && next === '/') { state = 'line'; out += '  '; at++; } else if (char === '/' && next === '*') { state = 'block'; out += '  '; at++; } else if (char === "'" || char === '"' || char === '`') { state = char; out += char; } else if (char === '{' && frames.length) { frames[frames.length - 1]++; out += char; } else if (char === '}' && frames.length) {
+        if (frames[frames.length - 1] === 0) { frames.pop(); state = '`'; } else frames[frames.length - 1]--;
+        out += char;
+      } else out += char;
     } else if (state === 'line') {
       if (char === '\n') { state = 'code'; out += char; } else out += ' ';
     } else if (state === 'block') {
-      if (char === '*' && next === '/') { state = 'code'; out += '  '; at++; } else out += char === '\n' ? char : ' ';
+      if (char === '*' && next === '/') { state = 'code'; out += '  '; at++; } else out += blank(char);
     } else if (char === '\\') {
-      out += char === '\n' ? char : ' ';
-      if (next !== undefined) { out += next === '\n' ? next : ' '; at++; }
-    } else if (char === state) { state = 'code'; out += char; } else if (char === '\n' && state !== '`') { state = 'code'; out += char; } else out += char === '\n' ? char : ' ';
+      out += blank(char);
+      if (next !== undefined) { out += blank(next); at++; }
+    } else if (state === '`' && char === '$' && next === '{') { frames.push(0); state = 'code'; out += '${'; at++; } else if (char === state) { state = 'code'; out += char; } else if (char === '\n' && state !== '`') { state = 'code'; out += char; } else out += blank(char);
   }
   return out;
 }

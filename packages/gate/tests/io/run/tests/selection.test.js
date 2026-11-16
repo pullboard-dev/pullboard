@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { cellSandbox } from '../../../../../store/tests/fixtures/cell.js';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../fixtures/child.js';
 
 const RUNNER = fileURLToPath(new URL('../../../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 const REFUSAL = '[TEST_SELECTION_EMPTY]';

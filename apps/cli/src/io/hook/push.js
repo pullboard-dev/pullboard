@@ -49,6 +49,14 @@ export function pushShardLimitMs(config, env = process.env) {
   return Math.max(minutes * 60_000, Number.isSafeInteger(runner) && runner > 0 ? runner : 0);
 }
 
+/** One file's planned time in ms: its record, else the journey or file default. */
+function pushFileWeight(file, times) {
+  const path = file.replace(/^\.\//u, '');
+  const ms = times[path];
+  if (Number.isFinite(ms) && ms >= 0) return ms;
+  return /^apps\/[^/]+\/journeys\//u.test(path) ? PUSH_DEFAULT_JOURNEY_MS : PUSH_DEFAULT_FILE_MS;
+}
+
 /**
  * Split the gate's files into at most PUSH_MAX_SHARDS partitions balanced by recorded time: heaviest file first, each into
  * the lightest partition so far (longest-processing-time first), so partition 1 starts with the heaviest file. A file with
@@ -62,12 +70,7 @@ export function pushShardLimitMs(config, env = process.env) {
  * @returns {{ files: string[], weight: number }[]}
  */
 export function planPushShards(files, times, maxShards = PUSH_MAX_SHARDS) {
-  const weight = file => {
-    const path = file.replace(/^\.\//u, '');
-    const ms = times[path];
-    if (Number.isFinite(ms) && ms >= 0) return ms;
-    return /^apps\/[^/]+\/journeys\//u.test(path) ? PUSH_DEFAULT_JOURNEY_MS : PUSH_DEFAULT_FILE_MS;
-  };
+  const weight = file => pushFileWeight(file, times);
   const ordered = [...new Set(files)].sort((a, b) => weight(b) - weight(a) || a.localeCompare(b));
   const shards = Array.from({ length: Math.min(Math.max(1, Math.floor(maxShards)), ordered.length) }, () => ({ files: [], weight: 0 }));
   for (const file of ordered) {
@@ -77,6 +80,39 @@ export function planPushShards(files, times, maxShards = PUSH_MAX_SHARDS) {
   }
   for (const shard of shards) shard.files.sort((a, b) => a.localeCompare(b));
   return shards.sort((a, b) => b.weight - a.weight || a.files[0].localeCompare(b.files[0]));
+}
+
+/**
+ * How many shards the push gate should offer, from board data: enough for each to hold about targetMs of recorded time
+ * (ceil(totalMs / targetMs)), at least 1, never more than the live runners or PUSH_MAX_SHARDS. Any unknown input (zero,
+ * missing or not finite) gives PUSH_MAX_SHARDS, today's fixed plan. Why: shard and runner counts come from measured
+ * board data, never typed in (U151); a caller passes them only once it reads them.
+ *
+ * @param {{ totalMs?: number, runners?: number, targetMs?: number }} data
+ * @returns {number}
+ */
+export function pushShardCount({ totalMs, runners, targetMs } = {}) {
+  const known = value => Number.isFinite(value) && value > 0;
+  if (!known(totalMs) || !known(runners) || !known(targetMs)) return PUSH_MAX_SHARDS;
+  return Math.max(1, Math.min(PUSH_MAX_SHARDS, Math.floor(runners), Math.ceil(totalMs / targetMs)));
+}
+
+/**
+ * The most shards the push plan may use. With pushGate.sizeFromBoard off (the default) it is PUSH_MAX_SHARDS, as before. With
+ * it on, it is pushShardCount over the files' recorded total time, the live runner count the caller read from the board, and
+ * a quarter of pushGate.shardMinutes as each shard's target; an unknown runner count keeps PUSH_MAX_SHARDS. Why a quarter:
+ * a shard planned to fill the whole limit would be given up on at the first slow run [U151].
+ *
+ * @param {string[]} files
+ * @param {Record<string, number>} times
+ * @param {{ pushGate?: { shardMinutes?: number, sizeFromBoard?: boolean } } | undefined} config
+ * @param {number} [runners] - Live runners on the board, when the caller read them.
+ * @returns {number}
+ */
+export function pushMaxShards(files, times, config, runners) {
+  if (config?.pushGate?.sizeFromBoard !== true) return PUSH_MAX_SHARDS;
+  const totalMs = [...new Set(files)].reduce((sum, file) => sum + pushFileWeight(file, times), 0);
+  return pushShardCount({ totalMs, runners, targetMs: (config.pushGate.shardMinutes ?? DEFAULT_SHARD_MINUTES) * 60_000 / 4 });
 }
 
 /**
@@ -100,14 +136,16 @@ export function pushPlanLimitMs(shards, config, env = process.env) {
  *
  * @param {string} root
  * @param {{ gate: string }} config
+ * @param {{ runners?: number }} [board] - Live runner count from the board, used only with pushGate.sizeFromBoard on.
  * @returns {Promise<{ main: string, source: string, shards: { files: string[], command: string }[], limitMs: number } | null>}
  */
-export async function pushShardPlan(root, config) {
+export async function pushShardPlan(root, config, { runners } = {}) {
   if (runnerDispatchMode() !== 'pull' || !isClean(root) || untracked(root).length) return null;
   const { readFileTimes, trackedDefaultTestFiles, valueGateCommand } = await import('../../../../../packages/gate/index.js');
   const files = trackedDefaultTestFiles(root, process.env);
   if (files.length < 2 || !valueGateCommand(root, config.gate, files)) return null;
-  const planned = planPushShards(files, readFileTimes(root));
+  const times = readFileTimes(root);
+  const planned = planPushShards(files, times, pushMaxShards(files, times, config, runners));
   const shards = planned.map(shard => ({ files: shard.files, command: valueGateCommand(root, config.gate, shard.files) }));
   const limitMs = pushPlanLimitMs(planned, config);
   const source = headCommit(root);
@@ -247,7 +285,8 @@ export function shardProblem(combined, settled, plan, jobs, failingParts) {
  */
 export async function pushShardGate(ctx, { say, wait, pollMs } = {}) {
   const root = ctx.info.root;
-  const plan = await pushShardPlan(root, ctx.config);
+  const runners = ctx.config?.pushGate?.sizeFromBoard === true ? await import('../commands/runner.js').then(module => module.liveRunnerCount(ctx)) : undefined;
+  const plan = await pushShardPlan(root, ctx.config, { runners });
   if (!plan) return null;
   const { jobs, ref } = await offerPushShards(ctx, plan);
   const files = plan.shards.reduce((sum, shard) => sum + shard.files.length, 0);

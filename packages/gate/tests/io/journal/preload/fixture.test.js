@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { cleanupFixtureChildren } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChildAsync } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureExecFile } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureExec } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { startFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { cleanupFixtureChildren } from '../../../fixtures/child.js';
+import { runFixtureChild } from '../../../fixtures/child.js';
+import { runFixtureChildAsync } from '../../../fixtures/child.js';
+import { runFixtureExecFile } from '../../../fixtures/child.js';
+import { runFixtureExec } from '../../../fixtures/child.js';
+import { startFixtureChild } from '../../../fixtures/child.js';
 
 after(cleanupFixtureChildren);
 

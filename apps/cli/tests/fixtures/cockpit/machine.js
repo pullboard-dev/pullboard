@@ -225,8 +225,11 @@ function machine() {
 /**
  * A project registered on the machine: a repo set up by `pullboard init`, one web lane, and a
  * worktree joined to it as web-1. `extra` adds to its pullboard.json, such as products.
+ * `plumbing` makes the setup commit with git plumbing, which runs no hook, for a case that does not prove hook behaviour [C7,#8362].
+ * `bare` stops once the board is registered and configured: no setup commit, no worktree, no seat. Why: a board the
+ * case only lists in its sidebar or breaks on purpose costs a hook commit (7 to 8 s) it never reads [C7,#8366].
  */
-function project(box, name, spec = SPEC, extra = {}, { agentApproved = false, joinSeat = true } = {}) {
+function project(box, name, spec = SPEC, extra = {}, { agentApproved = false, joinSeat = true, bare = false, plumbing = false } = {}) {
   const repo = join(box.dir, name);
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
@@ -243,8 +246,12 @@ function project(box, name, spec = SPEC, extra = {}, { agentApproved = false, jo
   const config = { gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h', lanes: { web: { owns: ['web/'], specs: ['G'] } }, shared: [], landing: { manualOverride: true }, ...extra };
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify(config, null, 2));
   writeFileSync(join(repo, 'SPEC.md'), spec);
+  if (bare) return { repo, web: null, branch: null, baseBranch: null, itemBranches: new Map() };
   box.git(repo, 'add', '-A');
-  box.git(repo, 'commit', '-q', '-m', 'chore: set up pullboard');
+  if (plumbing) {
+    // Git plumbing runs no hook: this commit is setup, and the pre-commit and commit-msg hooks each launched a Node child (#8362).
+    box.git(repo, 'update-ref', 'HEAD', box.git(repo, 'commit-tree', box.git(repo, 'write-tree'), '-m', 'chore: set up pullboard'));
+  } else box.git(repo, 'commit', '-q', '-m', 'chore: set up pullboard');
   const branch = `web/${name.replace(/[^a-z]/g, '')}`;
   const web = join(box.dir, `${name}-web`);
   box.git(repo, 'worktree', 'add', '-q', web, '-b', branch);

@@ -81,7 +81,7 @@ export const OUTBOX_TABLE = Object.freeze({
     { id: 'writable', requires: 'writable', code: 'OUTBOX_TAIL_UNMADE', message: 'a waiting move has not been made again on the board', next: 'remake the rest of the tail, in order, before writing the outbox' },
   ]),
   outcomes: Object.freeze([
-    { id: 'queue', when: 'queueing', patch: (s) => at(s, { state: s.outbox.state === 'none' ? 'queued' : s.outbox.state, moves: s.outbox.moves + 1 }), events: () => [{ kind: 'outbox.queued' }] },
+    { id: 'queue', when: 'queueing', patch: (s) => at(s, { state: ['none', 'parked'].includes(s.outbox.state) ? 'queued' : s.outbox.state, moves: s.outbox.moves + 1 }), events: () => [{ kind: 'outbox.queued' }] },
     { id: 'send', when: 'sending', patch: (s, m) => at(s, { state: 'sent', sent: s.outbox.sent + (m.count ?? 1) }), events: (s, m) => [{ kind: 'outbox.sent', count: m.count ?? 1 }] },
     { id: 'acknowledge', when: 'acknowledging', patch: (s, m) => at(s, { state: 'acknowledged', receipted: s.outbox.receipted + (m.count ?? 1) }), events: (s, m) => [{ kind: 'outbox.acknowledged', count: m.count ?? 1 }] },
     { id: 'park', when: 'parking', patch: (s) => at(s, { state: s.outbox.parked + 1 === s.outbox.moves ? 'parked' : s.outbox.state, parked: s.outbox.parked + 1 }), events: () => [{ kind: 'outbox.parked' }] },

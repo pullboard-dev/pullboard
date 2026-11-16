@@ -122,16 +122,24 @@ export function syncSpawnReport(root, { files = walk(root, SOURCE), read = path 
   return out;
 }
 
+/** Whether a file calls a synchronous child more often than its baseline allows; a file that cannot be read calls none. */
+function callsOverBaseline(file, baseline, read) {
+  try { return syncCallsIn(read(file)).length > (baseline[file] ?? 0); } catch { return false; }
+}
+
 /**
  * One problem per call in each reached file that calls more than its baseline allows.
  *
  * @param {string} root
- * @param {{ files?: string[], read?: (path: string) => string }} [options]
+ * @param {{ files?: string[], only?: string[], read?: (path: string) => string }} [options] only: the changed files to judge instead of the tree
  * @returns {{ path: string, line: number, text: string }[]}
  */
 export function syncSpawnProblems(root, options = {}) {
   const read = options.read ?? (path => readText(root, path));
   const { baseline } = syncSpawnConfig(read);
+  // A commit or submit passes its changed files. A problem needs a file calling more than its baseline, so when no changed
+  // file does and the config is unchanged, main's clean result stands and the import graph is never walked; the gate still walks it [#8152].
+  if (options.only && !options.only.includes(CONFIG) && !options.only.some(file => SOURCE.test(file) && callsOverBaseline(file, baseline, read))) return [];
   const problems = [];
   for (const [path, { entry, lines }] of Object.entries(syncSpawnReport(root, { ...options, read }))) {
     const allowed = baseline[path] ?? 0;

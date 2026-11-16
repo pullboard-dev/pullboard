@@ -65,7 +65,7 @@ function warmHistories(board) {
 export function writeBoardCommand(board, operation, args, actor, { prepareInWriter } = {}) {
   requireHandoffActive(board, actor, operation, args);
   requireExitActive(board, actor, operation, args);
-  requireAgentGrant(board, { operation, args, engine: ENGINE_VERSION });
+  requireAgentGrant(board, { operation, args, engine: ENGINE_VERSION, ...(board.itemsInGate > 0 ? { itemsInGate: board.itemsInGate } : {}) });
   const prepare = PREPARATIONS[operation];
   // Another connection's commit (a peer's renewal, a baseline worker) can land between preparation and
   // the writer lock; the prepared plan is then stale, so prepare again from the new board. Bounded so a
@@ -88,7 +88,7 @@ export function writeBoardCommand(board, operation, args, actor, { prepareInWrit
         if (writerResult) args.splice(0, args.length, ...current);
         measureBoardWritePhase(board.db, 'handoff-guard', () => requireHandoffActive(board, actor, operation, current));
         measureBoardWritePhase(board.db, 'exit-guard', () => requireExitActive(board, actor, operation, current));
-        measureBoardWritePhase(board.db, 'agent-grant', () => requireAgentGrant(board, { operation, args: current, engine: ENGINE_VERSION }));
+        measureBoardWritePhase(board.db, 'agent-grant', () => requireAgentGrant(board, { operation, args: current, engine: ENGINE_VERSION, ...(board.itemsInGate > 0 ? { itemsInGate: board.itemsInGate } : {}) }));
         return measureBoardWritePhase(board.db, 'native-move', () => board.enginePorts.store[operation](board, ...current), operation);
       });
     } catch (error) {

@@ -4,8 +4,8 @@ import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
 
 const fixtureCredential = randomUUID();
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { fixtureChildMessage } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../fixtures/child.js';
+import { fixtureChildMessage } from '../../../fixtures/child.js';
 
 /** Run a real ignored-stderr IPC worker inside a parent whose emitted diagnostics are captured. */
 function ignoredWorkerProbe(outcome) {

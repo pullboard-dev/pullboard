@@ -4,7 +4,10 @@ import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 import { changedStaticFailures } from '../../../../../packages/gate/heavy.js';
+import { recentReceipts } from '../../../../../packages/gate/index.js';
 import { staticScopeFromEnv } from '../../../../../packages/gate/index.js';
+import { tripOverheadReport } from '../../../../../packages/gate/index.js';
+import { gateTripOverheadBudgetMs } from '../../../../../packages/config/index.js';
 import { viewPureGate } from './view.js';
 
 /**
@@ -30,6 +33,9 @@ export async function staticFailures(classes) {
   return (await Promise.all(started)).flat();
 }
 
+/** Report text from clean children, printed only when the whole stage is green [#8469]. */
+const reports = [];
+
 /** The static tree registry run as its own process; a crash is one failure line naming its cause [C7]. */
 function treeRegistryFailures(program, root) {
   return new Promise(resolveRun => {
@@ -38,6 +44,8 @@ function treeRegistryFailures(program, root) {
     const err = [];
     child.stdout.on('data', chunk => out.push(chunk));
     child.stderr.on('data', chunk => err.push(chunk));
+    // Report lines (sizes, never findings) arrive on a clean child's stderr; they are held and printed apart from the findings [#8460,#8469].
+    child.on('close', status => { if (status === 0 && err.length) reports.push(Buffer.concat(err).toString('utf8')); });
     child.on('error', error => resolveRun([`packages/gate/bin/static.js:1: the static tree registry could not run: ${error.message}`]));
     child.on('close', status => resolveRun(status === 0 ? JSON.parse(Buffer.concat(out).toString('utf8')) : [`packages/gate/bin/static.js:1: the static tree registry could not run: ${crashLine(Buffer.concat(err).toString('utf8'))}`]));
   });
@@ -74,6 +82,10 @@ const failures = await staticFailures([
 ]);
 for (const row of failures) console.error(row);
 const failed = failures.length > 0;
+// A report is information: printed after the findings and only when there are none, so it never reads as the reason for a red [#8469].
+if (!failed) for (const text of reports) process.stderr.write(text);
+// Report only: a runner trip over its overhead budget is printed with its runner and trip, and never turns this stage red [C7].
+try { for (const line of tripOverheadReport(recentReceipts(root), gateTripOverheadBudgetMs())) console.log(line); } catch { /* No receipt log yet: nothing to report. */ }
 if (!failed) console.log('static style, prose declarations, clock budgets and doctrine hold');
 process.exitCode = failed ? 1 : 0;
 }

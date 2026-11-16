@@ -6,7 +6,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fetchFresh } from '../../../../apps/cli/tests/fixtures/http.js';
-import { fixtureMachineSettings } from '../../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
 import { boardId } from '../../../store/index.js';
 import { openBoardForRead } from '../../../store/index.js';
 import { cellProject } from '../../../store/tests/fixtures/cell.js';
