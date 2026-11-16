@@ -35,6 +35,7 @@ import { fetchFresh } from './http.js';
 import { stopFixtureLocalRunners } from './runner/local-stop.js';
 import { stopComparisonWorkers } from './runner/comparisons.js';
 import { reviveFixtureLocalRunner } from './runner/local-start.js';
+import { CLI_ENTRY } from './runner/entry.js';
 import { runnerSwitchedEnv } from './runner/switches.js';
 import { runCliInProcess } from './process.js';
 import { runCliSync } from './sync/cli.js';
@@ -181,7 +182,7 @@ export function settlePulledJobs(cwd, args, env) {
       const db = new DatabaseSync(file, { readOnly: true });
       try { open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_step <> 'done' LIMIT 1").get()); } finally { db.close(); }
     } catch (error) { if (!/database is locked/u.test(String(error?.message))) return; open = true; }
-    if (!open || Date.now() >= deadline) return; reviveFixtureLocalRunner(cwd, env); // A gate switch stopped it (runnerSwitchedEnv).
+    if (!open || Date.now() >= deadline) return; reviveFixtureLocalRunner(cwd, env, { entry: CLI_ENTRY }); // A gate switch stopped it (runnerSwitchedEnv).
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
   }
 }
@@ -227,7 +228,7 @@ export async function settlePulledJobsAsync(cwd, args, env) {
       const db = new DatabaseSync(file, { readOnly: true });
       try { open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_step <> 'done' LIMIT 1").get()); } finally { db.close(); }
     } catch (error) { if (!/database is locked/u.test(String(error?.message))) return; open = true; }
-    if (!open || Date.now() >= deadline) return; reviveFixtureLocalRunner(cwd, env); // A gate switch stopped it (runnerSwitchedEnv).
+    if (!open || Date.now() >= deadline) return; reviveFixtureLocalRunner(cwd, env, { entry: CLI_ENTRY }); // A gate switch stopped it (runnerSwitchedEnv).
     await runnerFolderChange(env);
   }
 }

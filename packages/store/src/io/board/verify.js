@@ -140,13 +140,13 @@ export function verdictEvidence(board, id, { agentId, isAccept, engine, review, 
  * @param {{ agentId: string, decision: string, reason?: string, note?: string, cause?: string, clause?: string, head: string, digest: string, policy: string, familyPolicy?: string, check?: 'none' | 'green', review?: {commit: string, head?: string, trunk: string, paths: string[]}, implies?: number[], impliesId?: string }} verdict - implies: items this verdict changes (B29)
  * @returns {{ decision: string, reason: string, check?: 'none' | 'green' }}
  */
-export function verify(board, id, { agentId, decision, reason, note = '', cause, clause, head, digest, policy, familyPolicy = 'off', landed, check, review, companionDigest, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox, sourceAdvanceHead, quarantineProofId, knownMainFailures, prechecked = false }) {
+export function verify(board, id, { agentId, decision, reason, note = '', cause, clause, head, digest, policy, familyPolicy = 'off', landed, keepCheck, check, review, companionDigest, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox, sourceAdvanceHead, quarantineProofId, knownMainFailures, prechecked = false }) {
   const verb = { ACCEPT: 'accept', REJECT: 'reject' }[decision];
   if (!verb) throw new Refused('BAD_DECISION', 'the decision is accept or reject');
   const isAccept = verb === 'accept';
   const code = isAccept ? ACCEPT_REASON : reason;
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
-  if (landed === true) return landedVerdict(board, id, { agentId, isAccept, decision, code, reason, note, policy, familyPolicy, engine });
+  if (landed === true) return landedVerdict(board, id, { agentId, isAccept, decision, code, reason, note, policy, familyPolicy, engine, keepCheck: keepCheck === true });
   if (sourceAdvanceHead !== undefined && engine < SOURCE_ADVANCE_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade before binding a verdict to an automatically advanced source');
   board.nativePorts.landingEnvironment.requireVerdict(board, environment);
   const declaration = MOVES.find(move => move.verb === verb);
@@ -257,6 +257,11 @@ function landedFollowUpBar(found, id, reason, note, engine) {
   return { route: 'strong', criterion, brief: review };
 }
 
+/** When the recorded move argument keepCheck is true, the follow-up may carry its parent's exact check; the move reads no machine setting [#9637]. */
+function followUpCheck(found, bar, keepCheck) {
+  return keepCheck && bar.check !== undefined && bar.check === found.item_check ? { ...bar, keptCheckFrom: found.item_check } : bar;
+}
+
 /**
  * Record a verdict on an item a forced merge landed around the gate with no review (V1).
  * An accept is recorded as a verdict and the landing stays: the item keeps its status and merged commit.
@@ -267,7 +272,7 @@ function landedFollowUpBar(found, id, reason, note, engine) {
  * @param {{ agentId: string, isAccept: boolean, decision: string, code: string, reason?: string, note: string, policy: string, familyPolicy: string, engine: number }} verdict
  * @returns {{ decision: string, reason: string }}
  */
-function landedVerdict(board, id, { agentId, isAccept, decision, code, reason, note, policy, familyPolicy, engine }) {
+function landedVerdict(board, id, { agentId, isAccept, decision, code, reason, note, policy, familyPolicy, engine, keepCheck = false }) {
   if (engine < LANDED_VERDICT_ENGINE) throw new Refused('ENGINE_VERSION', `a verdict on a forced landing requires engine ${LANDED_VERDICT_ENGINE}; upgrade Pullboard before recording one`);
   if (!isAccept && engine < LANDED_REJECT_ENGINE) throw new Refused('ENGINE_VERSION', `a reject on a landed item requires engine ${LANDED_REJECT_ENGINE}; upgrade Pullboard before recording one`);
   const suppliedNote = note.trim();
@@ -292,8 +297,8 @@ function landedVerdict(board, id, { agentId, isAccept, decision, code, reason, n
     setItem(board, id, { item_verdict: decision, item_verified_by: agentId });
     // A landed item cannot move back, so a reject opens a follow-up item in its lane for the builder to fix.
     const followUp = isAccept ? null : addItem(board, { by: agentId, lane: found.item_lane, title: `Fix after review of #${id}: ${found.item_title}`.slice(0, 120),
-      specIds: [], parentId: null, after: [], ...landedFollowUpBar(found, id, reason, suppliedNote, engine) });
-    logEvent(board, agentId, 'verify', id, { reason: code, commit: found.item_merged_commit, landed: true, note: suppliedNote, ...(followUp ? { followUp } : {}) });
+      specIds: [], parentId: null, after: [], ...followUpCheck(found, landedFollowUpBar(found, id, reason, suppliedNote, engine), keepCheck) });
+    logEvent(board, agentId, 'verify', id, { reason: code, commit: found.item_merged_commit, landed: true, note: suppliedNote, ...(followUp ? { followUp } : {}), ...(followUp && keepCheck && found.item_check && getItem(board, followUp)?.item_check === found.item_check ? { keptCheckFrom: found.item_check } : {}) });
     return { decision, reason: code, ...(followUp ? { followUp } : {}) };
   });
 }

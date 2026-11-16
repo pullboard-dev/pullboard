@@ -9,8 +9,8 @@ import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { cellProject } from '../../../../../store/tests/fixtures/cell.js';
 import { runFixtureChild } from '../../../../../gate/tests/fixtures/child.js';
-import { HOST } from '../../../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { installSshStandIn } from '../../../../../../apps/cli/tests/fixtures/runner/ssh.js';
+import { HOST } from '../../../../../gate/tests/fixtures/runner/ssh.js';
+import { installSshStandIn } from '../../../../../gate/tests/fixtures/runner/ssh.js';
 
 /** Fail the first actual worker probe, then execute the real pinned idle worker on a private host. */
 function observe(t, live) {

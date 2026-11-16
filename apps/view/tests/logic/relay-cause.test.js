@@ -5,21 +5,21 @@ import { test } from 'node:test';
 import { relayCauseMessage } from '../../src/logic/relay-cause.js';
 
 test('clause 1: relay off and board excluded each map to their own message plus one fix command [H5]', () => {
-  const off = relayCauseMessage({ cause: 'relay_off', machine: 'Studio' });
-  assert.match(off.message, /off on Studio/u);
+  const off = relayCauseMessage({ cause: 'relay_off', machine: 'Tower' });
+  assert.match(off.message, /off on Tower/u);
   assert.equal(off.command, 'pullboard relay on');
-  const excluded = relayCauseMessage({ cause: 'excluded', machine: 'Studio', by: 'Corey', reason: 'private work' });
+  const excluded = relayCauseMessage({ cause: 'excluded', machine: 'Tower', by: 'Pat', reason: 'private work' });
   assert.match(excluded.message, /excluded/u);
-  assert.match(excluded.message, /Corey/u);
+  assert.match(excluded.message, /Pat/u);
   assert.match(excluded.message, /private work/u);
   assert.equal(excluded.command, 'pullboard relay on');
-  const unknown = relayCauseMessage({ cause: 'excluded', machine: 'Studio', by: null, reason: 'unknown historical exclusion' });
+  const unknown = relayCauseMessage({ cause: 'excluded', machine: 'Tower', by: null, reason: 'unknown historical exclusion' });
   assert.doesNotMatch(unknown.message, /unknown|by /u);
   assert.notEqual(off.message, excluded.message);
 });
 
 test('clause 1: a network failure maps to check your connection with no command [H5]', () => {
-  const down = relayCauseMessage({ cause: 'connection', machine: 'Studio' });
+  const down = relayCauseMessage({ cause: 'connection', machine: 'Tower' });
   assert.match(down.message, /check your connection/iu);
   assert.equal(down.command, null);
   assert.deepEqual(relayCauseMessage(), relayCauseMessage({ cause: 'unknown' }));

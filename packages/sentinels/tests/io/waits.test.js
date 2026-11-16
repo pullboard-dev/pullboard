@@ -29,7 +29,7 @@ import { startServeSentinel } from '../../index.js';
 import { localCensus } from '../../src/io/surfaces.js';
 import { readRunnerJobs } from '../../src/io/surfaces.js';
 import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
-import { waitForCondition } from '../../../../apps/cli/tests/fixtures/runner/holders.js';
+import { waitForCondition } from '../../../gate/tests/fixtures/runner/holders.js';
 
 /** Whether a pid is gone. */
 function gone(pid) {
