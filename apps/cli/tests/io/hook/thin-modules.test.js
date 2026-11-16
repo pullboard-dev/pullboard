@@ -1,6 +1,7 @@
 /** The thin pre-commit and commit-msg hook processes load at least 25 percent fewer modules than the whole-CLI graph they loaded before [C7,#8841]. @pullboard-test-input source-cell apps/cli */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -48,7 +49,8 @@ const counts = new Int32Array(shared);
 register('data:text/javascript,${encodeURIComponent(HOOKS_OF_LOADER)}', { data: { shared }, transferList: [] });
 process.on('exit', () => writeFileSync(${JSON.stringify(out)}, String(Atomics.load(counts, 0))));
 `);
-  spawnSync(process.execPath, ['--import', counter, BIN, 'hook', hook, ...extra], { cwd, env: { ...box.env, PULLBOARD_HOOK_STATIC: '' }, encoding: 'utf8' });
+  const ran = spawnSync(process.execPath, ['--import', counter, BIN, 'hook', hook, ...extra], { cwd, env: { ...box.env, PULLBOARD_HOOK_STATIC: '' }, encoding: 'utf8' });
+  assert.ok(existsSync(out), `the ${hook} process wrote no count: status ${ran.status}, signal ${ran.signal}, error ${ran.error}, stderr ${ran.stderr}`);
   return Number(readFileSync(out, 'utf8'));
 }
 
