@@ -13,7 +13,7 @@ import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
-import { rmSync } from 'node:fs';
+import { removeFixtureDirectory } from '../../../../packages/gate/tests/fixtures/diagnostics.js';
 import { writeFileSync } from 'node:fs';
 import { runFixtureChild } from './child.js';
 import { runFixtureGit } from './child.js';
@@ -253,7 +253,7 @@ const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 export function apiHttpFixture(t) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-http-')));
   // A pulled submit starts the loopback local runner in this machine home; it stops before the sandbox goes, or it keeps writing into it.
-  t.after(() => { stopFixtureLocalRunner(join(dir, 'machine-home')); rmSync(dir, { recursive: true, force: true }); });
+  t.after(() => { stopFixtureLocalRunner(join(dir, 'machine-home')); removeFixtureDirectory(dir); });
   const root = join(dir, 'repo');
   const bin = join(dir, 'bin');
   mkdirSync(root);
