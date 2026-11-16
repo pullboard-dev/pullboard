@@ -122,6 +122,7 @@ const OPTIONS = {
   'test-run': { type: 'string' },
   waive: { type: 'string' },
   until: { type: 'string' },
+  choices: { type: 'string' },
   deadline: { type: 'string' },
   take: { type: 'string' },
   agent: { type: 'string' },
