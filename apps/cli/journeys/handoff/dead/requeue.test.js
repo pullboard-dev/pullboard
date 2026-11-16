@@ -1,4 +1,4 @@
-/** @pullboard-test-source-cell packages/moves/index.js packages/store/index.js */
+/** @pullboard-test-input packages/moves/index.js packages/store/index.js */
 /** A gate whose worker died is requeued from its captured candidate with no builder resubmit, three times at most [C7,V4]. The move rules are pinned by the generated submit-table cell test (packages/moves/tests/logic/table/submit-generated.test.js); this journey keeps the claim visible at the CLI's level. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
