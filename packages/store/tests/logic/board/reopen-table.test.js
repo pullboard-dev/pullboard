@@ -47,8 +47,8 @@ test('clause 1: the store reopen writer agrees with the reopen table on every re
     const board = boardFor(t, record);
     reopenAs(board, record);
     const wrote = reopens(board);
-    const decided = record.table.map(({ kind, by, detail }) => ({ kind, by, detail: Object.fromEntries(Object.keys(detail).map(key => [key, wrote[0]?.detail[key]])) }));
-    if (JSON.stringify(decided) !== JSON.stringify(record.table)) disagreements.push({ event: record.event, wrote, expected: record.table });
+    const decided = record.table.map(({ kind, by, detail }, at) => ({ kind, by, detail: Object.fromEntries(Object.keys(detail).map(key => [key, wrote[at]?.detail[key]])) }));
+    try { assert.deepEqual(decided, record.table); } catch { disagreements.push({ event: record.event, wrote, expected: record.table }); }
   }
   assert.deepEqual(disagreements, []);
 });
@@ -65,11 +65,11 @@ test('clause 1: a conflict, landing-failure or verdict-withdrawal reopen records
   for (const via of ['return-conflict', 'return-landing-failure', 'withdraw-verdict']) assert.deepEqual(Object.keys(seen[via]), ['builder', 'until'], `${via} reserves the item for its builder`);
 });
 
-test('clause 1: a conflict reopen records the conflict and the trunk-conflict cause its table decides [C7,#8285]', t => {
+test('clause 1: a conflict reopen records the conflict and the derived cause its table decides [C7,#8285]', t => {
   const record = RECORDS.find(entry => entry.via === 'return-conflict');
   const board = boardFor(t, record);
   reopenAs(board, record);
   const [{ detail }] = reopens(board);
   assert.deepEqual(detail.conflict, record.move.conflict);
-  assert.equal(detail.cause, 'refusal:MERGE_CONFLICT');
+  assert.equal(detail.cause, 'conflict:' + encodeURI(record.move.conflict.files[0]), 'the cause the board derived wins over the conflict\'s own');
 });
