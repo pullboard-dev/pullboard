@@ -8,10 +8,6 @@
  * pool and real worker processes; the probe runs as its own process, as the runner's health entry does.
  */
 import assert from 'node:assert/strict';
-import {
-  spawn,
-  spawnSync,
-} from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import {
   mkdirSync,
@@ -26,7 +22,9 @@ import {
   gone,
   guardProcesses,
   hopCheck,
+  runModuleSource,
   scratch,
+  startNodeChild,
   waitUntil,
   within,
 } from '../../../../../packages/gate/tests/fixtures/pipeline/kit.js';
@@ -55,7 +53,7 @@ function probe(runner, liveJobs) {
     const started = performance.now();
     const reply = runnerIdleReply(${JSON.stringify(runner.root)}, { nonce: ${JSON.stringify(randomUUID())}, idle: true, liveJobs: ${JSON.stringify(liveJobs)} }, undefined, orphanObserver);
     process.stdout.write(JSON.stringify({ ...reply, ms: performance.now() - started }));`;
-  const run = spawnSync(process.execPath, ['--no-warnings', '--input-type=module', '-e', source], { encoding: 'utf8', timeout: 30_000,
+  const run = runModuleSource(source, [], { encoding: 'utf8', timeout: 30_000,
     env: { ...process.env, PULLBOARD_MACHINE_HOME: runner.machine, SSH_CLIENT: `${CONTROLLER} 50000 22` } });
   assert.equal(run.status, 0, run.stderr);
   return JSON.parse(run.stdout);
@@ -73,7 +71,7 @@ test('an orphaned runner worker is stopped by the idle probe and the runner is p
   const workers = [];
   /** Start one real worker from the pinned entrypoint over the controller's SSH session, holding a gate slot for `job`. */
   const worker = async job => {
-    const child = spawn(process.execPath, [entry], { cwd: dir, stdio: 'ignore', env: { PATH: process.env.PATH, SSH_CLIENT: `${CONTROLLER} 50001 22` } });
+    const child = startNodeChild(entry, { cwd: dir, stdio: 'ignore', env: { PATH: process.env.PATH, SSH_CLIENT: `${CONTROLLER} 50001 22` } });
     workers.push(child);
     await new Promise(resolveSpawn => child.once('spawn', resolveSpawn));
     pool.prepare('INSERT INTO holder VALUES(?,?,?,?,?,?)').run(randomUUID(), 'gate', child.pid, `pullboard-ssh-${randomUUID()}`, job, new Date(Date.now() - AGE_MS).toISOString());
