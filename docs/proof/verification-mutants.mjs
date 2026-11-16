@@ -16,7 +16,7 @@ const VERDICT_RULES = ['apps/cli/journeys/resume/board.test.js', 'ACCEPT needs C
 const BOARD_CRITERION = ['packages/store/src/io/board/verify.js', '        criterionUnchanged: (found) =>\n          digest === found.item_frozen_digest', '        criterionUnchanged: (found) =>\n          true || digest === found.item_frozen_digest'];
 const CLI_CRITERION = 'if (digest !== item.item_frozen_digest) throw new Refused(\'CRITERIA_CHANGED\'';
 const CLI_CRITERION_OFF = 'if (false) throw new Refused(\'CRITERIA_CHANGED\'';
-const RED_GATE = ['apps/cli/src/io/submit/pulled.js', "if (job.gate.green !== true) throw new Refused('GATE_RED'", "if (false) throw new Refused('GATE_RED'"];
+const RED_GATE = ['apps/cli/src/io/submit/pulled.js', "if (job.gate.green !== true && job.gate.deferred !== true) throw new Refused('GATE_RED'", "if (false) throw new Refused('GATE_RED'"];
 const VERDICT_INSERT = '.run(item.item_id, agentId, decision, reason, note.trim(), item.item_commit,';
 const MOVED = 'if (before && JSON.stringify(after) !== JSON.stringify(before)) refusals.push(';
 const PULL = 'apps/cli/src/io/submit/pull.js';
