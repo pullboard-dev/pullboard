@@ -11,7 +11,6 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { watch } from 'node:fs';
 import { reviveFixtureLocalRunner } from '../runner/local-start.js';
-import { runCliInProcess } from '../process.js';
 
 /** The tail of the machine's local runner log, so a gate that never settles shows what the runner saw. */
 function runnerLog(machineHome) {
@@ -25,6 +24,8 @@ function runnerLog(machineHome) {
  * and a caller's runIn appended each read to the parity record, so the record's call count followed timing (U149) [C7].
  */
 async function readShown(box, item) {
+  // Loaded here, not at the top: badge.js and land/project.js are listed pure helpers whose import closure may not reach the CLI entry.
+  const { runCliInProcess } = await import('../process.js');
   const shown = await runCliInProcess(['show', String(item), '--json', '--no-next'], { cwd: box.repo, env: box.env });
   return { code: shown.status, out: shown.stdout, err: shown.stderr };
 }
