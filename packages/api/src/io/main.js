@@ -108,6 +108,7 @@ import { settingsInventory } from '../../../config/index.js';
 import { drainedRunnerHosts } from '../../../config/index.js';
 import { jobReserve } from '../../../config/index.js';
 import { fencedHopEnabled } from '../../../config/index.js';
+import { codeStampCacheEnabled } from '../../../config/index.js';
 import { endStaleJobsEnabled } from '../../../config/index.js';
 import { redFactLocationEnabled } from '../../../config/index.js';
 import { settleOnMainReceiptEnabled } from '../../../config/index.js';
@@ -1152,7 +1153,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
   const snapshots = createStateSnapshots({ projects, scope, isMain, onStateBuild, onItemBuild, now, boardOpeners, viewPorts });
   const { withSnapshot } = snapshots;
   // With statePorts, a worker keeps each board's state built and a state read only serves its latest text.
-  const materializer = statePorts ? startStateMaterializer({ portsModule: statePorts, projects, scope, isMain, onStateBuild, onRecord: onStateRecord, Refused, openRevision: (board) => { const watcher = projectRead(board, () => watchLocalStateRevision(board, { scopeCommonDir })); return { revision: () => projectRead(board, () => watcher.revision()), close: () => watcher.close() }; },
+  const materializer = statePorts ? startStateMaterializer({ portsModule: statePorts, projects, scope, isMain, codeStampCache: codeStampCacheEnabled(), onStateBuild, onRecord: onStateRecord, Refused, openRevision: (board) => { const watcher = projectRead(board, () => watchLocalStateRevision(board, { scopeCommonDir })); return { revision: () => projectRead(board, () => watcher.revision()), close: () => watcher.close() }; },
     onFailure: (error) => process.stderr.write(`pullboard: the state worker stopped (${error?.message ?? error}); state reads are refused until the API restarts\n`) }) : null;
   /**
    * Serve a read from the worker while it runs. Once it has stopped, a read, including one that was waiting on it,
