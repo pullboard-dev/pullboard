@@ -73,7 +73,14 @@ test('clause 1: with the setting off no derived database is made [C7]', t => {
 });
 
 test('clause 1: writeDerived prepares its upsert once per board connection, not once per call [C7,#9020]', t => {
-  const { board } = recorded(t);
+  const dir = privateFixtureFiles('pullboard-derived-').root;
+  const process_previous = process.env[DERIVED_SETTING];
+  process.env[DERIVED_SETTING] = '1';
+  const board = { db: new DatabaseSync(join(dir, 'board.sqlite')) };
+  t.after(() => {
+    if (process_previous === undefined) delete process.env[DERIVED_SETTING]; else process.env[DERIVED_SETTING] = process_previous;
+    board.db.close();
+  });
   const upserts = [];
   const real = board.db.prepare.bind(board.db);
   board.db.prepare = sql => { if (/INSERT INTO proof_derived/.test(sql)) upserts.push(sql); return real(sql); };
