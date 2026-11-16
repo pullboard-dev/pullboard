@@ -101,6 +101,7 @@ export {
   recordWriteHolderEnabled,
   adaptiveBatchEnabled,
   landingSquashEnabled,
+  strictFullSuiteEnabled,
   reofferTrunkBusyEnabled,
   reuseContractResultsEnabled,
   reuseGateReceiptsEnabled,
