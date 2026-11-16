@@ -138,7 +138,16 @@ export function nextFor(board, options) {
   const focusCompare = focusOrder(board, () => 0, { milestones });
   const focus = (board.executionEngineVersion ?? ENGINE_VERSION) >= FOCUS_BOUNDARY_ENGINE ? milestoneFocus(board, { milestones }) : null;
   const overflow = focus?.overflow === true;
-  const focusIdle = () => empty('focus', { item: null, reasons: [`${focus.name} is in focus; nothing is free for you; overflow is off.`] });
+  /**
+   * The idle answer under a focus with overflow off. A seat whose route sits below some submitted focus items names them and says
+   * a stronger seat reviews them, instead of "nothing is free" (#3102); it never reserves them, since `items` already leaves them out.
+   */
+  const focusIdle = () => {
+    const above = !verify ? [] : listItems(board).filter(entry => entry.item_status === 'submitted' && focus.ids.has(entry.item_id)
+      && entry.item_built_by !== agentId && !omitIds.includes(entry.item_id) && !canTake(route, entry.item_route));
+    const waiting = above.length ? `${above.map(entry => `#${entry.item_id}`).join(', ')} wait${above.length === 1 ? 's' : ''} for a ${[...new Set(above.map(entry => entry.item_route))].join(' or ')} seat to review; ` : '';
+    return empty('focus', { item: null, reasons: [`${focus.name} is in focus; ${waiting}nothing is free for you; overflow is off.`] });
+  };
   const restrictFocus = focus && (!overflow || focusOnly);
   const otherFocusedWork = () => {
     if (!focus || !overflow || focusOnly) return false;
