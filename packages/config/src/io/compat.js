@@ -28,7 +28,9 @@ function schema(base) {
     verify: { ...shape(base.verify), ...fields(['unrelatedTrunkMoves', 'composeAtAdmission', 'familyRelaxAt', 'landedReviews', 'queueAccept', 'requireRowRewrite']) },
     resume: fields(['adoptOrphans']),
     ...fields(['project', 'name', 'submitGate', 'submitDeferAbove', 'landingShards', 'positiveControl',
-      'affectedTests', 'affectedSuites', 'approvers', 'maintainers', 'sandbox', 'intake', 'testConcurrency', 'health', 'specBoards', 'generated', 'laneMode']),
+      'affectedTests', 'affectedSuites', 'approvers', 'maintainers', 'sandbox', 'intake', 'testConcurrency', 'health', 'specBoards', 'generated', 'laneMode', 'tiers']),
+    tiers: Object.fromEntries(['routine', 'standard', 'escalation'].map(name => [name, fields(['endpoint', 'model'])])),
+
     testConcurrency: fields(['files', 'browser']),
     health: fields(['sentinel', 'stuck', 'holds', 'release', 'dependencyIdle']),
   };
