@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
@@ -57,7 +58,9 @@ async function gateJobWithin(box, item) {
 
 test('clause 1: after runnersOnly turns off, the submit --wait gate job settles, or the failure names its job_step, job_lease_owner and the runner log tail at 30 s [C7,Q1,V4]', async () => {
   const box = helpers.project('true');
-  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Private runner-only opt-out', '--specs', 'G1', '--criterion', 'The native frozen check remains mandatory.', '--check', 'true', '--wait', '--json');
+  const marker = join(box.dir, 'submit-frozen-body');
+  const command = `printf ran > '${marker.replaceAll("'", "'\\\\''")}'`;
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Private runner-only opt-out', '--specs', 'G1', '--criterion', 'The native frozen check remains mandatory.', '--check', command, '--wait', '--json');
   assert.equal(added.code, 0, `${added.err}\n${added.out}`);
   const id = JSON.parse(added.out).item.item_id;
   const claimed = await box.runLocal(box.web, 'claim', String(id), '--json');
@@ -65,6 +68,8 @@ test('clause 1: after runnersOnly turns off, the submit --wait gate job settles,
   const committed = helpers.commitFile(box, box.web, 'web/runner-only.js', 'export const ready = true;\n', 'feat(web): private runner-only control [G1]');
   assert.equal(committed.status, 0, committed.failure ?? committed.stderr);
   // Real processes for both submits: an in-process call would keep the machine settings it read first, and the policy change would never reach it.
+  // Native bar baseline setup may itself have run the command; it is not the subject submission.
+  rmSync(marker, { force: true });
   policy(box, true);
   const refused = await box.runAsync(box.web, 'submit', String(id), '--wait', '--no-next', '--json');
   assert.notEqual(refused.code, 0, refused.out);
