@@ -155,8 +155,8 @@ export function setWorkerBudget(budget) {
 
 
 /**
- * Set board.url or board.token; the value off removes it, so seats use the local board again [P7].
- * @param {'url' | 'token'} key
+ * Set board.url, board.token or board.commits; the value off removes it, so seats use the local board again [P7].
+ * @param {'url' | 'token' | 'commits'} key
  * @param {string} value
  */
 export function setBoardRemote(key, value) {
