@@ -9,8 +9,10 @@
 import { randomBytes } from 'node:crypto';
 import { setTimeout as pause } from 'node:timers/promises';
 import { gateRunnerWaitMs } from '../../../../../packages/config/index.js';
+import { pushRefuseUnshardedEnabled } from '../../../../../packages/config/index.js';
 import { pushRerunFailedShardOnceEnabled } from '../../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
+import { Refused } from '../../../../../packages/kernel/light.js';
 import { git } from '../../../../../packages/git/index.js';
 import { headCommit } from '../../../../../packages/git/index.js';
 import { isClean } from '../../../../../packages/git/index.js';
@@ -330,23 +332,26 @@ export function shardProblem(combined, settled, plan, jobs, failingParts) {
  * Run the pre-push full gate as pull shard jobs, or return null when pushShardPlan keeps the one-command gate.
  * Green stamps the pushed tree, as a full gate run does, so a retried push of it is not gated twice.
  *
+ * With push.refuseUnsharded on, a push with no shard plan throws Refused(PUSH_UNSHARDED) naming pushShardSkipReason's reason, instead of returning null for the one-command gate [C7,#9369].
+ *
  * @param {object} ctx - The hook's command context.
- * @param {{ say?: (line: string) => void, wait?: Function, pollMs?: number }} [options]
+ * @param {{ say?: (line: string) => void, wait?: Function, pollMs?: number, refuse?: boolean, plan?: Function, offer?: Function, settle?: Function }} [options]
  * @returns {Promise<{ isGreen: boolean, problem: string | null, jobs: string[] } | null>}
  */
-export async function pushShardGate(ctx, { say, wait, pollMs } = {}) {
+export async function pushShardGate(ctx, { say, wait, pollMs, refuse = pushRefuseUnshardedEnabled(), plan: planShards = pushShardPlan, offer = offerPushShards, settle = awaitAndWithdraw } = {}) {
   const root = ctx.info.root;
   const runners = ctx.config?.pushGate?.sizeFromBoard === true ? await import('../commands/runner.js').then(module => module.liveRunnerCount(ctx)) : undefined;
-  const plan = await pushShardPlan(root, ctx.config, { runners });
+  const plan = await planShards(root, ctx.config, { runners });
   if (!plan) {
     const reason = await pushShardFacts(root, ctx.config).then(pushShardSkipReason, () => null);
+    if (reason && refuse) throw new Refused('PUSH_UNSHARDED', `the push cannot run as shard jobs: ${reason}. next: fix that, then push again (or turn push.refuseUnsharded off to allow the one-command gate)`);
     if (reason) say?.(`pre-push: running the one-command gate instead of shard jobs: ${reason}`);
     return null;
   }
-  const { jobs, ref, reoffer } = await offerPushShards(ctx, plan);
+  const { jobs, ref, reoffer } = await offer(ctx, plan);
   const files = plan.shards.reduce((sum, shard) => sum + shard.files.length, 0);
   say?.(`pre-push: the full gate's ${files} test files are offered as ${jobs.length} shard jobs at ${plan.source.slice(0, 12)}; every free runner pulls them`);
-  const settled = await awaitAndWithdraw(ctx, jobs, { say, wait, pollMs, limitMs: plan.limitMs, reoffer, after: () => { try { git(root, ['update-ref', '-d', ref]); } catch { /* a pin left behind only keeps a commit reachable */ } } });
+  const settled = await settle(ctx, jobs, { say, wait, pollMs, limitMs: plan.limitMs, reoffer, after: () => { try { git(root, ['update-ref', '-d', ref]); } catch { /* a pin left behind only keeps a commit reachable */ } } });
   if (!Array.isArray(settled)) return { isGreen: false, problem: `the gate did not finish: ${settled.refused}`, jobs };
   const { combinedReceipt, failingParts } = await import('../../../../../packages/api/index.js');
   const combined = combinedReceipt({ status: 0, gate: { green: true, phases: [] } }, settled);
