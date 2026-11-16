@@ -8,7 +8,10 @@
  */
 /** @pullboard-module-loads apps/cli/src/io/landing/budget.js apps/cli/tests/fixtures/e2e.js apps/cli/tests/fixtures/gate/execution.js packages/gate/tests/fixtures/runner/ssh.js packages/board/tests/fixtures/board.js packages/gate/tests/fixtures/testkit.js packages/gate/tests/fixtures/child.js packages/drive/index.js packages/gate/index.js packages/gate/src/io/shards/proof.js packages/jobs/index.js */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import {
+  spawn,
+  spawnSync,
+} from 'node:child_process';
 import {
   mkdirSync,
   rmSync,
@@ -98,6 +101,17 @@ export const ROOT = process.env.PULLBOARD_HOP_ROOT ? resolve(process.env.PULLBOA
  */
 export function runModuleSource(source, args, options) {
   return spawnSync(process.execPath, ['--no-warnings', '--input-type=module', '-e', source, ...args], options);
+}
+
+/**
+ * Start a node script as a long-lived child of the test and return it; the one place a harness test starts a node child it keeps.
+ *
+ * @param {string} entry - The script path.
+ * @param {import('node:child_process').SpawnOptions} options
+ * @returns {import('node:child_process').ChildProcess}
+ */
+export function startNodeChild(entry, options) {
+  return spawn(process.execPath, [entry], options);
 }
 
 /**
