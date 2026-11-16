@@ -31,7 +31,7 @@ function realHooks() {
 function realAnswer(box, cwd, message) {
   const commit = box.tryGit(cwd, '-c', `core.hooksPath=${realHooks()}`, 'commit', '-q', '--allow-empty', '--allow-empty-message', '-m', message);
   const file = box.tryGit(cwd, 'rev-parse', '--git-path', 'COMMIT_EDITMSG').stdout.trim();
-  return { status: commit.status === 0 ? 0 : 1, stderr: commit.stderr, message: readFileSync(join(cwd, file), 'utf8').trimEnd() };
+  return { status: commit.status === 0 ? 0 : 1, stderr: commit.stderr, message: readFileSync(resolve(cwd, file), 'utf8').trimEnd() };
 }
 
 /** A project whose web seat holds one claimed item, so a valid message gets its item trailer. */
