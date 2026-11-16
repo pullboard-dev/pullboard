@@ -145,7 +145,8 @@
     "composeAtAdmission": true,
     "family": "prefer",
     "familyRelaxAt": 5,
-    "folderTicks": true
+    "folderTicks": true,
+    "titleTicks": true
   },
   "check": {
     "timeout": "60m"
