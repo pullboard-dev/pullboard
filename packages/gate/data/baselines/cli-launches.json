@@ -1562,7 +1562,7 @@
   "packages/resources/tests/io/heartbeat/blocked.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/gate/newcomer.test.js": {
+  "apps/cli/journeys/gate/newcomer-setup.test.js": {
     "launch": 1
   },
   "packages/gate/tests/io/journal/preload/refusal.test.js": {

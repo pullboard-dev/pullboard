@@ -1284,6 +1284,10 @@
   },
   "apps/cli/journeys/gate/newcomer.test.js": {
     "tempdir": 2,
+    "env-spread": 1
+  },
+  "apps/cli/journeys/gate/newcomer-setup.test.js": {
+    "tempdir": 2,
     "env-spread": 1,
     "model": 1
   },
