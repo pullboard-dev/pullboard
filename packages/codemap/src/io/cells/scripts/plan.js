@@ -475,6 +475,22 @@ function main(argv) {
     for (const problem of problems) console.error(problem);
     return problems.length ? 1 : 0;
   }, { code: [fileURLToPath(import.meta.url)] });
+  if (mode === '--cuts-all') {
+    // An optional folder lets a check run the strict sweep on another checkout without changing directory.
+    const target = rest[0] === undefined ? root : resolve(rest[0]);
+    return cachedCellsRun(target, [mode], () => {
+      const plan = readPlan(target), inventory = cellInventory(target, { importsIn, commonJsIn });
+      let problems = 0;
+      // Strict: no accepted inventory, so no accepted-wildcard allowance; every hidden edge into any later cell is named by file.
+      for (const cell of plan.cells) {
+        for (const problem of checkCuts(target, plan, cell.name, { allLaterCells: true, temporaryExceptions: false, inventory })) {
+          console.error(`${cell.name} --cuts-all: ${problem}`);
+          problems++;
+        }
+      }
+      return problems ? 1 : 0;
+    }, { code: [fileURLToPath(import.meta.url)] });
+  }
   if (mode === '--file') { fileItems(root, readPlan(root), rest.includes('--yes')); return 0; }
   if (mode === '--place-tests') {
     if (rest.length && rest[0] !== '--batches') throw new Refused('CELLS_PLAN_MODE', 'use node packages/codemap/src/io/cells/scripts/plan.js --place-tests [--batches [--max <n>] [--dry-run --plan <file>]]');
@@ -501,7 +517,7 @@ function main(argv) {
     for (const line of applyTestMove(root, planned, git)) console.log(line);
     return 0;
   }
-  throw new Refused('CELLS_PLAN_MODE', 'use node packages/codemap/src/io/cells/scripts/plan.js --place <path> --cell <cell> [--entry] (or --stay [--owner <cell>]) | --stay <path> --owner <cell> | --engine-stays <cell> <path>... | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --place-tests | --move-tests <cell> [<path>...] | --cuts <cell> | --remove-shims <cell> [--lane <lane>]');
+  throw new Refused('CELLS_PLAN_MODE', 'use node packages/codemap/src/io/cells/scripts/plan.js --place <path> --cell <cell> [--entry] (or --stay [--owner <cell>]) | --stay <path> --owner <cell> | --engine-stays <cell> <path>... | --cuts-all | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --place-tests | --move-tests <cell> [<path>...] | --cuts <cell> | --remove-shims <cell> [--lane <lane>]');
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));

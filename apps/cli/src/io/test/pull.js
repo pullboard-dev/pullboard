@@ -133,6 +133,16 @@ const verdicts = () => {
   return out;
 };
 try { receipt.verdicts = verdicts(); } catch { receipt.verdicts = null; }
+// Each file's own wall ms from its time line, read from the whole output before the tail is cut, so a clipped receipt still times every file [C7,#8576].
+try {
+  const times = {};
+  for (const row of text.split('\\n')) {
+    if (!row.startsWith(${JSON.stringify(FILE_TIME_LINE)})) continue;
+    const rest = row.slice(${FILE_TIME_LINE.length}), space = rest.indexOf(' '), ms = Number(rest.slice(0, space));
+    if (space > 0 && Number.isFinite(ms) && ms >= 0) times[rest.slice(space + 1).trim()] = Math.max(times[rest.slice(space + 1).trim()] ?? 0, ms);
+  }
+  receipt.times = times;
+} catch { receipt.times = null; }
 let keep = 40000, line;
 do { receipt.phases[0].tail = text.slice(-keep); line = ${JSON.stringify(GATE_RECEIPT)} + JSON.stringify(receipt); keep = Math.floor(keep / 2); } while (Buffer.byteLength(line) > 56 * 1024 && keep > 0);
 // Outcomes too many for the line are dropped whole, so the comparison reads them unavailable, never partial.
@@ -179,23 +189,51 @@ export function testJobData({ main, commit, command, files, runId = null, fileBu
 }
 
 /**
- * Pin a commit under refs/pullboard/test and offer one test job for it. Returns the job id and the pinned ref.
+ * Pin a commit under refs/pullboard/test and name the one test job row for it, without writing the row.
  * Why a ref: the trunk remote serves only reachable commits, and an agent's commit is reachable from nothing else yet.
  */
-async function offerTestJob(ctx, { item, commit, main, command, files, runId = null, fileBudgetMs = null }) {
+async function testJobRow(ctx, { item, commit, main, command, files, runId = null, fileBudgetMs = null }) {
   const { root } = ctx.info;
-  const [{ offerJob }, { GATE_NEEDS, GATE_RECEIPT, gateJobRun }, { PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX }, { FAILURE_DIAGNOSTICS_SOURCE }] = await Promise.all([import('../../../../../packages/api/index.js'), import('../submit/pull.js'),
+  const [{ GATE_NEEDS, GATE_RECEIPT, gateJobRun }, { PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX }, { FAILURE_DIAGNOSTICS_SOURCE }] = await Promise.all([import('../submit/pull.js'),
     import('../../../../../packages/gate/index.js'), import('../../../../../packages/kernel/index.js')]);
   const tag = randomBytes(6).toString('hex');
   const ref = `refs/pullboard/test/${tag}`;
   git(root, ['update-ref', ref, commit]);
   const request = { run: gateJobRun(), input: { main, entry: testJobEntry(GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX, FAILURE_DIAGNOSTICS_SOURCE), data: testJobData({ main, commit, command, files, runId, fileBudgetMs }) }, commits: [main] };
-  const job = withBoard(ctx, board => offerJob(board.db, { id: `test:${commit.slice(0, 12)}:${tag}`, kind: TEST_JOB_KIND, priority: 'interactive', needs: GATE_NEEDS,
-    item: item === undefined ? null : Number(item), candidate: commit, base: main, request }));
-  // With no registered runners this machine is its own runner, as a pull submit makes it: otherwise the job waits unclaimed [P7,C7].
+  return { ref, row: { id: `test:${commit.slice(0, 12)}:${tag}`, kind: TEST_JOB_KIND, priority: 'interactive', needs: GATE_NEEDS,
+    item: item === undefined ? null : Number(item), candidate: commit, base: main, request } };
+}
+
+/** Start this machine's loopback runner when it has no registered one, as a pull submit does: otherwise the job waits unclaimed [P7,C7]. */
+async function startLocalRunner(ctx) {
   const [{ primaryCheckoutRoot }, { ensureLocalRunner }] = await Promise.all([import('../worktree.js'), import('../runner/local.js')]);
   const host = primaryCheckoutRoot(ctx.info);
   if (host) await ensureLocalRunner(host);
+}
+
+/** Offer one test job for a commit. Returns the job id and the pinned ref. */
+async function offerTestJob(ctx, fields) {
+  const { offerJob } = await import('../../../../../packages/api/index.js');
+  const { ref, row } = await testJobRow(ctx, fields);
+  const job = withBoard(ctx, board => offerJob(board.db, row));
+  await startLocalRunner(ctx);
+  return { job: job.id, ref };
+}
+
+/**
+ * Queue an accept's frozen check as one runner job on the open board and return its id at once; the caller settles the
+ * verdict from the job's receipt, so no waiting happens here. The commit stays pinned under the returned ref until then [C7,#3161].
+ *
+ * @param {object} ctx
+ * @param {{ db: import('node:sqlite').DatabaseSync }} board - The board the verdict is being recorded on.
+ * @param {{ item: number, commit: string, main: string, command: string }} fields - command: the item's frozen check.
+ * @returns {Promise<{ job: string, ref: string }>}
+ */
+export async function offerAcceptCheck(ctx, board, { item, commit, main, command }) {
+  const { offerJob } = await import('../../../../../packages/api/index.js');
+  const { ref, row } = await testJobRow(ctx, { item, commit, main, command, files: [] });
+  const job = offerJob(board.db, row);
+  await startLocalRunner(ctx);
   return { job: job.id, ref };
 }
 
@@ -244,7 +282,8 @@ async function runJobFor(ctx, fields, { agent, say, testRun }) {
     const outcomes = Array.isArray(gate.outcomes) ? gate.outcomes.filter(Array.isArray).map(([file, name, passed, skipped]) => ({ file, name, passed, skipped })) : null;
     return { job: offered.job, runner, green, output: String(output), failures: Array.isArray(phase?.failures) ? phase.failures : null,
       signatures: Array.isArray(phase?.failureSignatures) && phase.failureSignatures.length === phase?.failures?.length ? phase.failureSignatures : null, durationMs: receipt.durationMs ?? null, outcomes,
-      verdicts: gate.verdicts && typeof gate.verdicts === 'object' && !Array.isArray(gate.verdicts) ? gate.verdicts : null };
+      verdicts: gate.verdicts && typeof gate.verdicts === 'object' && !Array.isArray(gate.verdicts) ? gate.verdicts : null,
+      times: gate.times && typeof gate.times === 'object' && !Array.isArray(gate.times) ? gate.times : null };
   } finally {
     try { git(ctx.info.root, ['update-ref', '-d', offered.ref]); } catch { /* a pin left behind only keeps a commit reachable */ }
   }
@@ -277,7 +316,7 @@ export async function probeTestAt(ctx, { commit, file, say }) {
  *
  * @param {object} ctx
  * @param {{ item: number, commit: string, main: string, command: string, files: string[], runId: string, say?: (line: string) => void, fileBudgetMs?: number | null }} fields
- * @returns {Promise<{ job: string, runner: string | null, green: boolean, output: string, outcomes: { file: string, name: string, passed: boolean, skipped: boolean }[] | null, verdicts: Record<string, 'green' | string[]> | null }>}
+ * @returns {Promise<{ job: string, runner: string | null, green: boolean, output: string, outcomes: { file: string, name: string, passed: boolean, skipped: boolean }[] | null, verdicts: Record<string, 'green' | string[]> | null, times: Record<string, number> | null }>}
  */
 export async function runPulledComparison(ctx, { item, commit, main, command, files, runId, say, fileBudgetMs = null }) {
   return runJobFor(ctx, { item, commit, main, command, files, runId, fileBudgetMs }, { say });

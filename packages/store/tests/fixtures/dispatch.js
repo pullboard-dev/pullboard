@@ -23,11 +23,11 @@ const SPEC = '# Dispatch fixture\n## G\n- G1 [approved, must] Work keeps its evi
  * @returns {{ root: string, file: string, board: object, clock: { now: () => Date }, seats: Record<string, { id: string, path: string, lane: string }>, git: (cwd: string, ...args: string[]) => string, advance: (ms: number) => void, add: Function, claim: Function, submit: Function }}
  */
 export function fixture(t, { route = 'strong', family = 'off', policy = 'any' } = {}) {
-  const project = cellProject(t, { spec: SPEC, config: { verify: { policy, family },
+  const project = cellProject(t, { real: true, spec: SPEC, config: { verify: { policy, family },
     lanes: { web: { owns: ['web/'] }, review: { owns: [] }, docs: { owns: ['docs/'] } } } });
   let at = Date.parse('2026-10-25T10:00:00.000Z');
   const clock = { now: () => new Date(at) };
-  const board = cellBoard(t, project.boardFile, clock, { gitRoot: project.repo });
+  const board = cellBoard(t, project.boardFile, clock, { real: true, gitRoot: project.repo });
   const seats = {};
   for (const [name, lane, vendor] of [
     ['actor', 'web', 'Family Alpha'], ['builder', 'web', 'Family Alpha'],

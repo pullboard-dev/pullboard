@@ -10,6 +10,7 @@ export { ROOT_FILES, ROOT_FOLDERS, rootAllowed, strayNextStep } from './src/logi
 export * from './src/logic/cuts.js';
 export { declaredLoads, declaredSourceLoads, declaredSourcePatterns, globPattern, headerLines } from './src/logic/loads.js';
 export * from './src/io/cells/plan.js';
+export { barRewrites, rewriteMovedBars, rewritePaths } from './src/io/cells/move/bars.js';
 export { PLAN_DIR, PLAN_FILE, SEED_FILE, computePlan, planWrites, placePath, readPlan, readSeed, shardFile, writePlan } from './src/io/cells-plan-model.js';
 export { formatJson } from './src/logic/format-json.js';
 export { entryPlacementProblems as planEntryProblems, ownedStayProblems, processEntry, retiredProblems } from './src/io/cells-plan-placement.js';

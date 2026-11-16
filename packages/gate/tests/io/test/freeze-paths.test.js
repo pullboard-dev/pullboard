@@ -1,4 +1,4 @@
-/** @pullboard-test-input packages/gate/src/io/test/freeze.js packages/gate/src/logic/test/freeze-paths.js */
+/** @pullboard-test-input packages/gate/src/io/test/freeze.js packages/gate/src/io/test/freeze/paths.js */
 /** The freeze rewrites a moved test's path math when its target still resolves, and its dry run refuses the move naming file and line otherwise [C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

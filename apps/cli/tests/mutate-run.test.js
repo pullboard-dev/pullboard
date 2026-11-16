@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
+import { watch } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -136,4 +137,78 @@ test('clause 3: [C7,#8099] the checkout working tree is unchanged and the copy r
   const { before, after, left } = await runImporting();
   assert.deepEqual(after, before);
   assert.deepEqual(left, []);
+});
+
+/** A cell whose one test starts a grandchild that sleeps for a minute, writes its pid, then passes or hangs; the pid file says who to look for. */
+function leakyFixture(hang) {
+  const repo = privateFixtureFiles('mutate-reap-').root;
+  const tmp = privateFixtureFiles('mutate-reap-tmp-').root;
+  dirs.push(repo, tmp);
+  const options = { cwd: repo, env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } };
+  const pidFile = join(tmp, 'pids.txt');
+  runFixtureSetupGit(['init', '-q', '-b', 'main'], options);
+  mkdirSync(join(repo, 'cells', 'leak'), { recursive: true });
+  writeFileSync(join(repo, 'cells', 'leak', 'leak.js'), 'export const one = () => 1;\n');
+  writeFileSync(join(repo, 'cells', 'leak', 'leak.test.js'), [
+    "import { spawn } from 'node:child_process';",
+    "import { appendFileSync } from 'node:fs';",
+    "import { test } from 'node:test';",
+    "import './leak.js';",
+    `const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { stdio: 'ignore' });`,
+    `appendFileSync(${JSON.stringify(pidFile)}, child.pid + '\\n');`,
+    'child.unref();',
+    hang ? "test('hangs', () => new Promise(() => setInterval(() => {}, 1000)));" : "test('passes', () => {});",
+    '',
+  ].join('\n'));
+  runFixtureSetupGit(['add', '-A'], options);
+  runFixtureSetupGit(['commit', '-q', '-m', 'base'], options);
+  return { repo, tmp, pidFile };
+}
+
+/** The pids a fixture test wrote down, read once the file exists. */
+function pidsIn(file) {
+  try { return readFileSync(file, 'utf8').split('\n').filter(Boolean).map(Number); } catch { return []; }
+}
+
+/** Resolve when the fixture test has written its pid, on the folder's own change event. */
+function pidWritten(folder, file) {
+  return new Promise((resolve) => {
+    const watcher = watch(folder, () => { if (pidsIn(file).length) { watcher.close(); resolve(); } });
+    if (pidsIn(file).length) { watcher.close(); resolve(); }
+  });
+}
+
+/** Let the kernel finish reaping killed processes: yield to the event loop until none is listed alive, for at most five seconds. */
+async function allGone(pids) {
+  const limit = Date.now() + 5_000;
+  while (pids.some(alive) && Date.now() < limit) await new Promise((resolve) => setImmediate(resolve));
+}
+
+/** Whether a process is still alive. */
+function alive(pid) {
+  try { process.kill(pid, 0); return true; } catch { return false; }
+}
+
+test('clause 1: [C7,#8500] a finished mutate run leaves no test child or grandchild alive', async () => {
+  const { repo, tmp, pidFile } = leakyFixture(false);
+  const ran = await runCliInProcess(['mutate', 'cells/leak', '--all'], { cwd: repo, env: { ...process.env, PULLBOARD_SCRATCH: tmp } });
+  assert.equal(ran.status, 0, ran.stdout + ran.stderr);
+  const pids = pidsIn(pidFile);
+  assert.ok(pids.length > 0, 'the fixture test started a grandchild');
+  await allGone(pids);
+  assert.deepEqual(pids.filter(alive), [], 'every grandchild the tests started is gone');
+});
+
+test('clause 2: [C7,#8500] a stopped mutate run leaves no test child or grandchild alive', async () => {
+  const { repo, tmp, pidFile } = leakyFixture(true);
+  const running = runCliInProcess(['mutate', 'cells/leak', '--all'], { cwd: repo, env: { ...process.env, PULLBOARD_SCRATCH: tmp } });
+  await pidWritten(tmp, pidFile);
+  const pids = pidsIn(pidFile);
+  assert.ok(pids.length > 0, 'the fixture test started a grandchild before the stop');
+  assert.ok(pids.every(alive), 'the grandchild is running at the stop');
+  process.emit('SIGTERM');
+  const ran = await running;
+  assert.match(ran.stderr, /\[STOPPED\]/u);
+  await allGone(pids);
+  assert.deepEqual(pids.filter(alive), [], 'the test process and its grandchild are gone');
 });

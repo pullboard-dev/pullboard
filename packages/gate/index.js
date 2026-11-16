@@ -103,7 +103,7 @@ export {
   activeHandleSummary,
   installTestChildDrain,
 } from './src/io/test/drain.js';
-export { gateMachineHome, gateRuntimeCaptureSource } from './src/logic/preload.js';
+export { gateMachineHome, gateRuntimeCaptureSource } from './src/io/preload.js';
 export { STATIC_SCOPE_ENV, analysisChange, analysisKey, analysisScope, readAnalysisMemo, staticScopeFromEnv, writeAnalysisMemo } from './src/io/static/scope.js';
 export { fixedWallMargins, wallClockViolations } from './src/io/budgets.js';
 export { LOAD_BEARING_CEILINGS, LOAD_BEARING_CELLS, loadBearingJudged, loadBearingSites, loadBearingCounts, loadBearingGrowth, loadBearingRaised, loadBearingFailures } from "./src/logic/load/bearing.js";

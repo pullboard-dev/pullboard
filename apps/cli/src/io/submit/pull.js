@@ -8,6 +8,7 @@ import { offerJob } from '../../../../../packages/api/index.js';
 import { openJob } from '../../../../../packages/api/index.js';
 import { endGateHop } from '../../../../../packages/api/index.js';
 import { submitGateHop } from './hop.js';
+import { recordCheckpoint } from '../seat-checkpoint.js';
 import { pulledGateReds } from '../../../../../packages/api/index.js';
 import { mappedCheck } from '../../../../../packages/codemap/index.js';
 import { browserFreeChecksEnabled } from '../../../../../packages/config/index.js';
@@ -564,6 +565,8 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   await withBoard(ctx, board => checkpointAfterMove(ctx, board, { agent: me.id, item: id, operation: 'submit' }, { ordered, worker: usageCheckpointWorkerEntrypoint() }));
   await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
     text: `Gate job ${job.id} offered for ${source.slice(0, 12)}${companion ? ` (companions composed onto ${commit.slice(0, 12)})` : ''} on main ${main.commit.slice(0, 12)}; a runner pulls it and posts its receipt.` }]));
+  // seat.checkpoints (off by default): the submit records what is done and what the gate and review still decide [C7,#8549].
+  await withBoard(ctx, board => recordCheckpoint(ctx, board, { item: id, agent: me.id, moment: 'submit', parts: { done: [`submitted ${commit}`], left: ['gate result and review'], evidence: [`gate job ${job.id}`] } }, ordered));
   // With no registered runners this machine is its own runner: the same pull path, on loopback [P7].
   const host = primaryCheckoutRoot(ctx.info);
   const local = host ? await ensureLocalRunner(host) : { running: false, started: false, pid: null };
