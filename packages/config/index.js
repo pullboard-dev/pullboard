@@ -94,6 +94,7 @@ export {
   recordWriteHolderEnabled,
   adaptiveBatchEnabled,
   reofferTrunkBusyEnabled,
+  reuseGateReceiptsEnabled,
   memoryFloorMB,
   relayOfferEnabled,
   setRelayCanary,
