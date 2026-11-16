@@ -600,8 +600,10 @@ const LAND_REF = /^refs\/pullboard\/landing\/[\w.-]{1,200}$/u;
  * @param {{ job: string, runner: string, token: string, merged: string, ref?: string | null, plan: { runner: string, files: string[], cores: number }, gate: { run: string[], entry: string, commits?: string[] }, now?: number }} request - ref: the landing ref holding the merged commit, which a shard's runner fetches.
  * @returns {{ sharded: boolean, shards: string[] }} Not sharded (no ids) when the plan is not one to split.
  */
-export function offerLandShards(db, { job, runner, token, merged, ref = null, plan, gate, now = Date.now() }) {
-  const held = jobRequest(db, { job, runner, token });
+export function offerLandShards(db, { job, runner, token, merged, ref = null, plan, gate, queue = null, now = Date.now() }) {
+  // With runs_store on the land job and its shards live in the runs file; the ledger stays on the board's `db` [B2,P7].
+  const jobs = queue ? queue.runs.db : db;
+  const held = jobRequest(jobs, { job, runner, token });
   if (held.kind !== 'land') throw new Refused('JOB_NOT_LAND', `job ${job} is not a land job; only a land job's runner asks for its proof's shards`, 'ask for shards on the land job you hold');
   const files = Array.isArray(plan?.files) ? plan.files : [];
   const cores = Number.isSafeInteger(plan?.cores) && plan.cores > 0 ? plan.cores : 0;
@@ -614,16 +616,17 @@ export function offerLandShards(db, { job, runner, token, merged, ref = null, pl
   const buckets = Array.from({ length: count }, () => []);
   files.forEach((file, at) => buckets[at % count].push(file));
   const prefix = `${job}:shard:`;
-  const ids = atomically(db, () => {
-    const prior = db.prepare('SELECT job_id, job_candidate, job_step FROM job WHERE job_kind = ? AND substr(job_id, 1, ?) = ?').all(SHARD_JOB_KIND, prefix.length, prefix);
-    endJobs(db, prior.filter(row => row.job_candidate !== merged && row.job_step !== 'done').map(row => row.job_id), { reason: 'the land job proved another merged commit', now });
+  // queueRun makes its own board transaction, so with runs_store on the offers do not sit inside a runs transaction.
+  const ids = (queue ? work => work() : work => atomically(db, work))(() => {
+    const prior = jobs.prepare('SELECT job_id, job_candidate, job_step FROM job WHERE job_kind = ? AND substr(job_id, 1, ?) = ?').all(SHARD_JOB_KIND, prefix.length, prefix);
+    endJobs(jobs, prior.filter(row => row.job_candidate !== merged && row.job_step !== 'done').map(row => row.job_id), { reason: 'the land job proved another merged commit', now });
     return buckets.map((part, index) => {
       const named = `${prefix}${index + 1}`, taken = prior.find(row => row.job_id === named);
       const command = `${plan.runner.trim()} ${part.map(file => `'./${file.replaceAll("'", "'\\''")}'`).join(' ')}`;
       const ledger = ledgerHits(db, part, { budget: 16_000 });
       return offerJob(db, { id: taken && taken.job_candidate !== merged ? `${prefix}${merged.slice(0, 12)}-${index + 1}` : named, kind: SHARD_JOB_KIND, priority: 'gate', needs: held.request?.needs ?? [], candidate: merged, base: held.base, now,
         request: { run: gate.run, gate: job, commits: gate.commits ?? [], ...(ref ? { ref } : {}), input: { main: held.base, entry: gate.entry, data: { main: held.base, source: merged,
-          shard: { index: index + 1, of: count, files: part, command, ...(ledger ? { ledger } : {}) } } } } }).id;
+          shard: { index: index + 1, of: count, files: part, command, ...(ledger ? { ledger } : {}) } } } } }, queue).id;
     });
   });
   return { sharded: true, shards: ids };
@@ -793,7 +796,7 @@ export function jobArtifacts(db, job) {
  * @param {{ mode: string, now?: number, trunk?: () => string | null, reserve?: () => Record<string, number> | null, onReceipt?: ((posted: { job: string, attempt: number, receipt: Record<string, unknown> }) => object) | null }} options - mode is the machine's gate.runnerDispatch.
  * @returns {object}
  */
-export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, onReceipt = null, drained = () => [], reserve = () => null, onRunaway = null, onRepeatClaim = null, hop = null }) {
+export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, onReceipt = null, drained = () => [], reserve = () => null, onRunaway = null, onRepeatClaim = null, hop = null, queue = null }) {
   if (mode !== 'pull') throw new Refused('JOBS_NOT_PULL', 'this board serves its runner job queue only when gate.runnerDispatch is pull; set it with pullboard settings');
   const { action, runner, capabilities, kinds, jobs, cores, ram, job, token, receipt, progress, reason, backoff } = body ?? {};
   if (action === 'claim') {
@@ -803,7 +806,7 @@ export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => n
   if (action === 'request') return jobRequest(db, { job, runner, token });
   if (action === 'renew') return renewJob(db, { job, runner, token, now, hop });
   if (action === 'shardReceipts') return readLandShardReceipts(db, { job, runner, token, shards: body.shards });
-  if (action === 'shards') return offerLandShards(db, { job, runner, token, merged: body.merged, ref: body.ref, plan: body.plan, gate: body.gate, now });
+  if (action === 'shards') return offerLandShards(db, { job, runner, token, merged: body.merged, ref: body.ref, plan: body.plan, gate: body.gate, queue, now });
   if (action === 'release') return releaseJob(db, { job, runner, token, reason, backoff, draining: drained().includes(runner), now, hop });
   if (action === 'progress') return postProgress(db, { job, runner, token, progress, now });
   if (action === 'artifact') return postArtifact(db, { job, runner, token, artifact: body.artifact, now });
