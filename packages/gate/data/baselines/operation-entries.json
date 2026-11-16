@@ -203,7 +203,6 @@
     "packages/resources/src/io/handoff/worker/cap.js",
     "packages/resources/src/io/write/queue.js",
     "packages/runners/src/io/checkouts.js",
-    "packages/runners/src/io/keyed.js",
     "packages/runners/src/io/module/parser.js",
     "packages/runners/src/io/module/parser/worker.js",
     "packages/runners/src/io/pack.js",
