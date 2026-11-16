@@ -34,6 +34,7 @@ export const MACHINE_DEFAULTS = {
   'gate.measuredSlots': false,
   'gate.memoryFloorMB': null,
   'gate.namedImportSelection': false,
+  'gate.overlapStaticProof': false,
   'gate.postLandSuite': false,
   'gate.queue.agingMinutes': 30,
   'gate.queue.currentReleaseFirst': false,
