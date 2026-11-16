@@ -14,6 +14,27 @@ import { privateFixtureFiles } from './child.js';
 import { runFixtureChildAsync } from './child.js';
 
 /**
+ * `pullboard waits` text without its orphan rows. Orphans are machine-wide (every /tmp/pullboard-* process whose parent
+ * is gone), so other runs' leftovers would inflate the size of a table the fixture's own board did not make. The summary
+ * line is recounted for the rows removed.
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+export function withoutOrphanRows(text) {
+  const kept = [];
+  let removed = 0, removedOver = 0, skipping = false;
+  for (const line of text.split('\n')) {
+    if (/^(?:OVER|DEAD|ok {2}) {2}orphan /u.test(line)) { skipping = true; removed += 1; if (line.startsWith('OVER')) removedOver += 1; continue; }
+    if (skipping && /^ {8}\S/u.test(line)) continue;
+    skipping = false;
+    const summary = /^(\d+) waits; (\d+) over budget(.*)$/u.exec(line);
+    kept.push(summary ? `${Number(summary[1]) - removed} waits; ${Number(summary[2]) - removedOver} over budget${summary[3]}` : line);
+  }
+  return kept.join('\n');
+}
+
+/**
  * The seeded-board helpers bound to one e2e helper set.
  *
  * @param {{ sandbox: Function, project: Function }} helpers
@@ -42,10 +63,14 @@ export function createBudgetMeasure(helpers) {
     sweep: 'releases and reopens board work', init: 'initializes a repository', takeover: 'takes over the coordinator seat',
     worktree: 'creates a worktree', heartbeat: 'records presence', tour: 'is an interactive walkthrough', help: 'is the reference page',
     export: 'prints the whole board as a data document meant for a file, never for an agent context',
+    log: 'prints every event row by row, unbounded by design (#9058), so a large board never builds one string',
   });
 
   /** Commands whose text reads machine-wide state, which an in-process call does not isolate the way a real process does. */
   const REAL_PROCESS = new Set(['waits']);
+
+  /** The bytes a command's stdout adds to a reader's context; the waits table leaves out other runs' orphan processes. */
+  const sizeOfText = (command, text) => Buffer.byteLength(command === 'waits' ? withoutOrphanRows(text ?? '') : text ?? '');
 
   const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 
@@ -82,14 +107,14 @@ export function createBudgetMeasure(helpers) {
       const args = [command, ...(DEFAULT_ARGS[command] ?? [])];
       if (!REAL_PROCESS.has(command) && bin === helpers.BIN && box.runIn) {
         const result = await box.runIn(box.repo, ...args);
-        sizes[command] = Buffer.byteLength(result.stdout ?? '');
+        sizes[command] = sizeOfText(command, result.stdout);
         return;
       }
       const pending = runFixtureChildAsync(process.execPath, [bin, ...args], { cwd: box.repo, env: box.env });
       const timer = setTimeout(() => pending.child.kill('SIGKILL'), 20_000);
       const result = await pending;
       clearTimeout(timer);
-      sizes[command] = result.signal ? Infinity : Buffer.byteLength(result.stdout ?? '');
+      sizes[command] = result.signal ? Infinity : sizeOfText(command, result.stdout);
     };
     const queue = [...commands];
     const lanes = bin === helpers.BIN && box.runIn ? 1 : 6;

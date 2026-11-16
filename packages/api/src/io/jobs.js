@@ -27,6 +27,7 @@ import { endJob } from '../../../jobs/index.js';
 import { noteLease } from '../../../jobs/index.js';
 import { setJobRow } from '../../../jobs/index.js';
 import { moveGateClaimHop } from './hop.js';
+import { queueOffer } from './queue.js';
 import { freeGateHop } from './hop.js';
 
 /** The job kind of one part of a pulled gate's proof, which the board offers from the gate's plan and any runner pulls [P7]. */
@@ -49,6 +50,15 @@ export function shardClaimCap(cores) {
 /** How many gate-shard jobs this runner holds a live lease on now. */
 function heldShards(db, runner, now) {
   return db.prepare("SELECT COUNT(*) AS held FROM job WHERE job_kind = ? AND job_lease_owner = ? AND job_lease_until >= ? AND job_step IN ('offered', 'claimed')").get(SHARD_JOB_KIND, runner, now).held;
+}
+
+/**
+ * How many census test jobs this runner holds a live lease on now: jobs offered with a censusPerRunner cap.
+ * Why: census 4 ran ten census jobs at once on each 10-core runner (load 17-22), so files ran 4-16x slow [C7,#9136].
+ */
+function heldCensus(db, runner, now) {
+  return db.prepare(`SELECT COUNT(*) AS held FROM job JOIN job_step AS step ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0
+    WHERE job.job_lease_owner = ? AND job.job_lease_until >= ? AND job.job_step IN ('offered', 'claimed') AND json_extract(step.job_step_payload, '$.censusPerRunner') IS NOT NULL`).get(runner, now).held;
 }
 
 /** A runner id or a capability: a plain name, so it reads the same in a log, a URL and SQL. */
@@ -133,7 +143,8 @@ function runnerId(runner) {
  * @param {{ id: string, kind: string, needs?: string[], run?: string[], payload?: Record<string, unknown> | null, item?: number | null, candidate?: string | null, base?: string | null, request?: Record<string, unknown> | null, priority?: string | null, now?: number }} fields
  * @returns {ReturnType<typeof jobView>}
  */
-export function offerJob(db, { id, kind, needs = [], run = [], payload = null, item = null, candidate = null, base = null, request = null, priority = null, now = Date.now() }) {
+export function offerJob(db, { id, kind, needs = [], run = [], payload = null, item = null, candidate = null, base = null, request = null, priority = null, censusPerRunner = null, now = Date.now() }, queue = null) {
+  if (censusPerRunner !== null && !(Number.isSafeInteger(censusPerRunner) && censusPerRunner >= 1)) throw new Refused('JOB_CENSUS_CAP', 'a census job\'s censusPerRunner is a whole number of jobs, 1 or more', 'offer it with census.jobsPerRunner as set, or none');
   const wanted = names(needs, 'needs');
   const rank = jobClass(priority);
   const argv = runArgv(run);
@@ -146,12 +157,15 @@ export function offerJob(db, { id, kind, needs = [], run = [], payload = null, i
   if (offered && Buffer.byteLength(JSON.stringify(offered)) > REQUEST_BYTES) {
     throw new Refused('JOB_REQUEST', `a job request's offered row is a JSON object of at most ${REQUEST_BYTES} bytes once its parts of ${PART_BYTES} bytes or more are named; keep large inputs in git and name them`);
   }
+  const row = { needs: wanted, ...(rank ? { priority: rank } : {}), ...(argv.length ? { run: argv } : {}), ...(payload === null ? {} : { payload }), ...(offered ? { request: offered } : {}), ...(censusPerRunner ? { censusPerRunner } : {}) };
+  // With runs_store on the offer goes through queueRun: the runs file holds the job, the board one queued run row [B2,P7].
+  if (queue) return queueOffer(queue, { id, kind, item, candidate, base, request, offered: row });
   return atomically(db, () => {
     const job = createJob(db, { id, kind, item, candidate, base, now });
     if (job.step === 'queued' && job.steps.length === 0) {
       // The whole request goes in first, so the job's step ends on offered and the claim scan finds it.
       if (offered !== request) writeStep(db, id, REQUEST_STEP, { request }, { now });
-      writeStep(db, id, 'offered', { needs: wanted, ...(rank ? { priority: rank } : {}), ...(argv.length ? { run: argv } : {}), ...(payload === null ? {} : { payload }), ...(offered ? { request: offered } : {}) }, { now });
+      writeStep(db, id, 'offered', row, { now });
     }
     return jobView(db, id);
   });
@@ -207,7 +221,8 @@ export function offeredRequest(db, job) {
   const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job);
   const request = row ? JSON.parse(row.job_step_payload).request ?? null : null;
   if (!namesParts(request)) return request;
-  const kept = db.prepare('SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = ? AND job_step_seq = 0').get(job, REQUEST_STEP);
+  // A queued job (runs_store on) keeps its whole request in the pending step intend wrote, not in a request step.
+  const kept = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name IN (?, 'pending') AND job_step_seq = 0 ORDER BY job_step_name = 'pending'").get(job, REQUEST_STEP);
   const whole = kept ? readPayload(db, kept.job_step_payload) : null;
   if (!whole?.request) throw new Refused('JOB_REQUEST', `job ${job}'s offer names its request step, but the board no longer holds it; resubmit the item for a new gate job`);
   return whole.request;
@@ -288,8 +303,11 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = n
   const claimed = atomically(db, () => {
     // A runner that reported its cores and holds its cap of gate shards is offered no more, so idle runners get the rest (#7765).
     const shardsFull = Number.isSafeInteger(cores) && cores >= 1 && heldShards(db, runner, now) >= shardClaimCap(cores);
+    // A census job offered with census.jobsPerRunner set waits while this runner holds that many census jobs; other jobs are offered as before [C7,#9136].
+    let census = null;
+    const censusFull = offer => offer.censusPerRunner && (census ??= heldCensus(db, runner, now)) >= offer.censusPerRunner;
     const ordered = claimableJobs(db, { runner, now, limit: SCAN_ROWS, reserve, slots: jobs,
-      runnable: (row, offer) => (!only || only.has(row.job_kind)) && !(shardsFull && row.job_kind === SHARD_JOB_KIND) && (offer.needs ?? []).every(need => has.has(need)) });
+      runnable: (row, offer) => (!only || only.has(row.job_kind)) && !(shardsFull && row.job_kind === SHARD_JOB_KIND) && !censusFull(offer) && (offer.needs ?? []).every(need => has.has(need)) });
     for (const { row, offer } of ordered) {
       const { needs = [], run = [], payload = null } = offer;
       // A push shard whose pushing gate stopped renewing it is no one's work: it ends here, never rerun (#7805).

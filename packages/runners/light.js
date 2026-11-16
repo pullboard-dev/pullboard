@@ -9,6 +9,3 @@ export { cleanupTimeoutDetails } from './src/logic/diagnostics.js';
 export { sampleRunnerLoad, localRunnerDescriptor } from './src/io/load.js';
 export { carriedRunnerTrunk } from './src/io/policy.js';
 export { LEGACY_WORKER_ENTRY, WORKER_ENTRY, trustedWorkerEntry } from './src/logic/entries.js';
-/** The runner utilization and deadline readers a status read prints [C7,#8647]. */
-export { readRunnerUtilization } from './src/io/utilization.js';
-export { runnerDeadlineRuns } from './src/io/wait.js';

@@ -23,3 +23,9 @@ test('clause 2: a runner lease refuses the synchronous profiled run and every fu
     assert.doesNotMatch(read(file), /\brunProfiledShell\(/u, `${file} awaits its profiled runs`);
   }
 });
+
+test('clause 1: the gate slot runner service list drops the synchronous runOnRunner and keeps runOnRunnerAsync [C7]', () => {
+  const list = read('packages/gate/src/io/slot.js').match(/const runners = \[([^\]]*)\]/u)?.[1] ?? '';
+  assert.doesNotMatch(list, /'runOnRunner'/u, 'the SSH-only synchronous service is not required of a lease');
+  assert.match(list, /'runOnRunnerAsync'/u, 'the pulled run stays required');
+});
