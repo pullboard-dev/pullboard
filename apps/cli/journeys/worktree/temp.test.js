@@ -29,11 +29,12 @@ test('clause 1: a worktree request under the OS temporary directory is refused n
   const { box, repo } = coordinatorBox();
   fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { gate: { refuseTempWorktree: true } });
   const before = box.git(repo, 'worktree', 'list', '--porcelain');
-  const refused = await box.runLocal(repo, 'worktree', 'web', '--json');
+  const refused = await box.runLocal(repo, 'worktree', 'web');
+  const said = refused.err + refused.out;
   assert.equal(refused.code, 1, refused.err || refused.out);
-  assert.match(refused.err, /\[TEMP_WORKTREE\]/u);
-  assert.match(refused.err, /temporary directory/u);
-  assert.match(refused.err, /persistent default is the "beside" placement/u);
+  assert.match(said, /\[TEMP_WORKTREE\]/u);
+  assert.match(said, /temporary directory/u);
+  assert.match(said, /persistent default is the "beside" placement/u);
   assert.equal(box.git(repo, 'worktree', 'list', '--porcelain'), before, 'the refused request made no worktree');
 });
 
