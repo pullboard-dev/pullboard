@@ -18,6 +18,17 @@ function runnerLog(machineHome) {
   return machineHome && existsSync(log) ? readFileSync(log, 'utf8').slice(-3000) : '(no local runner log)';
 }
 
+/**
+ * Read one item with `show --json` in this process: the caller's run offers `read` (runIn.read) or the box its `inProcess`; a caller with neither keeps its own run.
+ * Why: the wait reads show on every runner log line and 5 s heartbeat, so a real process per read cost a Node start-up each time, and a caller's
+ * runIn appended each read to the parity record, so the record's call count followed timing (U149). `read` and `inProcess` record no parity line and, unlike
+ * importing the dispatcher here, adds nothing to the import closure of the pure helpers that import this file [C7].
+ */
+async function readShown(box, item) {
+  const read = box.run.read ?? box.inProcess ?? box.run;
+  return read(box.repo, 'show', String(item), '--json', '--no-next');
+}
+
 /** The thread lines a gate receipt wrote, so a verify that never settles shows why the board kept the item claimed. */
 function gateFacts(shown) {
   let thread = [];
@@ -64,7 +75,7 @@ export function settledGateJob(box, item, { deadlineMs = 180_000, until = () => 
       reading = true;
       let job = null, doc = null, applied = false;
       try {
-        const shown = await box.run(box.repo, 'show', String(item), '--json', '--no-next');
+        const shown = await readShown(box, item);
         last = shown.out || shown.err || '';
         doc = shown.code === 0 ? JSON.parse(shown.out) : null;
         job = doc?.gateJob ?? null;

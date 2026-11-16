@@ -62,6 +62,7 @@ export {
   settleOnMainReceiptEnabled,
   movesShadowEnabled,
   censusRerunNonGreenEnabled,
+  censusRerunOnSettleEnabled,
   registryStrictEnabled,
   movesLiveEnabled,
   gateRunnerAdmission,
