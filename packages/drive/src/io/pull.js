@@ -38,6 +38,7 @@ import { pathProcesses } from './leftovers.js';
 import { reapLeftovers } from './leftovers.js';
 import { PRUNE_INTERVAL_MS } from './prune.js';
 import { pruneRunnerStores } from './prune.js';
+import { pruneRunnerStoresYielding } from './prune.js';
 import { claimSlotPrefix } from './prune.js';
 import { pruneStaleSlots } from './prune.js';
 import { storeName } from './store-names.js';
@@ -617,12 +618,12 @@ export function localLoadAdmits({ load, cores, share, running = 1 }) {
  * @returns {Promise<{ jobs: Array<{ job: string, outcome: 'posted' | 'released' | 'lost', receipt?: object }>, waits: number[], slots: number }>}
  */
 export async function serveRunner({ board, key, runner, capabilities = hostCapabilities(), cache = join(homedir(), '.pullboard-runner', 'pull'),
-  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = null, say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
+  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = null, say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, pruneYields = false, prune: pruneStores = pruneRunnerStores, pruneYielding = pruneRunnerStoresYielding, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
   const endpoint = boardEndpoint(board, key);
   const pack = trunkPack ?? boardTrunkPack(endpoint, fetchImpl, join(cache, 'packs'));
   const host = hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner';
   const id = runner ?? `${host}-${randomBytes(3).toString('hex')}`;
-  const { renewMs = RENEW_MS, renewRetryMs = RENEW_RETRY_MS, leaseMs = LEASE_MS, idleMs = IDLE_MS, firstMs = BACKOFF.firstMs, maxMs = BACKOFF.maxMs, ceilingMs = CEILING_MS, reapMs = REAP_MS } = timing;
+  const { renewMs = RENEW_MS, renewRetryMs = RENEW_RETRY_MS, leaseMs = LEASE_MS, idleMs = IDLE_MS, firstMs = BACKOFF.firstMs, maxMs = BACKOFF.maxMs, ceilingMs = CEILING_MS, reapMs = REAP_MS, pruneMs = PRUNE_INTERVAL_MS } = timing;
   const slots = once ? 1 : serveSlots(jobsSetting, cores);
   // Every wait ends the moment the signal aborts, so an idle runner stops at once and its timer leaves nothing alive [C7,#8250].
   const stopped = signal ? new Promise(resolve => { if (signal.aborted) resolve(); else signal.addEventListener('abort', resolve, { once: true }); }) : null;
@@ -644,11 +645,19 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   try { const gone = slotName.shared ? [] : await pruneStaleSlots({ cache, instance: folders }); if (gone.length) say(`removed ${gone.length} stale slot folder(s)`); } catch { /* Pruning is best effort. */ }
   // A killed serve ran no cleanup: its orphaned jobs' processes, Chrome above all, end before the first job (#7811).
   try { const left = await reapLeftovers([join(cache, 'env'), join(cache, 'work')]); say(`killed ${left.length} leftover process(es) of earlier jobs`); } catch { /* Sweeping is best effort. */ }
-  /** Prune old results and dead environment folders at most once an interval; a failure never stops serving. */
+  /**
+   * Prune old results and dead environment folders at most once an interval; a failure never stops serving.
+   * With runners.yieldWhilePruning on, the walk runs beside the serve and gives the event loop back as it goes, so no held
+   * lease lapses while it measures a large cache; off, it blocks the serve until it ends (#9025).
+   */
+  let pruning = null;
   const prune = () => {
-    if (Date.now() - prunedAt < PRUNE_INTERVAL_MS) return;
+    if (Date.now() - prunedAt < pruneMs || pruning) return;
     prunedAt = Date.now();
-    try { const done = pruneRunnerStores({ root: dirname(cache), cache, live: liveEnvironments }); if (done.removed.length) say(`pruned ${done.removed.length} old folder(s)`); } catch { /* Pruning is best effort. */ }
+    const options = { root: dirname(cache), cache, live: liveEnvironments };
+    const said = done => { if (done.removed.length) say(`pruned ${done.removed.length} old folder(s)`); };
+    if (pruneYields) { pruning = pruneYielding(options).then(said, () => { /* Pruning is best effort. */ }).finally(() => { pruning = null; }); return; }
+    try { said(pruneStores(options)); } catch { /* Pruning is best effort. */ }
   };
   /** Wait out an unreachable board, longer each time in a row, and note the wait. */
   let failures = 0;
@@ -898,6 +907,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     await Promise.race([task.learned, task]);
   }
   await Promise.all(active);
+  await pruning;
   slotName.release();
   if (failure) throw failure;
   return { jobs, waits, slots };

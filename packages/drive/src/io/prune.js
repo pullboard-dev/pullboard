@@ -14,6 +14,8 @@ import { join } from 'node:path';
 const GIB = 1024 ** 3;
 export const PRUNE_MAX_AGE_MS = 24 * 60 * 60_000;
 export const PRUNE_INTERVAL_MS = 10 * 60_000;
+// Budget: a yielding prune runs 20 ms between hand-backs, far under the 30 s a lease is renewed, and the walk costs a few percent more than a blocking one.
+const SLICE_MS = 20;
 /** A folder changed this recently may belong to another serve sharing the cache, so it is kept. */
 const GRACE_MS = 10 * 60_000;
 /** Extra free space kept above the archive guard's reserve, so the guard never trips between cycles. */
@@ -24,13 +26,16 @@ function names(directory) {
   try { return readdirSync(directory); } catch { return []; }
 }
 
-/** Bytes under a path without following links, and the newest modification time anywhere beneath it. */
-function measure(path) {
+/**
+ * Bytes under a path without following links, and the newest modification time anywhere beneath it. It yields before
+ * each entry it reads, so a caller may give the event loop back between steps (#9025).
+ */
+function* measureSteps(path) {
   let stat;
   try { stat = lstatSync(path); } catch { return { bytes: 0, at: 0 }; }
   let bytes = stat.blocks * 512, at = stat.mtimeMs;
   if (stat.isDirectory()) {
-    for (const name of names(path)) { const inner = measure(join(path, name)); bytes += inner.bytes; at = Math.max(at, inner.at); }
+    for (const name of names(path)) { yield; const inner = yield* measureSteps(join(path, name)); bytes += inner.bytes; at = Math.max(at, inner.at); }
   }
   return { bytes, at };
 }
@@ -85,27 +90,56 @@ export function pruneChromeTemp({ dir = tmpdir(), maxAgeMs = CHROME_TEMP_MAX_AGE
  *   root: the runner root holding test-results; cache: the pull cache holding env; space: free-space reader, injectable.
  * @returns {{ removed: string[], freeBytes: number | null }} paths removed and the free bytes afterwards
  */
-export function pruneRunnerStores({ root, cache, live = new Set(), maxAgeMs = PRUNE_MAX_AGE_MS, floorBytes, graceMs = GRACE_MS, now = Date.now(), space = () => volumeSpace(root), tmp = tmpdir() }) {
+export function pruneRunnerStores(options) {
+  const steps = pruneSteps(options);
+  for (;;) { const step = steps.next(); if (step.done) return step.value; }
+}
+
+/**
+ * pruneRunnerStores for a serve that holds leases: the same walk and the same result, but it gives the event loop back
+ * every few milliseconds, so lease renewals, claims and receipts keep running while it measures.
+ * Why: on 16 Nov the synchronous walk of 327,000 files under a loaded disk stopped two runners' event loops for about two
+ * minutes, every held lease lapsed, and 14 census jobs ended with no receipt and no released step (#9025).
+ *
+ * @param {Parameters<typeof pruneRunnerStores>[0]} options
+ * @param {{ sliceMs?: number }} [timing] - sliceMs: how long the walk runs before it yields.
+ * @returns {Promise<{ removed: string[], freeBytes: number | null }>}
+ */
+export async function pruneRunnerStoresYielding(options, { sliceMs = SLICE_MS } = {}) {
+  const steps = pruneSteps(options);
+  let sliceEnd = Date.now() + sliceMs;
+  for (;;) {
+    const step = steps.next();
+    if (step.done) return step.value;
+    if (Date.now() >= sliceEnd) { await new Promise(resolve => setImmediate(resolve)); sliceEnd = Date.now() + sliceMs; }
+  }
+}
+
+/** The prune as steps: each yield is a safe place to hand the event loop back. */
+function* pruneSteps({ root, cache, live = new Set(), maxAgeMs = PRUNE_MAX_AGE_MS, floorBytes, graceMs = GRACE_MS, now = Date.now(), space = () => volumeSpace(root), tmp = tmpdir() }) {
   const units = [];
   const removedChrome = pruneChromeTemp({ dir: tmp, now });
   const store = join(root, 'test-results');
   for (const repo of names(store)) {
     if (repo.startsWith('.')) continue;
     for (const folder of ['inputs', 'green']) {
-      for (const name of names(join(store, repo, folder))) { const path = join(store, repo, folder, name); units.push({ path, ...measure(path) }); }
+      for (const name of names(join(store, repo, folder))) { const path = join(store, repo, folder, name); units.push({ path, ...(yield* measureSteps(path)) }); }
     }
   }
   for (const name of names(join(cache, 'env'))) {
     if (live.has(name)) continue;
     const path = join(cache, 'env', name);
-    units.push({ path, ...measure(path) });
+    units.push({ path, env: name, ...(yield* measureSteps(path)) });
   }
   const removed = [...removedChrome];
   let reading = space();
   let free = reading?.freeBytes ?? null;
   const floor = floorBytes ?? (reading ? defaultFloorBytes(reading.totalBytes) : null);
   for (const unit of units.sort((a, b) => a.at - b.at)) {
+    yield;
     if (now - unit.at < graceMs) continue;
+    // A job that began while the walk ran owns its folder now, so the walk leaves it.
+    if (unit.env !== undefined && live.has(unit.env)) continue;
     const old = now - unit.at >= maxAgeMs, short = free !== null && floor !== null && free < floor;
     if (!old && !short) continue;
     try { rmSync(unit.path, { recursive: true, force: true }); } catch { continue; }
