@@ -26,7 +26,7 @@ async function heldCold() {
   return cold;
 }
 
-test('clause 1: a cold pullboard next spends under 100 ms idle in the event loop [C7,#8574]', async t => {
+test('clause 1: a cold pullboard next spends under 100 ms idle in the event loop [C7,#8574]', { timeout: 120_000 }, async t => {
   const cold = await heldCold();
   t.diagnostic(`cold next idle ${cold.idleMs.toFixed(1)} ms`);
   assert.ok(cold.idleMs < 100, `a cold next idles ${cold.idleMs.toFixed(1)} ms`);
@@ -41,7 +41,7 @@ test('clause 1: a cold pullboard next spends under 100 ms idle in the event loop
   assert.ok(idle < 100, `starting and closing the progress worker idles ${idle.toFixed(1)} ms`);
 });
 
-test('clause 2: a cold pullboard next starts at most 3 git processes [C7,#8574]', async t => {
+test('clause 2: a cold pullboard next starts at most 3 git processes [C7,#8574]', { timeout: 120_000 }, async t => {
   const cold = await heldCold();
   t.diagnostic(`cold next git processes (${cold.git.length}): ${cold.git.join(' | ')}`);
   assert.ok(cold.git.length <= 3, `a cold next starts ${cold.git.length} git processes: ${cold.git.join(' | ')}`);
