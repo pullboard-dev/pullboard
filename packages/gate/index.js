@@ -14,6 +14,7 @@ export { browserSlotRefusal, isBrowserExecutable, browserInCall, installBrowserS
 export { landedBatchCount, capacitySummary, declaredTestBoundary } from "./src/logic/summary.js";
 export { sayCheckBaseline, provingCheck } from "./src/logic/format.js";
 export { runnerBaselineCommand } from "./src/io/check/baseline.js";
+export { followRenames, recordedRenames } from "./src/io/check/rename.js";
 export { recordPulledBaseline, retryCheckBaselines, startCheckBaseline, runCheckBaselineWorker } from "./src/io/check/baseline/worker.js";
 export { checkBaseline, baselineTestEvidence, baselineFailureDetails, refuseCheckSyntax, refuseCheckPullboardTest, prepareCheckBaseline } from "./src/io/check/baseline.js";
 export { exactStart, childJournalPreloadSource } from "./src/io/journal/preload.js";
@@ -41,7 +42,7 @@ export { testsNeedGui, projectNeedsGui, checkNeedsGui } from "./src/io/gui/admis
 export { guiSession } from "./src/io/gui/session.js";
 export { mainMovedSinceAudit, nudgeMainAudit } from "./src/io/main/audit/nudge.js";
 export { scheduleMainAudit, waitMainAudit } from "./src/io/main/audit/scheduler.js";
-export { mainAuditDirectory, activateMainAudits, mainAuditKey, readMainAudit, saveMainAudit } from "./src/io/main/audit/state.js";
+export { mainAuditDirectory, activateMainAudits, mainAuditKey, readMainAudit, saveMainAudit, SETTLED_FILE } from "./src/io/main/audit/state.js";
 export { runMainAudits, mainAuditJobs, routeAuditFailures, closeAuditedMainReds, withAuditedMain } from "./src/io/main/audit/worker.js";
 export { attributeAuditFailures, fileAuditRegressions, auditRegressionTitle, auditRegressionNote } from "./src/io/main/audit/attribution.js";
 export { withImportParseCache } from "./src/io/imports.js";
