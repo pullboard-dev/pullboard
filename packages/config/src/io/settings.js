@@ -876,6 +876,11 @@ export function archiveEventsEnabled() {
   return loadMachineSettings().board?.archiveEvents === true;
 }
 
+/** Whether api.codeStampCache is on (#9679): off by default; only an exact `true` turns it on. */
+export function codeStampCacheEnabled() {
+  return loadMachineSettings().api?.codeStampCache === true;
+}
+
 /** Whether landing.reuseContractResults is on (#9301): off by default; only an exact `true` turns it on. */
 export function reuseContractResultsEnabled() {
   return loadMachineSettings().landing?.reuseContractResults === true;

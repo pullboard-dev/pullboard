@@ -34,6 +34,7 @@ const ROWS = [
   ['gateSlots', 'Checks at once', 'How many test runs this computer does at the same time.', 'Capacity', 'count'],
   // This machine: Order
   ['add.warnUnnamedTest', 'Add warns on an unnamed test', 'When enabled, pullboard add warns (never refuses) about a [test] clause that names no test file when the brief has no Test: line, because no gate run can tick it; off (default), add stays silent.', 'Order', 'on/off'],
+  ['api.codeStampCache', 'Cache the state worker\'s code stamp', 'When enabled, a restart of the state worker over an unchanged code tree reuses the code stamp it saved, checking each recorded folder and file by size and modification time instead of listing the source folders again; any change walks the tree afresh. Off (default), every start walks the source folders.', 'Order', 'on/off'],
   ['board.archiveEvents', 'Archive old events', 'When enabled, the archiver moves the events of items verified more than 30 days ago into the event archive, keeping the live event table small; off (default), no event moves.', 'Order', 'on/off'],
   ['budget.dailyUsd', 'Daily spend ceiling', 'Off by default; the most model dollars this computer may spend in one day, refused when not a positive amount.', 'Spending', 'USD'],
   ['budget.totalUsd', 'Total spend ceiling', 'Off by default; the most model dollars this computer may spend in all, refused when not a positive amount.', 'Spending', 'USD'],

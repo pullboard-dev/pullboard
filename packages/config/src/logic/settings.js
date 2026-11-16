@@ -298,6 +298,12 @@ export function loadMachineSettings() {
   if (value.claim?.refuseOffMainHead !== undefined && typeof value.claim.refuseOffMainHead !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `claim.refuseOffMainHead in ${file} must be true or false`);
   }
+  if (value.api !== undefined && (!value.api || typeof value.api !== 'object' || Array.isArray(value.api) || Object.keys(value.api).some(key => key !== 'codeStampCache'))) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `api in ${file} holds only codeStampCache; remove other keys`);
+  }
+  if (value.api?.codeStampCache !== undefined && typeof value.api.codeStampCache !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `api.codeStampCache in ${file} must be true or false`);
+  }
   if (value.add !== undefined && (!value.add || typeof value.add !== 'object' || Array.isArray(value.add) || Object.keys(value.add).some(key => key !== 'warnUnnamedTest'))) {
     throw new Refused('BAD_MACHINE_SETTINGS', `add in ${file} holds only warnUnnamedTest; remove other keys`);
   }
