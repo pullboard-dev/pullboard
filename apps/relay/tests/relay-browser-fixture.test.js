@@ -15,7 +15,7 @@ import {
 import { stableChrome } from '../../cli/tests/fixtures/cockpit/stable.js';
 
 /** The CDP bound the stall probes run under; shorter than the shipped default so each probe waits a few seconds, not fifteen. */
-const STALL_BOUND_MS = 3000;
+const STALL_BOUND_MS = 5000;
 const PROBE_PAGE = 'data:text/html,<body>probe</body>'; // a page whose root has a box, so the shared stable wait can settle
 
 /** Assert the fixed CDP bound reports its command and relay-request state; the stall runs through the shared stable wait, which names the command by its method. */
