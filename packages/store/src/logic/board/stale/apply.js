@@ -178,8 +178,19 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
     // With a reclaim shadow hook, the table decides each row this pass acts on, and the events the writer wrote for it are compared [C7,#9367].
     const shadow = dependencies.reclaim ?? null;
     const lastEvent = () => board.db.prepare('SELECT COALESCE(MAX(event_id),0) id FROM event').get().id;
+    // With moves.live.reclaim on, the table decides before anything is written: it refuses what it refuses, and the events it names are the ones logged [C7,#9374].
+    const live = dependencies.reclaimLive ?? null;
+    const decided = (snapshotFor, move) => {
+      const answer = live.decide(snapshotFor, move);
+      if (answer.threw) throw new Refused('BAD_STALE_STATE', `the reclaim table could not decide: ${answer.threw}`, 'run the command again; maintenance captures a fresh observation');
+      if (answer.refused) throw new Refused(answer.refused.code, answer.refused.message, answer.refused.next);
+      const modern = (board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_REASONS_ENGINE;
+      return (answer.events ?? []).map(event => modern || event.detail?.reasonCode === undefined ? event : { ...event, detail: Object.fromEntries(Object.entries(event.detail).filter(([key]) => key !== 'reasonCode')) });
+    };
+    /** Log the events the table decided for one item, in its order. */
+    const logDecided = (events, id) => { for (const event of events) logEvent(board, event.by, event.kind, id, event.detail); };
     const compare = (id, from, snapshotFor, move) => {
-      if (!shadow) return;
+      if (!shadow || live) return;
       const wrote = board.db.prepare("SELECT event_kind kind, event_by by, event_detail detail FROM event WHERE event_id>? AND item_id=? AND event_kind IN ('release','fact','claim_stalled') ORDER BY event_id").all(from, id);
       shadow.hook({ id, decided: shadow.decide(snapshotFor, move), wrote });
     };
@@ -221,13 +232,16 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
       observedExpiry(row, snapshot.limits.review, snapshot.observedAt);
       const reason = `Review idle for 30 minutes; last observed activity ${row.lastActivity}.`;
       const reviewFrom = lastEvent();
+      const reviewFacts = { item: { status: item.item_status, reviewer: item.item_review_by, commit: item.item_commit, reviewUntil: item.item_review_until },
+        reserve: { id: reservation.event_id, at: reservation.event_at }, lastSubmitId: submitted.event_id };
+      const reviewMove = { kind: 'review-idle', maintainer: agentId, observedAt: snapshot.observedAt, row, limits: snapshot.limits, now: board.clock.now().toISOString() };
+      const reviewDecided = live ? decided(reviewFacts, reviewMove) : null;
       setItem(board, row.id, { item_review_by: null, item_review_until: null });
-      logEvent(board, agentId, 'release', row.id, { review: true, reason,
+      if (reviewDecided) logDecided(reviewDecided, row.id);
+      else logEvent(board, agentId, 'release', row.id, { review: true, reason,
         ...((board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_REASONS_ENGINE ? { reasonCode: 'OTHER' } : {}),
         stale: { reviewer: row.reviewer, reservedAt: row.reservedAt, lastActivity: row.lastActivity } });
-      compare(row.id, reviewFrom, { item: { status: item.item_status, reviewer: item.item_review_by, commit: item.item_commit, reviewUntil: item.item_review_until },
-        reserve: { id: reservation.event_id, at: reservation.event_at }, lastSubmitId: submitted.event_id },
-      { kind: 'review-idle', maintainer: agentId, observedAt: snapshot.observedAt, row, limits: snapshot.limits, now: board.clock.now().toISOString() });
+      compare(row.id, reviewFrom, reviewFacts, reviewMove);
       notice(row.reviewer, `Released your idle review reservation on #${row.id}: ${reason} The item is available for independent review.`, row.id);
       result.reviews.push(row.id);
     }
@@ -256,27 +270,32 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
         const lapsedAt = board.clock.now();
         const lapsedFrom = lastEvent();
         const window = { builder: item.item_owner, until: new Date(lapsedAt.getTime() + leaseMs).toISOString() };
+        const lapsedFacts = { item: { id: row.id, status: item.item_status, owner: item.item_owner, leaseUntil: item.item_lease_until }, ownerLastLease: { id: lease.event_id, at: lease.event_at, leaseUntil: row.leaseUntil } };
+        const lapsedMove = { kind: 'lapsed-claim', maintainer: agentId, observedAt: snapshot.observedAt, limits: snapshot.limits, row, now: lapsedAt.toISOString() };
+        const lapsedDecided = live ? decided(lapsedFacts, lapsedMove) : null;
         moveItem(board, row.id, 'release', {
           checks: { joined: null, [IN_STATE]: null, releaseOwnsWork: () => null, reviewReleaseExplained: null },
           set: () => ({ item_owner: null, item_lease_until: null }),
         });
-        logEvent(board, agentId, 'release', row.id, { reason: 'Lapsed claim idle past its stale interval.',
+        if (lapsedDecided) logDecided(lapsedDecided, row.id);
+        else logEvent(board, agentId, 'release', row.id, { reason: 'Lapsed claim idle past its stale interval.',
           ...((board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_REASONS_ENGINE ? { reasonCode: 'OTHER' } : {}),
           expiredClaim: { holder: row.actor, leaseUntil: row.leaseUntil, lastActivity: row.lastActivity, observedAt: snapshot.observedAt, leaseEventId: row.leaseEventId },
           reopenFirstRefusal: window });
-        compare(row.id, lapsedFrom, { item: { id: row.id, status: item.item_status, owner: item.item_owner, leaseUntil: item.item_lease_until }, ownerLastLease: { id: lease.event_id, at: lease.event_at, leaseUntil: row.leaseUntil } },
-          { kind: 'lapsed-claim', maintainer: agentId, observedAt: snapshot.observedAt, limits: snapshot.limits, row, now: lapsedAt.toISOString() });
+        compare(row.id, lapsedFrom, lapsedFacts, lapsedMove);
         notice(row.actor, `Your lapsed idle claim on #${row.id} returned to open; first refusal remains yours until ${window.until}.`, row.id);
         result.claims.push(row.id);
       }
       for (const { row, item, facts } of idle) {
         const idleFrom = lastEvent();
         const idleMove = { kind: 'idle', maintainer: agentId, observedAt: snapshot.observedAt, row, limits: snapshot.limits, now: board.clock.now().toISOString() };
+        const idleDecided = live ? decided(facts, idleMove) : null;
         if (row.idle === 'stall') {
           // Told once per claim episode: the holder's lane lead, or the coordinator when the lane has none.
           writeBoardMeta(board.db, `claim_stalled:${row.id}`, String(row.episodeEventId));
           const minutes = Math.floor(row.idleMs / 60_000);
-          logEvent(board, agentId, 'claim_stalled', row.id, { holder: row.actor, lastActivity: row.workActivity, idleMinutes: minutes, observedAt: snapshot.observedAt });
+          if (idleDecided) logDecided(idleDecided, row.id);
+          else logEvent(board, agentId, 'claim_stalled', row.id, { holder: row.actor, lastActivity: row.workActivity, idleMinutes: minutes, observedAt: snapshot.observedAt });
           notice(laneLead(board, item.item_lane), `#${row.id} (${row.actor}) is stalled: no commit, file change, running check or item move for ${minutes} minutes; it is released automatically at 40.`, row.id);
           compare(row.id, idleFrom, facts, idleMove);
           (result.stalled ??= []).push(row.id);
@@ -295,6 +314,8 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
           checks: { joined: null, [IN_STATE]: null, releaseOwnsWork: () => null, reviewReleaseExplained: null },
           set: () => ({ item_owner: null, item_lease_until: null }),
         });
+        if (idleDecided) logDecided(idleDecided, row.id);
+        else {
         if (row.idle === 'progress') logEvent(board, 'board', 'fact', row.id, {
           id: `progress-return-${row.id}-${row.claimEventId}`, kind: 'note', text: reason, ref: null, supersedes: null });
         logEvent(board, agentId, 'release', row.id, { reason,
@@ -303,6 +324,7 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
           ...(row.idle === 'progress' ? { reopenFirstRefusal: { builder: row.actor, otherSeatFirst: true, until: new Date(Date.parse(snapshot.observedAt) + 7_200_000).toISOString() } } : {}), reasonCode: row.idle === 'waiting' ? 'BLOCKED' : 'OTHER',
           idleClaim: { holder: row.actor, kind: row.idle, lastActivity: row.workActivity ?? null, observedAt: snapshot.observedAt, claimEventId: row.claimEventId,
             ...(row.idle === 'waiting' ? { waitingOn: row.waitingOn } : { handoff: row.handoff }) } });
+        }
         compare(row.id, idleFrom, facts, idleMove);
         deleteBoardMeta(board.db, `claim_stalled:${row.id}`);
         if (row.idle === 'waiting') writeBoardMeta(board.db, `claim_waiting:${row.id}`, JSON.stringify(row.waitingOn));
