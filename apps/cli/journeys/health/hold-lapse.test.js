@@ -11,6 +11,9 @@ import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
+/** The wait reasons next answered with, from its JSON. */
+function reasonsOf(run) { return JSON.parse(run.out.slice(run.out.indexOf('{'))).reasons ?? []; }
+
 /** A project with one open web item held by the coordinator for the web lane, its deadline already past, and the setting as given. */
 async function lapsedHold(requireOwner) {
   const box = e2e.sandbox();
@@ -35,14 +38,14 @@ test('clause 1: an expired hold appears in health with its owner [C7,#8541]', as
 
 test('clause 2: an expired hold appears in the owner\'s next [C7,#8541]', async () => {
   const { project, id } = await lapsedHold(true);
-  const next = await project.runLocal(project.web, 'next');
-  assert.match(next.out + next.err, new RegExp(`#${id} hold lapsed 2020-01-01`, 'u'));
+  const next = await project.runLocal(project.web, 'next', '--json');
+  assert.match(reasonsOf(next).join('\n'), new RegExp(`#${id} hold lapsed 2020-01-01`, 'u'));
 });
 
 test('clause 1: with holds.requireOwner off an expired hold is not reported [C7,#8541]', async () => {
   const { project } = await lapsedHold(false);
   const report = JSON.parse((await project.runLocal(project.repo, 'health', '--json')).out);
   assert.equal(report.stuck.some(entry => entry.cause === 'HOLD_LAPSED'), false);
-  const next = await project.runLocal(project.web, 'next');
-  assert.doesNotMatch(next.out + next.err, /hold lapsed/u);
+  const next = await project.runLocal(project.web, 'next', '--json');
+  assert.doesNotMatch(reasonsOf(next).join('\n'), /hold lapsed/u);
 });
