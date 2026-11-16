@@ -16,7 +16,7 @@ export { JOB_SCHEMA_SQL, RUN_SCHEMA_SQL, RUN_OBJECT_NAMES, missingJobTables, ens
 export { LEDGER_SCHEMA_SQL, ledgerFiles, ledgerHits, ledgerMainReds, ledgerRecentFiles, missingLedgerTable, recordTestResults, testResults } from './src/io/board/ledger.js';
 export { ensureHotIndexes, costEvents, costLandedIds, costKindEvents, costMoveEvents, costItemEvents, costItems, costRevision, missingAdditiveIndexes, ensureAdditiveIndexes, eventsOfKinds, submitInvariantEvents, recentEvents, recentShouts, lastMoves, decisionAndEvidenceShouts } from './src/io/board/indexes.js';
 export { localBoardInventory, resolveLocalBoard, resolveLocalItemReference } from './src/io/board/inventory.js';
-export { declareItemField, setItemField, itemFields, FIELD_TYPES } from './src/io/board/item/fields.js';
+export { declareItemField, setItemField, itemFields, fieldIndex, FIELD_TYPES } from './src/io/board/item/fields.js';
 export { relateItems, relatedLinks } from './src/io/board/item/related.js';
 export { validateItemDependencies } from './src/io/board/item/dependencies.js';
 export * from "./light.js";
