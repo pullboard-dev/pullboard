@@ -87,6 +87,7 @@ export const MACHINE_DEFAULTS = {
   'moves.shadow': false,
   'next.capBuilders': 0,
   'next.itemNotices': false,
+  'next.lightShapedStrong': false,
   'next.readinessCheck': false,
   'push.recordTiming': false,
   'push.rerunFailedShardOnce': false,

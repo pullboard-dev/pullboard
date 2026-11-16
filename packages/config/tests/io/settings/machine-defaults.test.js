@@ -97,6 +97,7 @@ const BEFORE = {
   'moves.shadow': false,
   'next.capBuilders': 0,
   'next.itemNotices': false,
+  'next.lightShapedStrong': false,
   'next.readinessCheck': false,
   'push.rerunFailedShardOnce': false,
   'relay.excludeByBoard': false,
@@ -189,4 +190,9 @@ test('clause 3: removing a BEFORE key or changing its value fails the check [O6]
 test('clause 1: landing.asyncFetch is a machine setting, false by default, with a description [C7]', () => {
   assert.equal(MACHINE_DEFAULTS['landing.asyncFetch'], false);
   assert.ok(SETTING_DESCRIPTIONS['landing.asyncFetch']);
+});
+
+test('clause 1: next.lightShapedStrong is a machine setting, false by default, with a description [C7]', () => {
+  assert.equal(MACHINE_DEFAULTS['next.lightShapedStrong'], false);
+  assert.ok(SETTING_DESCRIPTIONS['next.lightShapedStrong']);
 });
