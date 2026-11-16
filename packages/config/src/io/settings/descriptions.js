@@ -33,6 +33,7 @@ const ROWS = [
   ['gateSlots', 'Checks at once', 'How many test runs this computer does at the same time.', 'Capacity', 'count'],
   // This machine: Order
   ['add.warnUnnamedTest', 'Add warns on an unnamed test', 'When enabled, pullboard add warns (never refuses) about a [test] clause that names no test file when the brief has no Test: line, because no gate run can tick it; off (default), add stays silent.', 'Order', 'on/off'],
+  ['board.archiveEvents', 'Archive old events', 'When enabled, the archiver moves the events of items verified more than 30 days ago into the event archive, keeping the live event table small; off (default), no event moves.', 'Order', 'on/off'],
   ['budget.dailyUsd', 'Daily spend ceiling', 'Off by default; the most model dollars this computer may spend in one day, refused when not a positive amount.', 'Spending', 'USD'],
   ['budget.totalUsd', 'Total spend ceiling', 'Off by default; the most model dollars this computer may spend in all, refused when not a positive amount.', 'Spending', 'USD'],
   ['gate.jobReserve', 'Runner job classes', 'Off by default; when set, a runner takes interactive runs, then gates, then landings, then background sweeps, while each class keeps this share of every runner\'s slots.', 'Order', 'share'],
@@ -200,6 +201,7 @@ const ROWS = [
   ['resume.adoptOrphans', 'Adopt orphaned claims', 'On, pullboard resume in a fresh worktree adopts the claim an orphaned seat left, restoring its pinned head and crediting it; off, resume only reports.', 'Agents', 'on/off'],
   ['review.excludeEarlierHolders', 'Exclude earlier holders from review', 'On refuses a review reservation by any seat that ever claimed, built, submitted or released the item; off excludes only its current builder and submitters.', 'Review', 'on/off'],
   ['review.independence', 'Reviewer independence', 'Off lets any seat but the builder verify, even a subagent of the builder\'s session, while session lets only a different agent session verify.', 'Review', 'choice'],
+  ['review.relaxRequiredFamily', 'Review family can widen', 'When enabled, an item filed with --review-family may widen its required reviewer family when no reviewer of it is available; off (default), a --review-family item never widens.', 'Review', 'on/off'],
   ['review.starveMinutes', 'Review waiting alarm', 'A submission that has waited this long without a reviewer is marked urgent.', 'Review', 'minutes'],
   ['verify.composeAtAdmission', 'Compose with main at review', 'A review is judged on the item combined with the current main when it starts.', 'Review', 'on/off'],
   ['verify.failBefore', 'Require a fail-before receipt', 'Submit refuses a [test] clause unless a recorded run at the item base failed on an assertion.', 'Review', 'on/off'],
@@ -250,6 +252,7 @@ const ROWS = [
   ['landing.first', 'Land these first', 'Item ids the lander takes ahead of the accept order, in the order listed; a listed item that is not verified is skipped.', 'Landing', 'list'],
   ['landing.landedFromMain', 'Landed means on main', 'On, roadmap, show, the view and withdraw count an item landed when its commit is on main, whether or not a merge was recorded; off, they read the recorded merge.', 'Landing', 'on/off'],
   ['landing.ledgerMainReds', 'Main reds from the ledger', 'On, a land job counts a red in a file the test ledger records red on main at its base as main\'s own and lands; a red in any other file still holds it. Off, every red is rerun on the base and matched case for case.', 'Landing', 'on/off'],
+  ['landing.byHand', 'Coordinator lands one accepted item by hand', 'When enabled, the coordinator may name one accepted item to pullboard land --item; off (default), land --item is refused and the board lands accepted items by itself.', 'Landing', 'on/off'],
   ['landing.manualOverride', 'Manual landing override', 'A person can permit coordinator landing commands instead of automatic landing after acceptance.', 'Landing', 'on/off'],
   ['landing.pauseOnRed', 'Pause landing on red', 'Landing pauses after a publish full suite fails without proof it is unrelated.', 'Landing', 'on/off'],
   ['landing.perItem', 'Per-item landing', 'A landing takes every verified item that merges cleanly; a red batch bisects to its culprit and lands the rest, and a red batch of one goes back to open alone.', 'Landing', 'on/off'],

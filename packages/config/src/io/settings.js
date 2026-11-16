@@ -823,6 +823,11 @@ export function boardKey() {
   return key;
 }
 
+/** Whether board.archiveEvents is on (#9334): off by default; only an exact `true` turns it on. */
+export function archiveEventsEnabled() {
+  return loadMachineSettings().board?.archiveEvents === true;
+}
+
 /** Whether landing.reuseContractResults is on (#9301): off by default; only an exact `true` turns it on. */
 export function reuseContractResultsEnabled() {
   return loadMachineSettings().landing?.reuseContractResults === true;
