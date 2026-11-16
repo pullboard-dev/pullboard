@@ -64,7 +64,7 @@ import { timedPhase } from '../timing.js';
 import { landingOperations } from './merge.js';
 
 /** The gate functions the local landing guard calls, passed to it so its logic file never imports the gate door [C7,#8567]. */
-const GUARD_PORTS = Object.freeze({ runProfiledShellAsync, pinRunMain, withLandingGateSlot, landingControllerPlacement, testsNeedBrowser, testsNeedGui });
+const GUARD_PORTS = Object.freeze({ runProfiledShellAsync, pinRunMain, withLandingGateSlot, landingControllerPlacement, testsNeedBrowser, testsNeedGui, landingExecutionServices });
 
 /** Quote a command argument without allowing shell interpolation. */
 export function quote(value) { return `'${String(value).replaceAll("'", "'\\''")}'`; }
