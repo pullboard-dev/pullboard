@@ -16,9 +16,12 @@ import { Refused } from '../../../../../kernel/light.js';
 const WINDOW_MS = 600000;
 const STEPS = new Set(['sign-in', 'push', 'pull', 'unseal', 'version', 'complete']);
 
+/** The relay health database's file name under the board's private folder; this module opens and writes it, so it owns the store. */
+export const RELAY_HEALTH_FILE = 'relay-health.sqlite';
+
 /** Keep observations outside native history and outside sealed snapshots. */
 function healthFile(root) {
-  return join(repoInfo(root).commonDir, 'pullboard', 'relay-health.sqlite');
+  return join(repoInfo(root).commonDir, 'pullboard', RELAY_HEALTH_FILE);
 }
 
 /** Read one private telemetry record without creating a file for a status read. */
