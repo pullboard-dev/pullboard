@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
 import { openBoard } from '../../../lib/index.js';
-import { runFixtureChildAsync } from '../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
 
@@ -18,10 +18,10 @@ test('clause 2: sentinel run --health-only finishes and records a health-scan ev
   t.after(helpers.cleanup);
   const box = helpers.project('true', undefined, { withWorktree: false });
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  fixtureProjectPolicy(box.repo, { config: { ...config, verify: { policy: 'coordinator' } } });
+  fixtureProjectPolicy(box.repo, { config: { ...config, verify: { policy: 'coordinator' }, review: { starveMinutes: 0 } } });
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-qm', 'chore: coordinator-only review policy');
-  let at = Math.ceil(Date.now() / 1000) * 1000;
+  let at = Math.floor(Date.now() / 1000) * 1000 - 10 * MINUTE;
   const clock = { now: () => new Date(at) };
   // @pullboard-board-file journey: this is the same durable board.sqlite opened by the fixture's real CLI.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), clock);
@@ -31,11 +31,8 @@ test('clause 2: sentinel run --health-only finishes and records a health-scan ev
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'A review no seat may take', reviewFamily: 'Family Beta' });
   store.claim(board, id, { agentId: builder, lane: 'web', leaseMs: 120 * MINUTE, freeze: item => ({ text: item.item_title, digest: `private:${item.item_title}` }) });
   submitFixture(board, id, { agentId: builder, commit: 'a'.repeat(40), tree: 'private-tree' });
-  at += 11 * MINUTE;
   const before = store.events(board).length;
-  const source = `import {main} from ${JSON.stringify(new URL('../../tests/fixtures/native.js', import.meta.url).href)};
-process.exitCode=await main(['sentinel','run','--health-only','--json'], {cwd:${JSON.stringify(box.repo)},clock:{now:()=>new Date(${at})},stdout:process.stdout,stderr:process.stderr,loadNativeBoard:()=>import(${JSON.stringify(new URL('../../../lib/src/logic/native.js', import.meta.url).href)})});`;
-  const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env: box.env, encoding: 'utf8' });
+  const result = await runCliInProcess(['sentinel', 'run', '--health-only', '--json'], { cwd: box.repo, env: box.env });
   assert.equal(result.status, 0, result.stderr);
   const scan = store.events(board).slice(before).find(event => event.event_kind === 'health-scan');
   assert.ok(scan, 'the scan recorded a health-scan event');
