@@ -74,15 +74,15 @@ export async function run(io, { first, second, rest, values }) {
     await ordered(ctx, board, 'moveMilestone', [name, { agentId: me.id, before: values.before }]);
     entry = store.milestones(board).find((value) => value.name === name);
   } else if (first === 'edit') {
-    if (!second || rest.length || (values.name === undefined && values.note === undefined && values.target === undefined && values.limit === undefined) || values.items !== undefined || values.before !== undefined || values.add !== undefined || values.remove !== undefined || values.next !== undefined) {
-      throw new Refused('USAGE', 'pullboard milestone edit <name> [--name <new name>] [--note <text>] [--target <date and time>|none] [--limit <n>|none]');
+    if (!second || rest.length || (values.name === undefined && values.note === undefined && values.target === undefined && values.limit === undefined && values.mode === undefined) || values.items !== undefined || values.before !== undefined || values.add !== undefined || values.remove !== undefined || values.next !== undefined) {
+      throw new Refused('USAGE', 'pullboard milestone edit <name> [--name <new name>] [--note <text>] [--target <date and time>|none] [--limit <n>|none] [--mode rollover|explicit]');
     }
     if (values.as !== undefined && values.as !== 'person' || values.as === 'person' && (values.limit === undefined || !ctx.info.isMain)) {
       throw new Refused('USAGE', 'a raised milestone limit belongs to the person in the primary checkout: milestone edit <name> --limit <n>|none --as person');
     }
     if (values.as === 'person') requirePersonChannel(ctx.io.personChannel);
     name = second;
-    entry = await ordered(ctx, board, 'editMilestone', [name, { agentId: me.id, newName: values.name, note: values.note, ...(values.target === undefined ? {} : { target: store.canonicalMilestoneTarget(values.target) }), ...(values.limit === undefined ? {} : { limit: values.limit }), ...(values.as === 'person' ? { asPerson: true, channel: 'terminal' } : {}) }]);
+    entry = await ordered(ctx, board, 'editMilestone', [name, { agentId: me.id, newName: values.name, note: values.note, ...(values.target === undefined ? {} : { target: store.canonicalMilestoneTarget(values.target) }), ...(values.limit === undefined ? {} : { limit: values.limit }), ...(values.mode === undefined ? {} : { mode: values.mode }), ...(values.as === 'person' ? { asPerson: true, channel: 'terminal' } : {}) }]);
     name = entry.name;
   } else if (first === 'ship') {
     if (!second || rest.length || ['items', 'note', 'before', 'name', 'add', 'remove', 'target'].some((key) => values[key] !== undefined)) {

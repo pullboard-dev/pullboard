@@ -106,6 +106,7 @@ const ROWS = [
   ['fix', 'Automatic fixers', 'Commands that fix the files they are given, and which files they apply to.', 'Project', 'list'],
   ['agents.names', 'Agent name style', 'Whether an agent\'s number comes after its name or before it.', 'Project', 'choice'],
   ['map.slice', 'Code map with assigned work', 'Next and claim print the slice of the code map an item touches.', 'Project', 'on/off'],
+  ['slices.enforcePaths', 'Keep slices in their paths', 'Submit refuses a slice that changes a path outside the files it declared.', 'Checks', 'on/off'],
   ['inbox.tokenBudget', 'Inbox size', 'The most an inbox response may hold, in bytes of text.', 'Project', 'bytes'],
   // This repo: Checks
   ['gate', 'Test command', 'The command that runs the project\'s whole test suite.', 'Checks', 'command'],
@@ -187,6 +188,7 @@ const ROWS = [
   ['landing.ledgerMainReds', 'Main reds from the ledger', 'On, a land job counts a red in a file the test ledger records red on main at its base as main\'s own and lands; a red in any other file still holds it. Off, every red is rerun on the base and matched case for case.', 'Landing', 'on/off'],
   ['landing.shardProof', 'Spread the landing proof', 'A landing job offers its proof\'s test files as shard jobs to other runners and pushes trunk when every shard is green; off, the one runner that holds the job runs the whole proof.', 'Landing', 'on/off'],
   ['landing.manualOverride', 'Manual landing override', 'A person can permit coordinator landing commands instead of automatic landing after acceptance.', 'Landing', 'on/off'],
+  ['generated', 'Generated files', 'Each generated file with the command that makes it and the files it reads; a declaration missing its generator is refused; off unless declared.', 'Checks', 'list'],
   ['landing.first', 'Land these first', 'Item ids the lander takes ahead of the accept order, in the order listed; a listed item that is not verified is skipped.', 'Landing', 'list'],
   ['landing.auditOnly', 'Audit-only tests', 'Test files the per-item landing gate leaves to the post-landing audit, which files a red there as a main red; off unless listed.', 'Landing', 'list'],
   ['landing.pauseOnRed', 'Pause landing on red', 'Landing pauses after a publish full suite fails without proof it is unrelated.', 'Landing', 'on/off'],

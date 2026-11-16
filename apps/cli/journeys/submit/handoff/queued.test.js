@@ -9,7 +9,6 @@ import {
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { AGENT_SHELL_MARKERS } from '../../../../../packages/kernel/index.js';
-import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
 import {
   document,
@@ -20,9 +19,10 @@ import {
 } from '../../../tests/fixtures/submit/handoff.js';
 import { settledGateJob } from '../../../tests/fixtures/submit/settle.js';
 
-test('queued submit returns before its gate and remains bound when the builder commits and claims again [B5,V4,H16,E18]', async t => {
+test('clause 1: queued submit returns before its gate and remains bound when the builder commits and claims again [B5,V4,H16,E18]', async t => {
   // The builder holds two queued builds beside its second and third live claims, so the seat names a cap of four [B5].
-  const box = fixture(t, { companion: true, perSeat: 4 });
+  const box = fixture(t, { companion: true, perSeat: 4, fourth: true });
+  const fourth = box.fourth;
   // The gate holds on its release file while the builder moves on, so no submit waits for the queue to settle.
   box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
   const author = join(box.dir, 'companion-author');
@@ -51,7 +51,6 @@ test('queued submit returns before its gate and remains bound when the builder c
   const secondQueued = document(await box.runLocal(box.web, 'submit', String(box.second), '--no-next', '--json'));
   assert.equal(secondQueued.queued, true, 'the second committed item also submits while the first gate is blocked');
   document(await box.runLocal(box.web, 'claim', String(box.third), '--json'));
-  const fourth = document(await fixtureAdd(box.runLocal, box.repo, 'web', 'Fourth ordinary build', '--specs', 'G1', '--criterion', 'One ordinary build at a time.', '--check', 'true', '--accept-green', 'filler build that only holds a fourth claim', '--wait', '--json')).item.item_id;
   document(await box.runLocal(box.web, 'claim', String(fourth), '--json'));
   assert.equal(state(box, fourth).item.item_owner, state(box, box.third).item.item_owner, 'B5 permits several live claims in their own folders');
   assert.equal(gateJob(box).candidate, queued.composed, 'later commits and claims leave the queued gate on its captured source');
