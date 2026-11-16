@@ -165,6 +165,7 @@ const ROWS = [
   ['queue.contentionThreshold', 'Contention score that waits', 'With queue.contention on, an item whose score (file conflict rate times changes in flight on it) passes this waits.', 'Claims', 'count'],
   ['claims.fileLease', 'Lease the files a claim will change', 'On, a claim whose predicted files (from the brief and the bar) a live claim of another seat already leases is refused FILE_LEASED, naming the holder and the file; off, claims are unchanged.', 'Claims', 'on/off'],
   ['claims.fileLeaseHubs', 'Files many items share', 'Files no claim leases, such as an index or a registry every item touches.', 'Claims', 'list'],
+  ['seat.checkpoints', 'Record seat checkpoints', 'On, a seat records a checkpoint fact at claim, submit, an exit-rule stop and handoff: what is done, what is left, decisions taken, evidence and tokens used; off (default) records none.', 'Agents', 'on/off'],
   ['claims.perSeat', 'Live claims per seat', 'How many build claims one seat may hold at once; blank lets the board set N = clamp(1, 5, floor(free test-run slots / live seats)), counting local cores when no runner serves.', 'Claims', 'count'],
   ['claims.releaseGone', 'Release claims of gone agents', 'Claims held by agents that have disappeared are released automatically.', 'Claims', 'on/off'],
   ['pin.signed', 'Require a signed tooling pin', 'On, no run uses a tooling pin file that is unsigned or edited after it was signed; off, the pin file is read as written.', 'Checks', 'on/off'],
