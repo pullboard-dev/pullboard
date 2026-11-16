@@ -1,6 +1,7 @@
 /** With gate.overlapStaticProof on, the submit proof starts while the cells step runs, and a red cells step still fails the gate [C7,#9576]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -49,13 +50,14 @@ async function gate(t, overlap, staticCode) {
   const plan = submitGatePlan(root, config, { base });
   const run = runSubmitGate(root, config, { base, check: plan.check, executionServices });
   const stamp = name => Number(readFileSync(join(home, name), 'utf8'));
-  return { run, stamp };
+  return { run, stamp, home };
 }
 
 test('clause 1: with the setting on, the first proof batch starts before the cells step ends and the gate is green [C7,#9576]', { timeout: 50000 }, async t => {
-  const { run, stamp } = await gate(t, true, 0);
+  const { run, stamp, home } = await gate(t, true, 0);
   const result = await run;
   assert.equal(result.isGreen, true, result.output);
+  assert.ok(existsSync(join(home, 'proof-started')), JSON.stringify({ files: result.files, root: result.executionRoot, output: result.output?.slice(-600), proofLog: result.proofLog }));
   assert.ok(stamp('proof-started') < stamp('static-ended'), 'the proof started while the cells step was still running');
 });
 
