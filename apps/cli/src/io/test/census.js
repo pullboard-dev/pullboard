@@ -114,7 +114,8 @@ function pulledCensus(ctx, io, values = {}) {
 export async function runCensus(io, ctx, values, { shards, prefixes = [], run } = {}) {
   const root = ctx.info.root;
   const sha = cleanHead(root);
-  const files = (await trackedTests(root)).filter(file => !prefixes.length || prefixes.some(prefix => file.startsWith(prefix.replace(/^\.\//u, ''))));
+  const tracked = await trackedTests(root);
+  const files = tracked.filter(file => !prefixes.length || prefixes.some(prefix => file.startsWith(prefix.replace(/^\.\//u, ''))));
   if (!files.length) throw new Refused('NO_TEST_FILE', 'no tracked test files match this census', 'run the census from a repository checkout, with path prefixes that name tracked test files');
   const out = resolve(root, values.out ?? join(checkoutCommonDir(root) ?? join(root, '.git'), 'pullboard', 'census', `${storeName(sha.slice(0, 10), '.jsonl')}`));
   mkdirSync(dirname(out), { recursive: true });
@@ -166,8 +167,8 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run } 
       emit(entry, { label, host: last.get(label)?.host ?? 'none', status: 'unrun', output: '' });
     }
   }
-  // Opt-in: the same record steers landing shard plans, so a census writes it only when this machine asked [C7].
-  if (censusRecordFileTimesEnabled()) { const measured = rowFileTimes(rows.values()); if (Object.keys(measured).length) writeFileTimes(root, measured); }
+  // Opt-in: the same record steers landing shard plans, so a census writes it only when this machine asked; files no longer tracked drop [C7].
+  if (censusRecordFileTimesEnabled()) { const measured = rowFileTimes(rows.values()); if (Object.keys(measured).length) writeFileTimes(root, measured, { keep: tracked }); }
   const counts = {};
   for (const row of rows.values()) counts[row.status] = (counts[row.status] ?? 0) + 1;
   const seconds = Math.round((Date.now() - started) / 1000);
