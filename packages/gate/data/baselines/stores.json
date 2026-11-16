@@ -797,6 +797,10 @@
       "kind": "repo-data",
       "owner": "apps/view/src/io/cost/tab.js"
     },
+    "runtime-profiles.json": {
+      "kind": "repo-data",
+      "owner": "packages/seats/src/io/runtime-profile.js"
+    },
     "model-tiers.json": {
       "kind": "repo-data",
       "owner": "packages/config/src/io/main.js"

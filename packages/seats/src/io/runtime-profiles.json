@@ -1,0 +1,4 @@
+{
+  "default": { "cache": "off", "cachedPrefix": [], "toolLoading": "per-lane" },
+  "claude": { "cache": "1h", "cachedPrefix": ["instructions", "skills", "brief"], "toolLoading": "per-lane" }
+}
