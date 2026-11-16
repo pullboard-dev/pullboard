@@ -305,8 +305,9 @@ async function stallWatched(check, context, { clock, pollMs }) {
     const look = () => {
       if (!landingStallExpired(last, clock(), LANDING_STALL_MS)) { timer = setTimeout(look, pollMs); return; }
       const detail = `${LAND_PROOF_TIMEOUT}: ${landingStallDescription({ id: `land:${context.items.join(',')}`, state: 'checking' }, 'check')}`;
-      stop.abort();
+      // Settle first: a check that answers the abort must not outrun the stall result.
       resolve({ ok: false, timeout: true, detail });
+      stop.abort();
     };
     timer = setTimeout(look, pollMs);
   });
