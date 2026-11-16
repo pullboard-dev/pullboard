@@ -91,10 +91,11 @@ function landingItems(items) {
  *   checkout's own remote URL, which the runner then pushes the landed tip to [#7398]; forced: the
  *   reason a forced landing names, carried on the job and its key, and its job runs no check; mode is no longer read, since landing
  *   pulls in any mode. config.landing.publish "separate" rides on the job, so a red item parks and the clean ones land.
+ *   queue: the board's queue (queueFor) while runs_store is on, so the offer goes through queueRun and the runs file [B2,P7]; null writes the board's job rows as before.
  *   mainReds: the `[file, commit]` pairs the board's red-now ledger records red (landing.ledgerMainReds); they ride with the contracts, so the runner counts a red in such a file as main's [C7,U152].
  * @returns {ReturnType<typeof offerJob>}
  */
-export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads/main', check = null, needs = [], checkout = false, upstream = null, forced = null, badges = [], deferred = null, flakes = null, hops = [], shardGate = null, mainReds = [], now = Date.now() }) {
+export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads/main', check = null, needs = [], checkout = false, upstream = null, forced = null, badges = [], deferred = null, flakes = null, hops = [], shardGate = null, mainReds = [], queue = null, now = Date.now() }) {
   // trunk.remote, else its old name landing.trunkRemote: config's configTrunkRemote order, kept here since the cell ratchet allows no new api->config import.
   const remote = config?.trunk?.remote || config?.landing?.trunkRemote;
   if (typeof remote !== 'string' || !remote || remote.startsWith('-')) throw new Refused('LANDING_TRUNK_REMOTE', 'a runner landing pushes the trunk remote of record; set trunk.remote in pullboard.json to its git URL');
@@ -135,7 +136,7 @@ export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads
   const payload = { shape: fenced.length ? LAND_HOPS_SHAPE : LAND_PAYLOAD_SHAPE, remote, trunk, expect, items: landed, ...(fenced.length ? { hops: fenced } : {}), ...(check ?? own?.gate ?? deferGate ? { check: check ?? own?.gate ?? deferGate } : {}), ...(own?.checks ? { checks: own.checks } : {}), ...(proof ? { proof } : {}), ...(shardProof ? { shardProof } : {}), ...(defer ? { deferred: defer } : {}), ...(contracts ? { contracts } : {}), ...(contracts && Array.isArray(mainReds) && mainReds.length ? { mainReds } : {}), ...(staticChecks ? { staticChecks } : {}), ...(waivers.length ? { waivers } : {}),
     ...(separate ? { publish: 'separate' } : {}), ...(batchOnly ? { perItem: false } : {}), ...(proofMinutes ? { proofMinutes } : {}), ...(badges.length ? { badges } : {}), ...(checkout ? { checkout: true } : {}), ...(upstream ? { upstream } : {}), ...(flakes ? { flakes: { rerun: flakes.rerun, prefixes: { check: flakes.prefixes?.check ?? null, proof: flakes.prefixes?.proof ?? null } } } : {}), ...(forced ? { forced: forced.trim() } : {}) };
   const spilled = spillLargeInputs(payload);
-  return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, priority: 'landing', needs, now, payload: spilled.payload, ...(spilled.request ? { request: spilled.request } : {}) });
+  return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, priority: 'landing', needs, now, payload: spilled.payload, ...(spilled.request ? { request: spilled.request } : {}) }, queue);
 }
 
 /**
@@ -266,14 +267,16 @@ export function keepLandingLog(board, job, receipt) {
  * @param {{ now?: number }} [options]
  * @returns {{ id: string, retry: number } | null} The new job, or null when the job has no offered payload.
  */
-export function reofferLandingJob(db, job, { now = Date.now() } = {}) {
-  const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job);
+export function reofferLandingJob(db, job, { now = Date.now(), queue = null } = {}) {
+  // With runs_store on the failed job's offered row lives in the runs file, not on the board [B2,P7].
+  const home = queue ? queue.runs.db : db;
+  const row = home.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job);
   if (!row) return null;
   const offered = JSON.parse(row.job_step_payload);
   const [, first, retry] = /^(.*?)(?:~r(\d+))?$/u.exec(job);
   const next = Number(retry ?? 0) + 1;
   const id = `${first}~r${next}`;
-  offerJob(db, { id, kind: LANDING_JOB_KIND, priority: 'landing', needs: offered.needs ?? [], now, payload: offered.payload ?? null, request: offeredRequest(db, job) });
+  offerJob(db, { id, kind: LANDING_JOB_KIND, priority: 'landing', needs: offered.needs ?? [], now, payload: offered.payload ?? null, request: offeredRequest(home, job) }, queue);
   return { id, retry: next };
 }
 

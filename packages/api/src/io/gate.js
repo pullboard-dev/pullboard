@@ -19,6 +19,7 @@ import { LANDING_JOB_KIND } from './landing.js';
 import { keepLandingLog } from './landing.js';
 import { livePersonWaivers } from './landing.js';
 import { reofferLandingJob } from './landing.js';
+import { queueFor } from './queue.js';
 import { landingRetries } from './landing.js';
 import { LAND_PUSH_RETRIES } from './landing.js';
 import { withLandingPermit } from './permit.js';
@@ -1102,7 +1103,7 @@ function retryFailedLanding(board, job, named, receipt, { code, what, next }) {
   const tries = landingRetries(job);
   let again = null;
   if (tries < LAND_PUSH_RETRIES) {
-    try { again = reofferLandingJob(board.db, job); } catch { again = null; }
+    try { again = reofferLandingJob(board.db, job, { queue: queueFor(board, 'coordinator') }); } catch { again = null; }
   }
   const tail = again ? `offered land job ${again.id} (retry ${again.retry} of ${LAND_PUSH_RETRIES})`
     : `${code} after ${tries + 1} tries; next: ${next}`;

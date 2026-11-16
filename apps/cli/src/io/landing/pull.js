@@ -9,6 +9,7 @@ import { isAbsolute } from 'node:path';
 import { resolve } from 'node:path';
 import { offerLandingJob } from '../../../../../packages/api/index.js';
 import { openLandingJob } from '../../../../../packages/api/index.js';
+import { queueFor } from '../../../../../packages/api/index.js';
 import { configTrunkRemote } from '../../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { fencedHopEnabled } from '../../../../../packages/config/index.js';
@@ -230,7 +231,9 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     for (const entry of items) publishItemRef(root, remote, entry);
     const listed = tryGit(root, ['ls-remote', '--', remote, trunkRef(root)]);
     const expect = listed.status === 0 && /^[0-9a-f]{40}/u.test(listed.stdout) ? listed.stdout.slice(0, 40) : policy.commit;
-    return underBoardWriteLock(board.db, () => {
+    // runs_store on: queueRun makes its own board transaction (intent, move, confirm), so the offers cannot sit inside this raw write lock; their ids are minted from the items, so a retried offer reuses its job [B2,P7].
+    const queue = queueFor(board, 'coordinator', { file: ctx.file });
+    return (queue ? work => work() : work => underBoardWriteLock(board.db, work))(() => {
       // A concurrent accept may have offered some of these since they were chosen; those stay with its job [C7,#7728].
       const fresh = ids ? new Set() : openLandingItems(board.db);
       const free = items.filter(entry => !fresh.has(entry.id));
@@ -249,7 +252,7 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
         const flakes = typeof pairPrefix === 'function' ? landingFlakes(root, policy, chosen.find(item => item.item_id === batch[0].id), batch[0].commit, pairPrefix) : null;
         // With gate.fencedHop on, each item's gate hop epoch rides on the job, and the runner pushes trunk through the fences [C7,#8437].
         const hops = carryLandingHops(board.db, batch, { enabled: fencedHopEnabled() });
-        const job = offerLandingJob(board.db, { items: batch, expect, trunk: trunkRef(root), forced, deferred, flakes, hops, mainReds, ...(policy.config.landing?.shardProof === true ? { shardGate: landingShardGate() } : {}), badges: badgeDocuments?.(board) ?? [],
+        const job = offerLandingJob(board.db, { items: batch, expect, trunk: trunkRef(root), forced, deferred, flakes, hops, mainReds, ...(policy.config.landing?.shardProof === true ? { shardGate: landingShardGate() } : {}), badges: badgeDocuments?.(board) ?? [], ...(queue ? { queue } : {}),
           ...(hosted ? { config: { ...policy.config, trunk: { ...policy.config.trunk, remote } }, needs: [BOARD_HOST], checkout: true, upstream: hostUpstream(root, policy.config) } : { config: policy.config, checkout: intoCheckout }) });
         ctx.io.say?.(`offered ${forced ? 'forced ' : ''}land job ${job.id} for ${batch.map(entry => `#${entry.id}`).join(' ')}; a runner merges and pushes trunk`);
         jobs.push(job.id);
