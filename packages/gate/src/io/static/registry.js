@@ -19,6 +19,7 @@ import { importStyleViolations } from '../../../index.js';
 import { engineFolderViolations } from '../../../../state/index.js';
 import { doctrineReport } from '../../../../doctrine/index.js';
 import { loadConfig } from '../../../../config/index.js';
+import { requireRegisteredEnabled } from '../../../../config/index.js';
 import { testWaitReport } from '../test/waits.js';
 import { cliLaunchReport } from '../test/launches.js';
 import { cliLaunchGrowth } from '../test/launches.js';
@@ -34,6 +35,7 @@ import { candidateKnownBlockers } from '../board/request.js';
 import { relayBoundaryProblems } from '../relay.js';
 import { fixtureProblems } from '../test/fixtures.js';
 import { fixtureSites } from '../test/fixtures.js';
+import { unregisteredTestRows } from '../test/unregistered.js';
 import { cellsEdgeProblems } from '../edges.js';
 import { fileEdges } from '../edges.js';
 import { testCellsProblems } from '../test/cells.js';
@@ -191,6 +193,13 @@ export const STATIC_TREE_CHECKS = Object.freeze([
       read: file => text.get(file) ?? readFileSync(join(root, file), 'utf8'),
       edgesOf: (file, source) => cache.get(file, blobOid(source), () => fileEdges(file, source)),
     }).map(row => `${row.path}:${row.line}: ${row.text}`);
+  } },
+  // A test file the change adds without a registry record or golden path: refused with tests.requireRegistered on, else one diagnostic line (#9402).
+  { name: 'test-registered', reads: TEST, run: (root, sources, context = MEMORY) => {
+    const rows = unregisteredTestRows(root, { only: context.changed });
+    if (context.requireRegistered ?? requireRegisteredEnabled()) return rows;
+    for (const row of rows) (context.report ?? MEMORY.report)(`diagnostic (tests.requireRegistered off): ${row}`);
+    return [];
   } },
   { name: 'test-cells', reads: SOURCE, run: (root, sources, context = MEMORY) => testCellsProblems(root, { cache: context.cache('test-cells', 1) }).map(row => `${row.path}:${row.line}: ${row.text}`) },
   // Repository paths in code that do not exist; the per-file count may only fall (#5302).
