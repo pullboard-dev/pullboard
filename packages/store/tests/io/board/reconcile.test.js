@@ -46,13 +46,13 @@ test('clause 2: a seeded board and runs pair holding every row of the disagreeme
   const at = () => clock.at;
   // Rows 1 and 2: no board run, a pending job young and old.
   port.intend({ id: 'gate:old', kind: 'gate', now: at() - LOST_GRACE_MS - MINUTE });
-  port.intend({ id: 'gate:young', kind: 'gate', now: at() - MINUTE });
   // Row 3: the run committed, the job was never offered.
   port.intend({ id: 'gate:unoffered', kind: 'gate', now: at() });
   recordQueuedRun(board, { by: 'coordinator', id: 'gate:unoffered', kind: 'gate' });
   // Row 4: a queued run whose job the runs file lost, past the grace.
   recordQueuedRun(board, { by: 'coordinator', id: 'gate:lost', kind: 'gate' });
   clock.at += LOST_GRACE_MS + MINUTE;
+  port.intend({ id: 'gate:young', kind: 'gate', now: at() - MINUTE });
   // Row 5: a receipt waiting on a queued run.
   queueRun(board, port, { by: 'coordinator', id: 'gate:receipt', kind: 'gate' });
   post(runs, 'gate:receipt', 1, at());
