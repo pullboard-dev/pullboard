@@ -53,6 +53,8 @@ let light = null;
 try { light = await import(pathToFileURL(join(tools, 'packages', 'gate', 'light.js')).href); } catch { /* an older main: a red run names no cases */ }
 const input = JSON.parse(readFileSync(0, 'utf8'));
 const started = performance.now();
+// The job's own start time and the runner's 1-minute load at that moment, so a census row can place the job [C7,#9284].
+const startedAt = new Date().toISOString(), loadAtStart = loadavg()[0];
 // A runner job is nobody's subtest: a node:test context inherited from the runner's own host would skip every file.
 // This runner is the job's whole execution host, so the run spreads its files over every core [P7,#5790].
 // The job's main names the base the candidate's import graph forks from, so its key analysis parses only what changed [C7,#6672].
@@ -94,7 +96,7 @@ const framed = () => {
 const receipt = { version: 1, kind: 'test', main: input.main, source: input.source, files: input.files, steps: { test: Math.round(performance.now() - started) },
   environment: { node: process.versions.node, platform: process.platform, arch: process.arch }, green: ran.status === 0,
   // The runner's own load, so the board can keep main's side of a comparison as a native receipt [V4,C7].
-  load: { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) },
+  load: { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) }, startedAt, endedAt: new Date().toISOString(), loadAtStart,
   phases: [{ role: 'test', status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: '', ...(ran.status !== 0 ? { failures, ...(failureSignatures ? { failureSignatures } : {}) } : {}) }] };
 // The receipt line stays under the runner's receipt-line cap: the tail shrinks until the whole line fits.
 if (runId) receipt.outcomes = framed();
@@ -319,6 +321,10 @@ async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS,
  * names the job on its run, so the receipt still settles the run if the worker stops before it (#7574).
  */
 async function runJobFor(ctx, fields, { agent, say, testRun }) {
+  // The moment a runner took the job, for a census row's claimedAt [C7,#9284].
+  let claimedAt = null;
+  const noted = say;
+  say = line => { if (claimedAt === null && /took test job/u.test(String(line))) claimedAt = new Date().toISOString(); noted?.(line); };
   const runs = testRunsHolder(ctx);
   const offered = await offerTestJob(ctx, fields, runs);
   if (typeof testRun === 'string' && testRun) withBoard(ctx, board => writeStep((runs ?? board).db, testRun, PULLED, { job: offered.job, until: Date.now() + gateRunnerWaitMs() }));
@@ -330,7 +336,7 @@ async function runJobFor(ctx, fields, { agent, say, testRun }) {
     const green = receipt.status === 0 && gate.green === true && phase?.status === 0;
     const output = phase?.tail ?? gate.error ?? receipt.tail ?? '';
     const outcomes = Array.isArray(gate.outcomes) ? gate.outcomes.filter(Array.isArray).map(([file, name, passed, skipped]) => ({ file, name, passed, skipped })) : null;
-    return { job: offered.job, runner, green, output: String(output), failures: Array.isArray(phase?.failures) ? phase.failures : null,
+    return { job: offered.job, runner, green, claimedAt, startedAt: typeof gate.startedAt === 'string' ? gate.startedAt : null, endedAt: typeof gate.endedAt === 'string' ? gate.endedAt : null, loadAtStart: Number.isFinite(gate.loadAtStart) ? gate.loadAtStart : null, output: String(output), failures: Array.isArray(phase?.failures) ? phase.failures : null,
       signatures: Array.isArray(phase?.failureSignatures) && phase.failureSignatures.length === phase?.failures?.length ? phase.failureSignatures : null, durationMs: receipt.durationMs ?? null, outcomes,
       verdicts: gate.verdicts && typeof gate.verdicts === 'object' && !Array.isArray(gate.verdicts) ? gate.verdicts : null,
       times: gate.times && typeof gate.times === 'object' && !Array.isArray(gate.times) ? gate.times : null,
