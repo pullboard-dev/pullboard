@@ -2,6 +2,7 @@
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { listMoveTables } from '../../../../../packages/moves/index.js';
 import { readShadows } from '../../../../../packages/store/index.js';
+import { windowReport } from '../../logic/moves-window.js';
 import { context } from '../context.js';
 import { withBoardRead } from '../context.js';
 
@@ -43,11 +44,12 @@ function stateOf(table, counts, settings) {
  * @param {string[]} tables - Every table name found in the moves cell.
  * @param {object} settings - The machine settings.
  */
-export function movesReport(shadows, tables, settings) {
+export function movesReport(shadows, tables, settings, now = new Date()) {
   return [...new Set([...tables, ...Object.keys(shadows)])].sort().map(table => {
     const counts = shadows[table] ?? null;
-    return { table, state: stateOf(table, counts, settings), liveSwitch: LIVE_SWITCH[table] ?? null, compared: counts?.compared ?? 0, disagreed: counts?.disagreed ?? 0,
+    const base = { table, state: stateOf(table, counts, settings), liveSwitch: LIVE_SWITCH[table] ?? null, compared: counts?.compared ?? 0, disagreed: counts?.disagreed ?? 0,
       firstCompareAt: counts?.since ?? null, lastDisagreedAt: counts?.lastDisagreedAt ?? null, lastDisagreements: counts?.last ?? [] };
+    return { ...base, ...windowReport(base, now) };
   });
 }
 
@@ -57,9 +59,9 @@ export function run(io) {
   const shadows = withBoardRead(ctx, board => readShadows(board));
   const tables = movesReport(shadows, listMoveTables().map(tableName), loadMachineSettings());
   io.result?.({ tables });
-  io.say('table      state   compared  disagreed  first compare');
+  io.say('table      state   compared  disagreed  first compare             clean window');
   for (const row of tables) {
-    io.say(`${row.table.padEnd(10)} ${row.state.padEnd(7)} ${String(row.compared).padStart(8)}  ${String(row.disagreed).padStart(9)}  ${row.firstCompareAt ?? 'never'}`);
+    io.say(`${row.table.padEnd(10)} ${row.state.padEnd(7)} ${String(row.compared).padStart(8)}  ${String(row.disagreed).padStart(9)}  ${(row.firstCompareAt ?? 'never').padEnd(24)}  ${row.ready ? 'ready' : row.windowStart ? `${row.windowHours.toFixed(1)} h` : 'none'}`);
     for (const miss of row.lastDisagreements.slice(-5)) io.say(`  disagreed on #${miss.id} at ${miss.at}: ${miss.differs}`);
   }
   return 0;
