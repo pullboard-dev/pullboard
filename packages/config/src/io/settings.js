@@ -289,6 +289,11 @@ export function derivedStateEnabled() {
   return loadMachineSettings().health?.derivedState === true;
 }
 
+/** Whether landing.reofferTrunkBusy is on (#9102): off by default; only an exact `true` turns it on. */
+export function reofferTrunkBusyEnabled() {
+  return loadMachineSettings().landing?.reofferTrunkBusy === true;
+}
+
 /** Whether landing.adaptiveBatch is on (#9017): off by default; only an exact `true` turns it on. */
 export function adaptiveBatchEnabled() {
   return loadMachineSettings().landing?.adaptiveBatch === true;
@@ -470,7 +475,7 @@ export function setLandingPool(board, enabled) {
   const settings = loadMachineSettings();
   const pools = new Set(settings.landing?.pools ?? []);
   if (enabled) pools.add(board); else pools.delete(board);
-  const next = { ...settings, landing: { pools: [...pools].sort() } };
+  const next = { ...settings, landing: { ...settings.landing, pools: [...pools].sort() } };
   writeMachineSettings(next);
   return next;
 }
