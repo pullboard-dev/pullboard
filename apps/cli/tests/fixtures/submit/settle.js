@@ -19,13 +19,13 @@ function runnerLog(machineHome) {
 }
 
 /**
- * Read one item with `show --json` through the box's warm worker thread (`runSync`), whatever run the caller passed; a box without one keeps its own run.
+ * Read one item with `show --json` through the box's own in-process call (`inProcess`), whatever run the caller passed; a box without one keeps its own run.
  * Why: the wait reads show on every runner log line and 5 s heartbeat, so a real process per read cost a Node start-up each time, and a caller's
- * runIn appended each read to the parity record, so the record's call count followed timing (U149). runSync records no parity line and, unlike
+ * runIn appended each read to the parity record, so the record's call count followed timing (U149). inProcess records no parity line and, unlike
  * importing the dispatcher here, adds nothing to the import closure of the pure helpers that import this file [C7].
  */
 async function readShown(box, item) {
-  const read = box.runSync ?? box.run;
+  const read = box.inProcess ?? box.run;
   return read(box.repo, 'show', String(item), '--json', '--no-next');
 }
 
