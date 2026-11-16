@@ -40,6 +40,7 @@ import { routePulledOwnership } from './owner.js';
 import { compareFilesWithMain } from './gate/files.js';
 import { fileMainLines } from './gate/files.js';
 import { applyTestReceipt } from './test/receipt.js';
+import { settleQueuedAccept } from './test/accept.js';
 import { caseReworkLines } from './gate/files.js';
 import { ledgerInputKeys } from './gate/files.js';
 import { companionInherits } from './gate/companion.js';
@@ -921,7 +922,10 @@ export function applyJobReceipt(board, posted, ports = {}) {
   if (kind === SHARD_JOB_KIND) return applyShardReceipt(board, posted, ports);
   if (kind === LANDING_JOB_KIND) return applyLandingReceipt(board, posted);
   if (kind === CHECK_BASELINE_KIND) return applyCheckBaselineReceipt(board, posted);
-  if (kind === 'test') return applyTestReceipt(board, posted);
+  if (kind === 'test') {
+    const accept = settleQueuedAccept(board, posted);
+    return accept.applied ? accept : applyTestReceipt(board, posted);
+  }
   if (kind === MAIN_TEST_KIND) {
     const applied = applyMainTestReceipt(board, posted);
     if (applied.applied) settleWaitingGates(board, posted.job, ports);
