@@ -185,6 +185,9 @@ export function loadMachineSettings() {
   if (value.gate?.redFactLocation !== undefined && typeof value.gate.redFactLocation !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.redFactLocation in ${file} must be true or false`);
   }
+  if (value.spec?.cascadeReject !== undefined && typeof value.spec.cascadeReject !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `spec.cascadeReject in ${file} must be true or false`);
+  }
   if (value.items?.typedFields !== undefined && typeof value.items.typedFields !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `items.typedFields in ${file} must be true or false`);
   }
@@ -371,6 +374,9 @@ export function loadMachineSettings() {
   }
   if (value.relay?.offerAtInit !== undefined && typeof value.relay.offerAtInit !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `relay.offerAtInit in ${file} must be true or false`);
+  }
+  if (value.relay?.excludeByBoard !== undefined && typeof value.relay.excludeByBoard !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `relay.excludeByBoard in ${file} must be true or false`);
   }
   if (value.relay?.pruneReceipts !== undefined && typeof value.relay.pruneReceipts !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `relay.pruneReceipts in ${file} must be true or false`);
