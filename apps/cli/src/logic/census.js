@@ -130,6 +130,18 @@ export function shardRows({ files, status, host, label, output, outcomes, times 
 }
 
 /**
+ * The per-file time lines a pulled shard's log gets, from the runner's whole-output record, because the receipt's clipped
+ * tail has lost the shard's own lines and 1115 of 1536 rows of the 15 Nov census had no secs [C7,#8576].
+ *
+ * @param {Record<string, number>|null|undefined} times - Wall ms per file.
+ * @param {string} prefix - The time line's prefix (FILE_TIME_LINE).
+ * @returns {string}
+ */
+export function pulledTimeLines(times, prefix) {
+  return Object.entries(times ?? {}).map(([file, ms]) => `${prefix}${Math.round(ms)} ${file}\n`).join('');
+}
+
+/**
  * One outcome row per file from a pulled shard's per-file verdicts, for a shard whose framed case outcomes were dropped
  * (too long for the receipt line, or voided by a nested failure). Why: without rows a red shard's files read as
  * no-result together, though the runner saw each file's own result [C7,#7920].

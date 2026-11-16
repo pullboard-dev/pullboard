@@ -2,6 +2,7 @@
 import * as store from '../../../../../packages/store/index.js';
 import { requireSignedPerson } from '../../../../../packages/person/index.js';
 import { requirePersonChannel } from '../../../../../packages/person/index.js';
+import { holdsRequireOwner } from '../../../../../packages/config/index.js';
 import {
   isLane,
 } from '../../../../../packages/seats/index.js';
@@ -17,7 +18,7 @@ import {
 
 /** Run `pullboard hold` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {
-  if (values.off && values.until !== undefined) throw new Refused('USAGE', '--off and --until cannot be combined');
+  if (values.off && (values.until !== undefined || values.owner !== undefined || values.deadline !== undefined)) throw new Refused('USAGE', '--off cannot be combined with --until, --owner or --deadline');
   let released = null;
   const code = await actOn(io, async (ctx, board, me) => {
   const itemTarget = /^#?\d+$/u.test(first ?? '');
@@ -29,13 +30,18 @@ export async function run(io, { first, second, rest, values }) {
       io.say(`lifted the hold on #${id}`);
       if (store.getItem(board, id).item_status === 'verified') released = ctx;
     } else {
-      await ordered(ctx, board, 'holdItem', [id, { agentId: me.id, reason, ...(values.until === undefined ? {} : { until: values.until }) }]);
-      io.say(`holding #${id}: ${reason}. Lift it with: pullboard hold ${id} --off`);
+      // The setting rides in the move, so every replica applies the rule this hold was made under [C7,#8540].
+      await ordered(ctx, board, 'holdItem', [id, { agentId: me.id, reason, ...(values.until === undefined ? {} : { until: values.until }),
+        ...(values.owner === undefined ? {} : { owner: values.owner }), ...(values.deadline === undefined ? {} : { deadline: values.deadline }),
+        ...(holdsRequireOwner() ? { requireOwner: true } : {}) }]);
+      const owned = store.itemHoldOwner(board, id);
+      io.say(`holding #${id}: ${reason}${owned ? ` (owner ${owned.owner}, deadline ${owned.deadline})` : ''}. Lift it with: pullboard hold ${id} --off`);
     }
-    io.result?.({ id, lane: store.getItem(board, id).item_lane, held: !values.off, reason: values.off ? null : reason });
+    io.result?.({ id, lane: store.getItem(board, id).item_lane, held: !values.off, reason: values.off ? null : reason,
+      ...(!values.off && store.itemHoldOwner(board, id) ? { ...store.itemHoldOwner(board, id), heldAt: store.getItem(board, id).item_hold_at } : {}) });
     return 0;
   }
-  if (values.until !== undefined) throw new Refused('USAGE', '--until applies to an item hold, not a lane hold');
+  if (values.until !== undefined || values.owner !== undefined || values.deadline !== undefined) throw new Refused('USAGE', '--until, --owner and --deadline apply to an item hold, not a lane hold');
   if (!first || !isLane(ctx.config, first)) throw new Refused('NO_LANE', `no lane "${first ?? ''}"; see: pullboard lanes`);
   const asPerson = io.personChannel === 'view' || values.as === 'person' && personMode(ctx, me, values);
   if (asPerson) {

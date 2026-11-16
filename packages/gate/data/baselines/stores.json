@@ -194,6 +194,11 @@
       "disk": "other",
       "owner": "packages/gate/src/io/release.js"
     },
+    "remote-items": {
+      "kind": "dir",
+      "disk": "other",
+      "owner": "packages/pin/src/io/main.js"
+    },
     "review-comparisons": {
       "kind": "dir",
       "disk": "other",
@@ -469,10 +474,10 @@
     },
     "auth.sqlite": {
       "kind": "sqlite",
-      "owner": "apps/relay/src/io/deploy/server.mjs"
+      "owner": "apps/relay/src/io/auth.js"
     },
     "baseline.json": {
-      "kind": "json",
+      "kind": "repo-data",
       "owner": "packages/store/src/io/board/hold/ratchet.js"
     },
     "blocks.jsonl": {
@@ -504,7 +509,7 @@
       "owner": "apps/cli/src/io/worktree/maintenance/compaction.js"
     },
     "board-hold-baseline.json": {
-      "kind": "json",
+      "kind": "repo-data",
       "owner": "packages/store/src/io/board/hold/ratchet.js"
     },
     "board-holds.jsonl": {
@@ -520,7 +525,7 @@
       "owner": "packages/store/src/io/board/hold/log.js"
     },
     "board.json": {
-      "kind": "json",
+      "kind": "repo-data",
       "owner": "apps/cli/src/logic/help.js"
     },
     "board.runs.sqlite": {
@@ -1543,11 +1548,6 @@
   },
   "exceptions": [],
   "writeOwnerDebt": [
-    "auth.sqlite",
-    "baseline.json",
-    "board-hold-baseline.json",
-    "board-links.sqlite",
-    "board.json",
     "code-map.json",
     "last-green.json",
     "models.json",

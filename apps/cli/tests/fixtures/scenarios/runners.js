@@ -208,14 +208,14 @@ function startQueueController(repo, env, command, { item, queueMarker, firstItem
   const snapshot = TOOLING_SNAPSHOTS.get(sourceRoot);
   snapshot.active++;
   const script = `import { writeFileSync } from 'node:fs';
-const { runProfiledShell, withGateSlot } = await import(${JSON.stringify(gateUrl)});
+const { runProfiledShellAsync, withGateSlot } = await import(${JSON.stringify(gateUrl)});
 ${executionServicesSource(gateUrl)}
 const root = ${JSON.stringify(repo)};
 const command = ${JSON.stringify(command)};
 const queueMarker = ${JSON.stringify(queueMarker)};
 const firstItem = ${JSON.stringify(firstItem)};
 const result = await withGateSlot(root, async lease => {
-  const run = await runProfiledShell(root, command, { gateLease: lease });
+  const run = await runProfiledShellAsync(root, command, { gateLease: lease });
   process.stdout.write(run.output);
   process.stdout.write('PULLBOARD_RUN_RESULT ' + JSON.stringify({ isGreen: run.isGreen, runner: run.profile.executionRunner }) + '\\n');
   return run;
