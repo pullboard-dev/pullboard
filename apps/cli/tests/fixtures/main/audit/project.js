@@ -13,6 +13,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { setTimeout as pause } from 'node:timers/promises';
 import {
   existsSync,
+  linkSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -24,6 +25,7 @@ import {
   packageFiles,
 } from '../../../../../../packages/runners/index.js';
 import { tmpdir } from 'node:os';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
 import {
   fileURLToPath,
@@ -56,10 +58,12 @@ export async function mainAuditFixture(t, { initialGreen = false, requireRealGit
   // This full-audit project deliberately has only its three test files; copied documentation tests are not its suite.
   const source=fileURLToPath(SOURCE),files=packageFiles(source).filter(file=>file==='package.json'||file==='packages/gate/tests/fixtures/budgets.js'||/^(?:src|bin|packages|apps)\//u.test(file)&&!/^(?:test\/|packages\/[^/]+\/tests\/|apps\/[^/]+\/(?:tests|journeys)\/)/u.test(file));
   // The audited repo has no cell plan: with one, the audit worker also builds the accepted inventory of the whole source tree (about 2 minutes), work these cases do not exercise [C7].
-  copyPackageFiles(source,installed,{files});copyPackageFiles(source,repo,{files:files.filter(file=>file!=='packages/codemap/data/plan/cells.json')});
+  const copied=copyPackageFiles(source,installed,{files});
+  // The audited repo shares the installed copy's bytes by hard link: nothing writes to those files, and a second full copy cost seconds of the case's budget [C7].
+  for(const file of copied)if(file!=='packages/codemap/data/plan/cells.json'){mkdirSync(dirname(join(repo,file)),{recursive:true});linkSync(join(installed,file),join(repo,file));}
   lap('copied');assert.equal(existsSync(join(installed,'.git')),false);
   const env={...process.env,HOME:join(scratch,'home'),PULLBOARD_FIXTURE_BOARD:'1',PULLBOARD_HOME:join(scratch,'pullboard'),PULLBOARD_MACHINE_HOME:machine,
-    GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1',GIT_AUTHOR_NAME:'Fixture',GIT_AUTHOR_EMAIL:'fixture@example.invalid',GIT_COMMITTER_NAME:'Fixture',GIT_COMMITTER_EMAIL:'fixture@example.invalid'};
+    GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_COUNT:'2',GIT_CONFIG_KEY_0:'core.fsync',GIT_CONFIG_VALUE_0:'none',GIT_CONFIG_KEY_1:'gc.auto',GIT_CONFIG_VALUE_1:'0',GIT_AUTHOR_NAME:'Fixture',GIT_AUTHOR_EMAIL:'fixture@example.invalid',GIT_COMMITTER_NAME:'Fixture',GIT_COMMITTER_EMAIL:'fixture@example.invalid'};
   // The runner's launch guard names this checkout's copy; the installed worker knows only its own copy, so point the guard there.
   const outerGuard=new URL('../../../../../../packages/gate/src/io/browser/guard.js',import.meta.url).href,installedGuard=pathToFileURL(join(installed,'packages/gate/src/io/browser/guard.js')).href;
   if(env.NODE_OPTIONS)env.NODE_OPTIONS=env.NODE_OPTIONS.replaceAll(`--import=${outerGuard}`,`--import=${installedGuard}`);
