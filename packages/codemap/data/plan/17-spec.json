@@ -32,7 +32,6 @@
   ["src/spec-verdict-format.js","packages/spec/src/logic/format.js","seed"],
   ["src/spec-verdicts.js","packages/spec/src/io/verdicts.js","seed"],
   ["src/spec.js","packages/spec/src/io/main.js","seed"],
-  ["test/doctrine-rulings.test.js","packages/spec/tests/io/doctrine-rulings.test.js","seed"],
   ["test/signoff.test.js","packages/spec/tests/io/signoff.test.js","seed"],
   ["src/spec-gate-move.js","packages/spec/src/io/gate/move.js","rule"]
  ],

@@ -14,6 +14,7 @@ export const CLAIM_NEXT = Object.freeze({
   A5_GRAMMAR_VERSION: 'upgrade Pullboard: npm install -g pullboard@latest',
   AGENT_APPROVAL_REQUIRED: 'ask the person to confirm or decline the named row through pullboard view or their own terminal',
   BAD_CONFIG: 'fix pullboard.json as the message says, then commit it: git commit -m "chore: fix pullboard config" pullboard.json',
+  BAR_EMPTY: 'ask the coordinator to give the item numbered clauses: pullboard edit <id> --criterion "1. ... [test]" --reason "..."',
   BAR_NOT_READY: 'read pullboard bar <id>; ask its author to complete the named red baseline and measurement/edge notes, then have an outside parent session sign the current bar',
   BLOCKED: 'take another item with pullboard next, or shout the lane it waits on: pullboard shout <lane> "<text>"',
   CRITERION_PROVES_NOTHING: 'set a check that fails before the work: pullboard edit <id> --check "<command>", or ask the person to accept this one: pullboard check accept <id>',
