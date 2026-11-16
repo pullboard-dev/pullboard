@@ -60,6 +60,8 @@ test('clause 2: an old checkout-keyed exclusion reads as the board\'s, and with 
   assert.equal(relayExclusion(on.second)?.eventId, 7, 'an entry keyed by one checkout root covers its other worktree');
   assert.equal(relayExclusion(on.other), null);
   const off = boards(t, false);
+  // The machine record can outlive the first fixture home inside one process, so the off half starts from an empty one.
+  updateRelayMachine(state => { state.excluded = []; state.exclusionDetails = {}; });
   excludeRelayByPerson(off.repo, IO, { localRecords: records() });
   assert.ok(relayExclusion(off.repo));
   assert.equal(relayExclusion(off.second), null, 'off: a second worktree is not excluded');
