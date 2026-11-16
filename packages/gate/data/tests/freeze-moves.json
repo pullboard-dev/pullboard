@@ -9277,6 +9277,16 @@
       ],
       "coveredBy": "apps/cli/tests/logic/tour-steps.test.js",
       "because": "a slow tour names its three slowest steps with their times, the slowed git commit among them, proven on the step ranking and labelling in the cli cell instead of a tour with a 15 s sleeping git shim"
+    },
+    {
+      "file": "apps/cli/journeys/submit/foreign-unverified.test.js",
+      "specs": [
+        "C7",
+        "V1",
+        "V17"
+      ],
+      "coveredBy": "apps/cli/tests/io/submit/stack.test.js",
+      "because": "the merge-in refusal and its control run on real git and a board file in the cli cell (stack.test.js); the ITEM_PATCH_SOURCE next step runs in apps/cli/tests/io/commands/patch-source.test.js, without the gated first submission"
     }
   ]
 }
