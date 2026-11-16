@@ -100,6 +100,7 @@ export {
   lapsedSweepEnabled,
   derivedStateEnabled,
   testStatusOutcomesEnabled,
+  cascadeRejectEnabled,
   typedFieldsEnabled,
   recordWriteHolderEnabled,
   adaptiveBatchEnabled,
