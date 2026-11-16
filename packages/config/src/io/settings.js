@@ -490,6 +490,11 @@ export function staticMemoOn() {
   return loadMachineSettings().gate?.staticMemo === true;
 }
 
+/** Whether `pullboard serve` also answers runner pulls at /pull/ (#8765): off by default; only an exact `true` turns it on. */
+export function servePullRoute() {
+  return loadMachineSettings().serve?.pullRoute === true;
+}
+
 /**
  * Where `pullboard serve` listens, from the machine's `serve` setting: loopback and a free port unless set; a flag
  * given for either overrides the setting and is checked by the same rule [P7,O5,O6].
