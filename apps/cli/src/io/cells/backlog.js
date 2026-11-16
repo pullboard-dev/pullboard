@@ -1,8 +1,9 @@
 import { existsSync } from 'node:fs';
-import { git } from '../../../../git/index.js';
+import { git } from '../../../../../packages/git/index.js';
 import { join } from 'node:path';
-import { checkCuts } from './plan/cuts.js';
-import { readPlan } from './scripts/plan.js';
+import { checkCuts } from '../../../../../packages/codemap/index.js';
+import { PLAN_FILE } from '../../../../../packages/codemap/index.js';
+import { readPlan } from '../../../../../packages/codemap/index.js';
 
 const HASH = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 
@@ -16,7 +17,7 @@ const HASH = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 export function cellsBacklogCollector(root, { read, warm, record }) {
   /** Load exact accepted inventory, compute cuts, and log findings only from main-audit execution. */
   async function collectCellsBacklog(source, job) {
-    if (!existsSync(join(source, 'packages/codemap/data/plan/cells.json'))) return null;
+    if (!existsSync(join(source, PLAN_FILE))) return null;
     let artifact = read(root, job.tip);
     if (!artifact.available) {
       try { artifact = await warm(root, job.tip); }
@@ -37,7 +38,7 @@ export function cellsAuditBacklog(source, job, artifact) {
   if (!HASH.test(job?.tip ?? '') || !HASH.test(job?.tree ?? '')
     || git(source, ['rev-parse', 'HEAD']) !== job.tip || git(source, ['rev-parse', 'HEAD^{tree}']) !== job.tree
     || git(source, ['status', '--porcelain', '--untracked-files=all'])) throw new Error('main audit cut backlog needs the exact clean pinned source');
-  if (!existsSync(join(source, 'packages/codemap/data/plan/cells.json'))) return null;
+  if (!existsSync(join(source, PLAN_FILE))) return null;
   if (!HASH.test(job?.tip ?? '') || !HASH.test(job?.tree ?? '') || artifact?.available !== true
     || artifact.descriptor?.tree !== job.tree || !(artifact.inventory?.files instanceof Map)
     || !(artifact.inventory?.edges instanceof Map) || !Array.isArray(artifact.inventory?.unknown)) {
