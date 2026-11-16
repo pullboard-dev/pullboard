@@ -18,9 +18,9 @@ import { loadClock } from '../../tests/fixtures/load.js';
 
 const helpers = createE2eHelpers();
 
-/** Pre-commit meets its 1000 ms target (702-855 ms own). The commit keeps an audited exception lowered to 4000 ms from 4500 (own time 2016-5299 ms across loaded runs; commit-msg reads the board three times); target 2000 ms (#6764). */
-const COMMIT_EXCEPTION_MS = 4000;
-const PRE_COMMIT_EXCEPTION_MS = 1000;
+/** The frozen #2505 budgets, charged for runner load per core: a one-line commit with its hooks 2 s, pre-commit alone 1 s (#6525, #8505). */
+const COMMIT_BUDGET_MS = 2000;
+const PRE_COMMIT_BUDGET_MS = 1000;
 after(helpers.cleanup);
 
 /** Each hook child's wall time from git's trace file, so a slow commit names the hook that spent it. */
@@ -65,10 +65,8 @@ test('clause 1; clause 2; clause 3: with every local slot held, a one-line commi
     const hook = stop();
     assert.equal(direct.code, 0, direct.err);
     t.diagnostic(`commit ${chargedText(ok.time)} [${ok.hooks}]; pre-commit ${chargedText(hook)}`);
-    // Both budgets charge runner load per core like the file budgets (#6525). On a loaded runner the charged time is still
-    // over the frozen #2505 2 s and 1 s ceilings, so each holds an audited exception at its measured value, ratchet-only:
-    // lower it as work is cut, never raise it. The 0.9.5 remainder of #6525 removes both.
-    assert.ok(ok.time.ms < COMMIT_EXCEPTION_MS && hook.ms < PRE_COMMIT_EXCEPTION_MS, // budget: audited exception #6525 at measured run b9b81cc9; target 2 s and 1 s (#2505).
+    // Both budgets charge runner load per core like the file budgets (#6525), so each number is the work the case itself costs.
+    assert.ok(ok.time.ms < COMMIT_BUDGET_MS && hook.ms < PRE_COMMIT_BUDGET_MS, // budget: frozen #2505 ceilings, 2 s for the commit and 1 s for pre-commit.
       `the commit with its hooks took ${chargedText(ok.time)} [${ok.hooks}] and pre-commit ${chargedText(hook)} with every slot held`);
     const refused = commitAs(box, box.web, session, 'api/other.js', 'feat(web): outside the lane [G1]');
     assert.notEqual(refused.status, 0, 'a lane violation is still refused');
