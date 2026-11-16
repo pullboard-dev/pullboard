@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell api */
 /** A restarted server serves the snapshot saved by other code to its first read, so the board's first load never waits out a full rebuild [C7,#8471]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
