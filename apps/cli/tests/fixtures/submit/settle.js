@@ -19,15 +19,14 @@ function runnerLog(machineHome) {
 }
 
 /**
- * Read one item with `show --json` in this process, whatever run the caller passed.
- * Why: the wait reads show on every runner log line and 5 s heartbeat, so a real process per read cost a Node start-up each time,
- * and a caller's runIn appended each read to the parity record, so the record's call count followed timing (U149) [C7].
+ * Read one item with `show --json` through the box's warm worker thread (`runSync`), whatever run the caller passed; a box without one keeps its own run.
+ * Why: the wait reads show on every runner log line and 5 s heartbeat, so a real process per read cost a Node start-up each time, and a caller's
+ * runIn appended each read to the parity record, so the record's call count followed timing (U149). runSync records no parity line and, unlike
+ * importing the dispatcher here, adds nothing to the import closure of the pure helpers that import this file [C7].
  */
 async function readShown(box, item) {
-  // Loaded here, not at the top: badge.js and land/project.js are listed pure helpers whose import closure may not reach the CLI entry.
-  const { runCliInProcess } = await import('../process.js');
-  const shown = await runCliInProcess(['show', String(item), '--json', '--no-next'], { cwd: box.repo, env: box.env });
-  return { code: shown.status, out: shown.stdout, err: shown.stderr };
+  const read = box.runSync ?? box.run;
+  return read(box.repo, 'show', String(item), '--json', '--no-next');
 }
 
 /** The thread lines a gate receipt wrote, so a verify that never settles shows why the board kept the item claimed. */
