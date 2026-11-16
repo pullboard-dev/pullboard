@@ -77,6 +77,8 @@ export function defaults() {
     modelTiers: JSON.parse(readFileSync(new URL('../../data/ceilings/model-tiers.json', import.meta.url), 'utf8')),
     // Off by default: map.slice prints a code map slice in next and claim [1203].
     map: { slice: false },
+    // Off by default: slices.enforcePaths makes submit refuse a slice that changes a path outside its declared set [C7].
+    slices: { enforcePaths: false },
     // Off by default: cells checks replay a saved answer for an unchanged tree [#2076].
     cells: { cache: false, shimMaxAgeDays: 7 },
     agents: { names: 'suffix' },
@@ -448,6 +450,9 @@ export function configProblems(config) {
   }
   if (config.map?.slice !== undefined && typeof config.map.slice !== 'boolean') {
     problems.push('"map.slice" is true or false');
+  }
+  if (config.slices?.enforcePaths !== undefined && typeof config.slices.enforcePaths !== 'boolean') {
+    problems.push('"slices.enforcePaths" is true or false');
   }
   if (notPlain(config.review)
     || Object.keys(config.review).some(key => !['starveMinutes', 'independence', 'excludeEarlierHolders'].includes(key))

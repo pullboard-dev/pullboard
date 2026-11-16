@@ -138,6 +138,7 @@ import { waitForSubmitGate } from '../submit/wait.js';
 import { runStaticPreflight } from '../submit/preflight.js';
 import { requireStaticPreflight } from '../submit/preflight.js';
 import { changedSince } from '../submit/preflight.js';
+import { requireSlicePaths } from '../submit/slice-paths.js';
 import { recordGateSpan } from '../../../../../packages/resources/index.js';
 import { reportPreflight } from '../submit/preflight.js';
 
@@ -510,6 +511,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   });
   reportSubmitStage(ctx, 'authorization and source', preflightStart);
   withBoard(ctx, (board) => refuseUnsubmittableStack(root, board, held, commit, trunk));
+  withBoard(ctx, board => requireSlicePaths(board, held, changedSince(root, acceptedMain.commit, commit), acceptedMain.config.slices?.enforcePaths));
   machineNameProblems(root, `${acceptedMain.commit}..${commit}`, { refuse: acceptedMain.config.commits.noHostName === true, say: (line) => ctx.io.say(line) });
   const infraRecord = infraNotes.infraNote({ root, claimHead, commit, files: filesSince(root, id, claimHead, commit), gates: [ctx.config.gate, acceptedMain.config.gate], infra, requireInfraNote: acceptedMain.config.submit.requireInfraNote });
   const regeneratedFrom = toolRegenerationSource(root, commit);

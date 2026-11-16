@@ -105,6 +105,7 @@ const ROWS = [
   ['fix', 'Automatic fixers', 'Commands that fix the files they are given, and which files they apply to.', 'Project', 'list'],
   ['agents.names', 'Agent name style', 'Whether an agent\'s number comes after its name or before it.', 'Project', 'choice'],
   ['map.slice', 'Code map with assigned work', 'Next and claim print the slice of the code map an item touches.', 'Project', 'on/off'],
+  ['slices.enforcePaths', 'Keep slices in their paths', 'Submit refuses a slice that changes a path outside the files it declared.', 'Checks', 'on/off'],
   ['inbox.tokenBudget', 'Inbox size', 'The most an inbox response may hold, in bytes of text.', 'Project', 'bytes'],
   // This repo: Checks
   ['gate', 'Test command', 'The command that runs the project\'s whole test suite.', 'Checks', 'command'],
