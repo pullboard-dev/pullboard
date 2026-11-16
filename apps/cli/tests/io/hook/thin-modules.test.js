@@ -1,6 +1,5 @@
 /** The thin pre-commit and commit-msg hook processes load at least 25 percent fewer modules than the whole-CLI graph they loaded before [C7,#8841]. @pullboard-test-input source-cell apps/cli */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -10,6 +9,7 @@ import { pathToFileURL } from 'node:url';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
+import { runFixtureChild } from '../../fixtures/child.js';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 
 const e2e = createE2eHelpers();
@@ -52,7 +52,7 @@ const counts = new Int32Array(shared);
 register(${JSON.stringify(pathToFileURL(loader).href)}, { data: { shared } });
 process.on('exit', () => appendFileSync(${JSON.stringify(out)}, Atomics.load(counts, 0) + '\\n'));
 `);
-  const ran = spawnSync(process.execPath, [BIN, 'hook', hook, ...extra], { cwd, env: { ...box.env, PULLBOARD_HOOK_STATIC: '', NODE_OPTIONS: `${box.env.NODE_OPTIONS ?? ''} --import ${pathToFileURL(counter).href}` }, encoding: 'utf8' });
+  const ran = runFixtureChild(process.execPath, [BIN, 'hook', hook, ...extra], { cwd, env: { ...box.env, PULLBOARD_HOOK_STATIC: '', NODE_OPTIONS: `${box.env.NODE_OPTIONS ?? ''} --import ${pathToFileURL(counter).href}` }, encoding: 'utf8' });
   assert.ok(existsSync(out), `the ${hook} process wrote no count: status ${ran.status}, signal ${ran.signal}, error ${ran.error}, stderr ${String(ran.stderr).slice(0, 700)}`);
   // A hook can start a second Node (the selected tooling's entry), which counts its own graph; the hook's cost is the sum.
   return readFileSync(out, 'utf8').split('\n').filter(Boolean).reduce((sum, line) => sum + Number(line), 0);
