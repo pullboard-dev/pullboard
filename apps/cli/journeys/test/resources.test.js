@@ -4,6 +4,7 @@
 import { copyPackageFiles } from '../../../../packages/runners/index.js';
 import { copyModuleClosure } from '../../tests/fixtures/copy.js';
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
@@ -214,6 +215,19 @@ test('clause 1: a test file needs a browser only when its first line is // pullb
   }
 });
 
+/** Run a command without blocking the test, so the next fixture builds while a nested runner works; resolves like spawnSync's result. */
+function runAsync(command, args, options) {
+  return new Promise(done => {
+    const child = spawn(command, args, { ...options, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', chunk => { stdout += chunk; });
+    child.stderr.on('data', chunk => { stderr += chunk; });
+    const hung = setTimeout(() => { stderr += '\n[fixture] nested runner still running after 90 s; killed'; child.kill('SIGKILL'); }, 90_000);
+    child.on('close', status => { clearTimeout(hung); done({ status, stdout, stderr }); });
+  });
+}
+
 /** Git's environment without hook or outer-repository variables, so fixture git commands see only their own repo. */
 function plainGitEnvironment() {
   return Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
@@ -245,7 +259,7 @@ function runnerFixture(t, tests) {
    * Run the copied runner on named files; return its output and records. PULLBOARD_CHROME names the stand-in
    * only when asked, so a run can show which guard layer refused.
    */
-  function run(files, { chromeSetting = false } = {}) {
+  async function run(files, { chromeSetting = false } = {}) {
     for (const record of ['markers', 'launches']) rmSync(join(root, record), { force: true });
     const env = plainGitEnvironment();
     for (const key of Object.keys(env)) {
@@ -255,7 +269,7 @@ function runnerFixture(t, tests) {
     if (chromeSetting) env.PULLBOARD_CHROME = chrome;
     Object.assign(env, { PULLBOARD_MACHINE_HOME: join(root, 'machine'), PULLBOARD_FIXTURE_MARKERS: join(root, 'markers'),
       PULLBOARD_FIXTURE_LAUNCHES: join(root, 'launches'), FIXTURE_BROWSER: chrome });
-    const result = spawnSync(process.execPath, ['apps/cli/src/io/run/tests.js', ...files], { cwd: root, env, encoding: 'utf8' });
+    const result = await runAsync(process.execPath, ['apps/cli/src/io/run/tests.js', ...files], { cwd: root, env });
     /** Split one record file the fixture tests append to into its lines. */
     const lines = text => text.split('\n').filter(Boolean).sort();
     const markers = existsSync(join(root, 'markers')) ? lines(readFileSync(join(root, 'markers'), 'utf8')) : [];
@@ -287,14 +301,8 @@ test('child launches from a process the test starts', () => {
 `,
     'test/launch-helper.mjs': "import { launchChromeProcess } from '../apps/cli/tests/fixtures/chrome.js';\nconst browser = launchChromeProcess({ executable: process.env.FIXTURE_BROWSER, args: ['child'] });\nawait browser.stopped;\nawait browser.close();\n",
   });
-  const ran = runner.run(['test/declared.test.js', 'test/undeclared.test.js', 'test/child.test.js']);
-  assert.notEqual(ran.status, 0, ran.output);
-  assert.match(ran.output, /\[BROWSER_UNDECLARED\] test\/undeclared\.test\.js launched Chrome/u, 'the undeclared launch fails by file name');
-  assert.match(ran.output, /make its first line \/\/ pullboard: browser/u, 'the refusal names the one-line fix');
-  assert.match(ran.output, /\[BROWSER_UNDECLARED\] test\/child\.test\.js launched Chrome/u, 'a launch from the file\'s child process fails by file name');
-  assert.match(ran.output, /^ok \d+ - declared launches the stand-in browser/mu, ran.output);
-  assert.deepEqual(ran.markers, ['declared=held', 'undeclared=none'], 'the declared file holds a browser lease; the undeclared one runs without');
-  assert.deepEqual(ran.launches, ['declared'], 'only the declared file started a browser; the refused launches never started one');
+  // The first nested runner works while the second fixture is built; the assertions are unchanged.
+  const firstRun = runner.run(['test/declared.test.js', 'test/undeclared.test.js', 'test/child.test.js']);
 
   // Browser starts that never pass through apps/cli/tests/fixtures/chrome.js are refused best effort by the slot guard.
   const direct = runnerFixture(t, {
@@ -316,8 +324,16 @@ test('spawned starts a Node child that starts the browser', () => {
 `,
     'test/direct-helper.mjs': "import { spawnSync } from 'node:child_process';\nspawnSync(process.env.FIXTURE_BROWSER, ['grandchild']);\n",
   });
+  const ran = await firstRun;
+  assert.notEqual(ran.status, 0, ran.output);
+  assert.match(ran.output, /\[BROWSER_UNDECLARED\] test\/undeclared\.test\.js launched Chrome/u, 'the undeclared launch fails by file name');
+  assert.match(ran.output, /make its first line \/\/ pullboard: browser/u, 'the refusal names the one-line fix');
+  assert.match(ran.output, /\[BROWSER_UNDECLARED\] test\/child\.test\.js launched Chrome/u, 'a launch from the file\'s child process fails by file name');
+  assert.match(ran.output, /^ok \d+ - declared launches the stand-in browser/mu, ran.output);
+  assert.deepEqual(ran.markers, ['declared=held', 'undeclared=none'], 'the declared file holds a browser lease; the undeclared one runs without');
+  assert.deepEqual(ran.launches, ['declared'], 'only the declared file started a browser; the refused launches never started one');
   const directFiles = ['test/direct.test.js', 'test/shell.test.js', 'test/spawned.test.js'];
-  const spawned = direct.run(directFiles, { chromeSetting: true });
+  const spawned = await direct.run(directFiles, { chromeSetting: true });
   assert.notEqual(spawned.status, 0, spawned.output);
   for (const file of directFiles) {
     assert.match(spawned.output, new RegExp(`\\[BROWSER_UNDECLARED\\] test/${file.slice(5).replaceAll('.', '\\.')} launched Chrome`, 'u'),
@@ -382,21 +398,22 @@ function chromeLaunchingTests(repository) {
   const target = (importer, request) => [request, `${request}.js`, `${request}.mjs`]
     .map(candidate => join(dirname(importer), candidate)).find(candidate => modules.has(candidate));
   const launches = path => !['apps/cli/tests/fixtures/chrome.js', 'apps/cli/tests/fixtures/cockpit/harness.js'].includes(path) && launchers.has(path);
-  return [...modules].filter(path => /\.test\.m?js$/u.test(path)).filter(test => {
-    const seen = new Set();
-    const stack = [test];
-    while (stack.length) {
-      const path = stack.pop();
-      if (seen.has(path)) continue;
-      seen.add(path);
-      if (launches(path)) return true;
-      for (const request of requests.get(path) ?? []) {
-        const next = target(path, request);
-        if (next) stack.push(next);
-      }
+  // Walk the import graph once, backwards from every launcher, instead of once per test file: the same files are found in a fraction of the time.
+  const importers = new Map();
+  for (const [importer, list] of requests) {
+    for (const request of list) {
+      const next = target(importer, request);
+      if (next) importers.set(next, [...importers.get(next) ?? [], importer]);
     }
-    return false;
-  }).sort();
+  }
+  const reaching = new Set([...modules].filter(launches));
+  const stack = [...reaching];
+  while (stack.length) {
+    for (const importer of importers.get(stack.pop()) ?? []) {
+      if (!reaching.has(importer)) { reaching.add(importer); stack.push(importer); }
+    }
+  }
+  return [...modules].filter(path => /\.test\.m?js$/u.test(path) && reaching.has(path)).sort();
 }
 
 test('clause 4: every test file that launches Chrome on main carries the browser declaration [C7]', async () => {

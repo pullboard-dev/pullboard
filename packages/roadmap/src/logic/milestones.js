@@ -18,6 +18,7 @@ import {
   WITHDRAW_MILESTONE_ENGINE,
 } from "../../../state/index.js";
 import { Refused } from "../../../kernel/light.js";
+import { isLanded } from "./progress.js";
 import { WORK_ORDER_ENGINE } from "../../../state/light.js";
 import { MILESTONE_PLACEMENT_ENGINE } from "../../../state/light.js";
 import { LIVE_RELEASE_PLACEMENT_ENGINE } from "../../../state/light.js";
@@ -82,6 +83,7 @@ export function milestoneReferencesToRemove(board, references, ports) {
  */
 export function roadmap(board, resolveExternal = null, ports) {
   const { listItems, milestones } = milestonePorts(ports, ["listItems", "milestones"]);
+  const onMain = typeof ports.onMain === 'function' ? ports.onMain : null;
   const items = new Map(listItems(board, { all: true }).map((item) => [item.item_id, item]));
   const at = board.clock.now().getTime();
   return milestones(board).map((milestone) => {
@@ -89,7 +91,7 @@ export function roadmap(board, resolveExternal = null, ports) {
       if (typeof id === 'number') {
         const item = items.get(id);
         return item
-          ? { id, title: item.item_title, status: item.item_status, state: roadmapState(item.item_status, Boolean(item.item_merged_commit)) }
+          ? { id, title: item.item_title, status: item.item_status, state: roadmapState(item.item_status, isLanded(item, onMain)) }
           : { id, title: `#${id}`, status: 'missing', state: 'missing' };
       }
       const external = resolveExternal?.(id) ?? { id, title: id, status: 'unavailable' };
@@ -512,7 +514,7 @@ export function shipMilestone(board, name, { agentId, commit, next, asPerson = f
     const notMoved = current.items.filter((id) => typeof id === 'string');
     const stays = (id) => {
       const item = typeof id === 'number' ? items.get(id) : null;
-      return !item || item.item_status === 'withdrawn' || roadmapState(item.item_status, Boolean(item.item_merged_commit)) === 'landed';
+      return !item || item.item_status === 'withdrawn' || roadmapState(item.item_status, isLanded(item)) === 'landed';
     };
     const moved = current.items.filter((id) => !stays(id));
     let into = null;

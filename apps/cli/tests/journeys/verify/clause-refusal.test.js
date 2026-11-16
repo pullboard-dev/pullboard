@@ -2,12 +2,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { join } from 'node:path';
-import * as store from '../../../../packages/store/index.js';
-import { submitFixture } from '../../tests/fixtures/board/submit.js';
-import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { fixtureAdd } from '../../tests/fixtures/testkit.js';
-import { openKitBoard } from '../../tests/fixtures/testkit.js';
-import { fixtureJoin } from '../../tests/fixtures/testkit.js';
+import * as store from '../../../../../packages/store/index.js';
+import { submitFixture } from '../../fixtures/board/submit.js';
+import { createE2eHelpers } from '../../fixtures/e2e.js';
+import { fixtureAdd } from '../../fixtures/testkit.js';
+import { openKitBoard } from '../../fixtures/testkit.js';
+import { fixtureJoin } from '../../fixtures/testkit.js';
 
 const CRITERION = 'The page renders its title. The page renders its footer.';
 

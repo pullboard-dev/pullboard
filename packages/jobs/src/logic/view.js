@@ -6,7 +6,7 @@
  */
 function currentStep(job, steps) {
   if (job.job_step === 'done') return 'done';
-  const worked = steps.filter(step => !step.job_step_name.startsWith('artifact:')); // a posted artifact is a keepsake, never a move of the job
+  const worked = steps.filter(step => !step.job_step_name.startsWith('artifact:') && !step.job_step_name.startsWith('note:')); // a posted artifact or a lease note is a keepsake, never a move of the job
   const last = worked.length ? worked[worked.length - 1].job_step_name : job.job_step;
   return last === 'released' ? job.job_step : last;
 }

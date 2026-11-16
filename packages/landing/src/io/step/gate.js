@@ -83,7 +83,7 @@ function batchAffectedTests(state, readEvents, readItem) {
     // the full gate, which runs every unit the submits already proved [C7].
     const badges = new Set((state.landingWrites ?? []).filter(file => /^docs\/badges\/[^/]+\.json$/u.test(file)));
     const changed = badges.size ? git(root, ['diff', '--no-renames', '--name-only', '-z', state.batch.base, commit]).split('\0').filter(file => file && !badges.has(file)) : undefined;
-    const affected = submitted === null ? selectAffectedTests(root, { base: state.batch.base, commit, ...(changed ? { changed } : {}) }) : { files: submitted };
+    const affected = submitted === null ? selectAffectedTests(root, { base: state.batch.base, commit, suites: state.config.affectedSuites, ...(changed ? { changed } : {}) }) : { files: submitted };
     if (affected.full && affected.reason !== 'the change reaches every test file') {
       // One item's own submit proof is its floor: a landing never falls to the full plan for it, which on a runners-only
       // machine runs every test on one runner and cannot finish [C7].
@@ -104,7 +104,7 @@ function batchAffectedTests(state, readEvents, readItem) {
   let selection;
   if (!state.config.affectedTests) selection = submitted !== null ? { full: false, files: submitted } : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] };
   else {
-    const merged = selectAffectedTests(root, { base: state.batch.base, commit });
+    const merged = selectAffectedTests(root, { base: state.batch.base, commit, suites: state.config.affectedSuites });
     selection = submitted === null ? merged : { ...merged, files: [...new Set([...submitted, ...merged.files])].sort() };
   }
   return { ...selection, mandatory, sourceProof: submitted !== null, files: [...new Set([...mandatory, ...selection.files])].sort() };

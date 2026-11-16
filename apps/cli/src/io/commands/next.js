@@ -283,8 +283,8 @@ async function nextWithProgress(io, values, progress) {
       const item = found.item;
       const review = found.review ?? Boolean(values.verify);
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
-      if (review) { try { await (await import('./verify.js')).reviveStalledComparison(ctx, item.item_id); } catch { /* A comparison is observation only; it never blocks a review offer. */ } }
-      const comparison = review ? withBoardRead(ctx, board => recordedVerificationComparison(store.itemThread(board, item.item_id), item)) : null;
+      if (review && !found.landed) { try { await (await import('./verify.js')).reviveStalledComparison(ctx, item.item_id); } catch { /* A comparison is observation only; it never blocks a review offer. */ } }
+      const comparison = review && !found.landed ? withBoardRead(ctx, board => recordedVerificationComparison(store.itemThread(board, item.item_id), item)) : null;
       const returned = review || found.waitingOffer ? null : withBoardRead(ctx, board => {
         const record = store.returnedRecord(board, item.item_id);
         return record && { ...record, ...(record.gate ? { gate: { ...record.gate, failing: retainedGateAssertions(ctx.info.commonDir, record.gate.job) } } : {}) };
@@ -295,7 +295,12 @@ async function nextWithProgress(io, values, progress) {
       io.result?.({ item, review, ...(returned ? { returned } : {}), ...(comparison ? { comparison } : {}), held: Boolean(found.held), ...(found.waitingOffer ? { waitingOffer: true } : {}), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.itemFolder ? { itemFolder: found.itemFolder, holder: found.holder } : {}), ...(found.companions ? { companions: found.companions } : {}), ...(more.length ? { more: more.map(next => ({ item: next.item, itemFolder: next.itemFolder })) } : {}) });
       const here = cdTo(!review && found.itemFolder ? found.itemFolder : ctx.info.root);
       const as = ctx.info.isMain ? ' --as coordinator' : '';
-      if (review) {
+      if (found.landed) {
+        // A forced landing has no reservation and no submitted head: the review is of the merge's own first-parent diff, and the verdict is recorded on the board [C7,#6490].
+        io.say(`next to verify (landed, no verdict): #${item.item_id} ${item.item_title}, merged as ${item.item_merged_commit.slice(0, 12)}`);
+        io.say(`read the merge's own change, here: ${here} git diff ${item.item_merged_commit}^1 ${item.item_merged_commit}`);
+        io.say(`then: ${here} pullboard verify ${item.item_id} accept${as} --note "how you proved it", or reject${as} --reason CODE --note "what failed"`);
+      } else if (review) {
         io.say(`next to verify: #${item.item_id} ${item.item_title}, built by ${agentDisplayName(agents, ctx.config, item.item_built_by)} at ${item.item_commit.slice(0, 12)}`);
         for (const reason of found.reasons ?? []) io.say(displayedWait(reason, agents, ctx.config));
         if (comparison) io.say(renderVerificationComparison(comparison));
@@ -391,8 +396,8 @@ async function nextWithProgress(io, values, progress) {
       found.reasons = [...(found.reasons ?? []), ...withBoardRead(ctx, board => reasons().inboxReasons(board, whoAmI(ctx, board)))];
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
       const seat = withBoardRead(ctx, (board) => whoAmI(ctx, board));
-      const reasons = reasons().answerFirstReasons(found.reasons);
-      return refuseNextIdle(io, reasons, reasons().foldedReasons(reasons.map((reason) => displayedWait(reason, agents, ctx.config)), `pullboard list ${seat.lane}`), { minutes, verify: values.verify, laneWork: found.laneWork, lane: seat.lane, route: seat.route });
+      const waits = reasons().answerFirstReasons(found.reasons);
+      return refuseNextIdle(io, waits, reasons().foldedReasons(waits.map((reason) => displayedWait(reason, agents, ctx.config)), `pullboard list ${seat.lane}`), { minutes, verify: values.verify, laneWork: found.laneWork, lane: seat.lane, route: seat.route });
     }
     // An item whose folder another live session holds stays out of this next's selection (#3688).
     if (found.skipItem && ['ITEM_FOLDER_UNFINISHED', 'ITEM_FOLDER_PROTECTED', 'NO_POLICY'].includes(found.retryDetail?.code)) io.say(`skipped #${found.skipItem}: ${found.retryDetail.message}`);

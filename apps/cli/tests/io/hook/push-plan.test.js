@@ -6,6 +6,7 @@ import { PUSH_DEFAULT_JOURNEY_MS } from '../../../src/io/hook/push.js';
 import { PUSH_MAX_SHARDS } from '../../../src/io/hook/push.js';
 import { planPushShards } from '../../../src/io/hook/push.js';
 import { pushPlanLimitMs } from '../../../src/io/hook/push.js';
+import { pushMaxShards } from '../../../src/io/hook/push.js';
 import { pushShardCount } from '../../../src/io/hook/push.js';
 
 /** A main-sized synthetic gate: 2,371 files, one in seven unrecorded, recorded times spread from 0.5 s to 40 s. */
@@ -76,4 +77,25 @@ test('clause 3: an unknown runner count or total time gives PUSH_MAX_SHARDS, tod
     assert.equal(pushShardCount({ totalMs: unknown, runners: 6, targetMs: target }), PUSH_MAX_SHARDS, `total ${unknown}`);
   }
   assert.equal(pushShardCount(), PUSH_MAX_SHARDS, 'no board data at all');
+});
+
+test('clause 1: with pushGate.sizeFromBoard on, the plan holds pushShardCount(total, live runners, a quarter of shardMinutes) partitions [C7,U151]', () => {
+  const files = Array.from({ length: 40 }, (_, at) => `t/f${at}.test.js`);
+  const times = Object.fromEntries(files.map(file => [file, 60_000]));
+  const config = { pushGate: { shardMinutes: 20, sizeFromBoard: true } };
+  assert.equal(pushMaxShards(files, times, config, 6), 6, '40 min at 5 min a shard is 8, capped by 6 runners');
+  assert.equal(pushMaxShards(files, times, config, 12), PUSH_MAX_SHARDS, 'eight shards of 5 min');
+  const small = { pushGate: { shardMinutes: 40, sizeFromBoard: true } };
+  assert.equal(pushMaxShards(files, times, small, 12), 4, '40 min at 10 min a shard is 4');
+  assert.equal(planPushShards(files, times, pushMaxShards(files, times, small, 12)).length, 4, 'the plan holds that many partitions');
+  assert.equal(pushMaxShards(files, times, config, undefined), PUSH_MAX_SHARDS, 'no runner reading keeps the fixed plan');
+});
+
+test('clause 2: with pushGate.sizeFromBoard off, the plan keeps PUSH_MAX_SHARDS partitions whatever the board says [C7,U151]', () => {
+  const files = Array.from({ length: 40 }, (_, at) => `t/f${at}.test.js`);
+  const times = Object.fromEntries(files.map(file => [file, 60_000]));
+  for (const config of [undefined, { pushGate: { shardMinutes: 20, sizeFromBoard: false } }]) {
+    assert.equal(pushMaxShards(files, times, config, 2), PUSH_MAX_SHARDS);
+    assert.equal(planPushShards(files, times, pushMaxShards(files, times, config, 2)).length, PUSH_MAX_SHARDS);
+  }
 });
