@@ -32,6 +32,7 @@ const ROWS = [
   // This machine: Order
   ['gate.jobReserve', 'Runner job classes', 'Off by default; when set, a runner takes interactive runs, then gates, then landings, then background sweeps, while each class keeps this share of every runner\'s slots.', 'Order', 'share'],
   ['holds.requireOwner', 'Holds need an owner', 'When enabled, an item hold names an owner (a seat, lane or person) and records a deadline one day out unless one is given; off (default), holds are exactly as before.', 'Order', 'on/off'],
+  ['health.lapsedSweep', 'The sentinel expires lapsed claims', 'When enabled, the View\'s sentinel expires claims whose lease lapsed every minute, so none waits for a command to run; off (default), lapsed claims are expired by the ten-minute sweep and before each write.', 'Order', 'on/off'],
   ['next.itemNotices', 'Next lists the item\'s shouts', 'When enabled, the instruction next returns also lists the shouts and rulings that name the item it hands out; off (default), next prints what it did before.', 'Order', 'on/off'],
   ['gate.queue.reviewsFirst', 'Reviews first', 'Queued checks run in the order landing, review, submit, then the rest, instead of landings first and then arrival order.', 'Order', 'on/off'],
   ['gate.queue.currentReleaseFirst', 'Current release first', 'Among otherwise tied checks on each board, work in the release being shipped goes ahead of later releases.', 'Order', 'on/off'],
@@ -123,7 +124,7 @@ const ROWS = [
   ['submitInvariants', 'Always-run tests', 'Test files that run on every submit, however small the change.', 'Checks', 'list'],
   ['registryGuards', 'Registry guards', 'Source guards the selected-test runner adds when a change touches a registry.', 'Checks', 'list'],
   ['submit.handoff', 'Return while checks run', 'Deprecated no-op: submit always settles through the pull gate.', 'Checks', 'on/off'],
-  ['submit.edgeFollowUps', 'List new import edges', 'On, submit lists the import edges the diff adds; off, it does not look. It files nothing.', 'Checks', 'on/off'],
+  ['submit.edgeFollowUps', 'List new import edges', 'On, a submit whose diff adds import edges files one follow-up item listing them; off, it does not look.', 'Checks', 'on/off'],
   ['submit.requireInfraNote', 'Explain test edits', 'Submit asks for a written reason when a change edits tests or infrastructure.', 'Checks', 'on/off'],
   ['submit.autoFileMainReds', 'File known main failures', 'Submit opens repair items for failures freshly confirmed to match main.', 'Checks', 'on/off'],
   ['itemBuildBudgetMinutes', 'Item build budget', 'Expected build minutes allowed before an item must be cut into children.', 'Work', 'minutes'],

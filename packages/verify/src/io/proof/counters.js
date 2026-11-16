@@ -11,6 +11,9 @@ import { NATIVE_FLAKE_ENGINE } from '../../../../state/light.js';
 import { moveFlowItem } from '../../../../stats/light.js';
 import { roleOf } from '../../../../stats/light.js';
 import { appendRuleProof } from '../rule/proof/append.js';
+import { deleteDerived } from './derived.js';
+import { derivedText } from './derived.js';
+import { writeDerived } from './derived.js';
 
 export const PROOF_COUNTER_PREFIX = 'local:proof-stats:';
 const PREFIX = `${PROOF_COUNTER_PREFIX}v2:`;
@@ -147,6 +150,12 @@ export function proofCounter(board, key) {
   return readCounter(board, key);
 }
 
+/** Read one counter from the derived database, decoded; null when the setting is off or the row is absent. Why: slice 2 moves readers here; board_meta still serves every ordinary read in this slice [C7]. */
+export function derivedProofCounter(board, key) {
+  const text = derivedText(board, stored(key));
+  return text === null ? null : decode(text);
+}
+
 /** Read and decode one stored record. */
 function readCounter(board, key) {
   const row = statement(board.db, 'SELECT meta_value FROM board_meta WHERE meta_key=?').get(stored(key));
@@ -175,6 +184,7 @@ function storeText(board, key, text) { storeRows(board, [stored(key), text]); }
 /** Store rows given as flat key, text pairs, many per statement: most of a replay's store time was the call into SQLite for each row. */
 function storeRows(board, pairs) {
   const rows = pairs.length / 2;
+  writeDerived(board, pairs);
   for (let at = 0; at < rows; at += STORE_ROWS) {
     const count = Math.min(STORE_ROWS, rows - at);
     statement(board.db, storeSql(count)).run(...(rows <= STORE_ROWS ? pairs : pairs.slice(at * 2, (at + count) * 2)));
@@ -226,6 +236,7 @@ export function proofCounterRows(board, kind) {
  */
 export function clearProofCounters(board) {
   board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ? AND meta_key NOT GLOB ?').run(`${PROOF_COUNTER_PREFIX}*`, `${PREFIX}report-*`);
+  deleteDerived(board, `${PROOF_COUNTER_PREFIX}*`, `${PREFIX}report-*`);
 }
 
 /** Start a bounded all-time aggregate; window-specific contributions live in separate event shards. */
@@ -358,6 +369,7 @@ function ensureCapacityCounters(board, until) {
   let summary = proofCounter(board, 'capacity-summary');
   if (!summary || summary.version !== CAPACITY_VERSION) {
     board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ?').run(`${PREFIX}capacity-*`);
+    deleteDerived(board, `${PREFIX}capacity-*`);
     dropHeld(board, 'capacity-');
     summary = emptyCapacityCounter(); put(board, 'capacity-summary', summary);
   }
@@ -397,6 +409,7 @@ function replayProofTail(board, cursor) {
 /** Reset only this version's report folder; preserve established proof shards and every other version's report. */
 function resetReportCounters(board) {
   board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ?').run(`${PREFIX}${REPORT_FOLDER}*`);
+  deleteDerived(board, `${PREFIX}${REPORT_FOLDER}*`);
   dropHeld(board, 'report-');
   put(board, 'report-summary', emptyReportCounter());
   put(board, 'report-policy', newReportPolicy());
