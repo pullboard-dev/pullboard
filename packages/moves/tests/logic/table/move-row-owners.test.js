@@ -8,6 +8,7 @@ import { BACKBONE_TABLE } from '../../../index.js';
 import { OUTBOX_TABLE } from '../../../index.js';
 import { boardClaimEngine } from '../../../index.js';
 import { boardReleaseEngine } from '../../../index.js';
+import { boardReopenEngine } from '../../../index.js';
 import { boardSubmitEngine } from '../../../index.js';
 import { boardVerifyEngine } from '../../../index.js';
 import { boardWithdrawEngine } from '../../../index.js';
@@ -29,6 +30,7 @@ const TABLES = {
   lease: ids(leaseEngine({ leaseMs: 1, valid: () => true }).table),
   outbox: ids(OUTBOX_TABLE),
   release: ids(boardReleaseEngine().table),
+  reopen: ids(boardReopenEngine().table),
   submit: [...new Set(Object.values(submit).flatMap(ids))],
   verify: ids(boardVerifyEngine().table),
   withdraw: ids(boardWithdrawEngine().table),
@@ -56,6 +58,12 @@ test('moves.row-owners.main-whole: clause 3: every row of main\'s move tables ha
   const records = JSON.parse(readFileSync(join(DIR, '../../registry.json'), 'utf8'));
   assert.ok(Object.values(TABLES).every((rows) => rows.length > 0), 'every table has rows');
   assert.deepEqual(moveRowOwnershipProblems(TABLES, records), []);
+});
+
+test('moves.row-owners.reopen: clause 2: the reopen table has rows and exactly one owner for each [C7,#8559]', () => {
+  const records = JSON.parse(readFileSync(join(DIR, '../../registry.json'), 'utf8'));
+  assert.equal(TABLES.reopen.length, 13);
+  assert.deepEqual(moveRowOwnershipProblems({ reopen: TABLES.reopen }, records), []);
 });
 
 test('moves.row-owners.backbone: clause 2: the backbone table has rows and exactly one owner for each [C7,#8558]', () => {
