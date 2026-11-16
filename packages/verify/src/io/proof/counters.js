@@ -81,15 +81,19 @@ function statement(db, sql) {
 
 /** Keys a replay keeps decoded in memory: the report policy grows with the whole board, and the cursors are read and written by every event, so decoding and encoding them per event was most of a replay (#8562, #8818). */
 const HOT_KEYS = new Set(['report-policy', 'summary', 'report-summary', 'capacity-summary']);
-/** Key prefixes held decoded too: one actor and one family shard per seat and model, a bounded few that every event reads and writes. */
+/** Key prefixes held decoded and kept for the whole replay: one actor and one family shard per seat and model, a bounded few that every event reads and writes. */
 const HOT_PREFIXES = ['actor:', 'family:'];
+/** Key prefixes held decoded until the next batch store: an item's shards are read and written by each of its few events, and each reader reads one, folds the event into it and writes it back. */
+const ITEM_PREFIXES = ['item:', 'capacity-item:'];
 /** How many held shards a replay stores at once, so memory stays bounded however long the history. */
 const HOT_FLUSH = 20_000;
 /** How many rows one store statement carries; SQLite's limit is 32,766 values per statement. */
 const STORE_ROWS = 100;
 
-/** Whether a replay keeps this key decoded, and hands every reader the one object: each reader folds an event into it and writes it back. */
-function hotDecoded(key) { return HOT_KEYS.has(key) || HOT_PREFIXES.some(prefix => key.startsWith(prefix)); }
+/** Whether a replay keeps this key decoded for the whole replay. */
+function retained(key) { return HOT_KEYS.has(key) || HOT_PREFIXES.some(prefix => key.startsWith(prefix)); }
+/** Whether a replay keeps this key decoded and hands every reader the one object: each reader folds an event into it and writes it back. */
+function hotDecoded(key) { return retained(key) || ITEM_PREFIXES.some(prefix => key.startsWith(prefix)); }
 /** Per connection, only while a replay runs: each hot key's decoded value (or, for a text key, its stored text) and whether it was stored since. */
 const HOT = new WeakMap();
 
@@ -158,7 +162,7 @@ function put(board, key, value) {
     if (held.size > HOT_FLUSH) {
       // Store and release the shards read by key only; the policy, the cursors and the actors stay held.
       storeHeld(board, held);
-      for (const [name, entry] of held) if (!hotDecoded(name)) held.delete(name); else entry.dirty = false;
+      for (const [name, entry] of held) if (!retained(name)) held.delete(name); else entry.dirty = false;
     }
     return;
   }
