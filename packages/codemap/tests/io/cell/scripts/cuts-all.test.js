@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { Worker } from 'node:worker_threads';
+import { computePlan } from '../../../../index.js';
+import { writePlan } from '../../../../index.js';
 import { fixture } from '../../../../../landing/tests/fixtures/plan.js';
 import { git } from '../../../../../landing/tests/fixtures/plan.js';
 
@@ -27,6 +29,9 @@ function runPlan(...args) {
 
 test('clause 1: --cuts-all runs the strict check for every cell and prints every hidden edge by file [C7,D3]', async t => {
   const { root, put } = fixture(t);
+  writePlan(root, computePlan(root));
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'plan');
   const clean = await runPlan('--cuts-all', root);
   assert.equal(clean.status, 0, clean.stderr);
   // Two earlier cells each reach a later cell; each hidden edge is named, in the cell that holds it.
