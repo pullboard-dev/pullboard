@@ -106,6 +106,8 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
     const freshness = freshnessReader ?? projector.state;
     // One cat-file answers every verified item's commit, rather than one Git process per item [C7].
     projector?.prime(currentItems.filter(item => dirtyIds.has(item.item_id) || refreshVerdicts));
+    // A wide build reads every dirty item's verdict rows, receipts and reopens once, not one query set per item [C7].
+    if (dirtyIds.size > WIDE_BUILD_ITEMS) board.verdictReads = store.verdictReads(board, dirtyIds);
     const state = projectState(root, { seen: null, board, itemProjector: (item, context) => {
       if (dirtyIds.has(item.item_id)) {
         const projected = context.project();

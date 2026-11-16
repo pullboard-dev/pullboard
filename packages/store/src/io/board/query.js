@@ -41,7 +41,7 @@ export { closeBoard, holdReadConnections, openBoardForRead, openBoardReadOnly, r
 export { schemaMissing, writeRefused } from "./migrate.js";
 export { stats } from "../../logic/board/stats.js";
 export { submitInvariantEvents } from "./indexes.js";
-export { acceptedVerdict, verdictReviewProblem, verdictsFor } from "../../../../verify/read.js";
+export { acceptedVerdict, verdictReviewProblem, verdictReads, verdictsFor } from "../../../../verify/read.js";
 
 export const PERSON = 'person';
 

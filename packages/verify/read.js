@@ -5,6 +5,6 @@
 export { effectiveItemHead } from './src/logic/advance.js';
 export { projectReviewFamily } from './src/logic/required.js';
 export { verdictWithdrawals } from './src/io/verdict/withdrawal.js';
-export { acceptedVerdict, verdictReviewProblem, verdictsFor } from './src/logic/verdict/reviews.js';
+export { acceptedVerdict, verdictReviewProblem, verdictReads, verdictsFor } from './src/logic/verdict/reviews.js';
 export { staleVerdictRefusal, verdictProjector } from './src/io/verdict/freshness.js';
 export { familyIndex } from './src/logic/review/policy.js';
