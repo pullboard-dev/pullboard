@@ -111,7 +111,7 @@ function build(box, check = undefined) {
   return store.addItem(box.board, { by: 'coordinator', lane: 'web', title: 'Available build', specs: 'G1', criterion: 'The move keeps evidence.', check });
 }
 
-test('[Q1,V15] next hands out the mandatory review before a new claim [conveyor rule: review is work next hands out]', async (t) => {
+test('clause 2: [Q1,V15] next hands out the mandatory review before a new claim [conveyor rule: review is work next hands out]', async (t) => {
   const box = await project(t);
   const ids = [submitted(box), submitted(box), submitted(box)];
   const id = build(box);
