@@ -11,7 +11,7 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import { copyPackageFiles } from '../../runners/index.js';
 import { privateFixtureFiles } from '../../gate/tests/fixtures/child.js';
-import { runFixtureChild } from '../../gate/tests/fixtures/child.js';
+import { runFixtureChildAsync } from '../../gate/tests/fixtures/child.js';
 import { fixtureProjectPolicy } from '../../gate/tests/fixtures/testkit.js';
 import { completeGate } from '../index.js';
 import { landingFailures } from '../index.js';
@@ -22,7 +22,8 @@ const PASSING = ['a', 'b', 'd', 'e'];
 const FILES = ['a', 'b', 'c', 'd', 'e'].map(name => `test/${name}.test.js`);
 
 const TEMPLATE = {};
-after(() => { if (TEMPLATE.dir) rmSync(TEMPLATE.dir, { recursive: true, force: true }); });
+const DIRS = [];
+after(() => { for (const dir of [TEMPLATE.dir, ...DIRS]) if (dir) rmSync(dir, { recursive: true, force: true }); });
 const ENV_GIT = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid', GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
 
 /** The five-file project with a full package copy, copied and committed once for the file; each case clones it and sets only its shard count. */
@@ -49,9 +50,9 @@ import { test } from 'node:test';\ntest('case ${name} [C7]', ${name === 'e' ? '(
 }
 
 /** A private project of five files where test/c.test.js never finishes, landing in the given number of shards. */
-function project(t, shards) {
+function project(shards) {
   const dir = privateFixtureFiles('pullboard-hung-file-').root;
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  DIRS.push(dir);
   const repo = join(dir, 'repo'), home = join(dir, 'home');
   mkdirSync(join(home, '.pullboard'), { recursive: true });
   writeFileSync(join(home, '.pullboard', 'settings.json'), JSON.stringify({ gateSlots: 5, browserSlots: 1 }));
@@ -64,14 +65,31 @@ function project(t, shards) {
   return { repo, env };
 }
 
-/** Run the landing gate over all five files. */
+/** Run the landing gate over all five files, without blocking the other scenario's gate. */
 function gate(box) {
-  return runFixtureChild(process.execPath, ['apps/cli/src/io/run/tests.js', ...FILES], { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 240_000 });
+  return runFixtureChildAsync(process.execPath, ['apps/cli/src/io/run/tests.js', ...FILES], { cwd: box.repo, env: box.env, timeout: 240_000 });
+}
+
+const SCENARIOS = new Map();
+
+/** The project and gate run for one shard count, started once; clause 2 judges the same 1-shard run clause 1 checks. */
+function scenario(shards) {
+  if (!SCENARIOS.has(shards)) {
+    const box = project(shards);
+    SCENARIOS.set(shards, { box, run: gate(box) });
+  }
+  return SCENARIOS.get(shards);
+}
+
+/** Start both gates together: independent private projects, so the two 1 s idle windows run side by side. */
+function startAll() {
+  for (const shards of [1, 5]) scenario(shards);
 }
 
 for (const shards of [1, 5]) {
-  test(`clause 1: a hung file in a ${shards}-shard landing gate times out alone and every other file runs [C7,#3167]`, t => {
-    const run = gate(project(t, shards));
+  test(`clause 1: a hung file in a ${shards}-shard landing gate times out alone and every other file runs [C7,#3167]`, async () => {
+    startAll();
+    const run = await scenario(shards).run;
     const output = run.stdout + run.stderr;
     assert.notEqual(run.status, 0, 'the hung file keeps the gate red');
     assert.match(output, /run-tests: TIMEOUT file "?[^\n]*c\.test\.js/u, 'the hung file is recorded as timed out');
@@ -80,9 +98,10 @@ for (const shards of [1, 5]) {
   });
 }
 
-test('clause 2: the timed-out file is a complete, named red, so it is judged against main and the item like any red [C7,#3167]', t => {
-  const box = project(t, 1);
-  const run = gate(box);
+test('clause 2: the timed-out file is a complete, named red, so it is judged against main and the item like any red [C7,#3167]', async () => {
+  startAll();
+  const { box, run: pending } = scenario(1);
+  const run = await pending;
   const output = run.stdout;
   const result = { isGreen: false, output, stages: [{ status: run.status, output }] };
   // Complete means no file was stopped early, interrupted or left not run, so main can be compared for it.
