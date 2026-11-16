@@ -239,6 +239,8 @@ async function landingCheck(payload, env, phases = null, shards = null) {
   const limit = proofLimitMs(payload, env);
   let deadlineAt = null;
   const deadline = () => deadlineAt === null || limit === null ? null : { at: deadlineAt, ms: limit };
+  // landing.reofferTrunkBusy: a green static check stands on a new trunk tip whose commits miss the batch's files [C7,#9103].
+  const carry = payload.reofferTrunkBusy === true && payload.staticChecks ? (await import('./static-carry.js')).staticCarry({ enabled: true }) : null;
   return async context => {
     if (limit !== null) deadlineAt = Date.now() + limit;
     const merged = new Set(context.items);
@@ -250,7 +252,8 @@ async function landingCheck(payload, env, phases = null, shards = null) {
       const here = prove(own, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [], deadline });
       return sharded ? sharded(own, { ...shards, gate: payload.shardProof, deadline }, here) : here;
     };
-    const guard = staticGuard && (context => timed(phases, 'static checks', () => staticGuard(context)));
+    const timedGuard = staticGuard && (context => timed(phases, 'static checks', () => staticGuard(context)));
+    const guard = timedGuard && carry ? (context => carry(context, timedGuard)) : timedGuard;
     const parts = [['check', landingGuards(payload, phases)], ...(guard ? [['check', guard]] : []), ...payload.items.filter(entry => merged.has(entry.id) && typeof payload.checks?.[entry.id] === 'string').map(entry => ['check', commandCheck(['sh', '-c', payload.checks[entry.id]], { deadline })]),
       ...(payload.check ? [['proof', commandCheck(payload.check, { deadline })]] : []),
       ...(prove && files.length ? [['proof', proveFiles({ ...payload.proof, files })]] : [])];

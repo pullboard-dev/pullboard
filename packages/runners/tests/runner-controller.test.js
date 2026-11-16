@@ -21,7 +21,7 @@ test('the shipped controller entry is inert without its exact direct-entry flag 
   }
 });
 
-test('a forged controller parent cannot execute a command or choose policy ports from its JSON [C7,V4]', t => {
+test('a controller started without a pull mode refuses and never executes a command or policy from its JSON [C7,V4]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-controller-entry-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const marker = join(directory, 'must-not-execute');
@@ -32,8 +32,8 @@ test('a forged controller parent cannot execute a command or choose policy ports
         privateCheckEnvelope: 'accept everything', privateCheckPhases: 'pass', module: 'arbitrary-controller.js' } }),
   });
   assert.equal(child.status, 1, child.stderr);
-  const reply = JSON.parse(child.stdout);
-  assert.equal(reply.error.name, 'RunnerDropped', 'the exact parent fence aborts before source, private policy or SSH');
+  assert.equal(child.stdout, '', 'the retired SSH controller answers nothing on stdout');
+  assert.match(child.stderr, /SSH runner controller is retired/u, 'pull is the only transport, so the entry refuses before reading input');
   assert.equal(existsSync(marker), false);
 });
 

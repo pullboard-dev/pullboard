@@ -185,6 +185,9 @@ export function loadMachineSettings() {
   if (value.census?.recordFileTimes !== undefined && typeof value.census.recordFileTimes !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `census.recordFileTimes in ${file} must be true or false`);
   }
+  if (value.census?.rerunNonGreen !== undefined && typeof value.census.rerunNonGreen !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `census.rerunNonGreen in ${file} must be true or false`);
+  }
   if (value['runners.yieldWhilePruning'] !== undefined && typeof value['runners.yieldWhilePruning'] !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `runners.yieldWhilePruning in ${file} must be true or false`);
   }
@@ -193,6 +196,9 @@ export function loadMachineSettings() {
   }
   if (value.census?.jobMinutes !== undefined && value.census.jobMinutes !== null && !(typeof value.census.jobMinutes === 'number' && Number.isFinite(value.census.jobMinutes) && value.census.jobMinutes > 0)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `census.jobMinutes in ${file} must be a number of minutes above 0, or null`);
+  }
+  if (value.census?.jobsPerRunner !== undefined && value.census.jobsPerRunner !== null && !(Number.isSafeInteger(value.census.jobsPerRunner) && value.census.jobsPerRunner >= 1)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `census.jobsPerRunner in ${file} must be a whole number of jobs, 1 or more, or null`);
   }
   if (value.moves?.shadow !== undefined && typeof value.moves.shadow !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `moves.shadow in ${file} must be true or false`);
@@ -233,6 +239,9 @@ export function loadMachineSettings() {
   if (value.gate?.refuseTempWorktree !== undefined && typeof value.gate.refuseTempWorktree !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.refuseTempWorktree in ${file} must be true or false`);
   }
+  if (value.claim?.refuseOffMainHead !== undefined && typeof value.claim.refuseOffMainHead !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `claim.refuseOffMainHead in ${file} must be true or false`);
+  }
   if (value.holds?.requireOwner !== undefined && typeof value.holds.requireOwner !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `holds.requireOwner in ${file} must be true or false`);
   }
@@ -251,11 +260,23 @@ export function loadMachineSettings() {
   if (value.landing?.adaptiveBatch !== undefined && typeof value.landing.adaptiveBatch !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.adaptiveBatch in ${file} must be true or false`);
   }
+  if (value.sentinels?.recordWriteHolder !== undefined && typeof value.sentinels.recordWriteHolder !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `sentinels.recordWriteHolder in ${file} must be true or false`);
+  }
   if (value.next?.itemNotices !== undefined && typeof value.next.itemNotices !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `next.itemNotices in ${file} must be true or false`);
   }
+  if (value.submit?.proofOnly !== undefined && typeof value.submit.proofOnly !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `submit.proofOnly in ${file} must be true or false`);
+  }
+  if (value.gate?.namedImportSelection !== undefined && typeof value.gate.namedImportSelection !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.namedImportSelection in ${file} must be true or false`);
+  }
   if (value.list?.thinRead !== undefined && typeof value.list.thinRead !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `list.thinRead in ${file} must be true or false`);
+  }
+  if (value.health?.diskFloorGb !== undefined && !(Number.isFinite(value.health.diskFloorGb) && value.health.diskFloorGb >= 0)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `health.diskFloorGb in ${file} must be a number of gigabytes, 0 or more`);
   }
   const reserve = value.gate?.jobReserve;
   if (reserve != null && (typeof reserve !== 'object' || Array.isArray(reserve) || Object.values(reserve).some(share => !Number.isFinite(share) || share < 0 || share > 1)
@@ -328,9 +349,28 @@ export function loadMachineSettings() {
   return { ...value, gateSlots, browserSlots, ...(runners.length ? { runners } : {}) };
 }
 
+/** Free gigabytes below which pullboard health warns (#9110); 0, the default, never warns. */
+export function healthDiskFloorGb() {
+  return loadMachineSettings().health?.diskFloorGb ?? 0;
+}
+
 /** Whether pullboard list reads through the thin read door (#9089): off by default; only an exact `true` turns it on. */
 export function listThinRead() {
   return loadMachineSettings().list?.thinRead === true;
+}
+
+/**
+ * Whether affected-test selection follows named imports through a re-exporting door: gate.namedImportSelection, default off.
+ * Why: one door re-exporting a changed module selected every test that imports the door, whatever name it took [C7].
+ */
+export function namedImportSelectionOn() {
+  return loadMachineSettings().gate?.namedImportSelection === true;
+}
+
+
+/** Whether a submit with no change may pass for an item that is all ticked proof clauses (#9105): off by default; only an exact `true` turns it on. */
+export function submitProofOnly() {
+  return loadMachineSettings().submit?.proofOnly === true;
 }
 
 
