@@ -14,6 +14,7 @@ export { browserSlotRefusal, isBrowserExecutable, browserInCall, installBrowserS
 export { landedBatchCount, capacitySummary, declaredTestBoundary } from "./src/logic/summary.js";
 export { sayCheckBaseline, provingCheck } from "./src/logic/format.js";
 export { runnerBaselineCommand } from "./src/io/check/baseline.js";
+export { followRenames, recordedRenames } from "./src/io/check/rename.js";
 export { recordPulledBaseline, retryCheckBaselines, startCheckBaseline, runCheckBaselineWorker } from "./src/io/check/baseline/worker.js";
 export { checkBaseline, baselineTestEvidence, baselineFailureDetails, refuseCheckSyntax, refuseCheckPullboardTest, prepareCheckBaseline } from "./src/io/check/baseline.js";
 export { exactStart, childJournalPreloadSource } from "./src/io/journal/preload.js";
@@ -32,6 +33,7 @@ export { requireGateExecutionServices, settleReceipt, withGateSlot, gateRunnerLo
 export { INFRASTRUCTURE_CODES, INFRA_RETRIES, LOCK_CODES, LOCK_WAIT_LIMIT, INVENTORY_WAITS, infrastructureFailure, submitUntilSettled } from "./src/io/requeue.js";
 export { gateStages, stagedScript, readPipes, readStages } from "./src/io/stages.js";
 export { replayChangedTables } from "./src/io/moves/replay.js";
+export { submitImportEdges } from "./src/io/submit-edges.js";
 export { submitGateConfig, submitGatePlan, submitGateAdmission, runSubmitGate, startCriterionRun, submitLogPath, startDiagnostics, namedFileRunner } from "./src/io/submit.js";
 export { gateWaitReporter } from "./src/logic/wait.js";
 export { recordGreenRun } from "./src/io/shards/green.js";

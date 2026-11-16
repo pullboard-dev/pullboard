@@ -52,7 +52,8 @@ export function defaults() {
     spec: 'SPEC.md',
     practice: DOCTRINE_FILE,
     gate: '',
-    submit: { requireInfraNote: false, autoFileMainReds: false },
+    // edgeFollowUps is off by default: on, a submit whose diff adds import edges files one follow-up listing them [C7].
+    submit: { requireInfraNote: false, autoFileMainReds: false, edgeFollowUps: false },
     toolBuild: { enabled: false, autoGate: false, refreshMs: 3_600_000 },
     testEconomics: { costOfEscape: 3600, costOfWaiting: 1, costOfFalseRed: 300 },
     itemSizeBudget: 100,
@@ -66,10 +67,12 @@ export function defaults() {
     reviewLease: '30m',
     worktrees: 'beside',
     worktreeMaintenance: maintenanceSettings.maintenanceDefaults(),
-    verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true, failBefore: false, frozenTests: false, testAuthorSplit: false },
+    verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true, failBefore: false, frozenTests: false, testAuthorSplit: false, folderTicks: false, titleTicks: false },
     // Off by default: toolingPin refuses an unsigned or edited pin file only when pin.signed is true [#8038].
     pin: { signed: false },
     review: { starveMinutes: 5, independence: 'off', excludeEarlierHolders: false },
+    // Steady is today's landing: a green gate and an accept before land; sprint and strict are opt-in [O6].
+    pace: 'steady',
     // Vendor spellings: canonical family -> alias names; never inferred [#1762].
     families: {},
     labels: {},
@@ -85,6 +88,8 @@ export function defaults() {
     inbox: { tokenBudget: 8192 },
     check: { install: '', timeout: '5m' },
     claim: { reopenFirstRefusalMinutes: 0, returnToBoard: false, barTestFiles: ['**/*.test.js', '**/*.test.mjs', '**/*.test.cjs', '**/*.spec.js', '**/*.spec.mjs', '**/*.spec.cjs'] },
+    // On by default: laneMode off is the switch slices 2 and 3 of #2830 read; the "lanes" key stays the lane map [C7].
+    laneMode: 'on',
     lanes: {},
     trunk: { remote: '' },
     products: {},
@@ -366,7 +371,7 @@ export function configProblems(config) {
     && (!Number.isSafeInteger(config.verify.familyRelaxAt) || config.verify.familyRelaxAt < 1)) {
     problems.push('"verify.familyRelaxAt" is off or a positive integer');
   }
-  const flags = ['inspectClauses', 'failBefore', 'frozenTests', 'testAuthorSplit'];
+  const flags = ['inspectClauses', 'failBefore', 'frozenTests', 'testAuthorSplit', 'folderTicks', 'titleTicks'];
   if (!flags.every(key => typeof config.verify?.[key] === 'boolean')) problems.push(`"verify.${flags.join('", "')}" are true or false`);
   if (notPlain(config.families)
     || Object.entries(config.families).some(([name, aliases]) => !name.trim() || name.length > 80
@@ -387,9 +392,12 @@ export function configProblems(config) {
     problems.push('"check" is an object with optional "install" and "timeout" fields');
   }
   if (notPlain(config.submit)
-      || Object.keys(config.submit).some(key => !['requireInfraNote', 'autoFileMainReds', 'handoff'].includes(key))
+      || Object.keys(config.submit).some(key => !['requireInfraNote', 'autoFileMainReds', 'handoff', 'edgeFollowUps'].includes(key))
       || typeof config.submit.requireInfraNote !== 'boolean' || typeof config.submit.autoFileMainReds !== 'boolean') {
     problems.push('"submit" is an object with boolean "requireInfraNote" and "autoFileMainReds" settings');
+  }
+  if (typeof config.submit?.edgeFollowUps !== 'boolean') {
+    problems.push('"submit.edgeFollowUps" is true or false: on, a submit whose diff adds import edges files one follow-up listing them');
   }
   if (config.submit?.handoff !== undefined && typeof config.submit.handoff !== 'boolean') {
     problems.push('"submit.handoff" is a boolean; deprecated, no effect');
@@ -448,6 +456,9 @@ export function configProblems(config) {
   if (config.resume?.adoptOrphans !== undefined && typeof config.resume.adoptOrphans !== 'boolean') {
     problems.push('"resume.adoptOrphans" is true or false; true makes pullboard resume in a fresh worktree adopt an orphaned seat claim from its pinned ref');
   }
+  if (!['on', 'off'].includes(config.laneMode)) {
+    problems.push('"laneMode" is "on" or "off"; "lanes" stays the lane map');
+  }
   if (config.map?.slice !== undefined && typeof config.map.slice !== 'boolean') {
     problems.push('"map.slice" is true or false');
   }
@@ -461,6 +472,9 @@ export function configProblems(config) {
   }
   if (!['off', 'session'].includes(config.review?.independence)) {
     problems.push('"review.independence" is "off" (any other seat may verify, even under the builder\'s session) or "session" (only another agent session may verify)');
+  }
+  if (!['sprint', 'steady', 'strict'].includes(config.pace)) {
+    problems.push('"pace" is "sprint", "steady" (default: land after a green gate and an accept) or "strict"');
   }
   if (typeof config.review?.excludeEarlierHolders !== 'boolean') {
     problems.push('"review.excludeEarlierHolders" is true or false');

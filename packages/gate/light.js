@@ -162,6 +162,3 @@ export { runnerSource } from './src/logic/runner-source.js';
 export { readStages } from './src/io/stages.js';
 export { retainTestResultCompletion } from './src/io/test/store.js';
 export { runnerPhaseFields } from './src/io/timing.js';
-
-/** The retained receipts a status read sums for runner utilization [C7,#8647]. */
-export { retainedReceipts } from './src/io/receipt.js';

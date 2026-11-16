@@ -5,3 +5,8 @@ export function pathsOutsideSlice(changed, declared) {
   const covers = path => declared.some(entry => path === entry || path.startsWith(`${entry.replace(/\/+$/u, '')}/`));
   return changed.filter(path => !covers(path));
 }
+
+/** The first sibling slice (same parent, not this item) whose declared set covers the path, or null [C7,B26]. */
+export function siblingOwning(path, siblings) {
+  return siblings.find(sibling => pathsOutsideSlice([path], sibling.files).length === 0) ?? null;
+}

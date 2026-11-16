@@ -14,6 +14,7 @@ import { coordinatorHolder } from '../../../seats/index.js';
 import { localLandingEntry } from '../../../store/index.js';
 import { rememberLocalLanding } from '../../../store/index.js';
 import { forgetLocalLanding } from '../../../store/index.js';
+import { countLeaseLapse } from '../../../store/index.js';
 
 /** Asks why this process's landing-lease waits stop (a reason or null); set by a lander whose loaded code may be older than main's. */
 let waitsStopped = null;
@@ -70,7 +71,7 @@ export async function renewWithBackoff(renew, { now = Date.now, pausing = pause,
 }
 
 /** Return a generation-bound lease whose renewal failures prevent later landing writes. */
-export async function takeLandingResource({ board, write, branch, onWait, onLost, refresh = async () => {} }) {
+export async function takeLandingResource({ board, write, branch, onWait, onLost, refresh = async () => {}, headItem = null }) {
   const token = randomUUID();
   const parameters = { agentId: 'coordinator', token, branch, pid: process.pid, localHeartbeat: true };
   // A scheduled wake that follows a back-off names it, so the lease request's event records why this landing started late [C7].
@@ -83,6 +84,13 @@ export async function takeLandingResource({ board, write, branch, onWait, onLost
   const deadlineListeners = new Set();
   let pending = Promise.resolve();
   let lost = null;
+  let lapsed = false;
+  /** Count one lapsed lease against the head item, once per lease: the loss is recorded, never thrown from here [C7]. */
+  const countLapse = error => {
+    if (lapsed || headItem === null || error?.code !== 'LAND_LEASE_LOST') return;
+    lapsed = true;
+    try { countLeaseLapse(board, headItem); } catch { /* The count is a hint; the loss itself still stands. */ }
+  };
   let guardian = null;
   let stopWatching = null;
   /** Send only acknowledged deadlines to the independent guardian. */
@@ -107,7 +115,7 @@ export async function takeLandingResource({ board, write, branch, onWait, onLost
         confirmedUntil(holder.until);
         return result;
       }
-      catch (error) { lost = error; onLost?.(error); throw error; }
+      catch (error) { lost = error; countLapse(error); onLost?.(error); throw error; }
     });
     pending = task.catch(() => {});
     return task;
@@ -153,6 +161,7 @@ export async function takeLandingResource({ board, write, branch, onWait, onLost
         // The guardian renews the heartbeat while this loop is blocked, so the board's own deadline is read before the loss (#5770).
         try { confirmedUntil(assertLandingLease(board, { token, branch, generation }).until); if (Date.now() < deadline - 1000) return; } catch { /* Lost below. */ }
         lost = new Refused('LAND_LEASE_LOST', 'the landing lease could not renew before its deadline; inspect pullboard resume after its owned worker stops');
+        countLapse(lost);
         onLost?.(lost);
       }
     }, 100);

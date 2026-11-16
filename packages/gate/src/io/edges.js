@@ -26,6 +26,7 @@ import {
   packageAppProblems,
   packageAppReport,
 } from './edges/package-app.js';
+import { doorMatchesMain } from './edges/main-tree.js';
 
 const CEILINGS = new URL('../../data/ceilings/cells-edges.json', import.meta.url);
 const SOURCE = /^(?:src|packages|apps|bin)\/.*\.[cm]?js$/u;
@@ -165,7 +166,12 @@ export async function mainRootOf(root) {
  *
  * @param {string} root
  * @param {string} door
- * @param {string | undefined} mainRoot - Undefined, or a tree without the door, measures the candidate alone.
+ * A main folder that holds no files (a pull runner's no-checkout clone) still compares: when git shows the door and all
+ * it imports unchanged from main, main's door is the candidate's, measured in the same run.
+ *
+ * @param {string} root
+ * @param {string} door
+ * @param {string | undefined} mainRoot - Undefined, or a tree without the door that git cannot match, measures the candidate alone.
  * @returns {Promise<{ candidate: number, main: number | undefined }>}
  */
 async function measureAgainstMain(root, door, mainRoot) {
@@ -177,6 +183,9 @@ async function measureAgainstMain(root, door, mainRoot) {
     if (!hasMain) continue;
     main = Math.min(main, await loadOnceMs(mainRoot, door));
     if (!lightDoorRefused(wholeMs(candidate), wholeMs(main))) break;
+  }
+  if (!hasMain && mainRoot !== undefined && candidate > LIGHT_DOOR_BUDGET_MS && Number.isFinite(candidate) && await doorMatchesMain(root, door, importSpecifiers)) {
+    return { candidate: wholeMs(candidate), main: wholeMs(candidate) };
   }
   return { candidate: wholeMs(candidate), main: hasMain && Number.isFinite(main) ? wholeMs(main) : undefined };
 }
@@ -494,5 +503,17 @@ if (process.argv[1] && existsSync(process.argv[1]) && realpathSync(process.argv[
   const root = resolve(process.argv.slice(2).find(argument => !['--report', '--write'].includes(argument)) ?? '.');
   if (process.argv.includes('--report')) console.log(JSON.stringify({ ...ceilingsOf(cellsEdgeReport(root)), durableCells: DURABLE_CELLS }, null, 2));
   else if (process.argv.includes('--write')) writeCellsEdgeCeilings(root).then(report);
-  else lightDoorProblems(root).then(light => report([...cellsEdgeProblems(root), ...light]));
+  else lightDoorProblems(root).then(light => refuse([...cellsEdgeProblems(root), ...light]));
+}
+
+/**
+ * Print each problem on stderr and exit 1, or exit 0 when there are none.
+ * Why: a caller that shows only stderr (a test's assertion message) read a refusal as an exit 1 with no reason [C7].
+ *
+ * @param {{ path: string, line: number, text: string }[]} problems
+ */
+export function refuse(problems) {
+  const lines = problems.map(problem => `${problem.path}:${problem.line}: ${problem.text}`).sort();
+  if (lines.length) process.stderr.write(`${lines.join('\n')}\n`);
+  process.exitCode = lines.length ? 1 : 0;
 }
