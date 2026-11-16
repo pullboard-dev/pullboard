@@ -310,11 +310,6 @@ export function testStatusOutcomesEnabled() {
   return group?.statusOutcomes === true;
 }
 
-/** Whether relay.excludeByBoard is on (#9414): off by default; only an exact `true` keys a relay exclusion by the board's commonDir. */
-export function excludeByBoardEnabled() {
-  return loadMachineSettings().relay?.excludeByBoard === true;
-}
-
 /** Whether items.typedFields is on (#9350): off by default; only an exact `true` turns it on. */
 export function typedFieldsEnabled() {
   return loadMachineSettings().items?.typedFields === true;
