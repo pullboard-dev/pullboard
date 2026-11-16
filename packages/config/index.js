@@ -87,6 +87,7 @@ export {
   reviewReleaseReasonsRequired,
   lapsedSweepEnabled,
   derivedStateEnabled,
+  recordWriteHolderEnabled,
   adaptiveBatchEnabled,
   memoryFloorMB,
   relayOfferEnabled,
