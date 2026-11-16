@@ -19,7 +19,7 @@ import {
 } from '../../../tests/fixtures/submit/handoff.js';
 import { settledGateJob } from '../../../tests/fixtures/submit/settle.js';
 
-test('queued submit returns before its gate and remains bound when the builder commits and claims again [B5,V4,H16,E18]', async t => {
+test('clause 1: queued submit returns before its gate and remains bound when the builder commits and claims again [B5,V4,H16,E18]', async t => {
   // The builder holds two queued builds beside its second and third live claims, so the seat names a cap of four [B5].
   const box = fixture(t, { companion: true, perSeat: 4, fourth: true });
   const fourth = box.fourth;
