@@ -1005,6 +1005,10 @@
       "kind": "json",
       "owner": "packages/runners/src/io/pull/scripts.js"
     },
+    "runner-keys.json": {
+      "kind": "json",
+      "owner": "packages/transport/src/io/pull/keys.js"
+    },
     "runner-runtimes.json": {
       "kind": "json",
       "owner": "packages/runners/src/io/runtime.js"
