@@ -5116,10 +5116,6 @@
       "cells": 1,
       "deep": 0
     },
-    "packages/gate/tests/fixtures/pipeline/worker.js": {
-      "cells": 1,
-      "deep": 1
-    },
     "apps/lib/index.js": {
       "cells": 6,
       "deep": 0
@@ -5987,9 +5983,6 @@
     }
   },
   "packageApps": {
-    "packages/gate/tests/fixtures/pipeline/worker.js": [
-      "apps/runner"
-    ],
     "packages/gate/tests/fixtures/resources/lease.js": [
       "apps/cli",
       "apps/lib"

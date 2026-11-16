@@ -39,9 +39,9 @@ const HARNESSES = join(ROOT, 'packages/gate/tests/fixtures/pipeline');
 /** Where each harness name lives under the pipeline folder, since the layout move gave the files shorter names. */
 export const HARNESS_FILES = Object.freeze({
   'analysis-on-runner': 'analysis-on-runner', 'board-commands': 'board/commands', 'board-write': 'board/write', 'dead-worker-requeue': 'requeue', e2e: 'e2e',
-  'landing-reopen': 'a-reject-or-reopen-during-landing', 'import-undeclared': 'board-restored-from-an-export-with-an-un', 'live-driver': 'driver', 'merged-twice': 'pullboard-merged-run-twice', 'orphan-worker': 'worker', 'proof-lanes': 'lanes', 'shout-scope': 'a-shout-names-an-item-this-seat-cannot-a', 'next-claim-fresh': 'next-resumes-a-claim-that-changed-in-the',
+  'landing-reopen': 'a-reject-or-reopen-during-landing', 'import-undeclared': 'board-restored-from-an-export-with-an-un', 'live-driver': 'driver', 'merged-twice': 'pullboard-merged-run-twice', 'proof-lanes': 'lanes', 'shout-scope': 'a-shout-names-an-item-this-seat-cannot-a', 'next-claim-fresh': 'next-resumes-a-claim-that-changed-in-the',
   'red-at-claim': 'a-red-from-an-older-head-shown-at-claim', 'landing-run': 'landing-run-fails-or-its-proof-is-not-gr', 'sleep-past-leases': 'machine-sleeps-past-every-lease', 'main-test': 'queued-main-test-job-never-driven', 'red-notice': 'red-notice-after-the-claim-lapsed', 'review-held': 'review-held-on-an-item-that-was-withdraw',
-  'ready-budget': 'budget', 
+  'ready-budget': 'budget',
 });
 
 /** Board command latency target per command, from the 2 Nov speed rule. */
