@@ -35,6 +35,7 @@ const NEEDS = {
   'gate-shard': (s) => s.item?.status === 'submitted' && pinned(s),
   test: (s) => typeof s.job.seat === 'string',
   'check-baseline': (s) => s.item?.check !== undefined && s.item.check !== null,
+  'pull-out': (s) => Boolean(s.item) && landingOf(s.item, s.history) === 'pulling',
 };
 
 /** A seeded item, item list and job whose fields mostly agree, so every kind is served on some cases and unserved on others. */
@@ -47,7 +48,9 @@ function scenario(seed) {
     reservedBy: g.pick(['r1', 'r2']), ...(g.int(2) === 0 ? { check: g.pick([null, 'node x']) } : {}) };
   const job = { kind, seat: g.pick(['s1', 's2', 7]), status: g.pick(['queued', 'running', 'done']), reviewer: g.pick(['r1', 'r2']), commit, digest: g.pick(['d1', 'd1', 'd2']), trunk: 't1',
     commits: Object.fromEntries((items ?? []).map(i => [i.id, g.pick(['c1', 'c1', 'c2'])])), ...(g.int(2) === 0 ? { verdict: 'green' } : {}) };
-  return { s: { item, items, job } };
+  // Drawn last, so every earlier kind's seeded states stay as they were before the pull-out kind.
+  const history = g.pick([[], [{ kind: 'merged' }], [{ kind: 'merged' }, { kind: 'pull_out' }], [{ kind: 'merged' }, { kind: 'pull_out' }], [{ kind: 'pull_out' }, { kind: 'pulled' }]]);
+  return { s: { item, items, job, history } };
 }
 
 const CASES = 20_000;
@@ -105,6 +108,7 @@ test('moves.backbone.moved-job-unserved: metamorphic: move the item off the job 
     'gate-shard': [s => ({ ...s, item: { ...s.item, status: 'verified' } })],
     test: [s => ({ ...s, job: { ...s.job, seat: undefined } })],
     'check-baseline': [s => ({ ...s, item: { ...s.item, check: null } }), s => ({ ...s, item: undefined })],
+    'pull-out': [s => ({ ...s, history: [...s.history, { kind: 'pulled' }] }), s => ({ ...s, item: undefined })],
   };
   const pins = [s => ({ ...s, item: { ...s.item, commit: 'other' } }), s => ({ ...s, item: { ...s.item, digest: 'other' } })];
   for (const kind of KINDS) {

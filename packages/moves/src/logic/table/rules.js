@@ -88,12 +88,15 @@ export function deriveFact(rules, name, snapshot, move = {}) {
 /** The values of an item's landing dimension, beside its status [M1,M4]. */
 export const LANDINGS = Object.freeze(['none', 'landed', 'pulling', 'published']);
 
-/** The landing events that move an item's landing past its merged commit, newest last: pull_out starts a pull-out, published makes it final [M1,M2]. */
-const LANDING_EVENTS = Object.freeze({ pull_out: 'pulling', published: 'published' });
+/**
+ * The landing events, newest last: pull_out starts a pull-out, pulled ends it (the revert is recorded), published makes it final [M1,M2].
+ * merged (null) defers to the merged commit, so a sprint item landed again after a pull-out reads landed, not none.
+ */
+const LANDING_EVENTS = Object.freeze({ pull_out: 'pulling', pulled: 'none', published: 'published', merged: null });
 
 /**
- * The item's landing value, derived: the newest landing event's value when the history holds one (pull_out: pulling, published: published),
- * else landed once it has a landing receipt (a merged commit), else none.
+ * The item's landing value, derived: the newest landing event's value when the history holds one (pull_out: pulling, pulled: none,
+ * published: published), else landed once it has a landing receipt (a merged commit), else none.
  * Why: landing is its own dimension of item state, not a flag on a verified item; the merged commit records landed, and only a
  * Sprint item ever gets a pull_out or published event, so a Steady item's landing is exactly what its merged commit says.
  *
@@ -103,7 +106,7 @@ const LANDING_EVENTS = Object.freeze({ pull_out: 'pulling', published: 'publishe
  */
 export function landingOf(item, history = []) {
   const last = (Array.isArray(history) ? history : []).findLast(event => Object.hasOwn(LANDING_EVENTS, event?.kind));
-  if (last) return LANDING_EVENTS[last.kind];
+  if (last && LANDING_EVENTS[last.kind] !== null) return LANDING_EVENTS[last.kind];
   return item?.mergedCommit || item?.merged === true ? 'landed' : 'none';
 }
 
