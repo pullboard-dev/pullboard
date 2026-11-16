@@ -32,6 +32,7 @@ import { censusRecordFileTimesEnabled } from '../../../../../packages/config/ind
 import { censusRerunNonGreenEnabled } from '../../../../../packages/config/index.js';
 import { censusBalanceByTimeEnabled } from '../../../../../packages/config/index.js';
 import { censusJobMinutes } from '../../../../../packages/config/index.js';
+import { censusJobsPerRunner } from '../../../../../packages/config/index.js';
 import { censusShardCount } from '../../logic/census.js';
 import { pulledShardCount } from '../../logic/census.js';
 import { finalStatus } from '../../logic/census.js';
@@ -107,12 +108,12 @@ function pulledCensus(ctx, io, values = {}) {
     if (typeof command !== 'string' || !command.trim()) throw new Refused('NO_TEST_RUNNER', 'a pulled census runs each shard with "affectedTests" from pullboard.json, and it is unset', 'set "affectedTests" to the command that runs named test files, then run the census again');
     const { mainPolicy } = await import('../../../../../packages/sandbox/index.js');
     const commit = headCommit(root), main = mainPolicy(root).commit ?? commit;
-    const plan = cutPlan(root, files, count);
+    const plan = cutPlan(root, files, count), perRunner = censusJobsPerRunner();
     await Promise.all(plan.map(async (shard, index) => {
       const label = `${index + 1}/${plan.length}`, started = Date.now();
       const shell = `${LANDING_COLLECT_ALL_ENV}=1 ${LANDING_SHARD_ENV}=${word(label)} ${command.trimEnd()} ${shard.files.map(file => word(`./${file}`)).join(' ')}`;
       try {
-        const ran = await runPulledComparison(ctx, { commit, main, command: shell, files: shard.files, runId: randomUUID(), ...fileBudgetField(values) });
+        const ran = await runPulledComparison(ctx, { commit, main, command: shell, files: shard.files, runId: randomUUID(), ...fileBudgetField(values), ...(perRunner ? { censusPerRunner: perRunner } : {}) });
         write(`# landing shard ${label} attempt 1 on ${ran.runner ?? 'pulled'}: ${ran.green ? 'green' : 'red'} in ${Date.now() - started} ms\n`);
         // The receipt's tail is clipped, so each file's own time line comes from the runner's whole-output record [C7,#8576].
         const timed = pulledTimeLines(ran.times, FILE_TIME_LINE) + pulledTimeLines(ran.caseMs, FILE_CASE_LINE);
