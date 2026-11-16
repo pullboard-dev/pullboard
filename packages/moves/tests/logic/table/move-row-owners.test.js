@@ -66,7 +66,7 @@ test('moves.row-owners.main-whole: clause 3: every row of main\'s move tables ha
 
 test('moves.row-owners.reopen: clause 2: the reopen table has rows and exactly one owner for each [C7,#8559]', () => {
   const records = JSON.parse(readFileSync(join(DIR, '../../registry.json'), 'utf8'));
-  assert.equal(TABLES.reopen.length, 13);
+  assert.equal(TABLES.reopen.length, 14);
   assert.deepEqual(moveRowOwnershipProblems({ reopen: TABLES.reopen }, records), []);
 });
 
