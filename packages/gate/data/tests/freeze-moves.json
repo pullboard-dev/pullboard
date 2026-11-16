@@ -9230,6 +9230,15 @@
       "because": "a recovered descriptor with no durable receipt stays pending and is never taken as an outcome, and a mismatched ciphertext is not a reply, in the outbox cell against a stand-in relay"
     },
     {
+      "file": "apps/cli/journeys/show/history.test.js",
+      "specs": [
+        "V1",
+        "V17"
+      ],
+      "coveredBy": "packages/store/tests/io/board/historical-heads.test.js",
+      "because": "a rejected head stays unverified after a sibling resubmission until the latest head is accepted, proven in the store cell on a real board; the refusal on that head is proven in apps/cli/tests/io/submit/stack.test.js"
+    },
+    {
       "file": "apps/cli/journeys/submit/stacked.test.js",
       "specs": [
         "V1",
