@@ -27,11 +27,11 @@ const MASKS = [(r, c) => (r + c) % 2 === 0, (r) => r % 2 === 0, (r, c) => c % 3 
 /** The 5 data bits of the format information (2 for the error-correction level, 3 for the mask), read from the first copy and unmasked with 0x5412. */
 function formatData(modules) {
   let value = 0;
-  for (let index = 0; index <= 5; index += 1) value |= Number(modules[8][index]) << index;
-  value |= Number(modules[8][7]) << 6;
+  for (let index = 0; index <= 5; index += 1) value |= Number(modules[index][8]) << index;
+  value |= Number(modules[7][8]) << 6;
   value |= Number(modules[8][8]) << 7;
-  value |= Number(modules[7][8]) << 8;
-  for (let index = 9; index < 15; index += 1) value |= Number(modules[14 - index][8]) << index;
+  value |= Number(modules[8][7]) << 8;
+  for (let index = 9; index < 15; index += 1) value |= Number(modules[8][14 - index]) << index;
   return (value ^ 0x5412) >> 10;
 }
 
