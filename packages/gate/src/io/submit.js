@@ -317,8 +317,9 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   // gate.overlapStaticProof: the cells step runs beside the proof; its red result stops the proof and fails the gate [C7,#9576].
   const overlap = !staticChecked && overlapStaticProofEnabled();
   let staticRun = null;
+  let stopProof = null;
   if (overlap) {
-    const stopProof = new AbortController();
+    stopProof = new AbortController();
     signal = signal ? AbortSignal.any([signal, stopProof.signal]) : stopProof.signal;
     staticRun = runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback, runnerAdmission, executionServices, artifactDirectory: outputLog ? dirname(outputLog) : undefined, signal });
     staticRun.catch(() => stopProof.abort());
@@ -352,7 +353,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   const slotOptions = { executionServices, browser, gui, agent, item, kind, itemCheck: true, timing, onWait: progressingWait(onWait), signal, ...runnerAdmission };
   /** Red phases whose flake diagnostics wait until the gate's result is made and its slot is free. */
   const diagnostics = [];
-  const gateResult = await withGateSlot(root, async (lease) => {
+  const gateRun = withGateSlot(root, async (lease) => {
     lease.timingOperation = 'submit';
     // Observe the real grant before proof; both callbacks share the admission object and preserve its first witness.
     await onStart?.();
@@ -448,8 +449,6 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     // on rejection so their receipts and the admission lease stay accurate.
     const outcomes = await whileGateRuns(async () => Promise.allSettled([
       criterionRun().finally(() => releaseGateLane()), prove()]));
-    // A red cells step refuses before any proof result is read, whatever the stopped proof reported [C7,#9576].
-    if (staticRun) await staticRun;
     lease.tracker?.mark('ranAt');
     const ranAt = Date.now();
     lease.proofReceiptIds = [...(lease.proofReceiptIds ?? []), ...criterionLease.proofReceiptIds, ...proofLease.proofReceiptIds];
@@ -513,6 +512,10 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
         ...(criterion.blockingVerdict ? { blockingVerdict: criterion.blockingVerdict, exitCode: criterion.exitCode, rawIsGreen: false, quarantineFailures: criterion.quarantineFailures } : {}),
         executionRoot: criterion.executionRoot ?? root, executionRunner: criterion.executionRunner, environment: criterion.environment, profile: criterion.profile } };
   }, slotOptions);
+  // The cells step is awaited after the proof's slot is free, so a one-slot gate cannot wait on itself; its red result refuses before any verdict returns [C7,#9576].
+  let gateResult;
+  try { gateResult = await gateRun; } catch (error) { stopProof?.abort(); throw error; }
+  if (staticRun) await staticRun;
   // The verdict returns now: diagnostics are queued as flake-diagnose jobs and run in a slot of their own afterwards [C7].
   if (diagnostics.length) gateResult.diagnosing = (await startDiagnostics(root, onFailure, diagnostics, slotOptions)).done;
   return gateResult;

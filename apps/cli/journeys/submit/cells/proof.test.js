@@ -15,9 +15,9 @@ import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
 
 const IDENTITY = ['-c', 'user.name=Overlap Test', '-c', 'user.email=overlap@example.test', '-c', 'commit.gpgsign=false'];
 /** The cells step: runs 2 s, writes when it ended, and exits with the code it was given. */
-const staticScript = code => `import { writeFileSync } from 'node:fs';\nsetTimeout(() => { writeFileSync('static-ended', String(Date.now())); process.exit(${code}); }, 2000);\n`;
+const staticScript = (marks, code) => `import { writeFileSync } from 'node:fs';\nsetTimeout(() => { writeFileSync(${JSON.stringify(join(marks, 'static-ended'))}, String(Date.now())); process.exit(${code}); }, 2000);\n`;
 /** The proof test: writes when it started, so the test can order it against the cells step. */
-const PROOF = 'import { writeFileSync } from "node:fs";\nwriteFileSync("proof-started", String(Date.now()));\n';
+const proofScript = marks => `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(join(marks, 'proof-started'))}, String(Date.now()));\n`;
 
 /** Commit the given files into a private repository and return the new commit id. */
 function commit(root, files) {
@@ -36,19 +36,19 @@ function fixture(t, overlap, staticCode) {
   const previous = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = home;
   t.after(() => { if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previous; rmSync(box.dir, { recursive: true, force: true }); });
-  fixtureMachineSettings(home, { gate: { overlapStaticProof: overlap, browserFreeChecks: true, localRunner: false } });
-  const base = commit(root, { 'package.json': '{"type":"module"}\n', 'static.js': staticScript(staticCode), 'add.js': 'export const add = (a, b) => a + b;\n', 'add.test.js': PROOF });
+  fixtureMachineSettings(home, { gateSlots: 2, gate: { overlapStaticProof: overlap, browserFreeChecks: true, localRunner: false } });
+  const base = commit(root, { 'package.json': '{"type":"module"}\n', 'static.js': staticScript(home, staticCode), 'add.js': 'export const add = (a, b) => a + b;\n', 'add.test.js': proofScript(home) });
   commit(root, { 'add.js': 'export const add = (a, b) => b + a;\n' });
   const config = { gate: 'true', affectedTests: 'node --test', staticChecks: 'node static.js', submitInvariants: [], registryGuards: [] };
-  return { root, base, config };
+  return { root, base, config, home };
 }
 
 /** Run the real gate entry and return when each side finished, in milliseconds. */
 async function gate(t, overlap, staticCode) {
-  const { root, base, config } = fixture(t, overlap, staticCode);
+  const { root, base, config, home } = fixture(t, overlap, staticCode);
   const plan = submitGatePlan(root, config, { base });
   const run = runSubmitGate(root, config, { base, check: plan.check, executionServices });
-  const stamp = name => Number(readFileSync(join(root, name), 'utf8'));
+  const stamp = name => Number(readFileSync(join(home, name), 'utf8'));
   return { run, stamp };
 }
 
