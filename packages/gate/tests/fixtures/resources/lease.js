@@ -1,7 +1,6 @@
 /** Real CLI scenario for a review, submit or check that keeps its item lease while queued [C7,V4]. */
 import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
 import { checkBaseline } from '../../../index.js';
-import { main as nativeTestMain } from '../../../../../apps/cli/tests/fixtures/native.js';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -15,15 +14,12 @@ import { DatabaseSync } from 'node:sqlite';
 import * as store from '../../../../store/index.js';
 import { openBoard } from '../../../../../apps/lib/index.js';
 import { registerProject } from '../../../../seats/index.js';
-import { serveView } from '../../../../../apps/cli/src/io/commands/view.js';
 import { runFixtureChild } from '../child.js';
 import { fixtureJoinRoute } from '../testkit.js';
 import { settledGateJob } from '../../../../../apps/cli/tests/fixtures/submit/settle.js';
 
-export { resourceWorkerSources, resourceNames, oldSchema, staleIdentity, expireHeartbeat } from '../../../../../apps/cli/tests/fixtures/resources/lease.js';
-
-/** Run a scoped view against a private registry and machine home, restoring both on close. */
-export async function openPrivateScopedView(box) {
+/** Run a scoped view against a private registry and machine home, restoring both on close; the caller supplies the CLI app's view server and command runner. */
+export async function openPrivateScopedView(box, { serveView, runCommand }) {
   const previousHome = process.env.PULLBOARD_HOME;
   const previousMachineHome = process.env.PULLBOARD_MACHINE_HOME;
   const restore = () => {
@@ -36,7 +32,7 @@ export async function openPrivateScopedView(box) {
   process.env.PULLBOARD_MACHINE_HOME = box.home;
   try {
     registerProject(box.first);
-    const view = await serveView({ port: 0, projectRoot: box.first, runCommand: nativeTestMain });
+    const view = await serveView({ port: 0, projectRoot: box.first, runCommand });
     return { ...view, close: async () => { try { await view.close(); } finally { restore(); } } };
   } catch (error) { restore(); throw error; }
 }

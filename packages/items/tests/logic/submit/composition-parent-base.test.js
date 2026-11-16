@@ -2,8 +2,8 @@
 /** A hotfix head already in main's history is composed against its own parent, not main's tip (#9445, #3127). [C7,V4] */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 import { requireSubmitComposition } from '../../../index.js';
 
 const IDENT = ['-c', 'user.name=t', '-c', 'user.email=t@example.test', '-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null'];

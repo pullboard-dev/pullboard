@@ -687,7 +687,10 @@
   },
   "apps/cli/journeys/spec/cockpit.test.js": {
     "repo-read": 2,
-    "tempdir": 7,
+    "tempdir": 6
+  },
+  "apps/cli/journeys/spec/cockpit/shared.test.js": {
+    "tempdir": 1,
     "raw-cli": 1
   },
   "apps/cli/journeys/spec/cockpit/rows.test.js": {
@@ -715,8 +718,12 @@
     "tempdir": 1
   },
   "apps/cli/journeys/stats/cost.test.js": {
-    "raw-board": 18,
-    "model": 16
+    "raw-board": 8,
+    "model": 9
+  },
+  "apps/cli/journeys/stats/cost-sessions.test.js": {
+    "raw-board": 10,
+    "model": 7
   },
   "apps/cli/tests/fixtures/regression.js": {
     "tempdir": 2,
@@ -810,6 +817,9 @@
     "hand-policy": 1
   },
   "apps/cli/journeys/verify/checks-output.test.js": {
+    "raw-board": 1
+  },
+  "apps/cli/journeys/verify/checks-output-digest.test.js": {
     "raw-board": 1
   },
   "apps/cli/journeys/verify/checks-large-output.test.js": {
@@ -1284,6 +1294,10 @@
   },
   "apps/cli/journeys/gate/newcomer.test.js": {
     "tempdir": 2,
+    "env-spread": 1
+  },
+  "apps/cli/journeys/gate/newcomer-setup.test.js": {
+    "tempdir": 2,
     "env-spread": 1,
     "model": 1
   },
@@ -1538,8 +1552,11 @@
     "model": 5,
     "tempdir": 2
   },
-  "apps/cli/journeys/relay/outbox.test.js": {
+  "apps/cli/journeys/relay/outbox-offline.test.js": {
     "model": 2
+  },
+  "apps/cli/journeys/relay/outbox.test.js": {
+    "model": 1
   },
   "apps/relay/tests/io/store/page.test.js": {
     "tempdir": 1

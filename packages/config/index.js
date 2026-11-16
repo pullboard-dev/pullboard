@@ -51,6 +51,7 @@ export {
   censusBalanceByTimeEnabled,
   censusJobMinutes,
   censusJobsPerRunner,
+  censusJobsPerRunnerQuiet,
   jobsAvoidRunnersEnabled,
   pushRecordTimingEnabled,
   pushRerunFailedShardOnceEnabled,
@@ -58,6 +59,7 @@ export {
   testNiceEnabled,
   fencedHopEnabled,
   endStaleJobsEnabled,
+  reofferInfraEndEnabled,
   recaptureHandoffEnabled,
   redFactLocationEnabled,
   settleOnMainReceiptEnabled,
@@ -66,6 +68,11 @@ export {
   censusSelfTuneEnabled,
   censusRerunOnSettleEnabled,
   registryStrictEnabled,
+  hunkFreshnessEnabled,
+  requireRegisteredEnabled,
+  requireJourneyPathEnabled,
+  adapterLintClockEnabled,
+  adapterLintFsEnabled,
   movesLiveEnabled,
   gateRunnerAdmission,
   setGateRunnersOnly,
@@ -84,16 +91,22 @@ export {
   staticCheckSlots,
   staticMemoOn,
   serveListen,
+  servePullRoute,
   mainComparisonMode,
   submitAuthorizationMode,
   refuseMissingCheckFile,
   addWarnUnnamedTest,
   holdsRequireOwner,
   nextItemNotices,
+  nextCapBuilders,
   nextReadinessCheck,
+  nextReadinessCache,
   refuseTempWorktree,
+  claimKeepWhileRunning,
   refuseOffMainHead,
+  statusShowUsefulBuilders,
   refuseEmptyBar,
+  rejectKeepsCheck,
   viewBackgroundEnabled,
   healthSentinelEnabled,
   reviewReleaseReasonsRequired,
@@ -108,6 +121,7 @@ export {
   strictFullSuiteEnabled,
   commitOnApplyEnabled,
   reofferTrunkBusyEnabled,
+  archiveEventsEnabled,
   reuseContractResultsEnabled,
   reuseGateReceiptsEnabled,
   memoryFloorMB,
@@ -200,6 +214,7 @@ export {
 } from './src/logic/maintenance.js';
 
 export { submitProofOnly } from './src/logic/settings.js';
+export { submitClauseMarks } from './src/logic/settings.js';
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';
 export { listThinRead, namedImportSelectionOn, relayPruneReceipts } from './src/logic/settings.js';
 export { retireIdleSeatHours } from './src/logic/settings.js';
@@ -207,4 +222,5 @@ export { healthDiskFloorGb } from './src/logic/settings.js';
 export { boardKey, boardKeyFile } from './src/io/settings.js';
 export { boardRemote, setBoardRemote } from './src/io/settings.js';
 export { setPersonSetting } from './src/io/settings.js';
+export { MACHINE_DEFAULTS } from './src/io/settings/machine-defaults.js';
 export { costPerMinute } from './src/logic/runner-rates.js';

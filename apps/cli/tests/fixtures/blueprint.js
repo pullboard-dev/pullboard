@@ -160,14 +160,15 @@ export function batchCode(reading) {
  * with any agent session, or as the person when session is null.
  */
 export function fitBoard() {
-  const box = freshBoard({ lanes: { web: { owns: ['web/'] } } });
+  // In-process dispatch (warm worker): no case here is about the process boundary, so no call launches node [C7].
+  const box = freshBoard({ lanes: { web: { owns: ['web/'] } } }, { mode: 'inprocess' });
   writeFileSync(join(box.repo, 'package.json'), `${JSON.stringify({ name: 'lib', scripts: { test: 'node --test' } })}\n`);
   const added = json(box, 'blueprint', 'add', writeLegacyWebQuestions(box.repo, PUBLISHED));
   box.git('add', '-A');
   box.git('commit', '-q', '-m', 'chore: add the web-app blueprint');
   const worktree = join(box.dir, 'seat');
   box.git('worktree', 'add', '-q', worktree, '-b', 'web/fit');
-  const as = (session, cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, encoding: 'utf8',
+  const as = (session, cwd, ...args) => runCliSync(args, { cwd,
     env: session ? { ...box.env, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: session } : box.env });
   const seat = (...args) => as('fit-seat', worktree, ...args);
   const joined = seat('join', 'web', '--model', 'Fit Seat', '--json');

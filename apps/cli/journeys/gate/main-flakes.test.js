@@ -119,6 +119,7 @@ function flakeRepo(t, policy = {}) {
   const file = join(root, '.git', 'pullboard', 'board.sqlite');
   /** Open the repo's board the way a landing reads it: quarantine comes from accepted main's pullboard.json. */
   const open = () => {
+    // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test reads or seeds that same file.
     const board = openBoard(file);
     board.quarantineEnabled = () => mainPolicy(root).config.flakes?.quarantine === true;
     t.after(() => store.closeBoard(board));
@@ -126,6 +127,7 @@ function flakeRepo(t, policy = {}) {
   };
   const receipts = join(root, '.git', 'pullboard', 'gate-receipts');
   mkdirSync(dirname(file), { recursive: true });
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test reads or seeds that same file.
   const setup = openBoard(file);
   store.board_ensureCoordinator(setup, root);
   store.closeBoard(setup);
