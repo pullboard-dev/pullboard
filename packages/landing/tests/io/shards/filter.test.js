@@ -63,11 +63,10 @@ function projectTemplate() {
   // The fixture has no cell plan: with one, every shard's gate also builds the accepted inventory of the whole source tree, work a name filter never exercises [C7].
   // Docs and the archived board history (22 MB of the 41 MB) are never read by a gate child, and every case and shard copies the project.
   copyPackageFiles(SOURCE, repo, { files: packageFiles(SOURCE).filter(file => !/\.test\.js$/u.test(file) && file !== 'packages/codemap/data/plan/cells.json' && !/^(?:docs|packages\/state\/data)\//u.test(file) && !UNUSED.test(file)) });
-  mark('copied');
   for (const name of NAMES) writeFileSync(join(repo, `test/${name}.test.js`), fixtureTest(name));
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node apps/cli/src/io/run/tests.js', landingShards: 2 }));
   const env = projectEnv(dir);
-  for (const args of [['init', '-q', '-b', 'main'], ['add', '.'], ['commit', '-q', '-m', 'test: name-filtered shards fixture']]) { execFileSync('git', args, { cwd: repo, env }); mark(args[0]); }
+  for (const args of [['init', '-q', '-b', 'main'], ['add', '.'], ['commit', '-q', '-m', 'test: name-filtered shards fixture']]) execFileSync('git', args, { cwd: repo, env });
   execFileSync('git', ['gc', '-q', '--prune=now'], { cwd: repo, env }); // One pack file instead of thousands of loose objects: every case copies this tree.
   mark('template build done');
   return dir;
