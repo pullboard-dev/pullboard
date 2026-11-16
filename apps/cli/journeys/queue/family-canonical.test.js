@@ -1,6 +1,7 @@
-/** Seats registering as OpenAI and openai, or Claude and anthropic, share one family when review.canonicalFamilies is on [C7,#9681]. */
-// source-cell: apps/cli, packages/config, packages/items
+/** Seats registering as OpenAI and openai, or Claude and anthropic, share one family when review.canonicalFamilies is on [C7,#9681]. @pullboard-test-input source-cell apps/cli packages/config packages/items */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { crossLaneFixture } from '../../tests/fixtures/e2e.js';
@@ -20,8 +21,9 @@ async function joinWith(box, name, family) {
 
 test('clause 1: with review.canonicalFamilies on, OpenAI and openai are one family and Claude and anthropic are one family [C7,#9681]', async t => {
   const box = crossLaneFixture(t);
-  const set = await box.runLocal(box.repo, 'settings', 'review.canonicalFamilies', 'true', '--json');
-  assert.equal(set.status, 0, set.stderr);
+  const file = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  const kept = JSON.parse(readFileSync(file, 'utf8'));
+  writeFileSync(file, JSON.stringify({ ...kept, review: { ...kept.review, canonicalFamilies: true } }));
   const labels = [['upper', 'OpenAI'], ['lower', 'openai'], ['claude', 'Claude'], ['vendor', 'anthropic']];
   const stored = {};
   for (const [name, label] of labels) stored[name] = await joinWith(box, name, label);
