@@ -238,6 +238,7 @@ const ROWS = [
   ['landing.reuseGateReceipts', 'Reuse gate results in a land proof', 'When enabled, a land request lists the item\'s own green gate results first in its proof hit list, so a file whose inputs are unchanged on the merged tree is reused; off (default), the hit list holds the newest results of any origin, as before.', 'Landing', 'on/off'],
   ['landing.shardProof', 'Spread the landing proof', 'A landing job offers its proof\'s test files as shard jobs to other runners and pushes trunk when every shard is green; off, the one runner that holds the job runs the whole proof.', 'Landing', 'on/off'],
   ['landing.squash', 'Squash landings', 'When enabled, the lander lands an item as one commit on main with a single parent, keeping the item\'s own commits reachable for audit; off (default), an item lands as a merge commit.', 'Landing', 'on/off'],
+  ['landing.strictFullSuite', 'Strict full-suite landing', 'With strict pace, an item lands only with its group\'s full suite green, and lands and publishes in one step; off (default), an item lands on its own gate and screen.', 'Landing', 'on/off'],
   ['landing.trunkRemote', 'Trunk remote (old name)', 'Deprecated: the old name for trunk.remote, read for one release when trunk.remote is empty and removed after it; set trunk.remote instead.', 'Landing', 'text', { compat: true, removeBy: '2026-12-31' }],
   ['landingShards', 'Landing test shards', 'How many shards the landing gate splits its test files into.', 'Landing', 'count'],
   ['pushGate.shardMinutes', 'Push shard time limit', 'How long a pre-push gate shard may run before the push gate gives up, and a quarter of it sizes each shard; a longer runner ceiling raises it.', 'Landing', 'minutes'],
@@ -256,6 +257,7 @@ const ROWS = [
   ['protect.allowed', 'Protected-file exceptions', 'File patterns allowed even though they match a protected one.', 'Protection', 'list'],
   ['protect.blocked', 'Protected files', 'File patterns no change may include.', 'Protection', 'list'],
   ['protect.secrets', 'Secret scan', 'Changes are scanned for text that looks like a secret.', 'Protection', 'on/off'],
+  ['spec.commitOnApply', 'Commit applied spec decisions', 'When enabled, applying a decided spec row from the view writes SPEC.md and commits it under the person\'s identity, with only the spec file and signoff receipts, if the checkout is clean; off (default), apply writes the files and commits nothing.', 'Project', 'on/off'],
   // This board: line settings (recorded by the coordinator with a reason)
   ['line.agingMinutes', 'Item waiting bonus', 'A ready item gains one queue position per this many minutes waited; off preserves the existing order.', 'Line', 'minutes'],
   ['line.bar.check', 'Criterion needs a check', 'A criterion must name an executable check.', 'Line', 'on/off'],
