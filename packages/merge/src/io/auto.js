@@ -25,7 +25,11 @@ export function mergeSubmissionMain(root, main) {
   }
   const merged = tryGit(root, ['merge', '--no-ff', '--no-edit', '-m',
     `Merge main ${main.slice(0, 12)} into the submitted source`, main], { env: identityEnv });
-  if (merged.status !== 0) throw new Refused('MERGE_CHECK_FAILED', `the clean merge could not be committed: ${merged.stderr || merged.stdout}`);
+  if (merged.status !== 0) {
+    // A refusing merge hook (NOT_JOINED, BOARD_BUSY) leaves MERGE_HEAD and staged files; clear them so a rerun starts clean.
+    tryGit(root, ['merge', '--abort'], { env });
+    throw new Refused('MERGE_CHECK_FAILED', `the clean merge could not be committed: ${merged.stderr || merged.stdout}`);
+  }
   const commit = git(root, ['rev-parse', 'HEAD'], { env });
   const parents = git(root, ['show', '-s', '--format=%P', commit], { env }).split(' ');
   if (git(root, ['rev-parse', `${commit}^{tree}`], { env }) !== fields[0] || parents.length !== 2 || parents[0] !== source || parents[1] !== main) {
