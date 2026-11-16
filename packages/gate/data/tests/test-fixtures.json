@@ -372,8 +372,11 @@
     "raw-board": 1
   },
   "apps/cli/journeys/verify/main.test.js": {
-    "raw-board": 3,
+    "raw-board": 2,
     "hand-policy": 1
+  },
+  "apps/cli/tests/fixtures/verify/unsealed.js": {
+    "raw-board": 1
   },
   "packages/sync/tests/io/local.test.js": {
     "tempdir": 1
@@ -884,7 +887,7 @@
     "tempdir": 2,
     "raw-board": 5
   },
-  "apps/cli/journeys/merged/ratchet.test.js": {
+  "apps/cli/journeys/merged/ratchet-landing.test.js": {
     "raw-board": 5
   },
   "apps/cli/journeys/flow/replay.test.js": {
@@ -2022,13 +2025,6 @@
     "tempdir": 2,
     "env-spread": 1,
     "hand-policy": 5
-  },
-  "apps/cli/journeys/skills/main.test.js": {
-    "tempdir": 2,
-    "env-spread": 1,
-    "hand-policy": 2,
-    "repo-read": 5,
-    "hex64": 4
   },
   "apps/cli/journeys/spec/approval.test.js": {
     "hand-policy": 1,
