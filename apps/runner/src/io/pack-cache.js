@@ -53,6 +53,7 @@ function prune(folder, maxBytes) {
  */
 export function createPackCache({ enabled = false, folder, maxBytes = DEFAULT_MAX_BYTES, pack = npmPack }) {
   return (treeId, tree, destination) => {
+    mkdirSync(destination, { recursive: true });
     if (!enabled) return pack(tree, destination);
     mkdirSync(folder, { recursive: true });
     const key = `${String(treeId).replace(/[^\w.-]/gu, '_')}.tgz`, cached = join(folder, key);
@@ -64,7 +65,6 @@ export function createPackCache({ enabled = false, folder, maxBytes = DEFAULT_MA
       } finally { rmSync(scratch, { recursive: true, force: true }); }
       prune(folder, maxBytes);
     }
-    mkdirSync(destination, { recursive: true });
     const out = join(destination, key);
     copyFileSync(cached, out);
     return out;
