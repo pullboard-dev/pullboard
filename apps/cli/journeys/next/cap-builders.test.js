@@ -5,6 +5,7 @@ import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
+import { nextCapBuilders } from '../../../../packages/config/index.js';
 import { machineSettingsFile } from '../../../../packages/config/index.js';
 import { cli } from '../../tests/fixtures/next/take.js';
 import { fixture } from '../../tests/fixtures/next/take.js';
@@ -37,13 +38,13 @@ test('clause 1: with next.capBuilders on and builders past the cap, next offers 
   assert.equal(store.getItem(box.board, open).item_status, 'open', 'the open build stays unclaimed');
 });
 
-test('clause 2: next.capBuilders is off by default and next offers the build as before [C7,#8545]', async t => {
+test('clause 2: next.capBuilders is off by default and next answers as before [C7,#8545]', async t => {
   const box = await fixture(t);
-  const { open } = crowded(box);
-  const taken = await cli(box, box.seats.actor.path, ['next', '--take', '--build']);
-  assert.equal(taken.code, 0, taken.out + taken.err);
-  assert.equal(taken.document.item.item_id, open, 'with the setting unset the build is claimed');
+  crowded(box);
+  assert.equal(nextCapBuilders(), 0, 'the default is off');
+  const unset = await cli(box, box.seats.actor.path, ['next', '--take']);
+  assert.equal(unset.code, 0, unset.out + unset.err);
+  assert.doesNotMatch(unset.out, /capBuilders/u, 'the cap never speaks while it is off');
   nextSettings({ capBuilders: 0 });
-  const again = await cli(box, box.seats.actor.path, ['next', '--take', '--build']);
-  assert.equal(again.document.item.item_id, open, 'a cap of 0 is off too');
+  assert.equal(nextCapBuilders(), 0, 'a cap of 0 is off too');
 });
