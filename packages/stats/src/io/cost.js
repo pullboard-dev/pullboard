@@ -95,6 +95,21 @@ export function recordCoordinatorUsage(board, { agentId = 'coordinator', session
   });
 }
 
+/** The coordinator sessions recorded under coordinator:<session id> (#9685). */
+function coordinatorSessions(board) {
+  return board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key LIKE 'coordinator:%'").all().map((row) => JSON.parse(row.meta_value));
+}
+
+/**
+ * The coordinator's recorded usage as one entry of its own: summed over its sessions, or unknown, never zero, when none is recorded.
+ * Why: the coordinator claims no item, so the item totals never held its tokens (#9686).
+ */
+export function coordinatorUsage(board, prices) {
+  const sessions = coordinatorSessions(board);
+  return sessions.length ? { sessions: sessions.length, ...sumUsage(sessions.flatMap((value) => value.records), prices) }
+    : { sessions: 0, ...unknownInputSplit(), inputTokens: null, outputTokens: null, knownInputTokens: 0, knownOutputTokens: 0, wallMs: 0, models: [], unknownReasons: ['not-recorded'], shared: false, estimate: true };
+}
+
 /** Read shared summaries, grouping the same immutable numeric records for every machine. */
 export function costTotals(board, prices) {
   const sharedItems = new Set(board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'shared-item:*'").all().map((row) => Number(row.meta_key.slice('shared-item:'.length))));
@@ -105,16 +120,12 @@ export function costTotals(board, prices) {
   });
   const sharedSessions = publicSharedSessions(board);
   const sharedModels = sharedSessions.flatMap((group) => group.records.map((row) => ({ ...row, wallMs: 0 })));
-  // The coordinator's recorded sessions (#9685) join the model totals and read as their own entry; none recorded is unknown, never zero [C7].
-  const coordinatorRows = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key LIKE 'coordinator:%'").all().map((row) => JSON.parse(row.meta_value));
-  const coordinatorRecords = coordinatorRows.flatMap((value) => value.records);
-  const coordinator = coordinatorRows.length ? { sessions: coordinatorRows.length, ...sumUsage(coordinatorRecords, prices) }
-    : { sessions: 0, ...unknownInputSplit(), inputTokens: null, outputTokens: null, knownInputTokens: 0, knownOutputTokens: 0, wallMs: 0, models: [], unknownReasons: ['not-recorded'], shared: false, estimate: true };
+  const coordinatorRecords = coordinatorSessions(board).flatMap((value) => value.records);
   /** Group numeric records without multiplying totals across models. */
   const grouped = (name, values) => [...new Set(values.map((row) => row[name]))].map((value) => ({ [name]: value, ...sumUsage(values.filter((row) => row[name] === value), prices) }));
   return { items: grouped('item', records), lanes: grouped('lane', records), models: grouped('model', [...records, ...sharedModels, ...coordinatorRecords]),
     milestones: board.nativePorts.milestones(board).map((milestone) => ({ milestone: milestone.name, ...sumUsage(records.filter((row) => milestone.items.includes(row.item)), prices) })),
-    seats: grouped('agent', records), sharedSessions, coordinator };
+    seats: grouped('agent', records), sharedSessions };
 }
 
 /** Seed a moved seat's private accumulator from already shared totals instead of resetting its revisions. */

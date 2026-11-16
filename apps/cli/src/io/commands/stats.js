@@ -40,6 +40,7 @@ import { pruneLines } from '../disk/use.js';
 import { refusingBadPolicy } from '../disk/use.js';
 /** The pullboard stats command, in its own module so an item adding another command never edits these lines. */
 import { costTotals } from '../../../../../packages/stats/index.js';
+import { coordinatorUsage } from '../../../../../packages/stats/index.js';
 import { boardHoldLines } from '../../../../../packages/store/index.js';
 import { boardHoldStats } from '../../../../../packages/store/index.js';
 import { readBoardHoldBaseline } from '../../../../../packages/store/index.js';
@@ -154,7 +155,7 @@ export function run(io, { first, second, rest, values }) {
   if (values.compare && values.window === undefined) throw new Refused('USAGE', 'compare adjacent windows with pullboard stats --window 4h --compare');
   const windowMinutes = values.window === undefined ? undefined : flowWindowMinutes(values.window);
   const now = ctx.clock.now().getTime();
-  const { stats, agents, window, comparison, usage, runnerCosts, coordinator, idleSkips, pipelineHour } = withBoard(ctx, (board) => {
+  const { stats, agents, window, comparison, usage, coordinatorTotals, runnerCosts, coordinator, idleSkips, pipelineHour } = withBoard(ctx, (board) => {
     // Keep counters and optional raw-history window on the same read snapshot while other seats append.
     if (windowMinutes !== undefined) board.db.exec('SAVEPOINT stats_window_read');
     try {
@@ -169,7 +170,8 @@ export function run(io, { first, second, rest, values }) {
       if (window) window.executionCapacity = readRunnerStage(ctx.info.root, { from: window.since, to: window.until });
       const coordinator = coordinatorActions(board, { since: window?.since ?? stats.since ?? undefined, until: new Date(now).toISOString() });
       const usage = localUsage(costTotals(board, prices), publicUsage);
-      return { stats, coordinator, idleSkips, agents: store.listAgents(board), usage, runnerCosts: itemRunnerCosts(board, usage.items, runnerRates), ...(pipelineHour ? { pipelineHour } : {}), ...(window ? { window } : {}), ...(comparison ? { comparison } : {}) };
+      const coordinatorTotals = localUsage(coordinatorUsage(board, prices), publicUsage);
+      return { stats, coordinator, idleSkips, agents: store.listAgents(board), usage, coordinatorTotals, runnerCosts: itemRunnerCosts(board, usage.items, runnerRates), ...(pipelineHour ? { pipelineHour } : {}), ...(window ? { window } : {}), ...(comparison ? { comparison } : {}) };
     } finally {
       if (windowMinutes !== undefined) board.db.exec('RELEASE stats_window_read');
     }
@@ -181,7 +183,7 @@ export function run(io, { first, second, rest, values }) {
     : boardHolds.todayCount > holdBaseline.allowancePerDay ? 'exceeded'
       : !boardHolds.available || boardHolds.truncated || boardHolds.invalidLines ? 'incomplete' : 'within' };
   const disk = refusingBadPolicy(() => diskUse(join(ctx.info.commonDir, 'pullboard'), { now, maxAgeMs: 5 * 60_000 }), Refused);
-  io.result?.({ stats, disk, usage, idleSkips, coordinatorActions: coordinator, gateWaits: waits.stats, testWallBudgets: waits.testWallBudgets, boardHolds, ...(pipelineHour ? { pipelineHour } : {}), ...(window ? { window } : {}), ...(comparison ? { comparison } : {}) });
+  io.result?.({ stats, disk, usage, coordinatorUsage: coordinatorTotals, idleSkips, coordinatorActions: coordinator, gateWaits: waits.stats, testWallBudgets: waits.testWallBudgets, boardHolds, ...(pipelineHour ? { pipelineHour } : {}), ...(window ? { window } : {}), ...(comparison ? { comparison } : {}) });
   // First, so the 8192-byte human summary never withholds the answer a window was asked for.
   if (pipelineHour) for (const line of pipelinePerHourLines(pipelineHour)) io.say(line);
   io.say(`${stats.submissions} submissions · ${stats.rejections} rejections · ${(stats.rejectionShare * 100).toFixed(1)}% sent back`);
@@ -211,7 +213,7 @@ export function run(io, { first, second, rest, values }) {
     io.say(`usage ${group} ${label}: input ${row.inputTokens ?? 'unknown'} (fresh ${row.freshInputTokens ?? 'unknown'}, cached read ${row.cacheReadInputTokens ?? 'unknown'}, cached write ${row.cacheWriteInputTokens ?? 'unknown'}), output ${row.outputTokens ?? 'unknown'}, ${row.wallMs} ms${row.unknownReasons.length ? '; unknown: ' + row.unknownReasons.join(', ') : ''}${dollarText(row)}${group === 'items' ? runnerCostText(runnerCosts, label) : ''}`);
   }
   // The coordinator's recorded sessions on a line of their own; none recorded reads unknown, never zero [C7].
-  const own = usage.coordinator;
+  const own = coordinatorTotals;
   if (own) io.say(`usage coordinator: ${own.sessions} sessions, input ${own.inputTokens ?? 'unknown'} (fresh ${own.freshInputTokens ?? 'unknown'}, cached read ${own.cacheReadInputTokens ?? 'unknown'}, cached write ${own.cacheWriteInputTokens ?? 'unknown'}), output ${own.outputTokens ?? 'unknown'}${own.unknownReasons.length ? '; unknown: ' + own.unknownReasons.join(', ') : ''}${dollarText(own)}`);
   return 0;
 }
