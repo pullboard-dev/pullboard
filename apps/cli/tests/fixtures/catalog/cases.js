@@ -172,7 +172,8 @@ after(async () => {
   await Promise.all(serverChildren.values());
   await cleanupFixtureChildren();
   for (const pid of LOCAL_RUNNERS) { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } }
-  for (const dir of TEMP_DIRS) rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  // A killed local runner may still be writing into a case's folder for a moment; the run's sandbox removes what is left.
+  for (const dir of TEMP_DIRS) { try { rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); } catch { /* a dying child still holds it */ } }
 });
 
 const SPEC = `# API fixture
