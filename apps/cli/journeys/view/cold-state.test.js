@@ -8,8 +8,9 @@ import { coldStateReads } from '../../tests/fixtures/api.js';
 const threadReads = statements => statements.filter(sql => /item_id IS NULL AND event_kind = 'main-moved'/.test(sql)).length;
 
 test('clause 1: a cold state build over 70 items reads no thread item by item, taking them all from the one read of the event list [C7,#8480]', t => {
-  const { ids, built, statements, control } = coldStateReads(apiHttpFixture(t), 70);
+  const { ids, built, statements, control, threads, expected } = coldStateReads(apiHttpFixture(t), 70);
   assert.deepEqual(ids.filter(id => !built.includes(id)), [], 'the build projected every item');
+  for (const id of ids) assert.deepEqual(threads.get(id), expected.get(id), `item ${id}: the built thread equals itemThread`);
   assert.equal(threadReads(statements), 0, 'no item read the log for its own thread');
   assert.ok(statements.some(sql => /^\s*SELECT \* FROM event\b(?!\s+WHERE)/.test(sql)), 'the whole event list was read');
   assert.equal(threadReads(control), 5, 'the control: itemThread reads the log once for each item, so the zero above is counted and not blind');

@@ -174,7 +174,7 @@ function boardWithStatements(board, statements) {
  *
  * @param {{ root: string }} box - An apiHttpFixture.
  * @param {number} count - How many items to file before the build.
- * @returns {{ ids: number[], built: number[], statements: string[], control: string[] }} The filed ids, the ids the build projected, the build's SQL and the control's.
+ * @returns {{ ids: number[], built: number[], statements: string[], control: string[], threads: Map<number, any[]>, expected: Map<number, any[]> }} The filed ids, the ids the build projected, the build's SQL, the control's, the built threads and itemThread's own.
  */
 export function coldStateReads(box, count) {
   const file = join(box.root, '.git/pullboard/board.sqlite');
@@ -186,9 +186,14 @@ export function coldStateReads(box, count) {
     openBoard: path => boardWithStatements(openFile(path), statements),
     openBoardForRead: path => { const opened = openForRead(path); return opened && boardWithStatements(opened, statements); } };
   const snapshots = createStateSnapshots({ projects: () => [{ root: box.root, name: 'HTTP fixture' }], viewPorts: viewApiPorts, boardOpeners: openers, onItemBuild: ({ itemId }) => built.push(itemId) });
-  snapshots.materialize({ id: 'cold-build', root: box.root });
-  withFixtureBoard(file, board => { for (const id of ids.slice(0, 5)) itemThread(boardWithStatements(board, control), id); });
-  return { ids, built, statements, control };
+  const record = snapshots.materialize({ id: 'cold-build', root: box.root }, { full: true });
+  const threads = new Map(JSON.parse(record.full.json.join('0')).items.map(item => [item.id, item.thread]));
+  const expected = new Map();
+  withFixtureBoard(file, board => {
+    for (const id of ids) expected.set(id, JSON.parse(JSON.stringify(itemThread(board, id))));
+    for (const id of ids.slice(0, 5)) itemThread(boardWithStatements(board, control), id);
+  });
+  return { ids, built, statements, control, threads, expected };
 }
 
 /** File a light item through the CLI: `json` adds it mid and checks the add shape, then its own brief diagnoses it; returns the added document. */
