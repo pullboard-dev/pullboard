@@ -175,6 +175,9 @@ export function loadMachineSettings() {
   if (value.tests?.registryStrict !== undefined && typeof value.tests.registryStrict !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `tests.registryStrict in ${file} must be true or false`);
   }
+  if (value['runners.yieldWhilePruning'] !== undefined && typeof value['runners.yieldWhilePruning'] !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `runners.yieldWhilePruning in ${file} must be true or false`);
+  }
   if (value.census?.balanceByTime !== undefined && typeof value.census.balanceByTime !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `census.balanceByTime in ${file} must be true or false`);
   }
@@ -228,6 +231,9 @@ export function loadMachineSettings() {
   }
   if (value.health?.derivedState !== undefined && typeof value.health.derivedState !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `health.derivedState in ${file} must be true or false`);
+  }
+  if (value.landing?.adaptiveBatch !== undefined && typeof value.landing.adaptiveBatch !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `landing.adaptiveBatch in ${file} must be true or false`);
   }
   if (value.next?.itemNotices !== undefined && typeof value.next.itemNotices !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `next.itemNotices in ${file} must be true or false`);

@@ -6,13 +6,9 @@ import {
   privateCheckEnvelope,
   privateCheckPhases,
 } from '../../index.js';
+import { Refused } from '../../../../packages/kernel/light.js';
 import { PULL_MODES } from '../../../../packages/runners/index.js';
 import { servePullController } from '../../../../packages/runners/index.js';
-import { serveRunnerController } from '../../../../packages/runners/index.js';
-import { runnerItemState } from '../../../../packages/resources/index.js';
-import { runnerItemSources } from '../../../../packages/resources/index.js';
-import { controllerDeadline } from '../../../../packages/resources/index.js';
-import { probeRunnerJob } from '../../../../packages/runners/index.js';
 
 /** Importing this module never starts a controller; only its exact direct entry accepts bridge input. */
 function isRunnerControllerEntry() {
@@ -27,6 +23,9 @@ const pullMode = PULL_MODES.includes(process.argv[3]) ? process.argv[3] : null;
 // The runner agent's start command lives beside the worker; a controller without it still serves, and its jobs wait for an agent started by hand.
 const agent = pullMode === '--submit' ? await import('./agent.js').catch(() => null) : null;
 
-if (isRunnerControllerEntry()) (pullMode ? servePullController(pullMode, { privateCheckEnvelope, privateCheckPhases, agentStart: root => agent?.runnerAgentStartCommand(root) })
-  : serveRunnerController({ privateCheckEnvelope, privateCheckPhases, runnerItemState, runnerItemSources, controllerDeadline, probeRunnerJob }))
-  .catch(error => { process.stderr.write(`${error.message}\n`); process.exitCode = 1; });
+if (isRunnerControllerEntry()) {
+  // Pull is the only transport; a controller started without a pull mode has nothing to serve.
+  (pullMode ? servePullController(pullMode, { privateCheckEnvelope, privateCheckPhases, agentStart: root => agent?.runnerAgentStartCommand(root) })
+    : Promise.reject(new Refused('RUNNER_CONTROLLER_PULL_ONLY', 'the SSH runner controller is retired; start it with a pull mode as its first argument')))
+    .catch(error => { process.stderr.write(`${error.message}\n`); process.exitCode = 1; });
+}
