@@ -514,7 +514,7 @@ async function compareMainFailuresNow(root, profile, onWait, output = '', { comm
           } catch { /* Timing retention never changes the exact-main failure verdict. */ }
         }
         // A filtered run that ran none of the named cases tested nothing, so its green is never evidence [C7,#8761].
-        if (casesOf[path] && run.isGreen && !(run.profile?.tests ?? []).some(row => row.passed === true && !row.skip)) throw new Error('the filtered main comparison ran none of the named cases, so its green is not evidence');
+        if (casesOf[path] && run.isGreen && !(run.profile?.tests ?? []).some(row => row.passed === true && !row.skip && casesOf[path].includes(row.name))) throw new Error('the filtered main comparison ran none of the named cases, so its green is not evidence');
         // A red that names no failing test or crashed file is a run that never tested main, not main's red (#2950).
         // Named failing cases in the raw output count as well as the profile's rows: either proves main's file ran [C7,#3073].
         if (!run.isGreen && !failingFiles(checkout, run.profile, run.output).length && !failureSignatures(run, checkout, { raw: true, allowCancelled })?.length) throw new Error('the main comparison run named no failing test or crashed file, so its red is not evidence');
