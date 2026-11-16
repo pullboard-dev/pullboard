@@ -319,7 +319,12 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   const fallback = allCellsReason(changed, [before, after]);
   if (fallback) onAllCells(fallback);
   const direct = touchedCells(changed, before, after, []);
-  if (!direct.length) return { cells: [], problems: policy, warnings, reorg, ...(collectMachinery ? { machinery } : {}) };
+  // A new forwarding file is a shim even outside any planned cell's folder, so the shim count still runs for it [C7].
+  const addsShim = changed.some(file => {
+    const text = shimSnapshotFile(candidateRoot, file);
+    return text !== undefined && shimSnapshotFile(mainRoot, file) === undefined && onlyForwards(text, false);
+  });
+  if (!direct.length && !addsShim) return { cells: [], problems: policy, warnings, reorg, ...(collectMachinery ? { machinery } : {}) };
   const oldReport = inventories?.report?.(mainRoot, acceptedMain) ?? cellLintReport(mainRoot, parsers, { inventory: oldInventory });
   const newReport = cellLintReport(candidateRoot, parsers, { inventory: newInventory });
   // Advisory transition authority comes only from the immutable accepted snapshot.
