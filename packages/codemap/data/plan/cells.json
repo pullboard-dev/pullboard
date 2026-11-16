@@ -2571,7 +2571,6 @@
     "search->store",
     "board->git",
     "board->items",
-    "board->jobs",
     "board->kernel",
     "board->moves",
     "board->sandbox",
