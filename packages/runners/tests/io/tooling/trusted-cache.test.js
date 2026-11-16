@@ -2,7 +2,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
-import { existsSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { statSync } from 'node:fs';
@@ -14,7 +13,6 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
 import { fixtureCommittedGraph } from '../../../../gate/tests/fixtures/testkit.js';
-import { committedRunnerController } from '../../../src/io/tooling/committed.js';
 import { copyRunnerPackage } from '../../fixtures/package.js';
 
 const SOURCE = fileURLToPath(new URL('../../../../../', import.meta.url));

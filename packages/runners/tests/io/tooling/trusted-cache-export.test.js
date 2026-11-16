@@ -1,7 +1,6 @@
 /** A runner work dir without .git reuses or recaptures the saved trusted capture; split from trusted-cache.test.js for its file budget [C7,#8426,#8502]. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { appendFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
