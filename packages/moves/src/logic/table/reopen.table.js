@@ -1,6 +1,7 @@
 /** The reopen move as one pure table: every rule the board enforces when a submission, or a verified item after a red landing, goes back to its builder [C7,#8258]. */
 import { Refused } from '../../../../kernel/light.js';
 import { defineRules } from './rules.js';
+import { landingOf } from './rules.js';
 import { REOPEN_NEXT } from './next.js';
 export { REOPEN_NEXT } from './next.js';
 
@@ -11,14 +12,17 @@ const withCause = (s, returned) => (s.cause?.overrides === false ? { ...(s.cause
 /** The first-refusal window, recorded only on the returns that hand the item back to its builder. */
 const windowOf = (s) => s.reservation ?? {};
 const blank = (text) => !(typeof text === 'string' && text.trim());
+/** The pace that lands submitted work before its verdict, so a red gate can meet work already on main [M2]. */
+const SPRINT_PACES = Object.freeze(['sprint']);
 
 /**
  * Build the reopen rules and table over the board's own cause check, handed in by the caller.
  * Why: moves may not reach into the store, and the cause forms must stay one source; the caller passes the store's `causeProblem`.
- * Snapshot: `{ actor: { id, joined }, item: { id, status, commit, mergedCommit } | null, landing: { accepted, failure }, conflict: { accepted, supersedes, detail, computed }, withdrawal: { acceptEventId },
+ * Snapshot: `{ actor: { id, joined, granted? }, item: { id, status, commit, mergedCommit } | null, landing: { accepted, failure }, conflict: { accepted, supersedes, detail, computed }, withdrawal: { acceptEventId },
  * cause: { derived, overrides }, reservation }`, where landing, conflict and withdrawal are what git, the landing batches and the verdict lookup answered before the move ran,
  * `cause.derived` is the board's derived rigor cause (`overrides`: it wins over the conflict's own cause), and `reservation` is the first-refusal window the board offers.
  * The table decides which of them each outcome records: the cause on every return, the conflict detail on a conflict return, the reservation on a conflict, landing-failure or verdict-withdrawal return only.
+ * `history` (the item's events, oldest first) gives its landing and `pace` its frozen pace (absent: steady); under sprint a red landing result on landed, submitted work reopens it and queues its pull-out.
  * Move: `{ id, actor, note, cause, conflict, conflictNote, withdrawVerdict }`. Shouts and the lease end stay with the shell.
  *
  * @param {{ causeProblem: (cause: unknown) => { message: string } | null, states: readonly string[] }} board
@@ -33,7 +37,7 @@ export function reopenEngine(board) {
     joined: { says: 'the caller is a joined seat', holds: (s) => s.actor?.joined !== false },
     itemExists: { says: 'the item exists', holds: (s) => Boolean(s.item) },
     reopenable: { says: 'the item is submitted or verified', holds: (s) => board.states.includes(s.item?.status) },
-    authorised: { says: 'the coordinator reopens, or a verdict withdrawal is left to its reviewer', holds: (s, m) => m.actor === 'coordinator' || (m.withdrawVerdict === true && Boolean(s.withdrawal)) },
+    authorised: { says: 'the coordinator reopens, a verdict withdrawal is left to its reviewer, or the board granted the seat a reported conflict', holds: (s, m) => m.actor === 'coordinator' || s.actor?.granted === true || (m.withdrawVerdict === true && Boolean(s.withdrawal)) },
     noteGiven: { says: 'the reopen says why, unless it reports a merge conflict', holds: (s, m) => forMerge(m) || !blank(m.note) },
     causeWellFormed: { says: 'a named cause has a form the board knows', holds: (s, m) => board.causeProblem(m.cause) === null },
     notMerged: { says: 'the item was not merged', holds: (s) => !(s.item.status === 'verified' && s.item.mergedCommit) },
@@ -43,6 +47,8 @@ export function reopenEngine(board) {
     supersedesConflict: { says: 'the reopen reports a merge conflict', holds: (s, m) => forMerge(m) },
     landingFailureReturn: { says: 'the reopen returns a verified item after a red landing', holds: (s) => s.item.status === 'verified' && Boolean(s.landing?.failure) },
     conflictAccepted: { says: 'a reported conflict is one git confirmed', holds: (s, m) => !forMerge(m) || s.conflict?.accepted !== false },
+    redAfterLand: { says: 'a red gate result is recorded on a submitted item that has already landed',
+      holds: (s) => s.item.status === 'submitted' && landingOf(s.item, s.history) === 'landed' && Boolean(s.landing?.failure) },
   });
   const table = Object.freeze({
     name: 'reopen',
@@ -65,6 +71,12 @@ export function reopenEngine(board) {
         events: (s, m) => [{ kind: 'reopen', by: m.actor, detail: { commit: s.item.commit, note: noteOf(m), judgment: null, ...windowOf(s), ...withCause(s, { ...(s.conflict.supersedes === undefined ? {} : { supersedes: s.conflict.supersedes }), ...(s.conflict.detail ?? { conflict: m.conflict }), ...(s.conflict.computed === undefined ? {} : { computedConflict: s.conflict.computed }) }) } }] },
       { id: 'return-landing-failure', when: 'landingFailureReturn', patch: () => ({ status: 'open', verdict: null, verifiedBy: null, owner: null, leaseUntil: null, reviewBy: null, reviewUntil: null }),
         events: (s, m) => [{ kind: 'reopen', by: m.actor, detail: { commit: s.item.commit, note: noteOf(m), judgment: null, ...windowOf(s), ...withCause(s, { supersedes: s.landing.accepted, landingFailure: s.landing.failure }) } }] },
+      // Sprint lands submitted work first, so a red gate can meet it on main: the item reopens for its builder and its pull-out is queued [M2,#8870].
+      { id: 'pull-out-red', when: 'redAfterLand', paces: SPRINT_PACES,
+        patch: () => ({ status: 'open', verdict: null, verifiedBy: null, owner: null, leaseUntil: null, reviewBy: null, reviewUntil: null }),
+        events: (s, m) => [{ kind: 'reopen', by: m.actor, detail: { commit: s.item.commit, note: noteOf(m), judgment: null, ...windowOf(s), ...withCause(s, { landingFailure: s.landing.failure }) } },
+          { kind: 'pull_out', by: 'coordinator', detail: { commit: s.item.commit, ...(s.item.mergedCommit ? { mergedCommit: s.item.mergedCommit } : {}), builder: s.item.builtBy ?? s.item.owner ?? null,
+            reason: 'GATE_RED', failure: s.landing.failure } }] },
       { id: 'return-submission', patch: () => ({ status: 'open', verdict: null, verifiedBy: null, owner: null, leaseUntil: null, reviewBy: null, reviewUntil: null }),
         events: (s, m) => [{ kind: 'reopen', by: m.actor, detail: { commit: s.item.commit, note: noteOf(m), judgment: null, ...withCause(s, {}) } }] },
     ]),

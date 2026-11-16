@@ -13,6 +13,7 @@ import { startDetachedCheck } from '../../../../../packages/drive/index.js';
 import { fileURLToPath } from 'node:url';
 import { landingFlakeRatchet } from '../../../../../packages/flakes/index.js';
 import { COORDINATOR } from '../../../../../packages/config/index.js';
+import { boardRunsHolder } from '../../../../../packages/store/index.js';
 import { landMerged } from '../../../../../packages/land/index.js';
 import {
   codeIsFromMain,
@@ -216,7 +217,7 @@ export async function run(io, { first, second, values }) {
     return { map: true };
   };
   const landed = await landMerged(board.db, { repo: ctx.info.root, ids, commit, base: parent.status === 0 ? parent.stdout : undefined,
-    owner: `merged:${me.id}`, check, record, publish });
+    owner: `merged:${me.id}`, check, record, publish, runs: boardRunsHolder(board, ctx.file) });
   if (!announced) announce(landed.written.record);
   return 0;
 });

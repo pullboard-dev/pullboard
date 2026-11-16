@@ -85,9 +85,10 @@ test('[C7,#3008] clause 1: 1,000 simulated seats drive heartbeat, next, claim, s
   }
   requireFixtureReviewFamilies(board);
   assert.equal(board.db.prepare("SELECT COUNT(*) AS n FROM agent WHERE agent_lane = 'core'").get().n, SEATS);
+  const FILLER_ITEMS = 300;
   // A copy-sized board: a few hundred open items besides the ones the seats move.
-  const filler = Array.from({ length: 300 }, (_, n) => store.addItem(board, { by: 'coordinator', lane: 'core', title: `open ${n}`, criterion: 'prove', specIds: ['C7'], route: 'mid', check: 'true', brief: 'Files: src/a.js\nTest: proves it' }));
-  assert.equal(filler.length, 300);
+  const filler = Array.from({ length: FILLER_ITEMS }, (_, n) => store.addItem(board, { by: 'coordinator', lane: 'core', title: `open ${n}`, criterion: 'prove', specIds: ['C7'], route: 'mid', check: 'true', brief: 'Files: src/a.js\nTest: proves it' }));
+  assert.equal(filler.length, FILLER_ITEMS);
   // Three sets of items the seats move, one per measurement round (see the remeasure note below).
   const movedSets = Array.from({ length: ROUNDS }, (_, round) => Array.from({ length: 30 }, (_, n) => store.addItem(board, { by: 'coordinator', lane: 'core', title: `moved ${round}.${n}`, criterion: 'prove', specIds: ['C7'], route: 'mid', check: 'true', brief: 'Files: src/a.js\nTest: proves it' })));
   const freeze = item => ({ text: JSON.stringify({ criterion: item.item_criterion, policy: { version: 1, commit: COMMIT, verify: { policy: 'any', family: 'off' } } }), digest: 'digest:bar' });

@@ -109,11 +109,16 @@ import { drainedRunnerHosts } from '../../../config/index.js';
 import { jobReserve } from '../../../config/index.js';
 import { fencedHopEnabled } from '../../../config/index.js';
 import { endStaleJobsEnabled } from '../../../config/index.js';
+import { redFactLocationEnabled } from '../../../config/index.js';
+import { settleOnMainReceiptEnabled } from '../../../config/index.js';
+import { reofferTrunkBusyEnabled } from '../../../config/index.js';
+import { jobsAvoidRunnersEnabled } from '../../../config/index.js';
 import { gateClaimHop } from './hop.js';
 import { boardJobQueueCall } from './gate.js';
 import { boardQueueMode } from './jobs.js';
 import { trunkRemote } from '../../../config/index.js';
 import { personRequestStatuses } from '../../../link/index.js';
+import { RELAY_HEALTH_FILE } from '../../../link/index.js';
 import { relayCanaryNeeds } from '../../../link/index.js';
 import { relayFiles } from '../../../store/index.js';
 import { startStateMaterializer } from './state/materializer.js';
@@ -206,7 +211,7 @@ function boardStateRevision(root, id, isMain, { projects = listApiProjects, scop
 /** Invalidate only this local API state when its private canary record or queued link changes. */
 function localRelayMarker(info) {
   const files = relayFiles(info.commonDir);
-  return [fileMarkerForPath(join(info.commonDir, 'pullboard', 'relay-health.sqlite')), fileMarkerForPath(files.link)];
+  return [fileMarkerForPath(join(info.commonDir, 'pullboard', RELAY_HEALTH_FILE)), fileMarkerForPath(files.link)];
 }
 
 /** Read HEAD and its selected ref without spawning Git on every 200 ms poll. */
@@ -350,7 +355,7 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
       catch (error) { if (error.code === 'ENOENT') return []; throw error; }
     });
     const paths = [dbPath, dbPath + '-wal', ...files.map(file => file.path), registryFile(), ...heads, ...refs, join(info.commonDir, 'packed-refs'),
-      join(info.commonDir, 'pullboard/relay-health.sqlite'), join(info.commonDir, 'pullboard/relay-health.sqlite-wal'), relay.link,
+      join(info.commonDir, 'pullboard', RELAY_HEALTH_FILE), join(info.commonDir, 'pullboard', RELAY_HEALTH_FILE + '-wal'), relay.link,
       ...(external?.paths() ?? []), ...(external?.inputs ?? []).flatMap(input => input.path ? [input.path, input.path + '-wal'] : [])];
     notifications.update(paths);
     clearTimeout(expiryTimer);
@@ -1310,7 +1315,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
 async function boardJobsCall({ board, body, now }, isMain, boardOpeners) {
   // On a relay-linked board a receipt's engine moves are ordered through the relay, so every replica sees the gate's result (#7562).
   const ordered = relayLinked(board.root) ? [] : null;
-  const answer = await withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, () => 'pull'), now, drained: drainedRunnerHosts, reserve: jobReserve, hop: gateClaimHop(fencedHopEnabled()), endStale: endStaleJobsEnabled(), trunk: () => trunkRemote(board.root) ?? board.root, ordered }), isMain, boardOpeners);
+  const answer = await withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, () => 'pull'), now, drained: drainedRunnerHosts, reserve: jobReserve, avoidRunners: jobsAvoidRunnersEnabled(), hop: gateClaimHop(fencedHopEnabled()), endStale: endStaleJobsEnabled(), redLocation: redFactLocationEnabled(), settleOnMainReceipt: settleOnMainReceiptEnabled(), reofferTrunkBusy: reofferTrunkBusyEnabled(), trunk: () => trunkRemote(board.root) ?? board.root, ordered }), isMain, boardOpeners);
   if (!ordered) return answer;
   return { ...answer, relayed: await relayReceiptMoves(board.root, ordered, boardOpeners) };
 }
@@ -1407,10 +1412,10 @@ function verdictOf(row) {
  * @param {any} board
  * @param {any} item The item's current row, as store.listItems reads it.
  * @param {Map<number, string>} status Every current item's status by its id.
- * @returns {any}
+ * @returns {any} Verdicts come from board.verdictReads when a wide build set it (store.verdictReads), else one read per item.
  */
 export function projectItemState(board, item, status) {
-  const verdicts = store.verdictsFor(board, item.item_id).map(verdictOf);
+  const verdicts = store.verdictsFor(board, item.item_id, board.verdictReads).map(verdictOf);
   const history = store.events(board, { itemId: item.item_id }).map(lifecycleEvent);
   const after = dependencyValues(item);
   const foreign = new Map(store.foreignDependencyStates(board, item).map(ref => [`${ref.repo}#${ref.id}`, ref.status]));

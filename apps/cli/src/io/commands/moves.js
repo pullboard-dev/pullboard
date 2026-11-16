@@ -6,18 +6,39 @@ import { context } from '../context.js';
 import { withBoardRead } from '../context.js';
 
 /** Tables whose writer runs the table on every move, whatever the machine settings say. */
-const ALWAYS_LIVE = Object.freeze(['release', 'withdraw', 'lease', 'verify', 'landing']);
+const ALWAYS_LIVE = Object.freeze(['release', 'withdraw', 'lease', 'verify', 'landing', 'pulled']);
+
+/** Tables that have no writer by design, so their state reads map rather than none (backbone only today) [C7]. */
+export const NO_WRITER = Object.freeze(['backbone']);
 
 /** The table a `*.table.js` path names, such as `claim` for `packages/moves/src/logic/table/claim.table.js`. */
 const tableName = path => path.slice(path.lastIndexOf('/') + 1).replace(/\.table\.js$/u, '');
 
 /**
- * One table's state: live when its writer runs the table, shadow when compares are recorded, else none.
+ * The machine setting that puts each table's writer live, by the key its compares are recorded under.
+ * Why a map: one switch can govern two recorded tables (moves.live.submit: commit and submit; moves.live.handoff: start and complete) [C7,#9188].
+ */
+export const LIVE_SWITCH = Object.freeze({
+  claim: 'moves.live.claim', commit: 'moves.live.submit', submit: 'moves.live.submit', start: 'moves.live.handoff', complete: 'moves.live.handoff',
+  outcome: 'moves.live.outcome', job: 'moves.live.job', reopen: 'moves.live.reopen', reclaim: 'moves.live.reclaim', outbox: 'moves.live.outbox', hop: 'gate.fencedHop',
+});
+
+/** Whether a switch is on: a moves.live switch only when set true; gate.fencedHop unless set false, its default being on [C7,#8327]. */
+function switchOn(name, settings) {
+  if (name === 'gate.fencedHop') return settings.gate?.fencedHop !== false;
+  return settings.moves?.live?.[name.slice('moves.live.'.length)] === true;
+}
+
+/**
+ * One table's state: live when its writer runs the table, shadow when compares are recorded, map when it has no writer by design, else none.
  * Why live wins: once the writer follows the table, a recorded count describes a past window, not the current authority.
  */
-function stateOf(table, counts, settings) {
-  const live = ALWAYS_LIVE.includes(table) || settings.moves?.live?.[table] === true || (table === 'hop' && settings.gate?.fencedHop === true);
-  return live ? 'live' : counts ? 'shadow' : 'none';
+function stateOf(table, counts, settings, noWriter) {
+  const name = LIVE_SWITCH[table];
+  const live = ALWAYS_LIVE.includes(table) || (name !== undefined && switchOn(name, settings));
+  if (live) return 'live';
+  if (counts) return 'shadow';
+  return noWriter.includes(table) && name === undefined ? 'map' : 'none';
 }
 
 /**
@@ -26,11 +47,12 @@ function stateOf(table, counts, settings) {
  * @param {Record<string, any>} shadows - Recorded counts by table.
  * @param {string[]} tables - Every table name found in the moves cell.
  * @param {object} settings - The machine settings.
+ * @param {string[]} [noWriter] - Tables with no writer by design; a table that also has a switch is not one.
  */
-export function movesReport(shadows, tables, settings) {
+export function movesReport(shadows, tables, settings, noWriter = NO_WRITER) {
   return [...new Set([...tables, ...Object.keys(shadows)])].sort().map(table => {
     const counts = shadows[table] ?? null;
-    return { table, state: stateOf(table, counts, settings), compared: counts?.compared ?? 0, disagreed: counts?.disagreed ?? 0,
+    return { table, state: stateOf(table, counts, settings, noWriter), liveSwitch: LIVE_SWITCH[table] ?? null, compared: counts?.compared ?? 0, disagreed: counts?.disagreed ?? 0,
       firstCompareAt: counts?.since ?? null, lastDisagreedAt: counts?.lastDisagreedAt ?? null, lastDisagreements: counts?.last ?? [] };
   });
 }

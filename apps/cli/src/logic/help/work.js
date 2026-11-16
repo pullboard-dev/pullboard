@@ -4,6 +4,7 @@ export const workHelp = `Work
                                         slices default to 4k tokens and cap at 8k; effects the scan cannot see say "not detected"
   pullboard add <lane> <title> [--criterion "..."] [--specs G1.2,K3] [--after 3,4] [--parent <id>] [--private]
     [--expected-minutes <minutes|unknown>]  authored build time; above itemBuildBudgetMinutes (default 30), cut into children
+    [--readiness "<command>"]           the command that says the item is ready to start; edit replaces it, "" clears it
     [--force-size "reason"]             override the one-cell/three-clause size hint; records a fact
     [--accept-green "reason"]           keep a check that already passes on main, saying why (add and edit)
     [--not-duplicate-of "<id> why"]     file an item that reads like an open one, saying why it differs
@@ -131,7 +132,7 @@ export const workHelp = `Work
   pullboard bar sweep-full-suite       coordinator: remove full-suite/CI pass clauses from active bars; refused rows are listed
   pullboard bar <id>                    show missing prerequisites and the current revision
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
-  pullboard release <id> --reason INELIGIBLE|ROUTED_ELSEWHERE|BLOCKED|BUDGET|TAKEN_OVER|OTHER [--note "why"] [--on <ids>] [--no-next]
+  pullboard release <id> --reason INELIGIBLE|ROUTED_ELSEWHERE|BLOCKED|BUDGET|TAKEN_OVER|OTHER (a review: BAR|FAMILY|INFRA|TOO_LARGE) [--note "why"] [--on <ids>] [--no-next]
                                         hand it back, naming why; OTHER needs the note; the reason is recorded on the release
   pullboard release <id> --stale --reason BLOCKED --note "why"  coordinator only; requires measured inactivity and a note
   pullboard release --session-end       the SessionEnd hook frees your build claims at once, keeping the work at a board ref

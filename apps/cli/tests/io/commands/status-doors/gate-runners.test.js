@@ -1,7 +1,6 @@
 /** @pullboard-test-input source-cell apps/cli packages/gate packages/runners packages/jobs packages/resources */
 /**
- * pullboard status reaches the gate, runners, jobs and resources cells only through their light doors, so no heavy barrel loads for the few names it prints [C7,#8647].
- * The gate receipt reader is the exception: gate/light.js is the runner worker's door, so status loads that one name lazily rather than widen the worker bundle.
+ * pullboard status loads the gate, runners, jobs and resources readers it prints lazily, and the light doors the runner worker bundles export none of them, so no status-only module widens the worker closure [C7,#8647].
  * Why static: the modules a command loads are the ones its import statements name, so no process is launched.
  */
 import assert from 'node:assert/strict';
@@ -17,29 +16,21 @@ const NAMES = {
   resources: ['runnerDeadlineLine'],
 };
 
-/** The module path each top-level static import of status.js names, keyed by imported name; multi-line lists count. */
-function importedFrom() {
-  const found = new Map();
-  for (const match of STATUS.matchAll(/^import\s*\{([^}]*)\}\s*from\s*'([^']+)'/gmu)) {
-    for (const name of match[1].split(',').map(part => part.trim().split(/\s+as\s+/u)[0]).filter(Boolean)) found.set(name, match[2]);
-  }
-  return found;
-}
-
-test('clause 1: status imports every runners, jobs and resources name through that package light door [C7]', () => {
-  const from = importedFrom();
+test('clause 1: status loads every gate, runners, jobs and resources reader lazily from that package front door [C7]', () => {
   for (const [pkg, names] of Object.entries(NAMES)) {
-    for (const name of names) assert.ok(from.get(name)?.endsWith(`/packages/${pkg}/light.js`), `${name} comes from ${from.get(name)}, not packages/${pkg}/light.js`);
+    for (const name of names) {
+      assert.match(STATUS, new RegExp(`const \\{[^}]*\\b${name}\\b[^}]*\\} = await import\\('[./]+/packages/${pkg}/index\\.js'\\)`, 'u'), `${name} loads lazily from packages/${pkg}/index.js`);
+    }
   }
 });
 
-test('clause 1: each light door exports the names status takes from it [C7]', () => {
+test('clause 1: no light door exports a name only status reads [C7]', () => {
   for (const pkg of Object.keys(NAMES)) {
     const door = readFileSync(resolve(REPO, `packages/${pkg}/light.js`), 'utf8');
-    for (const name of NAMES[pkg]) assert.match(door, new RegExp(`\\b${name}\\b`, 'u'), `packages/${pkg}/light.js does not export ${name}`);
+    for (const name of NAMES[pkg]) assert.doesNotMatch(door, new RegExp(`\\b${name}\\b`, 'u'), `packages/${pkg}/light.js exports ${name}, which widens the runner worker closure`);
   }
 });
 
-test('clause 1: status keeps no static barrel import from the runners, jobs or resources cells; the gate receipt reader loads lazily [C7]', () => {
-  assert.doesNotMatch(STATUS, /packages\/(?:runners|jobs|resources)\/index\.js/u);
+test('clause 1: status keeps no static import from the gate, runners, jobs or resources cells [C7]', () => {
+  assert.doesNotMatch(STATUS, /^import[^\n]*packages\/(?:gate|runners|jobs|resources)\/(?:index|light)\.js/mu);
 });

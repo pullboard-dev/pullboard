@@ -7,6 +7,7 @@ import { verifiedPasskeyRowDecision } from '../../../../../packages/person/index
 import {
   planRowVerificationApply,
   rowVerificationFindings,
+  needsReviewFindings,
 } from '../../../../../packages/spec/index.js';
 import { planAutomaticRigorApply } from '../../../../../packages/rigor/index.js';
 import {
@@ -26,6 +27,7 @@ import {
 } from '../support.js';
 import {
   COORDINATOR,
+  cascadeRejectEnabled,
   DOCTRINE_FILE,
   LEGACY_DOCTRINE_FILE,
 } from '../../../../../packages/config/index.js';
@@ -151,6 +153,12 @@ function verifierFindings(ctx, parsed) {
     ?? rowVerificationFindings(null, parsed, source, { rowDrafts });
 }
 
+/** Needs-review warnings for the spec file while spec.cascadeReject is on (#9343); a check never initializes a board. */
+function reviewFindings(ctx, parsed) {
+  const enabled = cascadeRejectEnabled();
+  return enabled ? hookRead(ctx, board => needsReviewFindings(board, parsed, { enabled })) ?? [] : [];
+}
+
 /**
  * The spec commands: reads, sign-offs and person decisions applied by the coordinator.
  *
@@ -198,7 +206,8 @@ export async function specCommand(io, { first, second, rest, values }) {
     const source = readFileSync(spec.file, 'utf8').split(/\r?\n/u)[rows[0].line - 1];
     return withBoard(ctx, async board => {
       const me = whoAmI(ctx, board);
-      const receipt = await ordered(ctx, board, 'recordRowVerification', [{ agentId: me.id, source, decision: rest[0], reason: values.reason }]);
+      const receipt = await ordered(ctx, board, 'recordRowVerification', [{ agentId: me.id, source, decision: rest[0], reason: values.reason,
+        ...(cascadeRejectEnabled() ? { cascade: spec.rows.map(row => ({ id: row.id, serves: row.serves })) } : {}) }]);
       io.result?.({ verification: receipt });
       io.say(`${receipt.id}: ${receipt.decision} by ${receipt.by}; ask the coordinator to run pullboard spec apply`);
       return 0;
@@ -462,6 +471,7 @@ export async function specCommand(io, { first, second, rest, values }) {
         ...lintSpec(parsed).filter((finding) => !finding.message.startsWith('duplicate id;')),
         ...(name === ctx.config.spec && parsed.rows.some(row => row.verify !== undefined)
           ? verifierFindings(ctx, parsed) : []),
+        ...(name === ctx.config.spec ? reviewFindings(ctx, parsed) : []),
         ...(name !== ctx.config.spec ? parsed.rows.filter(row => row.verify !== undefined).map(row => ({ level: 'error', line: row.line, id: row.id,
           message: 'ROW_VERIFY_PROVENANCE: verifier annotations currently require an exact board-drafted SPEC row' })) : []),
         ...missingGateFindings(parsed, ctx.info.root),

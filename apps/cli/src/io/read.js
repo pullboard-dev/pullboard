@@ -39,12 +39,17 @@ import {
 } from '../../../../packages/git/light.js';
 import { Refused } from '../../../../packages/kernel/light.js';
 import {
+  RUNNER_POLICY_FILE,
   mainPolicy,
   policyAt,
   trunkRef,
 } from '../../../../packages/sandbox/light.js';
 import { familyIndex } from '../../../../packages/verify/read.js';
+import { verdictProjector } from '../../../../packages/verify/read.js';
 import { MAIN_MERGE_LABEL } from '../../../../packages/merge/light.js';
+import { mainMergeFor } from '../../../../packages/merge/light.js';
+/** The two reads the thin list door shares with this module, so the door adds no cell edge of its own [C7,#9091]. */
+export { verdictProjector, mainMergeFor };
 import { sessionRoute } from './route.js';
 
 /**
@@ -284,7 +289,7 @@ function writePolicySignature(ctx, ref) {
   const options = { directories: false };
   const primary = gitReadSignature(resolve(ctx.info.commonDir, '..'), [], options);
   const local = gitReadSignature(ctx.info.root, [], options);
-  const runner = gitReadSignature(ctx.info.root, [relative(ctx.info.root, join(ctx.info.gitDir, 'pullboard-runner-policy.json'))], options);
+  const runner = gitReadSignature(ctx.info.root, [relative(ctx.info.root, join(ctx.info.gitDir, RUNNER_POLICY_FILE))], options);
   const loose = ref ? policyRefBytes(join(ctx.info.commonDir, ref)) : null;
   // Symbolic ref chains and alternate backends retain their original guarded reader until explicitly supported.
   if (loose?.startsWith('ref: ')) return null;
