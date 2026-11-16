@@ -42,6 +42,15 @@ export function timed(box, cwd, ...args) {
   return { ms, out: result.out, code: result.code, err: result.err };
 }
 
+/** Run one CLI call in this process through the production dispatcher and return its wall time and output: the command's own work, without a node start-up that a loaded runner stretches to seconds [C7]. */
+async function timedIn(box, cwd, ...args) {
+  const started = performance.now();
+  const result = await box.runIn(cwd, ...args);
+  const ms = performance.now() - started;
+  assert.equal(typeof result.code, 'number', `${args.join(' ')} did not finish: ${result.err}`);
+  return { ms, out: result.out, code: result.code, err: result.err };
+}
+
 /** The middle of a sample, by rank. */
 export const p50 = values => [...values].sort((a, b) => a - b)[values.length >> 1];
 
@@ -65,7 +74,7 @@ export async function measureNext(box, command) {
   for (let round = 0; round < ROUNDS; round++) {
     await file(box, `Budget work ${round}.0`);
     await file(box, `Budget work ${round}.1`);
-    const run = timed(box, dir, ...args);
+    const run = await timedIn(box, dir, ...args);
     samples[command].push(run.ms);
     if (command !== 'next --take') continue;
     assert.equal(run.code, 0, `next --take: ${run.err}${run.out}`);
