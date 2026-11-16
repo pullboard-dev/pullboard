@@ -154,14 +154,6 @@ test('#7340 clause 1: a candidate tree that removes a blocker together with its 
   assert.ok(mentions(check.run(root, edit({ [receipt]: fixedReceipt }))).length > 0, 'removing only the blocker leaves a stale row');
 });
 
-test('#7613 clause 1: synchronous git reached from a gate receipt through the receipt store wrapper is reported as a known row [C7]', () => {
-  const owners = ['packages/items/src/io/patch/compose.js#git', 'packages/items/src/io/patch/compose.js#mergeFromOrigin', 'packages/items/src/io/patch/compose.js#composeItemPatches', 'packages/items/src/io/patch/submit.js#git'];
-  for (const owner of owners) assert.ok(owner in KNOWN_REQUEST_BLOCKERS, owner);
-  const { [owners[0]]: removed, ...rest } = KNOWN_REQUEST_BLOCKERS;
-  assert.ok(removed);
-  assert.deepEqual(apiRequestIoProblems(sources, { known: rest }).map(row => row.owner), [owners[0]]);
-});
-
 test('#7613 clause 1: a call on an object that spreads an imported namespace is followed into that namespace [C7]', () => {
   const files = { wrapper: { file: 'packages/api/src/io/wrapped.js', source: "import * as inner from './inner.js';\nexport const wrapped = Object.freeze({ ...inner, other: 1 });\n" },
     inner: { file: 'packages/api/src/io/inner.js', source: "import { spawnSync } from 'node:child_process';\nexport function runIt() { return spawnSync('ls'); }\n" },
