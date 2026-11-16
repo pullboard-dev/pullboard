@@ -67,6 +67,7 @@ export {
   localRunnerEnabled,
   localLoadShare,
   staticCheckSlots,
+  staticMemoOn,
   serveListen,
   mainComparisonMode,
   submitAuthorizationMode,

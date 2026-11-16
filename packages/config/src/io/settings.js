@@ -285,6 +285,14 @@ export function staticCheckSlots() {
 }
 
 /**
+ * Whether a green local `pullboard gate --static` is kept for its exact clean tree and main: gate.staticMemo, default off.
+ * Why: a refused submit is usually resubmitted on the same tree, and its static rerun repeated a green minute of full CPU [C7].
+ */
+export function staticMemoOn() {
+  return loadMachineSettings().gate?.staticMemo === true;
+}
+
+/**
  * Where `pullboard serve` listens, from the machine's `serve` setting: loopback and a free port unless set; a flag
  * given for either overrides the setting and is checked by the same rule [P7,O5,O6].
  * @param {{ address?: string, port?: number }} [flags]
