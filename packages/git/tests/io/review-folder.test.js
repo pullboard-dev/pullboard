@@ -38,7 +38,7 @@ test('clause 1: a commit only the trunk remote holds is fetched and checked out 
   const { folder, reused } = reviewFolder(reviewer, commit, { remote: trunk });
   assert.equal(reused, false);
   assert.equal(run(folder, ['rev-parse', 'HEAD']), commit);
-  assert.equal(run(folder, ['symbolic-ref', '-q', 'HEAD']).length, 0, 'HEAD is detached');
+  assert.equal(spawnSync('git', ['symbolic-ref', '-q', 'HEAD'], { cwd: folder }).status, 1, 'HEAD is detached');
   assert.match(run(reviewer, ['worktree', 'list', '--porcelain']), new RegExp(realpathSync(folder).replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u'));
 });
 
