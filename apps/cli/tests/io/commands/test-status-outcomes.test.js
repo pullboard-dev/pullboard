@@ -32,7 +32,7 @@ function finishedRun() {
     work => work(board), { agent: 'seat', files: ['test/a.test.js'] }, { launch: () => ({ unref() {} }) }));
   const cases = [['test/a.test.js', 'clause 1: first', true, false], ['test/a.test.js', 'clause 2: second', false, false], ['test/b.test.js', 'clause 3: third', true, true]];
   const full = Array.from({ length: 2000 }, (_, at) => `ok ${at + 1} - clause ${at + 1}: padding case number ${at + 1} of the big run\n`).join('') + cases.map(row => frame(...row)).join('');
-  const log = join(box.root, 'output.log');
+  const log = join(box.dir, 'output.log');
   writeFileSync(log, full.slice(-40_000));
   assert.ok(full.length > 40_000 && statSync(log).size <= 40_000, 'the log was cut to its last 40 KB');
   assert.ok(!readFileSync(log, 'utf8').includes('ok 1 - clause 1:'), 'the cut lost the first TAP lines');
