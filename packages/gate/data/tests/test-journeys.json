@@ -1017,29 +1017,6 @@
         "spawns a child process (apps/cli/tests/fixtures/runners.js)"
       ]
     },
-    "apps/cli/journeys/flow/replay/policy.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "outbox",
-        "stats"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/logic/native.js)"
-      ]
-    },
-    "apps/cli/journeys/flow/replay.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "outbox",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/logic/native.js)",
-        "spawns a child process (apps/cli/tests/fixtures/child.js)"
-      ]
-    },
     "packages/gate/tests/fixtures/file-pool.js": {
       "cells": [
         "gate",

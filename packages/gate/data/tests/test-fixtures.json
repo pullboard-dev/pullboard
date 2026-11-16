@@ -887,11 +887,6 @@
   "apps/cli/journeys/merged/ratchet-landing.test.js": {
     "raw-board": 5
   },
-  "apps/cli/journeys/flow/replay.test.js": {
-    "tempdir": 2,
-    "hand-policy": 1,
-    "raw-board": 7
-  },
   "apps/lib/tests/flow/report/cache.test.js": {
     "tempdir": 2,
     "raw-board": 8
@@ -1475,9 +1470,6 @@
   },
   "apps/cli/journeys/doctrine/readme.test.js": {
     "repo-read": 17
-  },
-  "apps/cli/journeys/fact/timing.test.js": {
-    "raw-board": 2
   },
   "apps/lib/tests/lapse/idle.test.js": {
     "tempdir": 2,

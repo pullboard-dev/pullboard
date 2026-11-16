@@ -42,7 +42,6 @@ export const BOARD_FILE_BASELINE = {
   "apps/cli/journeys/verify/checks-large-output.test.js": 1,
   "packages/store/tests/engine-replay.test.js": 2,
   "apps/cli/journeys/engine/exchange.test.js": 14,
-  "apps/cli/journeys/flow/replay.test.js": 2,
   "apps/cli/journeys/flow/api.test.js": 1,
   "apps/lib/tests/flow/report.test.js": 2,
   "apps/cli/journeys/gate/profile.test.js": 1,
