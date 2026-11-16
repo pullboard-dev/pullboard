@@ -13,12 +13,12 @@ const PHONE_C = 'device-' + '3'.repeat(32);
 /** Serve fixed roster documents on a loopback port; return the state a roster read needs and a closer. */
 async function relay() {
   const answers = {
-    '/api/v1/devices': { devices: [
+    '/api/v1/devices': { version: 1, devices: [
       { deviceId: PHONE_A, seen: 5, engine: 7 },
       { deviceId: PHONE_B, seen: 6 },
       { deviceId: PHONE_C, seen: 7, engine: 'seven' },
     ] },
-    ['/auth/machines?board=' + BOARD]: { machines: [
+    ['/auth/machines?board=' + BOARD]: { version: 1, machines: [
       { machine: 'mac-alpha', name: 'alpha', created: 1, seen: 2, engine: 9 },
       { machine: 'mac-beta', name: 'beta', created: 1, seen: 2 },
       { machine: 'mac-self', name: 'self', created: 1, seen: 2, engine: 4 },
