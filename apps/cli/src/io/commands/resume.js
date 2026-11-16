@@ -10,6 +10,7 @@ import { counterProofStats } from '../../../../../packages/verify/index.js';
 import { localDependencyIds } from '../../../../../packages/items/index.js';
 import { automaticLandingEnabled } from '../../../../../packages/merge/index.js';
 import { mainPolicy } from '../../../../../packages/sandbox/index.js';
+import { adoptOrphanedClaim } from '../resume/adopt.js';
 import { landingWaits } from '../landing/waiting.js';
 import { landingWaitLine } from '../landing/waiting.js';
 /** The pullboard resume command, in its own module so an item adding another command never edits these lines. */
@@ -175,6 +176,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
     }]));
   }
   resumeSentinels({ ctx, withBoard: withBoardRead });
+  await adoptOrphanedClaim(io, ctx);
   const { root, isMain } = ctx.info;
   let mainRoot = null;
   let worktreeConfig = null;
