@@ -28,7 +28,7 @@ const RUN_COMMAND = 'apps/cli/src/io/main.js#main';
 /**
  * Further walk roots a caller may name through `extraRoots`: the materializer worker (every function in its file, as
  * it answers the API off the request path) and the rule-proof append. A root is `file#function`, or a bare `file`
- * for every function in it. Off by default, so today's known set is unchanged [#9677].
+ * for every function in it. The walk only adds these roots when its caller opts in [#9677].
  */
 export const EXTRA_REQUEST_ROOTS = Object.freeze([
   'packages/api/src/io/state/materializer/worker.js',
@@ -39,6 +39,12 @@ export const EXTRA_REQUEST_ROOTS = Object.freeze([
 const BLOCKING = /^(?:(?:node:)?child_process#(?:spawnSync|execSync|execFileSync)|(?:node:)?fs#readdirSync|global:Atomics#wait|.*#(?:gitSpawnSync|gitExecFileSync))$/u;
 /** `Atomics.wait` is a global, so no import resolves it: a call by that name is the blocking one unless the module declares its own `Atomics`. */
 const ATOMICS_WAIT = Object.freeze({ builtin: 'global:Atomics', name: 'wait' });
+
+/** Blocking calls reachable only through the additional walk roots. */
+const EXTRA_REQUEST_BLOCKERS = Object.freeze({
+  'packages/api/src/io/state/materializer/worker.js#codeStamp': 'materializer worker lists its source directory synchronously for its code stamp',
+  'packages/api/src/io/state/materializer/worker.js#walk': 'materializer worker recurses through its source tree with synchronous directory reads',
+});
 
 /**
  * Today's request-path synchronous calls, keyed by the file and function that make the call. The set may
@@ -85,23 +91,35 @@ export const KNOWN_REQUEST_BLOCKERS = Object.freeze({
   'packages/verify/src/io/verdict/freshness.js#composesUnchanged': 'verdict freshness compares composes with synchronous git',
   'packages/verify/src/io/verdict/freshness.js#verdictProjector': 'verdict projection asks git for ancestry synchronously',
   'packages/verify/src/io/verdict/freshness.js#ancestryStatus': 'verdict ancestry check runs synchronous git',
+  ...EXTRA_REQUEST_BLOCKERS,
 });
+
+const BASE_REQUEST_BLOCKERS = Object.freeze(Object.fromEntries(
+  Object.entries(KNOWN_REQUEST_BLOCKERS).filter(([owner]) => !(owner in EXTRA_REQUEST_BLOCKERS)),
+));
 
 const REQUEST_FILE = 'packages/gate/src/io/board/request.js';
 const KNOWN_ROW = /^\s*'([\w./-]+\.js#[\w$]+)':\s*(?:'(.*)'|"(.*)"),?\s*$/gmu;
 
-/**
- * The known request blockers a candidate tree itself declares, read from its copy of this file's list, so a commit that
- * removes a blocker together with its row gates clean. A tree without the list keeps the running copy [#7340].
- * @param {{file:string,source:string}[]} sources Runtime source inventory of the candidate tree.
- * @returns {Record<string,string>} Owner to why.
- */
-export function candidateKnownBlockers(sources) {
-  const source = sources.find(row => row.file === REQUEST_FILE)?.source ?? '';
-  const start = source.indexOf('KNOWN_REQUEST_BLOCKERS = Object.freeze({');
-  if (start < 0) return KNOWN_REQUEST_BLOCKERS;
+/** Read one blocker list from the candidate source without executing candidate tooling. */
+function readBlockerList(source, name) {
+  const start = source.indexOf(name + ' = Object.freeze({');
+  if (start < 0) return null;
   const body = source.slice(start, source.indexOf('\n});', start));
   return Object.fromEntries([...body.matchAll(KNOWN_ROW)].map(row => [row[1], row[2] ?? row[3]]));
+}
+
+/**
+ * Read the candidate tree's known blockers so it can remove a blocker together with its row [#7340].
+ * @param {{file:string,source:string}[]} sources Runtime source inventory of the candidate tree.
+ * @param {{includeExtra?:boolean}} [options] Include the known blockers for the extra roots.
+ * @returns {Record<string,string>} Owner to why.
+ */
+export function candidateKnownBlockers(sources, { includeExtra = false } = {}) {
+  const source = sources.find(row => row.file === REQUEST_FILE)?.source ?? '';
+  const base = readBlockerList(source, 'KNOWN_REQUEST_BLOCKERS') ?? BASE_REQUEST_BLOCKERS;
+  if (!includeExtra) return base;
+  return { ...base, ...(readBlockerList(source, 'EXTRA_REQUEST_BLOCKERS') ?? {}) };
 }
 
 /**
@@ -112,7 +130,7 @@ export function candidateKnownBlockers(sources) {
  * @param {{known?:Record<string,string>,extraRoots?:string[]}} [options] The listed known violations, each with its one-line why; `extraRoots` names further walk roots (default none).
  * @returns {{file:string,line:number,call:string,owner:string,chain:string[],stale?:boolean}[]}
  */
-export function apiRequestIoProblems(sources, { known = KNOWN_REQUEST_BLOCKERS, extraRoots = [] } = {}) {
+export function apiRequestIoProblems(sources, { known = BASE_REQUEST_BLOCKERS, extraRoots = [] } = {}) {
   const { modules, targets } = callGraph(sources, { barrels: true });
   const seen = new Set(), found = new Map();
   /** Walk one function's calls; the first path to a function is the chain reported for it. */
