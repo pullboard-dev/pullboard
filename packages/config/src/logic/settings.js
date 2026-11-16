@@ -253,6 +253,9 @@ export function loadMachineSettings() {
   if (value.next?.itemNotices !== undefined && typeof value.next.itemNotices !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `next.itemNotices in ${file} must be true or false`);
   }
+  if (value.submit?.proofOnly !== undefined && typeof value.submit.proofOnly !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `submit.proofOnly in ${file} must be true or false`);
+  }
   if (value.gate?.namedImportSelection !== undefined && typeof value.gate.namedImportSelection !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.namedImportSelection in ${file} must be true or false`);
   }
@@ -349,6 +352,12 @@ export function listThinRead() {
  */
 export function namedImportSelectionOn() {
   return loadMachineSettings().gate?.namedImportSelection === true;
+}
+
+
+/** Whether a submit with no change may pass for an item that is all ticked proof clauses (#9105): off by default; only an exact `true` turns it on. */
+export function submitProofOnly() {
+  return loadMachineSettings().submit?.proofOnly === true;
 }
 
 
