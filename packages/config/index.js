@@ -96,6 +96,7 @@ export {
   nextItemNotices,
   nextReadinessCheck,
   refuseTempWorktree,
+  claimKeepWhileRunning,
   refuseOffMainHead,
   refuseEmptyBar,
   viewBackgroundEnabled,
