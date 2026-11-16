@@ -52,6 +52,7 @@ export {
   censusJobMinutes,
   censusJobsPerRunner,
   jobsAvoidRunnersEnabled,
+  flakesRereadRatchetEnabled,
   pushRerunFailedShardOnceEnabled,
   tableReplayEnabled,
   testNiceEnabled,

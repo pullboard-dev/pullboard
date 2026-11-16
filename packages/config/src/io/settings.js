@@ -304,6 +304,11 @@ export function reviewReleaseReasonsRequired() {
   return loadMachineSettings().review?.releaseReasons === true;
 }
 
+/** Whether flakes.rereadRatchet is on (#9436): off by default; only an exact `true` lets a batch record re-read the flake ratchet in its write transaction. */
+export function flakesRereadRatchetEnabled() {
+  return loadMachineSettings().flakes?.rereadRatchet === true;
+}
+
 /** Whether test.statusOutcomes is on (#9085): off by default; only an exact `true` turns it on. */
 export function testStatusOutcomesEnabled() {
   const group = loadMachineSettings().test;
