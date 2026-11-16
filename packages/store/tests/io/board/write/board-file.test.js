@@ -21,12 +21,12 @@ function writeAndRead(t) {
       else process.env[key] = value;
     }
   });
-  const project = cellProject(t);
+  const project = cellProject(t, { real: true });
   const home = join(project.repo, 'hold-home');
   mkdirSync(home);
   process.env.PULLBOARD_MACHINE_HOME = home;
   process.env[HOLD_LOG_ALL_ENV] = '1';
-  const board = cellBoard(t, project.boardFile, undefined, { gitRoot: project.repo });
+  const board = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: project.repo });
   const seat = cellSeat(board, { lane: 'web', path: project.repo });
   const item = cellItem(board, { lane: 'web', title: 'Board file fixture', specIds: ['G1'], route: 'strong', criterion: 'the fixture works' }).item_id;
   appendFact(board, item, { agentId: seat.id, kind: 'note', text: 'observation' });
