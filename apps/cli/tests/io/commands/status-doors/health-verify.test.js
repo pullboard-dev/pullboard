@@ -1,6 +1,7 @@
 /** @pullboard-test-input source-cell apps/cli packages/health */
 /**
- * pullboard status reaches the health cell only through its light door and the verify cell only through one call-site import, so no heavy barrel loads at startup [C7,#8645].
+ * pullboard status reaches the health and verify cells only through one call-site import each, so no heavy barrel loads at startup [C7,#8645].
+ * The health names left the health light door (11a333c0c1 put them there): they pull the store index, and the door's cold load went over its 100 ms budget.
  * Why static: the modules a command loads are the ones its import statements name, so no process is launched.
  */
 import assert from 'node:assert/strict';
@@ -22,25 +23,34 @@ function importedFrom() {
   return found;
 }
 
-test('clause 1: status imports every health name through the health light door [C7]', () => {
-  const from = importedFrom();
-  for (const name of HEALTH) assert.ok(from.get(name)?.endsWith('/packages/health/light.js'), `${name} comes from ${from.get(name)}, not packages/health/light.js`);
+/** The names a lazy `await import(...)` of one cell barrel destructures in status.js, with the match. */
+function lazyImport(cell) {
+  const lazy = STATUS.match(new RegExp(`const \\{([^}]*)\\} = await import\\('[^']*packages\\/${cell}\\/index\\.js'\\);`, 'u'));
+  return lazy && { text: lazy[0], names: lazy[1].split(',').map(name => name.trim()).sort() };
+}
+
+test('clause 1: status takes every health name from one lazy call-site import inside run [C7]', () => {
+  const lazy = lazyImport('health');
+  assert.ok(lazy, 'no lazy health import in status.js');
+  assert.deepEqual(lazy.names, [...HEALTH].sort());
+  assert.ok(STATUS.indexOf(lazy.text) > STATUS.indexOf('export async function run('), 'the health import sits outside run');
 });
 
-test('clause 1: status keeps no static import of a health barrel or any verify module [C7]', () => {
+test('clause 1: status keeps no static import of any health or verify module [C7]', () => {
   const paths = [...STATUS.matchAll(/^(?:import|export)\s[^;]*?from\s*'([^']*packages\/(?:health|verify)\/[^']*)'/gmu)].map(match => match[1]);
-  assert.ok(paths.some(path => path.endsWith('/packages/health/light.js')));
-  assert.deepEqual(paths.filter(path => !path.endsWith('/packages/health/light.js')), []);
+  assert.deepEqual(paths, []);
+  const from = importedFrom();
+  for (const name of HEALTH) assert.equal(from.get(name), undefined, `${name} is imported statically from ${from.get(name)}`);
 });
 
 test('clause 1: status takes every verify name from one lazy call-site import inside run [C7]', () => {
-  const lazy = STATUS.match(/const \{([^}]*)\} = await import\('[^']*packages\/verify\/index\.js'\);/u);
+  const lazy = lazyImport('verify');
   assert.ok(lazy, 'no lazy verify import in status.js');
-  assert.deepEqual(lazy[1].split(',').map(name => name.trim()).sort(), [...VERIFY].sort());
-  assert.ok(STATUS.indexOf(lazy[0]) > STATUS.indexOf('export async function run('), 'the verify import sits outside run');
+  assert.deepEqual(lazy.names, [...VERIFY].sort());
+  assert.ok(STATUS.indexOf(lazy.text) > STATUS.indexOf('export async function run('), 'the verify import sits outside run');
 });
 
-test('clause 1: the health light door exports the names status takes from it [C7]', () => {
+test('clause 1: the health light door re-exports none of the names status loads lazily [C7]', () => {
   const door = readFileSync(resolve(REPO, 'packages/health/light.js'), 'utf8');
-  for (const name of HEALTH) assert.match(door, new RegExp(`\\b${name}\\b`, 'u'), `packages/health/light.js does not export ${name}`);
+  for (const name of HEALTH) assert.doesNotMatch(door, new RegExp(`\\b${name}\\b`, 'u'), `packages/health/light.js still exports ${name}`);
 });

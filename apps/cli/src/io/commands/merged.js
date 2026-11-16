@@ -58,7 +58,7 @@ async function refreshMap(ctx, io, board, trunk) {
   const root = primaryCheckoutRoot(ctx.info);
   if (!root) return;
   try {
-    await warnMainMoved({ root, board, trunk, write: (operation, args) => ordered(ctx, board, operation, args), say: text => io.say(text) }, { listAgents: store.listAgents, listItems: store.listItems });
+    await warnMainMoved({ root, board, trunk, write: (operation, args) => ordered(ctx, board, operation, args), say: text => io.say(text) }, { listAgents: store.listAgents, listItems: store.listItems, submitHandoff: store.submitHandoff });
   } catch (error) { io.say('main-move warnings deferred: ' + error.message); }
   try {
     const { refreshLandedCodeMap } = await import('../../../../../packages/codemap/index.js');
