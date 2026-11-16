@@ -26,6 +26,7 @@ import {
 } from '../support.js';
 import {
   COORDINATOR,
+  cascadeRejectEnabled,
   DOCTRINE_FILE,
   LEGACY_DOCTRINE_FILE,
 } from '../../../../../packages/config/index.js';
@@ -198,7 +199,8 @@ export async function specCommand(io, { first, second, rest, values }) {
     const source = readFileSync(spec.file, 'utf8').split(/\r?\n/u)[rows[0].line - 1];
     return withBoard(ctx, async board => {
       const me = whoAmI(ctx, board);
-      const receipt = await ordered(ctx, board, 'recordRowVerification', [{ agentId: me.id, source, decision: rest[0], reason: values.reason }]);
+      const receipt = await ordered(ctx, board, 'recordRowVerification', [{ agentId: me.id, source, decision: rest[0], reason: values.reason,
+        ...(cascadeRejectEnabled() ? { cascade: spec.rows.map(row => ({ id: row.id, serves: row.serves })) } : {}) }]);
       io.result?.({ verification: receipt });
       io.say(`${receipt.id}: ${receipt.decision} by ${receipt.by}; ask the coordinator to run pullboard spec apply`);
       return 0;
