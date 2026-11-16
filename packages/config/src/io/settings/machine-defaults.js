@@ -8,6 +8,7 @@ export const MACHINE_DEFAULTS = {
   'census.balanceByTime': false,
   'census.jobMinutes': null,
   'census.jobsPerRunner': null,
+  'census.jobsPerRunnerQuiet': null,
   'census.recordFileTimes': false,
   'census.rerunNonGreen': false,
   'census.rerunOnSettle': false,
