@@ -142,6 +142,8 @@ export {
   recordCoordinatorUsage,
   costTotals,
   budgetState,
+  budgetClaimRefusal,
+  machineBudgetState,
   storedSeatUsage,
 } from './src/io/cost.js';
 export {

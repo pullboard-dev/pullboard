@@ -106,7 +106,7 @@ test('clause 1: a green gate queues no flake diagnostic, and a diagnostic held b
     collectedGate(db, { id: 'g3', item: 78, commit, tree, statuses: { s0: 0 }, now: 1000 });
     const failures = () => [{ file: 'test/a.test.js', case: 'adds' }];
     const green = await driveOnce(db, 'g3', { owner: 'driver-a', transport: noTransport, failures, now: () => 1000 });
-    assert.equal(green.job.steps.at(-1).payload.verdict, 'green');
+    assert.equal(green.job.steps.find(s => s.name === 'verdict').payload.verdict, 'green');
     assert.deepEqual(jobsOf(db, { kind: FLAKE_DIAGNOSE_KIND }), [], 'only a red verdict queues diagnostics');
 
     const [id] = queueFlakeDiagnoses(db, { id: 'g4', item: 78, candidate: commit }, tree, failures(), { now: 2000 });

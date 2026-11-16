@@ -231,6 +231,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `hook commit-msg` | `version:number`, `messages:array` |
 | `hook pre-push` | `version:number`, `messages:array` |
 | `tool-build` | `version:number`, `build:object\|null` |
+| `cells` | `version:number`, `cells:array`, `unsealed:array` |
 | `compact` | `version:number`, `days:number`, `jobs:number`, `rows:number`, `before:number`, `after:number` |
 | `contribute` | `version:number`, `file:string`, `shape:string`, `ok:boolean`, `failures:array` |
 | `explain` | `version:number`, `table:string`, `guards:array`, `outcomes:array` |

@@ -21,3 +21,31 @@ export function buildCheckpoint(parts = {}) {
     tokens: Number.isFinite(parts.tokens) ? parts.tokens : null,
   };
 }
+
+/** The four seat-loop moments that record a checkpoint, as the fact text names them. */
+export const CHECKPOINT_MOMENTS = Object.freeze(['claim', 'submit', 'exit-stop', 'handoff']);
+
+/**
+ * The note text one checkpoint fact carries: its moment, then the five parts as JSON.
+ *
+ * Why one text shape: a later session or harness reads these facts back from the board, so claim, submit, exit stop and handoff share a single reader.
+ *
+ * @param {string} moment One of CHECKPOINT_MOMENTS.
+ * @param {ReturnType<typeof buildCheckpoint>} fact The checkpoint from buildCheckpoint.
+ * @returns {string}
+ */
+export function checkpointText(moment, fact) {
+  return `Checkpoint at ${moment}: ${JSON.stringify(fact)}`;
+}
+
+/**
+ * Read a checkpoint fact's text back into its moment and five parts, or null when the text is not a checkpoint.
+ *
+ * @param {string} text A fact's text.
+ * @returns {{ moment: string, fact: ReturnType<typeof buildCheckpoint> } | null}
+ */
+export function readCheckpoint(text) {
+  const found = /^Checkpoint at (claim|submit|exit-stop|handoff): (\{.*\})$/su.exec(String(text));
+  if (!found) return null;
+  try { return { moment: found[1], fact: buildCheckpoint(JSON.parse(found[2])) }; } catch { return null; }
+}
