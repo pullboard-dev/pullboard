@@ -17,7 +17,7 @@ const IDENTITY = ['-c', 'user.name=Overlap Test', '-c', 'user.email=overlap@exam
 /** The cells step: runs 2 s, writes when it ended, and exits with the code it was given. */
 const staticScript = (marks, code) => `import { writeFileSync } from 'node:fs';\nsetTimeout(() => { writeFileSync(${JSON.stringify(join(marks, 'static-ended'))}, String(Date.now())); process.exit(${code}); }, 2000);\n`;
 /** The proof test: writes when it started, so the test can order it against the cells step. */
-const proofScript = marks => `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(join(marks, 'proof-started'))}, String(Date.now()));\n`;
+const proofScript = marks => `import { writeFileSync } from 'node:fs';\nimport { add } from './add.js';\nif (add(1, 2) !== 3) throw new Error('add');\nwriteFileSync(${JSON.stringify(join(marks, 'proof-started'))}, String(Date.now()));\n`;
 
 /** Commit the given files into a private repository and return the new commit id. */
 function commit(root, files) {
