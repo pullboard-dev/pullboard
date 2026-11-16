@@ -11,3 +11,12 @@ test('clause 1: the landing guard imports browserFreeChecksEnabled from the conf
   assert.match(SOURCE, /import \{ browserFreeChecksEnabled \} from '(?:\.\.\/)+config\/light\.js';/u);
   assert.doesNotMatch(SOURCE, /config\/index\.js/u);
 });
+
+test('clause 1: the landing guard imports nothing from the gate door and its exported guard function takes the six gate functions through a ports argument [C7]', () => {
+  assert.doesNotMatch(SOURCE, /gate\/index\.js/u);
+  assert.match(SOURCE, /export async function runLocalLandingGuard\(root, config, \{[^}]*\}, ports\)/u);
+  const taken = SOURCE.match(/const \{([^}]*)\} = ports;/u)?.[1] ?? '';
+  for (const name of ['runProfiledShellAsync', 'pinRunMain', 'withLandingGateSlot', 'landingControllerPlacement', 'testsNeedBrowser', 'testsNeedGui']) {
+    assert.match(taken, new RegExp(`\\b${name}\\b`, 'u'), `${name} comes from ports`);
+  }
+});
