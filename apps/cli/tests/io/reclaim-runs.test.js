@@ -1,6 +1,9 @@
+/** @pullboard-test-input source-tree */
 /** The reclaim fallback opens the runs file only while runs_store is on, and ends a lapsed gate job where it lives [P7,#9113]. */
+/** @pullboard-world-pin: clause 2 reads the shipped reclaim.js source to prove it imports the store barrel only dynamically. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
@@ -51,4 +54,10 @@ test('clause 1: with runs_store off, status reclaims on the board and opens no r
   assert.equal(status.code, 0, `${status.out}${status.err}`);
   assert.notEqual(stepsOf(given).board, 'queued', 'the board job was ended by the fallback');
   assert.equal(existsSync(runsFilePath(given.file)), false, 'no runs file was made');
+});
+
+test('clause 2: reclaim.js imports the store barrel only dynamically, so next and status load no sqlite.js with runs_store off [P7,#9113]', () => {
+  const source = readFileSync(new URL('../../src/io/reclaim.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /^import\s[^;]*packages\/store\/index\.js/mu, 'no static import of the store barrel');
+  assert.match(source, /await import\('[./]+packages\/store\/index\.js'\)/u, 'the barrel loads through a dynamic import, behind the flag check');
 });
