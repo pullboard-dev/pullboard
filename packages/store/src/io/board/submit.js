@@ -25,6 +25,7 @@ import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from "../../../../state/light.js";
 
 import { committedItemAuthors } from "../../../../verify/index.js";
 import { sealItemPatchSubmit } from "../../../../items/index.js";
+import { fileMiss } from "../../../../items/index.js";
 import { checkItemPatchSubmit } from "../../../../items/index.js";
 import { startItemPatchObjectionWindow } from "../../../../items/index.js";
 import { requireStrictBuilderFamily } from "../../../../verify/index.js";
@@ -84,13 +85,15 @@ export function sealStrictRenames(board, id, options) {
   const configured = policy.config.intake?.sensitivePaths ?? [];
   if (!Array.isArray(configured) || configured.some(path => typeof path !== 'string' || !path))
     throw new Refused('BAD_CONFIG', 'intake.sensitivePaths must name relative sensitive files or directory prefixes');
+  // Once review defaults are active an edit in place to a gate path is standard, so only a configured sensitive path's rename stays strict [C7,#8575].
+  const defaults = Boolean(board.db.prepare("SELECT 1 FROM board_meta WHERE meta_key='review_default:active'").get());
   const strictRenames = [];
   for (let i = 0; i < fields.length && fields[i];) {
     const status = fields[i++], oldPath = fields[i++];
     if (status.startsWith('R') || status.startsWith('C')) {
       const newPath = fields[i++];
       const sensitive = configured.some(path => oldPath === path || path.endsWith('/') && oldPath.startsWith(path));
-      if (status.startsWith('R') && (gateJudgmentPath(oldPath) || sensitive)) strictRenames.push([oldPath, newPath]);
+      if (status.startsWith('R') && (!defaults && gateJudgmentPath(oldPath) || sensitive)) strictRenames.push([oldPath, newPath]);
     }
   }
   return { ...options, strictRenames };
@@ -245,6 +248,9 @@ export function submit(board, id, options) {
     });
     recordSubmissionEvent(board, id, { agentId, commit, tree, policyCommit, note, recordedProof, infra, tooling,
       modern, gateGreen, companion, quarantineProofIds, carry, mergeOnly, recordedSize, engineVersion: board.executionEngineVersion ?? ENGINE_VERSION, shadow, live });
+    // claims.fileLease on: a submission whose changed files part from the predicted ones leaves a miss on the item [C7,#8522].
+    const miss = board.fileLease && !carry ? fileMiss(getItem(board, id), files, board.fileLease.hubs) : null;
+    if (miss) logEvent(board, agentId, 'file_miss', id, miss);
     startItemPatchObjectionWindow(board, id, { agentId, commit }, { logEvent });
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= MACHINE_VERDICT_ENGINE
       && options.machineReceipts !== undefined && machineVerificationEligible(board, getItem(board, id), files)) {
