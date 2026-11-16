@@ -210,5 +210,8 @@ export function run(io, { first, second, rest, values }) {
     const label = row.item ?? row.lane ?? row.milestone ?? row.model;
     io.say(`usage ${group} ${label}: input ${row.inputTokens ?? 'unknown'} (fresh ${row.freshInputTokens ?? 'unknown'}, cached read ${row.cacheReadInputTokens ?? 'unknown'}, cached write ${row.cacheWriteInputTokens ?? 'unknown'}), output ${row.outputTokens ?? 'unknown'}, ${row.wallMs} ms${row.unknownReasons.length ? '; unknown: ' + row.unknownReasons.join(', ') : ''}${dollarText(row)}${group === 'items' ? runnerCostText(runnerCosts, label) : ''}`);
   }
+  // The coordinator's recorded sessions on a line of their own; none recorded reads unknown, never zero [C7].
+  const own = usage.coordinator;
+  if (own) io.say(`usage coordinator: ${own.sessions} sessions, input ${own.inputTokens ?? 'unknown'} (fresh ${own.freshInputTokens ?? 'unknown'}, cached read ${own.cacheReadInputTokens ?? 'unknown'}, cached write ${own.cacheWriteInputTokens ?? 'unknown'}), output ${own.outputTokens ?? 'unknown'}${own.unknownReasons.length ? '; unknown: ' + own.unknownReasons.join(', ') : ''}${dollarText(own)}`);
   return 0;
 }
