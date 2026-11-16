@@ -10,6 +10,7 @@ import { gitSpawn } from '../../../git/light.js';
 import { gitSpawnSync } from '../../../git/light.js';
 import { repoInfo } from '../../../git/light.js';
 import { tryGit } from '../../../git/light.js';
+import { addWorktree } from '../../../git/index.js';
 import { Refused } from '../../../kernel/light.js';
 import { bundleName } from '../logic/names.js';
 import { isObjectId } from '../logic/names.js';
@@ -205,6 +206,11 @@ export function parseBundle(bytes) {
   return { prerequisites, refs, pack: bytes.subarray(end + 2) };
 }
 
+/** Open a detached host folder at one commit through the git cell's one worktree entry point; false when git refuses. */
+function addedWorktree(root, folder, head) {
+  try { addWorktree(root, ['--quiet', '--detach', folder, head]); return true; } catch { return false; }
+}
+
 /**
  * Check one move's carried commits against the claim, index them under refs/pullboard/remote/<agent>/item-<id>, and
  * return the host folder whose detached head is the seat's commit, for the submit to run in.
@@ -239,7 +245,7 @@ export function receiveCommits(root, body, seat, readBoard, getItem) {
   const folder = join(repoInfo(root).commonDir, 'pullboard', 'remote-items', `${agent}-item-${item}`);
   const placed = existsSync(folder)
     ? tryGit(folder, ['checkout', '--quiet', '--force', '--detach', commits.head]).status === 0 && tryGit(folder, ['clean', '-fdq']).status === 0
-    : tryGit(root, ['worktree', 'add', '--quiet', '--detach', folder, commits.head]).status === 0;
+    : addedWorktree(root, folder, commits.head);
   if (!placed) throw new Refused('COMMITS_REFUSED', `the board host could not check out ${commits.head.slice(0, 12)} in ${folder}; remove that folder on the host and submit again`);
   return folder;
 }
