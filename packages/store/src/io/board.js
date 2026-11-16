@@ -401,6 +401,8 @@ export { factReference };
 
 export { itemThread } from "./board/query.js";
 
+export { itemThreads } from "./board/query.js";
+
 /** The enclosing move's transaction owns these implicit notices; older replay emits none. */
 export function postRigorNotices(board, trigger) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < RIGOR_NOTICE_ENGINE) return;
