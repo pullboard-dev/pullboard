@@ -37,7 +37,7 @@ function milestoneItem(entry, p, counting = false) {
   const read = item || (FLOW.states.some((state) => state.id === entry.status) ? { status: entry.status, verdict: null } : null);
   const stage = entry.state === 'landed' ? 'merged' : entry.state === 'accepted' ? 'accepted' : item ? pipelineStage(item) : entry.status;
   // A count reads a row's state, stage, hold and place alone, and draws nothing (#6851).
-  if (counting) return { label, position: entry.position, state: read ? stateOf(read) : null, held: item ? heldNote(item, source, entry, Date.now()) : null, stage };
+  if (counting) return { label, position: entry.position, state: read ? (entry.state === 'landed' ? 'verified' : stateOf(read)) : null, held: item ? heldNote(item, source, entry, Date.now()) : null, stage };
   const expanded = view.tab === 'roadmap' && view.roadmapOpen.get(JSON.stringify([view.root, 'i:' + label])) === true;
   // A folded row holds whatever detail is already kept, so it opens in place whole (#1039).
   const detail = item ? detailOf(source, item, expanded, root) : null;
@@ -69,7 +69,7 @@ function milestoneItem(entry, p, counting = false) {
     title: item ? item.title : read ? entry.title : '',
     root,
     titles: renderIndex(source).titles,
-    state: read ? stateOf(read) : null,
+    state: read ? (entry.state === 'landed' ? 'verified' : stateOf(read)) : null,
     stageHtml: read ? stageMarkup(item || { ...read, status: entry.state === 'accepted' || entry.state === 'landed' ? 'verified' : read.status,
       merged: entry.state === 'landed' ? 'recorded' : null }, source || {}, item?.status === 'open' && Boolean(item.blockedBy?.length || heldNote(item, source, entry, Date.now())), heldNote(item, source, entry, Date.now()) || '', item ? itemStageMarks(item, source) : [], false, true) : '',
     stale: item ? staleChip(item) : '', held: item ? heldNote(item, source, entry, Date.now()) : null,

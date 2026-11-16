@@ -1,5 +1,5 @@
 /**
- * Under gate.runnerDispatch pull, or for an item the gate.pullPilot setting picks, a submit offers its whole gate as one
+ * A submit offers its whole gate as one
  * runner job row and returns: authorization, doctrine, static checks, cells, test selection and the tests all run inside
  * that job on a runner, which posts one receipt. The submitting host starts no dispatcher, driver or worker process [P7].
  */
@@ -10,7 +10,6 @@ import { endGateHop } from '../../../../../packages/api/index.js';
 import { submitGateHop } from './hop.js';
 import { pulledGateReds } from '../../../../../packages/api/index.js';
 import { mappedCheck } from '../../../../../packages/codemap/index.js';
-import { pullGateFor } from '../../../../../packages/config/index.js';
 import { browserFreeChecksEnabled } from '../../../../../packages/config/index.js';
 import { hasSubmitRules } from '../../../../../packages/doctrine/index.js';
 import { submitRulesNarrowable } from '../../../../../packages/doctrine/index.js';
@@ -35,6 +34,8 @@ import { whoAmI } from '../entry.js';
 import { deliverSubmitActivity } from '../submit.js';
 import { ANALYSIS_ENTRY } from './gate.js';
 import { BOOTSTRAP } from './gate.js';
+import { submitTableReplay } from './gate.js';
+import { tableReplayEnabled } from '../../../../../packages/config/index.js';
 import { DOCTRINE_ENTRY } from './gate.js';
 import { inventoryCommits } from './remote.js';
 import { ensureLocalRunner } from '../runner/local.js';
@@ -412,12 +413,10 @@ export function itemPulledReds(board, id) {
 }
 
 /**
- * True when this item's submit offers its gate as a row instead of driving it: under gate.runnerDispatch pull, or when
- * the gate.pullPilot setting names the item or takes it in its share; everything else stays on the controller path [P7].
- * @param {number} item
+ * True when this item's submit offers its gate as a row instead of driving it: always, since every runner job is a row [P7].
  */
-export function pullGateWanted(item) {
-  return pullGateFor(item);
+export function pullGateWanted() {
+  return true;
 }
 
 /**
@@ -447,6 +446,16 @@ export function gateJobRequest(pinned) {
   const analysis = { main, source, ...rest, check, inventory: null, ...(produceInventory.length ? { produceInventory } : {}), staticChecks: rest.config?.staticChecks ?? '',
     collectMachinery: true, perPart: true, ...(doctrine ? { doctrine: { options: doctrine, entry: DOCTRINE_ENTRY } } : {}), ...(authorization ? { authorization } : {}) };
   return { run: gateJobRun(), input: { main, entry: GATE_JOB_ENTRY, data: { analysis, analysisEntry: ANALYSIS_ENTRY, check, shards: true, ...(checkTiming === true ? { checkTiming: true } : {}) } }, commits };
+}
+
+/**
+ * The gate a landing's proof shard runs on another runner: the gate job's argv and main's trusted gate entry, which the
+ * land job carries as shardProof when landing.shardProof is on [C7,#8255].
+ *
+ * @returns {{ run: string[], entry: string }}
+ */
+export function landingShardGate() {
+  return { run: gateJobRun(), entry: GATE_JOB_ENTRY };
 }
 
 /**
@@ -503,12 +512,15 @@ export function pairRequest(root, { main, config, source, check }, pairPrefix) {
  *   item's commits changed since its claim, which the board records when the receipt submits the item. companion: the
  *   attached companions composed onto the builder head, or null. infra: the drafted infra note the receipt records with the submit.
  * @param {{ frozenCheck: Function, policyAt: Function, listItems: Function, pairPrefix?: Function }} ports - The sandbox and store reads the submit command
- *   already holds; pairPrefix names a paired rerun's runner when flakes.rerun is on.
+ *   already holds; pairPrefix names a paired rerun's runner when flakes.rerun is on; tableReplay is the move-table replay hook, which a test hands in its own.
  * @returns {Promise<number>} The exit code.
  */
-export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, claimHead, files, requireComposition, authorize, full, companion = null, infra = null }, { frozenCheck, policyAt, listItems, pairPrefix }) {
+export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, claimHead, files, requireComposition, authorize, full, companion = null, infra = null }, { frozenCheck, policyAt, listItems, pairPrefix, tableReplay = submitTableReplay(ctx.info.root) }) {
   const { root } = ctx.info;
   const id = held.item_id;
+  // With gate.tableReplay on, a submit whose files change a move table is held to what the board recorded before any job row is offered; off, nothing runs [C7,#8121].
+  // The replay loads the table from this checkout and reads the board here, which a runner has no copy of, so the offer is where it can run.
+  if (tableReplayEnabled()) await tableReplay({ root, changed: files });
   // The session ledger notes every submit as it did on the controller path; refuse before any job row when it cannot be written [V1,B3,#7725].
   noteSubmitSession(ctx.info, id, false);
   // The gate judges what would land: the builder head, or the companions composed onto it.
