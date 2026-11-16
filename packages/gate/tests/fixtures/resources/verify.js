@@ -25,7 +25,7 @@ export function checkProject(box, { bin }) {
   box.env.PULLBOARD_TEST_REUSE = '0';
   const repo = box.first;
   runFixtureGit(['branch', '-M', 'main'], { cwd: repo, env: box.env });
-  const initialized = runFixtureChild(process.execPath, [BIN, 'init'], { cwd: repo, env: box.env, encoding: 'utf8' });
+  const initialized = runFixtureChild(process.execPath, [bin, 'init'], { cwd: repo, env: box.env, encoding: 'utf8' });
   assert.equal(initialized.status, 0, initialized.stderr);
   const configPath = join(repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
