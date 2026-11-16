@@ -250,6 +250,9 @@ export function loadMachineSettings() {
   if (value.next?.itemNotices !== undefined && typeof value.next.itemNotices !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `next.itemNotices in ${file} must be true or false`);
   }
+  if (value.list?.thinRead !== undefined && typeof value.list.thinRead !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `list.thinRead in ${file} must be true or false`);
+  }
   const reserve = value.gate?.jobReserve;
   if (reserve != null && (typeof reserve !== 'object' || Array.isArray(reserve) || Object.values(reserve).some(share => !Number.isFinite(share) || share < 0 || share > 1)
     || Object.values(reserve).reduce((sum, share) => sum + share, 0) > 1)) {
@@ -319,6 +322,11 @@ export function loadMachineSettings() {
     throw new Refused('BAD_SHORT_SLOTS', `gate.shortSlots in ${file} must be a whole number, 0 or more; run pullboard settings gate.shortSlots <n>`);
   }
   return { ...value, gateSlots, browserSlots, ...(runners.length ? { runners } : {}) };
+}
+
+/** Whether pullboard list reads through the thin read door (#9089): off by default; only an exact `true` turns it on. */
+export function listThinRead() {
+  return loadMachineSettings().list?.thinRead === true;
 }
 
 
