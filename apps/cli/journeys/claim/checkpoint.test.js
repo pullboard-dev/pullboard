@@ -19,7 +19,7 @@ async function claimed(box, seat, title) {
   const id = box.add(title);
   const taken = await cli(box, seat.path, ['claim', String(id)]);
   assert.equal(taken.code, 0, taken.out + taken.err);
-  return { id, facts: itemThread(box.board, id).filter(row => row.type === 'fact').map(row => row.text) };
+  return { id, err: taken.err, facts: itemThread(box.board, id).filter(row => row.type === 'fact').map(row => row.text) };
 }
 
 /** Switch seat.checkpoints off in one seat's own checkout, as a project that never sets it would have it. */
@@ -31,9 +31,9 @@ function switchOff(seat) {
 
 test('clause 1: a claim records one checkpoint fact with the five parts when seat.checkpoints is on [C7,#8549]', async t => {
   const box = await fixture(t, { settings: { seat: { checkpoints: true } } });
-  const { id, facts } = await claimed(box, box.seats.builder, 'Checkpointed claim');
+  const { id, facts, err } = await claimed(box, box.seats.builder, 'Checkpointed claim');
   const found = facts.map(readCheckpoint).filter(Boolean);
-  assert.equal(found.length, 1, 'exactly one checkpoint fact');
+  assert.equal(found.length, 1, `exactly one checkpoint fact: ${err}`);
   assert.equal(found[0].moment, 'claim');
   assert.deepEqual(Object.keys(found[0].fact), CHECKPOINT_PARTS);
   assert.deepEqual(found[0].fact.left, [`build #${id}: Checkpointed claim`], 'what is left names the item');
