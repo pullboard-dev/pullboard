@@ -71,12 +71,19 @@ export function agentFloorHtml(floor, { back = '#dashboard', locale = 'en-US', t
 
   const ticks = [1, 2, 3].map(h => '<rect class="floor-tick" x="' + (h * 250 - .5) + '" y="1" width="1" height="14"/>').join('');
   const landings = f.landedMarks.map(at => '<rect class="floor-landed" x="' + x(at) + '" width="1.5" height="16"/>').join('');
+  /** What a held build says when the board read marks it stalled or waiting: it is held, never building [C7,#3021]. */
+  const health = held => {
+    const claim = held.kind === 'build' ? held.item.claimHealth : null;
+    if (claim?.state === 'stalled') return 'stalled' + (Number.isFinite(claim.idleMinutes) ? ' · ' + claim.idleMinutes + ' min' : '');
+    if (claim?.state === 'waiting') return 'waiting on ' + ((claim.waitingOn || []).map(id => '#' + id).join(', ') || 'another item');
+    return '';
+  };
   /** One agent's line: its four hours, what it holds now, its build, review and idle time, and its shouts. */
   const row = agent => {
     const segments = agent.segments.map(segment => '<rect class="' + segment.kind + '" x="' + x(segment.start) + '" y="3" width="' + Math.max(2, x(segment.end) - x(segment.start)).toFixed(1) + '" height="10" rx="2"><title>#' + segment.item + ' ' + (segment.kind === 'build' ? 'building' : 'reviewing') + ' ' + span(segment.end - segment.start) + '</title></rect>').join('');
     const sent = (agent.sentBack ?? []).map(event => '<rect class="floor-back" x="' + x(event.at) + '" width="3" height="16"><title>#' + event.item + ' sent back</title></rect>').join('');
     const shouted = agent.shoutTimes.map(at => '<rect class="floor-shout" x="' + x(at) + '" y="11" width="3" height="5"><title>shout at ' + esc(clock(at)) + '</title></rect>').join('');
-    const holding = agent.holding.length ? agent.holding.map(held => '<span class="floor-hold"><span class="floor-chip ' + held.kind + '">#' + held.item.id + ' ' + (held.kind === 'build' ? 'building' : 'reviewing') + ' ' + span(f.now - held.since) + '</span>' + item(held.item) + '</span>').join('') : '<span class="floor-nothing">holding nothing</span>';
+    const holding = agent.holding.length ? agent.holding.map(held => '<span class="floor-hold"><span class="floor-chip ' + (health(held) ? 'stalled' : held.kind) + '">#' + held.item.id + ' ' + (health(held) || (held.kind === 'build' ? 'building' : 'reviewing') + ' ' + span(f.now - held.since)) + '</span>' + item(held.item) + '</span>').join('') : '<span class="floor-nothing">holding nothing</span>';
     return '<div class="floor-agent floor-' + agent.group.replace(' ', '-') + '" data-floor-agent="' + esc(agent.id) + '"><b title="' + esc(agent.model ? agent.id + ' · ' + agent.model : agent.id) + '"><i aria-hidden="true"></i>' + esc(agent.name) + '</b>'
       + '<svg viewBox="0 0 1000 16" preserveAspectRatio="none" role="img" aria-label="' + esc(agent.id) + ', last four hours"><rect class="floor-track" y="5" width="1000" height="6" rx="3"/>' + ticks + landings + segments + sent + shouted + '</svg>'
       + '<span class="floor-now">' + holding + '</span>'
