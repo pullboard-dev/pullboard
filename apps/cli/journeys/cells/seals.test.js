@@ -30,10 +30,10 @@ function sealedAndEdited(t) {
   commit(box, {
     'packages/alpha/index.js': 'export const alpha = 1;\n',
     'packages/beta/index.js': 'export const beta = 1;\n',
-  }, 'feat(fixture): two cells');
+  }, 'chore(fixture): two cells');
   const store = sealStoreFile(box.root);
   for (const row of sealStatus(box.root)) recordSeal(store, { package: row.package, hash: row.hash, receipts: [`receipt-${row.package}`], tests: [] });
-  const changed = commit(box, { 'packages/beta/index.js': 'export const beta = 2;\n' }, 'feat(beta): change the beta answer');
+  const changed = commit(box, { 'packages/beta/index.js': 'export const beta = 2;\n' }, 'chore(beta): change the beta answer');
   commit(box, { 'notes.txt': 'unrelated\n' }, 'docs(fixture): an unrelated note');
   return { box, changed };
 }
@@ -50,7 +50,7 @@ test('clause 1: cells --json reports the sealed cell as sealed and the edited ce
   assert.equal(row('packages/alpha').changedBy, null);
   assert.equal(row('packages/beta').state, 'unsealed');
   assert.equal(row('packages/beta').changedBy, changed);
-  assert.equal(row('packages/beta').changedSubject, 'feat(beta): change the beta answer');
+  assert.equal(row('packages/beta').changedSubject, 'chore(beta): change the beta answer');
   assert.deepEqual((report.result ?? report).unsealed, ['packages/beta']);
 });
 
@@ -59,5 +59,5 @@ test('clause 2: cells prints one line per cell naming its state and the breaking
   const ran = await runCliInProcess(['cells'], { cwd: box.root, env: box.env });
   assert.equal(ran.status, 0, ran.stdout + ran.stderr);
   assert.match(ran.stdout, /^packages\/alpha {2}sealed {2}[0-9a-f]{12} {2}by receipt-packages\/alpha$/mu);
-  assert.match(ran.stdout, new RegExp(`^packages/beta  unsealed  [0-9a-f]{12}  broken by ${changed.slice(0, 12)} feat\\(beta\\): change the beta answer$`, 'mu'));
+  assert.match(ran.stdout, new RegExp(`^packages/beta  unsealed  [0-9a-f]{12}  broken by ${changed.slice(0, 12)} chore\\(beta\\): change the beta answer$`, 'mu'));
 });
