@@ -6,7 +6,7 @@ import {
   terminalQr,
 } from "../../src/logic/qr.js";
 
-// Symbol shape from the QR standard: byte mode, version 6 (41 modules a side), LOW, mask 0.
+// Symbol shape from the QR standard: byte mode, version 6 (41 modules a side), error correction LOW; the mask is read from the symbol's own format bits.
 // The symbol is judged by what a scanner reads from it, not by a digest of its modules.
 const VERSION = 6;
 const SIZE = 17 + 4 * VERSION;
@@ -20,8 +20,24 @@ function isFunctionModule(row, column) {
   return false;
 }
 
-/** Read the data bits the way a scanner does: walk the column pairs from the right, upward then downward, undoing mask 0. */
+const MASKS = [(r, c) => (r + c) % 2 === 0, (r) => r % 2 === 0, (r, c) => c % 3 === 0, (r, c) => (r + c) % 3 === 0,
+  (r, c) => (Math.floor(r / 2) + Math.floor(c / 3)) % 2 === 0, (r, c) => (r * c) % 2 + (r * c) % 3 === 0,
+  (r, c) => ((r * c) % 2 + (r * c) % 3) % 2 === 0, (r, c) => ((r + c) % 2 + (r * c) % 3) % 2 === 0];
+
+/** The 5 data bits of the format information (2 for the error-correction level, 3 for the mask), read from the first copy and unmasked with 0x5412. */
+function formatData(modules) {
+  let value = 0;
+  for (let index = 0; index <= 5; index += 1) value |= Number(modules[8][index]) << index;
+  value |= Number(modules[8][7]) << 6;
+  value |= Number(modules[8][8]) << 7;
+  value |= Number(modules[7][8]) << 8;
+  for (let index = 9; index < 15; index += 1) value |= Number(modules[14 - index][8]) << index;
+  return (value ^ 0x5412) >> 10;
+}
+
+/** Read the data bits the way a scanner does: walk the column pairs from the right, upward then downward, undoing the symbol's mask. */
 function dataBits(modules) {
+  const masked = MASKS[formatData(modules) & 7];
   const bits = [];
   let upward = true;
   for (let right = SIZE - 1; right >= 1; right -= 2) {
@@ -30,7 +46,7 @@ function dataBits(modules) {
       const row = upward ? SIZE - 1 - step : step;
       for (const column of [right, right - 1]) {
         if (isFunctionModule(row, column)) continue;
-        bits.push(Number(modules[row][column]) ^ ((row + column) % 2 === 0 ? 1 : 0));
+        bits.push(Number(modules[row][column]) ^ (masked(row, column) ? 1 : 0));
       }
     }
     upward = !upward;
@@ -58,6 +74,7 @@ test('a pairing QR matches the independent complete symbol and prints its quiet 
     assert.equal(modules[index][6], index % 2 === 0, 'the vertical timing pattern alternates');
   }
   assert.equal(modules[SIZE - 8][8], true, 'the fixed dark module is set');
+  assert.equal(formatData(modules) >> 3, 0b01, 'error correction level LOW');
   const bits = dataBits(modules);
   const read = (from, count) => bits.slice(from, from + count).reduce((value, bit) => value * 2 + bit, 0);
   assert.equal(read(0, 4), 0b0100, 'byte mode');
