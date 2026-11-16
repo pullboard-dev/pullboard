@@ -62,6 +62,7 @@ import {
 } from './passkeys.js';
 import { readUploadSize } from '../../logic/browser/status.js';
 import { deviceExcludedBoards } from './devices.js';
+import { attachRelayCause } from './status.js';
 
 const CHECKPOINT_WAIT_MS = 15_000;
 const KEYS = 'pullboard.relay.keys.v1';
@@ -143,7 +144,7 @@ async function rawDocumentAt(path, onDenied, options = {}) {
     const error = document.error;
     await checkAuthorization(path, response.status, onDenied, error);
     if (error) throw new Refused(error.code, error.message);
-    throw new Refused('RELAY_UNAVAILABLE', 'The relay did not answer. Sign in again or retry.');
+    throw attachRelayCause(new Refused('RELAY_UNAVAILABLE', 'The relay did not answer. Sign in again or retry.'));
   }
   if (document.version !== 1) throw new Error('This relay API version is unsupported. Upgrade this browser client.');
   return document;
@@ -629,7 +630,7 @@ export async function createTransport({ onUpdate = () => {}, onOpenBoard = () =>
           if (document?.error?.code === 'NO_BOARD' || document?.error?.code === 'NO_SNAPSHOT') waitForFirstSnapshot(entry);
           const refusal = new Refused(document?.error?.code ?? 'RELAY_UNAVAILABLE', document?.error?.message ?? 'The relay stream ended. Refresh this board.');
           if (refusal.code === 'ENGINE_VERSION') refusal.fatal = true;
-          throw refusal;
+          throw attachRelayCause(refusal);
         }
         return response;
       },

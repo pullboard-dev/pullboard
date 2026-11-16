@@ -116,6 +116,7 @@ const BEFORE = {
   'relay.push': false,
   'review.relaxRequiredFamily': false,
   'review.releaseReasons': false,
+  'review.starveShout': false,
   'runner.packCache': false,
   'runnerRates': {},
   'runners': [],
