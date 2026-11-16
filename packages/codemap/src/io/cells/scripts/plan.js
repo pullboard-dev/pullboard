@@ -38,6 +38,7 @@ import { lex } from '../../../../../kernel/index.js';
 import { runnerWorkerFiles } from '../../../../index.js';
 import { retainEnginePaths } from '../../../../index.js';
 import { cachedCellsRun } from '../../../../index.js';
+import { importCuts } from '../../../../index.js';
 import { checkCuts } from '../plan/cuts.js';
 import { fileCuts } from '../plan/cuts.js';
 import { refreshPlanCuts } from '../../../../index.js';
@@ -482,8 +483,11 @@ function main(argv) {
       const plan = readPlan(target), inventory = cellInventory(target, { importsIn, commonJsIn });
       let problems = 0;
       // Strict: no accepted inventory, so no accepted-wildcard allowance; every hidden edge into any later cell is named by file.
+      // The path map, process entries, retired rows and cut groups do not vary by cell: compute them once per sweep, not once per cell.
+      const map = readPathMap(target);
+      const shared = { map, retired: retiredProblems(target, plan, inventory), groups: importCuts(plan), entries: entryPlacementProblems(target, plan, inventory.files, map) };
       for (const cell of plan.cells) {
-        for (const problem of checkCuts(target, plan, cell.name, { allLaterCells: true, temporaryExceptions: false, inventory })) {
+        for (const problem of checkCuts(target, plan, cell.name, { allLaterCells: true, temporaryExceptions: false, inventory, shared })) {
           console.error(`${cell.name} --cuts-all: ${problem}`);
           problems++;
         }
