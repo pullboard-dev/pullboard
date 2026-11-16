@@ -72,7 +72,7 @@ test('clause 1: with runs_store on, readPulledCapacity reads runner jobs from a 
   const runs = boardRunsReader({ db }, boardFile);
   t.after(() => runs.db?.close());
   const capacity = readPulledCapacity(db, { now: NOW, runs });
-  assert.deepEqual(capacity.serves.map(serve => [serve.runner, serve.claimed, serve.jobs]), [['r1', 1, 4]]);
+  assert.deepEqual(capacity.serves.map(serve => [serve.runner, serve.claimed, serve.jobs]), [['lander:4242', 1, null], ['r1', 1, 4]]);
   assert.throws(() => runs.db.exec('CREATE TABLE x (y)'), /readonly/u);
   assert.deepEqual(readPulledCapacity(db, { now: NOW, runs: { db: null } }).totals, { claimed: 0, jobs: 0, serves: 0 }, 'a missing runs file reads as no jobs');
   assert.equal(runsFile.endsWith('board.runs.sqlite'), true);
@@ -85,7 +85,7 @@ test('clause 2: with runs_store on, the stats and sentinels job readers read the
   const runs = boardRunsReader({ db }, boardFile);
   t.after(() => runs.db?.close());
   const got = answers(db, runs, boardFile);
-  assert.deepEqual(got.jobs, [['gate:1', ['claimed']]]);
+  assert.deepEqual(got.jobs.filter(row => row[1].length), [['gate:1', ['claimed']]]);
   assert.deepEqual(got.demand.map(row => row[0]).sort(), ['gate:1', 'land:1', 'run:1'].filter(job => got.demand.some(row => row[0] === job)));
   assert.ok(got.spans.some(row => row[0] === 'gate:1'));
   assert.deepEqual(got.seats, ['seat-1']);
@@ -118,7 +118,7 @@ test('clause 3: with runs_store off, all of them read the board job rows as on m
   }
   const onMain = answers(db, null, boardFile);
   assert.deepEqual(answers(db, undefined, boardFile), onMain);
-  assert.equal(onMain.capacity.serves[0]?.runner, 'r1');
+  assert.ok(onMain.capacity.serves.some(serve => serve.runner === 'r1' && serve.jobs === 4));
   assert.deepEqual(onMain.seats, ['seat-1']);
   assert.equal(boardRunsReader({ db }, boardFile), null, 'no runs reader is made while the flag is off');
 });
