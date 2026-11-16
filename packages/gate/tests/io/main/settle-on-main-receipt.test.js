@@ -89,7 +89,7 @@ t => {
   const { board, item, job, recordMain } = unknownShardedGate(t, true);
   const { claim, posted } = recordMain('green');
   assert.equal(claim.kind, MAIN_TEST_JOB, 'the queued main-test job is the one a runner took');
-  assert.equal(posted.applied.outcome, 'recorded');
+  assert.equal(posted.applied.outcome, 'recorded', JSON.stringify(posted.applied));
   const thread = facts(board, item);
   assert.ok(thread.some(text => text.startsWith(`Gate job ${job} red at `)), 'the gate re-applied red: main passes the case, so it is the item\'s');
   assert.ok(thread.some(text => text.startsWith(`Gate job ${job} settled red when main-test job ${claim.job}`)));
