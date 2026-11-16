@@ -1,9 +1,8 @@
-/** @pullboard-test-input source-cell api */
 /** A cold state build over more than 64 items reads every item thread in one pass, with no per-item thread read [C7,#8480]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { apiHttpFixture } from '../../../../../apps/cli/tests/fixtures/api.js';
-import { coldStateReads } from '../../../../../apps/cli/tests/fixtures/api.js';
+import { apiHttpFixture } from '../../tests/fixtures/api.js';
+import { coldStateReads } from '../../tests/fixtures/api.js';
 
 /** How many of the statements read one item's thread: the per-item activity read ends in its board-wide main-move branch, which no other read has. */
 const threadReads = statements => statements.filter(sql => /item_id IS NULL AND event_kind = 'main-moved'/.test(sql)).length;
