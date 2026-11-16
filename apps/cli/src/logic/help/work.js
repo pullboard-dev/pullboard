@@ -46,6 +46,8 @@ export const workHelp = `Work
   pullboard moves [--json]              each move table's recorded shadow compares, disagreements and first compare,
                                         and whether it is live, shadow or none; read-only
   pullboard coordinate                  resume the coordinator and print how to add agents, lane by lane; read-only, safe to run twice
+  pullboard split <id>                  file one child per numbered clause of item <id>, each with its clause and the parent's check,
+                                        each --after the one before
   pullboard roadmap                     ordered milestones, N/M landed, targets, and each item as landed,
                                         accepted or its status
   pullboard milestone add <name> [--note ...] [--items 1,2,3 --reason "<why>"]   create a release catalog entry
@@ -56,8 +58,8 @@ export const workHelp = `Work
   pullboard milestone pin|sink <name> <ids> --reason "<why>"   hold items above or below the queue's own order
   pullboard milestone lift <name> <ids>                        return pinned or sunk items to the queue's order
   pullboard milestone move <name> --before <other>             reorder a milestone
-  pullboard milestone edit <name> [--name <new>] [--note <text>] [--target <date and time>|none] [--limit <n>|none]
-                                        rename, update a note, or set a shipping target or item limit
+  pullboard milestone edit <name> [--name <new>] [--note <text>] [--target <date and time>|none] [--limit <n>|none] [--mode rollover|explicit]
+                                        rename, update a note, or set a shipping target, item limit or fill mode
   pullboard milestone ship <name> [--next <name>] [--as person --reason "why"]              record it shipped at main's commit and move
                                         its unlanded items into the next milestone (or --next)
   pullboard milestone remove <name>                            remove a milestone without changing its items

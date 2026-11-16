@@ -27,6 +27,7 @@ import { endJob } from '../../../jobs/index.js';
 import { noteLease } from '../../../jobs/index.js';
 import { setJobRow } from '../../../jobs/index.js';
 import { moveGateClaimHop } from './hop.js';
+import { freeGateHop } from './hop.js';
 
 /** The job kind of one part of a pulled gate's proof, which the board offers from the gate's plan and any runner pulls [P7]. */
 export const SHARD_JOB_KIND = 'gate-shard';
@@ -301,7 +302,8 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = n
       const { job_attempt: attempt } = db.prepare('SELECT job_attempt FROM job WHERE job_id = ?').get(row.job_id);
       const token = randomBytes(24).toString('base64url');
       // With gate.fencedHop on, a gate job's runner owns its item's hop row; a hop another live runner holds refuses the claim HOP_FENCED [C7,#8352].
-      const held = hop && row.job_kind === 'gate' && row.job_item ? moveGateClaimHop(db, hop, { item: row.job_item, candidate: row.job_candidate, runner, move: 'acquire', job: row.job_id, now, leaseMs }) : null;
+      const held = hop && row.job_kind === 'gate' && row.job_item ? acquireOrEnd(db, hop, row, { runner, now, leaseMs }) : null;
+      if (held === OVER) continue;
       writeStep(db, row.job_id, 'claimed', { runner, ...(held ? { hopEpoch: held.epoch } : {}), capabilities: [...has], ...(Number.isSafeInteger(jobs) && jobs >= 1 ? { jobs } : {}), ...(Number.isSafeInteger(cores) && cores >= 1 ? { cores } : {}), ...(Number.isSafeInteger(ram) && ram >= 1 ? { ram } : {}), token: tokenHash(token) }, { seq: attempt, now });
       noteLease(db, row.job_id, 'lease.grant', { owner: runner, until: now + leaseMs }, now);
       noteRepeatClaims(db, row, { now, repeated });
@@ -313,6 +315,27 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = n
   for (const runaway of ended) { try { onRunaway?.(runaway); } catch { /* a shout that cannot send leaves the job ended */ } }
   for (const repeat of repeated) { try { onRepeatClaim?.(repeat); } catch { /* a shout that cannot send leaves the claim made */ } }
   return claimed;
+}
+
+/** acquireOrEnd's answer for a gate job it ended because its hop is over. */
+const OVER = Symbol('hop over');
+
+/**
+ * Acquire the item's hop for this gate job's claim, or end the job when its own candidate's hop is already done or ended.
+ * Why: a resubmit ends the old candidate's hop but leaves its gate job open; once that job's lease lapsed, every claim
+ * reached it first and was refused HOP_OVER, so no gate job behind it was ever claimed. A job whose hop is over is no
+ * one's work, so it ends here like a runaway and the claim goes on to the next job [C7,#8352,#8353].
+ *
+ * @returns {{ owner: string | null, epoch: number } | typeof OVER}
+ */
+function acquireOrEnd(db, hop, row, { runner, now, leaseMs }) {
+  try {
+    return moveGateClaimHop(db, hop, { item: row.job_item, candidate: row.job_candidate, runner, move: 'acquire', job: row.job_id, now, leaseMs });
+  } catch (error) {
+    if (error?.code !== 'HOP_OVER') throw error;
+    endJob(db, row.job_id, 'superseded', { detail: `#${row.job_item}'s gate hop at ${String(row.job_candidate).slice(0, 12)} is already done or ended; ended, not rerun` }, { now });
+    return OVER;
+  }
 }
 
 /** The window in which this many claims of one job make the sentinel shout, and the claim count that trips it (#7445). */
@@ -626,19 +649,23 @@ export function readLandShardReceipts(db, { job, runner, token, shards }) {
  * runner passes backoff false and the job is free at once.
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ job: string, runner: string, token: string, reason?: string, backoff?: boolean, now?: number }} request
+ * @param {{ job: string, runner: string, token: string, reason?: string, backoff?: boolean, draining?: boolean, now?: number, hop?: { table: Function } | null }} request - hop: from gateClaimHop, null with gate.fencedHop off.
  * @returns {{ released: boolean, until?: number }}
  */
-export function releaseJob(db, { job, runner, token, reason, backoff = true, draining = false, now = Date.now() }) {
-  return shadowed(db, { name: 'release', job, runner, token, free: backoff === false && draining }, now, () => releaseHeld(db, { job, runner, token, reason, backoff, draining, now }));
+export function releaseJob(db, { job, runner, token, reason, backoff = true, draining = false, now = Date.now(), hop = null }) {
+  return shadowed(db, { name: 'release', job, runner, token, free: backoff === false && draining }, now, () => releaseHeld(db, { job, runner, token, reason, backoff, draining, now, hop }));
 }
 
-/** The writer's release: back off, or free at once for a draining runner. */
-function releaseHeld(db, { job, runner, token, reason, backoff, draining, now }) {
-  const { attempt } = heldBy(db, job, runner, token);
-  // A free release leaves no step and no backoff, so only a runner the board lists as draining may ask for one (#7386).
-  if (backoff === false && draining) return { released: releaseLease(db, job, runner, { now }) };
-  return backOffLease(db, job, runner, { attempt, reason: reason ?? 'unspecified', now });
+/** The writer's release: back off, or free at once for a draining runner; a stopping runner's release also frees its gate hop. */
+function releaseHeld(db, { job, runner, token, reason, backoff, draining, now, hop }) {
+  return atomically(db, () => {
+    const { attempt, hopEpoch } = heldBy(db, job, runner, token);
+    // A stopping runner (backoff false) has ended its check, so its gate hop is freed with the lease: the next runner's claim takes the job without HOP_FENCED [C7,#8700].
+    if (backoff === false && hop && hopEpoch !== undefined) freeGateHop(db, hop, { job, runner, epoch: hopEpoch, now });
+    // A free release leaves no step and no backoff, so only a runner the board lists as draining may ask for one (#7386).
+    if (backoff === false && draining) return { released: releaseLease(db, job, runner, { now }) };
+    return backOffLease(db, job, runner, { attempt, reason: reason ?? 'unspecified', now });
+  });
 }
 
 /**
@@ -755,7 +782,7 @@ export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => n
   if (action === 'renew') return renewJob(db, { job, runner, token, now, hop });
   if (action === 'shardReceipts') return readLandShardReceipts(db, { job, runner, token, shards: body.shards });
   if (action === 'shards') return offerLandShards(db, { job, runner, token, merged: body.merged, ref: body.ref, plan: body.plan, gate: body.gate, now });
-  if (action === 'release') return releaseJob(db, { job, runner, token, reason, backoff, draining: drained().includes(runner), now });
+  if (action === 'release') return releaseJob(db, { job, runner, token, reason, backoff, draining: drained().includes(runner), now, hop });
   if (action === 'progress') return postProgress(db, { job, runner, token, progress, now });
   if (action === 'artifact') return postArtifact(db, { job, runner, token, artifact: body.artifact, now });
   if (action === 'receipt') {

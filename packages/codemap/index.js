@@ -4,7 +4,7 @@ export * from './src/io/cell/lint/plan.js';
 export * from './src/io/cell/lint/inventory.js';
 export * from './src/io/cell/lint/ratchet.js';
 export * from './src/io/cell/lint/store.js';
-export { mainCommit, mainCellLintReport } from './src/io/main/lints.js';
+export { mainCommit, mainCellLintReport, checkCellLints } from './src/io/main/lints.js';
 export * from './src/io/cell/lints.js';
 export { ROOT_FILES, ROOT_FOLDERS, rootAllowed, strayNextStep } from './src/logic/allowlist.js';
 export * from './src/logic/cuts.js';

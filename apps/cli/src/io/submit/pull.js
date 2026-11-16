@@ -7,6 +7,8 @@ import { gateLedgerHits } from '../../../../../packages/api/index.js';
 import { offerJob } from '../../../../../packages/api/index.js';
 import { openJob } from '../../../../../packages/api/index.js';
 import { endGateHop } from '../../../../../packages/api/index.js';
+import { endStaleGateJobs } from '../../../../../packages/api/index.js';
+import { endStaleJobsEnabled } from '../../../../../packages/config/index.js';
 import { submitGateHop } from './hop.js';
 import { recordCheckpoint } from '../seat-checkpoint.js';
 import { pulledGateReds } from '../../../../../packages/api/index.js';
@@ -483,6 +485,8 @@ export function offerGateJob(db, { item, main, source, request, now = Date.now()
   if (open) return open;
   // With gate.fencedHop on, a resubmit at a new candidate ends the item's open hop, so the old candidate's gate job cannot renew or land [C7,#8353].
   endGateHop(db, hop, { item, candidate: source, now });
+  // With gate.endStaleJobs on, the item's older open gate jobs end as the new candidate is offered [C7,#8816].
+  endStaleGateJobs(db, { item, keep: source, enabled: endStaleJobsEnabled(), now });
   return offerJob(db, { id: `gate:${item}:${source.slice(0, 12)}:${now.toString(36)}`, kind: 'gate', priority: 'gate', needs: GATE_NEEDS, item, candidate: source, base: main, request, now });
 }
 

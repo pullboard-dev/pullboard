@@ -29,6 +29,7 @@ test('clause 1: on macOS the lander wake runs as a launchd job, so launchd is it
   { skip: !existsSync('/bin/launchctl') && 'launchd is not on this machine' }, async t => {
     const root = home(t), out = join(root, 'first.json');
     const first = await spawnReachable(process.execPath, recorder(out), { home: root, env: { ...process.env, LAUNCH_MARKER: 'kept' } });
+    if (!first.launchd) { t.skip('no launchd gui session on this host; clauses 2 and 3 cover the plain-spawn fallback'); return; }
     assert.equal(first.launchd, true, 'launchd started it');
     assert.ok(first.label.startsWith(LAUNCH_LABEL_PREFIX));
     await waitForCondition(() => existsSync(out), 'the launched process wrote its record');
@@ -53,6 +54,25 @@ test('clause 2: without launchd the process is a plain detached spawn that still
   assert.ok(Number.isSafeInteger(started.pid));
   await waitForCondition(() => existsSync(log) && readFileSync(log, 'utf8').includes('hello from the daemon'), 'the daemon wrote its log');
   assert.equal(existsSync(join(root, 'launchd')), false, 'no launchd job file is written');
+});
+
+test('clause 2: when the gui bootstrap fails the plain spawn runs the job and reports launchd false [C7]', async t => {
+  const root = home(t), out = join(root, 'job.json'), calls = [];
+  const launcher = async args => { calls.push(args[0]); return { status: 5, stdout: '' }; };
+  const started = await spawnReachable(process.execPath, recorder(out), { home: root, launchd: true, launcher });
+  assert.equal(started.launchd, false, 'the fallback reports launchd false');
+  assert.ok(calls.includes('bootstrap'), 'launchd was tried first');
+  await waitForCondition(() => existsSync(out), 'the plain-spawned job wrote its record');
+  assert.equal(JSON.parse(readFileSync(out, 'utf8')).pid, started.pid, 'the returned pid is the job itself');
+  assert.deepEqual(readdirSync(join(root, 'launchd')), [], 'the refused job file is removed');
+});
+
+test('clause 3: a runner with no gui session still runs the job, whatever launchctl answers [C7]', async t => {
+  const root = home(t), out = join(root, 'job.json');
+  const launcher = async () => ({ status: 113, stdout: 'Could not find domain for gui' });
+  const started = await spawnReachable(process.execPath, recorder(out), { home: root, launchd: true, launcher });
+  assert.equal(started.launchd, false);
+  await waitForCondition(() => existsSync(out), 'the job ran without a gui session');
 });
 
 test('clause 2: the job file escapes its strings and runs the command once [C7]', () => {

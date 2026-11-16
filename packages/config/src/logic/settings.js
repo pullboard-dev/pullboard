@@ -166,6 +166,9 @@ export function loadMachineSettings() {
   if (value.gate?.fencedHop !== undefined && typeof value.gate.fencedHop !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.fencedHop in ${file} must be true or false`);
   }
+  if (value.gate?.endStaleJobs !== undefined && typeof value.gate.endStaleJobs !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.endStaleJobs in ${file} must be true or false`);
+  }
   if (value.tests?.registryStrict !== undefined && typeof value.tests.registryStrict !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `tests.registryStrict in ${file} must be true or false`);
   }
@@ -207,6 +210,15 @@ export function loadMachineSettings() {
   }
   if (value.holds?.requireOwner !== undefined && typeof value.holds.requireOwner !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `holds.requireOwner in ${file} must be true or false`);
+  }
+  if (value.health?.lapsedSweep !== undefined && typeof value.health.lapsedSweep !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `health.lapsedSweep in ${file} must be true or false`);
+  }
+  if (value.health?.derivedState !== undefined && typeof value.health.derivedState !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `health.derivedState in ${file} must be true or false`);
+  }
+  if (value.next?.itemNotices !== undefined && typeof value.next.itemNotices !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `next.itemNotices in ${file} must be true or false`);
   }
   const reserve = value.gate?.jobReserve;
   if (reserve != null && (typeof reserve !== 'object' || Array.isArray(reserve) || Object.values(reserve).some(share => !Number.isFinite(share) || share < 0 || share > 1)

@@ -725,6 +725,8 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
     for (let at = 0; at < queue.length; at += 1) {
       const path = queue[at];
       for (const graph of [before, after]) {
+        // A malformed, unmatched or escaping declared test input has no complete reader custody: stay conservative.
+        if (/\bdeclared test input|\bdeclared input\b/u.test(graph.unknown.get(path) ?? '')) return { full: true, reason: `${graph.unknown.get(path)} in reached file ${path}`, files };
         for (const importer of graph.reverse.get(path) ?? []) {
           if (!reached.has(importer)) { reached.add(importer); via.set(importer, path); queue.push(importer); }
         }

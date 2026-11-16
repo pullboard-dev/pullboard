@@ -53,7 +53,7 @@ export function gateJob(box) {
 export function word(value) { return `'${value.replaceAll("'", "'\\''")}'`; }
 
 /** Build a native project whose frozen check waits for a real release file, not a timing margin. */
-export function fixture(t, { enabled = true, result = 'green', companion = false, cells = false, firstFolder = false, perSeat = firstFolder ? 2 : null } = {}) {
+export function fixture(t, { enabled = true, result = 'green', companion = false, cells = false, firstFolder = false, fourth = false, perSeat = firstFolder ? 2 : null } = {}) {
   const helpers = createE2eHelpers();
   const isolated = helpers.sandbox();
   // Isolate admission before init and commit hooks, as well as the nested queued worker.
@@ -104,6 +104,8 @@ export function fixture(t, { enabled = true, result = 'green', companion = false
     '--criterion', 'An ordinary third build stays refused.', '--check', 'true', '--wait', '--json')).item.item_id;
   const second = document(fixtureAdd(box.runSync, box.repo, 'web', 'Independent second build', '--specs', 'G1',
     '--criterion', 'The second build remains separate.', '--check', 'true', '--accept-green', 'filler build that only holds a second claim', '--wait', '--json')).item.item_id;
+  // A journey that holds four claims files its fourth build here: add --wait runs its check on the one local runner, which a held gate would occupy [C7].
+  const fourthId = fourth ? document(fixtureAdd(box.runSync, box.repo, 'web', 'Fourth ordinary build', '--specs', 'G1', '--criterion', 'One ordinary build at a time.', '--check', 'true', '--accept-green', 'filler build that only holds a fourth claim', '--wait', '--json')).item.item_id : null;
   const claim = document(box.runSync(box.web, 'claim', String(id), '--json'));
   const source = firstFolder ? claim.itemFolder : box.web;
   // B5: with a second live claim, the commit hook must still stamp the folder's own item.
@@ -121,7 +123,7 @@ export function fixture(t, { enabled = true, result = 'green', companion = false
     if (job) await workerGone(helpers, box, job.id);
     await removeSandboxes(helpers);
   });
-  return { ...box, helpers, id, second, third, commit, source, secondFolder, release, releases, started, finished };
+  return { ...box, helpers, id, second, third, fourth: fourthId, commit, source, secondFolder, release, releases, started, finished };
 }
 
 
