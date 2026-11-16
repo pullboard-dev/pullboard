@@ -185,6 +185,9 @@ export function loadMachineSettings() {
   if (value.gate?.redFactLocation !== undefined && typeof value.gate.redFactLocation !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.redFactLocation in ${file} must be true or false`);
   }
+  if (value.items?.typedFields !== undefined && typeof value.items.typedFields !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `items.typedFields in ${file} must be true or false`);
+  }
   const testGroup = value.test;
   if (testGroup?.statusOutcomes !== undefined && typeof testGroup.statusOutcomes !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `test.statusOutcomes in ${file} must be true or false`);
@@ -296,6 +299,9 @@ export function loadMachineSettings() {
   }
   if (value.landing?.strictFullSuite !== undefined && typeof value.landing.strictFullSuite !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.strictFullSuite in ${file} must be true or false`);
+  }
+  if (value.spec?.commitOnApply !== undefined && typeof value.spec.commitOnApply !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `spec.commitOnApply in ${file} must be true or false`);
   }
   if (value.sentinels?.recordWriteHolder !== undefined && typeof value.sentinels.recordWriteHolder !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `sentinels.recordWriteHolder in ${file} must be true or false`);
