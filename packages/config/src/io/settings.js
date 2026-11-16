@@ -454,7 +454,7 @@ export function setLandingPool(board, enabled) {
   const settings = loadMachineSettings();
   const pools = new Set(settings.landing?.pools ?? []);
   if (enabled) pools.add(board); else pools.delete(board);
-  const next = { ...settings, landing: { pools: [...pools].sort() } };
+  const next = { ...settings, landing: { ...settings.landing, pools: [...pools].sort() } };
   writeMachineSettings(next);
   return next;
 }

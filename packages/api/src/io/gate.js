@@ -906,7 +906,7 @@ export function provideMainComparison(lookup) {
 export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, endStale = false, redLocation = false, settleOnMainReceipt = false, reofferTrunkBusy = false, ...options }) {
   // Queued main-test jobs are offered before each claim, so a free runner takes one in the same call (#6063).
   if (body?.action === 'claim' && options.mode === 'pull') offerMainTests(board, { now: options.now });
-  const answer = jobQueueCall(board.db, body, { onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain, ordered, endStale, redLocation, settleOnMainReceipt, reofferTrunkBusy }) });
+  const answer = jobQueueCall(board.db, body, { onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain, ordered, endStale, redLocation, settleOnMainReceipt, reofferTrunkBusy, receiptNow: options.now }) });
   return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
 }
 
@@ -1105,7 +1105,7 @@ export function reportRunaway(board, { job, kind, attempts, detail }) {
  * (LAND_PUSH_FAILED, or LAND_PROOF_TIMEOUT). Why: the job was marked done and nothing offered the items again, so an
  * accepted item waited landing for good (#7791); a proof that never ended did the same with its lease renewed forever (#7820).
  */
-function retryFailedLanding(board, job, named, receipt, { code, what, next, backoff = false }) {
+function retryFailedLanding(board, job, named, receipt, { code, what, next, backoff = false, now = Date.now() }) {
   const waiting = [...named].filter(id => { const item = store.getItem(board, id); return item?.item_status === 'verified' && !item.item_merged_commit; });
   if (!waiting.length) return;
   const detail = String(receipt.detail ?? 'no detail recorded').trim();
@@ -1113,7 +1113,7 @@ function retryFailedLanding(board, job, named, receipt, { code, what, next, back
   let again = null;
   if (tries < LAND_PUSH_RETRIES) {
     // A trunk-busy retry waits a backoff that grows per retry, so trunk can settle before the landing tries again [C7,#9102].
-    try { again = reofferLandingJob(board.db, job, { queue: queueFor(board, 'coordinator'), holdMs: backoff ? releaseBackoffMs(tries + 1) : 0 }); } catch { again = null; }
+    try { again = reofferLandingJob(board.db, job, { now, queue: queueFor(board, 'coordinator'), holdMs: backoff ? releaseBackoffMs(tries + 1) : 0 }); } catch { again = null; }
   }
   const tail = again ? `offered land job ${again.id} (retry ${again.retry} of ${LAND_PUSH_RETRIES})`
     : `${code} after ${tries + 1} tries; next: ${next}`;
@@ -1139,7 +1139,7 @@ export function applyLandingReceipt(board, { job, receipt }, ports = {}) {
   if (receipt?.red) { try { recordLandedRed(board, { job, receipt, item: returned[0] ?? null }); } catch { /* a diagnostic that cannot record leaves the red as it was */ } }
   if (receipt?.outcome === 'push-failed') retryFailedLanding(board, job, named, receipt, { code: 'LAND_PUSH_FAILED', what: 'push-failed', next: 'fix the trunk push, then pullboard land' });
   // With landing.reofferTrunkBusy on, a land job that lost the trunk race every attempt is offered again after a backoff [C7,#9102].
-  if (receipt?.outcome === 'trunk-busy' && ports.reofferTrunkBusy === true) retryFailedLanding(board, job, named, receipt, { code: 'LAND_TRUNK_BUSY', what: 'found trunk moved', next: 'wait for trunk to settle, then pullboard land', backoff: true });
+  if (receipt?.outcome === 'trunk-busy' && ports.reofferTrunkBusy === true) retryFailedLanding(board, job, named, receipt, { code: 'LAND_TRUNK_BUSY', what: 'found trunk moved', next: 'wait for trunk to settle, then pullboard land', backoff: true, now: ports.receiptNow ?? Date.now() });
   if (receipt?.outcome === 'proof-timeout') retryFailedLanding(board, job, named, receipt, { code: 'LAND_PROOF_TIMEOUT', what: 'proof ran past its deadline', next: 'find the slow or stuck test file on the runner, then pullboard land' });
   if (receipt?.outcome !== 'landed' || !SHA.test(receipt.trunk ?? '')) return { applied: returned.length > 0, outcome: String(receipt?.outcome ?? 'unknown'), returned };
   const waivers = new Map((offered.payload?.waivers ?? []).map(waiver => [waiver.id, waiver]));
