@@ -27,6 +27,7 @@ export const FLAG_MEANINGS = Object.freeze({
   '--precheck': 'runs only the cheap submit checks, without cells or the gate',
   '--infra': 'why the change edits an existing test or gate file; the reviewer reads it in show',
   '--acted-on': 'acknowledges these ids after you acted on them',
+  '--archive': 'settles these inbox entries by archiving them, when their kind allows it',
   'inbox --acted-on': ['--acted-on <interrupt-ids>', 'acknowledges these comma-separated shout ids after you acted on them'],
   'request answer --acted-on': ['--acted-on <event-ids>', 'the native move event ids, in request order, that carried out each done request'],
   '--url': 'the relay address; defaults to https://app.pullboard.dev',

@@ -161,6 +161,7 @@ const ROWS = [
   ['claims.releaseCooldownMinutes', 'Release cooldown', 'After a seat releases an item, next offers it other work for this many minutes unless nothing else is open.', 'Claims', 'minutes'],
   ['claims.itemsInGate', 'Build beside the gate', 'On, a seat keeps claiming and editing while its items wait in the gate.', 'Claims', 'on/off'],
   ['claims.itemsInGateMax', 'Items in the gate', 'Most gate-waiting items per seat.', 'Claims', 'count'],
+  ['inbox.keepUntilActed', 'Inbox entries wait for an action', 'On, every shout stays listed in the inbox until an action its kind allows (answer, act, archive or escalate) is recorded; off, a shout is read once.', 'Project', 'on/off'],
   ['queue.contention', 'Steer next away from hot files', 'On, next starts the least contended ready item of equal priority and makes an item wait when its files are in flight elsewhere; off, next orders ready items as before.', 'Claims', 'on/off'],
   ['queue.contentionThreshold', 'Contention score that waits', 'With queue.contention on, an item whose score (file conflict rate times changes in flight on it) passes this waits.', 'Claims', 'count'],
   ['claims.fileLease', 'Lease the files a claim will change', 'On, a claim whose predicted files (from the brief and the bar) a live claim of another seat already leases is refused FILE_LEASED, naming the holder and the file; off, claims are unchanged.', 'Claims', 'on/off'],

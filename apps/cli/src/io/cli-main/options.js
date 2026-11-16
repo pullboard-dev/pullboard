@@ -126,6 +126,7 @@ const OPTIONS = {
   'agent-strong': { type: 'string' },
   attempts: { type: 'string' },
   'acted-on': { type: 'string' },
+  archive: { type: 'string' },
   minutes: { type: 'string' },
   items: { type: 'string' },
   run: { type: 'string' },
