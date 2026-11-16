@@ -283,6 +283,11 @@ export function adaptiveBatchEnabled() {
   return loadMachineSettings().landing?.adaptiveBatch === true;
 }
 
+/** Whether the wait audit records who held a slow board write (#9118): off by default; only an exact `true` turns it on. */
+export function recordWriteHolderEnabled() {
+  return loadMachineSettings().sentinels?.recordWriteHolder === true;
+}
+
 /** Whether the sentinel expires lapsed claims every minute (#8923): off by default; only an exact `true` turns it on. */
 export function lapsedSweepEnabled() {
   return loadMachineSettings().health?.lapsedSweep === true;
