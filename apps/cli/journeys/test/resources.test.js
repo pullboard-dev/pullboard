@@ -403,7 +403,8 @@ test('clause 4: every test file that launches Chrome on main carries the browser
   const repository = resolve(import.meta.dirname, '../../../..');
   // This file's own launches are fixture sources run by nested runners with their own declarations.
   const launching = chromeLaunchingTests(repository).filter(file => file !== 'apps/cli/journeys/test/resources.test.js');
-  assert.ok(launching.length > 20, `the scan finds the real Chrome journeys: ${launching.length}`);
+  // The freeze deleted Chrome journeys on purpose (#8151, #8154: 51 -> 27 -> 14); the scan finds 13 on the post-freeze tree, so the floor sits just under that.
+  assert.ok(launching.length > 10, `the scan finds the real Chrome journeys: ${launching.length}`);
   const declared = new Set(await browserBoundFiles(repository, launching));
   const undeclared = launching.filter(file => !declared.has(file));
   assert.deepEqual(undeclared, [], `make the first line of each ${BROWSER_MARKER}`);
