@@ -122,9 +122,10 @@ export function validateServe(serve, file) {
  */
 export function validateBoardRemote(board, file) {
   if (board === undefined) return;
-  if (!board || typeof board !== 'object' || Array.isArray(board) || Object.keys(board).some(key => !['url', 'token', 'commits'].includes(key))) {
-    throw new Refused('BAD_MACHINE_SETTINGS', `board in ${file} holds only url, token and commits; remove it to use the local board`);
+  if (!board || typeof board !== 'object' || Array.isArray(board) || Object.keys(board).some(key => !['url', 'token', 'commits', 'archiveEvents'].includes(key))) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `board in ${file} holds only url, token, commits and archiveEvents; remove it to use the local board`);
   }
+  if (board.archiveEvents !== undefined && typeof board.archiveEvents !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `board.archiveEvents in ${file} must be true or false`);
   // Off by default: with commits set to bundle, a submit by URL carries the clone's commits as one git bundle [P7,C7].
   if (board.commits !== undefined && board.commits !== 'bundle') throw new Refused('BAD_MACHINE_SETTINGS', `board.commits in ${file} must be bundle; run pullboard settings board.commits bundle, or off to remove it`);
   let url = null;
