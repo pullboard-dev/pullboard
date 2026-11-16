@@ -83,7 +83,6 @@ const BEFORE = {
   'moves.live.submit': false,
   'moves.shadow': false,
   'next.itemNotices': false,
-  'push.recordTiming': false,
   'push.rerunFailedShardOnce': false,
   'relay.offerAtInit': true,
   'review.releaseReasons': false,
