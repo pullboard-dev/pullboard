@@ -808,9 +808,6 @@
     "raw-board": 1,
     "model": 10
   },
-  "apps/cli/journeys/release/model.test.js": {
-    "raw-board": 2
-  },
   "apps/cli/journeys/show/policy/dependency.test.js": {
     "hand-policy": 1,
     "raw-board": 1

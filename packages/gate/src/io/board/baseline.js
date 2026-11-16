@@ -33,7 +33,6 @@ export const BOARD_FILE_BASELINE = {
   "apps/cli/journeys/companion/main.test.js": 2,
   "apps/cli/journeys/digest/main.test.js": 1,
   "apps/cli/journeys/spec/e2e/next.test.js": 2,
-  "apps/cli/journeys/release/model.test.js": 3,
   "apps/cli/journeys/show/policy/e2e.test.js": 2,
   "apps/cli/journeys/show/policy/refs.test.js": 2,
   "apps/cli/journeys/show/policy/dependency.test.js": 1,
