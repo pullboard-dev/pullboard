@@ -10,6 +10,7 @@ export { migrateEventLogVersion } from './src/io/board/event/log/migrate.js';
 export { atomic, logEvent, writeOrigin } from './src/io/board/event/log.js';
 export { applyHealthFindings } from './src/io/board/health.js';
 export { jobBlobsPending, migrateJobBlobs, compactBoard } from './src/io/board/blobs.js';
+export { archiveOldEvents, ARCHIVE_AFTER_DAYS } from './src/io/board/event/archive.js';
 export { compactJobSteps, jobHistory, stepArchivePath, COMPACT_AFTER_DAYS, STEP_ARCHIVE_NAME } from './src/io/board/compact.js';
 export { JOB_SCHEMA_SQL, RUN_SCHEMA_SQL, RUN_OBJECT_NAMES, missingJobTables, ensureJobTables, adoptLegacyHandoffs } from './src/io/board/jobs.js';
 export { LEDGER_SCHEMA_SQL, ledgerFiles, ledgerHits, ledgerMainReds, ledgerRecentFiles, missingLedgerTable, recordTestResults, testResults } from './src/io/board/ledger.js';

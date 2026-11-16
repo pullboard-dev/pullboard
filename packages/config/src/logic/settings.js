@@ -122,9 +122,10 @@ export function validateServe(serve, file) {
  */
 export function validateBoardRemote(board, file) {
   if (board === undefined) return;
-  if (!board || typeof board !== 'object' || Array.isArray(board) || Object.keys(board).some(key => !['url', 'token', 'commits'].includes(key))) {
-    throw new Refused('BAD_MACHINE_SETTINGS', `board in ${file} holds only url, token and commits; remove it to use the local board`);
+  if (!board || typeof board !== 'object' || Array.isArray(board) || Object.keys(board).some(key => !['url', 'token', 'commits', 'archiveEvents'].includes(key))) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `board in ${file} holds only url, token, commits and archiveEvents; remove it to use the local board`);
   }
+  if (board.archiveEvents !== undefined && typeof board.archiveEvents !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `board.archiveEvents in ${file} must be true or false`);
   // Off by default: with commits set to bundle, a submit by URL carries the clone's commits as one git bundle [P7,C7].
   if (board.commits !== undefined && board.commits !== 'bundle') throw new Refused('BAD_MACHINE_SETTINGS', `board.commits in ${file} must be bundle; run pullboard settings board.commits bundle, or off to remove it`);
   let url = null;
@@ -148,7 +149,7 @@ export function loadMachineSettings() {
   }
   if (value.landing !== undefined && (!value.landing || typeof value.landing !== 'object' || Array.isArray(value.landing)
     // The landing switches sit beside pools, so a machine may set one without a pool [C7,#9102].
-    || Object.keys(value.landing).some(key => !['pools', 'adaptiveBatch', 'reofferTrunkBusy', 'squash', 'strictFullSuite', 'reuseGateReceipts', 'reuseContractResults', 'asyncFetch'].includes(key)) || (value.landing.pools !== undefined && !Array.isArray(value.landing.pools))
+    || Object.keys(value.landing).some(key => !['pools', 'adaptiveBatch', 'reofferTrunkBusy', 'squash', 'strictFullSuite', 'reuseGateReceipts', 'reuseContractResults', 'asyncFetch', 'byHand'].includes(key)) || (value.landing.pools !== undefined && !Array.isArray(value.landing.pools))
     || (value.landing.pools ?? []).some(id => typeof id !== 'string' || !/^[a-f0-9]{32}$/u.test(id)))) {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.pools in ${file} lists the board identifiers this machine may land`);
   }
@@ -308,6 +309,9 @@ export function loadMachineSettings() {
   }
   if (value.landing?.reofferTrunkBusy !== undefined && typeof value.landing.reofferTrunkBusy !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.reofferTrunkBusy in ${file} must be true or false`);
+  }
+  if (value.landing?.byHand !== undefined && typeof value.landing.byHand !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `landing.byHand in ${file} must be true or false`);
   }
   if (value.landing?.asyncFetch !== undefined && typeof value.landing.asyncFetch !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.asyncFetch in ${file} must be true or false`);

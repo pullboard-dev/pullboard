@@ -7,7 +7,7 @@ import { withLandingGateSlot } from '../../../../gate/index.js';
 import { landingControllerPlacement } from '../../../../gate/index.js';
 import { testsNeedBrowser } from '../../../../gate/index.js';
 import { testsNeedGui } from '../../../../gate/index.js';
-import { browserFreeChecksEnabled } from '../../../../config/index.js';
+import { browserFreeChecksEnabled } from '../../../../config/light.js';
 
 import { readFileSync } from 'node:fs';
 import { Refused } from '../../../../kernel/index.js';
