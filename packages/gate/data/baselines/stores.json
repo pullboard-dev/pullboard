@@ -636,6 +636,10 @@
       "kind": "json",
       "owner": "packages/codemap/src/io/map.js"
     },
+    "app-harnesses.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/matrix.js"
+    },
     "compiler.json": {
       "kind": "json",
       "owner": "packages/codemap/src/io/cell/parser/worker.js"
@@ -1248,7 +1252,8 @@
     "table:item": {
       "kind": "table",
       "owner": "packages/items/src/io/rehome.js"
-    },    "table:item_field": {
+    },
+    "table:item_field": {
       "kind": "table",
       "owner": "packages/store/src/io/board/item/fields.js"
     },
@@ -1493,7 +1498,7 @@
       "owner": "apps/relay/src/io/store/device.js"
     },
     "temporary-edges.json": {
-      "kind": "json",
+      "kind": "repo-data",
       "owner": "packages/codemap/src/io/cells/scripts/cache.js"
     },
     "test-cells.json": {
@@ -1587,6 +1592,14 @@
     "workers-usage.json": {
       "kind": "json",
       "owner": "apps/cli/src/io/scale.js"
+    },
+    "push.sqlite": {
+      "kind": "sqlite",
+      "owner": "apps/relay/src/io/push/subscriptions.js"
+    },
+    "table:push_subscription": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/push/subscriptions.js"
     }
   },
   "exceptions": [],

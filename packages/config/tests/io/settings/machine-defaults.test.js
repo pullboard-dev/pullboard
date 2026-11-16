@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { MACHINE_DEFAULTS } from '../../../src/io/settings/machine-defaults.js';
+import { SETTING_DESCRIPTIONS } from '../../../src/io/settings/descriptions.js';
 
 const FILE = new URL('../../../src/io/settings/machine-defaults.js', import.meta.url);
 const INVENTORY = new URL('../../../src/io/settings/inventory.js', import.meta.url);
@@ -10,6 +11,7 @@ const INVENTORY = new URL('../../../src/io/settings/inventory.js', import.meta.u
 /** The key/default list as it stood before the move [O5,O6]. */
 const BEFORE = {
   'add.warnUnnamedTest': false,
+  'board.archiveEvents': false,
   'browserSlots': 1,
   'budget.dailyUsd': null,
   'budget.totalUsd': null,
@@ -27,6 +29,7 @@ const BEFORE = {
   'gate.adapterLintFs': false,
   'gate.browserByLaunch': false,
   'gate.browserFreeChecks': false,
+  'gate.contractAudit': false,
   'gate.contractWeakening': false,
   'gate.diskFloorMB': 10240,
   'gate.endStaleJobs': false,
@@ -42,7 +45,9 @@ const BEFORE = {
   'gate.measuredSlots': false,
   'gate.memoryFloorMB': null,
   'gate.namedImportSelection': false,
+  'gate.overlapStaticProof': false,
   'gate.postLandSuite': false,
+  'gate.pulledProfilePaths': false,
   'gate.queue.agingMinutes': 30,
   'gate.queue.currentReleaseFirst': false,
   'gate.queue.reviewsFirst': false,
@@ -50,6 +55,7 @@ const BEFORE = {
   'gate.redFactLocation': false,
   'gate.refuseMissingCheckFile': false,
   'gate.refuseTempWorktree': false,
+  'gate.reofferInfraEnd': false,
   'gate.requireRunnerAttribution': false,
   'gate.runnerBusyCeiling': 90,
   'gate.runnerDispatch': 'pull',
@@ -76,6 +82,8 @@ const BEFORE = {
   'items.typedFields': false,
   'jobs.avoidRunners': false,
   'jobs.handBackUnrunnable': false,
+  'landing.asyncFetch': false,
+  'landing.byHand': false,
   'landing.pools': [],
   'landing.reofferTrunkBusy': false,
   'landing.reuseContractResults': false,
@@ -94,12 +102,16 @@ const BEFORE = {
   'moves.live.reopen': false,
   'moves.live.submit': false,
   'moves.shadow': false,
+  'next.capBuilders': 0,
+  'next.idleBlockers': false,
   'next.itemNotices': false,
   'next.readinessCheck': false,
   'push.rerunFailedShardOnce': false,
   'relay.excludeByBoard': false,
   'relay.offerAtInit': true,
   'relay.pruneReceipts': false,
+  'relay.push': false,
+  'review.relaxRequiredFamily': false,
   'review.releaseReasons': false,
   'runner.packCache': false,
   'runnerRates': {},
@@ -112,13 +124,17 @@ const BEFORE = {
   'sentinels.recordWriteHolder': false,
   'serve.address': '127.0.0.1',
   'serve.port': 0,
+  'serve.pullRoute': false,
   'spec.cascadeReject': false,
   'spec.commitOnApply': false,
+  'status.showUsefulBuilders': false,
+  'submit.clauseMarks': false,
   'submit.proofOnly': false,
   'test.statusOutcomes': false,
   'tests.registryStrict': false,
   'tests.requireJourneyPath': false,
   'tests.requireRegistered': false,
+  'verify.rejectKeepsCheck': false,
   'view.background': true,
 };
 
@@ -183,4 +199,19 @@ test('clause 3: removing a BEFORE key or changing its value fails the check [O6]
 test('clause 1: gate.idiomSpread is in the BEFORE list and defaults to false [C7]', () => {
   assert.equal(BEFORE['gate.idiomSpread'], false);
   assert.equal(MACHINE_DEFAULTS['gate.idiomSpread'], false);
+});
+
+test('clause 1: landing.asyncFetch is a machine setting, false by default, with a description [C7]', () => {
+  assert.equal(MACHINE_DEFAULTS['landing.asyncFetch'], false);
+  assert.ok(SETTING_DESCRIPTIONS['landing.asyncFetch']);
+});
+
+test('clause 1: gate.overlapStaticProof is a machine setting, false by default, with a description [C7]', () => {
+  assert.equal(MACHINE_DEFAULTS['gate.overlapStaticProof'], false);
+  assert.ok(SETTING_DESCRIPTIONS['gate.overlapStaticProof']);
+});
+
+test('clause 1: review.relaxRequiredFamily is a machine setting, false by default, with a description [V1]', () => {
+  assert.equal(MACHINE_DEFAULTS['review.relaxRequiredFamily'], false);
+  assert.ok(SETTING_DESCRIPTIONS['review.relaxRequiredFamily']);
 });
