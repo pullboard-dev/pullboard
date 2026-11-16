@@ -304,7 +304,7 @@ export function configProblems(config) {
   problems.push(...labelDeclarationProblems(config.labels));
   if (typeof config.staticChecks !== 'string') problems.push('"staticChecks" is an optional project static-check command');
   if (config.landing !== undefined && (notPlain(config.landing)
-    || Object.keys(config.landing).some(key => !['publish', 'environment', 'timeout', 'stall', 'cadence', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'shardProof', 'landedFromMain', 'ledgerMainReds', 'first', 'auditOnly', 'splitRed', 'trunkRemote'].includes(key)) || ![undefined, 'separate'].includes(config.landing.publish))) {
+    || Object.keys(config.landing).some(key => !['publish', 'environment', 'timeout', 'stall', 'cadence', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'shardProof', 'pipeline', 'landedFromMain', 'ledgerMainReds', 'first', 'auditOnly', 'splitRed', 'trunkRemote'].includes(key)) || ![undefined, 'separate'].includes(config.landing.publish))) {
     problems.push('"landing" has optional environment: { platform, arch, node }, "timeout", "stall" (no-progress limit, default 10m) and "cadence" durations, "parallel": true for concurrent candidate gates, "first": item ids to land ahead of the accept order, and "publish": "separate" to land locally and push through pullboard publish');
   } else if (config.landing?.environment !== undefined && environmentProblem(config.landing.environment)) {
     problems.push(`"landing.environment" ${environmentProblem(config.landing.environment)}`);
@@ -317,6 +317,7 @@ export function configProblems(config) {
   if (config.queue?.contentionThreshold !== undefined && (typeof config.queue.contentionThreshold !== 'number' || !Number.isFinite(config.queue.contentionThreshold) || config.queue.contentionThreshold <= 0)) problems.push('"queue.contentionThreshold" is a number above zero, 1 by default: the score at which next makes an item wait on a hot file');
   if (config.landing?.ledgerMainReds !== undefined && typeof config.landing.ledgerMainReds !== 'boolean') problems.push('"landing.ledgerMainReds" is a boolean, off by default: on, a land job counts a red in a file the test ledger records red on main at its base as main\'s own');
   if (config.landing?.shardProof !== undefined && typeof config.landing.shardProof !== 'boolean') problems.push('"landing.shardProof" is a boolean, off by default; true spreads a landing\'s proof over runner shard jobs');
+  if (config.landing?.pipeline !== undefined && typeof config.landing.pipeline !== 'boolean') problems.push('"landing.pipeline" is a boolean, off by default; true lets a second batch start gating while one is in flight');
   if (config.landing?.splitRed !== undefined && typeof config.landing.splitRed !== 'boolean') problems.push('"landing.splitRed" is a boolean; true always splits a red batch into singles, false always bisects; unset, the batch\'s measured gate decides');
   if (config.landing?.parallel !== undefined && typeof config.landing.parallel !== 'boolean') problems.push('"landing.parallel" is a boolean; omit it or use false to keep serial landing');
   if (config.landing?.first !== undefined && (!Array.isArray(config.landing.first) || config.landing.first.some(id => !Number.isSafeInteger(id) || id < 1))) {
