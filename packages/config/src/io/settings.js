@@ -110,6 +110,12 @@ export function censusBalanceByTimeEnabled() {
   return loadMachineSettings().census?.balanceByTime === true;
 }
 
+/** Minutes of measured time one pulled census job may hold; null (the default) keeps jobs cut by file count [C7]. */
+export function censusJobMinutes() {
+  const minutes = loadMachineSettings().census?.jobMinutes;
+  return typeof minutes === 'number' && Number.isFinite(minutes) && minutes > 0 ? minutes : null;
+}
+
 /** Run the full suite after each landed train batch only when this machine opted in. */
 export function postLandSuiteEnabled() {
   return loadMachineSettings().gate?.postLandSuite === true;
