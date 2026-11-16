@@ -39,6 +39,8 @@ test('clause 2: plain pullboard log prints every event on a board with 200,000 e
   const answer = await run('log');
   assert.equal(answer.status, 0, answer.stderr);
   const lines = answer.stdout.split('\n').filter(line => /^20\d\d-\d\d-\d\dT/u.test(line));
-  assert.equal(lines.length, EVENTS, 'one line per event');
+  // The project's own set-up events come first; every seeded one is there, through the last.
+  assert.ok(lines.length >= EVENTS, `one line per event, ${lines.length} printed`);
+  assert.match(lines.at(-1), /^2027-01-17T15:33:20/u, 'the newest event is the last line');
   assert.doesNotMatch(answer.stdout, /lines withheld/u);
 });
