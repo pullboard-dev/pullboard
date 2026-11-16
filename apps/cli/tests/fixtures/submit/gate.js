@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { runFixtureChild } from '../child.js';
 import { runFixtureGit } from '../child.js';
 import { fixtureSettledMachine } from '../testkit.js';
+import { JOURNEY_MODE } from '../e2e.js';
+import { parityRecord } from '../e2e.js';
+import { runCliSync } from '../sync/cli.js';
 import { stopFixtureLocalRunner } from '../runner/local-stop.js';
 import { appendFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -28,6 +31,28 @@ after(() => {
 /** Resolve the real CLI relative to this test without importing any project dependencies. */
 function resolveBin() {
   return join(import.meta.dirname, '../../../pullboard.js');
+}
+
+// Calls that settle pulled jobs or can outlast the worker thread's 45 s wait stay real processes [C7].
+const REAL_COMMANDS = new Set(['submit', 'verify', 'land', 'test', 'gate']);
+
+/**
+ * One fixture CLI call: answered by the warm worker thread, or a real process for a heavy command or under PULLBOARD_JOURNEY_MODE=process.
+ * Why: a Node start-up per setup call is most of a gate journey's fixture time; the parity record lets the gate compare both ways (U149) [C7].
+ *
+ * @param {{ dir: string, cwd: string, env: object }} where - The fixture folder, directory and environment.
+ * @param {string[]} args - The command and its flags, already filled by withBrief.
+ * @returns {{ code: number, out: string, err: string, failure: unknown }} The answer in the shape of `box.run`.
+ */
+function fixtureCall({ dir, cwd, env }, args) {
+  const quick = JOURNEY_MODE !== 'process' && !REAL_COMMANDS.has(args[0]);
+  const result = quick ? runCliSync(args, { cwd, env })
+    : runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+  if (process.env.PULLBOARD_PARITY_RECORD) {
+    const answer = { code: result.status, out: result.stdout ?? '', stderr: result.stderr ?? '' };
+    appendFileSync(process.env.PULLBOARD_PARITY_RECORD, `${JSON.stringify(parityRecord({ dir, env, cwd, args, result: answer }))}\n`);
+  }
+  return { code: result.status, out: result.stdout ?? '', err: result.failure ?? result.stderr ?? '', failure: result.failure ?? null };
 }
 
 /** Create a private Git repository with a deterministic identity and isolated Pullboard home. */
@@ -58,9 +83,7 @@ export function privateRepo(t) {
   const git = (...args) => runFixtureGit(args, { cwd: root, env });
   /** Run the real local CLI, retaining JSON stdout and refusal stderr separately. */
   const run = (...rawArgs) => {
-    const args = withBrief(...rawArgs);
-    const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8' });
-    return { code: result.status, out: result.stdout ?? '', err: result.failure ?? result.stderr ?? '', failure: result.failure };
+    return fixtureCall({ dir, cwd: root, env }, withBrief(...rawArgs));
   };
   git('init', '-q', '-b', 'main');
   assert.equal(run('init').code, 0);
@@ -95,9 +118,7 @@ export function builderRepo(box, additionalOwned = [], { plumbing = false } = {}
   const git = (...args) => runFixtureGit(args, { cwd: root, env: box.env });
   /** Run the real CLI with the joined builder identity. */
   const run = (...rawArgs) => {
-    const args = withBrief(...rawArgs);
-    const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env: box.env, encoding: 'utf8' });
-    return { code: result.status, out: result.stdout ?? '', err: result.failure ?? result.stderr ?? '', failure: result.failure };
+    return fixtureCall({ dir: box.dir, cwd: root, env: box.env }, withBrief(...rawArgs));
   };
   const coordinator = (...args) => box.run(...withBrief(...args));
   return { ...box, root, git, run, coordinator };

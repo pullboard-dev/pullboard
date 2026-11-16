@@ -80,6 +80,11 @@ export function fencedHopEnabled() {
   return loadMachineSettings().gate?.fencedHop !== false;
 }
 
+/** Whether gate.recaptureHandoff is on (#8989): off by default; nothing reads it yet, and only an exact `true` turns it on. */
+export function recaptureHandoffEnabled() {
+  return loadMachineSettings().gate?.recaptureHandoff === true;
+}
+
 /** End an item's older open gate jobs on a new candidate or a landing only when this machine opted in [C7,#8816]. */
 export function endStaleJobsEnabled() {
   return loadMachineSettings().gate?.endStaleJobs === true;

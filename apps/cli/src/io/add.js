@@ -8,6 +8,7 @@ import { briefFiles } from '../../../../packages/items/index.js';
 import { startCheckBaseline } from '../../../../packages/gate/index.js';
 import { runnerBaselineCommand } from '../../../../packages/gate/index.js';
 import { offerCheckBaseline } from '../../../../packages/api/index.js';
+import { queueFor } from '../../../../packages/api/index.js';
 import { loadMachineSettings } from '../../../../packages/config/index.js';
 import { localRunnerEnabled } from '../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../packages/config/index.js';
@@ -37,7 +38,7 @@ async function offerLocalBaseline(ctx, board, id, baseline) {
   if (runnerDispatchMode() !== 'pull' || !localRunnerEnabled() || (loadMachineSettings().runners ?? []).length || relayLinked(root) || !board?.db) return false;
   const host = primaryCheckoutRoot(ctx.info);
   if (!host) return false;
-  offerCheckBaseline(board.db, { item: id, expected: baseline, command: runnerBaselineCommand(root, baseline) });
+  offerCheckBaseline(board.db, { item: id, expected: baseline, command: runnerBaselineCommand(root, baseline), queue: queueFor(board, 'coordinator', { file: ctx.file }) });
   return (await ensureLocalRunner(host)).running;
 }
 
