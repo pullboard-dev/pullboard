@@ -389,7 +389,7 @@ function nextPick(ctx, board, values, ports) {
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
     priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle,
-    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles, ...(contention ? { contention } : {}), ...(ctx.config.next?.wholeItemsFirst === true ? { wholeItemsFirst: true } : {}) };
+    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles, ...(contention ? { contention } : {}), ...(ctx.config.next?.wholeItemsFirst === true ? { wholeItemsFirst: true } : {}), ...(values.idleBlockers === true ? { idleBlockers: true } : {}) };
   const own = store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
   // Other lanes are only named, never claimed (otherLaneWork), so the session this seat shares never decides what next serves (GH #27).
   // An empty look at other lanes never replaces this lane's own answer: its holds and skips are what the seat must read.
@@ -425,6 +425,7 @@ function nextPick(ctx, board, values, ports) {
     const other = items.find(entry => entry.item_status === 'open' && (entry.item_lane !== me.lane
       || !store.ROUTES.includes(entry.item_route) || !store.ROUTES.includes(me.route) || !store.canTake(me.route, entry.item_route)));
     return { reasons: [...(reasons ?? []), ...(other ? [`#${other.item_id} is offered in ${other.item_lane} on the ${other.item_route} route; this seat leaves it unclaimed`] : [])],
+      ...(values.idleBlockers === true ? { blockers: own.blockers ?? [] } : {}),
       ...(values.observeIdle ? { idleReason: [picked.idleReason, !values.build && offer?.idleReason].find(reason => ['held', 'review-family', 'main-red'].includes(reason)) ?? picked.idleReason ?? 'unknown', skips: [...(!values.build ? offer?.skips ?? [] : []), ...(own.skips ?? []), ...(picked.skips ?? [])].filter((row, index, rows) => rows.findIndex(other => other.item === row.item) === index).slice(0, 3) } : {}), laneWork: ctx.info.isMain ? mainLaneWork(store.listItems(board)) : null };
   }
   const reviewSkipped = values.build && !held
