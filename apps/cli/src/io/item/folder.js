@@ -16,6 +16,8 @@ import { git } from '../../../../../packages/git/index.js';
 import { tryGit } from '../../../../../packages/git/index.js';
 import { checkoutBranch } from '../../../../../packages/git/index.js';
 import { checkoutCommonDir } from '../../../../../packages/git/index.js';
+import { checkoutHead } from '../../../../../packages/git/index.js';
+import { checkoutRefCommit } from '../../../../../packages/git/index.js';
 import { trunkRef } from '../../../../../packages/sandbox/index.js';
 import { primaryCheckoutRoot } from '../worktree.js';
 import { unfinishedFolderMessage } from '../unfinished.js';
@@ -376,6 +378,9 @@ function sameDirectory(first, second) {
  */
 function advanceToMain(path, root) {
   const trunk = trunkBranch(root);
+  // A folder already at the trunk's tip is current, read from Git's files: a warm next reopened it with a Git process each time (#8691).
+  const head = checkoutHead(path);
+  if (head !== undefined && head === checkoutRefCommit(path, `refs/heads/${trunk}`)) return [];
   if (tryGit(path, ['merge-base', '--is-ancestor', trunk, 'HEAD']).status === 0) return [];
   const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all']);
   if (status.status !== 0 || status.stdout) return [];

@@ -11,6 +11,8 @@ import { waitForCondition } from '../runner/holders.js';
 
 // Absolute, so cleanup never depends on the test process's swapped PATH.
 const PS = '/bin/ps';
+// Budget: lsof reads one process's cwd in tens of milliseconds; it blocked forever on a worker that was exiting, which held the whole test process silent until the runner's kill [H21,H16].
+const LSOF_MS = 10_000;
 /** Resolve lsof from its system folders (macOS keeps it in /usr/sbin, some Linux in /usr/bin). */
 const lsofPath = () => ['/usr/sbin/lsof', '/usr/bin/lsof', '/sbin/lsof', '/bin/lsof'].find(existsSync) ?? 'lsof';
 
@@ -25,10 +27,11 @@ export function senderProcesses(root) {
     try {
       const cwd = process.platform === 'linux' ? readlinkSync(`/proc/${record.pid}/cwd`)
         : execFileSync(lsofPath(), ['-a', '-p', String(record.pid), '-d', 'cwd', '-Fn'],
-          { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n').find(line => line.startsWith('n'))?.slice(1);
+          { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: LSOF_MS, killSignal: 'SIGKILL' }).split('\n').find(line => line.startsWith('n'))?.slice(1);
       return cwd === expected;
     } catch (error) {
-      if ((error.code === 'ENOENT' && process.platform === 'linux') || error.status === 1) return false;
+      // A worker caught mid-exit can leave lsof blocked in the kernel; a process whose cwd cannot be read is not verifiably ours, and one that is exiting needs no signal.
+      if ((error.code === 'ENOENT' && process.platform === 'linux') || error.status === 1 || error.code === 'ETIMEDOUT') return false;
       throw error;
     }
   });

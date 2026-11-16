@@ -115,7 +115,9 @@ export function confirmIdentities(pids, suspect) {
 
 /** Confirm, past the cache, every holder in the slot database whose cached identity looks dead or reused. */
 function confirmHolders(db) {
-  const started = new Map(db.prepare('SELECT pid, started FROM holder').all().map(row => [row.pid, row.started]));
+  // The last row per PID, as reading every row into the map kept; one row per PID, not one per seat (#8699).
+  const started = new Map(db.prepare('SELECT pid, started FROM holder WHERE rowid IN (SELECT MAX(rowid) FROM holder GROUP BY pid) ORDER BY rowid').all()
+    .map(row => [row.pid, row.started]));
   confirmIdentities(started.keys(), pid => {
     const identity = processIdentity(pid);
     return Boolean(identity && (identity.zombie || differentStart(identity, started.get(pid))));

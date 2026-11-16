@@ -188,3 +188,5 @@ export {
 export { claimWorktreeSnapshot } from './src/io/untouched.js';
 export { readSeatTiming, seatLedger, seatLines, worktreeActivity } from './src/io/ledger.js';
 export { CHECKPOINT_MOMENTS, CHECKPOINT_PARTS, buildCheckpoint, checkpointText, readCheckpoint } from './src/logic/checkpoint.js';
+export { runtimeProfile } from './src/io/runtime-profile.js';
+export { seatLaunchConfig } from './src/io/launch.js';

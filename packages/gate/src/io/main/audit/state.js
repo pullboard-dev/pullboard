@@ -35,6 +35,8 @@ export function mainAuditKey(job) {
 }
 /** The last-green record's file name; saveMainAudit writes it from this module, so this module owns the store. */
 export const LAST_GREEN_FILE = 'last-green.json';
+/** The source-advance settle record's file name; saveMainAudit writes it from this module, so this module owns the store. */
+export const SETTLED_FILE = 'settled.json';
 /** Read a local advisory record; malformed existing data refuses rather than claiming completion. */
 export function readMainAudit(file) {
   try { return JSON.parse(readFileSync(file, 'utf8')); }

@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import {
   mkdirSync,
+  realpathSync,
   readFileSync,
   rmSync,
   symlinkSync,
@@ -80,3 +81,17 @@ export function releaseFixture(t, { previous = null, version = '0.8.7', changelo
   return { root, repo, run, runLocal, git, env };
 }
 
+
+/**
+ * Rewrite the copied root's Claude settings file so it names the new root and none of the template root's [C7,#8997].
+ * Why: init writes the root's machine-home path into the sandbox write list, so a root copied from a cached template would otherwise point at the template.
+ *
+ * @param {string} templateRoot the fixture root the copy was made from
+ * @param {string} newRoot the copy
+ */
+export function relocateClaudeSettings(templateRoot, newRoot) {
+  const file = join(newRoot, 'repo', '.claude', 'settings.json');
+  let text = readFileSync(file, 'utf8');
+  for (const spelling of new Set([templateRoot, realpathSync(templateRoot)])) text = text.split(spelling).join(newRoot);
+  writeFileSync(file, text);
+}

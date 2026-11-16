@@ -99,5 +99,5 @@ function sealCurrentClauseInspection(board, id, options) {
     appendFact(board, id, { agentId: options.agentId, kind: 'note',
       text: `policy re-frozen automatically: ${digest(sealed.config)} -> ${digest(policy.config)}; only ${changed.join(', ')} changed` });
   }
-  return { ...options, clausePolicyCommit: sealed.commit, inspectClauses: sealed.config.verify.inspectClauses === true };
+  return { ...options, clausePolicyCommit: sealed.commit, inspectClauses: sealed.config.verify.inspectClauses === true, folderTicks: sealed.config.verify.folderTicks === true, titleTicks: sealed.config.verify.titleTicks === true };
 }

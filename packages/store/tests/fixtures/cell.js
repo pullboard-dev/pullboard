@@ -4,11 +4,11 @@ import { resolve } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { closeBoard } from '../../index.js';
-import { submitFixture } from '../../../../apps/cli/tests/fixtures/board/submit.js';
+import { submitFixture } from './submit.js';
 import { writeBoardMeta } from '../../index.js';
 import { FIXTURE_MODEL } from '../../../../apps/cli/tests/fixtures/child.js';
 // The board composition root through the board package's fixture, which tests already use (#8202).
-import { openKitBoard } from '../../../../apps/cli/tests/fixtures/board.js';
+import { openKitBoard } from '../../../../apps/cli/tests/fixtures/child.js';
 import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureChild } from '../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
