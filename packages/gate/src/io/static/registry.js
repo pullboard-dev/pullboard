@@ -19,9 +19,12 @@ import { importStyleViolations } from '../../../index.js';
 import { engineFolderViolations } from '../../../../state/index.js';
 import { doctrineReport } from '../../../../doctrine/index.js';
 import { loadConfig } from '../../../../config/index.js';
+import { requireJourneyPathEnabled } from '../../../../config/index.js';
 import { requireRegisteredEnabled } from '../../../../config/index.js';
 import { adapterLintClockEnabled } from '../../../../config/index.js';
 import { clockLintRows } from '../adapter-lints/clock.js';
+import { adapterLintFsEnabled } from '../../../../config/index.js';
+import { fsLintRows } from '../adapter-lints/fs.js';
 import { testWaitReport } from '../test/waits.js';
 import { cliLaunchReport } from '../test/launches.js';
 import { cliLaunchGrowth } from '../test/launches.js';
@@ -38,6 +41,7 @@ import { relayBoundaryProblems } from '../relay.js';
 import { fixtureProblems } from '../test/fixtures.js';
 import { fixtureSites } from '../test/fixtures.js';
 import { unregisteredTestRows } from '../test/unregistered.js';
+import { journeyPathRows } from '../test/unregistered.js';
 import { cellsEdgeProblems } from '../edges.js';
 import { fileEdges } from '../edges.js';
 import { testCellsProblems } from '../test/cells.js';
@@ -203,6 +207,13 @@ export const STATIC_TREE_CHECKS = Object.freeze([
     for (const row of rows) (context.report ?? MEMORY.report)(`diagnostic (tests.requireRegistered off): ${row}`);
     return [];
   } },
+  // A CLI journey the change adds that golden.json does not name: refused with tests.requireJourneyPath on, else one diagnostic line (#9403).
+  { name: 'journey-path', reads: TEST, run: (root, sources, context = MEMORY) => {
+    const rows = journeyPathRows(root, { only: context.changed });
+    if (context.requireJourneyPath ?? requireJourneyPathEnabled()) return rows;
+    for (const row of rows) (context.report ?? MEMORY.report)(`diagnostic (tests.requireJourneyPath off): ${row}`);
+    return [];
+  } },
   { name: 'test-cells', reads: SOURCE, run: (root, sources, context = MEMORY) => testCellsProblems(root, { cache: context.cache('test-cells', 1) }).map(row => `${row.path}:${row.line}: ${row.text}`) },
   // Repository paths in code that do not exist; the per-file count may only fall (#5302).
   { name: 'missing-paths', reads: SOURCE, run: (root, sources, context = MEMORY) => cachedMissingPaths(root, context) },
@@ -218,6 +229,8 @@ export const STATIC_TREE_CHECKS = Object.freeze([
   // Reach from the API's request handlers; the known-violation set in request.js may only shrink [#6718].
   { name: 'api-request-io', reads: SOURCE, run: (root, sources) => apiRequestIoProblems(treeSources(root, sources), { known: candidateKnownBlockers(treeSources(root, sources)) })
     .map(row => `${row.file}:${row.line}: ${row.stale ? 'known request blocker no longer fires; delete its row' : 'synchronous child process reachable from a board API request'}: ${row.call} (${row.chain.join(' -> ')})`) },
+  // Direct node:fs imports outside the kernel; each file's count may only fall, and off (gate.adapterLintFs) it reports nothing (#9449).
+  { name: 'adapter-lint-fs', reads: SOURCE, run: (root, sources, context = MEMORY) => fsLintRows(root, { enabled: context.adapterLintFs ?? adapterLintFsEnabled() }) },
   { name: 'worker-bundle', reads: SOURCE, run: (root, sources, context = MEMORY) => {
     // Cell-scoped: the bundle is the import closure of the runners cell, so a tree that changed no file in runners or the cells it imports keeps the answer [5564].
     const scope = cellScopedKey(treeSources(root, sources), ['runners'], { edgeCache: edgeCacheOf(context), extra: ['package.json', 'packages/gate/data/ceilings/worker-bundle.json'], read: file => readFileSync(join(root, file), 'utf8') });
