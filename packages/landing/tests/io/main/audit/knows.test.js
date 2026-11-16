@@ -87,7 +87,7 @@ const FILTER_RUNNER = "import { spawnSync } from 'node:child_process';\nconst r 
 
 /** A fixture whose main holds a three-case file and a runner that forwards the case filter, with gate.mainCaseFilter set as given. */
 function filterBox(t, on) {
-  return fixture(t, 'node test/runner.js', { files: { 'test/three.test.js': THREE_CASES, 'test/runner.js': FILTER_RUNNER }, gate: on ? { mainCaseFilter: true } : {} });
+  return fixture(t, 'env -u NODE_TEST_CONTEXT node test/runner.js', { files: { 'test/three.test.js': THREE_CASES, 'test/runner.js': FILTER_RUNNER }, gate: on ? { mainCaseFilter: true } : {} });
 }
 
 /** The candidate's profile: the file with the named cases failed. */
