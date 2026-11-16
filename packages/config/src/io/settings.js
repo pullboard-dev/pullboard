@@ -299,6 +299,11 @@ export function refuseOffMainHead() {
   return loadMachineSettings().claim?.refuseOffMainHead === true;
 }
 
+/** Whether freezing a bar refuses an empty criterion (#9443): off by default; only an exact `true` turns it on. */
+export function refuseEmptyBar() {
+  return loadMachineSettings().freeze?.refuseEmptyBar === true;
+}
+
 /** Whether a review release must name why it was dropped (#8920): off by default; only an exact `true` turns it on. */
 export function reviewReleaseReasonsRequired() {
   return loadMachineSettings().review?.releaseReasons === true;

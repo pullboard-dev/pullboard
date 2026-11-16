@@ -217,6 +217,7 @@ const ROWS = [
   ['lease', 'Build claim length', 'How long a build claim lasts before it expires.', 'Claims', 'duration'],
   ['modelTiers', 'Model routes', 'Which route a seat serves, light, mid or strong, from a fragment of its model name; an unmatched model serves mid.', 'Claims', 'list'],
   ['pin.signed', 'Require a signed tooling pin', 'On, no run uses a tooling pin file that is unsigned or edited after it was signed; off, the pin file is read as written.', 'Checks', 'on/off'],
+  ['freeze.refuseEmptyBar', 'Refuse an empty bar', 'When enabled, freezing an item whose criterion is empty is refused BAR_EMPTY, since a reviewer has no clause to check; off (default), an empty bar freezes as before.', 'Claims', 'on/off'],
   ['queue.contention', 'Steer next away from hot files', 'On, next starts the least contended ready item of equal priority and makes an item wait when its files are in flight elsewhere; off, next orders ready items as before.', 'Claims', 'on/off'],
   ['queue.contentionThreshold', 'Contention score that waits', 'With queue.contention on, an item whose score (file conflict rate times changes in flight on it) passes this waits.', 'Claims', 'count'],
   ['reviewLease', 'Review claim length', 'How long a review reservation lasts before it expires.', 'Claims', 'duration'],
