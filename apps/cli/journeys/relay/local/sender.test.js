@@ -32,7 +32,7 @@ import {
 test('one background sender per machine sends each new move once, asks GitHub once per window, pulls other machines\' moves, and the relay reads none [H21,H5,H15]', async t => {
   const { box, env } = await linkedBoard(t);
   const printed = await box.cliLocal('relay', 'pair');
-  const other = await box.otherDeviceJoin(printed.document.code);
+  const other = await box.otherDeviceJoin(printed.document.code, undefined, { inProcess: true });
   const permission = () => box.providerCalls.filter(call => call.path.endsWith('/permission')).length;
   const asked = permission();
   const acks = box.moveAcks.length;
