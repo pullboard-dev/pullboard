@@ -55,6 +55,7 @@ test('clause 1: with board.archiveEvents on and a fake clock, every event of ite
   const archived = board.db.prepare('SELECT * FROM event_archive ORDER BY event_id').all();
   assert.ok(archived.every(row => row.event_archived_at === NOW.toISOString() && row.event_kind === 'note' && row.event_detail === '{}'));
   assert.equal(archiveOldEvents(board, NOW, { enabled: true }).moved, 0, 'a second run finds nothing more to move');
+  assert.throws(() => board.db.exec('DELETE FROM event'), /APPEND_ONLY/u, 'the append-only guard is back after the archive');
 });
 
 test('clause 2: with board.archiveEvents off, the default, the archiver moves nothing and the event table is byte-identical [C7,#9334]', t => {

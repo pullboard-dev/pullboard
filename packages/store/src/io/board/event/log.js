@@ -26,6 +26,7 @@ import {
 } from "../write/lock.js";
 
 import { BOARD_PROGRESS_ENGINE } from '../../../../../state/index.js';
+import { suspendStoreGuards } from "../guards.js";
 import { notifyUnblocked } from '../../../logic/board/notices.js';
 
 const OWN_FILE = fileURLToPath(import.meta.url);
@@ -245,9 +246,12 @@ export function moveEventsToArchive(board, itemIds, archivedAt) {
   if (!itemIds.length) return 0;
   const ids = JSON.stringify(itemIds);
   return atomic(board, () => {
+    // Events are append-only under the board's guards; the archive is the one sanctioned move out, so lift them for this transaction and put them back.
+    const restore = suspendStoreGuards(board);
     const moved = board.db.prepare(`INSERT INTO event_archive (event_id, event_at, event_by, event_kind, item_id, event_detail, event_archived_at)
       SELECT event_id, event_at, event_by, event_kind, item_id, event_detail, ? FROM event WHERE item_id IN (SELECT value FROM json_each(?))`).run(archivedAt, ids).changes;
     board.db.prepare('DELETE FROM event WHERE item_id IN (SELECT value FROM json_each(?))').run(ids);
+    restore();
     return Number(moved);
   });
 }
