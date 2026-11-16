@@ -359,6 +359,10 @@
         "packages/store/src/io/presence.js": 1
       }
     },
+    "*.proof-derived.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/verify/src/io/proof/derived.js"
+    },
     "*.profile.json": {
       "kind": "json",
       "owner": "packages/gate/src/io/submit.js",
@@ -1561,7 +1565,6 @@
     "pullboard-runner-policy.json",
     "recovery.json",
     "relay-health.sqlite",
-    "row.json",
     "stats-history.jsonl",
     "timer.guard.sqlite",
     "timer.json",

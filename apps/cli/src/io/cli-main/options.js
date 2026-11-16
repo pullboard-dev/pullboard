@@ -96,6 +96,7 @@ const OPTIONS = {
   timeout: { type: 'string' },
   sentinel: { type: 'boolean' },
   'health-only': { type: 'boolean' },
+  'lapsed-only': { type: 'boolean' },
   health: { type: 'boolean' },
   lag: { type: 'boolean' },
   'main-lag': { type: 'boolean' },
