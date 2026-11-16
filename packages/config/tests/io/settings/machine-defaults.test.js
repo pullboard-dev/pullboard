@@ -24,6 +24,7 @@ const BEFORE = {
   'freeze.refuseEmptyBar': false,
   'gate.browserByLaunch': false,
   'gate.browserFreeChecks': false,
+  'gate.contractWeakening': false,
   'gate.diskFloorMB': 10240,
   'gate.endStaleJobs': false,
   'gate.fencedHop': true,
