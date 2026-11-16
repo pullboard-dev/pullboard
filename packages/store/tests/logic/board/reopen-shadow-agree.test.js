@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../../../index.js';
+import { cellBoard } from '../../fixtures/cell.js';
 
 const COMMIT = '5108337ee32cb03255cf0517a606664959b053d5';
 const TRUNK = 'f7eff113370187b2aa443c6a9dbeb02b93125ceb';
@@ -21,13 +22,15 @@ function writerCall(over = {}) {
 /** The reopen event the writer recorded for it, as the shadow hook reads it back from the event table. */
 const wrote = [{ kind: 'reopen', by: 'core-4871', detail: JSON.stringify({ commit: COMMIT, note: NOTE, judgment: null, reopenFirstRefusal: WINDOW, conflict: CONFLICT, cause: 'conflict:packages/api/index.js', computedConflict: COMPUTED }) }];
 
-test('clause 1: a seat\'s reported-conflict reopen is not refused and the compare reads no difference [C7,#9359]', () => {
+test('clause 1: a seat\'s reported-conflict reopen is not refused and the compare reads no difference [C7,#9359]', t => {
+  cellBoard(t, ':memory:');
   const decided = store.reopenDecision(9150, writerCall());
   assert.equal(decided.refused, undefined, `refused: ${JSON.stringify(decided.refused)}`);
   assert.equal(store.reopenDiffers({ decided, wrote }), null);
 });
 
-test('clause 2: a merged item and a non-coordinator reopen with no reported conflict still read refused [C7,#9359]', () => {
+test('clause 2: a merged item and a non-coordinator reopen with no reported conflict still read refused [C7,#9359]', t => {
+  cellBoard(t, ':memory:');
   const merged = store.reopenDecision(9150, writerCall({ agentId: 'coordinator', before: { item_status: 'verified', item_commit: COMMIT, item_merged_commit: 'a'.repeat(40) }, conflict: undefined, computedConflict: undefined }));
   assert.equal(merged.refused?.code, 'ALREADY_MERGED');
   assert.equal(store.reopenDiffers({ decided: merged, wrote }), 'refused');
