@@ -1,12 +1,13 @@
 /** Acceptance stays append-only; freshness is derived from the known Git trunk [E8,V8]. */
-import { mergeOnlyLandingProblem } from '../../../../merge/index.js';
+import { mergeOnlyLandingProblem } from '../../../../merge/light.js';
 import {
   cleanGitEnvironment,
   mainCheckout,
-} from '../../../../git/index.js';
-import { Refused } from '../../../../kernel/index.js';
-import { trunkRevisionReader } from '../../../../git/index.js';
-import { gitSpawnSync } from '../../../../git/index.js';
+} from '../../../../git/light.js';
+import { Refused } from '../../../../kernel/light.js';
+import { loadMachineSettings } from '../../../../config/light.js';
+import { ownPatchChanges } from '../../logic/verdict/own-patch.js';
+import { gitSpawnSync } from '../../../../git/light.js';
 
 /** A freshness failure that carries its own reason text, so each cause names the step the person takes [C7]. */
 class FreshnessFailure extends Error {
@@ -15,9 +16,9 @@ class FreshnessFailure extends Error {
 }
 
 /** Read exact Git objects without inherited selectors, replacements, or filename quoting. */
-function readGit(root, args) {
+function readGit(root, args, input = undefined) {
   const result = gitSpawnSync(['--no-replace-objects', ...args], {
-    cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 32 * 1024 * 1024,
+    cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, ...(input === undefined ? {} : { input }),
   });
   if (result.status !== 0) throw new Error('Git history is unavailable');
   return result.stdout;
@@ -37,18 +38,43 @@ function pathPatchId(root, from, to, path) {
   return id.stdout.split(' ')[0];
 }
 
+/** One path's change between two revisions as an unrolled patch with no context lines; empty when the path did not change. */
+function pathDiff(root, from, to, path) {
+  return readGit(root, ['diff', '--no-renames', '--full-index', '--binary', '--unified=0', from, to, '--', path]);
+}
+
+/** The lines of a diff that change a file's mode, existence or binary content, which hunks do not carry. */
+const shapeOf = diff => diff.split('\n').filter(line => /^(?:old mode|new mode|new file mode|deleted file mode|GIT binary patch|literal |delta )/u.test(line)).join('\n');
+
+/**
+ * Whether one path's reviewed patch and its patch after the merge hold the same hunks, keyed by file and hunk header (#9438).
+ * A hunk that only moved to other line numbers is the same hunk. Binary content and mode changes carry no hunks, so they still compare by patch id.
+ */
+function sameHunks(root, reviewed, merged) {
+  if (shapeOf(reviewed) !== shapeOf(merged) || /^GIT binary patch$/mu.test(reviewed)) return null;
+  return ownPatchChanges(reviewed, merged).length === 0;
+}
+
 /**
  * True when the checked change merges onto main without conflict and every path it touched carries the same
  * patch after the merge as it did against its reviewed trunk [E8,V8,#2896].
  * Why: main touching a shared file (packages/codemap/data/plan/cells.json) said nothing about the reviewed change, yet it made
  * every other accept stale and each needed a re-review of identical work.
+ * With verify.hunkFreshness on (#9438) the patches are compared hunk by hunk instead of as one patch id per path, so only
+ * a changed hunk of the submit's own patch makes the review stale; `hunkKeyed` overrides the setting.
  */
-export function composesUnchanged(root, { base, checked, tip, paths }) {
+export function composesUnchanged(root, { base, checked, tip, paths }, { hunkKeyed = loadMachineSettings().verify?.hunkFreshness === true } = {}) {
   const merged = gitSpawnSync(['--no-replace-objects', 'merge-tree', '--write-tree', '--no-messages', tip, checked],
     { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
   if (merged.status !== 0) return false;
   const tree = merged.stdout.trim().split('\n')[0];
-  return paths.every(path => pathPatchId(root, base, checked, path) === pathPatchId(root, tip, tree, path));
+  return paths.every(path => {
+    if (hunkKeyed) {
+      const keyed = sameHunks(root, pathDiff(root, base, checked, path), pathDiff(root, tip, tree, path));
+      if (keyed !== null) return keyed;
+    }
+    return pathPatchId(root, base, checked, path) === pathPatchId(root, tip, tree, path);
+  });
 }
 
 /**
@@ -121,11 +147,34 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
     if (!reads.has(key)) reads.set(key, readGit(root, args));
     return reads.get(key);
   };
-  /** Git's exit status for 'checked is an ancestor of tip', asked once per distinct commit within this projector. */
+  let tipAncestors = null;
+  /** Every commit reachable from the tip, read by one rev-list for the whole projector [C7]. */
+  const reachable = () => tipAncestors ??= new Set(readGit(root, ['rev-list', tip]).split('\n').filter(Boolean));
+  const held = new Map();
+  /** Ask one cat-file about every commit not yet asked, and remember each answer; a missing or non-commit object is false. */
+  const askHeld = commits => {
+    const unasked = [...new Set(commits)].filter(commit => typeof commit === 'string' && /^[0-9a-f]{40}([0-9a-f]{24})?$/u.test(commit) && !held.has(commit));
+    if (!unasked.length) return;
+    for (const line of readGit(root, ['cat-file', '--batch-check'], unasked.join('\n') + '\n').split('\n')) {
+      const [name, kind] = line.split(' ');
+      if (name) held.set(name, kind === 'commit');
+    }
+  };
+  /** Whether Git holds this commit object; commits named to prime() were asked together, any other costs one cat-file. */
+  const holdsCommit = commit => { askHeld([commit]); return held.get(commit) === true; };
+  /**
+   * Git's exit status for 'checked is an ancestor of target', asked once per distinct commit within this projector.
+   * Why: one merge-base process per verified item took 23 s of a 50 s first read on a 1,038-item board (fact 833c9dc2),
+   * so ancestry of the tip is answered from one rev-list plus a cat-file for the rare commit it does not list [C7].
+   */
   const ancestryStatus = (checked, target) => {
     const key = `${checked} ${target}`;
-    if (!ancestry.has(key)) ancestry.set(key, gitSpawnSync(['--no-replace-objects', 'merge-base', '--is-ancestor', checked, target],
-      { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' }).status);
+    if (!ancestry.has(key)) {
+      const exact = target === tip && /^[0-9a-f]{40}([0-9a-f]{24})?$/u.test(`${checked}`) && /^[0-9a-f]{40}([0-9a-f]{24})?$/u.test(`${tip}`);
+      if (exact) ancestry.set(key, reachable().has(checked) ? 0 : holdsCommit(checked) ? 1 : 128);
+      else ancestry.set(key, gitSpawnSync(['--no-replace-objects', 'merge-base', '--is-ancestor', checked, target],
+        { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' }).status);
+    }
     return ancestry.get(key);
   };
   /** Query only first-parent commits touching these literal paths, retaining merges and reverts. */
@@ -224,14 +273,17 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
     const freshness = state(item);
     return freshness ? { ...item, item_verdict_state: freshness } : item;
   };
-  return { state, project, main: tip ?? null };
+  /** Ask Git about every unlanded verified item's commit in one process, before the per-item reads need them [C7]. */
+  const prime = items => askHeld(items.filter(item => item.item_status === 'verified' && !item.item_merged_commit).map(item => item.item_commit));
+  return { state, project, prime, main: tip ?? null };
 }
 
 
 const PRESENTATION_VERDICTS = new Map();
 
 /** Reuse derived presentation values, never a closed board connection or mutable native row. */
-export function cachedVerdictStates(root, board, info, { events, acceptedVerdict, verdictReviewProblem, boardId }) {
+export function cachedVerdictStates(root, board, info, { events, acceptedVerdict, verdictReviewProblem, boardId, trunkRevisionReader }) {
+  // The caller's reader keeps the trunk watcher out of this light module; an unknown tip lets the projector resolve the trunk itself.
   const tip = trunkRevisionReader(info)();
   const event = board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id;
   const key = JSON.stringify([info.commonDir, boardId(board)]);
@@ -243,7 +295,7 @@ export function cachedVerdictStates(root, board, info, { events, acceptedVerdict
     PRESENTATION_VERDICTS.set(key, cached);
     while (PRESENTATION_VERDICTS.size > 32) PRESENTATION_VERDICTS.delete(PRESENTATION_VERDICTS.keys().next().value);
   }
-  const projector = verdictProjector(root, board, { main: tip }, { events, acceptedVerdict, verdictReviewProblem });
+  const projector = verdictProjector(root, board, { main: tip ?? undefined }, { events, acceptedVerdict, verdictReviewProblem });
   /** Refresh only a changed item; unchanged sealed presentations start no new Git process. */
   return item => {
     const raw = JSON.stringify(item);

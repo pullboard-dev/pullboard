@@ -1,8 +1,9 @@
-import { STRICT_COMPOSITION_ENGINE } from './engines/strict-composition-engine.js';
+import { engineNumber } from './engine/number.js';
+const STRICT_COMPOSITION_ENGINE = engineNumber('STRICT_COMPOSITION_ENGINE');
+const REVIEW_TIER_ENGINE = engineNumber('REVIEW_TIER_ENGINE');
+const REVIEW_ROUTING_ENGINE = engineNumber('REVIEW_ROUTING_ENGINE');
+const REVIEW_INDEPENDENCE_ENGINE = engineNumber('REVIEW_INDEPENDENCE_ENGINE');
 /** Shared ordered activation witness, independent of review classification [C7,H16]. */
-import { REVIEW_TIER_ENGINE } from './engines/review-tier-engine.js';
-import { REVIEW_ROUTING_ENGINE } from './engines/review-routing-engine.js';
-import { REVIEW_INDEPENDENCE_ENGINE } from './engines/review-independence-engine.js';
 
 /** The first modern native prefix position activates new review rules without rewriting older receipts. */
 export function recordReviewPolicyActivation(board, engine) {

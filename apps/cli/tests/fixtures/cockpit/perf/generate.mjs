@@ -73,7 +73,7 @@ function textOf(seed, label, targetLength) {
 }
 
 /** Allocate all five lifecycle states proportionally while keeping each state represented. */
-function statusCounts(size) {
+export function statusCounts(size) {
   const totalWeight = STATUS_WEIGHTS.reduce((sum, weight) => sum + weight, 0);
   const exact = STATUS_WEIGHTS.map((weight) => size * weight / totalWeight);
   const counts = exact.map(Math.floor);
@@ -101,9 +101,13 @@ function run(command, args, cwd, env) {
   return result.stdout;
 }
 
-/** Start from a caller environment without inherited board, machine or gate identity switches. */
+/**
+ * Start from a caller environment without inherited board, machine or gate identity switches.
+ * NODE_TEST_CONTEXT goes too: inside a test run, init refuses to register a board whose home is outside the temp folder,
+ * so a stress board cached under the runner's home came out with an empty registry and the view said "No boards yet" [N26].
+ */
 function cleanEnvironment() {
-  return Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PULLBOARD_')));
+  return Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PULLBOARD_') && key !== 'NODE_TEST_CONTEXT'));
 }
 
 /** Build a spec whose row count scales with board size and whose first draft appears in the default view. */
@@ -279,7 +283,7 @@ export function generateStressBoard({ seed = 'pullboard-perf-606', size = 150, p
     mkdirSync(machineHome, { recursive: true });
     const canonicalRoot = realpathSync(root);
     // #851: cleanEnvironment drops every PULLBOARD_ variable, including the fixture opt-out, so init would start a background view.
-    const env = { ...cleanEnvironment(), HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome, PULLBOARD_VIEW_BACKGROUND: '0',
+    const env = { ...cleanEnvironment(), HOME: home, PULLBOARD_HOME: home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_MACHINE_HOME: machineHome, PULLBOARD_VIEW_BACKGROUND: '0',
       GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Stress fixture',
       GIT_AUTHOR_EMAIL: 'stress@pullboard.invalid', GIT_COMMITTER_NAME: 'Stress fixture', GIT_COMMITTER_EMAIL: 'stress@pullboard.invalid',
       GIT_AUTHOR_DATE: FIXED_NOW.toISOString(), GIT_COMMITTER_DATE: FIXED_NOW.toISOString() };

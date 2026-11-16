@@ -41,6 +41,7 @@ import {
   configFromSource,
   DOCTRINE_FILE,
   LEGACY_DOCTRINE_FILE,
+  loadConfig,
 } from "../../../config/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { parseCommitMessage } from "../logic/message.js";
@@ -117,6 +118,18 @@ function headerProblems(header, rules) {
   }
   if (subject.endsWith('.')) problems.push('remove the period at the end of the subject');
   return { problems, type: match[1] };
+}
+
+/**
+ * Header problems alone (format, length, case, period) for one commit header; git-written merges, reverts and fixups are exempt.
+ * Why: trusted re-checks need the header rule without a spec or a claim (A8).
+ *
+ * @param {string} header
+ * @param {any} rules - The `commits` settings.
+ * @returns {string[]}
+ */
+export function commitHeaderProblems(header, rules) {
+  return EXEMPT_RE.test(header) ? [] : headerProblems(header, rules).problems;
 }
 
 /** Name usable approved citations, or the real draft-and-approval path when none are available. */
@@ -430,7 +443,7 @@ function stagedChangedLines(root, path) {
   if (shared) {
     if (shared.lines === undefined) {
       try {
-        const rows = addedLines(shared.diff ?? git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0'], { maxBuffer: MAX_SECRET_DIFF_BYTES }));
+        const rows = addedLines(shared.diff ?? git(root, ['diff', '--cached', '--no-ext-diff', '--no-textconv', '--no-color', '-U0'], { maxBuffer: MAX_SECRET_DIFF_BYTES }));
         shared.lines = new Map();
         for (const row of rows) shared.lines.set(row.path, [...(shared.lines.get(row.path) ?? []), `${row.path}:${row.line}`]);
       } catch { shared.lines = null; }
@@ -440,7 +453,7 @@ function stagedChangedLines(root, path) {
     if (shared.lines && !treeRaw(root, ':index', path)) return [];
   }
   try {
-    const diff = git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0', '--', ':(literal)' + path], { maxBuffer: MAX_SECRET_DIFF_BYTES });
+    const diff = git(root, ['diff', '--cached', '--no-ext-diff', '--no-textconv', '--no-color', '-U0', '--', ':(literal)' + path], { maxBuffer: MAX_SECRET_DIFF_BYTES });
     return addedLines(diff).filter(row => row.path === path).map(row => `${path}:${row.line}`);
   } catch { return []; }
 }
@@ -489,6 +502,30 @@ export function secretsIn(added) {
       : pattern.test(entry.text));
     return found ? [`${found[0]} at ${entry.path}:${entry.line}`] : [];
   });
+}
+
+/**
+ * Re-check every commit in base..head for committed secrets and header-rule breaks, reading git directly so a
+ * skipped hook (`--no-verify`) hides nothing. Reuses the SECRETS table and the header rule above (A8).
+ *
+ * @param {string} repo - A checkout root the trusted caller owns.
+ * @param {string} base - Exclusive start of the range.
+ * @param {string} head - Inclusive end of the range.
+ * @param {{ rules?: any }} [options] - `rules` defaults to the repo's `commits` settings, or the built-in ones when it has none.
+ * @returns {{ commit: string, kind: 'secret' | 'header', problem: string }[]} Findings, empty when the range is clean.
+ */
+export function recheckRange(repo, base, head, { rules } = {}) {
+  const commitRules = rules ?? (existsSync(join(repo, CONFIG_FILE)) ? loadConfig(repo) : configFromSource('{}')).commits;
+  const listed = tryGit(repo, ['rev-list', '--reverse', `${base}..${head}`]);
+  if (listed.status !== 0) throw new Refused('RANGE_UNREADABLE', `cannot list ${base}..${head}: ${listed.stderr}; pass commits this checkout holds`);
+  const findings = [];
+  for (const commit of listed.stdout.split('\n').filter(Boolean)) {
+    const header = git(repo, ['log', '-1', '--format=%s', commit]);
+    for (const problem of commitHeaderProblems(header, commitRules)) findings.push({ commit, kind: 'header', problem });
+    const diff = git(repo, ['diff-tree', '--root', '-p', '-m', '--first-parent', '-U0', '--no-commit-id', '--no-ext-diff', '--no-textconv', '--no-color', commit], { maxBuffer: MAX_SECRET_DIFF_BYTES });
+    for (const problem of secretsIn(addedLines(diff))) findings.push({ commit, kind: 'secret', problem });
+  }
+  return findings;
 }
 
 /**
@@ -546,7 +583,7 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
     try {
       if (resolution) added = resolution();
       else {
-        const diff = git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0'], { maxBuffer: MAX_SECRET_DIFF_BYTES });
+        const diff = git(root, ['diff', '--cached', '--no-ext-diff', '--no-textconv', '--no-color', '-U0'], { maxBuffer: MAX_SECRET_DIFF_BYTES });
         if (readCache) readCache.diff = diff;
         added = addedLines(diff);
       }
@@ -707,7 +744,7 @@ export function preMergeHookProblems(root) {
  * @param {string} root
  * @returns {string}
  */
-function activeHooksDir(root) {
+export function activeHooksDir(root) {
   return resolve(root, gitPath(root, 'hooks'));
 }
 
@@ -1105,7 +1142,7 @@ function installerVersion() {
  * any rule (#876): an older global install would otherwise apply its old rules under a newer CLI's
  * guidance, and an old binary cannot be trusted to notice. A mismatch stops the hook, names both
  * versions, and gives the one command that fixes it: install the hook's version (project or global, where
- * the binary came from) when the found one is older, or rewrite the hooks with `pullboard init` when newer.
+ * the binary came from) when the found one is older, or rewrite the hooks with `pullboard init` in the main checkout (init refuses a worktree) when newer.
  *
  * @param {string} hook
  * @param {string} [version] The installing version; tests pass their own.
@@ -1121,7 +1158,7 @@ export function hookScript(hook, version = installerVersion()) {
     `want='${version}'`,
     ...(hook === 'commit-msg' ? ['message="$1"'] : []),
     'root=$(git rev-parse --show-toplevel)',
-    'main=$(git rev-parse --path-format=absolute --git-common-dir)/..',
+    'main=$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd)',
     'run() {',
     '  bin="$1"; scope="$2"',
     // Shell builtins only, so a hook works on a PATH that has no tail or sed: keep the last line of --version.
@@ -1134,7 +1171,7 @@ export function hookScript(hook, version = installerVersion()) {
     '  nl=$(printf \'\\n_\'); nl=${nl%_}; have=${have##*"$nl"}',
     '  if [ "$have" != "$want" ]; then',
     '    newer=$(node -e \'const [a,b]=process.argv.slice(1).map(v=>String(v).split(".").map(n=>parseInt(n,10)||0));for(let i=0;i<3;i++)if(a[i]!==b[i]){process.stdout.write(a[i]>b[i]?"yes":"no");process.exit(0)}process.stdout.write("no")\' "$have" "$want" 2>/dev/null)',
-    '    if [ "$newer" = yes ]; then fix="pullboard init"; else fix="npm i $scope pullboard@$want"; fi',
+    '    if [ "$newer" = yes ]; then fix="cd \\"$main\\" && pullboard init"; else fix="npm i $scope pullboard@$want"; fi',
     `    echo "pullboard ${hook}: stopped before running any rule; these hooks were installed by Pullboard $want, but $bin is Pullboard \${have:-unknown}. Run: $fix" >&2`,
     '    exit 1',
     '  fi',
@@ -1216,7 +1253,7 @@ function addedLinesInBatches(root, written) {
     if (!paths.length) continue;
     let diff;
     try {
-      diff = git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0', '--', ...paths], { maxBuffer: MAX_SECRET_DIFF_BYTES });
+      diff = git(root, ['diff', '--cached', '--no-ext-diff', '--no-textconv', '--no-color', '-U0', '--', ...paths], { maxBuffer: MAX_SECRET_DIFF_BYTES });
     } catch (error) {
       if (error.code !== 'ENOBUFS') throw error;
       if (paths.length === 1) throw new Refused('DIFF_TOO_LARGE', `${paths[0]} alone exceeds the safe scan limit; split that file into smaller commits, then retry`);

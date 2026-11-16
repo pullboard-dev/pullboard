@@ -8,12 +8,17 @@ import { Refused } from '../../../kernel/index.js';
  * @param {string} id the board id asked for
  * @param {() => Project[]} projects the registered boards
  * @param {(root: string) => string} readId reads one board's id; it throws when the board cannot be read
+ * @param {(root: string, currentId: string) => string | null} [previousId] the id the board carried before its current
+ *   one, which answers as the same board (#7772); none by default
  * @returns {Project & { id: string }}
  */
-export function registeredBoard(id, projects, readId) {
+export function registeredBoard(id, projects, readId, previousId = () => null) {
   const failures = [];
   const board = projects().find((project) => {
-    try { return readId(project.root) === id; }
+    try {
+      const current = readId(project.root);
+      return current === id || previousId(project.root, current) === id;
+    }
     catch (error) { failures.push({ root: project.root, error }); return false; }
   });
   if (!board) throw missingBoard(id, failures);

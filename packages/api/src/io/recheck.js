@@ -12,11 +12,14 @@ import { finishJob } from '../../../jobs/index.js';
 import { jobView } from '../../../jobs/index.js';
 import { pinQueuedJob } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
+import { FAILURE_DIAGNOSTICS_SOURCE } from '../../../kernel/index.js';
 
 /** The job kind the receipt cell's MAIN_TEST_JOB names; spelled here so the board API adds no edge to it. */
 export const MAIN_TEST_KIND = 'main-test';
 /** The line the job's entry prints last: whether the file passed on main, and its failing cases. */
 const MAIN_TEST_LINE = 'PULLBOARD_MAIN_TEST ';
+/** The test runner's per-file cache frame, which names each file's input key; spelled here so the board API adds no edge to the gate cell. */
+const INPUT_FRAME = '# pullboard test cache ';
 /** What a runner needs to take a main-test job: the gate's own Node. */
 const NEEDS = ['node22'];
 // Budget: one claim offers at most this many queued main-test rows, so a claim stays a small write.
@@ -25,6 +28,8 @@ const OFFER_ROWS = 50;
 const SCAN_COMMITS = 2000;
 // Budget: the most failing case names one receipt line carries, each clipped, so the line fits the runner's 4 KiB tail.
 const CASES = 20;
+/** The most UTF-16 units of one case name a main-test receipt keeps; the gate compares a longer case by this prefix. */
+export const MAIN_CASE_NAME_UNITS = 120;
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const RELATIVE_FILE = /^(?!\/)(?![A-Za-z]:)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r\\]{1,1024}$/u;
 
@@ -35,7 +40,7 @@ let recorder = null;
  * Provide the writer that puts a finished main-test job's verdict in the main comparison cache submit, landing and
  * serve read; null removes it. Why a provider: the landing cell owns that cache, and `pullboard serve` calls this once
  * at start, so the board API stays free of that cell [P7].
- * @param {((root: string, receipt: { main: string, file: string, verdict: 'green' | 'red', job: string, at: number }) => unknown) | null} write
+ * @param {((root: string, receipt: { main: string, file: string, verdict: 'green' | 'red', job: string, at: number, inputKey?: string }) => unknown) | null} write
  */
 export function provideMainTestRecorder(write) {
   recorder = typeof write === 'function' ? write : null;
@@ -46,23 +51,65 @@ export function provideMainTestRecorder(write) {
  * verdict and failing cases, read with main's own TAP reader when main has one. Why main's reader: the checkout is
  * main itself, so its reader is the one main's gate trusts.
  */
-const ENTRY = `import { spawnSync } from 'node:child_process';
+/** The job's entry source, exported so a unit can run it against a fixture command. */
+export const MAIN_TEST_ENTRY = `import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+${FAILURE_DIAGNOSTICS_SOURCE}
 const [command, file] = process.argv.slice(1);
 const env = { ...process.env, PULLBOARD_PULLED_JOB: '1' };
 delete env.NODE_TEST_CONTEXT;
 const ran = spawnSync(command + " '" + ('./' + file).replaceAll("'", "'\\\\''") + "'", { shell: true, env, encoding: 'utf8', maxBuffer: 256 * 1024 ** 2 });
 const text = (ran.stdout ?? '') + (ran.stderr ?? '') + (ran.error ? String(ran.error.message) : '');
-let failing = ran.status === 0 ? [] : null;
+let failing = ran.status === 0 ? [] : null, signatures = ran.status === 0 ? [] : null;
 if (ran.status !== 0) {
+  let rows = null;
   try {
-    const light = await import(pathToFileURL(join(process.cwd(), 'packages', 'gate', 'light.js')).href);
-    const rows = light.tapFailures(text, process.cwd());
-    if (Array.isArray(rows) && rows.length && rows.length <= ${CASES}) failing = [...new Set(rows.map(row => String(row.name).slice(0, 120)))];
-  } catch { failing = null; }
+    // The run's own outcome frames carry its id; without it the reader refuses every run that printed them, so no case was ever named.
+    let outcomeRunId = null;
+    try { outcomeRunId = JSON.parse(text.split('\\n').find(line => line.startsWith('# pullboard test outcomes ')).slice('# pullboard test outcomes '.length)).id ?? null; } catch { outcomeRunId = null; }
+    // The runner prints its own suite timing frame after TAP's final count, which the strict reader refuses as a trailer; the gate
+    // reads the run through its timing strip, so this does too, binding the frame to the source it names itself [C7].
+    let reading = text;
+    try {
+      const frame = text.split('\\n').find(line => line.startsWith('# pullboard suite timing '));
+      const bound = frame ? JSON.parse(frame.slice('# pullboard suite timing '.length)) : null;
+      if (bound?.id) reading = (await import(pathToFileURL(join(process.cwd(), 'packages', 'gate', 'index.js')).href)).timingAccountingOutput(text, bound.id, { head: bound.head, tree: bound.tree });
+    } catch { reading = text; }
+    rows = (await import(pathToFileURL(join(process.cwd(), 'packages', 'gate', 'light.js')).href)).tapFailures(reading, process.cwd(), { outcomeRunId, nativeLeaves: outcomeRunId !== null });
+  }
+  catch {
+    // A project without Pullboard's TAP reader on main: its plain TAP 'not ok' case lines, never a file-level wrapper,
+    // so a main red is named by case and a pulled gate can judge it main-owned [V4,B3,C7].
+    rows = text.split('\\n').map(line => /^ *not ok [0-9]+ - (.+)$/u.exec(line)?.[1]?.split(' # ')[0].trim())
+      .filter(name => name && !name.startsWith('/') && !/[.][cm]?js$/u.test(name)).map(name => ({ name }));
+  }
+  try {
+    if (Array.isArray(rows) && rows.length && rows.length <= ${CASES}) {
+      // Each case's diagnostic signature, as the controller signs it; a name clipped onto another with a different one keeps none [V4,B3].
+      let signed = [];
+      try { signed = caseSignatures(rows.map(row => ({ name: String(row.name) })), tapFailureDiagnostics(text, process.cwd(), value => createHash('sha256').update(value).digest('hex'))); } catch { signed = []; }
+      const named = new Map();
+      rows.forEach((row, index) => {
+        const name = String(row.name).slice(0, ${MAIN_CASE_NAME_UNITS}), signature = signed[index] ?? null;
+        named.set(name, named.has(name) && named.get(name) !== signature ? null : signature);
+      });
+      failing = [...named.keys()];
+      signatures = [...named.values()];
+    }
+  } catch { failing = null; signatures = null; }
 }
-process.stdout.write(text.slice(-1500) + '\\n${MAIN_TEST_LINE}' + JSON.stringify({ green: ran.status === 0, status: ran.status, failing }) + '\\n');
+// The run's own cache frame names the file's test input key (the file, its import closure and declared inputs), so a gate on
+// another main whose inputs to this file are the same reads this receipt [C7,SC11].
+let inputKey = null;
+for (const line of text.split('\\n')) {
+  if (!line.startsWith('${INPUT_FRAME}')) continue;
+  try { const row = JSON.parse(line.slice(${INPUT_FRAME.length})); if (row?.file === file && /^[0-9a-f]{64}$/u.test(row.inputKey ?? '')) inputKey = row.inputKey; } catch { /* A torn frame names no key. */ }
+}
+// The verdict line ends the output and fits the runner's 4 KiB tail whole; the run's own text takes what room is left.
+const verdict = '${MAIN_TEST_LINE}' + JSON.stringify({ green: ran.status === 0, status: ran.status, failing, signatures, inputKey });
+process.stdout.write(text.slice(-Math.max(0, Math.min(1500, 3900 - verdict.length))) + '\\n' + verdict + '\\n');
 process.exitCode = ran.status === 0 ? 0 : 1;
 `;
 
@@ -108,7 +155,7 @@ export function offerMainTests(board, { now = Date.now() } = {}) {
       continue;
     }
     const pinned = atomically(db, () => pinQueuedJob(db, id, commit, { now })
-      && writeStep(db, id, 'offered', { needs: NEEDS, run: ['node', '--input-type=module', '-e', ENTRY, at.command, at.file] }, { now }).written);
+      && writeStep(db, id, 'offered', { priority: 'background', needs: NEEDS, run: ['node', '--input-type=module', '-e', MAIN_TEST_ENTRY, at.command, at.file] }, { now }).written);
     if (pinned) offered.push(id);
   }
   return offered;
@@ -116,7 +163,7 @@ export function offerMainTests(board, { now = Date.now() } = {}) {
 
 /**
  * Apply a main-test job's posted receipt: write the keyed main receipt `{ id, tree, file, command, verdict, failing,
- * main, at }` as the job's receipt step 0, which the gate's main-red verdict reads (returnedMainReceipts). A receipt
+ * signatures, main, at }` as the job's receipt step 0, which the gate's main-red verdict reads (returnedMainReceipts). A receipt
  * whose run printed no verdict line stays recorded and keys nothing. Runner attempts post at seq 1 and up, so the
  * keyed receipt never collides with one.
  *
@@ -132,14 +179,21 @@ export function applyMainTestReceipt(board, { job, receipt }, { now = Date.now()
   let ran = null;
   try { ran = line ? JSON.parse(line.slice(MAIN_TEST_LINE.length)) : null; } catch { ran = null; }
   if (!at || typeof ran?.green !== 'boolean') return { applied: false, outcome: 'unread' };
-  const failing = ran.green ? [] : Array.isArray(ran.failing) ? ran.failing.filter(name => typeof name === 'string') : [];
+  // A red whose cases could not be read keys nothing: a receipt naming none would excuse no case and bounce the builder for main's own red [C7].
+  if (!ran.green && !(Array.isArray(ran.failing) && ran.failing.length)) return { applied: false, outcome: 'unnamed' };
+  const named = ran.green || !Array.isArray(ran.failing) ? [] : ran.failing.map((name, index) => ({ name, signature: ran.signatures?.[index] })).filter(row => typeof row.name === 'string');
+  const failing = named.map(row => row.name);
+  // A case's diagnostic signature rides beside its name; one the run could not sign is null and never matches a gate's case [V4,B3].
+  const signatures = named.map(row => typeof row.signature === 'string' && /^[0-9a-f]{64}$/u.test(row.signature) ? row.signature : null);
   const verdict = ran.green ? 'green' : 'red';
+  // The file's test input key at that main, when the run printed one: the cache also keys the receipt by it [C7,SC11].
+  const inputKey = /^[0-9a-f]{64}$/u.test(ran.inputKey ?? '') ? ran.inputKey : null;
   atomically(db, () => {
-    writeStep(db, job, 'receipt', { id: job, tree: at.tree, file: at.file, command: at.command, verdict, failing, main: receipt.commit ?? null, at: now }, { seq: 0, now });
+    writeStep(db, job, 'receipt', { id: job, tree: at.tree, file: at.file, command: at.command, verdict, failing, signatures, main: receipt.commit ?? null, at: now, ...(inputKey ? { inputKey } : {}) }, { seq: 0, now });
     // The receipt step above moved the job's step; it stays finished.
     finishJob(db, job, null, { now });
   });
   // The cache is a convenience copy of the receipt above: a writer that fails leaves the receipt recorded.
-  try { if (receipt.commit) recorder?.(board.gitRoot, { main: receipt.commit, file: at.file, verdict, job, at: now }); } catch { /* re-measured later */ }
+  try { if (receipt.commit) recorder?.(board.gitRoot, { main: receipt.commit, file: at.file, verdict, job, at: now, ...(inputKey ? { inputKey } : {}) }); } catch { /* re-measured later */ }
   return { applied: true, outcome: 'recorded', verdict };
 }

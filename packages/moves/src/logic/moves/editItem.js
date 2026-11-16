@@ -1,13 +1,14 @@
+import { READINESS_ENGINE } from '../../../../state/light.js';
 import { EXPECTED_BUILD_ENGINE } from '../../../../state/light.js';
 import { MACHINE_VERDICT_ENGINE } from '../../../../state/light.js';
 import { BLOCKED_DEPENDENCIES_ENGINE } from '../../../../state/light.js';
-import { checkTimingEngine } from "../../../../items/light.js";
+import { checkTimingEngine } from "../../../../items/browser.js";
 import { REVIEW_TIER_ENGINE } from "../../../../state/light.js";
 import { CHECK_TIMING_ENGINE } from "../../../../state/light.js";
 import { REVIEW_INDEPENDENCE_ENGINE } from "../../../../state/light.js";
 import { REFERENCE_ENGINE } from "../../../../state/light.js";
 import { CROSS_REPO_DEPENDENCY_ENGINE } from "../../../../state/light.js";
-import { hasForeignDependencies } from "../../../../items/light.js";
+import { hasForeignDependencies } from "../../../../items/browser.js";
 import { AUTOMATIC_DISPATCH_ENGINE } from "../../../../state/light.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by editItem, discovered without a shared registry edit [C7,V4,H16]. */
@@ -35,7 +36,7 @@ function existingEngine(args, board, at) {
 /** Preserve every historical floor while preventing older replicas from flattening foreign references. */
 function minimumEngine(args, board, at) {
   const blockedWait = args[1]?.after !== undefined && board?.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`blocked_release_waiting:${args[0]}`);
-  const floor = Math.max(args[1]?.machineVerified !== undefined || args[1]?.machineCommands !== undefined || args[1]?.machineReceipts !== undefined ? MACHINE_VERDICT_ENGINE : 1, args[1]?.expectedBuildMinutes !== undefined ? EXPECTED_BUILD_ENGINE : 1, blockedWait ? BLOCKED_DEPENDENCIES_ENGINE : 1, checkTimingEngine(board, args[0]), args[1]?.checkTiming !== undefined ? CHECK_TIMING_ENGINE : 1, args[1]?.reviewTier !== undefined ? REVIEW_TIER_ENGINE : 1, (args[1]?.sensitive !== undefined || args[1]?.reviewFamily === null) ? REVIEW_INDEPENDENCE_ENGINE : 1, (args[1]?.referenceAuthors !== undefined || args[1]?.referenceAuthority !== undefined) ? REFERENCE_ENGINE : 1,
+  const floor = Math.max(args[1]?.machineVerified !== undefined || args[1]?.machineCommands !== undefined || args[1]?.machineReceipts !== undefined ? MACHINE_VERDICT_ENGINE : 1, args[1]?.expectedBuildMinutes !== undefined ? EXPECTED_BUILD_ENGINE : 1, args[1]?.readinessCommand !== undefined ? READINESS_ENGINE : 1, blockedWait ? BLOCKED_DEPENDENCIES_ENGINE : 1, checkTimingEngine(board, args[0]), args[1]?.checkTiming !== undefined ? CHECK_TIMING_ENGINE : 1, args[1]?.reviewTier !== undefined ? REVIEW_TIER_ENGINE : 1, (args[1]?.sensitive !== undefined || args[1]?.reviewFamily === null) ? REVIEW_INDEPENDENCE_ENGINE : 1, (args[1]?.referenceAuthors !== undefined || args[1]?.referenceAuthority !== undefined) ? REFERENCE_ENGINE : 1,
     existingEngine(args, board, at), hasForeignDependencies(args[1]?.after) ? CROSS_REPO_DEPENDENCY_ENGINE : 1,
     args[1]?.reviewFamily !== undefined || args[1]?.correction === true ? AUTOMATIC_DISPATCH_ENGINE : 1);
   return Math.max(floor, args[1]?.preserveFrozen === true ? PER_ITEM_FULL_SUITE_ENGINE : 1);

@@ -10,7 +10,7 @@ import { closeCellBoard } from '../../../store/tests/fixtures/cell.js';
 import { agentById } from '../../../store/index.js';
 import { isRemoteAgentPath } from '../../../store/index.js';
 import { openBoardForRead } from '../../../store/index.js';
-import { FIXTURE_MODEL } from '../../../../apps/cli/tests/fixtures/testkit.js';
+import { FIXTURE_MODEL } from '../../../gate/tests/fixtures/testkit.js';
 import { executeMove } from '../../index.js';
 
 /** The board openers and move mapping the higher composition root hands the API. */
@@ -47,7 +47,7 @@ async function remoteJoin(project, runner) {
 }
 
 test('clause 1: a join over the API registers an agent on the served board with no board-host path [P7]', async (t) => {
-  const project = cellProject(t);
+  const project = cellProject(t, { real: true });
   const runner = recordingRunner();
   const agent = await remoteJoin(project, runner);
   assert.match(agent, /^web-/u);
@@ -60,7 +60,7 @@ test('clause 1: a join over the API registers an agent on the served board with 
 });
 
 test('clause 2: a move posted as the remote agent runs at the board root as that agent instead of refusing WRONG_BOARD [P7]', async (t) => {
-  const project = cellProject(t);
+  const project = cellProject(t, { real: true });
   const runner = recordingRunner();
   const agent = await remoteJoin(project, runner);
   const moved = await executeMove(project.repo, { verb: 'shout', agent, args: { to: 'coordinator', kind: 'question', text: 'remote seat reporting' } }, runner.run, false, 'api', refusalDocument, OPENERS);
@@ -70,8 +70,8 @@ test('clause 2: a move posted as the remote agent runs at the board root as that
 });
 
 test('clause 3: a local agent whose worktree belongs to another board still refuses WRONG_BOARD [P7]', async (t) => {
-  const project = cellProject(t);
-  const other = cellRepo(t);
+  const project = cellProject(t, { real: true });
+  const other = cellRepo(t, { real: true });
   const board = openCellBoard(project.boardFile);
   let agent;
   try { agent = cellSeat(board, { lane: 'web', path: other.root }).id; } finally { closeCellBoard(board); }

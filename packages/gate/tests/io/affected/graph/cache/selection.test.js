@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { codeMapGraph } from '../../../../../index.js';
 import { selectAffectedTests } from '../../../../../index.js';
-import { runFixtureGit } from '../../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../fixtures/child.js';
 
 const MODULES = 300;
 

@@ -2,11 +2,11 @@
  * Board calls over HTTP for a seat whose board lives on another host: with board.url set, join, show and whoami ask
  * the board host's pullboard serve and open no board.sqlite [P7]. Writes reuse its transport from moves.js.
  */
-import { execFileSync } from 'node:child_process';
+import { gitExecFileSync } from '../../../../../packages/git/light.js';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { Refused } from '../../../../../packages/kernel/light.js';
-import { boardRemote } from '../../../../../packages/config/index.js';
+import { boardRemote } from '../../../../../packages/config/light.js';
 
 // Budget: one small board read; a board host slower than this is treated as unreachable.
 const READ_TIMEOUT_MS = 10_000;
@@ -19,6 +19,8 @@ export function remoteBoard() {
 /**
  * GET one API path from the board host, or POST a JSON body to it, and decode its JSON, turning transport, key and
  * board refusals into refusals that keep the board's own code and next step.
+ * Every call opens its own connection (agent: false): the shared keep-alive pool reuses a socket the board closed while idle,
+ * which surfaced as ECONNRESET on a POST that then must not be retried [P7].
  * @param {{ url: string, token: string }} remote
  * @param {string} path An absolute API path.
  * @param {any} [body] A JSON body to POST; omitted for a read.
@@ -34,7 +36,7 @@ export function requestJson(remote, path, body, timeout = READ_TIMEOUT_MS) {
     ...(payload === null ? {} : { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) }) };
   return new Promise((resolve, reject) => {
     const unreachable = (why) => new Refused('BOARD_UNREACHABLE', `cannot reach board.url ${origin} (${why}); start pullboard serve on the board host, or fix it with pullboard settings board.url <url>`);
-    const request = send(target, { method: payload === null ? 'GET' : 'POST', headers, timeout }, (response) => {
+    const request = send(target, { method: payload === null ? 'GET' : 'POST', headers, timeout, agent: false }, (response) => {
       let body = '';
       response.setEncoding('utf8');
       response.on('data', (part) => { body += part; });
@@ -78,7 +80,7 @@ export async function boardPath(remote) {
 /** This seat's agent name: PULLBOARD_AGENT, or the worktree's git config pullboard.agent that a remote join records. */
 export function seatAgent(cwd) {
   if (process.env.PULLBOARD_AGENT) return process.env.PULLBOARD_AGENT;
-  try { return execFileSync('git', ['config', '--get', 'pullboard.agent'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null; }
+  try { return gitExecFileSync(['config', '--get', 'pullboard.agent'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null; }
   catch { return null; }
 }
 

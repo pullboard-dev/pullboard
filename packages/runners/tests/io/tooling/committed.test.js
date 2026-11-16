@@ -1,9 +1,11 @@
-/** @pullboard-test-input packages/runners/src/io/tooling/committed.js */
+/** @pullboard-test-input packages/runners/src/io/tooling/committed.js packages/runners/src/io/dispatch.js packages/runners/src/io/pull/delegate.js */
+/** @pullboard-world-pin: clause 1 reads the real dispatch.js and delegate.js sources to prove they name no app path. */
 /** A shared controller export is swept when its last run finishes, and at most 8 are kept [E28,C7]. */
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
@@ -12,10 +14,11 @@ import { basename } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { startFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
+import { startFixtureChild } from '../../../../gate/tests/fixtures/child.js';
 import { committedRunnerController } from '../../../src/io/tooling/committed.js';
+import { runnerControllerEntry } from '../../../src/io/tooling/committed.js';
 import { pruneSharedExports } from '../../../src/io/tooling/committed.js';
 import { SHARED_KEEP_COUNT } from '../../../src/io/tooling/committed.js';
 
@@ -79,4 +82,13 @@ test('a shared export another process holds survives this process releasing and 
   pruneSharedExports(null, temp);
   assert.equal(existsSync(mine.root), false, 'once that process is gone, its lease no longer keeps the folder');
   assert.equal(existsSync(lease), false, 'the dead process lease is removed on sight');
+});
+
+test('clause 1: dispatch.js and delegate.js name no apps/ path and take the checkout controller from the tooling file [C7]', () => {
+  for (const file of ['../../../src/io/dispatch.js', '../../../src/io/pull/delegate.js']) {
+    const source = readFileSync(new URL(file, import.meta.url), 'utf8');
+    assert.doesNotMatch(source, /apps\//u, `${file} names no app path`);
+    assert.match(source, /runnerControllerEntry\(/u, `${file} asks the tooling file for the controller entry`);
+  }
+  assert.equal(runnerControllerEntry('/repo'), '/repo/apps/runner/src/io/controller.js');
 });

@@ -12,3 +12,24 @@ export function vendorFamilyAliases(custom) {
   }
   return index;
 }
+
+/**
+ * The vendor family a model label names, by the first word of it that is a known vendor spelling, or null when none is.
+ * Why: a claim records only the model label, so a landed item that never recorded a builder can
+ * still tell which family built it [V1].
+ */
+export function vendorOfModel(model) {
+  if (typeof model !== 'string') return null;
+  for (const word of model.toLowerCase().split(/[^a-z0-9]+/u)) if (BUILTINS.has(word)) return BUILTINS.get(word);
+  return null;
+}
+
+/**
+ * The canonical vendor family a declared label names (OpenAI and openai read as openai; Claude and anthropic as anthropic), or the
+ * label itself when no known vendor spelling matches. Why: seats register mixed spellings and the family guard then sees four
+ * families where there are two (#9681).
+ */
+export function canonicalVendorFamily(label) {
+  if (typeof label !== 'string' || !label.trim()) return label;
+  return BUILTINS.get(label.trim().toLowerCase()) ?? label;
+}

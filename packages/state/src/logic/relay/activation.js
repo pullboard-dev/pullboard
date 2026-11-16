@@ -1,5 +1,6 @@
+import { engineNumber } from '../engine/number.js';
+const AGENT_GRANT_ENGINE = engineNumber('AGENT_GRANT_ENGINE');
 /** Additive activation-witness index; native receipts and their engine meaning stay unchanged [E21,H16,C7]. */
-import { AGENT_GRANT_ENGINE } from '../engines/agent-grant-engine.js';
 
 export const GRANT_ACTIVATION_INDEX = 'board_meta_grant_activation_v2';
 const UNSAFE_INDEX = 'board_meta_grant_activation_unsafe_v1';

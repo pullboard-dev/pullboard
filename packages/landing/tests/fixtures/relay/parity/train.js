@@ -7,7 +7,6 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { runGate } from '../../../../../gate/index.js';
 import { runnerExecutionServices } from '../../../../../runners/index.js';
 import { landingExecutionServices } from '../../../../index.js';
@@ -16,10 +15,10 @@ import { receiptStore } from '../../../../../gate/index.js';
 import { prepareTrainLanding } from '../../../../index.js';
 import { invalidateGitFacts } from '../../../../../git/index.js';
 import { mainPolicy } from '../../../../../sandbox/index.js';
-import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../../gate/tests/fixtures/child.js';
 
-/** Keep all changes in the existing private parity Git/SQLite fixture, never the person's board or config. */
-export async function seedNativeTrain(context) {
+/** Keep all changes in the existing private parity Git/SQLite fixture, never the person's board or config. `cli` is the CLI file the `pullboard` shim runs, named by the app that owns it [CD12]. */
+export async function seedNativeTrain(context, { cli }) {
   const { board, box, store, exercise, agent, reviewer, submitFixture } = context;
   const file = join(box.root, 'pullboard.json');
   const config = JSON.parse(readFileSync(file, 'utf8'));
@@ -29,7 +28,7 @@ export async function seedNativeTrain(context) {
   const shim = join(dirname(box.root), 'native-train-bin');
   mkdirSync(shim, { recursive: true });
   const executable = join(shim, 'pullboard');
-  writeFileSync(executable, `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(fileURLToPath(new URL('../../../../../../apps/cli/pullboard.js', import.meta.url)))} "$@"\n`);
+  writeFileSync(executable, `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(cli)} "$@"\n`);
   chmodSync(executable, 0o755);
   const env = { ...process.env, PATH: `${shim}:${process.env.PATH}`, GIT_AUTHOR_NAME: 'Private Parity Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.com',
     GIT_COMMITTER_NAME: 'Private Parity Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.com' };

@@ -1,4 +1,4 @@
-/** @pullboard-module-loads apps/cli/src/io/submit/handoff/worker.js apps/lib/index.js */
+/** @pullboard-module-loads apps/lib/index.js */
 /** The native hook worker process: the seats cell's hook order composed with CLI and board steps [I6,C7]. */
 import { fileURLToPath } from 'node:url';
 import { work } from '../../../../../packages/seats/index.js';
@@ -13,8 +13,7 @@ async function heartbeat() {
 async function dispatch(args) {
   const { cli$main: main, launchRelaySender } = await import('../../../index.js');
   return main(args, { cwd: process.cwd(), nextActions: false,
-    loadNativeBoard: () => import('../../../../lib/index.js'), hookWorker: HOOK_WORKER,
-    submitHandoffWorker: fileURLToPath(new URL('../submit/handoff/worker.js', import.meta.url)), launchRelaySender,
+    loadNativeBoard: () => import('../../../../lib/index.js'), hookWorker: HOOK_WORKER, launchRelaySender,
     // Heartbeat is an internal observation, not part of the hook's context payload.
     stdout: args[0] === 'heartbeat' ? { write() {} } : process.stdout,
     stderr: process.stderr, stdin: process.stdin });

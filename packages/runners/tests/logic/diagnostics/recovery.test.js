@@ -10,9 +10,9 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { cellProject } from '../../../../store/tests/fixtures/cell.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { HOST } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { installSshStandIn } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
+import { runFixtureChild } from '../../../../gate/tests/fixtures/child.js';
+import { HOST } from '../../../../gate/tests/fixtures/runner/ssh.js';
+import { installSshStandIn } from '../../../../gate/tests/fixtures/runner/ssh.js';
 
 /** Refuse one exact-health transport, then run the actual pinned worker on a private SSH host. */
 function observe(t, mode) {

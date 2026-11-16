@@ -22,6 +22,7 @@ import {
   saveAgentParent,
   saveAgentSession,
 } from "../../../seats/index.js";
+import { storeName } from './store-names.js';
 
 /** Accept an opaque identity, never a path, whitespace, credential or arbitrary session metadata. */
 export function parentIdentity(value) {
@@ -113,7 +114,7 @@ export function runtimeSessionIdentity(environment = process.env, home = homedir
   try { entries = readdirSync(sessions, { recursive: true, withFileTypes: true }); }
   catch { return own; }
   for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.endsWith(`-${session}.jsonl`)) continue;
+    if (!entry.isFile() || !entry.name.endsWith(`-${storeName(session, '.jsonl')}`)) continue;
     const metadata = ownSessionMetadata(join(entry.parentPath, entry.name), session);
     if (!metadata) continue;
     const parent = metadata.parent_thread_id ?? metadata.source?.subagent?.thread_spawn?.parent_thread_id;

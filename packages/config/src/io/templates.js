@@ -90,34 +90,11 @@ Inherits Pullboard standard doctrine version 1.
 }
 
 /**
- * The agent instructions, between markers so init can find its own block and never touch the rest.
- * The text is the approved block from this repo's AGENTS.md, so every new board gets the same words.
- *
- * @returns {string}
+ * The seat loop: the one source of the worker loop every harness gets. The AGENTS.md block takes it
+ * verbatim, and the Claude skill and Codex template are generated from it too, so they cannot drift.
+ * Ends in one newline, so a block puts a blank line after it.
  */
-export function renderAgentsBlock() {
-  return `<!-- pullboard:start -->
-## Pullboard
-
-This repo runs on Pullboard: board, lanes and spec, all in git.
-
-- **Spec:** \`SPEC.md\` rows, each with an id like \`G1.2\`; code follows them.
-- **Commits:** \`feat(scope): subject [G1.2]\`, citing the ids served.
-- **Seats:** an agent is its worktree; the main checkout is the coordinator.
-- **Lanes:** join one with \`pullboard join <lane>\`.
-
-## Roles
-
-Agents think; Pullboard does everything deterministic.
-
-| Role | Does |
-|---|---|
-| Coordinator | One per board. Files, routes, unblocks; never builds. Reads \`COORDINATOR.md\`. |
-| Worker | Builds and verifies whatever \`next\` hands it. |
-| Sub-agent | Any agent may launch one. Runs the worker loop as written, on its own seat. |
-| Pullboard | Runs gates, routes verifies, lands accepted work. |
-
-## Worker loop
+export const SEAT_LOOP = `## Worker loop
 
 Never wait: submit and move on.
 
@@ -141,8 +118,61 @@ Never wait: submit and move on.
 - **Judge:** the diff against the bar and the gate's receipts.
 - **Rerun:** only if no recorded run covers a clause, or you doubt the gate.
 - **Accept:** \`pullboard verify <id> accept\`.
-- **Reject:** \`pullboard verify <id> reject --reason <CODE> --note "…"\`.
+- **Reject:** \`pullboard verify <id> reject --reason <CODE> --clause "<clause>" --note "..."\`.
+`;
 
+/**
+ * The Claude worker-loop skill, generated from SEAT_LOOP so it cannot drift from the AGENTS.md block [#8550].
+ *
+ * @returns {string}
+ */
+export function renderWorkerSkill() {
+  const body = SEAT_LOOP.replace(/^## Worker loop\n/u, '');
+  return `---
+name: pullboard-worker
+description: 'Run the worker loop on a Pullboard seat: take the next build or verify, build inside your lane, submit and move on. Use when you are a worker or verifier in a repo that runs on pullboard, or when pullboard next hands you an item.'
+---
+
+# Worker loop
+${body}`;
+}
+
+/** The most words the seat loop may hold; a longer loop is one agents skim past, so trim before raising this. */
+export const SEAT_LOOP_WORD_BUDGET = 160;
+
+/**
+ * The agent instructions, between markers so init can find its own block and never touch the rest.
+ * The text is the approved block from this repo's AGENTS.md, so every new board gets the same words.
+ *
+ * When the project's doctrine carries a PB13 row, the Pullboard list also names docs/cells.md [#8819].
+ *
+ * @param {{ rows?: { id: string }[] } | null} [doctrine] - The composed project doctrine, if init has it.
+ * @returns {string}
+ */
+export function renderAgentsBlock(doctrine = null) {
+  const cells = (doctrine?.rows ?? []).some(row => row.id === 'PB13') ? '- **Cells:** `docs/cells.md` maps the code into cells.\n' : '';
+  return `<!-- pullboard:start -->
+## Pullboard
+
+This repo runs on Pullboard: board, lanes and spec, all in git.
+
+- **Spec:** \`SPEC.md\` rows, each with an id like \`G1.2\`; code follows them.
+- **Commits:** \`feat(scope): subject [G1.2]\`, citing the ids served.
+- **Seats:** an agent is its worktree; the main checkout is the coordinator.
+- **Lanes:** join one with \`pullboard join <lane>\`.
+${cells}
+## Roles
+
+Agents think; Pullboard does everything deterministic.
+
+| Role | Does |
+|---|---|
+| Coordinator | One per board. Files, routes, unblocks; never builds. Reads \`COORDINATOR.md\`. |
+| Worker | Builds and verifies whatever \`next\` hands it. |
+| Sub-agent | Any agent may launch one. Runs the worker loop as written, on its own seat. |
+| Pullboard | Runs gates, routes verifies, lands accepted work. |
+
+${SEAT_LOOP}
 ## Troubleshoot
 
 - **A refusal:** do what its \`next:\` line says.

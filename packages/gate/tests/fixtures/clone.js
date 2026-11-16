@@ -7,8 +7,6 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { launchChromeProcess } from '../../../../apps/cli/tests/fixtures/chrome.js';
-import { chromeLaunchArgs } from '../../../../apps/cli/tests/fixtures/chrome/args.js';
 
 /** Wait for the private stand-in to finish creating its marker, before killing it. */
 async function waitForReady(path) {
@@ -28,8 +26,14 @@ writeFileSync(process.env.READY_MARKER, 'ready');
 setInterval(() => {}, 1000);
 `;
 
-/** A killed control leaves a clone; the same launch with shared arguments must not. */
-export async function assertNoKilledChromeClone() {
+/**
+ * A killed control leaves a clone; the same launch with shared arguments must not.
+ *
+ * Why: the Chrome launcher and its shared arguments live in the CLI's fixtures, so the caller hands them in and this package fixture imports no app.
+ *
+ * @param {{ launchChromeProcess: Function, chromeLaunchArgs: (profile: string) => string[] }} chrome - The shared launcher and argument builder.
+ */
+export async function assertNoKilledChromeClone({ launchChromeProcess, chromeLaunchArgs }) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-clone-proof-'));
   try {
     for (const control of [true, false]) {

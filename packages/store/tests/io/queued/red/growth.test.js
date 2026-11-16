@@ -9,7 +9,7 @@ import { appliedSequence } from '../../../../../state/index.js';
 import { applyEngineMove } from '../../../../../state/index.js';
 import { prepareEngineMove } from '../../../../../state/index.js';
 import { FILE_GROWTH_NOTICE_ENGINE } from '../../../../../state/light.js';
-import { submitFixture } from '../../../../../../apps/cli/tests/fixtures/board/submit.js';
+import { submitFixture } from '../../../fixtures/submit.js';
 import { cellBoard } from '../../../fixtures/cell.js';
 import { cellProject } from '../../../fixtures/cell.js';
 

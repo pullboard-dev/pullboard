@@ -2,16 +2,15 @@ import {
   timingFromOutput,
   timingRunner,
 } from '../timing.js';
+import { scratchFolder } from '../../../../config/index.js';
 export { provingCheck, sayCheckBaseline } from '../../logic/format.js';
 /** Observe a proposed check on an isolated copy of main before recording its move [V2,H16]. */
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import {
-  mkdtempSync,
   realpathSync,
   rmSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import {
@@ -40,7 +39,7 @@ export function checkBaseline(root, command, { main = undefined } = {}) {
   const captured = main === undefined ? prepareCheckBaseline(root, command) : { command, main, result: 'pending' };
   if (captured.result !== 'pending') return captured;
   const base = { command, main: captured.main };
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-check-base-'));
+  const directory = scratchFolder('pullboard-check-base-');
   const checkout = join(directory, 'checkout');
   const env = gitChildEnv(root);
   try {

@@ -77,6 +77,21 @@ export function reviewerStartup(root, config, id) {
   return `Use a different agent session; the reviewer must not be the builder and must declare a different vendor family. Run: ${command}`;
 }
 
+/**
+ * Name the pullboard command that makes a review seat, for the verify refusal in the main checkout [V1] (#7925).
+ * Why: `pullboard worktree <lane>` creates and joins the seat and prints its path, so a new user never
+ * hand-builds a worktree; --family is named only when the board requires a different vendor family.
+ */
+export function reviewerSeatStep(root, config, id) {
+  if (!root) return 'ask the coordinator to locate the main checkout for a different agent session; the reviewer must not be the builder';
+  const lanes = Object.entries(config.lanes).filter(([name]) => name !== 'coordinator');
+  const lane = lanes.find(([, value]) => !value.owns.length)?.[0] ?? lanes[0]?.[0];
+  if (!lane) return 'ask the coordinator to declare a reviewer lane for a different agent session; the reviewer must not be the builder';
+  const quote = value => "'" + value.replaceAll("'", "'\\''") + "'";
+  const family = config.verify?.family === 'require' ? ' --family "<vendor family>"' : '';
+  return `Use a different agent session; the reviewer must not be the builder. Run: cd ${quote(root)} && pullboard worktree ${lane} --model "<model name>"${family}, then cd into the path it prints and run: pullboard next --verify${id ? ' ' + id : ''}`;
+}
+
 /** Refusals no move recovers from by itself: a typo is not Pullboard blocking anyone. */
 const NOT_BLOCKS = new Set(['USAGE', 'UNKNOWN_COMMAND']);
 

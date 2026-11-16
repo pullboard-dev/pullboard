@@ -14,7 +14,7 @@ import { heldCounted } from '../../../index.js';
 import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
 import { cellProject } from '../../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
-import { submitFixture } from '../../../../../apps/cli/tests/fixtures/board/submit.js';
+import { submitFixture } from '../../../../store/tests/fixtures/submit.js';
 
 const HOUR = 3_600_000;
 const LIGHT_BRIEF = 'Files:\n- web/page.js\nChange:\n- copy the header from the api\nTest:\n- the page test asserts the header\nOut of scope: anything else\n';
@@ -43,8 +43,8 @@ function claimRefusal(board, id, seat) {
 }
 
 test('a held item is never offered or claimed [N2,N22,M1]', t => {
-  const project = cellProject(t, { gate: 'true' });
-  const board = cellBoard(t, project.boardFile, undefined, { gitRoot: project.repo });
+  const project = cellProject(t, { real: true, gate: 'true' });
+  const board = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: project.repo });
   cellSeat(board, { lane: 'coordinator', path: project.repo });
   const held = new Map();
   const actors = [];
@@ -96,11 +96,11 @@ test('a held item is never offered or claimed [N2,N22,M1]', t => {
 });
 
 test('lifting a hold makes the item offerable again [N2,N22,H16,M1]', t => {
-  const project = cellProject(t, { gate: 'true' });
+  const project = cellProject(t, { real: true, gate: 'true' });
   const web = join(project.dir, 'web');
   project.git(project.repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
   const base = project.git(project.repo, 'rev-parse', 'main');
-  const board = cellBoard(t, project.boardFile, undefined, { gitRoot: project.repo });
+  const board = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: project.repo });
   cellSeat(board, { lane: 'coordinator', path: project.repo });
   cellSeat(board, { lane: 'web', path: web });
   const id = addMidItem(board, 'web', 'Held item');

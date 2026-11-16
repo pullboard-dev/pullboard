@@ -28,6 +28,12 @@ export function boardFixture(engine = null) {
   return { board, builder, reviewer };
 }
 
+/** Add one open strong-route core item, ready for next to offer. */
+export function readyItem(board, title, extra = {}) {
+  // fixture-subject: addItem
+  return store.addItem(board, { by: 'coordinator', lane: 'core', title, route: 'strong', ...extra });
+}
+
 /** Add and submit an item through the board's normal claim and submit moves. */
 export function submitted(board, builder, title, route, number) {
   const id = store.addItem(board, {
@@ -61,4 +67,28 @@ export function lineOrderFixture(t, engine = null) {
     store.setLineSetting(board, { agentId: 'coordinator', key: 'order', value, reason: 'private queue policy control', window: { windowMinutes: 60, activeReviewers: 3 } });
   }
   return { board, root, builder, reviewer, order };
+}
+
+/** An open strong-route core item whose brief names these files, so file contention can see it. */
+export function filesItem(board, title, files) {
+  // fixture-subject: addItem
+  return store.addItem(board, { by: 'coordinator', lane: 'core', title, route: 'strong', brief: `Files: ${files.join(', ')}` });
+}
+
+/** Register one more strong core builder seat. */
+export function builderSeat(board, name) {
+  return store.register(board, { lane: 'core', path: `/${name}`, route: 'strong' });
+}
+
+/** Claim an item for a seat, so its files are in flight. */
+export function takeItem(board, id, agentId) {
+  store.claim(board, id, { agentId, lane: 'core', leaseMs: HOUR, freeze: FREEZE });
+}
+
+/** File one strong core item per spec, in order, and return their ids; `after` lists earlier specs' ids by index. */
+export function coreItems(board, specs) {
+  const ids = [];
+  for (const spec of specs) ids.push(store.addItem(board, { by: 'coordinator', lane: 'core', route: 'strong', title: spec.title,
+    ...(spec.after === undefined ? {} : { after: spec.after.map(index => ids[index]) }) }));
+  return ids;
 }

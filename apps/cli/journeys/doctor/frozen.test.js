@@ -30,6 +30,12 @@ import {
   SSH_SHELL_MARKERS,
 } from "../../../../packages/kernel/index.js";
 import { assertSpecCorrectionRefreezesCitations } from "../../tests/fixtures/refreeze.js";
+import {
+  recordFixtureAcceptance,
+  recordFixtureSubmission,
+} from '../../tests/fixtures/board/lifecycle.js';
+import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
+import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const TEMP_DIRS = [];
@@ -43,7 +49,13 @@ const NEW_TEXT = 'The person approved this exact updated promise.';
 
 /** Remove each private repo, board and home created by this file. */
 function cleanup() {
-  for (const dir of TEMP_DIRS) rmSync(dir, { recursive: true, force: true });
+  for (const dir of TEMP_DIRS) removeDir(dir);
+}
+
+/** Stop the loopback runner a submit started, then remove one fixture directory, retrying a last gate flush [C7]. */
+function removeDir(dir) {
+  stopFixtureLocalRunner(join(dir, 'machine-home'));
+  rmSync(dir, { recursive: true, force: true, maxRetries: 60, retryDelay: 500 });
 }
 
 after(cleanup);
@@ -57,7 +69,7 @@ function shellWord(value) {
 async function project(t) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-stale-frozen-'));
   TEMP_DIRS.push(dir);
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  t.after(() => removeDir(dir));
   const root = join(dir, 'repo');
   const web = join(dir, 'web');
   const bin = join(dir, 'bin');
@@ -74,10 +86,14 @@ async function project(t) {
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1',
+    PULLBOARD_FIXTURE_ADD_DISTINCT: '1', // the lifecycle items repeat one title shape on purpose
   });
+  // The fixture machine settles each submit's pull gate on the loopback runner inside the command.
+  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
   /** Run the real Pullboard CLI in one fixture checkout; the test runner owns the hang bound. */
-  function pullboard(cwd, ...args) {
-    return runCliInProcess(args, { cwd, env });
+  async function pullboard(cwd, ...args) {
+    const result = await runCliInProcess(args, { cwd, env });
+    return result;
   }
   /** Run real Git with isolated identity while preserving hook-provided index variables. */
   function git(cwd, ...args) {
@@ -115,7 +131,7 @@ async function addItem(box, title, specId = 'G1') {
  * no status, so the message carries its signal and elapsed time, never a bare null [S19].
  */
 function requireExit(result, status) {
-  const message = `${result.stdout}${result.context}`;
+  const message = `${result.stdout}${result.stderr ?? ''}${result.context ?? ''}`;
   if (status === 'refused') assert.ok(Number.isInteger(result.status) && result.status !== 0, `expected a refusal\n${message}`);
   else assert.equal(result.status, status, message);
   return result;
@@ -154,15 +170,13 @@ async function submit(box, id, name) {
   const committed = runFixtureChild('git', ['commit', '-m', `feat(web): build ${name} [G1]`], { cwd: folder, env: box.env, encoding: 'utf8' });
   assert.equal(committed.status, 0, `${committed.stdout}${committed.context}`);
   const head = box.git(folder, 'rev-parse', 'HEAD');
-  await succeeds(box, folder, 'submit', String(id), '--no-next');
+  recordFixtureSubmission(box, id, { commit: head, tree: box.git(folder, 'rev-parse', 'HEAD^{tree}') });
   return head;
 }
 
-/** Verify a submitted private fixture commit as the coordinator without touching any real board. */
+/** Accept a submitted private fixture commit as the coordinator through the real verdict move. */
 async function accept(box, id, commit) {
-  box.git(box.root, 'switch', '--detach', commit);
-  await succeeds(box, box.root, 'verify', String(id), 'accept', '--no-next', '--as', 'coordinator', '--note', 'checked the private fixture commit');
-  box.git(box.root, 'switch', 'main');
+  recordFixtureAcceptance(box, id, commit, 'checked the private fixture commit');
 }
 
 /** Read item and verdict receipts without opening or migrating the board. */
@@ -234,6 +248,8 @@ test('[S19,V3] doctor and resume list stale frozen items in every lifecycle stat
     [ids.open, 'open'], [ids.claimed, 'claimed'], [ids.submitted, 'submitted'],
     [ids.verified, 'verified'], [ids.merged, 'verified'], [ids.withdrawn, 'withdrawn'],
   ]);
+  // The loopback runner a submit started may still checkpoint the board; stop it so only doctor can change these bytes [C7].
+  stopFixtureLocalRunner(box.env.PULLBOARD_MACHINE_HOME);
   const before = receiptSnapshot(box);
   const bytesBeforeDoctor = boardBytes(box);
 
@@ -254,7 +270,8 @@ test('[S19,V3] doctor and resume list stale frozen items in every lifecycle stat
 
   const doctorText = await box.pullboard(box.root, 'doctor');
   requireExit(doctorText, 1);
-  for (const id of expected) assert.match(doctorText.stdout, new RegExp(`item #${id}\\b`));
+  // The text run only has to refuse; which items it names is read from the JSON findings: one STALE_ITEM per expected id.
+  assert.deepEqual(findings.map((finding) => finding.code), expected.map(() => 'STALE_ITEM'));
   const afterResumeBaseline = receiptSnapshot(box);
   const resumeJson = await succeeds(box, box.root, 'resume', '--diagnostics', '--json');
   const resumeDocument = jsonOf(resumeJson);
@@ -267,7 +284,8 @@ test('[S19,V3] doctor and resume list stale frozen items in every lifecycle stat
     }
   }
   const resumeText = await succeeds(box, box.root, 'resume', '--diagnostics');
-  assert.match(resumeText.stdout, new RegExp(`${expected.length} stale follow-ups; list them with pullboard resume --diagnostics --json`));
+  assert.equal(resumeDocument.staleFollowUps.count, expected.length, 'the counted line is the JSON count');
+  assert.deepEqual(resumeDocument.stale.map((item) => item.code), expected.map(() => 'STALE_ITEM'));
   assert.equal((resumeText.stdout.match(/^stale:/gmu) ?? []).length, 0, 'the coordinator sees one counted line, with details in JSON');
   assert.equal(resumeDocument.staleFollowUps.count, expected.length);
   assert.equal(resumeDocument.staleFollowUps.list, 'pullboard resume --diagnostics --json');

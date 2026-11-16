@@ -1,14 +1,10 @@
+/** @pullboard-module-loads packages/link/index.js */
 /** The synchronous write-board lifecycle and compatible public CLI context exports [C7]. */
 import * as store from '../../../../packages/store/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
-import {
-  DEFAULT_RELAY,
-  relayStatus,
-  syncRelay,
-} from '../../../../packages/link/index.js';
-import { executePersonRequests } from '../../../../packages/link/index.js';
+import { createRequire } from 'node:module';
 import { moveArgs } from '../../../../packages/person/index.js';
-import { refusalDocument } from '../logic/step/words.js';
+import { receiveCommits } from '../../../../packages/pin/index.js';
 import {
   agentDisplayName,
   context,
@@ -39,10 +35,16 @@ export {
   span,
 };
 
+const requireModule = createRequire(import.meta.url);
+/** The refusal formatter, loaded at the first refusal it renders: a command that never refuses never pays for the move registry its next steps read [C7,#8195]. */
+const refusalDocument = (...args) => requireModule('../logic/step/words.js').refusalDocument(...args);
+/** The relay package, loaded at the first person-signing call that reaches it: a claim, test or next never pays for its ~80 modules [C7,#7081]. */
+const link = () => requireModule('../../../../packages/link/index.js');
+
 /** Supply canonical connection-local runtime composition after cyclic CLI modules finish loading. */
 export function nativeBoardOpeners(io) {
   const { openBoard, openBoardForRead } = io.nativeBoard;
-  return { moveArgs, openBoard, openBoardForRead, nativeBoardPorts: io.nativeBoard.nativeBoardPorts, withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord, remoteBoardMissing: io.remoteBoardMissing, uncertainUploadFailure: io.uncertainUploadFailure, decideUncertainBaseline: io.decideUncertainBaseline, checkpointPublisher: io.checkpointPublisher, relayOrdering: io.relayOrdering, checkpointInBackground: io.checkpointInBackground, scheduleCheckpoint: io.scheduleCheckpoint, requestCheckpointCheck: io.requestCheckpointCheck, checkpointWorker: io.checkpointWorker, outboxFields: io.outboxFields, outboxPolicy: io.outboxPolicy, flushOutbox: io.flushOutbox, queueMove: io.queueMove, outboxHasPendingCreatedItem: io.outboxHasPendingCreatedItem };
+  return { moveArgs, receiveCommits, openBoard, openBoardForRead, nativeBoardPorts: io.nativeBoard.nativeBoardPorts, withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord, remoteBoardMissing: io.remoteBoardMissing, uncertainUploadFailure: io.uncertainUploadFailure, decideUncertainBaseline: io.decideUncertainBaseline, checkpointPublisher: io.checkpointPublisher, relayOrdering: io.relayOrdering, checkpointInBackground: io.checkpointInBackground, scheduleCheckpoint: io.scheduleCheckpoint, requestCheckpointCheck: io.requestCheckpointCheck, checkpointWorker: io.checkpointWorker, outboxFields: io.outboxFields, outboxPolicy: io.outboxPolicy, flushOutbox: io.flushOutbox, queueMove: io.queueMove, outboxHasPendingCreatedItem: io.outboxHasPendingCreatedItem };
 }
 
 /** Supply the board openers plus the API move executor and refusal formatter that link's request execution is given as ports (link must not import later cells). */
@@ -54,7 +56,7 @@ export function nativePersonRequestPorts(io) {
 
 /** Bind native request execution at this real CLI composition root. */
 async function executeNativePersonRequests(root, io, runCommand) {
-  return executePersonRequests(root, io, runCommand, nativePersonRequestPorts(io));
+  return link().executePersonRequests(root, io, runCommand, nativePersonRequestPorts(io));
 }
 
 /** Build a CLI context with the signed-person capabilities of its application layer. */
@@ -63,7 +65,7 @@ export function personCommandContext(io, { main, ordered } = {}) {
   /** Preserve this invocation's native capabilities for signed recursive commands. */
   const run = main && ((args, streams) => main(args, { ...streams,
     gateWaitReporter: io.gateWaitReporter, loadProcessPorts: io.loadProcessPorts, loadNativeBoard: io.loadNativeBoard,
-    hookWorker: io.hookWorker, submitHandoffWorker: io.submitHandoffWorker, launchRelaySender: io.launchRelaySender,
+    hookWorker: io.hookWorker, launchRelaySender: io.launchRelaySender,
     withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord,
     remoteBoardMissing: io.remoteBoardMissing, uncertainUploadFailure: io.uncertainUploadFailure,
     decideUncertainBaseline: io.decideUncertainBaseline, checkpointPublisher: io.checkpointPublisher,
@@ -73,7 +75,8 @@ export function personCommandContext(io, { main, ordered } = {}) {
     outboxFields: io.outboxFields, outboxPolicy: io.outboxPolicy, flushOutbox: io.flushOutbox,
     queueMove: io.queueMove, outboxHasPendingCreatedItem: io.outboxHasPendingCreatedItem,
   }));
-  ctx.personPorts = { DEFAULT_RELAY, relayStatus: root => relayStatus(root, io), syncRelay, executePersonRequests: executeNativePersonRequests, main: run, ordered };
+  ctx.personPorts = { get DEFAULT_RELAY() { return link().DEFAULT_RELAY; }, relayStatus: root => link().relayStatus(root, io), syncRelay: (...args) => link().syncRelay(...args),
+    executePersonRequests: executeNativePersonRequests, main: run, ordered };
   return ctx;
 }
 
@@ -108,6 +111,14 @@ function openAndRun(ctx, work, opened) {
     },
   });
   board.gitRoot = ctx.info.root; // A connection-local verification port, never board or wire metadata.
+  // The gate-wait cap this seat's setting grants, sealed into each move it writes so every replica replays it alike [C7].
+  board.itemsInGate = ctx.config.claims?.itemsInGate === true ? (Number.isSafeInteger(ctx.config.claims.itemsInGateMax) ? ctx.config.claims.itemsInGateMax : 3) : 0;
+  // release.liftTwiceHold (off by default): an automatic released-twice hold lifts when main moves or its named blocker lands [C7,#9002].
+  board.liftTwiceHold = ctx.config.release?.liftTwiceHold === true;
+  // claims.fileLease (off by default): live claims lease their predicted files, hub files excepted [C7,#8521].
+  board.fileLease = ctx.config.claims?.fileLease === true ? { hubs: ctx.config.claims.fileLeaseHubs ?? [] } : null;
+  // inbox.keepUntilActed (off by default): shouts record their kind and stay listed until an allowed action is recorded [C7,#8519].
+  board.inboxKeep = ctx.config.inbox?.keepUntilActed === true;
   return withOpenedBoard(ctx, work, board);
 }
 

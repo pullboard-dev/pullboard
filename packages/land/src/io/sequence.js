@@ -7,6 +7,7 @@ import { takeJob } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
 import { isObjectId } from '../../../pin/index.js';
 import { treeOf } from '../../../pin/index.js';
+import { toolingPin } from '../../../pin/index.js';
 import { writeToolingPin } from '../../../pin/index.js';
 import { receiptByKey } from '../../../receipt/index.js';
 import { receiptKey } from '../../../receipt/index.js';
@@ -66,12 +67,14 @@ async function composeStep(compose, context, repo) {
  * @param {Function} prove
  * @param {object} context
  * @param {Iterable<object> | Map<string, object>} receipts
+ * @param {string} repo - Where the tooling pin is read.
  * @returns {Promise<{ receipt: string, reused: boolean, verdict: string, code: string | null }>}
  */
-async function proveStep(prove, context, receipts) {
+async function proveStep(prove, context, receipts, repo) {
   const { candidateTree, baseTree } = context.written.compose;
-  const key = receiptKey(candidateTree, baseTree);
-  const reuse = reusable(receiptByKey(receipts, key), { candidate: candidateTree, base: baseTree });
+  const tooling = toolingPin(repo)?.tree ?? candidateTree;
+  const key = receiptKey(candidateTree, baseTree, tooling);
+  const reuse = reusable(receiptByKey(receipts, key), { candidate: candidateTree, base: baseTree, tooling });
   if (reuse.reuse) return { receipt: key, reused: true, verdict: 'green', code: null };
   const proved = await prove(context);
   if (typeof proved?.verdict !== 'string') throw new Refused('LAND_PROVE', 'The prove step must return { verdict } (green, red or infra) for the composed batch.');
@@ -109,7 +112,7 @@ async function mergeStep(merge, context, repo) {
 async function runStep(name, steps, context, { repo, receipts }) {
   const handler = handlerFor(steps, name);
   if (name === 'compose') return composeStep(handler, context, repo);
-  if (name === 'prove') return proveStep(handler, context, receipts);
+  if (name === 'prove') return proveStep(handler, context, receipts, repo);
   if (name === 'merge') return mergeStep(handler, context, repo);
   return (await handler(context)) ?? {};
 }

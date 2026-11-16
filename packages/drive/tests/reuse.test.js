@@ -8,7 +8,7 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import { driveOnce } from '../index.js';
 import { createJob } from '../../jobs/index.js';
-import { fixtureBoard } from '../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../board/tests/fixtures/board.js';
 import { privateFixtureFiles } from '../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../apps/cli/tests/fixtures/child.js';
 import { bundleFor } from '../../pin/index.js';
@@ -16,7 +16,7 @@ import { toolingFor } from '../../pin/index.js';
 import { writeToolingPin } from '../../pin/index.js';
 import { createTransport } from '../../transport/index.js';
 import { ensureTooling } from '../../transport/index.js';
-import { runGate } from '../../transport/index.js';
+import { dispatchGate } from '../../transport/index.js';
 import { toolingFolder } from '../../transport/index.js';
 
 const files = privateFixtureFiles('pullboard-tooling-reuse-');
@@ -54,7 +54,7 @@ test('clause 1: a gate on a runner that holds the tooling pin sends zero tooling
   assert.equal(existsSync(join(runner.root, 'tooling', tooling, 'tool.txt')), true);
 
   const gateLog = [];
-  const results = await runGate({
+  const results = await dispatchGate({
     runner, job: 'job-1', transport, intervalMs: 10, tooling: { tree: tooling, bundle }, log: line => gateLog.push(line),
     shards: [{ shard: 's1', command: `cat ${join(runner.root, 'tooling', tooling, 'tool.txt')}` }],
   });

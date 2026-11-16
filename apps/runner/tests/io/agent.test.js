@@ -7,6 +7,7 @@ import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { renameSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import { watch } from 'node:fs';
@@ -32,7 +33,7 @@ function machine(t, settings = FAST) {
   for (const dir of [bin, home, join(base, 'cwd')]) mkdirSync(dir);
   const ssh = installSshStandIn({ bin, worker: join(base, 'cwd'), home, machineHome: join(home, '.pullboard'), requests: join(base, 'requests') });
   const root = join(home, '.pullboard-runner');
-  const start = version => execFileSync(ssh, ['--', HOST, `${settings} ${runnerAgentStartCommand('', version)}`], { stdio: 'ignore' });
+  const start = (version, extra = settings) => execFileSync(ssh, ['--', HOST, `${extra} ${runnerAgentStartCommand('', version)}`], { stdio: 'ignore' });
   const agentPid = () => Number(existsSync(join(root, 'agent.lock', 'pid')) ? readFileSync(join(root, 'agent.lock', 'pid'), 'utf8') : 0);
   t.after(() => {
     const pid = agentPid();
@@ -147,14 +148,15 @@ test('a worker command that reads its capsule then execs node still sees the res
 });
 
 test('a runner at or above its core count takes no new job, says why, and pulls again once load drops [C7,#5578]', async t => {
-  const { root } = machine(t);
+  const { root, start } = machine(t);
   const loadFile = join(root, '..', 'load-now');
   const setLoad = value => { writeFileSync(`${loadFile}.tmp`, `${value}\n`); renameSync(`${loadFile}.tmp`, loadFile); };
   setLoad('12.5');
   const settings = `${FAST} PULLBOARD_AGENT_CORES=10 PULLBOARD_AGENT_LOAD_FILE=${loadFile}`;
   mkdirSync(join(root, 'queue'), { recursive: true });
   enqueue(root, 'held', { command: 'echo ran', input: '' });
-  execFileSync('sh', ['-c', `${settings} ${runnerAgentStartCommand(root)}`], { stdio: 'ignore' });
+  // Through the stand-in, as an enqueue starts it: a bare sh in a pull runner's LaunchDaemon cannot run nohup (#6917).
+  start(undefined, settings);
   await until('the hold report', root, () => existsSync(join(root, 'load')) && /state=hold load=12.5 cores=10/.test(readFileSync(join(root, 'load'), 'utf8')));
   setLoad('12.6');
   await until('a later tick that still held', root, () => /state=hold load=12.6 /.test(readFileSync(join(root, 'load'), 'utf8')));
@@ -176,9 +178,14 @@ test('an agent records the digest of its own script, and a start with another di
   start('old-digest');
   assert.equal(agentPid(), first, 'a start with the same digest leaves the live agent alone');
   assert.ok(!existsSync(join(root, 'wanted-version')));
-  enqueue(root, 'after', { command: 'echo new-agent' });
   start('new-digest');
   await until('the live agent to be asked', root, () => existsSync(join(root, 'wanted-version')));
+  // Queue only after the old agent has run two whole ticks since the request (its beat is touched each tick): a job queued before the start was claimed at once, so the test raced the stand-in's ssh start [C7,#5590].
+  const beat = join(root, 'running', 'long', 'beat');
+  const asked = statSync(join(root, 'wanted-version')).mtimeMs;
+  const seen = new Set();
+  await until('two ticks of the old agent after the request', root, () => { try { const at = statSync(beat).mtimeMs; if (at > asked) seen.add(at); } catch { /* Between ticks. */ } return seen.size >= 2; });
+  enqueue(root, 'after', { command: 'echo new-agent' });
   assert.ok(existsSync(join(root, 'queue', 'after')), 'the leaving agent claims nothing new');
   assert.ok(existsSync(join(root, 'running', 'long')), 'the running job is not touched');
   await until('the running job to finish whole', root, () => existsSync(join(root, 'done', 'long', 'exit')));

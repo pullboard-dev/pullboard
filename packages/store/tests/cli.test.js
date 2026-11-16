@@ -9,8 +9,8 @@ import { cellProject } from './fixtures/cell.js';
 import { cellSeat } from './fixtures/cell.js';
 
 test('one seat claims and renews two separate items [B5,H16]', t => {
-  const project = cellProject(t);
-  const board = cellBoard(t, project.boardFile, undefined, { gitRoot: project.repo });
+  const project = cellProject(t, { real: true });
+  const board = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: project.repo });
   const seat = cellSeat(board, { lane: 'web', path: project.repo });
   const add = title => cellItem(board, { lane: 'web', title, specIds: ['G1'], route: 'strong', criterion: 'the fixture works' }).item_id;
   const one = add('First fixture'), two = add('Second fixture');

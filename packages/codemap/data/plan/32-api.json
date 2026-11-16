@@ -7,8 +7,7 @@
  "paths": [
   ["src/api-delta-fields.js","packages/api/src/logic/fields.js","rule"],
   ["src/api-http.js","packages/api/src/io/http.js","seed"],
-  ["src/api.js","packages/api/src/io/main.js","seed"],
-  ["test/shout-item-cli.test.js","packages/api/tests/shout-item-cli.test.js","seed"]
+  ["src/api.js","packages/api/src/io/main.js","seed"]
  ],
  "reexports": [],
  "imports": [

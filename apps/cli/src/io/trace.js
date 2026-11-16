@@ -12,6 +12,7 @@ import { statSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
+import { storeName } from './store-names.js';
 
 /** Environment names that carry an agent session id (kept literal so a trace loads no discovery module). */
 const SESSION_ENV = ['CLAUDE_CODE_SESSION_ID', 'CLAUDE_SESSION_ID', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID'];
@@ -107,7 +108,7 @@ export function appendTrace({ argv, cwd, startedAt, status, error, refusal, seat
     };
     const dir = join(where.common, 'pullboard', 'trace');
     mkdirSync(dir, { recursive: true });
-    appendFileSync(join(dir, `${at.toISOString().slice(0, 10)}.jsonl`), `${JSON.stringify(line)}\n`);
+    appendFileSync(join(dir, `${storeName(at.toISOString().slice(0, 10), '.jsonl')}`), `${JSON.stringify(line)}\n`);
     return line;
   } catch { return null; }
 }
@@ -143,12 +144,25 @@ function eventWhy(detail) {
 }
 
 /**
+ * The one line a `lapsed` job step prints: the runner that held the earlier claim, its attempt, when its lease ended and
+ * the last step it wrote. A payload this reader cannot parse prints as before. Why: a lapse left no readable reason, so six
+ * claims of one job looked like a runner that never started [C7,#9248].
+ */
+function lapseWhy(row) {
+  let lapse;
+  try { lapse = JSON.parse(row.payload); } catch { lapse = null; }
+  const at = value => Number.isFinite(value) ? new Date(value).toISOString() : 'unknown';
+  if (!lapse || typeof lapse !== 'object') return `job ${String(row.job).slice(0, 8)} attempt ${row.attempt}${row.payload ? ` ${row.payload}` : ''}`;
+  return `job ${String(row.job).slice(0, 8)} lapsed: runner ${lapse.runner ?? 'unknown'} attempt ${lapse.attempt ?? 'unknown'} lease ended ${at(lapse.leaseUntil)} last step ${lapse.lastStep ?? 'none'} at ${at(lapse.lastAt)}`;
+}
+
+/**
  * One timeline from trace lines and board event rows, in time order, one entry per call or event: time, source
  * (call or event), agent, command, item, outcome (ok, the refusal code, or error), duration in ms (null for an event)
  * and why (the refusal message, or the event's reason or note). A subject that is an item id keeps every agent's
  * entries on that item; any other subject keeps that agent's entries only.
  */
-export function traceTimeline({ lines, events, subject, since = null }) {
+export function traceTimeline({ lines, events, subject, since = null, jobs = [] }) {
   const item = /^#?([1-9][0-9]*)$/u.exec(String(subject))?.[1];
   const wanted = item ? Number(item) : null;
   const entries = [];
@@ -166,6 +180,17 @@ export function traceTimeline({ lines, events, subject, since = null }) {
     try { detail = JSON.parse(row.event_detail); } catch { /* A detail that is not JSON has no stated why. */ }
     entries.push({ time: row.event_at, source: 'event', agent: row.event_by, command: row.event_kind, item: row.item_id ?? null, outcome: 'ok', ms: null, why: eventWhy(detail) });
   }
+  // A gate job's steps are the item's internals: each step is one entry with its ms time, and `ms` is the gap since the
+  // job's previous step, so a long silence shows as a long gap [C7].
+  if (wanted !== null) {
+    const previous = new Map();
+    for (const row of jobs.filter(job => job.item === wanted).sort((left, right) => left.at - right.at || left.id - right.id)) {
+      const gap = previous.has(row.job) ? row.at - previous.get(row.job) : null;
+      previous.set(row.job, row.at);
+      entries.push({ time: new Date(row.at).toISOString(), source: 'job', agent: row.owner ?? 'gate', command: `${row.kind}:${row.step}`, item: row.item,
+        outcome: 'ok', ms: gap, why: row.step === 'lapsed' ? lapseWhy(row) : `job ${String(row.job).slice(0, 8)} attempt ${row.attempt}${row.payload ? ` ${row.payload}` : ''}` });
+    }
+  }
   const kept = since === null ? entries : entries.filter(entry => Date.parse(entry.time) >= since);
   return kept.sort((left, right) => Date.parse(left.time) - Date.parse(right.time));
 }
@@ -174,4 +199,22 @@ export function traceTimeline({ lines, events, subject, since = null }) {
 export function traceLine(entry) {
   const duration = entry.ms === null ? '-' : `${entry.ms}ms`;
   return [entry.time, entry.command, entry.item === null ? '-' : `#${entry.item}`, entry.outcome, duration, String(entry.why).replace(/\s+/gu, ' ').trim() || '-'].join('  ');
+}
+
+/**
+ * Every gate job step on the board with its job's item, attempt and lease owner, oldest first; empty on a board that
+ * has no job tables yet. Why: the trace shows a gate's internals beside the item's calls and events [C7].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @returns {{ id: number, job: string, step: string, at: number, payload: string, kind: string, item: number, attempt: number, owner: string|null }[]}
+ */
+export function readJobSteps(db) {
+  let rows;
+  try {
+    rows = db.prepare(`SELECT s.job_step_id AS id, s.job_step_job AS job, s.job_step_name AS step, s.job_step_at AS at, s.job_step_payload AS payload,
+      j.job_kind AS kind, j.job_item AS item, j.job_attempt AS attempt, j.job_lease_owner AS owner FROM job_step s JOIN job j ON j.job_id = s.job_step_job
+      WHERE j.job_item IS NOT NULL ORDER BY s.job_step_at, s.job_step_id`).all();
+  } catch { return []; }
+  // A step's payload is shown short, and a hand-off record is not a timing fact, so it is left out.
+  return rows.map(row => ({ ...row, payload: row.payload === '{}' || String(row.payload).includes('"record"') ? '' : String(row.payload).slice(0, 200) }));
 }

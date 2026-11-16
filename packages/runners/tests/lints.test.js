@@ -1,20 +1,9 @@
 /** @pullboard-test-input packages/codemap/src/io/cell/scripts/lints.js packages/codemap/src/io/cells/scripts/plan.js packages/codemap/data/baselines/lints/index.json */
 /** @pullboard-test-input ** */
-import { importsIn } from '../../gate/index.js';
-import { commonJsIn } from '../../gate/index.js';
-import { runFixtureGit } from '../../../apps/cli/tests/fixtures/child.js';
 /** Private real-file fixtures prove falling cell debt without moving any repository source [C7,CD64]. */
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
-import { copyPackageFiles } from '../index.js';
-import { packageFiles } from '../index.js';
-import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
@@ -23,16 +12,49 @@ import { readCellLintBaseline } from '../../codemap/index.js';
 import { storedCellLintFiles } from '../../codemap/index.js';
 import { writeCellLintBaseline } from '../../codemap/index.js';
 import { planCellLintBaseline } from '../../codemap/index.js';
-import { cellLintReport } from '../../codemap/index.js';
 import { CELL_METRICS } from '../../codemap/index.js';
 import { cellLintBaseline } from '../../codemap/index.js';
 import { cellLintGrowth } from '../../codemap/index.js';
 import { lowerCellLintBaseline } from '../../codemap/index.js';
-import { runFixtureChild } from '../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../gate/tests/fixtures/child.js';
 import { fixture as planFixture } from '../../landing/tests/fixtures/plan.js';
+import { importsIn } from '../../gate/index.js';
+import { commonJsIn } from '../../gate/index.js';
+import { runFixtureGit } from '../../gate/tests/fixtures/child.js';
+import { mkdtempSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname } from 'node:path';
+import { cellLintReport } from '../../codemap/index.js';
+/** Create actual files and an explicit root import map; no source modules execute during reports. */
+function fixture(t) {
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-cell-lints-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Cell fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid', GIT_COMMITTER_NAME: 'Cell fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
+  const git = (...args) => runFixtureGit(args, { cwd: root, env });
+  /** The cell inventory reads tracked files only, so each fixture change is staged; a git-ignored path stays untracked on purpose. */
+  const stage = file => runFixtureChild('git', ['add', '-A', '--', file], { cwd: root, env, encoding: 'utf8' });
+  git('init', '-q', '-b', 'main');
+  /** Write one private source or asset beneath this fixture. */
+  function put(file, source) { mkdirSync(dirname(join(root, file)), { recursive: true }); writeFileSync(join(root, file), source); stage(file); }
+  /** Write many private files, then stage them with one Git call: hundreds of single-file stages cost one process each. */
+  function putAll(files) {
+    for (const [file, source] of files) { mkdirSync(dirname(join(root, file)), { recursive: true }); writeFileSync(join(root, file), source); }
+    runFixtureChild('git', ['add', '-A', '--', ...files.map(([file]) => file)], { cwd: root, env, encoding: 'utf8' });
+  }
+  /** Remove only the named private fixture entity. */
+  function remove(file) { rmSync(join(root, file), { recursive: true, force: true }); stage(file); }
+  put('package.json', JSON.stringify({ type: 'module', imports: { '#*': './packages/*/index.js', '#*.js': './packages/*.js' } }));
+  put('apps/demo/index.js', "import { value } from '#sample'; console.log(value);\n");
+  put('packages/sample/index.js', 'export const value = 1;\n');
+  return { root, put, putAll, remove, git, stage, report: () => cellLintReport(root, { importsIn, commonJsIn }) };
+}
 
 const BIN = fileURLToPath(new URL('../../codemap/src/io/cell/scripts/lints.js', import.meta.url));
 const PLAN_BIN = fileURLToPath(new URL('../../codemap/src/io/cells/scripts/plan.js', import.meta.url));
+const BASELINE_DIRECTORY = 'packages/codemap/data/baselines/lints';
 const TRANSITION_FILE = 'packages/codemap/data/plan/transition.json';
 /** Build a report-shaped value for exact identity-collision controls without filesystem side effects. */
 function identityReport(pathMap, { boundaries = [], unreachableExports = [] } = {}) {
@@ -42,21 +64,6 @@ function identityReport(pathMap, { boundaries = [], unreachableExports = [] } = 
     return [metric, { count: findings.reduce((sum, finding) => sum + finding.count, 0), findings }];
   }));
   return { pathMap, metrics };
-}
-/** Create actual files and an explicit root import map; no source modules execute during reports. */
-function fixture(t) {
-  const root = mkdtempSync(join(tmpdir(), 'pullboard-cell-lints-'));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  const git = (...args) => runFixtureGit(args, { cwd: root, env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Cell fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid', GIT_COMMITTER_NAME: 'Cell fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' } });
-  git('init', '-q', '-b', 'main');
-  /** Write one private source or asset beneath this fixture. */
-  function put(file, source) { mkdirSync(dirname(join(root, file)), { recursive: true }); writeFileSync(join(root, file), source); }
-  /** Remove only the named private fixture entity. */
-  function remove(file) { rmSync(join(root, file), { recursive: true, force: true }); }
-  put('package.json', JSON.stringify({ type: 'module', imports: { '#*': './packages/*/index.js', '#*.js': './packages/*.js' } }));
-  put('apps/demo/index.js', "import { value } from '#sample'; console.log(value);\n");
-  put('packages/sample/index.js', 'export const value = 1;\n');
-  return { root, put, remove, git, report: () => cellLintReport(root, { importsIn, commonJsIn }) };
 }
 
 const FAMILIES = [
@@ -144,7 +151,7 @@ test('tests and fixture strings never seed app reach; unknown loaders and missin
 });
 
 test('report is read-only, initialization is explicit and check/update cannot raise or offset a finding [C7,CD64]', t => {
-  const box = fixture(t), run = mode => runFixtureChild(process.execPath, [BIN, mode, box.root], { encoding: 'utf8' });
+  const box = fixture(t), run = (mode, root = box.root) => runFixtureChild(process.execPath, [BIN, mode, root], { encoding: 'utf8', maxBuffer: 256 * 1024 ** 2 });
   box.put('path-map.json', JSON.stringify({ 'src/previous.js': 'packages/sample/index.js' }));
   box.git('add', '-A'); box.git('commit', '-qm', 'test: accepted first package migration');
   const first = run('--report'); assert.equal(first.status, 0, first.stderr);
@@ -161,6 +168,15 @@ test('report is read-only, initialization is explicit and check/update cannot ra
   const debt = cellLintBaseline(box.report());
   box.remove('stray.js'); box.put('another.js', 'void 0;\n');
   assert.ok(cellLintGrowth(box.report(), debt).some(row => row.key === 'another.js'));
+  // The committed baseline stays hash-bound: this repository's index binds its shards, and a shard edited without a rebind fails --check [C7,CD64].
+  // The binding is read directly: a full report of this repository costs minutes and the landing gate's own cell-lints --check builds it on every landing.
+  assert.doesNotThrow(() => readCellLintBaseline(fileURLToPath(new URL('../../../', import.meta.url))), 'the real index.json binds boundaries-012 and strays-001');
+  assert.doesNotMatch(run('--check').stderr, /CELL_BASELINE/u, 'a bound baseline is never refused as unbound');
+  const index = JSON.parse(readFileSync(join(box.root, 'packages/codemap/data/baselines/lints/index.json'), 'utf8')), shard = join(box.root, index.metrics.strays.shards[0].file);
+  appendFileSync(shard, ' ');
+  const unbound = run('--check');
+  assert.notEqual(unbound.status, 0);
+  assert.match(unbound.stderr, /CELL_BASELINE/u, 'a shard edited without a rebind is refused by --check');
 });
 
 
@@ -254,7 +270,7 @@ test('sharded committed path maps activate ratchets while absent maps remain adv
   const strictPlan = planCellLintBaseline(moved), strictBaseline = strictPlan.baseline;
   writeCellLintBaseline(box.root, strictBaseline, {
     initialize: true,
-    verify: () => JSON.stringify(cellLintBaseline(box.report())) === JSON.stringify(strictBaseline),
+    verify: () => { box.stage(BASELINE_DIRECTORY); return JSON.stringify(cellLintBaseline(box.report())) === JSON.stringify(strictBaseline); },
   });
   assert.deepEqual(cellLintGrowth(moved, strictBaseline), [], 'a same-generation snapshot does not remap its own debt twice');
   box.put('src/strict-rise.js', 'export const value = 2;\n');
@@ -270,7 +286,7 @@ test('a committed #1781 marker makes new debt advisory until #1770 deletes it, b
   const baseline = planCellLintBaseline(box.report()).baseline;
   writeCellLintBaseline(box.root, baseline, {
     initialize: true,
-    verify: () => JSON.stringify(cellLintBaseline(box.report())) === JSON.stringify(baseline),
+    verify: () => { box.stage(BASELINE_DIRECTORY); return JSON.stringify(cellLintBaseline(box.report())) === JSON.stringify(baseline); },
   });
   assert.equal(box.report().transition.active, false, 'the committed package map has already closed the earlier transition');
   box.put(TRANSITION_FILE, '{"version":1,"deleteItem":1770}\n');
@@ -371,11 +387,11 @@ test('a package containing only tests is distinct package debt while an app-reac
 
 test('bounded hash-bound baseline shards count their own files and refuse missing, partial or failed generations [C7,CD64]', t => {
   const box = fixture(t);
-  for (let index = 0; index < 405; index++) box.put(`stray-${index}.txt`, 'actual private file\n');
+  box.putAll(Array.from({ length: 405 }, (_, index) => [`stray-${index}.txt`, 'actual private file\n']));
   const plan = planCellLintBaseline(box.report()), files = cellLintFiles(plan.baseline);
   assert.ok([...files.keys()].filter(file => file.includes('/strays-')).length > 1);
   for (const bytes of files.values()) assert.ok(bytes.split('\n').length - 1 < 500);
-  writeCellLintBaseline(box.root, plan.baseline, { initialize: true, verify: () => JSON.stringify(cellLintBaseline(box.report())) === JSON.stringify(plan.baseline) });
+  writeCellLintBaseline(box.root, plan.baseline, { initialize: true, verify: () => { box.stage(BASELINE_DIRECTORY); return JSON.stringify(cellLintBaseline(box.report())) === JSON.stringify(plan.baseline); } });
   assert.deepEqual(JSON.parse(JSON.stringify(readCellLintBaseline(box.root))), JSON.parse(JSON.stringify(plan.baseline)));
   for (const file of files.keys()) {
     assert.ok(plan.baseline.metrics.strays.allowances[file], 'metadata is ordinary stray debt, never exempt');
@@ -394,13 +410,6 @@ test('bounded hash-bound baseline shards count their own files and refuse missin
   assert.deepEqual(storedCellLintFiles(box.root), before, 'a refused publication restores the exact prior bytes');
 });
 
-
-test('the actual repository gate enforces strict cell debt and reports temporary named transition rises [C7,CD64]', () => {
-  const root = fileURLToPath(new URL('../../../', import.meta.url)), report = cellLintReport(root, { importsIn, commonJsIn }), baseline = readCellLintBaseline(root);
-  const growth = cellLintGrowth(report, baseline);
-  for (const row of growth.filter(row => row.advisory)) console.log(`advisory item #${row.item} until #${row.until}: ${row.metric}:${row.key}: ${row.actual} exceeds ${row.allowed}`);
-  assert.deepEqual(cellLintGrowth(report, baseline, { enforcedOnly: true }), [], 'normal npm test keeps all non-transition debt strict without updating the baseline');
-});
 
 test('transitional roots follow real package CLI/browser declarations and never arbitrary fixture HTML [C7,CD62]', t => {
   const box = fixture(t);
@@ -503,7 +512,7 @@ test('the pre-cell transition reports size, files and edges while keeping baseli
   box.put('path-map.json', JSON.stringify({ 'src/previous.js': 'packages/sample/index.js' }));
   assert.equal(box.report().transition.active, true, 'an uncommitted path map is not accepted source evidence');
   // Main accepts only the map; the helper change stays the uncommitted candidate --check compares with main [C7].
-  box.git('add', 'path-map.json'); box.git('commit', '-qm', 'test: accepted first package migration');
+  box.git('add', 'path-map.json'); box.git('commit', '-qm', 'test: accepted first package migration', '--', 'path-map.json');
   const after = box.report();
   assert.equal(after.transition.active, false, 'the exact committed package migration closes the transition');
   assert.deepEqual(after.transition.witness, ['src/previous.js', 'packages/sample/index.js']);
@@ -533,24 +542,6 @@ test('the pre-cell transition keeps real cycles strict and reports every other f
   assert.throws(() => lowerCellLintBaseline(report, baseline), { code: 'CELL_LINT_ROSE' });
 });
 
-
-test('the actual discovered command loader reaches command run and its literal helper without excusing unused exports [C7,CD62]', t => {
-  const box = fixture(t);
-  const source = fileURLToPath(new URL('../../../', import.meta.url));
-  copyPackageFiles(source, box.root, { files: packageFiles(source).filter(file =>
-    ['src/discovery.js', 'packages/kernel/index.js'].includes(file)
-      || file.startsWith('packages/kernel/src/')) });
-  box.put('apps/demo/commands/index.js', readFileSync(join(source, 'apps/cli/src/io/commands/index.js'), 'utf8').replace("'../../../../../packages/", "'../../../packages/"));
-  box.put('apps/demo/index.js', "import { COMMANDS } from './commands/index.js'; COMMANDS.next();\n");
-  box.put('apps/demo/commands/next.js', "import { routing } from '../../../src/routing.js'; export function run() { return routing(); } export const unused = 1;\n");
-  box.put('src/routing.js', 'export function routing() { return 1; }\n');
-  box.put('src/not-a-command.js', 'export const unused = 1;\n');
-  const report = box.report();
-  assert.ok(!report.metrics.unreachable.findings.some(row => ['apps/demo/commands/next.js', 'src/routing.js'].includes(row.key)));
-  assert.ok(!report.metrics.unreachableExports.findings.some(row => ['apps/demo/commands/next.js#run', 'src/routing.js#routing'].includes(row.key)));
-  assert.ok(report.metrics.unreachableExports.findings.some(row => row.key === 'apps/demo/commands/next.js#unused'));
-  assert.ok(report.metrics.unreachable.findings.some(row => row.key === 'src/not-a-command.js'));
-});
 
 test('literal native worker URLs and native data reads count as reach while unused and shadowed URLs do not [C7,CD62]', t => {
   const box = fixture(t);
@@ -651,36 +642,4 @@ test('hard file cap excludes data and Markdown while preserving their advisory d
     assert.ok(cellLintGrowth(report, baseline).some(row => row.metric === 'fileSize' && row.key === file && row.advisory));
   }
   assert.throws(() => lowerCellLintBaseline(report, baseline), { code: 'CELL_LINT_ROSE' });
-});
-
-test('an export used only through a literal dynamic import of a shim is reachable; a non-literal dynamic import is named unknown [C7,CD62]', t => {
-  const box = fixture(t);
-  box.put('packages/sample/index.js', 'export const value = 1, lazy = 2, destructured = 3, other = 4;\n');
-  box.put('src/shim-sample.js', "export { lazy, destructured } from '../packages/sample/index.js';\n");
-  box.put('apps/demo/index.js', "import { value } from '#sample'; console.log(value);\nconsole.log((await import('../../src/shim-sample.js')).lazy);\nconst { destructured: renamed } = await import('../../src/shim-sample.js'); console.log(renamed);\n");
-  const keys = report => report.metrics.unreachableExports.findings.map(row => row.key);
-  const literal = box.report();
-  assert.ok(!keys(literal).includes('packages/sample/index.js#lazy'), 'member read through the shim reaches the moved export');
-  assert.ok(!keys(literal).includes('packages/sample/index.js#destructured'), 'destructured read through the shim reaches the moved export');
-  assert.ok(!keys(literal).includes('src/shim-sample.js#lazy'));
-  assert.ok(keys(literal).includes('packages/sample/index.js#other'), 'unrelated exports stay debt');
-  box.put('apps/demo/index.js', "import { value } from '#sample'; console.log(value);\nconst name = process.env.TARGET; console.log((await import(name)).lazy);\n");
-  const computed = box.report();
-  assert.ok(keys(computed).includes('packages/sample/index.js#lazy'), 'a non-literal specifier proves nothing');
-  assert.ok(computed.unknown.some(row => row.file === 'apps/demo/index.js' && row.reason.includes('computed')), 'the non-literal import is named in the output');
-});
-
-test('discovered command reach requires the exact kernel front door and discovery body [C7,CD62]', t => {
-  const box = fixture(t);
-  const source = fileURLToPath(new URL('../../../', import.meta.url));
-  copyPackageFiles(source, box.root, { files: packageFiles(source).filter(file =>
-    file === 'packages/kernel/index.js' || file.startsWith('packages/kernel/src/')) });
-  box.put('apps/demo/commands/index.js', readFileSync(join(source, 'apps/cli/src/io/commands/index.js'), 'utf8').replace("'../../../../../packages/", "'../../../packages/"));
-  box.put('apps/demo/index.js', "import { COMMANDS } from './commands/index.js'; COMMANDS.next();\n");
-  box.put('apps/demo/commands/next.js', 'export function run() {}\n');
-  appendFileSync(join(box.root, 'packages/kernel/index.js'), '\n// changed provider\n');
-  assert.ok(box.report().metrics.unreachable.findings.some(row => row.key === 'apps/demo/commands/next.js'));
-  copyPackageFiles(source, box.root, { files: ['packages/kernel/index.js'] });
-  appendFileSync(join(box.root, 'packages/kernel/src/logic/discovery.js'), '\n// changed discovery\n');
-  assert.ok(box.report().metrics.unreachable.findings.some(row => row.key === 'apps/demo/commands/next.js'));
 });

@@ -55,7 +55,7 @@ cp.spawnSync=function(command,...args){
 };
 require('node:module').syncBuiltinESMExports();
 `);
-  const env = { ...process.env, HOME: paths.home, PULLBOARD_HOME: paths.home,
+  const env = { ...process.env, HOME: paths.home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: paths.home,
     PULLBOARD_MACHINE_HOME: paths.machine, PATH: `${paths.bin}:${process.env.PATH}`,
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'GUI registration fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',

@@ -7,10 +7,10 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { cellProject } from '../../../../store/tests/fixtures/cell.js';
 import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { HOST } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { installSshStandIn } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { fixtureMachineSettings } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+import { runFixtureChild } from '../../fixtures/child.js';
+import { HOST } from '../../fixtures/runner/ssh.js';
+import { installSshStandIn } from '../../fixtures/runner/ssh.js';
+import { fixtureMachineSettings } from '../../fixtures/testkit.js';
 
 const HOSTS = [HOST, `${HOST}-second`];
 const FILES = ['test/a.test.js', 'test/b.test.js'];
@@ -22,7 +22,7 @@ const FILES = ['test/a.test.js', 'test/b.test.js'];
  * @returns {object} The project box.
  */
 function fixture(t, hosts = HOSTS) {
-  const box = cellProject(t, { gate: 'true' });
+  const box = cellProject(t, { real: true, gate: 'true' });
   const bin = join(box.dir, 'shards-bin'), worker = join(box.dir, 'shards-worker');
   const home = join(box.dir, 'shards-home'), machineHome = join(home, '.pullboard');
   for (const folder of [bin, worker, home, machineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(folder, { recursive: true });

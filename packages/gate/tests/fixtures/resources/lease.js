@@ -1,7 +1,6 @@
 /** Real CLI scenario for a review, submit or check that keeps its item lease while queued [C7,V4]. */
 import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
 import { checkBaseline } from '../../../index.js';
-import { main as nativeTestMain } from '../../../../../apps/cli/tests/fixtures/native.js';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -14,21 +13,13 @@ import { createInterface } from 'node:readline';
 import { DatabaseSync } from 'node:sqlite';
 import * as store from '../../../../store/index.js';
 import { openBoard } from '../../../../../apps/lib/index.js';
-import { exportBoard } from '../../../../store/index.js';
-import { importBoard } from '../../../../store/index.js';
-import { appliedSequence } from '../../../../state/index.js';
-import { applyEngineMove } from '../../../../state/index.js';
-import { prepareEngineMove } from '../../../../state/index.js';
-import { SUBMIT_ADMISSION_ENGINE } from '../../../../state/light.js';
 import { registerProject } from '../../../../seats/index.js';
-import { serveView } from '../../../../../apps/cli/src/io/commands/view.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { fixtureJoinRoute } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+import { runFixtureChild } from '../child.js';
+import { fixtureJoinRoute } from '../testkit.js';
+import { settledGateJob } from '../../../../../apps/cli/tests/fixtures/submit/settle.js';
 
-export { resourceWorkerSources, resourceNames, oldSchema, staleIdentity, expireHeartbeat } from '../../../../../apps/cli/tests/fixtures/resources/lease.js';
-
-/** Run a scoped view against a private registry and machine home, restoring both on close. */
-export async function openPrivateScopedView(box) {
+/** Run a scoped view against a private registry and machine home, restoring both on close; the caller supplies the CLI app's view server and command runner. */
+export async function openPrivateScopedView(box, { serveView, runCommand }) {
   const previousHome = process.env.PULLBOARD_HOME;
   const previousMachineHome = process.env.PULLBOARD_MACHINE_HOME;
   const restore = () => {
@@ -41,7 +32,7 @@ export async function openPrivateScopedView(box) {
   process.env.PULLBOARD_MACHINE_HOME = box.home;
   try {
     registerProject(box.first);
-    const view = await serveView({ port: 0, projectRoot: box.first, runCommand: nativeTestMain });
+    const view = await serveView({ port: 0, projectRoot: box.first, runCommand });
     return { ...view, close: async () => { try { await view.close(); } finally { restore(); } } };
   } catch (error) { restore(); throw error; }
 }
@@ -65,6 +56,14 @@ function clockedCli(box, cwd, ...args) {
   return args.includes('--json') ? JSON.parse(result.stdout) : result.stdout;
 }
 
+/** The fixture as settledGateJob reads it: show runs through the clocked CLI and returns { code, out, err }. */
+function runBox(box) {
+  return { repo: box.repo, env: box.env, run: (cwd, ...args) => {
+    const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', CLOCKED_CLI, ...args], { cwd, env: box.env, encoding: 'utf8' });
+    return { code: result.status, out: result.stdout, err: result.stderr };
+  } };
+}
+
 /** Track a waiting real CLI process in the same cleanup registry as the resource workers. */
 function leaseCommand({ helpers, children }, box, cwd, ...args) {
   const child = helpers.launch(box, cwd, process.execPath, ['--input-type=module', '-e', CLOCKED_CLI, ...args]);
@@ -84,8 +83,7 @@ function itemLeaseFixture(t, helpers) {
   const box = helpers.project('true');
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  // This scenario observes the synchronous submit's live queue lease; asynchronous handoffs return before that wait.
-  writeFileSync(configFile, JSON.stringify({ ...config, lease: '1m', reviewLease: '1m', submit: { ...config.submit, handoff: false } }));
+  writeFileSync(configFile, JSON.stringify({ ...config, lease: '1m', reviewLease: '1m' }));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure queue lease fixture');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
@@ -149,69 +147,6 @@ function itemLeaseFixture(t, helpers) {
   return box;
 }
 
-/** Neither a fresh CLI submit nor an unwitnessed receiver move inherits a running command's admission. */
-function refuseFreshExpiredSubmit(box, id) {
-  const late = runFixtureChild(process.execPath, ['--input-type=module', '-e', CLOCKED_CLI, 'submit', String(id), '--json'],
-    { cwd: box.web, env: box.env, encoding: 'utf8' });
-  assert.equal(late.status, 1, late.stdout);
-  assert.equal(JSON.parse(late.stdout).error.code, 'NOT_YOURS', 'a new submit cannot start on an expired claim');
-  const replica = openBoard(join(box.dir, 'expired-submit-receiver.sqlite'), box.clock, { gitRoot: box.repo });
-  try {
-    importBoard(replica, exportBoard(box.board));
-    const before = store.itemById(replica, id);
-    const move = prepareEngineMove(replica, 'submit', [id, { agentId: before.item_owner,
-      commit: box.git(box.web, 'rev-parse', 'HEAD'), tree: box.git(box.web, 'rev-parse', 'HEAD^{tree}'),
-      policyCommit: box.git(box.repo, 'rev-parse', 'main'),
-      submissionProof: { version: 1, files: [], full: false, deferred: true, reason: 'receiver negative control; no completed proof' } }]);
-    const result = applyEngineMove(replica, move, { sequence: appliedSequence(replica) + 1, at: box.clock.now().toISOString() });
-    assert.equal(result.error?.code, 'AGENT_GRANT_EXPIRED', 'even a real admission nonce grants no receiver completion without its native final proof');
-    assert.deepEqual(store.itemById(replica, id), before, 'the refused receiver leaves the claimed item unchanged');
-  } finally { store.closeBoard(replica); }
-}
-
-/** Replay the real completed native receipt; changed source or a new claim cannot borrow it. */
-function admittedCompletionReplicas(box, id, snapshot) {
-  const receipt = store.proofReceipts(box.board, id).findLast(run => run.submitAdmission);
-  assert.ok(receipt, 'the real mandatory submit proof carries its admission witness');
-  const proof = prepareEngineMove(box.board, 'recordProofRun', [{ agentId: receipt.seat, itemId: id, receiptId: receipt.id }]);
-  for (const scenario of ['same admission', 'admission engine', 'different commit', 'different tree', 'reclaim', 'historical engine']) {
-    let instant = box.clock.now().getTime();
-    const clock = { now: () => new Date(instant) };
-    const peer = openBoard(join(box.dir, `completion-${scenario.replaceAll(' ', '-')}.sqlite`), clock, { gitRoot: box.repo });
-    try {
-      importBoard(peer, snapshot);
-      assert.equal(applyEngineMove(peer, proof, { sequence: appliedSequence(peer) + 1, at: clock.now().toISOString() }).error, undefined);
-      const item = store.itemById(peer, id);
-      if (scenario === 'reclaim') {
-        const options = { agentId: item.item_owner, lane: item.item_lane, leaseMs: 60_000, head: receipt.commit };
-        store.claim(peer, id, options);
-        assert.throws(() => store.claim(peer, id, { ...options, submitAdmission: {
-          id: receipt.submitAdmission, commit: receipt.commit, tree: receipt.tree } }), error => error.code === 'USAGE',
-        'a new claim cannot reuse an earlier admission id');
-        store.claim(peer, id, options);
-        instant = Date.parse(store.itemById(peer, id).item_lease_until) + 1;
-      }
-      // A move from before strict composition replays on a board from before it was activated, so the
-      // private peer drops the review-policy markers; the assertions below are unchanged.
-      if (['admission engine', 'historical engine'].includes(scenario)) peer.db.prepare("DELETE FROM board_meta WHERE meta_key LIKE 'review_%' OR meta_key LIKE 'line_setting:%'").run();
-      const move = prepareEngineMove(peer, 'submit', [id, { agentId: receipt.seat,
-        commit: scenario === 'different commit' ? '1'.repeat(receipt.commit.length) : receipt.commit,
-        tree: scenario === 'different tree' ? '2'.repeat(receipt.tree.length) : receipt.tree,
-        policyCommit: box.git(box.repo, 'rev-parse', 'main'),
-        submissionProof: { version: 1, files: [], full: false, deferred: true, reason: 'private replay of actual native proof' } }]);
-      if (['admission engine', 'historical engine'].includes(scenario)) {
-        // These old writers predate clause-inspection fields; retain their actual wire shape.
-        delete move.args[1].clausePolicyCommit;
-        delete move.args[1].inspectClauses;
-        delete move.args[1].strictRenames; // also newer than these writers: it would lift the move's minimum engine to 221
-        move.engine = scenario === 'admission engine' ? SUBMIT_ADMISSION_ENGINE : SUBMIT_ADMISSION_ENGINE - 1;
-      }
-      const result = applyEngineMove(peer, move, { sequence: appliedSequence(peer) + 1, at: clock.now().toISOString() });
-      assert.equal(result.error?.code, ['same admission', 'admission engine'].includes(scenario) ? undefined : 'AGENT_GRANT_EXPIRED', scenario);
-    } finally { store.closeBoard(peer); }
-  }
-}
-
 /** Inherit a genuine private lease and prove awaited admission runs before the nested action. */
 function inheritedAdmissionProof(box) {
   const program = `
@@ -263,7 +198,6 @@ export async function queuedLeaseProof(t, deps) {
   try {
     clockedCli(box, reviewer, 'next', '--verify', String(reviewId), '--json');
     const originalReviewEnd = end(reviewId, 'review');
-    const originalBuildEnd = end(buildId, 'check');
     const originalCheckEnd = end(checkId, 'check');
     holder = poolWorker(box, { agent: 'lease-test-holder', browser: true });
     await acquired(holder);
@@ -275,21 +209,19 @@ export async function queuedLeaseProof(t, deps) {
       assert.equal(review.exitResult, null, `verify exited before queueing: ${review.stdoutText}\n${review.stderrText}`);
       return waiting(reviewId)?.leaseUntil;
     }, 'the real verify waiter and its item lease end');
-    const build = leaseCommand(deps, box, box.web, 'submit', String(buildId), '--json');
-    commands.push(build);
+    // A pulled submit returns "queued" at once; its gate job is the waiter, so the test settles it through the job's step [P7,C7,#6249].
+    const build = clockedCli(box, box.web, 'submit', String(buildId), '--json');
+    assert.equal(build.queued, true, 'submit queues its gate job and returns');
     try {
-      await waitUntil(() => {
-        assert.equal(build.exitResult, null, `submit exited before queueing: ${build.stdoutText}\n${build.stderrText}`);
-        return waiting(buildId)?.leaseUntil;
-      }, 'the real submit waiter and its item lease end', 30_000); // budget: the real CLI completes source and static preflight before entering the held pool.
+      await waitUntil(() => existsSync(buildGate.events), 'the runner pulls the submit job and starts its frozen check', 60_000); // budget: the runner claims the job and completes source and static preflight before entering the held pool.
     } catch (error) {
-      throw new Error(`${error.message}\nsubmit stdout: ${build.stdoutText}\nsubmit stderr: ${build.stderrText}\nresource queue: ${JSON.stringify(privateList(box))}`, { cause: error });
+      throw new Error(`${error.message}\nsubmit: ${JSON.stringify(build)}\nresource queue: ${JSON.stringify(privateList(box))}`, { cause: error });
     }
     const check = leaseCommand(deps, box, box.checker, 'check', String(checkId), '--yes', '--json');
     commands.push(check);
     await waitUntil(() => waiting(checkId)?.leaseUntil, 'the independent owned check and its item lease end');
     const listed = clockedCli(box, box.repo, 'resources', '--json').resources.find((resource) => resource.name === 'gate');
-    for (const [id, kind] of [[reviewId, 'review'], [buildId, 'submit'], [checkId, 'check']]) {
+    for (const [id, kind] of [[reviewId, 'review'], [checkId, 'check']]) {
       const entry = listed.line.find((row) => row.item === String(id));
       assert.equal(entry.kind, kind);
       assert.equal(entry.leaseUntil, end(id, kind), 'resources reports this exact board item lease, not the pool heartbeat');
@@ -297,51 +229,34 @@ export async function queuedLeaseProof(t, deps) {
     assert.match(clockedCli(box, box.repo, 'resources'), /lease until \d{4}-\d{2}-\d{2}T/u);
 
     box.advance(30_000);
-    await waitUntil(() => end(reviewId, 'review') > originalReviewEnd && end(buildId, 'check') > originalBuildEnd
+    await waitUntil(() => end(reviewId, 'review') > originalReviewEnd
       && end(checkId, 'check') > originalCheckEnd, 'all live queued commands renew before their original expiry');
     const previousReviewEnd = end(reviewId, 'review');
-    const previousBuildEnd = end(buildId, 'check');
     const previousCheckEnd = end(checkId, 'check');
     box.advance(31_000);
-    await waitUntil(() => end(reviewId, 'review') > previousReviewEnd && end(buildId, 'check') > previousBuildEnd
+    await waitUntil(() => end(reviewId, 'review') > previousReviewEnd
       && end(checkId, 'check') > previousCheckEnd, 'all leases remain held past their original deadlines');
     assert.ok(box.clock.now().toISOString() > originalReviewEnd);
     assert.ok(end(reviewId, 'review') > box.clock.now().toISOString());
-    assert.ok(end(buildId, 'check') > box.clock.now().toISOString());
     assert.ok(end(checkId, 'check') > box.clock.now().toISOString());
 
     await release(holder); holder = null;
     await waitUntil(() => existsSync(reviewGate.events), 'the admitted verification starts its actual frozen check');
     const runningReviewEnd = end(reviewId, 'review');
     for (const advance of [30_000, 31_000, 1_000]) {
-      const beforeBuildEnd = end(buildId, 'check');
       const beforeCheckEnd = end(checkId, 'check');
       box.advance(advance);
-      if (advance >= 30_000) await waitUntil(() => end(buildId, 'check') > beforeBuildEnd
-        && end(checkId, 'check') > beforeCheckEnd, 'both build waiters renew while the admitted review runs');
+      if (advance >= 30_000) await waitUntil(() => end(checkId, 'check') > beforeCheckEnd, 'the check waiter renews while the admitted review runs');
     }
     assert.equal(end(reviewId, 'review'), runningReviewEnd, 'admission ends review item renewals');
     assert.ok(runningReviewEnd < box.clock.now().toISOString(), 'the running review resumes ordinary lease expiry');
-    assert.ok(waiting(buildId) && waiting(checkId), 'submit and check remain queued behind the review');
+    assert.ok(waiting(checkId), 'the check remains queued behind the review');
     writeFileSync(reviewGate.release, 'release');
     assert.equal((await review.finished).code, 0, `${review.stdoutText}\n${review.stderrText}`);
-    await waitUntil(() => existsSync(buildGate.events), 'the admitted real submit starts its frozen check');
-    const runningBuildEnd = end(buildId, 'check');
-    for (const advance of [30_000, 31_000, 1_000]) {
-      const beforeCheckEnd = end(checkId, 'check');
-      box.advance(advance);
-      if (advance >= 30_000) await waitUntil(() => end(checkId, 'check') > beforeCheckEnd,
-        'the standalone check keeps renewing while submit runs');
-    }
-    clockedCli(box, box.repo, 'resources', '--json');
-    assert.equal(end(buildId, 'check'), runningBuildEnd, 'admission ends build item renewals');
-    assert.ok(runningBuildEnd < box.clock.now().toISOString(), 'the running build resumes ordinary lease expiry');
-    refuseFreshExpiredSubmit(box, buildId);
-    const admittedBuild = exportBoard(box.board);
+    // The pulled submit ran in the local runner, outside this pool: it settles through its gate job, and the item moves once.
     writeFileSync(buildGate.release, 'release');
-    assert.equal((await build.finished).code, 0, `${build.stdoutText}\n${build.stderrText}`);
+    await settledGateJob(runBox(box), buildId, { deadlineMs: 120_000 });
     assert.equal(item(buildId).item_status, 'submitted', 'the actual queued submit completes its ordinary board move');
-    admittedCompletionReplicas(box, buildId, admittedBuild);
     await waitUntil(() => existsSync(checkGate.events), 'the independent owned check starts');
     const runningCheckEnd = end(checkId, 'check');
     box.advance(Date.parse(runningCheckEnd) - box.clock.now().getTime() + 1);

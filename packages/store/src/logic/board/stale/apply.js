@@ -3,6 +3,7 @@ import { dependencyWaiters } from '../../../../../items/index.js';
 import { dependencyWorkAt } from '../../../../../items/index.js';
 import { CLAIM_PROGRESS_ENGINE } from '../../../../../state/index.js';
 import { CLAIM_RETURNS_ENGINE } from '../../../../../state/index.js';
+import { PULLED_RED_COUNT_ENGINE } from '../../../../../state/index.js';
 import { claimProgress } from '../../../../../items/index.js';
 /** Apply captured expiry decisions atomically without consulting replica-private liveness [B4,C7]. */
 import { Refused } from "../../../../../kernel/light.js";
@@ -28,6 +29,8 @@ import {
   staleStateLimits,
 } from "./state/policy.js";
 import { planStaleState } from "./state/maintenance.js";
+import { writeBoardMeta } from '../../../io/board/meta.js';
+import { deleteBoardMeta } from '../../../io/board/meta.js';
 
 /** A malformed observation is a refusal, never permission to make a best-effort release. */
 function invalid() {
@@ -100,13 +103,16 @@ function idleClaim(board, row, snapshot, agentId, itemById) {
   const item = itemById(board, row.id);
   const claim = board.db.prepare("SELECT event_id FROM event WHERE item_id=? AND event_by=? AND event_kind='claim' ORDER BY event_id DESC LIMIT 1").get(row.id, row.actor);
   if (item.item_status !== 'claimed' || item.item_owner !== row.actor || item.item_owner === agentId || claim?.event_id !== row.claimEventId) changed();
+  const after = String(item.item_after ?? '').split(',').map(Number).filter(Number.isSafeInteger);
+  // What the reclaim table reads, as this re-check found it; filled in as each rule's facts are read [C7,#9367].
+  const facts = { item: { id: row.id, status: item.item_status, owner: item.item_owner, after }, ownerLastClaimId: claim.event_id, deps: {}, redReturnLease: false, progressNow: null, pinned: false };
   if (!['stall', 'release', 'waiting', 'progress', 'seat-gone', 'dependency'].includes(row.idle)) invalid();
   if (row.idle === 'seat-gone') {
     const signal = row.deadSeat?.heartbeatAt ?? row.claimAt;
     const at = Date.parse(snapshot.observedAt), last = Date.parse(signal ?? '');
     if (row.deadSeat?.observedAt !== snapshot.observedAt || row.deadSeat?.quietMs !== 120_000
       || row.deadSeat?.worktreeMissing !== true && (!Number.isFinite(last) || at - last < 120_000)) invalid();
-    return { row, item };
+    return { row, item, facts };
   }
   if (row.idle === 'waiting') {
     if (!Array.isArray(row.waitingOn) || !row.waitingOn.length) invalid();
@@ -116,33 +122,38 @@ function idleClaim(board, row, snapshot, agentId, itemById) {
       return dependency && dependency.item_status !== 'withdrawn' && !dependency.item_merged_commit;
     })());
     if (open.length !== row.waitingOn.length) changed();
-    return { row, item };
+    facts.deps = Object.fromEntries(open.map(id => [id, { status: 'open', merged: false }]));
+    return { row, item, facts };
   }
   const observed = Date.parse(snapshot.observedAt);
   if ((board.executionEngineVersion ?? ENGINE_VERSION) >= QUEUED_RED_RETURN_ENGINE && redReturnLeaseHolds(board, item, observed)) changed();
   if (row.idle === 'progress' && (board.executionEngineVersion ?? ENGINE_VERSION) < CLAIM_PROGRESS_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade before automatic progress-claim release');
-  const progress = row.idle === 'progress' ? claimProgress(board, item, observed, { runnerOnly: (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE }) : null;
+  const progress = row.idle === 'progress' ? claimProgress(board, item, observed, { runnerOnly: (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE, pulledReds: (board.executionEngineVersion ?? ENGINE_VERSION) >= PULLED_RED_COUNT_ENGINE }) : null;
   // A holder who committed in the last 30 minutes is working, whatever the failures or the clock say [B4,B5].
   if (progress && (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE && row.commitAt != null
     && observed - Date.parse(row.commitAt) < RECENT_COMMIT_MS) invalid();
   if (progress && (!progress.trigger || JSON.stringify(progress) !== JSON.stringify(row.progress))) invalid();
+  facts.progressNow = progress;
   if (row.idle === 'dependency') {
     if ((board.executionEngineVersion ?? ENGINE_VERSION) < STRANDED_DEPENDENCY_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade before reclaiming a stranded dependency');
     const waiters = dependencyWaiters(board, row.id).map(entry => entry.item_id);
     if (!waiters.length || JSON.stringify(waiters) !== JSON.stringify(row.dependents)) changed();
     const lastWork = dependencyWorkAt(board, item, row.commitAt, observed);
+    facts.waiters = waiters;
+    facts.lastWork = lastWork;
     if (row.resourceQuiet !== true || !lastWork || lastWork !== row.workActivity || row.idleMs !== observed - Date.parse(lastWork)
       || row.idleMs < snapshot.limits.dependency) invalid();
   }
   const last = staleInstant(row.workActivity, observed);
   const pinnedLapse = row.idle === 'release' && (board.executionEngineVersion ?? ENGINE_VERSION) >= PINNED_CLAIM_LAPSE_ENGINE && itemPinned(board, item.item_id);
+  facts.pinned = pinnedLapse;
   const limit = row.idle === 'dependency' ? snapshot.limits.dependency : row.idle === 'release' ? (pinnedLapse ? PINNED_CLAIM_RELEASE_MS : CLAIM_IDLE_RELEASE_MS) : CLAIM_STALL_MS;
   if (!progress && (last === null || row.idleMs !== observed - last || row.idleMs < limit)) invalid();
   if (['release', 'progress', 'dependency'].includes(row.idle) && (!row.handoff || !Array.isArray(row.handoff.changedFiles) || row.handoff.changedFiles.length > 200
     || !Number.isSafeInteger(row.handoff.changedCount) || row.handoff.changedCount < row.handoff.changedFiles.length
     || (row.handoff.pin === null ? typeof row.handoff.unpinned !== 'string' || !row.handoff.unpinned
       : !/^[0-9a-f]{40,64}$/u.test(row.handoff.head ?? '') || typeof row.handoff.pin !== 'string' || !row.handoff.pin.startsWith(`refs/pullboard/handoffs/${row.id}/`)))) invalid();
-  return { row, item };
+  return { row, item, facts };
 }
 
 /** Apply one pure captured plan under coordinator authority and the ordinary board transaction. */
@@ -164,6 +175,25 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
         || !Number.isSafeInteger(snapshot.claimScan?.next) || snapshot.claimScan.next <= 0) invalid();
       if (snapshot.claimScan.previous !== cursor) changed();
     }
+    // With a reclaim shadow hook, the table decides each row this pass acts on, and the events the writer wrote for it are compared [C7,#9367].
+    const shadow = dependencies.reclaim ?? null;
+    const lastEvent = () => board.db.prepare('SELECT COALESCE(MAX(event_id),0) id FROM event').get().id;
+    // With moves.live.reclaim on, the table decides before anything is written: it refuses what it refuses, and the events it names are the ones logged [C7,#9374].
+    const live = dependencies.reclaimLive ?? null;
+    const decided = (snapshotFor, move) => {
+      const answer = live.decide(snapshotFor, move);
+      if (answer.threw) throw new Refused('BAD_STALE_STATE', `the reclaim table could not decide: ${answer.threw}`, 'run the command again; maintenance captures a fresh observation');
+      if (answer.refused) throw new Refused(answer.refused.code, answer.refused.message, answer.refused.next);
+      const modern = (board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_REASONS_ENGINE;
+      return (answer.events ?? []).map(event => modern || event.detail?.reasonCode === undefined ? event : { ...event, detail: Object.fromEntries(Object.entries(event.detail).filter(([key]) => key !== 'reasonCode')) });
+    };
+    /** Log the events the table decided for one item, in its order. */
+    const logDecided = (events, id) => { for (const event of events) logEvent(board, event.by, event.kind, id, event.detail); };
+    const compare = (id, from, snapshotFor, move) => {
+      if (!shadow || live) return;
+      const wrote = board.db.prepare("SELECT event_kind kind, event_by by, event_detail detail FROM event WHERE event_id>? AND item_id=? AND event_kind IN ('release','fact','claim_stalled') ORDER BY event_id").all(from, id);
+      shadow.hook({ id, decided: shadow.decide(snapshotFor, move), wrote });
+    };
     const plan = claimsOnly ? { holdWarnings: [], holdExpiries: [], reviewReleases: [] } : planStaleState(snapshot);
     const result = { warnings: [], holds: [], reviews: [] };
     /** Use the existing sentinel channel and direct recipient; item routing would replace the holder address. */
@@ -180,7 +210,7 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
       const heldAt = staleInstant(row.heldAt, Date.parse(snapshot.observedAt));
       const remaining = snapshot.limits.hold - (Date.parse(snapshot.observedAt) - heldAt);
       if (heldAt === null || remaining <= 0 || remaining > snapshot.limits.warning) invalid();
-      board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value').run(key, String(row.holdEventId));
+      writeBoardMeta(board.db, key, String(row.holdEventId));
       notice(agentId, `Hold on #${row.id} expires within one hour: ${shortReason(row.reason)}. Renew or lift it with pullboard hold ${row.id}.`, row.id);
       result.warnings.push(row.id);
     }
@@ -201,10 +231,17 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
         || reservation?.event_at !== row.reservedAt || submitted?.event_id !== row.sourceSubmitEventId) changed();
       observedExpiry(row, snapshot.limits.review, snapshot.observedAt);
       const reason = `Review idle for 30 minutes; last observed activity ${row.lastActivity}.`;
+      const reviewFrom = lastEvent();
+      const reviewFacts = { item: { status: item.item_status, reviewer: item.item_review_by, commit: item.item_commit, reviewUntil: item.item_review_until },
+        reserve: { id: reservation.event_id, at: reservation.event_at }, lastSubmitId: submitted.event_id };
+      const reviewMove = { kind: 'review-idle', maintainer: agentId, observedAt: snapshot.observedAt, row, limits: snapshot.limits, now: board.clock.now().toISOString() };
+      const reviewDecided = live ? decided(reviewFacts, reviewMove) : null;
       setItem(board, row.id, { item_review_by: null, item_review_until: null });
-      logEvent(board, agentId, 'release', row.id, { review: true, reason,
+      if (reviewDecided) logDecided(reviewDecided, row.id);
+      else logEvent(board, agentId, 'release', row.id, { review: true, reason,
         ...((board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_REASONS_ENGINE ? { reasonCode: 'OTHER' } : {}),
         stale: { reviewer: row.reviewer, reservedAt: row.reservedAt, lastActivity: row.lastActivity } });
+      compare(row.id, reviewFrom, reviewFacts, reviewMove);
       notice(row.reviewer, `Released your idle review reservation on #${row.id}: ${reason} The item is available for independent review.`, row.id);
       result.reviews.push(row.id);
     }
@@ -224,31 +261,43 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
         observedExpiry(row, snapshot.limits.claim, snapshot.observedAt);
         const leaseAt = staleInstant(row.leaseUntil, Date.parse(snapshot.observedAt));
         if (leaseAt === null || Date.parse(snapshot.observedAt) - leaseAt < snapshot.limits.claim) invalid();
-        return { row, item, leaseMs };
+        return { row, item, leaseMs, lease };
       });
       result.claims = [];
-      board.db.prepare("INSERT INTO board_meta(meta_key,meta_value) VALUES('lapsed_claim_scan_cursor',?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value").run(String(snapshot.claimScan.next));
+      writeBoardMeta(board.db, 'lapsed_claim_scan_cursor', String(snapshot.claimScan.next));
       result.claimScan = snapshot.claimScan;
-      for (const { row, item, leaseMs } of claims) {
-        const window = { builder: item.item_owner, until: new Date(board.clock.now().getTime() + leaseMs).toISOString() };
+      for (const { row, item, leaseMs, lease } of claims) {
+        const lapsedAt = board.clock.now();
+        const lapsedFrom = lastEvent();
+        const window = { builder: item.item_owner, until: new Date(lapsedAt.getTime() + leaseMs).toISOString() };
+        const lapsedFacts = { item: { id: row.id, status: item.item_status, owner: item.item_owner, leaseUntil: item.item_lease_until }, ownerLastLease: { id: lease.event_id, at: lease.event_at, leaseUntil: row.leaseUntil } };
+        const lapsedMove = { kind: 'lapsed-claim', maintainer: agentId, observedAt: snapshot.observedAt, limits: snapshot.limits, row, now: lapsedAt.toISOString() };
+        const lapsedDecided = live ? decided(lapsedFacts, lapsedMove) : null;
         moveItem(board, row.id, 'release', {
           checks: { joined: null, [IN_STATE]: null, releaseOwnsWork: () => null, reviewReleaseExplained: null },
           set: () => ({ item_owner: null, item_lease_until: null }),
         });
-        logEvent(board, agentId, 'release', row.id, { reason: 'Lapsed claim idle past its stale interval.',
+        if (lapsedDecided) logDecided(lapsedDecided, row.id);
+        else logEvent(board, agentId, 'release', row.id, { reason: 'Lapsed claim idle past its stale interval.',
           ...((board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_REASONS_ENGINE ? { reasonCode: 'OTHER' } : {}),
           expiredClaim: { holder: row.actor, leaseUntil: row.leaseUntil, lastActivity: row.lastActivity, observedAt: snapshot.observedAt, leaseEventId: row.leaseEventId },
           reopenFirstRefusal: window });
+        compare(row.id, lapsedFrom, lapsedFacts, lapsedMove);
         notice(row.actor, `Your lapsed idle claim on #${row.id} returned to open; first refusal remains yours until ${window.until}.`, row.id);
         result.claims.push(row.id);
       }
-      for (const { row, item } of idle) {
+      for (const { row, item, facts } of idle) {
+        const idleFrom = lastEvent();
+        const idleMove = { kind: 'idle', maintainer: agentId, observedAt: snapshot.observedAt, row, limits: snapshot.limits, now: board.clock.now().toISOString() };
+        const idleDecided = live ? decided(facts, idleMove) : null;
         if (row.idle === 'stall') {
           // Told once per claim episode: the holder's lane lead, or the coordinator when the lane has none.
-          board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value').run(`claim_stalled:${row.id}`, String(row.episodeEventId));
+          writeBoardMeta(board.db, `claim_stalled:${row.id}`, String(row.episodeEventId));
           const minutes = Math.floor(row.idleMs / 60_000);
-          logEvent(board, agentId, 'claim_stalled', row.id, { holder: row.actor, lastActivity: row.workActivity, idleMinutes: minutes, observedAt: snapshot.observedAt });
+          if (idleDecided) logDecided(idleDecided, row.id);
+          else logEvent(board, agentId, 'claim_stalled', row.id, { holder: row.actor, lastActivity: row.workActivity, idleMinutes: minutes, observedAt: snapshot.observedAt });
           notice(laneLead(board, item.item_lane), `#${row.id} (${row.actor}) is stalled: no commit, file change, running check or item move for ${minutes} minutes; it is released automatically at 40.`, row.id);
+          compare(row.id, idleFrom, facts, idleMove);
           (result.stalled ??= []).push(row.id);
           continue;
         }
@@ -265,6 +314,8 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
           checks: { joined: null, [IN_STATE]: null, releaseOwnsWork: () => null, reviewReleaseExplained: null },
           set: () => ({ item_owner: null, item_lease_until: null }),
         });
+        if (idleDecided) logDecided(idleDecided, row.id);
+        else {
         if (row.idle === 'progress') logEvent(board, 'board', 'fact', row.id, {
           id: `progress-return-${row.id}-${row.claimEventId}`, kind: 'note', text: reason, ref: null, supersedes: null });
         logEvent(board, agentId, 'release', row.id, { reason,
@@ -273,8 +324,10 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
           ...(row.idle === 'progress' ? { reopenFirstRefusal: { builder: row.actor, otherSeatFirst: true, until: new Date(Date.parse(snapshot.observedAt) + 7_200_000).toISOString() } } : {}), reasonCode: row.idle === 'waiting' ? 'BLOCKED' : 'OTHER',
           idleClaim: { holder: row.actor, kind: row.idle, lastActivity: row.workActivity ?? null, observedAt: snapshot.observedAt, claimEventId: row.claimEventId,
             ...(row.idle === 'waiting' ? { waitingOn: row.waitingOn } : { handoff: row.handoff }) } });
-        board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run(`claim_stalled:${row.id}`);
-        if (row.idle === 'waiting') board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value').run(`claim_waiting:${row.id}`, JSON.stringify(row.waitingOn));
+        }
+        compare(row.id, idleFrom, facts, idleMove);
+        deleteBoardMeta(board.db, `claim_stalled:${row.id}`);
+        if (row.idle === 'waiting') writeBoardMeta(board.db, `claim_waiting:${row.id}`, JSON.stringify(row.waitingOn));
         notice(row.actor, `Released your claim on #${row.id}: ${reason}`, row.id);
         if (row.idle === 'dependency') for (const dependent of dependencyWaiters(board, row.id)) {
           notice(dependent.item_owner ?? laneLead(board, dependent.item_lane), `Dependency #${row.id} of #${dependent.item_id} was released as stale and is available again at its rank; a new builder can claim it.`, dependent.item_id);

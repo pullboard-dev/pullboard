@@ -68,7 +68,7 @@ const STORE_NAMES = [
   'milestonePriorities', 'milestones', 'moveItem', 'nextFor', 'nextSeatId', 'onlyCoordinator', 'openBoardReadOnly', 'openDecisions', 'openHandoff',
   'openRequests', 'passDecision', 'peekShouts', 'pendingRefreeze', 'pendingRefreezeProblem', 'planCompanion', 'postRigorNotices', 'prepareClaim',
   'prepareMergeOnlySubmit', 'prepareQueueSubmitHandoff', 'projectItemThreads', 'proofReceipts', 'queueSubmitHandoff', 'readBoardMembers',
-  'readBoardSnapshot', 'readEventLogVersion', 'recentEvents', 'recentShouts', 'recordActivityDelivery', 'recordAttempt', 'recordExitProgress',
+  'readBoardSnapshot', 'readEventLogVersion', 'recentEvents', 'recentShouts', 'recordActivityDelivery', 'recordAttempt', 'recordCoordinatorUsage', 'recordExitProgress',
   'recordHealthFindings', 'recordJobRun', 'recordLandingBatch', 'recordLandingFlake', 'recordLandingTestDefect', 'recordLandingWaiver',
   'recordNextIdle', 'recordProofRun', 'recordRelayRefusal', 'recordRowDecisions', 'recordSharedUsage', 'recordSpecApprovalBaseline', 'recordUsage',
   'recordUsageBatch', 'refreeze', 'register', 'rehomeDestinationItemId', 'rehomeImport', 'rehomeItem', 'relatedItems', 'release', 'releaseItemHold',
@@ -358,12 +358,16 @@ test('missing quarantine proof-ID authority refuses before storage exists [C7,H1
 });
 
 /** Public compatibility and replay use the same actual operation, including its person-auth refusal. */
+/** A deferred port is its provider's named delegate: it loads the provider's package at its first call [C7,#7033]. */
+function delegates(port, provider) { return typeof port === 'function' && port.name === provider.name; }
+
 test('the native operation bag and counted public bridge retain actual authority [C7,H16,B2]', t => {
   const board = fixtureBoard(t);
   for (const [name, operation] of Object.entries({ setPersonSigning, recordGateRun, advanceItemSource, recordTrainLanding })) {
-    assert.equal(board.enginePorts.store[name], operation, name);
+    assert.ok(delegates(board.enginePorts.store[name], operation), name);
     assert.equal(door[name], undefined, 'the store no longer bridges the native operation');
-    assert.equal(library[name], operation, 'the unchanged library namespace retains its public operation');
+    assert.equal(typeof library[name], 'function', 'the unchanged library namespace retains its public operation');
+    assert.equal(library[name], native[name], 'the library name is the native lazy delegate (#5487)');
   }
   assert.equal(Object.isFrozen(board.enginePorts.store), true);
   assert.equal(Object.isFrozen(board.nativePorts.quarantine), true, 'each connection retains immutable native quarantine authority');
@@ -378,7 +382,7 @@ test('the native operation bag and counted public bridge retain actual authority
 test('native engine composition keeps supplied upper operations and refuses missing providers before storage [C7,B1,H16]', t => {
   const board = fixtureBoard(t);
   const original = native.nativeBoardPorts().enginePorts;
-  assert.deepEqual(original.sandboxPolicyReads, { mainPolicy, policyAt, frozenCheck, itemPolicy, requireTrunkMerge });
+  for (const [name, provider] of Object.entries({ mainPolicy, policyAt, frozenCheck, itemPolicy, requireTrunkMerge })) assert.ok(delegates(original.sandboxPolicyReads[name], provider), name);
   assert.ok(Object.isFrozen(original.sandboxPolicyReads));
   assert.equal(original.firstRefusalDetail, firstRefusalDetail);
   assert.equal(original.itemPatchDigest, itemPatchDigest);
@@ -386,8 +390,8 @@ test('native engine composition keeps supplied upper operations and refuses miss
   assert.equal(original.withDerivedFamily, withDerivedFamily);
   assert.deepEqual(original.submitHandoffEngines(), { current: ENGINE_VERSION, handoff: SUBMIT_HANDOFF_ENGINE });
   assert.deepEqual(original.pipelineCauseEngines(), { current: ENGINE_VERSION, pipeline: PIPELINE_CAUSE_ENGINE });
-  assert.equal(original.store.recordTrainLanding, recordTrainLanding);
-  assert.equal(native.recordTrainLanding, recordTrainLanding);
+  assert.ok(delegates(original.store.recordTrainLanding, recordTrainLanding));
+  assert.equal(typeof native.recordTrainLanding, 'function', 'the public name is a lazy delegate to the provider (#5487)');
   assert.equal(library.recordTrainLanding, native.recordTrainLanding, 'the existing board public name retains exact native identity');
   const before = legacy.events(board);
   const refusal = new Error('EXPLICIT_TRAIN_PROVIDER');
@@ -428,7 +432,7 @@ test('native engine composition keeps supplied upper operations and refuses miss
   assert.throws(() => composed.store.recordTrainLanding(board, { agentId: 'coordinator' }), error => error === refusal);
   assert.equal(calls, 1);
   assert.deepEqual(legacy.events(board), before);
-  assert.equal(original.store.recordTrainLanding, recordTrainLanding, 'another connection keeps the native provider');
+  assert.ok(delegates(original.store.recordTrainLanding, recordTrainLanding), 'another connection keeps the native provider');
   for (const name of ['submitHandoffEngines', 'pipelineCauseEngines', 'firstRefusalDetail', 'itemPatchDigest', 'recordFamilyDeclareActivation', 'withDerivedFamily', 'recordTrainLanding', 'validPresence', 'sealItemPatchFollow', 'MOVE_REGISTRY', 'MOVE_OPERATIONS', 'minimumMoveEngine', 'declaredMoveActor', 'conditionalHoldFloor']) {
     const missing = { ...providers };
     delete missing[name];
@@ -440,7 +444,10 @@ test('native engine composition keeps supplied upper operations and refuses miss
 test('presentation providers retain exact identities and all missing ports refuse before effects [C7,A4]', t => {
   const ports = native.nativeBoardPorts().presentation;
   const expected = { verifiedPasskeyRowDecision: presentation_verifiedPasskeyRowDecision, pendingFit: presentation_pendingFit, projectFit: presentation_projectFit, projectState: presentation_projectState, personRequestStatuses: presentation_personRequestStatuses, personSigningPresentation: presentation_personSigningPresentation, activeViewAgents: presentation_activeViewAgents, viewProofSummary: presentation_viewProofSummary, fitFile: presentation_fitFile };
-  for (const [name, provider] of Object.entries(expected)) assert.equal(ports[name], provider);
+  for (const [name, provider] of Object.entries(expected)) {
+    if (['projectState', 'activeViewAgents', 'viewProofSummary'].includes(name)) assert.equal(typeof ports[name], 'function', 'the view entrypoints lazy-load the view app (#5487)');
+    else assert.ok(delegates(ports[name], provider), name);
+  }
   assert.equal(Object.isFrozen(ports), true);
   let effects = 0;
   const root = { toString() { effects++; throw new Error('repository discovery reached'); } };

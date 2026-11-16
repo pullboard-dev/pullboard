@@ -5,11 +5,11 @@ import { writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
-import { gitPath } from '../../../git/index.js';
-import { repoInfo } from '../../../git/index.js';
-import { sameCommonDir } from '../../../git/index.js';
-import { tryGit } from '../../../git/index.js';
-import { Refused } from '../../../kernel/index.js';
+import { gitPath } from '../../../git/light.js';
+import { repoInfo } from '../../../git/light.js';
+import { sameCommonDir } from '../../../git/light.js';
+import { tryGit } from '../../../git/light.js';
+import { Refused } from '../../../kernel/light.js';
 
 /** The registered seat identity and routing attributes used by an item folder. */
 function agentRow(board, id) {
@@ -20,9 +20,12 @@ function agentRow(board, id) {
 /** A seat's item folders are siblings of its checkout, never inside its working tree. */
 export function itemFolderPath(root, id) { return join(dirname(root), `${basename(root)}-item-${id}`); }
 
+/** The item marker's file name under the worktree's Git metadata; writeItemMarker writes it, so this module owns the store. */
+export const ITEM_MARKER_FILE = 'pullboard-item.json';
+
 /** Marker is private to this worktree's Git metadata, never part of the project. */
 export function writeItemMarker(path, seat, item) {
-  writeFileSync(gitPath(path, 'pullboard-item.json'), JSON.stringify({ version: 1, seat, item }) + '\n', { mode: 0o600 });
+  writeFileSync(gitPath(path, ITEM_MARKER_FILE), JSON.stringify({ version: 1, seat, item }) + '\n', { mode: 0o600 });
 }
 
 /**

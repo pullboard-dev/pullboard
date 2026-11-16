@@ -8,6 +8,7 @@ import { resolve } from 'node:path';
 import { sep } from 'node:path';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const FINISHED_IDLE_MS = 2 * 60 * 60 * 1000;
 const DURATION = /^(\d+)(ms|s|m|h|d)$/u;
 const UNIT_MS = { ms: 1, s: 1_000, m: 60_000, h: 3_600_000, d: DAY_MS };
 
@@ -49,6 +50,13 @@ function seatActivity(seat) {
   return values.length ? Math.max(...values) : null;
 }
 
+/** A joined seat is idle past the takeover window only when a real activity time is older than that window and it is not live (#8199). */
+function idlePastTakeover(seat, takeoverMs, now) {
+  if (!Number.isSafeInteger(takeoverMs) || takeoverMs <= 0 || seat.presence === 'live') return false;
+  const activity = seatActivity(seat);
+  return activity !== null && now >= activity && now - activity >= takeoverMs;
+}
+
 /** Resolve configured worktree placement and test whether this registered tree is in that exact root. */
 function expectedWorktreeRoot(treePath, mainRoot, placement) {
   if (!treePath || !mainRoot || !['inside', 'beside'].includes(placement)) return false;
@@ -76,8 +84,13 @@ function itemClosed(item) {
   return Boolean(item.item_merged_commit) || item.item_status === 'withdrawn' || Boolean(item.item_withdrawn_reason);
 }
 
+/** A hand-made worktree is provably finished when its head is the recorded commit of an item that has landed or been withdrawn and holds no obligation (#5733). */
+function provenFinished(head, items, now) {
+  return typeof head === 'string' && head.length > 0 && items.some(item => item.item_commit === head && itemClosed(item) && !itemObligation(item, now));
+}
+
 /** A live claim, review lease, or unmerged submitted/verified item keeps its owning tree protected. */
-function itemObligation(item, now) {
+export function itemObligation(item, now) {
   if (item.item_status === 'claimed') return 'claim';
   const reviewUntil = timestamp(item.item_review_until);
   if (item.item_review_by && reviewUntil !== null && reviewUntil > now) return 'review-reservation';
@@ -88,18 +101,19 @@ function itemObligation(item, now) {
 /** Classify one registered Git worktree using only canonical board rows and prior sweep observations.
  * Conservative uncertainty stays protected because the caller may later archive or prune this tree.
  * @param {{ path?: string, head?: string, locked?: boolean, bare?: boolean }} tree
- * @param {{ mainRoot: string, currentRoot?: string, config?: object, seats?: object[], items?: object[], previous?: object|null, now?: number, workingDirectories?: (string|object)[]|null }} context
- * @returns {{ path: string, kind: 'active'|'finished'|'orphaned'|'scratch', protected: boolean, reason: string, agents: string[], items: (string|number)[], inactiveSince: number|null, oldEnough: boolean }}
+ * @param {{ mainRoot: string, currentRoot?: string, config?: object, seats?: object[], items?: object[], previous?: object|null, now?: number, workingDirectories?: (string|object)[]|null, takeoverMs?: number|null }} context
+ * @returns {{ path: string, kind: 'active'|'finished'|'orphaned'|'scratch', protected: boolean, reason: string, agents: string[], items: (string|number)[], inactiveSince: number|null, oldEnough: boolean, retiredIdle?: boolean }}
  */
 export function classifyMaintenanceTree(tree, {
-  mainRoot, currentRoot, config = {}, seats = [], items = [], previous = null, now = Date.now(), workingDirectories = null,
+  mainRoot, currentRoot, config = {}, seats = [], items = [], previous = null, now = Date.now(), workingDirectories = null, takeoverMs = null,
 } = {}) {
   const path = absolutePath(tree?.path);
   const main = absolutePath(mainRoot), current = absolutePath(currentRoot);
+  let retiredIdle = false;
   const result = (kind, protectedTree, reason, agents = [], linkedItems = [], inactiveSince = null, oldEnough = false) => ({
     path: path ?? String(tree?.path ?? ''), kind, protected: protectedTree, reason,
     agents: [...new Set(agents)].sort(), items: [...new Set(linkedItems)].sort((a, b) => Number(a) - Number(b)),
-    inactiveSince, oldEnough,
+    inactiveSince, oldEnough, ...(retiredIdle ? { retiredIdle: true } : {}),
   });
   if (!path || !main || !Number.isFinite(now)) return result('active', true, 'path-or-clock-unknown');
   if (maintenanceProtectedPath(path)) return result('active', true, 'recovery-checkout');
@@ -156,9 +170,13 @@ export function classifyMaintenanceTree(tree, {
   for (const seat of matchingSeats) {
     // A joined seat keeps its checkout until a completed takeover retires it. Presence comes from hook heartbeats,
     // which a hookless, rejoined or pooled seat never refreshes, so "gone" never proves the seat has left (#5969).
+    // A joined seat idle past the takeover window that holds no claim (checked above) is retired the same way (#8199).
     if (timestamp(seat.completedTakeoverAt) === null) {
-      const reason = seat.presence === 'live' || seat.presence === 'idle' ? `seat-${seat.presence}` : 'seat-joined';
-      return result('active', true, reason, agentIds, itemIds);
+      if (!idlePastTakeover(seat, takeoverMs, now)) {
+        const reason = seat.presence === 'live' || seat.presence === 'idle' ? `seat-${seat.presence}` : 'seat-joined';
+        return result('active', true, reason, agentIds, itemIds);
+      }
+      retiredIdle = true;
     }
     const activity = seatActivity(seat);
     if (activity === null) return result('active', true, 'seat-age-unknown', agentIds, itemIds);
@@ -166,15 +184,17 @@ export function classifyMaintenanceTree(tree, {
     inactiveSince = Math.max(inactiveSince ?? activity, activity);
   }
 
-  const closedWork = linkedItems.length > 0 && linkedItems.every(itemClosed);
+  const finishedProof = matchingSeats.length === 0 && !itemSeat && !outsideRoot && provenFinished(tree?.head, items, now);
+  const closedWork = finishedProof || (linkedItems.length > 0 && linkedItems.every(itemClosed));
   const noSeatFirstSeen = matchingSeats.length === 0 ? timestamp(previous?.firstSeenAt) : null;
   if (inactiveSince === null) inactiveSince = noSeatFirstSeen ?? now;
   const elapsed = now - inactiveSince;
-  const oldEnough = elapsed >= grace;
+  const oldEnough = elapsed >= (finishedProof ? Math.min(grace, FINISHED_IDLE_MS) : grace);
   const kind = outsideRoot ? 'scratch' : closedWork ? 'finished' : 'orphaned';
   // Maintenance's own scratch area is a retired seat or a seat's item folder inside the configured worktree root;
   // a sibling checkout, a hand-made worktree or anything outside that root is someone else's and is never removed (#5969).
-  if (outsideRoot || (matchingSeats.length === 0 && !itemSeat)) {
+  // Only a hand-made tree provably finished (its head is a landed or withdrawn item's commit, #5733) leaves that protection.
+  if (outsideRoot || (matchingSeats.length === 0 && !itemSeat && !finishedProof)) {
     return result(kind, true, 'outside-maintenance-scratch', agentIds, itemIds, inactiveSince, oldEnough);
   }
   return result(kind, false, closedWork ? 'all-linked-work-closed' : 'no-live-seat-or-work-claim', agentIds, itemIds, inactiveSince, oldEnough);

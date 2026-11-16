@@ -1,4 +1,4 @@
-import { checkTimingEngine } from "../../../../items/light.js";
+import { checkTimingEngine } from "../../../../items/browser.js";
 /** An autonomous trusted worker records a proved main merge without manufacturing a review [C7,V4,H16]. */
 import { SOURCE_ADVANCE_ENGINE } from "../../../../state/light.js";
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../state/light.js";

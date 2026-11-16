@@ -16,13 +16,13 @@ import {
 export function run(io, { first, second, rest }) {
   if (first || second || rest.length) throw new Refused('USAGE', 'pullboard roadmap takes no arguments');
   const ctx = context(io);
-  const milestones = withBoard(ctx, (board) => roadmapView.milestoneRoadmap(ctx.info.root, board, { ports: { ...store, roadmap, openBoard: ctx.nativeBoard.openBoard, workQueue, listApiProjects } }));
+  const milestones = withBoard(ctx, (board) => roadmapView.milestoneRoadmap(ctx.info.root, board, { landedFromMain: ctx.config.landing?.landedFromMain === true, ports: { ...store, roadmap, openBoard: ctx.nativeBoard.openBoard, workQueue, listApiProjects } }));
   io.result?.({ milestones });
   if (!milestones.length) io.say('no milestones yet; the coordinator can add one with pullboard milestone add');
   for (const milestone of milestones) {
     const when = milestone.shipped ? ` · shipped at ${milestone.shipped.commit.slice(0, 12)} on ${milestone.shipped.at}`
       : milestone.target ? ` · target ${milestone.target}${milestone.pastTarget ? ', past target' : ''}` : '';
-    io.say(`${milestone.name}: ${milestone.landed}/${milestone.total} landed${milestone.limit == null ? '' : ` · ${milestone.count}/${milestone.limit} items`}${when}`);
+    io.say(`${milestone.name}: ${milestone.landed}/${milestone.total} landed${milestone.limit == null ? '' : ` · ${milestone.count}/${milestone.limit} items`}${milestone.mode === 'explicit' ? ' · explicit' : ''}${when}`);
     if (!milestone.shipped) {
       const summary = milestone.summary;
       const estimate = roadmapView.roadmapEstimate(summary);

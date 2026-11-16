@@ -14,6 +14,6 @@ export async function runUsageCheckpointWorker(commonDir, { context, withBoard, 
   await drainUsageCheckpoints(commonDir, async (request) => {
     const ctx = context({ cwd: request.root, nativeBoard, say() {}, err() {} });
     await withBoard(ctx, board => publishUsage(ctx, board, { agent: request.agent, item: request.item, operation: request.operation },
-      { ordered, now: request.now, lastEventId: request.lastEventId, environment: request.environment }));
+      { drain: true, ordered, now: request.now, lastEventId: request.lastEventId, environment: request.environment }));
   });
 }

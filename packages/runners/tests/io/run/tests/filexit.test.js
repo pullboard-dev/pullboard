@@ -14,9 +14,9 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { startFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { startFixtureChild } from '../../../../../gate/tests/fixtures/child.js';
 import { withNestedGroup } from '../../../../../gate/index.js';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../../gate/tests/fixtures/child.js';
 import { focusedPoolSnapshot } from '../../../fixtures/pool.js';
 
 const runner = fileURLToPath(new URL('../../../../../../apps/cli/src/io/run/tests.js', import.meta.url));

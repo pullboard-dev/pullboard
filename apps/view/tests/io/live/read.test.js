@@ -18,6 +18,7 @@ import { listResources } from '../../../../../packages/resources/index.js';
 import { landingGateRuns } from '../../../src/io/live/read.js';
 import { publicLiveRunners } from '../../../src/io/live/read.js';
 import { readLiveRunners } from '../../../src/io/live/read.js';
+import { runsJobs } from '../../../src/io/serve.js';
 import { repoInfo } from '../../../../../packages/git/index.js';
 
 const MINUTE = 60_000;
@@ -84,8 +85,8 @@ test('a landing log names each gate it opened, its selected files and whether it
 test('the live snapshot reads every runner and each running gate or landing from the real board and leases [C7,N26]', t => {
   const { common, resources, claimedAt } = liveFixture(t);
   const sources = readLiveRunners({ roots: [{ commonDir: common }], now: Date.now(), resources, configured: [{ host: 'mini-3' }], openBoardReadOnly: store.openBoardReadOnly });
-  assert.deepEqual(sources.runners.map(runner => [runner.host, runner.holders.length]), [['mini-3', 0], ['mini-1', 1], ['mini-2', 1]],
-    'every configured runner, idle or not, and every runner holding a lease');
+  assert.deepEqual(sources.runners.map(runner => [runner.host, runner.holders.length]), [['mini-3', 0], ['mini-1', 1], ['mini-2', 1], ['aux-9', 0]],
+    'every configured runner, idle or not, every runner holding a lease and every runner that ran a job');
   assert.deepEqual(sources.jobs.map(job => [job.kind, job.item, job.runner, job.files, job.progress]), [['test', 5774, 'aux-9', FILES.slice(0, 2), { finished: 1, failures: 1 }]]);
   assert.equal(sources.jobs[0].claimedAt, claimedAt, 'a pulled job runs since its current claim step');
   assert.deepEqual(sources.landings.map(landing => [landing.batch, landing.items, landing.label, landing.selected, landing.files]), [[BATCH, [1196], 'candidate', 3, FILES]],
@@ -108,4 +109,60 @@ test('publicLiveRunners numbers the machine runners and carries counts and estim
   assert.deepEqual([test.selected, test.done, test.failing, test.runners], [2, 1, 1, [2]]);
   const text = JSON.stringify(live);
   for (const secret of ['mini-', 'aux-9', 'core-7', 'coordinator', '/seat', BATCH, 'test:5774', common]) assert.equal(text.includes(secret), false, `leaks ${secret}`);
+});
+
+test('pull-dispatch leases on the board number one runner once per runner, shards and main tests included [N26]', t => {
+  const { repo, common, resources } = liveFixture(t);
+  const board = cellBoard(t, repo.boardFile, { now: () => new Date() });
+  const at = Date.now() - 2 * MINUTE;
+  for (const [id, kind, runner] of [['gate:7:aa:s1', 'gate-shard', 'pool-51-mill-2cbb55'], ['gate:7:aa:s2', 'gate-shard', 'pool-51-mill-2d74dc'], ['main:1', 'main-test', 'pool-52-lathe-045338']]) {
+    offerJob(board.db, { id, kind, needs: ['node22'], item: kind === 'gate-shard' ? 7 : null, candidate: 'd'.repeat(40), base: 'a'.repeat(40), request: { run: ['node', 'run.js'] }, now: at });
+    claimJob(board.db, { runner, capabilities: ['node22'], now: at + 1000, leaseMs: 30 * MINUTE });
+  }
+  const live = publicLiveRunners(common, { resources, configured: [], openBoardReadOnly: store.openBoardReadOnly });
+  const pulled = live.runners.filter(runner => runner.jobs.some(job => ['gate', 'test run'].includes(job.kind) && [7, null].includes(job.item)));
+  assert.deepEqual(pulled.map(runner => runner.jobs.map(job => job.kind)), [['gate', 'gate'], ['test run']], 'the two shards of one restarted runner sit on one numbered entry');
+  assert.equal(JSON.stringify(live).includes('mill'), false, 'no runner name leaves the machine');
+});
+
+test('registeredOnly lists the configured runners, carries each fresh heartbeat as load and folds a pull runner into its host (#8060) [C7]', t => {
+  const { repo, common, resources } = liveFixture(t);
+  const board = cellBoard(t, repo.boardFile, { now: () => new Date() });
+  const at = Date.now() - 2 * MINUTE;
+  offerJob(board.db, { id: 'gate:9:aa:s1', kind: 'gate-shard', needs: ['node22'], item: 9, candidate: 'd'.repeat(40), base: 'a'.repeat(40), request: { run: ['node', 'run.js'] }, now: at });
+  claimJob(board.db, { runner: 'pool-51-mill-2cbb55', capabilities: ['node22'], now: at + 1000, leaseMs: 30 * MINUTE });
+  const configured = [{ host: 'me@203.0.113.51', cpuLoad: { at: new Date().toISOString(), busyPercent: 42, average: [1, 1, 1] } },
+    { host: 'me@203.0.113.52', cpuLoad: { at: new Date(Date.now() - 3_600_000).toISOString(), busyPercent: 90, average: [1, 1, 1] } }, { host: 'me@203.0.113.53' }];
+  const live = publicLiveRunners(common, { resources, configured, openBoardReadOnly: store.openBoardReadOnly, registeredOnly: true });
+  assert.deepEqual(live.runners.map(runner => [runner.runner, runner.cpu, runner.jobs.length]), [[1, 42, 1], [2, null, 0], [3, null, 0]],
+    'three registered runners; a stale or missing heartbeat has no load; the pull runner works on its host');
+});
+
+test('clause 1: with runs_store on, the live read takes pulled jobs from a read-only runs handle and finished counts from board run rows [B2,#9016]', t => {
+  const { repo, common } = liveFixture(t);
+  const board = cellBoard(t, repo.boardFile, { now: () => new Date() });
+  const boardId = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key = 'board_id'").get().meta_value;
+  const runs = store.openRunsStore(store.runsFilePath(repo.boardFile), { boardId });
+  t.after(() => runs.close());
+  const at = Date.now() - 2 * MINUTE;
+  offerJob(runs, { id: 'gate:77:aa', kind: 'gate', needs: ['node22'], item: 77, candidate: 'd'.repeat(40), base: 'a'.repeat(40), request: { run: ['node', 'run.js'] }, now: at });
+  claimJob(runs, { runner: 'runs-only-runner', capabilities: ['node22'], now: at + 1000, leaseMs: 30 * MINUTE });
+  board.db.prepare("INSERT OR REPLACE INTO board_meta(meta_key, meta_value) VALUES ('runs_store', '1')").run();
+  const now = Date.now();
+  board.db.prepare("INSERT INTO run (run_job, run_kind, run_item, run_state, run_created, run_updated) VALUES ('gate:5:aa', 'gate', 5, 'done', ?, ?)").run(now - MINUTE, now - MINUTE);
+  const sources = readLiveRunners({ roots: [{ commonDir: common }], now, resources: join(process.env.PULLBOARD_MACHINE_HOME, 'resources.sqlite'), openBoardReadOnly: store.openBoardReadOnly, jobsFor: runsJobs });
+  assert.deepEqual(sources.jobs.map(job => [job.kind, job.item, job.runner]), [['gate', 77, 'runs-only-runner']], 'the board job table holds the test job; only the runs file jobs show when on');
+  assert.ok(sources.runners.some(runner => runner.host === 'runs-only-runner'), 'the runner that ran a runs-file job shows');
+});
+
+test('clause 2: with runs_store off, the live read returns the same job rows as before, from the board [B2,#9016]', t => {
+  const { repo, common } = liveFixture(t);
+  const board = cellBoard(t, repo.boardFile, { now: () => new Date() });
+  const boardId = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key = 'board_id'").get().meta_value;
+  const runs = store.openRunsStore(store.runsFilePath(repo.boardFile), { boardId });
+  t.after(() => runs.close());
+  offerJob(runs, { id: 'gate:78:aa', kind: 'gate', needs: ['node22'], item: 78, candidate: 'd'.repeat(40), base: 'a'.repeat(40), request: { run: ['node', 'run.js'] }, now: Date.now() - MINUTE });
+  claimJob(runs, { runner: 'runs-only-runner', capabilities: ['node22'], now: Date.now(), leaseMs: 30 * MINUTE });
+  const sources = readLiveRunners({ roots: [{ commonDir: common }], now: Date.now(), resources: join(process.env.PULLBOARD_MACHINE_HOME, 'resources.sqlite'), openBoardReadOnly: store.openBoardReadOnly, jobsFor: runsJobs });
+  assert.deepEqual(sources.jobs.map(job => [job.kind, job.item, job.runner]), [['test', 5774, 'aux-9']], 'the flag is off: the runs file is not read');
 });

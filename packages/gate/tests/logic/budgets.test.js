@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
-import { runFixtureChild } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../fixtures/child.js';
 
 const ROOT = resolve(import.meta.dirname, '../../../..');
 const BIN = join(ROOT, 'packages/gate/src/io/check/budgets.js');

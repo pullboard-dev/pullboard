@@ -7,7 +7,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { cellProject } from '../../../store/tests/fixtures/cell.js';
-import { runFixtureChild } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../fixtures/child.js';
 
 const SOURCE = join(import.meta.dirname, '../../../..');
 const RUNNER = 'only-runner';
@@ -22,7 +22,7 @@ const owner = { after: cleanup => cleanups.push(cleanup) };
  * deadline and quarantined six idle runners; only the controller's clock was slow, so the probe ports answer here.
  */
 function deadline({ runners = 1, gateSlots = 0, drops = 1, answers = true } = {}) {
-  const box = cellProject(owner, { gate: 'true' });
+  const box = cellProject(owner, { real: true, gate: 'true' });
   const root = box.repo;
   const env = box.env;
   const url = cell => JSON.stringify(pathToFileURL(join(SOURCE, 'packages', cell, 'index.js')).href);
@@ -81,7 +81,7 @@ process.stdout.write(JSON.stringify({ result, failure, attempts, probes, waits: 
  * Why: the budget used to copy the queue wait setting, so a 30 s lane window became a 30 s startup budget (#3832).
  */
 function lateBudget({ lane = false, waitMs = 100 } = {}) {
-  const box = cellProject(owner, { gate: 'true' });
+  const box = cellProject(owner, { real: true, gate: 'true' });
   const url = path => JSON.stringify(pathToFileURL(join(SOURCE, path)).href);
   const script = `import { withGateSlot } from ${url('packages/gate/index.js')};
 import { shardSlotOptions } from ${url('packages/gate/src/io/shards/proof.js')};

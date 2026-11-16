@@ -24,8 +24,8 @@ const FROZEN = { text: '{"criterion":"the fixture works"}', digest: createHash('
 
 /** File the claimed item and an unrelated one in the fixture project. */
 function setup(t) {
-  const project = cellProject(t);
-  const board = cellBoard(t, project.boardFile, undefined, { gitRoot: project.repo });
+  const project = cellProject(t, { real: true });
+  const board = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: project.repo });
   const seat = cellSeat(board, { lane: 'web', path: project.repo });
   const add = title => cellItem(board, { lane: 'web', title, specIds: ['G1'], route: 'strong', criterion: 'the fixture works' }).item_id;
   return { project, board, seat, target: add('Claimed fixture'), other: add('Unrelated fixture') };
@@ -64,7 +64,7 @@ test('clause 1: claim succeeds quickly while a concurrent writer touches an unre
 
 test('clause 1: a write to the claimed item itself during preparation still re-prepares, then claims [B2,C7]', t => {
   const { project, board, seat, target } = setup(t);
-  const peer = cellBoard(t, project.boardFile, undefined, { gitRoot: project.repo });
+  const peer = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: project.repo });
   let frozen = 0;
   const freeze = () => {
     if (frozen++ === 0) atomic(peer, () => peer.db.prepare('UPDATE item SET item_brief=? WHERE item_id=?').run('changed while preparing', target));
@@ -80,7 +80,7 @@ test('clause 2: a claim whose own item keeps changing refuses BOARD_BUSY naming 
   const previous = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = join(project.dir, 'machine-home');
   t.after(() => { if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previous; });
-  const peer = cellBoard(t, project.boardFile, undefined, { gitRoot: project.repo });
+  const peer = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: project.repo });
   peer.writeContext = { command: 'edit', seat: 'coordinator' };
   let n = 0;
   const freeze = () => {

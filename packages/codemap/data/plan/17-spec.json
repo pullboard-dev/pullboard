@@ -16,7 +16,6 @@
   ["src/reference-release.js","packages/spec/src/io/reference/release.js","seed"],
   ["src/row-decision-state.js","packages/spec/src/io/row/stale.js","seed"],
   ["src/row-decision-text.js","packages/spec/src/logic/row/replacement.js","seed"],
-  ["src/row-decisions-query.js","packages/spec/src/logic/row/query.js","seed"],
   ["src/row-decisions.js","packages/spec/src/io/row/decisions.js","seed"],
   ["src/row-draft-store.js","packages/spec/src/logic/row/draft.js","seed"],
   ["src/row-drafts.js","packages/spec/src/io/row/drafts.js","seed"],
@@ -33,7 +32,6 @@
   ["src/spec-verdict-format.js","packages/spec/src/logic/format.js","seed"],
   ["src/spec-verdicts.js","packages/spec/src/io/verdicts.js","seed"],
   ["src/spec.js","packages/spec/src/io/main.js","seed"],
-  ["test/doctrine-rulings.test.js","packages/spec/tests/io/doctrine-rulings.test.js","seed"],
   ["test/signoff.test.js","packages/spec/tests/io/signoff.test.js","seed"],
   ["src/spec-gate-move.js","packages/spec/src/io/gate/move.js","rule"]
  ],

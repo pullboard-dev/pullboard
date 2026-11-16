@@ -6,13 +6,14 @@ import { listItems } from '../../../../../packages/store/index.js';
 import { unownedMainReds } from '../../../../../packages/store/index.js';
 import { postLandSuiteEnabled } from '../../../../../packages/config/index.js';
 import { runFullSuite } from '../../../../../packages/gate/index.js';
+import { POST_LAND_SUITE_FILE } from '../../../../../packages/landing/index.js';
 import { failureSignatures } from '../../../../../packages/landing/index.js';
 import { runnerExecutionServices } from '../../../../../packages/runners/index.js';
 import { landingExecutionServices } from '../../../../../packages/landing/index.js';
 
 /** The previous batch's result lives beside the board's other private Git state, never in the tracked tree. */
 function storePath(root) {
-  return join(git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim(), 'pullboard', 'post-land-suite.json');
+  return join(git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim(), 'pullboard', POST_LAND_SUITE_FILE);
 }
 
 /** Run the project's full suite on the runners at the landed tree; null failures means a red the signatures cannot account for. */
@@ -29,4 +30,9 @@ async function runSuite(root) {
 export function postLandSuitePorts() {
   return Object.freeze({ enabled: postLandSuiteEnabled, runSuite, storePath, laneOf, unownedMainReds,
     readItems: board => listItems(board, { all: true }) });
+}
+
+/** The runner services the board resident's idle-runner probe runs through [C7,#8325]. */
+export function idleRunnerServices() {
+  return { runners: runnerExecutionServices() };
 }

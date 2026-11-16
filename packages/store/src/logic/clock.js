@@ -21,6 +21,10 @@ export function nativeStateClockWindow(state, history, items, observedAt) {
     // readBlocks includes an entry at exactly its twenty-four-hour boundary.
     consider(Date.parse(block.at) + 24 * HOUR + 1);
   }
+  // The dashboard's four-hour counts drop an event once the read clock reaches its age of four hours.
+  for (const event of history) {
+    if (['merged', 'accept', 'reject', 'reopen', 'shout'].includes(event.event_kind)) consider(Date.parse(event.event_at) + 4 * HOUR);
+  }
   if (state.milestones?.length || state.dashboardPace) {
     const current = new Map(items.map(item => [item.item_id, item]));
     for (const at of qualifyingLandingTimes(history, current)) {
@@ -65,4 +69,31 @@ export function idleEntry(entry, observedAt, derive) {
   const state = { ...entry.state, items, ...(entry.state.milestones ? { milestones } : {}) };
   return { ...entry, state, ...derive(state), stateJsonFields: null, compact: undefined, compactFields: undefined,
     items: new Map(state.items.map(item => [item.id, item])), idleAt: observedAt, idleNext: next };
+}
+
+/** The minutes each stage may last, read from the board settings that already govern it, so the view marks a stage past its limit without a constant of its own [#6940]. */
+/** Whole or fractional minutes from a millisecond setting, or null when the setting is absent. */
+function minutesOf(ms) {
+  return Number.isFinite(ms) && ms > 0 ? ms / 60_000 : null;
+}
+
+/**
+ * Minutes per stage for the board snapshot. A stage whose setting is absent is left out, never given a default,
+ * so the view shows no past-limit mark for it.
+ *
+ * building: itemBuildBudgetMinutes; gate: check.timeout; pending review: review.starveMinutes;
+ * in review: reviewLease; landing: landing.timeout when set.
+ *
+ * @param {any} config a loaded board config
+ * @returns {{ building?: number, gate?: number, 'pending review'?: number, 'in review'?: number, landing?: number }}
+ */
+export function stageLimits(config) {
+  const limits = {
+    building: config?.itemBuildBudgetMinutes,
+    gate: minutesOf(config?.check?.timeoutMs),
+    'pending review': config?.review?.starveMinutes,
+    'in review': minutesOf(config?.reviewLeaseMs),
+    landing: minutesOf(config?.landing?.timeoutMs),
+  };
+  return Object.fromEntries(Object.entries(limits).filter(([, minutes]) => Number.isFinite(minutes) && minutes > 0));
 }

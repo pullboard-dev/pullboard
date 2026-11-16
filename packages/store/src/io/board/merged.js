@@ -1,12 +1,16 @@
 import { requireOutsideOwner } from "../../../../items/index.js";
 import { itemById } from "./query.js";
+import { proofReceipts } from "./query.js";
 import { atomic } from "./event/log.js";
 import { logEvent } from "./event/log.js";
 import { Refused } from "../../../../kernel/index.js";
 import { coordinatorOnly } from "../board.js";
 import { setItem } from "../board.js";
+import { closeItemAsks } from "./decision/answer.js";
 import { withdraw } from "./withdraw.js";
 import { FORCED_MERGE_ENGINE } from "../../../../state/index.js";
+import { mergedDecision } from "./merged-table.js";
+import { strictFacts } from "./merged-table.js";
 
 /**
  * Record the commit a verified item landed as on the main line, e.g. after a squash merge.
@@ -17,15 +21,20 @@ import { FORCED_MERGE_ENGINE } from "../../../../state/index.js";
  * withdrawn as met; its event is marked forced, and a withdrawn item with a merged event reads as landed on the board and /live.
  * Why: hand landings were withdrawn as met, which /live and stats do not count [C7].
  *
- * @param {{ agentId: string, commit: string, note?: string, forced?: string }} merge
+ * A forced merge also names its proof: the passing receipt ids covering the item's tip, which the event carries with the tip. A tip with
+ * no covering receipt is refused unless `waiveProof` gives a reason [#4742].
+ *
+ * @param {{ agentId: string, commit: string, note?: string, forced?: string, waiveProof?: string }} merge
  */
-export function merged(board, id, { agentId, commit, note = '', flakeRatchet, forced }) {
+export function merged(board, id, { agentId, commit, note = '', flakeRatchet, forced, waiveProof }) {
   coordinatorOnly(agentId, 'records merges');
   const reason = typeof forced === 'string' ? forced.trim() : '';
   if (forced !== undefined && !reason) throw new Refused('FORCED_REASON', 'a forced merge names why it went around the gate: --forced "<why>"');
   if (reason && (board.executionEngineVersion !== undefined && board.executionEngineVersion < FORCED_MERGE_ENGINE)) {
     throw new Refused('ENGINE_VERSION', `a forced merge requires engine ${FORCED_MERGE_ENGINE}; upgrade Pullboard before recording one`);
   }
+  const waiver = typeof waiveProof === 'string' ? waiveProof.trim() : '';
+  if (waiveProof !== undefined && !waiver) throw new Refused('WAIVE_PROOF_REASON', 'a proof waiver names why: --waive-proof "<why>"');
   atomic(board, () => {
     const item = itemById(board, id);
     // A second merge writes nothing for the same commit and refuses for another, so a landing is recorded once.
@@ -33,17 +42,31 @@ export function merged(board, id, { agentId, commit, note = '', flakeRatchet, fo
       if (item.item_merged_commit === commit) return;
       throw new Refused('ALREADY_MERGED', `item #${id} was merged as ${item.item_merged_commit}; it cannot be merged again as ${commit}`);
     }
-    if (!reason && item.item_status !== 'verified') {
+    const tip = item.item_commit ?? null;
+    // Only a passing run (exit code 0) for this exact tip is proof; a forced merge with none needs --waive-proof [#4742].
+    const receipts = reason && tip ? proofReceipts(board, id).filter(run => run.commit === tip && run.exitCode === 0).map(run => run.id) : [];
+    if (reason && !receipts.length && !waiver) {
+      throw new Refused('FORCED_NO_PROOF', `no passing receipt covers item #${id}'s tip ${tip ? tip.slice(0, 12) : '(none recorded)'}; run its check there, or record the landing with --waive-proof "<why>"`);
+    }
+    // The landing merged table decides what a merge refuses and records; where it is not available the writer's own rules below stand [C7,#8268].
+    const decided = mergedDecision({ id, status: item.item_status, mergedCommit: item.item_merged_commit }, { agentId, commit, forced: reason || undefined }, strictFacts(board, item));
+    if (decided?.refused) throw new Refused(decided.refused.code, decided.refused.message, decided.refused.next);
+    if (!decided && !reason && item.item_status !== 'verified') {
       throw new Refused('NOT_VERIFIED', `item #${id} is ${item.item_status}; merge verified work only`);
     }
+    const withdrawal = decided?.events?.find(event => event.kind === 'withdraw');
+    const decidedMerge = decided?.events?.find(event => event.kind === 'merged')?.detail;
     if (!reason) requireOutsideOwner(board, item);
     // A forced landing closes an unfinished item by the ordinary withdraw move; the merged event then reads it as landed.
     if (reason && ['open', 'claimed', 'submitted'].includes(item.item_status)) {
-      withdraw(board, id, { agentId, reason: `landed by hand at ${commit.slice(0, 12)}: ${reason}` });
+      withdraw(board, id, { agentId, reason: withdrawal?.detail.reason ?? `landed by hand at ${commit.slice(0, 12)}: ${reason}` });
     }
     setItem(board, id, { item_merged_commit: commit });
     logEvent(board, agentId, 'merged', id, { commit, ...(note.trim() ? { note: note.trim() } : {}),
-      ...(reason ? { forced: true, reason, from: item.item_status } : {}),
-      ...(flakeRatchet === undefined ? {} : { flakeRatchet }) });
+      ...(reason ? { forced: true, reason, from: item.item_status, itemTip: tip, receipts, ...(waiver ? { waivedProof: waiver } : {}) } : {}),
+      ...(flakeRatchet === undefined ? {} : { flakeRatchet }), ...(decidedMerge ?? {}) });
+    // A strict item with a counting full-suite receipt lands and publishes in the one transaction: the table's published event follows the merged one [M2,#9327].
+    for (const event of decided?.events?.filter(each => each.kind === 'published') ?? []) logEvent(board, agentId, 'published', id, event.detail);
+    closeItemAsks(board, id, { agentId, reason: 'landed' });
   });
 }

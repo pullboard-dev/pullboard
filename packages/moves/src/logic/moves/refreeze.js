@@ -1,4 +1,4 @@
-import { checkTimingEngine } from "../../../../items/light.js";
+import { checkTimingEngine } from "../../../../items/browser.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by refreeze, discovered without a shared registry edit [C7,V4,H16]. */
 import { BAR_READY_ENGINE } from "../../../../state/light.js";
@@ -29,6 +29,7 @@ export default Object.freeze({ operation: "refreeze", order: 21, engine: 1,
   "A5_GRAMMAR_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
   "AGENT_APPROVAL_REQUIRED": "ask the person to confirm or decline the named row through pullboard view or their own terminal",
   "BAD_CONFIG": "fix pullboard.json as the message says, then commit it: git commit -m \"chore: fix pullboard config\" pullboard.json",
+  "BAR_EMPTY": "ask the coordinator to give the item numbered clauses: pullboard edit <id> --criterion \"1. ... [test]\" --reason \"...\"",
   "BAR_NOT_READY": "read pullboard bar <id>; ask its author to complete the named red baseline and measurement/edge notes, then have an outside parent session sign the current bar",
   "CLOSED": "read its state with pullboard show <id>, then take open work: pullboard next",
   "COORDINATOR_ONLY": "ask the coordinator to do it: pullboard shout coordinator --kind question \"<what you need>\"",

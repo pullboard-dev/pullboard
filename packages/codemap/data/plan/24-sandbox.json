@@ -17,11 +17,9 @@
   ["src/source-advance.js","packages/sandbox/src/io/source/advance.js","imports"],
   ["src/trusted-policy-read.js","packages/sandbox/src/io/trusted/policy/committed.js","seed"],
   ["src/trusted-policy.js","packages/sandbox/src/io/trusted/policy.js","seed"],
-  ["test/lane-bypass.test.js","packages/sandbox/tests/lane-bypass.test.js","seed"],
   ["test/privacy-words.test.js","packages/sandbox/tests/privacy/words.test.js","seed"],
   ["test/trunk.test.js","packages/sandbox/tests/trunk.test.js","seed"],
-  ["test/trusted-policy-ancestry.test.js","packages/sandbox/tests/io/trusted/policy/ancestry.test.js","seed"],
-  ["test/trusted-policy.test.js","packages/sandbox/tests/trusted-policy.test.js","seed"]
+  ["test/trusted-policy-ancestry.test.js","packages/sandbox/tests/io/trusted/policy/ancestry.test.js","seed"]
  ],
  "reexports": [],
  "imports": [

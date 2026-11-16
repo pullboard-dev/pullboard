@@ -16,3 +16,6 @@ export async function run(io, { first, second, rest }) {
   if (first === 'record-suite') { await recordSuiteRun(io.cwd, second, { context, ordered, withBoard, resourceAgent, nativeBoard: io.nativeBoard }); return 0; }
   return flakesCommand(context(io), { first, second, rest }, withBoard, { ordered, resourceAgent });
 }
+
+/** The runner's reading of a red land check, exported here because this command file already imports the flakes cell. */
+export { diagnoseLandingRed } from '../../../../../packages/flakes/index.js';

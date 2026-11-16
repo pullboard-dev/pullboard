@@ -1,0 +1,8 @@
+{
+  "name": "route",
+  "help": "  pullboard route --suggest           the open strong items whose shape meets the light rule (a check, a brief, at most 3 tagged clauses and 3 files); read-only\n",
+  "required": {
+    "suggest": "string",
+    "items": "array"
+  }
+}

@@ -1,6 +1,5 @@
 /** Relay identity, expiry, permission freshness and scoped credential isolation [H8, H1]. */
 import assert from 'node:assert/strict';
-import { runFixtureChild as spawnSync } from '../../tests/fixtures/child.js';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { hostname } from 'node:os';
@@ -15,8 +14,8 @@ import { createGitHubClient } from '../../../relay/index.js';
 import { createRelayAuth } from '../../../relay/index.js';
 import { ACCESS_WINDOW_MS } from '../../../relay/index.js';
 import { serveRelay } from '../../../relay/index.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
-import { CLI } from '../../tests/fixtures/relay/auth.js';
 import { openRelayConfirmation } from '../../tests/fixtures/relay/auth.js';
 import { linkedBoardCount } from '../../tests/fixtures/relay/auth.js';
 import { runRelayOnAll } from '../../tests/fixtures/relay/auth.js';
@@ -157,13 +156,13 @@ test('relay on from an SSH shell links only after the person confirms in the bro
   assert.equal(linkedBoardCount(declineBox.authDatabase), 0, 'declining leaves the board unlinked');
 
   const startsBeforeRefusals = box.calls.filter(call => call.path === '/auth/device/start').length;
-  const agent = spawnSync(process.execPath, [CLI, 'relay', 'on', '--url', box.origin, '--json'], {
-    cwd: box.root, env: { ...box.env, SSH_CONNECTION: ssh.SSH_CONNECTION, AI_AGENT: '1' }, encoding: 'utf8',
+  const agent = await runCliInProcess(['relay', 'on', '--url', box.origin, '--json'], {
+    cwd: box.root, env: { ...box.env, SSH_CONNECTION: ssh.SSH_CONNECTION, AI_AGENT: '1' },
   });
   assert.equal(agent.status, 1);
   assert.equal(JSON.parse(agent.stdout).error.code, 'B26_PERSON_CHANNEL', 'an agent-marked SSH shell still cannot link');
-  const personAnswer = spawnSync(process.execPath, [CLI, 'answer', '1', 'yes', '--as', 'person', '--json'], {
-    cwd: box.root, env: { ...box.env, SSH_CONNECTION: ssh.SSH_CONNECTION }, encoding: 'utf8',
+  const personAnswer = await runCliInProcess(['answer', '1', 'yes', '--as', 'person', '--json'], {
+    cwd: box.root, env: { ...box.env, SSH_CONNECTION: ssh.SSH_CONNECTION },
   });
   assert.equal(personAnswer.status, 1);
   assert.equal(JSON.parse(personAnswer.stdout).error.code, 'B26_PERSON_CHANNEL', 'other person-only SSH actions remain refused');
@@ -210,6 +209,7 @@ test('a confirmation approved before its deadline can reach the SSH CLI just aft
   const delivered = await box.auth.pollDevice(flow.ticket);
   assert.equal(delivered.linkConfirmed, true, 'the valid approval remains retrievable after its decision deadline');
   assert.equal(delivered.linkedBoard, intent.board);
+  // Not CLI wording: the credential format is the in-process box.auth.pollDevice() API contract, so a pattern is the right assert.
   assert.match(delivered.token, /^ps_[A-Za-z0-9_-]{43}$/u);
 });
 

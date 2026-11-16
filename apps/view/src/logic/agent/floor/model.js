@@ -35,22 +35,24 @@ export function agentFloorModel(model, history) {
    * Without that start, the latest claim or reservation on the item stands in.
    */
   const heldSince = held => ({ since: held.since ?? model.last(held.item, held.kind === 'build' ? 'claim' : 'reserve') });
-  const order = { building: 0, reviewing: 1, 'between items': 2, quiet: 3 };
-  const agents = model.agents.map(agent => ({ ...agent, shoutTimes: shoutsBy.get(agent.id) ?? [],
+  const order = { building: 0, reviewing: 1, stalled: 2, 'between items': 3, quiet: 4, apart: 5 };
+  // A seat whose session ended, or an advisor, holding nothing is no idle builder: it sits apart and adds no idle time [C7,#6497].
+  const apart = agent => !agent.current.length && (agent.presence === 'gone' || agent.lane === 'advisor');
+  const agents = model.agents.map(agent => ({ ...agent, group: apart(agent) ? 'apart' : agent.group, shoutTimes: shoutsBy.get(agent.id) ?? [],
     holding: agent.current.map(held => ({ ...held, ...heldSince(held) })) }))
     .sort((a, b) => order[a.group] - order[b.group] || b.current.length - a.current.length || a.id.localeCompare(b.id, undefined, { numeric: true }));
-  const groups = [['building', 'Building'], ['reviewing', 'Reviewing'], ['between items', 'Between items'], ['quiet', 'Quiet for 20 min or more']]
+  const groups = [['building', 'Building'], ['reviewing', 'Reviewing'], ['stalled', 'Stalled or waiting'], ['between items', 'Idle'], ['quiet', 'Quiet for 20 min or more'], ['apart', 'Gone or advising']]
     .map(([key, label]) => ({ key, label, agents: agents.filter(agent => agent.group === key) }));
   /** How many agents a group holds. */
   const count = key => groups.find(group => group.key === key).agents.length;
   const landed = model.landed.filter(entry => entry.at > now - 24 * hour);
   const inReview = model.inReview.map(item => ({ item, at: model.last(item, 'submit') }));
   /** One kind of agent time, summed over every agent. */
-  const sum = key => agents.reduce((total, agent) => total + agent[key], 0);
+  const sum = key => agents.filter(agent => key !== 'idle' || agent.group !== 'apart').reduce((total, agent) => total + agent[key], 0);
   return {
     now, start, complete: model.complete,
     numbers: {
-      live: agents.length - count('quiet'), seen: agents.length,
+      live: agents.length - count('quiet') - count('apart'), seen: agents.length,
       building: count('building'), reviewing: count('reviewing'), between: count('between items'),
       landed: model.totals.day, landedRecent: model.totals.recent, peak: model.peak,
       accepted: model.totals.passed, sentBack: model.totals.sentBack,

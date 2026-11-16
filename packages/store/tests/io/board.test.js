@@ -79,7 +79,7 @@ test('[A2] an older board gains one identity during in-place upgrade without los
     store.closeBoard(board);
 
     const old = new DatabaseSync(box.file);
-    old.exec('DROP TABLE board_meta; PRAGMA user_version = 1');
+    old.exec('DROP TABLE board_meta; PRAGMA user_version = 0');
     old.close();
 
     const upgraded = openBoard(box.file);

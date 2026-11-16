@@ -2,9 +2,9 @@
 import { redGateReleaseSource } from '../../../../../../apps/cli/tests/fixtures/gate/execution.js';
 import { awaitNestedRun } from '../../../../src/io/test/file/pool.js';
 import assert from 'node:assert/strict';
-import { startFixtureChild as spawn } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild as spawnSync } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChildAsync } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { startFixtureChild as spawn } from '../../../fixtures/child.js';
+import { runFixtureChild as spawnSync } from '../../../fixtures/child.js';
+import { runFixtureChildAsync } from '../../../fixtures/child.js';
 import { once } from 'node:events';
 import { chmodSync } from 'node:fs';
 import { existsSync } from 'node:fs';
@@ -22,6 +22,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { setResourceCapacity } from '../../../../../resources/index.js';
 import { takeResource } from '../../../../../resources/index.js';
 import { checkNeedsBrowser } from '../../../../src/io/browser/admission.js';
+import { executionServicesSource } from '../../../../../../apps/cli/tests/fixtures/gate/execution.js';
 import { oldSchema } from '../../../../../../apps/cli/tests/fixtures/resources/lease.js';
 import { staleIdentity } from '../../../../../../apps/cli/tests/fixtures/resources/lease.js';
 import { expireHeartbeat } from '../../../../../../apps/cli/tests/fixtures/resources/lease.js';
@@ -141,7 +142,7 @@ test('browserSlots admits that many browser runs and no more [C7]', async () => 
   await release(third);
 });
 
-const capacityCases = capacityChangeCases({ fixture, worker, event, acquired, release, privateList, poolWorker, POOL_MODULE_WORKER });
+const capacityCases = capacityChangeCases({ machineSettings, fixture, worker, event, acquired, release, privateList, poolWorker, POOL_MODULE_WORKER });
 
 /** Existing queued processes observe a raised limit without restarting their holders [Q1,Q2,Q4]. */
 test("raising a busy resource's capacity admits waiters at once [Q1,Q2,Q4]", capacityCases.raising);
@@ -152,7 +153,7 @@ test("lowering capacity never stops a running holder [Q1,Q3,Q4]", capacityCases.
 /** Browser capacity can grow under the same live gate lease without exceeding either limit [Q1,Q2,Q4]. */
 test("raising busy browser capacity admits only the new browser slots [Q1,Q2,Q4]", capacityCases.browser);
 
-test('the gate pool serves the current release first [C7,V4]', () => releaseQueueProof({ fixture, poolWorker, privateList, event, acquired, release, legacyModule: PRE_RUNNER_MODULE }));
+test('the gate pool serves the current release first [C7,V4]', () => releaseQueueProof({ machineSettings, executionServicesSource, fixture, poolWorker, privateList, event, acquired, release, legacyModule: PRE_RUNNER_MODULE }));
 
 
 // These cases keep all asynchronous state in separate child processes and private machine homes.

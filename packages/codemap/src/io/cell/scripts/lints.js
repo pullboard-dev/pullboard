@@ -2,6 +2,8 @@
 import { fileURLToPath } from 'node:url';
 /** Report cells migration debt, or explicitly check/initialize/lower its root ratchet [C7,CD64]. */
 import { existsSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { tryGit } from '../../../../../git/index.js';
 import { resolve } from 'node:path';
 import { readCellLintBaseline } from '../../../../index.js';
 import { writeCellLintBaseline } from '../../../../index.js';
@@ -12,12 +14,9 @@ import { planCellLintBaseline } from '../../../../index.js';
 import { cellLintReport } from '../../../../index.js';
 import { cellLintBaseline } from '../../../../index.js';
 import { cellLintGrowth } from '../../../../index.js';
-import { strayNextStep } from '../../../../light.js';
-import { mainCommit } from '../../../../index.js';
-import { mainCellLintReport } from '../../../../index.js';
+import { checkCellLints } from '../../../../index.js';
 import { lowerCellLintBaseline } from '../../../../index.js';
 import { withCellLintParser } from '../../../../index.js';
-import { cachedCellsRun } from '../../../../index.js';
 import { cellLintParsers } from '../../../../index.js';
 
 withCellLintParser(compile => {
@@ -34,7 +33,9 @@ withCellLintParser(compile => {
   else if (mode === '--init') {
     if (existsSync(file)) throw new Error('a cell lint baseline already exists; use --update to lower it');
     const plan = planCellLintBaseline(report);
-    writeCellLintBaseline(root, plan.baseline, { initialize: true, verify: () => JSON.stringify(cellLintBaseline(cellLintReport(root, parsers))) === JSON.stringify(plan.baseline) });
+    // The cell inventory reads tracked files only, so the new shards are staged before the verify re-reads them [C7].
+    const stage = () => { tryGit(root, ['add', '--', dirname(CELL_BASELINE_DESCRIPTOR)]); };
+    writeCellLintBaseline(root, plan.baseline, { initialize: true, verify: () => { stage(); return JSON.stringify(cellLintBaseline(cellLintReport(root, parsers))) === JSON.stringify(plan.baseline); } });
   } else if (mode === '--update') {
     if (!existsSync(file)) throw new Error('no cell lint baseline; explicitly review the report and initialize it with --init');
     const baseline = readCellLintBaseline(root);
@@ -44,16 +45,7 @@ withCellLintParser(compile => {
     lowerCellLintBaseline(plan.report, baseline);
     writeCellLintBaseline(root, plan.baseline, { previous: baseline, verify: () => JSON.stringify(cellLintBaseline(cellLintReport(root, parsers))) === JSON.stringify(plan.baseline) });
   } else {
-    // --check counts current main and this checkout now; no committed baseline must match either [C7].
-    const main = mainCommit(root);
-    process.exitCode = cachedCellsRun(root, ['cell-lints', mode, main ?? 'no-main'], () => {
-      const current = build(), base = mainCellLintReport(root, parsers, main);
-      if (!base) { console.error('no main branch to compare with; nothing can rise'); return 0; }
-      // Advisory transition authority comes only from main, as in the submit check.
-      current.transition = base.report.transition;
-      const problems = cellLintGrowth(current, base.baseline);
-      for (const row of problems) console.error(`${row.advisory ? `advisory item #${row.item} until #${row.until}: ` : ''}${row.metric}:${row.key}: ${row.actual} exceeds ${row.allowed} on main ${base.commit.slice(0, 12)}${row.metric === 'strays' ? `; next: ${strayNextStep(row.key)}` : ''}`);
-      return problems.some(row => !row.advisory) ? 1 : 0;
-    }, { code: [fileURLToPath(import.meta.url), fileURLToPath(new URL('../../main/lints.js', import.meta.url))] });
+    // --check holds this checkout to main's committed baseline, never to debt main merely carries now [C7,CD23].
+    process.exitCode = checkCellLints(root, parsers, line => console.error(line), { code: [fileURLToPath(import.meta.url)] });
   }
 });

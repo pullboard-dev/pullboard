@@ -9,11 +9,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { awaitNestedRun } from '../../../index.js';
-import { runFixtureChildAsync } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChildAsync } from '../../fixtures/child.js';
+import { runFixtureGit } from '../../fixtures/child.js';
 import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
-import { HOST } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { installSshStandIn } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
+import { HOST } from '../../fixtures/runner/ssh.js';
+import { installSshStandIn } from '../../fixtures/runner/ssh.js';
 
 /** Reuse the private two-runner resources, settings, Git source, and SSH stand-in from #2657. */
 function fixture(t) {
@@ -51,7 +51,7 @@ test('an unpinned run requeues off a lost runner and dispatches without BAD_RESO
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
-import {withGateSlot,runProfiledShell} from ${JSON.stringify(gate)};
+import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(gate)};
 import {Refused} from ${JSON.stringify(new URL('../../../../kernel/index.js', import.meta.url).href)};
 ${executionServicesSource(gate)}
 const seen=[],root=process.cwd();
@@ -62,7 +62,7 @@ const completed=await withGateSlot(root,async lease=>{
     try {assert.ok(db.prepare('SELECT host FROM runner_unavailable WHERE host=?').get(seen[0]),'the lost first runner was quarantined');}
     finally {db.close();}
   }
-  const result=await runProfiledShell(root,'printf unpinned-runner-retry',{gateLease:lease});
+  const result=await runProfiledShellAsync(root,'printf unpinned-runner-retry',{gateLease:lease});
   assert.equal(result.isGreen,true,result.output);
   if(seen.length===1)throw new Refused('RUNNER_JOB_LOST','controlled first-runner loss after dispatch');
   return result;

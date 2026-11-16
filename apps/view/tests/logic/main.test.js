@@ -11,6 +11,9 @@ import { needsEntries } from '../../src/logic/needs/list.js';
 import { renderNeedsRow } from '../../src/logic/needs/list.js';
 import { needsPanelHtml } from '../../src/logic/needs/panel.js';
 import { needsPanelModel } from '../../src/logic/needs/panel.js';
+import { itemsNeedsHtml } from '../../src/logic/needs/panel.js';
+import { itemsNeedsModel } from '../../src/logic/needs/panel.js';
+import { itemStagePresentation } from '../../src/logic/pipeline/model.js';
 import { homeRules } from '../../src/logic/home.js';
 import { roadmapSummary } from '../../src/logic/summary/roadmap.js';
 import { roadmapHeaders } from '../../src/logic/summary/roadmap.js';
@@ -31,14 +34,14 @@ test('Spec and Doctrine selection keeps local decisions, inherited defaults and 
   const before = JSON.stringify(rows);
   const spec = ruleListModel(rows, { kind: 'spec', filter: 'decide', selectedId: 'G2', approvalIds: ['G3'],
     feedback: { id: 'missing', next: 'G4' } });
-  assert.deepEqual(spec.shown.map(row => row.id), ['G1', 'G3', 'G4', 'G5']);
+  assert.deepEqual(spec.shown.map(row => row.id), ['G1', 'G5'], 'an Approved row, in Git or not, never waits for a ruling');
   assert.equal(spec.nextSelectedId, 'G1', 'a filtered selection falls back to the first visible row');
-  assert.equal(spec.feedbackId, 'G4', 'feedback follows its explicit visible next row');
-  assert.deepEqual([...spec.sectionCounts], [['Goals', 1], ['Rules', 2], ['Defaults', 1]]);
-  assert.deepEqual(spec.counts, { decide: 4, defaults: 0, all: 5, approved: 2 });
+  assert.equal(spec.feedbackId, 'G1', 'feedback falls back to the first visible row');
+  assert.deepEqual([...spec.sectionCounts], [['Goals', 1], ['Defaults', 1]]);
+  assert.deepEqual(spec.counts, { decide: 2, defaults: 0, all: 5, approved: 2 });
   assert.equal('defaults' in spec.labels, false, 'Spec never advertises inherited Doctrine defaults');
   const doctrine = ruleListModel(rows, { kind: 'doctrine', filter: 'decide', approvalIds: ['G3'] });
-  assert.deepEqual(doctrine.shown.map(row => row.id), ['G1', 'G4']);
+  assert.deepEqual(doctrine.shown.map(row => row.id), ['G1']);
   assert.equal(doctrine.counts.defaults, 1);
   assert.equal(doctrine.labels.defaults, 'To review');
   const defaults = ruleListModel(rows, { kind: 'doctrine', filter: 'defaults' });
@@ -106,6 +109,11 @@ test('Items selection applies explicit search, state, lane and rank observations
   const addressed = selectItemsView({ items, stateById, state: 'active', lane: null, selectedId: 99,
     currentBoard: true, tab: 'items', addressDetail: '99' });
   assert.equal(addressed.nextSelectedId, 99, 'a direct item address keeps its missing id for the not-found detail');
+  const openFirst = selectItemsView({ items: [items[0], items[1]], stateById, state: 'active', lane: null, finished: { verified: 2929, withdrawn: 3074 } });
+  assert.deepEqual(openFirst.stateOptions.map(option => [option.value, option.count]), [['active', 2], ['verified', 2929], ['all', 2931]],
+    'an open-first state shows the finished counts it carries until the finished items load');
+  const nothingOpen = selectItemsView({ items: [], stateById: new Map(), state: 'active', lane: null, tab: 'items', finished: { verified: 3, withdrawn: 0 } });
+  assert.equal(nothingOpen.finishedUnderAll, true, 'a board whose open work is done says so from the counts');
   assert.throws(() => selectItemsView({ items, stateById: { 4: { state: 'open' } }, state: 'active' }), /stateById must be a Map/u);
 });
 
@@ -183,12 +191,12 @@ test('timeline HTML preserves supplied move and fact order, lapse rows, stays, r
 test('pipeline HTML keeps stage order, oldest arrival, selected item and escaped titles from seeded data [N26,N38,C7]', () => {
   const input = Object.freeze([
     Object.freeze({ id: 9, title: 'Later <ready>', stage: 'open', stageKey: 'ready', stageHtml: '<b>Ready</b>', since: '2026-10-28T12:00:00Z', href: '#item/9', ageHtml: '<time>1m</time>' }),
-    Object.freeze({ id: 3, title: 'Earlier & ready', stage: 'open', stageKey: 'gated', stageHtml: '<b>Gated</b>', since: '2026-10-28T11:00:00Z', href: '#item/3', ageHtml: '<time>1h</time>' }),
+    Object.freeze({ id: 3, title: 'Earlier & ready', stage: 'open', stageKey: 'blocked', stageHtml: '<b>Blocked</b>', since: '2026-10-28T11:00:00Z', href: '#item/3', ageHtml: '<time>1h</time>' }),
     ...[['claimed', 'building'], ['submitted', 'in-review'], ['accepted', 'verified'], ['merged', 'merged']].map(([stage, stageKey], index) => Object.freeze({ id: 20 + index, title: stage,
       stage, stageKey, stageHtml: '<b>' + stageKey + '</b>', since: '2026-10-28T12:00:00Z', href: '#item/' + (20 + index), ageHtml: '<time>1m</time>' })),
   ]);
   const html = pipelineHtml(input, { selectedId: 9 });
-  assert.deepEqual([...html.matchAll(/data-pipeline-stage="([^"]+)"/gu)].map(match => match[1]), ['gated', 'ready', 'building', 'in-review', 'verified', 'landing', 'merged']);
+  assert.deepEqual([...html.matchAll(/data-pipeline-stage="([^"]+)"/gu)].map(match => match[1]), ['blocked', 'ready', 'building', 'in-review', 'verified', 'landing', 'merged']);
   assert.deepEqual([...html.matchAll(/data-stage-count="[^"]+">(\d+)/gu)].map(match => Number(match[1])), [1, 1, 1, 1, 1, 0, 1]);
   assert.match(html, /Oldest <a class="ref" href="#item\/3" data-go="item:3">#3<\/a> · <time>1h<\/time>/u);
   assert.ok(html.indexOf('data-item="3"') < html.indexOf('data-item="9"'), 'arrival order determines the stage list');
@@ -272,7 +280,7 @@ test('Needs HTML keeps grouped calls, exact confirmation identities and compact 
   const model = needsPanelModel(calls, project, options), presentation = present(model);
   const html = needsPanelHtml(model, presentation);
   assert.match(html, /Questions and sentinels · 2/u);
-  assert.match(html, /Rows approved in Git, waiting for you · 4/u);
+  assert.match(html, /Rulings: rows approved in Git · 4/u);
   assert.match(html, /data-needs-confirm="G1 G2 G3 G4">Confirm all 4/u);
   assert.match(html, /data-needs-key="agent-approved:G1"[^>]* open/u);
   assert.match(html, /G1 &lt;full requirement&gt;/u);
@@ -284,7 +292,7 @@ test('Needs HTML keeps grouped calls, exact confirmation identities and compact 
   const compactModel = needsPanelModel(calls, project, { ...options, compact: true });
   const compact = needsPanelHtml(compactModel, present(compactModel));
   assert.equal((compact.match(/<li class="needs-call /gu) || []).length, 3);
-  assert.match(compact, /3 more and 2 draft rows in Needs you/u);
+  assert.match(compact, /3 more and 2 draft rows in Rulings/u);
   assert.doesNotMatch(needsPanelHtml(needsPanelModel(calls, project)), /data-needs-confirm=/u, 'read-only presentation advertises no bulk confirmation');
   const readOnly = needsPanelHtml(needsPanelModel(calls, project));
   assert.doesNotMatch(readOnly, /data-go=/u, 'read-only draft summaries contain no navigation controls');
@@ -324,7 +332,7 @@ test('Home rule HTML counts approved rows and gate declarations without implying
   assert.match(homeRules(null), /<dd>0<\/dd>/u);
 });
 
-test('Roadmap headers display supplied counts, estimates and linked needs without deriving a board [N26,C7]', () => {
+test('Roadmap headers display supplied counts, estimates and without deriving a board [N26,C7]', () => {
   const summary = { total: 10, left: 8, landed: 2, landing: 1, review: 3, building: 1, waiting: 2, held: 1,
     estimate: { low: 2, high: 4 }, pace: { last6h: 2, last2h: 1 }, window: '6h', needsYou: [7, 'other#8'] };
   const milestone = { name: '0.9 <release>', target: '2026-10-29T12:00:00Z', pastTarget: true, summary };
@@ -339,25 +347,15 @@ test('Roadmap headers display supplied counts, estimates and linked needs withou
   assert.equal(headers(read), result, 'all surfaces reuse one header for the same immutable read');
   assert.equal(headers(null), null);
   assert.match(result.count, /8 to go/u);
-  assert.match(result.top.replace(/<[^>]*>/gu, ''), /0\.3 items an hour · 2 landed in the last 6 h, 1 in the last 2 h · done in about 3 hours, Wednesday afternoon/u);
+  assert.doesNotMatch(result.top, /items an hour|landed in the last|done in about/u, 'no pace or forecast line; the notch owns it');
   assert.match(result.detail, /viewBox="0 0 10 1"/u);
   assert.deepEqual([...result.detail.matchAll(/data-count="(\d+)"/gu)].map(match => Number(match[1])), [2, 1, 3, 1, 2, 1]);
   assert.match(result.detail, /aria-pressed="true" data-summary-state="held"/u);
   assert.match(result.detail, /display:2026-10-29T12:00:00Z/u);
   assert.match(result.detail, /past target/u);
-  assert.match(result.detail, /href="\/other\/item\/8" data-go="item:8" data-board="\/other"/u);
-  assert.match(result.detail, /Local &lt;need&gt;/u);
-  assert.match(result.detail, /Remote &amp; need/u);
-  const replaced = { milestone, rows: [{ label: '#7', title: 'Replacement board', open: { id: 7, root: '/replacement' } }] };
-  page.addresses.set(replaced.rows[0], '/replacement/item/7');
-  assert.match(headers(replaced).detail, /href="\/replacement\/item\/7" data-go="item:7" data-board="\/replacement"/u,
-    'a new read identity cannot reuse a header from a different board');
-  assert.match(headers(replaced).detail, /<span>#other#8<\/span>/u, 'an unresolved need retains its original fallback');
+  assert.doesNotMatch(result.detail, /Rulings|roadmap-need/u, 'rulings live only in the notch');
   assert.equal(roadmapSummary({ ...milestone, summary: { ...summary, left: 0 } }), null);
   assert.equal(roadmapSummary({ ...milestone, summary: { ...summary, held: -1 } }), null);
-  const unknown = roadmapSummary({ ...milestone, summary: { ...summary, estimate: null, reason: 'few-landings' } });
-  assert.match(unknown.top, /too few landings yet to estimate/u);
-  assert.doesNotMatch(unknown.top, /done in about 0/u);
 });
 
 test('Roadmap item HTML retains blockers, provenance and escaped detail from explicit display inputs [N26,C7]', () => {
@@ -373,7 +371,7 @@ test('Roadmap item HTML retains blockers, provenance and escaped detail from exp
     states: new Map([[8, 'building'], [9, 'open']]), releases: ['0.9 <release>'], address: '/item/7', board: '/other' };
   const before = structuredClone({ item, context });
   const result = roadmapBlock(item, context);
-  assert.match(result.label, /waits on #8 \(claimed\).*held: Keep <pause>.*lane web held/u);
+  assert.match(result.label, /Blocked by #8 \(claimed\).*held: Keep <pause>.*lane web held/u);
   assert.match(result.dot, /Keep &lt;pause&gt;/u);
   assert.match(result.detail, /Keep &lt;all&gt; words\./u);
   assert.doesNotMatch(result.detail, /A second sentence/u);
@@ -453,4 +451,61 @@ test('timeline text keeps quoted words, escapes markup and binds only detected r
   const renewed = timelineHtml({ entries: renewals, steps: renewSteps, flow });
   assert.match(renewed, /continued building twice/u, 'identical native self loops group too');
   assert.match(renewed, /data-event-ids="1 2"/u);
+});
+
+const foldAt = '2026-11-12T12:00:00Z';
+const foldSplit = (id, reopens, items) => ({ kind: 'rigor-draft', id: 'doctrine:' + id, ref: 'doctrine:' + id, target: 'doctrine:' + id, unproved: true, foldAt,
+  text: 'Rigor draft (unproved): Consider splitting apps/cli/src/io/commands/board.js into independently owned modules (for example, one module per command). It caused '
+    + reopens + ' conflict reopens and 2 conflict holds across items ' + items + ' in 14 days; review the architecture before deciding.',
+  what: 'Coordinator: materialize with pullboard spec apply; then the person approves or declines' });
+const foldCalls = [
+  foldSplit('RG4901', 3, '#10, #11'), foldSplit('RG4902', 5, '#12'), foldSplit('RG4903', 9, '#13, #14, #15'),
+  { ...foldSplit('RG4904', 4, '#16'), text: 'Rigor draft (unproved): Consider splitting packages/store/src/io/db.js into independently owned modules. It caused 4 conflict reopens.' },
+  { kind: 'decision', id: 7, ref: 'web-1', text: 'Choose the release words.', foldAt },
+  { kind: 'sentinel-draft', id: 'watch', ref: 'watch', check: 'node check.js', every: 'hourly', owner: 'coordinator', directory: '.' },
+  { kind: 'agent-approved', id: 'G1', approvedAt: foldAt, actions: [] }, { kind: 'draft', count: 2 },
+];
+const foldProject = { holds: [], spec: [{ id: 'G1', text: 'G1 text', gate: 'gate G1', agentApproval: { agent: 'core-1', approvedAt: foldAt, commit: 'a'.repeat(40) } }] };
+
+test('Items folds Rigor drafts proposing the same change into one row with its count, inside one collapsed group [N26]', () => {
+  const model = itemsNeedsModel(needsPanelModel(foldCalls, foldProject, { person: true }));
+  assert.equal(model.questions.length, 4, 'three same-file drafts fold into one row; the other file, the decision and the sentinel stay');
+  const folded = model.questions.find(row => row.folded);
+  assert.equal(folded.folded, 3);
+  assert.deepEqual(folded.members, ['doctrine:RG4901', 'doctrine:RG4902', 'doctrine:RG4903']);
+  assert.equal(folded.title, 'Rigor draft (unproved): Consider splitting apps/cli/src/io/commands/board.js into independently owned modules (for example, one module per command).');
+  assert.equal(folded.context, '3 Rigor drafts propose this change');
+  assert.deepEqual(folded.fields[0], ['Drafted as', 'doctrine:RG4901, doctrine:RG4902, doctrine:RG4903']);
+  assert.equal(model.questions.filter(row => row.source.kind === 'rigor-draft' && !row.folded).length, 1, 'a different file is its own row');
+
+  const questionsHtml = needsPanelHtml({ ...model, approvals: [], drafts: 0 });
+  const restHtml = needsPanelHtml({ ...model, questions: [] });
+  const html = itemsNeedsHtml(model, { questionsHtml, restHtml });
+  assert.match(html, /^<li class="needs-fold"><details data-items-needs><summary>/u, 'one group, collapsed by default');
+  assert.match(html, /<span class="needs-fold-label">Questions and sentinels<\/span><b class="needs-fold-count">4<\/b>/u);
+  assert.match(html, /<small class="needs-fold-more">1 approved in Git · 2 draft spec rows<\/small>/u);
+  assert.equal((html.match(/<details data-items-needs/gu) || []).length, 1);
+  assert.equal((html.match(/Consider splitting apps\/cli/gu) || []).length, 1, 'the repeated change is one row');
+  assert.match(itemsNeedsHtml(model, { questionsHtml, restHtml, open: true }), /^<li class="needs-fold"><details data-items-needs open>/u, 'an opened group stays open on redraw');
+  assert.equal(itemsNeedsHtml({ questions: [], approvals: [], drafts: 0 }), '');
+});
+
+test('Items chips name who or what each row waits on, ids stay whole, and sent-back reasons are plain words [N26]', () => {
+  const model = itemsNeedsModel(needsPanelModel(foldCalls, foldProject, { person: true }));
+  const chip = kind => model.questions.find(row => row.source.kind === kind).action;
+  assert.equal(chip('decision'), 'Your decision');
+  assert.equal(chip('sentinel-draft'), 'Your approval');
+  assert.equal(chip('rigor-draft'), 'Coordinator', 'an unmaterialized draft waits on the coordinator');
+  const materialized = itemsNeedsModel(needsPanelModel([{ ...foldSplit('RG1', 1, '#1'), what: 'Approve or Decline this unproved proposal' }], foldProject));
+  assert.equal(materialized.questions[0].action, 'Your approval');
+  assert.ok(model.questions.every(row => row.action !== 'Review'), 'no question chip is a bare Review');
+
+  const html = needsPanelHtml({ ...model, approvals: [], drafts: 0 });
+  assert.match(html, /<span class="needs-id" title="doctrine:RG4901">doctrine:RG4901<\/span>/u, 'the full id is in the row');
+
+  assert.equal(itemStagePresentation({ status: 'open', route: 'standard' }).stage, 'Ready');
+  assert.equal(itemStagePresentation({ status: 'verified' }).stage, 'Verified');
+  assert.equal(itemStagePresentation({ status: 'claimed', claim: { by: 'core-717' } }).detail, 'by core-717');
+  assert.equal(activityWords({ cause: 'TEST_FAILURE' }).label, 'Tests failed');
+  assert.equal(activityWords({ cause: 'INSUFFICIENT_EVIDENCE' }).label, 'Not enough evidence');
 });

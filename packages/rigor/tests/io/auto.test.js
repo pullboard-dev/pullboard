@@ -8,9 +8,10 @@ import { loadConfig } from '../../../config/index.js';
 import { planAutomaticRigorApply } from '../../index.js';
 import { prepareRowDecisions } from '../../../spec/index.js';
 import { writeRowApply } from '../../../spec/index.js';
-import { rigorFixtureBoard } from '../../../../apps/cli/tests/fixtures/testkit.js';
+import { openKitBoard } from '../../../board/tests/fixtures/board.js';
+import { rigorFixtureBoard } from '../../../gate/tests/fixtures/testkit.js';
 
-const fixture = () => rigorFixtureBoard(store);
+const fixture = () => rigorFixtureBoard(store, openKitBoard);
 
 test('a declined key is never drafted again under a new id, even for a new item [D1,H16]', () => {
   const box = fixture();

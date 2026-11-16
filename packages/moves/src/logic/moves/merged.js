@@ -3,8 +3,9 @@ import { FLAKE_RATCHET_ENGINE } from '../../../../state/light.js';
 /** Routing metadata owned by merged, discovered without a shared registry edit [C7,V4,H16]. */
 import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";
 import { OUTSIDE_INTAKE_ENGINE } from "../../../../state/light.js";
-import { outsideSource } from "../../../../items/light.js";
+import { outsideSource } from "../../../../items/browser.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
+import { LANDING_NEXT } from "../table/next.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function existingEngine(args, board, at) {
@@ -25,6 +26,8 @@ function actor(move) { return move.args[1]?.agentId ?? null; }
 export default Object.freeze({ operation: "merged", order: 19, engine: 1,
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
-  "NOT_VERIFIED": "merge only verified items; see pullboard list --all",
-  "FORCED_REASON": 'name why this merge bypassed the gate: pullboard merged <id> <commit> --forced "<why>"'
+  "NOT_VERIFIED": LANDING_NEXT.NOT_VERIFIED,
+  "FORCED_NO_PROOF": 'run the item check at its tip, or pass --waive-proof "<why>"',
+  "WAIVE_PROOF_REASON": 'name why the proof is waived: --waive-proof "<why>"',
+  "FORCED_REASON": LANDING_NEXT.FORCED_REASON
 }) });

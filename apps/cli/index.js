@@ -11,7 +11,8 @@ export { CHECKOUT_LEASES as cli$CHECKOUT_LEASES, HELP as cli$HELP, MainSpecMerge
 export { cockpitPage as cockpit$cockpitPage } from "./src/io/cockpit.js";
 export { COMMANDS, UNLISTED_COMMANDS } from "./src/io/commands/index.js";
 export { nativeBoardRequired, run as commandsStatus$run } from "./src/io/commands/status.js";
-export { claimedItemRoot, itemFolderIdentity, itemFolderPath, seatAt, seatRoot, writeItemMarker } from "./src/io/item/folder/identity.js";
+export { claimedItemRoot } from "../../packages/items/index.js";
+export { itemFolderIdentity, itemFolderPath, seatAt, seatRoot, writeItemMarker } from "./src/io/item/folder/identity.js";
 export { run as commandsWorktree$run, worktreeFor } from "./src/io/commands/worktree.js";
 export { HELP as help$HELP, SETTING_FORMS, VERSION as help$VERSION, buildHelp, commandPhrases } from "./src/logic/help.js";
 export { ALL_HELP, HELP_SECTIONS } from "./src/logic/help/sections.js";
@@ -22,10 +23,10 @@ export { BLOCK_AUDIENCE, COORDINATOR_PERSON_REQUEST as nextSteps$COORDINATOR_PER
 export { assertPublicExportSupported } from "./src/logic/exports.js";
 export { ROLES, SHIPPED_SKILL_DIGESTS, installSkills, promptFor, skillProblems, updateSkills, withoutFrontMatter } from "./src/io/skills.js";
 export { declaredProseCommands } from "./src/logic/prose.js";
-export { parseProblems, sweepItems } from "./src/logic/sweep.js";
+export { parseProblems, sweepItems } from "./src/io/sweep/problems.js";
 export { MainSpecMerged as cliClaim$MainSpecMerged, claimFreezer as cliClaim$claimFreezer, claimOrdered as cliClaim$claimOrdered, currentReworkRoutingPolicy as cliClaim$currentReworkRoutingPolicy, freezer as cliClaim$freezer, ordered as cliClaim$ordered, relayOutboxSetting as cliClaim$relayOutboxSetting, wrongLaneGuidance as cliClaim$wrongLaneGuidance } from "./src/io/claim.js";
 export { PULLBOARD_COMMANDS, cockpitPage as cliCockpitRenderer$cockpitPage } from "./src/io/cockpit/renderer.js";
-export { LANDING_COALESCE_MS, executeBoardLanding, landAfterAcceptance, run as commandsLand$run } from "./src/io/commands/land.js";
+export { landAfterAcceptance, run as commandsLand$run } from "./src/io/commands/land.js";
 export { boundedMainRedShout, doctrineExecutionPhases, run as commandsSubmit$run, submitHere } from "./src/io/commands/submit.js";
 export { generatedDocDrift, generatedDocs, writeGeneratedDocs } from "./src/io/generated/docs.js";
 export { context as context } from "./src/io/entry.js";
@@ -40,12 +41,11 @@ export { freezer as freezer } from "./src/io/entry.js";
 export { cockpitPage as cockpitPage } from "./src/io/cockpit.js";
 export { run as run } from "./src/io/commands/status.js";
 export { NEXT_STEPS as NEXT_STEPS } from "./src/io/next/steps.js";
-export { stopReplacedWorker } from "./src/io/submit/handoff.js";
-export { assertCurrentSubmitHandoff, driveSubmitHandoff, submitHandoffClaimProblem } from "./src/io/submit/handoff/worker.js";
 export { knownMainCheck, knownMainCheckNote } from "./src/io/commands/verify.js";
 
 export { planWorkerScale, workerWindowHours } from './src/io/scale.js';
 
 export { requireNonEmptySubmit } from './src/io/empty.js';
 export { usageCheckpointWorkerEntrypoint } from './src/io/checkpoint.js';
-export { cellsSnapshotProblems, landedCutItemRows, policyProblems, readableCuts, requireSubmitCells, touchedCells } from "./src/io/cells-submit-checks.js";
+export { cellsSnapshotProblems, landedCutItemRows, policyProblems, requireSubmitCells, touchedCells } from "./src/io/cells-submit-checks.js";
+export { warmFixtureMemo } from './src/io/fixture-memo-warm.js';

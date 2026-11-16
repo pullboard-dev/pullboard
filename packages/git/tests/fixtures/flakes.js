@@ -3,14 +3,12 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import {
   appendFileSync,
-  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   realpathSync,
   rmSync,
   symlinkSync,
-  unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -24,20 +22,32 @@ import {
 } from '../../../../apps/cli/tests/fixtures/child.js';
 import { runCliInProcess } from '../../../../apps/cli/tests/fixtures/process.js';
 import { fixtureMachineSettings } from '../../../../apps/cli/tests/fixtures/testkit.js';
-import { HOST } from '../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { installSshStandIn } from '../../../../apps/cli/tests/fixtures/runner/ssh.js';
+import { startFixtureLocalRunner } from '../../../../apps/cli/tests/fixtures/runner/local-start.js';
+import { whenRunnerSettles } from '../../../../apps/cli/tests/fixtures/runner/local-start.js';
+import { CLI_ENTRY } from '../../../../apps/cli/tests/fixtures/runner/entry.js';
+import { stopFixtureLocalRunner } from '../../../../apps/cli/tests/fixtures/runner/local-stop.js';
 import { evidenceReader } from './evidence.js';
 
 const BIN = resolve(import.meta.dirname, '../../../../apps/cli/pullboard.js');
 export const TITLE = 'a controlled intermittent assertion [C7]';
+
+/**
+ * Make a flake fixture's setup commit with the repository's hooks off [C7].
+ * Why: init installed the board's hooks, each a Node launch; a setup commit is not what a flake journey tests.
+ */
+export function commitFixtureSetup(git, message) {
+  return git('-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', message);
+}
 
 /** Initialize a real private board and Git history; optional pre-init source seeding can return the fixture CLI path. */
 export function flakyProject(t, { rerun = true, reporter = 'tap', alwaysPass = false, beforeInit } = {}) {
   const scratch = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-native-flake-')));
   // A Submit leaves detached diagnostics and workers that still write under the scratch; wait for them before removing it.
   t.after(() => {
+    stopFixtureLocalRunner(env.PULLBOARD_MACHINE_HOME);
     // The pattern rides in the environment so the waiting shell's own arguments never match it; capped at 90 s.
-    runFixtureChild('/bin/sh', ['-c', 'n=0; while pgrep -f "$PB_SCRATCH" >/dev/null && [ $n -lt 180 ]; do sleep 0.5; n=$((n+1)); done'],
+    // The ssh stand-in's agent host never exits on its own, so it is stopped first: waiting on it always cost the whole cap.
+    runFixtureChild('/bin/sh', ['-c', 'pkill -f "$PB_SCRATCH/baseline-bin/[.]agent-host-"; n=0; while pgrep -f "$PB_SCRATCH" >/dev/null && [ $n -lt 180 ]; do sleep 0.5; n=$((n+1)); done'],
       { env: { ...process.env, PB_SCRATCH: scratch }, encoding: 'utf8' });
     rmSync(scratch, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   });
@@ -45,8 +55,9 @@ export function flakyProject(t, { rerun = true, reporter = 'tap', alwaysPass = f
   const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Fixture Agent', GIT_AUTHOR_EMAIL: 'fixture@example.com',
     GIT_COMMITTER_NAME: 'Fixture Agent', GIT_COMMITTER_EMAIL: 'fixture@example.com',
-    PULLBOARD_HOME: join(scratch, 'home'), PULLBOARD_MACHINE_HOME: join(scratch, 'machine'), PULLBOARD_VIEW_BACKGROUND: '0' };
+    PULLBOARD_HOME: join(scratch, 'home'), PULLBOARD_MACHINE_HOME: join(scratch, 'machine'), PULLBOARD_VIEW_BACKGROUND: '0', PULLBOARD_CLAIM_BEATER: '0' };
   delete env.PULLBOARD_RELAY_TOKEN; delete env.NODE_TEST_CONTEXT;
+  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
   for (const key of ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SESSION_ID', 'AI_AGENT', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_CI', 'CODEX_SHELL']) delete env[key]; // the host agent's session must not make builder and reviewer one session [V4]
   /** Run Git only within this fixture with a private deterministic identity. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env });
@@ -85,7 +96,7 @@ export function flakyProject(t, { rerun = true, reporter = 'tap', alwaysPass = f
   const counter = join(scratch, 'observed-target-runs');
   if (alwaysPass === 'controlled') writeFileSync(counter + '.mode', 'pass');
   writeTarget(root, counter, alwaysPass);
-  git('add', '-A'); git('commit', '-q', '-m', 'chore: prepare private flake fixture');
+  git('add', '-A'); commitFixtureSetup(git, 'chore: prepare private flake fixture');
   const readData = evidenceReader({ scratch, root, counter });
   return { root, scratch, env, git, cli, cliAt, call, callAt, counter, readData, lane: 'build' };
 }
@@ -144,27 +155,21 @@ export function commitCandidate(builder, message) {
 export function checkedItem(box) {
   writeFileSync(box.counter, ''); // Earlier real push guards may have executed the same controlled target.
   const check = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8')).gate;
-  const bin = join(box.scratch, 'baseline-bin'), worker = join(box.scratch, 'baseline-worker');
-  const home = join(box.scratch, 'baseline-home'), machine = box.env.PULLBOARD_MACHINE_HOME;
-  for (const path of [bin, worker, home, join(home, '.pullboard'), machine]) mkdirSync(path, { recursive: true });
-  installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'), requests: join(box.scratch, 'baseline-ssh.jsonl'), nodeCommand: process.execPath });
-  const settings = join(machine, 'settings.json'), previous = existsSync(settings) ? readFileSync(settings) : null;
-  const previousPath = box.env.PATH;
-  box.env.PATH = `${bin}:${previousPath}`;
-  fixtureMachineSettings(machine, { gateSlots: 0, browserSlots: 0, gate: { browserFreeChecks: true, timingRunner: false },
-    runners: [{ host: HOST, slots: 1, browser: 0, node: process.execPath, root: join(home, '.pullboard-runner') }] });
+  const machine = box.env.PULLBOARD_MACHINE_HOME;
+  // The baseline is a pulled job on the machine's loopback local runner; the scratch teardown stops it [P7,C7,#5821].
+  fixtureMachineSettings(machine, { gate: { browserFreeChecks: true, timingRunner: false } });
+  startFixtureLocalRunner(box.env, box.root, { entry: CLI_ENTRY });
   // Mid route: a light item now needs a recorded diagnosis (DIAGNOSIS_REQUIRED), which this fixture does not exercise.
-  let added;
-  try {
-    added = box.cli('add', box.lane, 'Controlled Native check', '--criterion', 'The controlled target passes without accepting retries.',
-      '--route', 'mid', '--brief', 'Files: test/alternating.test.mjs\nTest: run its configured Node TAP check. Preserve the original failed verdict while retaining exact diagnostic receipts.', '--check', check, '--wait');
-  } finally {
-    box.env.PATH = previousPath;
-    if (previous === null) unlinkSync(settings); else writeFileSync(settings, previous);
-  }
+  const added = box.cli('add', box.lane, 'Controlled Native check', '--criterion', 'The controlled target passes without accepting retries.',
+    '--route', 'mid', '--brief', 'Files: test/alternating.test.mjs\nTest: run its configured Node TAP check. Preserve the original failed verdict while retaining exact diagnostic receipts.', '--check', check, '--wait');
   assert.equal(added.code, 0, JSON.stringify(added.document));
-  assert.ok(['red', 'green'].includes(added.document.item.item_check_baseline.result), 'baseline setup finished before the measured check');
+  assert.ok(['red', 'green'].includes(added.document.item.item_check_baseline.result), `baseline setup finished before the measured check: ${JSON.stringify(added.document.item.item_check_baseline)}`);
   assert.equal(targetRuns(box), 1, 'the baseline really executed the controlled command once');
   writeFileSync(box.counter, '');
   return added.document.item.item_id;
+}
+
+/** Wait for a pulled submit's gate to settle and return the item's submitted commit; the machine's local runner posts the receipt [P7,C7]. */
+export function settledCommit(box, id) {
+  return whenRunnerSettles(box.env, async () => (await box.call('show', String(id))).document?.item_commit, { deadlineMs: 180_000, what: `the gate for #${id}` });
 }

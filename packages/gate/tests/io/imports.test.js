@@ -27,9 +27,12 @@ function compilerCalls(t) {
 /** Give this test a private machine cache so other checkouts cannot lend it prior compiler results. */
 function isolateMachineHome(t) {
   const home = mkdtempSync(join(tmpdir(), 'pullboard-parse-cache-'));
-  const before = process.env.PULLBOARD_MACHINE_HOME;
+  const before = process.env.PULLBOARD_MACHINE_HOME, shared = process.env.PULLBOARD_RUNNER_SHARED_CACHE;
   process.env.PULLBOARD_MACHINE_HOME = home;
+  // A runner job's shared cache would lend it other jobs' results.
+  delete process.env.PULLBOARD_RUNNER_SHARED_CACHE;
   t.after(() => {
+    if (shared !== undefined) process.env.PULLBOARD_RUNNER_SHARED_CACHE = shared;
     if (before === undefined) delete process.env.PULLBOARD_MACHINE_HOME;
     else process.env.PULLBOARD_MACHINE_HOME = before;
     rmSync(home, { recursive: true, force: true });

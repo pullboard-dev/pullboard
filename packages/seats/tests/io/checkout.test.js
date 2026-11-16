@@ -49,7 +49,7 @@ async function settlesWithin(promise, ms) {
 }
 
 test('same-session writes in one checkout run side by side while a takeover still waits for them [B3,C7]', { timeout: 60_000 }, async t => {
-  const box = cellProject(t);
+  const box = cellProject(t, { real: true });
   const web = join(box.dir, 'web-1');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/one', web, 'main');
   const info = repoInfo(web);

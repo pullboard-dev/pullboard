@@ -1,11 +1,12 @@
 /** Relay text output stays separate from CLI dispatch and encrypted transport [H15,H17]. */
 import { formatSnapshotLimit } from '../relay.js';
 import { relayStorageLine } from '../../logic/relay/storage.js';
+import { RECOVER_COMMAND } from '../../logic/relay/fields.js';
 
 /** Preserve status's short relay summary, any pending-size finding and the authenticated account quota. */
 export function briefLines(state, outboxFormat) {
   const lines = [];
-  if (state.excluded) lines.push(`relay excluded: ${state.exclusion.reason}${state.exclusion.at ? ' at ' + state.exclusion.at : ' (time unknown)'}; ${state.exclusion.next}`);
+  if (state.excluded) lines.push(`relay excluded: ${state.exclusion.reason}${state.exclusion.at ? ' at ' + state.exclusion.at : (state.exclusion.firstSeenAt ? ' (first seen ' + state.exclusion.firstSeenAt + ')' : ' (time unknown)')}; ${state.exclusion.next}`);
   if (state.linked) lines.push(`relay: sequence ${state.sequence}; ${state.behind} pending uploads${state.recovery?.pending ? `; recovery pending for sequence ${state.recovery.skip}; retry ${state.recovery.next}` : ''}`);
   if (state.health) lines.push(state.health.text);
   if (state.oversizedSnapshot && !state.refusedCheckpoint) lines.push(formatSnapshotLimit(state.oversizedSnapshot));
@@ -19,9 +20,14 @@ export function outboxLines(state, outboxFormat) {
   if (typeof outboxFormat?.describeMove !== 'function' || typeof outboxFormat.refusalLine !== 'function') throw new TypeError('relay output requires the caller-supplied describeMove and refusalLine outbox formatters');
   const { describeMove, refusalLine } = outboxFormat;
   const lines = [];
-  if (state.outbox?.length) {
-    lines.push(`relay outbox: ${state.outbox.length} ${state.outbox.length === 1 ? 'move waits' : 'moves wait'} for the relay, sent in this order when it answers:`);
-    for (const move of state.outbox) lines.push(`  ${describeMove({ operation: move.operation, args: [move.item], actor: move.actor })} (made ${move.queuedAt}): pending`);
+  const waiting = (state.outbox ?? []).filter((move) => !move.parked), parked = (state.outbox ?? []).filter((move) => move.parked);
+  if (waiting.length) {
+    lines.push(`relay outbox: ${waiting.length} ${waiting.length === 1 ? 'move waits' : 'moves wait'} for the relay, sent in this order when it answers:`);
+    for (const move of waiting) lines.push(`  ${describeMove({ operation: move.operation, args: [move.item], actor: move.actor })} (made ${move.queuedAt}): pending`);
+  }
+  if (parked.length) {
+    lines.push(`relay outbox: ${parked.length} ${parked.length === 1 ? 'move is' : 'moves are'} parked because the relay refused ${parked.length === 1 ? 'it' : 'them'} for good; later moves keep flowing; run ${RECOVER_COMMAND} to publish a checkpoint of this board under the same board id:`);
+    for (const move of parked) lines.push(`  ${describeMove({ operation: move.operation, args: [move.item], actor: move.actor })} (made ${move.queuedAt}): parked [${move.parked.code}] ${move.parked.message}`);
   }
   for (const refused of state.outboxRefusals ?? []) lines.push(refusalLine(refused));
   for (const { was, is } of state.outboxRenumbered ?? []) lines.push(`relay outbox: the item added here as #${was} while the relay was down is #${is} on the board`);
@@ -31,7 +37,7 @@ export function outboxLines(state, outboxFormat) {
 /** Preserve the named relay-status link and account lines, including recovery and deleted-copy guidance. */
 export function detailLines(result, boardName, outboxFormat) {
   const lines = [];
-  if (result.excluded) lines.push(`relay excluded: ${result.exclusion.reason}${result.exclusion.at ? ' at ' + result.exclusion.at : ' (time unknown)'}; ${result.exclusion.next}`);
+  if (result.excluded) lines.push(`relay excluded: ${result.exclusion.reason}${result.exclusion.at ? ' at ' + result.exclusion.at : (result.exclusion.firstSeenAt ? ' (first seen ' + result.exclusion.firstSeenAt + ')' : ' (time unknown)')}; ${result.exclusion.next}`);
   lines.push(result.linked ? `${result.link}\nrelay: ${boardName} (board ${result.board}) is linked for GitHub ${result.login || `account ${result.account}`}; sequence ${result.sequence}; ${result.behind} pending uploads${result.recovery?.pending ? `; recovery pending for sequence ${result.recovery.skip}; retry ${result.recovery.next}` : ''}` : (result.notice || 'relay off; the local board is complete'));
   if (result.health) lines.push(result.health.text);
   lines.push(...outboxLines(result, outboxFormat));

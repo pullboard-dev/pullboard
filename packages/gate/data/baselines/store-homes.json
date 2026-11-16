@@ -6,11 +6,7 @@
     "path-map.json": 1,
     "temporary-edges.json": 1
   },
-  "apps/cli/src/io/cli-main/recovery.js": {
-    "board.sqlite": 1
-  },
   "apps/cli/src/io/cli-main/run.js": {
-    "pending.json": 2,
     "board.sqlite": 1
   },
   "apps/cli/src/io/commands/init.js": {
@@ -35,9 +31,6 @@
   "apps/cli/src/io/item/bar.js": {
     "pullboard.json": 1
   },
-  "apps/cli/src/io/landing/automatic.js": {
-    "pending.json": 2
-  },
   "apps/cli/src/io/landing/budget.js": {
     "pullboard.json": 1
   },
@@ -49,12 +42,6 @@
   },
   "apps/cli/src/io/static/view.js": {
     "path-map.json": 1
-  },
-  "apps/cli/src/io/submit/handoff.js": {
-    "board.sqlite": 1
-  },
-  "apps/cli/src/io/submit/handoff/worker.js": {
-    "refusal.json": 1
   },
   "apps/cli/src/io/submit/remote.js": {
     "cells.json": 2
@@ -72,14 +59,7 @@
   "apps/cli/src/io/worktree/maintenance/observation.js": {
     "state.json": 2
   },
-  "apps/cli/src/io/worktree/maintenance/scheduler.js": {
-    "timer.guard.sqlite": 1,
-    "timer.json": 1
-  },
   "apps/lib/src/io/notice.js": {
-    "board.sqlite": 1
-  },
-  "apps/lib/src/io/seal.js": {
     "board.sqlite": 1
   },
   "apps/lib/src/io/serving.js": {
@@ -125,8 +105,8 @@
   },
   "apps/view/src/io/serve.js": {
     "board.sqlite": 3,
-    "boards.json": 1,
     "state.json": 1,
+    "boards.json": 1,
     "resources.sqlite": 1
   },
   "apps/view/src/io/session.js": {
@@ -156,9 +136,6 @@
   },
   "packages/codemap/src/io/cells-plan-model.js": {
     "cells.json": 1
-  },
-  "packages/codemap/src/io/cells/backlog.js": {
-    "cells.json": 2
   },
   "packages/codemap/src/io/cells/cache.js": {
     "pullboard.json": 1
@@ -206,9 +183,6 @@
   "packages/config/src/io/git/sync.js": {
     "git-sync.json": 1
   },
-  "packages/config/src/io/main.js": {
-    "pullboard.json": 1
-  },
   "packages/config/src/io/settings/inventory.js": {
     "state.json": 1,
     "pullboard.json": 1,
@@ -217,9 +191,6 @@
   },
   "packages/doctrine/src/io/checks.js": {
     "pullboard.json": 1
-  },
-  "packages/drive/src/io/gate/admission.js": {
-    "board.sqlite": 1
   },
   "packages/flakes/src/io/native.js": {
     "observation.json": 1,
@@ -247,7 +218,7 @@
   "packages/gate/src/io/keepalive.js": {
     "pullboard-item.json": 1,
     "seat-timing.jsonl": 1,
-    "board.sqlite": 2
+    "board.sqlite": 1
   },
   "packages/gate/src/io/launches.js": {
     "baseline.json": 1
@@ -366,8 +337,7 @@
   },
   "packages/items/src/io/submit/recovery.js": {
     "submission.json": 1,
-    "refusal.json": 2,
-    "request.json": 3
+    "refusal.json": 2
   },
   "packages/items/src/logic/check/timing.js": {
     "table:board_meta": 1
@@ -397,18 +367,8 @@
     "relay.json": 1,
     "board.sqlite": 3
   },
-  "packages/landing/src/io/automatic/scheduler.js": {
-    "pending.json": 3,
-    "timer.json": 1
-  },
-  "packages/landing/src/io/candidates.js": {
-    "board.sqlite": 1
-  },
   "packages/landing/src/io/computed/conflict/return.js": {
     "board.sqlite": 1
-  },
-  "packages/landing/src/io/history.js": {
-    "cells.json": 1
   },
   "packages/landing/src/io/host.js": {
     "board.sqlite": 1
@@ -416,18 +376,9 @@
   "packages/landing/src/io/main/red.js": {
     "pullboard.json": 1
   },
-  "packages/landing/src/io/plan/check.js": {
-    "cells.json": 2
-  },
-  "packages/landing/src/io/scan.js": {
-    "cells.json": 1
-  },
   "packages/landing/src/io/smoke.js": {
     "settings.json": 1,
     "pullboard.json": 1
-  },
-  "packages/landing/src/io/step/batch.js": {
-    "cells.json": 2
   },
   "packages/landing/src/io/worker.js": {
     "table:board_meta": 1
@@ -520,7 +471,6 @@
     "table:holder": 4
   },
   "packages/resources/src/io/main.js": {
-    "resources.sqlite": 2,
     "table:runner_unavailable": 1
   },
   "packages/resources/src/io/renewal.js": {
@@ -550,9 +500,6 @@
   },
   "packages/runners/src/io/controller/watch.js": {
     "board.sqlite": 1
-  },
-  "packages/runners/src/io/handoff/handover.js": {
-    "request.json": 1
   },
   "packages/runners/src/io/pack.js": {
     "pullboard.json": 1

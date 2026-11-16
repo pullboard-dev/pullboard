@@ -23,6 +23,7 @@ import { tryGit } from '../../../../packages/git/index.js';
 import { seatAt } from './item/folder/identity.js';
 import { itemFolderRenewalRefusal } from './item/folder/identity.js';
 import { Refused } from '../../../../packages/kernel/index.js';
+import { loadMachineSettings } from '../../../../packages/config/index.js';
 import { relayLinked } from '../../../../packages/link/index.js';
 import { realpathSync } from 'node:fs';
 import { join as joinPath } from 'node:path';
@@ -47,6 +48,9 @@ export async function bindWriteSession(io, positionals, values) {
     if (command === 'takeover' && !(repoInfo(io.cwd).isMain && relayLinked(repoInfo(io.cwd).root))) throw new Refused('AGENT_SESSION', 'takeover belongs to an agent session; run pullboard takeover from the agent’s shell');
     return;
   }
+  // relay off changes the machine's link and opt-out, never the checkout, so with relay.excludeByBoard on a main checkout
+  // bound to another session still lets the person turn the relay off [C7,#9415].
+  if (command === 'relay' && first === 'off' && repoInfo(io.cwd).isMain && loadMachineSettings().relay?.excludeByBoard === true) return;
   if (command === 'check') {
     // Acceptance follows its person-channel path; it does not renew a build claim.
     if (first === 'accept') return;
@@ -65,7 +69,7 @@ export async function bindWriteSession(io, positionals, values) {
   let agent = info.isMain ? COORDINATOR : null;
   if (!info.isMain) {
     const ctx = context(io);
-    const ownsLandingRoot = command === 'hook' ? (await import('../../../../packages/landing/index.js')).landingBatchOwnsRoot : () => false;
+    const ownsLandingRoot = command === 'hook' ? (await import('../../../../packages/landing/light.js')).landingBatchOwnsRoot : () => false;
     agent = withBoardRead(ctx, (board) => seatAt(board, info.root)?.agent_id
       ?? (command === 'hook' && (isPublishWorktree(info) || store.landingBatches(board).some((batch) => ownsLandingRoot(batch, info.root))) ? COORDINATOR : null));
     if (!agent && command !== 'join') throw withBoardRead(ctx, (board) =>

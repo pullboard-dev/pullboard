@@ -36,8 +36,10 @@ export async function waitsSnapshot({ paths, now = Date.now(), budgets, hosts = 
   const machine = readPools(machineResources, 'machine', now, census);
   const repo = readPools(repoResources, 'repo', now, census);
   const runners = await (readers.runners ?? readRunnerJobs)(hosts, now, { timeoutMs: runnerTimeoutMs });
+  // A runner whose worker is running a job right now is busy, not unavailable: a quarantine row it still carries is no wait (#7626).
+  const busyHosts = new Set(runners.rows.filter(row => row.working).map(row => row.host));
   const rows = [
-    ...repo.rows, ...machine.rows, ...machine.unavailable,
+    ...repo.rows, ...machine.rows, ...machine.unavailable.filter(row => !busyHosts.has(row.holder)),
     ...readCheckoutWriters(paths.commonDir, now, census),
     ...readBoardWriters(paths.boardFile, now, census),
     ...readResourceWriteQueue(machineResources, now, census),
@@ -84,10 +86,11 @@ function removeDead(file) {
 
 /**
  * Reclaim each clearly dead holder at once, then file one item per new cause and record the run in one shout.
+ * observeHolder(row), when given (sentinels.recordWriteHolder on), keeps each over-budget live board write's holder.
  * Ports keep this testable on a real board: openKey(key) says whether an open item carries the key, fileItem(draft)
  * files one, shout(text) records, prunePools(scope) runs the queue's own prune, release(heartbeat) frees a claim.
  */
-export async function recordWaits(snapshot, { openKey, repeat = async () => {}, fileItem, shout, prunePools = () => {}, release = async () => false, terminate = terminateOrphan, remove = removeDead }) {
+export async function recordWaits(snapshot, { openKey, repeat = async () => {}, fileItem, shout, prunePools = () => {}, release = async () => false, terminate = terminateOrphan, remove = removeDead, observeHolder = null }) {
   const { budgets } = snapshot;
   const reclaimed = [], filed = [], deduplicated = [], notes = [];
   const handled = new Set();
@@ -124,6 +127,9 @@ export async function recordWaits(snapshot, { openKey, repeat = async () => {}, 
         if (await release(row.heartbeat)) { reclaimed.push(`#${row.heartbeat.item}: released from ${row.heartbeat.seat}, whose heartbeat loop was orphaned`); handled.add(row); }
       } catch (error) { notes.push(`#${row.heartbeat.item} not released yet: ${error.code ?? error.message}`); }
     }
+  }
+  if (observeHolder) {
+    for (const row of snapshot.rows) if (row.breach && row.surface === 'board-write' && row.pid) observeHolder(row);
   }
   for (const row of snapshot.rows) {
     if (!row.breach || handled.has(row) || !budgets.file) continue;

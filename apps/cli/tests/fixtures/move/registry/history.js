@@ -11,9 +11,11 @@ const HISTORY = 'packages/state/data/history';
 /** Compare each record with its first committed bytes and require a record for each post-migration allocation. */
 export function historyProblems(root, leaves, git) {
   const problems = [];
+  // First-parent history: a record is frozen when it reaches the mainline, so a merge that regenerates a derived identity
+  // list in a record two parallel allocations touched is not a change of the frozen bytes [C7,V4].
   const first = new Map();
   let commit;
-  for (const line of git('log', '--reverse', '--diff-merges=first-parent', '--format=H:%H', '--name-only', '--diff-filter=A', '--', HISTORY).split('\n')) {
+  for (const line of git('log', '--first-parent', '--reverse', '--diff-merges=first-parent', '--format=H:%H', '--name-only', '--diff-filter=A', '--', HISTORY).split('\n')) {
     if (line.startsWith('H:')) commit = line.slice(2);
     else if (line.startsWith(`${HISTORY}/`) && !first.has(line)) first.set(line, commit);
   }

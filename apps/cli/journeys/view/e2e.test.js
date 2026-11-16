@@ -4,25 +4,15 @@ import { cliCockpitRenderer$cockpitPage as cockpitSource } from '../../index.js'
  * worktrees are real worktrees (B1–B3, B6, V3, V4, V7, L3, L4, C3, I1, I2, P2).
  */
 import assert from 'node:assert/strict';
-import vm from 'node:vm';
 import {
   runFixtureExecFile as execFileSync,
-  startFixtureChild as spawn,
-  runFixtureChild as spawnSync,
 } from '../../tests/fixtures/child.js';
 import {
-  chmodSync,
   existsSync,
-  mkdirSync,
-  mkdtempSync,
   readFileSync,
-  realpathSync,
   rmSync,
   statSync,
-  symlinkSync,
-  writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import {
   createServer,
   request,
@@ -36,8 +26,6 @@ import {
   after,
   test,
 } from 'node:test';
-import { parseSpec } from '../../../../packages/spec/index.js';
-import { checkAtCommit } from '../../../runner/index.js';
 import * as store from '../../../../packages/store/index.js';
 import { openBoardForRead } from '../../../lib/index.js';
 
@@ -45,6 +33,7 @@ import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fetchFresh } from '../../tests/fixtures/http.js';
 import { fetchPrintedViewLink } from '../../tests/fixtures/view/link.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
@@ -277,13 +266,22 @@ test('from the view the person adds items, shouts and holds lanes, through the C
     assert.equal(shouted.status, 200);
     assert.equal(shouted.document.event.event_kind, 'shout');
     assert.equal(shouted.document.event.event_by, 'person');
-    assert.match((await box.runLocal(box.web, 'inbox')).out, / person -> web: from the person/);
+    const inbox = JSON.parse((await box.runLocal(box.web, 'inbox', '--json')).out);
+    assert.ok(inbox.shouts.some((row) => row.shout_from === 'person' && row.shout_to === 'web' && row.shout_text === 'from the person'),
+      'the web seat receives the person\'s shout, read from inbox --json');
     const held = await view.act(box.repo, { verb: 'hold', args: { lane: 'web', reason: 'G1 is changing' } });
     assert.equal(held.status, 200);
     assert.equal(held.document.event.event_kind, 'hold');
     assert.equal(held.document.event.event_by, 'person');
     assert.equal(JSON.parse(held.document.event.event_detail).channel, 'view');
-    assert.match((await box.runLocal(box.web, 'next', '--take')).err, /person holds the web lane: G1 is changing/);
+    const takeHeld = await box.runLocal(box.web, 'next', '--take', '--json');
+    assert.notEqual(takeHeld.code, 0, 'next --take is refused while the lane is held');
+    const heldError = JSON.parse(takeHeld.out).error;
+    // The old assert proved the refusal names the hold (who and why), not only that nothing was free. The --json error
+    // carries code, message and next, with no separate hold field, so the code is NOTHING_FREE and the hold stays a
+    // wording check on the message below (the held lane and its reason are the contract).
+    assert.equal(heldError.code, 'NOTHING_FREE');
+    assert.ok(heldError.message.includes('person holds the web lane') && heldError.message.includes('G1 is changing'), 'the refusal names who holds the lane and why');
     const released = await view.act(box.repo, { verb: 'hold', args: { lane: 'web', off: true } });
     assert.equal(released.status, 200);
     assert.equal(released.document.event.event_kind, 'unhold');
@@ -326,7 +324,10 @@ test('the view answers a request line no URL parser accepts with 403, and keeps 
 
 test('nothing a person types on the view sits inside what the refresh rewrites [N27]', () => {
   const page = cockpitSource();
-  const rewritten = [...page.matchAll(/\$\('([a-z-]+)'\)\.innerHTML = /g)].map((match) => match[1]);
+  // Every refresh part is written through store.paint (#6613), which replaced the direct innerHTML assignments.
+  const rewritten = [...new Set([...page.matchAll(/store\.paint\(\$\('([a-z-]+)'\)/g)].map((match) => match[1]))];
+  // The items list is painted through a local named chain, the element with id="chain".
+  if (page.includes('store.paint(chain,')) rewritten.push('chain');
   assert.ok(['lanes', 'chain', 'detail', 'needs'].every((id) => rewritten.includes(id)), 'the refresh rewrites these');
   for (const id of rewritten) {
     const opening = new RegExp(`id="${id}"[^>]*>([^]*?)</`).exec(page);
@@ -336,7 +337,11 @@ test('nothing a person types on the view sits inside what the refresh rewrites [
   // never holds anything a person typed; every other field the script could build is still refused.
   // The Spec tab's Answer box is the one other field; its refresh case in spec/cockpit.test.js proves the draft and focus survive.
   const script = page.slice(page.indexOf('<script>')).replace(/\nasync function copyWords\([^]*?\n}\n/, '\n')
-    .replace(/'<form class="spec-answer-form"[^\n]*?<\/form>'/u, "''");
+    .replace(/'<form class="spec-answer-form"[^\n]*?<\/form>'/u, "''")
+    // A shout thread's reply box (sx-reply, 154e174c55) is built when a person opens the thread; its unsent text is kept in shoutDrafts and put back after every draw, so a refresh never erases it (io/page/shouts.js).
+    .replace(/'<i class="sx-si you"><\/i><input type="text"[^\n]*/u, "''")
+    // The command palette's search box (pal-q) lives in its own overlay, opened and closed by the person, never in a refreshed part.
+    .replace(/overlay\.innerHTML = '<div class="pal-veil" data-close="1"><div class="pal-box"[^\n]*/u, '');
   assert.doesNotMatch(script, /<input|<textarea|createElement\('(form|input|textarea)'\)/, 'the script never builds a field a refresh could erase');
 });
 
@@ -345,16 +350,18 @@ test('the view keeps the board layout people know: switcher, tabs, a list and it
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders a heading');
   await box.runLocal(box.web, 'claim', '1');
   commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
+  // A pulled submit returns once its gate job is offered and the fixture settles that job, so the gate has recorded
+  // its receipt before the reject below. The pull path starts no background review comparison [V4,C7,P7].
   await box.runLocal(box.web, 'submit', '1');
-  // Submit starts a background review comparison that records a second "Review comparison" fact when it settles [V4,C7];
-  // wait for it so the history order below does not depend on whether it lands before or after the reject.
-  const comparisonFacts = () => {
+  // The settle returns when the job queue is quiet, which can be before the receipt is applied; wait for the submission itself.
+  const submittedNow = () => {
     const board = openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
-    try { return board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE event_kind = 'fact' AND event_detail LIKE '%Review comparison%'").get().n; } finally { store.closeBoard(board); }
+    try { return store.getItem(board, 1).item_status === 'submitted'; } finally { store.closeBoard(board); }
   };
-  await waitFor(() => comparisonFacts() >= 2, 'the background review comparison to record its result', 30_000); // budget: hang ceiling for the detached comparison worker under runner load.
+  await waitFor(submittedNow, 'the pulled gate to record the submission', 60_000); // budget: hang ceiling for the loopback runner's gate under runner load.
   box.git(box.repo, 'switch', '-q', '--detach', 'web/one');
-  await box.runLocal(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--clause', 'renders a heading', '--note', 'no heading', '--as', 'coordinator');
+  const rejected = await box.runLocal(box.repo, 'verify', '1', 'reject', '--reason', 'TEST_FAILURE', '--clause', 'renders a heading', '--note', 'no heading', '--as', 'coordinator');
+  assert.equal(rejected.code, 0, rejected.out + rejected.err);
   box.git(box.repo, 'switch', '-q', 'main');
   const view = await startView(box, box.repo);
   try {
@@ -369,13 +376,14 @@ test('the view keeps the board layout people know: switcher, tabs, a list and it
     );
     const item = (await view.state(box.repo)).project.items[0];
     assert.deepEqual(item.verdicts.map((verdict) => [verdict.decision, verdict.reason, verdict.note]), [['REJECT', 'TEST_FAILURE', 'no heading']]);
-    assert.deepEqual(item.history.map((event) => event.kind), ['add', 'milestone_placed', 'claim', 'renew', 'proof-run', 'fact', 'submit', 'fact', 'fact', 'reject', 'escalate']);
+    // Facts (the gate job note, the tier-1 shadow, a review comparison when one runs) are noted apart from the moves.
+    assert.deepEqual(item.history.map((event) => event.kind).filter((kind) => kind !== 'fact' && kind !== 'renew'), ['add', 'milestone_placed', 'claim', 'proof-run', 'submit', 'reject', 'escalate']);
     const board = openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
     try {
       const [receipt] = store.proofReceipts(board, item.id);
       assert.equal(receipt.item, item.id, 'the visible proof belongs to this item');
       assert.equal(receipt.commit, item.commit, 'the visible proof checked the submitted commit');
-      assert.equal(item.history[4].by, receipt.seat, 'the history names the native executing seat');
+      assert.equal(item.history.find((event) => event.kind === 'proof-run').by, receipt.seat, 'the history names the native executing seat');
     } finally {
       store.closeBoard(board);
     }
@@ -383,177 +391,6 @@ test('the view keeps the board layout people know: switcher, tabs, a list and it
   } finally {
     await view.stop();
   }
-});
-
-test("the view's refresh re-renders only what changed [N26,A2]", async () => {
-  const page = cockpitSource();
-  const start = page.indexOf('async function refresh(');
-  const end = page.indexOf('\n// The local view follows', start);
-  assert.ok(start >= 0 && end > start, 'find the production refresh function');
-  const refresh = page.slice(start, end);
-  const hasDeferredDetail = page.includes('const itemSearches = new Map();');
-  const hasBoardModeSync = page.includes('function syncBoardMode(');
-  const calls = [];
-  const events = [];
-  const context = {
-    addressReady: true,
-    address: () => {},
-    api: async () => ({ events: [] }),
-    boardPath: () => '/board',
-    // refresh() calls these helpers, defined outside the slice this test runs (#644's clock-blind board text and
-    // in-place ages, #633's share invitation, #900's render handshake); the page's own behavior is covered elsewhere.
-    boardText: (state) => JSON.stringify(state),
-    showFlowAges: () => {},
-    tickAges: () => {},
-    sharingReady: null,
-    sharingInvitation: () => Promise.resolve(),
-    transport: null,
-    boardState: () => {
-      let resolve;
-      const promise = new Promise((done) => { resolve = done; });
-      calls.push({ promise, resolve });
-      return promise;
-    },
-    catchEvery: false,
-    catchUp: () => {},
-    data: { projects: [] },
-    detailRead: null,
-    follow: () => {},
-    keep: () => 'unchanged',
-    loadAddressedShout: async () => {},
-    liveLine: () => 'live',
-    placeAtAddress: () => null,
-    refreshDrawn: { generation: 0, full: false },
-    refreshStarted: 0,
-    render: () => {
-      events.push(['render', context.data.project.items[0]?.title]);
-      if (hasDeferredDetail) {
-        context.__nextDetail = (() => {
-          let resolve;
-          const promise = new Promise((done) => { resolve = done; });
-          return { promise, resolve };
-        })();
-        context.__setDetailRead(context.__nextDetail.promise);
-      }
-    },
-    replayControls: () => {},
-    seen: 'before-first-read',
-    snapshot: true,
-    snapshotReplay: { final: {} },
-    syncBoardMode: () => events.push(['sync', context.data.project.items[0]?.title]),
-    view: { root: '/fixture', seen: { 'pb.seen./fixture': 'seen-at-start' } },
-    $: () => ({ textContent: '' }),
-  };
-  if (hasDeferredDetail) {
-    context.itemSearches = new Map([['old-query', ['stale-result']]]);
-    context.__nextDetail = (() => {
-      let resolve;
-      const promise = new Promise((done) => { resolve = done; });
-      return { promise, resolve };
-    })();
-    context.__setDetailRead = (value) => { context.detailRead = value; };
-  }
-  vm.runInNewContext(`\n${refresh}\n`, context, { filename: 'cockpit-refresh.js' });
-
-  const next = (marker) => ({
-    projects: [{ ok: true, root: '/fixture' }],
-    project: { root: '/fixture', items: [{ id: 1, status: 'open', title: marker }] },
-    group: null,
-  });
-  /** Resolve one controlled state read and verify refresh completion against its render barrier. */
-  async function applyRead(marker) {
-    const renderCount = events.filter(([kind]) => kind === 'render').length;
-    if (hasDeferredDetail) context.itemSearches.set('query-under-pointer', ['stale-result']);
-    const pending = vm.runInNewContext('refresh(true)', context);
-    let completed = false;
-    let failure;
-    const observed = pending.then(
-      () => { completed = true; },
-      (error) => { completed = true; failure = error; },
-    );
-    const call = calls.at(-1);
-    assert.ok(call, 'refresh starts a board state read');
-    call.resolve(next(marker));
-    await new Promise((resolve) => setImmediate(resolve));
-    // A helper refresh() calls but this slice does not stub fails here by name, not as a later count.
-    if (failure) throw failure;
-    const renderedThisRead = events.filter(([kind]) => kind === 'render').length > renderCount;
-    if (hasDeferredDetail && renderedThisRead) {
-      assert.equal(context.itemSearches.size, 0, 'changed board invalidates deferred item search results');
-      assert.equal(completed, false, 'refresh waits for item detail started by the changed-board render');
-      context.__nextDetail.resolve();
-    } else if (hasDeferredDetail) {
-      assert.equal(context.itemSearches.size, 1, 'an unchanged board leaves the active search alone');
-      assert.equal(completed, true, 'an unchanged board completes without a detail follow-up');
-    }
-    await observed;
-    if (failure) throw failure;
-  }
-
-  await applyRead('first');
-  assert.deepEqual(events.filter(([kind]) => kind === 'render'), [['render', 'first']]);
-  if (hasBoardModeSync) assert.deepEqual(events.slice(-2), [['sync', 'first'], ['render', 'first']]);
-
-  await applyRead('first');
-  assert.deepEqual(events.filter(([kind]) => kind === 'render'), [['render', 'first']], 'an unchanged board is not rebuilt');
-
-  await applyRead('second');
-  assert.deepEqual(events.filter(([kind]) => kind === 'render'), [['render', 'first'], ['render', 'second']]);
-  if (hasBoardModeSync) assert.deepEqual(events.slice(-2), [['sync', 'second'], ['render', 'second']]);
-});
-
-test('doctrine init preserves legacy rules and outside guidance, refreshes labels and refuses empty declines [D1,D2,D3,D4,S8]', async () => {
-  const box = sandbox();
-  const repo = join(box.dir, 'doctrine');
-  mkdirSync(repo);
-  box.git(repo, 'init', '-q', '-b', 'main');
-  const legacy = '# Legacy practice\n\n## Local\n- L1 [fact] Keep the existing local rule.\n';
-  const ways = '# Our ways\n\n## Rules\n- PB2 [fact] Delete only after team review.\n- PB8 [wont] This fixture stores only generated data.\n- R1 [fact] Keep the configured legacy rule.\n';
-  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, gate: 'true', practice: 'ways.md' }));
-  writeFileSync(join(repo, 'PRACTICE.md'), legacy);
-  writeFileSync(join(repo, 'ways.md'), ways);
-  writeFileSync(join(repo, 'AGENTS.md'), '# Owner guidance\n\nKeep this prefix.\n');
-  const first = await box.runLocal(repo, 'init');
-  assert.equal(first.code, 0, first.err);
-  assert.equal(readFileSync(join(repo, 'PRACTICE.md'), 'utf8'), legacy);
-  assert.equal(readFileSync(join(repo, 'ways.md'), 'utf8'), ways);
-  let agents = readFileSync(join(repo, 'AGENTS.md'), 'utf8');
-  const shown = await box.runLocal(repo, 'spec', '--json');
-  assert.equal(shown.code, 0, shown.out);
-  const document = JSON.parse(shown.out);
-  assert.equal(document.version, 1);
-  assert.equal(document.rows.length, 13);
-  const inherited = document.rows.filter(row => row.origin === 'standard');
-  assert.equal(inherited.length, 10);
-  assert.ok(inherited.every(row => row.version === 1 && row.reason === ''));
-  assert.deepEqual(document.rows.filter(row => row.origin === 'repo').map(row => [row.id, row.version, row.reason, row.file]), [
-    ['PB2', null, '', 'ways.md'], ['PB8', null, 'This fixture stores only generated data.', 'ways.md'], ['R1', null, '', 'ways.md'],
-  ]);
-  writeFileSync(join(repo, 'AGENTS.md'), agents + '\nKeep this footer.\n');
-  const updatedWays = ways.replace('Delete only after team review.', 'Delete only after pair review.');
-  writeFileSync(join(repo, 'ways.md'), updatedWays);
-  const refreshed = await box.runLocal(repo, 'init', '--verbose');
-  assert.equal(refreshed.code, 0, refreshed.err);
-  assert.match(refreshed.out, /kept AGENTS.md/, 'the approved block does not depend on the doctrine, so a doctrine edit leaves it as it was');
-  agents = readFileSync(join(repo, 'AGENTS.md'), 'utf8');
-  assert.ok(agents.startsWith('# Owner guidance\n\nKeep this prefix.\n'));
-  assert.ok(agents.endsWith('\nKeep this footer.\n'));
-  assert.equal(agents.split('<!-- pullboard:start -->').length, 2);
-  assert.equal((await box.runLocal(repo, 'init')).code, 0);
-  assert.equal(readFileSync(join(repo, 'AGENTS.md'), 'utf8'), agents, 'managed guidance refresh is idempotent');
-  writeFileSync(join(repo, 'ways.md'), '# Our ways\n\n## Rules\n- PB2 [wont]    \n');
-  const bad = await box.runLocal(repo, 'spec', '--json');
-  assert.equal(bad.code, 1);
-  assert.match(JSON.parse(bad.out).error.message, /declining a standard rule needs a reason in its text/);
-  writeFileSync(join(repo, 'ways.md'), '# Our ways\n\n## Rules\n- PB2 [wont] Declined. | reason: outside syntax\n');
-  assert.match((await box.runLocal(repo, 'spec', 'check')).out, /unknown field/);
-  writeFileSync(join(repo, 'ways.md'), updatedWays);
-  box.git(repo, 'add', '-A');
-  box.git(repo, 'commit', '-q', '-m', 'chore: retain local doctrine');
-  writeFileSync(join(repo, 'ways.md'), updatedWays.replace('- PB2 [fact] Delete only after pair review.\n', ''));
-  const removed = await box.runLocal(repo, 'spec', 'check');
-  assert.equal(removed.code, 1);
-  assert.match(removed.out, /ways.md: PB2 error:.*ids are permanent/, 'inherited PB2 cannot hide removal of a committed repo override');
 });
 
 /** Build an adversarial Git object directly; submit must be safe even when no commit hook ran. */

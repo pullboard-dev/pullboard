@@ -16,8 +16,8 @@ import { test } from 'node:test';
 import { awaitNestedRun } from '../../../../index.js';
 import { removeTestSandbox } from '../../../../index.js';
 import { TEST_CHILD_CLEANUP_FAILED } from '../../../../index.js';
-import { runFixtureChildAsync } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { waitForCondition } from '../../../../../../apps/cli/tests/fixtures/runner/holders.js';
+import { runFixtureChildAsync } from '../../../fixtures/child.js';
+import { waitForCondition } from '../../../fixtures/runner/holders.js';
 
 const RUNNER = resolve(import.meta.dirname, '../../../../../../apps/cli/src/io/run/tests.js');
 

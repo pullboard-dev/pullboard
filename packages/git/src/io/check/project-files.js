@@ -23,14 +23,15 @@ function records(text) {
  *
  * @param {string} root checkout root
  * @param {string[]} [paths] limit the answer to these folders or files
+ * @param {{ untracked?: boolean }} [options] false skips the untracked scan, the slow part, leaving `untracked` empty
  * @returns {{ clean: Map<string, { mode: string, oid: string }>, dirty: Set<string>, untracked: Set<string>, links: Set<string>, length: number } | null}
  */
-export function indexedFiles(root, paths = []) {
+export function indexedFiles(root, paths = [], { untracked: others = true } = {}) {
   if (!existsSync(`${root}/.git`)) return null;
   const spec = paths.length ? ['--', ...paths] : [];
   try {
     const staged = records(git(root, ['ls-files', '-s', '-z', ...spec], { maxBuffer: BUFFER }));
-    const changed = records(git(root, ['ls-files', '-m', '-o', '--exclude-standard', '-z', ...spec], { maxBuffer: BUFFER }));
+    const changed = records(git(root, ['ls-files', '-m', ...(others ? ['-o', '--exclude-standard'] : []), '-z', ...spec], { maxBuffer: BUFFER }));
     const modified = new Set(changed);
     const clean = new Map();
     const tracked = new Set();

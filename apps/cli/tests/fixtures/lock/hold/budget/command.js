@@ -12,6 +12,7 @@ import { cpus } from 'node:os';
 import { loadavg } from 'node:os';
 import { freemem } from 'node:os';
 import { createE2eHelpers } from '../../../e2e.js';
+import { settleSubmit } from '../../../submit/settle.js';
 import { runFixtureChild } from '../../../child.js';
 import { fixtureJoin } from '../../../testkit.js';
 
@@ -89,7 +90,9 @@ export async function assertCommandHoldBudget(t) {
     box.git(box.web, 'add', '-A');
     box.git(box.web, 'commit', '-q', '-m', 'feat(web): fixture source for hold budget [G1]');
     const commit = box.git(box.web, 'rev-parse', 'HEAD');
-    command(box, e2e.BIN, box.web, 'submit', 'submit', id, '--no-next');
+    // Under pull dispatch submit returns before its gate settles (e8f5582942): wait on the runner's receipt so verify sees a submitted item.
+    const queued = JSON.parse(command(box, e2e.BIN, box.web, 'submit', 'submit', id, '--no-next', '--json'));
+    await settleSubmit(t, { repo: box.web, env: box.env, run: box.run }, queued, { deadlineMs: 120_000 });
     box.git(box.repo, 'switch', '-q', '--detach', commit);
     try {
       command(box, e2e.BIN, box.repo, 'verify', 'verify', id, 'accept', '--as', 'coordinator', '--no-next', '--note', 'Private timing fixture only');

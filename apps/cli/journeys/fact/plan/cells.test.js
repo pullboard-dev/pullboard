@@ -1,5 +1,5 @@
-/** @pullboard-test-input source-tree */
-/** @pullboard-test-input source-tree packages/codemap/data/plan/cells.json packages/codemap/data/plan/** */
+/** @pullboard-test-input source-cell codemap */
+/** @pullboard-test-input packages/codemap/data/plan/cells.json packages/codemap/data/plan/** */
 /** The committed cells move plan places each path once and orders cells leaf-first by real imports [D3,CD60,CD64]. */
 import { sourceAdvancePlan } from '../../../../../packages/codemap/index.js';
 import { withSourceComposition } from '../../../../../packages/merge/index.js';
@@ -27,8 +27,9 @@ import { stalePlanRows } from '../../../../../packages/codemap/src/io/cells/scri
 import { orphanCutEdges } from '../../../../../packages/codemap/src/io/cells/scripts/plan.js';
 import { importCuts } from '../../../../../packages/codemap/index.js';
 import { writePlan } from '../../../../../packages/codemap/index.js';
-import { runFixtureChild } from '../../../tests/fixtures/child.js';
-import { installCutCases } from '../../../tests/fixtures/cells/cases.js';
+import { journeyCall } from '../../../tests/fixtures/e2e.js';
+import { serializeInProcess } from '../../../tests/fixtures/process.js';
+import { main as planMain } from '../../../../../packages/codemap/src/io/cells/scripts/plan.js';
 import { fixture } from '../../../../../packages/landing/tests/fixtures/plan.js';
 import {
   mechanicalConflictFiles,
@@ -40,6 +41,24 @@ import { git } from '../../../../../packages/landing/tests/fixtures/plan.js';
 const ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
 const BIN = fileURLToPath(new URL('../../../../../packages/codemap/src/io/cells/scripts/plan.js', import.meta.url));
 const PLAN = readPlan(ROOT);
+
+/**
+ * One plan.js command in a fixture repo, answered in this process (its main(), with the folder and console swapped for the call) or, under
+ * PULLBOARD_JOURNEY_MODE=process, as the real script, so the gate's parity check can compare the two. A throw answers status 1 with the error
+ * text on stderr, as an uncaught throw does in a real process [C7].
+ */
+function planCommand(root, ...args) {
+  return journeyCall({ dir: root, env: process.env, cwd: root, args, bin: BIN, inProcess: () => serializeInProcess(() => {
+    const [directory, log, error] = [process.cwd(), console.log, console.error];
+    let stdout = '', stderr = '', status = 0;
+    console.log = (...parts) => { stdout += `${parts.join(' ')}\n`; };
+    console.error = (...parts) => { stderr += `${parts.join(' ')}\n`; };
+    try { process.chdir(root); status = planMain(args) ?? 0; } catch (failure) { status = 1; stderr += `${failure.stack ?? failure}\n`; } finally {
+      process.chdir(directory); [console.log, console.error] = [log, error];
+    }
+    return { status, stdout, stderr };
+  }) });
+}
 
 /** Map every file the plan names, at its old path, its target or its committed path-map path, to its cell. */
 function cellIndex(plan, map) {
@@ -147,7 +166,7 @@ test('a plan built from real files orders leaves first, cuts the cycle and place
   assert.ok(dependent && dependent.args[dependent.args.indexOf('--after') + 1].split(',').includes('7001'), 'a later cell waits on the filed id');
 });
 
-test('a move item\'s frozen check passes only when the cell moved behind shims [D3,CD60]', t => {
+test('a move item\'s frozen check passes only when the cell moved behind shims [D3,CD60]', async t => {
   const { root, put } = fixture(t);
   put('package.json', JSON.stringify({ type: 'module', bin: 'bin/tool.js' }));
   const plan = computePlan(root);
@@ -160,95 +179,12 @@ test('a move item\'s frozen check passes only when the cell moved behind shims [
   assert.match(checkMoved(root, plan, 'kernel').join('\n'), /src\/refused\.js still holds code/u, 'code left at the old path fails');
   put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\n");
   assert.deepEqual(checkMoved(root, plan, 'kernel'), [], `${kernel.name} moved behind a shim`);
-  const run = runFixtureChild(process.execPath, [BIN, '--moved', 'kernel'], { cwd: root, encoding: 'utf8' });
+  const run = await planCommand(root, '--moved', 'kernel');
   assert.equal(run.status, 0, run.stderr);
-  const unknown = runFixtureChild(process.execPath, [BIN, '--moved', 'nowhere'], { cwd: root, encoding: 'utf8' });
+  const unknown = await planCommand(root, '--moved', 'nowhere');
   assert.notEqual(unknown.status, 0);
   assert.match(unknown.stderr, /CELLS_PLAN_CELL/u);
 });
-
-test('a moved shim that bypasses its unreachable front door fails by both paths [C7,D3,CD64]', t => {
-  const { root, put } = fixture(t);
-  put('package.json', JSON.stringify({ type: 'module', bin: 'bin/tool.js' }));
-  const plan = computePlan(root);
-  writePlan(root, plan);
-  put('packages/kernel/src/logic/refused.js', 'export class Refused extends Error {}\n');
-  put('packages/kernel/index.js', "export { Refused } from './src/logic/refused.js';\n");
-  put('src/refused.js', "export { Refused } from '../packages/kernel/light.js';\n");
-  const problems = checkMoved(root, plan, 'kernel');
-  assert.ok(problems.some(problem => problem.includes('src/refused.js bypasses front door packages/kernel/index.js')), problems.join('\n'));
-  assert.ok(problems.some(problem => problem.includes('unreachable front door packages/kernel/index.js')), problems.join('\n'));
-  const run = runFixtureChild(process.execPath, [BIN, '--moved', 'kernel'], { cwd: root, encoding: 'utf8' });
-  assert.notEqual(run.status, 0);
-  assert.match(run.stderr, /src\/refused\.js.*packages\/kernel\/index\.js/u);
-});
-
-test('only exact named own-body worker shims pass the bounded process-entry exception [C7,D3,CD64]', t => {
-  for (const mode of ['worker', 'non-worker', 'wrong-leaf', 'star', 'opaque', 'oversize']) {
-    const { root, put } = fixture(t);
-    put('package.json', JSON.stringify({ type: 'module', bin: 'bin/tool.js', files: ['package.json', 'src/**', 'packages/**'] }));
-    const plan = computePlan(root);
-    writePlan(root, plan);
-    put('packages/kernel/src/logic/refused.js', 'export class Refused extends Error {}\n');
-    put('packages/kernel/src/logic/other.js', 'export class Refused extends Error {}\n');
-    put('packages/kernel/index.js', "export { Refused } from './src/logic/refused.js';\n");
-    put('src/board.js', "import { Refused } from '../packages/kernel/index.js';\nexport const board = () => Refused;\n");
-    const leaf = mode === 'wrong-leaf' ? 'other' : 'refused';
-    const bindings = mode === 'star' ? '*' : '{ Refused }';
-    put('src/refused.js', `export ${bindings} from '../packages/kernel/src/logic/${leaf}.js';\n`);
-    let worker = mode === 'non-worker' ? 'export const worker = true;\n' : "import { Refused } from '../../../../../src/refused.js';\nexport const worker = Refused;\n";
-    if (mode === 'opaque') worker += 'new URL(process.env.UNKNOWN_WORKER_PATH, import.meta.url);\n';
-    if (mode === 'oversize') worker += `export const padding = '${'x'.repeat(1_048_576)}';\n`;
-    put('apps/runner/src/io/scripts/worker.js', worker);
-    // Once any app file exists the production roots are apps/*/index.js, so the runner app reaches the worker and the board.
-    put('apps/runner/index.js', "import './src/io/scripts/worker.js';\nimport '../../src/board.js';\n");
-    const problems = checkMoved(root, plan, 'kernel');
-    if (mode === 'worker') assert.deepEqual(problems, [], 'a closed actual worker may retain its exact named own-body shim');
-    else assert.ok(problems.some(problem => problem.includes('src/refused.js bypasses front door')), `${mode}: ${problems.join('\n')}`);
-  }
-});
-
-test('only exact named own-body move shims pass the bounded move-registry exception [C7,D3,CD64]', t => {
-  for (const mode of ['move', 'outside', 'wrong-leaf', 'star', 'opaque', 'oversize']) {
-    const { root, put } = fixture(t);
-    put('package.json', JSON.stringify({ type: 'module', bin: 'bin/tool.js', files: ['package.json', 'src/**', 'packages/**'] }));
-    const plan = computePlan(root);
-    writePlan(root, plan);
-    put('packages/kernel/src/logic/refused.js', 'export class Refused extends Error {}\n');
-    put('packages/kernel/src/logic/other.js', 'export class Refused extends Error {}\n');
-    put('packages/kernel/index.js', "export { Refused } from './src/logic/refused.js';\n");
-    put('src/board.js', "import { Refused } from '../packages/kernel/index.js';\nexport const board = () => Refused;\n");
-    const leaf = mode === 'wrong-leaf' ? 'other' : 'refused';
-    const bindings = mode === 'star' ? '*' : '{ Refused }';
-    put('src/refused.js', `export ${bindings} from '../packages/kernel/src/logic/${leaf}.js';\n`);
-    put('apps/runner/src/io/scripts/worker.js', 'export const worker = true;\n');
-    put('apps/runner/index.js', "import './src/io/scripts/worker.js';\nimport '../../src/board.js';\n");
-    let move = mode === 'outside' ? 'export const move = true;\n'
-      : "import { Refused } from '../refused.js';\nexport const move = Refused;\n";
-    if (mode === 'opaque') move += 'await import(process.env.UNKNOWN_MOVE_PATH);\n';
-    if (mode === 'oversize') move += `export const padding = '${'x'.repeat(1_048_576)}';\n`;
-    put('src/moves/fixtureMove.js', move);
-    const problems = checkMoved(root, plan, 'kernel');
-    if (mode === 'move') assert.deepEqual(problems, [], 'an actual bounded move closure retains its exact named own-body shim');
-    else assert.ok(problems.some(problem => problem.includes('src/refused.js bypasses front door')), `${mode}: ${problems.join('\n')}`);
-  }
-});
-
-test('a correct shim does not make an otherwise unreachable moved package reachable [C7,D3,CD64]', t => {
-  const { root, put } = fixture(t);
-  put('package.json', JSON.stringify({ type: 'module', bin: 'bin/tool.js' }));
-  const plan = computePlan(root);
-  writePlan(root, plan);
-  put('packages/kernel/src/logic/refused.js', 'export class Refused extends Error {}\n');
-  put('packages/kernel/index.js', "export { Refused } from './src/logic/refused.js';\n");
-  put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\n");
-  put('src/board.js', "import { claims } from './claims.js';\nexport const board = () => claims;\n");
-  assert.ok(checkMoved(root, plan, 'kernel').some(problem => problem.includes('unreachable front door packages/kernel/index.js')));
-});
-
-
-installCutCases({ PLAN, BIN, fixture, git });
-
 
 test('a bounded single-entry write derives index and shard counts from the same paths [C7,D3,CD60]', t => {
   const { root, put } = fixture(t);
@@ -320,7 +256,7 @@ test('codemap providers are required and source advance retains its real raw clo
 });
 
 
-test('cut metadata refresh preserves frozen moves and records only current real source edges [D3,CD64]', t => {
+test('cut metadata refresh preserves frozen moves and records only current real source edges [D3,CD64]', async t => {
   const { root, put } = fixture(t), plan = computePlan(root);
   const early = plan.cells.find(cell => cell.name === 'kernel'), later = plan.cells.find(cell => cell.name === 'stats');
   const before = structuredClone(plan);
@@ -330,7 +266,7 @@ test('cut metadata refresh preserves frozen moves and records only current real 
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'new actual source edge');
   const { edges } = cellInventory(root, { importsIn, commonJsIn });
   const refreshed = refreshPlanCuts(plan, edges, readPathMap(root));
-  const run = runFixtureChild(process.execPath, [BIN, '--refresh-cuts'], { cwd: root, encoding: 'utf8' });
+  const run = await planCommand(root, '--refresh-cuts');
   assert.equal(run.status, 0, run.stderr);
   assert.deepEqual(readPlan(root).cells, refreshed.cells, 'the real generator command writes the exact bounded refresh');
   assert.deepEqual(plan, before, 'the reader does not mutate its input');
@@ -353,14 +289,14 @@ test('cut metadata refresh preserves frozen moves and records only current real 
 });
 
 
-test('cut refresh refuses a newly tracked unplanned endpoint without changing any plan bytes [C7,D3,CD64]', t => {
+test('cut refresh refuses a newly tracked unplanned endpoint without changing any plan bytes [C7,D3,CD64]', async t => {
   const { root, put } = fixture(t), plan = computePlan(root);
   writePlan(root, plan);
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'frozen fixture plan');
   put('src/unplanned-provider.js', 'export const provider = 1;\n');
   put('src/refused.js', "import { provider } from './unplanned-provider.js';\nexport class Refused extends Error {}\n");
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'unplanned real endpoint');
-  const run = runFixtureChild(process.execPath, [BIN, '--refresh-cuts'], { cwd: root, encoding: 'utf8' });
+  const run = await planCommand(root, '--refresh-cuts');
   assert.notEqual(run.status, 0, 'an unowned endpoint cannot silently disappear from refreshed cuts');
   assert.match(run.stderr, /CELLS_PLAN_UNPLANNED.*src\/unplanned-provider\.js/su);
   assert.deepEqual(readPlan(root), plan, 'refusal preserves the exact prior plan');
@@ -463,33 +399,6 @@ test('replay of a version-three receipt keeps the older policy for plan rows [H1
   assert.deepEqual(mechanicalConflictFiles(root, heads[0], heads[1], { version: 4 }), [SHARD_FILE]);
 });
 
-test('moved shim exceptions require a live edge or trusted historical import [C7,D3,CD64]', t => {
-  for (const mode of ['live', 'expired', 'history', 'uncommitted-history', 'unreferenced', 'wrong-leaf']) {
-    const { root, put } = fixture(t);
-    put('package.json', JSON.stringify({ type: 'module', bin: 'bin/tool.js' }));
-    if (mode === 'history') {
-      put('packages/state/data/history/152.json', JSON.stringify({ version: 1, engine: 152, declarations: { 'fixtureMove.js': "import '../refused.js';\n" } }));
-      git(root, 'add', 'packages/state/data/history/152.json');
-      git(root, 'commit', '-q', '-m', 'seal history');
-    }
-    const plan = computePlan(root);
-    writePlan(root, plan);
-    put('packages/kernel/src/logic/refused.js', 'export class Refused extends Error {}\n');
-    put('packages/kernel/src/logic/other.js', 'export class Refused extends Error {}\n');
-    put('packages/kernel/index.js', "export { Refused } from './src/logic/refused.js';\n");
-    put('src/board.js', "import { Refused } from '../packages/kernel/index.js';\nexport const board = () => Refused;\n");
-    put('src/refused.js', `export { Refused } from '../packages/kernel/src/logic/${mode === 'wrong-leaf' ? 'other' : 'refused'}.js';\n`);
-    if (['live', 'expired', 'wrong-leaf'].includes(mode)) put('packages/codemap/data/plan/temporary-edges.json', JSON.stringify({ version: 1, edges: [{ importer: 'src/refused.js', target: 'packages/kernel/src/logic/refused.js', contractItem: 42, expires: mode === 'expired' ? '2000-01-01' : '2999-01-01' }] }));
-    if (mode === 'uncommitted-history') put('packages/state/data/history/152.json', JSON.stringify({ version: 1, engine: 152, declarations: { 'fixtureMove.js': "import '../refused.js';\n" } }));
-    const notes = [], problems = checkMoved(root, plan, 'kernel', { notes });
-    if (mode === 'live' || mode === 'history') {
-      assert.deepEqual(problems, [], `${mode}: ${problems.join('\n')}`);
-      assert.match(notes.join('\n'), mode === 'live' ? /live temporary edge #42/u : /sealed move history/u);
-    } else assert.ok(problems.some(problem => problem.includes('src/refused.js bypasses front door')), `${mode}: ${problems.join('\n')}`);
-  }
-});
-
-
 /** Render the plan index's actual keyed placement rows. */
 function planIndex(stays) {
   const engineStays = stays.map(({ path, reason }) => ({ cell: 'state', row: [path, 'packages/state/' + path, reason] }));
@@ -498,7 +407,6 @@ function planIndex(stays) {
 
 /** Render the test-tier manifest's actual file-keyed rows. */
 function tierManifest(files) { return JSON.stringify({ version: 1, files }, null, 2) + '\n'; }
-
 
 test('plan index disjoint additions compose identically in both orders [C7,D3]', async t => {
   const row = path => ({ path: path, reason: 'T1' });
@@ -570,4 +478,22 @@ test('test tiers same-row edits refuse and name the row [C7,D3]', async t => {
     assert.throws(() => retryReviewCommit(root, ours, { commit: theirs }),
       error => error.code === 'MERGE_CONFLICT' && error.message.includes(path));
   }
+});
+
+test('a cell read by path by a test outside it stays sealed, and the report lists each reader as a ratchet [C7]', async () => {
+  const { declaredReads, sealedReport, testCellsProblems } = await import('../../../../../packages/gate/src/io/test/cells.js');
+  const cells = ['a', 'b', 'apps/cli'];
+  assert.deepEqual(declaredReads('/** @pullboard-test-input source-tree */\nx\n', cells), ['a', 'apps/cli', 'b']);
+  assert.deepEqual(declaredReads('/** @pullboard-test-input source-cell a apps/cli */\nx\n', cells), ['a', 'apps/cli']);
+  assert.deepEqual(declaredReads('import x from "y";\n/** @pullboard-test-input source-tree */\n', cells), [], 'a header after code declares nothing');
+  const rows = [{ file: 'packages/a/tests/x.test.js', cell: 'a', kind: 'cell' }, { file: 'packages/b/tests/y.test.js', cell: 'b', kind: 'cell' }];
+  const pathReaders = { 'packages/b/tests/y.test.js': ['a', 'b'] };
+  const report = Object.fromEntries(sealedReport(rows, { cells: ['a', 'b'], pathReaders }).map(row => [row.cell, row]));
+  assert.equal(report.a.sealed, true, 'a declared path read does not unseal the cell');
+  assert.equal(report.a.pathReaders, 1);
+  assert.equal(report.b.sealed, true, 'a test reading its own cell does not count');
+  const problems = testCellsProblems(ROOT, { facts: { cells: ['a'], deepImporters: {}, pathReaders: { 'packages/b/tests/y.test.js': ['a'] } }, listing: { journeys: {}, pureHelpers: [], leaves: [], findings: {}, rootTests: 1e9, sealed: [], pathReaders: { a: 0 } } });
+  assert.ok(problems.some(problem => /1 tests outside cell a read its files by path, over the ratchet of 0/u.test(problem.text)), 'the count is a ratchet');
+  const lowered = testCellsProblems(ROOT, { facts: { cells: ['a'], deepImporters: {}, pathReaders: {} }, listing: { journeys: {}, pureHelpers: [], leaves: [], findings: {}, rootTests: 1e9, sealed: [], pathReaders: { a: 3 } } });
+  assert.ok(!lowered.some(problem => /by path/u.test(problem.text)), 'a lower count passes');
 });

@@ -34,6 +34,9 @@ import {
   codeIsFromMain,
 } from '../../../../../git/index.js';
 import {
+  codeUsesRepository,
+} from '../../../../../git/index.js';
+import {
   gitChildEnv,
 } from '../../../../../git/index.js';
 import {
@@ -57,6 +60,7 @@ import {
 import {
   withSourceComposition,
 } from '../../../../../merge/index.js';
+import { storeName } from '../../store-names.js';
 
 /** Read immutable Git facts with a bounded child; never execute repository hooks. */
 function git(root, args) {
@@ -111,10 +115,24 @@ function ownerLive(owner) {
   catch { return true; }
 }
 
-/** Capture finite exact-main obligations; an active landing completes before this worker starts a gate. */
-function snapshot(root, info, { landingLeaseState, openBoardForRead }) {
+/**
+ * Whether a runner land job is offered and not yet done, read through the injected openLandingJob (packages/api); false
+ * when none is injected or the board has no job table yet.
+ */
+function landJobOpen(board, openLandingJob) {
+  if (typeof openLandingJob !== 'function') return false;
+  try { return openLandingJob(board.db) !== null; } catch { return false; }
+}
+
+/**
+ * Capture finite exact-main obligations; an active landing completes before this worker starts a gate. A pulled land
+ * job is an active landing too: its runner merges current trunk and checks that tree, and its receipt lands or returns
+ * the items. Why: a source advance beside it ran the same check again on the board host and reopened the item before
+ * the land job's receipt arrived [C7,H16].
+ */
+function snapshot(root, info, { landingLeaseState, openBoardForRead, openLandingJob }) {
   return readBoard(info, board => {
-    if (landingLeaseState(board).holder) return [];
+    if (landingLeaseState(board).holder || landJobOpen(board, openLandingJob)) return [];
     return store.listItems(board, { all: true }).filter(item => ['submitted','verified'].includes(item.item_status)
       && item.item_commit && !item.item_merged_commit && !store.reviewHolder(board, item)).flatMap(item => {
       try {
@@ -173,7 +191,7 @@ function retainArtifacts(directory, job, gate, composition, { saveMainAudit }) {
 /** Execute one exact composition; any known returned child is cleaned before its terminal advisory state is written. */
 async function advance(root, directory, job, write, services) {
   const { readMainAudit, saveMainAudit, runSubmitGate } = services;
-  const file = join(directory, `${job.key}.json`);
+  const file = join(directory, `${storeName(job.key)}`);
   const old = readMainAudit(file);
   if (old) return; // Unknown/crashed or logically incomplete work is not a hot retry on every health wake.
   saveMainAudit(file, { version: 1, item: job.item.item_id, basis: job.basis, state: 'pending' });
@@ -230,10 +248,12 @@ async function advance(root, directory, job, write, services) {
 /** Drain each wake generation once; no timer daemon, time stealing or parallel gate runs are introduced. */
 export async function runSourceAdvances(root, token, services) {
   const info = repoInfo(root);
-  if (!info.isMain || !codeIsFromMain() || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(token ?? '')) return;
+  // The nudge's own rule: a worktree of this repository's own code is never main's code; a runner job's work folder belongs to another repository.
+  if (!info.isMain || !(codeIsFromMain() || !codeUsesRepository(info.commonDir)) || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(token ?? '')) return;
   if (typeof services?.openBoardForRead !== 'function') throw new TypeError('source advance requires its actual native read opener');
   if (typeof services?.selectors?.selectAffectedTests !== 'function' || typeof services?.selectors?.selectTestTreeGuards !== 'function') throw new TypeError('source advance worker needs explicit test selector operations');
   const selectors = Object.freeze({ selectAffectedTests: services.selectors.selectAffectedTests, selectTestTreeGuards: services.selectors.selectTestTreeGuards });
+  if (typeof services?.settledFile !== 'string') throw new TypeError('source advance worker needs its settle file name from the gate');
   services = { ...services, selectors };
   const { withFileLock, readMainAudit, saveMainAudit } = services;
   // A wake with no source obligations must be observationally inert. A successful CLI
@@ -268,7 +288,7 @@ export async function runSourceAdvances(root, token, services) {
         if (owner?.pid !== process.pid || owner.token !== token) throw new Error('source-advance ownership changed');
         if (!Number.isSafeInteger(wake?.generation) || wake.generation < generation) throw new Error('invalid source-advance wake');
         if (wake.generation !== generation) return wake.generation;
-        saveMainAudit(join(directory,'settled.json'), { generation, token });
+        saveMainAudit(join(directory,services.settledFile), { generation, token });
         rmSync(ownerFile); return null;
       });
       if (next === null) return;

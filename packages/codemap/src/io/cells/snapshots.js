@@ -1,5 +1,4 @@
 /** Layer exact changed Git blobs over the accepted inventory without touching a working tree [C7]. */
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   gitChildEnv,
@@ -9,13 +8,15 @@ import {
   git,
   cellGitEnvironment,
 } from './git.js';
-import { cellsCacheDirectory } from './scripts/cache.js';
+import { cellsCacheDirectory } from './cache-files.js';
 import { withCellSourceSnapshots } from './git.js';
 import { readPlan } from './scripts/plan.js';
 import { unplanned } from './scripts/plan.js';
 import { stalePlanRows } from './scripts/plan.js';
 import { entryPlacementProblems } from './plan/cuts.js';
 import { ownedStayProblems } from './plan/cuts.js';
+import { mkdtempSync } from 'node:fs';
+import { scratchBase } from '../../../../kernel/light.js';
 
 /** Parse immutable tree metadata, retaining symlinks and gitlinks as nonregular entries. */
 function entriesAt(root, commit) {
@@ -82,7 +83,7 @@ function objectSnapshot(root, commit, env) {
     files.set(file, blobs.subarray(end + 1, end + 1 + size));
     at = end + 1 + size + 1;
   }
-  return { root: join(tmpdir(), 'pullboard-landing-plan-objects', commit), repoRoot: root, commit, files, entries };
+  return { root: join(scratchBase(), 'pullboard-landing-plan-objects', commit), repoRoot: root, commit, files, entries };
 }
 
 /**

@@ -9,6 +9,7 @@ import { undraftedRigor } from '../logic/notices.js';
 import { readRigorSource } from '../../../store/index.js';
 import { automaticRigorNeeds } from '../../../store/index.js';
 import { causeReading } from '../../../store/index.js';
+import { rigorDerived } from './derived.js';
 import { createHash } from 'node:crypto';
 
 const PREFIX = 'local:proof-stats:rigor:v1:';
@@ -45,20 +46,36 @@ const STATEMENTS = new WeakMap();
 /** The connection's prepared statement for this SQL, prepared once. */
 function statement(db, sql) {
   let known = STATEMENTS.get(db);
-  if (!known) { known = new Map(); STATEMENTS.set(db, known); }
+  if (!known) {
+    known = new Map(); STATEMENTS.set(db, known);
+    // A prepared statement holds its connection natively, so a cached one kept every closed connection, and everything cached on it, in memory: drop them as the connection closes.
+    const close = db.close;
+    db.close = function closeAndForget(...args) { STATEMENTS.delete(db); return close.apply(this, args); };
+  }
   let prepared = known.get(sql);
   if (!prepared) { prepared = db.prepare(sql); known.set(sql, prepared); }
   return prepared;
 }
 
-/** Read one projection-owned JSON record, separately from authoritative board metadata. */
+/** Read one projection-owned JSON record, separately from authoritative board metadata. Why: with the derived-database setting on, the rows live there and board_meta holds none (#8911). */
 function get(board, key) {
+  const derived = rigorDerived(board);
+  if (derived) {
+    const row = statement(board.db, `SELECT meta_value FROM ${derived}.rigor_counter WHERE meta_key=?`).get(PREFIX + key);
+    return row ? decode(row.meta_value) : null;
+  }
   const row = statement(board.db, 'SELECT meta_value FROM board_meta WHERE meta_key=?').get(PREFIX + key);
   return row ? decode(row.meta_value) : null;
 }
 
 /** Replace only the cause affected by a new event, not the accumulated event log. */
 function put(board, key, value) {
+  const derived = rigorDerived(board);
+  if (derived) {
+    statement(board.db, `INSERT INTO ${derived}.rigor_counter(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value`)
+      .run(PREFIX + key, encode(value));
+    return;
+  }
   statement(board.db, 'INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
     .run(PREFIX + key, encode(value));
 }
@@ -182,6 +199,8 @@ export function ensureRigorCounters(board, person = 'person') {
     let summary = get(board, 'summary');
     const last = board.db.prepare('SELECT coalesce(max(event_id),0) AS id FROM event').get().id;
     if (!validSummary(summary, person) || summary.last > last) {
+      const derived = rigorDerived(board);
+      if (derived) board.db.prepare(`DELETE FROM ${derived}.rigor_counter WHERE meta_key GLOB ?`).run(PREFIX + '*');
       board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ?').run(PREFIX + '*');
       summary = emptySummary(person);
       put(board, 'summary', summary);
@@ -201,6 +220,11 @@ export function ensureRigorCounters(board, person = 'person') {
 
 /** Read one indexed metadata prefix; arbitrary cause text is never interpreted as a glob pattern. */
 function records(board, prefix) {
+  const derived = rigorDerived(board);
+  if (derived) {
+    return statement(board.db, `SELECT meta_value FROM ${derived}.rigor_counter WHERE meta_key>=? AND meta_key<? ORDER BY meta_key`)
+      .all(PREFIX + prefix, PREFIX + prefix + '\uffff').map(row => decode(row.meta_value));
+  }
   return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key>=? AND meta_key<? ORDER BY rowid')
     .all(PREFIX + prefix, PREFIX + prefix + '\uffff').map(row => decode(row.meta_value));
 }

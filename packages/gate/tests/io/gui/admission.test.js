@@ -12,7 +12,7 @@ import { checkNeedsGui } from '../../../src/io/gui/admission.js';
 import { testsNeedGui } from '../../../src/io/gui/admission.js';
 import { guiSession } from '../../../src/io/gui/session.js';
 import { cleanGitEnvironment } from '../../../../git/index.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../fixtures/child.js';
 
 test('GUI admission reads an explicit file marker rather than Chrome headless arguments [C7,V4]', t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-gui-marker-'));

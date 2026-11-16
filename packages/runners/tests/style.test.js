@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
-import { runFixtureChild } from '../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../gate/tests/fixtures/child.js';
 import { copyPackageFiles } from '../index.js';
 
 test('the repository static style command enforces its source rules [C7]', () => {

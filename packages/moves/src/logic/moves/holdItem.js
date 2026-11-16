@@ -24,6 +24,7 @@ export default Object.freeze({ operation: "holdItem", order: 28, engine: 1,
   itemIdFirstArgument: false, minimumEngine, actor,
   nextSteps: Object.freeze({
   "ENGINE_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
+  "HOLD_OWNER_REQUIRED": "name who answers for the hold: pullboard hold <id> \"why\" --owner <seat, lane or person>",
   "ITEM_NOT_OPEN": "hold only open or claimed items; see pullboard list",
   "USAGE": "run pullboard help"
 }) });

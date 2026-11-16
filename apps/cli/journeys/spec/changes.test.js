@@ -1,5 +1,6 @@
 /** Approved-row edits need an exact person decision or staged SSH receipt [S19,V3]. */
 import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { journeyCall } from '../../tests/fixtures/e2e.js';
 import assert from 'node:assert/strict';
 import {
   startFixtureChild as spawn,
@@ -9,10 +10,14 @@ import {
 } from "../../tests/fixtures/child.js";
 import {
   chmodSync,
+  cpSync,
   existsSync,
   mkdirSync,
+  lstatSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
+  realpathSync,
   rmSync,
   rmdirSync,
   statSync,
@@ -78,17 +83,17 @@ function shellWord(value) {
   return `'${String(value).replaceAll("'", "'\\''")}'`;
 }
 
-/** Create a private repo, initialized board, installed hooks and real committed SPEC rows. */
-async function fixture(t, { signer = false, doctrine = false } = {}) {
+/** A private sandbox folder, removed with the file's other fixtures. */
+function newDir() {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-approved-row-'));
   TEMP_DIRS.push(dir);
-  t.after(() => removeFixtureDirectory(dir));
+  return dir;
+}
+
+/** The repo, shim, environment and command helpers for one sandbox folder, whether it is a template or a case's copy. */
+function handles(dir) {
   const root = join(dir, 'repo');
   const bin = join(dir, 'bin');
-  mkdirSync(root);
-  mkdirSync(bin);
-  writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec ${shellWord(process.execPath)} ${shellWord(BIN)} "$@"\n`);
-  chmodSync(join(bin, 'pullboard'), 0o755);
   const env = {
     ...isolatedEnvironment(process.env),
     PATH: `${bin}:${process.env.PATH}`,
@@ -111,8 +116,18 @@ async function fixture(t, { signer = false, doctrine = false } = {}) {
   }
   /** Run Pullboard in the fixture repo and retain both output streams for assertions. */
   function pullboard(...args) {
-    return runCliInProcess(args, { cwd: root, env });
+    return journeyCall({ dir, env, cwd: root, args, inProcess: () => runCliInProcess(args, { cwd: root, env }), bin: BIN });
   }
+  return { dir, root, bin, env, git, pullboard };
+}
+
+/** Build one shape's private repo, initialized board, installed hooks and real committed SPEC rows, in its own folder. */
+async function buildFixture(dir, { signer, doctrine }) {
+  const { root, bin, env, git, pullboard } = handles(dir);
+  mkdirSync(root);
+  mkdirSync(bin);
+  writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec ${shellWord(process.execPath)} ${shellWord(BIN)} "$@"\n`);
+  chmodSync(join(bin, 'pullboard'), 0o755);
   git('init', '-q', '-b', 'main');
   git('config', 'user.name', 'Approved-row fixture');
   git('config', 'user.email', 'approved-row@example.invalid');
@@ -140,6 +155,42 @@ async function fixture(t, { signer = false, doctrine = false } = {}) {
     const trustCommit = commit({ root, env });
     assert.equal(trustCommit.status, 0, `${trustCommit.stdout}${trustCommit.stderr}`);
   }
+}
+
+/** Replace every occurrence of one sandbox path with another of the same length in a copied tree, skipping compressed git objects. */
+function repoint(directory, from, to) {
+  const needle = Buffer.from(from);
+  const next = Buffer.from(to);
+  for (const name of readdirSync(directory)) {
+    const path = join(directory, name);
+    const stat = lstatSync(path);
+    if (stat.isDirectory()) { if (!path.endsWith('.git/objects')) repoint(path, from, to); continue; }
+    if (!stat.isFile()) continue;
+    const data = readFileSync(path);
+    let at = data.indexOf(needle);
+    if (at < 0) continue;
+    for (; at >= 0; at = data.indexOf(needle, at + needle.length)) next.copy(data, at);
+    writeFileSync(path, data);
+  }
+}
+
+/** One built template per fixture shape; a template is built by the first case that asks and copied by every case [C7]. */
+const TEMPLATES = new Map();
+
+/** Make a private repo for one case: a copy of this shape's built template, repointed at the case's own folder. */
+async function fixture(t, { signer = false, doctrine = false } = {}) {
+  const key = `${signer}|${doctrine}`;
+  if (!TEMPLATES.has(key)) {
+    const built = newDir();
+    TEMPLATES.set(key, buildFixture(built, { signer, doctrine }).then(() => built));
+  }
+  const source = await TEMPLATES.get(key);
+  const dir = newDir();
+  t.after(() => removeFixtureDirectory(dir));
+  cpSync(source, dir, { recursive: true, force: true, preserveTimestamps: true, verbatimSymlinks: true });
+  repoint(dir, source, dir);
+  if (realpathSync(source) !== source) repoint(dir, realpathSync(source), realpathSync(dir)); // A tool may have stored the resolved path (/private/var on macOS).
+  const { root, env, git, pullboard } = handles(dir);
   return { dir, root, env, git, pullboard };
 }
 
@@ -167,15 +218,20 @@ test('[C7] cleanup diagnostics capture a forced late writer without hiding ENOTE
     await waitForOutput('writer-ready');
     let report = '';
     let failure;
+    let lateWrite = false;
     try {
       removeFixtureDirectory(target, {
         remove: () => {
           try { rmdirSync(target); } catch (error) { failure = error; }
           assert.equal(failure?.code, 'ENOTEMPTY', 'the control uses a real filesystem cleanup failure');
-          writer.stdin.write('write\n');
-          const deadline = Date.now() + 5_000;
-          // Publish the completed write by rename so its mtime cannot change after this handshake.
-          while (!existsSync(lateFile) && Date.now() < deadline) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
+          // The cleanup retries ENOTEMPTY (#8889) and calls this again; one late write only, or a rewrite lands after the report.
+          if (!lateWrite) {
+            lateWrite = true;
+            writer.stdin.write('write\n');
+            const deadline = Date.now() + 5_000;
+            // Publish the completed write by rename so its mtime cannot change after this handshake.
+            while (!existsSync(lateFile) && Date.now() < deadline) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
+          }
           assert.ok(existsSync(lateFile), 'the child made a real late file after cleanup failed');
           throw failure;
         },
@@ -273,6 +329,7 @@ function setRowText(box, id, text) {
   writeFileSync(file, source.replace(row, (_, prefix, _oldText, fields) => `${prefix}${text}${fields ? ' ' : ''}${fields}`));
 }
 
+// Process-level on purpose: the commit runs git, which launches the installed hooks (a child-process claim, no in-process form).
 /** Attempt a real commit through the installed Pullboard pre-commit and commit-msg hooks. */
 function commit(box, subject = 'docs: update approved row') {
   return runFixtureChild('git', ['commit', '-m', subject], { cwd: box.root, env: box.env, encoding: 'utf8' });

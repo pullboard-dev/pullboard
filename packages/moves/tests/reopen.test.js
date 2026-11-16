@@ -43,7 +43,7 @@ import { cellProject } from '../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../store/tests/fixtures/cell.js';
 import { closeCellBoard } from '../../store/tests/fixtures/cell.js';
 import { openCellBoard } from '../../store/tests/fixtures/cell.js';
-import { submitFixture as submitBoardStateFixture } from '../../../apps/cli/tests/fixtures/board/submit.js';
+import { submitFixture as submitBoardStateFixture } from '../../store/tests/fixtures/submit.js';
 import { unpackRelease } from '../../../apps/cli/tests/fixtures/release/archive.js';
 
 /** The model name the builder seat joins with. */
@@ -63,7 +63,7 @@ function commitFile(fx, cwd, file, body, message) {
  * landing behavior test and its source on main; no CLI runs. `at` moves the board clock, so a window is read on its own time.
  */
 function fixture(t, { config = {} } = {}) {
-  const project = cellProject(t, { gate: 'true', config });
+  const project = cellProject(t, { real: true, gate: 'true', config });
   mkdirSync(join(project.repo, 'web'), { recursive: true });
   writeFileSync(join(project.repo, 'web', 'feature.js'), 'export const status = "PASS";\n');
   writeFileSync(join(project.repo, 'web', 'landing.test.js'), [
@@ -78,7 +78,7 @@ function fixture(t, { config = {} } = {}) {
   const web = join(project.dir, 'web');
   project.git(project.repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
   const clock = { time: Date.parse('2026-10-10T12:00:00Z'), now() { return new Date(this.time); } };
-  const board = cellBoard(t, project.boardFile, clock, { gitRoot: project.repo });
+  const board = cellBoard(t, project.boardFile, clock, { real: true, gitRoot: project.repo });
   cellSeat(board, { lane: 'coordinator', path: project.repo });
   const builder = cellSeat(board, { lane: 'web', path: web, model: BUILDER_MODEL });
   const reviewer = cellSeat(board, { lane: 'api', path: join(project.dir, 'reviewer'), model: BUILDER_MODEL });
@@ -142,7 +142,7 @@ function readItem(fx, id) {
 function replicaPair(t, fx) {
   const snapshot = exportBoard(fx.board);
   return ['one', 'two'].map((name) => {
-    const replica = cellBoard(t, join(fx.project.dir, `${name}.sqlite`));
+    const replica = cellBoard(t, join(fx.project.dir, `${name}.sqlite`), undefined, { real: true });
     importBoard(replica, snapshot);
     return replica;
   });
@@ -172,14 +172,14 @@ function legacySnapshot(snapshot) {
 }
 
 /**
- * Drop the derived pipeline stage an archived client never computed.
+ * Drop the derived fields an archived client never computed.
  *
- * Why: c85ddac55a added item_stage to current item reads; clients before it return the same row without it.
+ * Why: c85ddac55a added item_stage and the readiness engine added item_readiness_command to current item reads; clients before them return the same row without them.
  * @param {any} row
  * @returns {any}
  */
 function withoutStage(row) {
-  const { item_stage: _stage, ...rest } = row;
+  const { item_stage: _stage, item_readiness_command: _readiness, ...rest } = row;
   return rest;
 }
 

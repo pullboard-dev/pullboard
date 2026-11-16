@@ -7,7 +7,7 @@ import { unplanned } from '../../../../codemap/index.js';
 import { readPlan } from '../../../../codemap/index.js';
 import { moveHistoryPlacement } from '../../../../codemap/index.js';
 import { requirePlannedSource } from '../../../../items/index.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../fixtures/child.js';
 import { fixture } from '../../../../landing/tests/fixtures/plan.js';
 import { git } from '../../../../landing/tests/fixtures/plan.js';
 
@@ -37,7 +37,7 @@ test('clause 1: a new packages/state/data/history/999.json is placed by rule and
   assert.match(moveHistoryPlacement('src/move-history/152.json'), /canonical engine identity retained in src/u, 'a 0.9.3 board keeps its old folder');
 });
 
-test('clause 2: the merged-tree placement check accepts a new move-history file and still refuses other sources [C7]', t => {
+test('clause 2: the merged-tree placement check accepts a new move-history file and, with plan placement dropped, refuses no source [C7]', t => {
   const { root, put } = planned(t);
   const base = git(root, 'rev-parse', 'HEAD').trim();
   put('packages/state/data/history/999.json', '{"version":1,"engine":999,"declarations":{}}\n');
@@ -48,5 +48,6 @@ test('clause 2: the merged-tree placement check accepts a new move-history file 
   put('src/unplaced.js', 'export const unplaced = 1;\n');
   git(root, 'add', '-A');
   git(root, 'commit', '-q', '-m', 'unplaced source');
-  assert.throws(() => requirePlannedSource(root, base, git(root, 'rev-parse', 'HEAD').trim()), /src\/unplaced\.js/u);
+  // Plan placement is dropped (#6365): requirePlannedSource is a pinned no-op, so an unplaced source is no longer refused.
+  assert.doesNotThrow(() => requirePlannedSource(root, base, git(root, 'rev-parse', 'HEAD').trim()));
 });

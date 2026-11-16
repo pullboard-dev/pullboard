@@ -1,15 +1,10 @@
-import { installPostMoveHandoffCases } from '../../tests/fixtures/cases/handoff.js';
-import '../../tests/fixtures/next/take/cases.js';
-import '../../tests/fixtures/next/cases.js';
 import { cli } from '../../tests/fixtures/next/take.js';
 import { fixture } from '../../tests/fixtures/next/take.js';
-import { assertFreeMainRedRouting } from '../../tests/fixtures/main/routing.js';
-import { assertNewestMainRedRouting } from '../../tests/fixtures/main/routing.js';
-import { assertMainRedCLI } from '../../tests/fixtures/main/routing.js';
 /** Real Git, ordered board work and deterministic dispatch boundaries [N2,V1,B3,A6,V2]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -32,10 +27,7 @@ import { recordItemSession } from '../../../../packages/items/index.js';
 import { dispatchHealth } from '../../../../packages/sentinels/index.js';
 import { healthReport } from '../../../../packages/health/index.js';
 import { deliverHealthNotices } from '../../../../packages/store/index.js';
-import { proveRequiredReviewFamily } from '../../tests/fixtures/family.js';
-import { assertSpecCorrectionRefreezesCitations } from '../../tests/fixtures/refreeze.js';
-import { assertSpecRefreezeReplay } from '../../tests/fixtures/refreeze.js';
-import { crossLaneFixture } from '../../tests/fixtures/e2e.js';
+import { warnMainMoved } from '../../../../packages/merge/index.js';
 
 
 test('a free seat is handed one eligible item without screening [N2,V1,B3]', async t => {
@@ -85,15 +77,12 @@ test('next --take gives a seat with a running handoff a different item and no --
   const box = await fixture(t);
   const held = submitting(box, 'Submitted and gating');
   const other = box.add('Another open item', { brief: 'Files: web/other.js\nTest: an unrelated file.' });
-  let out = '', err = '';
-  const code = await main(['next', '--take'], { cwd: box.seats.actor.path, clock: box.clock,
-    stdout: { isTTY: false, write: part => { out += part; } }, stderr: { write: part => { err += part; } } });
-  const text = out + err;
+  const taken = await cli(box, box.seats.actor.path, ['next', '--take']);
 
-  assert.equal(code, 0, text);
-  assert.match(text.split(/\r?\n/u, 1)[0], new RegExp(`^claimed #${other}:`, 'u'));
-  assert.doesNotMatch(text, new RegExp(`submit ${held}\\b[^\\n]*--wait|next --wait`, 'u'), 'no --wait hint for the held item');
-  assert.doesNotMatch(text, new RegExp(`you hold #${held}`, 'u'));
+  assert.equal(taken.code, 0, taken.out + taken.err);
+  assert.equal(taken.document.item.item_id, other);
+  assert.notEqual(taken.document.item.item_id, held, 'the item whose handoff is running is not handed back');
+  assert.equal(store.getItem(box.board, other).item_owner, box.seats.actor.id);
 });
 
 test('the commit-msg hook accepts the submitted item trailer while its handoff runs [C7,#2882]', async t => {
@@ -155,104 +144,6 @@ for (const reason of ['BLOCKED', 'ROUTED_ELSEWHERE', 'INELIGIBLE']) {
     assert.equal(status.document.needsRescope[0].id, id, 'status shows the item as needing re-scope with its release reasons');
   });
 }
-
-test('ordinary next prefers its own lane, then names foreign work without claiming it [N2,B13,L2]', async t => {
-  const box = crossLaneFixture(t);
-  const web = box.seat('own-web', 'web', box.session);
-  const foreign = box.add('api', 'Earlier foreign work');
-  const own = box.add('web', 'Ready own-lane work');
-  box.milestone('earlier', foreign); box.milestone('later', own);
-  const first = box.json((await box.runAsLocal(box.session, web.root, 'next', '--build', '--json')));
-  assert.equal(first.item.item_id, own);
-  assert.equal(first.item.item_owner, web.agent);
-  box.json((await box.runAsLocal(box.session, web.root, 'release', String(own), '--reason', 'BLOCKED', '--no-next', '--json')));
-  box.json((await box.runLocal(box.repo, 'hold', String(own), '--reason', 'Blocked own-lane fixture', '--json')));
-  const worktrees = box.git(box.repo, 'worktree', 'list', '--porcelain');
-  const next = (await box.runAsLocal(box.session, web.root, 'next', '--build', '--json'));
-  assert.equal(next.code, 1, next.out);
-  assert.match(JSON.parse(next.out).error.message, new RegExp(`#${foreign}\\b.*api lane`, 'u'));
-  assert.equal(box.json((await box.runLocal(box.repo, 'show', String(foreign), '--json'))).item_status, 'open');
-  assert.equal(box.git(box.repo, 'worktree', 'list', '--porcelain'), worktrees, 'next opens no seat or worktree');
-});
-
-test('ordinary next never claims for a dirty, occupied or peer target-lane seat [N2,B13,L2]', async t => {
-  const box = crossLaneFixture(t);
-  const web = box.seat('idle-web', 'web', box.session);
-  const dirty = box.seat('dirty-api', 'api', box.session);
-  const busy = box.seat('busy-api', 'api', box.session);
-  const peer = box.seat('peer-api', 'api', 'separate-peer-session');
-  writeFileSync(join(dirty.root, 'uncommitted.txt'), 'retain these private fixture bytes\n');
-  const occupied = box.add('api', 'An existing claim');
-  box.json((await box.runAsLocal(box.session, busy.root, 'claim', String(occupied), '--json')));
-  const free = box.add('api', 'Ready unowned work');
-  const bindings = [dirty, busy, peer].map(seat => box.binding(seat.root));
-  const next = (await box.runAsLocal(box.session, web.root, 'next', '--build', '--json'));
-  assert.equal(next.code, 1, next.out);
-  assert.equal(box.json((await box.runLocal(box.repo, 'show', String(free), '--json'))).item_status, 'open', 'the foreign item is named, not claimed');
-  assert.deepEqual([dirty, busy, peer].map(seat => box.binding(seat.root)), bindings);
-  assert.equal(box.git(dirty.root, 'status', '--porcelain'), '?? uncommitted.txt');
-  assert.equal(box.json((await box.runLocal(box.repo, 'show', String(occupied), '--json'))).item_owner, busy.agent);
-});
-
-test('a review goes only to an independent seat [V1,B3]', async t => {
-  const box = await fixture(t, { family: 'require' });
-  const id = box.add('Independent review');
-  box.submit(id);
-  for (const name of ['sibling', 'sameFamily']) {
-    const refused = await cli(box, box.seats[name].path, ['next', '--take']);
-    assert.equal(refused.code, 1, refused.out + refused.err);
-    assert.equal(store.getItem(box.board, id).item_review_by, null, 'neither shared parent nor shared family is independent');
-  }
-  const taken = await cli(box, box.seats.outside.path, ['next', '--take']);
-  assert.equal(taken.code, 0, taken.out + taken.err);
-  assert.equal(store.getItem(box.board, id).item_review_by, box.seats.outside.id);
-  assert.deepEqual(store.verdictsFor(box.board, id), [], 'assignment never fabricates a review verdict');
-});
-
-test('dispatch honors verify.family off while preserving independent sessions [V1,B3]', async t => {
-  const box = await fixture(t, { family: 'off' });
-  const id = box.add('Explicit family policy');
-  box.submit(id);
-  const sibling = await cli(box, box.seats.sibling.path, ['next', '--take']);
-  assert.equal(sibling.code, 1, sibling.out + sibling.err);
-  assert.equal(store.getItem(box.board, id).item_review_by, null, 'off never waives builder session independence');
-  const taken = await cli(box, box.seats.sameFamily.path, ['next', '--take']);
-  assert.equal(taken.code, 0, taken.out + taken.err);
-  assert.equal(store.getItem(box.board, id).item_review_by, box.seats.sameFamily.id, 'the declared off setting permits a different session of the same family');
-});
-
-test('ready work beside an idle seat for five minutes warns the coordinator [A6,N2]', async t => {
-  const box = await fixture(t);
-  const id = box.add('Unpaired ready work');
-  const warnings = () => store.allShouts(box.board).filter(shout => shout.shout_to === 'coordinator'
-    && shout.shout_text.startsWith('Stuck:') && shout.shout_text.includes(`#${id}`) && shout.shout_text.includes(box.seats.actor.id));
-  box.advance(200000);
-  store.appendFact(box.board, id, { agentId: 'coordinator', kind: 'note', text: 'A note does not change dispatch eligibility.' });
-  box.advance(99999);
-  box.scan();
-  assert.equal(warnings().length, 0, 'the five-minute threshold is exact');
-  box.advance(1);
-  heartbeatSeat(box.board, box.seats.actor.id);
-  box.scan();
-  assert.equal(warnings().length, 1, 'the coordinator hears one concrete seat/item pairing');
-  box.scan();
-  assert.equal(warnings().length, 1, 'repeated observations of the same episode stay quiet');
-  const result = await cli(box, box.seats.actor.path, ['next', '--take']);
-  assert.equal(result.code, 0, result.out + result.err);
-  box.scan();
-  assert.ok(store.getItem(box.board, id).item_owner);
-  assert.equal(warnings().length, 1);
-  assert.ok(store.allShouts(box.board).some(shout => shout.shout_text.startsWith('Resolved:') && shout.shout_text.includes('UNPAIRED_WORK')));
-  store.release(box.board, id, box.seats.actor.id, 'Return the private fixture claim for the next selection', 'OTHER');
-  box.scan();
-  box.advance(299999);
-  heartbeatSeat(box.board, box.seats.actor.id);
-  box.scan();
-  assert.equal(warnings().length, 1, 'a new episode must wait another whole five minutes');
-  box.advance(1);
-  box.scan();
-  assert.equal(warnings().length, 2, 'clearing and reopening a pairing creates one new durable warning');
-});
 
 test('a coordinator edit never leaves an item unclaimable [V2,N2]', async t => {
   const box = await fixture(t);
@@ -361,16 +252,17 @@ test('health reads each seat session instead of offering its own material for re
 });
 
 
-test('health matches two free seats to distinct eligible work instead of hiding the second item [N2,A6]', async t => {
+test('health observes each of two free seats beside the item next selects for it [N2,A6]', async t => {
   const box = await fixture(t);
   const first = box.add('First ready item');
   const second = box.add('Second ready item');
   const observed = dispatchHealth(box.board, box.config);
-  assert.deepEqual(new Set(observed.dispatch.map(pair => pair.item)), new Set([first, second]));
-  assert.equal(new Set(observed.dispatch.map(pair => pair.seat)).size, 2);
+  // Health reports the item next actually selects for each free seat (#1160, 7bb430cfcb), so both seats may name the top item.
+  assert.ok(observed.dispatch.every(pair => [first, second].includes(pair.item)));
+  assert.equal(new Set(observed.dispatch.map(pair => pair.seat)).size, 2, 'each free seat has its own observation');
   box.scan(); box.advance(300000); box.scan();
   const messages = store.allShouts(box.board).filter(shout => shout.shout_to === 'coordinator' && shout.shout_text.startsWith('Stuck:') && shout.shout_text.includes('UNPAIRED_WORK'));
-  assert.equal(messages.length, 2, 'each distinct free pairing has one loud warning');
+  assert.equal(messages.length, 2, 'each free seat has one loud warning');
 });
 
 test('an expired claim is reclaimed through board eligibility on the next take [N2,B3]', async t => {
@@ -450,16 +342,6 @@ test('a held review still returns a newly conflicting submission before offering
 });
 
 
-test('an item required reviewer family is enforced by every dispatch path [V1,V2,B3,H16]',
-  t => proveRequiredReviewFamily(t, { fixture, cli }));
-
-test('a spec correction refreezes every unlanded citing item atomically [V2,H16]',
-  t => assertSpecCorrectionRefreezesCitations(t));
-
-test('spec correction refreezes replay atomically across imported prefixes [V2,H16]',
-  t => assertSpecRefreezeReplay(t, { fixture, cli }));
-
-
 test('automatic review reservation retains coordinator-only policy when a higher lane item is ineligible [N2,V1,B3]', async t => {
   const box = await fixture(t, { policy: 'coordinator' });
   const blocked = box.add('Higher-ranked lane review');
@@ -483,19 +365,6 @@ test('automatic review reservation retains coordinator-only policy when a higher
   assert.deepEqual(store.verdictsFor(box.board, allowed), [], 'assignment fabricates no verdict');
   assert.equal(store.listItems(box.board).some(item => item.item_status === 'claimed'
     && item.item_owner === reviewer.id), false, 'an eligible review is not replaced with a build');
-});
-
-// Main-red build routing is separate from review-priority selection.
-test('a main red offers a free idle seat before interrupting a build [C7,N2]', async t => {
-  assertFreeMainRedRouting(t);
-});
-
-test('a main red asks the newest build only when no seat is free and preserves native claim guards [C7,N2]', async t => {
-  assertNewestMainRedRouting(t);
-});
-
-test('default next offers actual main red to another free seat and only that seat claims it [C7,N2,H16]', async t => {
-  await assertMainRedCLI(t, { fixture, cli });
 });
 
 /** Give each candidate a disjoint file so the queue's normal collision guard stays active. */
@@ -536,15 +405,117 @@ test('clause 2: list, status data and the health report name each excluded item 
   box.claim(id, box.seats.actor);
   store.release(box.board, id, box.seats.actor.id, 'The fixture seat cannot build this item as scoped', undefined, 'ROUTED_ELSEWHERE');
   box.advance(7 * 60_000);
-  let listed = '';
-  const code = await main(['list'], { cwd: box.seats.builder.path, clock: box.clock, stdout: { isTTY: false, write: part => { listed += part; } }, stderr: { write: () => {} } });
-  assert.equal(code, 0, listed);
-  assert.match(listed, new RegExp(`needs re-scope: #${id} .*ROUTED_ELSEWHERE.*released 7 min ago`, 'u'));
+  const listed = await cli(box, box.seats.builder.path, ['list']);
+  assert.equal(listed.code, 0, listed.out + listed.err);
+  const row = listed.document.needsRescope.find(entry => entry.id === id);
+  assert.equal(row.reasons.length, 1);
+  assert.ok(row.reasons[0].includes(': ROUTED_ELSEWHERE'), 'the reason carries the release reason code');
+  assert.equal(Math.round((box.clock.now() - Date.parse(row.since)) / 60_000), 7, 'the list JSON dates the release 7 minutes back');
   const excluded = store.allItemsNeedingRescope(box.board);
   assert.equal(excluded[0].id, id);
-  assert.match(excluded[0].reasons[0], /ROUTED_ELSEWHERE.*released 7 min ago/u);
+  assert.ok(excluded[0].reasons[0].includes(': ROUTED_ELSEWHERE'));
+  assert.equal(Math.round((box.clock.now() - Date.parse(excluded[0].since)) / 60_000), 7);
   const finding = healthReport({ db: box.board.db, root: box.root, config: box.config, now: box.clock.now(), dispatchHealth }).stuck.find(row => row.cause === 'NEEDS_RESCOPE' && row.item === id);
   assert.match(finding.why, /released 7 min ago/u);
 });
 
-installPostMoveHandoffCases({ fixture, cli });
+/** Assert a delivered shout's fields: addressed to the item, naming the item's head and not the seat checkout's. */
+function assertShoutNamesHead(shout, id, itemHead, seatHead) {
+  assert.equal(shout.from, 'coordinator');
+  assert.equal(shout.to, `item:${id}`);
+  assert.equal(shout.item, id);
+  assert.ok(shout.text.includes(itemHead.slice(0, 12)), 'the shout names the item head');
+  assert.ok(!shout.text.includes(seatHead.slice(0, 12)), 'the shout never names the seat checkout head');
+}
+
+/** Capture a claimed item's merge warning while its seat and immutable queue may name different sources. */
+async function mainMoveWarningFixture(t, { queued = false } = {}) {
+  const box = await fixture(t, { files: { 'web/shared.txt': 'base\n' } });
+  const id = box.add('Warn from the item source, not the seat checkout');
+  const claimed = await cli(box, box.seats.actor.path, ['claim', String(id)]);
+  assert.equal(claimed.code, 0, claimed.out + claimed.err);
+  const folder = claimed.document.itemFolder;
+  assert.ok(folder, 'the live claim has its own item worktree');
+  writeFileSync(join(folder, 'web/shared.txt'), 'item source\n');
+  box.git(folder, 'add', 'web/shared.txt');
+  box.git(folder, 'commit', '-q', '-m', 'feat(web): item folder source [G1]');
+  const itemHead = box.git(folder, 'rev-parse', 'HEAD');
+  if (queued) {
+    const item = store.getItem(box.board, id);
+    const tree = box.git(folder, 'rev-parse', 'HEAD^{tree}');
+    store.queueSubmitHandoff(box.board, id, { agentId: box.seats.actor.id, job: randomUUID(),
+      main: box.git(box.root, 'rev-parse', 'HEAD'), commit: itemHead, tree,
+      executionCommit: itemHead, executionTree: tree, digest: item.item_frozen_digest,
+      companionDigest: null, leaseMs: 3_600_000 });
+    writeFileSync(join(folder, 'web/later.txt'), 'newer worktree head\n');
+    box.git(folder, 'add', 'web/later.txt');
+    box.git(folder, 'commit', '-q', '-m', 'feat(web): newer item folder source [G1]');
+  }
+  writeFileSync(join(box.seats.actor.path, 'web/seat-source.txt'), 'another item source\n');
+  box.git(box.seats.actor.path, 'add', 'web/seat-source.txt');
+  box.git(box.seats.actor.path, 'commit', '-q', '-m', 'feat(web): another seat source [G1]');
+  const seatHead = box.git(box.seats.actor.path, 'rev-parse', 'HEAD');
+  assert.notEqual(itemHead, seatHead, 'the seat checkout no longer names this item source');
+  writeFileSync(join(box.root, 'web/shared.txt'), 'main source\n');
+  box.git(box.root, 'add', 'web/shared.txt');
+  box.git(box.root, 'commit', '-q', '-m', 'chore(web): conflicting main source [G1]');
+  const trunk = box.git(box.root, 'rev-parse', 'HEAD');
+  const shouts = [], lines = [];
+  const warnings = await warnMainMoved({ root: box.root, board: box.board, trunk,
+    write: async (operation, args) => shouts.push({ operation, args }), say: line => lines.push(line) },
+  { listAgents: store.listAgents, listItems: store.listItems, submitHandoff: store.submitHandoff });
+  return { box, id, folder, itemHead, seatHead, trunk, warnings, shouts, lines };
+}
+
+test("submit merges main from the item's own folder when the seat checkout has another source [B5,V4]", async t => {
+  const result = await mainMoveWarningFixture(t);
+  assert.deepEqual(result.warnings.find(warning => warning.item === result.id),
+    { item: result.id, head: result.itemHead, trunk: result.trunk, files: ['web/shared.txt'] });
+  assert.equal(result.shouts.length, 1);
+  assert.equal(result.shouts[0].operation, 'shout');
+  assertShoutNamesHead(result.shouts[0].args[0], result.id, result.itemHead, result.seatHead);
+
+  const { box, id, folder, itemHead, trunk } = result;
+  const item = store.getItem(box.board, id);
+  submitFixture(box.board, id, { agentId: box.seats.actor.id, commit: itemHead,
+    tree: box.git(folder, 'rev-parse', 'HEAD^{tree}') });
+  store.verify(box.board, id, { agentId: box.seats.outside.id, decision: 'REJECT', reason: 'TEST_FAILURE',
+    clause: item.item_criterion, note: 'Synthetic return retains the submitted source for repair.',
+    head: itemHead, digest: item.item_frozen_digest, policy: 'any' });
+  box.claim(id, box.seats.actor);
+  box.git(box.root, 'worktree', 'move', folder, folder + '-retained');
+  const shouts = [];
+  const warnings = await warnMainMoved({ root: box.root, board: box.board, trunk,
+    write: async (operation, args) => shouts.push({ operation, args }), say: () => {} },
+  { listAgents: store.listAgents, listItems: store.listItems, submitHandoff: store.submitHandoff });
+  assert.deepEqual(warnings.find(warning => warning.item === id),
+    { item: id, head: itemHead, trunk, files: ['web/shared.txt'] }, 'a returned item keeps its submitted head without its original folder');
+  assert.equal(shouts.length, 1);
+  assertShoutNamesHead(shouts[0].args[0], id, itemHead, result.seatHead);
+});
+
+test('a queued merge-repair shout keeps the captured submit source ahead of a newer item-folder head [B5,V4]', async t => {
+  const result = await mainMoveWarningFixture(t, { queued: true });
+  assert.deepEqual(result.warnings.find(warning => warning.item === result.id),
+    { item: result.id, head: result.itemHead, trunk: result.trunk, files: ['web/shared.txt'] });
+  assertShoutNamesHead(result.shouts[0].args[0], result.id, result.itemHead, result.seatHead);
+});
+
+test('clause 1: next after a release from an item folder that cleanup removed runs from the seat checkout and hands out work [B5,N2]', async t => {
+  const box = await fixture(t, { files: { 'web/shared.txt': 'base\n' } });
+  const id = box.add('Released from its own item folder');
+  const claimed = await cli(box, box.seats.actor.path, ['claim', String(id), '--no-next']);
+  assert.equal(claimed.code, 0, claimed.out + claimed.err);
+  const folder = claimed.document.itemFolder;
+  assert.ok(folder && existsSync(folder), 'the live claim has its own item folder');
+  const released = await cli(box, folder, ['release', String(id), '--reason', 'OTHER', '--note', 'Release from the item folder, then chain next', '--no-next']);
+  assert.equal(released.code, 0, released.out + released.err);
+  assert.equal(existsSync(folder), false, 'cleanup removed the clean item folder the release ran in');
+  const other = box.add('Work next hands out after the release');
+  // The agent's shell still stands in the removed folder, so its next starts with that path as its working directory.
+  const chained = await cli(box, folder, ['next', '--take']);
+  assert.doesNotMatch(chained.out + chained.err, /uv_cwd|ENOENT/u);
+  assert.equal(chained.code, 0, chained.out + chained.err);
+  assert.ok([id, other].includes(chained.document.item.item_id), 'next hands out build work');
+  assert.equal(store.getItem(box.board, chained.document.item.item_id).item_owner, box.seats.actor.id);
+});

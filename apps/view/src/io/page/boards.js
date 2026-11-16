@@ -1,30 +1,74 @@
 import { modelLabelRules } from "../cost/tab.js";
+import { projectSummary } from "../../logic/summary/project.js";
+import { readyAndBlocked } from "../../logic/counts.js";
+import { splitReady } from "../../logic/counts.js";
+import { withReadySplit } from "../../logic/counts.js";
 /**
- * Read the private board's cost event history once per board state sequence.
+ * Read the private board's cost event history once per board and window, and again only after a usage, shared-usage
+ * or merged event has arrived since the last read; a gap in the visible ids reads the event log for the missing ones. The drawn numbers stay on screen while a new read is on its way.
  * This function is serialized into the private page script and uses its page-local state.
  * @param {Record<string, any>} project - The current board state.
+ * @param {boolean} [switching] - Whether a tab switch asks, which keeps analytics already read.
  * @returns {{loading: false, error: string}|{sequence: number, loading: boolean, error: string|null, model: any}} The private-history status or cached entry.
  */
-function readCostHistory(project) {
+function readCostHistory(project, switching = false) {
   if (!privateCost || snapshot || hosted.local || readOnly || data.group) return { loading: false, error: 'Cost is available in the private local view only.' };
   project.costPrices = localCostPrices;
   const root = view.root;
   const sequence = Number(project.sequence ?? project.events?.[0]?.event_id ?? 0);
   const window = view.costWindow ?? '7d';
-  const kept = costHistory.get(root);
-  if (kept?.sequence === sequence && kept.window === window) return kept;
-  const entry = { sequence, window, loading: true, error: null, model: null };
-  costHistory.set(root, entry);
+  const key = root + '\n' + window;
+  const kept = costHistory.get(key);
+  const events = project.events || [];
+  const seen = Math.max(0, ...events.map(event => Number(event.event_id) || 0));
+  if (kept) {
+    if (kept.loading && !kept.model) return kept;
+    const oldest = events.length ? Math.min(...events.map(event => Number(event.event_id) || 0)) : seen;
+    const costEvent = events.some(event => event.event_id > kept.seen && ['usage', 'shared-usage', 'merged'].includes(event.event_kind));
+    if (!costEvent && oldest <= kept.seen + 1) return kept;
+    if (!costEvent && !kept.stale) {
+      // A gap of ids may hide a cost event, but a gap alone is not a reason to read cost-analytics: the missing
+      // events are read from the event log (cheap) once per gap, and only a cost-bearing one among them reads again.
+      if (kept.gapUpTo !== oldest) {
+        kept.gapUpTo = oldest;
+        const gapKey = key;
+        const scan = after => api(boardPath(root) + '/events?after=' + after).then(reply => {
+          const batch = Array.isArray(reply.events) ? reply.events : [];
+          const missing = batch.filter(event => event.event_id < oldest);
+          if (missing.some(event => ['usage', 'shared-usage', 'merged'].includes(event.event_kind))) throw { found: true };
+          const last = batch.length ? Number(batch[batch.length - 1].event_id) : oldest;
+          if (batch.length && last < oldest - 1) return scan(last);
+        });
+        scan(kept.seen).then(() => {
+          if (costHistory.get(gapKey) === kept) kept.seen = Math.max(kept.seen, oldest - 1);
+        }).catch(found => {
+          if (costHistory.get(gapKey) !== kept) return;
+          if (found && found.found) kept.stale = true;
+          else kept.gapUpTo = null;
+          if (kept.stale && view.tab === 'cost' && root === view.root) render();
+        });
+      }
+      return kept;
+    }
+  }
+  // The last numbers this browser read draw at once while the fresh read is on its way.
+  let remembered = null;
+  if (!kept?.model) { try { remembered = JSON.parse(keep('pb.cost.' + key) || 'null'); } catch { remembered = null; } }
+  const entry = { sequence, window, seen, loading: true, refreshing: Boolean(kept?.model || remembered), error: null, model: kept?.model ?? remembered };
+  costHistory.set(key, entry);
   api(boardPath(root) + '/cost-analytics?window=' + encodeURIComponent(window)).then(reply => {
-    if (costHistory.get(root) !== entry || root !== view.root || !reply.costAnalytics) return;
+    if (costHistory.get(key) !== entry || !reply.costAnalytics) return;
     entry.model = reply.costAnalytics;
+    try { keep('pb.cost.' + key, JSON.stringify(reply.costAnalytics)); } catch { /* storage full or unavailable: the numbers are simply not kept for next time */ }
     entry.loading = false;
-    if (view.tab === 'cost') render();
+    entry.refreshing = false;
+    if (view.tab === 'cost' && root === view.root && window === (view.costWindow ?? '7d')) render();
   }).catch(error => {
-    if (costHistory.get(root) !== entry) return;
+    if (costHistory.get(key) !== entry) return;
     entry.loading = false;
-    entry.error = String(error.message || error);
-    if (view.tab === 'cost') render();
+    entry.refreshing = false;
+    if (!entry.model) entry.error = String(error.message || error);
+    if (view.tab === 'cost' && root === view.root && window === (view.costWindow ?? '7d') && !entry.model) render();
   });
   return entry;
 }
@@ -43,9 +87,11 @@ const costHistory = new Map();
 const localCostPrices = ${JSON.stringify(costPrices ?? null).replace(/</g, '\\u003c')};
 ${readCostHistory.toString()}
 function costPaneHtml(history, project) {
-  if (history.loading) return '<p class="empty" role="status">Loading cost history…</p>';
-  if (history.error) return '<p class="empty" role="status">Cost history is unavailable.</p>';
-  return costOverviewHtml(history.model, view.costOpen, { hasPrices: Boolean(project.costPrices && Object.keys(project.costPrices).length) });
+  const shown = { vendorClasses: modelTables.vendorClasses };
+  // The frame (heading and period buttons) draws at once; the numbers fill in place, or the last read ones stay up.
+  if (history.loading && !history.model) return costOverviewHtml({ window: view.costWindow ?? '7d' }, null, { ...shown, waiting: 'Reading cost history…' });
+  if (history.error && !history.model) return costOverviewHtml({ window: view.costWindow ?? '7d' }, null, { ...shown, waiting: 'Cost history is unavailable.' });
+  return costOverviewHtml(history.model, view.costOpen, { ...shown, updating: Boolean(history.loading) });
 }` : '';
 return `${privateCostSource}
 const modelLabelRules = ${JSON.stringify(modelLabelRules())};
@@ -88,10 +134,14 @@ function requestNotice(request) {
   return label + ' · ' + requestLabel(request) + (error ? '\\n' + (error.code ? '[' + error.code + '] ' : '') + (error.message || '') + (error.next ? '\\n' + error.next : '') : '');
 }
 
-/** Show the public request receipts on every board tab and update the latest action's status. */
+/** Show the public request receipts on every board tab and update the latest action's status; returns how far the panel grew above the viewport. */
 function renderPersonRequests(project) {
   const entries = project?.personRequests || [];
   const panel = $('person-requests');
+  // A panel above the viewport (hidden counts: it opens at the page top) is measured before and after, so render can
+  // move its page-scroll mark by the growth and a new receipt never shoves what the person reads [H12,H5].
+  const above = typeof window !== 'undefined' && window.scrollY > 0 && (panel.hidden || panel.getBoundingClientRect().bottom <= 0);
+  const heightBefore = above && !panel.hidden ? panel.getBoundingClientRect().height : 0;
   panel.hidden = !entries.length;
   panel.innerHTML = entries.length ? '<h2>Your requests</h2><ul class="request-list">' + [...entries].sort((a, b) => b.sequence - a.sequence).map((request) => {
     const status = { waiting: 'Waiting', done: 'Done', refused: 'Refused' }[request.status] || 'Unknown status';
@@ -99,6 +149,7 @@ function renderPersonRequests(project) {
     const reason = error ? '<p class="request-error">' + (error.code ? '<b>' + esc(error.code) + '</b> ' : '') + esc(error.message || '') + '</p>' + (error.next ? '<p class="request-next">' + esc(error.next) + '</p>' : '') : '';
     return '<li data-person-request="' + esc(request.id) + '"><span class="request-label">' + esc(requestLabel(request)) + '</span><span class="chip request-status ' + (request.status === 'done' ? 'ok' : request.status === 'refused' ? 'no' : 'warn') + '">' + status + '</span>' + reason + '</li>';
   }).join('') + '</ul>' : '';
+  const grew = above ? (entries.length ? panel.getBoundingClientRect().height : 0) - heightBefore : 0;
   const active = view.request;
   const current = active && active.root === view.root && active.run === view.acting && entries.find((request) => request.id === active.id);
   if (current && !$('console').hidden) {
@@ -112,28 +163,20 @@ function renderPersonRequests(project) {
     feedback.tone = rowRequest.status === 'done' ? 'ok' : rowRequest.status === 'refused' ? 'no' : '';
     feedback.text = requestNotice(rowRequest);
   }
+  return grew;
 }
 
-/** A board's sidebar counts, derived from the same API state the page displays. */
+/**
+ * An opened board's sidebar row: the same counts a listed board's summary carries (U94), from the full state the
+ * page displays, plus what that state lets the opened project's pages read.
+ */
 function boardSummary(board, state) {
-  const needs = personNeeds(state);
-  /** Count the calls, with draft rows retaining their individual count in the sidebar. */
-  const calls = (kind) => needs.filter((row) => row.kind === kind).reduce((total, row) => total + (row.count ?? 1), 0);
-  /** Count one item state for the sidebar. */
-  const count = (test) => state.items.filter(test).length;
   return {
-    ...board, ok: true,
+    ...board, ok: true, ...projectSummary(state, personNeeds(state)),
+    // An open-first state counts the finished items it left out in state.finished (#6697).
+    ...(state.itemsOmitted === 'finished' ? { verified: state.items.filter((item) => item.status === 'verified').length + (state.finished?.verified ?? 0) } : {}),
     releaseNotes: state.releaseNotes,
-    building: count((item) => item.status === 'claimed'),
-    awaiting: count((item) => item.status === 'submitted'),
-    sentBack: count((item) => item.status === 'open' && item.verdict && item.verdict.decision === 'REJECT'),
-    open: count((item) => item.status === 'open'),
-    verified: count((item) => item.status === 'verified'),
-    pending: calls('pending'),
-    drafts: calls('draft') + calls('rigor-draft'),
-    holds: calls('hold'),
     laneHolds: state.holds,
-    decisions: calls('decision'),
     // What each item's state reads from, so another repo's roadmap can show it as this board's
     // Items tab does, sent back included, and open it here.
     items: state.items.map((item) => listFields(item)),
@@ -198,8 +241,8 @@ function proofStatsCard(stats, expanded = false) {
     + '<div class="proof-stats-head"><b>Proof stats</b><span>from recorded moves</span></div>'
     + '<div class="proof-stats-grid">'
     + '<div><span>Submissions</span><b data-stat="submissions" data-value="' + esc(stats.submissions) + '">' + esc(stats.submissions) + '</b></div>'
-    + '<div><span>Rejections</span><b data-stat="rejections" data-value="' + esc(stats.rejections) + '">' + esc(stats.rejections) + '</b></div>'
-    + '<div><span>Sent back</span><b data-stat="rejectionShare" data-value="' + esc(percentage) + '">' + esc(percentage) + '</b></div>'
+    + '<div><span>Sent back items</span><b data-stat="rejections" data-value="' + esc(stats.rejections) + '">' + esc(stats.rejections) + '</b></div>'
+    + '<div><span>Sent back share</span><b data-stat="rejectionShare" data-value="' + esc(percentage) + '">' + esc(percentage) + '</b></div>'
     + '<div><span>Merged</span><b data-stat="merged" data-value="' + esc(stats.merged) + '">' + esc(stats.merged) + '</b></div>'
     + '<div><span>Without accept</span><b data-stat="mergedWithoutAccept" data-value="' + esc(stats.mergedWithoutAccept) + '">' + esc(stats.mergedWithoutAccept) + '</b></div>'
     + '<div><span>Agents</span><b data-stat="agentCount" data-value="' + esc(stats.agentCount) + '">' + esc(stats.agentCount) + '</b></div>'
@@ -239,36 +282,85 @@ function projectGroups(projects) {
 }
 
 /**
- * Compose the multi-repo page from the public board list and each board's public state. A catch-up names the boards
- * whose events arrived in fresh and reads only those; every other board keeps what the page last drew (#545).
+ * Put one board's read on the page the moment it lands, not when the slowest board answers (#6589): a sidebar row
+ * still loading takes its counts, and the shown board's read goes to shown, which draws it. The full answer of the
+ * same read still draws after, so this only moves each part earlier.
  */
-async function boardState(root, mark, fresh = null) {
+function arrived(board, summary, shown, state) {
+  if (!data) return;
+  const same = (entry) => entry.root === board.root && entry.id === board.id;
+  const at = data.projects.findIndex((entry) => same(entry) && entry.loading);
+  if (at >= 0) {
+    data.projects[at] = summary;
+    data.groups = projectGroups(data.projects);
+    renderSide();
+  }
+  if (!shown) return;
+  const projects = data.projects.map((entry) => same(entry) ? summary : entry);
+  // An early draw that fails never fails the board's read: the full answer draws it again and reports its own error.
+  try { shown({ projects, groups: projectGroups(projects), project: state, group: null }); }
+  catch { /* the full answer redraws */ }
+}
+
+/**
+ * Compose the multi-repo page from the public board list and each board's public state. A catch-up names the boards
+ * whose events arrived in fresh and reads only those; every other board keeps what the page last drew (#545). shown,
+ * when given, takes the shown board's state as soon as it arrives (#6589).
+ */
+async function boardState(root, mark, fresh = null, shown = null) {
   const listed = await api('/api/v1/boards');
+  stateWorkerStopped = listed.stateWorker === 'stopped';
   if (!data) {
     // Names are already known: a slow board must not leave the project picker blank.
     const projects = listed.boards.map((board) => ({ ...board, ok: true, loading: true }));
     projects.push(...(listed.warnings || []).map((warning) => ({ ...warning, ok: false,
       warningCode: warning.error?.error?.code, error: warning.error?.error?.message || 'This board could not be read.' })));
-    data = { root: null, project: null, group: null, projects, groups: projectGroups(projects) };
+    data = store.set({ root: null, project: null, group: null, projects, groups: projectGroups(projects) });
     renderSide();
     $('project-loading').hidden = projects.length === 0;
+    // A listed board draws the frame now; its state fills the frame in as it arrives (#6589).
+    if (projects.some((entry) => entry.ok)) drawFrame();
+  }
+  // A page whose remembered board is not listed has no board to read yet: hand the listed boards back at once, and the
+  // refresh picks the first of them, instead of reading every board's state before choosing one (#6715).
+  if (!fresh && listed.boards.length && !listed.boards.some((board) => board.root === root) && !projectGroups(listed.boards).some((entry) => entry.key === root)) {
+    const projects = listed.boards.map((board) => ({ ...board, ok: true, loading: true }));
+    return { projects, groups: projectGroups(projects), project: null, group: null };
   }
   const states = new Map();
   const cursor = mark !== null && mark !== undefined && /^\\d+$/.test(String(mark)) && Number.isSafeInteger(Number(mark)) ? Number(mark) : null;
-  const projects = await Promise.all(listed.boards.map(async (board) => {
+  /** Read one listed board: its state when the page shows its items, else only its summary (U94). */
+  const read = async (board, full) => {
     const kept = fresh && !fresh.has(board.root) ? lastRead(board, root) : null;
     if (kept) {
       if (kept.state) states.set(board.root, kept.state);
       return kept.row;
     }
+    let summary;
     try {
+      if (!full) summary = { ...board, ok: true, ...await summaryRead(board) };
+      else {
       const state = await boardRead(board, board.root === root ? cursor : null);
       states.set(board.root, state);
-      return boardSummary(board, state);
+      summary = boardSummary(board, state);
+      }
     } catch (error) {
       return { ...board, ok: false, error: String(error.message || error) };
     }
-  }));
+    if (!fresh) arrived(board, summary, full && board.root === root ? shown : null, states.get(board.root));
+    return summary;
+  };
+  // The opened project, a board or each repo of a group, reads its state. Every other listed board reads its summary at
+  // the same time, so the sidebar fills in without waiting for the opened board. A board the opened project's
+  // milestones name then reads its state too, since its Roadmap shows that board's items.
+  const opened = (board) => board.root === root || Boolean(board.project && root === 'group:' + board.project);
+  const first = listed.boards.map((board) => opened(board) ? read(board, true) : null);
+  const rest = listed.boards.map((board, n) => first[n] ?? read(board, false));
+  await Promise.all(first);
+  const names = new Set([...states.values()].flatMap((state) => (state.milestones || []).flatMap((milestone) => milestone.items || []))
+    .map((entry) => /^(.+)#[1-9]\\d*$/.exec(String(entry.id))?.[1]).filter(Boolean));
+  const named = (board) => names.has(board.name) || names.has(String(board.root).split('/').pop());
+  const projects = await Promise.all(listed.boards.map((board, n) => first[n] ? first[n] : named(board) ? read(board, true) : rest[n]));
   projects.push(...(listed.warnings || []).map((warning) => ({ ...warning, ok: false,
     warningCode: warning.error?.error?.code, error: warning.error?.error?.message || 'This board could not be read.' })));
   const groups = projectGroups(projects);
@@ -279,6 +371,8 @@ async function boardState(root, mark, fresh = null) {
   };
 }
 
+// Whether the server's state worker has stopped, so the status bar says the view serves from the request thread.
+let stateWorkerStopped = false;
 // What each local board last sent this page, {state, sequence, version}: the base its next read asks to extend.
 const sentStates = new Map();
 // #552's delta applier, embedded as the server's own source, so the page applies a delta and recomputes nothing.
@@ -297,16 +391,69 @@ async function boardRead(board, seen) {
   if (held && Number.isSafeInteger(held.sequence)) {
     const reply = await api(path + '?since=' + held.sequence + (mark && '&' + mark) + (held.version === undefined ? '' : '&eventLogVersion=' + encodeURIComponent(held.version)));
     if (reply.delta) {
-      const state = applyStateDelta(held.state, reply.delta);
-      sentStates.set(board.id, { state, sequence: reply.sequence, version: reply.eventLogVersion });
-      return state;
+      // The finished items may have joined the kept state while this read was on its way: build on that state, at the same sequence, so the reply never puts the open-only one back (#8904).
+      const now = sentStates.get(board.id), base = now && now.sequence === held.sequence ? now : held;
+      const state = applyStateDelta(base.state, reply.delta);
+      // A state that already holds the finished items stays whole: the delta's counts never mark them omitted again (#6697).
+      if (base.whole) { delete state.itemsOmitted; delete state.finished; }
+      sentStates.set(board.id, { state, sequence: reply.sequence, version: reply.eventLogVersion, whole: base.whole });
+      return withReadySplit(state);
     }
   }
-  const query = [mark, local ? 'items=compact' : ''].filter(Boolean).join('&');
+  // A first load takes the state the server keeps (kept=1): the stream's opening catch-up reads the delta to now [A2,C7].
+  // It asks for open work only (finished=omit): finished and withdrawn items come from ensureFinished when a screen shows them (#6697).
+  const query = [mark, local ? 'items=compact' : '', local && !held ? 'finished=omit' : '', local && !held ? 'kept=1' : ''].filter(Boolean).join('&');
   const reply = await api(path + (query && '?' + query));
   const state = expandItemSummaries(reply.state);
   if (local) sentStates.set(board.id, { state, sequence: state.sequence, version: reply.eventLogVersion });
-  return state;
+  // Release and Roadmap call ready what the Dashboard's NOW calls ready; the kept state stays as the board sent it (#7763).
+  return withReadySplit(state);
+}
+
+// The same split the server's counts use, embedded so the page and the server agree on which open items are ready.
+const readyAndBlocked = (${readyAndBlocked.toString()});
+const splitReady = (${splitReady.toString()});
+const withReadySplit = (${withReadySplit.toString()});
+
+// U94's sidebar summary, embedded as its own source so the page and a server that serves it count alike.
+const projectSummary = (${projectSummary.toString()});
+/**
+ * Read a listed board that is not opened as its summary: counts, rulings and last change, under 2 KB (U94). A local
+ * board whose listing row offers summaryVersion 1 serves it at /summary; a relay board, a snapshot, or an API that
+ * offers none gives its state, which the page reduces to the same summary. Asking only when offered keeps an older
+ * API from answering a 404 the browser would log.
+ */
+async function summaryRead(board) {
+  if (!snapshot && localBoardIds.has(board.id) && board.summaryVersion === 1) {
+    const reply = await api('/api/v1/boards/' + encodeURIComponent(board.id) + '/summary');
+    if (reply?.summary?.version === 1) return reply.summary;
+  }
+  const state = await boardRead(board, null);
+  return projectSummary(state, personNeeds(state));
+}
+
+const finishedReads = new Set();
+/**
+ * Read the finished and withdrawn items an open-first state left out, once per board, and put them into the state the
+ * page draws, so Items on Verified or All, the pipeline, search, Roadmap and an item address show them (#6697).
+ * @param {object|null} project The state the page draws now.
+ */
+function ensureFinished(project) {
+  const board = project?.itemsOmitted === 'finished' && data?.project === project ? data.projects.find((row) => row.root === data.root && row.ok) : null;
+  if (!board || finishedReads.has(board.id)) return;
+  finishedReads.add(board.id);
+  api('/api/v1/boards/' + encodeURIComponent(board.id) + '/finished').then((reply) => {
+    const held = sentStates.get(board.id);
+    const into = held?.state ?? data.project;
+    if (!into || into.itemsOmitted !== 'finished') return;
+    const have = new Set(into.items.map((item) => item.id));
+    const whole = { ...into, items: [...into.items, ...expandItemSummaries(reply.state).items.filter((item) => !have.has(item.id))] };
+    delete whole.itemsOmitted; delete whole.finished;
+    if (held) sentStates.set(board.id, { ...held, state: whole, whole: true });
+    // The page draws a ready-split copy of the kept state (#7763), so the page's own state is replaced as well as the kept one (#7738).
+    if (data.project === into || data.project === project) data.project = withReadySplit(whole);
+    render();
+  }, () => { finishedReads.delete(board.id); });
 }
 
 /** Whether a board state already carries every item's detail, as exports and event replays do. */
@@ -470,6 +617,10 @@ async function revokeCredential(id) {
   if (root === view.root) renderCredentials();
 }
 
+// Each item object's text, and each text's number, for boardText (#6851).
+const itemTexts = new WeakMap();
+const itemNumbers = new Map();
+let itemCount = 0;
 /**
  * A board read as text with its clock readings blanked: root observedAt, the flow's observation time (asOf) and each
  * queue's oldest age (ageMinutes) are stamped afresh on every read, so clock-only changes show the same board (#644).
@@ -480,11 +631,26 @@ async function revokeCredential(id) {
  */
 function boardText(state) {
   const observations = new Set([state?.project, ...(state?.group?.repos ?? []).map(repo => repo.board)]);
-  return JSON.stringify(state, (key, value) => value && typeof value === 'object' && reportValidators.has(value)
+  const blank = (key, value) => value && typeof value === 'object' && reportValidators.has(value)
     ? { reportValidator: reportValidators.get(value) }
     : key === 'statsComparison' ? null
-    : observations.has(value) && value && Object.hasOwn(value, 'observedAt') ? { ...value, observedAt: null } : value)
-    .replace(/"(asOf|ageMinutes)":(?:"[^"]*"|[-+.0-9eE]+|null)/g, '"$1":null');
+    : observations.has(value) && value && Object.hasOwn(value, 'observedAt') ? { ...value, observedAt: null } : value;
+  const clocks = (text) => text.replace(/"(asOf|ageMinutes)":(?:"[^"]*"|[-+.0-9eE]+|null)/g, '"$1":null');
+  // Each item is written as its text's number: a live update keeps every unchanged item's object, so only the items that
+  // changed are written out, and the board's text stays small (#6851). The same text has one number, never reused.
+  const lists = new Set([state?.project?.items, ...(state?.projects ?? []).map(board => board?.items),
+    ...(state?.group?.repos ?? []).map(repo => repo.board?.items)].filter(Array.isArray));
+  if (itemNumbers.size > 100000) itemNumbers.clear();
+  return clocks(JSON.stringify(state, function (key, value) {
+    if (!lists.has(this) || !value || typeof value !== 'object') return blank(key, value);
+    let text = itemTexts.get(value);
+    if (text === undefined) {
+      text = clocks(JSON.stringify(value, blank));
+      itemTexts.set(value, text);
+    }
+    if (!itemNumbers.has(text)) itemNumbers.set(text, itemCount++);
+    return itemNumbers.get(text);
+  }));
 }
 
 /** Show each queue's oldest age from the board on hand in place: the one thing on the page that moves with the clock alone. */

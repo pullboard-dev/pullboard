@@ -1,4 +1,4 @@
-/** @pullboard-module-loads apps/cli/src/io/resident/board.js */
+/** @pullboard-module-loads apps/cli/src/io/resident/board.js apps/cli/src/io/commands/doctor.js */
 /**
  * The thin side of the pullboard command: hand a board command to this checkout's resident board process over a
  * local socket and stream back its output and exit code [H24,C7]. A fresh node process loads 900-1,300 modules
@@ -289,11 +289,32 @@ export function residentPlace(cwd, entry, env) {
   return null;
 }
 
-/** Start the resident process detached; the command in hand still runs in-process. */
-export function startResident({ socket, pid, home }, entry, version, env) {
+/**
+ * Start the resident process through spawnReachable, which runs it as a one-shot launchd job where launchd exists and
+ * falls back to a plain detached spawn; the command in hand still runs in-process. Why: a resident started from an app
+ * inherits that app's denied Local Network permission, so the board it serves cannot reach a runner [C7,#5760].
+ * The launcher loads only when a process starts, so the thin path keeps its module count.
+ *
+ * @param {{ socket: string, pid: string, home: string }} place
+ * @param {(command: string, args: string[], options: object) => Promise<unknown>} [launch] - The starter; spawnReachable by default.
+ * @returns {Promise<unknown>} Settles once the process is started, so the command in hand runs in-process only then and the entry cannot exit first.
+ */
+export function startResident({ socket, pid, home }, entry, version, env, launch = launchReachable) {
   try {
-    const child = spawn(process.execPath, [RESIDENT_ENTRY, socket, entry, version, pid],
-      { cwd: existsSync(home) ? home : process.cwd(), env, detached: true, stdio: 'ignore' });
+    const args = [RESIDENT_ENTRY, socket, entry, version, pid], options = { cwd: existsSync(home) ? home : process.cwd(), env };
+    return Promise.resolve(launch(process.execPath, args, options)).catch(() => detach(args, options));
+  } catch { return Promise.resolve(); /* The command runs in-process either way. */ }
+}
+
+/** Load the reachable launcher and start the command; a launcher that will not load starts it as a plain detached child. */
+async function launchReachable(command, args, options) {
+  try { return await (await import('../commands/doctor.js')).spawnReachable(command, args, options); } catch { return detach(args, options); }
+}
+
+/** Start the resident process as a plain detached child. */
+function detach(args, { cwd, env }) {
+  try {
+    const child = spawn(process.execPath, args, { cwd, env, detached: true, stdio: 'ignore' });
     child.on('error', () => {});
     child.unref();
   } catch { /* The command runs in-process either way. */ }
@@ -329,8 +350,9 @@ export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd()
       finished = true;
       clearTimeout(waited);
       socket.destroy();
-      if (restart && starts) start(place, entry, code.version, env);
-      done(status);
+      // The start settles before the command runs in-process: a launchd job is loaded by a child the entry must outlive.
+      if (restart && starts) Promise.resolve().then(() => start(place, entry, code.version, env)).catch(() => {}).finally(() => done(status));
+      else done(status);
     };
     // A command that has not started by now waits behind another; the process never starts it past the cutoff, so
     // running it in-process cannot run it twice.

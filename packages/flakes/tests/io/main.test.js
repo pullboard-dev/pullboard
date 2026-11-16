@@ -4,6 +4,7 @@ import { recordFlakeObservation as nativeRecordFlakeObservation } from '../../in
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
+import { NATIVE_FLAKE_ENGINE } from '../../../state/light.js';
 import * as store from '../../../store/index.js';
 import { openCellBoard as openBoard } from '../../../store/tests/fixtures/cell.js';
 import {
@@ -15,7 +16,10 @@ import {
   exportBoard,
   importBoard,
 } from '../../../store/index.js';
-import { submitFixture } from '../../../../apps/cli/tests/fixtures/board/submit.js';
+import { submitFixture } from '../../../store/tests/fixtures/submit.js';
+
+/** One engine below the one flake observations need, read from the registry so a renumbering keeps the case meaningful. */
+const olderEngine = NATIVE_FLAKE_ENGINE - 1;
 
 /** Seed only a private in-memory board, using ordinary registration operations and a controlled clock. */
 function ledgerFixture(t) {
@@ -103,8 +107,8 @@ test('old engines, unjoined actors and impossible evidence cannot add observatio
   assert.throws(() => nativeRecordFlakeObservation(box.board, { agentId: 'not-joined', observation: value, lane: 'app' }), error => error.code === 'NOT_JOINED');
   assert.throws(() => record(box, { ...value, original: { ...value.original, green: true } }), error => error.code === 'FLAKE_EVIDENCE');
   const move = prepareEngineMove(box.board, 'recordFlakeObservation', [{ agentId: box.builder, observation: value, lane: 'app' }], { id: 'synthetic-old-engine', actor: box.builder });
-  assert.throws(() => applyEngineMove(box.board, { ...move, engine: 58 }, { sequence: 1, at: box.at() }), error => error.code === 'RELAY_MOVE');
-  box.board.executionEngineVersion = 58;
+  assert.throws(() => applyEngineMove(box.board, { ...move, engine: olderEngine }, { sequence: 1, at: box.at() }), error => error.code === 'RELAY_MOVE');
+  box.board.executionEngineVersion = olderEngine;
   try {
     assert.throws(() => record(box, value), error => error.code === 'ENGINE_VERSION');
     assert.throws(() => store.recordLandingBatch(box.board, { agentId: 'coordinator', batch: { flakeDiagnostics: {} } }), error => error.code === 'ENGINE_VERSION');

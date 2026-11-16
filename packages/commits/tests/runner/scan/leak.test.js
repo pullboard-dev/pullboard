@@ -13,9 +13,9 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { secretsIn } from '../../../index.js';
 import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { HOST } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { installSshStandIn } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { shellQuote } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
+import { HOST } from '../../../../gate/tests/fixtures/runner/ssh.js';
+import { installSshStandIn } from '../../../../gate/tests/fixtures/runner/ssh.js';
+import { shellQuote } from '../../../../gate/tests/fixtures/runner/ssh.js';
 
 const SENTINEL = 'not-the-listener-secret';
 const PRIVATE = ['ordinary', 'credential', 'value', '123456789'].join('-');
@@ -88,7 +88,7 @@ fs.writeFileSync(${JSON.stringify(marker)}, cp.execFileSync('git', ['rev-parse',
     const command = `node -e ${shellQuote(commandScript)}`;
     const runner = pathToFileURL(new URL('../../../../runners/src/io/main.js', import.meta.url).pathname).href;
     const script = `import { runOnRunnerAsync } from ${JSON.stringify(runner)};
-try { const run = await runOnRunnerAsync(process.argv[1], ${JSON.stringify(command)}, { runner: { host: ${JSON.stringify(HOST)}, slots: 1, browser: 0 } });
+try { const run = await runOnRunnerAsync(process.argv[1], ${JSON.stringify(command)}, { runner: { host: ${JSON.stringify(HOST)}, slots: 1, browser: 0 }, metadata: { item: 'fixture', kind: 'remote-command' } });
 process.stdout.write(JSON.stringify({ code: 'COMPLETED', exitCode: run.exitCode, commit: run.executionSource.commit })); }
 catch (error) { process.stdout.write(JSON.stringify({ code: error.code ?? error.name })); }`;
     const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script, root], {

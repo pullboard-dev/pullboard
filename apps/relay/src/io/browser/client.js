@@ -31,6 +31,7 @@ import {
 } from '../../logic/browser/stream.js';
 import {
   recordBrowserReadFailure,
+  relayFailureText,
   clearBrowserReadFailure,
   emptyBoardStep,
   homeLineDismissed,
@@ -61,6 +62,7 @@ import {
 } from './passkeys.js';
 import { readUploadSize } from '../../logic/browser/status.js';
 import { deviceExcludedBoards } from './devices.js';
+import { attachRelayCause } from './status.js';
 
 const CHECKPOINT_WAIT_MS = 15_000;
 const KEYS = 'pullboard.relay.keys.v1';
@@ -142,7 +144,7 @@ async function rawDocumentAt(path, onDenied, options = {}) {
     const error = document.error;
     await checkAuthorization(path, response.status, onDenied, error);
     if (error) throw new Refused(error.code, error.message);
-    throw new Refused('RELAY_UNAVAILABLE', 'The relay did not answer. Sign in again or retry.');
+    throw attachRelayCause(new Refused('RELAY_UNAVAILABLE', 'The relay did not answer. Sign in again or retry.'));
   }
   if (document.version !== 1) throw new Error('This relay API version is unsupported. Upgrade this browser client.');
   return document;
@@ -262,7 +264,7 @@ export async function createTransport({ onUpdate = () => {}, onOpenBoard = () =>
       }).catch(error => {
         if (access.signal.aborted || paired.get(entry.id) !== entry) return;
         // A rejected checkpoint cannot erase the existing timeout or the pending-event marks.
-        if (!pendingCheckpointTimeout(entry)) { failure = error.message; failureBoard = entry.id; }
+        if (!pendingCheckpointTimeout(entry)) { failure = relayFailureText(error); failureBoard = entry.id; }
         notice();
       }).finally(() => { entry.snapshotPolling = false; pendingCheckpoint(entry); });
     }, 1000);
@@ -590,7 +592,7 @@ export async function createTransport({ onUpdate = () => {}, onOpenBoard = () =>
           return;
         }
         if (['AUTH_REQUIRED', 'NO_REPO_ACCESS', 'TOKEN_BOARD'].includes(error?.code)) await documentAt('/api/v1/devices/session', denied);
-        failure = error ? '[' + error.code + '] ' + error.message : 'The relay stream ended. Refresh this board.';
+        failure = error ? relayFailureText(error) : 'The relay stream ended. Refresh this board.';
         failureBoard = entry.id;
         recordBrowserReadFailure(degradedBoards, entry.id);
         notice();
@@ -628,7 +630,7 @@ export async function createTransport({ onUpdate = () => {}, onOpenBoard = () =>
           if (document?.error?.code === 'NO_BOARD' || document?.error?.code === 'NO_SNAPSHOT') waitForFirstSnapshot(entry);
           const refusal = new Refused(document?.error?.code ?? 'RELAY_UNAVAILABLE', document?.error?.message ?? 'The relay stream ended. Refresh this board.');
           if (refusal.code === 'ENGINE_VERSION') refusal.fatal = true;
-          throw refusal;
+          throw attachRelayCause(refusal);
         }
         return response;
       },
@@ -636,7 +638,7 @@ export async function createTransport({ onUpdate = () => {}, onOpenBoard = () =>
       onFailure: (error, { fatal }) => {
         if (controller.signal.aborted || accessLost) return;
         if (['NO_BOARD', 'NO_SNAPSHOT'].includes(error?.code)) { waitForFirstSnapshot(entry); return; }
-        failure = error.message;
+        failure = relayFailureText(error);
         failureBoard = entry.id;
         recordBrowserReadFailure(degradedBoards, entry.id);
         notice();
@@ -712,7 +714,7 @@ export async function createTransport({ onUpdate = () => {}, onOpenBoard = () =>
           continue;
         }
         failure = ['ENGINE_VERSION', 'RELAY_ENGINE_VERSION', 'RELAY_UNAVAILABLE', 'DEVICE_STORAGE'].includes(error.code) || /^\[(?:ENGINE_VERSION|RELAY_ENGINE_VERSION)\]/u.test(error.message)
-          ? error.message
+          ? relayFailureText(error)
           : 'Could not open this board with its saved key. Pair this browser again from a linked machine.';
         failureBoard = board.id;
       }
@@ -929,6 +931,8 @@ export async function createTransport({ onUpdate = () => {}, onOpenBoard = () =>
     boards: () => [...paired.values()], signal: access.signal,
     confirm: (board, proposal) => sendPersonRequest(paired.get(board), preparePersonRequest(proposal.move, proposal.id, proposal.rows, proposal.effect)) });
   return {
+    /** The plain words and next step for a failed read, for the page's footer line. */
+    faultWords: relayFailureText,
     /** Give the startup frame back only after an opted-in viewer has drawn a readable board. */
     didRender() { rendered = true; notice(); for (const entry of paired.values()) entry.history?.start(); },
     /** The View can paint loading counts without making another relay request. */

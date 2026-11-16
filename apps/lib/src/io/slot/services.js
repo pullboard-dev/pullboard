@@ -2,9 +2,9 @@
 import { localRunnerDescriptor } from '../../../../../packages/runners/light.js';
 import { sampleRunnerLoad } from '../../../../../packages/runners/light.js';
 import { carriedRunnerTrunk } from '../../../../../packages/runners/light.js';
-import { probeRunnerTransport } from '../../../../../packages/runners/light.js';
-import { effectiveRunners } from '../../../../../packages/runners/light.js';
-import { refreshRunnerMeasurements } from '../../../../../packages/runners/light.js';
+import { probeRunnerTransport } from '../../../../../packages/runners/index.js';
+import { effectiveRunners } from '../../../../../packages/runners/index.js';
+import { refreshRunnerMeasurements } from '../../../../../packages/runners/index.js';
 import { gateQueueSettings } from '../../../../../packages/config/index.js';
 import { Refused } from '../../../../../packages/kernel/light.js';
 

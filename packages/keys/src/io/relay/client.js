@@ -194,6 +194,19 @@ export async function relayPair(root, io, { DEFAULT_RELAY, originRepository, syn
   return 0;
 }
 
+/** Opens a step the person runs in their own terminal; the person's refusal line keeps it (packages/config output.js PERSON_RUNS, proved equal by the relay next-steps journey). */
+const PERSON_RUNS = 'in your own terminal, run: ';
+
+/**
+ * The person's own command that resolves IMPORT_NOT_EMPTY: a fresh clone, initialized with no model declared in the
+ * shell (a declared model puts a seat on the new board, so it is no longer empty), then the same join.
+ */
+function freshCloneStep(root, code, address) {
+  const quote = (text) => '"' + String(text).replace(/(["\\$`])/gu, '\\$1') + '"';
+  const origin = '"$(git -C ' + quote(root) + ' config --get remote.origin.url)"';
+  return `${PERSON_RUNS}git clone ${origin} pullboard-join && cd pullboard-join && env -u PULLBOARD_MODEL pullboard init && pullboard relay join ${code}${address ? ' --url ' + address : ''}`;
+}
+
 /** Refuse a nonempty target board before spending its one-use code. */
 function requireFreshTarget(root, openBoard) {
   const info = repoInfo(root);
@@ -224,7 +237,11 @@ export async function relayJoin(root, code, address, io, { name: labelInput } = 
   if (typeof openBoard !== 'function') throw new TypeError('relay pairing requires its actual native board opener');
   const parsed = parsePairingCode(code);
   const url = relayOrigin(address || DEFAULT_RELAY);
-  requireFreshTarget(root, openBoard);
+  try { requireFreshTarget(root, openBoard); }
+  catch (error) {
+    if (error.code !== 'IMPORT_NOT_EMPTY') throw error;
+    throw new Refused('IMPORT_NOT_EMPTY', error.message.replace(/^\[IMPORT_NOT_EMPTY\] /u, ''), freshCloneStep(root, code, address));
+  }
   requireMissingKey(parsed.board);
   const repository = originRepository(root);
   const signed = await signIn(url, io);

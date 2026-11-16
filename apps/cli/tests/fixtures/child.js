@@ -9,8 +9,11 @@ export {
   cleanupFixtureChildren,
   fixtureChildMessage,
   runFixtureGit,
+  runFixtureSetupGit,
   runFixtureExecFile,
   runFixtureExec,
   startFixtureChild,
   FIXTURE_MODEL,
 } from '../../../../packages/gate/tests/fixtures/child.js';
+/** The cell fixtures open boards through this one app door, which reaches the board package's fixture through the lib door [C7]. */
+export { openKitBoard } from '../../../lib/tests/fixtures/board.js';

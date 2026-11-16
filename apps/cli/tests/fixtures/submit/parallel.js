@@ -5,13 +5,17 @@ import { privateRepo } from './gate.js';
 import { builderRepo } from './gate.js';
 import { commitAll } from './gate.js';
 import { put } from './gate.js';
+import { settleSubmit } from './settle.js';
+import { fixtureSettledMachine } from '../testkit.js';
 
 /** A real CLI submission with independently timed criterion and final-proof child commands. */
 export function project(t, delay) {
   const main = privateRepo(t);
+  // The local runner takes a second job only under its load share; a loaded host would run the two checks one after the other.
+  fixtureSettledMachine(main.env.PULLBOARD_MACHINE_HOME, { gate: { localLoadShare: 1000 } });
   const observations = join(main.dir, 'observations.jsonl');
   const command = role => `PARALLEL_ROLE=${role} PARALLEL_DELAY=${delay} PARALLEL_OBSERVATIONS='${observations}' node --test --test-reporter=./test/reporter.mjs test/check.test.mjs`;
-  put(main.root, 'pullboard.json', JSON.stringify({ gate: command('proof'), shared: ['pullboard.json'] }));
+  put(main.root, 'pullboard.json', JSON.stringify({ gate: command('proof'), shared: ['pullboard.json'], submit: { handoff: false } }));
   put(main.root, 'src/a.js', 'export const value = 1;\n');
   put(main.root, 'test/check.test.mjs', `import { appendFileSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
@@ -51,13 +55,21 @@ export default async function* report(events) {
   return { box, observations };
 }
 
-/** Submit a new candidate and return its native per-command proof receipts. */
-export function submit(box, marker) {
+/**
+ * Submit a new candidate, wait for its pulled gate job, and return its native per-command proof receipts. A pull submit
+ * returns queued at once, so the wall time runs until the gate settles, as an inline submit's did [P7,#6249].
+ */
+export async function submit(t, box, marker) {
   put(box.root, 'src/a.js', `export const value = '${marker}';\n`);
   commitAll(box, 'feat(core): exercise the selected phase [G1]');
   const started = Date.now();
-  const result = box.run('submit', '1', '--json', '--infra', 'concurrent fixture checks');
+  let result = box.run('submit', '1', '--json', '--infra', 'concurrent fixture checks');
+  let gate = null;
+  if (result.code === 0 && JSON.parse(result.out).queued) {
+    const settled = await settleSubmit(t, { repo: box.root, env: box.env, run: (_cwd, ...args) => box.run(...args) }, JSON.parse(result.out));
+    gate = settled.gate;
+  }
   const wallMs = Date.now() - started;
   const item = JSON.parse(box.run('show', '1', '--json').out);
-  return { result, started, wallMs, receipts: (item.proofReceipts ?? []).filter(receipt => receipt.kind === 'submit') };
+  return { result, gate, started, wallMs, receipts: (item.proofReceipts ?? []).filter(receipt => receipt.kind === 'submit') };
 }

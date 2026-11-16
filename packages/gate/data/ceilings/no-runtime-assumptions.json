@@ -22,9 +22,6 @@
     "apps/cli/src/io/submit/gate.js": {
       "binSh": 1
     },
-    "apps/cli/src/io/submit/handoff.js": {
-      "binSh": 1
-    },
     "apps/cli/src/io/tour.js": {
       "testFile": 3,
       "nodeTest": 6,
@@ -90,6 +87,9 @@
     "packages/gate/src/io/main/audit/economics.js": {
       "testFile": 1
     },
+    "packages/gate/src/io/preload.js": {
+      "nodeTest": 3
+    },
     "packages/gate/src/io/red.js": {
       "testFile": 1
     },
@@ -130,9 +130,6 @@
     },
     "packages/gate/src/io/watchdog.js": {
       "nodeTest": 1
-    },
-    "packages/gate/src/logic/preload.js": {
-      "nodeTest": 3
     },
     "packages/git/src/io/check/definition.js": {
       "binSh": 1
@@ -175,7 +172,7 @@
     "packages/sentinels/src/io/runner.js": {
       "binSh": 2
     },
-    "packages/spec/src/io/ruling.js": {
+    "packages/spec/src/logic/ruling.js": {
       "testFile": 6
     },
     "packages/store/src/io/board/submit.js": {
@@ -184,16 +181,13 @@
     "packages/transport/src/io/ssh.js": {
       "binSh": 1
     },
-    "packages/verify/light.js": {
-      "testFile": 1,
-      "nodeTest": 1
-    },
     "packages/verify/src/io/check/accept.js": {
       "testFile": 2,
       "nodeTest": 1
     },
     "packages/verify/src/io/check/widen.js": {
-      "testFile": 1
+      "testFile": 2,
+      "nodeTest": 1
     },
     "packages/verify/src/io/review/packet.js": {
       "testFile": 5

@@ -1,10 +1,10 @@
-/** @pullboard-test-input apps/cli/journeys/exit/rules.test.js */
 /** Focused main comparisons preserve named failures and use a complete file verdict only as a fallback [B3,C7]. */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { mainCheckout } from '../../../../../git/index.js';
+import { privateFixtureFiles } from '../../../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../../gate/tests/fixtures/child.js';
 import { compareMainFailures } from '../../../../index.js';
 import { failureSignatures } from '../../../../index.js';
 import { matchingMainFailures } from '../../../../index.js';
@@ -37,13 +37,26 @@ test('an incomplete named account falls back to a complete per-file isolation ve
   assert.equal(matchingMainFailures([candidate], { main, files: [{ file: TARGET, result: 'green', fileIsolation: true }] }, main), null);
 });
 
-/** The current exit-rules red is checked at exact main and retained as either named or isolated evidence. */
-test('exit-rules on main is recorded as a known red by the focused comparison [B3,C7]', { timeout: 240_000 }, async () => {
-  const root = join(import.meta.dirname, '../../../../../..');
-  // A runner's job checkout is detached and has no main branch: its committed head is the main the job proves.
-  const main = mainCheckout(root) ?? { commit: spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim() };
-  assert.ok(main?.commit, 'the focused comparison pins a committed main');
-  const comparison = await compareMainFailures(root, { tests: [{ file: TARGET, passed: false }] }, undefined, '', {
+/** A committed main with one named red, built once: the comparison path is the claim, so a one-case file stands in for the journey. */
+function redMain() {
+  const dir = privateFixtureFiles('pullboard-focused-main-');
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Focused', GIT_AUTHOR_EMAIL: 'focused@example.invalid',
+    GIT_COMMITTER_NAME: 'Focused', GIT_COMMITTER_EMAIL: 'focused@example.invalid' };
+  for (const key of Object.keys(env)) if (/^PULLBOARD_(GATE|BROWSER|TEST|LANDING)_/u.test(key) || key === 'NODE_OPTIONS' || key === 'NODE_TEST_CONTEXT') delete env[key];
+  dir.write('package.json', JSON.stringify({ private: true, type: 'module' }) + '\n');
+  dir.write('pullboard.json', JSON.stringify({ gate: 'node test/runner.js', affectedTests: 'node test/runner.js' }) + '\n');
+  dir.write(TARGET, "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\ntest('exit rules stand-in stays red [B3]', () => assert.equal(1, 2));\n");
+  dir.write('test/runner.js', "import { spawnSync } from 'node:child_process';\nconst r = spawnSync(process.execPath, ['--test', '--test-reporter=tap', ...process.argv.slice(2)], { cwd: process.cwd(), env: process.env, encoding: 'utf8' });\nprocess.stdout.write(r.stdout ?? ''); process.stderr.write(r.stderr ?? ''); process.exitCode = r.status ?? 1;\n");
+  for (const args of [['init', '-q', '-b', 'main'], ['add', '-A'], ['commit', '-qm', 'test: a pinned named main failure']]) runFixtureGit(args, { cwd: dir.root, env });
+  return { root: dir.root, commit: runFixtureGit(['rev-parse', 'HEAD'], { cwd: dir.root, env }).trim(), env };
+}
+
+/** The main red is checked at an exact committed main and retained as either named or isolated evidence. */
+test('exit-rules on main is recorded as a known red by the focused comparison [B3,C7]', { timeout: 240_000 }, async t => {
+  const main = redMain();
+  t.after(() => rmSync(main.root, { recursive: true, force: true }));
+  assert.ok(main.commit, 'the focused comparison pins a committed main');
+  const comparison = await compareMainFailures(main.root, { tests: [{ file: TARGET, passed: false }] }, undefined, '', {
     commit: main.commit, detailed: true, fresh: true, allowCancelled: true,
   });
   assert.equal(comparison.unavailable, undefined, comparison.unavailable);

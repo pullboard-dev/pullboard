@@ -88,6 +88,8 @@ export function withListFields(state, leases, { previous = null, dirtyIds = new 
  */
 export function itemSummary(item) {
   const summary = Object.fromEntries(SUMMARY_FIELDS.map((key) => [key, item[key]]));
+  // A starter's waiting blueprint-fit proposal is a summary field only when one exists, so other summaries keep their shape [S1,E3].
+  if (item.fit !== undefined) summary.fit = item.fit;
   const sentBack = item.verdict?.decision === 'REJECT' && item.status !== 'verified';
   summary.verdict = item.verdict && { decision: item.verdict.decision, reason: item.verdict.reason,
     ...(sentBack ? { note: String(item.verdict.note ?? '').split('\n').map((line) => line.trim()).find(Boolean) ?? '' } : {}) };

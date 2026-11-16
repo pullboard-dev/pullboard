@@ -7,6 +7,7 @@ import { events } from '../../../../store/index.js';
 import { atomic } from '../../../../store/index.js';
 import { getItem } from '../../../../store/index.js';
 import { insertShout } from '../../../../store/index.js';
+import { closeFinishedAsks } from '../../../../store/index.js';
 import { withLocalSeatPresence } from '../../../../store/index.js';
 import { planClaimWatchdog } from '../../../../seats/index.js';
 import { WATCHDOG_GRACE_MS } from '../../../../seats/index.js';
@@ -148,5 +149,25 @@ export async function sweepClaims(ctx, board, actor, ordered, ports = {}) {
   // The View's ten-minute sentinel cadence calls this sweep outside builder seats; its stale-state move above owns the 40-minute release.
   const watchdogSnapshot = (ports.captureClaimWatchdogSnapshot ?? captureClaimWatchdogSnapshot)(ctx, board, ports);
   (ports.runScheduledClaimWatchdog ?? runScheduledClaimWatchdog)(ctx, board, watchdogSnapshot, ports.watchdogPorts, model);
+  // Asks left open on items that already landed or were withdrawn close once; a later pass finds none [B21,C7].
+  try { (ports.closeFinishedAsks ?? closeFinishedAsks)(board, { agentId: actor }); } catch { /* the next pass tries again */ }
+  return snapshot;
+}
+
+/**
+ * Expire lapsed claims and nothing else: read board rows and seat presence, no Git, then one ordered stale-state move.
+ * Why: the sentinel must cover lapsed claims on its own before the inline call before each write is removed (#3002); the
+ * View runs this every minute behind health.lapsedSweep, so a lapsed lease is expired within two minutes with no command run [C7,#8923].
+ * @returns {Promise<object|null>} The snapshot the pass acted on, or null when no claim had lapsed.
+ */
+export async function sweepLapsedClaims(ctx, board, actor, ordered, ports = {}) {
+  const snapshot = (ports.captureLapsedClaims ?? captureLapsedClaims)(ctx, board, actor, { lapsedOnly: true });
+  if (!snapshot) return null;
+  const io = { ...ctx.io, personRequest: undefined, personRequestMoveId: undefined, relayCommand: undefined, requestedCommand: undefined };
+  try { await ordered({ ...ctx, io }, board, 'maintainStaleState', [{ agentId: actor, snapshot, health: ctx.config.health ?? {}, claimsOnly: true }]); }
+  catch (error) {
+    // A board that moved while this pass looked is observed again on the next pass.
+    if (error.code !== 'STALE_STATE_CHANGED') throw error;
+  }
   return snapshot;
 }

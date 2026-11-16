@@ -16,6 +16,8 @@ import { git } from '../../../../../packages/git/index.js';
 import { tryGit } from '../../../../../packages/git/index.js';
 import { checkoutBranch } from '../../../../../packages/git/index.js';
 import { checkoutCommonDir } from '../../../../../packages/git/index.js';
+import { checkoutHead } from '../../../../../packages/git/index.js';
+import { checkoutRefCommit } from '../../../../../packages/git/index.js';
 import { trunkRef } from '../../../../../packages/sandbox/index.js';
 import { primaryCheckoutRoot } from '../worktree.js';
 import { unfinishedFolderMessage } from '../unfinished.js';
@@ -27,8 +29,6 @@ import { itemFolderPath } from './folder/identity.js';
 import { seatRoot } from './folder/identity.js';
 import { prepareSpareFolder } from './folder/spare.js';
 import { takeSpareFolder } from './folder/spare.js';
-import { itemFolderRunner } from '../commands/runner.js';
-import { openHostedItemFolder } from '../commands/runner.js';
 
 /**
  * Git config arguments that write a checkout's files with parallel workers, one per core, unless the repository sets its own count.
@@ -341,7 +341,7 @@ function dirtyFiles(path) {
  */
 export async function claimFolderRefusal(ctx, board, me, id, { renewing = false } = {}) {
   const live = await liveFolderRefusal(ctx, board, me, id);
-  if (live || renewing || me.id === 'coordinator' || itemFolderRunner()) return live;
+  if (live || renewing || me.id === 'coordinator' || await hostedRunner()) return live;
   const path = itemFolderPath(seatRoot(ctx, board, me), id);
   if (!existsSync(path) || checkoutBranch(path) !== branch(me.lane, id)) return null;
   const dirty = dirtyFiles(path);
@@ -378,6 +378,9 @@ function sameDirectory(first, second) {
  */
 function advanceToMain(path, root) {
   const trunk = trunkBranch(root);
+  // A folder already at the trunk's tip is current, read from Git's files: a warm next reopened it with a Git process each time (#8691).
+  const head = checkoutHead(path);
+  if (head !== undefined && head === checkoutRefCommit(path, `refs/heads/${trunk}`)) return [];
   if (tryGit(path, ['merge-base', '--is-ancestor', trunk, 'HEAD']).status === 0) return [];
   const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all']);
   if (status.status !== 0 || status.stdout) return [];
@@ -438,6 +441,11 @@ export async function openItemFolder(ctx, me, id, options = {}) {
   return path;
 }
 
+/** The runner hosting this seat's item folders, or null; the runner command and its cells load only when the seat names one, so a plain command never pays for them [C7]. */
+async function hostedRunner() {
+  return process.env.PULLBOARD_ITEM_FOLDER_RUNNER?.trim() ? (await import('../commands/runner.js')).itemFolderRunner() : null;
+}
+
 /**
  * Open or reuse this item's branch folder without advancing it.
  *
@@ -445,14 +453,16 @@ export async function openItemFolder(ctx, me, id, options = {}) {
  * @param {{ id: string, lane: string }} me the claiming seat
  * @param {number} id the item
  * @param {any} options
- * @returns {Promise<string|object|null>} the folder path, a runner-hosted folder record, or null for the coordinator
+ * @returns {Promise<string|object|null>} the folder path, a runner-hosted folder record, or null for the coordinator and a URL-joined seat
  */
 async function openFolder(ctx, me, id, options = {}) {
   if (me.id === 'coordinator') return null;
-  const runner = itemFolderRunner();
+  // A seat joined by board URL builds in its own clone; a folder here on the board host would hold nothing it can submit [C7].
+  if (ctx.io?.remoteAgent) return null;
+  const runner = await hostedRunner();
   if (runner) {
     const hooks = tryGit(ctx.info.root, ['config', '--get', 'core.hooksPath']);
-    return openHostedItemFolder(runner, { itemId: id, branch: branch(me.lane, id), commonDir: ctx.info.commonDir,
+    return (await import('../commands/runner.js')).openHostedItemFolder(runner, { itemId: id, branch: branch(me.lane, id), commonDir: ctx.info.commonDir,
       hooksPath: hooks.status === 0 ? hooks.stdout : undefined });
   }
   const root = ctx.info.root, path = itemFolderPath(seatRoot(ctx, options.board, me), id), ref = branch(me.lane, id);

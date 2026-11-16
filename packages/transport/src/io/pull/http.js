@@ -3,16 +3,16 @@ import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createPrivateKey } from 'node:crypto';
 import { sign } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
-import { createServer } from 'node:http';
-import { request as httpRequest } from 'node:http';
-import { request as httpsRequest } from 'node:https';
 import { join } from 'node:path';
 import { Refused } from '../../../../kernel/light.js';
 import { pullStatement } from '../pull.js';
+import { createWireServer } from '../wire.js';
+import { wireRequest } from '../wire.js';
 
 // Budget: one posted result file or request body; a larger output belongs in a report file, not the result.
 const BODY_LIMIT = 16 * 1024 * 1024;
@@ -76,10 +76,10 @@ function reply(response, status, body) {
  * Why: plain HTTP, JSON and a tar keep any sandbox able to speak it with curl, tar, sh and an Ed25519 signer.
  *
  * @param {ReturnType<typeof import('../pull.js').pullAdapter>} adapter
- * @returns {import('node:http').Server} A server, not yet listening.
+ * @returns {(request: import('http').IncomingMessage, response: import('http').ServerResponse) => Promise<void>} The request listener, for a server that also answers other routes.
  */
-export function pullServer(adapter) {
-  return createServer(async (request, response) => {
+export function pullHandler(adapter) {
+  return async (request, response) => {
     try {
       const [, root, route, name] = requestPath(request.url).split('/');
       if (root !== 'pull') return reply(response, 404, { code: 'PULL_ROUTE', message: 'no such pull route' });
@@ -90,7 +90,8 @@ export function pullServer(adapter) {
         return reply(response, 200, job);
       }
       if (request.method === 'GET' && route === 'bundle') {
-        const path = adapter.bundle(bearer(request), name);
+        const path = await adapter.bundle(bearer(request), name);
+        if (!path) return reply(response, 404, { code: 'PULL_TREE', message: 'the board has no bundle for that tree' });
         response.writeHead(200, { 'content-type': 'application/x-tar' });
         return createReadStream(path).pipe(response);
       }
@@ -104,20 +105,30 @@ export function pullServer(adapter) {
       if (!response.headersSent) reply(response, error instanceof Refused ? 403 : 400, { code: error.code ?? 'PULL_REQUEST', message: error.message });
       else response.destroy();
     }
-  });
+  };
+}
+
+/**
+ * The board's HTTP face of a pull adapter as a server of its own, not yet listening.
+ *
+ * @param {ReturnType<typeof import('../pull.js').pullAdapter>} adapter
+ * @returns {import('http').Server}
+ */
+export function pullServer(adapter) {
+  return createWireServer(pullHandler(adapter));
 }
 
 /**
  * Make one outbound HTTP or HTTPS call to the board and collect the whole reply.
  *
- * Why: the runner only ever dials out, so this is its single network call and it needs nothing past node:http(s).
+ * Why: the runner only ever dials out, so this is its single network call and it needs nothing past the wire door.
  *
  * @param {URL} url
  * @param {{ method?: string, body?: Buffer | string, headers?: object }} [options]
  * @returns {Promise<{ status: number, bytes: Buffer }>}
  */
 function boardCall(url, { method = 'GET', body, headers = {} } = {}) {
-  const send = url.protocol === 'https:' ? httpsRequest : httpRequest;
+  const send = wireRequest(url);
   return new Promise((resolve, reject) => {
     const outgoing = send(url, { method, headers }, incoming => {
       const chunks = [];
@@ -185,7 +196,8 @@ export function pullRunner({ board, runner, publicKey, privateKey, workdir, now 
     /** Take one job, run its shards and post their signed results; null when the board offers nothing. */
     async runOnce() {
       const at = now();
-      const job = await answer(await post('/pull/take', JSON.stringify({ runner, at, signature: signText(pullStatement('take', runner, at)) })));
+      const nonce = randomBytes(16).toString('base64url');
+      const job = await answer(await post('/pull/take', JSON.stringify({ runner, at, nonce, signature: signText(pullStatement('take', runner, at, nonce)) })));
       if (!job) return null;
       const auth = { authorization: `Bearer ${job.token}` };
       const tree = join(workdir, 'trees', job.tree);
@@ -205,8 +217,10 @@ export function pullRunner({ board, runner, publicKey, privateKey, workdir, now 
         const { status, output } = await runCommand(command, tree);
         const bytes = Buffer.concat([Buffer.from(`PBRESULT 1 ${status} ${output.length}\n`), output]);
         const digest = createHash('sha256').update(bytes).digest('hex');
-        // The receipt cell's resultStatement: PBSIGNED 1 <job> <shard> <tree> <digest>.
-        const signature = signText(`PBSIGNED 1 ${job.job} ${shard} ${job.tree} ${digest}`);
+        // The receipt cell's resultStatement, built independently: PBSIGNED 2 with every field length-prefixed.
+        const field = value => `${Buffer.byteLength(String(value))}:${value}`;
+        const statement = ['PBSIGNED 2', job.job, shard, job.tree, digest, job.base ?? '', job.tooling ?? '', command, job.attempt ?? ''].map(field).join('\n');
+        const signature = signText(statement);
         posted.push(await answer(await post(`/pull/result/${shard}`, bytes, { ...auth, 'x-pullboard-signature': signature })));
       }
       return { job: job.job, tree: job.tree, fetched, posted };

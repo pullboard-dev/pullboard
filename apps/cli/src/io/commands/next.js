@@ -1,3 +1,9 @@
+/** @pullboard-module-loads packages/moves/src/logic/reasons.js packages/health/index.js */
+import { holdsRequireOwner } from '../../../../../packages/config/index.js';
+import { nextIdleBlockers } from '../../../../../packages/config/index.js';
+import { nextAdoptPreserved } from '../../../../../packages/config/index.js';
+import { nextItemNotices } from '../../../../../packages/config/index.js';
+import { reviewStarveShout } from '../../../../../packages/config/index.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setImmediate as yieldEventLoop } from 'node:timers/promises';
@@ -9,7 +15,6 @@ import { recordedClaimWorktrees } from '../../../../../packages/activity/index.j
 import { takeWaitShouts } from '../../../../../packages/activity/index.js';
 import { coordinatorCalloutLine } from '../../../../../packages/activity/index.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
-import { shoutReviewCoverStuck } from '../../../../../packages/health/index.js';
 /** The pullboard next command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
 import { startNextProgressMonitor } from '../next/monitor.js';
@@ -38,7 +43,9 @@ import {
 import { seatLeadLine } from '../../../../../packages/seats/index.js';
 import { wakeRoutedSeat } from '../../../../../packages/seats/index.js';
 import { cleanItemFolders } from '../item/folder.js';
+import { sayLag } from '../lag.js';
 import { fallbackReclaim } from '../reclaim.js';
+import { restartDeadRunner } from '../runner/restart.js';
 import { agentDisplayName } from '../context.js';
 import { cdTo } from '../context.js';
 import { context } from '../context.js';
@@ -54,6 +61,8 @@ import { ordered } from '../claim.js';
 import { checkMainVerifier } from '../verify.js';
 import { displayedWait } from '../next.js';
 import { nextOnce } from '../next.js';
+import { seatClaims } from '../next.js';
+import { topUpClaims } from '../next.js';
 import { whoAmI } from '../join.js';
 import {
   refuseWhileBuilding,
@@ -63,13 +72,14 @@ import { sayMapSlice } from '../../../../../packages/codemap/index.js';
 import { primaryCheckoutRoot } from '../worktree.js';
 import { deliverOwnTestRuns } from '../../../../../packages/drive/index.js';
 import { deliverTestRunsWhenReady } from '../../../../../packages/drive/index.js';
-import {
-  answerFirstReasons,
-  foldedReasons,
-  heldCounted,
-  inboxReasons,
-  ownWaitingLines,
-} from '../../../../../packages/moves/index.js';
+import { createRequire } from 'node:module';
+
+/** Next's wait reasons, loaded at the first answer that words them [C7,#7081]. */
+const requireModule = createRequire(import.meta.url);
+const reasons = () => requireModule('../../../../../packages/moves/src/logic/reasons.js');
+/** The review-cover shout, with the health cell behind it, loaded only when a fresh claim shouts it. */
+const shoutReviewCoverStuck = (...args) => requireModule('../../../../../packages/health/index.js').shoutReviewCoverStuck(...args);
+const shoutStarvedReviews = (...args) => requireModule('../../../../../packages/health/index.js').shoutStarvedReviews(...args);
 
 /** Watch symbolic ref targets as well as HEAD, including projects whose trunk is not named main. */
 function nextChangeInputs(ctx) {
@@ -93,7 +103,7 @@ function nextChangeInputs(ctx) {
 export async function nextHere(io, values) {
   const defaultLoop = !values.take && !values.build && !values.verify && values.verifyId === undefined && values.wait === undefined;
   values = { ...values, defaultLoop };
-  const monitor = await startNextProgressMonitor(io);
+  const monitor = startNextProgressMonitor(io);
   const previousDefaultLoop = io.defaultLoop;
   // A successful default next can claim through the shared native move pipeline; keep presence diagnostics inside its 2 KB output contract.
   if (defaultLoop) io.defaultLoop = true;
@@ -150,6 +160,9 @@ async function nextWithProgress(io, values, progress) {
   let ctx = context(io);
   // One fallback reclaim pass before answering: a gate job stalled by a dead dispatcher moves one step (DJ15).
   await fallbackReclaim(ctx, 'next');
+  // A gate job waiting with no live runner brings this machine's local runner back, and says so in one line [#6556].
+  const restarted = await restartDeadRunner(ctx);
+  if (restarted) io.say(restarted);
   // Main records each red as delivered so it is not re-announced; the default loop prints the bounded form (#2777).
   // Read first: an idle poll with no queued red opens no write-capable connection [V15,C7].
   const hasQueuedReds = withBoardRead(ctx, board => {
@@ -171,6 +184,9 @@ async function nextWithProgress(io, values, progress) {
       for (const line of lines) io.say(line);
     }
   });
+  sayLag(io, ctx);
+  // review.starveShout (off by default): a green submission no seat may review reaches the coordinator once, naming the guards [C7,#9682].
+  if (reviewStarveShout()) await withBoard(ctx, board => shoutStarvedReviews(ctx, board, ordered));
   // A seat's queued test runs come back first, like a red gate: green or red, failing tests, log [C7].
   const testRuns = deliverOwnTestRuns(io, ctx, { withBoard, withBoardRead, whoAmI });
   withBoardRead(ctx, board => cleanItemFolders(ctx, board, whoAmI(ctx, board), { spare: !values.verify }));
@@ -190,7 +206,8 @@ async function nextWithProgress(io, values, progress) {
   if (!Number.isFinite(minutes) || minutes < 0 || minutes > 240) {
     throw new Refused('USAGE', '--wait is a number of minutes from 0 to 240');
   }
-  values = { ...values, observeIdle: true };
+  // next.idleBlockers (off by default): an idle answer also names what the waiting items wait on [C7,#2958].
+  values = { ...values, observeIdle: true, idleBlockers: nextIdleBlockers() };
   let lastIdleReason;
   const heardShouts = new Set();
   const deadline = Date.now() + minutes * 60_000;
@@ -249,7 +266,7 @@ async function nextWithProgress(io, values, progress) {
     }
     if (found.diagnose) { sayDiagnoseOffer(io, found); return 0; }
     if (found.item) {
-      found.reasons = [...(found.reasons ?? []), ...(found.review ? [] : withBoardRead(ctx, board => ownWaitingLines(board, whoAmI(ctx, board)))), ...withBoardRead(ctx, board => inboxReasons(board, whoAmI(ctx, board)))];
+      found.reasons = [...(found.reasons ?? []), ...(found.review ? [] : withBoardRead(ctx, board => reasons().ownWaitingLines(board, whoAmI(ctx, board)))), ...withBoardRead(ctx, board => reasons().inboxReasons(board, whoAmI(ctx, board))), ...withBoardRead(ctx, board => reasons().lapsedHoldLines(board, whoAmI(ctx, board), holdsRequireOwner()))];
       if (found.lightReserved) io.say(`kept #${found.lightReserved.item_id} for active light seats: ${found.lightReserved.item_title}`);
       if (found.buildOffer || found.releaseRequest) {
         const route = found.buildOffer ?? found.releaseRequest;
@@ -277,16 +294,26 @@ async function nextWithProgress(io, values, progress) {
       const item = found.item;
       const review = found.review ?? Boolean(values.verify);
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
-      if (review) { try { await (await import('./verify.js')).reviveStalledComparison(ctx, item.item_id); } catch { /* A comparison is observation only; it never blocks a review offer. */ } }
-      const comparison = review ? withBoardRead(ctx, board => recordedVerificationComparison(store.itemThread(board, item.item_id), item)) : null;
+      if (review && !found.landed) { try { await (await import('./verify.js')).reviveStalledComparison(ctx, item.item_id); } catch { /* A comparison is observation only; it never blocks a review offer. */ } }
+      const comparison = review && !found.landed ? withBoardRead(ctx, board => recordedVerificationComparison(store.itemThread(board, item.item_id), item)) : null;
       const returned = review || found.waitingOffer ? null : withBoardRead(ctx, board => {
         const record = store.returnedRecord(board, item.item_id);
         return record && { ...record, ...(record.gate ? { gate: { ...record.gate, failing: retainedGateAssertions(ctx.info.commonDir, record.gate.job) } } : {}) };
       });
-      io.result?.({ item, review, ...(returned ? { returned } : {}), ...(comparison ? { comparison } : {}), held: Boolean(found.held), ...(found.waitingOffer ? { waitingOffer: true } : {}), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.itemFolder ? { itemFolder: found.itemFolder, holder: found.holder } : {}), ...(found.companions ? { companions: found.companions } : {}) });
+      // The default loop tops this seat up to N build claims whose files are disjoint, each in its own folder [C7,#6263,#7461].
+      const own = !found.held || !found.seat || found.seat.path === origin;
+      const more = !review && own && !found.waitingOffer && found.itemFolder && values.defaultLoop ? await topUpClaims(ctx, values) : [];
+      // next.itemNotices (off by default): the shouts and rulings that name this item ride on the build instruction [C7,#8787].
+      const notices = !review && !found.waitingOffer && nextItemNotices() ? withBoardRead(ctx, board => reasons().itemNoticeLines(board, item.item_id)) : [];
+      io.result?.({ item, review, ...(notices.length ? { notices } : {}), ...(returned ? { returned } : {}), ...(comparison ? { comparison } : {}), held: Boolean(found.held), ...(found.waitingOffer ? { waitingOffer: true } : {}), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.itemFolder ? { itemFolder: found.itemFolder, holder: found.holder } : {}), ...(found.companions ? { companions: found.companions } : {}), ...(more.length ? { more: more.map(next => ({ item: next.item, itemFolder: next.itemFolder })) } : {}) });
       const here = cdTo(!review && found.itemFolder ? found.itemFolder : ctx.info.root);
       const as = ctx.info.isMain ? ' --as coordinator' : '';
-      if (review) {
+      if (found.landed) {
+        // A forced landing has no reservation and no submitted head: the review is of the merge's own first-parent diff, and the verdict is recorded on the board [C7,#6490].
+        io.say(`next to verify (landed, no verdict): #${item.item_id} ${item.item_title}, merged as ${item.item_merged_commit.slice(0, 12)}`);
+        io.say(`read the merge's own change, here: ${here} git diff ${item.item_merged_commit}^1 ${item.item_merged_commit}`);
+        io.say(`then: ${here} pullboard verify ${item.item_id} accept${as} --note "how you proved it", or reject${as} --reason CODE --note "what failed"`);
+      } else if (review) {
         io.say(`next to verify: #${item.item_id} ${item.item_title}, built by ${agentDisplayName(agents, ctx.config, item.item_built_by)} at ${item.item_commit.slice(0, 12)}`);
         for (const reason of found.reasons ?? []) io.say(displayedWait(reason, agents, ctx.config));
         if (comparison) io.say(renderVerificationComparison(comparison));
@@ -321,18 +348,29 @@ async function nextWithProgress(io, values, progress) {
           if (returned.reject) io.say(`rejected ${returned.reject.reason} by ${returned.reject.by} at ${String(returned.reject.commit).slice(0, 12)}: ${returned.reject.note}`);
           for (const fact of returned.facts) io.say(`  builder fact, ${fact}`);
         }
-        for (const line of foldedReasons(heldCounted(found.reasons ?? []).map(reason => displayedWait(reason, agents, ctx.config)), `pullboard list ${item.item_lane}`)) io.say(line);
+        for (const line of reasons().foldedReasons(reasons().heldCounted(found.reasons ?? []).map(reason => displayedWait(reason, agents, ctx.config)), `pullboard list ${item.item_lane}`)) io.say(line);
         if (found.seat && found.seat.path !== origin) io.say(seatLeadLine(found.seat, item, found.held));
         if (found.reviewSkipped) io.say(`${reviewQueueLine(ctx, found.reviewSkipped, span)}; explicit build intent recorded with this claim`);
         if (found.seat) io.say(`${found.seat.created ? 'opened' : 'work in'} ${found.seat.agent}, ${found.seat.lane} lane: ${here}`);
         if (found.itemFolder) io.say(`item folder: ${found.itemFolder}; seat ${found.holder}; build, commit and submit there`);
+        // next.adoptPreserved (off by default): a returned item's pinned head is merged into the folder this claim opened [C7,#9689].
+        if ((found.itemFolder || own) && !found.held && values.take && nextAdoptPreserved()) await (await import('../resume/adopt.js')).adoptReturnedWork(io, ctx, item.item_id, found.itemFolder ?? ctx.info.root);
         if (found.shared?.length) io.say(`it touches ${found.shared.length === 1 ? 'a file' : `${found.shared.length} files`} you worked in recently: ${found.shared.slice(0, 4).join(', ')}`);
         if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
         if (item.item_check) io.say(`check: ${item.item_check}   (run it before you submit)`);
         for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${store.readableRigorText(row.text)}`);
         sayBrief(io, item.item_brief);
+        for (const line of notices) io.say(`  ${line}`);
         await progress.run('code map', item.item_id, () => sayMapSlice(io, ctx, item, primaryCheckoutRoot));
         io.say(`when it is built and committed: ${here} pullboard submit ${item.item_id}`);
+        for (const next of more) {
+          io.say(`claimed #${next.item.item_id}: ${next.item.item_title}`);
+          io.say(`item folder: ${next.itemFolder}; seat ${next.holder}; build, commit and submit there`);
+          if (next.item.item_criterion) io.say(`criterion: ${next.item.item_criterion}`);
+          if (next.item.item_check) io.say(`check: ${next.item.item_check}   (run it before you submit)`);
+          io.say(`when it is built and committed: ${cdTo(next.itemFolder)} pullboard submit ${next.item.item_id}`);
+        }
+        if (more.length) io.say(`you hold ${seatClaims(ctx).map(id => `#${id}`).join(', ')}: build each in its own folder`);
       }
       return 0;
     }
@@ -361,22 +399,29 @@ async function nextWithProgress(io, values, progress) {
       if (idleReason === 'focus' && found.reasons?.length === 1 && found.reasons[0].endsWith('overflow is off.')) {
         io.result?.({ item: null, idleReason, reasons: found.reasons });
         io.say(found.reasons[0]);
+        for (const line of blockerLines(found)) io.say(line);
         return 0;
       }
       if (values.verify) refuseWhileBuilding(ctx);
       if (values.defaultLoop && !found.laneWork) {
-        io.result?.({ item: null, next: 'nothing for this seat: end your turn', reasons: found.reasons ?? [] });
-        io.say('next: nothing for this seat: end your turn');
+        // A named step, such as waiting on another seat's rework, says what to do instead of ending the turn (#7922).
+        const step = found.nextStep ?? 'nothing for this seat: end your turn';
+        const lapsed = withBoardRead(ctx, board => reasons().lapsedHoldLines(board, whoAmI(ctx, board), holdsRequireOwner()));
+        io.result?.({ item: null, next: step, reasons: [...(found.reasons ?? []), ...lapsed] });
+        for (const line of lapsed) io.say(line);
+        io.say(`next: ${step}`);
         return 0;
       }
-      found.reasons = [...(found.reasons ?? []), ...withBoardRead(ctx, board => inboxReasons(board, whoAmI(ctx, board)))];
+      found.reasons = [...(found.reasons ?? []), ...withBoardRead(ctx, board => reasons().inboxReasons(board, whoAmI(ctx, board))), ...withBoardRead(ctx, board => reasons().lapsedHoldLines(board, whoAmI(ctx, board), holdsRequireOwner()))];
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
       const seat = withBoardRead(ctx, (board) => whoAmI(ctx, board));
-      const reasons = answerFirstReasons(found.reasons);
-      return refuseNextIdle(io, reasons, foldedReasons(reasons.map((reason) => displayedWait(reason, agents, ctx.config)), `pullboard list ${seat.lane}`), { minutes, verify: values.verify, laneWork: found.laneWork, lane: seat.lane, route: seat.route });
+      const waits = reasons().answerFirstReasons(found.reasons);
+      const refused = refuseNextIdle(io, waits, reasons().foldedReasons(waits.map((reason) => displayedWait(reason, agents, ctx.config)), `pullboard list ${seat.lane}`), { minutes, verify: values.verify, laneWork: found.laneWork, lane: seat.lane, route: seat.route });
+      for (const line of blockerLines(found)) io.say(line);
+      return refused;
     }
     // An item whose folder another live session holds stays out of this next's selection (#3688).
-    if (found.skipItem && ['ITEM_FOLDER_UNFINISHED', 'ITEM_FOLDER_PROTECTED', 'NO_POLICY'].includes(found.retryDetail?.code)) io.say(`skipped #${found.skipItem}: ${found.retryDetail.message}`);
+    if (found.skipItem && ['ITEM_FOLDER_UNFINISHED', 'ITEM_FOLDER_PROTECTED', 'NO_POLICY', 'NOT_READY'].includes(found.retryDetail?.code)) io.say(`skipped #${found.skipItem}: ${found.retryDetail.message}`);
     if (found.skipItem) values = { ...values, omitIds: [...new Set([...(values.omitIds ?? []), found.skipItem])] };
     if (found.retry) await progress.retry(found, { until: deadline });
     else {
@@ -408,6 +453,14 @@ async function nextWithProgress(io, values, progress) {
       wakeVersion = wake.version();
     }
   } } finally { wake?.close(); }
+}
+
+/**
+ * The up-to-three 'blocked: #N waits on #M' lines an idle answer adds when next.idleBlockers is on [C7,#2958].
+ * Why: an empty next said only that nothing was free; the waiting items and what holds them tell the seat who to nudge.
+ */
+function blockerLines(found) {
+  return (found.blockers ?? []).slice(0, 3).map(row => `blocked: #${row.item} waits on #${row.waitsOn}`);
 }
 
 /** Hold an idle next on the board file until the seat's queued test run comes back; true when one did [C7]. */

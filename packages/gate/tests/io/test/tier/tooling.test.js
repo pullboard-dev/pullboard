@@ -17,6 +17,7 @@ test('clause 2: the tooling tier is the tests whose only production inputs are t
   assert.deepEqual(toolingTests(box.root, box.base), [SIZE_TEST], 'the mixed test also reaches another module, so it is no tooling test');
   // A new test that imports only the script joins the tier with no list edited anywhere.
   box.put('packages/gate/tests/io/size-again.test.js', "import { size } from '../../src/io/size.js';\nvoid size;\n");
+  git(box.root, 'add', '-A');
   writeTestTiers(box.root);
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-q', '-m', 'add');

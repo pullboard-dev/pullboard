@@ -34,6 +34,8 @@ import { contains } from '../../index.js';
 import { git } from '../../index.js';
 import { gitConfig } from '../../index.js';
 import { headCommit } from '../../index.js';
+import { codeIsFromMain } from '../../index.js';
+import { repoInfo } from '../../index.js';
 import { headTree } from '../../index.js';
 import { patchId } from '../../index.js';
 import { tryGit } from '../../index.js';
@@ -41,6 +43,7 @@ import { withGitFacts } from '../../index.js';
 import { withGitReadFacts } from '../../index.js';
 import { trunkRef } from '../../light.js';
 import { runFixtureExecFile } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 
 const ROOT = resolve(import.meta.dirname, '../../../..');
 const FLAGS = ['--no-replace-objects', '-c', 'core.quotepath=false', '-c', 'gc.auto=0']; // gc.auto=0 joined the shared GIT_FLAGS in packages/git/src/io/main.js
@@ -361,4 +364,46 @@ test('clause 1: no direct Git launch exceeds the committed allowance and the all
   const report = gitLaunchReport(ROOT);
   assert.deepEqual(gitLaunchGrowth(report, baseline.files), [], 'a direct Git launch beyond the allowance must go through packages/git');
   assert.ok(Object.values(baseline.files).reduce((sum, count) => sum + count, 0) <= baseline.originalTotal, 'the allowance never rises above its original total');
+});
+
+/** A real one-commit repository for the read-fact cases, removed when the test ends. */
+function factRepository(t) {
+  const files = privateFixtureFiles('pullboard-read-facts-');
+  const root = files.root;
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const env = { ...process.env, GIT_AUTHOR_NAME: 'Facts', GIT_AUTHOR_EMAIL: 'facts@example.test', GIT_COMMITTER_NAME: 'Facts', GIT_COMMITTER_EMAIL: 'facts@example.test' };
+  const setup = (...args) => runFixtureExecFile('git', args, { cwd: root, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  setup('init', '-q', '-b', 'main');
+  files.write('a.txt', 'a\n');
+  setup('add', 'a.txt');
+  setup('commit', '-q', '-m', 'one');
+  return { root, setup };
+}
+
+/** The four facts the board API reads on every board lookup. */
+const apiFacts = (root) => ({ info: repoInfo(root), main: codeIsFromMain(root), head: headCommit(root), tree: headTree(root) });
+
+test('clause 1: repoInfo, codeIsFromMain, headCommit and headTree answer from cache with no Git process after .git directory churn [A2,C7]', t => {
+  const { root } = factRepository(t);
+  withGitReadFacts(() => {
+    const warm = apiFacts(root);
+    // Another command's lock file, made and removed inside .git, moves the directory's mtime (12 Nov POST /jobs stalls).
+    writeFileSync(join(root, '.git', 'index.lock'), '');
+    rmSync(join(root, '.git', 'index.lock'));
+    writeFileSync(join(root, 'scratch.tmp'), 'x');
+    // With no PATH no Git process can start, so the answers can only come from the cache.
+    const path = process.env.PATH;
+    process.env.PATH = '';
+    try { assert.deepEqual(apiFacts(root), warm); } finally { process.env.PATH = path; }
+  });
+});
+
+test('clause 2: a moved HEAD ref still refreshes headCommit [A2,C7]', t => {
+  const { root, setup } = factRepository(t);
+  withGitReadFacts(() => {
+    const before = headCommit(root);
+    setup('commit', '-q', '--allow-empty', '-m', 'two');
+    assert.notEqual(headCommit(root), before);
+    assert.equal(headCommit(root), setup('rev-parse', 'HEAD'));
+  });
 });

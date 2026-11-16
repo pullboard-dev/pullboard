@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { claimOverlapLines } from '../../../../packages/activity/index.js';
 import * as store from '../../../../packages/store/index.js';
 import { main } from '../../tests/fixtures/native.js';
 import { fixture } from '../../tests/fixtures/next/take.js';
@@ -83,30 +84,16 @@ test('a returned red gate starts with the fix action [N2,C7]', async t => {
   assert.match(first, new RegExp(`^red queued gate on #${id}: GATE_RED; pullboard show ${id} for the full refusal`, 'u'));
 });
 
-/** Capture the actual next command's human output without acknowledging its inbox preview. */
-async function nextAnswerAt(box, cwd) {
-  let out = '', err = '';
-  const code = await main(['next', '--build'], { cwd, clock: box.clock,
-    stdout: { isTTY: false, write: part => { out += part; } },
-    stderr: { write: part => { err += part; } } });
-  return { code, text: `${out}${err}` };
-}
+test('clause 2: scope and overlap notes are capped at 3 lines followed by a count of the rest [N2,C7]', () => {
+  const items = [{ item_id: 1, item_status: 'claimed', item_owner: 'one' }];
+  const overlaps = [2, 3, 4].map(item => ({ item, builder: `peer${item}`, files: ['shared.js'] }));
+  const outOfScope = [5, 6].map(item => ({ item, files: ['elsewhere.js'] }));
+  const project = () => new Map([[1, { overlaps, outOfScope, unknown: false }]]);
 
-test('clause 2: native next omits pre-join unread counts and reports genuine post-join mail [C7]', async t => {
-  const box = await fixture(t);
-  store.shout(box.board, { from: 'coordinator', to: 'all', text: 'history before the fresh seat joined' });
-  const path = join(box.root, '..', 'fresh-inbox-seat');
-  box.git(box.root, 'worktree', 'add', '-q', '-b', 'web/fresh-inbox-seat', path);
-  const seat = store.register(box.board, { lane: 'web', path, route: 'strong', family: 'Family Alpha', parent: 'fixture-fresh-inbox' });
-  store.heartbeatSeat(box.board, seat);
-  box.add('A real item for the new inbox seat');
-  const before = await nextAnswerAt(box, path);
-  assert.equal(before.code, 0, before.text);
-  assert.doesNotMatch(before.text, /\d+ unread messages?|history before the fresh seat joined/u);
-  store.shout(box.board, { from: 'coordinator', to: seat, text: 'new message after the join', lanes: Object.keys(box.config.lanes) });
-  const after = await nextAnswerAt(box, path);
-  assert.equal(after.code, 0, after.text);
-  assert.match(after.text, /1 unread message/u);
-  assert.match(after.text, /new message after the join/u);
-  assert.doesNotMatch(after.text, /history before the fresh seat joined/u);
+  const lines = claimOverlapLines(items, [], 'one', project, new Map());
+
+  assert.equal(lines.length, 4);
+  assert.match(lines[0], /^#1 overlaps #2 \(peer2\) on shared\.js$/u);
+  assert.match(lines[3], /^and 2 more /u);
+  assert.deepEqual(claimOverlapLines(items, [], 'one', () => new Map([[1, { overlaps: overlaps.slice(0, 3), outOfScope: [], unknown: false }]]), new Map()).length, 3, 'three notes print in full with no count');
 });

@@ -1,4 +1,5 @@
 /** `pullboard stats runners --health`: measurement of the runner fleet, read-only over the job tables [C7]. */
+import { boardRunsReader } from '../../../../../../packages/store/index.js';
 import {
   HEALTH_PAYLOAD_STEPS,
   HEALTH_STEP_NAMES,
@@ -28,7 +29,7 @@ export function runHealth(io, ctx, { second, rest, values }) {
   }
   const until = values.until === undefined ? ctx.clock.now().getTime() : instant(values.until, '--until');
   const from = until - flowWindowMinutes(values.window ?? '24h') * 60_000;
-  const jobs = withBoard(ctx, board => readRunnerJobs(board.db, { from, until, steps: HEALTH_STEP_NAMES, payloads: HEALTH_PAYLOAD_STEPS }));
+  const jobs = withBoard(ctx, board => readRunnerJobs(board.db, { from, until, steps: HEALTH_STEP_NAMES, payloads: HEALTH_PAYLOAD_STEPS, runs: boardRunsReader(board, ctx.file) }));
   const health = runnerHealth(jobs);
   io.result?.({ runners: { health } });
   for (const line of runnerHealthLines(health)) io.say(line);

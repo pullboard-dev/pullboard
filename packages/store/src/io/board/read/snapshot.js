@@ -16,10 +16,9 @@ import {
   SCHEMA_DIGEST,
   SCHEMA_VERSION,
 } from "../schema/source.js";
-import { Refused } from "../../../../../kernel/index.js";
-// Preserve eager validation of feature declarations without loading lifecycle guards.
-import { ENGINE_REGISTRY } from "../../../../../state/index.js";
-import { ENGINE_VERSION } from "../../../../../state/index.js";
+import { Refused } from "../../../../../kernel/light.js";
+// Engine numbers come from the state light door, which reads each named engine declaration on load [C7].
+import { ENGINE_VERSION } from "../../../../../state/light.js";
 
 
 let heldReadConnection = null;

@@ -132,6 +132,18 @@ export function usageCheckpoint(info, { agent, item, operation, model, now = Dat
         state.active.push(recovered);
       }
     }
+    // A pulled submit closes its allocation as it offers the gate, while the board's claim stays open until the receipt applies;
+    // after a red gate, the resubmit or release that ends that claim continues from the seat's last attributed moment.
+    state.offered ??= {};
+    const reopen = ['submit', 'release'].includes(operation) && !state.active.some((entry) => entry.agent === agent)
+      ? intervals.findLast((value) => value.item === item && value.key === state.offered[`${agent}:${item}`] && (value.end === null || value.endKind === 'release')) : null;
+    const at = reopen && Math.max(reopen.start, ...Object.values(state.totals).filter((value) => value.agentId === agent).map((value) => value.observedAt ?? 0));
+    if (reopen && at < (reopen.end ?? now)) {
+      const source = sessionSource(environment);
+      const snapshot = sessionSnapshot(source, undefined, at, state.cursors);
+      state.active.push({ agent, item, claim: reopen.key, model: snapshot?.model ?? model ?? 'unknown', session, source, snapshot,
+        missing: missingSessionReason(environment), at, ambiguous: state.active.some((entry) => session && entry.session === session) });
+    }
     const own = state.active.filter((entry) => entry.agent === agent);
     for (const entry of own) {
       const interval = intervals.find((value) => value.key === entry.claim);
@@ -157,9 +169,51 @@ export function usageCheckpoint(info, { agent, item, operation, model, now = Dat
     } else if (['submit', 'release', 'merged', 'withdraw'].includes(operation)) {
       state.active = state.active.filter((entry) => entry.agent !== agent || entry.item !== item);
     }
+    // Remember a close the board has not applied yet (a pulled submit), and forget one whose claim the board has ended.
+    const open = operation === 'submit' ? intervals.findLast((value) => value.item === item && value.end === null) : null;
+    if (open) state.offered[`${agent}:${item}`] = open.key;
+    else delete state.offered[`${agent}:${item}`];
     sharedAfter(state, session, now, advance, changed);
     for (const entry of state.active) entry.ambiguous = Boolean(entry.session && state.active.some((peer) => peer !== entry && peer.session === entry.session));
     return { items: Object.values(state.totals).filter((value) => value.agentId === agent && value.revision > (existing.find((row) => row.item === value.item)?.revision ?? 0)).map((value) => structuredClone(value)),
       sharedSessions: Object.values(state.sharedTotals).filter((value) => value.seats.includes(agent) && value.revision > (existingShared.find((row) => row.id === value.id)?.revision ?? 0)).map((value) => structuredClone(value)) };
+  });
+}
+
+/** The counter fields of one coordinator usage row. */
+const COORDINATOR_FIELDS = ['inputTokens', 'outputTokens', ...SPLIT_COUNTS];
+
+/**
+ * The coordinator session's usage since the last acknowledged record, as model rows, or null when nothing grew.
+ * Reads only the bytes past the session log's cursor. The board keeps one immutable row per session id, so the first
+ * record keeps the session id and each later one is `<session id>.<n>` holding only the growth since the one before [C7,#9685].
+ */
+export function coordinatorUsagePending(info, { session, source, now }) {
+  return change(info, (state) => {
+    state.cursors ??= {};
+    const snapshot = sessionSnapshot(source, undefined, now, state.cursors);
+    if (!snapshot) return null;
+    const seen = state.coordinator?.[session] ?? { count: 0, totals: {} };
+    const records = [];
+    for (const [model, total] of Object.entries(snapshot.totals)) {
+      const before = seen.totals[model] ?? Object.fromEntries(COORDINATOR_FIELDS.map(name => [name, 0]));
+      const grown = Object.fromEntries(COORDINATOR_FIELDS.map(name => [name,
+        total[name] !== null && before[name] !== null && total[name] >= before[name] ? total[name] - before[name] : null]));
+      if (COORDINATOR_FIELDS.every(name => grown[name] === 0)) continue;
+      const unknown = grown.inputTokens === null || grown.outputTokens === null;
+      records.push({ model, ...grown, knownInputTokens: grown.inputTokens ?? 0, knownOutputTokens: grown.outputTokens ?? 0, wallMs: 0,
+        unknownReasons: unknown ? ['native-counter-unreadable-or-decreased'] : [] });
+    }
+    if (!records.length) return null;
+    return { id: seen.count === 0 ? session : `${session.slice(0, 120)}.${seen.count}`, records, totals: structuredClone(snapshot.totals) };
+  });
+}
+
+/** Remember that the board holds the usage `coordinatorUsagePending` named, so the next record carries only newer growth. */
+export function coordinatorUsageAcknowledge(info, { session, totals }) {
+  return change(info, (state) => {
+    state.coordinator ??= {};
+    const seen = state.coordinator[session] ?? { count: 0, totals: {} };
+    state.coordinator[session] = { count: seen.count + 1, totals };
   });
 }

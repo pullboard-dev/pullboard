@@ -23,6 +23,8 @@ const RATES = { heartbeat: 60, next: 120, shout: 100, claim: 10, submit: 10, ver
 /** The scale bars: the writer's busy share and the p99 of `next`. */
 const MAX_BUSY_SHARE = 0.5;
 const MAX_NEXT_P99_MS = 200;
+/** A board-writing move at board scale finishes within the two second board-write budget at p99 [C7,#8147]. */
+const MAX_WRITE_P99_MS = 2_000;
 
 /** The percentile of a list of timings, by rank. */
 function percentile(values, share) {
@@ -56,6 +58,9 @@ export function scaleProblems(report) {
   const problems = [];
   if (report.busyShare > MAX_BUSY_SHARE) problems.push(`writer busy share ${(report.busyShare * 100).toFixed(1)}% is over ${MAX_BUSY_SHARE * 100}%`);
   if (report.commands.next.p99 > MAX_NEXT_P99_MS) problems.push(`p99 next ${report.commands.next.p99.toFixed(1)} ms is over ${MAX_NEXT_P99_MS} ms`);
+  for (const name of Object.keys(RATES).filter(name => !['heartbeat', 'next'].includes(name))) {
+    if (report.commands[name].p99 > MAX_WRITE_P99_MS) problems.push(`p99 ${name} ${report.commands[name].p99.toFixed(1)} ms is over ${MAX_WRITE_P99_MS} ms`);
+  }
   return problems;
 }
 
@@ -80,9 +85,10 @@ test('[C7,#3008] clause 1: 1,000 simulated seats drive heartbeat, next, claim, s
   }
   requireFixtureReviewFamilies(board);
   assert.equal(board.db.prepare("SELECT COUNT(*) AS n FROM agent WHERE agent_lane = 'core'").get().n, SEATS);
+  const FILLER_ITEMS = 300;
   // A copy-sized board: a few hundred open items besides the ones the seats move.
-  const filler = Array.from({ length: 300 }, (_, n) => store.addItem(board, { by: 'coordinator', lane: 'core', title: `open ${n}`, criterion: 'prove', specIds: ['C7'], route: 'mid', check: 'true', brief: 'Files: src/a.js\nTest: proves it' }));
-  assert.equal(filler.length, 300);
+  const filler = Array.from({ length: FILLER_ITEMS }, (_, n) => store.addItem(board, { by: 'coordinator', lane: 'core', title: `open ${n}`, criterion: 'prove', specIds: ['C7'], route: 'mid', check: 'true', brief: 'Files: src/a.js\nTest: proves it' }));
+  assert.equal(filler.length, FILLER_ITEMS);
   // Three sets of items the seats move, one per measurement round (see the remeasure note below).
   const movedSets = Array.from({ length: ROUNDS }, (_, round) => Array.from({ length: 30 }, (_, n) => store.addItem(board, { by: 'coordinator', lane: 'core', title: `moved ${round}.${n}`, criterion: 'prove', specIds: ['C7'], route: 'mid', check: 'true', brief: 'Files: src/a.js\nTest: proves it' })));
   const freeze = item => ({ text: JSON.stringify({ criterion: item.item_criterion, policy: { version: 1, commit: COMMIT, verify: { policy: 'any', family: 'off' } } }), digest: 'digest:bar' });
@@ -121,7 +127,7 @@ test('[C7,#3008] clause 1: 1,000 simulated seats drive heartbeat, next, claim, s
   assert.deepEqual(scaleProblems(report), []);
 });
 
-test('[C7,#3008] clause 2: the scale test fails when writer busy share passes 50% or p99 next passes 200 ms', () => {
+test('[C7,#3008] clause 2: the scale test fails when writer busy share passes 50%, p99 next passes 200 ms or a write p99 passes 2 s', () => {
   const quick = Array.from({ length: 100 }, () => 1);
   const base = { heartbeat: quick, next: quick, shout: quick, claim: quick, submit: quick, verdict: quick };
   assert.deepEqual(scaleProblems(scaleReport(base)), [], 'a fast board passes');
@@ -131,4 +137,7 @@ test('[C7,#3008] clause 2: the scale test fails when writer busy share passes 50
   const slowNext = scaleProblems(scaleReport({ ...base, next: [...quick.slice(1), 250] }));
   assert.equal(slowNext.length, 1);
   assert.match(slowNext[0], /p99 next 250\.0 ms is over 200 ms/u);
+  const slowWrite = scaleProblems(scaleReport({ ...base, claim: [...quick.slice(1), 2_500] }));
+  assert.equal(slowWrite.length, 1, 'a board-writing move whose p99 passes 2 s is a problem');
+  assert.match(slowWrite[0], /p99 claim 2500\.0 ms is over 2000 ms/u);
 });

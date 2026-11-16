@@ -1,4 +1,5 @@
 import { submitReusePlanDigest } from '../../../verify/index.js';
+import { affectedCommand } from './test/affected-command.js';
 import { countTrialGate } from './refusal/trial.js';
 import { runMachineryGuard } from './refusal/trial.js';
 import { requireTestTierAccount } from './test/tier/selection.js';
@@ -72,6 +73,8 @@ import {
   runProfiledShellAsync,
   safeLog,
 } from './execution.js';
+import { overlapStaticProofEnabled } from '../../../config/index.js';
+import { tableReplayEnabled } from '../../../config/index.js';
 import { shardSlotOptions } from './shards/proof.js';
 import { shardStartupMs } from './shards/proof.js';
 import { freeRunnerSlots } from './shards/proof.js';
@@ -84,7 +87,6 @@ import { readFileTimes } from './test/value/timing.js';
 import { progressingWait } from './progress.js';
 import { whileGateRuns } from './progress.js';
 import {
-  commandWord,
   runStaticChecks,
 } from './static/check.js';
 /** Freeze submission execution policy with the same accepted-main floors at every origin and run. */
@@ -133,11 +135,11 @@ export function submitGatePlan(root, config, { base, trunk, changed, check, sour
   // A bar-named or call-adjacent file the frozen check already runs completely is not run a second time [C7].
   const crossRunUnrun = crossRunTests.length ? testTierProofFiles({ runner: testRunner, units: crossRunTests }, check) : [];
   const proofFiles = [...new Set([...(testTiers ? testTierProofFiles(testTiers, check) : [...(deferFullFallback || deferSelection ? [] : selection.files), ...invariants, ...registryGuards]), ...crossRunUnrun])].sort();
-  const guardCommand = registryGuards.length ? `${testRunner.trimEnd()} ${registryGuards.map(path => commandWord('./' + path)).join(' ')}` : '';
+  const guardCommand = registryGuards.length ? affectedCommand({ affectedTests: testRunner }, registryGuards) : '';
   const fullConfig = guardCommand ? { ...config, gate: `(${config.gate}) && ${guardCommand}` } : config;
   const hasFinalProof = !deferFullFallback && !deferSelection && selection.full || proofFiles.length > 0;
   const proofCommand = !deferFullFallback && !deferSelection && selection.full ? fullConfig.gate
-    : proofFiles.length ? `${testRunner.trimEnd()} ${proofFiles.map(path => commandWord('./' + path)).join(' ')}` : '';
+    : proofFiles.length ? affectedCommand({ affectedTests: testRunner }, proofFiles) : '';
   const phases = [...(check ? [{ role: 'criterion', command: check }] : []),
     ...(hasFinalProof ? [{ role: 'proof', command: proofCommand }] : [])];
   return { check, selection, deferred, deferFullFallback, deferSelection, invariants, registryGuards,
@@ -246,11 +248,11 @@ export function submitLogPath(outputRoot, outputLog) {
  * leaves a receipt without them, which review simply proves again.
  *
  * @param {string} root
- * @param {{check: string, proofContext?: any, onFailure?: any, trunk?: string|null, signatureCapture?: any, executionServices: any, outputRoot?: string, outputLog?: string, agent?: string, item?: string|number, kind?: string, timing?: boolean, signal?: AbortSignal, runnerAdmission?: object, browser?: boolean, gui?: boolean}} options
+ * @param {{timedShell?: string, check: string, proofContext?: any, onFailure?: any, trunk?: string|null, signatureCapture?: any, executionServices: any, outputRoot?: string, outputLog?: string, agent?: string, item?: string|number, kind?: string, timing?: boolean, signal?: AbortSignal, runnerAdmission?: object, browser?: boolean, gui?: boolean}} options
  * @returns {{check: string, promise: Promise<{run: any, lease: any}>, bind: (plan: {hasFinalProof: boolean, testTiers: boolean, reusePlan: string}) => void, abort: () => void}}
  */
 export function startCriterionRun(root, { check, proofContext, onFailure, trunk, signatureCapture, executionServices, outputRoot = root, outputLog,
-  agent, item = '', kind = 'submit', timing = false, signal, runnerAdmission = {}, browser = false, gui = false }) {
+  agent, item = '', kind = 'submit', timing = false, signal, runnerAdmission = {}, browser = false, gui = false, timedShell }) {
   const controller = new AbortController();
   if (signal?.aborted) controller.abort(signal.reason);
   else signal?.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
@@ -270,7 +272,7 @@ export function startCriterionRun(root, { check, proofContext, onFailure, trunk,
     lease.proofReceiptIds = [];
     armed = lease;
     stamp();
-    const run = await runItemCheck(root, check, { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: lease, stages: true, signal: controller.signal }, executionServices);
+    const run = await runItemCheck(root, check, { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: lease, stages: true, timedShell, signal: controller.signal }, executionServices);
     // A timed-out check is the check's red and is never retried on another runner.
     return { run, lease };
   }, { executionServices, browser, gui, agent, item, kind, itemCheck: true, timing, signal: controller.signal, ...runnerAdmission });
@@ -301,10 +303,10 @@ function reusedCheckNote(lease) {
  *
  * @param {string} root
  * @param {any} config
- * @param {{base:string|null, trunk?:string, changed?:string[], check:string, timing?:boolean, agent?:string, item?:string|number, kind?:string, onWait?:(state:object)=>void, onBrowserFallback?:(decision:{file:string,reason:string})=>void}} options
+ * @param {{timedShell?: string, base:string|null, trunk?:string, changed?:string[], check:string, timing?:boolean, agent?:string, item?:string|number, kind?:string, onWait?:(state:object)=>void, onBrowserFallback?:(decision:{file:string,reason:string})=>void}} options
  * @returns {Promise<any>}
  */
-export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onStart, onBrowserFallback, onFailure, proofContext, earlyCriterion, sourceAdvance = false, outputRoot = root, outputLog, runnerAdmission = {}, executionServices, signatureCapture, staticChecked = false, plan: planned, admission, crossRunTests = [], countTrials = true, onMachineryNote = text => process.stderr.write(text + '\n'),
+export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onStart, onBrowserFallback, onFailure, proofContext, earlyCriterion, sourceAdvance = false, outputRoot = root, outputLog, runnerAdmission = {}, executionServices, signatureCapture, staticChecked = false, plan: planned, admission, crossRunTests = [], countTrials = true, tableReplay, timedShell, onMachineryNote = text => process.stderr.write(text + '\n'),
   planners = { plan: submitGatePlan, admission: submitGateAdmission }, signal }) {
 
   if (!config.gate.trim()) throw missingGate(root);
@@ -312,7 +314,18 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   if (trunk !== undefined && trunk !== null && !contains(root, trunk, mainPolicy(root).commit)) {
     throw new Refused('SUBMIT_PIN_NOT_MAIN', `submit pinned main ${trunk.slice(0, 12)}, which is not an ancestor of main; run pullboard submit again so it captures main`);
   }
-  if (!staticChecked) await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback, runnerAdmission, executionServices, artifactDirectory: outputLog ? dirname(outputLog) : undefined });
+  // gate.overlapStaticProof: the cells step runs beside the proof; its red result stops the proof and fails the gate [C7,#9576].
+  const overlap = !staticChecked && overlapStaticProofEnabled();
+  let staticRun = null;
+  let stopProof = null;
+  if (overlap) {
+    stopProof = new AbortController();
+    signal = signal ? AbortSignal.any([signal, stopProof.signal]) : stopProof.signal;
+    staticRun = runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback, runnerAdmission, executionServices, artifactDirectory: outputLog ? dirname(outputLog) : undefined, signal });
+    staticRun.catch(() => stopProof.abort());
+  } else if (!staticChecked) await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback, runnerAdmission, executionServices, artifactDirectory: outputLog ? dirname(outputLog) : undefined });
+  // A changed move table must still agree with the board; the setting is off until the person turns it on [C7,#8073].
+  if (tableReplay && tableReplayEnabled()) await tableReplay({ root, changed });
   // A remote plan is reused only when it covers the required call-adjacent tests.
   const plan = planned ?? planners.plan(root, config, { base, trunk, changed, check, sourceAdvance, crossRunTests });
   const { selection, deferred, deferFullFallback, deferSelection, invariants, registryGuards,
@@ -340,7 +353,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   const slotOptions = { executionServices, browser, gui, agent, item, kind, itemCheck: true, timing, onWait: progressingWait(onWait), signal, ...runnerAdmission };
   /** Red phases whose flake diagnostics wait until the gate's result is made and its slot is free. */
   const diagnostics = [];
-  const gateResult = await withGateSlot(root, async (lease) => {
+  const gateRun = withGateSlot(root, async (lease) => {
     lease.timingOperation = 'submit';
     // Observe the real grant before proof; both callbacks share the admission object and preserve its first witness.
     await onStart?.();
@@ -368,11 +381,11 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     /** Launch final proof under its own phase context while preserving its full-gate stamping rules. */
     const prove = async () => {
       if (!(proofFiles.length > 1 && !(!deferFullFallback && selection.full))) await gateLaneFree;
-      if (!deferFullFallback && selection.full) return fullGateRunAsync(root, fullConfig, false, { waitMs: proofWait, log: proofLog, gateLease: proofLease, stages: true, kind: 'submit', signal });
+      if (!deferFullFallback && selection.full) return fullGateRunAsync(root, fullConfig, false, { waitMs: proofWait, log: proofLog, gateLease: proofLease, stages: true, kind: 'submit', timedShell, signal });
       if (!proofFiles.length) return { isGreen: true, output: '', seconds: 0, isCached: false, log: '' };
-      const filesCommand = files => `${config.affectedTests.trimEnd()} ${files.map(path => commandWord('./' + path)).join(' ')}`;
+      const filesCommand = files => affectedCommand(config, files);
       const command = filesCommand(proofFiles);
-      const options = { waitMs: proofWait, profileFile: `${proofLog}.profile.json`, gateLease: proofLease, stages: true, signal };
+      const options = { waitMs: proofWait, profileFile: `${proofLog}.profile.json`, gateLease: proofLease, stages: true, timedShell, signal };
       // The files run from a queue of batches every slot the gate gets pulls from; the one receipt still names the whole command [C7].
       const run = { ...await (proofFiles.length > 1
         ? runProfiledShardsAsync(root, command, options, execution => proveShards(execution, filesCommand))
@@ -409,7 +422,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     if (separate && separate.check !== check) { separate.abort(); separate = null; }
     if (!separate && check && lease.runner) {
       separate = startCriterionRun(root, { check, proofContext, onFailure, trunk, signatureCapture, executionServices, outputRoot, outputLog,
-        agent, item, kind, timing, signal, runnerAdmission, browser, gui });
+        agent, item, kind, timing, signal, runnerAdmission, browser, gui, timedShell });
     }
     carriedCriterion = separate;
     separate?.bind({ hasFinalProof, testTiers: Boolean(plan.testTiers), reusePlan });
@@ -425,7 +438,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
         return done.run;
       }
       const run = check
-        ? await runItemCheck(root, check, { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: criterionLease, stages: true, signal }, executionServices)
+        ? await runItemCheck(root, check, { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: criterionLease, stages: true, timedShell, signal }, executionServices)
         : { isGreen: true, output: '', seconds: 0 };
       if (run.reusedGreen) onMachineryNote(reusedCheckNote(criterionLease));
       if (check) writeFileSync(checkLog, safeLog(run.output), { mode: 0o600 });
@@ -481,7 +494,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       : selection.full ? 'full gate' : 'affected tests';
     writeFileSync(log, `item check:\n${criterion.output}\n${phase}:\n${proof.output}`);
     if (!proof.isGreen && onFailure) diagnostics.push([proof, { root,
-      command: !deferFullFallback && selection.full ? fullConfig.gate : `${config.affectedTests.trimEnd()} ${proofFiles.map(path => commandWord('./' + path)).join(' ')}`, lease: proofLease }]);
+      command: !deferFullFallback && selection.full ? fullConfig.gate : affectedCommand(config, proofFiles), lease: proofLease }]);
     await recordRun(onFailure, proof);
     refuseSandboxBlocked(criterion);
     const result = finish(proof);
@@ -499,6 +512,10 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
         ...(criterion.blockingVerdict ? { blockingVerdict: criterion.blockingVerdict, exitCode: criterion.exitCode, rawIsGreen: false, quarantineFailures: criterion.quarantineFailures } : {}),
         executionRoot: criterion.executionRoot ?? root, executionRunner: criterion.executionRunner, environment: criterion.environment, profile: criterion.profile } };
   }, slotOptions);
+  // The cells step is awaited after the proof's slot is free, so a one-slot gate cannot wait on itself; its red result refuses before any verdict returns [C7,#9576].
+  let gateResult;
+  try { gateResult = await gateRun; } catch (error) { stopProof?.abort(); throw error; }
+  if (staticRun) await staticRun;
   // The verdict returns now: diagnostics are queued as flake-diagnose jobs and run in a slot of their own afterwards [C7].
   if (diagnostics.length) gateResult.diagnosing = (await startDiagnostics(root, onFailure, diagnostics, slotOptions)).done;
   return gateResult;

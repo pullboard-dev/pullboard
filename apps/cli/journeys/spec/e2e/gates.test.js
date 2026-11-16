@@ -1,5 +1,6 @@
 /**
- * End to end on real repos: the CLI runs as its own process, git runs the installed hooks, and
+ * End to end on real repos: the CLI answers in this process through runIn (a real process under
+ * PULLBOARD_JOURNEY_MODE=process, which the gate's parity check compares), git runs the installed hooks, and
  * worktrees are real worktrees (B1–B3, B6, V3, V4, V7, L3, L4, C3, I1, I2, P2).
  */
 import assert from 'node:assert/strict';
@@ -92,14 +93,15 @@ test('decisions default up the chain, pass to the person, and return to the orig
   assert.equal((await box.runIn(box.repo, 'answer', personDecision, 'Yes.', '--as', 'person')).code, 0);
 });
 
-test('pullboard worktree makes a joined worktree for a lane in one command [I4]', async () => {
+test('clause 1: pullboard worktree makes a joined worktree for a lane in one command [I4]', async () => {
   const box = project();
   const made = await box.runIn(box.repo, 'worktree', 'api');
   assert.equal(made.code, 0, made.err);
   const path = join(box.dir, 'repo-api-1');
   assert.match(made.out, /on branch api\/1, joined as api-1 \(fixture-model\) in the api lane/);
   assert.match(made.out, new RegExp(`start every command with: cd ${path} &&\n {2}cd ${path} && pullboard inbox\n {2}cd ${path} && pullboard next`));
-  assert.match((await box.runIn(path, 'whoami')).out, /^api-1 \(fixture-model\) \(api lane\)/);
+  const apiSeat = JSON.parse((await box.runIn(path, 'whoami', '--json')).out);
+  assert.deepEqual([apiSeat.id, apiSeat.lane, apiSeat.model], ['api-1', 'api', 'fixture-model']);
   assert.match((await box.runIn(box.repo, 'worktree', 'api')).out, /repo-api-2 on branch api\/2, joined as api-2/);
   assert.match((await box.runIn(box.repo, 'worktree', 'nope')).err, /NO_LANE/);
 });
@@ -146,46 +148,47 @@ test('unsupported spec grammar keeps claim, refreeze, submit and verify refusals
   const claimBox = await setup();
   writeFileSync(join(claimBox.web, 'SPEC.md'), marker + SPEC);
   for (const args of [['claim', '1'], ['next']]) {
-    const refused = claimBox.run(claimBox.web, ...args);
+    const refused = await claimBox.runIn(claimBox.web, ...args);
     assert.equal(refused.code, 1);
     assert.match(refused.err, /A5_GRAMMAR_VERSION.*grammar 2.*grammar 1/);
   }
-  const claimJson = claimBox.run(claimBox.web, 'claim', '1', '--json');
+  const claimJson = await claimBox.runIn(claimBox.web, 'claim', '1', '--json');
   assert.equal(claimJson.code, 1);
   assert.equal(JSON.parse(claimJson.out).error.code, 'A5_GRAMMAR_VERSION');
   writeFileSync(join(claimBox.repo, 'SPEC.md'), marker + SPEC);
-  const refreeze = claimBox.run(claimBox.repo, 'refreeze', '1');
+  const refreeze = await claimBox.runIn(claimBox.repo, 'refreeze', '1');
   assert.equal(refreeze.code, 1);
   assert.match(refreeze.err, /A5_GRAMMAR_VERSION/);
-  const refreezeJson = claimBox.run(claimBox.repo, 'refreeze', '1', '--json');
+  const refreezeJson = await claimBox.runIn(claimBox.repo, 'refreeze', '1', '--json');
   assert.equal(refreezeJson.code, 1);
   assert.equal(JSON.parse(refreezeJson.out).error.code, 'A5_GRAMMAR_VERSION');
 
   const submitBox = await setup();
-  assert.equal(submitBox.run(submitBox.web, 'claim', '1').code, 0);
+  assert.equal((await submitBox.runIn(submitBox.web, 'claim', '1')).code, 0);
   commitFile(submitBox, submitBox.web, 'web/page.html', '<h1>Page</h1>', 'feat(web): add page [G1]');
   writeFileSync(join(submitBox.web, 'SPEC.md'), marker + SPEC);
-  const submit = submitBox.run(submitBox.web, 'submit', '1');
+  const submit = await submitBox.runIn(submitBox.web, 'submit', '1');
   assert.equal(submit.code, 1);
   assert.match(submit.err, /A5_GRAMMAR_VERSION/);
-  const submitJson = submitBox.run(submitBox.web, 'submit', '1', '--json');
+  const submitJson = await submitBox.runIn(submitBox.web, 'submit', '1', '--json');
   assert.equal(submitJson.code, 1);
   assert.equal(JSON.parse(submitJson.out).error.code, 'A5_GRAMMAR_VERSION');
 
   const verifyBox = await setup();
-  assert.equal(verifyBox.run(verifyBox.web, 'claim', '1').code, 0);
+  assert.equal((await verifyBox.runIn(verifyBox.web, 'claim', '1')).code, 0);
   commitFile(verifyBox, verifyBox.web, 'web/page.html', '<h1>Page</h1>', 'feat(web): add page [G1]');
-  assert.equal(verifyBox.run(verifyBox.web, 'submit', '1').code, 0);
+  assert.equal((await verifyBox.runIn(verifyBox.web, 'submit', '1')).code, 0);
   verifyBox.git(verifyBox.repo, 'switch', '--detach', 'web/one');
   writeFileSync(join(verifyBox.repo, 'SPEC.md'), marker + SPEC);
-  const verify = verifyBox.run(verifyBox.repo, 'verify', '1', 'accept', '--as', 'coordinator', '--note', 'checked');
+  const verify = await verifyBox.runIn(verifyBox.repo, 'verify', '1', 'accept', '--as', 'coordinator', '--note', 'checked');
   assert.equal(verify.code, 1);
   assert.match(verify.err, /A5_GRAMMAR_VERSION/);
-  const verifyJson = verifyBox.run(verifyBox.repo, 'verify', '1', 'accept', '--as', 'coordinator', '--note', 'checked', '--json');
+  const verifyJson = await verifyBox.runIn(verifyBox.repo, 'verify', '1', 'accept', '--as', 'coordinator', '--note', 'checked', '--json');
   assert.equal(verifyJson.code, 1);
   assert.equal(JSON.parse(verifyJson.out).error.code, 'A5_GRAMMAR_VERSION');
 });
 
+// Process-level: git itself runs the installed pre-push hook, which starts the CLI through the PATH shim.
 test('a linked-worktree push isolates the gate from Git hook variables and leaves both repos intact [C3]', () => {
   const box = project();
   const probe = foreignGitScript(box, 'gate');
@@ -206,6 +209,7 @@ test('a linked-worktree push isolates the gate from Git hook variables and leave
   assert.equal(box.git(box.web, 'status', '--porcelain'), '');
 });
 
+// Process-level: git itself runs the installed pre-commit hook, which starts the CLI through the PATH shim.
 test('a linked-worktree commit isolates fixers while its own staged index still works [C5]', () => {
   const box = project();
   const probe = foreignGitScript(box, 'fixer', { fixer: true });

@@ -1,7 +1,11 @@
 /** A genuinely checked main merge passes the complete native/relay reader oracle [C7,V4,H16]. */
 import { selectAffectedTests } from '../../../../../gate/index.js';
 import { selectTestTreeGuards } from '../../../../../gate/index.js';
-import { executionServices } from '../../../../../../apps/cli/tests/fixtures/gate/execution.js';
+import { runnerExecutionServices } from '../../../../../runners/index.js';
+import { landingExecutionServices } from '../../../../index.js';
+
+/** The same real providers the production composition roots bind, built here so the fixture needs no app file [CD12]. */
+const executionServices = Object.freeze({ runners: runnerExecutionServices(), landing: landingExecutionServices() });
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';

@@ -11,12 +11,9 @@ const KEYWORDS = new Set(['return', 'typeof', 'instanceof', 'in', 'of', 'new', '
 /**
  * Split JavaScript into code, strings and comments, without running it. `code` is the source with
  * the inside of every string, template text, regular expression and comment blanked to spaces
- * (newlines kept), so a pattern run over it only ever sees real code at its real offsets. A
- * template's `${...}` expressions stay code. Each string and template is listed whole, with its
- * text between the quotes; each comment with its span.
- *
- * Why a lexer: test files write fixture tests and catches inside strings, and a plain text search
- * would count those as the test file's own.
+ * (newlines kept), so a pattern sees only real code at its real offsets. A template's `${...}`
+ * expressions stay code. Each string and template is listed whole; each comment with its span.
+ * Why: test files write fixture tests inside strings, which a plain text search would count.
  *
  * @param {string} source
  * @returns {{ code: string, strings: { start: number, end: number, text: string }[], comments: { start: number, end: number }[] }}
@@ -179,7 +176,6 @@ function pastGap(source, at) {
 
 /**
  * The bounded string-literal spelling in one confirmed dynamic import, or null for executable expressions.
- * Decoding is deferred so all literals share one compile-only V8 batch.
  *
  * @param {string} source
  * @param {number} at
@@ -194,13 +190,11 @@ function dynamicLiteralAt(source, at) {
 }
 
 /**
- * Every module each source imports. V8 lists the static ones: import and export-from statements and
- * side-effect imports. For each import followed by a parenthesis, V8 also decides two things: a NUL
- * put before the word breaks the module only when the word is code, not text in a string, template,
- * comment or regular expression; and putting 1 in its place still compiles only when the word is a
- * call, not a property name after a dot. Only then is the argument read, and an argument that is not
- * one plain string is reported as COMPUTED, which no rule allows. A method named import, in a class
- * or object, still reads as a call: the scan errs toward a false alarm, never a miss.
+ * Every module each source imports. V8 lists the static ones. For each import followed by a parenthesis, V8 also
+ * decides two things: a NUL before the word breaks the module only when the word is code, and a 1 in its place
+ * compiles only when the word is a call, not a property name. Only then is the argument read, and one that is not
+ * a plain string is reported as COMPUTED, which no rule allows. A method named import still reads as a call: the
+ * scan errs toward a false alarm, never a miss.
  *
  * @param {string[]} sources - Each one a module that compiles.
  * @param {(sources: string[]) => Array<{compiles: boolean, imports: string[]}>} parse - The caller supplies actual compile-only V8 observations.

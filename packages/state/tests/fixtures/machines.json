@@ -20,9 +20,9 @@
     ],
     "transitions": [
       { "verb": "add", "declared": false, "from": [], "to": "open", "by": "agent|coordinator", "cause": "pullboard add", "at": "packages/store/src/io/board/add.js:insertItem", "guard": "machine_item_start trigger (UNDECLARED_MOVE)", "emits": "add", "harness": "apps/cli/journeys/verify/machine.test.js" },
-      { "verb": "claim", "declared": true, "from": ["open", "claimed"], "to": "claimed", "by": "agent|coordinator", "cause": "pullboard claim, next, next --take", "at": "packages/store/src/io/board/claim.js:claim", "guard": "NOT_CLAIMABLE, HELD, ITEM_HELD, LANE_HELD, BLOCKED, WRONG_LANE, ROUTE, ITEM_BUILD_BUDGET, ONE_CLAIM, REOPEN_HELD_FOR_BUILDER, PENDING_REFREEZE, LINE_WIP_LIMIT", "emits": "claim or renew", "harness": "apps/cli/journeys/claim/race.test.js" },
+      { "verb": "claim", "declared": true, "from": ["open", "claimed"], "to": "claimed", "by": "agent|coordinator", "cause": "pullboard claim, next, next --take", "at": "packages/store/src/io/board/claim.js:claim", "guard": "NOT_CLAIMABLE, HELD, ITEM_HELD, LANE_HELD, BLOCKED, WRONG_LANE, ROUTE, ITEM_BUILD_BUDGET, ONE_CLAIM, REOPEN_HELD_FOR_BUILDER, PENDING_REFREEZE, LINE_WIP_LIMIT", "emits": "claim or renew", "harness": "apps/lib/tests/claim.test.js" },
       { "verb": "release", "declared": true, "from": ["open", "claimed"], "to": "open", "by": "agent|coordinator", "cause": "pullboard release; stale and idle maintenance", "at": "packages/store/src/logic/board/claim.js:releaseClaim", "guard": "NOT_YOURS, RELEASE_REASON, ENGINE_VERSION", "emits": "release (+hold_item after a second release)", "harness": "apps/lib/tests/hold.test.js" },
-      { "verb": "lapse", "declared": true, "from": ["claimed"], "to": "open", "by": "clock", "cause": "a claim lease runs out; written only by an edit of an expired claim or by stale maintenance as a release", "at": "packages/store/src/logic/board/stale/apply.js:applyStaleState", "guard": "caller checks STALE_STATE_CHANGED; the move's state check is passed as null", "emits": "release {expiredClaim} and stale_maintenance; never a lapse event", "harness": "apps/cli/journeys/init/lapse.test.js" },
+      { "verb": "lapse", "declared": true, "from": ["claimed"], "to": "open", "by": "clock", "cause": "a claim lease runs out; written only by an edit of an expired claim or by stale maintenance as a release", "at": "packages/store/src/logic/board/stale/apply.js:applyStaleState", "guard": "caller checks STALE_STATE_CHANGED; the move's state check is passed as null", "emits": "release {expiredClaim} and stale_maintenance; never a lapse event", "harness": "apps/lib/tests/lapse/claim.test.js" },
       { "verb": "submit", "declared": true, "from": ["claimed"], "to": "submitted", "by": "agent|coordinator", "cause": "pullboard submit, after its queued gate is green", "at": "packages/store/src/io/board/submit.js:submit", "guard": "NOT_YOURS, PENDING_REFREEZE, BAR_NOT_READY, CLAUSE_UNTICKED, SUBMISSION_PROOF, CHILDREN_OPEN, HEAD_NOT_NEW; CLI: DIRTY, OUTSIDE_LANE, GATE_RED", "emits": "submit", "harness": "apps/cli/journeys/submit/handoff.test.js" },
       { "verb": "submit-merge", "declared": true, "from": ["claimed"], "to": "verified", "by": "agent|coordinator", "cause": "pullboard submit of a carried acceptance", "at": "packages/store/src/io/board/submit.js:submit", "guard": "the submit guards, MERGE_ONLY_PROOF, SELF_VERIFY, PROOF_REQUIRED", "emits": "merge-only-accept, submit", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "verb": "intake", "declared": true, "from": ["open"], "to": "submitted", "by": "agent|coordinator", "cause": "pullboard intake <PR>", "at": "packages/store/src/io/outside.js:applyOutsideIntake", "guard": "NOT_CLAIMABLE, OUTSIDE_HEAD_CHANGED", "emits": "outside-intake", "harness": "apps/cli/journeys/verify/machine.test.js" },
@@ -30,30 +30,29 @@
       { "verb": "accept", "declared": true, "from": ["submitted", "verified"], "to": "verified", "by": "agent|coordinator", "cause": "pullboard verify <id> accept; verified to verified only for a new review on newer engines", "at": "packages/store/src/io/board/verify.js:verify", "guard": "NOT_SUBMITTED, GATE_PENDING, ALREADY_MERGED, SELF_VERIFY, CRITERIA_CHANGED, PROOF_REQUIRED, CHECK_RED", "emits": "accept and a verdict row", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "verb": "accept (machine)", "declared": false, "from": ["submitted"], "to": "verified", "by": "coordinator", "cause": "a machine-proved submission is accepted after submit", "at": "packages/verify/src/io/machine.js:acceptMachineSubmission", "guard": "every accept guard passed as null; only the caller's MACHINE_PROOF check and the database proof trigger", "emits": "accept by coordinator", "harness": "NONE" },
       { "verb": "reject", "declared": true, "from": ["submitted", "verified"], "to": "open", "by": "agent|coordinator", "cause": "pullboard verify <id> reject", "at": "packages/store/src/io/board/verify.js:verify", "guard": "as accept, plus BAD_REASON, NOTE_REQUIRED, BAR_CLAUSE_REQUIRED", "emits": "reject and a verdict row (+hold_item, bar-sharpen)", "harness": "packages/store/tests/any.test.js" },
-      { "verb": "reopen", "declared": true, "from": ["submitted", "verified"], "to": "open", "by": "agent|coordinator", "cause": "pullboard reopen; automatic trunk conflict; verdict withdrawal; stale verdict at landing", "at": "packages/store/src/io/board/reopen.js:reopen", "guard": "NOT_SUBMITTED, COORDINATOR_ONLY, ALREADY_MERGED, VERDICT_WITHDRAW_*, NOTE_REQUIRED, BAD_CONFLICT", "emits": "reopen", "harness": "apps/cli/journeys/reopen/conflict.test.js" },
+      { "verb": "reopen", "declared": true, "from": ["submitted", "verified"], "to": "open", "by": "agent|coordinator", "cause": "pullboard reopen; automatic trunk conflict; verdict withdrawal; stale verdict at landing", "at": "packages/store/src/io/board/reopen.js:reopen", "guard": "NOT_SUBMITTED, COORDINATOR_ONLY, ALREADY_MERGED, VERDICT_WITHDRAW_*, NOTE_REQUIRED, BAD_CONFLICT", "emits": "reopen", "harness": "apps/cli/journeys/land/merge.test.js" },
       { "verb": "escalate", "declared": true, "from": ["open", "claimed"], "to": "open", "by": "agent|coordinator", "cause": "pullboard escalate", "at": "packages/store/src/logic/board/escalate.js:escalate", "guard": "CLOSED, NOTE_REQUIRED, NOT_YOURS", "emits": "escalate", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "verb": "refreeze", "declared": true, "from": ["open", "claimed", "submitted", "verified"], "to": "open", "by": "coordinator", "cause": "pullboard refreeze (edit --criterion)", "at": "packages/store/src/io/board/refreeze.js:refreeze", "guard": "COORDINATOR_ONLY, CLOSED (verified only inside a spec correction, never merged), BAR_NOT_READY", "emits": "refreeze", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "verb": "refreeze", "declared": true, "from": ["claimed"], "to": "claimed", "by": "agent|coordinator", "cause": "the holder takes a refrozen bar", "at": "packages/store/src/io/board/refreeze.js:refreeze", "guard": "NOT_YOURS, UNKNOWN_SPEC", "emits": "refreeze", "harness": "apps/cli/journeys/verify/machine.test.js" },
-      { "verb": "withdraw", "declared": true, "from": ["open", "claimed", "submitted"], "to": "withdrawn", "by": "coordinator", "cause": "pullboard withdraw; a forced merged on an unverified item", "at": "packages/store/src/io/board/withdraw.js:withdraw", "guard": "CLOSED, COORDINATOR_ONLY, NOTE_REQUIRED, STALE_MAIN_RED", "emits": "withdraw; ends a queued or running hand-off record", "harness": "apps/cli/journeys/withdraw/handoff.test.js" },
+      { "verb": "withdraw", "declared": true, "from": ["open", "claimed", "submitted", "verified"], "to": "withdrawn", "by": "coordinator", "cause": "pullboard withdraw; a forced merged on an unverified item", "at": "packages/store/src/io/board/withdraw.js:withdraw", "guard": "CLOSED, COORDINATOR_ONLY, NOTE_REQUIRED, STALE_MAIN_RED", "emits": "withdraw; ends a queued or running hand-off record", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "verb": "patch", "declared": true, "from": ["submitted", "verified"], "to": "submitted", "by": "coordinator", "cause": "pullboard patch attach or remove", "at": "packages/items/src/io/patches.js:invalidateItemPatch", "guard": "ITEM_PATCH_STATE, COORDINATOR_ONLY, ALREADY_MERGED", "emits": "item_patch_attach or item_patch_remove", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "verb": "patch-claimed", "declared": true, "from": ["claimed"], "to": "claimed", "by": "coordinator", "cause": "pullboard patch on a claimed item", "at": "packages/items/src/io/patches.js:invalidateItemPatch", "guard": "ITEM_PATCH_STATE, COORDINATOR_ONLY", "emits": "item_patch_attach", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "verb": "patch-objected", "declared": true, "from": ["claimed", "submitted"], "to": "open", "by": "agent", "cause": "pullboard patch object", "at": "packages/items/src/io/patches.js:applyItemPatchObjection", "guard": "ITEM_PATCH_WINDOW, NOTE_REQUIRED", "emits": "item_patch_object", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "verb": "rehomeImport", "declared": true, "from": ["open"], "to": "verified", "by": "agent", "cause": "pullboard rehome with a carried ACCEPT", "at": "packages/items/src/io/rehome.js:applyRehomeItem", "guard": "REHOME_VERDICT, NOT_AT_COMMIT, SELF_VERIFY, CRITERIA_CHANGED, PROOF_REQUIRED", "emits": "rehome_import, rehome_applied", "harness": "apps/cli/journeys/verify/machine.test.js" },
-      { "verb": "reland", "declared": false, "from": ["open"], "to": "verified", "by": "coordinator", "cause": "landing re-lands an accepted green item", "at": "packages/store/src/logic/board/reland.js:relandAccepted", "guard": "COORDINATOR_ONLY, RELAND_NOT_ELIGIBLE, NOT_AT_COMMIT, SELF_VERIFY, CRITERIA_CHANGED; its proof check is a no-op; passes the trigger only because rehomeImport declares open to verified", "emits": "reland", "harness": "apps/cli/journeys/reopen/relands.test.js" },
+      { "verb": "reland", "declared": false, "from": ["open"], "to": "verified", "by": "coordinator", "cause": "landing re-lands an accepted green item", "at": "packages/store/src/logic/board/reland.js:relandAccepted", "guard": "COORDINATOR_ONLY, RELAND_NOT_ELIGIBLE, NOT_AT_COMMIT, SELF_VERIFY, CRITERIA_CHANGED; its proof check is a no-op; passes the trigger only because rehomeImport declares open to verified", "emits": "reland", "harness": "packages/moves/tests/reopen.test.js" },
       { "verb": "red return", "declared": false, "from": ["claimed"], "to": "claimed", "by": "clock", "cause": "a queued gate comes back red; the builder keeps the claim with a renewed lease", "at": "packages/store/src/io/submit/handoff/retry.js:returnToBuilder", "guard": "the hand-off record's own state; lease set with setItem", "emits": "renew {queuedRedReturn}, submit_handoff_returned", "harness": "apps/cli/journeys/submit/handoff.test.js" },
       { "verb": "merged", "declared": false, "from": ["verified"], "to": "verified", "by": "coordinator", "cause": "pullboard merged, or a landing batch finishing", "at": "packages/store/src/io/board/merged.js:merged", "guard": "COORDINATOR_ONLY, NOT_VERIFIED, FORCED_REASON; no check for an existing item_merged_commit on the CLI path (the batch path checks it)", "emits": "merged", "harness": "apps/cli/journeys/land/main.test.js" }
     ],
     "refused": [
       { "from": "submitted", "to": "claimed", "enforced": "packages/state/src/io/machine.js:storeTriggers", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "from": "verified", "to": "claimed", "enforced": "packages/state/src/io/machine.js:storeTriggers", "harness": "apps/cli/journeys/verify/machine.test.js" },
-      { "from": "verified", "to": "withdrawn", "enforced": "packages/state/src/io/machine.js:storeTriggers", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "from": "withdrawn", "to": "open", "enforced": "packages/state/src/io/machine.js:storeTriggers", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "from": "withdrawn", "to": "claimed", "enforced": "packages/state/src/io/machine.js:storeTriggers", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "from": "withdrawn", "to": "submitted", "enforced": "packages/state/src/io/machine.js:storeTriggers", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "from": "withdrawn", "to": "verified", "enforced": "packages/state/src/io/machine.js:storeTriggers", "harness": "apps/cli/journeys/verify/machine.test.js" }
     ],
     "guardOnly": [
-      { "case": "verified and merged to open or submitted", "enforced": "packages/store/src/io/board/reopen.js:reopen", "note": "the trigger allows verified to open and to submitted; only the ALREADY_MERGED guards in verify, reopen and patch, and CLOSED in refreeze, stop it", "harness": "apps/cli/journeys/reopen/command.test.js" }
+      { "case": "verified and merged to open or submitted", "enforced": "packages/store/src/io/board/reopen.js:reopen", "note": "the trigger allows verified to open and to submitted; only the ALREADY_MERGED guards in verify, reopen and patch, and CLOSED in refreeze, stop it", "harness": "packages/moves/tests/reopen.test.js" }
     ],
     "unguardedWrites": [
       { "at": "packages/store/src/io/exchange.js:restoreDocument", "what": "board import and relay restore drop the machine triggers and insert any item_status" },
@@ -88,8 +87,8 @@
         { "from": "running", "to": "withdrawn", "trigger": "legacy leased row only: the fallback finds its item no longer submitted at its commit", "at": "packages/drive/src/io/reclaim.js:endDeadGateJobs" },
         { "from": "running", "to": "ended", "trigger": "legacy leased row only: the fallback finds no step for 20 minutes", "at": "packages/drive/src/io/reclaim.js:endDeadGateJobs" }
       ],
-      "servingCheck": { "status": "partial", "at": "packages/store/src/io/submit/handoff/retry.js:startSubmitHandoff", "note": "checked on queue and on queued to running; a running record is resumed with no item check (driveSubmitHandoff proceeds when the record is already running). The fallback's predicate is submitted-at-commit (submittedAt), which is the wrong serving state for a pre-submit gate." },
-      "harness": "apps/cli/journeys/gate/jobs.test.js"
+      "servingCheck": { "status": "partial", "at": "packages/store/src/io/submit/handoff/retry.js:startSubmitHandoff", "note": "checked on queue and on queued to running; a running record is resumed with no item check (no driver resumes one since #6580 deleted the hand-off worker). The fallback's predicate is submitted-at-commit (submittedAt), which is the wrong serving state for a pre-submit gate." },
+      "harness": "apps/cli/journeys/submit/handoff.test.js"
     },
     {
       "kind": "gate-drive",
@@ -109,29 +108,10 @@
         { "from": "running", "to": "gate.progress", "trigger": "every 30 s while the gate runs; resets the stall clock", "at": "packages/drive/src/io/once.js:attemptGate" },
         { "from": "running", "to": "gate.stalled", "trigger": "no step for GATE_STALL_MS", "at": "packages/drive/src/io/once.js:attemptGate" },
         { "from": "running", "to": "collected", "trigger": "the gate returned, or GATE_INFRA_EXHAUSTED after one stall retry", "at": "packages/drive/src/io/once.js:driveOnce" },
-        { "from": "collected", "to": "verdict", "trigger": "the receipt cell judges; lease released", "at": "packages/drive/src/io/once.js:recordJobRow" },
-        { "from": "verdict", "to": "done", "trigger": "after completeSubmitHandoff", "at": "apps/cli/src/io/submit/handoff/worker.js:driveSubmitHandoff" },
-        { "from": "running", "to": "(lease freed, not done)", "trigger": "SIGTERM, SIGINT or the dispatcher lifeline ends", "at": "apps/cli/src/io/submit/handoff/worker.js:driveSubmitHandoff" }
+        { "from": "collected", "to": "verdict", "trigger": "the receipt cell judges; lease released", "at": "packages/drive/src/io/once.js:recordJobRow" }
       ],
       "servingCheck": { "status": "violated", "gap": "SM1", "at": "packages/drive/src/io/once.js:attemptGate", "note": "no item or hand-off check on admission, on any drive transition, or on renewal; the fallback lists only kind gate, so it never sees this kind. A withdrawn, reopened or replaced item's driver runs to its verdict; a driver freed by SIGTERM stays not done and is never ended." },
-      "harness": "apps/cli/journeys/handoff/dead/running.test.js"
-    },
-    {
-      "kind": "dispatcher",
-      "name": "gate dispatcher",
-      "id": "dispatcher",
-      "created": "packages/drive/src/io/dispatcher.js:ensureDispatcher",
-      "serves": "no item: one per machine while tickets wait or drivers run",
-      "states": ["dispatcher.spawned"],
-      "terminal": [],
-      "lease": "LEASE_MS 120 s; renewed every 5 s per pass; released when the queue empties; never done",
-      "transitions": [
-        { "from": "(lapsed)", "to": "dispatcher.spawned", "trigger": "submit, next or claim ensures it; takes the row only where the lease lapsed", "at": "packages/drive/src/io/dispatcher.js:ensureDispatcher" },
-        { "from": "dispatcher.spawned", "to": "dispatcher.spawned", "trigger": "each pass renews, or retakes a lapsed row", "at": "packages/drive/src/io/dispatcher.js:renewDispatcher" },
-        { "from": "dispatcher.spawned", "to": "(released)", "trigger": "queue empty or failure", "at": "packages/drive/src/io/gate/admission.js:gateDispatcherRow" }
-      ],
-      "servingCheck": { "status": "violated", "gap": "SM1", "at": "packages/resources/src/io/handoff/worker/cap.js:startWorker", "note": "launches every waiting ticket with no read of its item" },
-      "harness": "apps/cli/journeys/handoff/dispatcher/relaunch.test.js"
+      "harness": "NONE"
     },
     {
       "kind": "review",
@@ -139,14 +119,16 @@
       "id": "review:<item>",
       "created": "packages/jobs/src/io/review.js:reserveReview",
       "serves": "item submitted at the reserved commit and digest, reserved by this reviewer",
-      "states": ["reserved", "lapsed", "released"],
+      "states": ["reserved", "lapsed", "released", "accept-queued", "accept-settled"],
       "terminal": [],
       "lease": "LEASE_MS 120 s on the job; item_review_until follows the reviewLease setting (30 m); renewed only when the same reviewer reserves again; extended by a sweep while the reviewer heartbeats",
       "transitions": [
         { "from": "(none)", "to": "reserved", "trigger": "next --verify reserves", "at": "packages/jobs/src/io/review.js:reserveReview" },
         { "from": "reserved", "to": "reserved", "trigger": "the same reviewer reserves again", "at": "packages/jobs/src/io/review.js:renewReview" },
         { "from": "reserved", "to": "lapsed", "trigger": "a sweep finds the lease lapsed and the reviewer silent", "at": "packages/jobs/src/io/review.js:reclaimLapsedReviews" },
-        { "from": "reserved", "to": "released", "trigger": "another reviewer takes it over", "at": "packages/jobs/src/io/review.js:releaseReview" }
+        { "from": "reserved", "to": "released", "trigger": "another reviewer takes it over", "at": "packages/jobs/src/io/review.js:releaseReview" },
+        { "from": "reserved", "to": "accept-queued", "trigger": "verify accept queues the frozen check as a runner job and names it on the review job (ae1fb799be, #8636)", "at": "apps/cli/src/io/test/accept.js:ACCEPT_QUEUED" },
+        { "from": "accept-queued", "to": "accept-settled", "trigger": "the check job's receipt records the reviewer's accept or reject once (ae1fb799be, #8636)", "at": "packages/api/src/io/test/accept.js:settleQueuedAccept" }
       ],
       "servingCheck": { "status": "violated", "gap": "SM5", "at": "packages/store/src/io/board/review/lease.js:sweepLapsedReviews", "note": "no verdict, withdraw or reopen releases the job; reclaimLapsedReviews extends the lease while the reviewer heartbeats whatever the item's state" },
       "harness": "packages/moves/tests/logic/moves/reserveNextReview/durable.test.js"
@@ -166,7 +148,7 @@
         { "from": "started", "to": "failed", "trigger": "LAND_STALLED or a throw; lease released, never done", "at": "packages/drive/src/io/landing.js:driveLanding" }
       ],
       "servingCheck": { "status": "held", "at": "packages/landing/src/io/step/merge.js:mergeGroup", "note": "the job never reads items, but every landing step re-checks verified at the commit (selection, merge, trunk, publish)" },
-      "harness": "apps/cli/journeys/verify/landing/drill.test.js"
+      "harness": "apps/cli/journeys/land/main.test.js"
     },
     {
       "kind": "landing",
@@ -260,13 +242,15 @@
       "id": "test-run:<uuid>",
       "created": "packages/drive/src/io/queue.js:queueTestRun",
       "serves": "no item that it ends: the seat that queued it, and an optional item for display",
-      "states": ["queued", "running", "result", "lost", "cancelled", "delivered"],
+      "states": ["queued", "running", "pulled", "result", "lost", "cancelled", "delivered"],
       "terminal": ["delivered"],
       "lease": "LEASE_MS 120 s, taken by the worker and renewed every RENEW_MS; a worker that dies stops renewing and the run is reported lost 2 minutes later",
       "transitions": [
         { "from": "(none)", "to": "queued", "trigger": "pullboard test queues a run and starts its detached worker", "at": "packages/drive/src/io/queue.js:queueTestRun" },
         { "from": "queued", "to": "running", "trigger": "the worker takes the lease", "at": "packages/drive/src/io/queue.js:workTestRun" },
         { "from": "running", "to": "result", "trigger": "the work returned or failed; lease released", "at": "packages/drive/src/io/queue.js:workTestRun" },
+        { "from": "running", "to": "pulled", "trigger": "the worker offered its runner job and names it (job id, and how long it may wait unclaimed), so the receipt settles the run if the worker stops", "at": "apps/cli/src/io/test/pull.js:runJobFor" },
+        { "from": "pulled", "to": "result", "trigger": "the worker records the runner receipt; or, once the worker is gone, the receipt is read as the result and the lease released", "at": "packages/drive/src/io/queue.js:endLostTestRuns" },
         { "from": "running", "to": "lost", "trigger": "the lease lapsed and the worker process is gone; lost step recorded and lease released", "at": "packages/drive/src/io/queue.js:endLostTestRuns" },
         { "from": "result", "to": "delivered", "trigger": "next hands the finished run to its seat once", "at": "packages/drive/src/io/queue.js:deliverTestRun" },
         { "from": "lost", "to": "delivered", "trigger": "next hands the lost run to its seat once", "at": "packages/drive/src/io/queue.js:deliverTestRun" }
@@ -285,6 +269,7 @@
         "offered",
         "claimed",
         "receipt",
+        "runaway",
         "done"
       ],
       "terminal": [
@@ -321,6 +306,18 @@
           "to": "done",
           "trigger": "the receipt is recorded and the lease released",
           "at": "packages/api/src/io/jobs.js:postReceipt"
+        },
+        {
+          "from": "claimed",
+          "to": "runaway",
+          "trigger": "the job has been claimed gate.jobMaxAttempts times without a receipt, so it ends and the coordinator hears once",
+          "at": "packages/api/src/io/jobs.js:endRunaway"
+        },
+        {
+          "from": "runaway",
+          "to": "done",
+          "trigger": "the ended job is finished so no runner takes it again",
+          "at": "packages/api/src/io/jobs.js:endRunaway"
         }
       ],
       "servingCheck": {
@@ -328,7 +325,7 @@
         "at": "packages/api/src/io/landing.js:offerLandingJob",
         "note": "the runner re-checks each item before it pushes and the board checks the permit on every renewal"
       },
-      "harness": "apps/cli/journeys/runner/landing/guard.test.js"
+      "harness": "apps/lib/tests/durable/land.test.js"
     },
     {
       "kind": "gate-shard",
@@ -341,6 +338,7 @@
         "offered",
         "claimed",
         "receipt",
+        "runaway",
         "done"
       ],
       "terminal": [
@@ -377,6 +375,18 @@
           "to": "done",
           "trigger": "the receipt is recorded and the lease released",
           "at": "packages/api/src/io/jobs.js:postReceipt"
+        },
+        {
+          "from": "claimed",
+          "to": "runaway",
+          "trigger": "the job has been claimed gate.jobMaxAttempts times without a receipt, so it ends and the coordinator hears once",
+          "at": "packages/api/src/io/jobs.js:endRunaway"
+        },
+        {
+          "from": "runaway",
+          "to": "done",
+          "trigger": "the ended job is finished so no runner takes it again",
+          "at": "packages/api/src/io/jobs.js:endRunaway"
         }
       ],
       "servingCheck": {
@@ -394,9 +404,11 @@
       "serves": "no item that it ends: the seat waiting on pullboard test; the board records the receipt and applies nothing",
       "states": [
         "request",
+        "pending",
         "offered",
         "claimed",
         "receipt",
+        "runaway",
         "done"
       ],
       "terminal": [
@@ -404,6 +416,18 @@
       ],
       "lease": "LEASE_MS 120 s taken by the claiming runner and renewed by it; a lapsed lease is claimable again with no sweeper",
       "transitions": [
+        {
+          "from": "(none)",
+          "to": "pending",
+          "trigger": "the board writes the job with its whole request, unclaimable until its run row commits",
+          "at": "packages/store/src/io/board/runs.js:intend"
+        },
+        {
+          "from": "pending",
+          "to": "offered",
+          "trigger": "the run row has committed, so the job is offered",
+          "at": "packages/store/src/io/board/runs.js:confirm"
+        },
         {
           "from": "(none)",
           "to": "offered",
@@ -433,6 +457,18 @@
           "to": "done",
           "trigger": "the receipt is recorded and the lease released",
           "at": "packages/api/src/io/jobs.js:postReceipt"
+        },
+        {
+          "from": "claimed",
+          "to": "runaway",
+          "trigger": "the job has been claimed gate.jobMaxAttempts times without a receipt, so it ends and the coordinator hears once",
+          "at": "packages/api/src/io/jobs.js:endRunaway"
+        },
+        {
+          "from": "runaway",
+          "to": "done",
+          "trigger": "the ended job is finished so no runner takes it again",
+          "at": "packages/api/src/io/jobs.js:endRunaway"
         }
       ],
       "servingCheck": {
@@ -440,17 +476,177 @@
         "at": "apps/cli/src/io/test/pull.js:offerTestJob",
         "note": "serves the pulling runner's work; no driver ends it on an item move"
       },
-      "harness": "apps/cli/journeys/runner/check.pull.test.js"
+      "harness": "apps/cli/tests/io/resident/board.test.js"
+    },
+    {
+      "kind": "check-baseline",
+      "name": "pulled check baseline",
+      "id": "baseline:<item>:<request>",
+      "created": "packages/api/src/io/baseline.js:offerCheckBaseline",
+      "serves": "item whose frozen check is measured at main; the receipt is recorded on the item's pending baseline",
+      "states": [
+        "offered",
+        "claimed",
+        "receipt",
+        "runaway",
+        "done"
+      ],
+      "terminal": [
+        "done"
+      ],
+      "lease": "LEASE_MS 120 s taken by the claiming runner and renewed by it; a lapsed lease is claimable again with no sweeper",
+      "transitions": [
+        {
+          "from": "(none)",
+          "to": "offered",
+          "trigger": "add or edit offers the check at main's captured commit, or returns the open job for that request",
+          "at": "packages/api/src/io/baseline.js:offerCheckBaseline"
+        },
+        {
+          "from": "offered",
+          "to": "claimed",
+          "trigger": "a runner with every capability takes the lease",
+          "at": "packages/api/src/io/jobs.js:claimJob"
+        },
+        {
+          "from": "claimed",
+          "to": "claimed",
+          "trigger": "a lapsed lease is taken by another runner, as the next attempt",
+          "at": "packages/api/src/io/jobs.js:claimJob"
+        },
+        {
+          "from": "claimed",
+          "to": "receipt",
+          "trigger": "the holding runner posts its receipt",
+          "at": "packages/api/src/io/jobs.js:postReceipt"
+        },
+        {
+          "from": "receipt",
+          "to": "done",
+          "trigger": "the receipt is recorded, applied to the item's baseline by applyCheckBaselineReceipt, and the lease released",
+          "at": "packages/api/src/io/baseline.js:applyCheckBaselineReceipt"
+        },
+        {
+          "from": "claimed",
+          "to": "runaway",
+          "trigger": "the job has been claimed gate.jobMaxAttempts times without a receipt, so it ends and the coordinator hears once",
+          "at": "packages/api/src/io/jobs.js:endRunaway"
+        },
+        {
+          "from": "runaway",
+          "to": "done",
+          "trigger": "the ended job is finished so no runner takes it again",
+          "at": "packages/api/src/io/jobs.js:endRunaway"
+        }
+      ],
+      "servingCheck": {
+        "status": "n/a",
+        "at": "packages/api/src/io/baseline.js:applyCheckBaselineReceipt",
+        "note": "a moved request refuses the result (stale); no driver ends the job on an item move"
+      },
+      "harness": "packages/store/tests/check-baseline-worker.test.js"
+    },
+    {
+      "kind": "screen",
+      "name": "keyed sprint screen",
+      "id": "screen:<commit>:<digest>@<base>",
+      "created": "packages/drive/src/io/screen.js:runScreenJob",
+      "serves": "a submitted sprint item at its commit on the current base: the merge, static checks on its changed files, and secrets and hook rules re-checked by trusted code",
+      "states": [
+        "produce.started",
+        "part.<name>",
+        "result"
+      ],
+      "terminal": [
+        "result"
+      ],
+      "lease": "LEASE_MS 120 s renewed every 5 s until the screen settles, with no stall bound",
+      "transitions": [
+        {
+          "from": "(none)",
+          "to": "produce.started",
+          "trigger": "the first driver to screen a sprint item at this commit, digest and base takes the lease",
+          "at": "packages/drive/src/io/keyed.js:produceUnderLease"
+        },
+        {
+          "from": "produce.started",
+          "to": "result",
+          "trigger": "the scratch-tree merge, static checks and trusted re-check returned one green or red receipt",
+          "at": "packages/drive/src/io/keyed.js:produceUnderLease"
+        }
+      ],
+      "servingCheck": {
+        "status": "n/a",
+        "at": "packages/drive/src/io/screen.js:runScreenJob",
+        "note": "keyed by commit, digest and base, so a moved item or base names a new screen; items not frozen at sprint are never screened"
+      },
+      "harness": "packages/drive/tests/io/screen.test.js"
+    },
+    {
+      "kind": "pull-out",
+      "name": "sprint pull-out",
+      "id": "pull-out:<item>:<landed commit, 12 hex>",
+      "created": "packages/landing/src/io/step/pull.js:runPullOutJob",
+      "serves": "an item whose landing is pulling: the lander reverts its landed commit on main and records pulled",
+      "states": [
+        "queued",
+        "reverted",
+        "pushed",
+        "blocked",
+        "done"
+      ],
+      "terminal": [
+        "blocked",
+        "done"
+      ],
+      "lease": "none: one runPullOutJob call reverts, pushes and records in turn; a rerun finds the item no longer pulling",
+      "transitions": [
+        {
+          "from": "(none)",
+          "to": "queued",
+          "trigger": "the item's landing is pulling, so the lander creates its pull-out job at the landed commit and the fetched trunk",
+          "at": "packages/landing/src/io/step/pull.js:runPullOutJob"
+        },
+        {
+          "from": "queued",
+          "to": "blocked",
+          "trigger": "the revert of the landed commit conflicts on the trunk tip; the step names the conflicted paths and the landing stays pulling",
+          "at": "packages/landing/src/io/step/pull.js:runPullOutJob"
+        },
+        {
+          "from": "queued",
+          "to": "reverted",
+          "trigger": "revertLanded wrote the revert commit on the trunk tip",
+          "at": "packages/landing/src/io/step/pull.js:runPullOutJob"
+        },
+        {
+          "from": "reverted",
+          "to": "pushed",
+          "trigger": "pushTrunkThroughFence pushed the revert to trunk under the item's hop epoch",
+          "at": "packages/landing/src/io/step/pull.js:runPullOutJob"
+        },
+        {
+          "from": "pushed",
+          "to": "done",
+          "trigger": "recordPulled wrote the pulled event at the pushed revert, and the job finished",
+          "at": "packages/landing/src/io/step/pull.js:runPullOutJob"
+        }
+      ],
+      "servingCheck": {
+        "status": "held",
+        "at": "packages/landing/src/io/step/pull.js:runPullOutJob",
+        "note": "created only while the item's landing is pulling, and recordPulled refuses NOT_PULLING, so a moved item is never pulled twice; only a sprint item reaches pulling"
+      },
+      "harness": "packages/landing/tests/io/step/pull.test.js"
     }
   ],
   "processes": [
     { "name": "test-run", "what": "pullboard test --compare-main runs files on runners under a gate-slot lease; its queued run is the test-run job", "at": "packages/gate/src/io/test/run.js:runTestFiles", "serves": "no item", "harness": "packages/gate/tests/fixtures/pipeline/e2e.js" },
     { "name": "main-red refresh", "what": "refreshes main-red comparisons under a resource lease and a cache file; no job row", "at": "packages/landing/src/io/main/red.js:refreshMainRedComparisons", "serves": "no item", "harness": "NONE" },
     { "name": "sentinels", "what": "board sentinels run under an activeRun deadline of timeout + 10 s; no job row", "at": "packages/sentinels/src/io/main.js:beginSentinelRun", "serves": "no item", "harness": "NONE" },
-    { "name": "seat heartbeat", "what": "a heartbeat row every 60 s; proves the seat alive and never selects or claims", "at": "packages/store/src/io/presence.js:heartbeatSeat", "serves": "the seat", "harness": "apps/cli/journeys/heartbeat/presence.test.js" },
-    { "name": "claim heartbeat", "what": "re-claims or re-reserves at half the lease while a queued gate runs; stops with ITEM_LEASE_LOST when the item is no longer claimed or submitted by this seat at its digest and commit", "at": "packages/git/src/io/lease.js:createQueuedItemLease", "serves": "item claimed or submitted by this seat", "harness": "apps/cli/journeys/gate/during/holds.test.js" },
-    { "name": "landing lease", "what": "board_meta landing_lease, 120 s, renewed every 5 s by the lander", "at": "packages/store/src/logic/board/landing/lease.js:landingLeaseMove", "serves": "one lander per board", "harness": "apps/lib/tests/landing/lease.test.js" },
-    { "name": "automatic landing scheduler", "what": "a pending.json record; a crashed lander is recovered by the next command, sentinel or view", "at": "packages/landing/src/io/automatic/scheduler.js:recoverAutomaticLanding", "serves": "verified, unmerged items", "harness": "apps/cli/journeys/verify/landing/drill.test.js" }
+    { "name": "seat heartbeat", "what": "a heartbeat row every 60 s; proves the seat alive and never selects or claims", "at": "packages/store/src/io/presence.js:heartbeatSeat", "serves": "the seat", "harness": "apps/cli/journeys/resume/presence/heartbeat.test.js" },
+    { "name": "claim heartbeat", "what": "re-claims or re-reserves at half the lease while a queued gate runs; stops with ITEM_LEASE_LOST when the item is no longer claimed or submitted by this seat at its digest and commit", "at": "packages/git/src/io/lease.js:createQueuedItemLease", "serves": "item claimed or submitted by this seat", "harness": "apps/cli/journeys/submit/handoff/queued.test.js" },
+    { "name": "landing lease", "what": "board_meta landing_lease, 120 s, renewed every 5 s by the lander", "at": "packages/store/src/logic/board/landing/lease.js:landingLeaseMove", "serves": "one lander per board", "harness": "apps/lib/tests/landing/lease.test.js" }
   ],
   "next": [
     { "n": "P1", "path": "all", "inspects": "lapsed leased gate jobs", "returns": "nothing", "effects": "DJ15 fallback: ends stale and idle legacy gate jobs, drives at most one by one transition within 1 s", "handsOut": [], "fresh": "n/a", "at": "apps/cli/src/io/reclaim.js:fallbackReclaim" },
@@ -459,7 +655,6 @@
     { "n": "B2", "path": "builder", "inspects": "an ownership wait in this lane", "returns": "#N waits on your ownership of ...", "effects": "none", "handsOut": [], "fresh": "fresh", "at": "apps/cli/src/io/commands/next.js:nextWithProgress" },
     { "n": "B3", "path": "builder", "inspects": "open main-red items main already passes", "returns": "nothing", "effects": "withdraws them as coordinator", "handsOut": [], "fresh": "fresh", "at": "packages/sandbox/src/io/take.js:closePassingMainReds" },
     { "n": "B4", "path": "builder", "inspects": "a routable main-red repair with no mandatory review", "returns": "switches to the next --take path", "effects": "none", "handsOut": [], "fresh": "fresh", "at": "packages/sandbox/src/io/take.js:mainRedBuildOffer" },
-    { "n": "B5", "path": "builder", "inspects": "this seat's dead queued or running hand-offs", "returns": "nothing", "effects": "retires them", "handsOut": [], "fresh": "fresh", "at": "apps/cli/src/io/submit/handoff.js:recoverOwnSubmitHandoffs" },
     { "n": "B6", "path": "builder", "inspects": "a mandatory review (plain next) and no own claim", "returns": "next to verify: #N; reserved for you until ...", "effects": "reserves a review", "handsOut": ["submitted"], "fresh": "guarded", "at": "packages/store/src/io/board/reserve/review.js:reserveWithin" },
     { "n": "B7", "path": "builder", "inspects": "this seat's own claim", "returns": "you hold #N", "effects": "parks it on unmet deps; opens the item folder; never renews the lease", "handsOut": ["claimed"], "fresh": "stale", "gap": "SM6", "at": "apps/cli/src/io/next.js:nextOnce" },
     { "n": "B8", "path": "builder", "inspects": "a review worth offering beside a build", "returns": "review offered: #N; build available: ...", "effects": "none (advisory)", "handsOut": ["submitted", "open"], "fresh": "advisory", "at": "apps/cli/src/io/next/say.js:sayReviewOffer" },
@@ -477,34 +672,31 @@
     { "n": "E1", "path": "all", "inspects": "nothing to do", "returns": "nothing for this seat: end your turn, or NOTHING_FREE, REVIEW_NOT_READY, NEXT_TIMEOUT", "effects": "next-idle event; --wait sleeps on board and git file changes", "handsOut": [], "fresh": "n/a", "at": "apps/cli/src/io/next/steps.js:refuseNextIdle" }
   ],
   "couldHappen": [
-    { "case": "two seats claim the same item", "current": "the claim move runs in one write transaction; the second gets HELD and next retries", "intended": "same", "harness": "apps/cli/journeys/claim/race.test.js" },
+    { "case": "two seats claim the same item", "current": "the claim move runs in one write transaction; the second gets HELD and next retries", "intended": "same", "harness": "apps/lib/tests/claim.test.js" },
     { "case": "two reviewers reserve the same item", "current": "reserveChosen re-checks status, commit and digest inside the transaction; the second gets REVIEW_HELD and retries", "intended": "same", "harness": "packages/store/tests/io/board/reserve/next.test.js" },
     { "case": "a reviewer is offered its own work", "current": "notBuilder and the session skip list refuse it in the transaction (SELF_VERIFY)", "intended": "same", "harness": "apps/cli/journeys/verify/machine.test.js" },
-    { "case": "dead seat holding a claim", "current": "the lease runs out; readers see open; the next write frees it with builder first refusal", "intended": "same", "harness": "apps/cli/journeys/init/lapse.test.js" },
-    { "case": "heartbeat-only claim (seat alive, no work)", "current": "a live holder heartbeat vetoes expiry; idle maintenance releases it after health.stuck", "intended": "a heartbeat proves the seat, never the work; an untouched claim frees after its idle window", "harness": "apps/cli/journeys/release/next/untouched.test.js" },
+    { "case": "dead seat holding a claim", "current": "the lease runs out; readers see open; the next write frees it with builder first refusal", "intended": "same", "harness": "apps/lib/tests/lapse/claim.test.js" },
+    { "case": "heartbeat-only claim (seat alive, no work)", "current": "a live holder heartbeat vetoes expiry; idle maintenance releases it after health.stuck", "intended": "a heartbeat proves the seat, never the work; an untouched claim frees after its idle window", "harness": "apps/lib/tests/lapse/idle.test.js" },
     { "case": "dead reviewer", "current": "the review job lapses after 2 minutes and the item is offered again", "intended": "same", "harness": "packages/moves/tests/logic/moves/reserveNextReview/durable.test.js" },
     { "case": "red gate", "current": "the hand-off ends red; the builder keeps the claim with a renewed lease and next tells it once", "intended": "same", "harness": "apps/cli/journeys/submit/handoff.test.js" },
     { "case": "red notice after the claim lapsed", "current": "next still says the item stays claimed by you until a past time", "intended": "the notice reads the live lease and says the claim lapsed", "harness": "packages/gate/tests/fixtures/pipeline/red-notice-after-the-claim-lapsed.js" },
     { "case": "a red from an older head shown at claim", "current": "returnedRecord shows the newest red or infrastructure gate without matching the current commit", "intended": "only a red at the item's current commit is shown", "harness": "packages/gate/tests/fixtures/pipeline/a-red-from-an-older-head-shown-at-claim.js" },
-    { "case": "main moved while an item was in review", "current": "a clean move keeps the verdict; a real conflict reopens the item naming the file", "intended": "same", "harness": "apps/cli/journeys/lifecycle/merge.test.js" },
-    { "case": "main moved after acceptance, before landing", "current": "the lander reopens a stale verdict to its lane with the file named", "intended": "same", "harness": "apps/cli/journeys/reopen/landing/stale.test.js" },
-    { "case": "gate driver lease lost", "current": "a refused renewal retakes the lease on the next tick", "intended": "same, but only while its item still is in its serving state", "harness": "apps/cli/journeys/handoff/dead/running.test.js" },
+    { "case": "main moved while an item was in review", "current": "a clean move keeps the verdict; a real conflict reopens the item naming the file", "intended": "same", "harness": "apps/cli/journeys/land/merge.test.js" },
+    { "case": "main moved after acceptance, before landing", "current": "the land job merges on the moved trunk and checks there; a red or a conflict leaves trunk where it was", "intended": "same", "harness": "apps/lib/tests/durable/land.test.js" },
+    { "case": "gate driver lease lost", "current": "a refused renewal retakes the lease on the next tick", "intended": "same, but only while its item still is in its serving state", "harness": "NONE" },
     { "case": "gate driver killed", "current": "the gate is requeued on the same candidate within seconds, with no builder red", "intended": "same", "harness": "packages/gate/tests/fixtures/pipeline/requeue.js" },
     { "case": "live driver mistaken for dead", "current": "a sweep never declares a live, same-incarnation driver dead for a lapsed lease alone", "intended": "same", "harness": "packages/gate/tests/fixtures/pipeline/driver.js" },
-    { "case": "runner lost mid-shard", "current": "the idle probe stops the orphan worker; the gate requeues with attempt + 1; three infrastructure stops end it", "intended": "same", "harness": "packages/gate/tests/fixtures/pipeline/worker.js" },
-    { "case": "dispatcher down with queued gates", "current": "next and claim recover a dead dispatcher; status, show and whoami never do", "intended": "same", "harness": "apps/cli/journeys/handoff/dispatcher/relaunch.test.js" },
-    { "case": "dispatcher on stale tools", "current": "it stops launching and hands over to one on current tooling within 45 s", "intended": "same", "harness": "packages/gate/tests/fixtures/pipeline/dispatcher.js" },
+    { "case": "runner lost mid-shard", "current": "the idle probe stops the orphan worker; the gate requeues with attempt + 1; three infrastructure stops end it", "intended": "same", "harness": "apps/runner/tests/io/pipeline/worker.test.js" },
     { "case": "seat runs a stale CLI", "current": "a worktree runs the main checkout's current CLI", "intended": "same", "harness": "apps/cli/journeys/worktree/current.test.js" },
-    { "case": "another machine's dispatcher sweeps this home", "current": "it never recovers this home's gates", "intended": "same", "harness": "packages/gate/tests/fixtures/pipeline/sweep.js" },
-    { "case": "landing crash", "current": "killing the lander at any stage lets the next accept land both items without manual recovery", "intended": "same", "harness": "apps/cli/journeys/verify/landing/drill.test.js" },
+    { "case": "landing crash", "current": "killing the lander at any stage lets the next accept land both items without manual recovery", "intended": "same", "harness": "apps/cli/journeys/land/main.test.js" },
     { "case": "two landers", "current": "the board landing lease admits one; a stalled relay cannot block the holder's heartbeat", "intended": "same", "harness": "apps/lib/tests/landing/lease.test.js" },
     { "case": "a reject or reopen during landing", "current": "every landing step re-checks verified at the commit, so the item drops out of the batch", "intended": "same, proven between select and merge", "harness": "packages/gate/tests/fixtures/pipeline/a-reject-or-reopen-during-landing.js" },
-    { "case": "withdrawal mid-gate", "current": "the hand-off record ends withdrawn and its ticket is dropped, but a running driver is not stopped and runs to its verdict", "intended": "the driver ends at its next renewal tick", "harness": "apps/cli/journeys/withdraw/handoff.test.js" },
+    { "case": "withdrawal mid-gate", "current": "the hand-off record ends withdrawn and its ticket is dropped, but a running driver is not stopped and runs to its verdict", "intended": "the driver ends at its next renewal tick", "harness": "apps/cli/journeys/verify/machine.test.js" },
     { "case": "reopen or reject mid-gate", "current": "next skips a gate older than the reopen; the driver keeps running", "intended": "the driver ends at its next renewal tick", "harness": "packages/store/tests/io/board/next/gate.test.js" },
-    { "case": "new head submitted while a gate runs", "current": "the old worker is signalled, its slot freed and the new head queued", "intended": "same", "harness": "apps/cli/journeys/submit/replaces.test.js" },
-    { "case": "lapsed gate job whose item moved on (zombie)", "current": "a fallback pass ends legacy kind gate rows; kind gate-drive is never listed", "intended": "every job kind ends at once when its item leaves its serving state", "harness": "apps/cli/journeys/gate/jobs.test.js" },
+    { "case": "new head submitted while a gate runs", "current": "the old worker is signalled, its slot freed and the new head queued", "intended": "same", "harness": "apps/cli/journeys/submit/handoff/queued.test.js" },
+    { "case": "lapsed gate job whose item moved on (zombie)", "current": "a fallback pass ends legacy kind gate rows; kind gate-drive is never listed", "intended": "every job kind ends at once when its item leaves its serving state", "harness": "apps/cli/journeys/submit/handoff.test.js" },
     { "case": "review held on an item that was withdrawn or verified", "current": "the review job is not released; a heartbeating reviewer keeps extending it", "intended": "a verdict, withdraw or reopen releases it in the same transaction", "harness": "packages/gate/tests/fixtures/pipeline/review-held-on-an-item-that-was-withdraw.js" },
-    { "case": "next resumes a claim that changed in the same moment", "current": "you hold #N prints from the read snapshot", "intended": "re-read in the transaction that prints", "harness": "NONE" },
+    { "case": "next resumes a claim that changed in the same moment", "current": "you hold #N prints from the read snapshot", "intended": "re-read in the transaction that prints", "harness": "packages/gate/tests/fixtures/pipeline/next-resumes-a-claim-that-changed-in-the.js" },
     { "case": "a shout names an item this seat cannot act on", "current": "next --wait returns a shout asks you to act on #N only for an item open in the seat's lane, claimed by it or reservable by it", "intended": "same", "harness": "packages/gate/tests/fixtures/pipeline/a-shout-names-an-item-this-seat-cannot-a.js" },
     { "case": "pullboard merged run twice", "current": "the same commit is a no-op naming the record; a different commit is refused MERGED_ALREADY and nothing is overwritten", "intended": "same", "harness": "packages/gate/tests/fixtures/pipeline/pullboard-merged-run-twice.js" },
     { "case": "board restored from an export with an undeclared status", "current": "the import refuses it UNDECLARED_STATE before it inserts any row", "intended": "same", "harness": "packages/gate/tests/fixtures/pipeline/board-restored-from-an-export-with-an-un.js" },
@@ -515,14 +707,14 @@
     { "case": "the P7 chaos test", "current": "SPEC P7 names test/durable-chaos-26.test.js as its gate; the file does not exist", "intended": "the chaos test kills drivers at random and asserts each job finishes once", "harness": "NONE" }
   ],
   "gaps": [
-    { "id": "SM1", "severity": "high", "title": "gate-drive jobs never check their item", "files": ["packages/drive/src/io/once.js", "packages/drive/src/io/gate.js", "apps/cli/src/io/submit/handoff/worker.js"], "test": "test/gate-drive-serving-state.test.js", "criterion": "A gate-drive job whose hand-off record is no longer queued or running, or whose item is not claimed by the hand-off's seat at its frozen digest, writes an ended step {stale:true}, is marked done and stops its gate at its next renewal tick; the dispatcher never admits such a ticket." },
-    { "id": "SM2", "severity": "high", "title": "the fallback lists only kind gate", "files": ["packages/drive/src/io/reclaim.js", "apps/cli/src/io/reclaim.js"], "test": "apps/cli/journeys/gate/jobs.test.js", "criterion": "lapsedGateJobs lists kinds gate and gate-drive; a lapsed gate-drive job whose hand-off is ended, or whose item left its serving state, ends stale on the next next or status, never driven." },
-    { "id": "SM3", "severity": "high", "title": "a running hand-off resumes with no item check", "files": ["packages/store/src/io/submit/handoff/retry.js", "apps/cli/src/io/submit/handoff/worker.js"], "test": "apps/cli/journeys/handoff/dead/running.test.js", "criterion": "startSubmitHandoff on a running record checks the item is claimed by the record's seat at its digest, as it does for a queued one, and refuses SUBMIT_HANDOFF_CHANGED otherwise; the worker then ends the job." },
-    { "id": "SM4", "severity": "high", "title": "the fallback's serving predicate is wrong for pre-submit gates", "files": ["apps/cli/src/io/reclaim.js"], "test": "apps/cli/journeys/gate/jobs.test.js", "criterion": "the active predicate takes the hand-off record: a queued or running gate serves claimed by its seat at its digest, and only a post-submit job serves submitted at its commit; a pre-submit gate for a claimed item is never ended stale." },
+    { "id": "SM1", "severity": "high", "title": "gate-drive jobs never check their item", "files": ["packages/drive/src/io/once.js", "packages/drive/src/io/gate.js"], "test": "test/gate-drive-serving-state.test.js", "criterion": "A gate-drive job whose hand-off record is no longer queued or running, or whose item is not claimed by the hand-off's seat at its frozen digest, writes an ended step {stale:true}, is marked done and stops its gate at its next renewal tick; the dispatcher never admits such a ticket." },
+    { "id": "SM2", "severity": "high", "title": "the fallback lists only kind gate", "files": ["packages/drive/src/io/reclaim.js", "apps/cli/src/io/reclaim.js"], "test": "apps/cli/journeys/submit/handoff.test.js", "criterion": "lapsedGateJobs lists kinds gate and gate-drive; a lapsed gate-drive job whose hand-off is ended, or whose item left its serving state, ends stale on the next next or status, never driven." },
+    { "id": "SM3", "severity": "high", "title": "a running hand-off resumes with no item check", "files": ["packages/store/src/io/submit/handoff/retry.js"], "test": "NONE", "criterion": "startSubmitHandoff on a running record checks the item is claimed by the record's seat at its digest, as it does for a queued one, and refuses SUBMIT_HANDOFF_CHANGED otherwise; the worker then ends the job." },
+    { "id": "SM4", "severity": "high", "title": "the fallback's serving predicate is wrong for pre-submit gates", "files": ["apps/cli/src/io/reclaim.js"], "test": "apps/cli/journeys/submit/handoff.test.js", "criterion": "the active predicate takes the hand-off record: a queued or running gate serves claimed by its seat at its digest, and only a post-submit job serves submitted at its commit; a pre-submit gate for a claimed item is never ended stale." },
     { "id": "SM5", "severity": "medium", "title": "review jobs outlive their item's review", "files": ["packages/jobs/src/io/review.js", "packages/store/src/io/board/review/lease.js", "packages/store/src/io/board/verify.js"], "test": "packages/moves/tests/logic/moves/reserveNextReview/durable.test.js", "criterion": "verify, withdraw and reopen release the item's review job (step released, done) in the same transaction; reclaimLapsedReviews never extends a lease whose item is not submitted." },
     { "id": "SM6", "severity": "medium", "title": "next resumes a held claim from a snapshot", "files": ["apps/cli/src/io/next.js", "packages/store/src/io/eligibility.js"], "test": "test/next-held-claim-fresh.test.js", "criterion": "next and next --take print you hold #N only after re-reading, in the board read that prints, that #N is claimed by this seat with a live lease; otherwise they fall through to selection." },
     { "id": "SM7", "severity": "medium", "title": "next --wait shouts can hand out any item", "files": ["packages/activity/src/io/shouts.js"], "test": "test/next-wait-shout-scope.test.js", "criterion": "a shout ends next --wait with a shout asks you to act on #N only when #N is open in this seat's lane, claimed by this seat, or reservable by it; any other shout is printed and the wait continues." },
-    { "id": "SM8", "severity": "medium", "title": "landing jobs and freed gate drivers never reach done", "files": ["packages/drive/src/io/landing.js", "packages/land/src/io/sequence.js", "apps/cli/src/io/submit/handoff/worker.js"], "test": "test/jobs-reach-done.test.js", "criterion": "a failed landing run, a finish sequence stopped by LAND_PROOF_NOT_GREEN, and a gate driver freed by a signal each end with a failed or ended step and done, so no job row is left unowned and not done." },
+    { "id": "SM8", "severity": "medium", "title": "landing jobs and freed gate drivers never reach done", "files": ["packages/drive/src/io/landing.js", "packages/land/src/io/sequence.js"], "test": "test/jobs-reach-done.test.js", "criterion": "a failed landing run, a finish sequence stopped by LAND_PROOF_NOT_GREEN, and a gate driver freed by a signal each end with a failed or ended step and done, so no job row is left unowned and not done." },
     { "id": "SM9", "severity": "medium", "title": "queued main-test jobs have no driver", "files": ["packages/landing/src/io/main/red/receipt.js", "packages/drive/src/io/main/red.js"], "test": "test/main-test-job-ends.test.js", "criterion": "a main-test job queued by receiptComparison is driven to a receipt or ended within one dispatcher pass after its lease would lapse." },
     { "id": "SM10", "severity": "medium", "title": "pullboard merged runs twice", "files": ["packages/store/src/io/board/merged.js"], "test": "test/merged-twice.test.js", "criterion": "merged on an item that already has item_merged_commit refuses ALREADY_MERGED unless it names the same commit, which writes nothing." },
     { "id": "SM11", "severity": "medium", "title": "reland is an undeclared move", "files": ["packages/store/src/logic/board/reland.js", "packages/state/src/logic/machine/declaration.js"], "test": "apps/cli/journeys/verify/machine.test.js", "criterion": "reland is declared in MOVES with its guards and a real proof check, and `pullboard lifecycle` shows it." },
