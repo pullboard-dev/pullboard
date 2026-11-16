@@ -94,6 +94,7 @@ export const MACHINE_DEFAULTS = {
   'serve.address': '127.0.0.1',
   'serve.port': 0,
   'spec.commitOnApply': false,
+  'submit.clauseMarks': false,
   'submit.proofOnly': false,
   'test.statusOutcomes': false,
   'tests.registryStrict': false,
