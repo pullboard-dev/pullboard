@@ -133,6 +133,16 @@ const verdicts = () => {
   return out;
 };
 try { receipt.verdicts = verdicts(); } catch { receipt.verdicts = null; }
+// Each file's own wall ms from its time line, read from the whole output before the tail is cut, so a clipped receipt still times every file [C7,#8576].
+try {
+  const times = {};
+  for (const row of text.split('\\n')) {
+    if (!row.startsWith(${JSON.stringify(FILE_TIME_LINE)})) continue;
+    const rest = row.slice(${FILE_TIME_LINE.length}), space = rest.indexOf(' '), ms = Number(rest.slice(0, space));
+    if (space > 0 && Number.isFinite(ms) && ms >= 0) times[rest.slice(space + 1).trim()] = Math.max(times[rest.slice(space + 1).trim()] ?? 0, ms);
+  }
+  receipt.times = times;
+} catch { receipt.times = null; }
 let keep = 40000, line;
 do { receipt.phases[0].tail = text.slice(-keep); line = ${JSON.stringify(GATE_RECEIPT)} + JSON.stringify(receipt); keep = Math.floor(keep / 2); } while (Buffer.byteLength(line) > 56 * 1024 && keep > 0);
 // Outcomes too many for the line are dropped whole, so the comparison reads them unavailable, never partial.
@@ -244,7 +254,8 @@ async function runJobFor(ctx, fields, { agent, say, testRun }) {
     const outcomes = Array.isArray(gate.outcomes) ? gate.outcomes.filter(Array.isArray).map(([file, name, passed, skipped]) => ({ file, name, passed, skipped })) : null;
     return { job: offered.job, runner, green, output: String(output), failures: Array.isArray(phase?.failures) ? phase.failures : null,
       signatures: Array.isArray(phase?.failureSignatures) && phase.failureSignatures.length === phase?.failures?.length ? phase.failureSignatures : null, durationMs: receipt.durationMs ?? null, outcomes,
-      verdicts: gate.verdicts && typeof gate.verdicts === 'object' && !Array.isArray(gate.verdicts) ? gate.verdicts : null };
+      verdicts: gate.verdicts && typeof gate.verdicts === 'object' && !Array.isArray(gate.verdicts) ? gate.verdicts : null,
+      times: gate.times && typeof gate.times === 'object' && !Array.isArray(gate.times) ? gate.times : null };
   } finally {
     try { git(ctx.info.root, ['update-ref', '-d', offered.ref]); } catch { /* a pin left behind only keeps a commit reachable */ }
   }
@@ -277,7 +288,7 @@ export async function probeTestAt(ctx, { commit, file, say }) {
  *
  * @param {object} ctx
  * @param {{ item: number, commit: string, main: string, command: string, files: string[], runId: string, say?: (line: string) => void, fileBudgetMs?: number | null }} fields
- * @returns {Promise<{ job: string, runner: string | null, green: boolean, output: string, outcomes: { file: string, name: string, passed: boolean, skipped: boolean }[] | null, verdicts: Record<string, 'green' | string[]> | null }>}
+ * @returns {Promise<{ job: string, runner: string | null, green: boolean, output: string, outcomes: { file: string, name: string, passed: boolean, skipped: boolean }[] | null, verdicts: Record<string, 'green' | string[]> | null, times: Record<string, number> | null }>}
  */
 export async function runPulledComparison(ctx, { item, commit, main, command, files, runId, say, fileBudgetMs = null }) {
   return runJobFor(ctx, { item, commit, main, command, files, runId, fileBudgetMs }, { say });

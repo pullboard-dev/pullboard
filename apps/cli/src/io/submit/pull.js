@@ -8,6 +8,7 @@ import { offerJob } from '../../../../../packages/api/index.js';
 import { openJob } from '../../../../../packages/api/index.js';
 import { endGateHop } from '../../../../../packages/api/index.js';
 import { submitGateHop } from './hop.js';
+import { recordCheckpoint } from '../seat-checkpoint.js';
 import { pulledGateReds } from '../../../../../packages/api/index.js';
 import { mappedCheck } from '../../../../../packages/codemap/index.js';
 import { browserFreeChecksEnabled } from '../../../../../packages/config/index.js';
@@ -21,6 +22,8 @@ import { BROWSER_MARKER } from '../../../../../packages/gate/index.js';
 import { missingGate } from '../../../../../packages/gate/index.js';
 import { git } from '../../../../../packages/git/index.js';
 import { toolingFor } from '../../../../../packages/pin/index.js';
+// A URL-joined seat's submit bundles its clone's commits; moves.js loads it from here only when board.commits is on [P7,C7].
+export { bundleCommits } from '../../../../../packages/pin/index.js';
 import { itemCollisionPlan } from '../../../../../packages/items/index.js';
 import { changedLines } from '../../../../../packages/items/index.js';
 import { frozenCheckTiming } from '../../../../../packages/items/index.js';
@@ -562,6 +565,8 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   await withBoard(ctx, board => checkpointAfterMove(ctx, board, { agent: me.id, item: id, operation: 'submit' }, { ordered, worker: usageCheckpointWorkerEntrypoint() }));
   await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
     text: `Gate job ${job.id} offered for ${source.slice(0, 12)}${companion ? ` (companions composed onto ${commit.slice(0, 12)})` : ''} on main ${main.commit.slice(0, 12)}; a runner pulls it and posts its receipt.` }]));
+  // seat.checkpoints (off by default): the submit records what is done and what the gate and review still decide [C7,#8549].
+  await withBoard(ctx, board => recordCheckpoint(ctx, board, { item: id, agent: me.id, moment: 'submit', parts: { done: [`submitted ${commit}`], left: ['gate result and review'], evidence: [`gate job ${job.id}`] } }, ordered));
   // With no registered runners this machine is its own runner: the same pull path, on loopback [P7].
   const host = primaryCheckoutRoot(ctx.info);
   const local = host ? await ensureLocalRunner(host) : { running: false, started: false, pid: null };

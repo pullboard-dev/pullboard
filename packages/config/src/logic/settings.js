@@ -119,9 +119,11 @@ export function validateServe(serve, file) {
  */
 export function validateBoardRemote(board, file) {
   if (board === undefined) return;
-  if (!board || typeof board !== 'object' || Array.isArray(board) || Object.keys(board).some(key => key !== 'url' && key !== 'token')) {
-    throw new Refused('BAD_MACHINE_SETTINGS', `board in ${file} holds only url and token; remove it to use the local board`);
+  if (!board || typeof board !== 'object' || Array.isArray(board) || Object.keys(board).some(key => !['url', 'token', 'commits'].includes(key))) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `board in ${file} holds only url, token and commits; remove it to use the local board`);
   }
+  // Off by default: with commits set to bundle, a submit by URL carries the clone's commits as one git bundle [P7,C7].
+  if (board.commits !== undefined && board.commits !== 'bundle') throw new Refused('BAD_MACHINE_SETTINGS', `board.commits in ${file} must be bundle; run pullboard settings board.commits bundle, or off to remove it`);
   let url = null;
   try { url = board.url === undefined ? null : new URL(board.url); } catch { /* Refused below. */ }
   if (board.url !== undefined && (!url || !['http:', 'https:'].includes(url.protocol))) {
@@ -176,6 +178,9 @@ export function loadMachineSettings() {
   if (value.gate?.tableReplay !== undefined && typeof value.gate.tableReplay !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.tableReplay in ${file} must be true or false`);
   }
+  if (value.gate?.testNice !== undefined && typeof value.gate.testNice !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.testNice in ${file} must be true or false`);
+  }
   if (value.gate?.runnersFirst !== undefined && typeof value.gate.runnersFirst !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnersFirst in ${file} must be true or false`);
   }
@@ -196,6 +201,12 @@ export function loadMachineSettings() {
   }
   if (value.gate?.refuseMissingCheckFile !== undefined && typeof value.gate.refuseMissingCheckFile !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.refuseMissingCheckFile in ${file} must be true or false`);
+  }
+  if (value.gate?.refuseTempWorktree !== undefined && typeof value.gate.refuseTempWorktree !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.refuseTempWorktree in ${file} must be true or false`);
+  }
+  if (value.holds?.requireOwner !== undefined && typeof value.holds.requireOwner !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `holds.requireOwner in ${file} must be true or false`);
   }
   const reserve = value.gate?.jobReserve;
   if (reserve != null && (typeof reserve !== 'object' || Array.isArray(reserve) || Object.values(reserve).some(share => !Number.isFinite(share) || share < 0 || share > 1)
@@ -390,9 +401,9 @@ export function validRunnerCpuLoad(value) {
 /**
  * The board this machine's seats read over HTTP, or null for the local board: board.url and board.token [P7].
  * Why: a seat on another host has no board.sqlite; it reaches the board host's pullboard serve instead.
- * @returns {{ url: string, token: string } | null}
+ * @returns {{ url: string, token: string, commits?: 'bundle' } | null}
  */
 export function boardRemote() {
   const board = loadMachineSettings().board;
-  return board?.url ? { url: board.url, token: board.token ?? '' } : null;
+  return board?.url ? { url: board.url, token: board.token ?? '', ...(board.commits ? { commits: board.commits } : {}) } : null;
 }
