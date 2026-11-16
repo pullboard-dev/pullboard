@@ -78,6 +78,7 @@ export {
   refuseTempWorktree,
   viewBackgroundEnabled,
   healthSentinelEnabled,
+  reviewReleaseReasonsRequired,
   lapsedSweepEnabled,
   derivedStateEnabled,
   memoryFloorMB,
