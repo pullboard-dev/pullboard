@@ -1,6 +1,6 @@
 /** Run a named local-trunk floor without reading or writing a full-gate tree stamp [B3,R3,C7]. */
 import { runnerExecutionServices } from '../../../../runners/index.js';
-import { landingExecutionServices } from '../../io/shards.js';
+import { landingExecutionServices } from '../shards.js';
 import { browserFreeChecksEnabled } from '../../../../config/light.js';
 
 import { readFileSync } from 'node:fs';
