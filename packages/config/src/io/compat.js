@@ -10,6 +10,7 @@ function schema(base) {
   return {
     ...shape(base),
     submit: { ...shape(base.submit), ...fields(['handoff']) },
+    seat: fields(['checkpoints']),
     spec: fields(['file', 'agentApproval']),
     flakes: fields(['rerun', 'quarantine']),
     rigor: fields(['budget', 'autoDraft']),
@@ -19,6 +20,7 @@ function schema(base) {
     withdraw: fields(['review', 'refuseLanded']),
     claims: { ...shape(base.claims), ...fields(['perSeat', 'fileLease', 'fileLeaseHubs']) },
     queue: fields(['contention', 'contentionThreshold']),
+    inbox: { tokenBudget: null, keepUntilActed: null },
     publish: fields(['pullRequest']),
     pushReceiptCheck: fields(['smoke']),
     landing: { ...fields(['publish', 'timeout', 'stall', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'shardProof', 'landedFromMain', 'first', 'auditOnly', 'splitRed', 'trunkRemote']),

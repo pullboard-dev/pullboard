@@ -1,6 +1,9 @@
 import { readCarryingCapacity } from '../../../../../packages/stats/index.js';
 import { flowWindowMinutes } from '../../../../../packages/stats/index.js';
 import { buildCalibration } from '../../../../../packages/stats/index.js';
+import { predictionAccuracy } from '../../../../../packages/stats/index.js';
+import { predictionLine } from '../../../../../packages/stats/index.js';
+import { predictedFiles } from '../../../../../packages/items/index.js';
 import { events } from '../../../../../packages/store/index.js';
 import { capacityWeekRow } from '../../../../../packages/stats/index.js';
 import { capacityWeeks } from '../../../../../packages/store/index.js';
@@ -31,7 +34,8 @@ export async function run(io, { first, second, rest, values }) {
     board.db.exec('SAVEPOINT capacity_read');
     try { const tests = testCapacityReport(board, { root: ctx.info.root, costs: ctx.config.testEconomics, now: ctx.clock.now().getTime() }, { flakeLedger, eventCauses, gateRuns });
       const history = events(board);
-      return { ...tests, builds: buildCalibration(history, listItems(board, { all: true }), ctx.config.itemBuildBudgetMinutes),
+      const items = listItems(board, { all: true });
+      return { ...tests, builds: buildCalibration(history, items, ctx.config.itemBuildBudgetMinutes), predictions: predictionAccuracy(history, items, predictedFiles),
         carryingCapacity: readCarryingCapacity(ctx.info.root, history, { from, to }) }; }
     finally { board.db.exec('RELEASE capacity_read'); }
   });
@@ -47,6 +51,7 @@ export async function run(io, { first, second, rest, values }) {
     io.say(`in flight ${carrying.inFlight ?? 'unknown'}: building ${carrying.buildingInFlight ?? 'unknown'}, waiting ${carrying.waitingInFlight ?? 'unknown'}; cells/item ${carrying.cellsPerItem ?? 'unknown'}`);
     io.say(`kernel churn ${carrying.kernelChurnPerWeek ?? 'unknown'} changes/week; wide items ${carrying.wideItemShare ?? 'unknown'}; busiest cell ${carrying.busiestCell ? `${carrying.busiestCell.cell} (${carrying.busiestCell.share})` : 'unknown'}`);
     io.say(`held-out file conflicts: predicted ${carrying.validation.predictedFileConflicts ?? 'unknown'}, actual ${carrying.validation.actualFileConflicts}; relative error ${carrying.validation.relativeError ?? 'unknown'}`);
+    io.say(predictionLine(report.predictions));
     io.say(`item build budget: ${report.builds.budgetMinutes} min; ${report.builds.calibration.samples} samples`);
     for (const row of report.builds.items.filter(item => item.expectedMinutes !== null)) io.say(`#${row.item} build: expected ${minutes(row.expectedMinutes)}; actual ${minutes(row.actualMinutes)}; ratio ${row.ratio === null ? 'unknown' : row.ratio.toFixed(3)}`);
     io.say(`test-work: suite ${minutes(report.suite.minutes)}; per landing ${minutes(report.perLanding.minutes)}; ${report.perLanding.missingExecutions} missing executions, ${report.perLanding.unknownReceipts} unknown receipts`);
@@ -60,6 +65,7 @@ export async function run(io, { first, second, rest, values }) {
   io.say(`held-out file conflicts: predicted ${carrying.validation.predictedFileConflicts ?? 'unknown'}, actual ${carrying.validation.actualFileConflicts}; relative error ${carrying.validation.relativeError ?? 'unknown'}`);
   for (const file of carrying.files.slice(0, 10)) io.say(`${file.file}: shared touches ${file.sharedTouches ?? 'unknown'}, conflict rate ${file.rate ?? 'unknown'}, pressure ${file.pressure ?? 'unknown'}`);
   for (const assumption of carrying.assumptions) io.say(assumption);
+  io.say(predictionLine(report.predictions));
   io.say(`item build budget: ${report.builds.budgetMinutes} min; ${report.builds.calibration.samples} expected/actual samples`);
   for (const row of report.builds.items.filter(item => item.expectedMinutes !== null)) io.say(`#${row.item} build: expected ${minutes(row.expectedMinutes)}; actual ${minutes(row.actualMinutes)}; ratio ${row.ratio === null ? 'unknown' : row.ratio.toFixed(3)}`);
   io.say(`suite test-work: ${minutes(report.suite.minutes)} (serial per-file execution work, not parallel elapsed wall time)`);

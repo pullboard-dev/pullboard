@@ -85,7 +85,7 @@ const HELP_ALIASES = {
   lane: { usage: 'pullboard lane add <name> --owns <path>[,<path>]', source: 'lane add' },
   status: { usage: 'pullboard status [--all]', source: 'whoami' },
   done: { usage: 'pullboard done <id> [--wait]', source: 'submit <id>' },
-  inbox: { usage: 'pullboard inbox', source: null, extraFlags: ['--acted-on <interrupt-ids>'] },
+  inbox: { usage: 'pullboard inbox', source: null, extraFlags: ['--acted-on <interrupt-ids>', '--archive <shout-ids>'] },
   'check accept': { usage: 'pullboard check accept <id>', source: 'check accept' },
   relay: { source: 'relay', every: true },
   lifecycle: { usage: 'pullboard lifecycle', source: null },

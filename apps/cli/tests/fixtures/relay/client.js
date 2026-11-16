@@ -625,6 +625,8 @@ globalThis.fetch = function tracedFetch(input, init) {
       journeyCliAs: (session, ...args) => journeyResult(otherRoot, { ...otherEnv, CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: session }, args, { scratch, origin }),
       /** Run a second-device worktree with that device's own keys and bounded asynchronous child. */
       cliAt(cwd, ...args) { return childResult(cwd, otherEnv, [CLI, ...args, '--json']); },
+      /** The same call answered in this process, for a worktree of the second device. */
+      cliAtLocal(cwd, ...args) { return inProcessResult(cwd, otherEnv, args); },
       /** Check that the paired clone still has no persisted board-key file. */
       keyFileExists() { return existsSync(otherKeyFile); } };
   }

@@ -130,9 +130,12 @@ export { objectItemPatch } from './src/io/board.js';
 
 export { deferOwnership, ownershipWait, ownershipWaiting, ownershipWaitForJob } from './src/io/board/wait.js';
 export { relandAccepted, acceptedRelandCandidate, relandConflictRecorded } from "./src/logic/board/reland.js";
+export { upgradeHoldOwners } from './src/io/board/hold/upgrade.js';
 export { boardHoldLog, boardHoldPercentiles, boardHoldStats, boardHoldLines, longestRecentHolds } from './src/io/board/hold/log.js';
 export { readBoardHoldBaseline, boardHoldBaselineProblems, committedBoardHoldBaselineProblems } from './src/io/board/hold/ratchet.js';
 export { GATE_HOP_SCHEMA_SQL, ensureGateHopTable, readGateHop, gateHopMove } from './src/io/board/hop.js';
 export { recordShadow, readShadow, shadowHook, claimDiffers, firstDifference } from './src/io/board/shadow-record.js';
 export { reopenDecision, reopenDiffers } from './src/io/board/reopen-table.js';
+export { mergedDecision } from './src/io/board/merged-table.js';
 export { readShadows } from './src/io/board/shadow-record.js';
+export { ENTRY_ACTIONS, KIND_ACTIONS, allowedActions, requireAllowedAction, entryLines, openEntries, recordEntryAction } from './src/logic/board/entries.js';
