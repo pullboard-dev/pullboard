@@ -85,6 +85,11 @@ export function endStaleJobsEnabled() {
   return loadMachineSettings().gate?.endStaleJobs === true;
 }
 
+/** Settle a sharded item gate left unknown on a missing main receipt when that receipt records, only when this machine opted in [C7,#9057]. */
+export function settleOnMainReceiptEnabled() {
+  return loadMachineSettings().gate?.settleOnMainReceipt === true;
+}
+
 /** Fail the registry check on an unregistered test only when this machine opted in; off, it reports [C7,#8374]. */
 export function registryStrictEnabled() {
   return loadMachineSettings().tests?.registryStrict === true;
@@ -250,6 +255,11 @@ export function reviewReleaseReasonsRequired() {
 /** Whether health.derivedState is on (#8974): off by default; nothing reads it yet, and only an exact `true` turns it on. */
 export function derivedStateEnabled() {
   return loadMachineSettings().health?.derivedState === true;
+}
+
+/** Whether landing.adaptiveBatch is on (#9017): off by default; only an exact `true` turns it on. */
+export function adaptiveBatchEnabled() {
+  return loadMachineSettings().landing?.adaptiveBatch === true;
 }
 
 /** Whether the sentinel expires lapsed claims every minute (#8923): off by default; only an exact `true` turns it on. */
