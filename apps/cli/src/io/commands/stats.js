@@ -31,6 +31,8 @@ import { localUsage } from '../../../../../packages/config/index.js';
 import { dollarText } from '../../../../../packages/config/index.js';
 import { runRunners } from './stats/runners.js';
 import { runReview } from './stats/review.js';
+import { itemRunnerCosts } from './stats/runner-cost.js';
+import { runnerCostText } from './stats/runner-cost.js';
 import { diskLines } from '../disk/use.js';
 import { diskUse } from '../disk/use.js';
 import { pruneDisk } from '../disk/use.js';
@@ -145,14 +147,14 @@ export function run(io, { first, second, rest, values }) {
     for (const line of pipelineLines(pipeline)) io.say(line);
     return 0;
   }
-  const prices = loadMachineSettings().costPrices;
+  const { costPrices: prices, runnerRates } = loadMachineSettings();
   if (values.since !== undefined && values.window !== undefined) {
     throw new Refused('USAGE', 'choose either --since <date> or --window <duration>, for example pullboard stats --window 6h');
   }
   if (values.compare && values.window === undefined) throw new Refused('USAGE', 'compare adjacent windows with pullboard stats --window 4h --compare');
   const windowMinutes = values.window === undefined ? undefined : flowWindowMinutes(values.window);
   const now = ctx.clock.now().getTime();
-  const { stats, agents, window, comparison, usage, coordinator, idleSkips, pipelineHour } = withBoard(ctx, (board) => {
+  const { stats, agents, window, comparison, usage, runnerCosts, coordinator, idleSkips, pipelineHour } = withBoard(ctx, (board) => {
     // Keep counters and optional raw-history window on the same read snapshot while other seats append.
     if (windowMinutes !== undefined) board.db.exec('SAVEPOINT stats_window_read');
     try {
@@ -166,7 +168,8 @@ export function run(io, { first, second, rest, values }) {
       const comparison = values.compare ? compareFlowWindows(history, { now, windowMinutes, complete: true }) : undefined;
       if (window) window.executionCapacity = readRunnerStage(ctx.info.root, { from: window.since, to: window.until });
       const coordinator = coordinatorActions(board, { since: window?.since ?? stats.since ?? undefined, until: new Date(now).toISOString() });
-      return { stats, coordinator, idleSkips, agents: store.listAgents(board), usage: localUsage(costTotals(board, prices), publicUsage), ...(pipelineHour ? { pipelineHour } : {}), ...(window ? { window } : {}), ...(comparison ? { comparison } : {}) };
+      const usage = localUsage(costTotals(board, prices), publicUsage);
+      return { stats, coordinator, idleSkips, agents: store.listAgents(board), usage, runnerCosts: itemRunnerCosts(board, usage.items, runnerRates), ...(pipelineHour ? { pipelineHour } : {}), ...(window ? { window } : {}), ...(comparison ? { comparison } : {}) };
     } finally {
       if (windowMinutes !== undefined) board.db.exec('RELEASE stats_window_read');
     }
@@ -205,7 +208,7 @@ export function run(io, { first, second, rest, values }) {
   for (const line of diskLines(disk)) io.say(line);
   for (const group of ['items', 'lanes', 'milestones', 'models']) for (const row of usage[group]) {
     const label = row.item ?? row.lane ?? row.milestone ?? row.model;
-    io.say(`usage ${group} ${label}: input ${row.inputTokens ?? 'unknown'} (fresh ${row.freshInputTokens ?? 'unknown'}, cached read ${row.cacheReadInputTokens ?? 'unknown'}, cached write ${row.cacheWriteInputTokens ?? 'unknown'}), output ${row.outputTokens ?? 'unknown'}, ${row.wallMs} ms${row.unknownReasons.length ? '; unknown: ' + row.unknownReasons.join(', ') : ''}${dollarText(row)}`);
+    io.say(`usage ${group} ${label}: input ${row.inputTokens ?? 'unknown'} (fresh ${row.freshInputTokens ?? 'unknown'}, cached read ${row.cacheReadInputTokens ?? 'unknown'}, cached write ${row.cacheWriteInputTokens ?? 'unknown'}), output ${row.outputTokens ?? 'unknown'}, ${row.wallMs} ms${row.unknownReasons.length ? '; unknown: ' + row.unknownReasons.join(', ') : ''}${dollarText(row)}${group === 'items' ? runnerCostText(runnerCosts, label) : ''}`);
   }
   return 0;
 }
