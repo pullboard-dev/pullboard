@@ -220,6 +220,14 @@ export function mainComparisonMode() {
 }
 
 /**
+ * Whether submit refuses at once when the frozen check names a test file the submitted commit lacks (#3095): off by
+ * default, so a submit queues its gate as before; only an exact `true` turns the refusal on.
+ */
+export function refuseMissingCheckFile() {
+  return loadMachineSettings().gate?.refuseMissingCheckFile === true;
+}
+
+/**
  * Where a queued submit's authorization source checks run when a runner is registered: `runner` (default) puts them in
  * the gate's one runner analysis job beside doctrine, cells, static and selection; `local` keeps them on this machine as
  * before #5674. Anything but an exact `local` is the default, so a damaged value never moves work back here [C7].
