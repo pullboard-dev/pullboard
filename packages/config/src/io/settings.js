@@ -182,6 +182,12 @@ export function censusJobsPerRunner() {
   return Number.isSafeInteger(jobs) && jobs >= 1 ? jobs : null;
 }
 
+/** Census test jobs a runner holding no other kind of job may hold at once, above census.jobsPerRunner; null (the default) keeps the one cap for every runner [C7,#9500]. */
+export function censusJobsPerRunnerQuiet() {
+  const jobs = loadMachineSettings().census?.jobsPerRunnerQuiet;
+  return Number.isSafeInteger(jobs) && jobs >= 1 ? jobs : null;
+}
+
 /** Whether jobs.avoidRunners is on: off by default; only an exact `true` makes claimJob skip the runners a job's offer names [C7,#9273]. */
 export function jobsAvoidRunnersEnabled() {
   return loadMachineSettings().jobs?.avoidRunners === true;
