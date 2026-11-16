@@ -16,6 +16,7 @@ export { LEDGER_SCHEMA_SQL, ledgerFiles, ledgerHits, ledgerMainReds, ledgerRecen
 export { ensureHotIndexes, costEvents, costLandedIds, costKindEvents, costMoveEvents, costItemEvents, costItems, costRevision, missingAdditiveIndexes, ensureAdditiveIndexes, eventsOfKinds, submitInvariantEvents, recentEvents, recentShouts, lastMoves, decisionAndEvidenceShouts } from './src/io/board/indexes.js';
 export { localBoardInventory, resolveLocalBoard, resolveLocalItemReference } from './src/io/board/inventory.js';
 export { declareItemField, setItemField, itemFields, FIELD_TYPES } from './src/io/board/item/fields.js';
+export { relateItems, relatedLinks } from './src/io/board/item/related.js';
 export { validateItemDependencies } from './src/io/board/item/dependencies.js';
 export * from "./light.js";
 export { boardLinkEnvelope, boardLinkEnvelopeDigest, boardLinkDeliveryReceipt, createBoardLinkCapability } from './src/io/board/link/envelope.js';
