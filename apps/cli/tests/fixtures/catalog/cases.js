@@ -172,7 +172,7 @@ after(async () => {
   await Promise.all(serverChildren.values());
   await cleanupFixtureChildren();
   for (const pid of LOCAL_RUNNERS) { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } }
-  for (const dir of TEMP_DIRS) rmSync(dir, { recursive: true, force: true });
+  for (const dir of TEMP_DIRS) rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 });
 
 const SPEC = `# API fixture
