@@ -12,7 +12,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { waitForCondition } from '../../../../apps/cli/tests/fixtures/runner/holders.js';
+import { waitForCondition } from '../../../gate/tests/fixtures/runner/holders.js';
 import { PINNED_HEARTBEAT } from '../../src/io/liveness.js';
 
 const REPO = resolve(import.meta.dirname, '../../../..');

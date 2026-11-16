@@ -123,6 +123,7 @@
     "apps/cli/tests/fixtures/runner/drain.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "apps/cli/tests/fixtures/runner/first.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "apps/cli/tests/fixtures/runner/holders.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
+    "packages/gate/tests/fixtures/runner/holders.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "apps/cli/tests/fixtures/runner/orphan.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "apps/cli/tests/fixtures/runner/paired/rerun.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "apps/cli/tests/fixtures/runner/death.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
