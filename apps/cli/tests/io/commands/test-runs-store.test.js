@@ -37,7 +37,7 @@ function seatBox(flag) {
   box.git(box.web, 'add', '-A');
   box.git(box.web, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'test: runs fixture');
   const item = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Runs store wiring', args: ['--specs', 'G1'] });
-  assert.equal(box.run(box.web, 'claim', String(item.item_id)).code, 0);
+  assert.equal(box.runSync(box.web, 'claim', String(item.item_id)).code, 0);
   if (flag) withFixtureBoard(boardFileOf(box), board => board.db.prepare('INSERT OR REPLACE INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(RUNS_STORE_KEY, '1'));
   // A seat at its own prompt: no machine variable, no outer CLI.
   for (const key of [...MACHINE_CONTEXT_ENV, 'PULLBOARD_TEST_RUNNER_PID']) delete box.env[key];
@@ -59,7 +59,7 @@ function assertFound(cancelled, id) {
 
 test('clause 1: with runs_store on, test queues, reads and cancels a run through the runs file [P7,#9111]', async () => {
   const box = seatBox(true);
-  const queued = await box.runAsync(box.web, 'test', TEST_FILE);
+  const queued = await box.inProcess(box.web, 'test', TEST_FILE);
   assert.equal(queued.code, 0, `${queued.out}${queued.err}`);
   const id = queuedId(queued.out);
   const where = withFixtureBoard(boardFileOf(box), board => ({
@@ -67,24 +67,24 @@ test('clause 1: with runs_store on, test queues, reads and cancels a run through
     runs: boardRunsHolder(board, boardFileOf(box)).db.prepare('SELECT COUNT(*) AS n FROM job WHERE job_id = ?').get(id).n,
   }));
   assert.deepEqual(where, { board: 0, runs: 1 }, 'the run lives in the runs file and not on the board');
-  const status = await box.runAsync(box.web, 'test', '--status', id);
+  const status = await box.inProcess(box.web, 'test', '--status', id);
   assert.equal(status.code, 0, `${status.out}${status.err}`);
   assert.match(status.out, new RegExp(`test run ${id} `, 'u'));
-  const cancelled = await box.runAsync(box.web, 'test', '--cancel', id);
+  const cancelled = await box.inProcess(box.web, 'test', '--cancel', id);
   assertFound(cancelled, id);
-  const after = await box.runAsync(box.web, 'test', '--status', id);
+  const after = await box.inProcess(box.web, 'test', '--status', id);
   assert.match(after.out, new RegExp(`test run ${id}`, 'u'), 'the run is still read through the runs file');
 });
 
 test('clause 2: with runs_store off, the board holds the run rows and no runs file is made [P7,#9111]', async () => {
   const box = seatBox(false);
-  const queued = await box.runAsync(box.web, 'test', TEST_FILE);
+  const queued = await box.inProcess(box.web, 'test', TEST_FILE);
   assert.equal(queued.code, 0, `${queued.out}${queued.err}`);
   const id = queuedId(queued.out);
   const found = withFixtureBoard(boardFileOf(box), board => ({ run: readTestRun(board, id).id, runsFile: existsSync(runsFilePath(boardFileOf(box))) }));
   assert.deepEqual(found, { run: id, runsFile: false }, 'the board reads the run and the runs file is never opened');
-  const status = await box.runAsync(box.web, 'test', '--status', id);
+  const status = await box.inProcess(box.web, 'test', '--status', id);
   assert.equal(status.code, 0, `${status.out}${status.err}`);
-  const cancelled = await box.runAsync(box.web, 'test', '--cancel', id);
+  const cancelled = await box.inProcess(box.web, 'test', '--cancel', id);
   assertFound(cancelled, id);
 });
