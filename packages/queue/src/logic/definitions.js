@@ -13,6 +13,7 @@ export const LINE_SETTING_DEFINITIONS = Object.freeze({
   wipPerReviewer: Object.freeze({ type: 'number', min: 1.5, max: 3, integer: false }),
   barReady: Object.freeze({ type: 'boolean' }),
   'bar.check': Object.freeze({ type: 'boolean' }),
+  'bar.dryRunReview': Object.freeze({ type: 'boolean' }),
   'bar.sharpenToPerson': Object.freeze({ type: 'boolean' }),
   takeoverMinutes: Object.freeze({ type: 'number', min: 15, max: 60, integer: true }),
   collisionFreeBatch: Object.freeze({ type: 'boolean' }),
