@@ -90,6 +90,7 @@ const BEFORE = {
   'next.itemNotices': false,
   'next.readinessCheck': false,
   'push.rerunFailedShardOnce': false,
+  'relay.excludeByBoard': false,
   'relay.offerAtInit': true,
   'relay.pruneReceipts': false,
   'review.releaseReasons': false,
