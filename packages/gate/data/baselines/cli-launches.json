@@ -224,9 +224,6 @@
   "apps/cli/journeys/relay/transport.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/decisions/row.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/fact/wake.test.js": {
     "launch": 1
   },
@@ -355,9 +352,6 @@
   },
   "packages/runners/tests/cap.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/cells/against.test.js": {
-    "launch": 4
   },
   "apps/cli/journeys/cells/backlog.test.js": {
     "launch": 3

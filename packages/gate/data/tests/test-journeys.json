@@ -3492,34 +3492,6 @@
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
       ]
     },
-    "apps/cli/journeys/doctrine/name.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "app:runner",
-        "doctrine"
-      ],
-      "reasons": [
-        "imports past app:cli front door (apps/cli/src/io/view.js)",
-        "imports past doctrine front door (packages/doctrine/src/io/main.js)",
-        "runs the CLI (apps/cli/journeys/doctrine/name.test.js)",
-        "spawns a child process (apps/cli/tests/fixtures/child.js)"
-      ]
-    },
-    "apps/cli/journeys/doctrine/name.verifier.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "app:runner",
-        "doctrine"
-      ],
-      "reasons": [
-        "imports past app:cli front door (apps/cli/src/io/view.js)",
-        "imports past doctrine front door (packages/doctrine/src/io/main.js)",
-        "runs the CLI (apps/cli/journeys/doctrine/name.verifier.test.js)",
-        "spawns a child process (apps/cli/tests/fixtures/child.js)"
-      ]
-    },
     "apps/cli/journeys/doctrine/name.verify.test.js": {
       "cells": [
         "app:cli",
