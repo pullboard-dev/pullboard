@@ -78,7 +78,6 @@ import {
   git,
   gitSpawnSync,
   headCommit,
-  headTree,
   isClean,
   treeUntouched,
   tryGit,
@@ -159,6 +158,11 @@ function reportSubmitStage(ctx, name, start) {
   recordGateSpan({ phase: name === 'authorization and source' ? 'authorization' : name.replaceAll(' ', '-'), start: end - elapsed, end, outcome: 'done' });
 }
 
+/** Write one phase's wall time to stderr when PULLBOARD_SUBMIT_MARKS is set, so a slow submit names the phase that spent it [C7]. */
+export function submitMark(phase, startMs) {
+  if (process.env.PULLBOARD_SUBMIT_MARKS) process.stderr.write(`submit-mark ${phase}: ${Date.now() - startMs} ms\n`);
+}
+
 /**
  * Run one step of the authorization stage and record it as its own gate span (phase "authorization-<step>"), so the
  * stage's median can be traced to the step that spends it: the whole stage had no sub-spans (p50 14.5 s, 584 spans) [C7].
@@ -170,7 +174,7 @@ function reportSubmitStage(ctx, name, start) {
  */
 function authorizationStep(step, work) {
   const start = Date.now();
-  const finish = outcome => recordGateSpan({ phase: `authorization-${step}`, start, end: Date.now(), outcome });
+  const finish = outcome => { submitMark(`authorization/${step}`, start); recordGateSpan({ phase: `authorization-${step}`, start, end: Date.now(), outcome }); };
   let value;
   try { value = work(); } catch (error) { finish('failed'); throw error; }
   if (typeof value?.then !== 'function') { finish('done'); return value; }
@@ -208,6 +212,9 @@ export function mainRedCheckCases(root, failures, items, id, main, retaken) {
   }
   return mainRedItemCases(failures, items, id, main, retaken);
 }
+
+/** The tree of a commit, which for a composed submit is not the checkout's tree. */
+function commitTree(root, commit) { return git(root, ['rev-parse', `${commit}^{tree}`]).trim(); }
 
 /** Hash the candidate's net code diff against the same admitted main used for every red head. */
 function itemChangeHash(root, head, main) {
@@ -385,8 +392,9 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   let mainMerge = null;
   if (!isSubmitHandoffWorker(ctx)) {
     // A conflict in recorded tool output is not composed here: the regeneration below replays the tool on main [C7,V4,V6].
-    try { mainMerge = authorizationStep('main-merge', () => mergeSubmissionMain(root, acceptedMain.commit)); }
+    try { mainMerge = authorizationStep('main-merge', () => mergeSubmissionMain(root, acceptedMain.commit, { checkout: false })); }
     catch (error) { if (error?.code !== 'MERGE_CONFLICT' || !recordedToolCommits(root, acceptedMain.commit, headCommit(root))) throw error; }
+    // The composed commit exists only as objects; the builder checkout and its HEAD are not moved [C7].
     if (mainMerge) commit = mainMerge.commit;
     if (mainMerge?.merged) {
       ctx.io.say(`Merged main ${acceptedMain.commit.slice(0, 12)} into the builder source as ${commit.slice(0, 12)}; checking the composed tree.`);
@@ -439,7 +447,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   /** The lane ownership check of authorization and source, on this machine: a lane refusal is routed after proof. */
   const localSubmissionPaths = () => {
     try {
-      authorizationStep('submission-paths', () => submissionPaths(root, held, headCommit(root), { mainCommit: acceptedMain.commit, dependencies }));
+      authorizationStep('submission-paths', () => submissionPaths(root, held, commit, { mainCommit: acceptedMain.commit, dependencies }));
     } catch (error) {
       if (error.code !== 'OUTSIDE_LANE' || !Array.isArray(error.paths)) throw error;
       ownershipRefusal = error;
@@ -454,7 +462,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     try { const commit = JSON.parse(held.item_frozen ?? 'null')?.policy?.commit; return commit ? JSON.stringify({ policy: { commit } }) : held.item_frozen; } catch { return held.item_frozen; }
   };
   const authorizationRequest = () => ({ item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: frozenPolicyOnly() },
-    dependencies, commit: headCommit(root) });
+    dependencies, commit });
   if (!remoteAuthorization) localSubmissionPaths();
   const { me, claimHead } = authorizationStep('freezer-digest', () => withBoard(ctx, (board) => {
     const who = whoAmI(ctx, board);
@@ -484,7 +492,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   }));
   const preflightLines = authorizationStep('changed-lines', () => changedLines(root, acceptedMain.commit, commit));
   const preflightSize = preflightLines === null ? undefined : { base: acceptedMain.commit, head: commit, lines: preflightLines, method: SUBMISSION_SIZE_METHOD };
-  authorizationStep('preflight-record', () => withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize, inspectClauses,
+  authorizationStep('preflight-record', () => withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: commitTree(root, commit), submissionSize: preflightSize, inspectClauses,
     ...(inspectClauses ? { gateFiles: gateFilesOf(store.getItem(board, id)) } : {}) }, { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit }, { refuse: (observed, item) => machineVerificationEligible(observed, item, filesSince(root, id, claimHead, commit)) ? null : refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) })));
   if (ctx.precheck) {
     // The cheap stage ends here: stacked-on-unverified is checked too, and nothing below (cells, static, gate, queue) starts [V4,C7].
@@ -517,7 +525,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     return prepareItemPatchSubmit(root, board, held, commit);
   }));
   if (companion) withBoard(ctx, board => requireKernelApproval(board, { root, base: acceptedMain.commit, commit: companion.commit, item: id }));
-  withBoard(ctx, board => requireSubmitHandoffExecution(ctx, board, companion?.commit ?? commit, companion?.tree ?? headTree(root)));
+  withBoard(ctx, board => requireSubmitHandoffExecution(ctx, board, companion?.commit ?? commit, companion?.tree ?? commitTree(root, commit)));
   const { itemPulledReds: pulledReds } = await import('../submit/pull.js');
   authorizationStep('red-progress', () => withBoard(ctx, board => requireRedSubmitProgress(root, board, id, held.item_frozen_digest, companion?.commit ?? commit, acceptedMain.commit, pulledReds)));
   if (mainMerge?.merged) await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [id, { agentId: held.item_owner, kind: 'note',
@@ -549,10 +557,15 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   // a companion submit's gate judges its composed source [P7].
   if (ownershipRefusal) throw ownershipRefusal;
   // The configured static check runs in the agent's checkout before any runner job is queued, so a red one takes no trip (#5730).
+  const staticStart = Date.now();
   if (!companion) await requireStaticPreflight(root, acceptedMain.config.staticChecks, changedSince(root, acceptedMain.commit, commit), { timeoutMs: acceptedMain.config.check?.timeoutMs });
+  submitMark('preflight/static', staticStart);
   // A reminder never stops a submit: a handled reference this change leaves unacknowledged in the changelog is named (point 20) [C7].
   for (const reminder of submitReferenceReminders(root, held, commit)) ctx.io.err(reminder);
-  return (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization ? authorizationRequest() : null, full: Boolean(regenerated || regeneratedFrom), companion, infra: infraRecord }, { frozenCheck, policyAt, listItems: store.listItems, pairPrefix });
+  const queueStart = Date.now();
+  const queued = await (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization ? authorizationRequest() : null, full: Boolean(regenerated || regeneratedFrom), companion, infra: infraRecord }, { frozenCheck, policyAt, listItems: store.listItems, pairPrefix });
+  submitMark('queueing', queueStart);
+  return queued;
 }
 
 /** `submit --preflight`: run every registered static check in parallel on this branch's changed files and submit nothing [C7]. */
