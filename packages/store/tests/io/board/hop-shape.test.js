@@ -13,11 +13,11 @@ import { boardStanding } from '../../../src/io/board/migrate.js';
 import { SCHEMA_DIGEST } from '../../../src/io/board/schema/source.js';
 import { SCHEMA_VERSION } from '../../../src/io/board/schema/source.js';
 import { openKitBoard } from '../../fixtures/cell.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { temporaryDirectory } from '../../fixtures/tmp.js';
 
 /** A real, current board file with one registered seat, as trunk code leaves it. */
 function currentBoard(t) {
-  const directory = privateFixtureFiles('pullboard-hop-shape-').root;
+  const directory = temporaryDirectory('pullboard-hop-shape-');
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, 'board.sqlite');
   const board = openKitBoard(file);
