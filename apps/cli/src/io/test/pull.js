@@ -189,23 +189,51 @@ export function testJobData({ main, commit, command, files, runId = null, fileBu
 }
 
 /**
- * Pin a commit under refs/pullboard/test and offer one test job for it. Returns the job id and the pinned ref.
+ * Pin a commit under refs/pullboard/test and name the one test job row for it, without writing the row.
  * Why a ref: the trunk remote serves only reachable commits, and an agent's commit is reachable from nothing else yet.
  */
-async function offerTestJob(ctx, { item, commit, main, command, files, runId = null, fileBudgetMs = null }) {
+async function testJobRow(ctx, { item, commit, main, command, files, runId = null, fileBudgetMs = null }) {
   const { root } = ctx.info;
-  const [{ offerJob }, { GATE_NEEDS, GATE_RECEIPT, gateJobRun }, { PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX }, { FAILURE_DIAGNOSTICS_SOURCE }] = await Promise.all([import('../../../../../packages/api/index.js'), import('../submit/pull.js'),
+  const [{ GATE_NEEDS, GATE_RECEIPT, gateJobRun }, { PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX }, { FAILURE_DIAGNOSTICS_SOURCE }] = await Promise.all([import('../submit/pull.js'),
     import('../../../../../packages/gate/index.js'), import('../../../../../packages/kernel/index.js')]);
   const tag = randomBytes(6).toString('hex');
   const ref = `refs/pullboard/test/${tag}`;
   git(root, ['update-ref', ref, commit]);
   const request = { run: gateJobRun(), input: { main, entry: testJobEntry(GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX, FAILURE_DIAGNOSTICS_SOURCE), data: testJobData({ main, commit, command, files, runId, fileBudgetMs }) }, commits: [main] };
-  const job = withBoard(ctx, board => offerJob(board.db, { id: `test:${commit.slice(0, 12)}:${tag}`, kind: TEST_JOB_KIND, priority: 'interactive', needs: GATE_NEEDS,
-    item: item === undefined ? null : Number(item), candidate: commit, base: main, request }));
-  // With no registered runners this machine is its own runner, as a pull submit makes it: otherwise the job waits unclaimed [P7,C7].
+  return { ref, row: { id: `test:${commit.slice(0, 12)}:${tag}`, kind: TEST_JOB_KIND, priority: 'interactive', needs: GATE_NEEDS,
+    item: item === undefined ? null : Number(item), candidate: commit, base: main, request } };
+}
+
+/** Start this machine's loopback runner when it has no registered one, as a pull submit does: otherwise the job waits unclaimed [P7,C7]. */
+async function startLocalRunner(ctx) {
   const [{ primaryCheckoutRoot }, { ensureLocalRunner }] = await Promise.all([import('../worktree.js'), import('../runner/local.js')]);
   const host = primaryCheckoutRoot(ctx.info);
   if (host) await ensureLocalRunner(host);
+}
+
+/** Offer one test job for a commit. Returns the job id and the pinned ref. */
+async function offerTestJob(ctx, fields) {
+  const { offerJob } = await import('../../../../../packages/api/index.js');
+  const { ref, row } = await testJobRow(ctx, fields);
+  const job = withBoard(ctx, board => offerJob(board.db, row));
+  await startLocalRunner(ctx);
+  return { job: job.id, ref };
+}
+
+/**
+ * Queue an accept's frozen check as one runner job on the open board and return its id at once; the caller settles the
+ * verdict from the job's receipt, so no waiting happens here. The commit stays pinned under the returned ref until then [C7,#3161].
+ *
+ * @param {object} ctx
+ * @param {{ db: import('node:sqlite').DatabaseSync }} board - The board the verdict is being recorded on.
+ * @param {{ item: number, commit: string, main: string, command: string }} fields - command: the item's frozen check.
+ * @returns {Promise<{ job: string, ref: string }>}
+ */
+export async function offerAcceptCheck(ctx, board, { item, commit, main, command }) {
+  const { offerJob } = await import('../../../../../packages/api/index.js');
+  const { ref, row } = await testJobRow(ctx, { item, commit, main, command, files: [] });
+  const job = offerJob(board.db, row);
+  await startLocalRunner(ctx);
   return { job: job.id, ref };
 }
 
