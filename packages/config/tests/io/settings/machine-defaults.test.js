@@ -19,6 +19,7 @@ const BEFORE = {
   'census.recordFileTimes': false,
   'census.rerunNonGreen': false,
   'census.rerunOnSettle': false,
+  'census.selfTune': false,
   'claim.refuseOffMainHead': false,
   'freeze.refuseEmptyBar': false,
   'gate.browserByLaunch': false,
