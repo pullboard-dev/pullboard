@@ -21,6 +21,7 @@ import { untracked } from '../../../../../packages/git/index.js';
 import { listBoardMetaWithPrefix } from '../../../../../packages/store/index.js';
 import { writeBoardMeta } from '../../../../../packages/store/index.js';
 import { deleteBoardMeta } from '../../../../../packages/store/index.js';
+import { tunedTargetMs } from '../../logic/push-tune.js';
 import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
 
@@ -114,12 +115,40 @@ export function pushShardCount({ totalMs, runners, targetMs } = {}) {
  * @param {Record<string, number>} times
  * @param {{ pushGate?: { shardMinutes?: number, sizeFromBoard?: boolean } } | undefined} config
  * @param {number} [runners] - Live runners on the board, when the caller read them.
+ * @param {object[]} [history] - Recorded push.timing rows; with sizeFromBoard on, the target is tuned from them (tunedTargetMs), else the quarter of shardMinutes stands [#9372].
  * @returns {number}
  */
-export function pushMaxShards(files, times, config, runners) {
+export function pushMaxShards(files, times, config, runners, history) {
   if (config?.pushGate?.sizeFromBoard !== true) return PUSH_MAX_SHARDS;
   const totalMs = [...new Set(files)].reduce((sum, file) => sum + pushFileWeight(file, times), 0);
-  return pushShardCount({ totalMs, runners, targetMs: (config.pushGate.shardMinutes ?? DEFAULT_SHARD_MINUTES) * 60_000 / 4 });
+  const targetMs = (config.pushGate.shardMinutes ?? DEFAULT_SHARD_MINUTES) * 60_000 / 4;
+  return pushShardCount({ totalMs, runners, targetMs: Array.isArray(history) ? tunedTargetMs(history, targetMs) : targetMs });
+}
+
+/**
+ * What the push gate would offer now, with the numbers behind it, for pullboard capacity. Every field is null (never zero)
+ * when its input is unknown. shards is what pushMaxShards picks under the current setting, capped by the file count, like
+ * planPushShards; targetMs is the per-shard target the board-sized plan uses. Report only: it reads and plans nothing. Why:
+ * a person must be able to see the sizes the board picks from its own data [U151].
+ *
+ * @param {string[] | null} files - The gate's test files, or null when they cannot be named.
+ * @param {Record<string, number>} times
+ * @param {{ pushGate?: { shardMinutes?: number, sizeFromBoard?: boolean } } | undefined} config
+ * @param {number | undefined} runners - Live runners on the board, when known.
+ * @returns {{ shards: number|null, targetMs: number, runners: number|null, totalMs: number|null, fileCount: number|null, sizeFromBoard: boolean, why: string }}
+ */
+export function pushGateReport(files, times, config, runners) {
+  const sizeFromBoard = config?.pushGate?.sizeFromBoard === true;
+  const targetMs = (config?.pushGate?.shardMinutes ?? DEFAULT_SHARD_MINUTES) * 60_000 / 4;
+  const known = Array.isArray(files) && files.length > 0 ? [...new Set(files)] : null;
+  const live = Number.isFinite(runners) && runners > 0 ? runners : null;
+  if (!known) return { shards: null, targetMs, runners: live, totalMs: null, fileCount: null, sizeFromBoard, why: 'the gate files are unknown, so no shard count is picked' };
+  const totalMs = known.reduce((sum, file) => sum + pushFileWeight(file, times), 0);
+  const shards = Math.min(pushMaxShards(known, times, config, live ?? undefined), known.length);
+  const why = !sizeFromBoard ? `pushGate.sizeFromBoard is off, so the fixed plan of up to ${PUSH_MAX_SHARDS} shards applies`
+    : live === null ? `no live runner count, so the fixed plan of up to ${PUSH_MAX_SHARDS} shards applies`
+      : `ceil(${Math.round(totalMs)} ms total / ${targetMs} ms target), at most ${live} live runners and ${PUSH_MAX_SHARDS}`;
+  return { shards, targetMs, runners: live, totalMs, fileCount: known.length, sizeFromBoard, why };
 }
 
 /**
@@ -170,16 +199,16 @@ async function pushShardFacts(root, config) {
  *
  * @param {string} root
  * @param {{ gate: string }} config
- * @param {{ runners?: number }} [board] - Live runner count from the board, used only with pushGate.sizeFromBoard on.
+ * @param {{ runners?: number, history?: object[] }} [board] - Live runner count and recorded push timings from the board, used only with pushGate.sizeFromBoard on.
  * @returns {Promise<{ main: string, source: string, shards: { files: string[], command: string }[], limitMs: number } | null>}
  */
-export async function pushShardPlan(root, config, { runners } = {}) {
+export async function pushShardPlan(root, config, { runners, history } = {}) {
   if (runnerDispatchMode() !== 'pull' || !isClean(root) || untracked(root).length) return null;
   const { readFileTimes, trackedDefaultTestFiles, valueGateCommand } = await import('../../../../../packages/gate/index.js');
   const files = trackedDefaultTestFiles(root, process.env);
   if (files.length < 2 || !valueGateCommand(root, config.gate, files)) return null;
   const times = readFileTimes(root);
-  const planned = planPushShards(files, times, pushMaxShards(files, times, config, runners));
+  const planned = planPushShards(files, times, pushMaxShards(files, times, config, runners, history));
   const shards = planned.map(shard => ({ files: shard.files, command: valueGateCommand(root, config.gate, shard.files) }));
   const limitMs = pushPlanLimitMs(planned, config);
   const source = headCommit(root);
@@ -372,6 +401,16 @@ export function recordPushTiming(ctx, row, { enabled = pushRecordTimingEnabled()
 }
 
 /**
+ * The recorded push.timing rows on the board, newest kept 20; an unreadable board or row gives none, so the default target stands.
+ * Why a catch: tuning is advice, and a read fault must never change the gate's plan [C7,U151,#9372].
+ */
+export function readPushTimings(ctx, { read = work => withBoardRead(ctx, work) } = {}) {
+  try {
+    return read(board => listBoardMetaWithPrefix(board.db, 'push.timing.').flatMap(entry => { try { return [JSON.parse(entry.value)]; } catch { return []; } }));
+  } catch { return []; }
+}
+
+/**
  * Run the pre-push full gate as pull shard jobs, or return null when pushShardPlan keeps the one-command gate.
  * Green stamps the pushed tree, as a full gate run does, so a retried push of it is not gated twice.
  *
@@ -382,7 +421,8 @@ export function recordPushTiming(ctx, row, { enabled = pushRecordTimingEnabled()
 export async function pushShardGate(ctx, { say, wait, pollMs, now = Date.now, record = recordPushTiming } = {}) {
   const root = ctx.info.root;
   const runners = ctx.config?.pushGate?.sizeFromBoard === true ? await import('../commands/runner.js').then(module => module.liveRunnerCount(ctx)) : undefined;
-  const plan = await pushShardPlan(root, ctx.config, { runners });
+  const history = ctx.config?.pushGate?.sizeFromBoard === true ? readPushTimings(ctx) : undefined;
+  const plan = await pushShardPlan(root, ctx.config, { runners, history });
   if (!plan) {
     const reason = await pushShardFacts(root, ctx.config).then(pushShardSkipReason, () => null);
     if (reason) say?.(`pre-push: running the one-command gate instead of shard jobs: ${reason}`);

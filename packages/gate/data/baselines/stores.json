@@ -476,6 +476,9 @@
       "kind": "json",
       "owner": "packages/gate/src/io/main/audit/worker.js"
     },
+    "adapter-lint-clock.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/clock.js"
     "adapter-lint-env.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/env.js"
@@ -1178,6 +1181,10 @@
       "owner": "apps/relay/src/io/store/device.js"
     },
     "table:event": {
+      "kind": "table",
+      "owner": "packages/store/src/io/board/event/log.js"
+    },
+    "table:event_archive": {
       "kind": "table",
       "owner": "packages/store/src/io/board/event/log.js"
     },

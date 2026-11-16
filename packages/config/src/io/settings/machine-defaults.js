@@ -13,6 +13,7 @@ export const MACHINE_DEFAULTS = {
   'census.selfTune': false,
   'claim.refuseOffMainHead': false,
   'freeze.refuseEmptyBar': false,
+  'gate.adapterLintClock': false,
   'gate.adapterLintEnv': false,
   'gate.browserByLaunch': false,
   'gate.browserFreeChecks': false,
