@@ -25,6 +25,7 @@ export const MACHINE_DEFAULTS = {
   'gate.endStaleJobs': false,
   'gate.fencedHop': true,
   'gate.handoffWorkers': null,
+  'gate.idiomSpread': false,
   'gate.jobReserve': null,
   'gate.loadAwareDispatch': true,
   'gate.localLoadShare': 1,

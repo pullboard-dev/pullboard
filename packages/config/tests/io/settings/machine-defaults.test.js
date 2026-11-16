@@ -35,6 +35,7 @@ const BEFORE = {
   'gate.endStaleJobs': false,
   'gate.fencedHop': true,
   'gate.handoffWorkers': null,
+  'gate.idiomSpread': false,
   'gate.jobReserve': null,
   'gate.loadAwareDispatch': true,
   'gate.localLoadShare': 1,
@@ -193,6 +194,11 @@ test('clause 3: removing a BEFORE key or changing its value fails the check [O6]
   const loud = { ...MACHINE_DEFAULTS, 'brand.new': true };
   assert.deepEqual(defaultsProblems(loud), ['brand.new is new and not off']);
   assert.deepEqual(defaultsProblems({ ...MACHINE_DEFAULTS, 'brand.new': false }), []);
+});
+
+test('clause 1: gate.idiomSpread is in the BEFORE list and defaults to false [C7]', () => {
+  assert.equal(BEFORE['gate.idiomSpread'], false);
+  assert.equal(MACHINE_DEFAULTS['gate.idiomSpread'], false);
 });
 
 test('clause 1: landing.asyncFetch is a machine setting, false by default, with a description [C7]', () => {
