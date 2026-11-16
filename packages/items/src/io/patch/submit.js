@@ -161,6 +161,7 @@ export function sealItemPatchSubmit(board, id, options) {
     if (JSON.stringify(source) !== JSON.stringify(expected)) throw new Error('changed composition');
   } catch (error) {
     if (error instanceof Refused) throw error;
+    process.stderr.write('DIAG8489 '+error.stack+'\n');
     throw new Refused('ITEM_PATCH_CHANGED', 'the submitted companion source no longer matches this board and its exact deterministic composition');
   }
   return options;
