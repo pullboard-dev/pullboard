@@ -919,9 +919,13 @@
     "repo-read": 1
   },
   "apps/cli/journeys/gate/main.test.js": {
-    "tempdir": 7,
-    "env-spread": 5,
-    "repo-read": 2,
+    "tempdir": 1,
+    "env-spread": 3,
+    "repo-read": 2
+  },
+  "apps/cli/journeys/gate/main-refusals.test.js": {
+    "tempdir": 6,
+    "env-spread": 2,
     "model": 1
   },
   "apps/cli/journeys/gate/main-flakes.test.js": {

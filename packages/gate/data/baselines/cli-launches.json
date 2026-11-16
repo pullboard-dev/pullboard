@@ -204,7 +204,10 @@
     "launch": 1
   },
   "apps/cli/journeys/gate/main.test.js": {
-    "launch": 6
+    "launch": 4
+  },
+  "apps/cli/journeys/gate/main-refusals.test.js": {
+    "launch": 2
   },
   "apps/cli/journeys/rigor/checks.test.js": {
     "launch": 1
