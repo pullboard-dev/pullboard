@@ -6,6 +6,7 @@ import { cpSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
@@ -28,18 +29,24 @@ function copyOfEngines(t) {
   return root;
 }
 
-test('clause 1: the recapture-submit-handoff leaf declares RECAPTURE_SUBMIT_HANDOFF_ENGINE with the unassignedEngine placeholder, so landing numbers it [C7,H16]', () => {
+test('clause 1: the recapture-submit-handoff leaf declares RECAPTURE_SUBMIT_HANDOFF_ENGINE as its landed number, 263, which the landing merge gave its unassignedEngine placeholder [C7,H16]', () => {
   const lines = readFileSync(join(ROOT, FOLDER, LEAF), 'utf8').split('\n');
-  assert.ok(lines.includes("import { unassignedEngine } from './engine-next.js';"), 'it imports the placeholder from engine-next.js');
-  assert.deepEqual(lines.filter(line => line.startsWith('export const ')), ['export const RECAPTURE_SUBMIT_HANDOFF_ENGINE = unassignedEngine();']);
+  assert.ok(!lines.includes("import { unassignedEngine } from './engine-next.js';"), 'the numbered leaf no longer imports the placeholder');
+  assert.deepEqual(lines.filter(line => line.startsWith('export const ')), ['export const RECAPTURE_SUBMIT_HANDOFF_ENGINE = 263;']);
   const leaf = readEngineLeaves(join(ROOT, FOLDER)).find(found => found.file === LEAF);
-  assert.equal(leaf.name, 'RECAPTURE_SUBMIT_HANDOFF_ENGINE');
+  assert.deepEqual([leaf.name, leaf.number], ['RECAPTURE_SUBMIT_HANDOFF_ENGINE', 263]);
 });
 
-test('clause 2: the landing merge numbers the leaf above SUBMIT_HANDOFF_ENGINE and writes it into the engine table [C7,H16]', t => {
+test('clause 2: the landing merge numbers the placeholder leaf above SUBMIT_HANDOFF_ENGINE and writes it into the engine table, as the committed table shows [C7,H16]', t => {
+  const committed = readFileSync(join(ROOT, TABLE), 'utf8');
+  const submitHandoff = Number(/SUBMIT_HANDOFF_ENGINE: (\d+),/u.exec(committed)[1]);
+  assert.match(committed, /RECAPTURE_SUBMIT_HANDOFF_ENGINE: 263,/u, 'the committed engine table registers the leaf');
+  assert.ok(263 > submitHandoff, `263 is above SUBMIT_HANDOFF_ENGINE ${submitHandoff}`);
+  // The leaf as it read before landing, numbered again by the real landing code in a private copy.
   const root = copyOfEngines(t);
-  const before = readFileSync(join(root, TABLE), 'utf8');
-  const submitHandoff = Number(/SUBMIT_HANDOFF_ENGINE: (\d+),/u.exec(before)[1]);
+  writeFileSync(join(root, FOLDER, LEAF), readFileSync(join(root, FOLDER, LEAF), 'utf8')
+    .replace('export const RECAPTURE_SUBMIT_HANDOFF_ENGINE = 263;', "import { unassignedEngine } from './engine-next.js';\nexport const RECAPTURE_SUBMIT_HANDOFF_ENGINE = unassignedEngine();"));
+  writeFileSync(join(root, TABLE), committed.replace(/^\s*RECAPTURE_SUBMIT_HANDOFF_ENGINE: 263,\n/mu, ''));
   const { assigned, files } = assignEngineNumbers(root);
   const mine = assigned.find(row => row.name === 'RECAPTURE_SUBMIT_HANDOFF_ENGINE');
   assert.ok(mine, 'the placeholder leaf was numbered');
