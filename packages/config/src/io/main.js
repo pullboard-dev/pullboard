@@ -438,6 +438,9 @@ export function configProblems(config) {
   if (config.verify?.queueAccept !== undefined && typeof config.verify.queueAccept !== 'boolean') {
     problems.push('"verify.queueAccept" is true or false; true makes verify accept queue its frozen check as a runner job and return');
   }
+  if (config.verify?.requireRowRewrite !== undefined && typeof config.verify.requireRowRewrite !== 'boolean') {
+    problems.push('"verify.requireRowRewrite" is true or false; true makes a restructure move refuse while an open item cites a spec row whose text changed with no rewrite edit');
+  }
   if (config.resume?.adoptOrphans !== undefined && typeof config.resume.adoptOrphans !== 'boolean') {
     problems.push('"resume.adoptOrphans" is true or false; true makes pullboard resume in a fresh worktree adopt an orphaned seat claim from its pinned ref');
   }
