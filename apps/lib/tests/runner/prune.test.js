@@ -157,7 +157,7 @@ test('native cache lease serializes peers and Git CAS refuses a changed ref with
   };
   await assert.rejects(pruneSourceCache({ ...box, lease, roots: [box.commits.at(-1)], limit: 2, git: conflictingGit }), /cannot lock ref|expected/u);
   assert.equal(changed, true);
-  assert.equal(git(box.cache, ['for-each-ref', '--format=%(refname)', 'refs/pullboard/candidates']).split('\n').length, 6);
+  assert.equal(git(box.cache, ['for-each-ref', '--format=%(refname)', 'refs/pullboard/candidates']).split('\n').length, box.commits.length);
 });
 
 /** Wait for an actual child-created marker; the timeout is solely a failure hang ceiling. */
@@ -211,7 +211,7 @@ test('a real worker runs beyond 1024 legacy refs while another live job keeps it
     writeFileSync(join(legacy, 'stderr.log'), 'old worker diagnostic, no live spec');
     try {
       git(cache, ['update-ref', '--stdin'], commits.map(head => `update refs/pullboard/candidates/${head} ${head}`).join('\n') + '\n');
-      assert.equal(git(cache, ['for-each-ref', '--format=%(refname)', 'refs/pullboard/candidates']).split('\n').length, 1030);
+      assert.equal(git(cache, ['for-each-ref', '--format=%(refname)', 'refs/pullboard/candidates']).split('\n').length, commits.length);
     } finally { lease.release(); }
     git(repo, ['checkout', '-q', '--detach', commits.at(-1)]);
     await execute(showHead, commits.at(-1));

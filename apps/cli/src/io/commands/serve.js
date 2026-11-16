@@ -1,7 +1,7 @@
 import { viewApiPorts } from '../../../../view/index.js';
 import { nativeBoardOpeners } from '../context.js';
 import { moveArgs } from '../../../../../packages/person/index.js';
-import { receiveCommits } from '../../../../../packages/pin/index.js';
+import { receiveMoveCommits as receiveCommits } from '../submit/pushed.js';
 import { withBoardRead } from '../context.js';
 import { withBoard } from '../context.js';
 import { serveReconciler } from '../reconcile.js';
@@ -26,7 +26,14 @@ import { catchListeners } from '../../../../../packages/drive/index.js';
 import { inheritedListener } from '../../../../../packages/drive/index.js';
 import { spawnOnSocket } from '../../../../../packages/drive/index.js';
 import { fileURLToPath } from 'node:url';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+import { boardPullAdapter } from '../../../../../packages/runners/index.js';
+import { pullHandler } from '../../../../../packages/runners/index.js';
+import { jobsPullPorts } from '../../../../../packages/jobs/index.js';
+import { checkSignedResult } from '../../../../../packages/landing/index.js';
+import { servePullRoute } from '../../../../../packages/config/index.js';
 import { spawnReachable } from '../../../../../packages/jobs/index.js';
 import { pullboardHome } from '../../../../../packages/store/index.js';
 import { servedTrunkPack } from '../../../../../packages/runners/index.js';
@@ -101,6 +108,22 @@ export function serveBanner(url) {
   return [`Pullboard API v1 (JSON only, it has no page): ${url}`, 'To see the board in a browser, run: pullboard view'];
 }
 
+/**
+ * The request handler that answers runner pulls at /pull/, or null while serve.pullRoute is off.
+ *
+ * Why: the pull adapter had no caller outside tests; mounting it here, behind a setting that is off, lets a board host
+ * serve runners that dial out without changing what serve answers for anyone who has not turned it on (#8765). The
+ * lease and record ports are the job table's (#8764); the bundle port is a stub until the tree-to-bundle slice (#9316).
+ *
+ * @param {{ folder: string, openDb: () => import('node:sqlite').DatabaseSync, enabled?: boolean }} options - The board folder, the opener of a connection to the board's job table, and the setting's value.
+ * @returns {((request: object, response: object) => Promise<void>) | null} A request handler taking the Node HTTP request and response, or null.
+ */
+export function pullRouteHandler({ folder, openDb, enabled = servePullRoute() }) {
+  if (!enabled) return null;
+  const db = openDb();
+  return pullHandler(boardPullAdapter({ folder, ...jobsPullPorts(db), checkResult: checkSignedResult, bundle: () => null }));
+}
+
 /** Serve API v1 until a shutdown signal, printing its address before waiting (A2). */
 export async function serveHere(io, values) {
   traceServeStartup('serve-context-start');
@@ -129,9 +152,11 @@ export async function serveHere(io, values) {
   provideComparisonStart(startPulledComparison);
   provideLandingStart(startReceiptLanding);
   traceServeStartup('serve-listen-start');
+  // serve.pullRoute (off by default): runners that dial out pull jobs through this API's /pull/ routes [C7,#8765].
+  const pullRoute = pullRouteHandler({ folder: dirname(ctx.file), openDb: () => { const db = new DatabaseSync(ctx.file); db.exec('PRAGMA busy_timeout = 5000'); return db; } });
   // The board's own checkout serves one cached trunk pack per commit to cold runners [C7].
   // serveApi passes `port` to server.listen, which takes the inherited { fd } in its place.
-  const listening = await catchListeners(() => serveApi({ viewPorts: viewApiPorts, boardOpeners: { ...nativeBoardOpeners(io), launchRelaySender: io.launchRelaySender, trunkPack: servedTrunkPack }, port: inherited ?? port, address, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade, refusalDocument,
+  const listening = await catchListeners(() => serveApi({ viewPorts: viewApiPorts, boardOpeners: { ...nativeBoardOpeners(io), launchRelaySender: io.launchRelaySender, trunkPack: servedTrunkPack }, port: inherited ?? port, address, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade, refusalDocument, pullRoute: pullRoute ?? undefined,
     ...(networked ? { secret: boardKey(), scope: { projectRoot: mainRoot } } : {}),
     settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url, handlerPorts: import.meta.url, watchdog: startLoopWatchdog }));
   const api = listening.value;

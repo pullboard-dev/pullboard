@@ -32,6 +32,10 @@
       "cells": 1,
       "deep": 18
     },
+    "apps/cli/src/io/cells/backlog.js": {
+      "cells": 2,
+      "deep": 0
+    },
     "apps/cli/src/io/claim.js": {
       "cells": 10,
       "deep": 1
@@ -1500,10 +1504,6 @@
       "cells": 1,
       "deep": 0
     },
-    "packages/codemap/src/io/cells/backlog.js": {
-      "cells": 4,
-      "deep": 0
-    },
     "packages/codemap/src/io/cells/door.js": {
       "cells": 2,
       "deep": 0
@@ -2568,7 +2568,7 @@
       "cells": 1,
       "deep": 0
     },
-    "packages/landing/src/logic/land/guard.js": {
+    "packages/landing/src/io/land/guard.js": {
       "cells": 4,
       "deep": 0
     },
@@ -5116,14 +5116,6 @@
       "cells": 1,
       "deep": 0
     },
-    "packages/gate/tests/fixtures/pipeline/spec.js": {
-      "cells": 2,
-      "deep": 1
-    },
-    "packages/gate/tests/fixtures/pipeline/worker.js": {
-      "cells": 1,
-      "deep": 1
-    },
     "apps/lib/index.js": {
       "cells": 6,
       "deep": 0
@@ -5991,26 +5983,11 @@
     }
   },
   "packageApps": {
-    "packages/gate/tests/fixtures/pipeline/spec.js": [
-      "apps/runner"
-    ],
-    "packages/gate/tests/fixtures/pipeline/worker.js": [
-      "apps/runner"
-    ],
-    "packages/gate/tests/fixtures/resources/capacity.js": [
-      "apps/cli"
-    ],
     "packages/gate/tests/fixtures/resources/lease.js": [
       "apps/cli",
       "apps/lib"
     ],
-    "packages/gate/tests/fixtures/resources/release.js": [
-      "apps/cli"
-    ],
     "packages/gate/tests/fixtures/resources/runner.js": [
-      "apps/cli"
-    ],
-    "packages/gate/tests/fixtures/resources/verify.js": [
       "apps/cli"
     ],
     "packages/git/tests/fixtures/flakes.js": [

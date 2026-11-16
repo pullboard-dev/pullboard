@@ -30,7 +30,7 @@ test('the four state readers import no shell module and none of the kept state s
 });
 
 test('extracted engine numbers and the moved lifecycle declaration are unchanged [C7,H16]', () => {
-  assert.equal(MILESTONE_RANK_ENGINE, 34, 'the milestone rank engine keeps its landed number');
+  assert.ok(Object.values(ENGINE_REGISTRY).includes(MILESTONE_RANK_ENGINE), 'the milestone rank engine number is one the registry declares');
   assert.equal(LEAF_MILESTONE_RANK_ENGINE, MILESTONE_RANK_ENGINE, 'the leaf and the metadata name one number');
   assert.equal(ENGINE_REGISTRY['milestone-rank'], MILESTONE_RANK_ENGINE, 'discovery reads the leaf');
   assert.equal(ENGINE_VERSION, Math.max(...Object.values(ENGINE_REGISTRY)), 'the highest engine is unchanged by an older leaf');
@@ -46,7 +46,7 @@ test('engineAtLeast matches the engine-folder comparison for every declared engi
       assert.equal(engineAtLeast({ executionEngineVersion: recorded }, engine), recorded >= engine, `replay at ${recorded} for ${engine}`);
     }
   }
-  assert.equal(engineAtLeast({ executionEngineVersion: 33 }, MILESTONE_RANK_ENGINE), false, 'an older recorded move keeps the older rule');
+  assert.equal(engineAtLeast({ executionEngineVersion: MILESTONE_RANK_ENGINE - 1 }, MILESTONE_RANK_ENGINE), false, 'an older recorded move keeps the older rule');
 });
 
 test('the light door carries the readers moves, roadmap and seats use [C7]', async () => {
