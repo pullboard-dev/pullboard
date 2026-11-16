@@ -32,7 +32,7 @@ test('clause 1: a comparison given one case name runs only that case of a three-
   const root = fixtureRepo();
   try {
     const filtered = await runMainComparison(root, 'three.test.js', { cases: ['second case (with parens)'] });
-    assert.deepEqual(ran(filtered), ['second case (with parens)']);
+    assert.deepEqual(ran(filtered), ['second case (with parens)'], JSON.stringify(filtered).slice(0, 1500));
     assert.ok(filtered.receiptId, 'the filtered run leaves its own receipt');
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
