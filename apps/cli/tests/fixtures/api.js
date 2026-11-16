@@ -178,7 +178,8 @@ function boardWithStatements(board, statements) {
  */
 export function coldStateReads(box, count) {
   const file = join(box.root, '.git/pullboard/board.sqlite');
-  const ids = withFixtureBoard(file, board => Array.from({ length: count }, (_, index) => addRoutedItem(board, { by: 'coordinator', lane: 'app', title: `cold build item ${index}`, criterion: 'The build reads its thread.', route: 'mid' })));
+  const ids = withFixtureBoard(file, board => Array.from({ length: count }, (_, index) => addRoutedItem(board, { by: 'coordinator', lane: 'app', title: `cold build item ${index}`, criterion: 'The build reads its thread.', check: 'true', route: 'mid',
+    brief: 'Files: app/cold.js\nTest: the cold build reads this thread with the rest in one pass.' })));
   const statements = [], control = [], built = [];
   const { openBoard: openFile, openBoardForRead: openForRead } = apiBoardOpeners;
   const openers = { ...apiBoardOpeners,
