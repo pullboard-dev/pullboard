@@ -18,7 +18,9 @@ import { writeFileSync } from 'node:fs';
 import { runFixtureChild } from './child.js';
 import { runFixtureGit } from './child.js';
 import { serveApi } from '../../../../packages/api/index.js';
+import { createStateSnapshots } from '../../../../packages/api/index.js';
 import { apiBoardOpeners } from './board.js';
+import { withFixtureBoard } from './board.js';
 import { main } from './native.js';
 import { runCliInProcess } from './process.js';
 import { fixtureSettledMachine } from './testkit.js';
@@ -34,6 +36,7 @@ import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import {
   addItem as addBoardItem,
   appendFact,
+  itemThread,
 } from '../../../../packages/store/index.js';
 import {
   HOST,
@@ -148,6 +151,43 @@ export function addRoutedItem(board, fields) {
   const id = addBoardItem(board, { ...fields, route: fields.route === 'light' ? 'mid' : fields.route });
   if (fields.route === 'light') appendFact(board, id, { agentId: 'coordinator', kind: 'diagnosis', text: fields.brief });
   return id;
+}
+
+/** The board with its database wrapped so every statement run is listed, one entry per run. */
+function boardWithStatements(board, statements) {
+  const db = new Proxy(board.db, { get(target, key) {
+    const value = target[key];
+    if (key !== 'prepare') return typeof value === 'function' ? value.bind(target) : value;
+    return sql => new Proxy(target.prepare(sql), { get(statement, name) {
+      const method = statement[name];
+      if (typeof method !== 'function') return method;
+      return (...args) => { if (name === 'all' || name === 'get' || name === 'run') statements.push(String(sql)); return method.apply(statement, args); };
+    } });
+  } });
+  return Object.assign(Object.create(board), { db });
+}
+
+/**
+ * File `count` items on the fixture's board, then build its state from nothing as a server's first build does, listing the SQL
+ * that build ran. A control runs the per-item thread read on a few items through the same counter.
+ * Why: how many reads a cold build makes is the claim under test, and no build result shows it [C7,#8480].
+ *
+ * @param {{ root: string }} box - An apiHttpFixture.
+ * @param {number} count - How many items to file before the build.
+ * @returns {{ ids: number[], built: number[], statements: string[], control: string[] }} The filed ids, the ids the build projected, the build's SQL and the control's.
+ */
+export function coldStateReads(box, count) {
+  const file = join(box.root, '.git/pullboard/board.sqlite');
+  const ids = withFixtureBoard(file, board => Array.from({ length: count }, (_, index) => addRoutedItem(board, { by: 'coordinator', lane: 'app', title: `cold build item ${index}`, criterion: 'The build reads its thread.', route: 'mid' })));
+  const statements = [], control = [], built = [];
+  const { openBoard: openFile, openBoardForRead: openForRead } = apiBoardOpeners;
+  const openers = { ...apiBoardOpeners,
+    openBoard: path => boardWithStatements(openFile(path), statements),
+    openBoardForRead: path => { const opened = openForRead(path); return opened && boardWithStatements(opened, statements); } };
+  const snapshots = createStateSnapshots({ projects: () => [{ root: box.root, name: 'HTTP fixture' }], viewPorts: viewApiPorts, boardOpeners: openers, onItemBuild: ({ itemId }) => built.push(itemId) });
+  snapshots.materialize({ id: 'cold-build', root: box.root });
+  withFixtureBoard(file, board => { for (const id of ids.slice(0, 5)) itemThread(boardWithStatements(board, control), id); });
+  return { ids, built, statements, control };
 }
 
 /** File a light item through the CLI: `json` adds it mid and checks the add shape, then its own brief diagnoses it; returns the added document. */
