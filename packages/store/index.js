@@ -60,7 +60,7 @@ export { submissionItemValues, recordSubmissionEvent, submissionChildrenProblem 
 export { TYPED_REQUEST_CAUSES, TYPED_REQUEST_VERBS } from './src/io/requests.js';
 export { boardEnginePorts } from './src/io/board/ports.js';
 export { addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, shipMilestone, roadmap, provideCoordinatorMilestoneRelease } from './src/io/board/milestones.js';
-export { requireRuntimePorts, openBoardStore, boardFilePath, RUNS_FILE, RUNS_SCHEMA, RUNS_STORE_KEY, runsFilePath, runsStoreOn, openRunsStore, boardRunsPort } from './src/io/board/sqlite.js';
+export { requireRuntimePorts, openBoardStore, boardFilePath, RUNS_FILE, RUNS_SCHEMA, RUNS_STORE_KEY, runsFilePath, runsStoreOn, openRunsStore, boardRunsPort, boardRunsHolder } from './src/io/board/sqlite.js';
 export { RUNS_PORT_CALLS, PENDING_STEP, runsPort } from './src/io/board/runs.js';
 export { INTENT_GRACE_MS, boardRun, recordQueuedRun, queueRun, reconcileQueued, applyRunReceipt, applyReceipts, settleRunWithoutReceipt } from './src/io/board/run.js';
 export { RECONCILE_EVERY_MS, LOST_GRACE_MS, RUNAWAY_ATTEMPTS, RUN_LOST, RUN_RUNAWAY, disagreementAction, reconcileTick, pacedReconciler } from './src/io/board/reconcile.js';
@@ -94,7 +94,7 @@ export { invalidateItemPatch } from './src/io/board/patch/attach.js';
 export { writeRowDecisions } from './src/io/board/record/decisions.js';
 export { reserveWithin } from './src/io/board/reserve/review.js';
 export { insertShout, persistShout } from './src/io/board/shout.js';
-export { RELEASE_REASONS, releaseReasonProblem } from './src/logic/reasons.js';
+export { RELEASE_REASONS, REVIEW_RELEASE_REASONS, REVIEW_ONLY_REASONS, releaseReasonProblem } from './src/logic/reasons.js';
 export { checkedSubmitOutcome, outcomeDiffers, recordPendingOutcome } from './src/io/submit/outcome.js';
 export { INFRASTRUCTURE_CODES, RERUNNABLE_RUNNER_REFUSALS, INFRASTRUCTURE_RETRY_LIMIT, handoffGateCurrent, handoffServes, requireSubmitHandoffHookProof, submitHandoff, pendingSubmitHandoff, awaitingGateOrReview, submitHandoffFailure } from './src/io/submit/handoff/retry.js';
 export { queuedReds, queuedRedLines, boundedQueuedRedLines, sayQueuedReds } from './src/io/queued/red.js';

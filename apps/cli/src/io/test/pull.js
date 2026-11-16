@@ -144,6 +144,25 @@ try {
   }
   receipt.times = times;
 } catch { receipt.times = null; }
+// Each file's ms inside its top-level cases, read from the whole TAP before the tail is cut and placed by case name through the outcome rows, so the census can say how much of a file's wall is setup [C7,#9028].
+try {
+  const owners = new Map();
+  for (const row of receipt.outcomes ?? []) owners.set(row[1], [...new Set([...(owners.get(row[1]) ?? []), row[0]])]);
+  const caseMs = {}, rows = text.split('\\n');
+  for (let at = 0; at < rows.length; at += 1) {
+    const head = /^(?:not ok|ok)\\s+\\d+\\s+-\\s+(.*)$/u.exec(rows[at]);
+    if (!head) continue;
+    let ms = null;
+    for (let next = at + 1; next < rows.length && /^\\s/u.test(rows[next]); next += 1) {
+      if (/^\\s+(?:not ok|ok)\\s+\\d+\\s+-/u.test(rows[next])) break;
+      const field = /^ {2}duration_ms:\\s*([\\d.]+)\\s*$/u.exec(rows[next]);
+      if (field) { ms = Number(field[1]); break; }
+    }
+    const files = owners.get(head[1].replace(/\\s+#\\s*(?:SKIP|TODO)\\b.*$/iu, '')) ?? owners.get(head[1]);
+    if (ms !== null && files && files.length) for (const file of files) caseMs[file] = (caseMs[file] ?? 0) + ms / files.length;
+  }
+  receipt.caseMs = receipt.outcomes ? caseMs : null;
+} catch { receipt.caseMs = null; }
 let keep = 40000, line;
 do { receipt.phases[0].tail = text.slice(-keep); line = ${JSON.stringify(GATE_RECEIPT)} + JSON.stringify(receipt); keep = Math.floor(keep / 2); } while (Buffer.byteLength(line) > 56 * 1024 && keep > 0);
 // Outcomes too many for the line are dropped whole, so the comparison reads them unavailable, never partial.
@@ -284,7 +303,8 @@ async function runJobFor(ctx, fields, { agent, say, testRun }) {
     return { job: offered.job, runner, green, output: String(output), failures: Array.isArray(phase?.failures) ? phase.failures : null,
       signatures: Array.isArray(phase?.failureSignatures) && phase.failureSignatures.length === phase?.failures?.length ? phase.failureSignatures : null, durationMs: receipt.durationMs ?? null, outcomes,
       verdicts: gate.verdicts && typeof gate.verdicts === 'object' && !Array.isArray(gate.verdicts) ? gate.verdicts : null,
-      times: gate.times && typeof gate.times === 'object' && !Array.isArray(gate.times) ? gate.times : null };
+      times: gate.times && typeof gate.times === 'object' && !Array.isArray(gate.times) ? gate.times : null,
+      caseMs: gate.caseMs && typeof gate.caseMs === 'object' && !Array.isArray(gate.caseMs) ? gate.caseMs : null };
   } finally {
     try { git(ctx.info.root, ['update-ref', '-d', offered.ref]); } catch { /* a pin left behind only keeps a commit reachable */ }
   }
@@ -317,7 +337,7 @@ export async function probeTestAt(ctx, { commit, file, say }) {
  *
  * @param {object} ctx
  * @param {{ item: number, commit: string, main: string, command: string, files: string[], runId: string, say?: (line: string) => void, fileBudgetMs?: number | null }} fields
- * @returns {Promise<{ job: string, runner: string | null, green: boolean, output: string, outcomes: { file: string, name: string, passed: boolean, skipped: boolean }[] | null, verdicts: Record<string, 'green' | string[]> | null, times: Record<string, number> | null }>}
+ * @returns {Promise<{ job: string, runner: string | null, green: boolean, output: string, outcomes: { file: string, name: string, passed: boolean, skipped: boolean }[] | null, verdicts: Record<string, 'green' | string[]> | null, times: Record<string, number> | null, caseMs: Record<string, number> | null }>}
  */
 export async function runPulledComparison(ctx, { item, commit, main, command, files, runId, say, fileBudgetMs = null }) {
   return runJobFor(ctx, { item, commit, main, command, files, runId, fileBudgetMs }, { say });

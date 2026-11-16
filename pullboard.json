@@ -9,6 +9,8 @@
   "pushGate": { "shardMinutes": 40 },
   "landing": {
     "manualOverride": false,
+    "ledgerMainReds": true,
+    "shardProof": true,
     "publish": "separate",
     "perItem": false,
     "parallel": true,

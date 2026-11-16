@@ -27,13 +27,17 @@ import { readFileTimes } from '../../../../../packages/gate/index.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { gateRunnerAdmission } from '../../../../../packages/config/index.js';
+import { censusBalanceByTimeEnabled } from '../../../../../packages/config/index.js';
+import { censusJobMinutes } from '../../../../../packages/config/index.js';
 import { censusShardCount } from '../../logic/census.js';
 import { pulledShardCount } from '../../logic/census.js';
 import { finalStatus } from '../../logic/census.js';
 import { parseShardHeader } from '../../logic/census.js';
 import { shardRows } from '../../logic/census.js';
+import { FILE_CASE_LINE } from '../../logic/census.js';
 import { verdictOutcomes } from '../../logic/census.js';
 import { pulledTimeLines } from '../../logic/census.js';
+import { censusPlan } from '../../logic/census.js';
 import { storeName } from '../store-names.js';
 import { runPulledComparison } from './pull.js';
 import { fileBudgetField } from './file-limit.js';
@@ -51,6 +55,9 @@ function cleanHead(root) {
   if (git(['status', '--porcelain']).stdout.trim()) throw new Refused('CENSUS_DIRTY', 'a census reports on a commit, and this checkout has uncommitted changes', 'commit or discard them, or run the census from a clean checkout of main');
   return git(['rev-parse', 'HEAD']).stdout.trim();
 }
+
+/** The census plan, cut by measured time behind census.balanceByTime and by the landing planner otherwise; the dispatcher and the row writer both cut it here so a label names the same files [C7]. */
+const cutPlan = (root, files, count, timed = true) => { const times = readFileTimes(root); return censusPlan(files, count, times, censusBalanceByTimeEnabled(), () => planLandingShards(files, count, times, root), timed ? censusJobMinutes() : null); };
 
 /** Quote one shell word for a pulled job's command. */
 const word = value => `'${String(value).replaceAll("'", "'\\''")}'`;
@@ -70,7 +77,7 @@ function pulledCensus(ctx, io, values = {}) {
     if (typeof command !== 'string' || !command.trim()) throw new Refused('NO_TEST_RUNNER', 'a pulled census runs each shard with "affectedTests" from pullboard.json, and it is unset', 'set "affectedTests" to the command that runs named test files, then run the census again');
     const { mainPolicy } = await import('../../../../../packages/sandbox/index.js');
     const commit = headCommit(root), main = mainPolicy(root).commit ?? commit;
-    const plan = planLandingShards(files, count, readFileTimes(root), root);
+    const plan = cutPlan(root, files, count);
     await Promise.all(plan.map(async (shard, index) => {
       const label = `${index + 1}/${plan.length}`, started = Date.now();
       const shell = `${LANDING_COLLECT_ALL_ENV}=1 ${LANDING_SHARD_ENV}=${word(label)} ${command.trimEnd()} ${shard.files.map(file => word(`./${file}`)).join(' ')}`;
@@ -78,7 +85,7 @@ function pulledCensus(ctx, io, values = {}) {
         const ran = await runPulledComparison(ctx, { commit, main, command: shell, files: shard.files, runId: randomUUID(), ...fileBudgetField(values) });
         write(`# landing shard ${label} attempt 1 on ${ran.runner ?? 'pulled'}: ${ran.green ? 'green' : 'red'} in ${Date.now() - started} ms\n`);
         // The receipt's tail is clipped, so each file's own time line comes from the runner's whole-output record [C7,#8576].
-        const timed = pulledTimeLines(ran.times, FILE_TIME_LINE);
+        const timed = pulledTimeLines(ran.times, FILE_TIME_LINE) + pulledTimeLines(ran.caseMs, FILE_CASE_LINE);
         write(`${formatTestOutcomes(randomUUID(), ran.outcomes ?? verdictOutcomes(ran.verdicts) ?? [])}${timed}${ran.output}\n`);
       } catch (error) {
         io.err(`pullboard test --census: shard ${label} got no answer: ${error?.message ?? error}`);
@@ -114,9 +121,11 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run } 
   const dispatch = run ?? (pulled ? pulledCensus(ctx, io, values) : runLandingShards);
   run = (...args) => withFileLimit(values, () => dispatch(...args));
   const runners = censusShardCount(loadMachineSettings().runners);
-  const count = Math.min(shards ?? (pulled ? pulledShardCount(files.length, runners) : runners), files.length);
+  // census.jobMinutes, when set, sizes a pulled census by measured time: the job count is whatever the plan needs (cutPlan ignores `count`).
+  const timed = pulled && censusJobMinutes() ? cutPlan(root, files, 1).length : null;
+  const count = Math.min(timed ?? shards ?? (pulled ? pulledShardCount(files.length, runners) : runners), files.length);
   // The same plan runLandingShards cuts, so a shard's label names the files it held.
-  const plan = planLandingShards(files, count, readFileTimes(root), root);
+  const plan = cutPlan(root, files, count, pulled);
   const rows = new Map();
   const last = new Map();
   const emit = (shard, record) => {
