@@ -56,34 +56,15 @@ export function childEnv(from = process.env) {
   return env;
 }
 
-/** Process groups of the children running now, so an exit or a stop can end every one of them and the grandchildren `node --test` starts [#8500]. */
-const live = new Set();
-let exitHook = false;
-
-/** Kill one child's whole process group; a group that is already gone is fine. */
-function killGroup(pid) {
-  try { process.kill(-pid, 'SIGKILL'); } catch { /* already gone */ }
-}
-
-/** Kill every child still running. Why groups: `node --test` runs each file in a child of its own, and killing only the first leaves that one orphaned (parent pid 1). */
-export function reapChildren() {
-  for (const pid of live) killGroup(pid);
-  live.clear();
-}
-
 /**
  * Run one child to its end; resolves with its exit code (null when it timed out, was stopped or was killed), its output and its error text.
- * The child leads its own process group (spawnCaptured), and that group is killed when the child ends, times out, is stopped by `signal`, or this process exits.
+ * spawnCaptured gives the child its own process group and kills that group when the child ends, times out, is stopped by `signal`, or this process exits (reapGroup).
  */
 async function finish(command, args, { timeout = 0, signal, encoding, ...options } = {}) {
-  if (!exitHook) { exitHook = true; process.on('exit', reapChildren); }
-  let pid = 0;
   try {
-    const ran = await spawnCaptured(command, args, { ...options, timeout, signal, maxBuffer: 64 * 1024 * 1024, killSignal: 'SIGKILL', onSpawn: (child) => { pid = child.pid; live.add(pid); } });
+    const ran = await spawnCaptured(command, args, { ...options, timeout, signal, maxBuffer: 64 * 1024 * 1024, killSignal: 'SIGKILL', reapGroup: true });
     return { status: ran.error || ran.status === null ? null : ran.status, stdout: ran.stdout, stderr: ran.stderr };
-  } catch { return { status: null, stdout: '', stderr: '' }; } finally {
-    if (pid) { killGroup(pid); live.delete(pid); }
-  }
+  } catch { return { status: null, stdout: '', stderr: '' }; }
 }
 
 /** Run one test file in the copy; true when it passed. The child has ended before this resolves, so none is left alive. */
