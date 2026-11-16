@@ -19,8 +19,8 @@ function fixture(t, settings) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true', helpers.sandbox({ declareFamilies: true }), { withWorktree: false });
-  const { repo } = box, home = join(box.dir, 'machine-home');
-  mkdirSync(home);
+  const { repo } = box, home = box.env.PULLBOARD_MACHINE_HOME;
+  mkdirSync(home, { recursive: true });
   fixtureMachineSettings(home, settings);
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = home;
