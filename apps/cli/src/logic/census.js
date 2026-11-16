@@ -163,3 +163,16 @@ export function verdictOutcomes(verdicts) {
   }
   return rows.length ? rows : null;
 }
+
+/**
+ * The per-file times a census measured, in the milliseconds the plan reads: one entry for every green or red row that
+ * has secs. Why those rows only: an unrun, hung or no-result file has no time worth planning by [C7].
+ *
+ * @param {Iterable<{ file: string, status: string, secs: number|null }>} rows
+ * @returns {Record<string, number>}
+ */
+export function rowFileTimes(rows) {
+  const measured = {};
+  for (const { file, status, secs } of rows) if ((status === 'green' || status === 'red') && Number.isFinite(secs) && secs >= 0) measured[file] = Math.round(secs * 1000);
+  return measured;
+}

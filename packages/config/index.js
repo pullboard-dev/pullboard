@@ -46,6 +46,7 @@ export {
   browserFreeChecksEnabled,
   gateRunnersFirstEnabled,
   postLandSuiteEnabled,
+  censusRecordFileTimesEnabled,
   tableReplayEnabled,
   testNiceEnabled,
   fencedHopEnabled,

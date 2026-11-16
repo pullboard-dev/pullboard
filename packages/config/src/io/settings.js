@@ -100,6 +100,11 @@ export function movesLiveEnabled(table) {
   return loadMachineSettings().moves?.live?.[table] === true;
 }
 
+/** Write each pulled census's per-file times back for the next census plan only when this machine opted in; off, the census writes none [C7]. */
+export function censusRecordFileTimesEnabled() {
+  return loadMachineSettings().census?.recordFileTimes === true;
+}
+
 /** Run the full suite after each landed train batch only when this machine opted in. */
 export function postLandSuiteEnabled() {
   return loadMachineSettings().gate?.postLandSuite === true;
