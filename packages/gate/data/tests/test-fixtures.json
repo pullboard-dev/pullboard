@@ -816,6 +816,9 @@
   "apps/cli/journeys/verify/checks-output.test.js": {
     "raw-board": 1
   },
+  "apps/cli/journeys/verify/checks-output-digest.test.js": {
+    "raw-board": 1
+  },
   "apps/cli/journeys/verify/checks-large-output.test.js": {
     "raw-board": 1
   },
