@@ -9,7 +9,6 @@ import {
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { AGENT_SHELL_MARKERS } from '../../../../../packages/kernel/index.js';
-import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
 import {
   document,
