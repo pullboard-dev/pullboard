@@ -73,6 +73,7 @@ export {
   submitAuthorizationMode,
   refuseMissingCheckFile,
   holdsRequireOwner,
+  nextItemNotices,
   refuseTempWorktree,
   viewBackgroundEnabled,
   healthSentinelEnabled,
