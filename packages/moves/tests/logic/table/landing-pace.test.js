@@ -14,8 +14,10 @@ const frozenAt = (pace) => JSON.stringify({ criterion: '1. lands [test]', ...(pa
 
 /** A submitted item with no landing receipt, carrying the pace its frozen bar reads as, with nothing else in its way. */
 function selectSnapshot(pace, status = 'submitted') {
-  const item = { id: ID, status, mergedCommit: null, holdReason: null, commit: 'c1', checked: 'c1', after: [], pace: itemPace({ item_frozen: frozenAt(pace) }) };
-  return { now: '2026-11-16T10:00:00.000Z', base: 'b1', item, items: { [ID]: item }, batches: [], waivers: [], unverified: [], collisionFree: false, io: {},
+  const item = { id: ID, status, mergedCommit: null, holdReason: null, commit: 'c1', checked: 'c1', after: [], pace: itemPace({ item_frozen: frozenAt(pace) }), digest: 'd1', claimDigest: 'd1' };
+  // Bar unchanged since claim and a green screen on base b1, so the sprint Always and screened rows pass [#8865].
+  const screen = { kind: 'screen', green: true, trusted: true, leased: true, commit: 'c1', digest: 'd1', base: 'b1', checks: { secrets: 'green', hooks: 'green' } };
+  return { now: '2026-11-16T10:00:00.000Z', base: 'b1', item, items: { [ID]: item }, batches: [], waivers: [], unverified: [], collisionFree: false, io: { screen },
     picked: { count: 0, touched: {} }, pace: item.pace };
 }
 const select = (s) => runTable(ENGINE.tables.select, ENGINE.rules, structuredClone(s), { name: 'select', id: ID });
