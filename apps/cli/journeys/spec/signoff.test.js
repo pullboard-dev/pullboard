@@ -11,6 +11,7 @@ import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { createHash } from 'node:crypto';
 import {
   chmodSync,
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -46,16 +47,15 @@ function makeKey(path) {
   return { privateKey: path, publicKey: `${path}.pub` };
 }
 
-/** Build a real isolated repo with a cited test, a private board and synthetic Git identity. */
-async function fixture(t) {
-  const dir = mkdtempSync(join(tmpdir(), 'pullboard-signature-'));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const root = join(dir, 'repo');
-  const keys = join(dir, 'keys');
-  mkdirSync(root);
-  mkdirSync(keys);
-  const co = makeKey(join(keys, 'co'));
-  const ab = makeKey(join(keys, 'ab'));
+/** Spawn-free setup commits: a fixture that proves no hook behaviour skips the hook shim's node launches [C7]. */
+const NO_HOOKS = ['-c', 'core.hooksPath=/dev/null'];
+
+/** The process-wide template: a built repo with its keys and board home, copied per case instead of rebuilt [C7]. */
+let template = null;
+
+/** An empty sandbox: a temp folder, a PATH shim that runs this source's pullboard, and a synthetic Git identity and board home. */
+function sandbox(prefix) {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
   const binDir = join(dir, 'bin');
   mkdirSync(binDir);
   writeFileSync(join(binDir, 'pullboard'), `#!/bin/sh\nexec ${shellWord(process.execPath)} ${shellWord(BIN)} "$@"\n`);
@@ -71,21 +71,53 @@ async function fixture(t) {
     GIT_COMMITTER_EMAIL: 'co@example.invalid',
     PULLBOARD_HOME: join(dir, 'home'),
   };
-  const git = (...args) => runFixtureGit(args, { cwd: root, env, encoding: 'utf8', stdio: 'pipe' });
+  const root = join(dir, 'repo');
+  const keys = join(dir, 'keys');
+  const git = (...args) => runFixtureGit(args[0] === 'config' || args[0] === 'rev-list' || args[0] === 'commit-tree' ? args : [...NO_HOOKS, ...args], { cwd: root, env, encoding: 'utf8', stdio: 'pipe' });
   const run = (...args) => runCliInProcess(args, { cwd: root, env });
-  git('init', '-q', '-b', 'main');
-  git('config', 'user.name', 'CO');
-  git('config', 'user.email', 'co@example.invalid');
-  git('config', 'user.signingkey', co.privateKey);
-  const initialized = await run('init');
+  return { dir, root, keys, env, git, go: run };
+}
+
+/**
+ * Build the template once: a repo with a cited test, a private board and the two sign-off keypairs. Why once:
+ * ssh-keygen, git init and `pullboard init` cost most of a case, and every case starts the same.
+ */
+async function buildTemplate() {
+  const box = sandbox('pullboard-signature-tpl-');
+  process.once('exit', () => { try { rmSync(box.dir, { recursive: true, force: true }); } catch { /* a leftover temp tree is harmless */ } });
+  mkdirSync(box.root);
+  mkdirSync(box.keys);
+  makeKey(join(box.keys, 'co'));
+  makeKey(join(box.keys, 'ab'));
+  box.git('init', '-q', '-b', 'main');
+  box.git('config', 'user.name', 'CO');
+  box.git('config', 'user.email', 'co@example.invalid');
+  const initialized = await box.go('init');
   assert.equal(initialized.status, 0, initialized.stderr);
-  writeFileSync(join(root, 'SPEC.md'), SPEC);
-  writeFileSync(join(root, 'DOCTRINE.md'), '# Doctrine\n');
-  mkdirSync(join(root, 'test'));
-  writeFileSync(join(root, 'test/proof.test.js'), "import { test } from 'node:test';\ntest('proof [G1]', () => {});\n");
-  git('add', '-A');
-  git('commit', '-q', '-m', 'chore: initialize sign-off fixture');
-  return { dir, root, keys, co, ab, env, git, go: run };
+  writeFileSync(join(box.root, 'SPEC.md'), SPEC);
+  writeFileSync(join(box.root, 'DOCTRINE.md'), '# Doctrine\n');
+  mkdirSync(join(box.root, 'test'));
+  writeFileSync(join(box.root, 'test/proof.test.js'), "import { test } from 'node:test';\ntest('proof [G1]', () => {});\n");
+  box.git('add', '-A');
+  box.git('commit', '-q', '-m', 'chore: initialize sign-off fixture');
+  return box.dir;
+}
+
+/** A real isolated repo with a cited test, a private board and synthetic Git identity, copied from the template [C7]. */
+async function fixture(t) {
+  template ??= buildTemplate();
+  const source = await template;
+  const box = sandbox('pullboard-signature-');
+  t.after(() => rmSync(box.dir, { recursive: true, force: true }));
+  for (const name of ['repo', 'keys', 'home']) {
+    if (existsSync(join(source, name))) cpSync(join(source, name), join(box.dir, name), { recursive: true, preserveTimestamps: true, verbatimSymlinks: true });
+  }
+  const registry = join(box.dir, 'home/projects.json');
+  if (existsSync(registry)) writeFileSync(registry, readFileSync(registry, 'utf8').replaceAll(source, box.dir));
+  const co = { privateKey: join(box.keys, 'co'), publicKey: join(box.keys, 'co.pub') };
+  const ab = { privateKey: join(box.keys, 'ab'), publicKey: join(box.keys, 'ab.pub') };
+  box.git('config', 'user.signingkey', co.privateKey);
+  return { ...box, co, ab };
 }
 
 /** Run a spec command and include both output streams in a useful test assertion. */

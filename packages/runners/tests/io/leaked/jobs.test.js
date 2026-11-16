@@ -6,7 +6,7 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
-import { temporaryDirectory } from '../../../../../apps/cli/tests/fixtures/board.js';
+import { temporaryDirectory } from '../../../../board/tests/fixtures/board.js';
 import { stopScript } from '../../../src/io/leaked.js';
 
 test('clause 2: the stop script excludes a live job id and a fake ps listing keeps only the non-live job pid [C7]', () => {

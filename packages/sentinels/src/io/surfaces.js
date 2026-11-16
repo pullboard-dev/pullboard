@@ -15,6 +15,7 @@ import { realpathSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { runsFilePath } from '../../../store/index.js';
 import { elapsedMs } from '../logic/budgets.js';
 import { storeName } from './store-names.js';
 
@@ -72,14 +73,15 @@ function fileAge(file, now) {
 }
 
 /**
- * Whether a waiter is queued behind busy runners: the queue explained its wait and every runner it named is busy. That is
- * a queue wait, and the busy runner's own holders carry the budget, so a full runner fleet is not a gate pool hold (#6857).
+ * Whether a waiter is queued behind runners that each name why they cannot take it: busy, quarantined, kept for timed checks
+ * or overloaded. That is a queue wait; the busy runner's holders and a quarantined runner's own runner-unavailable row carry
+ * the budget (#6857, #8023). Only a runner reported available leaves a wait with no holder and no cause, which stays a hold.
  */
-function queuedForBusyRunner(row) {
+function queuedForNamedRunners(row) {
   if (row.name !== 'gate' || !row.reasons) return false;
   try {
     const runners = JSON.parse(row.reasons);
-    return Array.isArray(runners) && runners.length > 0 && runners.every(runner => String(runner.reason).startsWith('busy'));
+    return Array.isArray(runners) && runners.length > 0 && runners.every(runner => !String(runner.reason).startsWith('available'));
   } catch { return false; }
 }
 
@@ -93,7 +95,7 @@ export function readPools(file, scope, now, census) {
   try {
     const holders = db.prepare('SELECT name, pid, agent, since, item, kind FROM holder ORDER BY since').all();
     const hasReasons = db.prepare("SELECT 1 FROM pragma_table_info('waiter') WHERE name = 'runner_wait_reasons'").get();
-    const waiters = db.prepare(`SELECT name, pid, agent, since, item, kind${hasReasons ? ", runner_wait_reasons AS reasons" : ''} FROM waiter ORDER BY ticket`).all().filter(row => !queuedForBusyRunner(row));
+    const waiters = db.prepare(`SELECT name, pid, agent, since, item, kind${hasReasons ? ", runner_wait_reasons AS reasons" : ''} FROM waiter ORDER BY ticket`).all().filter(row => !queuedForNamedRunners(row));
     const unavailable = scope === 'machine' && db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='runner_unavailable'").get()
       ? db.prepare('SELECT host, since, detail FROM runner_unavailable').all() : [];
     const names = [...new Set([...holders, ...waiters].map(row => row.name))].sort();
@@ -255,7 +257,12 @@ function leaseOwnerPid(owner) {
  * span, whichever is later; a landing run's age is since it started.
  */
 export function readJobs(boardFile, spanFolder, now, census) {
-  const db = readOnly(boardFile);
+  const board = readOnly(boardFile);
+  if (!board) return [];
+  // With runs_store on the job rows live in the runs file beside the board, read only; a missing runs file reads as no jobs [B2,#9014].
+  const runsOn = board.prepare("SELECT meta_value FROM board_meta WHERE meta_key = 'runs_store'").get()?.meta_value === '1';
+  const db = runsOn ? readOnly(runsFilePath(boardFile)) : board;
+  if (runsOn) board.close();
   if (!db) return [];
   try {
     if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='job'").get()) return [];
@@ -328,7 +335,7 @@ function runnerJobRows(host, text, now) {
     const label = testFile ? testFile.split('/').slice(-2).join('/') : descendants.length ? `${descendants[0].command.split(' ')[0].split('/').at(-1)} without a script` : 'no job process';
     return { surface: 'runner-job', key: `${host}:${label}`, holder: `${host} worker ${worker.pid}: ${label}`, pid: worker.pid, ageMs: worker.ageMs ?? 0,
       context: testFile ?? null, detail: `${descendants.length} child process${descendants.length === 1 ? '' : 'es'}; job folder ${folder ? `~${folder}` : 'none'}${worker.ppid === 1 ? '; orphaned (ppid 1)' : ''}`,
-      waiters: [], evidence: `ssh ${host} ps -p ${worker.pid}` };
+      waiters: [], evidence: `ssh ${host} ps -p ${worker.pid}`, host, working: descendants.length > 0 && worker.ppid !== 1 };
   });
 }
 

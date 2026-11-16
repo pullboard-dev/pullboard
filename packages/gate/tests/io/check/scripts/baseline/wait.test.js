@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { startCheckBaseline } from '../../../../../index.js';
-import { privateFixtureFiles } from '../../../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../fixtures/child.js';
 
 const worker = fileURLToPath(new URL('../../../../../../../apps/lib/src/io/check/baseline.js', import.meta.url));
 const files = privateFixtureFiles('pullboard-baseline-wait-');

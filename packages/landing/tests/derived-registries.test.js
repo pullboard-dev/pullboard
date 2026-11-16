@@ -14,7 +14,7 @@ import { test } from 'node:test';
 import {
   privateFixtureFiles,
   runFixtureGit,
-} from '../../../apps/cli/tests/fixtures/child.js';
+} from '../../gate/tests/fixtures/child.js';
 import { stageTestRegistries } from '../src/io/registries.js';
 
 const SCRIPT = fileURLToPath(new URL('../../gate/src/io/test/scripts/registries.js', import.meta.url));

@@ -87,7 +87,7 @@ test('real pinned worker recovery clears the transport row within seconds [C7]',
     const runner=${JSON.stringify(runner)},db=new DatabaseSync(':memory:');
     db.exec("CREATE TABLE runner_unavailable(host TEXT PRIMARY KEY,since TEXT NOT NULL,detail TEXT NOT NULL);CREATE TABLE runner_draining(host TEXT PRIMARY KEY,runner TEXT NOT NULL)");
     initializeRunnerRecovery(db);
-    const completed=await runOnRunnerAsync(process.cwd(),'true',{runner});if(!completed.isGreen)throw new Error('real cleanup control failed');
+    const completed=await runOnRunnerAsync(process.cwd(),'true',{runner,metadata:{item:'fixture',kind:'remote-command'}});if(!completed.isGreen)throw new Error('real cleanup control failed');
     const directory=${JSON.stringify(join(box.dir, 'worker-home', '.pullboard-runner', 'recovery'))};
     const completion=JSON.parse(readFileSync(directory+'/'+readdirSync(directory)[0],'utf8'));
     const bad=await probeRunnerTransport({...runner,node:${JSON.stringify(join(box.dir, 'missing-configured-node'))}});

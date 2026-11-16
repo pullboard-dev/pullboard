@@ -383,7 +383,7 @@ function leaveProofReceipt(root, command, run, before, context, lease, observedC
 }
 
 /** Execute a private immutable check before the gate writes its provenance. */
-export function runFrozenProof(root, item, { gateLease, waitMs = 0, diagnostic = false } = {}, { checkAtCommit }) {
+export async function runFrozenProof(root, item, { gateLease, waitMs = 0, diagnostic = false } = {}, { checkAtCommit, appendFact }) {
   if (diagnostic && (gateLease?.proof?.kind !== 'submit' || !gateLease.proof.diagnosticAdmission || item.item_id !== gateLease.proof.item)) throw new Refused('PROOF_RUN_UNBOUND', 'a diagnostic needs its actual admitted Submit item');
   const context = diagnostic
     ? { item: item.item_id, frozenDigest: null, seat: gateLease.proof.seat, kind: 'check', commit: item.item_commit, submitPhase: 'diagnostic', diagnosticAdmission: gateLease.proof.diagnosticAdmission }
@@ -392,7 +392,8 @@ export function runFrozenProof(root, item, { gateLease, waitMs = 0, diagnostic =
   const before = proofSourceAt(root, item.item_commit, committedTree);
   const outcomeId = randomUUID();
   if (gateLease) gateLease.testOutcomeRunId = outcomeId;
-  let result = checkAtCommit(root, item, { gateLease, waitMs });
+  // A check on a runner lease returns its pulled run as a promise (#8504).
+  let result = await checkAtCommit(root, item, { gateLease, waitMs });
   const testOutcomes = result.executed && result.executionSourceUnchanged !== false
     ? committedTestOutcomes(root, item.item_commit, readTestOutcomes(result.outputPath ? logLines(result.outputPath) : result.output ?? '', outcomeId)
       ?? singleFileTapOutcomes(result.executionCommand ?? frozenCheck(item), result.outputPath ? [...logLines(result.outputPath)].join('\n') : result.output ?? ''), tryGit) : null;
@@ -406,7 +407,19 @@ export function runFrozenProof(root, item, { gateLease, waitMs = 0, diagnostic =
     sourceClean: cleanProofSource(root, before, result, gateLease, true), privateCommand: result.executionCommand ?? frozenCheck(item), outcomeId,
     source: { head: before.head, tree: before.tree } });
   const id = result.executed ? leaveProofReceipt(root, result.executionCommand ?? frozenCheck(item), result, before, context, gateLease) : null;
+  if (!diagnostic && appendFact) await recordFollowedRenames(item, result.renames, appendFact);
   return { ...result, ...(id ? { proofReceiptId: id } : {}) };
+}
+
+/**
+ * Record each test-file rename a frozen check followed as one fact on its item, never refreezing the criterion.
+ * Why: the item shows which path ran in place of the frozen one while its digest stays what the author froze [C7,#2969].
+ * A fact that cannot be written never changes the verdict.
+ */
+async function recordFollowedRenames(item, renames, appendFact) {
+  for (const { from, to } of renames ?? []) {
+    try { await appendFact(item.item_id, { kind: 'note', text: `The frozen check followed a rename: ${from} is now ${to}.` }); } catch { /* the check result stands without the note */ }
+  }
 }
 
 /** Execute the shared profiled plan synchronously, preserving every existing receipt field. */
@@ -418,11 +431,9 @@ export function runProfiledShell(root, command, options) {
     // The blocked loop cannot fire the lease's heartbeat timer; a helper keeps it until the run's own timeout (#3130).
     const stopHeartbeat = keepHeartbeatWhileBlocked(gateLease, { timeoutMs: plan.localOptions?.timeoutMs });
     let run;
-    try {
-      run = gateLease?.runner
-        ? gateLease.executionServices.runners.runOnRunner(root, plan.remoteCommand, plan.remoteOptions)
-        : runShell(root, command, plan.localOptions);
-    } finally { stopHeartbeat(); }
+    // A runner run is a pulled job the caller awaits (#8503): the synchronous bridge is gone from this path.
+    if (gateLease?.runner) throw new Refused('RUNNER_RUN_SYNC', 'a run on a runner is awaited; call runProfiledShellAsync');
+    try { run = runShell(root, command, plan.localOptions); } finally { stopHeartbeat(); }
     return execution.next(run).value;
   } finally { execution.return(); }
 }
@@ -584,7 +595,7 @@ export async function runGate(root, config, { trustStamp = true, onWait, landing
       ? await fullGateRunWith(root, config, trustStamp, options, plan => landingShardExecution(root, shard, slotOptions, { say: shard.say, settings: loadMachineSettings })(plan))
       // A landing awaits its run: a synchronous runner call blocked the lander's event loop, its landing lease heartbeat
       // stopped, and a 1-file rerun of 333 s lost the lease and ended in LAND_LEASE_LOST (9 Nov) [C7].
-      : landing ? await fullGateRunAsync(root, config, trustStamp, options) : fullGateRun(root, config, trustStamp, options);
+      : await fullGateRunAsync(root, config, trustStamp, options);
     if (!run.isGreen && !run.timedOut && onFailure) await onFailure(run, { root, command: config.gate, lease });
     await recordRun(onFailure, run);
     return run;
@@ -592,11 +603,27 @@ export async function runGate(root, config, { trustStamp = true, onWait, landing
 }
 
 /**
+ * The focused command of a main comparison. A case list adds an exact, anchored `--test-name-pattern`, so only those
+ * cases run; the pattern is part of the command, so the receipt, the signature and the runner's stored result of a
+ * filtered run are never those of a whole-file run [C7,#3066].
+ *
+ * @param {string} affectedTests - The accepted focused test command.
+ * @param {string} path - The repository-relative test file.
+ * @param {string[]} [cases] - Case names to run; omitted runs the whole file.
+ * @returns {string}
+ */
+export function mainComparisonCommand(affectedTests, path, cases) {
+  const quote = text => "'" + text.replaceAll("'", "'\\''") + "'";
+  const pattern = cases ? ` --test-name-pattern ${quote('^(?:' + cases.map(name => name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('|') + ')$')}` : '';
+  return `PULLBOARD_TEST_REUSE=record ${affectedTests.trimEnd()}${pattern} ${quote('./' + path)}`;
+}
+
+/**
  * Run the accepted exact-file main comparison and seal only its own observed execution duration. A `source` of
  * `{head, tree}` runs that exact commit on the admitted runner from this repository's objects, so `root` may be any
  * checkout of the repository and its HEAD is never read [C7,#3323].
  */
-export async function runMainComparison(root, path, { detailed = false, gateLease, waitMs = 0, signatureCapture, source } = {}) {
+export async function runMainComparison(root, path, { detailed = false, gateLease, waitMs = 0, signatureCapture, source, cases } = {}) {
   if (gateLease && signatureCapture) gateLease.signatureCapture = signatureCapture;
   // A pinned source is main's exact commit, sent to a runner from the object store; only a runner can run it [C7,#3323].
   if (source && (!gateLease?.runner || gateLease.source?.pinned !== true || gateLease.source.commit !== source.head || gateLease.source.tree !== source.tree)) {
@@ -609,8 +636,10 @@ export async function runMainComparison(root, path, { detailed = false, gateLeas
     || typeof path !== 'string' || !path || path.startsWith('/') || path.split('/').includes('..')) {
     throw new Refused('NO_POLICY', 'an exact main comparison needs clean source and its accepted focused test command');
   }
-  const word = "'" + ('./' + path).replaceAll("'", "'\\''") + "'";
-  const command = `PULLBOARD_TEST_REUSE=record ${policy.config.affectedTests.trimEnd()} ${word}`;
+  if (cases !== undefined && (!Array.isArray(cases) || !cases.length || cases.some(name => typeof name !== 'string' || !name))) {
+    throw new Refused('USAGE', 'a filtered main comparison needs one or more case names; name the failing cases or run the whole file');
+  }
+  const command = mainComparisonCommand(policy.config.affectedTests, path, cases);
   const started = performance.now();
   // Always awaited: a landing's failure diagnostics run this, and a blocking run stopped the landing lease's heartbeat [C7].
   const run = detailed ? await runProfiledShellAsync(root, command, { gateLease, waitMs, stages: true, pinnedSource })
@@ -619,7 +648,7 @@ export async function runMainComparison(root, path, { detailed = false, gateLeas
   const after = pinnedSource ?? timingSourceForReceipt(root);
   const receiptId = sameTimingSource(before, after) && !run.sandboxBlocked
     ? leaveRunReceipt(root, { gate: command }, run, { before: before.tree, kind: 'main-red',
-      comparison: { path, source: before, compareMs, pinned: Boolean(pinnedSource) }, gateLease, receiptAt: new Date().toISOString() }) : null;
+      comparison: { path, source: before, compareMs, pinned: Boolean(pinnedSource), ...(cases ? { cases } : {}) }, gateLease, receiptAt: new Date().toISOString() }) : null;
   return { ...run, ...(receiptId ? { receiptId } : {}) };
 }
 
@@ -648,8 +677,7 @@ function leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditF
     const policy = kind === 'main-red' ? policyAt(root, head)
       : auditBatchId === undefined && !releaseRequest ? mainPolicy(root) : policyAt(root, head);
     const store = receiptStore(root);
-    const focusedWord = comparison && "'" + ('./' + comparison.path).replaceAll("'", "'\\''") + "'";
-    const expected = kind === 'main-red' ? comparison && `PULLBOARD_TEST_REUSE=record ${policy.config.affectedTests.trimEnd()} ${focusedWord}`
+    const expected = kind === 'main-red' ? comparison && mainComparisonCommand(policy.config.affectedTests, comparison.path, comparison.cases)
       : kind === 'suite' ? 'node apps/cli/src/io/run/tests.js --all'
       : auditFiles === undefined ? policy.config.gate : valueGateCommand(root, policy.config.gate, [...new Set(auditFiles)].sort());
     if (expected !== config.gate || !head || !store
@@ -691,14 +719,19 @@ function leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditF
 }
 
 /** Run a full gate while its caller owns the queue lease; only a full run may stamp its tree. */
-function* fullGateExecution(root, config, trustStamp = false, { waitMs = 0, log = gitPath(root, LOG), gateLease, landing = false, collectAll = false, auditBatchId, auditFiles, auditCoverage = false, releaseRequest, releaseStartedAt, stages = false, waivers = [], kind = 'gate', signal } = {}) {
+function* fullGateExecution(root, config, trustStamp = false, { waitMs = 0, log = gitPath(root, LOG), gateLease, landing = false, collectAll = false, auditBatchId, auditFiles, auditCoverage = false, releaseRequest, releaseStartedAt, stages = false, waivers = [], kind = 'gate', signal, timedShell } = {}) {
   if (trustStamp && !config[VALUE_GATE] && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
   const before = committedTree(root);
-  const run = yield [root, config.gate, { waitMs, pipefail: true, profileFile: `${log}.profile.json`, gateLease, landing, collectAll, releaseRequest, stages, waivers, auditCoverage, timeoutMs: landing ? config.landing?.timeoutMs : undefined, signal }];
+  const run = yield [root, config.gate, { waitMs, pipefail: true, profileFile: `${log}.profile.json`, gateLease, landing, collectAll, releaseRequest, stages, waivers, auditCoverage, timeoutMs: landing ? config.landing?.timeoutMs : undefined, timedShell, signal }];
   const { isGreen, output, seconds, profile, profilePath } = run;
   writeFileSync(log, output);
   // The environment refusing a run says nothing about the gate, so only a real result is recorded (U41).
-  if (!run.sandboxBlocked && kind !== 'suite') recordGateRun(root, gateRunRecord(root, config, rawRunGreen(run), gateLease));
+  if (!run.sandboxBlocked && kind !== 'suite') {
+    // The positive control is a second run the caller executes the way it ran the gate, so it is awaited on a runner too.
+    const positiveControl = config.positiveControl?.trim() ? config.positiveControl : null;
+    const control = positiveControl ? yield [root, positiveControl, { gateLease, artifactPrefix: 'pullboard-gate-control', persistLog: true }] : null;
+    recordGateRun(root, gateRunRecord(config, rawRunGreen(run), gateLease, control));
+  }
   const receiptAt = new Date().toISOString();
   if (releaseRequest) run.releaseParticipation = releaseParticipationFields({ ...run.releaseParticipation,
     command: createHash('sha256').update(config.gate).digest('hex'), startedAt: releaseStartedAt, finishedAt: receiptAt });
@@ -721,8 +754,9 @@ function* fullGateExecution(root, config, trustStamp = false, { waitMs = 0, log 
 export function fullGateRun(root, config, trustStamp = false, options) {
   const execution = fullGateExecution(root, config, trustStamp, options);
   try {
-    const step = execution.next();
-    return step.done ? step.value : execution.next(runProfiledShell(...step.value)).value;
+    let step = execution.next();
+    while (!step.done) step = execution.next(runProfiledShell(...step.value));
+    return step.value;
   } finally { execution.return(); }
 }
 
@@ -735,8 +769,11 @@ export function fullGateRun(root, config, trustStamp = false, options) {
 export async function fullGateRunWith(root, config, trustStamp, options, execute) {
   const execution = fullGateExecution(root, config, trustStamp, options);
   try {
-    const step = execution.next();
-    return step.done ? step.value : execution.next(await runProfiledShardsAsync(...step.value, execute)).value;
+    let step = execution.next();
+    // Only the gate command itself fans out; its positive control, if any, is one plain awaited run.
+    let first = true;
+    while (!step.done) { step = execution.next(first ? await runProfiledShardsAsync(...step.value, execute) : await runProfiledShellAsync(...step.value)); first = false; }
+    return step.value;
   } finally { execution.return(); }
 }
 
@@ -744,8 +781,9 @@ export async function fullGateRunWith(root, config, trustStamp, options, execute
 export async function fullGateRunAsync(root, config, trustStamp = false, options) {
   const execution = fullGateExecution(root, config, trustStamp, options);
   try {
-    const step = execution.next();
-    return step.done ? step.value : execution.next(await runProfiledShellAsync(...step.value)).value;
+    let step = execution.next();
+    while (!step.done) step = execution.next(await runProfiledShellAsync(...step.value));
+    return step.value;
   } finally { execution.return(); }
 }
 
@@ -761,12 +799,11 @@ export async function fullGateRunAsync(root, config, trustStamp = false, options
  * @param {object} [gateLease] the lease the gate runs under
  * @returns {{ at: string, green: boolean, control: boolean | null, gate: string, positiveControl: string | null, controlLog?: string, controlProfile?: string }}
  */
-function gateRunRecord(root, config, isGreen, gateLease) {
+function gateRunRecord(config, isGreen, gateLease, control) {
   const at = new Date().toISOString();
   const environment = gateLease?.environment ?? null;
   const positiveControl = config.positiveControl?.trim() ? config.positiveControl : null;
   if (!positiveControl) return { at, green: isGreen, control: null, gate: config.gate, positiveControl, environment };
-  const control = runProfiledShell(root, positiveControl, { gateLease, artifactPrefix: 'pullboard-gate-control', persistLog: true });
   // A control the environment refused says nothing about the gate, the same rule that keeps a refused gate run out of the record.
   const result = control.sandboxBlocked ? null : control.isGreen;
   return { at, green: isGreen, control: result, gate: config.gate, positiveControl, environment, controlLog: control.logPath, controlProfile: control.profilePath };

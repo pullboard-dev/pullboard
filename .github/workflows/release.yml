@@ -38,12 +38,26 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
       - name: The tag names package.json's version
         run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
+      # The board's recorded gate receipt for this exact commit is proof enough: GitHub CI is a second opinion and
+      # never holds a release the board already proved. A receipt for any other commit is refused, and the CI check below decides.
+      - name: The recorded gate receipt for this exact commit
+        id: receipt
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node packages/landing/src/io/verify/release.js --repository "$GITHUB_REPOSITORY" --head "$GITHUB_SHA"
       - name: Main CI passed this commit
         id: main-ci
         env:
           GH_TOKEN: ${{ github.token }}
+          RECEIPT: ${{ steps.receipt.outcome }}
         run: |
           set -euo pipefail
+          if [ "$RECEIPT" = success ]; then
+            printf 'Recorded gate receipt accepted for %s; main CI is not consulted.\n' "$GITHUB_SHA"
+            echo 'passed=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           run_id=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow gate.yml --branch main --event push --commit "$GITHUB_SHA" --limit 1 --json databaseId --jq '.[0].databaseId // empty')
           if [ -z "$run_id" ]; then
             printf '::error::No gate.yml run for commit %s on main; refusing npm publish.\n' "$GITHUB_SHA"

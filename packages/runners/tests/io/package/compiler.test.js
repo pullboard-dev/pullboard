@@ -15,7 +15,7 @@ import { createRunnerModuleParser } from '../../../src/io/module/parser.js';
 import { importsIn } from '../../../../gate/index.js';
 import { commonJsIn } from '../../../../gate/index.js';
 import { runtimeUrls } from '../../../src/logic/urls.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../gate/tests/fixtures/child.js';
 import { pathToFileURL } from 'node:url';
 import { dirname } from 'node:path';
 import { join } from 'node:path';

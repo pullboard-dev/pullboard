@@ -18,6 +18,8 @@ import { createE2eHelpers } from '../e2e.js';
 import { runFixtureChild } from '../child.js';
 import { HOST } from './ssh.js';
 import { installSshStandIn } from './ssh.js';
+import { privateFixtureFiles } from '../child.js';
+import { preparedRunner } from '../../../../../packages/runners/tests/fixtures/prepared.js';
 import { initializeRunnerRecovery } from '../../../../../packages/resources/index.js';
 import { recordRunnerFailure } from '../../../../../packages/resources/index.js';
 import {
@@ -47,9 +49,9 @@ export function runnerProbeRecoveryTests(failureCounts = [1, 99]) {
     test(`a real pinned worker ${failures === 1 ? 'recovers after one failed probe' : 'stays unavailable naming its failed step'} [C7]`, t => {
       const e2e = createE2eHelpers(); t.after(e2e.cleanup);
       const box = e2e.project('true');
-      const bin = join(box.dir, 'health-bin'), worker = join(box.dir, 'worker');
-      const home = join(box.dir, 'remote-home'), machineHome = join(home, '.pullboard');
-      for (const directory of [bin, worker, home, machineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(directory, { recursive: true });
+      const bin = join(box.dir, 'health-bin');
+      const { worker, home, machineHome } = preparedRunner(() => privateFixtureFiles('pullboard-prepared-runner-').root);
+      for (const directory of [bin, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(directory, { recursive: true });
       const requests = join(box.dir, 'requests.jsonl');
       installSshStandIn({ bin, worker, home, machineHome, requests, nodeCommand: process.execPath, healthFailures: failures });
       const runner = { host: HOST, node: process.execPath, slots: 1, browser: 0 };
@@ -61,7 +63,7 @@ export function runnerProbeRecoveryTests(failureCounts = [1, 99]) {
 import {initializeRunnerRecovery,recordRunnerFailure,recoverUnavailableRunners} from ${JSON.stringify(recovery)};
 import {DatabaseSync} from 'node:sqlite';import {readdirSync,readFileSync} from 'node:fs';import {join} from 'node:path';
 const runner=${JSON.stringify(runner)};
-const actual=await runOnRunnerAsync(process.cwd(),'true',{runner});
+const actual=await runOnRunnerAsync(process.cwd(),'true',{runner,metadata:{item:'fixture',kind:'remote-command'}});
 const directory=${JSON.stringify(join(home, '.pullboard-runner', 'recovery'))};
 const names=readdirSync(directory);if(names.length!==1)throw new Error('expected one actual completed job');
 const proof=JSON.parse(readFileSync(join(directory,names[0]),'utf8'));
@@ -125,9 +127,9 @@ export function runnerInstallerRecoveryTests({ workerFirstCases = [false, true],
     test(`an actual delayed installer ${workerFirst ? 'wins its claim and needs completion' : 'is fenced before launch after cancellation'} [C7]`, { skip }, t => {
       const e2e = createE2eHelpers(); t.after(e2e.cleanup);
       const box = e2e.project('true');
-      const bin = join(box.dir, 'launch-bin'), worker = join(box.dir, 'worker'), home = join(box.dir, 'remote-home');
-      const machineHome = join(home, '.pullboard'), deferred = join(box.dir, 'deferred-command'), frame = join(box.dir, 'deferred-frame');
-      for (const directory of [bin, worker, home, machineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(directory, { recursive: true });
+      const bin = join(box.dir, 'launch-bin'), deferred = join(box.dir, 'deferred-command'), frame = join(box.dir, 'deferred-frame');
+      const { worker, home, machineHome } = preparedRunner(() => privateFixtureFiles('pullboard-prepared-runner-').root);
+      for (const directory of [bin, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(directory, { recursive: true });
       installSshStandIn({ bin, worker, home, machineHome, requests: join(box.dir, 'requests.jsonl'), nodeCommand: process.execPath, deferFirstWorker: deferred, deferredFrame: frame });
       const runner = { host: HOST, slots: 1, browser: 0, node: process.execPath };
       const url = pathToFileURL(join(import.meta.dirname, '../../../../../packages/runners/index.js')).href;
@@ -136,7 +138,7 @@ export function runnerInstallerRecoveryTests({ workerFirstCases = [false, true],
       const source = `import {runOnRunnerAsync,probeRunnerHealth} from ${JSON.stringify(url)};
 import {readFileSync,existsSync} from 'node:fs';import {spawnSync} from 'node:child_process';
 const runner=${JSON.stringify(runner)};let failure;
-try{await runOnRunnerAsync(process.cwd(),'true',{runner});throw new Error('deferred request unexpectedly ran');}catch(error){if(error.name!=='RunnerDropped')throw error;failure=error.diagnostic;}
+try{await runOnRunnerAsync(process.cwd(),'true',{runner,metadata:{item:'fixture',kind:'remote-command'}});throw new Error('deferred request unexpectedly ran');}catch(error){if(error.name!=='RunnerDropped')throw error;failure=error.diagnostic;}
 const remoteEnv={PATH:process.env.PATH,HOME:${JSON.stringify(home)},PULLBOARD_FIXTURE_BOARD:'1',PULLBOARD_HOME:${JSON.stringify(home)},PULLBOARD_MACHINE_HOME:${JSON.stringify(machineHome)},LANG:'C',LC_ALL:'C',TZ:'UTC',TMPDIR:process.env.TMPDIR};
 const deferred=readFileSync(${JSON.stringify(deferred)},'utf8');
 const capsule=readFileSync(${JSON.stringify(deferred)}+'.capsule');

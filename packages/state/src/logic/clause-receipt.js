@@ -13,6 +13,11 @@ function namedTestClauses(item, files) {
   });
 }
 
+/** The distinct test files the [test] clauses name, which need a recorded base run for their fail-before receipt [C7]. */
+export function clauseTestFiles(item, files) {
+  return [...new Set(namedTestClauses(item, files).map(entry => entry.file))];
+}
+
 /**
  * A refusal when a [test] clause's named file has no recorded run that failed on an assertion at the item's base commit.
  * The head half is the gate's own run, which records the receipt once it passes, so only the base half can be judged

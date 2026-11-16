@@ -1,7 +1,10 @@
 import { viewApiPorts } from '../../../../view/index.js';
 import { nativeBoardOpeners } from '../context.js';
 import { moveArgs } from '../../../../../packages/person/index.js';
+import { receiveCommits } from '../../../../../packages/pin/index.js';
 import { withBoardRead } from '../context.js';
+import { withBoard } from '../context.js';
+import { serveReconciler } from '../reconcile.js';
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { openBoardForRead } from '../../../../lib/index.js';
@@ -33,9 +36,18 @@ import {
   traceServeStartup,
 } from '../main.js';
 import { serveListen } from '../../../../../packages/config/index.js';
+import { movesShadowEnabled } from '../../../../../packages/config/index.js';
+import { movesLiveEnabled } from '../../../../../packages/config/index.js';
 import { mainComparisonMode } from '../../../../../packages/config/index.js';
 import { criterionMainReceipts } from '../submit/receipt.js';
 import { provideMainComparison } from '../../../../../packages/api/index.js';
+import { provideGateHopTable } from '../../../../../packages/api/index.js';
+import { provideJobTable } from '../../../../../packages/api/index.js';
+import { JOB_MAX_ATTEMPTS } from '../../../../../packages/api/index.js';
+import { jobEngine } from '../../../../../packages/moves/index.js';
+import { runTable } from '../../../../../packages/moves/index.js';
+import { LEASE_MS } from '../../../../../packages/jobs/index.js';
+import { gateHopTable } from '../submit/hop.js';
 import { provideCompanionInheritance } from '../../../../../packages/api/index.js';
 import { provideMainRedNotes } from '../../../../../packages/api/index.js';
 import { provideRefusalTrials } from '../../../../../packages/api/index.js';
@@ -107,6 +119,8 @@ export async function serveHere(io, values) {
   const networked = address !== LOOPBACK;
   // A pulled gate's red cases are read against main's receipts like a submit gate's, unless gate.mainComparison is off [P7].
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
+  provideGateHopTable(gateHopTable);
+  provideJobTable(jobShadowTable(), movesShadowEnabled, () => movesLiveEnabled('job'));
   provideCompanionInheritance(companionMainFailuresUntouched);
   provideMainTestRecorder(recordMainTestReceipt);
   provideMainRedNotes(MAIN_RED_NOTES);
@@ -132,6 +146,8 @@ export async function serveHere(io, values) {
   if (networked) io.say(`Any computer that can reach ${address} and holds the board key can use this board. Ctrl-C stops it.`);
   io.flush?.(0);
   traceServeStartup('serve-ready-written');
+  // With the board's runs_store flag on, the loop settles board-and-runs disagreements at most once every 5 s; off, it opens no runs file [B2,P7].
+  const reconciler = serveReconciler({ withBoard: work => withBoard(ctx, work), boardFile: ctx.file, onError: error => process.stderr.write(`reconciler tick failed: ${error.message}\n`) });
   // A landing that moves this checkout restarts the API on the new code and the same port (#6157).
   // Where the socket can be handed on, the new process listens before this one stops accepting, so no request is refused (#6723).
   const log = join(pullboardHome(), 'serve.log');
@@ -147,6 +163,7 @@ export async function serveHere(io, values) {
     fresh.restarted.then(() => stopped(true));
   });
   fresh.stop();
+  reconciler.stop();
   if (!restarted) await api.close();
   return 0;
 }
@@ -200,6 +217,8 @@ const MAIN_RED_NOTES = { message: (root, board, comparison) => mainRedMessage(ro
 export async function loopbackBoardApi(io, { projects, secret }) {
   const ctx = context(io), openers = { ...nativeBoardOpeners(io), launchRelaySender: io.launchRelaySender, trunkPack: servedTrunkPack }, ids = new Map();
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
+  provideGateHopTable(gateHopTable);
+  provideJobTable(jobShadowTable(), movesShadowEnabled, () => movesLiveEnabled('job'));
   provideCompanionInheritance(companionMainFailuresUntouched);
   provideMainTestRecorder(recordMainTestReceipt);
   provideMainRedNotes(MAIN_RED_NOTES);
@@ -227,6 +246,12 @@ export function boardStatePorts() {
     snapshotStore: { load: loadKeyedResult, save: saveKeyedResult, saved: savedKeyedResults } };
 }
 
+/** The job table the writer's shadow compare decides with, over the jobs cell's lease and the api's claim cap, so each stays one source [C7,#8381]. */
+function jobShadowTable() {
+  const { rules, table } = jobEngine({ leaseMs: LEASE_MS, maxAttempts: JOB_MAX_ATTEMPTS });
+  return (snapshot, move) => runTable(table, rules, snapshot, move);
+}
+
 /**
  * The ports the API's handler pool workers run with: the native board openers, and the gate's main comparison and
  * main-test and baseline recorders a posted receipt reaches; provided inside each worker thread, which cannot be
@@ -234,6 +259,8 @@ export function boardStatePorts() {
  */
 export async function boardHandlerPorts({ isMain } = {}) {
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
+  provideGateHopTable(gateHopTable);
+  provideJobTable(jobShadowTable(), movesShadowEnabled, () => movesLiveEnabled('job'));
   provideCompanionInheritance(companionMainFailuresUntouched);
   provideMainTestRecorder(recordMainTestReceipt);
   provideMainRedNotes(MAIN_RED_NOTES);
@@ -248,7 +275,7 @@ export async function boardHandlerPorts({ isMain } = {}) {
   };
   // A receipt on a relay-linked board queues its moves in the relay outbox, so the worker carries the relay ports too (#7562).
   const { loadProcessPorts } = await import('../ports/process.js');
-  const boardOpeners = { ...await loadProcessPorts(), moveArgs, openBoard, openBoardForRead, nativeBoardPorts };
+  const boardOpeners = { ...await loadProcessPorts(), moveArgs, receiveCommits, openBoard, openBoardForRead, nativeBoardPorts };
   return { handlers: poolHandlers({ boardOpeners }, { isMain, runCommand, refusalDocument }) };
 }
 

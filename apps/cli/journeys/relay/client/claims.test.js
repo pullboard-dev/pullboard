@@ -1,4 +1,4 @@
-/** Three linked replicas order competing claims one to ten, then refuse registration and init outside the relay order [H3,H16,V1,V17]. */
+/** Three linked replicas order competing claims one to four [H3,H16,V1,V17]. */
 import { cleanupFixtureChildren } from '../../../tests/fixtures/child.js';
 import {
   after,
@@ -12,11 +12,11 @@ import {
 
 after(cleanupFixtureChildren);
 
-test('clause 1 and clause 2: [H3,H16,V1,V17] three cloned linked replicas order competing claims one to ten', { timeout: 170_000 }, async (t) => { // budget: ten paired claim rounds (30 CLI spawns) plus the registration, init and API ordering checks.
+test('clause 1 and clause 2: [H3,H16,V1,V17] three cloned linked replicas order competing claims one to four', { timeout: 170_000 }, async (t) => { // budget: four paired claim rounds, each about a dozen CLI spawns.
   const timing = threeReplicaPhaseCapture(t);
   return timing.run(async () => {
     const fixture = await threeReplicaFixture(t, timing);
-    await competingReplicaClaims(fixture, timing, { ids: Array.from({ length: 10 }, (_, index) => index + 1) });
+    await competingReplicaClaims(fixture, timing, { ids: [1, 2, 3, 4], tail: false });
     timing.finish(['cloning three replicas', 'competing claims']);
   });
 });

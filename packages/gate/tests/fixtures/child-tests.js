@@ -8,6 +8,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { privateFixtureFiles } from './child.js';
+import { runFixtureChildAsync } from './child.js';
 import { GRANDFATHERED_DIRECT_SPAWNERS } from './child-tests-grandfathered.js';
 
 export { GRANDFATHERED_DIRECT_SPAWNERS };
@@ -67,12 +68,36 @@ export function refusedDirectSpawners(root, grandfathered = GRANDFATHERED_DIRECT
  * @returns {{status: number|null, tests: number, pass: number, fail: number, stdout: string, stderr: string}}
  */
 export function runChildTests(files, { cwd = process.cwd(), env = process.env, args = [], timeout, maxBuffer = 32 * 1024 * 1024 } = {}) {
+  const { clean, dir, tapFile, argv } = childTestsPlan(files, env, args);
+  const child = spawnSync(process.execPath, argv, { cwd, env: clean, encoding: 'utf8', maxBuffer, ...(timeout ? { timeout } : {}) });
+  return childTestsResult(files, child, dir, tapFile);
+}
+
+/**
+ * The same child run as runChildTests without blocking this process, so a test can run one file two ways at once (#8265).
+ * Why: the parity sample runs every journey in a real process and in-process; side by side they cost the slower run, not the sum.
+ *
+ * @param {string[]} files - Test files for the child.
+ * @param {{cwd?: string, env?: Record<string,string|undefined>, args?: string[]}} [options]
+ * @returns {Promise<{status: number|null, tests: number, pass: number, fail: number, stdout: string, stderr: string}>}
+ */
+export async function runChildTestsAsync(files, { cwd = process.cwd(), env = process.env, args = [] } = {}) {
+  const { clean, dir, tapFile, argv } = childTestsPlan(files, env, args);
+  const child = await runFixtureChildAsync(process.execPath, argv, { cwd, env: clean, encoding: 'utf8' });
+  return childTestsResult(files, { status: child.status, stdout: child.stdout, stderr: child.stderr }, dir, tapFile);
+}
+
+/** The child's environment (runner context removed), private tap folder and argv. */
+function childTestsPlan(files, env, args) {
   const clean = { ...env };
   delete clean.NODE_TEST_CONTEXT;
   const dir = privateFixtureFiles('pullboard-child-tap-').root;
   const tapFile = join(dir, 'tap.txt');
-  const child = spawnSync(process.execPath, ['--test', '--test-reporter=tap', `--test-reporter-destination=${tapFile}`, '--test-reporter=spec', '--test-reporter-destination=stdout', ...args, ...files],
-    { cwd, env: clean, encoding: 'utf8', maxBuffer, ...(timeout ? { timeout } : {}) });
+  return { clean, dir, tapFile, argv: ['--test', '--test-reporter=tap', `--test-reporter-destination=${tapFile}`, '--test-reporter=spec', '--test-reporter-destination=stdout', ...args, ...files] };
+}
+
+/** Read a finished child's tap file into the shared result, refusing a run that saw no tests. */
+function childTestsResult(files, child, dir, tapFile) {
   const tap = existsSync(tapFile) ? readFileSync(tapFile, 'utf8') : '';
   rmSync(dir, { recursive: true, force: true });
   // Node reports a file that defines no test as one result named after the file; that is not a test that ran.

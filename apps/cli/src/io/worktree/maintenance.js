@@ -10,6 +10,8 @@ import { repoInfo } from '../../../../../packages/git/index.js';
 import { maintenanceProtectedPath } from './maintenance/protection.js';
 import { retainedMaintenanceHealth } from './maintenance/retention.js';
 import { maintenanceDurations } from '../../../../../packages/config/index.js';
+import { retireIdleSeatHours } from '../../../../../packages/config/index.js';
+import { retireIdleSeats } from './maintenance/idle-seats.js';
 import { classifyMaintenanceTree } from './maintenance/classify.js';
 import { archiveMaintenanceWorktree } from './maintenance/archive.js';
 import { removePartialArchives } from './maintenance/archive.js';
@@ -103,6 +105,21 @@ async function keepDirty(ports, row, paths, entry, fresh = true) {
   catch (error) { entry.reason += `; its fact could not be recorded: ${error.message}`; }
 }
 
+/**
+ * Say whether every commit on a worktree is safe to drop: reachable from the main checkout's head, or the recorded commit of a landed or withdrawn item.
+ * Why: an idle joined seat is retired without a takeover, so its commits are the only record of work that never reached main (#8199).
+ * @param {string} path absolute worktree folder
+ * @param {string} mainRoot the main checkout
+ * @param {object[]} items board item rows
+ * @returns {boolean} true when nothing on the tree is unmerged
+ */
+export function maintenanceCommitsSafe(path, mainRoot, items) {
+  const head = String(maintenanceGit(path, ['rev-parse', 'HEAD'])).trim();
+  const unmerged = String(maintenanceGit(path, ['rev-list', head, '--not', String(maintenanceGit(mainRoot, ['rev-parse', 'HEAD'])).trim()])).trim();
+  if (!unmerged) return true;
+  return items.some(item => item.item_commit === head && (Boolean(item.item_merged_commit) || item.item_status === 'withdrawn' || Boolean(item.item_withdrawn_reason)));
+}
+
 /** One summary has no file contents, individual shell commands, or inferred cleanup claims. */
 export function maintenanceSummary(report) {
   const freed = report.freedBytes === null ? 'unknown' : String(report.freedBytes) + ' B';
@@ -150,6 +167,10 @@ export async function runWorktreeMaintenance(root, config, ports, { now = Date.n
       const fresh = classifyMaintenanceTree(actual, { mainRoot, currentRoot: root, config,
         ...await ports.readSnapshot(), previous: next.trees[tree.path], now, workingDirectories: readDirectories() });
       if (fresh.protected || !fresh.oldEnough) { entry.reason = fresh.reason; continue; }
+      if (fresh.retiredIdle && !maintenanceCommitsSafe(tree.path, mainRoot, (await ports.readSnapshot()).items)) {
+        entry.reason = `unmerged commits in ${row.path}; worktree kept`;
+        continue;
+      }
       const dirtyPaths = maintenanceDirtyPaths(tree.path);
       next.trees[tree.path].dirtySince = dirtyPaths.length ? previous?.dirtySince ?? now : null;
       if (dirtyPaths.length) {
@@ -186,6 +207,10 @@ export async function runWorktreeMaintenance(root, config, ports, { now = Date.n
       entry.action = entry.archive ? 'archived-kept' : 'kept';
     } finally { lease?.release(); }
   }
+  // With maintenance.retireIdleSeats on, clean trees idle past the set hours whose HEAD is already on main go too (#9109).
+  const idleHours = retireIdleSeatHours();
+  if (idleHours !== null) await retireIdleSeats(root, report.entries, { mainRoot, hours: idleHours, now, observed, ports, report, dirtyPaths: maintenanceDirtyPaths });
+  for (const entry of report.entries) if (entry.action === 'retired-idle') delete next.trees[entry.path];
   // A dirty worktree remains a health finding only after repeated observations spanning a day.
   next.lastRun.finishedAt = new Date().toISOString();
   next.lastRun.nextAt = new Date(now + durations.everyMs).toISOString();

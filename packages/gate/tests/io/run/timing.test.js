@@ -6,7 +6,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { cellProject } from '../../../../store/tests/fixtures/cell.js';
-import { runFixtureChildAsync } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChildAsync } from '../../fixtures/child.js';
 import { BROWSER_SLOT_HELD_ENV } from '../../../../resources/index.js';
 import { GATE_SLOT_HELD_ENV } from '../../../../resources/index.js';
 import { GATE_SLOT_POOL_ENV } from '../../../../resources/index.js';

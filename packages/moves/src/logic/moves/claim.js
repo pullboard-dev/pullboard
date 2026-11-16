@@ -22,6 +22,7 @@ import { outsideSource } from "../../../../items/browser.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
 import { ITEM_FOLDER_ENGINE } from "../../../../state/light.js";
 import { REWORK_SAME_FAMILY_ENGINE } from "../../../../state/light.js";
+import { CLAIM_NEXT } from "../table/next.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function existingEngine(args, board, at) {
@@ -57,27 +58,27 @@ function actor(move) { return move.args[1]?.agentId ?? null; }
 export default Object.freeze({ operation: "claim", order: 13, engine: 1,
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
-  "LINE_WIP_LIMIT": "review the oldest eligible waiting submission: pullboard next --verify; if none is eligible, ask the coordinator to arrange a reviewer",
-  "A5_GRAMMAR_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
-  "AGENT_APPROVAL_REQUIRED": "ask the person to confirm or decline the named row through pullboard view or their own terminal",
-  "BAD_CONFIG": "fix pullboard.json as the message says, then commit it: git commit -m \"chore: fix pullboard config\" pullboard.json",
-  "BAR_NOT_READY": "read pullboard bar <id>; ask its author to complete the named red baseline and measurement/edge notes, then have an outside parent session sign the current bar",
-  "BLOCKED": "take another item with pullboard next, or shout the lane it waits on: pullboard shout <lane> \"<text>\"",
-  "CRITERION_PROVES_NOTHING": "set a check that fails before the work: pullboard edit <id> --check \"<command>\", or ask the person to accept this one: pullboard check accept <id>",
+  "LINE_WIP_LIMIT": CLAIM_NEXT.LINE_WIP_LIMIT,
+  "A5_GRAMMAR_VERSION": CLAIM_NEXT.A5_GRAMMAR_VERSION,
+  "AGENT_APPROVAL_REQUIRED": CLAIM_NEXT.AGENT_APPROVAL_REQUIRED,
+  "BAD_CONFIG": CLAIM_NEXT.BAD_CONFIG,
+  "BAR_NOT_READY": CLAIM_NEXT.BAR_NOT_READY,
+  "BLOCKED": CLAIM_NEXT.BLOCKED,
+  "CRITERION_PROVES_NOTHING": CLAIM_NEXT.CRITERION_PROVES_NOTHING,
   "ENGINE_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
-  "HELD": "take another item: pullboard next",
+  "HELD": CLAIM_NEXT.HELD,
   "ITEM_LEASE_LOST": "read pullboard show <id>; if the item is free, claim it again for a build or reserve it with pullboard next --verify <id> for a review, then retry",
-  "ITEM_HELD": "take another item with pullboard next while the coordinator holds this one",
-  "LANE_HELD": "take other work with pullboard next; nothing for this seat: end your turn",
-  "NOT_CLAIMABLE": "take open work: pullboard next",
-  "NOT_JOINED": "join a lane from this worktree: pullboard join <lane> --model \"<model name>\" (see: pullboard lanes)",
-  "NO_ITEM": "find the item id: pullboard list --all",
-  "NO_POLICY": "restore and commit pullboard.json, then run the command again",
-  "ONE_CLAIM": "submit or release the item you hold: pullboard release <id> --reason <code> --note \"why\"",
-  "PENDING_REFREEZE": "the coordinator runs pullboard refreeze <id>",
-  "REOPEN_HELD_FOR_BUILDER": "ask the builder to run pullboard release <id> --reason ROUTED_ELSEWHERE, then take other work with pullboard next",
-  "ROUTE": "take an item your route covers: pullboard next",
-  "SESSION_LEDGER": "make the agent-session ledger named in the message writable by this user, then run the command again",
-  "UNKNOWN_SPEC": "ask the coordinator to restore the named spec rows or withdraw the item: pullboard shout coordinator --kind question \"please fix the rows cited by #<id>\"",
-  "WRONG_LANE": "create a worktree in the required lane with pullboard worktree <lane> --model \"<model name>\", or take an item in your lane with pullboard next"
+  "ITEM_HELD": CLAIM_NEXT.ITEM_HELD,
+  "LANE_HELD": CLAIM_NEXT.LANE_HELD,
+  "NOT_CLAIMABLE": CLAIM_NEXT.NOT_CLAIMABLE,
+  "NOT_JOINED": CLAIM_NEXT.NOT_JOINED,
+  "NO_ITEM": CLAIM_NEXT.NO_ITEM,
+  "NO_POLICY": CLAIM_NEXT.NO_POLICY,
+  "ONE_CLAIM": CLAIM_NEXT.ONE_CLAIM,
+  "PENDING_REFREEZE": CLAIM_NEXT.PENDING_REFREEZE,
+  "REOPEN_HELD_FOR_BUILDER": CLAIM_NEXT.REOPEN_HELD_FOR_BUILDER,
+  "ROUTE": CLAIM_NEXT.ROUTE,
+  "SESSION_LEDGER": CLAIM_NEXT.SESSION_LEDGER,
+  "UNKNOWN_SPEC": CLAIM_NEXT.UNKNOWN_SPEC,
+  "WRONG_LANE": CLAIM_NEXT.WRONG_LANE
 }) });

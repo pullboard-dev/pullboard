@@ -172,7 +172,7 @@ const rigorPackage = onDemand(() => requireModule('../../../rigor/index.js'));
 
 const { sealOwnershipWait } = deferred(seal, ['sealOwnershipWait']);
 const { claimHealthSnapshot, conditionalHoldFloor } = deferred(healthPackage, ['claimHealthSnapshot', 'conditionalHoldFloor']);
-const { submitGateConfig, submitGatePlan, sealKnownMainAutofile, receiptFields, boardReceiptStore, readGateReceipt, receiptBody } = deferred(gatePackage, ['submitGateConfig', 'submitGatePlan', 'sealKnownMainAutofile', 'receiptFields', 'boardReceiptStore', 'readGateReceipt', 'receiptBody']);
+const { submitGateConfig, submitGatePlan, sealKnownMainAutofile, submitImportEdges, receiptFields, boardReceiptStore, readGateReceipt, receiptBody, recordReceipt } = deferred(gatePackage, ['submitGateConfig', 'submitGatePlan', 'sealKnownMainAutofile', 'submitImportEdges', 'receiptFields', 'boardReceiptStore', 'readGateReceipt', 'receiptBody', 'recordReceipt']);
 const { policyAt, mainPolicy, frozenCheck, itemPolicy, requireTrunkMerge, submitHandoffBoardRoot, sealSubmitHandoffQueue, advanceItemSource, sourceAdvanceCASProblem, sealSourceAdvance, sealSourceAdvanceReturn } = deferred(sandboxPackage, ['policyAt', 'mainPolicy', 'frozenCheck', 'itemPolicy', 'requireTrunkMerge', 'submitHandoffBoardRoot', 'sealSubmitHandoffQueue', 'advanceItemSource', 'sourceAdvanceCASProblem', 'sealSourceAdvance', 'sealSourceAdvanceReturn']);
 const { validateQuarantineProofIds, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, validateQuarantineVerdict, recordSealedGateRun, sealQuarantineVerdict, flakeQuarantines, gateRuns, recordGateRun, requireBound, flakeLedger, recordFlakeObservation } = deferred(flakesPackage, ['validateQuarantineProofIds', 'quarantineVerdictSnapshot', 'validateQuarantineGate', 'validateQuarantineLandingProof', 'validateQuarantineVerdict', 'recordSealedGateRun', 'sealQuarantineVerdict', 'flakeQuarantines', 'gateRuns', 'recordGateRun', 'requireBound', 'flakeLedger', 'recordFlakeObservation']);
 const { personSigningPresentation, verifiedPasskeyRowDecision, personProposals, personSigning, proposePersonMove, setPersonSigning, signedMoveProblem, exportedMeta, guardRestore, validPresence } = deferred(personPackage, ['personSigningPresentation', 'verifiedPasskeyRowDecision', 'personProposals', 'personSigning', 'proposePersonMove', 'setPersonSigning', 'signedMoveProblem', 'exportedMeta', 'guardRestore', 'validPresence']);
@@ -213,7 +213,7 @@ export function nativeBoardPorts({ openBoard, openBoardForRead, draftSpecRow, de
     quarantine: Object.freeze({ quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, validateQuarantineVerdict, recordSealedGateRun, sealQuarantineVerdict, gateRuns, requireBound, validateQuarantineProofIds }),
     sourceAdvanceCASProblem, beginCommandPhase, exportedMeta, guardRestore,
     newRigorNotices, rigorNoticeText, sealSourceAdvanceReturn, conflictValue, nextSteps: NEXT_STEPS, landingEnvironment, deriveRigorCause, recordAutomaticRigorDrafts, normalizedDispatch, rejectedWorkReturns,
-    atomic, logEvent, rowDrafts: store.rowDrafts, rowDecisions: store.rowDecisions, PERSON: store.PERSON,
+    atomic, logEvent, rowDrafts: store.rowDrafts, rowDecisions: store.rowDecisions, shout: store.shout, PERSON: store.PERSON,
     recordRowDecisions: store.recordRowDecisions, now,
     reviewPatchAuthors, committedItemAuthors, twoTierReviews, strictReviewProblem,
     holdUntilKind, forgetHoldMaintenance, rememberHoldCondition, staleStateEngine: STALE_STATE_ENGINE,
@@ -233,7 +233,7 @@ export function nativeBoardPorts({ openBoard, openBoardForRead, draftSpecRow, de
     reviewLease: Object.freeze({ reserveReview: reserveReviewLease, renewReview, reclaimLapsedReviews, releaseReview }),
     conditionalHoldFloor, claimedItemRoot,
     recordFamilyDeclareActivation, withDerivedFamily,
-    sandboxPolicyReads: Object.freeze({ mainPolicy, policyAt, frozenCheck, itemPolicy, requireTrunkMerge }),
+    sandboxPolicyReads: Object.freeze({ mainPolicy, policyAt, frozenCheck, itemPolicy, requireTrunkMerge, submitImportEdges }),
     submitHandoffEngines, pipelineCauseEngines, firstRefusalDetail, itemPatchDigest,
     MOVE_REGISTRY, MOVE_OPERATIONS, minimumMoveEngine, declaredMoveActor,
     recordTrainLanding, advanceItemSource, proposeSentinel, decideSentinel,
@@ -251,7 +251,7 @@ export function nativeBoardPorts({ openBoard, openBoardForRead, draftSpecRow, de
   return Object.freeze({
     nativePorts, enginePorts, operations: enginePorts.operations, logEvent,
     presentation: Object.freeze({ openBoard, verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, claimHealthSnapshot, fitFile }),
-    sourceAdvanceReceipts: Object.freeze({ boardReceiptStore, readGateReceipt, receiptBody, receiptFields, guardLandingWrite }),
+    sourceAdvanceReceipts: Object.freeze({ boardReceiptStore, readGateReceipt, receiptBody, receiptFields, guardLandingWrite, recordReceipt }),
 
     verification: Object.freeze({ agentAt, itemById, itemCheckBaseline, events, acceptedVerdict, verdictReviewProblem, boardId, appendRigorCounter, ensureRigorCounters, withLocalSeatPresence }),
     guards: Object.freeze({ guardStore, refreshStoreDeclarations, repairDrift, storeTriggers }),

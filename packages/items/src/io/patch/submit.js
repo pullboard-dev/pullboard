@@ -13,6 +13,7 @@ import { validateItemPatchInput } from "./review.js";
 import { ITEM_PATCH_SUBMIT_ENGINE } from "../../../../state/light.js";
 import { Refused } from "../../../../kernel/index.js";
 import { claimedItemRoot } from '../claim.js';
+import { headCommitOf } from '../submit/revs.js';
 import { scratchFolder } from '../../../../config/index.js';
 
 /** The claimed item's validated checkout, offered to the engine ports through the items front door [C7]. */
@@ -57,7 +58,7 @@ export function sealItemPatchFollow(board, id, options) {
   const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
   if (!SHA.test(options.commit ?? '') || !root || !file
     || realpathSync(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite')) !== realpathSync(file)
-    || git(root, ['rev-parse', 'HEAD']) !== options.commit || git(root, ['status', '--porcelain'])) {
+    || headCommitOf(root) !== options.commit || git(root, ['status', '--porcelain'])) {
     throw new Refused('ITEM_PATCH_SOURCE', 'follow companions only on the clean registered builder head of this board');
   }
   const patches = itemPatches(board, id);
@@ -129,7 +130,8 @@ export function sealItemPatchSubmit(board, id, options) {
   const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
   try {
     if (!root || !file || realpathSync(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite')) !== realpathSync(file)) throw new Error('foreign board');
-    if (git(root, ['rev-parse', 'HEAD']) !== options.commit) throw new Error('builder moved');
+    // A pulled gate applies its receipt after the builder has moved on; its binding and receipts already name the exact source [P7,C7,#8747].
+    if (!options.pulledPlan && headCommitOf(root) !== options.commit) throw new Error('builder moved');
     const receipts = binding.receiptIds.map(id => readGateReceipt(boardReceiptStore(board), id));
     if (receipts.some(receipt => !receipt || receipt.version !== 2 || receipt.kind !== 'submit'
       || receipt.head !== binding.commit || receipt.tree !== binding.tree || receipt.main !== options.policyCommit

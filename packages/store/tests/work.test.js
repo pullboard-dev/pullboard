@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { recordSubmitHandoff } from '../../jobs/index.js';
 import * as store from '../index.js';
 import { register } from '../index.js';
-import { fixtureBoard } from '../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../board/tests/fixtures/board.js';
 import { submitFixture } from './fixtures/submit.js';
 import { cellItem } from './fixtures/cell.js';
 
@@ -77,4 +77,32 @@ test('next never offers an out-of-focus open item to build while focus is on and
   assert.equal(result.item, null);
   assert.ok(result.reasons.includes('0.9.3 is in focus; nothing is free for you; overflow is off.'), result.reasons.join(' | '));
   assert.equal(store.getItem(board, outside).item_status, 'open');
+});
+
+/** A board whose focus milestone holds one submitted strong item, with a light seat and a strong reviewer ready to ask next --verify. */
+function strongReviewWaiting(t) {
+  const { board, builder, reviewer } = boardFixture(t);
+  const light = register(board, { lane: 'review', path: '/light', route: 'light' });
+  const waiting = submitted(board, builder, 'Strong review waits', 'strong', 6);
+  store.addMilestone(board, { agentId: 'coordinator', reason: 'Set up focus', name: '0.9.3', items: [waiting] });
+  store.setLineSetting(board, { agentId: 'coordinator', key: 'focusMilestone', value: { name: '0.9.3', overflow: false },
+    reason: 'Finish the release', window: { activeItems: 2 } });
+  green(board, waiting);
+  return { board, light, reviewer, waiting };
+}
+
+test('clause 1: a light seat in a focused milestone with only strong reviews waiting is told which items and that a strong seat reviews them [B16,B13,#3102]', t => {
+  const { board, light, waiting } = strongReviewWaiting(t);
+  const result = store.nextFor(board, { agentId: light, lane: 'review', verify: true, observeIdle: true });
+  assert.equal(result.item, null);
+  const text = result.reasons.join(' | ');
+  assert.ok(text.includes(`#${waiting}`), text);
+  assert.match(text, /strong seat to review/u);
+  assert.doesNotMatch(text, /^0\.9\.3 is in focus; nothing is free for you/u, 'the bare nothing-is-free line is replaced');
+});
+
+test('clause 2: a light seat never reserves a strong review, while a strong seat still gets it [B16,B13,#3102]', t => {
+  const { board, light, reviewer, waiting } = strongReviewWaiting(t);
+  assert.equal(store.nextFor(board, { agentId: light, lane: 'review', verify: true }).item, null);
+  assert.equal(store.nextFor(board, { agentId: reviewer, lane: 'review', verify: true }).item?.item_id, waiting);
 });

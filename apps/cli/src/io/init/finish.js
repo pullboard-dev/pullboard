@@ -102,6 +102,26 @@ function indexedSetupFile(root, name) {
   return blob.status === 0 ? setupFingerprint(match[1], blob.stdout) : null;
 }
 
+/** A literal pathspec for one setup path. */
+const literal = name => `:(literal)${name}`;
+
+/**
+ * Every stage entry Git's index holds for each path, as `ls-files --stage -z -- <path>` prints it ('' for none).
+ * Why: one Git call for all setup paths; init writes about thirty files and a call per path cost a process each [C7].
+ * Null when Git cannot list them, so the caller asks per path instead.
+ */
+function indexEntries(root, names) {
+  if (!names.length) return new Map();
+  const listed = tryGit(root, ['ls-files', '--stage', '-z', '--', ...names.map(literal)]);
+  if (listed.status !== 0) return null;
+  const entries = new Map(names.map(name => [name, '']));
+  for (const entry of listed.stdout.split('\0')) {
+    const name = entry.slice(entry.indexOf('\t') + 1);
+    if (entry && entries.has(name)) entries.set(name, entries.get(name) + entry + '\0');
+  }
+  return entries;
+}
+
 /** Capture existing edits before init writes, and retain only unchanged previous setup receipts. */
 export function beginInitCommit(info) {
   const status = gitSpawnSync(['--no-replace-objects', 'status', '--porcelain=v1', '-z', '--untracked-files=all', '--ignored=matching'],
@@ -133,17 +153,24 @@ export function beginInitCommit(info) {
     else if (actual) skipped.add(name);
   }
   const owned = new Set(files.keys());
-  const initialIndex = new Map();
+  const initialIndex = new Map(), unread = new Set();
   /** Retain the exact bytes init wrote, without adopting a file that already held user edits. */
   function written(name) {
     if (typeof name !== 'string') return;
     if (!owned.has(name) && [...blocked].some(path => path === name || (path?.endsWith('/') && name.startsWith(path)))) { skipped.add(name); return; }
-    if (!initialIndex.has(name)) initialIndex.set(name, tryGit(info.root, ['ls-files', '--stage', '-z', '--', `:(literal)${name}`]).stdout);
+    if (!initialIndex.has(name)) unread.add(name);
     const hash = setupFile(info.root, name);
     if (hash) { owned.add(name); files.set(name, hash); }
   }
-  for (const name of files.keys()) if (!initialIndex.has(name)) initialIndex.set(name, tryGit(info.root, ['ls-files', '--stage', '-z', '--', `:(literal)${name}`]).stdout);
-  return { info, file, files, written, skipped, initialIndex };
+  for (const name of files.keys()) if (!initialIndex.has(name)) unread.add(name);
+  /** Read every recorded path's index entry in one call; init stages nothing until its commit, so this is the index before init. */
+  function readInitialIndex() {
+    const names = [...unread].filter(name => !initialIndex.has(name));
+    unread.clear();
+    const entries = indexEntries(info.root, names);
+    for (const name of names) initialIndex.set(name, entries ? entries.get(name) : tryGit(info.root, ['ls-files', '--stage', '-z', '--', literal(name)]).stdout);
+  }
+  return { info, file, files, written, skipped, initialIndex, readInitialIndex };
 }
 
 /** Ask once; closing stdin is a decline, while Enter accepts the displayed file list. */
@@ -170,11 +197,22 @@ export async function finishInitCommit(plan, { io, yes, landed, permissions }) {
   const temporary = plan.file + '.' + randomUUID();
   writeFileSync(temporary, JSON.stringify({ version: 1, root: info.root, files: Object.fromEntries(retained) }) + '\n', { mode: 0o600 });
   renameSync(temporary, plan.file);
+  // The index before any confirmation prompt, so an edit staged while it is open is detected below.
+  plan.readInitialIndex();
   const head = tryGit(info.root, ['rev-parse', '--verify', 'HEAD']);
   /** Observe Git's content and mode differences without touching the user's index. */
-  const differs = name => head.status !== 0
-    || tryGit(info.root, ['diff', '--quiet', 'HEAD', '--', `:(literal)${name}`]).status !== 0
-    || !tryGit(info.root, ['ls-tree', 'HEAD', '--', `:(literal)${name}`]).stdout;
+  const differsOne = name => head.status !== 0
+    || tryGit(info.root, ['diff', '--quiet', 'HEAD', '--', literal(name)]).status !== 0
+    || !tryGit(info.root, ['ls-tree', 'HEAD', '--', literal(name)]).stdout;
+  // One diff and one tree listing answer every path; a failed batch call falls back to asking per path [C7].
+  const asked = [...new Set([...retained.map(([name]) => name), ...plan.skipped])];
+  const names = (args) => {
+    const listed = head.status === 0 && asked.length ? tryGit(info.root, [...args, '--', ...asked.map(literal)]) : null;
+    return listed?.status === 0 ? new Set(listed.stdout.split('\0').filter(Boolean)) : null;
+  };
+  const modified = names(['diff', '--no-ext-diff', '--no-renames', '--name-only', '-z', 'HEAD']);
+  const committed = modified && names(['ls-tree', '-r', '--name-only', '-z', 'HEAD']);
+  const differs = name => (committed ? head.status !== 0 || modified.has(name) || !committed.has(name) : differsOne(name));
   const changed = retained.filter(([name]) => differs(name));
   const skipped = [...plan.skipped].filter(differs);
   if (!changed.length) return { state: 'unchanged', files: [], skipped };
@@ -189,10 +227,8 @@ export async function finishInitCommit(plan, { io, yes, landed, permissions }) {
   if (changed.some(([name, hash]) => setupFile(info.root, name) !== hash)) {
     throw new Refused('NOT_COMMITTED', 'a setup file changed while confirmation was open; review the change and run pullboard init --yes again');
   }
-  if (changed.some(([name, hash]) => {
-    const index = tryGit(info.root, ['ls-files', '--stage', '-z', '--', `:(literal)${name}`]);
-    return index.status !== 0 || (index.stdout !== plan.initialIndex.get(name) && indexedSetupFile(info.root, name) !== hash);
-  })) {
+  const nowIndexed = indexEntries(info.root, paths);
+  if (nowIndexed === null || changed.some(([name, hash]) => nowIndexed.get(name) !== plan.initialIndex.get(name) && indexedSetupFile(info.root, name) !== hash)) {
     throw new Refused('NOT_COMMITTED', 'a setup file was staged differently while confirmation was open; your index is unchanged; review it, then run pullboard init --yes again');
   }
   try {

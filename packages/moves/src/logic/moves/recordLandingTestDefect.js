@@ -11,6 +11,7 @@ function minimumEngine(args, board, at) {
   if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('conflict:')) return RIGOR_AUTO_ENGINE;
   return LANDING_ENVIRONMENT_ENGINE;
 }
+import { LANDING_NEXT } from "../table/next.js";
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */
 function actor(move) { return move.args[0]?.agentId ?? null; }
@@ -20,5 +21,5 @@ export default Object.freeze({ operation: "recordLandingTestDefect", order: 45, 
   nextSteps: Object.freeze({
   "COORDINATOR_ONLY": "ask the coordinator to do it: pullboard shout coordinator --kind question \"<what you need>\"",
   "ENGINE_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
-  "LAND_TEST_DEFECT": "commit a correction to the test named by the held defect, or ask the person for an expiring test waiver; then run pullboard land again"
+  "LAND_TEST_DEFECT": LANDING_NEXT.LAND_TEST_DEFECT
 }) });

@@ -1,5 +1,6 @@
 /** Main's own commits since the last audited tip are an audit obligation, however main moved [C7]. */
 import { join } from 'node:path';
+import { LAST_GREEN_FILE } from './state.js';
 import { readMainAudit } from './state.js';
 
 /**
@@ -17,7 +18,7 @@ function maybe(git, root, args) {
  * It equals the tip when main has not moved since, so an unmoved main queues nothing.
  */
 function auditedBase(git, root, board, directory, activation, tip) {
-  const last = readMainAudit(join(directory, 'last-green.json'));
+  const last = readMainAudit(join(directory, LAST_GREEN_FILE));
   if (typeof last?.tip === 'string' && /^[a-f0-9]{40,64}$/u.test(last.tip)) {
     try { git(root, ['merge-base', '--is-ancestor', last.tip, tip]); return last.tip; } catch { /* Off main: start at activation. */ }
   }
@@ -52,7 +53,7 @@ export function itemsBetween(git, root, board, store, base, tip) {
 export function mainCommitJob({ git, store }, root, board, directory, activation, jobs) {
   const tip = maybe(git, root, ['rev-parse', '--verify', '-q', 'refs/heads/main^{commit}']);
   if (!tip || jobs.some(job => job.tip === tip)) return null;
-  if (readMainAudit(join(directory, 'last-green.json'))?.tip === tip) return null;
+  if (readMainAudit(join(directory, LAST_GREEN_FILE))?.tip === tip) return null;
   const base = auditedBase(git, root, board, directory, activation, tip);
   if (base === tip) return null;
   const landedEventId = board.db.prepare('SELECT MAX(event_id) AS id FROM event').get().id ?? 0;

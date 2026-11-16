@@ -17,9 +17,9 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChildAsync } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { startFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../fixtures/child.js';
+import { runFixtureChildAsync } from '../../fixtures/child.js';
+import { startFixtureChild } from '../../fixtures/child.js';
 import { occupiedPlaces } from '../../../index.js';
 import { GATE_SLOT_HELD_ENV } from '../../../../resources/index.js';
 import { GATE_SLOT_POOL_ENV } from '../../../../resources/index.js';
@@ -52,7 +52,7 @@ for (const [name, command] of ${JSON.stringify(commands)}) {
   const fallbacks = [];
   const browser = await checkNeedsBrowser(process.cwd(), command, { onFallback: value => fallbacks.push(value) });
   const actual = await withGateSlot(process.cwd(), lease => {
-    if (lease.executionServices.runners.runOnRunner !== executionServices.runners.runOnRunner
+    if (lease.executionServices.runners.runOnRunnerAsync !== executionServices.runners.runOnRunnerAsync
       || !Object.isFrozen(lease.executionServices.runners)
       || !Object.isFrozen(lease.executionServices.landing)
       || Object.keys(lease).includes('executionServices')

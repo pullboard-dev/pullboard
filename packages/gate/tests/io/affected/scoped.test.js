@@ -67,3 +67,14 @@ test('clause 3: the walk parses the runner entry and its reach, and no unrelated
   assert.deepEqual(scoped.reach(['src/run.js']), ['src/harness.js', 'src/run.js']);
   assert.deepEqual([...probe.parsed].sort(), ['src/harness.js', 'src/leaf.js', 'src/mid.js', 'src/run.js', 'test/chain.test.js']);
 });
+
+test('clause 1: a first trip reads reached modules from the clean checkout, and a changed file is read from its commit [C7,#8135]', t => {
+  const box = repository(t);
+  const clean = scopedTestClosures(box.root, 'HEAD', ['test/chain.test.js'], []);
+  assert.deepEqual(clean.closures.get('test/chain.test.js').files, ['src/leaf.js', 'src/mid.js', 'test/chain.test.js']);
+  // An uncommitted edit to a reached module: the file's bytes no longer hash to the committed object, so Git's bytes decide.
+  box.put('src/mid.js', "import './island.js';\nexport { leaf } from './leaf.js';\n");
+  const dirty = scopedTestClosures(box.root, 'HEAD', ['test/chain.test.js'], []);
+  assert.deepEqual(dirty.closures.get('test/chain.test.js').files, ['src/leaf.js', 'src/mid.js', 'test/chain.test.js'], 'the committed import list is used, not the edited file');
+  assert.equal(dirty.modules.get('src/mid.js'), "export { leaf } from './leaf.js';\n");
+});

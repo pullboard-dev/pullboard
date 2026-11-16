@@ -2,7 +2,7 @@ import { addItem } from '../../../../store/index.js';
 import { addMilestone } from '../../../../store/index.js';
 import { closeBoard } from '../../../../store/index.js';
 import { moveMilestone } from '../../../../store/index.js';
-import { openKitBoard } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+import { openKitBoard } from '../../../../store/tests/fixtures/cell.js';
 import { machineSettings } from '../../../../../apps/cli/tests/fixtures/resources/settings.js';
 /** Real board, roadmap and queue scenarios for release admission [C7,V4]. */
 import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';

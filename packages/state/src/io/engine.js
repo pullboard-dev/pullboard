@@ -1,4 +1,4 @@
-import { EXIT_RULES_ENGINE } from '../logic/engines/exit-rules-engine.js';
+import { engineNumber } from '../logic/engine/number.js';
 import { registrationProblem } from '../logic/engine/move/register.js';
 import { recordReviewPolicyActivation } from '../../index.js';
 import { agentGrantMinimum } from '../logic/grant.js';
@@ -9,11 +9,12 @@ import { requireHandoffActive } from '../../index.js';
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import { recordedRefusal } from '../logic/recorded/refusal.js';
-import { PEOPLE_ENGINE } from '../logic/engines/people-engine.js';
 import { ENGINE_VERSION } from './machine.js';
 import { VERIFIER_STANDING_ENGINE } from './machine.js';
 import { Refused } from '../../../kernel/light.js';
 import { ENGINE_MOVE_STEPS } from './engine/move/steps.js';
+const EXIT_RULES_ENGINE = engineNumber('EXIT_RULES_ENGINE');
+const PEOPLE_ENGINE = engineNumber('PEOPLE_ENGINE');
 
 /** Require the explicit runtime ports supplied by the board owner, never a receiver-local loader. */
 function enginePorts(board) {

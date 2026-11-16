@@ -113,3 +113,26 @@ export function testAuthorNotes(item, thread, { atHead, atMain, seat, family }) 
       ? [`test author ${path}: seat ${seat}, family ${family || 'unknown'}, sha256 ${hash}`] : [];
   });
 }
+
+/**
+ * The refusal for a submit whose own seat wrote a bar-named test file, only when verify.testAuthorSplit is true (off by default).
+ * Why: under the split a separate seat writes the tests and the builder implements against them, so a test the builder
+ * changed passes only when another seat is recorded as its author at the same content [C7,V4].
+ *
+ * @param {{ testAuthorSplit?: boolean } | undefined} verify
+ * @param {{ item_id: number, item_criterion?: string }} item
+ * @param {any[]} thread the item's thread, read for `test author` records
+ * @param {{ atHead: (path: string) => string | null, atMain: (path: string) => string | null, seat: string }} source
+ * @returns {Refused | null}
+ */
+export function authorSplitProblem(verify, item, thread, { atHead, atMain, seat }) {
+  if (verify?.testAuthorSplit !== true) return null;
+  const known = testAuthors(thread);
+  const own = [...barTestFiles(item).criterion].sort().filter(path => {
+    const hash = contentHash(atHead(path));
+    return hash && hash !== contentHash(atMain(path)) && !(known[path]?.hash === hash && known[path].seat !== seat);
+  });
+  if (!own.length) return null;
+  return new Refused('TEST_AUTHOR_SAME_SEAT', `#${item.item_id} changed a bar-named test file that no other seat authored: ${own.join(', ')}`,
+    `restore ${own[0]} to accepted main and build against the test as written, or have another seat write it and record itself as the author`);
+}

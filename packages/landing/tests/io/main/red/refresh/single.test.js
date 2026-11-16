@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { privateFixtureFiles } from '../../../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../../../gate/tests/fixtures/child.js';
 import { cellProject } from '../../../../../../store/tests/fixtures/cell.js';
 import { repoInfo } from '../../../../../../git/index.js';
 import { bindLocalSession } from '../../../../../../seats/index.js';

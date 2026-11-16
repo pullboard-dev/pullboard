@@ -29,6 +29,7 @@ import { setupRefusalCode } from './receipt.js';
 import { stopReading } from './receipt.js';
 import { readSpec } from './spec.js';
 import { receiveAnalysisArtifact } from '../../../../../packages/resources/light.js';
+import { machineSettingsFile } from '../../../../../packages/resources/light.js';
 import { captureTestRuntimes } from '../../../../../packages/sandbox/light.js';
 import { guiSession } from '../../../../../packages/gate/light.js';
 import { Refused } from '../../../../../packages/kernel/light.js';
@@ -48,6 +49,7 @@ import { chmodSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -56,6 +58,11 @@ import { basename } from 'node:path';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+/** Whether this runner machine's own gate.sampleDiskIo is on; an unreadable settings file reads off [C7,#9029]. */
+function diskIoSetting() {
+  try { return JSON.parse(readFileSync(machineSettingsFile(), 'utf8')).gate?.sampleDiskIo === true; } catch { return false; }
+}
 
 /** Execute one remote job end to end; stdout is reserved for raw command bytes and stderr for one receipt. */
 export async function main(S) {
@@ -81,7 +88,7 @@ export async function main(S) {
     if (S.transportLost) return;
     try {
       if (lease?.executionAdmission) {
-        const endLoad = sampleRunnerLoad();
+        const endLoad = sampleRunnerLoad({ diskIo: diskIoSetting() });
         final.executionAdmission = { ...lease.executionAdmission, ...lease.timingEvidence(), finishedAt: endLoad.at, load: { ...lease.executionAdmission.load, end: endLoad } };
       }
       final.testRuntimes = runtimeCapture?.finish() ?? null;
@@ -150,7 +157,7 @@ export async function main(S) {
     phases.mark('prepareMs');
     gui = guiSession();
     if (spec.guiRequired && gui !== true) throw new Refused('RUNNER_GUI_SESSION_REQUIRED', 'log in to a GUI session on this runner or keep GUI-marked files local');
-    const startLoad = sampleRunnerLoad();
+    const startLoad = sampleRunnerLoad({ diskIo: diskIoSetting() });
     lease.executionAdmission = { admittedAt: lease.admittedAt, slots: gateCapacity, load: { start: startLoad, end: null } };
     const canonicalMachineHome = machineHomePath;
     tracker = createDescendantTracker(runDirectory, {

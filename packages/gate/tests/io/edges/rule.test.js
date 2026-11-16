@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { computePlan } from '../../../../codemap/index.js';
 import { writePlan } from '../../../../codemap/index.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../fixtures/child.js';
 import { fixture } from '../../../../landing/tests/fixtures/plan.js';
 import { git } from '../../../../landing/tests/fixtures/plan.js';
 

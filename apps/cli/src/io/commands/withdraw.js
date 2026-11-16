@@ -4,6 +4,7 @@ import { dropHandoffTicket } from '../../../../../packages/resources/index.js';
 import { pendingText } from '../item/withdraw-review.js';
 import { pendingWithdrawal } from '../item/withdraw-review.js';
 import { rejectedText } from '../item/withdraw-review.js';
+import { refuseLandedWithdraw } from '../item/withdraw-landed.js';
 /** The pullboard withdraw command, in its own module so an item adding another command never edits these lines. */
 import * as roadmapView from '../../../../../packages/roadmap/index.js';
 import { listApiProjects } from '../../../../../packages/seats/index.js';
@@ -22,6 +23,8 @@ export function run(io, { first, second, rest, values = {} }) {
     const previousOwner = previous?.item_owner ?? previous?.item_built_by;
     const owner = previousOwner ? store.agentById(board, previousOwner) : null;
     let reason = [second, ...rest].filter(Boolean).join(' ') || (typeof values.note === 'string' ? values.note.trim() : '');
+    // withdraw.refuseLanded: an item whose commit is on main is landed, never withdrawn [C7].
+    refuseLandedWithdraw(ctx.config, ctx.info.root, store.getItem(board, item), roadmapView);
     const pending = pendingWithdrawal(board, item);
     if (values.confirm === true || values.reject === true) {
       // withdraw.review: only a seat other than the one that asked closes the item, or declines the request [C7].

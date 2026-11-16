@@ -14,6 +14,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { renderWorkerSkill } from '../../../../packages/config/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 
 const SKILL_VERSIONS = [
@@ -73,6 +74,7 @@ export const ROLES = {
   verify: 'pullboard-verify',
   run: 'pullboard-run',
   triage: 'pullboard-triage',
+  worker: 'pullboard-worker',
 };
 
 /**
@@ -86,6 +88,8 @@ function shippedSkill(role) {
   if (!name) {
     throw new Refused('NO_ROLE', `no role "${role}"; roles: ${Object.keys(ROLES).join(', ')}`);
   }
+  // The worker loop has no file to drift: it is generated from the one shared seat-loop source (#8550).
+  if (role === 'worker') return renderWorkerSkill();
   return readFileSync(join(SKILLS_DIR, name, 'SKILL.md'), 'utf8');
 }
 

@@ -64,10 +64,10 @@ export async function runFullSuite(root, runner, executionServices) {
   if (relative(root, runner).split(sep).join('/') !== 'apps/cli/src/io/run/tests.js' || !timingSource(root)) return null;
   let policy;
   try { policy = mainPolicy(root); } catch { return null; }
-  const [{ withGateSlot }, { fullGateRun }] = await Promise.all([import('../main.js'), import('../execution.js')]);
+  const [{ withGateSlot }, { fullGateRunAsync }] = await Promise.all([import('../main.js'), import('../execution.js')]);
   const files = trackedDefaultTestFiles(root, process.env);
   const { cpuRunnerRequired } = await import('../admission/cpu/load.js');
-  const result = await withGateSlot(root, lease => fullGateRun(root, { ...policy.config, gate: 'node apps/cli/src/io/run/tests.js --all' }, false,
+  const result = await withGateSlot(root, lease => fullGateRunAsync(root, { ...policy.config, gate: 'node apps/cli/src/io/run/tests.js --all' }, false,
     { gateLease: lease, waitMs: lease.waitMs, kind: 'suite' }),
   { executionServices, browser: true, gui: testsNeedGui(root, files), runnerOnly: cpuRunnerRequired(root, files), ...testRunnerAdmission(), kind: 'gate' });
   return result;

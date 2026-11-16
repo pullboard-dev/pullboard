@@ -8,8 +8,8 @@ import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../fixtures/child.js';
+import { runFixtureGit } from '../../../fixtures/child.js';
 import { selectAffectedTests } from '../../../../index.js';
 
 /** Make a real committed ES-module graph without executing any candidate source. */
@@ -59,7 +59,9 @@ test('source loader declarations resolve committed targets and reject unknown bo
       assert.equal(selection.full, false, selection.reason);
       assert.deepEqual(selection.files, ['apps/cli/journeys/milestone/api.test.js', 'test/loader.test.js']);
     } else {
-      assert.equal(selection.full, true, header);
+      // clause 1: reaching a file with unknown reads selects its importers and unknown roots, never the whole suite.
+      assert.equal(selection.full, false, header);
+      assert.ok(selection.files.includes('test/loader.test.js'), 'clause 2: the test reaching the unknown file is still selected');
       assert.match(selection.reason, /non-literal dynamic import in reached file src\/loader\.js/u);
     }
     box.put('apps/cli/src/io/run/tests.js', 'export const runner = true;\n');

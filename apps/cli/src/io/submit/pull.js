@@ -1,14 +1,18 @@
 /**
- * Under gate.runnerDispatch pull, or for an item the gate.pullPilot setting picks, a submit offers its whole gate as one
+ * A submit offers its whole gate as one
  * runner job row and returns: authorization, doctrine, static checks, cells, test selection and the tests all run inside
  * that job on a runner, which posts one receipt. The submitting host starts no dispatcher, driver or worker process [P7].
  */
 import { gateLedgerHits } from '../../../../../packages/api/index.js';
 import { offerJob } from '../../../../../packages/api/index.js';
 import { openJob } from '../../../../../packages/api/index.js';
+import { endGateHop } from '../../../../../packages/api/index.js';
+import { endStaleGateJobs } from '../../../../../packages/api/index.js';
+import { endStaleJobsEnabled } from '../../../../../packages/config/index.js';
+import { submitGateHop } from './hop.js';
+import { recordCheckpoint } from '../seat-checkpoint.js';
 import { pulledGateReds } from '../../../../../packages/api/index.js';
 import { mappedCheck } from '../../../../../packages/codemap/index.js';
-import { pullGateFor } from '../../../../../packages/config/index.js';
 import { browserFreeChecksEnabled } from '../../../../../packages/config/index.js';
 import { hasSubmitRules } from '../../../../../packages/doctrine/index.js';
 import { submitRulesNarrowable } from '../../../../../packages/doctrine/index.js';
@@ -20,8 +24,11 @@ import { BROWSER_MARKER } from '../../../../../packages/gate/index.js';
 import { missingGate } from '../../../../../packages/gate/index.js';
 import { git } from '../../../../../packages/git/index.js';
 import { toolingFor } from '../../../../../packages/pin/index.js';
+// A URL-joined seat's submit bundles its clone's commits; moves.js loads it from here only when board.commits is on [P7,C7].
+export { bundleCommits } from '../../../../../packages/pin/index.js';
 import { itemCollisionPlan } from '../../../../../packages/items/index.js';
 import { changedLines } from '../../../../../packages/items/index.js';
+import { frozenCheckTiming } from '../../../../../packages/items/index.js';
 import { oversizeNote } from '../../../../../packages/items/index.js';
 import { landedCutItemRows } from '../cells-submit-checks.js';
 import { namedProofTests } from '../entry.js';
@@ -32,6 +39,8 @@ import { whoAmI } from '../entry.js';
 import { deliverSubmitActivity } from '../submit.js';
 import { ANALYSIS_ENTRY } from './gate.js';
 import { BOOTSTRAP } from './gate.js';
+import { submitTableReplay } from './gate.js';
+import { tableReplayEnabled } from '../../../../../packages/config/index.js';
 import { DOCTRINE_ENTRY } from './gate.js';
 import { inventoryCommits } from './remote.js';
 import { ensureLocalRunner } from '../runner/local.js';
@@ -147,12 +156,14 @@ const failingCases = (status, text, run) => {
  * pullboard by name, as on the controller, where the seat's CLI is on PATH; a runner job's PATH has none, and the check exited 127.
  */
 const cliPath = () => {
+  // The service's PATH may lack /usr/bin: a job's tests spawn git, ps and lsof from the system directories (#8245).
+  const held = String(process.env.PATH ?? '').split(delimiter).filter(Boolean), kept = held.concat(['/usr/bin', '/bin', '/usr/sbin', '/sbin'].filter(directory => !held.includes(directory))).join(delimiter);
   const cli = join(tools, 'apps', 'cli', 'pullboard.js'), bin = join(tools, '.pullboard-bin');
-  if (!existsSync(cli)) return [dirname(process.execPath), process.env.PATH].filter(Boolean).join(delimiter);
+  if (!existsSync(cli)) return [dirname(process.execPath), kept].filter(Boolean).join(delimiter);
   mkdirSync(bin, { recursive: true, mode: 0o700 });
   // The archive keeps the CLI's mode and its env-node line, which finds this Node next on PATH.
   if (!existsSync(join(bin, 'pullboard'))) symlinkSync(cli, join(bin, 'pullboard'));
-  return [bin, dirname(process.execPath), process.env.PATH].filter(Boolean).join(delimiter);
+  return [bin, dirname(process.execPath), kept].filter(Boolean).join(delimiter);
 };
 const input = JSON.parse(readFileSync(0, 'utf8'));
 // A proof shard the board offered from a gate's plan runs only its part of the proof, with the same trusted runner [P7].
@@ -407,12 +418,10 @@ export function itemPulledReds(board, id) {
 }
 
 /**
- * True when this item's submit offers its gate as a row instead of driving it: under gate.runnerDispatch pull, or when
- * the gate.pullPilot setting names the item or takes it in its share; everything else stays on the controller path [P7].
- * @param {number} item
+ * True when this item's submit offers its gate as a row instead of driving it: always, since every runner job is a row [P7].
  */
-export function pullGateWanted(item) {
-  return pullGateFor(item);
+export function pullGateWanted() {
+  return true;
 }
 
 /**
@@ -431,16 +440,27 @@ export function gateJobRun() {
  *
  * @param {{ main: string, source: string, trunk: string, base: string | null, check: string, criterion: string, title: string,
  *   composition: string | null, config: object, crossRunTests: string[], cutRows: object[], produceInventory: string[],
- *   doctrine: object | null, authorization: object | null, browserFreeChecks: boolean }} pinned
+ *   doctrine: object | null, authorization: object | null, browserFreeChecks: boolean, checkTiming?: boolean }} pinned. checkTiming: the
+ *   bar was frozen with exclusive check timing; the job carries it on its data so a runner can admit the check alone [C7,#7942].
  * @returns {{ run: string[], input: { main: string, entry: string, data: object }, commits: string[] }} commits: what a
  *   runner fetches beside the candidate, since the bootstrap archives main and the analysis reads trunk from the checkout's objects.
  */
 export function gateJobRequest(pinned) {
-  const { main, source, check, doctrine, authorization, produceInventory, ...rest } = pinned;
+  const { main, source, check, doctrine, authorization, produceInventory, checkTiming, ...rest } = pinned;
   const commits = [...new Set([main, rest.trunk].filter(commit => typeof commit === 'string' && /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(commit)))];
   const analysis = { main, source, ...rest, check, inventory: null, ...(produceInventory.length ? { produceInventory } : {}), staticChecks: rest.config?.staticChecks ?? '',
     collectMachinery: true, perPart: true, ...(doctrine ? { doctrine: { options: doctrine, entry: DOCTRINE_ENTRY } } : {}), ...(authorization ? { authorization } : {}) };
-  return { run: gateJobRun(), input: { main, entry: GATE_JOB_ENTRY, data: { analysis, analysisEntry: ANALYSIS_ENTRY, check, shards: true } }, commits };
+  return { run: gateJobRun(), input: { main, entry: GATE_JOB_ENTRY, data: { analysis, analysisEntry: ANALYSIS_ENTRY, check, shards: true, ...(checkTiming === true ? { checkTiming: true } : {}) } }, commits };
+}
+
+/**
+ * The gate a landing's proof shard runs on another runner: the gate job's argv and main's trusted gate entry, which the
+ * land job carries as shardProof when landing.shardProof is on [C7,#8255].
+ *
+ * @returns {{ run: string[], entry: string }}
+ */
+export function landingShardGate() {
+  return { run: gateJobRun(), entry: GATE_JOB_ENTRY };
 }
 
 /**
@@ -458,11 +478,16 @@ export function gateShardRequest({ main, source, shard }) {
  * queues a second run of the same source.
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ item: number, main: string, source: string, request: object, now?: number }} fields
+ * @param {{ item: number, main: string, source: string, request: object, now?: number, hop?: { table: Function } | null }} fields - hop: the submit's hop port, null with gate.fencedHop off.
  */
-export function offerGateJob(db, { item, main, source, request, now = Date.now() }) {
-  return openJob(db, { kind: 'gate', item, candidate: source })
-    ?? offerJob(db, { id: `gate:${item}:${source.slice(0, 12)}:${now.toString(36)}`, kind: 'gate', priority: 'gate', needs: GATE_NEEDS, item, candidate: source, base: main, request, now });
+export function offerGateJob(db, { item, main, source, request, now = Date.now(), hop = null }) {
+  const open = openJob(db, { kind: 'gate', item, candidate: source });
+  if (open) return open;
+  // With gate.fencedHop on, a resubmit at a new candidate ends the item's open hop, so the old candidate's gate job cannot renew or land [C7,#8353].
+  endGateHop(db, hop, { item, candidate: source, now });
+  // With gate.endStaleJobs on, the item's older open gate jobs end as the new candidate is offered [C7,#8816].
+  endStaleGateJobs(db, { item, keep: source, enabled: endStaleJobsEnabled(), now });
+  return offerJob(db, { id: `gate:${item}:${source.slice(0, 12)}:${now.toString(36)}`, kind: 'gate', priority: 'gate', needs: GATE_NEEDS, item, candidate: source, base: main, request, now });
 }
 
 /**
@@ -494,12 +519,15 @@ export function pairRequest(root, { main, config, source, check }, pairPrefix) {
  *   item's commits changed since its claim, which the board records when the receipt submits the item. companion: the
  *   attached companions composed onto the builder head, or null. infra: the drafted infra note the receipt records with the submit.
  * @param {{ frozenCheck: Function, policyAt: Function, listItems: Function, pairPrefix?: Function }} ports - The sandbox and store reads the submit command
- *   already holds; pairPrefix names a paired rerun's runner when flakes.rerun is on.
+ *   already holds; pairPrefix names a paired rerun's runner when flakes.rerun is on; tableReplay is the move-table replay hook, which a test hands in its own.
  * @returns {Promise<number>} The exit code.
  */
-export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, claimHead, files, requireComposition, authorize, full, companion = null, infra = null }, { frozenCheck, policyAt, listItems, pairPrefix }) {
+export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, claimHead, files, requireComposition, authorize, full, companion = null, infra = null }, { frozenCheck, policyAt, listItems, pairPrefix, tableReplay = submitTableReplay(ctx.info.root) }) {
   const { root } = ctx.info;
   const id = held.item_id;
+  // With gate.tableReplay on, a submit whose files change a move table is held to what the board recorded before any job row is offered; off, nothing runs [C7,#8121].
+  // The replay loads the table from this checkout and reads the board here, which a runner has no copy of, so the offer is where it can run.
+  if (tableReplayEnabled()) await tableReplay({ root, changed: files });
   // The session ledger notes every submit as it did on the controller path; refuse before any job row when it cannot be written [V1,B3,#7725].
   noteSubmitSession(ctx.info, id, false);
   // The gate judges what would land: the builder head, or the companions composed onto it.
@@ -521,7 +549,7 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   const request = gateJobRequest({ main: main.commit, source, trunk: trunk.commit, base: claimHead, check,
     criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '', title: held.item_title ?? '', composition: requireComposition ? commit : null,
     config, crossRunTests: namedProofTests(root, held, source, { crossRunTests: crossRun.tests }), cutRows: withBoard(ctx, board => landedCutItemRows(board.db)),
-    produceInventory: inventoryCommits(root, main.commit, source), doctrine, browserFreeChecks: browserFreeChecksEnabled(),
+    produceInventory: inventoryCommits(root, main.commit, source), doctrine, browserFreeChecks: browserFreeChecksEnabled(), checkTiming: frozenCheckTiming(held),
     authorization: authorize === true ? { item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: held.item_frozen } } : authorize || null });
   const pairing = typeof pairPrefix === 'function' ? pairRequest(root, { main, config, source, check }, pairPrefix) : null;
   if (pairing) request.input.data.flakes = pairing;
@@ -535,12 +563,14 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   git(root, ['update-ref', `refs/pullboard/gate/${id}`, source]);
   // The same pin the controller path writes, so doctor and review find the work whatever the gate's outcome (#7076).
   git(root, ['update-ref', `refs/pullboard/items/${id}/${commit.slice(0, 12)}`, commit]);
-  const job = withBoard(ctx, board => offerGateJob(board.db, { item: id, main: main.commit, source, request }));
+  const job = withBoard(ctx, board => offerGateJob(board.db, { item: id, main: main.commit, source, request, hop: submitGateHop() }));
   noteSubmitSession(ctx.info, id, true);
   // The runner's receipt applies the submit with no agent session, so the usage checkpoint the ordered submit took is taken here, as the gate is offered [N2].
   await withBoard(ctx, board => checkpointAfterMove(ctx, board, { agent: me.id, item: id, operation: 'submit' }, { ordered, worker: usageCheckpointWorkerEntrypoint() }));
   await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
     text: `Gate job ${job.id} offered for ${source.slice(0, 12)}${companion ? ` (companions composed onto ${commit.slice(0, 12)})` : ''} on main ${main.commit.slice(0, 12)}; a runner pulls it and posts its receipt.` }]));
+  // seat.checkpoints (off by default): the submit records what is done and what the gate and review still decide [C7,#8549].
+  await withBoard(ctx, board => recordCheckpoint(ctx, board, { item: id, agent: me.id, moment: 'submit', parts: { done: [`submitted ${commit}`], left: ['gate result and review'], evidence: [`gate job ${job.id}`] } }, ordered));
   // With no registered runners this machine is its own runner: the same pull path, on loopback [P7].
   const host = primaryCheckoutRoot(ctx.info);
   const local = host ? await ensureLocalRunner(host) : { running: false, started: false, pid: null };

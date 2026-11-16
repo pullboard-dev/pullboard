@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { KEEP_PER_PATH } from '../../../src/logic/test/manifest.js';
+import { manifestRows } from '../../../src/logic/test/manifest.js';
 import { tagJourneys } from '../../../src/logic/test/manifest.js';
 
 const journey = (file, specs, ms = null) => ({ file, kind: 'journey', specs, cost: { ms } });
@@ -11,13 +12,13 @@ const tags = rows => Object.fromEntries(rows.filter(row => row.tag).map(row => [
 
 const PATHS = ['init', 'add', 'next', 'submit', 'verify', 'land', 'release', 'upgrade'];
 
-test('a golden path keeps at most two journeys and the rest convert or delete [C7]', () => {
+test('clause 1: a golden path keeps at most two journeys and the rest convert or delete [C7]', () => {
   const rows = tagJourneys(PATHS.flatMap(path => [1, 2, 3, 4].map(n => journey(`apps/cli/journeys/${path}/j${n}.test.js`, [`S${n}`]))));
   for (const path of PATHS) {
     const kept = rows.filter(row => row.file.includes(`/${path}/`) && row.tag === 'keep');
     assert.equal(kept.length, KEEP_PER_PATH, path);
   }
-  assert.equal(rows.filter(row => row.tag === 'keep').length, 16);
+  assert.equal(rows.filter(row => row.tag === 'keep').length, PATHS.length * KEEP_PER_PATH);
   assert.equal(rows.filter(row => row.tag !== 'keep').every(row => ['convert', 'delete'].includes(row.tag)), true);
 });
 
@@ -55,8 +56,16 @@ test('a journey that loses its path falls to the delete rule when a cell cites i
   assert.deepEqual(tags(rows), { 'verify/a.test.js': 'keep', 'verify/b.test.js': 'keep', 'verify/c.test.js': 'delete', 'verify/d.test.js': 'convert' });
 });
 
-test('relay pair and view open count as paths and every path holds two at most, so the keep count never passes 20 [C7]', () => {
+test('clause 2: relay pair and view open count as paths and every path holds two at most, so the keep count never passes the path count times two [C7]', () => {
   const files = [...PATHS.map(path => `apps/cli/journeys/${path}`), 'apps/cli/journeys/relay/pair', 'apps/cli/journeys/view/open'];
   const rows = tagJourneys(files.flatMap(base => [1, 2, 3].map(n => journey(`${base}/j${n}.test.js`, [`K${n}`]))));
-  assert.equal(rows.filter(row => row.tag === 'keep').length, 20);
+  assert.equal(rows.filter(row => row.tag === 'keep').length, files.length * KEEP_PER_PATH);
+});
+
+test('a file the golden registry names stays harness and untagged when the manifest is regenerated [C7]', () => {
+  const spawns = { direct: new Set(['process']), via: new Map() };
+  const rows = manifestRows([{ file: 'apps/cli/journeys/add/brief.test.js', ms: null, specs: ['C7'], ...spawns }, { file: 'apps/cli/journeys/add/other.test.js', ms: null, specs: ['C7'], ...spawns }], new Set(['apps/cli/journeys/add/brief.test.js']));
+  assert.equal(rows[0].kind, 'harness');
+  assert.equal(rows[0].tag, undefined);
+  assert.equal(rows[1].kind, 'journey');
 });

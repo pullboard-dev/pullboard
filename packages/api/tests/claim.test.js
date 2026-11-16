@@ -6,7 +6,7 @@ import * as store from '../../store/index.js';
 import { logEvent } from '../../store/index.js';
 import { withListFields } from '../../items/index.js';
 import { projectItemState } from '../index.js';
-import { fixtureBoard } from '../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../board/tests/fixtures/board.js';
 import { submitFixture } from '../../store/tests/fixtures/submit.js';
 
 const COMMIT = 'a'.repeat(40);

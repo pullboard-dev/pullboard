@@ -10,8 +10,8 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { runFixtureChild } from '../../../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../fixtures/child.js';
+import { runFixtureGit } from '../../../../fixtures/child.js';
 
 const SOURCE = join(import.meta.dirname, '../../../../../../..');
 

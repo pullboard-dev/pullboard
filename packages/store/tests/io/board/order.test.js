@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../../../index.js';
-import { apiBoardOpeners } from '../../../../../apps/cli/tests/fixtures/board.js';
-import { fixtureBoard } from '../../../../../apps/cli/tests/fixtures/board.js';
+import { openBoard } from '../../../../board/tests/fixtures/board.js';
+import { fixtureBoard } from '../../../../board/tests/fixtures/board.js';
 import {
   addMilestone,
   orderMilestoneItems,
@@ -13,8 +13,6 @@ import { eligibilityProblem } from '../../../../verify/index.js';
 import { milestoneRoadmap } from '../../../../roadmap/index.js';
 import { workQueue } from '../../../../items/index.js';
 import { milestoneItemIds } from '../../../src/io/board/state.js';
-
-const { openBoard } = apiBoardOpeners;
 
 test('roadmap lists open items in queue order with pins applied and agrees with queue on every item [C7]', (t) => {
   const board = fixtureBoard(t);

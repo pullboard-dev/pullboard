@@ -5,7 +5,7 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { takeResource } from '../../../../../resources/index.js';
-import { privateFixtureFiles } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../fixtures/child.js';
 import { freeRunnerSlots } from '../../../../src/io/shards/proof.js';
 import { runProofShards } from '../../../../src/io/shards/proof.js';
 import { shardSlotOptions } from '../../../../src/io/shards/proof.js';

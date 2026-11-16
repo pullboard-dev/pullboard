@@ -11,26 +11,36 @@ import { test } from 'node:test';
 import { SPEC } from '../../tests/fixtures/cockpit/harness.js';
 import { machine } from '../../tests/fixtures/cockpit/harness.js';
 import { project } from '../../tests/fixtures/cockpit/harness.js';
-import { build } from '../../tests/fixtures/cockpit/harness.js';
-import { sendBack } from '../../tests/fixtures/cockpit/harness.js';
+import { buildLocal } from '../../tests/fixtures/cockpit/harness.js';
 import { fetchLive } from '../../tests/fixtures/cockpit/harness.js';
 import { startView } from '../../tests/fixtures/cockpit/harness.js';
 import { openPage } from '../../tests/fixtures/cockpit/harness.js';
+
+/** The coordinator sends an item back from a checkout of its submitted commit, awaiting each board command in this process. */
+async function sendBackLocal(box, p, id, note) {
+  box.git(p.repo, 'switch', '-q', '--detach', p.itemBranches.get(`${p.baseBranch}:${id}`) ?? p.branch);
+  const item = JSON.parse(await box.inProcess(p.repo, 'show', String(id), '--json'));
+  const clause = JSON.parse(item.item_frozen).criterion;
+  await box.inProcess(p.repo, 'verify', String(id), 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', clause, '--note', note, '--as', 'coordinator');
+  box.git(p.repo, 'switch', '-q', 'main');
+}
 
 test('unreadable boards collapse to one line with Forget all while projects group readable repos with combined needs and activity [N33, N34, N36]', async () => {
   const box = machine();
   const core = project(box, 'core', `${SPEC}- G3 [pending] Should #1 greet in French?\n`, { name: 'Core API', project: 'Atlas' });
   await box.inProcess(core.repo, 'add', 'web', 'Core target #1', '--specs', 'G1', '--criterion', 'greets');
-  build(box, core, 1, 'greeting.html');
-  sendBack(box, core, 1, 'the page needs a greeting');
+  await buildLocal(box, core, 1, 'greeting.html', { queued: true });
   const web = project(box, 'web', SPEC, { name: 'Web UI', project: 'Atlas' });
   await box.inProcess(web.repo, 'add', 'web', 'Target for #1', '--specs', 'G1', '--criterion', 'has a header');
-  build(box, web, 1, 'header.html');
+  await buildLocal(box, web, 1, 'header.html', { queued: true });
+  box.settled(core.repo, 1);
+  box.settled(web.repo, 1);
+  await sendBackLocal(box, core, 1, 'the page needs a greeting');
   await box.inProcess(web.repo, 'shout', 'person', 'Ship #1 today?', '--decision');
-  const standalone = project(box, 'standalone', SPEC, { name: 'Scratchpad' });
-  const broken = project(box, 'broken', SPEC, { name: 'Broken repo', project: 'Atlas' });
-  const brokenTwo = project(box, 'broken-two', SPEC, { name: 'Broken repo two', project: 'Atlas' });
-  const brokenThree = project(box, 'broken-three', SPEC, { name: 'Broken repo three', project: 'Elsewhere' });
+  const standalone = project(box, 'standalone', SPEC, { name: 'Scratchpad' }, { joinSeat: false, bare: true });
+  const broken = project(box, 'broken', SPEC, { name: 'Broken repo', project: 'Atlas' }, { joinSeat: false, bare: true });
+  const brokenTwo = project(box, 'broken-two', SPEC, { name: 'Broken repo two', project: 'Atlas' }, { joinSeat: false, bare: true });
+  const brokenThree = project(box, 'broken-three', SPEC, { name: 'Broken repo three', project: 'Elsewhere' }, { joinSeat: false, bare: true });
   const recoveredConfig = readFileSync(join(brokenThree.repo, 'pullboard.json'));
   const view = await startView(box);
   try {

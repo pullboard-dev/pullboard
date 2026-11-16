@@ -42,6 +42,43 @@ export function clearBrowserReadFailure(degradedBoards, id) {
   degradedBoards.delete(id);
 }
 
+/** The plain words for each relay fault: what happened, then the one next step [H5,H17]. */
+export const RELAY_FAULT_WORDS = Object.freeze({
+  down: 'The relay is not answering. Wait a moment; this page tries again by itself.',
+  trouble: 'The relay is having trouble. Wait a moment; this page tries again by itself.',
+  behind: 'The relay is catching up with this board. Wait a moment; this page tries again by itself.',
+  version: 'This page is older than the relay. Reload this page to get the new version.',
+});
+
+/**
+ * Which relay fault an error is, or null when it is none of the four a person can wait out or reload past. Why: a
+ * refusal arrives as an Error with a code, as a bracketed code at the front of its message, or as the browser's own
+ * network TypeError, and every one of them should read the same to the person.
+ * @param {unknown} error - A thrown error or an `{ code, message }` document from the relay.
+ * @returns {'down'|'trouble'|'behind'|'version'|null}
+ */
+export function relayFault(error) {
+  const text = String(error?.message ?? error ?? '');
+  const code = String(error?.code ?? /^\[([A-Z_]+)\]/u.exec(text)?.[1] ?? '');
+  if (['ENGINE_VERSION', 'RELAY_ENGINE_VERSION'].includes(code)) return 'version';
+  if (code === 'SNAPSHOT_REQUIRED') return 'behind';
+  if (code === 'RELAY_UNAVAILABLE') return 'trouble';
+  if (error instanceof TypeError || /failed to fetch|network ?error|load failed/iu.test(text)) return 'down';
+  return null;
+}
+
+/**
+ * What the page says about a failed relay read: the fault's plain words and next step, else the error's own sentence
+ * with any leading refusal code taken off, so a code never reaches the person.
+ * @param {unknown} error
+ * @returns {string}
+ */
+export function relayFailureText(error) {
+  const fault = relayFault(error);
+  if (fault) return RELAY_FAULT_WORDS[fault];
+  return String(error?.message ?? error ?? '').replace(/^\[[A-Z_]+\]\s*/u, '');
+}
+
 /** Build truthful device notices from authorized boards and their decrypted pending requests. */
 export function noticeLines({ available, paired, ownedRequestIds = new Map(), waitingBoards = new Map(), sizeProblems = new Map(), approvedBoards = new Set(), pendingLinks = [], warnings = [], failure = '', exclusions = [], degradedBoards = new Map(), queuedRequests = new Map() }) {
   const lines = [];
@@ -257,4 +294,24 @@ export function homeScreenLine(doc, storage) {
   });
   line.append(text, dismiss);
   return line;
+}
+
+/**
+ * Name the real cause of a RELAY_UNAVAILABLE read from data the relay already has, each with the one command that fixes it [H5,H17].
+ * A real network failure stays a connection problem. The excluded actor and reason appear only when recorded (#1975).
+ * @param {{ error?: unknown, relayOn?: boolean, machine?: string|null, excluded?: { name?: string, by?: string|null, reason?: string|null, at?: string|null }|null, machines?: { id: string, label?: string, lastSeen?: string|null, online?: boolean }[] }} state
+ * @returns {{ cause: 'connection'|'relay_off'|'excluded'|'asleep'|'unknown', machine: string|null, fix: string|null, [field: string]: unknown }}
+ */
+export function relayUnavailableCause({ error, relayOn = true, machine = null, excluded = null, machines = [] } = {}) {
+  if (relayFault(error) === 'down') return { cause: 'connection', machine, fix: null };
+  if (excluded) {
+    return { cause: 'excluded', machine, name: excluded.name ?? null, by: excluded.by ?? null, reason: excluded.reason ?? 'unknown historical exclusion',
+      at: excluded.at ?? null, fix: 'On that computer, run pullboard relay on in this board.' };
+  }
+  if (!relayOn) return { cause: 'relay_off', machine, fix: 'On that computer, run pullboard relay on.' };
+  const seen = machines.find(entry => entry.id === machine);
+  if (seen && seen.online === false) {
+    return { cause: 'asleep', machine, label: seen.label ?? null, lastSeen: seen.lastSeen ?? null, fix: 'Wake that computer, or run pullboard relay there.' };
+  }
+  return { cause: 'unknown', machine, fix: null };
 }

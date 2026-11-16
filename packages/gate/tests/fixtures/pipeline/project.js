@@ -5,19 +5,13 @@
  * Why its own module: the end-to-end harness and the repro harnesses all need the same queued-gate project, and none
  * may touch the main checkout, so the project is built once here inside an e2e sandbox the kit watches.
  */
-/** @pullboard-module-loads apps/cli/tests/fixtures/e2e.js apps/cli/tests/fixtures/testkit.js packages/store/index.js packages/drive/index.js */
+/** @pullboard-module-loads apps/cli/tests/fixtures/e2e.js packages/board/tests/fixtures/board.js packages/gate/tests/fixtures/testkit.js packages/store/index.js packages/drive/index.js */
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
-import {
-  dirname,
-  join,
-} from 'node:path';
+import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   ROOT,
-  survivors,
   track,
 } from './kit.js';
 
@@ -52,7 +46,8 @@ export function json(result) {
 export async function projectKit(root) {
   const load = path => import(pathToFileURL(join(root, path)).href);
   const { createE2eHelpers } = await load('apps/cli/tests/fixtures/e2e.js');
-  const { fixtureAdd, createFixtureWorktree, fixtureCommittedPolicy, fixtureMachineSettings, withFixtureBoard } = await load('apps/cli/tests/fixtures/testkit.js');
+  const { fixtureAdd, createFixtureWorktree, fixtureCommittedPolicy, fixtureMachineSettings } = await load('packages/gate/tests/fixtures/testkit.js');
+  const { withFixtureBoard } = await load('packages/board/tests/fixtures/board.js');
   const store = await load('packages/store/index.js');
   const drive = await load('packages/drive/index.js');
 
@@ -121,31 +116,3 @@ export async function projectKit(root) {
 
 /** The project builder for the tree under test. */
 export const { handoffProject } = await projectKit(ROOT);
-
-/**
- * The dispatcher processes of one machine home, with the tools folder each one runs from.
- *
- * @param {string} home - The project's PULLBOARD_MACHINE_HOME.
- * @returns {{ pid: number, tools: string }[]}
- */
-export function dispatchers(home) {
-  return survivors([home]).flatMap(({ pid, command }) => {
-    const match = /(\S*\/bin\/handoff-worker-dispatcher\.js)/u.exec(command);
-    return match ? [{ pid, tools: dirname(dirname(match[1])) }] : [];
-  });
-}
-
-/**
- * The tooling digest a shared tools snapshot is named by: the git ids of bin, apps, packages, src and package.json at
- * the tool root's HEAD, as `toolingDigest` in apps/cli/src/io/toolsnapshot.js computes it. Null outside git.
- *
- * @param {string} root
- * @returns {string | null}
- */
-export function mainTooling(root) {
-  const ids = ['bin', 'apps', 'packages', 'src', 'package.json'].map(path => {
-    const id = spawnSync('git', ['-C', root, 'rev-parse', `HEAD:${path}`], { encoding: 'utf8' });
-    return id.status === 0 && /^[0-9a-f]{40}$/u.test(id.stdout.trim()) ? `${path}=${id.stdout.trim()}` : `${path}=absent`;
-  });
-  return ids.every(id => id.endsWith('=absent')) ? null : createHash('sha256').update(ids.join('\n')).digest('hex').slice(0, 40);
-}

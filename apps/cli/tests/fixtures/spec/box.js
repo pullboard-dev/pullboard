@@ -1,5 +1,6 @@
 /** Shared spec project fixtures for the split spec journey files. */
 import { runCliInProcess } from '../process.js';
+import { journeyCall } from '../e2e.js';
 import assert from 'node:assert/strict';
 import { runFixtureChild as spawnSync } from '../child.js';
 import { runFixtureChild } from '../child.js';
@@ -37,7 +38,26 @@ Intro line.
  * A real repo and board with an isolated registry, so JSON exercises the command's lint and history
  * checks rather than just serializing the parser. Its files may use the configured names.
  */
-export function specBox(t, { specName = 'SPEC.md', practiceName = 'PRACTICE.md', practice, specSource = SPEC, freshInit = false, separateGitDir = false } = {}) {
+export function specBox(t, options = {}) {
+  const made = prepareBox(t, options);
+  const init = spawnSync(process.execPath, [resolve(import.meta.dirname, '../../../pullboard.js'), 'init'], { cwd: made.root, env: made.env, encoding: 'utf8' });
+  assert.equal(init.status, 0, init.stderr);
+  return finishBox(made, options);
+}
+
+/**
+ * The same box with `init` run in this process: awaited, with no CLI start per box [C7].
+ * Why: a case that builds several boxes paid one real process each; the in-process call writes the same files.
+ */
+export async function specBoxInProcess(t, options = {}) {
+  const made = prepareBox(t, options);
+  const init = await runCliInProcess(['init'], { cwd: made.root, env: made.env });
+  assert.equal(init.status, 0, init.stderr);
+  return finishBox(made, options);
+}
+
+/** Everything a box needs before `init` runs: the folder, the shim, the environment, the commands and the repository. */
+function prepareBox(t, { separateGitDir = false } = {}) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-spec-json-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const bin = join(root, '.bin');
@@ -62,7 +82,8 @@ export function specBox(t, { specName = 'SPEC.md', practiceName = 'PRACTICE.md',
   const command = (...args) => runFixtureChild(process.execPath, [resolve(import.meta.dirname, '../../../pullboard.js'), ...args], { cwd: root, env, encoding: 'utf8' });
   const run = (...args) => command('spec', ...args);
   /** The same commands in this process: awaited, same result fields, no ~1 s CLI startup [C7]. */
-  const cmd = (...args) => runCliInProcess(args, { cwd: root, env });
+  // PULLBOARD_JOURNEY_MODE=process answers the same call as a real process, so the gate's parity check can compare the two (#8267).
+  const cmd = (...args) => journeyCall({ dir: root, env, cwd: root, args, inProcess: () => runCliInProcess(args, { cwd: root, env }), real: () => command(...args) });
   const spec = (...args) => cmd('spec', ...args);
   // A --separate-git-dir repository keeps its Git metadata in another folder (#915).
   const metadata = separateGitDir ? realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-spec-git-'))) : null;
@@ -70,12 +91,15 @@ export function specBox(t, { specName = 'SPEC.md', practiceName = 'PRACTICE.md',
   git('init', '-q', '-b', 'main', ...(metadata ? ['--separate-git-dir', join(metadata, 'repo.git')] : []));
   git('config', 'user.name', 'Test Agent');
   git('config', 'user.email', 'agent@example.com');
-  const init = spawnSync(process.execPath, [resolve(import.meta.dirname, '../../../pullboard.js'), 'init'], { cwd: root, env, encoding: 'utf8' });
-  assert.equal(init.status, 0, init.stderr);
+  return { root, env, git, run, command, cmd, spec };
+}
+
+/** Configure and commit a box once `init` has run; the setup commits skip the hooks, which no case here proves (they cost a process each) [C7]. */
+function finishBox({ root, env, git, run, command, cmd, spec }, { specName = 'SPEC.md', practiceName = 'PRACTICE.md', practice, specSource = SPEC, freshInit = false } = {}) {
   const config = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8'));
   if (freshInit) {
     git('add', '-A');
-    git('commit', '-q', '-m', 'chore: fresh pullboard init');
+    git('-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'chore: fresh pullboard init');
     return { root, run, command, cmd, spec, env, git, specName: config.spec, practiceName: config.practice };
   }
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ ...config, spec: specName, practice: practiceName, gate: 'true', lanes: { review: { owns: [] } } }));
@@ -85,7 +109,7 @@ export function specBox(t, { specName = 'SPEC.md', practiceName = 'PRACTICE.md',
   writeFileSync(join(root, specName), specSource);
   if (practice !== undefined) writeFileSync(join(root, practiceName), practice);
   git('add', '-A');
-  git('commit', '-q', '-m', 'chore: a spec');
+  git('-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'chore: a spec');
   return { root, run, command, cmd, spec, env, git, specName, practiceName };
 }
 

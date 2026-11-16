@@ -1,6 +1,6 @@
 /** The reason lines `pullboard next` prints beside a claim or an idle answer: folded, counted and read from the board [N2,C7]. */
 import * as store from '../../../store/index.js';
-import { REVIEW_COVER_PAUSE_TAIL } from '../../../health/index.js';
+import { REVIEW_COVER_PAUSE_TAIL } from '../../../health/light.js';
 
 /**
  * Preview governing messages without acknowledging them or changing explicit watch audiences [B7,N2].
@@ -17,6 +17,27 @@ export function inboxReasons(board, me) {
 }
 
 /**
+ * The shouts and rulings that name an item, oldest first, one line each (#8787): an item message sent to it, a decision
+ * asked about it, and a decision fact recorded on it. Superseded facts are left out.
+ * Why: next hands out one instruction, so the seat gets what was said about the item without reading the inbox.
+ *
+ * @param {any} board
+ * @param {number} id the item number
+ * @returns {string[]}
+ */
+export function itemNoticeLines(board, id) {
+  const thread = store.itemThread(board, id);
+  const replaced = new Set(thread.map(entry => entry.supersedes).filter(Boolean));
+  const lines = [];
+  for (const entry of thread) {
+    if (entry.type === 'move' && ['shout', 'pass', 'answer'].includes(entry.kind) && typeof entry.detail?.text === 'string') {
+      lines.push(`${entry.kind === 'answer' ? 'answer' : 'shout'} from ${entry.by}: ${entry.detail.text}`);
+    } else if (entry.type === 'fact' && entry.kind === 'decision' && !replaced.has(entry.id)) lines.push(`ruling by ${entry.by}: ${entry.text}`);
+  }
+  return lines;
+}
+
+/**
  * Name this seat's own items that are submitted or in their gate, so the seat knows why next offered other work.
  * Why: next skips them and a seat that saw nothing about them stopped after re-checking, with work still open [C7,#3532].
  *
@@ -27,6 +48,26 @@ export function inboxReasons(board, me) {
 export function ownWaitingLines(board, me) {
   return store.listItems(board).filter(entry => entry.item_owner === me.id && (entry.item_status === 'submitted' || store.awaitingGateOrReview(board, entry)))
     .map(entry => `#${entry.item_id} is waiting on its ${entry.item_status === 'submitted' ? 'reviewer' : 'gate'}; next offers other work`);
+}
+
+/**
+ * One line for each hold whose owner is this seat (by id, or by its lane) and whose deadline has passed, only while
+ * holds.requireOwner is on; off (default) it names nothing, so `next` is unchanged [C7,#8541].
+ *
+ * @param {any} board
+ * @param {{ id: string, lane?: string }} me the seat running next
+ * @param {boolean} requireOwner the holds.requireOwner setting as the caller read it
+ * @returns {string[]}
+ */
+export function lapsedHoldLines(board, me, requireOwner) {
+  if (requireOwner !== true) return [];
+  const at = Date.parse(store.now(board));
+  return store.listItems(board).filter(entry => entry.item_hold_reason).flatMap(entry => {
+    const record = store.itemHoldOwner(board, entry.item_id);
+    const mine = record && (record.owner === me.id || (me.lane && (record.owner === me.lane || record.owner === `lane:${me.lane}`)));
+    return mine && Date.parse(record.deadline) <= at
+      ? [`#${entry.item_id} hold lapsed ${record.deadline}: it is yours to lift or renew (${entry.item_hold_reason.split('\n')[0]}); pullboard hold ${entry.item_id} --off`] : [];
+  });
 }
 
 /**
