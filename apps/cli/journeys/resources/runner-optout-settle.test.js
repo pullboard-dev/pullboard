@@ -71,16 +71,22 @@ test('clause 1: after runnersOnly turns off, the submit --wait gate job settles,
   // Native bar baseline setup may itself have run the command; it is not the subject submission.
   rmSync(marker, { force: true });
   policy(box, true);
-  const refused = await box.runAsync(box.web, 'submit', String(id), '--wait', '--no-next', '--json');
-  assert.notEqual(refused.code, 0, refused.out);
-  assert.equal(JSON.parse(refused.out).error.code, 'RUNNER_WAIT_DEADLINE', refused.err || refused.out);
-  policy(box, false);
-  // The fixture's own settle wait is off for this one call, so the case reads the job itself and a hang shows its state at 30 s instead of at 180 s.
+  // The fixture's own settle wait is off, so the case reads the job itself and a hang shows its state at 30 s instead of at 180 s.
   box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
+  const refused = await box.runAsync(box.web, 'submit', String(id), '--wait', '--no-next', '--json');
+  const asRefused = refused.code !== 0 ? JSON.parse(refused.out).error.code : `exit 0: ${refused.out.replace(/\s+/gu, ' ').slice(0, 200)}`;
+  /** The gate job's step and lease holder, every job row, and the local runner's last 40 log lines. */
+  const evidence = job => `job_step=${job?.job_step ?? 'none'} job_lease_owner=${job?.job_lease_owner ?? 'none'} jobs=${JSON.stringify(jobRows(box))}\nlocal runner log (last 40 lines):\n${runnerTail(box)}`;
+  const onJob = await gateJobWithin(box, id);
+  const whilePolicyOn = `policy on: submit answered ${asRefused}; ${evidence(onJob)}`;
+  console.log(`# ${whilePolicyOn}`);
+  policy(box, false);
   const submitting = box.runAsync(box.web, 'submit', String(id), '--wait', '--no-next', '--json');
   const job = await gateJobWithin(box, id);
-  const evidence = `job_step=${job?.job_step ?? 'none'} job_lease_owner=${job?.job_lease_owner ?? 'none'} jobs=${JSON.stringify(jobRows(box))}\nlocal runner log (last 40 lines):\n${runnerTail(box)}`;
-  console.log(`# opt-out gate job at the check: ${evidence}`);
-  assert.equal(job?.job_step, 'done', `the opt-out gate job did not settle in ${SETTLE_MS} ms\n${evidence}`);
+  const afterOptOut = `policy off: ${evidence(job)}`;
+  console.log(`# ${afterOptOut}`);
+  assert.equal(asRefused, 'RUNNER_WAIT_DEADLINE', `with runnersOnly on the submit must refuse\n${whilePolicyOn}`);
+  assert.equal(existsSync(marker), job?.job_step === 'done', 'the frozen body ran only once the gate job settled');
+  assert.equal(job?.job_step, 'done', `the opt-out gate job did not settle in ${SETTLE_MS} ms\n${afterOptOut}`);
   await submitting;
 });
