@@ -1,0 +1,8 @@
+{
+  "name": "cells",
+  "help": "  pullboard cells [--json]             each cell sealed or unsealed at HEAD, and the commit that broke an unsealed one; read-only\n",
+  "required": {
+    "cells": "array",
+    "unsealed": "array"
+  }
+}

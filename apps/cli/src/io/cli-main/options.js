@@ -45,6 +45,7 @@ const OPTIONS = {
   'no-open': { type: 'boolean' },
   'no-next': { type: 'boolean' },
   lan: { type: 'boolean' },
+  suggest: { type: 'boolean' },
   'no-permissions': { type: 'boolean' },
   'no-hooks': { type: 'boolean' },
   note: { type: 'string' },

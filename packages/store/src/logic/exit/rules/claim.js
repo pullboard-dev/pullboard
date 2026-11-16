@@ -7,6 +7,8 @@ import {
 import { appendFact } from "../../../io/board/fact.js";
 import { itemById } from "../../../io/board/query.js";
 import { seatFamily } from "../../../../../items/index.js";
+import { buildCheckpoint } from "../../../../../seats/index.js";
+import { checkpointText } from "../../../../../seats/index.js";
 import {
   exitSessionIdentity,
   exitedSession,
@@ -96,14 +98,24 @@ export function releaseExitClaim(board, id, actor, note) {
   put.run(`exit-session:${identity}`, JSON.stringify(handoff));
   appendFact(board, id, { agentId: actor, kind: 'note', text: note,
     factId: createHash('sha256').update(`${decision.claim}:${at}`).digest('hex') });
+  // seat.checkpoints, sealed into the claim: the stop also records its five-part checkpoint, from the summary and the native counters [C7,#8553].
+  if (exitClaim(board, id, actor)?.policy.checkpoints === true) {
+    const [, done, failed, next] = summary.map(part => part?.trim());
+    const { tokens, calls } = progress(board, decision.claim);
+    appendFact(board, id, { agentId: actor, kind: 'note', factId: createHash('sha256').update(`${decision.claim}:${at}:checkpoint`).digest('hex'),
+      text: checkpointText('exit-stop', buildCheckpoint({ done: [done], left: [next], decisions: [`Failed: ${failed}`], evidence: [`${decision.code}: ${tokens ?? 'unknown'} tokens, ${calls ?? 'unknown'} calls`], tokens })) });
+  }
   return handoff;
 }
 
 /** Claim capture freezes only fully validated enabled policy, never mutable reader-local defaults. */
 export function capturedExitRules(value) {
   if (value === undefined) return null;
-  if (exitRulesConfigProblems(value).length) throw new Refused('BAD_CONFIG', 'restore valid exitRules enabled/tokens/calls configuration');
-  return value.enabled ? { enabled: true, tokens: value.tokens, calls: value.calls } : null;
+  // checkpoints is the claim's sealed seat.checkpoints setting, not part of the exitRules configuration [C7,#8553].
+  const plain = value !== null && typeof value === 'object' && !Array.isArray(value);
+  const { checkpoints, ...policy } = plain ? value : {};
+  if (exitRulesConfigProblems(plain ? policy : value).length) throw new Refused('BAD_CONFIG', 'restore valid exitRules enabled/tokens/calls configuration');
+  return value.enabled ? { enabled: true, tokens: value.tokens, calls: value.calls, ...(checkpoints === true ? { checkpoints: true } : {}) } : null;
 }
 
 /** Every authenticated writer observes the same session fence and current claim counters. */

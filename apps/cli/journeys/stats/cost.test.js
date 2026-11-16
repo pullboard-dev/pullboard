@@ -38,7 +38,9 @@ import {
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { loadMachineSettings } from '../../../../packages/config/index.js';
 import { assertUsagePresentation } from '../../tests/fixtures/cockpit/usage.js';
+import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
+import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -519,6 +521,61 @@ test('clause 2: with no budget set budgetState returns ok with no limit [N2]', (
   db.prepare('INSERT INTO board_meta VALUES(?,?)').run('cost:1:a', JSON.stringify({ observedAt: 0, records: [{ model, inputTokens: 0, outputTokens: 5 }] }));
   assert.deepEqual(budgetState({ db }, { [model]: { output: 1_000_000 } }, undefined, Date.now()), { state: 'ok', spend: 5, limit: null, which: null });
   assert.equal(budgetState({ db }, { [model]: { output: 1_000_000 } }, {}, Date.now()).limit, null);
+});
+
+/** A joined seat with two open items and $110 of recorded spend priced at one dollar per token; settings.json is the machine file the claim reads. */
+async function budgetFixture() {
+  const model = 'fixture-claude';
+  const box = await costProject(model);
+  const ids = [];
+  for (const title of ['Budget first', 'Budget second']) ids.push((await fileFixtureItem(box, box.repo, { lane: 'web', title, check: 'test -f web/ready' })).item_id);
+  const claudeDir = join(box.dir, 'claude', 'projects', 'private-fixture');
+  mkdirSync(claudeDir, { recursive: true });
+  const claudeFile = join(claudeDir, 'budget-fixture.jsonl');
+  writeFileSync(claudeFile, '');
+  const claude = { CLAUDE_CODE_SESSION_ID: 'budget-fixture' };
+  // A native baseline before the claim, so only the tokens spent after it are charged.
+  record(claudeFile, { type: 'assistant', message: { id: 'budget-before-claim', model, usage: { input_tokens: 9, output_tokens: 1 } } });
+  seatUsage(box, box.web, claude);
+  await seatRun(box, box.web, claude, ['claim', String(ids[0])]);
+  record(claudeFile, { type: 'assistant', message: { id: 'budget-message', model, usage: { input_tokens: 100, output_tokens: 10 } } });
+  seatUsage(box, box.web, claude);
+  const rate = 1_000_000;
+  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  const limit = totalUsd => fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME,
+    { costPrices: { [model]: { freshInput: rate, cacheReadInput: rate, cacheWriteInput: rate, output: rate } }, budget: { totalUsd } });
+  const env = { ...box.env, CODEX_HOME: join(box.dir, 'codex'), CLAUDE_CONFIG_DIR: join(box.dir, 'claude'), ...claude };
+  for (const key of ['CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'AI_AGENT', 'CODEX_CI', 'CODEX_SHELL']) delete env[key];
+  return { box, ids, claude, limit, run: args => runCliInProcess(args, { cwd: box.web, env }) };
+}
+
+test('clause 1: a budget at stop refuses a new claim naming the spend, the limit and the next step [N2]', async () => {
+  const fixture = await budgetFixture();
+  // $110 recorded against a $50 total limit.
+  fixture.limit(50);
+  const refused = await fixture.run(['claim', String(fixture.ids[1])]);
+  assert.notEqual(refused.status, 0, 'a new claim is refused at stop');
+  const text = refused.stdout + refused.stderr;
+  assert.match(text, /BUDGET_STOP/u);
+  assert.match(text, /\$110\.00/u, 'the refusal names the spend');
+  assert.match(text, /\$50\.00/u, 'the refusal names the limit');
+  assert.match(text, /budget\.totalUsd/u, 'the refusal names the next step');
+  // With the limit raised the same claim goes through.
+  fixture.limit(500);
+  // The seat holds one claim at a time, so free the first before the second.
+  const freed = await fixture.run(['release', String(fixture.ids[0]), '--reason', 'OTHER', '--note', 'Free the seat for the second budget claim.', '--no-next']);
+  assert.equal(freed.status, 0, freed.stdout + freed.stderr);
+  const allowed = await fixture.run(['claim', String(fixture.ids[1])]);
+  assert.equal(allowed.status, 0, allowed.stdout + allowed.stderr);
+});
+
+test('clause 2: an item already claimed still renews and releases when the budget is at stop [N2]', async () => {
+  const fixture = await budgetFixture();
+  fixture.limit(50);
+  const renewed = await fixture.run(['claim', String(fixture.ids[0])]);
+  assert.equal(renewed.status, 0, 'the held claim renews: ' + renewed.stdout + renewed.stderr);
+  const released = await fixture.run(['release', String(fixture.ids[0]), '--reason', 'OTHER', '--note', 'Close the budget fixture claim.', '--no-next']);
+  assert.equal(released.status, 0, 'the held claim releases: ' + released.stdout + released.stderr);
 });
 
 test('clause 1: a budget at 80 percent shows in the capacity report, with spend and limit, and no budget shows no line [N2]', () => {
