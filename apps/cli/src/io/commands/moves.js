@@ -8,6 +8,9 @@ import { withBoardRead } from '../context.js';
 /** Tables whose writer runs the table on every move, whatever the machine settings say. */
 const ALWAYS_LIVE = Object.freeze(['release', 'withdraw', 'lease', 'verify', 'landing', 'pulled']);
 
+/** The table a `*.table.js` path names, such as `claim` for `packages/moves/src/logic/table/claim.table.js`. */
+const tableName = path => path.slice(path.lastIndexOf('/') + 1).replace(/\.table\.js$/u, '');
+
 /**
  * The machine setting that puts each table's writer live, by the key its compares are recorded under.
  * Why a map: one switch can govern two recorded tables (moves.live.submit: commit and submit; moves.live.handoff: start and complete) [C7,#9188].
