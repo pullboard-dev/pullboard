@@ -140,7 +140,7 @@
   ["src/public-export-guard.js","apps/cli/src/logic/exports.js","imports"],
   ["src/skills.js","apps/cli/src/io/skills.js","seed"],
   ["src/static-prose-commands.js","apps/cli/src/logic/prose.js","seed"],
-  ["src/sweep.js","apps/cli/src/logic/sweep.js","seed"],
+  ["src/sweep.js","apps/cli/src/io/sweep/problems.js","seed"],
   ["src/tour.js","apps/cli/src/io/tour.js","seed"],
   ["src/command-docs.js","apps/cli/src/io/docs.js","imports"],
   ["src/command-docs/heartbeat.json","apps/cli/src/io/command-docs/heartbeat.json","rule"],

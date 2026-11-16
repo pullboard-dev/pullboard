@@ -47,6 +47,7 @@ import { stalePlanRows } from '../../../../packages/codemap/index.js';
 import { scriptMentions } from '../../../../packages/codemap/index.js';
 import { testFile } from '../../../../packages/codemap/index.js';
 import { posix } from 'node:path';
+import { cellOfFolder } from '../logic/cell-of-folder.js';
 import { cellsReorgReason } from './cells-reorg.js';
 import { warning } from './cells-reorg.js';
 import { fixtureFinding } from './cells-reorg.js';
@@ -178,12 +179,11 @@ export function touchedCells(files, before, after, inventories) {
   if (scope.all) {
     return after.cells.map(cell => cell.name);
   }
+  const known = new Set(plans.flatMap(plan => plan.cells.map(cell => cell.name)));
   const byPath = new Map();
-  /** A source alias and a moved target both belong to their declared cell. */
+  /** A path's cell comes from its folder, never from the plan's rows; only a cell the plans name counts [#8555]. */
   const owners = file => {
-    if (!byPath.has(file)) byPath.set(file, plans.flatMap(plan => plan.cells.filter(cell => file === cell.frontDoor
-      || file === cell.pureFrontDoor || file === cell.lightFrontDoor || file === cell.pureDoor || file.startsWith(cell.root + '/')
-      || cell.paths.some(row => row[0] === file || row[1] === file)).map(cell => cell.name)));
+    if (!byPath.has(file)) { const name = cellOfFolder(file); byPath.set(file, name !== null && known.has(name) ? [name] : []); }
     return byPath.get(file);
   };
   const touched = new Set([...files.flatMap(owners), ...scope.cells]);

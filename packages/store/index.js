@@ -138,4 +138,4 @@ export { recordShadow, readShadow, shadowHook, claimDiffers, firstDifference } f
 export { reopenDecision, reopenDiffers } from './src/io/board/reopen-table.js';
 export { mergedDecision } from './src/io/board/merged-table.js';
 export { readShadows } from './src/io/board/shadow-record.js';
-export { ENTRY_ACTIONS, KIND_ACTIONS, allowedActions, requireAllowedAction, entryLines, openEntries, recordEntryAction } from './src/logic/board/entries.js';
+export { ENTRY_ACTIONS, KIND_ACTIONS, allowedActions, requireAllowedAction, entryLines, openEntries, recordEntryAction, dueEscalations, escalateEntries } from './src/logic/board/entries.js';
