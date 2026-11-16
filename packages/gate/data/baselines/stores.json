@@ -484,6 +484,10 @@
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/clock.js"
     },
+    "adapter-lint-fs.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/fs.js"
+    },
     "auth.sqlite": {
       "kind": "sqlite",
       "owner": "apps/relay/src/io/auth.js"
@@ -1244,7 +1248,8 @@
     "table:item": {
       "kind": "table",
       "owner": "packages/items/src/io/rehome.js"
-    },    "table:item_field": {
+    },
+    "table:item_field": {
       "kind": "table",
       "owner": "packages/store/src/io/board/item/fields.js"
     },
@@ -1583,6 +1588,14 @@
     "workers-usage.json": {
       "kind": "json",
       "owner": "apps/cli/src/io/scale.js"
+    },
+    "push.sqlite": {
+      "kind": "sqlite",
+      "owner": "apps/relay/src/io/push/subscriptions.js"
+    },
+    "table:push_subscription": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/push/subscriptions.js"
     }
   },
   "exceptions": [],
