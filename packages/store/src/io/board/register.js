@@ -71,6 +71,7 @@ export function register(board, who) {
       // Read before saveJoinedSession records this join's declaration, which would make the comparison below always equal.
       const priorFamily = seatFamily(board, existing.agent_id);
       if (who.lockLane) logEvent(board, existing.agent_id, 'join', null, { lane, lockLane: true });
+      if (who.reviewLimits?.length) logEvent(board, existing.agent_id, 'join', null, { lane, reviewLimits: who.reviewLimits });
       const locked = saveJoinedSession(board, existing.agent_id, who);
       const stored = board.db.prepare('SELECT agent_family AS family FROM agent WHERE agent_id = ?').get(existing.agent_id)?.family;
       const storedBlank = typeof stored !== 'string' || stored.trim() === '';
@@ -118,7 +119,7 @@ export function register(board, who) {
     }
     logEvent(board, id, 'join', null, { lane, ...(route === 'strong' ? {} : { route }), // From the declaration engine a join records its family (#1783).
       ...(engine >= AGENT_GRANT_ENGINE ? { grantEngine: AGENT_GRANT_ENGINE } : {}), ...(recordsFamily ? { family: family ?? null } : {}),
-      ...(who.lockLane ? { lockLane: true } : {}) });
+      ...(who.lockLane ? { lockLane: true } : {}), ...(who.reviewLimits?.length ? { reviewLimits: who.reviewLimits } : {}) });
     fresh = true;
     return id;
   });

@@ -161,6 +161,8 @@ const ROWS = [
   ['claims.releaseCooldownMinutes', 'Release cooldown', 'After a seat releases an item, next offers it other work for this many minutes unless nothing else is open.', 'Claims', 'minutes'],
   ['claims.itemsInGate', 'Build beside the gate', 'On, a seat keeps claiming and editing while its items wait in the gate.', 'Claims', 'on/off'],
   ['claims.itemsInGateMax', 'Items in the gate', 'Most gate-waiting items per seat.', 'Claims', 'count'],
+  ['claims.fileLease', 'Lease the files a claim will change', 'On, a claim whose predicted files (from the brief and the bar) a live claim of another seat already leases is refused FILE_LEASED, naming the holder and the file; off, claims are unchanged.', 'Claims', 'on/off'],
+  ['claims.fileLeaseHubs', 'Files many items share', 'Files no claim leases, such as an index or a registry every item touches.', 'Claims', 'list'],
   ['claims.perSeat', 'Live claims per seat', 'How many build claims one seat may hold at once; blank lets the board set N = clamp(1, 5, floor(free test-run slots / live seats)), counting local cores when no runner serves.', 'Claims', 'count'],
   ['claims.releaseGone', 'Release claims of gone agents', 'Claims held by agents that have disappeared are released automatically.', 'Claims', 'on/off'],
   ['pin.signed', 'Require a signed tooling pin', 'On, no run uses a tooling pin file that is unsigned or edited after it was signed; off, the pin file is read as written.', 'Checks', 'on/off'],
