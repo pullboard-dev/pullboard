@@ -6,7 +6,7 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { checkBaseline } from '../../../packages/gate/index.js';
-import { captureTestRuntimes } from '../../../packages/sandbox/src/io/environment.js';
+import { captureTestRuntimes } from '../../../packages/sandbox/index.js';
 import { privateFixtureFiles } from '../../../packages/gate/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../packages/gate/tests/fixtures/child.js';
 import { policyRepository } from '../../../packages/store/tests/fixtures/submit.js';
