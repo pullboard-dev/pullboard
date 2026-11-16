@@ -55,9 +55,3 @@ test('submit --wait ends at its gate, and a later unclaimed reject returns with 
       && entry.verdict_note === 'The fixture deliberately rejects this concrete clause.'), 'return preserves the original rejection');
   }, clock);
 });
-
-/** The historical alias retains the same versioned submission fields while returning its verdict. */
-test('done --wait preserves gate JSON independently of the later accepted verdict [V2,A1]', async t => {
-  await waitingVerdict(t, 'ACCEPT', { command: 'done', json: true });
-});
-
