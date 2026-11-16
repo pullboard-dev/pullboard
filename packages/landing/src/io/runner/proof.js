@@ -211,7 +211,7 @@ export function ledgerProofCheck(proof, { env = process.env, waivers = [], now =
       settled = true;
       if (REUSED.test(pending)) { reused++; note(pending); }
       if (MAIN_RED.test(pending)) mainRed++;
-      resolve({ ok, detail, ...(waived ? { waived } : {}), ...(failures ? { failures } : {}), ...(failed ? { failed } : {}), proof: { files: proof.files.length, reused, ran: proof.files.length - reused - mainRed, ...(mainRed ? { mainRed } : {})} });
+      settle({ ok, detail, ...(waived ? { waived } : {}), ...(failures ? { failures } : {}), ...(failed ? { failed } : {}), proof: { files: proof.files.length, reused, ran: proof.files.length - reused - mainRed, ...(mainRed ? { mainRed } : {}) } });
     };
     child.on('error', error => finish(false, String(error.message).slice(0, 300)));
     // After stdio closes, so the last refusal or failing line is read before the receipt is written.
