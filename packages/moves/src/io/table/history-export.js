@@ -22,6 +22,8 @@ const LANDING_FIELDS = Object.freeze({
   hold_item: ['reason'], unhold_item: [], landing_batch: ['batch'], landing_lease: ['action', 'holder', 'token', 'generation'], landing_waiver: ['waiver'],
   'main-moved': ['sha', 'batch', 'items'],
 });
+/** The batch fields the landing fold and the landing table read; a fixture keeps only these (failures are cut to their file). */
+const BATCH_FIELDS = Object.freeze(['id', 'state', 'base', 'tip', 'startedAt', 'adoptedFrom', 'candidates', 'items', 'blocked', 'refusal', 'refusals', 'culprits', 'dropped', 'supersededByMain']);
 /** A home folder on macOS or Linux, up to the user's name. */
 const HOME_PATH = /\/(?:Users|home)\/[^/\s"'\\]+/gu;
 
@@ -92,17 +94,46 @@ function landingDocument(board, since, merged, fixture) {
   return {
     since,
     merged: merged ?? records.merged.map(record => record.event.id),
-    events: kept.map(row => [row.event_id, row.event_at, row.event_by, row.event_kind, row.item_id,
-      fixture ? project(row.event_kind, detailOf(row.event_detail)) : detailOf(row.event_detail)]),
+    events: fixture ? fixtureEvents(kept) : kept.map(row => [row.event_id, row.event_at, row.event_by, row.event_kind, row.item_id, detailOf(row.event_detail)]),
     decisions,
     unreplayable: records.unreplayable,
   };
 }
 
-/** A detail cut to the fields the landing fold reads for its kind. */
+/** A detail cut to the fields the landing fold reads for its kind; a batch is cut to the fields the fold and the landing table read. */
 function project(kind, detail) {
   return Object.fromEntries((LANDING_FIELDS[kind] ?? []).filter(field => detail[field] !== undefined)
-    .map(field => [field, field === 'review' && detail.review && typeof detail.review === 'object' ? { head: detail.review.head } : detail[field]]));
+    .map(field => [field, field === 'review' && detail.review && typeof detail.review === 'object' ? { head: detail.review.head }
+      : field === 'batch' && detail.batch && typeof detail.batch === 'object' ? projectBatch(detail.batch) : detail[field]]));
+}
+
+/**
+ * A batch cut to the fields the landing fold and the landing table read, with each failure cut to its file.
+ * Why: a recorded batch carries its whole gate output (parallel candidates, logs, ratchets), which no decision reads and which is most of a board's landing log.
+ */
+function projectBatch(batch) {
+  const kept = Object.fromEntries(BATCH_FIELDS.filter(field => batch[field] !== undefined).map(field => [field, batch[field]]));
+  if (Array.isArray(batch.failures)) kept.failures = batch.failures.map(failure => (failure && typeof failure === 'object' && failure.file ? { file: failure.file } : {}));
+  return kept;
+}
+
+/**
+ * The fixture's event rows, each detail projected, with a batch revision dropped when it repeats its batch's previous kept revision field for field.
+ * Why: a batch is rewritten on every gate step; the fold keeps only the latest revision per id and reads a change only in its refusal or culprits, so a repeat decides nothing.
+ */
+function fixtureEvents(rows) {
+  const last = new Map();
+  const events = [];
+  for (const row of rows) {
+    const detail = project(row.event_kind, detailOf(row.event_detail));
+    if (row.event_kind === 'landing_batch' && detail.batch?.id !== undefined) {
+      const text = JSON.stringify(detail.batch);
+      if (last.get(detail.batch.id) === text) continue;
+      last.set(detail.batch.id, text);
+    }
+    events.push([row.event_id, row.event_at, row.event_by, row.event_kind, row.item_id, detail]);
+  }
+  return events;
 }
 
 /**
