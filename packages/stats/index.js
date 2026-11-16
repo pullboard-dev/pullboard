@@ -1,6 +1,7 @@
 export { rejectReport, rejectLines, classifyReject, REJECT_CLASSES } from './src/logic/review/rejects.js';
 export { settleCapacity, HYSTERESIS_BAND, HYSTERESIS_HOLD_MS } from './src/logic/capacity/hysteresis.js';
-export { maxUsefulBuilders, USEFUL_WINDOW_MS, USEFUL_MIN_MARGINAL } from './src/logic/capacity/useful.js';
+export { maxUsefulBuilders, usefulBuilderLines, USEFUL_WINDOW_MS, USEFUL_MIN_MARGINAL } from './src/logic/capacity/useful.js';
+export { readMaxUsefulBuilders } from './src/io/useful.js';
 export { predictionAccuracy, predictionLine } from './src/logic/prediction.js';
 export { carryingCapacity } from './src/logic/carrying.js';
 export { readCarryingCapacity } from './src/io/carrying.js';
@@ -99,6 +100,7 @@ export {
 export {
   publishUsage,
   checkpointAfterMove,
+  recordCoordinatorSession,
 } from './src/io/cost/checkpoint.js';
 export {
   USAGE_CHECKPOINT_ENV,
@@ -141,6 +143,7 @@ export {
   recordUsage,
   recordCoordinatorUsage,
   costTotals,
+  coordinatorUsage,
   budgetState,
   budgetClaimRefusal,
   machineBudgetState,
@@ -211,3 +214,4 @@ export { AGENT_FLOW_KINDS, COMMAND_SPAN_MS, agentFlow, agentFlowLines, seatWaits
 export { readAgentFlowEvents, readSeatActions } from './src/io/agents.js';
 export { reviewRows, reviewRowLines } from './src/logic/review/rows.js';
 export { itemRunnerCost } from './src/io/cost/runner.js';
+export { readMaxAgentsSeries, maxAgentsLines } from './src/io/max-agents.js';

@@ -408,13 +408,25 @@ test('clause 2: list, status data and the health report name each excluded item 
   const listed = await cli(box, box.seats.builder.path, ['list']);
   assert.equal(listed.code, 0, listed.out + listed.err);
   const row = listed.document.needsRescope.find(entry => entry.id === id);
-  assert.match(row.reasons[0], /ROUTED_ELSEWHERE.*released 7 min ago/u);
+  assert.equal(row.reasons.length, 1);
+  assert.ok(row.reasons[0].includes(': ROUTED_ELSEWHERE'), 'the reason carries the release reason code');
+  assert.equal(Math.round((box.clock.now() - Date.parse(row.since)) / 60_000), 7, 'the list JSON dates the release 7 minutes back');
   const excluded = store.allItemsNeedingRescope(box.board);
   assert.equal(excluded[0].id, id);
-  assert.match(excluded[0].reasons[0], /ROUTED_ELSEWHERE.*released 7 min ago/u);
+  assert.ok(excluded[0].reasons[0].includes(': ROUTED_ELSEWHERE'));
+  assert.equal(Math.round((box.clock.now() - Date.parse(excluded[0].since)) / 60_000), 7);
   const finding = healthReport({ db: box.board.db, root: box.root, config: box.config, now: box.clock.now(), dispatchHealth }).stuck.find(row => row.cause === 'NEEDS_RESCOPE' && row.item === id);
   assert.match(finding.why, /released 7 min ago/u);
 });
+
+/** Assert a delivered shout's fields: addressed to the item, naming the item's head and not the seat checkout's. */
+function assertShoutNamesHead(shout, id, itemHead, seatHead) {
+  assert.equal(shout.from, 'coordinator');
+  assert.equal(shout.to, `item:${id}`);
+  assert.equal(shout.item, id);
+  assert.ok(shout.text.includes(itemHead.slice(0, 12)), 'the shout names the item head');
+  assert.ok(!shout.text.includes(seatHead.slice(0, 12)), 'the shout never names the seat checkout head');
+}
 
 /** Capture a claimed item's merge warning while its seat and immutable queue may name different sources. */
 async function mainMoveWarningFixture(t, { queued = false } = {}) {
@@ -461,8 +473,7 @@ test("submit merges main from the item's own folder when the seat checkout has a
     { item: result.id, head: result.itemHead, trunk: result.trunk, files: ['web/shared.txt'] });
   assert.equal(result.shouts.length, 1);
   assert.equal(result.shouts[0].operation, 'shout');
-  assert.match(result.shouts[0].args[0].text, new RegExp(result.itemHead.slice(0, 12)));
-  assert.doesNotMatch(result.shouts[0].args[0].text, new RegExp(result.seatHead.slice(0, 12)));
+  assertShoutNamesHead(result.shouts[0].args[0], result.id, result.itemHead, result.seatHead);
 
   const { box, id, folder, itemHead, trunk } = result;
   const item = store.getItem(box.board, id);
@@ -480,16 +491,14 @@ test("submit merges main from the item's own folder when the seat checkout has a
   assert.deepEqual(warnings.find(warning => warning.item === id),
     { item: id, head: itemHead, trunk, files: ['web/shared.txt'] }, 'a returned item keeps its submitted head without its original folder');
   assert.equal(shouts.length, 1);
-  assert.match(shouts[0].args[0].text, new RegExp(itemHead.slice(0, 12)));
-  assert.doesNotMatch(shouts[0].args[0].text, new RegExp(result.seatHead.slice(0, 12)));
+  assertShoutNamesHead(shouts[0].args[0], id, itemHead, result.seatHead);
 });
 
 test('a queued merge-repair shout keeps the captured submit source ahead of a newer item-folder head [B5,V4]', async t => {
   const result = await mainMoveWarningFixture(t, { queued: true });
   assert.deepEqual(result.warnings.find(warning => warning.item === result.id),
     { item: result.id, head: result.itemHead, trunk: result.trunk, files: ['web/shared.txt'] });
-  assert.match(result.shouts[0].args[0].text, new RegExp(result.itemHead.slice(0, 12)));
-  assert.doesNotMatch(result.shouts[0].args[0].text, new RegExp(result.seatHead.slice(0, 12)));
+  assertShoutNamesHead(result.shouts[0].args[0], result.id, result.itemHead, result.seatHead);
 });
 
 test('clause 1: next after a release from an item folder that cleanup removed runs from the seat checkout and hands out work [B5,N2]', async t => {

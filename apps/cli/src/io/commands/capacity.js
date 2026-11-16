@@ -18,6 +18,18 @@ import { withBoard } from '../entry.js';
 import { withBoardRead } from '../entry.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { testCapacityReport } from '../../../../../packages/gate/index.js';
+import { readFileTimes } from '../../../../../packages/gate/index.js';
+import { trackedDefaultTestFiles } from '../../../../../packages/gate/index.js';
+import { pushGateReport } from '../hook/push.js';
+import { liveRunnerCount } from './runner.js';
+
+/** Read the push gate's sizing inputs without writing; unknown inputs stay null so the report never invents a zero. */
+function pushGateView(ctx) {
+  let files = null;
+  let times = {};
+  try { files = trackedDefaultTestFiles(ctx.info.root, process.env); times = readFileTimes(ctx.info.root); } catch { /* files stay unknown */ }
+  return pushGateReport(files, times, ctx.config, liveRunnerCount(ctx));
+}
 
 /** Keep missing evidence visible in text just as null remains visible in JSON. */
 function minutes(value) { return value === null ? 'unknown' : `${value.toFixed(3)} min`; }
@@ -36,7 +48,7 @@ export async function run(io, { first, second, rest, values }) {
       const history = events(board);
       const items = listItems(board, { all: true });
       return { ...tests, builds: buildCalibration(history, items, ctx.config.itemBuildBudgetMinutes), predictions: predictionAccuracy(history, items, predictedFiles),
-        carryingCapacity: readCarryingCapacity(ctx.info.root, history, { from, to }) }; }
+        carryingCapacity: readCarryingCapacity(ctx.info.root, history, { from, to }), pushGate: pushGateView(ctx) }; }
     finally { board.db.exec('RELEASE capacity_read'); }
   });
   // One row per ISO week: a reading over the week to date, written over the week's earlier row, never beside it.
@@ -55,6 +67,7 @@ export async function run(io, { first, second, rest, values }) {
     io.say(`item build budget: ${report.builds.budgetMinutes} min; ${report.builds.calibration.samples} samples`);
     for (const row of report.builds.items.filter(item => item.expectedMinutes !== null)) io.say(`#${row.item} build: expected ${minutes(row.expectedMinutes)}; actual ${minutes(row.actualMinutes)}; ratio ${row.ratio === null ? 'unknown' : row.ratio.toFixed(3)}`);
     io.say(`test-work: suite ${minutes(report.suite.minutes)}; per landing ${minutes(report.perLanding.minutes)}; ${report.perLanding.missingExecutions} missing executions, ${report.perLanding.unknownReceipts} unknown receipts`);
+    io.say(`push gate: ${report.pushGate.shards ?? 'unknown'} shards (${report.pushGate.why})`);
     io.say(`file classes: ${report.files.pure} pure, ${report.files.contract} contract, ${report.files.unknown} unknown; assumptions and cost details: --detail`);
     return 0;
   }
@@ -72,6 +85,7 @@ export async function run(io, { first, second, rest, values }) {
   if (report.suite.unavailableReason) io.say(report.suite.unavailableReason);
   io.say(`test-work per landing: ${minutes(report.perLanding.minutes)} (${report.perLanding.landings} landing units: explicit batches or unmatched distinct merge commits; batch grouping unknown for the latter; known subtotal ${minutes(report.perLanding.knownMinutes)}; ${report.perLanding.missingExecutions} missing executions; ${report.perLanding.unknownReceipts} unknown-file receipts)`);
   io.say(`declared pure/contract-only share: ${report.files.pure + report.files.contract}/${report.files.total}; ${report.files.unknown} unknown files (lower bound)`);
+  io.say(`push gate: ${report.pushGate.shards ?? 'unknown'} shards for ${report.pushGate.fileCount ?? 'unknown'} files, ${report.pushGate.totalMs ?? 'unknown'} ms total, target ${report.pushGate.targetMs} ms, ${report.pushGate.runners ?? 'unknown'} live runners (${report.pushGate.why})`);
   io.say(report.conversion.basis);
   for (const row of report.conversion.order) io.say(`${row.file}: ${row.runtimeMs}ms; ${row.realCatches} recorded catches; ${row.proposal}`);
   return 0;
