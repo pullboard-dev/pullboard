@@ -15,3 +15,8 @@ test('clause 1: no tracked file under packages/kernel contains the Studio host n
   const hits = files.filter((f) => readFileSync(join(ROOT, f), 'utf8').toLowerCase().includes(WORD));
   assert.deepEqual(hits, []);
 });
+
+test('clause 2: the edited diagnostics module still loads and exports its functions [C7]', async () => {
+  const module = await import('../src/logic/failure/diagnostics.js');
+  assert.ok(Object.values(module).some((value) => typeof value === 'function'));
+});
