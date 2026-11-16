@@ -115,6 +115,11 @@ export function censusRecordFileTimesEnabled() {
   return loadMachineSettings().census?.recordFileTimes === true;
 }
 
+/** Rerun each non-green census file once, alone, before reporting it red, only when this machine opted in; off, rows are the first run's [C7,#9138]. */
+export function censusRerunNonGreenEnabled() {
+  return loadMachineSettings().census?.rerunNonGreen === true;
+}
+
 /** Cut pulled census jobs by measured time, heaviest first, only when this machine opted in; off, they are cut by file count [C7]. */
 export function censusBalanceByTimeEnabled() {
   return loadMachineSettings().census?.balanceByTime === true;
