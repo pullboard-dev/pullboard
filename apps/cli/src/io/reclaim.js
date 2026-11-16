@@ -1,11 +1,11 @@
 /** Run the drive cell's fallback reclaim pass for a board command before it answers (RFC 0008 DJ15) [C7]. */
-import { lapsedGateJobs } from '../../../../packages/drive/index.js';
-import { reclaimPass } from '../../../../packages/drive/index.js';
-import { GATE_DRIVE_KIND } from '../../../../packages/drive/index.js';
-import { gateDriveJobId } from '../../../../packages/drive/index.js';
+import { lapsedGateJobs } from '../../../../packages/drive/light.js';
+import { reclaimPass } from '../../../../packages/drive/light.js';
+import { GATE_DRIVE_KIND } from '../../../../packages/drive/light.js';
+import { gateDriveJobId } from '../../../../packages/drive/light.js';
 import { withBoardRead } from './board/read.js';
 import { writeFallback } from './board/read.js';
-import { submitHandoff } from '../../../../packages/store/index.js';
+import { submitHandoff } from '../../../../packages/store/light.js';
 
 /**
  * Look for lapsed gate jobs on a read handle and, only when one exists, open the board for writing and drive at
