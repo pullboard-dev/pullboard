@@ -15,6 +15,13 @@ const LANDING_TABLES = Object.freeze(['select', 'selection', 'record', 'merged',
 const FOLLOW = 8;
 /** Itemless events the verify fold reads: an agent's route change and its flake observations. */
 const AGENT_KINDS = Object.freeze(['join', 'flake-observation']);
+/** The detail fields the landing fold reads, by event kind; a fixture keeps only these. */
+const LANDING_FIELDS = Object.freeze({
+  add: ['after'], edit: ['after', 'expiredHolder'], claim: [], release: ['review', 'blockedOn'], refreeze: ['retainedClaim', 'unchanged'], submit: ['commit'],
+  accept: ['commit', 'review'], reject: [], reopen: [], withdraw: ['reason'], merged: ['commit', 'forced', 'reason', 'from'], reland: ['commit'], 'merge-only-accept': ['commit'],
+  hold_item: ['reason'], unhold_item: [], landing_batch: ['batch'], landing_lease: ['action', 'holder', 'token', 'generation'], landing_waiver: ['waiver'],
+  'main-moved': ['sha', 'batch', 'items'],
+});
 /** A home folder on macOS or Linux, up to the user's name. */
 const HOME_PATH = /\/(?:Users|home)\/[^/\s"'\\]+/gu;
 
@@ -64,30 +71,59 @@ export function recordLanding(record) {
  * @param {{ since: string, merged?: number[], verdicts?: number[], home?: string }} options - ISO cut; `merged` and `verdicts` sample event ids as the readers' `only` does.
  * @returns {{ landing: object, verify: object }}
  */
-export function exportTableHistory(board, { since, merged, verdicts, home = homedir() }) {
+export function exportTableHistory(board, { since, merged, verdicts, fixture = false, home = homedir() }) {
   if (!Number.isFinite(Date.parse(since))) throw new Refused('READ_SINCE', 'exporting recorded history needs a time, and got none that parses', 'pass { since } as ISO text');
   const opened = typeof board === 'string' ? openBoardReadOnly(board) : null;
   try {
     const source = opened ? { db: opened } : board;
-    return scrubHome({ landing: landingDocument(source, since, merged), verify: verifyDocument(source, since, verdicts) }, home);
+    return scrubHome({ landing: landingDocument(source, since, merged, fixture), verify: verifyDocument(source, since, verdicts) }, home);
   } finally {
     if (opened) opened.close();
   }
 }
 
 /** The landing document: the rows the landing reader folds and one decision per rebuilt record. */
-function landingDocument(board, since, merged) {
+function landingDocument(board, since, merged, fixture) {
   const rows = board.db.prepare(`SELECT event_id, event_at, event_by, event_kind, item_id, event_detail FROM event WHERE event_kind IN (${LANDING_KINDS.map(() => '?').join(',')}) ORDER BY event_id`)
     .all(...LANDING_KINDS);
   const records = readLandingMoveRecords(board, { since, only: merged });
   const decisions = LANDING_TABLES.flatMap(table => records[table].map(record => ({ table, event: record.event.id, landing: recordLanding(record) })));
+  const kept = fixture ? fixtureRows(rows, records, since) : rows;
   return {
     since,
     merged: merged ?? records.merged.map(record => record.event.id),
-    events: rows.map(row => [row.event_id, row.event_at, row.event_by, row.event_kind, row.item_id, detailOf(row.event_detail)]),
+    events: kept.map(row => [row.event_id, row.event_at, row.event_by, row.event_kind, row.item_id,
+      fixture ? project(row.event_kind, detailOf(row.event_detail)) : detailOf(row.event_detail)]),
     decisions,
     unreplayable: records.unreplayable,
   };
+}
+
+/** A detail cut to the fields the landing fold reads for its kind. */
+function project(kind, detail) {
+  return Object.fromEntries((LANDING_FIELDS[kind] ?? []).filter(field => detail[field] !== undefined)
+    .map(field => [field, field === 'review' && detail.review && typeof detail.review === 'object' ? { head: detail.review.head } : detail[field]]));
+}
+
+/**
+ * The rows a replay fixture keeps: every row of an item some decision in the window reads, and the itemless landing rows from the first batch the window decides on.
+ * Why: a whole board's landing log is far too large to commit, and a decision reads only these.
+ */
+function fixtureRows(rows, records, since) {
+  const items = new Set();
+  const take = (id) => { if (id != null) items.add(Number(id)); };
+  for (const table of LANDING_TABLES) {
+    for (const record of records[table]) {
+      const { item, items: many, batch } = record.snapshot ?? {};
+      take(item?.id);
+      for (const id of Object.keys(many ?? {})) take(id);
+      for (const entry of [...(batch?.candidates ?? []), ...(batch?.items ?? [])]) take(entry.id);
+      if (table === 'select') take(record.move?.id);
+    }
+  }
+  const starts = LANDING_TABLES.flatMap(table => records[table]).map(record => record.snapshot?.batch?.startedAt ?? record.snapshot?.now).filter(Boolean);
+  const from = [since, ...starts].sort()[0];
+  return rows.filter(row => (row.item_id == null ? row.event_at >= from : items.has(row.item_id)));
 }
 
 /** The verify document: the items with a verdict in the window, their rows and follow-ups, and one decision per rebuilt verdict. */
