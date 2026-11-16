@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell packages/health packages/store packages/board packages/moves */
 /** With moves.shadow on, stale-state maintenance runs the reclaim table beside its release and records the compare; off, it runs no table [C7,#9367]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
