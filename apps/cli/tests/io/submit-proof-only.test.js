@@ -38,13 +38,15 @@ test('clause 1: with submit.proofOnly on, an item whose clauses are all command 
   assert.doesNotMatch(submitted.err + submitted.out, /EMPTY_SUBMIT/u);
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
   const shown = await runLocal(box, 'show', '1');
-  assert.match(shown.out, /#1\s+(?:submitted|reviewing|review|verifying)/iu, 'the item is out for verification');
+  assert.match(shown.out, /#1\s+\S+ .*\(in the gate\)|#1\s+(?:submitted|verified)/iu, 'the item went into the gate');
 });
 
 test('clause 1: with the setting on, a [test] clause or an unticked clause still needs a change [C7,#9105]', async (t) => {
   const withTest = await proofBox(t, { on: true, kinds: ['command', 'test'] });
   await tick(withTest, 1, 'command');
-  assert.match((await runLocal(withTest, 'submit', '1', '--json')).err, /EMPTY_SUBMIT|CLAUSE_UNTICKED/u);
+  const refusedTest = await runLocal(withTest, 'submit', '1', '--json');
+  assert.notEqual(refusedTest.code, 0);
+  assert.match(refusedTest.err + refusedTest.out, /EMPTY_SUBMIT|CLAUSE_UNTICKED/u);
   const unticked = await proofBox(t, { on: true });
   await tick(unticked, 1, 'command');
   const refused = await runLocal(unticked, 'submit', '1', '--json');
