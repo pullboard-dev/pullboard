@@ -383,7 +383,7 @@ function leaveProofReceipt(root, command, run, before, context, lease, observedC
 }
 
 /** Execute a private immutable check before the gate writes its provenance. */
-export function runFrozenProof(root, item, { gateLease, waitMs = 0, diagnostic = false } = {}, { checkAtCommit }) {
+export async function runFrozenProof(root, item, { gateLease, waitMs = 0, diagnostic = false } = {}, { checkAtCommit }) {
   if (diagnostic && (gateLease?.proof?.kind !== 'submit' || !gateLease.proof.diagnosticAdmission || item.item_id !== gateLease.proof.item)) throw new Refused('PROOF_RUN_UNBOUND', 'a diagnostic needs its actual admitted Submit item');
   const context = diagnostic
     ? { item: item.item_id, frozenDigest: null, seat: gateLease.proof.seat, kind: 'check', commit: item.item_commit, submitPhase: 'diagnostic', diagnosticAdmission: gateLease.proof.diagnosticAdmission }
@@ -392,7 +392,8 @@ export function runFrozenProof(root, item, { gateLease, waitMs = 0, diagnostic =
   const before = proofSourceAt(root, item.item_commit, committedTree);
   const outcomeId = randomUUID();
   if (gateLease) gateLease.testOutcomeRunId = outcomeId;
-  let result = checkAtCommit(root, item, { gateLease, waitMs });
+  // A check on a runner lease returns its pulled run as a promise (#8504).
+  let result = await checkAtCommit(root, item, { gateLease, waitMs });
   const testOutcomes = result.executed && result.executionSourceUnchanged !== false
     ? committedTestOutcomes(root, item.item_commit, readTestOutcomes(result.outputPath ? logLines(result.outputPath) : result.output ?? '', outcomeId)
       ?? singleFileTapOutcomes(result.executionCommand ?? frozenCheck(item), result.outputPath ? [...logLines(result.outputPath)].join('\n') : result.output ?? ''), tryGit) : null;
