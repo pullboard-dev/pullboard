@@ -27,8 +27,8 @@ test('clause 2: sentinel run --health-only finishes and records a health-scan ev
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), clock);
   t.after(() => store.closeBoard(board));
   const builder = store.register(board, { lane: 'web', path: join(box.dir, 'builder') });
-  for (let n = 0; n < 500; n++) store.register(board, { lane: 'web', path: join(box.dir, `crowd-${n}`) });
-  const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'A review no seat may take' });
+  for (let n = 0; n < 500; n++) store.register(board, { lane: 'web', path: join(box.dir, `crowd-${n}`), family: 'Family Beta' });
+  const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'A review no seat may take', reviewFamily: 'Family Beta' });
   store.claim(board, id, { agentId: builder, lane: 'web', leaseMs: 120 * MINUTE, freeze: item => ({ text: item.item_title, digest: `private:${item.item_title}` }) });
   submitFixture(board, id, { agentId: builder, commit: 'a'.repeat(40), tree: 'private-tree' });
   at += 11 * MINUTE;
