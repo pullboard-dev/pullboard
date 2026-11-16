@@ -269,7 +269,7 @@ test('[R1,R2] imported historical merges without a matching current acceptance r
 });
 
 
-test('[R1,R2,C7] proof stats counters match a full re-parse after every event', t => {
+test('clause 1: [R1,R2,C7] proof stats counters match a full re-parse after every event', t => {
   const f = fixture(t);
   const { board } = f;
   let parsed = [];

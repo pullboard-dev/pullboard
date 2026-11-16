@@ -60,7 +60,7 @@ test('an empty indexed board has a measured empty report rather than a missing c
   assert.equal(report.overall.submissionsPerLanded, null);
 });
 
-test('flow report indexed projection matches canonical replay without hot raw history reads [R1,R2]', t => {
+test('clause 2: flow report indexed projection matches canonical replay without hot raw history reads [R1,R2]', t => {
   const board = fixture(t);
   const now = Date.now() + 60_000;
   const history = store.events(board);

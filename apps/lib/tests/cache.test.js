@@ -70,7 +70,7 @@ test('missing capacity capability is unknown and read-only rather than a measure
   assert.equal(readCapacity(board, BASE).available, true, 'ordinary writer establishes a genuinely measured empty board');
 });
 
-test('an older writer tail is caught up without changing native history [R1,R2]', t => {
+test('clause 2: an older writer tail is caught up without changing native history [R1,R2]', t => {
   const { board, at } = fixture(t);
   const retained = metaShards(board);
   store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Unmeasured work', brief: 'Files: src/new.js' });

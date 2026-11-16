@@ -83,7 +83,7 @@ test('a checkpoint never blocks a reader, during or after it [C7]', t => {
   assert.equal(fresh.prepare('SELECT count(*) AS n FROM item').get().n, seen + 20, 'a new reader sees every write with no wait');
 });
 
-test('a counter rebuild on open and a board import derive no capacity forecast under the write lock [C7]', t => {
+test('clause 2: a counter rebuild on open and a board import derive no capacity forecast under the write lock [C7]', t => {
   const { dir, file, board } = fileBoard(t);
   const snapshot = exportBoard(board);
   board.db.prepare('DELETE FROM board_meta WHERE meta_key IN (?, ?)').run('local:proof-stats:v2:summary', 'local:proof-stats:v2:capacity-snapshot');
