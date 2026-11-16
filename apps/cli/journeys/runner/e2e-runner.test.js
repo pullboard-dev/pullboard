@@ -17,6 +17,7 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { addDiagnosedLight } from '../../tests/fixtures/runner/diagnosed-light.js';
 import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 
