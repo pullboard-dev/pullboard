@@ -51,7 +51,8 @@ export async function sampleDifferences(samples) {
     const real = await realRun;
     const inprocess = await inprocessRun;
     assert.ok(real.length >= 1, `${sample.journey} made its CLI calls (${real.length})`);
-    assert.ok(real.some(row => row.board?.items.length || row.board?.events.length), `${sample.journey} records carry board state`);
+    // A journey over a tool that keeps no board (the cell-lints script) says so with boardless: true; its records still compare code, output and error text.
+    if (!sample.boardless) assert.ok(real.some(row => row.board?.items.length || row.board?.events.length), `${sample.journey} records carry board state`);
     found.push(...parityDifferences(real, inprocess).map(text => `${sample.journey}: ${text}`));
   }
   return found;
