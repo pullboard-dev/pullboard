@@ -58,8 +58,8 @@ test('clause 1: a hold written with holds.requireOwner on replays to the same bo
 });
 
 test('clause 2: every hold write path records the requireOwner decision in its event [C7,#8569]', t => {
-  const { board, ids } = machine(t);
-  onMachine(t, true);
+  const { board, dir, ids } = machine(t);
+  onMachine(t, dir, true);
   store.holdItem(board, ids[0], { agentId: 'coordinator', requireOwner: true, reason: 'owned hold', owner: 'a seat' });
   assert.equal(shown(board, ids[0]).detail.requireOwner, true, 'a hold made under the rule records that it was');
   assert.throws(() => store.holdItem(board, ids[1], { agentId: 'coordinator', requireOwner: true, reason: 'no owner' }), error => error.code === 'HOLD_OWNER_REQUIRED');
