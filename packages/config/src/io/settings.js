@@ -325,6 +325,11 @@ export function testStatusOutcomesEnabled() {
   return group?.statusOutcomes === true;
 }
 
+/** Whether spec.cascadeReject is on (#9341): off by default; only an exact `true` turns it on. */
+export function cascadeRejectEnabled() {
+  return loadMachineSettings().spec?.cascadeReject === true;
+}
+
 /** Whether items.typedFields is on (#9350): off by default; only an exact `true` turns it on. */
 export function typedFieldsEnabled() {
   return loadMachineSettings().items?.typedFields === true;
