@@ -64,7 +64,7 @@ async function twoMachines(t, title, { beforeLink } = {}) {
 async function stopAfter(box, step) {
   let stopped = false;
   watchRebuild((reached) => { if (reached === step && !stopped) { stopped = true; throw new Error('stopped after ' + step); } });
-  try { await box.cliLocal('status'); } catch (error) { if (!String(error?.message ?? error).includes('stopped after')) throw error; } finally { watchRebuild(null); }
+  try { const r = await box.cliLocal('status'); console.error('STATUS', step, r.code, JSON.stringify(r.document?.relay ?? r.failure).slice(0, 600)); } catch (error) { if (!String(error?.message ?? error).includes('stopped after')) throw error; } finally { watchRebuild(null); }
   return stopped;
 }
 
