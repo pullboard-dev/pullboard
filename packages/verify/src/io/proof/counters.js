@@ -84,7 +84,7 @@ const HOT_KEYS = new Set(['report-policy', 'summary', 'report-summary', 'capacit
 /** Key prefixes held decoded and kept for the whole replay: one actor and one family shard per seat and model, a bounded few that every event reads and writes. */
 const HOT_PREFIXES = ['actor:', 'family:'];
 /** Key prefixes held decoded until the next batch store: an item's shards are read and written by each of its few events, and each reader reads one, folds the event into it and writes it back. */
-const ITEM_PREFIXES = ['item:', 'capacity-item:'];
+const ITEM_PREFIXES = ['item:', 'capacity-item:', 'report-item:'];
 /** How many held shards a replay stores at once, so memory stays bounded however long the history. */
 const HOT_FLUSH = 20_000;
 /** How many rows one store statement carries; SQLite's limit is 32,766 values per statement. */
@@ -177,9 +177,14 @@ function storeRows(board, pairs) {
   const rows = pairs.length / 2;
   for (let at = 0; at < rows; at += STORE_ROWS) {
     const count = Math.min(STORE_ROWS, rows - at);
-    statement(board.db, `INSERT INTO board_meta(meta_key,meta_value) VALUES ${Array(count).fill('(?,?)').join(',')} ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value`)
-      .run(...pairs.slice(at * 2, (at + count) * 2));
+    statement(board.db, storeSql(count)).run(...(rows <= STORE_ROWS ? pairs : pairs.slice(at * 2, (at + count) * 2)));
   }
+}
+
+/** The store statement's text for this many rows, built once: assembling a 100-row statement per call cost as much as running it. */
+const STORE_SQL = [];
+function storeSql(count) {
+  return STORE_SQL[count] ??= `INSERT INTO board_meta(meta_key,meta_value) VALUES ${Array(count).fill('(?,?)').join(',')} ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value`;
 }
 
 /** The kinds whose shards are written once, one per event, and never rewritten: what a reader may keep. */
