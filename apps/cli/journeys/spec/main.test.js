@@ -361,7 +361,8 @@ test('clause 1: an approved revision applies while an unrelated held item cites 
   const drifted = readFileSync(join(box.root, 'SPEC.md'), 'utf8').replace('Runs offline.', 'Runs offline and online.');
   fixtureProjectPolicy(box.root, { config, spec: drifted });
   gitAt(box.root, 'add', 'SPEC.md');
-  gitAt(box.root, 'commit', '-q', '-m', 'docs: drift K1');
+  // Setup commit: the hook would refuse unapproved K1 wording, and this case needs the drift to exist.
+  gitAt(box.root, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'docs: drift K1');
   // The person approves a revision of the unrelated G1; apply must succeed.
   const text = 'Same file twice changes nothing.';
   const approved = await box.spec('approve', 'G1', '--text', text, '--json');
