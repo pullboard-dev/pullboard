@@ -1,3 +1,4 @@
+/** @pullboard-module-loads packages/health/src/io/stale/state/capture.js */
 /** The health calls claim, release and next make, without the doctor, main health, landing and map loads the cell index also brings [C7,#7081]. */
 import { createRequire } from 'node:module';
 /** The review-cover shout and its pause tail, for next's selection and reasons. */

@@ -1,3 +1,4 @@
+/** @pullboard-module-loads packages/link/index.js */
 /** The synchronous write-board lifecycle and compatible public CLI context exports [C7]. */
 import * as store from '../../../../packages/store/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';

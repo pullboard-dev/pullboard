@@ -1,3 +1,4 @@
+/** @pullboard-module-loads packages/doctrine/light.js apps/cli/src/io/item/folder/identity.js */
 import { seatFamily } from '../../../../packages/items/light.js';
 import {
   dependencyReferences,

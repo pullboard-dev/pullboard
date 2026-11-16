@@ -1,3 +1,4 @@
+/** @pullboard-module-loads packages/moves/src/io/freezer.js packages/moves/src/logic/table/lease.table.js packages/moves/src/logic/table/run.js packages/moves/src/logic/table/submit.table.js packages/moves/src/logic/table/withdraw.table.js packages/moves/src/logic/table/claim.table.js packages/moves/src/logic/table/release.table.js packages/moves/src/logic/table/job.table.js packages/moves/src/logic/table/reopen.table.js packages/moves/src/io/selection.js packages/moves/src/logic/reasons.js */
 /** The move registry's next steps, the claim criterion freezer and the move tables, without the selection and the rest the cell index also loads [C7]. */
 import { createRequire } from 'node:module';
 import { withMoveNextSteps as withRegistrySteps } from './src/io/registry.js';
