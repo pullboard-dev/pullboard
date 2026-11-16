@@ -284,6 +284,12 @@ export function reviewReleaseReasonsRequired() {
   return loadMachineSettings().review?.releaseReasons === true;
 }
 
+/** Whether test.statusOutcomes is on (#9085): off by default; only an exact `true` turns it on. */
+export function testStatusOutcomesEnabled() {
+  const group = loadMachineSettings().test;
+  return group?.statusOutcomes === true;
+}
+
 /** Whether health.derivedState is on (#8974): off by default; nothing reads it yet, and only an exact `true` turns it on. */
 export function derivedStateEnabled() {
   return loadMachineSettings().health?.derivedState === true;
@@ -302,6 +308,11 @@ export function adaptiveBatchEnabled() {
 /** Whether the wait audit records who held a slow board write (#9118): off by default; only an exact `true` turns it on. */
 export function recordWriteHolderEnabled() {
   return loadMachineSettings().sentinels?.recordWriteHolder === true;
+}
+
+/** Whether landing.squash is on (#9217): off by default; only an exact `true` turns it on. */
+export function landingSquashEnabled() {
+  return loadMachineSettings().landing?.squash === true;
 }
 
 /** Whether the sentinel expires lapsed claims every minute (#8923): off by default; only an exact `true` turns it on. */
