@@ -385,6 +385,11 @@ export function landingSquashEnabled() {
   return loadMachineSettings().landing?.squash === true;
 }
 
+/** Whether status.showUsefulBuilders is on: off by default; only an exact `true` makes status print the max useful builders line [C7,#8544]. */
+export function statusShowUsefulBuilders() {
+  return loadMachineSettings().status?.showUsefulBuilders === true;
+}
+
 /** Whether spec.commitOnApply is on (#9346): off by default; only an exact `true` turns it on. */
 export function commitOnApplyEnabled() {
   return loadMachineSettings().spec?.commitOnApply === true;
