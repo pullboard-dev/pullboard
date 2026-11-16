@@ -1,6 +1,7 @@
 /** The landing moves as pure tables: select a candidate, admit a trunk, record a pushed batch, merge, and what a batch's outcome does next, ported from the pure-core pilot [C7,#8249]. */
 import { Refused } from '../../../../kernel/light.js';
 import { defineRules } from './rules.js';
+import { receiptCounts } from './backbone.table.js';
 import { runTable } from './run.js';
 import { LANDING_NEXT } from './next.js';
 export { LANDING_NEXT } from './next.js';
@@ -16,6 +17,8 @@ const entriesOf = (batch) => batch?.candidates ?? batch?.items ?? [];
 const VERIFIED_PACES = Object.freeze(['steady', 'strict']);
 /** The paces that land submitted work before its verdict. */
 const SUBMITTED_PACES = Object.freeze(['sprint']);
+/** The paces whose landing reads the Always rows and the screen: every pace but steady, where verify already holds the frozen bar and no receipt exists [#8865]. */
+const ALWAYS_PACES = Object.freeze(['sprint', 'strict']);
 /** The statuses a sprint item lands from: submitted work, and work verified before it landed. */
 const SPRINT_LANDS = Object.freeze(['submitted', 'verified']);
 
@@ -167,6 +170,10 @@ function landingRules({ limits, faultCodes, repeatHold }) {
   return defineRules({
     // select
     pending: { says: 'the item is verified and has no landing receipt', holds: (s) => s.item.status === 'verified' && !s.item.mergedCommit },
+    barFrozen: { says: "the item's bar is the one frozen at its claim [A6]", holds: (s) => Boolean(s.item.digest) && s.item.digest === s.item.claimDigest },
+    screened: { says: 'a green, trusted screen receipt covers the item at its commit and frozen digest on the current base', holds: (s) => receiptCounts(s.io.screen, { kind: 'screen', item: s.item, base: s.base }) },
+    irreversibleChecked: { says: "the screen's trusted code re-checked secrets and the commit-hook rules over the item's commits [A8]",
+      holds: (s) => s.io.screen?.checks?.secrets === 'green' && s.io.screen?.checks?.hooks === 'green' },
     pendingSubmitted: { says: 'the item is submitted or verified and has no landing receipt (sprint lands submitted work)', holds: (s) => SPRINT_LANDS.includes(s.item.status) && !s.item.mergedCommit },
     notHeld: { says: 'the item carries no coordinator hold', holds: (s) => !s.item.holdReason },
     verdictFresh: { says: 'the accepted review still composes unchanged on main [io]', holds: (s) => !s.io.staleVerdict },
@@ -232,11 +239,19 @@ function landingTables(inputs) {
   const { limits } = inputs;
   const guard = (id, requires, code, message, next = LANDING_NEXT[code]) => ({ id, requires, code, message, next });
   const paced = (paces, row) => ({ ...row, paces });
+  // The Always rows, written once: whatever the pace, nothing lands on a bar changed since claim (A6) or before trusted code re-checked what cannot be taken back (A8).
+  const always = Object.fromEntries([
+    ['a6-bar-frozen', { ...guard('a6-bar-frozen', 'barFrozen', 'CRITERIA_CHANGED', (s) => `#${s.item.id}'s bar changed since its claim`), always: 'A6' }],
+    ['a8-irreversible', { ...guard('a8-irreversible', 'irreversibleChecked', 'LAND_UNCHECKED', (s) => `#${s.item.id} has no trusted re-check of secrets and hook rules`), always: 'A8' }],
+  ].map(([id, row]) => [id, paced(ALWAYS_PACES, row)]));
   const select = Object.freeze({
     name: 'landing-select',
     guards: Object.freeze([
       paced(VERIFIED_PACES, guard('pending', 'pending', 'NOT_PENDING', (s) => `#${s.item.id} is ${s.item.mergedCommit ? 'already landed' : s.item.status}`)),
       paced(SUBMITTED_PACES, guard('pending-submitted', 'pendingSubmitted', 'NOT_PENDING', (s) => `#${s.item.id} is ${s.item.mergedCommit ? 'already landed' : s.item.status}`)),
+      always['a6-bar-frozen'],
+      paced(SUBMITTED_PACES, guard('screened', 'screened', 'SCREEN_PENDING', (s) => `#${s.item.id} waits for a green screen at ${String(s.item.commit).slice(0, 12)} on this base`)),
+      always['a8-irreversible'],
       guard('not-held', 'notHeld', 'ITEM_HELD', (s) => s.item.holdReason),
       guard('verdict-fresh', 'verdictFresh', 'STALE_VERDICT', (s) => s.io.staleVerdict?.reason ?? 'the accepted review is stale'),
       guard('not-known-red', 'notKnownRed', 'LAND_KNOWN_RED', (s) => `#${s.item.id} is known red at this commit`),
