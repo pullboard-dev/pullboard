@@ -135,6 +135,11 @@ export function censusBalanceByTimeEnabled() {
   return loadMachineSettings().census?.balanceByTime === true;
 }
 
+/** Whether census.selfTune is on: off by default; only an exact `true` lets a pulled census size its jobs from the previous census's shard times [C7,U151]. */
+export function censusSelfTuneEnabled() {
+  return loadMachineSettings().census?.selfTune === true;
+}
+
 /** Minutes of measured time one pulled census job may hold; null (the default) keeps jobs cut by file count [C7]. */
 export function censusJobMinutes() {
   const minutes = loadMachineSettings().census?.jobMinutes;
@@ -318,6 +323,11 @@ export function reviewReleaseReasonsRequired() {
 export function testStatusOutcomesEnabled() {
   const group = loadMachineSettings().test;
   return group?.statusOutcomes === true;
+}
+
+/** Whether spec.cascadeReject is on (#9341): off by default; only an exact `true` turns it on. */
+export function cascadeRejectEnabled() {
+  return loadMachineSettings().spec?.cascadeReject === true;
 }
 
 /** Whether items.typedFields is on (#9350): off by default; only an exact `true` turns it on. */
