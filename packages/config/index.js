@@ -97,9 +97,12 @@ export {
   lapsedSweepEnabled,
   derivedStateEnabled,
   testStatusOutcomesEnabled,
+  typedFieldsEnabled,
   recordWriteHolderEnabled,
   adaptiveBatchEnabled,
   landingSquashEnabled,
+  strictFullSuiteEnabled,
+  commitOnApplyEnabled,
   reofferTrunkBusyEnabled,
   reuseContractResultsEnabled,
   reuseGateReceiptsEnabled,
@@ -150,7 +153,6 @@ export {
   readGitSyncMarker,
   gitSyncMarkerLinked,
   gitSyncRecoveryNeeded,
-  readGitSyncRepairs,
 } from './src/io/git/sync.js';
 export {
   SETTING_DESCRIPTIONS,
@@ -195,7 +197,7 @@ export {
 
 export { submitProofOnly } from './src/logic/settings.js';
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';
-export { listThinRead, namedImportSelectionOn } from './src/logic/settings.js';
+export { listThinRead, namedImportSelectionOn, relayPruneReceipts } from './src/logic/settings.js';
 export { retireIdleSeatHours } from './src/logic/settings.js';
 export { healthDiskFloorGb } from './src/logic/settings.js';
 export { boardKey, boardKeyFile } from './src/io/settings.js';

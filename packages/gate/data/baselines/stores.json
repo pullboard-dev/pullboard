@@ -907,7 +907,7 @@
     },
     "pullboard-item.json": {
       "kind": "json",
-      "owner": "apps/cli/src/io/item/folder/identity.js"
+      "owner": "packages/items/src/io/claim.js"
     },
     "pullboard-parent-session.json": {
       "kind": "json",
@@ -919,7 +919,7 @@
     },
     "pullboard-runner-policy.json": {
       "kind": "json",
-      "owner": "apps/cli/src/io/read.js"
+      "owner": "packages/landing/src/io/runner/job.js"
     },
     "pullboard-source-snapshot.json": {
       "kind": "json",
@@ -947,7 +947,7 @@
     },
     "recovery.json": {
       "kind": "json",
-      "owner": "packages/config/src/io/git/sync.js"
+      "owner": "packages/sync/src/io/git/repair.js"
     },
     "refusal-trials.json": {
       "kind": "json",
@@ -967,7 +967,7 @@
     },
     "relay-health.sqlite": {
       "kind": "sqlite",
-      "owner": "packages/api/src/io/main.js"
+      "owner": "packages/link/src/io/relay/canary/health.js"
     },
     "relay-outbox.guard.sqlite": {
       "kind": "sqlite",
@@ -1189,6 +1189,10 @@
       "kind": "table",
       "owner": "packages/codemap/src/io/main-facts-cache.js"
     },
+    "table:field_decl": {
+      "kind": "table",
+      "owner": "packages/store/src/io/board/item/fields.js"
+    },
     "table:file_call": {
       "kind": "table",
       "owner": "packages/gate/src/io/test/file/pool.js"
@@ -1228,7 +1232,11 @@
     "table:item": {
       "kind": "table",
       "owner": "packages/items/src/io/rehome.js"
+    },    "table:item_field": {
+      "kind": "table",
+      "owner": "packages/store/src/io/board/item/fields.js"
     },
+
     "table:job": {
       "kind": "table",
       "owner": "packages/jobs/src/io/lease.js"
@@ -1564,10 +1572,6 @@
   },
   "exceptions": [],
   "writeOwnerDebt": [
-    "pullboard-item.json",
-    "pullboard-runner-policy.json",
-    "recovery.json",
-    "relay-health.sqlite",
     "stats-history.jsonl",
     "timer.guard.sqlite",
     "timer.json",

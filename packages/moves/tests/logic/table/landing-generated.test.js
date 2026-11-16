@@ -58,6 +58,7 @@ const SELECT_BREAKS = [
   ['sprint: screen from an older base', sprint(c => { c.s.io.screen.base = 'b0'; }), 'screened', 'SCREEN_PENDING'],
   ['sprint: red screen', sprint(c => { c.s.io.screen.green = false; }), 'screened', 'SCREEN_PENDING'],
   ['sprint: no trusted hook re-check', sprint(c => { c.s.io.screen.checks.hooks = 'red'; }), 'a8-irreversible', 'LAND_UNCHECKED'],
+  ['strict: no full-suite receipt', c => { c.s.pace = 'strict'; Object.assign(c.s.item, { pace: 'strict', status: 'verified', group: 'g1' }); sprintReady(c.s); c.s.io.strictFullSuite = true; }, 'strict-full-suite', 'LAND_SUITE_PENDING'],
   ['held', c => { c.s.item.holdReason = 'coordinator hold'; }, 'not-held', 'ITEM_HELD'],
   ['stale verdict', c => { c.s.io.staleVerdict = { reason: 'main moved' }; }, 'verdict-fresh', 'STALE_VERDICT'],
   ['known red', c => { c.s.batches = [{ id: 'b3', state: 'blocked', base: 'b0', culprits: [entry(ID, 'c1', { reviewedCommit: c.s.item.checked, tests: [{ file: 'a.test.js', name: 't' }] })] }]; c.s.waivers = []; }, 'not-known-red', 'LAND_KNOWN_RED'],
@@ -224,7 +225,7 @@ const of = (table, outcome) => accepted.filter(c => c.table === table && (outcom
 test('moves.landing.rows-fire: generated: every guard and outcome row of the five landing tables fires on some seeded case [C7,#8561]', () => {
   const fired = new Set(results.map(c => `${c.table}:${c.result.refused ? c.result.refused.row : c.result.via[0]}`));
   const rows = Object.entries(TABLES).flatMap(([name, table]) => [...table.guards, ...table.outcomes].map(row => `${name}:${row.id}`));
-  assert.equal(rows.length, 44);
+  assert.equal(rows.length, 45);
   assert.deepEqual(rows.filter(row => !fired.has(row)), []);
 });
 

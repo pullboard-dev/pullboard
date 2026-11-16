@@ -204,7 +204,10 @@
     "launch": 1
   },
   "apps/cli/journeys/gate/main.test.js": {
-    "launch": 6
+    "launch": 4
+  },
+  "apps/cli/journeys/gate/main-refusals.test.js": {
+    "launch": 2
   },
   "apps/cli/journeys/rigor/checks.test.js": {
     "launch": 1
@@ -515,12 +518,6 @@
   "apps/cli/journeys/hold/span.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/doctrine/rulings.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/fact/msg.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/hook/once.test.js": {
     "launch": 1
   },
@@ -697,9 +694,6 @@
   },
   "apps/cli/journeys/version/node.test.js": {
     "launch": 7
-  },
-  "apps/cli/journeys/imports/cross-lane-edits.test.js": {
-    "launch": 1
   },
   "apps/cli/journeys/submit/empty.test.js": {
     "launch": 1
@@ -893,9 +887,6 @@
   "packages/gate/tests/io/requeue/retry.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/inbox/budget.test.js": {
-    "launch": 1
-  },
   "packages/resources/tests/io/runner/heal/drain.test.js": {
     "launch": 1
   },
@@ -1072,9 +1063,6 @@
   },
   "apps/cli/journeys/init/empty.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/hook/slot.test.js": {
-    "launch": 2
   },
   "apps/cli/journeys/submit/pull.test.js": {
     "launch": 1
@@ -1378,9 +1366,6 @@
   },
   "packages/gate/tests/io/browser/admission/resources.test.js": {
     "launch": 4
-  },
-  "apps/cli/journeys/edges/door.test.js": {
-    "launch": 2
   },
   "apps/cli/journeys/next/skips/folder/live.test.js": {
     "launch": 1
