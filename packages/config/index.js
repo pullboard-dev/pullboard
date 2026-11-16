@@ -49,6 +49,7 @@ export {
   tableReplayEnabled,
   testNiceEnabled,
   fencedHopEnabled,
+  endStaleJobsEnabled,
   movesShadowEnabled,
   registryStrictEnabled,
   movesLiveEnabled,
