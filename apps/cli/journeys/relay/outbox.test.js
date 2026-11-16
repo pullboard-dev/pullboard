@@ -16,7 +16,10 @@ import {
   resolveMove,
   strayItemRefs,
 } from '../../../../packages/outbox/index.js';
-import { runFixtureGit } from '../../tests/fixtures/child.js';
+import {
+  runFixtureGit,
+  runFixtureSetupGit,
+} from '../../tests/fixtures/child.js';
 import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
 import { Refused } from '../../../../packages/kernel/light.js';
 import { outboxQueueable } from '../../../../packages/outbox/index.js';
@@ -31,7 +34,8 @@ function enableOutbox(box) {
   const cliPath = fileURLToPath(new URL('../../pullboard.js', import.meta.url));
   writeFileSync(join(box.env.PATH, 'pullboard'), `#!/bin/sh\nexec node "${cliPath}" "$@"\n`, { mode: 0o700 });
   runFixtureGit(['add', 'pullboard.json'], { cwd: box.root, env: box.env });
-  runFixtureGit(['commit', '-q', '-m', 'chore(config): queue relay moves while the relay is down'], { cwd: box.root, env: box.env });
+  // Setup commit without hooks (two Node launches); no case here is about the commit hook [C7].
+  runFixtureSetupGit(['commit', '-q', '-m', 'chore(config): queue relay moves while the relay is down'], { cwd: box.root, env: box.env });
 }
 
 /** The shout texts a board export holds, in board order. */
