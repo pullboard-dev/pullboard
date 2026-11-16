@@ -426,6 +426,9 @@ export function configProblems(config) {
   if (config.verify?.landedReviews !== undefined && typeof config.verify.landedReviews !== 'boolean') {
     problems.push('"verify.landedReviews" is true or false; true makes next --verify offer forced-landed items that have no verdict');
   }
+  if (config.resume?.adoptOrphans !== undefined && typeof config.resume.adoptOrphans !== 'boolean') {
+    problems.push('"resume.adoptOrphans" is true or false; true makes pullboard resume in a fresh worktree adopt an orphaned seat claim from its pinned ref');
+  }
   if (config.map?.slice !== undefined && typeof config.map.slice !== 'boolean') {
     problems.push('"map.slice" is true or false');
   }
