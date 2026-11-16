@@ -82,6 +82,7 @@ export const MACHINE_DEFAULTS = {
   'push.rerunFailedShardOnce': false,
   'relay.offerAtInit': true,
   'review.releaseReasons': false,
+  'runner.packCache': false,
   runnerRates: {},
   runners: [],
   'runners.drainOnFetchFailure': false,
