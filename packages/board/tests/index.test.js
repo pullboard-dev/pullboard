@@ -55,6 +55,9 @@ test('clause 1: no packages/board source imports, requires or names an apps/ pat
   }
 });
 
+/** A gauge without its clock-stamped window, which differs between two calls. */
+const undated = ({ since, until, ...rest }) => rest;
+
 /** A real repo and board opened through this root, with milestones A to ship and B to take what is left. */
 function milestoneFixture(t) {
   const project = cellProject(t, { real: true });
@@ -80,11 +83,11 @@ test('clause 2: the store returns the same release values through the provider a
   const direct = coordinatorMilestoneRelease(box.board, { plannedMoves: ['milestone_ship'] });
   box.ship();
   const provided = box.shipped();
-  assert.deepEqual(provided.gauge, direct.gauge);
+  assert.deepEqual(undated(provided.gauge), undated(direct.gauge));
   assert.equal(provided.previous, direct.previous);
   provideCoordinatorMilestoneRelease(null);
   t.after(() => provideCoordinatorMilestoneRelease(coordinatorMilestoneRelease));
   const imported = milestoneFixture(t);
   imported.ship();
-  assert.deepEqual(imported.shipped().gauge, provided.gauge, 'the import path records the same gauge as the provider path');
+  assert.deepEqual(undated(imported.shipped().gauge), undated(provided.gauge), 'the import path records the same gauge as the provider path');
 });
