@@ -51,6 +51,7 @@ export {
   censusBalanceByTimeEnabled,
   censusJobMinutes,
   censusJobsPerRunner,
+  jobsAvoidRunnersEnabled,
   tableReplayEnabled,
   testNiceEnabled,
   fencedHopEnabled,
