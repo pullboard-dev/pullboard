@@ -17,7 +17,9 @@ async function settled(t, edgeFollowUps) {
   assert.equal(done.gate?.green, true, JSON.stringify(done.gate));
   const exported = await inProcess(box, box.root, 'export', '--json');
   assert.equal(exported.code, 0, exported.err);
-  return JSON.parse(exported.out).tables.item.filter(row => row.item_parent_id === 1);
+  const children = JSON.parse(exported.out).tables.item.filter(row => row.item_parent_id === 1);
+  if (!children.length && edgeFollowUps) assert.fail(`no follow-up filed; the item's thread: ${(await inProcess(box, box.root, 'show', '1')).out.slice(-1500)}`);
+  return children;
 }
 
 test('clause 1: with submit.edgeFollowUps on, a submit whose diff adds an import edge files exactly one linked follow-up [C7]', async t => {
