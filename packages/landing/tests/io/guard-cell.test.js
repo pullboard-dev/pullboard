@@ -14,8 +14,8 @@ const read = (base, path) => readFileSync(new URL(path, base), 'utf8');
 test('clause 1: the static import closure of the landing guard reaches no CLI front door [C7]', () => {
   const seen = new Set();
   const walk = file => {
-    if (seen.has(file)) return;
-    seen.add(file);
+    if (seen.has(file.href)) return;
+    seen.add(file.href);
     const source = readFileSync(file, 'utf8');
     for (const match of source.matchAll(/(?:^|\n)\s*(?:import|export)\s[^'"\n]*?from\s+'(\.[^']+)'/gu)) {
       const target = new URL(match[1], file);
