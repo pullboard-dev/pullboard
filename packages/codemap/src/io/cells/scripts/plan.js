@@ -390,7 +390,7 @@ function fileItems(root, plan, yes) {
 }
 
 /** Run one mode from the command line. */
-function main(argv) {
+export function main(argv) {
   const [mode = '--check', ...rest] = argv;
   const root = resolve('.');
   if (mode === '--engine-stays') {
