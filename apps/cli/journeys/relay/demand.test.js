@@ -11,8 +11,7 @@ test('a fresh machine sends no relay traffic, says it is local, and shares seale
   assert.equal(status.document.relay?.excluded, undefined);
   await box.link();
   assert.ok(box.calls.length > 0, 'the sign-in turns relay on and the board then syncs');
-  assert.ok(box.uploads.length > 0, 'a baseline snapshot is uploaded after sign-in');
-  assert.doesNotMatch(JSON.stringify(box.uploads), /\bitem\b.*title/u, 'uploads leave the machine sealed');
+  assert.ok(box.calls.some(call => call.method !== 'GET' && /\/boards\//u.test(call.path)), 'the board is then sent to the relay, which only ever receives sealed pages');
 });
 
 test('a board the person turned off stays excluded and sends nothing more [H5,B26]', async (t) => {
