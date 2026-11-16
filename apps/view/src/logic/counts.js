@@ -93,6 +93,17 @@ export function firstLandings(commits, events) {
 }
 
 /**
+ * Whether an item has landed: it carries a merge commit, whatever its status [C7].
+ * Why: a hand landing closes the item as withdrawn but records the merge, so the card, counts and In flight read this one fact, never the status alone.
+ *
+ * @param {{ merged?: unknown, stage?: string } | null | undefined} item
+ * @returns {boolean}
+ */
+export function itemLanded(item) {
+  return Boolean(item && (item.merged || item.stage === 'merged'));
+}
+
+/**
  * The landed counts of one state: every landed item, and the last four and twenty-four hours of landings.
  *
  * @param {{ items?: any[], dashboardLanded?: { id: number, at?: number }[] }} project - Items and the last day's landings (each with its time).
@@ -101,7 +112,7 @@ export function firstLandings(commits, events) {
  */
 export function landedCounts(project, now) {
   const recent = (project.dashboardLanded ?? []).filter(entry => Number.isFinite(entry.at) && entry.at <= now);
-  const total = (project.items ?? []).filter(item => item.status !== 'withdrawn' && (item.merged || item.stage === 'merged')).length;
+  const total = (project.items ?? []).filter(itemLanded).length;
   const within = hours => recent.filter(entry => entry.at > now - hours * 3_600_000).length;
   return { total: Math.max(total, recent.length), last4h: within(4), last24h: within(24) };
 }
