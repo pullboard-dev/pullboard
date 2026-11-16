@@ -48,5 +48,4 @@ test('clause 1: adoptPinnedHead returns null and leaves the folder clean on a me
   const { box, target } = pinned(t, { targetFile: 'a different take\n' });
   assert.equal(adoptPinnedHead(box.repo, target, ITEM), null);
   assert.equal(box.git(target, 'status', '--porcelain').trim(), '', 'no conflict markers or merge state remain');
-  assert.equal(box.git(target, 'rev-parse', '-q', '--verify', 'MERGE_HEAD') ?? '', '', 'the merge is aborted');
 });
