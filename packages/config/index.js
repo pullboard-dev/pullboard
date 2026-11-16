@@ -70,6 +70,7 @@ export {
   requireRegisteredEnabled,
   requireJourneyPathEnabled,
   adapterLintClockEnabled,
+  adapterLintFsEnabled,
   movesLiveEnabled,
   gateRunnerAdmission,
   setGateRunnersOnly,
@@ -96,6 +97,7 @@ export {
   nextItemNotices,
   nextReadinessCheck,
   refuseTempWorktree,
+  claimKeepWhileRunning,
   refuseOffMainHead,
   refuseEmptyBar,
   viewBackgroundEnabled,
@@ -204,6 +206,7 @@ export {
 } from './src/logic/maintenance.js';
 
 export { submitProofOnly } from './src/logic/settings.js';
+export { submitClauseMarks } from './src/logic/settings.js';
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';
 export { listThinRead, namedImportSelectionOn, relayPruneReceipts } from './src/logic/settings.js';
 export { retireIdleSeatHours } from './src/logic/settings.js';

@@ -19,6 +19,7 @@ import { RENEWALS } from '../../../logic/stale/state/query.js';
 import { cleanGitEnvironment } from '../../../../../git/index.js';
 import { tryGit } from '../../../../../git/index.js';
 import { existsSync } from 'node:fs';
+import { claimKeepWhileRunning } from '../../../../../config/index.js';
 import { machineStalled } from '../../../logic/stall.js';
 import { claimFolderActive } from '../../claim/activity.js';
 import { claimFolderCommitAt } from '../../claim/activity.js';
@@ -162,6 +163,7 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
   const lapsedItems = items.filter(item => lapsed.has(item.item_id));
   snapshot.claimScan = { previous: cursor, next: lapsedItems.length ? lapsedItems.at(-1).item_id : Math.max(cursor, 1) };
   const byId = new Map(items.map(item => [item.item_id, item]));
+  const keepWhileRunning = ctx.keepClaimWhileRunning ?? claimKeepWhileRunning();
   /** A seat is quiet when neither its heartbeat nor any event it wrote is two minutes old. */
   const quietSeat = row => {
     const beat = latestInstant(row.heartbeatAt ?? row.claimAt, seatActivityAt(board, row.actor));
@@ -174,6 +176,8 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
   snapshot.claims = snapshot.claims.flatMap(row => {
     // A queued or running gate or proof run is the holder's activity; neither the lapsed-lease sweep nor the idle release takes it (#2561).
     if (itemWorkInFlight(board, byId.get(row.id))) return [];
+    // With claim.keepWhileRunning on, a live test run, test or gate job on the item keeps the claim whatever the seat's heartbeat or idle time says [C7,#9498].
+    if (keepWhileRunning && claimJobInFlight(board, byId.get(row.id), row.claimAt, at.getTime())) return [];
     const dependencyCandidate = (board.executionEngineVersion ?? ENGINE_VERSION) >= STRANDED_DEPENDENCY_ENGINE && dependencyWaiters(board, row.id).length;
     if (dependencyCandidate && !dependencyCustodyQuiet(board, byId.get(row.id))) return [];
     // A red queued gate's fresh lease is the builder's to use; idle maintenance waits for it to end (#2454).
