@@ -102,6 +102,7 @@ const ROWS = [
   ['serve.address', 'Board API address', 'The interface address pullboard serve listens on; off loopback every request needs this machine\'s board key, so runners on the network can pull jobs.', 'Runners', 'address'],
   ['serve.port', 'Board API port', 'The port pullboard serve listens on; 0 chooses a free one, so set it when runners keep the board URL.', 'Runners', 'port'],
   ['tests.registryStrict', 'Fail on unregistered tests', 'When enabled, the test registry check fails when a test has no stable ID or registry record; off, it reports the test and passes.', 'Runners', 'on/off'],
+  ['tests.requireRegistered', 'Refuse unregistered new tests', 'When enabled, the static check refuses a change that adds a test file in a cell with no test registry (TEST_UNREGISTERED); off, it prints the finding as a diagnostic line and passes.', 'Runners', 'on/off'],
   // This machine: Background
   ['health.sentinel', 'Health watch', 'The automatic health observer runs on this computer; a board can turn it off for itself too.', 'Background', 'on/off'],
   ['landing.pools', 'Boards this computer lands', 'The boards this computer has agreed to land work for, set with pullboard settings landing.pool.', 'Landing', 'list'],
