@@ -1,5 +1,5 @@
 /** The landing merged table run over the live board: the store's merged writer reads its refusal and the events of a merge from it [C7,#8268]. */
-import { runLandingMergedTable } from '../../logic/board/landing/lease.js';
+import { runMergedTable } from '../../logic/board/landing/lease.js';
 
 /**
  * Decide a merge with the landing merged table, over the item as it stands before the move writes anything.
@@ -12,5 +12,5 @@ import { runLandingMergedTable } from '../../logic/board/landing/lease.js';
  */
 export function mergedDecision(item, call) {
   const move = { id: item.id, actor: call.agentId, commit: call.commit, ...(call.forced === undefined ? {} : { forced: call.forced }) };
-  try { return runLandingMergedTable(structuredClone({ item: { id: item.id, status: item.status, mergedCommit: item.mergedCommit ?? null } }), move); } catch { return null; }
+  try { return runMergedTable(structuredClone({ item: { id: item.id, status: item.status, mergedCommit: item.mergedCommit ?? null } }), move); } catch { return null; }
 }

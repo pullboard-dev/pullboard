@@ -62,14 +62,14 @@ export function runVerifyTable(build, snapshot, move) {
   verifyBuilt ??= moveTables().verifyEngine(build());
   return moveTables().runTable(verifyBuilt.table, verifyBuilt.rules, snapshot, move);
 }
-let landingBuilt = null;
+let mergedBuilt = null;
 /**
  * Run the landing merged table over a snapshot and move, built on first use over the landing's own limits, fault codes and repeat-hold prefix.
  * Why here: this file is the store's one reader of the moves tables, so the merged writer reaches the table without a second cross-cell edge [C7,#8268].
  */
-export function runLandingMergedTable(snapshot, move) {
-  landingBuilt ??= moveTables().landingEngine({ limits: { redLimit: LANDING_RED_LIMIT, runnerSourceRetries: RUNNER_SOURCE_RETRIES, staleProbes: 8 }, faultCodes: LANDING_FAULT_CODES, repeatHold: REPEATED_LANDING_HOLD });
-  return moveTables().runTable(landingBuilt.tables.merged, landingBuilt.rules, snapshot, move);
+export function runMergedTable(snapshot, move) {
+  mergedBuilt ??= moveTables().landingEngine({ limits: { redLimit: LANDING_RED_LIMIT, runnerSourceRetries: RUNNER_SOURCE_RETRIES, staleProbes: 8 }, faultCodes: LANDING_FAULT_CODES, repeatHold: REPEATED_LANDING_HOLD });
+  return moveTables().runTable(mergedBuilt.tables.merged, mergedBuilt.rules, snapshot, move);
 }
 let reopenBuilt = null;
 /**
