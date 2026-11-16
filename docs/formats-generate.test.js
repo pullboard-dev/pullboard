@@ -11,13 +11,14 @@ import { checkPages, renderPages, writePages } from './formats/generate.mjs';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const PAGE = 'docs/formats/engine-first.md';
-const EVENTS = 'apps/cli/src/io/documentation/events';
+const DOCS = 'apps/cli/src/io/documentation';
+const EVENTS = `${DOCS}/events`;
 const FREEZE = 'packages/codemap/data/plan/path-map/freeze.json';
 
 /** A scratch root holding the declarations, the path map and the committed page. */
 function scratchRoot() {
   const root = privateFixtureFiles('formats-generate-').root;
-  for (const path of [EVENTS, FREEZE, PAGE]) {
+  for (const path of [DOCS, FREEZE, PAGE]) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
     cpSync(join(ROOT, path), join(root, path), { recursive: true });
   }
