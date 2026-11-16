@@ -11,6 +11,7 @@ export const MACHINE_DEFAULTS = {
   'census.rerunNonGreen': false,
   'census.rerunOnSettle': false,
   'census.selfTune': false,
+  'claim.keepWhileRunning': false,
   'claim.refuseOffMainHead': false,
   'freeze.refuseEmptyBar': false,
   'gate.browserByLaunch': false,

@@ -209,6 +209,7 @@ const ROWS = [
   ['withdraw.refuseLanded', 'Landed work stays landed', 'On, withdraw refuses an item whose commit is on main and names pullboard merged instead; off, withdraw closes it as before.', 'Review', 'on/off'],
   ['withdraw.review', 'Withdrawals need a second seat', 'On, a withdrawal waits as pending until another seat confirms it; off, withdraw closes the item at once.', 'Review', 'on/off'],
   // This repo: Claims
+  ['claim.keepWhileRunning', 'Keep a claim while its run is in flight', 'When enabled, a claim whose holder has a test run, test or gate job in flight on the item is not released as idle, stalled or without progress; once the job ends the usual rules apply. Off (default), only a quiet seat is spared while its run is live.', 'Claims', 'on/off'],
   ['claim.refuseOffMainHead', 'Refuse a claim off main', 'When enabled, claim refuses in a folder whose HEAD is not on main (a commit made before claiming), and names the step that puts the folder back on main; off (default), claim takes the folder as it stands.', 'Claims', 'on/off'],
   ['claim.reopenFirstRefusalMinutes', 'Builder repair window', 'After a reopen, the original builder gets this long to repair it first; 0 turns it off.', 'Claims', 'minutes'],
   ['claim.returnToBoard', 'Return reds to the board', 'A red or refused queued gate releases the builder claim at once, so any free seat of the lane and route takes it.', 'Claims', 'on/off'],
