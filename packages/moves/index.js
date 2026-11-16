@@ -14,7 +14,7 @@ export { releaseEngine } from "./src/logic/table/release.table.js";
 export { RECLAIM_LIMITS, RECLAIM_RULES, RECLAIM_TABLE, handoffText } from "./src/logic/table/reclaim.table.js";
 export { CLAIM_IO, CLAIM_NEXT, claimEngine } from "./src/logic/table/claim.table.js";
 export { DEFERRED_FIELDS, IO_FIELDS, SHELL_INPUTS, SUBMIT_COMMAND_NEXT, SUBMIT_NEXT, pendingRefreeze, pipelineCause, submitEngine } from "./src/logic/table/submit.table.js";
-export { BACKBONE_RULES, BACKBONE_STATES, BACKBONE_TABLE, JOB_KINDS, LEGAL_LANDING, legalLanding, servesRule } from "./src/logic/table/backbone.table.js";
+export { BACKBONE_RULES, BACKBONE_STATES, BACKBONE_TABLE, CREATED_JOB_KINDS, JOB_KINDS, LEGAL_LANDING, legalLanding, receiptCounts, servesRule } from "./src/logic/table/backbone.table.js";
 export { OUTBOX_LEGAL, OUTBOX_MOVES, OUTBOX_RULES, OUTBOX_STATES, OUTBOX_TABLE } from "./src/logic/table/outbox.table.js";
 export { breakOne, seeded, tableCases } from "./src/logic/table/cases.js";
 export { answerFirstReasons, foldedReasons, heldCounted, inboxReasons, itemNoticeLines, ownWaitingLines } from "./src/logic/reasons.js";
