@@ -2,8 +2,18 @@
 import { costOverviewHtml } from "./overview.js";
 import { bindCostOverview } from "./overview.js";
 
-import { modelPresentation } from "../presentation.js";
-export { modelPresentation } from "../presentation.js";
+import MODEL_TABLES from "../../../data/ceilings/model-names.json" with { type: "json" };
+import { modelPresentation as presentModel } from "../presentation.js";
+
+/** The shipped label rules for model spellings, serialized into the page script by page/boards.js [P5]. */
+export function modelLabelRules() {
+  return MODEL_TABLES.labels;
+}
+
+/** Name one model with the shipped tables; the browser copy is rebuilt around the same data in costTabScript. */
+export function modelPresentation(reported, family = '') {
+  return presentModel(reported, family, MODEL_TABLES);
+}
 
 /** Decode one event detail without letting malformed legacy JSON break the view. */
 function costEventDetail(event) {
@@ -275,17 +285,19 @@ export function costTabHtml(model, opened = null, { loading = false, error = nul
     const sessions = row.usageRows.length ? row.usageRows.map(sessionHtml).join('') : '<p class="cost-unknown">' + (row.sharedUsage
       ? 'Shared usage is not attributable to this item; token and cost figures are unavailable.'
       : 'No usage record; token and cost figures are unavailable.') + '</p>';
-    const returns = row.returns.length ? '<section class="cost-returns"><h3>Rejects and reopens</h3><ul>' + row.returns.map(entry => '<li><span>' + escapeHtml(entry.kind === 'reject' ? 'Rejected' : 'Reopened') + ' · ' + escapeHtml(dateLabel(entry.at)) + '</span><b>' + costFigure(entry.costUSD) + '</b></li>').join('') + '</ul></section>' : '';
+    const returns = row.returns.length ? '<section class="cost-returns"><h3 class="hd2">Sent back and reopened</h3><ul>' + row.returns.map(entry => '<li><span>' + escapeHtml(entry.kind === 'reject' ? 'Sent back' : 'Reopened') + ' · ' + escapeHtml(dateLabel(entry.at)) + '</span><b>' + costFigure(entry.costUSD) + '</b></li>').join('') + '</ul></section>' : '';
     const shared = row.sharedUsage ? '<p class="cost-unknown">Shared session usage is not split across its items.</p>' : '';
-    return summary + '<div class="cost-detail" id="cost-detail-' + row.id + '"><h3>Usage by agent, model and phase</h3>' + shared + sessions + returns + '</div>';
+    return summary + '<div class="cost-detail" id="cost-detail-' + row.id + '"><h3 class="hd2">Usage by agent, model and phase</h3>' + shared + sessions + returns + '</div>';
   }).join('') : '<p class="empty">No landed items yet.</p>';
-  return '<section class="cost-page" aria-label="Cost"><header class="cost-heading"><div><h1>Cost</h1><p>The last 20 landed items</p></div><span class="cost-private">Private to this view</span></header>'
+  return '<section class="cost-page" aria-label="Cost"><div class="shd cost-private-row"><span class="cap2">The last 20 landed items</span><span class="cap2 cost-private">Private to this view</span></div>'
     + tiles + '<section class="cost-list card-panel" aria-label="Landed items">' + cards + '</section></section>';
 }
 
 /** Embed this module's closure-free Cost functions into the standalone local-view page. */
 export function costTabScript() {
-  const functions = [modelPresentation, costEventDetail, actorOf, kindOf, costFigure, dateLabel, escapeHtml, completeSum, median,
+  const tables = `const modelTables = ${JSON.stringify(MODEL_TABLES)};\nconst presentModel = (${presentModel.toString()});\n`
+    + `const modelPresentation = (reported, family = '') => presentModel(reported, family, modelTables);\n`;
+  const functions = [costEventDetail, actorOf, kindOf, costFigure, dateLabel, escapeHtml, completeSum, median,
     usageRole, firstSamplePhaseKnown, counterDelta, usageByItem, sharedUsageItems, recordCost, costTabModel, sessionHtml, costTabHtml, costOverviewHtml, bindCostOverview];
-  return functions.map((fn) => `const ${fn.name} = (${fn.toString()});`).join('\n');
+  return tables + functions.map((fn) => `const ${fn.name} = (${fn.toString()});`).join('\n');
 }

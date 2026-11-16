@@ -43,22 +43,22 @@ export function assertNoRemoteLanding(sandbox, commitFile) {
   const reviewer = join(box.dir, 'local-reviewer');
   box.git(repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
   assert.equal(fixtureJoin(box.run, reviewer, 'web', '--model', 'local-reviewer').code, 0);
-  const accepted = box.run(reviewer, 'verify', String(item), 'accept', '--note', 'The actual local result exists.');
+  const accepted = box.run(reviewer, 'verify', String(item), 'accept', '--note', 'The actual local result exists.', '--json');
   assert.equal(accepted.code, 0, accepted.out + accepted.err);
 
   const machine = new URL('../../../../../packages/link/index.js', import.meta.url).href;
   const enabled = runFixtureChild(process.execPath, ['--input-type=module', '-e', `import { updateRelayMachine } from ${JSON.stringify(machine)}; updateRelayMachine(state => { state.autoLink = true; });`], { cwd: repo, env: box.env, encoding: 'utf8' });
   assert.equal(enabled.status, 0, enabled.stderr);
-  const status = box.run(repo, 'status');
+  const status = box.run(repo, 'status', '--json');
   observe(() => assert.equal(status.code, 0, status.err));
-  observe(() => assert.doesNotMatch(status.err + status.out, /not linked:|\[RELAY_(?:ORIGIN|SESSION)\]/u, 'an inherited link-all never turns local status into a relay refusal'));
-  observe(() => assert.match(status.out, /optional:.*relay on/u, 'status offers linking as an optional next step'));
+  observe(() => assert.equal(JSON.parse(status.out).error, undefined, 'an inherited link-all never turns local status into a relay refusal'));
+  observe(() => assert.equal(JSON.parse(status.out).relay.linked, false, 'status reports the local board as not linked'));
   const explicit = box.run(repo, 'relay', 'on', '--json');
   observe(() => assert.equal(explicit.code, 1, 'an explicit link still requires a GitHub origin'));
-  observe(() => assert.match(explicit.out + explicit.err, /RELAY_ORIGIN/u));
+  observe(() => assert.equal(JSON.parse(explicit.out).error.code, 'RELAY_ORIGIN'));
   const landed = box.run(repo, 'land', '--json');
   observe(() => assert.equal(landed.code, 1, landed.err));
-  observe(() => assert.match(landed.out + landed.err, /the board lands accepted items/u));
+  observe(() => assert.equal(JSON.parse(landed.out).error.code, 'BOARD_LANDS_ACCEPTED'));
   const recorded = JSON.parse(box.run(repo, 'show', String(item), '--json').out);
   observe(() => assert.ok(recorded.item_merged_commit, 'acceptance automatically records the landing'));
   observe(() => assert.equal(box.git(repo, 'rev-parse', 'main'), recorded.item_merged_commit));

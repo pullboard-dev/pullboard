@@ -15,6 +15,7 @@ import { createE2eHelpers } from './e2e.js';
 import { startFixtureChild } from './child.js';
 import { fixtureAdd } from './testkit.js';
 import { joinFixtureSeat } from './testkit.js';
+import { settledGateJob } from './submit/settle.js';
 
 /** Run the actual CLI without blocking the loopback provider's event loop. */
 export async function runBridgeCLI(box, ...args) {
@@ -88,14 +89,19 @@ function enableBridgeMode(box, item) {
     : ['-m', 'chore: opt in to private pull request bridge [G1]']));
 }
 
-/** Build, verify and locally land two real items before enabling the opt-in publisher. */
-export function landBridgeItems(box, { independent = false, briefs = [] } = {}) {
+/**
+ * Build, verify and locally land two real items before enabling the opt-in publisher.
+ * Why in-process: these moves are setup for the publish journeys, not their subject; each saved Node launch is about 1 s [C7].
+ */
+export async function landBridgeItems(box, { independent = false, briefs = [] } = {}) {
   const entries = [];
+  // Independent proof registers seats by parent id and needs each command in its own process, so only the plain path runs in-process.
+  const run = independent ? async (...args) => box.run(...args) : box.runLocal;
   for (const [index, name] of ['one', 'two'].entries()) {
     const path = index === 0 ? box.web : join(box.dir, 'web-two');
     if (index) {
       box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/two', path, 'main');
-      assert.equal(joinFixtureSeat(box, path, 'web').code, 0);
+      assert.equal((await joinFixtureSeat(box, path, 'web', { run })).code, 0);
     }
     if (independent) {
       const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
@@ -104,25 +110,27 @@ export function landBridgeItems(box, { independent = false, briefs = [] } = {}) 
         store.register(board, { lane: 'web', path, parent: `fixture-pr-builder-${index}` });
       } finally { store.closeBoard(board); }
     }
-    const add = fixtureAdd(box.run, box.repo, 'web', `private bridge ${name}`, '--specs', 'G1',
+    const add = await fixtureAdd(run, box.repo, 'web', `private bridge ${name}`, '--specs', 'G1',
       '--criterion', `private ${name} remains correct`, '--check', 'test ! -f RED', '--route', 'strong',
       ...(briefs[index] === undefined ? [] : ['--brief', briefs[index]]), '--json');
     assert.equal(add.code, 0, add.err);
     const id = JSON.parse(add.out).item.item_id;
-    assert.equal(box.run(path, 'claim', String(id)).code, 0);
+    assert.equal((await run(path, 'claim', String(id))).code, 0);
     const file = `web/${name}.js`;
     assert.equal(box.commitFile(box, path, file, "export const result = 'PASS';\n", `feat(web): bridge ${name} [G1]`).status, 0);
     const commit = box.git(path, 'rev-parse', 'HEAD');
-    const submitted = box.run(path, 'submit', String(id));
+    const submitted = await run(path, 'submit', String(id), '--json');
     assert.equal(submitted.code, 0, submitted.err);
+    // A pulled submit returns queued; wait until the board has applied the gate receipt before the verdict [C7,#7283].
+    if (JSON.parse(submitted.out).queued) await settledGateJob(box, id);
     box.git(box.repo, 'switch', '-q', '--detach', commit);
     try {
-      const reviewed = box.run(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'private bridge proof passed');
+      const reviewed = await run(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'private bridge proof passed');
       assert.equal(reviewed.code, 0, reviewed.err);
     } finally { box.git(box.repo, 'switch', '-q', 'main'); }
     box.git(box.repo, 'merge', '-q', '--no-ff', '-m', `chore(merge): private bridge ${name} [G1]`, ...(independent ? ['-m', `Pullboard-Item: #${id}`] : []), commit);
     if (independent && index === 0) enableBridgeMode(box, id);
-    const merged = box.run(box.repo, 'merged', String(id), box.git(box.repo, 'rev-parse', 'HEAD'));
+    const merged = await run(box.repo, 'merged', String(id), box.git(box.repo, 'rev-parse', 'HEAD'));
     assert.equal(merged.code, 0, merged.err);
     entries.push({ id, commit, file });
   }

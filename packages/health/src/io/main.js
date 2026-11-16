@@ -1,8 +1,13 @@
 import { allItemsNeedingRescope } from '../../../store/index.js';
+import { landingBatches } from '../../../store/index.js';
+import { readBoardMeta } from '../../../store/index.js';
+import { flowWhy } from '../logic/flow.js';
 import { shimLifecycle } from '../../../codemap/index.js';
 import { rankInversionHistory } from './inversion.js';
 import { readWorkFreeReleases } from '../../../stats/index.js';
 import { landingFailureFindings } from './landing.js';
+import { noReviewerSupplyFindings } from './supply.js';
+import { capacityWorsenedFindings } from './capacity.js';
 import { firstRefusal } from '../../../store/index.js';
 import { compositionFamilyFallback } from '../../../verify/index.js';
 import { reviewWait } from '../../../verify/index.js';
@@ -10,6 +15,9 @@ import { eligibilityProblem } from '../../../verify/index.js';
 import { lineSettings } from '../../../state/light.js';
 import { familyIndex } from '../../../verify/index.js';
 import { unreviewableStrict } from '../../../verify/index.js';
+import { declaredLimitProblem } from '../../../verify/index.js';
+import { builderFamilyOf } from '../../../verify/index.js';
+import { canonicalFamily } from '../../../verify/index.js';
 import { withLocalSeatPresence } from '../../../store/index.js';
 import { mechanicalConflictFiles } from '../../../merge/index.js';
 import { localDependencyIds } from '../../../items/index.js';
@@ -160,6 +168,7 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
   const age = (iso) => at - Date.parse(iso);
   const board = { ...readBoardSnapshot(db, { now: () => now }), familyAliases: familyIndex(config?.families) };
   report.stuck.push(...missedJobFindings(board, at), ...dispatchHealth(board, config).findings);
+  report.waiting.push(...capacityWorsenedFindings(db, at, finding));
   for (const stale of staleRowDecisions(rowDecisions(board), root, config)) {
     report.stuck.push(finding('STALE_ROW_DECISION', null, {
       subject: `${stale.kind}:${stale.id}`, key: `STALE_ROW_DECISION:${stale.kind}:${stale.id}`,
@@ -192,6 +201,7 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
     }));
   }
 
+  report.stuck.push(...noReviewerSupplyFindings(board, items, listAgents(board), at, finding, item => item.item_updated_at, { limitProblem: declaredLimitProblem, familyOf: (b, item) => canonicalFamily(b, builderFamilyOf(b, item)) }));
   const history = itemHistory(db, items.map((item) => item.item_id));
   const trunk = trunkTip(root);
   const releases = roadmap(board);
@@ -362,6 +372,22 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
           owner, detail: { reason: item.item_hold_reason, by: holder },
         }));
       }
+    }
+  }
+
+  // Behind holds.requireOwner (off by default): a hold whose recorded deadline has passed is the owner's to lift or renew [C7,#8541].
+  if (machineSettings?.holds?.requireOwner === true) {
+    for (const item of items.filter(entry => entry.item_hold_reason)) {
+      let record = null;
+      try { record = JSON.parse(readBoardMeta(db, `hold_owner:${item.item_id}`) ?? 'null'); } catch { record = null; }
+      if (!record || !(Date.parse(record.deadline) <= at)) continue;
+      found(report.stuck, finding('HOLD_LAPSED', item, {
+        since: record.deadline, now: at,
+        title: 'hold past its deadline',
+        why: `${record.owner} owns the hold, which lapsed ${record.deadline}: ${firstLine(item.item_hold_reason)}`,
+        next: `lift the hold with pullboard hold ${item.item_id} --off, or hold it again with a new --deadline`, command: `pullboard hold ${item.item_id} --off`,
+        owner: { role: 'coordinator', who: record.owner }, detail: { reason: item.item_hold_reason, owner: record.owner, deadline: record.deadline },
+      }));
     }
   }
 
@@ -830,4 +856,36 @@ function ownerText({ role, who }) {
   if (role === 'person') return 'the person';
   if (role === 'coordinator') return who === COORDINATOR ? 'the coordinator' : `${who} (coordinator)`;
   return who ? `${who} (${role})` : `a ${role}`;
+}
+
+/**
+ * The release flow document for the board: one cause per unlanded item, every idle seat and recent landings, read from board state alone.
+ * Why here: the projection in logic/flow.js is pure; this wires it to the real board reads so the command and the view share one reader.
+ *
+ * @param {any} board - An open board.
+ * @param {{ config?: any, release?: string, now?: () => number, refuse?: (code: string, message: string) => Error }} [options]
+ * @returns {ReturnType<typeof flowWhy>}
+ */
+export function releaseFlow(board, { config = {}, release, now = () => board.clock.now().getTime(), refuse } = {}) {
+  const policy = config?.verify?.policy ?? 'any';
+  const familyPolicy = config?.verify?.family ?? 'off';
+  const store = { milestones, lineSettings, listItems, listAgents, landingBatches, laneHold, nextFor };
+  const workProgress = (reader) => {
+    const at = now();
+    const all = listItems(reader, { all: true });
+    const byId = new Map(all.map(item => [item.item_id, item]));
+    const lastEvent = reader.db.prepare('SELECT MAX(event_at) AS at FROM event WHERE item_id = ?');
+    return new Map(all.map(item => {
+      const holder = item.item_status === 'claimed' ? item.item_owner : reviewHolder(reader, item);
+      const waits = localDependencyIds(item).filter(other => byId.get(other) && !byId.get(other).item_merged_commit && byId.get(other).item_status !== 'withdrawn').map(other => `#${other}`);
+      const last = Date.parse(lastEvent.get(item.item_id)?.at ?? '');
+      return [item.item_id, { holder: holder ?? null, waits, ...(holder && Number.isFinite(last) ? { idleMinutes: Math.max(0, Math.floor((at - last) / 60_000)), idleBasis: 'event' } : {}) }];
+    }));
+  };
+  const reviewEligibility = (reader, item, options) => {
+    const checks = listAgents(reader).map(agent => ({ agent: agent.agent_id, problem: eligibilityProblem(reader, item, agent, options) }));
+    return { eligible: checks.filter(row => !row.problem).map(row => row.agent), ineligible: checks.filter(row => row.problem).map(row => ({ agent: row.agent, rule: row.problem.message })) };
+  };
+  const merged = (reader, sinceIso) => reader.db.prepare("SELECT item_id, event_at FROM event WHERE event_kind = 'merged' AND event_at >= ?").all(sinceIso);
+  return flowWhy(board, { store, workProgress, reviewEligibility, now, merged, release, policy, familyPolicy, ...(refuse ? { refuse } : {}) });
 }

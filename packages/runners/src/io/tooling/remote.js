@@ -1,5 +1,6 @@
 import { archivedToolingSource } from './committed.js';
 import { committedRunnerController } from './committed.js';
+import { committedToolingKey } from './committed.js';
 import { runnerPackage } from '../package.js';
 /** Pin, scan and install the trusted runner tooling bytes a remote worker runs [C7]. */
 import { runnerSource } from '../../../../gate/light.js';
@@ -11,6 +12,10 @@ import { REUSE_CAPSULE } from '../runtime.js';
 import { MAX_BLOB_BYTES } from '../source/scan.js';
 import { sourceGit } from '../source/scan.js';
 import { captureRunnerTooling } from './snapshot.js';
+import { loadToolingBundle } from './bundle.js';
+import { saveToolingBundle } from './bundle.js';
+import { loadTrustedCapture } from './saved.js';
+import { saveTrustedCapture } from './saved.js';
 import { currentRunnerTooling } from './snapshot.js';
 import { claimRunnerLaunch } from '../transport.js';
 import { recoveryIdentity } from '../../../../resources/index.js';
@@ -114,8 +119,43 @@ function committedToolingMatches(root, commit, files) {
   });
 }
 
-/** Snapshot, scan and pin the actual tooling bytes independently of the project being tested. */
+/** What the last committed capture of each controller root gave, with the commit and tree it was taken at. */
+const CAPTURED = new Map();
+
+/**
+ * Snapshot, scan and pin the actual tooling bytes independently of the project being tested.
+ * Why cached: a committed export, its file closure, scan and blob comparison are a function of the tree alone, and each
+ * submit spent 3.4-4.5 s repeating them (#8133). A changed commit or tree captures afresh; a root with no committed
+ * export (an installed package, or a generation pin) is captured every time, as it can change under the process.
+ */
 export function trustedTooling() {
+  const id = committedToolingKey(TOOL_ROOT);
+  const held = id && CAPTURED.get(TOOL_ROOT);
+  if (held && held.commit === id.commit && held.tree === id.tree) return held.captured;
+  const saved = id && loadTrustedCapture(TOOL_ROOT, id);
+  if (saved) { CAPTURED.set(TOOL_ROOT, { commit: id.commit, tree: id.tree, captured: saved }); return saved; }
+  const { captured, installation, order, bundled } = (id && bundledTooling(id)) ?? captureTrustedTooling();
+  const key = installation ?? (captured.tooling.commit && { commit: captured.tooling.commit, tree: captured.tooling.tree });
+  if (key) {
+    CAPTURED.set(TOOL_ROOT, { commit: key.commit, tree: key.tree, captured });
+    saveTrustedCapture(TOOL_ROOT, key, captured, order);
+    if (!bundled) saveToolingBundle(TOOL_ROOT, captured, order);
+  }
+  return captured;
+}
+
+/**
+ * The bundle of this root's last tooling digest, when every file in it is the same blob at the new commit (#8462).
+ * Why: each landing moves main, and a commit-keyed capture rebuilt the unchanged worker closure on every trip.
+ */
+function bundledTooling(id) {
+  const gitRoot = existsSync(join(TOOL_ROOT, '.git')) ? TOOL_ROOT : archivedToolingSource(TOOL_ROOT)?.root;
+  const found = gitRoot && loadToolingBundle(TOOL_ROOT, id, gitRoot, committedToolingMatches);
+  return found ? { ...found, installation: id, bundled: true } : null;
+}
+
+/** Export, scan and describe the trusted tooling once; the installation it came from, if committed, rides along for its key. */
+function captureTrustedTooling() {
   const installation = committedRunnerController(TOOL_ROOT, { shared: true });
   try {
   const root = installation?.root ?? TOOL_ROOT;
@@ -141,8 +181,8 @@ export function trustedTooling() {
   }
   const tooling = { ...provenance, sha256: createHash('sha256').update(JSON.stringify(files)).digest('hex') };
   const runtimeFiles = Object.fromEntries(Object.entries(files).filter(([name]) => name !== entry));
-  return { worker: files[entry], tooling,
-    runtime: { entry, files: runtimeFiles, sha256: createHash('sha256').update(JSON.stringify(runtimeFiles)).digest('hex') } };
+  return { order: Object.keys(files), installation: installation && { commit: installation.commit, tree: installation.tree }, captured: { worker: files[entry], tooling,
+    runtime: { entry, files: runtimeFiles, sha256: createHash('sha256').update(JSON.stringify(runtimeFiles)).digest('hex') } } };
   } finally { installation?.cleanup(); }
 }
 

@@ -17,7 +17,7 @@ const refused = code => error => error.code === code;
 
 /** A repo with a base and a landed commit on top, and a board's db. */
 function landed(t) {
-  const repo = cellRepo(t);
+  const repo = cellRepo(t, {});
   repo.put('landed.txt', 'on trunk\n');
   const commit = repo.commitAll();
   return { repo: repo.root, base: repo.commit, commit, db: cellBoard(t, ':memory:').db };

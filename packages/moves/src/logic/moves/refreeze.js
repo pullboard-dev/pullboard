@@ -1,4 +1,4 @@
-import { checkTimingEngine } from "../../../../items/light.js";
+import { checkTimingEngine } from "../../../../items/browser.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by refreeze, discovered without a shared registry edit [C7,V4,H16]. */
 import { BAR_READY_ENGINE } from "../../../../state/light.js";

@@ -1,5 +1,7 @@
 /** Select committed Node test files through import edges; uncertainty requires the full gate [V4,C7]. */
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { cachedAffectedGraph } from './graph/cache.js';
 import { DOCS_TREE_INPUT } from './inputs.js';
 import { isSourceCellLine } from './inputs.js';
@@ -9,6 +11,8 @@ import { changedModules } from './graph/delta.js';
 import { forkWithout } from './graph/delta.js';
 import { documentationInputs } from './inputs.js';
 import { unknownRootTests } from './roots.js';
+import { namedReach } from './names.js';
+import { join } from 'node:path';
 import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
@@ -113,12 +117,15 @@ function selectionGit(root, args) {
   const result = spawnSync('git', ['--no-replace-objects', '-c', 'core.quotepath=false', ...args], {
     cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 128 * 1024 * 1024,
   });
-  if (result.status !== 0) throw new Error('the committed import graph could not be read');
+  if (result.status !== 0) {
+    const why = String(result.stderr || '').trim().split('\n')[0].slice(0, 160);
+    throw new Error(`git ${args.find(arg => !arg.startsWith('-') && arg !== 'core.quotepath=false')} failed${why ? `: ${why}` : ''}, so the committed import graph could not be read`);
+  }
   return result.stdout;
 }
 
-/** Read all committed module blobs in one Git batch, preserving exact names and source bytes; a header-only scan passes `completeGraph: false`, since it reads text and needs no ES-module import graph; `blobs` maps every tracked path to its object id. */
-function modulesAt(root, commit, { completeGraph = true, prior } = {}) {
+/** List the committed tree and apply the module-policy refusals, reading no module bytes; `blobs` maps every tracked path to its object id. */
+function listModules(root, commit, completeGraph = true) {
   const tracked = selectionGit(root, ['ls-tree', '-r', '-z', commit]).split('\0').filter(Boolean).map(record => {
     const tab = record.indexOf('\t');
     const [mode, type, hash] = record.slice(0, tab).split(' ');
@@ -130,24 +137,27 @@ function modulesAt(root, commit, { completeGraph = true, prior } = {}) {
   if (manifest && (manifest.type !== 'blob' || manifest.mode === '120000')) throw new Error('the root package policy is not a regular tracked file');
   const policy = manifest ? JSON.parse(selectionGit(root, ['show', `${commit}:package.json`])) : {};
   if (completeGraph && entries.some(entry => entry.path.endsWith('.js'))) {
-    if (policy.type !== 'module' || tracked.some(entry => entry.path.endsWith('/package.json'))) {
-      throw new Error('CommonJS or nested package scopes cannot supply a complete ES-module import graph');
-    }
+    const nested = tracked.find(entry => entry.path.endsWith('/package.json'));
+    if (!manifest) throw new Error('there is no root package.json declaring "type": "module", so no ES-module import graph can be built');
+    if (policy.type !== 'module') throw new Error('the root package.json does not declare "type": "module", so no ES-module import graph can be built');
+    if (nested) throw new Error(`${nested.path} is a nested package scope, which cannot supply a complete ES-module import graph`);
   }
   if (entries.some(entry => entry.type !== 'blob' || entry.mode === '120000')) {
     throw new Error('a tracked module uses an unsupported file mode');
   }
   const blobs = new Map(tracked.map(entry => [entry.path, entry.hash]));
   const unsafeInputs = new Set(tracked.filter(entry => entry.mode === '120000' || entry.type !== 'blob').map(entry => entry.path));
-  if (!entries.length) return { modules: new Map(), blobs, unsafeInputs, importMap: policy.imports ?? {} };
-  // A prior graph already holds the bytes of every blob this tree shares with it; read only the rest.
-  const known = new Map(prior ? [...prior.blobs].filter(([path]) => prior.modules.has(path)).map(([path, hash]) => [hash, prior.modules.get(path)]) : []);
-  const hashes = [...new Set(entries.map(entry => entry.hash))].filter(hash => !known.has(hash));
-  const result = !hashes.length ? { status: 0, stdout: Buffer.alloc(0) } : spawnSync('git', ['--no-replace-objects', 'cat-file', '--batch'], {
+  return { entries, blobs, unsafeInputs, importMap: policy.imports ?? {} };
+}
+
+/** Read the given object ids in one Git batch, as a Map of id to exact source text. */
+function readBlobs(root, hashes) {
+  const sources = new Map();
+  if (!hashes.length) return sources;
+  const result = spawnSync('git', ['--no-replace-objects', 'cat-file', '--batch'], {
     cwd: root, env: cleanGitEnvironment(), input: hashes.join('\n') + '\n', maxBuffer: 128 * 1024 * 1024,
   });
   if (result.status !== 0) throw new Error('committed module blobs could not be read');
-  const sources = known;
   let at = 0;
   for (const hash of hashes) {
     const end = result.stdout.indexOf(10, at);
@@ -158,7 +168,42 @@ function modulesAt(root, commit, { completeGraph = true, prior } = {}) {
     sources.set(hash, result.stdout.subarray(at, at + size).toString('utf8'));
     at += size + 1;
   }
-  return { modules: new Map(entries.map(entry => [entry.path, sources.get(entry.hash)])), blobs, unsafeInputs, importMap: policy.imports ?? {} };
+  return sources;
+}
+
+/**
+ * The given object ids' source text, read from the checkout's own files where a file hashes to the object, else from Git.
+ * Why: a first trip reads about 30 MB of modules, which one Git batch inflates in ~1 s under load; a checkout at the commit
+ * holds the same bytes, and the object hash proves they are exact, so a dirty, other-commit or filtered file falls back to Git [C7,#8135].
+ *
+ * @param {string} root
+ * @param {Map<string, string>} wanted - Object id to the committed path it was listed under.
+ * @returns {Map<string, string>}
+ */
+function readCommittedSources(root, wanted) {
+  const sources = new Map();
+  for (const [hash, path] of wanted) {
+    try {
+      const bytes = readFileSync(join(root, path));
+      const algorithm = hash.length === 64 ? 'sha256' : 'sha1';
+      const actual = createHash(algorithm).update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
+      if (actual === hash) sources.set(hash, bytes.toString('utf8'));
+    } catch { /* A missing or unreadable file is read from Git. */ }
+  }
+  const rest = [...wanted.keys()].filter(hash => !sources.has(hash));
+  for (const [hash, text] of readBlobs(root, rest)) sources.set(hash, text);
+  return sources;
+}
+
+/** Read all committed module blobs in one Git batch, preserving exact names and source bytes; a header-only scan passes `completeGraph: false`, since it reads text and needs no ES-module import graph. */
+function modulesAt(root, commit, { completeGraph = true, prior } = {}) {
+  const { entries, blobs, unsafeInputs, importMap } = listModules(root, commit, completeGraph);
+  if (!entries.length) return { modules: new Map(), blobs, unsafeInputs, importMap };
+  // A prior graph already holds the bytes of every blob this tree shares with it; read only the rest.
+  const known = new Map(prior ? [...prior.blobs].filter(([path]) => prior.modules.has(path)).map(([path, hash]) => [hash, prior.modules.get(path)]) : []);
+  const hashes = [...new Set(entries.map(entry => entry.hash))].filter(hash => !known.has(hash));
+  const sources = new Map([...known, ...readBlobs(root, hashes)]);
+  return { modules: new Map(entries.map(entry => [entry.path, sources.get(entry.hash)])), blobs, unsafeInputs, importMap };
 }
 
 /**
@@ -301,6 +346,19 @@ function addModules(g, paths, probe) {
   for (const path of paths) contribute(g, path);
 }
 
+/** Discovery edges: each module a reader finds by name is a dependency of that reader; they are paths only, so they cost no parse. */
+function addDiscovery(g) {
+  // Discovery is not an import: the command registry loads each apps/cli/src/io/commands module, and machine.js reads each
+  // packages/state/src/logic/engines/*-engine.js leaf as text. A change to one reaches the reader, so everything that imports the reader is selected.
+  for (const module of g.paths) {
+    const reader = module.startsWith('apps/cli/src/io/commands/') && COMMAND_CANDIDATE.test(module.slice('apps/cli/src/io/commands/'.length)) ? COMMAND_REGISTRY
+      : module.startsWith('packages/state/src/logic/engines/') && ENGINE_CANDIDATE.test(module.slice('packages/state/src/logic/engines/'.length)) ? 'packages/state/src/io/machine.js' : null;
+    if (!reader) continue;
+    if (!g.reverse.has(module)) g.reverse.set(module, new Set());
+    g.reverse.get(module).add(reader);
+  }
+}
+
 /**
  * Build the import graph of a tree. With a `prior` graph of another tree that has the same module paths, tracked
  * paths and package policy, only the modules whose blob changed are parsed and rewired; anything else rebuilds all.
@@ -317,15 +375,7 @@ function buildGraph(root, commit, prior, probe) {
       sourceTreeReaders: new Set(), docInputs: new Map(), imports: new Map(), commonJs: new Map(), utilities: new Set() };
     addModules(g, g.paths, probe);
   }
-  // Discovery is not an import: the command registry loads each apps/cli/src/io/commands module, and machine.js reads each
-  // packages/state/src/logic/engines/*-engine.js leaf as text. A change to one reaches the reader, so everything that imports the reader is selected.
-  for (const module of g.paths) {
-    const reader = module.startsWith('apps/cli/src/io/commands/') && COMMAND_CANDIDATE.test(module.slice('apps/cli/src/io/commands/'.length)) ? COMMAND_REGISTRY
-      : module.startsWith('packages/state/src/logic/engines/') && ENGINE_CANDIDATE.test(module.slice('packages/state/src/logic/engines/'.length)) ? 'packages/state/src/io/machine.js' : null;
-    if (!reader) continue;
-    if (!g.reverse.has(module)) g.reverse.set(module, new Set());
-    g.reverse.get(module).add(reader);
-  }
+  addDiscovery(g);
   return { paths: g.paths, reverse: g.reverse, unknown: g.unknown, undeclared: g.undeclared, testTreeReaders: g.testTreeReaders,
     sourceTreeReaders: g.sourceTreeReaders, docInputs: g.docInputs, modules: g.modules, blobs: g.blobs,
     imports: new Map(g.paths.map(path => [path, g.imports.get(path)])), importMap: g.importMap };
@@ -353,12 +403,109 @@ function graphAt(root, commit, changedDocs = [], prior = null, probe = null) {
  * an import the graph cannot resolve, or a test whose computed import declares nothing, has `files: null` and a reason,
  * so a caller that keys results on it runs that file rather than trust an incomplete closure [C7].
  *
+ * Why `prior`: a candidate's graph forks from its base's cached graph, parsing only the changed modules, where a cold
+ * build parses every module; a tree that differs in paths or policy rebuilds all [C7,#6672].
+ *
  * @param {string} root
  * @param {string} [commit]
+ * @param {object | null} [prior] - The graph of another tree, from codeMapGraph.
  * @returns {{ closures: Map<string, { files: string[] | null, helpers?: string[], reason: string }>, modules: Map<string, string>, blobs: Map<string, string> }}
  */
-export function testClosures(root, commit = 'HEAD') {
-  return closuresInGraph(graphAt(root, commit));
+export function testClosures(root, commit = 'HEAD', prior = null) {
+  return closuresInGraph(graphAt(root, commit, [], prior));
+}
+
+/** Modules whose `**` loads admit caller-selected files; the harness reach follows only their literal imports. */
+const SELECTED_RUNNER_MODULES = ['apps/cli/src/io/run/tests.js', 'packages/gate/src/io/run-tests.js', 'packages/gate/src/io/test/file/dispatch.js'];
+
+/** Every quoted relative or `#` specifier in a source: a superset of its import edges, found without a parse. */
+const QUOTED_SPECIFIER = /(['"`])((?:\.{1,2}\/|#)[^'"`\r\n]*)\1/gu;
+
+/**
+ * The modules a module may lead to, as a superset of its real edges: every quoted specifier, declared loads and inputs,
+ * the CLI entry a test names, and the modules discovery finds. Over-reach only parses a little more; the closure
+ * walk below proves nothing outside this set is ever reached [C7,#8140].
+ */
+function possibleEdges(g, path, source, restricted) {
+  const out = new Set();
+  const modulePaths = g.paths;
+  for (const match of source.matchAll(QUOTED_SPECIFIER)) {
+    const target = repositoryImport(path, match[2], g.importMap);
+    if (target && g.hashes.has(target)) out.add(target);
+  }
+  if (!restricted) {
+    for (const list of [declaredLoads(source, modulePaths), declaredSourceLoads(source, modulePaths), declaredInputs(source, modulePaths)]) {
+      for (const load of list ?? []) if (g.hashes.has(load)) out.add(load);
+    }
+    if (isTestCode(path) && source.includes('apps/cli/pullboard.js')) out.add('apps/cli/pullboard.js');
+    // A test naming the repo root reaches the CLI through an imported product module that names its entry.
+    if (isTestCode(path) && NAMES_REPO_ROOT.test(source) && [...out].some(dep => !isTestCode(dep) && g.modules.get(dep)?.includes('apps/cli/pullboard.js'))) out.add('apps/cli/pullboard.js');
+    if (path === COMMAND_REGISTRY) for (const module of modulePaths) if (module.startsWith('apps/cli/src/io/commands/') && COMMAND_CANDIDATE.test(module.slice('apps/cli/src/io/commands/'.length))) out.add(module);
+    if (path === 'packages/state/src/io/machine.js') for (const module of modulePaths) if (module.startsWith('packages/state/src/logic/engines/') && ENGINE_CANDIDATE.test(module.slice('packages/state/src/logic/engines/'.length))) out.add(module);
+  }
+  return out;
+}
+
+/** Walk possible edges from `starts`, reading each wave's sources in one Git batch; returns every module visited. */
+function walkPossible(g, starts, restrictedModules, seen) {
+  let wave = starts.filter(path => g.hashes.has(path) && !seen.has(path));
+  for (const path of wave) seen.add(path);
+  while (wave.length) {
+    g.load(wave);
+    const next = [];
+    for (const path of wave) {
+      for (const target of possibleEdges(g, path, g.modules.get(path), restrictedModules.has(path))) {
+        if (!seen.has(target)) { seen.add(target); next.push(target); }
+      }
+    }
+    wave = next;
+  }
+}
+
+/**
+ * The same closures as `testClosures`, built only from the modules the given tests and the runner entries reach, so a
+ * cold tree parses a few hundred modules, not all of them. Returns null when the scoped walk meets any module it did
+ * not parse, so a caller falls back to the whole-tree graph and the key is never built from a partial one [C7,#8140].
+ *
+ * @param {string} root
+ * @param {string} commit
+ * @param {string[]} tests - Committed test files to close.
+ * @param {string[]} runnerEntries - Entries whose harness reach the caller also asks for.
+ * @param {{ parsed?: string[] } | null} [probe] - Tests only: receives the modules that were parsed.
+ * @returns {ReturnType<typeof closuresInGraph> | null}
+ */
+export function scopedTestClosures(root, commit, tests, runnerEntries, probe = null) {
+  try {
+    const pinned = selectionGit(root, ['rev-parse', '--verify', `${commit}^{commit}`]).trim();
+    const tree = listModules(root, pinned);
+    if (!tree.entries.length) return null;
+    const hashes = new Map(tree.entries.map(entry => [entry.path, entry.hash]));
+    const sources = new Map();
+    const load = paths => {
+      const missing = new Map(paths.filter(path => !sources.has(hashes.get(path))).map(path => [hashes.get(path), path]));
+      for (const [hash, text] of readCommittedSources(root, missing)) sources.set(hash, text);
+    };
+    // Unparsed modules read on demand, so a consumer that asks for a module outside the walk still gets its exact bytes.
+    const modules = new (class extends Map {
+      has(path) { return hashes.has(path); }
+      get(path) { if (!hashes.has(path)) return undefined; load([path]); return sources.get(hashes.get(path)); }
+    })();
+    const g = { paths: tree.entries.map(entry => entry.path), hashes, load, modules, blobs: tree.blobs, unsafeInputs: tree.unsafeInputs, importMap: tree.importMap,
+      reverse: new Map(), unknown: new Map(), undeclared: new Map(), testTreeReaders: new Set(), sourceTreeReaders: new Set(),
+      docInputs: new Map(), imports: new Map(), commonJs: new Map(), utilities: new Set() };
+    const roots = tests.filter(path => TEST.test(path) && hashes.has(path));
+    const parsed = new Set();
+    walkPossible(g, roots, new Set(), parsed);
+    walkPossible(g, runnerEntries, new Set(SELECTED_RUNNER_MODULES), parsed);
+    const reachable = [...parsed];
+    load(reachable);
+    if (probe) probe.parsed = reachable;
+    addModules(g, reachable, null);
+    addDiscovery(g);
+    const graph = { paths: g.paths, reverse: g.reverse, unknown: g.unknown, undeclared: g.undeclared, modules, blobs: g.blobs, imports: g.imports, importMap: g.importMap };
+    const check = path => { if (hashes.has(path) && !parsed.has(path)) throw new Error('scoped walk reached an unparsed module'); };
+    return closuresInGraph(graph, { tests: roots, check });
+  } catch { return null; }
 }
 
 /** Expose the same commit-pinned import graph for read-only code-map observations, never a new selector. */
@@ -395,7 +542,7 @@ export function keylessRows(root) {
 }
 
 /** Compute the same complete-or-unknown root closures from an already-pinned selection graph. */
-function closuresInGraph(graph) {
+function closuresInGraph(graph, scope = null) {
   const forward = new Map();
   for (const [dependency, importers] of graph.reverse) {
     for (const importer of importers) {
@@ -404,7 +551,7 @@ function closuresInGraph(graph) {
     }
   }
   const closures = new Map();
-  for (const test of graph.paths.filter(path => TEST.test(path))) {
+  for (const test of scope ? scope.tests : graph.paths.filter(path => TEST.test(path))) {
     let reason = graph.undeclared.get(test) ?? '';
     const reached = new Set([test]);
     const queue = [test];
@@ -414,7 +561,7 @@ function closuresInGraph(graph) {
       // An imported unreadable test leaves this closure incomplete as well, so it never reuses a green receipt [C7].
       if (path !== test && graph.undeclared.has(path)) { reason = `${graph.undeclared.get(path)} in reached file ${path}`; break; }
       for (const dependency of forward.get(path) ?? []) {
-        if (!reached.has(dependency)) { reached.add(dependency); queue.push(dependency); }
+        if (!reached.has(dependency)) { scope?.check(dependency); reached.add(dependency); queue.push(dependency); }
       }
     }
     // The test and the test/ helpers it reaches without passing through product code: its own test-side reads.
@@ -437,7 +584,7 @@ function closuresInGraph(graph) {
         for (const match of (graph.modules.get(path) ?? '').matchAll(/new\s+URL\(\s*(['"`])([^'"`\\$\r\n]+)\1\s*,\s*import\.meta\.url\s*\)/gu)) targets.push(match[2]);
         dependencies = targets.map(target => repositoryImport(path, target, graph.importMap)).filter(target => graph.blobs.has(target));
       }
-      for (const dependency of dependencies) reached.add(dependency);
+      for (const dependency of dependencies) { scope?.check(dependency); reached.add(dependency); }
     }
     return [...reached].sort();
   };
@@ -500,16 +647,38 @@ function selectionReason(test, via, changed, isReached, unresolved) {
 }
 
 /**
+ * Select declared suites for a polyglot repo: the suites whose folder globs cover every changed path [C7].
+ * Why conservative: a path no glob covers, or a glob that cannot be read, could affect anything, so it asks for the full gate.
+ *
+ * @param {string[]} changed
+ * @param {Record<string,string>} suites - the repo config key affectedSuites, folder glob to suite path
+ * @returns {{full:boolean, reason:string, files:string[]}}
+ */
+export function selectDeclaredSuites(changed, suites) {
+  const rules = Object.entries(suites).map(([glob, suite]) => ({ glob, suite, pattern: globPattern(glob) }));
+  const unreadable = rules.find(rule => !rule.pattern);
+  if (unreadable) return { full: true, reason: `affectedSuites glob ${unreadable.glob} cannot be read`, files: [] };
+  if (!changed.length) return { full: true, reason: 'no changed path to select suites for', files: [] };
+  const picked = new Set();
+  for (const path of changed) {
+    const covering = rules.filter(rule => rule.pattern.test(path));
+    if (!covering.length) return { full: true, reason: `no affectedSuites glob covers ${path}`, files: [] };
+    for (const rule of covering) picked.add(rule.suite);
+  }
+  return { full: false, reason: '', files: [...picked].sort() };
+}
+
+/**
  * Select changed tests and every transitive importer in the old and new trees. Old edges cover
  * deletions and renames; declared tree readers also cover changed test or source inputs. Other filesystem
  * reads and process launches are not import edges, except literal documentation inputs and modules that
  * mention the Pullboard CLI entry (`apps/cli/pullboard.js`), whose imported modules they exercise as subprocesses.
  *
  * @param {string} root
- * @param {{base:string|null, trunk?:string, commit?:string, changed?:string[]}} options
+ * @param {{base:string|null, trunk?:string, commit?:string, changed?:string[], namedImports?:boolean}} options - namedImports defaults to gate.namedImportSelection.
  * @returns {{full:boolean, reason:string, files:string[]}}
  */
-export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', changed, probe = null }) {
+export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', changed, probe = null, suites = null, namedImports }) {
   let files = [];
   try {
     if (!base) return { full: true, reason: 'no claim head recorded; the change cannot be selected', files };
@@ -522,6 +691,8 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
       changed = undefined;
     }
     changed ??= selectionGit(root, ['diff', '--no-renames', '--name-only', '-z', base, commit]).split('\0').filter(Boolean);
+    // A repo that declares affectedSuites selects by folder, never by import graph; without the key nothing changes.
+    if (suites && typeof suites === 'object' && Object.keys(suites).length) return selectDeclaredSuites(changed, suites);
     const changedDocs = changed.filter(path => DOC.test(path));
     const before = graphAt(root, base, changedDocs, null, probe);
     const after = graphAt(root, commit, changedDocs, before, probe);
@@ -535,10 +706,9 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
     const unsupported = changed.find(path => !MODULE.test(path) && !DOC.test(path)
       && !before.reverse.has(path) && !after.reverse.has(path));
     if (unsupported) return { full: true, reason: `import selection cannot compute the effect of ${unsupported}`, files };
-    // A test whose computed import cannot be read is an unknown root: it and every test importing it always run, and the
-    // rest stay focused, so one unreadable file never forces the whole suite (it planned 1,044 files per landing) [C7].
+    // An unreadable computed import is an unknown root: it and its importers always run, the rest stay focused (it once planned 1,044 files) [C7].
     const reached = new Set(changed);
-    const queue = [...changed];
+    const queue = [...changed], narrow = namedReach(namedImports, reached);
     // Why each path joined: the path that reached it, so a selected test can name its changed file and import chain.
     const via = new Map();
     for (const doc of changed.filter(path => DOC.test(path))) {
@@ -550,12 +720,15 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
         }
       }
     }
+    // A reached file whose own reads are unknown still has known importers; the tests that could load it dynamically are
+    // the unknown roots retained below, so reaching it never selects the whole suite [C7].
     for (let at = 0; at < queue.length; at += 1) {
       const path = queue[at];
       for (const graph of [before, after]) {
-        if (graph.unknown.has(path)) return { full: true, reason: `${graph.unknown.get(path)} in reached file ${path}`, files };
+        // A malformed, unmatched or escaping declared test input has no complete reader custody: stay conservative.
+        if (/\bdeclared test input|\bdeclared input\b/u.test(graph.unknown.get(path) ?? '')) return { full: true, reason: `${graph.unknown.get(path)} in reached file ${path}`, files };
         for (const importer of graph.reverse.get(path) ?? []) {
-          if (!reached.has(importer)) { reached.add(importer); via.set(importer, path); queue.push(importer); }
+          if (narrow.reach(graph, path, importer)) { if (!reached.has(importer)) { reached.add(importer); via.set(importer, path); } queue.push(importer); }
         }
       }
     }

@@ -8,8 +8,6 @@ import { waiverLine } from './step/failures.js';
 import { runLandingCandidate } from './step/gate.js';
 import { landingRemote } from './step/publish.js';
 import { landsOnTrunk } from './step/publish.js';
-import { land } from './step/batch.js';
-import { runLandingBatch } from './step/batch.js';
 import {
   checkLandingMessages,
   itemCommitType,
@@ -18,4 +16,4 @@ import {
   landingSubject,
 } from '../logic/message.js';
 
-export { landingFailures, tapFailures, accountedFailures, waivedFailures, liveWaiverProjection, waiverLine, runLandingCandidate, landingRemote, landsOnTrunk, land, runLandingBatch, checkLandingMessages, itemCommitType, landingContext, landingMessage, landingSubject };
+export { landingFailures, tapFailures, accountedFailures, waivedFailures, liveWaiverProjection, waiverLine, runLandingCandidate, landingRemote, landsOnTrunk, checkLandingMessages, itemCommitType, landingContext, landingMessage, landingSubject };

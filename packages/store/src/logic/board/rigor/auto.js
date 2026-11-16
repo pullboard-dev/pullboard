@@ -1,8 +1,10 @@
 /** Evidence-only proposals are deliberately distinct from executed rigor: proofs [D1,S1]. */
-import { causeProblem } from "../rigor.js";
 import { parseSpec } from "../../../../../spec/index.js";
 import { Refused } from "../../../../../kernel/light.js";
 import { readRigorSource } from "./provenance.js";
+import { automaticSourceFromText } from "./provenance.js";
+import { readAutomaticRigorSource } from "./provenance.js";
+export { automaticSourceFromText, readableRigorText, readAutomaticRigorSource } from "./provenance.js";
 import {
   rowDecisionContext,
   staleRowDecision,
@@ -13,28 +15,6 @@ export function automaticRigorSource(cause, eventIds) {
   return 'rigor-auto:' + encodeURIComponent(JSON.stringify({ version: 1, unproved: true, key: cause.key,
     evidence: { items: cause.items, occurrences: cause.occurrences, neverAgain: cause.neverAgain ?? false,
       events: [...new Set(eventIds)] } }));
-}
-
-/** Accept only typed evidence, never prose masquerading as a proof or a decided rule. */
-export function readAutomaticRigorSource(source) {
-  if (typeof source !== 'string' || !source.startsWith('rigor-auto:')) return null;
-  try {
-    const value = JSON.parse(decodeURIComponent(source.slice('rigor-auto:'.length)));
-    if (value?.version !== 1 || value.unproved !== true || typeof value.key !== 'string' || causeProblem(value.key)
-      || !Array.isArray(value.evidence?.items) || !Number.isSafeInteger(value.evidence.occurrences) || value.evidence.occurrences < 0
-      || value.evidence.occurrences === 0 && value.evidence.neverAgain !== true
-      || typeof value.evidence.neverAgain !== 'boolean' || !Array.isArray(value.evidence.events) || !value.evidence.events.length
-      || value.evidence.events.some(id => !Number.isSafeInteger(id) || id < 1)
-      || value.evidence.items.some(item => !Number.isSafeInteger(item?.id) || item.id < 1 || !Array.isArray(item.commits)
-        || item.commits.some(commit => !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(commit)))) return null;
-    return value;
-  } catch { return null; /* Malformed historical metadata cannot establish a proposal. */ }
-}
-
-/** Read the complete terminal typed source without inferring identity from the surrounding advice. */
-export function automaticSourceFromText(text) {
-  const source = /(?:^| )Source: (rigor-auto:\S+)$/u.exec(text ?? '')?.[1];
-  return readAutomaticRigorSource(source) ? source : null;
 }
 
 /** The exact automatic source captured in a person's existing file-backed row decision. */

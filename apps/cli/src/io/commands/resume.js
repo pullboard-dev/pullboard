@@ -8,6 +8,11 @@ import { relayRecovered } from '../../../../../packages/link/index.js';
 import { proposeLanes } from '../init.js';
 import { counterProofStats } from '../../../../../packages/verify/index.js';
 import { localDependencyIds } from '../../../../../packages/items/index.js';
+import { automaticLandingEnabled } from '../../../../../packages/merge/index.js';
+import { mainPolicy } from '../../../../../packages/sandbox/index.js';
+import { adoptOrphanedClaim } from '../resume/adopt.js';
+import { landingWaits } from '../landing/waiting.js';
+import { landingWaitLine } from '../landing/waiting.js';
 /** The pullboard resume command, in its own module so an item adding another command never edits these lines. */
 import {
   keepViewRunning,
@@ -133,6 +138,19 @@ function keylessBookkeeping(send) {
 }
 
 /**
+ * Whether main's committed policy lands accepted work automatically; a project with no commit on main yet has none.
+ *
+ * A fresh `pullboard init` is uncommitted, and resume --diagnostics must still print the setup card that leads to the first commit [I1,C7].
+ *
+ * @param {string} root The primary checkout.
+ * @returns {boolean} true only when committed policy enables automatic landing.
+ */
+function landingIsAutomatic(root) {
+  try { return automaticLandingEnabled(mainPolicy(root).config); }
+  catch (error) { if (error?.code === 'NO_POLICY') return false; throw error; }
+}
+
+/**
  * `pullboard resume` (N19): one short card that puts an agent back to work after a fresh start,
  * a restart or a compaction, from the board rather than from a summary.
  *
@@ -158,6 +176,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
     }]));
   }
   resumeSentinels({ ctx, withBoard: withBoardRead });
+  await adoptOrphanedClaim(io, ctx);
   const { root, isMain } = ctx.info;
   let mainRoot = null;
   let worktreeConfig = null;
@@ -186,7 +205,9 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
     const staleVerdicts = pendingMerges.filter(item => item.item_verdict_state);
     const decisionSections = isMain ? coordinatorDecisionSections(board, ctx) : null;
     const { shouts = [], ...decisions } = decisionSections ?? {};
-    const needsState = resumeNeeds(root, { board, config: ctx.config, includeRigorUndrafted: me.id === COORDINATOR });
+    // Only the main checkout's text card and the JSON result carry the person's needs; a seat's text card skips the
+    // spec blame and board reads they cost, which is what lets SessionStart finish inside its 2 s timeout [I6].
+    const needsState = isMain || json || me.id === COORDINATOR ? resumeNeeds(root, { board, config: ctx.config, includeRigorUndrafted: me.id === COORDINATOR }) : null;
     let proofStatsFallback;
     const flow = decisionSections ? proofStats(board, { now: ctx.clock.now().getTime(),
       /** Keep the cold-path notice in text and JSON without changing the statistics object. */
@@ -198,7 +219,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
       me,
       health: recordedHealthFindings(board),
       all,
-      needsYou: personNeeds(needsState),
+      needsYou: needsState ? personNeeds(needsState) : [],
       ...(me.id === COORDINATOR ? { rigor: { undrafted: needsState.rigorUndrafted, ...(needsState.rigorNotice ? { notice: needsState.rigorNotice } : {}) } } : {}),
       ...(decisionSections ? { ...decisions, ...(diagnostics ? verifiedMergeGroups(root, pendingMerges, shouts, ctx.clock.now().getTime()) : {}),
         flow, ...(proofStatsFallback ? { proofStatsFallback } : {}) } : {}),
@@ -213,6 +234,8 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
       awaiting: all.filter((item) => item.item_status === 'submitted' && item.item_built_by === me.id),
       toVerify: all.filter((item) => item.item_status === 'submitted' && item.item_built_by !== me.id),
       ...(diagnostics ? { toMerge, staleVerdicts } : { acceptedAwaitingLanding: pendingMerges }),
+      // While the board lands accepted work, diagnostics name where each accepted item waits: its land job, a hold, or none (#7948).
+      ...(isMain && diagnostics && landingIsAutomatic(root) ? { landingWaits: landingWaits(board.db, pendingMerges, ctx.clock.now().getTime()) } : {}),
       ...(isMain ? { landingBatches: store.landingBatches(board) } : {}),
       open: all.filter((item) => item.item_status === 'open'),
       hold: store.laneHold(board, me.lane),
@@ -323,6 +346,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
       say(`verified, not merged — merges cleanly: ${listed(groups.clean, (item) => `#${item.item_id} ${firstLine(item.item_title)}${freshness(item)}`)}`);
       say(`verified, not merged — conflicts: ${listed(groups.conflicts, ({ item, files }) => `#${item.item_id} ${firstLine(item.item_title)} (${files.join(', ') || 'files unavailable'})${freshness(item)}`)}`);
       say(`verified, not merged — claimed for integration: ${listed(groups.integrating, ({ item, by, at, commit }) => `#${item.item_id} by ${name(by)} at ${at} (${commit.slice(0, 12)})${freshness(item)}`)}`);
+      for (const wait of card.landingWaits ?? []) say(`landing: ${landingWaitLine(wait)}`);
     }
     section(card.needsYou, (need) => need.kind === 'decision'
       ? `waiting on the person: #${need.id} from ${need.ref} (${span(ctx, need.at)}): ${firstLine(need.text)}`
@@ -331,7 +355,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
     section(card.rigor?.undrafted ?? [], (cause) => `Rigor needs a proved draft: ${cause.key}, items ${cause.items.map(item => `#${item.id}`).join(', ')}; pullboard rigor draft "${cause.key.replaceAll('"', '\\"')}" "<rule>" --check "<command>" --red <commit> --green <commit>`);
     if (card.toVerify.length) say('review queue:');
     section(card.toVerify, (item) => `  to verify: #${item.item_id} ${item.item_lane} (${span(ctx, item.item_updated_at)})`);
-    if (diagnostics && card.toMerge.length) say('merge verified work, run the gate, then record each with pullboard merged <id> <commit>');
+    if (diagnostics && card.toMerge.length && !card.landingWaits) say('merge verified work, run the gate, then record each with pullboard merged <id> <commit>');
     if (!diagnostics && card.acceptedAwaitingLanding.length) say(`Last accepted receipts awaiting landing checks: ${card.acceptedAwaitingLanding.map(item => `#${item.item_id}`).join(', ')}; pullboard land checks their current verdicts.`);
     for (const hold of card.holds) say(`held: the ${hold.hold_lane} lane, ${hold.hold_reason}`);
     const byLane = Object.entries(Map.groupBy(card.open, (item) => item.item_lane)).map(([lane, items]) => `${lane} ${items.length}`);
@@ -347,6 +371,8 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
   if (isMain) {
     next = coordinatorNext(diagnostics ? card : { ...card, toMerge: card.acceptedAwaitingLanding, staleVerdicts: [] }, loadSpec(root, ctx.config).rows);
     if (!diagnostics && next.startsWith('merge #')) next = 'pullboard land (checks current verdicts before merging)';
+    // The board lands accepted work: the next step is the land job an accepted item lacks, never a hand merge (#7948).
+    if (card.landingWaits?.length && next.startsWith('merge #')) next = landingNext(card.landingWaits);
   }
   else if (card.holding.length) next = buildNext(card);
   else if (card.sentBack.length) next = `pullboard next; ${reworkNext(card)}`;
@@ -363,6 +389,15 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
   const flowAlert = isMain ? flowAlertLine(card.flow) : null;
   if (flowAlert) say(flowAlert);
   return 0;
+}
+
+/** The coordinator's next step while the board lands accepted work: offer a missing land job, lift a hold, or take other work. */
+function landingNext(waits) {
+  const none = waits.filter(wait => wait.state === 'none');
+  if (none.length) return `pullboard land (offers the land job ${none.map(wait => `#${wait.id}`).join(' ')} never got)`;
+  const held = waits.find(wait => wait.state === 'held');
+  if (held) return `pullboard hold ${held.id} --off once #${held.id} merges cleanly (${held.reason})`;
+  return `nothing by hand: a runner lands ${waits.map(wait => `#${wait.id}`).join(' ')} from land job ${waits[0].job}; pullboard next`;
 }
 
 /** Run `pullboard resume` and return its exit code. */

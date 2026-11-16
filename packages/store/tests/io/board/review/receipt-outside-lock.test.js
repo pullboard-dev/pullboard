@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import * as store from '../../../../index.js';
-import { submitFixture } from '../../../../../../apps/cli/tests/fixtures/board/submit.js';
+import { submitFixture } from '../../../fixtures/submit.js';
 import { fixture } from '../../../fixtures/dispatch.js';
 
 test('clause 1: a verdict on an item whose gate has no receipt is refused with no BEGIN IMMEDIATE [B3,C7]', t => {

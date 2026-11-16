@@ -119,6 +119,24 @@ function composedReservation(ctx, board, found, getItem) {
 }
 
 /**
+ * The forced-landed items with no verdict, newest landing first: withdrawn with a merged commit, a forced `merged` event, and no verdict recorded.
+ * Why: the blitz lander merged about 1,600 items around review; a post-landing verdict is the only review they get (#4991).
+ *
+ * @param {any[]} items - every item on the board
+ * @param {(item: any) => { event_id: number, event_kind: string, event_detail?: string }[]} eventsOf - one item's events
+ * @returns {any[]} newest landing first
+ */
+export function forcedLandedUnreviewed(items, eventsOf) {
+  const rows = [];
+  for (const item of items) {
+    if (item.item_status !== 'withdrawn' || !item.item_merged_commit || item.item_verdict) continue;
+    const merge = eventsOf(item).findLast(event => event.event_kind === 'merged' && JSON.parse(event.event_detail || '{}').forced === true);
+    if (merge) rows.push({ item, at: merge.event_id });
+  }
+  return rows.sort((a, b) => b.at - a.at).map(row => row.item);
+}
+
+/**
  * The review half of one next loop: return heads that no longer merge, then reserve the named review or the next one.
  *
  * @param {any} ctx
@@ -127,13 +145,15 @@ function composedReservation(ctx, board, found, getItem) {
  * @param {any} values
  * @param {{ ordered: (operation: string, args: any[]) => Promise<any>, idArg: (value: any, what: string) => number, trunkMerge: Function, listItems: Function, itemById: Function, getItem: Function, mainRedReviewItems: Function }} deps
  */
-export async function nextReview(ctx, board, me, values, { ordered, idArg, trunkMerge, listItems, itemById, getItem, mainRedReviewItems, agentSessionDigest, nextFor }) {
+export async function nextReview(ctx, board, me, values, { ordered, idArg, trunkMerge, listItems, itemById, getItem, mainRedReviewItems, agentSessionDigest, nextFor, landedOffer }) {
   for (const { id, files } of await returnUnmergeable(ctx.info.root, board, me, { ordered, trunkMerge, listItems, itemById, phase: ctx.io.nextPhase })) {
     // Stderr in every mode, so a --json caller still sees why the queue shrank.
     const line = `returned #${id} to its builder unreviewed: it no longer merges onto the trunk (${files.map(shownPath).join(', ')})`;
     if (ctx.io.stderr) ctx.io.stderr.write(line + '\n'); else ctx.io.err?.(line);
   }
-  const reservation = { agentId: me.id, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family };
+  // A review that plain next reserved on its own lapses in 5 minutes unless the seat starts it, so one idle builder never locks out the real reviewer.
+  const leaseMs = values.unstartedReviewLapse ? Math.min(ctx.config.reviewLeaseMs, 5 * 60_000) : ctx.config.reviewLeaseMs;
+  const reservation = { agentId: me.id, leaseMs, policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family };
   if (values.verifyId !== undefined) {
     const id = idArg(values.verifyId, 'an item id after --verify');
     const item = getItem(board, id);
@@ -143,7 +163,7 @@ export async function nextReview(ctx, board, me, values, { ordered, idArg, trunk
     ctx.io.nextPhase?.('review reservation', id);
     return composedReservation(ctx, board, { item: await ordered('reserveReview', [id, reservation]), reasons: [] }, getItem);
   }
-  const selection = { agentId: me.id, lane: me.lane, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify.policy,
+  const selection = { agentId: me.id, lane: me.lane, leaseMs, policy: ctx.config.verify.policy,
     familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes,
     omitIds: values.omitIds,
     observeIdle: values.observeIdle, skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems, reviewer: me.id }),
@@ -152,6 +172,11 @@ export async function nextReview(ctx, board, me, values, { ordered, idArg, trunk
   // when a candidate exists, so a stale read can never reserve another reviewer's work.
   if (nextFor) {
     const preview = nextFor(board, { ...selection, verify: true, sessionIds: selection.skipIds });
+    // With verify.landedReviews on, an empty ordinary queue offers the newest forced landing that has no verdict; it takes no reservation, since a landed item takes one verdict [C7].
+    if (!preview.item && ctx.config.verify?.landedReviews === true && values.verifyId === undefined) {
+      const landed = landedOffer?.(board, me, { omitIds: values.omitIds, skipIds: selection.skipIds });
+      if (landed) return { item: landed, reasons: [], landed: true };
+    }
     if (!preview.item) return preview;
   }
   const { omitIds = [], ...reservationSelection } = selection;

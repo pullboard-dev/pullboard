@@ -48,12 +48,22 @@ New to doctrine? Read [Lesson 1: Doctrine](https://pullboard.dev/tutorials/doctr
 - T10 [draft, must] A root cause is proven by a control that would have come out differently before the fix lands. Rigor runs each fix commit's changed test files on the fix's parent, where they must fail, and at the fix, where they must pass; a cause argued only in prose is review. | gate: check node apps/cli/pullboard.js rigor quality --rule root-cause-control | count: 0 | source: rigor-quality:root-cause-control
 - T11 [approved, must] Proof is what the board records. An agent keeps no evidence of its own; when the board's runs cannot decide an item, its bar is sharpened. | gate: review
 - T12 [approved, must] Zero flaky tests. A test that gives two verdicts on the same tree is a defect. It is quarantined at once and never blocks an item. Its owner gets an item the same day, and the fix is at the cause: never a retry, a longer timeout or a skip. The count of flaky tests only falls. Baseline: 246 flaky tests (23 to 26 Oct 2026). | gate: review
+- T13 [draft, must] Every test has a registry record: a stable ID not derived from its path, the spec ids and one sentence it proves, why it exists, its kind (cell unit, contract, journey, harness), and its declared inputs. | gate: registry check (#8050, #8054)
+- T14 [draft, must] A test is the cheapest kind that can prove its claim. A new journey needs a named user path and the coordinator's OK. | gate: review
+- T15 [draft, must] No two tests prove the same claim. | gate: duplicate-claim check (#8054)
+- T16 [draft, must] A test stays inside its kind's budget: cell unit 5 s, contract 60 s, journey 120 s. A slow test is sped up first, then split. Budgets are never raised. | gate: per-file limit
+- T17 [draft, must] A test leaves no timer, process or socket alive when it ends. | gate: file-exit watchdog
+- T18 [draft, must] A cell's mutation score never drops below its last measured score. | gate: report only until calibrated per cell (receipt cell 61/70 on 15 Nov, then 70/70 after #8102)
+- T19 [draft, aim] With verify.frozenTests on, a test file a clause names is frozen at claim; changing it needs a person ruling. Off by default (#8097). | gate: review
+- T20 [draft, aim] With verify.failBefore on, a [test] clause needs a receipt that fails on an assertion at base and passes at head. Off by default (#8092); fully usable once #8090 records base runs. | gate: review
+- T21 [draft, aim] Under Strict pace, a separate test author writes and freezes the tests before a different agent builds. Opt-in per item otherwise. | gate: review
 
 ## G · Git and the gate
 - G1 [approved, must] `npm run gate` (spec check and tests) passes before every push. | gate: pre-push hook
 - G2 [approved, must] Never bypass a hook. Never rewrite the main line, except to remove a secret. | gate: review
 - G3 [approved, must] This repo's hooks run the source in this checkout. | gate: .githooks
 - G4 [draft, aim] We aim to give every outside issue and pull request a first reply within 7 days. | gate: review
+- G5 [draft, must] A new refusal ships behind its own setting, off by default, until the piece that satisfies it has landed. (Twice on 15 Nov, #8053 and #8029, a refusal went live by default and blocked ordinary submits.) | gate: review
 
 ## F · Flow
 - F1 [approved, must] No bottlenecks except the person's intent. Ready work never waits on a seat, a reviewer pool, a screening step or the coordinator. Unowned ready work goes to a free seat within minutes. A submission gets an eligible reviewer within minutes. A question that is not the person's to answer is decided by whoever holds that authority, while the asker keeps working. The only thing allowed to wait is what the person wants. | gate: review

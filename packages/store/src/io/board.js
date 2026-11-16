@@ -19,6 +19,7 @@ import { reviewReleaseCooldown as routingReviewReleaseCooldown } from "../../../
 import { seatFamily } from "../../../verify/index.js";
 import { routingStrictReviewProblem } from "../../../verify/index.js";
 import { reviewFamilyProblem } from "../../../verify/index.js";
+import { declaredLimitProblem } from "../../../verify/index.js";
 import { twoTierReviews } from "../../../verify/index.js";
 import { setItem as writeItemFields } from "../../../items/index.js";
 import { foreignBlockers as readForeignBlockers } from "../../../items/index.js";
@@ -39,6 +40,7 @@ import { atomic } from "./board/event/log.js";
 import { logEvent } from "./board/event/log.js";
 import { verdictReviewProblem } from "../../../verify/index.js";
 import { verdictsFor } from "../../../verify/index.js";
+import { verdictReads } from "../../../verify/index.js";
 import { acceptedVerdict } from "../../../verify/index.js";
 import { checkedLandingCommit } from "../../../verify/index.js";
 import { itemFiles } from "../../../items/index.js";
@@ -80,6 +82,7 @@ import { objectItemPatch } from "./board/patch/attach.js";
 import { removeItemPatch } from "./board/patch/remove.js";
 import { prepareClaim as preparedClaim } from "./board/claim.js";
 import { claim as applyPreparedClaim } from "./board/claim.js";
+import { admitSubmit as applySubmitAdmission } from "./board/claim.js";
 import { release } from "./board/release.js";
 import { submit } from "./board/submit.js";
 import { prepareSubmit } from "./board/submit.js";
@@ -90,6 +93,7 @@ import { reviewOffer } from "./board/review/offer.js";
 import { reserveReview } from "./board/reserve/review.js";
 import { reserveNextReview } from "./board/reserve/next.js";
 import { verify } from "./board/verify.js";
+import { verdictEvidence } from "./board/verify.js";
 import { reopen } from "./board/reopen.js";
 import { merged } from "./board/merged.js";
 import { withdraw } from "./board/withdraw.js";
@@ -98,6 +102,7 @@ import { shout } from "./board/shout.js";
 import { recordHealthFindings } from "./board/record/findings.js";
 import { passDecision } from "./board/decision/pass.js";
 import { answerDecision } from "./board/decision/answer.js";
+import { closeFinishedAsks } from "./board/decision/answer.js";
 import { appendFact } from "./board/fact.js";
 import { buildOrder } from "./board/order.js";
 import { nextFor } from "./board/next.js";
@@ -158,7 +163,7 @@ export { setBarReady, signBar, seatFamily, canonicalFamily } from "../../../veri
 export { coordinatorCheck, completeCheckBaseline, itemCheckAuthor } from "./baseline/check.js";
 
 export { atomic, logEvent };
-export { verdictReviewProblem, verdictsFor, acceptedVerdict, checkedLandingCommit };
+export { verdictReviewProblem, verdictReads, verdictsFor, acceptedVerdict, checkedLandingCommit };
 export { landingTestDefects, recordLandingTestDefect, closeLandingTestDefect } from "../logic/board/landing/test/defects.js";
 export { recordSelectorGap, selectorGapCandidate } from "../logic/board/gap.js";
 export { relandAccepted, acceptedRelandCandidate, relandConflictRecorded } from "../logic/board/reland.js";
@@ -170,9 +175,10 @@ export { ROUTES, canTake };
 export { landingFlakes, landingWaiverCovers, landingWaiverKind };
 export { acceptCheck } from "../../../verify/index.js";
 export { declareJob, recordJobRun } from "../logic/board/jobs.js";
-export { recordUsage } from "../../../stats/index.js";
-export { recordUsageBatch } from "../../../stats/index.js";
-export { recordSharedUsage } from "../../../stats/index.js";
+export { recordUsage } from "../../../stats/light.js";
+export { recordCoordinatorUsage } from "../../../stats/light.js";
+export { recordUsageBatch } from "../../../stats/light.js";
+export { recordSharedUsage } from "../../../stats/light.js";
 export { proofReceipts, recordProofRun, storeTestReceipt } from "./receipts.js";
 /** Seat rules live in seats.js and agent readers in board-query.js; the board re-exports them so `store.*` callers keep one import. */
 export { agentCreator, coordinatorHolder, nextSeatId, seatEnrolled, seatLineage, withVerifierStanding } from "../../../seats/index.js";
@@ -351,7 +357,7 @@ export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', r
     policyAllows: (found) =>
       policy === COORDINATOR && found.item_lane !== COORDINATOR && agentId !== COORDINATOR ? new Refused('COORDINATOR_VERIFIES', 'this repo has the coordinator verify lane work') : null,
     requiredReviewFamily: found => requiredReviewFamilyProblem(board, found, agentId),
-    familyAllows: (found) => routingStrictReviewProblem(board, found, agentId) ?? (twoTierReviews(board) ? reviewFamilyProblem(board, found, agentId, relaxationFor && relaxationFor(found) ? 'prefer' : relaxationFor ? frozenFamilyPolicy(found, familyPolicy) : familyPolicy) : familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
+    familyAllows: (found) => declaredLimitProblem(board, found, agentId) ?? routingStrictReviewProblem(board, found, agentId) ?? (twoTierReviews(board) ? reviewFamilyProblem(board, found, agentId, relaxationFor && relaxationFor(found) ? 'prefer' : relaxationFor ? frozenFamilyPolicy(found, familyPolicy) : familyPolicy) : familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
       ? new Refused('O2_FAMILY_MATCH', `#${found.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`)
       : null),
     reviewFree: (found) => {
@@ -385,7 +391,7 @@ export { EVIDENCE_KINDS } from "../logic/board/audience.js";
 
 export { openDecisions } from "./board/query.js";
 
-export { inbox } from "../logic/board/inbox.js";
+export { inbox, enqueueInboxMark, flushInboxMarks, takeInboxMarks } from "../logic/board/inbox.js";
 
 export { unreadCount } from "./board/query.js";
 
@@ -395,6 +401,8 @@ export { FACT_KINDS } from "../../../items/index.js";
 export { factReference };
 
 export { itemThread } from "./board/query.js";
+
+export { itemThreads } from "./board/query.js";
 
 /** The enclosing move's transaction owns these implicit notices; older replay emits none. */
 export function postRigorNotices(board, trigger) {
@@ -469,6 +477,7 @@ export {
   reserveReview,
   reserveNextReview,
   verify,
+  verdictEvidence,
   reopen,
   merged,
   withdraw,
@@ -477,6 +486,7 @@ export {
   recordHealthFindings,
   passDecision,
   answerDecision,
+  closeFinishedAsks,
   appendFact,
   buildOrder,
   nextFor,
@@ -521,6 +531,11 @@ export function claim(board, id, options) {
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.min(attempt + 1, 5));
     }
   }
+}
+
+/** Record a submit admission on the caller's own live claim in one attempt that never sleeps; a moved board refuses BOARD_BUSY. */
+export function admitSubmit(board, id, options) {
+  return applySubmitAdmission(board, id, options, { checkedItemMove, moveItem, reviewerChecks, reviewReleaseCooldown, foreignBlockers });
 }
 
 export { prepareQueueSubmitHandoff, queueSubmitHandoff, startSubmitHandoff, completeSubmitHandoff } from "./submit/handoff/retry.js";

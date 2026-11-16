@@ -9,15 +9,16 @@ import { writeFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
-import { temporaryRepository } from '../../../../apps/cli/tests/fixtures/board/submit.js';
-import { temporaryDirectory } from '../../../../apps/cli/tests/fixtures/board.js';
-import { runFixtureChildAsync } from '../../../../apps/cli/tests/fixtures/child.js';
+import { temporaryRepository } from '../../../store/tests/fixtures/submit.js';
+import { temporaryDirectory } from '../../../board/tests/fixtures/board.js';
+import { runFixtureChildAsync } from '../../../gate/tests/fixtures/child.js';
 import { createHostedItemFolder } from '../../index.js';
 import { hostedItemFolderPath } from '../../index.js';
 import { returnHostedBranch } from '../../index.js';
 import { runInHostedItemFolder } from '../../index.js';
 import { cachedTrunkPack } from '../../src/io/worktree.js';
 import { checkoutCandidate } from '../../../drive/index.js';
+import { testGit as pullGit } from '../fixtures/git.js';
 import { boardEndpoint } from '../../../drive/index.js';
 import { boardTrunkPack } from '../../../drive/index.js';
 import { createApiHandler } from '../../../api/index.js';
@@ -118,7 +119,7 @@ test('#5932 clause 1: three pulled jobs fetching one trunk commit at once share 
     return served;
   };
   const caches = ['a', 'b', 'c'].map(name => join(scratch, name));
-  const checkouts = await Promise.all(caches.map(cache => checkoutCandidate(cache, trunk, commit, 'job', [], { main: commit, pack })));
+  const checkouts = await Promise.all(caches.map(cache => checkoutCandidate(cache, trunk, commit, 'job', [], { main: commit, pack, git: pullGit })));
   for (const checkout of checkouts) assert.equal(checkout.ok, true, checkout.reason);
   assert.equal(asked, 3, 'every cold runner asked for the shared pack');
   assert.equal(builds, 1, 'three concurrent fetchers of one commit ran pack-objects once');
@@ -134,19 +135,19 @@ test('#5932 clause 2: a runner that already has the commit fetches nothing new, 
   t.after(() => rmSync(scratch, { recursive: true, force: true }));
   const cache = join(scratch, 'cache');
   const first = await git(trunk, 'rev-parse', 'main');
-  assert.equal((await checkoutCandidate(cache, trunk, first, 'job', [], { main: first })).ok, true);
+  assert.equal((await checkoutCandidate(cache, trunk, first, 'job', [], { main: first, git: pullGit })).ok, true);
   let asked = 0;
   const pack = async () => { asked += 1; return null; };
   const store = join(cache, 'git');
   const refsBefore = await git(store, 'for-each-ref');
-  const again = await checkoutCandidate(cache, join(scratch, 'no-such-trunk'), first, 'job', [], { main: first, pack });
+  const again = await checkoutCandidate(cache, join(scratch, 'no-such-trunk'), first, 'job', [], { main: first, pack, git: pullGit });
   assert.equal(again.ok, true, again.reason);
   assert.equal(await git(store, 'for-each-ref'), refsBefore, 'a commit the runner holds fetches nothing, from a trunk it cannot even reach');
   writeFileSync(join(trunk, 'next.txt'), 'next\n');
   await git(trunk, 'add', 'next.txt');
   await git(trunk, 'commit', '-q', '-m', 'next');
   const second = await git(trunk, 'rev-parse', 'main');
-  assert.equal((await checkoutCandidate(cache, trunk, second, 'job', [], { main: second, pack })).ok, true);
+  assert.equal((await checkoutCandidate(cache, trunk, second, 'job', [], { main: second, pack, git: pullGit })).ok, true);
   assert.equal(asked, 0, 'a warm store fetches the new commit incrementally and never asks for the shared pack');
 });
 
@@ -172,7 +173,7 @@ test('#5945 clause 1: the board serves GET /trunk/<commit>.pack from one shared 
   const board = `http://127.0.0.1:${server.address().port}/api/v1/boards/fixture`;
   const endpoint = boardEndpoint(`${board}?k=fixture-key`);
   const checkouts = await Promise.all(['a', 'b', 'c'].map(name => checkoutCandidate(join(scratch, name), trunk, commit, 'job', [],
-    { main: commit, pack: boardTrunkPack(endpoint, fetchFresh, join(scratch, name, 'packs')) })));
+    { main: commit, pack: boardTrunkPack(endpoint, fetchFresh, join(scratch, name, 'packs')), git: pullGit })));
   for (const checkout of checkouts) {
     assert.equal(checkout.ok, true, checkout.reason);
     assert.equal(await git(checkout.folder, 'rev-parse', 'HEAD'), commit);

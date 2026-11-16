@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { cellBoard } from '../../../store/tests/fixtures/cell.js';
 import { LEASE_MS } from '../../index.js';
+import { backOffLease } from '../../index.js';
 import { createJob } from '../../index.js';
 import { finishJob } from '../../index.js';
 import { jobView } from '../../index.js';
@@ -85,4 +86,14 @@ test('finishJob marks the job done for its holder or an unleased or lapsed job, 
   takeJob(db, 'old', 'w1', { now: 1, leaseMs: 10 });
   assert.equal(finishJob(db, 'old', 'w2', { now: 5000 }), true, 'a lapsed lease no longer protects its holder');
   assert.equal(jobView(db, 'old').step, 'done');
+});
+
+test('a job released with a backoff still reads as the step it kept, with its lease freed [C7]', t => {
+  const db = jobOn(t);
+  assert.equal(takeJob(db, 'gate:1', 'w1', { now: 1000 }).taken, true);
+  db.prepare("UPDATE job SET job_step = 'claimed' WHERE job_id = 'gate:1'").run();
+  assert.equal(backOffLease(db, 'gate:1', 'w1', { attempt: 1, reason: 'stopped', now: 2000 }).released, true);
+  const view = jobView(db, 'gate:1');
+  assert.deepEqual([view.step, view.leaseOwner], ['claimed', null]);
+  assert.equal(view.steps.at(-1).name, 'released');
 });

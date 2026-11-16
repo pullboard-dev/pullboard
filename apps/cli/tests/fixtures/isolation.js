@@ -41,7 +41,7 @@ export async function assertBranchWorktreeBoardIsolation(t, sourceRoot) {
   writeFileSync(join(repo, 'SPEC.md'), '# Worktree schema fixture\n\n## G · Goals\n- G1 [approved, must] Keep the shared board stable. | gate: true\n');
   writeFileSync(join(repo, 'PRACTICE.md'), '');
   const env = { ...process.env,
-    HOME: join(directory, 'home'), PULLBOARD_HOME: join(directory, 'pullboard-home'),
+    HOME: join(directory, 'home'), PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(directory, 'pullboard-home'),
     PULLBOARD_MACHINE_HOME: join(directory, 'machine-home'),
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Board Isolation Fixture', GIT_AUTHOR_EMAIL: 'board-isolation@example.test',

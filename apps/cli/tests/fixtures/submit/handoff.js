@@ -17,7 +17,8 @@ import { endedSubmitHandoff } from '../../../../../packages/store/index.js';
 import { fixtureAdd } from '../testkit.js';
 import { driverRecord } from '../gate/driver.js';
 import { jobView } from '../../../../../packages/jobs/index.js';
-import { DISPATCHER_JOB } from '../../../../../packages/drive/index.js';
+import { jobsOf } from '../../../../../packages/jobs/index.js';
+import { DatabaseSync } from 'node:sqlite';
 
 /** Require authentic command success before interpreting any native result. */
 export function document(result) {
@@ -36,11 +37,23 @@ export function state(box, id, endedId) {
   } finally { board.db.close(); }
 }
 
+/** Run `use` on the fixture's board file as a plain connection, closed after; the runner and the CLI write the same file, so a busy wait is set. */
+export function withBoardFile(box, use) {
+  // @pullboard-board-file journey: read and edit the pulled gate job's persisted steps and lease after its runner stopped or died.
+  const db = new DatabaseSync(box.boardFile);
+  try { db.exec('PRAGMA busy_timeout = 10000'); return use(db); } finally { db.close(); }
+}
+
+/** The item's newest gate job, with its steps and lease, read from the fixture's board file. */
+export function gateJob(box) {
+  return withBoardFile(box, db => { const job = jobsOf(db, { kind: 'gate', item: box.id }).at(-1); return job ? jobView(db, job.id) : null; });
+}
+
 /** Quote a private fixture path for the actual configured shell command. */
 export function word(value) { return `'${value.replaceAll("'", "'\\''")}'`; }
 
 /** Build a native project whose frozen check waits for a real release file, not a timing margin. */
-export function fixture(t, { enabled = true, result = 'green', companion = false, cells = false, firstFolder = false } = {}) {
+export function fixture(t, { enabled = true, result = 'green', companion = false, cells = false, firstFolder = false, fourth = false, perSeat = firstFolder ? 2 : null } = {}) {
   const helpers = createE2eHelpers();
   const isolated = helpers.sandbox();
   // Isolate admission before init and commit hooks, as well as the nested queued worker.
@@ -69,7 +82,12 @@ export function fixture(t, { enabled = true, result = 'green', companion = false
   ].join('\n'));
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  writeFileSync(configFile, JSON.stringify({ ...config, submit: { handoff: enabled }, ...(cells ? { lanes: { ...config.lanes, web: { ...config.lanes.web, owns: ['web/', 'src/', 'packages/codemap/data/plan/'] } } } : {}) }, null, 2) + '\n');
+  // A cells refusal can return the item to a plain claim before the test claims its second build, so a cells seat holds two.
+  const cellsPolicy = cells ? { lanes: { ...config.lanes, web: { ...config.lanes.web, owns: ['web/', 'src/', 'packages/codemap/data/plan/'] } }, claims: { releaseGone: false, releaseCooldownMinutes: 30, ...config.claims, perSeat: 2 } } : {};
+  // A first-folder seat claims its second build beside the first, and a journey that holds several builds names its cap [B5];
+  // the journey projects pin one claim per seat otherwise.
+  const twoClaims = perSeat && !cells ? { claims: { ...config.claims, perSeat } } : {};
+  writeFileSync(configFile, JSON.stringify({ ...config, submit: { handoff: enabled }, ...cellsPolicy, ...twoClaims }, null, 2) + '\n');
   if (cells) {
     mkdirSync(join(box.repo, 'packages/codemap/data/plan'), { recursive: true });
     writeFileSync(join(box.repo, 'packages/codemap/data/plan/cells.json'), JSON.stringify({ version: 1, cells: [], stays: [] }) + '\n');
@@ -80,16 +98,18 @@ export function fixture(t, { enabled = true, result = 'green', companion = false
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const check = `${word(process.execPath)} ${word(script)}`;
-  const id = document(fixtureAdd(box.run, box.repo, 'web', cells ? 'Cells move 1/1: captured submit source' : 'Captured submit source', '--specs', 'G1',
+  const id = document(fixtureAdd(box.runSync, box.repo, 'web', cells ? 'Cells move 1/1: captured submit source' : 'Captured submit source', '--specs', 'G1',
     '--criterion', 'The captured candidate passes its real gate.', '--check', check, '--wait', '--json')).item.item_id;
-  const third = document(fixtureAdd(box.run, box.repo, 'web', 'Third ordinary build', '--specs', 'G1',
+  const third = document(fixtureAdd(box.runSync, box.repo, 'web', 'Third ordinary build', '--specs', 'G1',
     '--criterion', 'An ordinary third build stays refused.', '--check', 'true', '--wait', '--json')).item.item_id;
-  const second = document(fixtureAdd(box.run, box.repo, 'web', 'Independent second build', '--specs', 'G1',
-    '--criterion', 'The second build remains separate.', '--check', 'true', '--wait', '--json')).item.item_id;
-  const claim = document(box.run(box.web, 'claim', String(id), '--json'));
+  const second = document(fixtureAdd(box.runSync, box.repo, 'web', 'Independent second build', '--specs', 'G1',
+    '--criterion', 'The second build remains separate.', '--check', 'true', '--accept-green', 'filler build that only holds a second claim', '--wait', '--json')).item.item_id;
+  // A journey that holds four claims files its fourth build here: add --wait runs its check on the one local runner, which a held gate would occupy [C7].
+  const fourthId = fourth ? document(fixtureAdd(box.runSync, box.repo, 'web', 'Fourth ordinary build', '--specs', 'G1', '--criterion', 'One ordinary build at a time.', '--check', 'true', '--accept-green', 'filler build that only holds a fourth claim', '--wait', '--json')).item.item_id : null;
+  const claim = document(box.runSync(box.web, 'claim', String(id), '--json'));
   const source = firstFolder ? claim.itemFolder : box.web;
   // B5: with a second live claim, the commit hook must still stamp the folder's own item.
-  const secondFolder = firstFolder ? document(box.run(box.web, 'claim', String(second), '--json')).itemFolder : null;
+  const secondFolder = firstFolder ? document(box.runSync(box.web, 'claim', String(second), '--json')).itemFolder : null;
   assert.equal(helpers.commitFile(box, source, 'web/snapshot.txt', result + '\n', 'feat(web): captured candidate [G1]').status, 0);
   const commit = box.git(source, 'rev-parse', 'HEAD');
   writeFileSync(armed, 'armed\n');
@@ -103,7 +123,7 @@ export function fixture(t, { enabled = true, result = 'green', companion = false
     if (job) await workerGone(helpers, box, job.id);
     await removeSandboxes(helpers);
   });
-  return { ...box, helpers, id, second, third, commit, source, secondFolder, release, releases, started, finished };
+  return { ...box, helpers, id, second, third, fourth: fourthId, commit, source, secondFolder, release, releases, started, finished };
 }
 
 
@@ -123,11 +143,9 @@ export async function workerGone(helpers, box, job) {
 }
 
 /**
- * Wait until a fixture's gate processes have made their last write: the job's driver has exited and the board's
- * dispatcher row is free, which the dispatcher writes last before it exits.
- * Why: both outlive the job's terminal record by design. The driver ends its drive job and removes its checkout after
- * it records the result, and the dispatcher's last pass records the worker cap under the machine home and then frees
- * its board row. A fixture removed under them got a folder back after rmSync had walked past it, and rmSync then slept
+ * Wait until a fixture's gate process has made its last write: the job's driver has exited.
+ * Why: it outlives the job's terminal record by design. The driver ends its drive job and removes its checkout after
+ * it records the result. A fixture removed under it got a folder back after rmSync had walked past it, and rmSync then slept
  * in its retry backoff on the root until run-tests killed the file (#3495).
  *
  * @param {any} helpers - The fixture's e2e helpers.
@@ -137,14 +155,6 @@ export async function workerGone(helpers, box, job) {
 export async function gateSettled(helpers, box, job) {
   const boardFile = box.boardFile ?? join(box.repo, '.git', 'pullboard', 'board.sqlite');
   if (job) await workerGone(helpers, { ...box, boardFile }, job);
-  await helpers.waitFor(() => { // budget: dispatcher last-pass ceiling inside the file-exit window, not a timing assertion.
-    // @pullboard-board-file journey: read the dispatcher's own board row, the last thing it writes before it exits.
-    const board = openBoard(boardFile);
-    try {
-      const row = jobView(board.db, DISPATCHER_JOB);
-      return !row?.leaseOwner || row.leaseUntil < Date.now();
-    } finally { board.db.close(); }
-  }, 'the gate dispatcher frees its board row before fixture removal', 15_000);
 }
 
 /**

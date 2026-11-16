@@ -1,9 +1,9 @@
 import { advancedVerdict } from '../advance.js';
 /** Sealed review validation and immutable acceptance projections [E8,H16]. */
 import { verdictWithdrawals } from '../../io/verdict/withdrawal.js';
-import { Refused } from '../../../../kernel/index.js';
-import { verdictRows } from '../../../../seats/index.js';
-import { itemPatchDigest } from '../../../../items/index.js';
+import { Refused } from '../../../../kernel/light.js';
+import { verdictRows } from '../../../../seats/light.js';
+import { itemPatchDigest } from '../../../../items/light.js';
 
 /** Validate a sealed review without consulting Git or changing either replica [E8,H16]. */
 export function verdictReviewProblem(review, commit, { checked } = {}) {
@@ -20,16 +20,35 @@ export function verdictReviewProblem(review, commit, { checked } = {}) {
 }
 
 /**
+ * Every verdict row, verdict receipt and reopen of many items, each read once and grouped by item [C7].
+ * Why: a cold state build asked for each item's verdicts one query at a time; this is the one pass it takes instead.
+ *
+ * @param {any} board
+ * @param {Iterable<number>} ids
+ * @returns {{ verdicts: Map<number, any[]>, receipts: Map<number, any[]>, reopens: Map<number, any[]> }}
+ */
+export function verdictReads(board, ids) {
+  const grouped = new Map([...ids].map(id => [id, { verdicts: [], receipts: [], reopens: [] }]));
+  for (const row of board.db.prepare('SELECT verdict.* FROM verdict JOIN item USING (item_id) ORDER BY verdict_id').all()) grouped.get(row.item_id)?.verdicts.push(row);
+  for (const row of board.db.prepare("SELECT event_id, item_id, event_kind, event_detail FROM event WHERE event_kind IN ('accept', 'reject') ORDER BY event_id").all()) grouped.get(row.item_id)?.receipts.push(row);
+  for (const row of board.db.prepare("SELECT * FROM event WHERE event_kind = 'reopen' ORDER BY event_id").all()) grouped.get(row.item_id)?.reopens.push(row);
+  const pick = key => new Map([...grouped].map(([id, rows]) => [id, rows[key]]));
+  return { verdicts: pick('verdicts'), receipts: pick('receipts'), reopens: pick('reopens') };
+}
+
+/**
  * Every verdict on an item, oldest first.
  *
  * @param {any} board
  * @param {number} id
+ * @param {ReturnType<typeof verdictReads>} [reads] rows read ahead for many items; an item they omit is read on its own
  * @returns {any[]}
  */
-export function verdictsFor(board, id) {
-  const verdicts = verdictRows(board, id);
-  const receipts = board.db.prepare("SELECT event_id, event_kind, event_detail FROM event WHERE item_id = ? AND event_kind IN ('accept', 'reject') ORDER BY event_id").all(id);
-  const withdrawals = verdictWithdrawals(board, id, verdicts.map((verdict, index) => ({ verdict, event: receipts[index] })));
+export function verdictsFor(board, id, reads) {
+  const ahead = reads?.verdicts.has(id);
+  const verdicts = ahead ? reads.verdicts.get(id) : verdictRows(board, id);
+  const receipts = ahead ? reads.receipts.get(id) : board.db.prepare("SELECT event_id, event_kind, event_detail FROM event WHERE item_id = ? AND event_kind IN ('accept', 'reject') ORDER BY event_id").all(id);
+  const withdrawals = verdictWithdrawals(board, id, verdicts.map((verdict, index) => ({ verdict, event: receipts[index] })), ahead ? reads.reopens.get(id) : undefined);
   return verdicts.map((verdict, index) => {
     let detail = {};
     try { detail = JSON.parse(receipts[index]?.event_detail ?? '{}'); } catch { /* Malformed legacy details remain unknown. */ }

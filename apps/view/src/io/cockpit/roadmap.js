@@ -24,7 +24,7 @@ function renderIndex(project) {
 }
 
 /** Resolve a milestone item from the current render's exact local or foreign board snapshot. */
-function milestoneItem(entry, p) {
+function milestoneItem(entry, p, counting = false) {
   const local = typeof entry.id === 'number';
   const ref = local ? null : /^(.+)#([1-9]\\d*)$/.exec(String(entry.id));
   const named = ref ? data.projects.filter((x) => x.name === ref[1] || String(x.root).split('/').pop() === ref[1]) : [];
@@ -33,12 +33,15 @@ function milestoneItem(entry, p) {
   const source = root === view.root ? p : root ? named[0] : null;
   const item = renderIndex(source).items.get(id) || null;
   const label = local ? '#' + entry.id : String(entry.id);
+  // A status the lifecycle declares; the roadmap says unavailable or missing for an item it could not read.
+  const read = item || (FLOW.states.some((state) => state.id === entry.status) ? { status: entry.status, verdict: null } : null);
+  const stage = entry.state === 'landed' ? 'merged' : entry.state === 'accepted' ? 'accepted' : item ? pipelineStage(item) : entry.status;
+  // A count reads a row's state, stage, hold and place alone, and draws nothing (#6851).
+  if (counting) return { label, position: entry.position, state: read ? (entry.state === 'landed' ? 'verified' : stateOf(read)) : null, held: item ? heldNote(item, source, entry, Date.now()) : null, stage };
   const expanded = view.tab === 'roadmap' && view.roadmapOpen.get(JSON.stringify([view.root, 'i:' + label])) === true;
   // A folded row holds whatever detail is already kept, so it opens in place whole (#1039).
   const detail = item ? detailOf(source, item, expanded, root) : null;
   if (item && !expanded) roadmapAhead.set('i:' + label, () => detailOf(source, item, 'ahead', root));
-  // A status the lifecycle declares; the roadmap says unavailable or missing for an item it could not read.
-  const read = item || (FLOW.states.some((state) => state.id === entry.status) ? { status: entry.status, verdict: null } : null);
   /** Build one row's real summary detail only when opened, before its first painted frame. */
   const block = summaryOnly => {
     if (!item) return null;
@@ -66,14 +69,14 @@ function milestoneItem(entry, p) {
     title: item ? item.title : read ? entry.title : '',
     root,
     titles: renderIndex(source).titles,
-    state: read ? stateOf(read) : null,
+    state: read ? (entry.state === 'landed' ? 'verified' : stateOf(read)) : null,
     stageHtml: read ? stageMarkup(item || { ...read, status: entry.state === 'accepted' || entry.state === 'landed' ? 'verified' : read.status,
-      merged: entry.state === 'landed' ? 'recorded' : null }, source || {}, item?.status === 'open' && Boolean(item.blockedBy?.length || heldNote(item, source, entry, Date.now())), heldNote(item, source, entry, Date.now()) || '', item ? itemStageMarks(item, source) : []) : '',
+      merged: entry.state === 'landed' ? 'recorded' : null }, source || {}, item?.status === 'open' && Boolean(item.blockedBy?.length || heldNote(item, source, entry, Date.now())), heldNote(item, source, entry, Date.now()) || '', item ? itemStageMarks(item, source) : [], false, true) : '',
     stale: item ? staleChip(item) : '', held: item ? heldNote(item, source, entry, Date.now()) : null,
     block: block(!expanded && !Array.isArray(detail?.item?.history)),
     // Until its omitted fields arrive, an expanded row paints what its summary holds and fills the rest in place (#1039).
     pending: expanded && Boolean(detail?.loading),
-    stage: entry.state === 'landed' ? 'merged' : entry.state === 'accepted' ? 'accepted' : item ? pipelineStage(item) : entry.status,
+    stage,
     word: entry.status,
     open: item ? { root, id } : null,
     // Why an item does not open, short enough to read beside its id on a phone.
@@ -110,14 +113,22 @@ function jumpToRoadmap(key) {
   if (key === 'shipped') {
     view.roadmapOpen.set(JSON.stringify([view.root, 'shipped']), true);
     render();
+  } else if (key.startsWith('m:')) {
+    // Picking a release opens it and folds every other one to its line, so only the chosen release lists items (#7303).
+    for (const button of document.querySelectorAll('#roadmap-panel [data-roadmap-jump^="m:"]')) view.roadmapOpen.set(JSON.stringify([view.root, button.dataset.roadmapJump]), button.dataset.roadmapJump === key);
+    view.roadmapPage = { release: key.slice(2), page: view.roadmapPage?.release === key.slice(2) ? view.roadmapPage.page : 1, per: view.roadmapPage?.release === key.slice(2) ? view.roadmapPage.per ?? 25 : 25 };
+    address(false);
+    render();
   }
   const target = $('roadmap-list')?.querySelector('[data-key="' + CSS.escape(key) + '"]');
   if (!target) return;
   const topbar = document.querySelector('.top');
   if (matchMedia('(max-width: 900px)').matches && topbar) {
     // The Roadmap scrolls in the document viewport; use the wrapped sticky bar's actual lower edge, not its minimum height.
-    target.style.scrollMarginTop = Math.ceil(topbar.getBoundingClientRect().bottom + 16) + 'px';
-  } else target.style.removeProperty('scroll-margin-top');
+    for (const earlier of document.querySelectorAll('[data-geo="roadmap-target"]')) earlier.removeAttribute('data-geo');
+    target.dataset.geo = 'roadmap-target';
+    geometry('roadmap-target', { 'scroll-margin-top': Math.ceil(topbar.getBoundingClientRect().bottom + 16) + 'px' });
+  } else target.removeAttribute('data-geo');
   target.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
   markRoadmapArrival(key, target);
   updateRoadmapPanel();
@@ -135,7 +146,9 @@ const roadmapCardsHtml = (${roadmapCardsHtml.toString()});
 /** Prepare rich title markup and linked prerequisite notes from the current page only. */
 function milestonePresentation(row, titles) {
   let afterHtml = '';
-  for (const id of row.after || []) afterHtml += '<span class="roadmap-after"><svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/></svg>after <a class="ref" href="' + itemAddress(id, row.root) + '" data-go="item:' + id + '">#' + id + '</a></span>';
+  for (const id of (row.after || []).filter(id => id !== null && id !== undefined && String(id).trim() !== '')) afterHtml += '<span class="roadmap-after"><svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/></svg>after <a class="ref" href="' + itemAddress(id, row.root) + '" data-go="item:' + id + '">#' + id + '</a></span>';
+  // The after chips share one group that ends in an ellipsis inside the row (#7303).
+  if (afterHtml) afterHtml = '<span class="roadmap-afters">' + afterHtml + '</span>';
   return { root: view.root, open: view.roadmapOpen.get(JSON.stringify([view.root, 'i:' + row.label])) === true,
     titleHtml: row.title ? inline(String(row.title).replace(/\\s+/g, ' '), row.titles || titles, 'in-place', row.root) : undefined,
     stateChipHtml: row.stageHtml || (row.state ? chip(row.state) : ''),
@@ -145,19 +158,25 @@ function milestonePresentation(row, titles) {
 function milestoneRow(row, titles, hidden = false) { return milestoneRowHtml(row, { ...milestonePresentation(row, titles), hidden }); }
 
 /** Read supplied landed counts and explicit shipments; keep old exports readable and omit withdrawn rows. */
-function readMilestone(milestone, p) {
-  return readMilestoneModel(milestone, milestone.items.map(entry => milestoneItem(entry, p)));
+function readMilestone(milestone, p, counting = false) {
+  return readMilestoneModel(milestone, milestone.items.map(entry => milestoneItem(entry, p, counting)));
 }
 
+// Each board state's next release, read once: the navigation and the status bar ask on every click and tab switch,
+// and reading every release's items took them 30 to 300 ms (#6851). A change on another board reads it again.
+const nextMilestones = new WeakMap();
 /** Pick the first release with remaining work in roadmap order; empty plans wait behind it. */
 function nextMilestone(p) {
-  const next = (p.milestones || []).find((milestone) => {
-    const read = readMilestone(milestone, p);
+  const kept = nextMilestones.get(p);
+  if (kept && kept.projects === data?.projects) return kept.next;
+  const found = (p.milestones || []).find((milestone) => {
+    const read = readMilestone(milestone, p, true);
     return read.rows.length > 0 && !read.shipped;
   });
-  if (!next) return next;
-  const read = readMilestone(next, p);
-  return { ...next, done: read.done, total: read.total };
+  const read = found ? readMilestone(found, p, true) : null;
+  const next = found ? { ...found, done: read.done, total: read.total } : found;
+  nextMilestones.set(p, { projects: data?.projects, next });
+  return next;
 }
 
 /** The release focused on, if the person picked one that is still on the board. */
@@ -176,7 +195,7 @@ function roadmapReads(p) {
  * Headers show the backend's summary; accepted and landed rows stay distinct; shipped history carries its commit; old
  * exports keep their legacy completion rule; each part keeps the person's disclosure choice for this visit.
  */
-function roadmapCards(p, titles) {
+function roadmapCards(p, titles, kept = null) {
   const only = roadmapFocus(p), reads = roadmapReads(p);
   const targetLabels = new Map(), addresses = new Map(), headers = new Map(), headings = new Map(), rows = new Map(), notes = new Map(), targets = new Map();
   const observedAt = Date.parse(p.observedAt), now = Number.isFinite(observedAt) ? observedAt : Date.now();
@@ -192,7 +211,16 @@ function roadmapCards(p, titles) {
     headers.set(read, header(read));
     if (read.milestone.note) notes.set(read, rich(read.milestone.note, titles));
   }
-  return { html: roadmapCardsHtml(reads, { only, root: view.root, held: view.roadmapHeld, open: view.roadmapOpen, headers, headings, rows, notes, targets }) };
+  // With kept, each row's markup is recorded by its key and the card holds an empty slot in its place, so the page can
+  // patch only the rows that changed (#6679). A row's key is its release and its item, told apart if one repeats.
+  const slots = kept ? { slotKey: (milestone, row) => {
+    const base = JSON.stringify([milestone.name, row.label]);
+    let key = base;
+    for (let n = 2; kept.has(key); n += 1) key = base + n;
+    kept.set(key, '');
+    return key;
+  }, place: (key, html) => { kept.set(key, html); return '<li data-slot="' + esc(key) + '"></li>'; } } : {};
+  return { html: roadmapCardsHtml(reads, { only, root: view.root, held: view.roadmapHeld, open: view.roadmapOpen, page: view.roadmapPage, headers, headings, rows, notes, targets, ...slots }) };
 }
 
 `;

@@ -12,7 +12,7 @@ import { cellClaim } from '../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../store/tests/fixtures/cell.js';
 import { cellProject } from '../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../store/tests/fixtures/cell.js';
-import { submitFixture } from '../../../../apps/cli/tests/fixtures/board/submit.js';
+import { submitFixture } from '../../../store/tests/fixtures/submit.js';
 import { nextTake } from '../../../sandbox/index.js';
 import { nextOnce } from '../../index.js';
 
@@ -42,10 +42,10 @@ export function fixture(t, { reviewers = false, family, policy, route = 'strong'
   const config = {};
   if (family || policy) config.verify = { policy: policy ?? 'any', family: family ?? 'off' };
   if (reviewers) config.lanes = { ...CELL_CONFIG.lanes, review: { owns: [] } };
-  const project = cellProject(t, { config });
+  const project = cellProject(t, { real: true, config });
   let at = Date.parse('2026-10-25T10:00:00.000Z');
   const clock = { now: () => new Date(at) };
-  const board = cellBoard(t, project.boardFile, clock, { gitRoot: project.repo });
+  const board = cellBoard(t, project.boardFile, clock, { real: true, gitRoot: project.repo });
   const builderPath = join(project.dir, 'builder');
   mkdirSync(builderPath);
   const seats = { actor: cellSeat(board, { lane: 'web', path: project.repo, family: 'Family Alpha', route }),
@@ -81,7 +81,6 @@ export function fixture(t, { reviewers = false, family, policy, route = 'strong'
     MainSpecMerged: class MainSpecMerged extends Error {},
     checkMainVerifier() {},
     dirtyFiles: () => [],
-    recoverOwnSubmitHandoffs: async () => {},
     openItemFolder: async () => undefined,
     liveFolderRefusal: async () => null,
     mainLaneWork: () => null,

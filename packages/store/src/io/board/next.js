@@ -34,10 +34,11 @@ import { verdictsFor } from "./query.js";
 import { listItems } from "./query.js";
 import { listAgents } from "./query.js";
 import { reviewHolder } from "./query.js";
-import { itemHold } from "./query.js";
 import { laneHold } from "./query.js";
 import { itemFiles } from "../../../../items/index.js";
 import { itemFileCollisions } from "../../../../items/index.js";
+import { contentionScores } from "../../../../items/index.js";
+import { orderByContention } from "../../../../items/index.js";
 import { itemCollisionPlan } from "../../../../items/index.js";
 import { firstRefusalReason } from "../../../../items/index.js";
 import { seatGone } from "../presence.js";
@@ -60,6 +61,8 @@ import { CLAIM_IDLE_ENGINE } from "../../../../state/light.js";
 import { lineSettings } from "../../../../state/index.js";
 import { rejectionReturnEnabled } from "../../logic/rework.js";
 import { reworkFamilyRoute } from "../../logic/rework.js";
+import { rejectedFirstEnabled } from "../../logic/rework.js";
+import { isReturned } from "../../logic/rework.js";
 import { FOCUS_BOUNDARY_ENGINE } from '../../../../state/index.js';
 import { heldClaim } from '../claim.js';
 
@@ -124,7 +127,7 @@ export function nextFor(board, options) {
     runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds: skippedIds = [], sessionIds = [], omitIds = [],
     afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(),
     focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null, routeFloor = null,
-    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null, routeCap = null } = options;
+    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null, routeCap = null, contention = null, wholeItemsFirst = false } = options;
   // `sessionIds` are the items this seat's own session authored: skipped like `skipIds`, and the only ones REVIEWER_SAME_SESSION names.
   const skipIds = [...new Set([...skippedIds, ...sessionIds])];
   const idleSkips = [];
@@ -135,7 +138,16 @@ export function nextFor(board, options) {
   const focusCompare = focusOrder(board, () => 0, { milestones });
   const focus = (board.executionEngineVersion ?? ENGINE_VERSION) >= FOCUS_BOUNDARY_ENGINE ? milestoneFocus(board, { milestones }) : null;
   const overflow = focus?.overflow === true;
-  const focusIdle = () => empty('focus', { item: null, reasons: [`${focus.name} is in focus; nothing is free for you; overflow is off.`] });
+  /**
+   * The idle answer under a focus with overflow off. A seat whose route sits below some submitted focus items names them and says
+   * a stronger seat reviews them, instead of "nothing is free" (#3102); it never reserves them, since `items` already leaves them out.
+   */
+  const focusIdle = () => {
+    const above = !verify ? [] : listItems(board).filter(entry => entry.item_status === 'submitted' && focus.ids.has(entry.item_id)
+      && entry.item_built_by !== agentId && !omitIds.includes(entry.item_id) && !canTake(route, entry.item_route));
+    const waiting = above.length ? `${above.map(entry => `#${entry.item_id}`).join(', ')} wait${above.length === 1 ? 's' : ''} for a ${[...new Set(above.map(entry => entry.item_route))].join(' or ')} seat to review; ` : '';
+    return empty('focus', { item: null, reasons: [`${focus.name} is in focus; ${waiting}nothing is free for you; overflow is off.`] });
+  };
   const restrictFocus = focus && (!overflow || focusOnly);
   const otherFocusedWork = () => {
     if (!focus || !overflow || focusOnly) return false;
@@ -145,6 +157,7 @@ export function nextFor(board, options) {
   // A session that declared a lighter model than its seat joined with is offered only its own route (#3678).
   const route = cappedRoute(routeOf(board, agentId), routeCap);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
+  listItems(board, { all: true }); // read once: the open list below and the in-flight list further on both derive from it (#8432)
   const allItems = listItems(board).reverse().map(entry => lightDiagnosisProblem(board, entry) ? { ...entry, item_route: 'mid' } : entry);
   if (observeIdle) for (const entry of allItems) {
     if (entry.item_status !== (verify ? 'submitted' : 'open') || !verify && !(lanes ?? [lane]).includes(entry.item_lane)) continue;
@@ -274,8 +287,9 @@ export function nextFor(board, options) {
   const laneItems = items.filter((entry) => entry.item_status === 'open' && selectedLanes.has(entry.item_lane)
     && (!ownRejectionFirst || entry.item_verdict === 'REJECT' && entry.item_built_by === agentId));
   const mine = laneItems
-    .filter((entry) => { const held = itemHold(board, entry.item_id); if (held) skip(entry, 'ITEM_HELD'); return !held; })
-    .map((entry, order) => ({ entry, order, shared: itemFiles(entry).filter((path) => recent.has(path)) }))
+    // The listed row carries the hold: a full getItem per open item cost next 190 ms on a 2,500-item board (#5329).
+    .filter((entry) => { const held = Boolean(entry.item_hold_reason); if (held) skip(entry, 'ITEM_HELD'); return !held; })
+    .map((entry, order) => ({ entry, order, shared: recent.size ? itemFiles(entry).filter((path) => recent.has(path)) : [] }))
     .sort((first, second) => compare(first.entry, second.entry));
   const familyRework = lineSettings(board).reworkSameFamily === true;
   if (familyRework || rejectionReturnEnabled(board)) for (const candidate of mine) {
@@ -304,14 +318,37 @@ export function nextFor(board, options) {
   }
   mine.sort((a, b) => focusCompare(a.entry, b.entry));
   mine.sort((a, b) => Number(Boolean(b.reworkRouting?.rejection) && b.entry.item_built_by === agentId) - Number(Boolean(a.reworkRouting?.rejection) && a.entry.item_built_by === agentId));
+  // Rejected or reopened work leads new work for every seat, its builder's own first: a preference, never a reservation (#5765).
+  if (rejectedFirstEnabled(board)) {
+    const back = new Map(mine.map(({ entry }) => [entry.item_id, isReturned(board, entry) ? 1 + Number(entry.item_built_by === agentId) : 0]));
+    mine.sort((a, b) => back.get(b.entry.item_id) - back.get(a.entry.item_id));
+  }
   if (focus) mine.sort((a, b) => focusCompare(a.entry, b.entry));
+  // next.wholeItemsFirst (off unless a project turns it on): a whole item of the focused release leads every open slice [C7,#8811].
+  if (focus && wholeItemsFirst) {
+    const slice = ({ entry }) => board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`item-slice:${entry.item_id}`) ? 1 : 0;
+    const wholeFocused = ({ entry }) => focus.ids.has(entry.item_id) && !slice({ entry });
+    mine.sort((a, b) => Number(wholeFocused(b)) - Number(wholeFocused(a)));
+  }
   // Work this seat parked while it waited comes back to it before other open items once the wait ends (#3723).
   const parked = parkedClaims(board, agentId);
   if (parked.size) mine.sort((a, b) => Number(parked.has(b.entry.item_id)) - Number(parked.has(a.entry.item_id)));
+  // An open item whose last gate went red at its own head has a builder's work in it and no seat holding it: it goes to
+  // the next eligible seat ahead of never-built items, so a red never waits for luck (#4014).
+  const redUnowned = new Set(mine.filter(({ entry }) => redGateWithoutHolder(board, entry)).map(({ entry }) => entry.item_id));
+  if (redUnowned.size) mine.sort((a, b) => Number(redUnowned.has(b.entry.item_id)) - Number(redUnowned.has(a.entry.item_id)));
   if ((board.executionEngineVersion ?? ENGINE_VERSION) >= QUEUE_PREEMPT_ENGINE) {
     const emergency = new Set([...priority, ...board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'item_urgent:*' AND meta_value='on'").all()
       .map(row => Number(row.meta_key.slice('item_urgent:'.length)))]);
     mine.sort((a, b) => Number(emergency.has(b.entry.item_id)) - Number(emergency.has(a.entry.item_id)));
+  }
+  // queue.contention: among equal-priority work the least contended item leads, and a hot one waits [C7,#8527].
+  const hot = contention ? contentionScores(mine.map(({ entry }) => entry), inFlight, contention.rates) : null;
+  if (hot) {
+    const position = milestonePriorities(board);
+    const urgent = new Set([...priority, ...board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'item_urgent:*' AND meta_value='on'").all().map(row => Number(row.meta_key.slice('item_urgent:'.length)))]);
+    const alone = ({ entry, reworkRouting }) => urgent.has(entry.item_id) || redUnowned.has(entry.item_id) || parked.has(entry.item_id) || Boolean(reworkRouting?.rejection) || rejectedFirstEnabled(board) && isReturned(board, entry);
+    orderByContention(mine, candidate => alone(candidate) ? `#${candidate.entry.item_id}` : `${tier(candidate.entry)}|${position(candidate.entry)}|${focus?.ids.has(candidate.entry.item_id)}`, hot);
   }
   const overlapping = [];
   for (const { entry, shared, reworkRouting: rework } of mine) {
@@ -334,6 +371,10 @@ export function nextFor(board, options) {
     }
     const reserved = rework ? null : firstRefusalReason(board, entry.item_id, agentId, { firstRefusal, otherBuilderFirst: (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE, offering: true, seatGone });
     if (reserved) { skip(entry, 'FIRST_REFUSAL'); reasons.push(reserved); continue; }
+    if (hot && hot.get(entry.item_id).score >= contention.threshold) {
+      const { file, score } = hot.get(entry.item_id);
+      skip(entry, 'CONTENTION'); reasons.push(`#${entry.item_id} waits on ${file}: contention ${score} reaches ${contention.threshold}; changes in flight on it land first`); continue;
+    }
     const functionPlan = itemCollisionPlan(board, entry, inFlight, workingFiles);
     const collisions = functionPlan?.blockers ?? [...new Set([...itemFileCollisions(entry, inFlight), ...liveClaimCollisions(entry, inFlight, workingFiles)])];
     if (collisions.length) { skip(entry, 'COLLISION'); reasons.push(...collisions); overlapping.push({ entry, shared, collisions, functionPlan, rework, waiting }); continue; }
@@ -404,7 +445,12 @@ function jobAtHead(entry, job) {
   // infrastructure stop on that digest is the same work waiting for the machine, never fresh builder work (#4989).
   const frozenHead = !entry.item_commit && Boolean(entry.item_frozen_digest) && job.digest === entry.item_frozen_digest
     && job.state === 'infrastructure' && job.error?.code === 'GATE_INFRA_EXHAUSTED';
-  return frozenHead || (Boolean(entry.item_commit) && job.commit === entry.item_commit);
+  if (frozenHead) return true;
+  if (entry.item_commit) return job.commit === entry.item_commit;
+  // A queued gate records the submit only when it is green, so its builder's own red returns a claimed item with no
+  // commit: the red is still that claim's, on its frozen bar, and the builder must see it [C7,N2].
+  return entry.item_status === 'claimed' && Boolean(entry.item_owner) && job.agentId === entry.item_owner
+    && Boolean(entry.item_frozen_digest) && job.digest === entry.item_frozen_digest && job.state === 'red';
 }
 
 /**
@@ -430,6 +476,21 @@ export function gateAtHead(board, entry) {
     : job.state === 'red' && job.error?.mainRedOnly === true ? 'red only on main reds'
     : ['queued', 'running', 'green'].includes(job.state) ? job.state : null;
   return state ? `gate ${state} at ${String(job.commit).slice(0, 12)}` : null;
+}
+
+/**
+ * Whether an open item was built and its gate for the current head went red on its own work, so it holds a builder's
+ * commit and no seat holds it [C7, #4014]. A gate red only on main reds is not this item's red, and a reopen or
+ * reject after the job sends the item back through its own path.
+ *
+ * @param {any} board
+ * @param {any} entry
+ * @returns {boolean}
+ */
+export function redGateWithoutHolder(board, entry) {
+  if (entry.item_status !== 'open' || !entry.item_built_by || !entry.item_commit) return false;
+  const job = submitHandoff(board, entry.item_id);
+  return Boolean(job && job.commit === entry.item_commit && job.state === 'red' && job.gateGreen !== true && job.error?.mainRedOnly !== true);
 }
 
 /**

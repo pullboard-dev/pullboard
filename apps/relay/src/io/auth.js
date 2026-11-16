@@ -29,6 +29,8 @@ import {
 import { presenceAttestation } from '../../../../packages/person/index.js';
 
 export const ACCESS_WINDOW_MS = 10 * 60_000;
+/** The credential database's file name under the relay data folder; this module opens and writes it, so it owns the store. */
+export const AUTH_DATABASE_FILE = 'auth.sqlite';
 const MAX_TTL = 30 * 24 * 3600_000;
 
 /** Hash credentials before any database lookup or persistence. */

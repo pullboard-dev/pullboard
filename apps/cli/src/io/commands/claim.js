@@ -2,10 +2,12 @@
 import { Refused } from '../../../../../packages/kernel/index.js';
 import {
   headCommit,
+  withGitCommandMemo,
 } from '../../../../../packages/git/index.js';
 import {
   events,
   getItem,
+  isHeld,
   listItems,
   sayQueuedReds,
 } from '../../../../../packages/store/index.js';
@@ -13,24 +15,30 @@ import { itemFileCollisions } from '../../../../../packages/items/index.js';
 import { outsideBuildProblem } from '../../../../../packages/items/index.js';
 import { sayMapSlice } from '../../../../../packages/codemap/index.js';
 import { primaryCheckoutRoot } from '../worktree.js';
-import { requireNoCoordinatorPath } from './add.js';
+import { onTrunk } from '../item/bar.js';
 import { refuseClaimMissingPaths } from '../item/bar.js';
+import { requireNoCoordinatorPath } from '../item/bar.js';
 import { cleanItemFolders } from '../item/folder.js';
+import { claimFolderRefusal } from '../item/folder.js';
+import { claimedFolderProblem } from '../item/folder.js';
 import { openItemFolder } from '../item/folder.js';
+import { trunkBranch } from '../item/folder.js';
+import { offMainHeadRefusal } from '../../../../../packages/moves/index.js';
+import { actOn } from '../board/access.js';
 import {
   MainSpecMerged,
-  actOn,
   claimFreezer,
   claimOrdered,
-  idArg,
   ordered,
-  whoAmI,
   wrongLaneGuidance,
-} from '../entry.js';
+} from '../claim.js';
+import { idArg } from '../context.js';
+import { whoAmI } from '../join.js';
 
 /** Run `pullboard claim` and return its exit code. */
 export async function run(io, { first }) {
-  const act = (work) => actOn(io, work);
+  // One claim asks Git for the worktree list and trunk once; a call that writes clears the memory [C7].
+  const act = (work) => withGitCommandMemo(() => actOn(io, work));
   return act(async (ctx, board, me) => {
   const id = idArg(first);
   sayQueuedReds(io, board, () => me);
@@ -39,7 +47,16 @@ export async function run(io, { first }) {
   // A path missing from main is named before ownership: no lane can build a path that no longer exists (#5709).
   if (filed && !outsideBuildProblem(board, filed)) await refuseClaimMissingPaths(ctx, board, id);
   if (filed && !outsideBuildProblem(board, filed)) requireNoCoordinatorPath(ctx.config, me, { lane: filed.item_lane, title: filed.item_title, criterion: filed.item_criterion,
-    check: filed.item_check, brief: filed.item_brief });
+    check: filed.item_check, brief: filed.item_brief }, { present: onTrunk(ctx.info.root) });
+  // A folder problem refuses here, before the move; another seat's live claim is left for the move to refuse (#5766).
+  const heldElsewhere = filed && filed.item_owner !== me.id && isHeld(board, filed);
+  if (filed && filed.item_lane === me.lane && !heldElsewhere) {
+    const folder = await claimFolderRefusal(ctx, board, me, id, { renewing: filed.item_owner === me.id && isHeld(board, filed) });
+    if (folder) throw folder;
+  }
+  // With claim.refuseOffMainHead on, a new claim in a folder whose HEAD is not on main refuses before the move [C7,#9104].
+  const offMain = filed && !(filed.item_owner === me.id && isHeld(board, filed)) ? offMainHeadRefusal(ctx.info.root, { trunk: trunkBranch(ctx.info.root) }) : null;
+  if (offMain) throw offMain;
   let result;
   for (;;) {
     try {
@@ -53,23 +70,27 @@ export async function run(io, { first }) {
   }
   const warnings = itemFileCollisions(getItem(board, id), listItems(board, { all: true }));
   let itemFolder = null;
+  let folderProblem = null;
   try {
-    itemFolder = await openItemFolder(ctx, me, id, { board, renewed: result.renewed,
+    itemFolder = await openItemFolder(ctx, me, id, { board, renewed: result.renewed, onConflict: (files, line) => io.say(`warning: ${line}`),
       onArchive: archive => ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
         text: `Archived prior item folder ${archive.previousPath} from ${archive.previousHolder} before takeover.\nRecovery: ${JSON.stringify({ directory: archive.directory, head: archive.manifest.head, ref: archive.manifest.ref })}`,
         ref: null }]),
     });
   } catch (error) {
-    // The claim is already recorded; a stale unregistered prior folder is reported in one line, not a crash [C7].
-    if (!(error instanceof Refused) || error.code !== 'ITEM_FOLDER_UNREGISTERED') throw error;
-    io.say(`warning: ${error.code}: ${error.message}; claim recorded`);
+    // The claim is already recorded, so a folder refusal is reported with the claim, never as the command's refusal (#5766).
+    if (!(error instanceof Refused)) throw error;
+    if (error.code === 'ITEM_FOLDER_UNREGISTERED') io.say(`warning: ${error.code}: ${error.message}; claim recorded`);
+    else folderProblem = claimedFolderProblem(error, id);
   }
   const commitRules = `Commit headers must be at most ${ctx.config.commits.maxHeader} characters. Submit drafts --infra for test import-path-only edits; explain assertion or other guarded edits with --infra "<why>".`;
-  io.result?.({ id, ...result, ...(itemFolder ? { itemFolder } : {}), ...(warnings.length ? { warnings } : {}) });
+  io.result?.({ id, ...result, ...(itemFolder ? { itemFolder } : {}), ...(warnings.length ? { warnings } : {}),
+    ...(folderProblem ? { folderProblem, next: folderProblem.next } : {}) });
   for (const warning of warnings) io.say(`warning: ${warning}; explicit claim retained`);
   await sayMapSlice(io, ctx, getItem(board, id), primaryCheckoutRoot);
   io.say(`${result.renewed ? 'renewed' : 'claimed'} #${first} until ${result.leaseUntil}; criterion frozen as ${result.digest.slice(0, 12)}`);
   if (itemFolder) io.say(`item folder: ${itemFolder}`);
+  if (folderProblem) io.say(`item folder not opened: [${folderProblem.code}] ${folderProblem.message}; the claim is recorded`);
   io.say(commitRules);
   // A claim released for idleness carries its work: the next builder sees the pinned commit and the files it changed (#1225).
   if (!result.renewed) {

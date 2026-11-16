@@ -1,4 +1,4 @@
-/** @pullboard-module-loads apps/cli/src/io/resident/board.js */
+/** @pullboard-module-loads apps/cli/src/io/resident/board.js apps/cli/src/io/commands/doctor.js */
 /**
  * The thin side of the pullboard command: hand a board command to this checkout's resident board process over a
  * local socket and stream back its output and exit code [H24,C7]. A fresh node process loads 900-1,300 modules
@@ -26,6 +26,7 @@ import {
   resolve,
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { inflateSync } from 'node:zlib';
 
 /** The CLI entry this client serves; the resident process runs its code. */
 export const PULLBOARD_ENTRY = fileURLToPath(new URL('../../../pullboard.js', import.meta.url));
@@ -136,16 +137,47 @@ export function headCommit({ gitDir, commonDir }) {
 /** The top-level paths whose files the resident process loads; a commit touching only other paths leaves it current. */
 const CODE_PATHS = ['apps', 'bin', 'package.json', 'packages', 'src'];
 
+/** One loose Git object's type and body, or null when it is packed or absent so Git itself must answer. */
+function looseObject(commonDir, oid) {
+  try {
+    const raw = inflateSync(readFileSync(join(commonDir, 'objects', oid.slice(0, 2), oid.slice(2))));
+    return { type: raw.subarray(0, raw.indexOf(32)).toString(), body: raw.subarray(raw.indexOf(0) + 1) };
+  } catch { return null; }
+}
+
+/**
+ * What `git ls-tree <commit> -- CODE_PATHS` prints, read from the commit's loose objects with no Git process; null when
+ * an object is packed or the repository is not SHA-1, so Git answers (#6170).
+ */
+function listedFromObjects(commonDir, commit) {
+  const head = /^[0-9a-f]{40}$/u.test(commit ?? '') ? looseObject(commonDir, commit) : null;
+  const tree = head?.type === 'commit' ? /^tree ([0-9a-f]{40})$/mu.exec(head.body.toString('latin1'))?.[1] : null;
+  const root = tree ? looseObject(commonDir, tree) : null;
+  if (root?.type !== 'tree') return null;
+  const bytes = root.body;
+  let listed = '';
+  for (let at = 0; at < bytes.length;) {
+    const space = bytes.indexOf(32, at), nul = bytes.indexOf(0, space);
+    if (space < 0 || nul < 0) return null;
+    const mode = bytes.toString('latin1', at, space), name = bytes.toString('utf8', space + 1, nul);
+    const oid = bytes.subarray(nul + 1, nul + 21).toString('hex');
+    at = nul + 21;
+    if (CODE_PATHS.includes(name)) listed += `${mode.padStart(6, '0')} ${mode === '40000' ? 'tree' : mode === '160000' ? 'commit' : 'blob'} ${oid}\t${name}\n`;
+  }
+  return listed;
+}
+
 /**
  * Name the code in a checkout's HEAD: a hash of the Git tree ids of the paths the CLI loads. A landing commit that
  * only changes tests, docs or the spec leaves the name alone, so the warm resident process keeps serving [C7,#3249].
- * Null when Git cannot answer.
+ * Null when Git cannot answer. The tree is read from loose objects first, so a checkout whose HEAD is loose starts no Git process (#6170).
  */
-function codeTreeName(root, commit) {
+function codeTreeName(location, commit) {
   try {
-    const listed = spawnSync('git', ['ls-tree', commit, '--', ...CODE_PATHS], { cwd: root, encoding: 'utf8', timeout: 5000 });
-    if (listed.status !== 0 || !listed.stdout) return null;
-    return createHash('sha256').update(listed.stdout).digest('hex').slice(0, 24);
+    const listed = listedFromObjects(location.commonDir, commit)
+      ?? (() => { const run = spawnSync('git', ['ls-tree', commit, '--', ...CODE_PATHS], { cwd: location.root, encoding: 'utf8', timeout: 5000 }); return run.status === 0 ? run.stdout : null; })();
+    if (!listed) return null;
+    return createHash('sha256').update(listed).digest('hex').slice(0, 24);
   } catch { return null; }
 }
 
@@ -159,7 +191,7 @@ export function codeVersion(entry) {
   const location = gitLocation(codeRoot, { walk: false });
   if (location) {
     const commit = headCommit(location);
-    const tree = codeTreeName(location.root, commit);
+    const tree = codeTreeName(location, commit);
     return { version: tree ? `code:${tree}` : `commit:${commit}`, linked: location.linked };
   }
   const stamp = file => { const stat = statSync(file); return `${stat.size}.${stat.mtimeMs}`; };
@@ -257,11 +289,32 @@ export function residentPlace(cwd, entry, env) {
   return null;
 }
 
-/** Start the resident process detached; the command in hand still runs in-process. */
-export function startResident({ socket, pid, home }, entry, version, env) {
+/**
+ * Start the resident process through spawnReachable, which runs it as a one-shot launchd job where launchd exists and
+ * falls back to a plain detached spawn; the command in hand still runs in-process. Why: a resident started from an app
+ * inherits that app's denied Local Network permission, so the board it serves cannot reach a runner [C7,#5760].
+ * The launcher loads only when a process starts, so the thin path keeps its module count.
+ *
+ * @param {{ socket: string, pid: string, home: string }} place
+ * @param {(command: string, args: string[], options: object) => Promise<unknown>} [launch] - The starter; spawnReachable by default.
+ * @returns {Promise<unknown>} Settles once the process is started, so the command in hand runs in-process only then and the entry cannot exit first.
+ */
+export function startResident({ socket, pid, home }, entry, version, env, launch = launchReachable) {
   try {
-    const child = spawn(process.execPath, [RESIDENT_ENTRY, socket, entry, version, pid],
-      { cwd: existsSync(home) ? home : process.cwd(), env, detached: true, stdio: 'ignore' });
+    const args = [RESIDENT_ENTRY, socket, entry, version, pid], options = { cwd: existsSync(home) ? home : process.cwd(), env };
+    return Promise.resolve(launch(process.execPath, args, options)).catch(() => detach(args, options));
+  } catch { return Promise.resolve(); /* The command runs in-process either way. */ }
+}
+
+/** Load the reachable launcher and start the command; a launcher that will not load starts it as a plain detached child. */
+async function launchReachable(command, args, options) {
+  try { return await (await import('../commands/doctor.js')).spawnReachable(command, args, options); } catch { return detach(args, options); }
+}
+
+/** Start the resident process as a plain detached child. */
+function detach(args, { cwd, env }) {
+  try {
+    const child = spawn(process.execPath, args, { cwd, env, detached: true, stdio: 'ignore' });
     child.on('error', () => {});
     child.unref();
   } catch { /* The command runs in-process either way. */ }
@@ -297,8 +350,9 @@ export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd()
       finished = true;
       clearTimeout(waited);
       socket.destroy();
-      if (restart && starts) start(place, entry, code.version, env);
-      done(status);
+      // The start settles before the command runs in-process: a launchd job is loaded by a child the entry must outlive.
+      if (restart && starts) Promise.resolve().then(() => start(place, entry, code.version, env)).catch(() => {}).finally(() => done(status));
+      else done(status);
     };
     // A command that has not started by now waits behind another; the process never starts it past the cutoff, so
     // running it in-process cannot run it twice.

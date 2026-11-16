@@ -7,6 +7,7 @@ import { takeJob } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
 import { isObjectId } from '../../../pin/index.js';
 import { treeOf } from '../../../pin/index.js';
+import { toolingPin } from '../../../pin/index.js';
 import { writeToolingPin } from '../../../pin/index.js';
 import { receiptByKey } from '../../../receipt/index.js';
 import { receiptKey } from '../../../receipt/index.js';
@@ -66,12 +67,14 @@ async function composeStep(compose, context, repo) {
  * @param {Function} prove
  * @param {object} context
  * @param {Iterable<object> | Map<string, object>} receipts
+ * @param {string} repo - Where the tooling pin is read.
  * @returns {Promise<{ receipt: string, reused: boolean, verdict: string, code: string | null }>}
  */
-async function proveStep(prove, context, receipts) {
+async function proveStep(prove, context, receipts, repo) {
   const { candidateTree, baseTree } = context.written.compose;
-  const key = receiptKey(candidateTree, baseTree);
-  const reuse = reusable(receiptByKey(receipts, key), { candidate: candidateTree, base: baseTree });
+  const tooling = toolingPin(repo)?.tree ?? candidateTree;
+  const key = receiptKey(candidateTree, baseTree, tooling);
+  const reuse = reusable(receiptByKey(receipts, key), { candidate: candidateTree, base: baseTree, tooling });
   if (reuse.reuse) return { receipt: key, reused: true, verdict: 'green', code: null };
   const proved = await prove(context);
   if (typeof proved?.verdict !== 'string') throw new Refused('LAND_PROVE', 'The prove step must return { verdict } (green, red or infra) for the composed batch.');
@@ -109,9 +112,30 @@ async function mergeStep(merge, context, repo) {
 async function runStep(name, steps, context, { repo, receipts }) {
   const handler = handlerFor(steps, name);
   if (name === 'compose') return composeStep(handler, context, repo);
-  if (name === 'prove') return proveStep(handler, context, receipts);
+  if (name === 'prove') return proveStep(handler, context, receipts, repo);
   if (name === 'merge') return mergeStep(handler, context, repo);
   return (await handler(context)) ?? {};
+}
+
+/**
+ * End a landing whose proof was not green: write a `failed` step naming the proof and mark the job done, freeing its lease.
+ *
+ * Why: a stopped landing used to leave its lease to lapse with the job never done, so it read as a stalled landing for
+ * ever; a failed step and `done` let a reader tell a stopped landing from a live one.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {string} owner
+ * @param {() => number} now
+ * @returns {object} The job view after the stop.
+ */
+function endStopped(db, job, owner, now) {
+  const view = jobView(db, job);
+  if (view.step === 'done') return view;
+  const prove = writtenSteps(view).prove;
+  writeStep(db, job, 'failed', { code: 'LAND_PROOF_NOT_GREEN', stopped: 'prove', verdict: prove?.verdict ?? null, proof: prove?.code ?? null }, { now: now() });
+  finishJob(db, job, owner, { now: now() });
+  return jobView(db, job);
 }
 
 /**
@@ -144,7 +168,10 @@ export async function finishSequence(db, job, { owner, repo, steps, receipts = [
     if (view.step !== 'done' && holdLease(db, view, owner, now())) finishJob(db, job, owner, { now: now() });
     return { done: true, ran, job: view };
   }
-  if (stoppedAt()) return { done: false, ran, job: view, stopped: 'prove', code: 'LAND_PROOF_NOT_GREEN' };
+  if (stoppedAt()) {
+    const ended = view.step !== 'done' && holdLease(db, view, owner, now()) ? endStopped(db, job, owner, now) : view;
+    return { done: false, ran, job: ended, stopped: 'prove', code: 'LAND_PROOF_NOT_GREEN' };
+  }
   if (!holdLease(db, view, owner, now())) return { done: false, ran, job: jobView(db, job), code: 'JOB_LEASED' };
   for (let name = nextFinishStep(view); name !== null; name = nextFinishStep(view)) {
     if (ran.length && !renewLease(db, job, owner, { now: now() })) return { done: false, ran, job: jobView(db, job), code: 'JOB_LEASED' };
@@ -152,7 +179,7 @@ export async function finishSequence(db, job, { owner, repo, steps, receipts = [
     writeStep(db, job, name, payload, { now: now() });
     ran.push(name);
     view = jobView(db, job);
-    if (stoppedAt()) return { done: false, ran, job: view, stopped: 'prove', code: 'LAND_PROOF_NOT_GREEN' };
+    if (stoppedAt()) return { done: false, ran, job: endStopped(db, job, owner, now), stopped: 'prove', code: 'LAND_PROOF_NOT_GREEN' };
   }
   finishJob(db, job, owner, { now: now() });
   return { done: true, ran, job: view };

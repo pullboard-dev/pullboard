@@ -24,7 +24,7 @@ import {
   relayLinked,
 } from '../../../../../packages/link/index.js';
 import * as store from '../../../../../packages/store/index.js';
-import { execFileSync } from 'node:child_process';
+import { gitExecFileSync } from '../../../../../packages/git/light.js';
 import { itemFolderSeat } from '../item/folder/identity.js';
 import { seatFamily } from '../../../../../packages/items/index.js';
 import { projectBoardIdentity } from '../../../../../packages/seats/index.js';
@@ -57,8 +57,8 @@ export async function joinRemote(io, { positionals, values }, origin, postMove) 
   const route = values.route ?? process.env.PULLBOARD_ROUTE ?? modelTierRoute(model, ctx.config.modelTiers);
   const { result } = await postMove({ verb: 'join', args: { lane, model, route, ...(values.family === undefined ? {} : { family: values.family }) } });
   // Per-worktree config, so each seat's worktree in one clone keeps its own name.
-  execFileSync('git', ['config', 'extensions.worktreeConfig', 'true'], { cwd: ctx.info.root, stdio: 'ignore' });
-  execFileSync('git', ['config', '--worktree', 'pullboard.agent', result.agent], { cwd: ctx.info.root, stdio: 'ignore' });
+  gitExecFileSync(['config', 'extensions.worktreeConfig', 'true'], { cwd: ctx.info.root, stdio: 'ignore' });
+  gitExecFileSync(['config', '--worktree', 'pullboard.agent', result.agent], { cwd: ctx.info.root, stdio: 'ignore' });
   io.result?.({ agent: result.agent, lane, route, model, board: origin });
   io.say(`joined as ${result.agent} in the ${lane} lane via ${origin}${route === 'light' ? ', on the light route' : ''}`);
 }
@@ -100,11 +100,15 @@ export async function run(io, { first, values }) {
     throw new Refused('NO_LANE', `no lane "${first ?? ''}"; lanes: ${laneNames(ctx.config).slice(1).join(', ') || 'none yet, declare them in pullboard.json'}`);
   }
   const model = requiredModel(values.model, process.env, `join ${shellWord(first)}${values.route ? ` --route ${shellWord(values.route)}` : ''}${values.family ? ` --family ${shellWord(values.family)}` : ''}`);
+  const reviewLimits = String(values['review-limit'] ?? '').split(',').map(limit => limit.trim()).filter(Boolean);
+  for (const limit of reviewLimits) {
+    if (limit !== 'not-same-family') throw new Refused('BAD_REVIEW_LIMIT', `--review-limit ${limit} is not a review limit; the one limit is not-same-family`, 'pullboard join <lane> --review-limit not-same-family');
+  }
   const existing = withBoardRead(ctx, board => store.agentAt(board, ctx.info.root));
   const sameSeat = existing?.agent_lane === first && existing.agent_model === model;
   const route = values.route ?? existing?.agent_route ?? process.env.PULLBOARD_ROUTE ?? modelTierRoute(model, ctx.config.modelTiers);
   // Explicit registration updates must reach the board even when the seat identity is unchanged.
-  if (sameSeat && values.family === undefined && values.route === undefined && values.wake === undefined) {
+  if (sameSeat && values.family === undefined && values.route === undefined && values.wake === undefined && !values['lock-lane'] && values['review-limit'] === undefined) {
     const displayName = displayAgentName(existing, ctx.config.agents.names);
     io.result?.({ agent: existing.agent_id, lane: first, route: existing.agent_route, path: ctx.info.root,
       model: existing.agent_model, displayName, family: existing.agent_family ?? null, alreadyJoined: true });
@@ -119,7 +123,7 @@ export async function run(io, { first, values }) {
   if (!projectRoot) throw new Refused('NO_POLICY', 'cannot safely register the project without locating its main checkout; restore Git worktree metadata and retry join');
   // Read the family from the same board connection as registration, avoiding a costly reopen on large boards.
   const joined = await withBoard(ctx, async (board) => {
-    const id = await ordered(ctx, board, 'register', [{ lane: first, path: ctx.info.root, route, family: values.family, model, parentDigest, sessionDigest }]);
+    const id = await ordered(ctx, board, 'register', [{ lane: first, path: ctx.info.root, route, family: values.family, model, parentDigest, sessionDigest, ...(values['lock-lane'] ? { lockLane: true } : {}), ...(reviewLimits.length ? { reviewLimits } : {}) }]);
     return { id, boardId: store.boardId(board), family: seatFamily(board, id) };
   });
   registerProject(projectRoot, new Date(), ctx.config, projectBoardIdentity(projectRoot, joined.boardId));
@@ -129,6 +133,6 @@ export async function run(io, { first, values }) {
   io.result?.({ agent: id, lane: first, route, path: ctx.info.root, model, displayName, family: joined.family ?? null, ...(sameSeat ? { alreadyJoined: true } : {}) });
   io.say(sameSeat
     ? `already joined as ${displayName}${joined.family ? ` (family ${joined.family})` : ''}; run pullboard next`
-    : `joined as ${displayName}${joined.family ? ` (family ${joined.family})` : ''} in the ${first} lane${route === 'light' ? ', on the light route' : ''}`);
+    : `joined as ${displayName}${joined.family ? ` (family ${joined.family})` : ''} in the ${first} lane${route === 'light' ? ', on the light route' : ''}${values['lock-lane'] ? ', locked to it: next never moves this seat to another lane' : ''}`);
   return 0;
 }

@@ -15,7 +15,7 @@ import {
   exportBoard,
   importBoard,
 } from '../../../store/index.js';
-import { submitFixture } from '../../../../apps/cli/tests/fixtures/board/submit.js';
+import { submitFixture } from '../../../store/tests/fixtures/submit.js';
 
 /** Seed only a private in-memory board, using ordinary registration operations and a controlled clock. */
 function ledgerFixture(t) {

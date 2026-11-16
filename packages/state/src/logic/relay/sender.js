@@ -2,6 +2,12 @@
 import { VERIFIER_STANDING_ENGINE } from '../../io/engine/metadata.js';
 import { Refused } from '../../../../kernel/light.js';
 
+/**
+ * The board's own system actors: no seat, so no seat token. Their moves travel with the machine credential, or one
+ * queued notice would jam every move behind it (#7774).
+ */
+const RELAY_SYSTEM_ACTORS = Object.freeze(['sentinel']);
+
 /** Bind the two pure provider definitions without loading the provider's runtime from state. */
 export function relaySenderPolicy({ declaredMoveActor, validPresence }) {
   /** Compare sealed actors with the relay's independently authenticated sender [H2,H16,B26]. */
@@ -57,6 +63,11 @@ export function relaySenderPolicy({ declaredMoveActor, validPresence }) {
     return Boolean(options && typeof options === 'object' && (options.asPerson || options.neverAgain || (options.cause !== undefined && options.cause !== null)));
   }
 
+  /** True for a system actor's own shout: a notice with no person request, which the machine credential may send. */
+  function systemShout(move) {
+    return move?.operation === 'shout' && RELAY_SYSTEM_ACTORS.includes(relayMoveActor(move)) && !move.args?.[0]?.request;
+  }
+
   /** Make the same authorization decision on every device, without inspecting its shell or checkout. */
   function relaySenderProblem(move, sender, kind, { phoneReceipt = false } = {}) {
     if (!validRelaySender(sender)) {
@@ -83,7 +94,7 @@ export function relaySenderPolicy({ declaredMoveActor, validPresence }) {
       if (kind === 'move' && move?.engine >= 6 && (phoneReceipt ||
           move.operation === 'register' && typeof move.args?.[0]?.lane === 'string' && move.args[0].lane !== 'person' &&
             (move.engine < VERIFIER_STANDING_ENGINE || move.args[0].createdBy === 'machine' && move.args[0].id === undefined) ||
-          move.operation === 'ensureCoordinator' && typeof move.args?.[0] === 'string')) return null;
+          move.operation === 'ensureCoordinator' && typeof move.args?.[0] === 'string' || systemShout(move))) return null;
       return new Refused('RELAY_PERSON_ONLY', 'a machine cannot act as the person; approve this action on the paired phone');
     }
     if (personReferenceMove(move) || personBarMove(move) || kind === 'snapshot' || ['recordRowDecisions', 'decideSpecRevisions'].includes(move?.operation) || move?.operation === 'decideSentinel' || move?.operation === 'answerDecision' && move.args?.[1]?.asPerson ||
@@ -102,7 +113,7 @@ export function relaySenderPolicy({ declaredMoveActor, validPresence }) {
       const creator = args?.[0]?.createdBy;
       return typeof creator === 'string' && creator !== 'machine' ? creator : 'machine';
     }
-    if (move.personRequest || ['register', 'ensureCoordinator'].includes(move.operation)) return 'machine';
+    if (move.personRequest || ['register', 'ensureCoordinator'].includes(move.operation) || systemShout(move)) return 'machine';
     if (personReferenceMove(move) || personBarMove(move) || ['recordRowDecisions', 'decideSpecRevisions', 'recordLandingWaiver'].includes(move.operation)
       || move.operation === 'answerDecision' && args[1]?.asPerson
       || move.operation === 'shout' && args[0]?.request) return 'person';
@@ -123,6 +134,9 @@ export function operationIntent(operation, args) {
       return options;
     }
     delete options.freeze;
+    // The computer's own gate waits and N are read again on a retry, and are not a different intent (#7775).
+    delete options.gateWaits;
+    delete options.seatCap;
     delete options.frozen;
     delete options.freezeError;
     return options;

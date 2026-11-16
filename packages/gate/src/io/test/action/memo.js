@@ -14,10 +14,13 @@ import {
   writeFileSync,
   openSync,
   closeSync,
+  linkSync,
 } from 'node:fs';
+import { setTimeout as delay } from 'node:timers/promises';
 import { join } from 'node:path';
 import { userInfo } from 'node:os';
-import { gateMachineHome } from '../../../logic/preload.js';
+import { gateMachineHome } from '../../preload.js';
+import { storeName } from '../../store-names.js';
 
 /** Name a selector without making its path part of a cache filesystem path. */
 function name(file) { return createHash('sha256').update(file).digest('hex'); }
@@ -116,6 +119,54 @@ function removeOldMemos(keys, now) {
 export async function memoizedActionKeys(store, identity, files, build, { prune = true } = {}) {
   const directory = join(store, 'keys', identity);
   if (prune) pruneKeyMemos(store);
+  let keys = readKeyMemo(directory, identity, files);
+  if (keys) return keys;
+  // One build per tree: the shards and the analysis trip of one gate ask for the same cold tree at once, and each
+  // built the whole graph, 16 s apiece on the controller (11 Nov) [C7,#5728]. A waiter reads the builder's memo.
+  const release = await takeKeyBuild(`${directory}.lock`, () => statSync(join(directory, 'index.json'), { throwIfNoEntry: false }) !== undefined);
+  try {
+    keys = readKeyMemo(directory, identity, files);
+    if (keys) return keys;
+    return await buildKeyMemo(directory, identity, files, build);
+  } finally { release?.(); }
+}
+
+/** How long a key build lock may stand before a waiter treats its holder as stuck and builds itself. */
+const BUILD_LOCK_STALE_MS = 10 * 60_000;
+
+/** Whether a build lock's holder has exited or held it past any real build. */
+function staleBuildLock(lock) {
+  try {
+    const { pid, at } = JSON.parse(readFileSync(lock, 'utf8'));
+    if (!(Date.now() - at < BUILD_LOCK_STALE_MS)) return true;
+    try { process.kill(pid, 0); return false; } catch (error) { return error.code === 'ESRCH'; }
+  } catch (error) { return error.code !== 'ENOENT'; }
+}
+
+/**
+ * Become the one caller that builds this tree's keys, or wait until that caller's memo is published. Returns a release
+ * function for the builder, or null once `settled`; a lock that cannot be written only costs the single flight.
+ */
+async function takeKeyBuild(lock, settled) {
+  for (;;) {
+    if (settled()) return null;
+    const pending = `${lock}.${process.pid}.${randomUUID()}`;
+    try {
+      mkdirSync(join(lock, '..'), { recursive: true, mode: 0o700 });
+      writeFileSync(pending, JSON.stringify({ pid: process.pid, at: Date.now() }), { mode: 0o600 });
+      // A hard link either creates the complete lock or fails because another caller holds it.
+      linkSync(pending, lock);
+      return () => rmSync(lock, { force: true });
+    } catch (error) {
+      if (error.code !== 'EEXIST') return () => {};
+    } finally { rmSync(pending, { force: true }); }
+    if (staleBuildLock(lock)) rmSync(lock, { force: true });
+    else await delay(100);
+  }
+}
+
+/** The requested records of a published key memo, or null when it is cold, damaged or lacks one of them. */
+function readKeyMemo(directory, identity, files) {
   try {
     const index = JSON.parse(readFileSync(join(directory, 'index.json'), 'utf8'));
     if (index.identity !== identity) throw new Error('invalid key memo');
@@ -124,7 +175,7 @@ export async function memoizedActionKeys(store, identity, files, build, { prune 
     if (!Array.isArray(selected) || selected.some(file => typeof file !== 'string')) throw new Error('invalid key catalog');
     const keys = new Map();
     for (const file of selected) {
-      const record = JSON.parse(readFileSync(join(directory, `${name(file)}.json`), 'utf8'));
+      const record = JSON.parse(readFileSync(join(directory, storeName(name(file))), 'utf8'));
       if (record.identity !== identity || record.file !== file
         || record.checksum !== checksum(identity, file, record.value)
         || !(record.value?.key === null || /^[0-9a-f]{64}$/u.test(record.value?.key)) || typeof record.value.reason !== 'string') throw new Error('invalid key record');
@@ -132,12 +183,20 @@ export async function memoizedActionKeys(store, identity, files, build, { prune 
     }
     try { const now = new Date(); utimesSync(directory, now, now); } catch { /* Age is best effort. */ }
     return keys;
-  } catch { /* A cold or unverifiable memo uses the ordinary conservative graph builder. */ }
+  } catch { return null; /* A cold or unverifiable memo uses the ordinary conservative graph builder. */ }
+}
+
+/**
+ * Build a tree's keys with the conservative graph builder and publish its memo; storage is best effort. An explicit
+ * selection builds and publishes only its own records, so the all-tests catalog (files.json) is written by a full build
+ * alone and a later caller missing a record builds just that one [C7,#6672].
+ */
+async function buildKeyMemo(directory, identity, files, build) {
   const keys = await build();
   try {
     mkdirSync(directory, { recursive: true, mode: 0o700 });
-    for (const [file, value] of keys) publish(join(directory, `${name(file)}.json`), { identity, file, value, checksum: checksum(identity, file, value) });
-    publish(join(directory, 'files.json'), [...keys.keys()]);
+    for (const [file, value] of keys) publish(join(directory, storeName(name(file))), { identity, file, value, checksum: checksum(identity, file, value) });
+    if (!files) publish(join(directory, 'files.json'), [...keys.keys()]);
     publish(join(directory, 'index.json'), { identity });
   } catch { /* Storage is an optimization; the freshly computed keys remain usable. */ }
   return files ? new Map(files.filter(file => keys.has(file)).map(file => [file, keys.get(file)])) : keys;

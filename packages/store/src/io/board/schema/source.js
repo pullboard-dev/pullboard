@@ -12,6 +12,16 @@ export { BOARD_BUSY_TIMEOUT_MS } from "../read/light.js";
 /** The board's PRAGMA user_version once its triggers are in: losing one after that is news. */
 export const SCHEMA_VERSION = 3;
 
+/**
+ * The oldest board schema this release upgrades: the one the release before it ships [R4].
+ * Why: support is one release back, so an older board is refused untouched instead of being
+ * walked up in one silent step that rewrote review levels.
+ */
+export const OLDEST_UPGRADABLE_SCHEMA = 3;
+
+/** The one next step for a board from before the oldest upgradable release, shared by the refusal and doctor [R4]. */
+export const BOARD_TOO_OLD_NEXT = 'open this board with pullboard 0.9.3 first, then open it with this version';
+
 export const SCHEMA = `
   CREATE TABLE IF NOT EXISTS board_meta (
     meta_key TEXT PRIMARY KEY,

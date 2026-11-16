@@ -29,7 +29,6 @@
   ["src/cost-shared.js","packages/stats/src/io/cost/shared.js","rule"],
   ["src/cost.js","packages/stats/src/io/cost.js","rule"],
   ["src/cost-usage-batch.js","packages/stats/src/io/cost/batch.js","rule"],
-  ["test/usage-publish-batch.test.js","packages/stats/tests/usage-publish-batch.test.js","rule"],
   ["src/stats-pipeline.js","packages/stats/src/logic/pipeline.js","rule"],
   ["src/stats-moves.js","packages/stats/src/logic/moves.js","rule"],
   ["src/cost-analytics.js","packages/stats/src/io/cost/analytics.js","rule"],

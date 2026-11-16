@@ -27,7 +27,10 @@ const {
   project, commitFile, attackCommit,
 } = e2e;
 
-test("a dependency's own verified dependency admits its files [N16,V4]", () => {
+// Joins, adds, claims, submits and verifies stay processes: with any of them in-process, a later write by another identity
+// runs the lapsed-claim sweep and returns a claim that waits on an unlanded dependency (NOT_YOURS at submit). Only the
+// read-only show calls run in-process (#6003).
+test("a dependency's own verified dependency admits its files [N16,V4]", async () => {
   const box = project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.lanes.design = { owns: ['design/'], specs: ['G1'] };
@@ -40,20 +43,23 @@ test("a dependency's own verified dependency admits its files [N16,V4]", () => {
   const design = join(box.dir, 'design-1');
   box.git(box.repo, 'worktree', 'add', '-q', api, '-b', 'api/one');
   box.git(box.repo, 'worktree', 'add', '-q', design, '-b', 'design/one');
+  // Stays real (#6003, above): a join as another identity runs the lapsed-claim sweep.
   assert.equal(fixtureJoin(box.run, api, 'api').code, 0);
   assert.equal(fixtureJoin(box.run, design, 'design').code, 0);
 
   let nextId = 1;
   /** Add a fixture item from the coordinator checkout and return its sequential id. */
-  const add = (lane, title, after = null) => {
+  const add = async (lane, title, after = null) => {
     const args = ['add', lane, title];
     if (after !== null) args.push('--after', String(after));
+    // Stays real (#6003, above): an add by the coordinator is a write that triggers the sweep.
     const result = box.run(box.repo, ...args);
     assert.equal(result.code, 0, result.err || result.out);
     return nextId++;
   };
   /** Claim, commit, and submit one fixture item through the real CLI lifecycle. */
   const buildAndSubmit = (cwd, lane, id, path, content) => {
+    // Stays real (#6003, above): claim and submit are writes by one identity between another's writes.
     assert.equal(box.run(cwd, 'claim', String(id)).code, 0, `claim #${id}`);
     const spec = lane === 'api' ? 'G2' : 'G1';
     const commit = commitFile(box, cwd, path, content, `feat(${lane}): fixture item [${spec}]`);
@@ -64,21 +70,22 @@ test("a dependency's own verified dependency admits its files [N16,V4]", () => {
   };
   /** Record a real accepted verdict from the other lane's worktree. */
   const accept = (cwd, id, note) => {
+    // Stays real (#6003, above): a verdict is a write by another identity.
     const result = box.run(cwd, 'verify', String(id), 'accept', '--note', note, '--json');
     assert.equal(result.code, 0, `${result.err}\n${result.out}`);
   };
 
-  const webItem = add('web', 'verified web ancestor');
+  const webItem = await add('web', 'verified web ancestor');
   const webCommit = buildAndSubmit(box.web, 'web', webItem, 'web/ancestor.txt', 'ancestor bytes\n');
   box.git(api, 'merge', '-q', '--ff-only', 'web/one');
   accept(api, webItem, 'the web ancestor submitted cleanly');
 
-  const apiItem = add('api', 'verified api middle', webItem);
+  const apiItem = await add('api', 'verified api middle', webItem);
   const apiCommit = buildAndSubmit(api, 'api', apiItem, 'api/middle.txt', 'middle bytes\n');
   box.git(box.web, 'merge', '-q', '--ff-only', 'api/one');
   accept(box.web, apiItem, 'the api middle submitted cleanly');
 
-  const designItem = add('design', 'transitive design target', apiItem);
+  const designItem = await add('design', 'transitive design target', apiItem);
   assert.equal(box.run(design, 'claim', String(designItem)).code, 0);
   box.git(design, 'merge', '-q', '--ff-only', 'api/one');
   const targetChange = commitFile(box, design, 'design/target.txt', 'target bytes\n', 'feat(design): target fixture [G1]');
@@ -87,9 +94,9 @@ test("a dependency's own verified dependency admits its files [N16,V4]", () => {
   const submitFailure = submitted.out ? JSON.parse(submitted.out).error?.code : submitted.err;
   assert.equal(submitted.code, 0, submitFailure);
   const targetCommit = box.git(design, 'rev-parse', 'HEAD');
-  const target = JSON.parse(box.run(design, 'show', String(designItem), '--json').out);
-  assert.equal(JSON.parse(box.run(box.repo, 'show', String(webItem), '--json').out).item_commit, webCommit);
-  assert.equal(JSON.parse(box.run(box.repo, 'show', String(apiItem), '--json').out).item_commit, apiCommit);
+  const target = JSON.parse((await box.runLocal(design, 'show', String(designItem), '--json')).out);
+  assert.equal(JSON.parse((await box.runLocal(box.repo, 'show', String(webItem), '--json')).out).item_commit, webCommit);
+  assert.equal(JSON.parse((await box.runLocal(box.repo, 'show', String(apiItem), '--json')).out).item_commit, apiCommit);
 
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try {
@@ -100,9 +107,9 @@ test("a dependency's own verified dependency admits its files [N16,V4]", () => {
     assert.ok(submissionPaths(box.repo, target, targetCommit, { dependencies: snapshots }).includes('web/ancestor.txt'),
       'the verified dependency chain admits the exact ancestor bytes');
 
-    const unverifiedItem = add('api', 'unverified api middle', webItem);
+    const unverifiedItem = await add('api', 'unverified api middle', webItem);
     const unverifiedCommit = buildAndSubmit(api, 'api', unverifiedItem, 'api/unverified.txt', 'unverified bytes\n');
-    assert.equal(JSON.parse(box.run(box.repo, 'show', String(unverifiedItem), '--json').out).item_status, 'submitted');
+    assert.equal(JSON.parse((await box.runLocal(box.repo, 'show', String(unverifiedItem), '--json')).out).item_status, 'submitted');
     const withUnverifiedOnly = { ...target, item_after: String(unverifiedItem) };
     assert.deepEqual(dependencySnapshots(board.db, withUnverifiedOnly), [],
       'an unverified middle item does not expose its verified parent');

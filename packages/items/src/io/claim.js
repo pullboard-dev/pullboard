@@ -5,11 +5,11 @@ import { writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
-import { gitPath } from '../../../git/index.js';
-import { repoInfo } from '../../../git/index.js';
-import { sameCommonDir } from '../../../git/index.js';
-import { tryGit } from '../../../git/index.js';
-import { Refused } from '../../../kernel/index.js';
+import { gitPath } from '../../../git/light.js';
+import { repoInfo } from '../../../git/light.js';
+import { sameCommonDir } from '../../../git/light.js';
+import { tryGit } from '../../../git/light.js';
+import { Refused } from '../../../kernel/light.js';
 
 /** The registered seat identity and routing attributes used by an item folder. */
 function agentRow(board, id) {
@@ -46,8 +46,10 @@ export function itemFolderIdentity(board, root) {
     }
     if (marker.version !== 1 || typeof marker.seat !== 'string' || !Number.isSafeInteger(marker.item)) return null;
     const agent = agentRow(board, marker.seat);
-    const item = board.db.prepare('SELECT item_status, item_owner FROM item WHERE item_id=?').get(marker.item);
-    if (!agent || item?.item_status !== 'claimed' || item.item_owner !== marker.seat
+    const item = board.db.prepare('SELECT item_status, item_owner, item_built_by FROM item WHERE item_id=?').get(marker.item);
+    // A submitted item's folder still belongs to the seat that built it, so the work a submit does after the handoff resolves the same seat.
+    const ownFolder = item?.item_status === 'claimed' && item.item_owner === marker.seat || item?.item_status === 'submitted' && item.item_built_by === marker.seat;
+    if (!agent || !ownFolder
       || root !== itemFolderPath(agent.agent_path, marker.item)
       || !sameCommonDir(repoInfo(root).commonDir, repoInfo(agent.agent_path).commonDir)
       || tryGit(root, ['symbolic-ref', '--quiet', '--short', 'HEAD']).stdout !== `${agent.agent_lane}/item-${marker.item}`) return null;

@@ -26,6 +26,21 @@ export function mainRedKeyLines(rows) {
   return [...new Set(rows.map(row => `Cause: ${mainRedKey(row)}`))].join('\n');
 }
 
+/**
+ * The brief lines (led by a line break, or empty) that carry each failing case's evidence: file:line, expected, actual and the stderr, as `show` prints them.
+ * Why: a repairer should see the full failure in the item, not rerun the case to find it (#3090).
+ */
+export function mainRedEvidenceLines(rows) {
+  const text = rows.filter(row => row.evidence).map(({ file, name, evidence }) => [
+    `Evidence: ${file} :: ${name}`,
+    ...(evidence.location ? [`  at ${evidence.location}`] : []),
+    ...(evidence.expected === undefined ? [] : [`  expected: ${evidence.expected}`]),
+    ...(evidence.actual === undefined ? [] : [`  actual: ${evidence.actual}`]),
+    ...(evidence.stderr ? [`  stderr:`, ...String(evidence.stderr).split('\n').map(line => `    ${line}`)] : []),
+  ].join('\n')).join('\n');
+  return text ? `\n${text}` : '';
+}
+
 /** Whether a pending item already repairs this cause: by its stamped key, or for older items by file title and case text. */
 function repairs(item, row, key) {
   if (item.item_merged_commit || !PENDING.has(item.item_status)) return false;

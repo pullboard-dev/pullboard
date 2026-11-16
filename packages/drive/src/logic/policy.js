@@ -38,7 +38,9 @@ export function fileWatchdogLimits(file, env = process.env, system = { load: 0, 
   const baseWallMs = limit(explicit, DEFAULT_FILE_WALL_MS, 'PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS');
   // An exact per-file limit above the default is that file's declared opt-out; the budget never cuts it short.
   const budgetMs = Math.max(limit(env.PULLBOARD_TEST_FILE_BUDGET_MS, DEFAULT_FILE_BUDGET_MS, 'PULLBOARD_TEST_FILE_BUDGET_MS'),
-    files[file] !== undefined && env.PULLBOARD_TEST_FILE_BUDGET_MS === undefined ? Number(files[file]) : 0);
+    files[file] !== undefined && env.PULLBOARD_TEST_FILE_BUDGET_MS === undefined ? Number(files[file]) : 0,
+    // The file's budget row (set by the dispatcher) is its declared budget: the kill never undercuts it, unless the budget was set explicitly, which wins as written.
+    env.PULLBOARD_TEST_FILE_ROW_BUDGET_MS === undefined || env.PULLBOARD_TEST_FILE_BUDGET_MS !== undefined ? 0 : limit(env.PULLBOARD_TEST_FILE_ROW_BUDGET_MS, 0, 'PULLBOARD_TEST_FILE_ROW_BUDGET_MS'));
   return { wallMs: Math.round(baseWallMs * loadFactor), baseWallMs, loadFactor, budgetMs,
     idleMs: limit(env.PULLBOARD_TEST_IDLE_TIMEOUT_MS, DEFAULT_FILE_IDLE_MS, 'PULLBOARD_TEST_IDLE_TIMEOUT_MS') };
 }

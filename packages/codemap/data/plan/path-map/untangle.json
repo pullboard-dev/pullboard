@@ -1,4 +1,5 @@
 {
   "packages/gate/src/io/plan-cuts.js": "packages/codemap/src/io/cells/plan/engine.js",
-  "packages/gate/tests/io/edges/forwarders.test.js": "packages/codemap/tests/io/cells/plan/forwarders.test.js"
+  "packages/gate/tests/io/edges/forwarders.test.js": "packages/codemap/tests/io/cells/plan/forwarders.test.js",
+  "apps/cli/tests/fixtures/testkit.js": "packages/gate/tests/fixtures/testkit.js"
 }

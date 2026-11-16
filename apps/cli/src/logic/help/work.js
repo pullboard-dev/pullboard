@@ -4,7 +4,10 @@ export const workHelp = `Work
                                         slices default to 4k tokens and cap at 8k; effects the scan cannot see say "not detected"
   pullboard add <lane> <title> [--criterion "..."] [--specs G1.2,K3] [--after 3,4] [--parent <id>] [--private]
     [--expected-minutes <minutes|unknown>]  authored build time; above itemBuildBudgetMinutes (default 30), cut into children
+    [--readiness "<command>"]           the command that says the item is ready to start; edit replaces it, "" clears it
     [--force-size "reason"]             override the one-cell/three-clause size hint; records a fact
+    [--accept-green "reason"]           keep a check that already passes on main, saying why (add and edit)
+    [--not-duplicate-of "<id> why"]     file an item that reads like an open one, saying why it differs
     [--split-coordinator]               a bar naming coordinator-owned paths: file the lane part, then the coordinator piece --after it
                                         --sensitive or --review-family <family> selects Strict review; edit can set them while open
                 [--brief "..." | --brief-file <file>] [--route light|mid] [--review-family <family>]
@@ -12,15 +15,15 @@ export const workHelp = `Work
                                         --review-family: require that declared family; case-insensitive, never guessed from model
                                         --brief: what a cold agent needs; --route light: any model can build it
                                         --private: keep this item in your device-local board for this repo
+                [--check "<command>"] [--check-timing true|false] [--wait]   the command that proves it; --wait waits for its main baseline
+                                        with --criterion and a brief, --check is needed below strong
+                                        only the coordinator sets --check-timing; it freezes exclusive timing admission
   pullboard move <handle#id|owner/handle#id|~handle#id|id> --to <handle|owner/handle|~handle> [--private]
                                         --private makes a bare item ID refer to this repo's device-local board
                                         move one open or verified item between this repo's team and private boards; old IDs forward
                                         private references start with ~; ambiguous bare handles require owner/handle
-                [--check "<command>"] [--check-timing true|false] [--wait]   the command that proves it; --wait waits for its main baseline
-                                        with --criterion and a brief, --check is needed below strong
-                                        only the coordinator sets --check-timing; it freezes exclusive timing admission
   pullboard edit <id> [--title "..."] [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."] [--check-timing true|false]
-                     [--expected-minutes <minutes|unknown>]
+                     [--expected-minutes <minutes|unknown>] [--force-size "reason"] [--accept-green "reason"]
                 [--after <id>[,<id>...]|none]   replace what the item waits for; none clears it
                 [--sensitive]           select Strict review; edit can set it while open
                 [--machine-verified on|off] [--machine-commands-file <json>]   coordinator only: machine verification
@@ -41,6 +44,11 @@ export const workHelp = `Work
   pullboard list [lane] [--all] [--route light|mid|strong]   open and active items; --all adds closed ones
   pullboard queue                       the work queue in pull order: releases, then route, lane, holder, waits,
                                         and each item's unblock count, effort and why it sits there
+  pullboard moves [--json]              each move table's recorded shadow compares, disagreements and first compare,
+                                        and whether it is live, shadow or none; read-only
+  pullboard coordinate                  resume the coordinator and print how to add agents, lane by lane; read-only, safe to run twice
+  pullboard split <id>                  file one child per numbered clause of item <id>, each with its clause and the parent's check,
+                                        each --after the one before
   pullboard roadmap                     ordered milestones, N/M landed, targets, and each item as landed,
                                         accepted or its status
   pullboard milestone add <name> [--note ...] [--items 1,2,3 --reason "<why>"]   create a release catalog entry
@@ -51,8 +59,8 @@ export const workHelp = `Work
   pullboard milestone pin|sink <name> <ids> --reason "<why>"   hold items above or below the queue's own order
   pullboard milestone lift <name> <ids>                        return pinned or sunk items to the queue's order
   pullboard milestone move <name> --before <other>             reorder a milestone
-  pullboard milestone edit <name> [--name <new>] [--note <text>] [--target <date and time>|none] [--limit <n>|none]
-                                        rename, update a note, or set a shipping target or item limit
+  pullboard milestone edit <name> [--name <new>] [--note <text>] [--target <date and time>|none] [--limit <n>|none] [--mode rollover|explicit]
+                                        rename, update a note, or set a shipping target, item limit or fill mode
   pullboard milestone ship <name> [--next <name>] [--as person --reason "why"]              record it shipped at main's commit and move
                                         its unlanded items into the next milestone (or --next)
   pullboard milestone remove <name>                            remove a milestone without changing its items
@@ -93,6 +101,7 @@ export const workHelp = `Work
                                         the person adds --cause <key> --never-again --as person: rigor lists it at once
   pullboard why <id>                    the decisions that imply an item, newest first, and what superseded them
   pullboard why <file>[:<line>]         the decisions, rows and items behind a file or line, each with its origin
+  pullboard why [<release>] [--json]    the release flow on one screen: each unlanded item's cause, each idle seat, and recent landings
   pullboard next [--wait <minutes>]     offer an eligible review when reviews pile up, otherwise claim work
   pullboard next --take                 reserve an independent review first, otherwise claim eligible work in this seat
   pullboard next --build                claim a build explicitly, recording a skipped review offer
@@ -105,12 +114,15 @@ export const workHelp = `Work
                                         changes included; a red file is compared with main and named known or new
                                         one file skips the main comparison; --compare-main runs it
                                         --diagnose prioritizes one file and prints full failure output
+                                        --no-file-limit lets slow files run to the 10-minute hard stop and prints their seconds
                                         --affected selects the change and its accepted registry guards; no files needed
                                         with no runner registered it starts here only under one load per core, and says so
                                         in an agent seat it queues on the board and returns at once with a run id;
                                         the result comes back through pullboard next; --wait blocks
   pullboard test --status <run id>      print a queued test run's state once
   pullboard test --cancel <run id>      stop your queued or running test run and free its slot
+  pullboard test --census [prefix..]    every tracked test file (or those under prefixes) in a few shards per runner
+                                        --out <jsonl> names the file that gets one row per test file
   pullboard check accept <id>           the person accepts an item's check that already passes on main, as it reads now;
                                         with checks.provesNothing "hold", claim and submit refuse that item until then
   pullboard bar ready [on|off]           coordinator: opt in to ready bars; existing frozen work needs no backfill
@@ -120,14 +132,15 @@ export const workHelp = `Work
   pullboard bar sweep-full-suite       coordinator: remove full-suite/CI pass clauses from active bars; refused rows are listed
   pullboard bar <id>                    show missing prerequisites and the current revision
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
-  pullboard release <id> --reason INELIGIBLE|ROUTED_ELSEWHERE|BLOCKED|BUDGET|TAKEN_OVER|OTHER [--note "why"] [--on <ids>] [--no-next]
+  pullboard release <id> --reason INELIGIBLE|ROUTED_ELSEWHERE|BLOCKED|BUDGET|TAKEN_OVER|OTHER (a review: BAR|FAMILY|INFRA|TOO_LARGE) [--note "why"] [--on <ids>] [--no-next]
                                         hand it back, naming why; OTHER needs the note; the reason is recorded on the release
   pullboard release <id> --stale --reason BLOCKED --note "why"  coordinator only; requires measured inactivity and a note
   pullboard release --session-end       the SessionEnd hook frees your build claims at once, keeping the work at a board ref
   pullboard ship [id] [--note text]       commit staged work, merge main, submit and wait up to 30 minutes for the verdict; hooks and gates remain mandatory
   pullboard submit <id> [--companion <patch> --key <key> --author <seat>] [--wait] [--no-next]  needs a clean tree; companions auto-attach with an owner objection window (alias: done)
                                         --precheck: run cheap submit checks only, without cells or gate
-    submit.handoff: true in pullboard.json queues that exact source and returns before the gate (default off).
+                                        --dry-run-review: with line setting bar.dryRunReview on, print the verifier checklist first (advisory, no verdict)
+    submit.handoff: true in pullboard.json is a deprecated no-op; submit always settles through the pull gate.
     The builder may move HEAD and claim another item; show <id> retains the queued result and original refusal.
                                         --infra "<why>": required when the change edits an existing test or gate file; the reviewer reads it in show
   pullboard verify <id> --compare       rerun unit-test comparison; show and next print the automatic result\n  pullboard verify <id> accept [--no-next] [--read <clauses>] --note "what you broke or which edge you tried, and what happened"

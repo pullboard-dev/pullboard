@@ -1,13 +1,20 @@
 import { readCarryingCapacity } from '../../../../../packages/stats/index.js';
 import { flowWindowMinutes } from '../../../../../packages/stats/index.js';
 import { buildCalibration } from '../../../../../packages/stats/index.js';
+import { predictionAccuracy } from '../../../../../packages/stats/index.js';
+import { predictionLine } from '../../../../../packages/stats/index.js';
+import { predictedFiles } from '../../../../../packages/items/index.js';
 import { events } from '../../../../../packages/store/index.js';
+import { capacityWeekRow } from '../../../../../packages/stats/index.js';
+import { capacityWeeks } from '../../../../../packages/store/index.js';
+import { recordCapacityWeek } from '../../../../../packages/store/index.js';
 import { listItems } from '../../../../../packages/store/index.js';
 import { gateRuns } from '../../../../../packages/flakes/index.js';
 import { flakeLedger } from '../../../../../packages/flakes/index.js';
 import { eventCauses } from '../../../../../packages/store/index.js';
 /** Observed test-work cost and explicit boundary inventory, without changing admission [C7]. */
 import { context } from '../entry.js';
+import { withBoard } from '../entry.js';
 import { withBoardRead } from '../entry.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { testCapacityReport } from '../../../../../packages/gate/index.js';
@@ -16,7 +23,7 @@ import { testCapacityReport } from '../../../../../packages/gate/index.js';
 function minutes(value) { return value === null ? 'unknown' : `${value.toFixed(3)} min`; }
 
 /** Print measurements and conversion proposals; removal always needs the person's approval. */
-export function run(io, { first, second, rest, values }) {
+export async function run(io, { first, second, rest, values }) {
   if (first || second || rest.length || Object.keys(values).some(key => !['json', 'window', 'detail'].includes(key))) {
     throw new Refused('USAGE', 'use pullboard capacity [--window 14d] [--json] to read carrying capacity and test execution work');
   }
@@ -27,17 +34,24 @@ export function run(io, { first, second, rest, values }) {
     board.db.exec('SAVEPOINT capacity_read');
     try { const tests = testCapacityReport(board, { root: ctx.info.root, costs: ctx.config.testEconomics, now: ctx.clock.now().getTime() }, { flakeLedger, eventCauses, gateRuns });
       const history = events(board);
-      return { ...tests, builds: buildCalibration(history, listItems(board, { all: true }), ctx.config.itemBuildBudgetMinutes),
+      const items = listItems(board, { all: true });
+      return { ...tests, builds: buildCalibration(history, items, ctx.config.itemBuildBudgetMinutes), predictions: predictionAccuracy(history, items, predictedFiles),
         carryingCapacity: readCarryingCapacity(ctx.info.root, history, { from, to }) }; }
     finally { board.db.exec('RELEASE capacity_read'); }
   });
-  io.result?.({ report });
+  // One row per ISO week: a reading over the week to date, written over the week's earlier row, never beside it.
+  const weekFrom = new Date(Date.parse(to) - 7 * 86_400_000).toISOString();
+  const weekly = weekFrom === from ? report.carryingCapacity : withBoardRead(ctx, board => readCarryingCapacity(ctx.info.root, events(board), { from: weekFrom, to }));
+  const weeks = await withBoard(ctx, async board => { recordCapacityWeek(board, capacityWeekRow(weekly, to)); return capacityWeeks(board); });
+  io.result?.({ report, weeks });
   const carrying = report.carryingCapacity;
   if (!values.detail) {
     io.say(`carrying capacity ${from} to ${to}: ${carrying.landings} landings, ${carrying.conflicts} conflicts`);
     io.say(`model: k ${carrying.k ?? 'unknown'}; 5% line ${carrying.agentsAtFivePercent ?? 'unknown'} agents; peak ${carrying.peakAgents ?? 'unknown'} agents, ${carrying.peakOutput ?? 'unknown'} output`);
     io.say(`in flight ${carrying.inFlight ?? 'unknown'}: building ${carrying.buildingInFlight ?? 'unknown'}, waiting ${carrying.waitingInFlight ?? 'unknown'}; cells/item ${carrying.cellsPerItem ?? 'unknown'}`);
+    io.say(`kernel churn ${carrying.kernelChurnPerWeek ?? 'unknown'} changes/week; wide items ${carrying.wideItemShare ?? 'unknown'}; busiest cell ${carrying.busiestCell ? `${carrying.busiestCell.cell} (${carrying.busiestCell.share})` : 'unknown'}`);
     io.say(`held-out file conflicts: predicted ${carrying.validation.predictedFileConflicts ?? 'unknown'}, actual ${carrying.validation.actualFileConflicts}; relative error ${carrying.validation.relativeError ?? 'unknown'}`);
+    io.say(predictionLine(report.predictions));
     io.say(`item build budget: ${report.builds.budgetMinutes} min; ${report.builds.calibration.samples} samples`);
     for (const row of report.builds.items.filter(item => item.expectedMinutes !== null)) io.say(`#${row.item} build: expected ${minutes(row.expectedMinutes)}; actual ${minutes(row.actualMinutes)}; ratio ${row.ratio === null ? 'unknown' : row.ratio.toFixed(3)}`);
     io.say(`test-work: suite ${minutes(report.suite.minutes)}; per landing ${minutes(report.perLanding.minutes)}; ${report.perLanding.missingExecutions} missing executions, ${report.perLanding.unknownReceipts} unknown receipts`);
@@ -47,9 +61,11 @@ export function run(io, { first, second, rest, values }) {
   io.say(`carrying capacity ${from} to ${to}: ${carrying.landings} landings, ${carrying.conflicts} conflicts; conflicts/landing ${carrying.conflictsPerLanding ?? 'unknown'}`);
   io.say(`collision k ${carrying.k ?? 'unknown'}; 5% line ${carrying.agentsAtFivePercent ?? 'unknown'} agents; model peak ${carrying.peakAgents ?? 'unknown'} agents, ${carrying.peakOutput ?? 'unknown'} output`);
   io.say(`changes in flight ${carrying.inFlight ?? 'unknown'}: building ${carrying.buildingInFlight ?? 'unknown'}, waiting ${carrying.waitingInFlight ?? 'unknown'}; cells/item ${carrying.cellsPerItem ?? 'unknown'}`);
+  io.say(`kernel churn ${carrying.kernelChurnPerWeek ?? 'unknown'} changes/week; wide items ${carrying.wideItemShare ?? 'unknown'}; busiest cell ${carrying.busiestCell ? `${carrying.busiestCell.cell} (${carrying.busiestCell.share})` : 'unknown'}`);
   io.say(`held-out file conflicts: predicted ${carrying.validation.predictedFileConflicts ?? 'unknown'}, actual ${carrying.validation.actualFileConflicts}; relative error ${carrying.validation.relativeError ?? 'unknown'}`);
   for (const file of carrying.files.slice(0, 10)) io.say(`${file.file}: shared touches ${file.sharedTouches ?? 'unknown'}, conflict rate ${file.rate ?? 'unknown'}, pressure ${file.pressure ?? 'unknown'}`);
   for (const assumption of carrying.assumptions) io.say(assumption);
+  io.say(predictionLine(report.predictions));
   io.say(`item build budget: ${report.builds.budgetMinutes} min; ${report.builds.calibration.samples} expected/actual samples`);
   for (const row of report.builds.items.filter(item => item.expectedMinutes !== null)) io.say(`#${row.item} build: expected ${minutes(row.expectedMinutes)}; actual ${minutes(row.actualMinutes)}; ratio ${row.ratio === null ? 'unknown' : row.ratio.toFixed(3)}`);
   io.say(`suite test-work: ${minutes(report.suite.minutes)} (serial per-file execution work, not parallel elapsed wall time)`);

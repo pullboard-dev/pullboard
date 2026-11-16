@@ -1,7 +1,7 @@
 /** A real SQLite history delivers refused landing notices and escalates only unacknowledged failures [B3,R3,A6,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fixtureBoard } from '../../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../../board/tests/fixtures/board.js';
 import { register } from '../../../store/index.js';
 import { withdraw } from '../../../store/index.js';
 import { addItem } from '../../../store/index.js';

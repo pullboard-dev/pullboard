@@ -13,3 +13,27 @@ export function agentSessionDigest(environment = process.env) {
 export {
   hasInputSplit,
 } from './src/logic/split.js';
+export { itemCost, publicUsage } from './src/io/cost/usage.js';
+
+/*
+ * The stats that store, verify, pages and the CLI's exit rules read or write while a board command runs: no runner, agent, review or report readers,
+ * so a hot command that opens the board never loads the whole stats cell [C7,R24].
+ */
+export { coordinatorMilestoneRelease } from './src/io/actions.js';
+export { pipelineStats } from './src/logic/pipeline.js';
+export { proofStats, proofAgentIds } from './src/io/main.js';
+export { readCapacity } from './src/io/capacity.js';
+export { budgetClaimRefusal, budgetState, machineBudgetState, recordCoordinatorUsage, recordUsage } from './src/io/cost.js';
+export { recordUsageBatch } from './src/io/cost/batch.js';
+export { recordSharedUsage } from './src/io/cost/shared.js';
+export { exitRulesDecision, exitContextDecision } from './src/logic/exit/rules/policy.js';
+export { nativeToolCallIds, nativeLastPrompt } from './src/logic/exit/rules/calls.js';
+export { sessionSource, sessionSnapshot, usageDifference } from './src/io/cost/session.js';
+export { CAPACITY_VERSION, emptyCapacityCounter, appendCapacityCounter } from './src/logic/capacity/counter.js';
+export { refreshCapacity } from './src/logic/capacity/refresh.js';
+export { emptyReportCounter, appendReportCounter } from './src/logic/flow/report/counter.js';
+export { FLOW_REPORT_VERSION, reportEvent, newReportPolicy } from './src/logic/flow/report.js';
+export { roleOf, moveFlowItem, projectFlowStats, compareFlowWindows } from './src/logic/flow.js';
+export { barStats } from './src/logic/bar.js';
+/** The capacity lines a status read prints [C7,#8646]. */
+export { capacityLines } from './src/logic/capacity/model.js';

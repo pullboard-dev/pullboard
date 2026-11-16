@@ -1,4 +1,4 @@
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/light.js';
 import { coordinatorActionRise } from '../logic/actions.js';
 /** Read coordinator evidence from native SQLite without replaying unrelated events [B35,R2]. */
 import { coordinatorActionStats } from '../logic/actions.js';

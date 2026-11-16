@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { cliLaunchSites } from '../../../src/io/test/launches.js';
+import { cellTestProblems } from '../../../src/io/test/cells.js';
 import { cliLaunchReport } from '../../../src/io/test/launches.js';
 import { cliLaunchGrowth } from '../../../src/io/test/launches.js';
 import { cliLaunchSplit } from '../../../src/io/test/launches.js';
@@ -136,4 +137,31 @@ test('clause 1: the report gives each file a pullboard CLI count and an other-ch
   const sites = cliLaunchSites("box.run(a);\nspawnSync(process.execPath, ['--test', 'x.test.js']);\nexecFileSync('node', ['-e', 'x']);\nspawnSync(process.execPath, [BIN, 'show']);", PATH);
   assert.deepEqual(cliLaunchSplit(sites), { files: { [PATH]: { cli: 2, other: 2 } }, totals: { cli: 2, other: 2 } });
   assert.deepEqual(cliLaunchCounts(sites), { [PATH]: { launch: 4 } }, 'the ceilings still count both');
+});
+
+test('tighten drops a row measured at 0 [C7]', () => {
+  const other = 'apps/cli/journeys/example/stale.test.js';
+  const baseline = { [PATH]: { launch: 2 }, [other]: { launch: 3 } };
+  const next = tightenCliLaunchBaseline(cliLaunchSites('box.run(a);', PATH), baseline);
+  assert.deepEqual(next, { [PATH]: { launch: 1 } });
+  assert.equal(other in next, false, 'the file measured at 0 loses its row');
+});
+
+test('tighten refuses to raise or add a row, naming the file [C7]', () => {
+  const added = 'apps/cli/journeys/example/new.test.js';
+  assert.throws(() => tightenCliLaunchBaseline(cliLaunchSites('box.run(a);\nbox.run(b);', PATH), { [PATH]: { launch: 1 } }), /main\.test\.js/u);
+  assert.throws(() => tightenCliLaunchBaseline(cliLaunchSites('box.run(a);', added), { [PATH]: { launch: 1 } }), /new\.test\.js/u);
+});
+
+test('clause 1: the advice for a packages/ cell test names a helper in its own cell, one the cross-cell import rule allows [C7]', () => {
+  const source = "const a = spawnSync(process.execPath, [BIN, 'show'], {});";
+  const cellPath = 'packages/landing/tests/io/example.test.js';
+  const [site] = cliLaunchSites(source, cellPath);
+  assert.match(site.text, /packages\/landing\/tests\/fixtures\//u);
+  // The suggested location is the cell's own, so importing from it passes the cross-cell rule.
+  const own = "import { withProcessEnvironment } from '../fixtures/environment.js';";
+  assert.deepEqual(cellTestProblems(cellPath, own), []);
+  const other = "import { captureCommandInProcess } from '../../../../apps/cli/tests/fixtures/process.js';";
+  assert.equal(cellTestProblems(cellPath, other).length, 1, 'the journey fixture is refused for a cell test');
+  assert.match(cliLaunchSites(source, PATH)[0].text, /apps\/cli\/tests\/fixtures\/process\.js$/u, 'a journey still gets the CLI fixture');
 });

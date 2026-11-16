@@ -13,26 +13,47 @@ import {
   recordRunnerGui,
   runnerResourceStatus,
 } from '../../../../../packages/resources/index.js';
+import { parseToolchains } from '../../../../../packages/config/index.js';
 import { validateRunner } from '../../../../../packages/config/index.js';
 import { probeRunnerTransport } from '../../../../../packages/runners/index.js';
 import { readPulledCapacity } from '../../../../../packages/runners/index.js';
 import { lastRecordedLimit } from './stats/limits.js';
 import { recordLimitChange } from './stats/limits.js';
+import { boardRunsReader } from '../../../../../packages/store/index.js';
 import { openBoardReadOnly } from '../../../../../packages/store/index.js';
+import { atomic } from '../../../../../packages/store/index.js';
+import { logEvent } from '../../../../../packages/store/index.js';
 import { context } from '../read.js';
 import { withBoard } from '../context.js';
+import { withBoardRead } from '../context.js';
 import { createHostedItemFolder } from '../../../../../packages/runners/index.js';
 import { serveRunner } from '../../../../../packages/drive/index.js';
+import { runnerSettingOn } from '../../../../../packages/drive/index.js';
+import { machineSettingsFile } from '../../../../../packages/resources/index.js';
+import { localRunnerStatus } from '../../../../../packages/drive/index.js';
+import { localRunnerFolder } from '../runner/local.js';
+import { pullGit } from '../runner/git.js';
 import { installRunnerService } from '../../../../../packages/runners/index.js';
 import { serviceBoard } from '../../../../../packages/runners/index.js';
 import { boardKey } from '../../../../../packages/config/index.js';
 import { boardKeyFile } from '../../../../../packages/config/index.js';
 import { existsSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { issueRunnerKey } from '../../../../../packages/runners/index.js';
+import { revokeRunnerKey } from '../../../../../packages/runners/index.js';
 import {
   computeRunnerSlots,
   effectiveRunner,
 } from '../../../../../packages/runners/index.js';
+
+/** The runners the board sees live (serves that claimed within minutes), or undefined when it sees none or cannot be read. Why here: it is the board's one reader of pulled capacity [U151]. */
+export function liveRunnerCount(ctx) {
+  try {
+    const { totals } = withBoardRead(ctx, board => readPulledCapacity(board.db, { runs: boardRunsReader(board, ctx.file) }));
+    return totals.serves > 0 ? totals.serves : undefined;
+  } catch { return undefined; }
+}
 
 /** Describe one runner's measured size and the slots the gate offers from it. */
 function sizeLine(runner, settings) {
@@ -59,8 +80,13 @@ export async function runnerCommand(io, { first, second, rest, values }) {
         computedSlots: runner.cores !== undefined ? computeRunnerSlots(runner).slots : null,
         fixed: runner.fixed === true, ...(runner.drain === true ? { draining: true } : {}) };
     });
-    io.result?.({ runners });
-    io.say(runners.length ? runners.map(runner => `${runner.host}: ${runner.slots} slots, ${runner.browser} browser${runner.draining ? ' (draining)' : ''}\n  size: ${registered.has(runner.host) ? sizeLine(registered.get(runner.host), settings) : 'draining'}\n  GUI session: ${runner.gui === true ? 'yes' : runner.gui === false ? 'no' : 'unknown'}`).join('\n') : 'no runners registered');
+    // The auto-started local runner is no registered runner, so it is named from its own state file [P7].
+    const folder = localRunnerFolder();
+    const local = localRunnerStatus(folder);
+    io.result?.({ runners, ...(local ? { local } : {}) });
+    const localLine = local ? (local.state === 'live' ? `local (pid ${local.pid}, live)` : 'local (stopped)') : null;
+    if (localLine && !runners.length) { io.say(localLine); return 0; }
+    io.say(runners.length ? [...(localLine ? [localLine] : []), ...runners.map(runner => `${runner.host}: ${runner.slots} slots, ${runner.browser} browser${runner.draining ? ' (draining)' : ''}\n  size: ${registered.has(runner.host) ? sizeLine(registered.get(runner.host), settings) : 'draining'}\n  GUI session: ${runner.gui === true ? 'yes' : runner.gui === false ? 'no' : 'unknown'}`)].join('\n') : 'no runners registered');
     return 0;
   }
   if (first === 'status') {
@@ -70,10 +96,29 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     if (!existsSync(ctx.file)) throw new Refused('NO_BOARD', 'there is no board here', 'run pullboard runner status inside a board repository');
     const db = openBoardReadOnly(ctx.file);
     let capacity;
-    try { capacity = readPulledCapacity(db); } finally { db.close(); }
+    try { capacity = readPulledCapacity(db, { runs: boardRunsReader({ db }, ctx.file) }); } finally { db.close(); }
     io.result?.(capacity);
     io.say(capacity.serves.length ? [...capacity.serves.map(entry => `${entry.runner}: ${entry.claimed} of ${entry.jobs ?? 'unknown'} jobs`),
       `fleet: ${capacity.totals.claimed} of ${capacity.totals.jobs} jobs`].join('\n') : 'no serves have claimed pulled jobs');
+    return 0;
+  }
+  if (first === 'key') {
+    // The board's runner key book: issue a key to a named runner, or revoke it, kept in the board folder [C7].
+    const usage = 'pullboard runner key issue <runner> | pullboard runner key revoke <runner>';
+    if (!['issue', 'revoke'].includes(second) || rest.length !== 1 || Object.keys(values).some(key => key !== 'json')) throw new Refused('USAGE', usage);
+    const ctx = context(io);
+    const folder = dirname(ctx.file);
+    /** The book's plain errors carry a rule code and next step: wear them as refusals. */
+    const wear = work => { try { return work(); } catch (error) { throw error?.code && !(error instanceof Refused) ? new Refused(error.code, error.message, error.next) : error; } };
+    if (second === 'revoke') {
+      const { revoked } = wear(() => revokeRunnerKey(folder, rest[0]));
+      io.result?.({ runner: rest[0], revoked });
+      io.say(`revoked runner ${rest[0]}'s key; its pulls are refused, also after a board restart`);
+      return 0;
+    }
+    const issued = wear(() => issueRunnerKey(folder, rest[0]));
+    io.result?.(issued);
+    io.say(`issued a key to runner ${issued.runner}; the board trusts public key ${issued.publicKey}\nprivate key (shown once, keep it on the runner): ${issued.privateKey}`);
     return 0;
   }
   if (first === 'serve') {
@@ -83,11 +128,14 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     }
     // A serve started with a different --jobs than the last one recorded on this machine's board is a change to the limits in effect (#6139).
     const open = work => withBoard(context(io), work);
-    if (Number.isSafeInteger(Number(values.jobs))) recordLimitChange(open, 'runner.jobs', lastRecordedLimit(open, 'runner.jobs'), Number(values.jobs));
+    if (Number.isSafeInteger(Number(values.jobs))) recordLimitChange(open, 'runner.jobs', lastRecordedLimit(open, 'runner.jobs'), Number(values.jobs), { atomic, logEvent });
     const stop = new AbortController();
     for (const name of ['SIGINT', 'SIGTERM']) process.once(name, () => stop.abort());
     const served = await serveRunner({ board: second, key: values.key ?? process.env.PULLBOARD_BOARD_KEY, runner: values.as,
-      ...(values.directory ? { cache: values.directory } : {}), ...(values.jobs !== undefined ? { jobs: values.jobs } : {}), once: values.once === true, handlers: { land: landJobHandler }, signal: stop.signal, say: line => io.say(line) })
+      ...(values.directory ? { cache: values.directory } : {}), ...(values.jobs !== undefined ? { jobs: values.jobs } : {}), once: values.once === true, handlers: { land: landJobHandler }, git: pullGit, signal: stop.signal, say: line => io.say(line),
+      fetchFailFast: runnerSettingOn(machineSettingsFile(), 'runners.fetchFailFast'), drainOnFetchFailure: runnerSettingOn(machineSettingsFile(), 'runners.drainOnFetchFailure'),
+      pruneYields: runnerSettingOn(machineSettingsFile(), 'runners.yieldWhilePruning'),
+      postedLineNamesCase: runnerSettingOn(machineSettingsFile(), 'runners.postedLineNamesCase') })
       .catch(error => { throw error?.code && !(error instanceof Refused) ? new Refused(error.code, error.message) : error; });
     io.result?.(served);
     return 0;
@@ -98,7 +146,7 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     return (await import('../runner/local/serve.js')).localRunnerCommand(io, { off: values.off === true });
   }
   if (first === 'install-serve') {
-    // Deploy pull mode: runner serve as a login service on the runner, restarting on exit, so no ssh is needed afterwards [P7].
+    // Deploy pull mode: runner serve as a launchd service on the runner, restarting on exit, so no ssh is needed afterwards [P7].
     const usage = 'pullboard runner install-serve <ssh-host> --board <board-url> [--key <board-key>] | pullboard runner install-serve <ssh-host> --remove';
     if (!second || rest.length || Object.keys(values).some(key => !['json', 'board', 'key', 'remove'].includes(key))
       || (values.remove ? values.board !== undefined || values.key !== undefined : typeof values.board !== 'string')) throw new Refused('USAGE', usage);
@@ -109,8 +157,19 @@ export async function runnerCommand(io, { first, second, rest, values }) {
       ?? (existsSync(boardKeyFile()) ? boardKey() : undefined);
     const service = await installRunnerService(runner, values.remove ? { remove: true } : { board: values.board, key });
     io.result?.({ service });
-    if (values.remove) { io.say(`removed runner serve from ${runner.host}`); return 0; }
+    if (values.remove) {
+      io.say(`removed runner serve from ${runner.host}`);
+      if (service.sudo) io.say(`a LaunchDaemon is still installed; to remove it, on ${runner.host} run: ${service.sudo}`);
+      return 0;
+    }
+    if (service.form === 'daemon') {
+      // A board on the local network: macOS Local Network privacy lets a LaunchDaemon run as the runner user through.
+      io.say(`runner serve on ${runner.host} is a LaunchDaemon ${service.label} run as ${service.user}, since macOS Local Network privacy blocks a LaunchAgent from the board's local network address; log ${service.log}`);
+      if (!service.loaded) io.say(`one step left, as an administrator: on ${runner.host} run: ${service.sudo}`);
+      return service.loaded ? 0 : 1;
+    }
     io.say(`installed runner serve on ${runner.host} as launchd agent ${service.label}, restarting on exit; log ${service.log}`);
+    if (service.sudo) io.say(`an older LaunchDaemon is still installed; on ${runner.host} run: ${service.sudo}`);
     if (!service.loaded) io.say(`launchd did not load it now (no login session?); it starts at the next login, or run on the runner: launchctl bootstrap gui/$(id -u) ${service.plist}`);
     return service.loaded ? 0 : 1;
   }
@@ -157,11 +216,13 @@ export async function runnerCommand(io, { first, second, rest, values }) {
   if (first !== 'add' || !second || rest.length || slotsGiven && !/^[1-9]\d*$/u.test(values.slots)
     || values.browser !== undefined && !/^(?:0|[1-9]\d*)$/u.test(values.browser)
     || slotsGiven && values.browser === undefined || !slotsGiven && values.browser !== undefined && Number(values.browser) !== 0) {
-    throw new Refused('USAGE', 'pullboard runner add <ssh-host> [--slots <positive integer>] [--browser <integer from zero through slots>] | pullboard runner measure [<ssh-host>]');
+    throw new Refused('USAGE', 'pullboard runner add <ssh-host> [--slots <positive integer>] [--browser <integer from zero through slots>] [--toolchain node=22,python=3.12] | pullboard runner measure [<ssh-host>]');
   }
   const prior = (loadMachineSettings().runners ?? []).find(runner => runner.host === second);
   const node = values.node ?? prior?.node;
   const root = values.root ?? prior?.root;
+  // A re-registration keeps the declared toolchains unless it declares new ones.
+  const toolchains = values.toolchain !== undefined ? parseToolchains(values.toolchain) : prior?.toolchains;
   const probed = validateRunner({ host: second, slots: 1, browser: 0,
     ...(node !== undefined ? { node } : {}), ...(root !== undefined ? { root } : {}) });
   const observation = await probeRunnerTransport(probed, { observeGui: true, discoverNode: node === undefined, enrollSigningKey: true });
@@ -175,7 +236,7 @@ export async function runnerCommand(io, { first, second, rest, values }) {
   const sized = slotsGiven ? { slots: Number(values.slots), browser: Number(values.browser), fixed: true }
     : { ...computeRunnerSlots(measuredSize), ...(values.browser === '0' ? { browser: 0 } : {}) };
   if (sized.slots === 0) throw new Refused('BAD_RUNNER', `runner ${second} has no capacity after the core and memory reserves; use a larger runner or an explicit fixed count`);
-  const configured = validateRunner({ ...probed, ...sized, ...measuredSize, publicKey: observation.publicKey });
+  const configured = validateRunner({ ...probed, ...sized, ...measuredSize, publicKey: observation.publicKey, ...(toolchains ? { toolchains } : {}) });
   const runner = addRunner({ ...configured, gui: observation.gui });
   recordRunnerGui(runner.host, observation.gui);
   io.result?.({ runner });
@@ -217,7 +278,8 @@ export async function openHostedItemFolder(runner, { itemId, branch, commonDir, 
 }
 
 /** A pulled land job, run in the runner's own landing checkout under its cache: merge, check, push trunk by compare-and-swap [P7]. */
-async function landJobHandler(claim, { cache, renew }) {
+async function landJobHandler(claim, { cache, renew, env }) {
   const { runLandingJob } = await import('../../../../../packages/landing/index.js');
-  return runLandingJob(claim.payload, { workdir: join(cache, 'land'), renew });
+  const { diagnoseLandingRed } = await import('./flakes.js');
+  return runLandingJob(claim.payload, { workdir: join(cache, 'land'), renew, env, diagnose: diagnoseLandingRed });
 }

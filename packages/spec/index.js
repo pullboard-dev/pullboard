@@ -11,7 +11,7 @@ export { briefSections } from "./src/logic/sections.js";
 export { checkReleaseReferences } from "./src/io/reference/release.js";
 export { rowDecisionContext, staleRowDecision, staleRowDecisions } from "./src/io/row/stale.js";
 export { rowDecisionReplacement, personNeeds } from "./light.js";
-export { rowDecisions } from "./src/logic/row/query.js";
+export { rowDecisions } from "./src/logic/row/draft.js";
 export { shownDecisionRows, prepareRowDecisions, pendingAnswers, pendingRowDecision, decisionAnswer, decisionProjection, projectRowDecisions, rowDecisionView, handAnsweredQuestions, planRowApply, writeRowApply, restoreRowApply } from "./src/io/row/decisions.js";
 export { recordRowDraft } from "./src/logic/row/draft.js";
 export { draftSpecRow, trunkRowIds, pendingRowDrafts, clashingRowDrafts, withRowDrafts } from "./src/io/row/drafts.js";
@@ -30,3 +30,4 @@ export { rowVerifications, recordRowVerification, rowVerificationFindings, planR
 export { parseSpec, STATUSES, TIERS, SPEC_GRAMMAR_VERSION, ID_RE } from "./light.js";
 export { SIGNOFFS_FILE, replaceRowGate, loadSpec, legacyDoctrineRenameBase, checkFieldFindings, gateFiles, missingGateFindings, lintSpec, nextRowId, insertSectionRows, idProblems, frozenCriterion, readSignoffs, standings, unmetRows, signOff, citedIds, permanenceProblems, deletedIds, headerRows, CHOICES, MOST_CHOICE_PARTS, positions, answerQuestion, answerFromText } from "./src/io/main.js";
 export { specGateMoveOnly } from "./src/io/gate/move.js";
+export { CITATIONS_FILE, qualifiedId, loadSpecBoards, qualifiedIdProblems, readCitationCorrections, correctedCitations } from "./src/io/boards.js";

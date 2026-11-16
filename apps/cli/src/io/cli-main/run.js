@@ -3,9 +3,6 @@
  * command when there is any, and dispatch through the lazy command table. It loads a module only when the command
  * in hand needs it, so --version and a read pay for nothing they do not run [C7].
  */
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { commandOutput } from '../../../../../packages/config/browser.js';
 import { Refused } from '../../../../../packages/kernel/light.js';
@@ -15,6 +12,7 @@ import { traceServeStartup } from './session.js';
 import { asksGitNothing } from './options.js';
 import { parseCommandArgs } from './options.js';
 import { appendTrace } from '../trace.js';
+import { liveCwd } from './live-cwd.js';
 import { extractWhy } from '../../logic/why.js';
 
 let startupMainTraced = false;
@@ -39,6 +37,9 @@ async function rememberTrunk(io, { repoInfo, mainCheckout }) {
 const WRITES = new Set(['handoff', 'bar', 'init', 'join', 'worktree', 'hooks', 'hook', 'skills', 'add', 'companion', 'edit', 'fact', 'escalate', 'run', 'sweep',
   'next', 'claim', 'hold', 'release', 'submit', 'ship', 'done', 'verify', 'check', 'merged', 'land', 'withdraw', 'refreeze', 'reopen', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget']);
 
+/** The commands that never create a scratch folder, so they never resolve the scratch root. */
+const NO_SCRATCH = new Set(['list', 'show', 'whoami', 'status', 'inbox', 'roadmap', 'hook commit-msg']);
+
 /**
  * Whether a command line writes the board. Reads bind no write session and wake no dispatcher recovery, so a read
  * such as whoami, show or status pays for neither [C7].
@@ -50,17 +51,6 @@ export function writesBoard([command, first]) {
   return WRITES.has(command) || (command === 'tool-build' && first === 'promote') || (command === 'patch' && ['attach', 'remove', 'object'].includes(first))
     || (command === 'request' && Boolean(first) && first !== 'list') || (command === 'lane' && first === 'add') || (command === 'settings' && Boolean(first) && !['board.url', 'board.token'].includes(first))
     || (command === 'spec' && first === 'apply') || (command === 'relay' && ['on', 'off'].includes(first));
-}
-
-/**
- * Whether a command line wakes queued-handoff recovery: board writes do, reads and Git hooks never. Why: on 8 Nov a
- * commit-msg hook, heartbeats and inbox reads each ran recovery and waited minutes behind the dispatcher launch [C7].
- *
- * @param {string[]} positionals - The command and its verb.
- * @returns {boolean}
- */
-export function wakesHandoffRecovery(positionals) {
-  return writesBoard(positionals) && !['hook', 'hooks'].includes(positionals[0]);
 }
 
 /**
@@ -88,7 +78,7 @@ async function timedMain(argv, streams) {
   }
   // Version and help ask Git nothing, so they never load it.
   if (asksGitNothing(argv)) return runMain(argv, streams);
-  const { withGitFacts } = await import('../../../../../packages/git/index.js');
+  const { withGitFacts } = await import('../../../../../packages/git/light.js');
   let command;
   try { command = parseCommandArgs(argv).positionals[0]; } catch { /* Normal parsing renders usage. */ }
   if (!['submit', 'done'].includes(command)) return withGitFacts(() => runMain(argv, streams));
@@ -111,8 +101,11 @@ async function timedMain(argv, streams) {
 /** Record local command wall time without sending timing data to the board. */
 export async function main(rawArgv, streams) {
   const { argv, why } = extractWhy(rawArgv);
+  // Reads and the commit-msg hook make no throwaway folder, so they skip the config barrel's load; every other command hands the scratch root down first [C7].
+  if (!NO_SCRATCH.has(argv[0] === 'hook' ? `hook ${argv[1]}` : argv[0])) (await import('../../../../../packages/config/index.js')).applyMachineScratch();
   const { beginSeatTiming, timingSeat } = await import('../../../../../packages/seats/light.js');
-  const cwd = streams.cwd ?? process.cwd();
+  const cwd = liveCwd(streams.cwd);
+  if (streams.cwd !== undefined && cwd !== streams.cwd) streams = { ...streams, cwd };
   const item = /^[1-9][0-9]*$/u.test(argv[1] ?? '') ? Number(argv[1]) : null;
   const binding = timingSeat(cwd);
   const finish = beginSeatTiming(cwd, 'command', argv[0] ?? 'help', item, binding);
@@ -126,14 +119,15 @@ export async function main(rawArgv, streams) {
   try { status = await timedMain(argv, { ...streams, traceRecord: traced }); return status; }
   catch (error) { thrown = error; status = 1; throw error; }
   finally {
+    try { (await import('../../../../../packages/store/light.js')).rotateBoardWritesLog(); } catch { /* A log that cannot rotate never changes a command's outcome. */ }
     stopBeat(); finish(); if (previous) globalThis[lockPort] = previous; else delete globalThis[lockPort];
     // One line per run on every exit path, a thrown Refused or an uncaught error included [C7].
     appendTrace({ argv, cwd, startedAt, status, error: thrown, refusal: traced.refusal, seat: binding?.seat ?? null, why });
   }
 }
 
-// The commands a seat with board.url set sends to the board host: two reads and the worker loop's moves [P7].
-const REMOTE_COMMANDS = new Set(['show', 'whoami', 'next', 'claim', 'fact', 'release', 'submit', 'done', 'verify', 'test']);
+// The commands a seat with board.url set sends to the board host: two reads, the worker loop's moves and shout [P7].
+const REMOTE_COMMANDS = new Set(['show', 'whoami', 'next', 'claim', 'fact', 'release', 'submit', 'done', 'verify', 'shout', 'test']);
 
 /** Parse and execute one CLI command, binding its checkout session and Git-fact scope. */
 async function runMain(argv, streams) {
@@ -173,11 +167,12 @@ async function runMain(argv, streams) {
     io.loadProcessPorts = undefined;
   };
   io.hookWorker = streams.hookWorker;
-  io.submitHandoffWorker = streams.submitHandoffWorker;
+  /** In-process tests widen the native hook's 2 s worker budget so a loaded machine cannot fake a timeout (#7800); the binary never sets it. */
+  io.hookTimeoutMs = streams.hookTimeoutMs;
   // In-process tests replace the detached audit launch; production always starts apps/cli/src/io/landing/audit.js.
   io.nudgeMainAudit = streams.nudgeMainAudit;
   /** Bind recursive CLI operations to this process root's native provider. */
-  io.runCommand = (args, nextStreams) => main(args, { ...nextStreams, gateWaitReporter: io.gateWaitReporter, loadProcessPorts: io.loadProcessPorts, loadNativeBoard: io.loadNativeBoard, hookWorker: io.hookWorker, submitHandoffWorker: io.submitHandoffWorker, launchRelaySender: io.launchRelaySender, withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord, remoteBoardMissing: io.remoteBoardMissing, uncertainUploadFailure: io.uncertainUploadFailure, decideUncertainBaseline: io.decideUncertainBaseline, checkpointPublisher: io.checkpointPublisher, relayOrdering: io.relayOrdering, checkpointInBackground: io.checkpointInBackground, scheduleCheckpoint: io.scheduleCheckpoint, requestCheckpointCheck: io.requestCheckpointCheck, checkpointWorker: io.checkpointWorker, openBoard: io.openBoard, nativeBoardPorts: io.nativeBoardPorts, outboxFields: io.outboxFields, outboxPolicy: io.outboxPolicy, flushOutbox: io.flushOutbox, queueMove: io.queueMove, outboxHasPendingCreatedItem: io.outboxHasPendingCreatedItem });
+  io.runCommand = (args, nextStreams) => main(args, { ...nextStreams, gateWaitReporter: io.gateWaitReporter, loadProcessPorts: io.loadProcessPorts, loadNativeBoard: io.loadNativeBoard, hookWorker: io.hookWorker, launchRelaySender: io.launchRelaySender, withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord, remoteBoardMissing: io.remoteBoardMissing, uncertainUploadFailure: io.uncertainUploadFailure, decideUncertainBaseline: io.decideUncertainBaseline, checkpointPublisher: io.checkpointPublisher, relayOrdering: io.relayOrdering, checkpointInBackground: io.checkpointInBackground, scheduleCheckpoint: io.scheduleCheckpoint, requestCheckpointCheck: io.requestCheckpointCheck, checkpointWorker: io.checkpointWorker, openBoard: io.openBoard, nativeBoardPorts: io.nativeBoardPorts, outboxFields: io.outboxFields, outboxPolicy: io.outboxPolicy, flushOutbox: io.flushOutbox, queueMove: io.queueMove, outboxHasPendingCreatedItem: io.outboxHasPendingCreatedItem });
   // Background launch is a CLI operation; lower relay code receives it explicitly.
   io.launchRelaySender = streams.launchRelaySender;
   let sync = true;
@@ -187,7 +182,6 @@ async function runMain(argv, streams) {
   let auditAfterCommand = false;
   let advanceAfterCommand = false;
   let maintenanceAfterCommand;
-  let automaticLandingAfterCommand;
   let toolBuildGateAfterCommand;
   try {
     parsed = parseCommandArgs(argv);
@@ -216,13 +210,21 @@ async function runMain(argv, streams) {
   const remoteJoin = parsed?.positionals[0] === 'join' && parsed.positionals[1] !== 'coordinator';
   if (parsed && !parsed.values.help && !parsed.values.version && !io.personChannel && (remoteJoin || REMOTE_COMMANDS.has(parsed.positionals[0]))) {
     const remote = await import('../remote/board.js');
-    const target = remote.remoteBoard();
+    let target;
+    // A malformed machine settings file is an ordinary refusal, JSON under --json, not a thrown Refused [N2].
+    try { target = remote.remoteBoard(); } catch (error) {
+      if (!(error instanceof Refused)) throw error;
+      await io.prepareRefusal();
+      io.refusal(error);
+      io.flush(1);
+      return 1;
+    }
     if (target && (remoteJoin || ['show', 'whoami'].includes(parsed.positionals[0]))) return remote.runRemoteRead(io, parsed, target);
     // A seat's test runs here and posts only its receipt, so the board host never runs a test on its request path.
     if (target && parsed.positionals[0] === 'test') return (await import('../test/remote.js')).runRemoteTest(io, parsed.positionals.slice(1), parsed.values, target);
     if (target) return (await import('../remote/moves.js')).runRemoteMove(io, parsed, target);
   }
-  const git = needsRepo ? await import('../../../../../packages/git/index.js') : null;
+  const git = needsRepo ? await import('../../../../../packages/git/light.js') : null;
   git?.setResumeSourceFacts(parsed?.positionals[0] === 'resume');
   if (parsed) {
     try {
@@ -256,9 +258,6 @@ async function runMain(argv, streams) {
   try {
     if (needsRepo) {
       await rememberTrunk(io, git);
-      if (!parsed?.values['dry-run'] && wakesHandoffRecovery(parsed?.positionals ?? [])) {
-        await (await import('./recovery.js')).recoverQueuedHandoffs(io, git);
-      }
     }
     traceServeStartup('cli-command-preamble-start');
     // The relay and baseline work loads only where a relay token, relay state, a link or a pending result exists.
@@ -290,10 +289,13 @@ async function runMain(argv, streams) {
       && !QUIET_COMMANDS.has(parsed?.positionals[0])) {
       // The foreground command already read this configuration; disabled maintenance adds no second context read.
       maintenanceAfterCommand = io.worktreeMaintenanceContext;
-      automaticLandingAfterCommand = io.automaticLandingContext;
     }
     if (status === 0 && needsRepo && !parsed?.values['dry-run'] && parsed?.positionals[0] !== 'tool-build') toolBuildGateAfterCommand = io.toolBuildGateContext;
-    if (status === 0 && needsRepo && !parsed?.values['dry-run']) (await import('../../../../../packages/items/index.js')).clearCompletedBlocks(io, { requirePersonChannel: (await import('../../../../../packages/person/index.js')).requirePersonChannel });
+    if (status === 0 && needsRepo && !parsed?.values['dry-run']) {
+      // The person check loads only when a block could clear, so a read pays for neither [#6483].
+      const blocks = await import('../../../../../packages/items/light.js');
+      if (blocks.blocksMayClear(io)) await blocks.clearCompletedBlocks(io, { loadPersonCheck: async () => (await import('../../../../../packages/person/index.js')).requirePersonChannel });
+    }
     if (status !== 0) await io.prepareRefusal();
     io.flush(status);
     return status;
@@ -301,30 +303,6 @@ async function runMain(argv, streams) {
     CHECKOUT_LEASES.delete(io);
     CHECKOUT_BOARD_ONLY.delete(io);
     checkoutSession?.lease?.release();
-    if (automaticLandingAfterCommand) {
-      // A release run from an item folder removes that folder before this wake; the pending record names the
-      // trunk checkout, so the wake uses it. Why: on 6 Nov every such release printed NOT_A_REPO and woke nothing [C7].
-      const { info } = automaticLandingAfterCommand;
-      const wakeRoot = existsSync(info.root) ? info.root : landingJobRoot(info.commonDir) ?? info.root;
-      try {
-        // Nothing loads for the wake unless a pending record exists or a verified item waits to land [C7].
-        if (!(existsSync(join(info.commonDir, 'pullboard', 'automatic-landing', 'pending.json'))
-          || (await import('../../../../../packages/store/light.js')).landingMayWait(join(info.commonDir, 'pullboard', 'board.sqlite')))) throw LANDING_IDLE;
-        const worker = await import('../../../../../packages/landing/index.js');
-        // The wake reopens the board in this process; sharing the command's set keeps a schema notice to one line [A5,C7].
-        const schemaDiagnostics = automaticLandingAfterCommand.io.schemaDiagnostics ??= new Set();
-        // A backed-off lander waits out its back-off unless an accept, a green gate or a held-test correction came since [C7].
-        // One board read answers both: recovery and the bootstrap share the answer for the same record.
-        const answers = new Map();
-        const woken = async job => {
-          if (!answers.has(job.id)) answers.set(job.id, (await import('../landing/automatic.js')).landingBackoffWoken(job.root, job, { schemaDiagnostics }));
-          return answers.get(job.id);
-        };
-        const recovered = await worker.recoverAutomaticLanding(wakeRoot, new URL('../landing/automatic.js', import.meta.url), { woken });
-        if (!recovered) await (await import('../landing/automatic.js')).bootstrapLandingWake(wakeRoot, { schemaDiagnostics, woken });
-      }
-      catch (error) { if (error !== LANDING_IDLE) io.err(`automatic landing wake unavailable: ${error.code ?? error.name}: ${error.message}`); }
-    }
     // A runner job's processes die with the job, so no timer is scheduled and the scheduler is never loaded [C7].
     if (maintenanceAfterCommand && !process.env.PULLBOARD_RUNNER_JOB) {
       try { await (await import('../worktree/maintenance/scheduler.js')).scheduleWorktreeMaintenance(maintenanceAfterCommand); }
@@ -339,7 +317,8 @@ async function runMain(argv, streams) {
         let eligible = true;
         try {
           const { landingLeaseState } = await import('../../../../../packages/store/index.js');
-          eligible = (await import('../../../../../packages/sandbox/index.js')).hasSourceAdvanceJobs(io.cwd, { landingLeaseState,
+          const { openLandingJob } = await import('../../../../../packages/api/index.js');
+          eligible = (await import('../../../../../packages/sandbox/index.js')).hasSourceAdvanceJobs(io.cwd, { landingLeaseState, openLandingJob,
             openBoardForRead: (await import('../context.js')).nativeBoardOpeners(io).openBoardForRead });
         }
         catch { /* Unknown state keeps the normal worker path, which records incomplete work. */ }
@@ -360,13 +339,4 @@ async function runMain(argv, streams) {
 if (process.env.PULLBOARD_STARTUP_TRACE_ENTRY
   && resolve(process.argv[1] ?? '') === resolve(process.env.PULLBOARD_STARTUP_TRACE_ENTRY)) {
   traceServeStartup('cli-module-load-complete');
-}
-
-/** Thrown inside the landing wake when nothing could be waiting to land, so the wake loads nothing. */
-const LANDING_IDLE = new Error('landing idle');
-
-/** The trunk checkout the pending landing record names, or null when there is no readable record. */
-function landingJobRoot(commonDir) {
-  try { return JSON.parse(readFileSync(join(commonDir, 'pullboard', 'automatic-landing', 'pending.json'), 'utf8')).root ?? null; }
-  catch { return null; }
 }

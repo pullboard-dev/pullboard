@@ -24,6 +24,7 @@ import { wording } from '../../logic/frozen.js';
 import { criterionClauses } from '../../../../state/index.js';
 import { earlierHeadFacts } from '../../../../state/index.js';
 import { linkEarlierFacts } from '../../../../state/index.js';
+import { storeName } from '../store-names.js';
 
 const VERSION = 1;
 const SHA = /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u;
@@ -63,7 +64,7 @@ function readBlobs(root, specs) {
 /** Where the board keeps the packet for one item head. */
 function reviewPacketPath(commonDir, id, head) {
   if (!Number.isSafeInteger(Number(id)) || !SHA.test(head ?? '')) return null;
-  return join(commonDir, 'pullboard', 'review-packets', String(id), `${head}.json`);
+  return join(commonDir, 'pullboard', 'review-packets', String(id), `${storeName(head)}`);
 }
 
 /** The stored packet for this head, or null when none was built. */
@@ -100,7 +101,8 @@ function reviewPacketInputs(board, { getItem, events, eventsOfKinds, itemThread 
     .filter(receipt => receipt && receipt.item === Number(id) && receipt.commit === item.item_commit);
   const baseline = history.filter(event => event.event_kind === 'check-baseline').map(event => detailOf(event).checkBaseline).at(-1) ?? null;
   // The main comparison runs recorded at the known main, read only for a gate red in main's named cases (#3449).
-  const known = submit?.gateGreen === false ? submit.submissionProof?.knownMainFailures : null;
+  // The pulled gate records a red only in main's own cases as green, with the same fields in submissionProof, so both read them [C7,V4].
+  const known = submit?.submissionProof?.knownMainFailures ?? null;
   const mainRuns = known && typeof eventsOfKinds === 'function' ? eventsOfKinds(board, ['gate-run']).map(event => detailOf(event).run)
     .filter(run => run?.kind === 'main-red' && run.head === known.main).map(run => run.id) : [];
   // The item's clause facts, so a fact citing an earlier head is shown next to the exact-head receipt's outcome (#3752).
@@ -123,12 +125,22 @@ function excusedMainReds(submit, receipts) {
   return red.flatMap(receipt => receipt.failures).every(failure => known.failures.some(row => named(row, failure))) ? known : null;
 }
 
+/**
+ * The known main failures of a pulled submit that recorded a gate green over main-owned cases, else null.
+ * Why: on pull the settle records gateGreen true with the main-owned cases only in submissionProof, so the packet must
+ * read them from there to keep them apart from the item's own reds [V4,C7].
+ */
+function pulledMainOwned(submit) {
+  const known = submit?.gateGreen === true ? submit.submissionProof?.knownMainFailures : null;
+  return SHA.test(known?.main ?? '') && Array.isArray(known.failures) && known.failures.length ? known : null;
+}
+
 /** The id of the main comparison receipt at `main` that records this case failing, from the gate's own receipt files. */
 function mainReceiptFor(commonDir, ids, main, failure) {
   for (const id of new Set(ids)) {
     if (!commonDir || !/^[a-f0-9-]{36}$/u.test(id ?? '')) continue;
     try {
-      const stored = JSON.parse(readFileSync(join(commonDir, 'pullboard', 'gate-receipts', `${id}.json`), 'utf8'));
+      const stored = JSON.parse(readFileSync(join(commonDir, 'pullboard', 'gate-receipts', `${storeName(id)}`), 'utf8'));
       if (stored.id === id && stored.kind === 'main-red' && stored.head === main
         && (stored.failures ?? []).some(row => row.file === failure.file && row.name === failure.name)) return id;
     } catch { /* A missing or unreadable receipt names nothing; the next candidate may. */ }
@@ -161,7 +173,7 @@ function words(text) {
 function receiptOutcomes(commonDir, receipt, head, { declared = false } = {}) {
   if (!commonDir || !/^[a-f0-9-]{36}$/u.test(receipt.id ?? '')) return [];
   try {
-    const stored = JSON.parse(readFileSync(join(commonDir, 'pullboard', 'gate-receipts', `${receipt.id}.json`), 'utf8'));
+    const stored = JSON.parse(readFileSync(join(commonDir, 'pullboard', 'gate-receipts', `${storeName(receipt.id)}`), 'utf8'));
     if (stored.id !== receipt.id || stored.head !== head) return [];
     return (testOutcomeFields(stored.testOutcomes) ?? []).filter(row => declared || !row.skipped);
   } catch { return []; }
@@ -290,7 +302,7 @@ function cellsAt(root, commit) {
 function buildReviewPacket(root, { item, submit, receipts, baseline, mainRuns = [], thread = [] }, { now = new Date(), commonDir = null, errors = [], mainReceiptIds = [] } = {}) {
   const id = Number(item.item_id);
   const head = item.item_commit;
-  const excused = submit && submit.gateGreen !== true ? excusedMainReds(submit, receipts) : null;
+  const excused = submit && submit.gateGreen !== true ? excusedMainReds(submit, receipts) : pulledMainOwned(submit);
   if (!submit || (submit.gateGreen !== true && !excused) || !SHA.test(head ?? '')) return null;
   const main = SHA.test(submit.policyCommit ?? '') ? submit.policyCommit : null;
   const base = main ? gitRead(root, ['merge-base', main, head]).trim() : gitRead(root, ['rev-parse', `${head}^`]).trim();
@@ -377,9 +389,11 @@ function buildReviewPacket(root, { item, submit, receipts, baseline, mainRuns = 
   // the main receipt that names each, and never read as this item's red, so the reviewer judges its own clauses (#3449).
   const failures = excused ? [] : atHead;
   const mainIds = [...mainReceiptIds, ...mainRuns];
-  const excusedMain = (excused ? atHead : []).map(failure => {
-    const repair = excused.failures.find(row => row.file === failure.file && row.name === failure.name)?.item;
-    return { ...failure, alsoRedOnMain: true, main: excused.main, mainReceipt: mainReceiptFor(commonDir, mainIds, excused.main, failure),
+  const excusedMain = (excused ? (submit.gateGreen === true ? excused.failures.map(({ file, name }) => ({ file, name })) : atHead) : []).map(failure => {
+    const known = excused.failures.find(row => row.file === failure.file && row.name === failure.name);
+    const repair = known?.item;
+    // A pulled settle records the main receipt that named the case beside it; an older proof is matched by the receipt files (#7495).
+    return { ...failure, alsoRedOnMain: true, main: excused.main, mainReceipt: typeof known?.receipt === 'string' ? known.receipt : mainReceiptFor(commonDir, mainIds, excused.main, failure),
       ...(repair ? { repair } : {}) };
   });
   const cellsBefore = cellsAt(root, base);
@@ -411,12 +425,15 @@ function renderReviewPacket(packet, { hunks = true } = {}) {
   lines.push('clauses:');
   for (const clause of packet.clauses) {
     lines.push(`  ${clause.n}. ${clause.text}`);
-    if (!clause.runs.length) lines.push(`     ${clause.gap}: read this clause and name it in --read`);
+    // A clause with no mapped test says so and sends the reviewer to the diff; a deferred suite keeps its own reason (UX F6).
+    if (!clause.runs.length) lines.push(clause.gap === 'no recorded run'
+      ? '     no test maps to this clause: read the diff for it and name it in --read' : `     ${clause.gap}: read this clause and name it in --read`);
     for (const earlier of clause.earlier ?? []) {
       lines.push(`     ${earlier.stale ? 'stale' : 'earlier head'}: fact ${String(earlier.fact ?? '').slice(0, 8)} cites ${earlier.cited}; at the exact head ${short(packet.head)}: ${earlier.outcomes.map(row => `${row.outcome} "${row.name}"`).join('; ') || 'no named case to match'}${earlier.stale ? ` (clause ${clause.n} is stale: ${earlier.outcomes.some(row => row.outcome === 'missing') ? 'a named case is missing from the exact-head receipt' : 'the fact names no case the exact-head receipt answers'})` : ''}`);
     }
     for (const run of clause.runs) {
-      lines.push(`     ${run.result} ${run.file}${run.test ? ` "${run.test}"` : ''}; receipt ${run.receipt.slice(0, 8)} (${run.kind}${run.phase ? `, ${run.phase}` : ''}${run.runner ? `, ${run.runner}` : ''}); ${run.why}`);
+      const covered = run.why === "the item's check ran" && run.result === 'pass' ? `covered by the gate's item check (receipt ${run.receipt.slice(0, 8)}); ` : '';
+      lines.push(`     ${covered}${run.result} ${run.file}${run.test ? ` "${run.test}"` : ''}; receipt ${run.receipt.slice(0, 8)} (${run.kind}${run.phase ? `, ${run.phase}` : ''}${run.runner ? `, ${run.runner}` : ''}); ${run.why}`);
     }
   }
   lines.push(packet.failures.length ? 'failures at head:' : 'failures at head: none');

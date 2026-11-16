@@ -5,6 +5,7 @@ export { spawnCaptured } from './src/io/captured.js';
 export {
   policyGit,
   mainPolicy,
+  reviewMainPolicy,
   policyAt,
   RUNNER_POLICY_FILE,
   validRunnerTrunk,

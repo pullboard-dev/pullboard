@@ -20,6 +20,7 @@ import { publishExcludedBoards } from './relay/excluded.js';
 import { publishOffExclusions } from './relay/excluded.js';
 import { recoverySummary } from '../logic/relay/fields.js';
 import { recoveryRefusalMatches } from '../logic/relay/fields.js';
+import { unlinkedRelayStatus } from '../logic/relay/fields.js';
 import { originRepository } from '../../../seats/index.js';
 import { firstUploadPauseNotice } from './relay/pause.js';
 import { permanentUploadRefusal } from './relay/pause.js';
@@ -32,7 +33,6 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -40,7 +40,6 @@ import { hostname } from 'node:os';
 import { SEALED_SNAPSHOT_BYTES as SEALED_SNAPSHOT_LIMIT } from '../logic/relay/limits.js';
 import { basename } from 'node:path';
 import { join } from 'node:path';
-import { resolve } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { gzipSync } from 'node:zlib';
 import * as store from '../../../store/index.js';
@@ -56,6 +55,7 @@ import { engineReceipt } from '../../../state/index.js';
 import { prepareEngineMove } from '../../../state/index.js';
 import { refuseRelayMove } from '../../../state/index.js';
 import { requireSupportedEngine } from '../../../state/index.js';
+import { restoreRelayEpoch } from '../../../state/index.js';
 import { startRelayEpoch } from '../../../state/index.js';
 import { actorTransport } from './relay/seats.js';
 import { ensurePersonCoordinator } from './relay/seats.js';
@@ -83,6 +83,8 @@ import { nudgeRelaySender } from './relay/local.js';
 import { localFirstLink } from './relay/local.js';
 import { baselineNotAccepted } from '../logic/relay/fallback.js';
 import { transientRelayFailure } from '../logic/relay/fallback.js';
+import { RECOVER_COMMAND } from '../logic/relay/fields.js';
+import { parkedHealth } from '../logic/relay/fields.js';
 import { transportFailure } from '../logic/relay/fallback.js';
 import { outboxFile } from './relay/summary.js';
 import { stampCoordinatorHolder } from '../../../seats/index.js';
@@ -113,7 +115,7 @@ import { relaySnapshotRequest } from '../../../pages/index.js';
 import { relayStorage } from '../../../pages/index.js';
 import { relayStorageLine } from '../../../pages/index.js';
 export { relayOrigin, relayStorageLine };
-
+import { readCommonDir } from './relay/common-dir.js';
 import { loadLink } from './relay/link.js';
 import { saveLink } from './relay/link.js';
 import { STATE_FILES } from './relay/link.js';
@@ -165,25 +167,8 @@ export async function assertRehomeSourceItemOrdered(root, itemId, io) {
 /** Find the shared local link metadata without opening a board or connecting for an unlinked repo. */
 function linkFile(root) { return relayFiles(quickCommonDir(root)).link; }
 
-/**
- * Find the shared git directory by reading `.git` (and `commondir` for a linked worktree) instead of starting git.
- * Why: every read command asked git for this just to learn the link path, about 200 ms each [C7].
- * Anything unusual falls back to the git-backed answer.
- */
-function quickCommonDir(root) {
-  try {
-    const dotGit = join(root, '.git');
-    const stat = lstatSync(dotGit);
-    if (stat.isDirectory()) return realpathSync(dotGit);
-    const match = /^gitdir:\s*(.+)\s*$/mu.exec(readFileSync(dotGit, 'utf8'));
-    if (match) {
-      const gitDir = resolve(root, match[1]);
-      const common = readFileSync(join(gitDir, 'commondir'), 'utf8').trim();
-      return realpathSync(resolve(gitDir, common));
-    }
-  } catch { /* Not a plain checkout root: ask git. */ }
-  return repoInfo(root).commonDir;
-}
+/** The shared git directory, read straight from `.git` when possible and from git otherwise [C7]. */
+function quickCommonDir(root) { return readCommonDir(root) ?? repoInfo(root).commonDir; }
 
 /** Locate the credential-free reason an independently deleted copy no longer syncs. */
 function deletedLinkFile(root) { return relayFiles(repoInfo(root).commonDir).deleted; }
@@ -326,18 +311,18 @@ async function rawRequest(state, path, { method = 'GET', body, allowMissing = fa
     let requestSignal;
     for (let attempt = 0; ; attempt += 1) {
       try {
-        requestSignal ??= signal ? AbortSignal.any([signal, AbortSignal.timeout(io?.relayTimeoutMs ?? 10000)]) : AbortSignal.timeout(io?.relayTimeoutMs ?? 10000); // budget: original per-request transport ceiling, shared by a replacement GET.
+        requestSignal ??= (ceiling => signal ? AbortSignal.any([signal, AbortSignal.timeout(ceiling)]) : AbortSignal.timeout(ceiling))(Math.max(1, Math.min(io?.relayTimeoutMs ?? 10000, (io?.relayDeadlineAt ?? Infinity) - Date.now()))); // budget: original per-request transport ceiling, shared by a replacement GET; a paused baseline cuts it to io.relayDeadlineAt.
         response = await relayFetch(origin + path, {
           method, redirect: 'error', signal: requestSignal,
           headers: { 'x-pullboard-engine': String(ENGINE_VERSION), ...(token ? { authorization: 'Bearer ' + token } : {}), ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...(initialBaseline ? { 'if-none-match': '*' } : {}) },
           ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         });
-        break;
+        if (io) delete io.relayDeadlineAt; break; // An answer ends the short wait of a paused baseline.
       } catch (error) {
         if (signal?.aborted) throw new Refused('OAUTH_CANCELLED', 'GitHub device sign-in was cancelled; no board was linked');
         // A stale cached connection reports ECONNRESET or EPIPE across supported Node runtimes. Only a read may try once more.
         if (method === 'GET' && attempt === 0 && ['ECONNRESET', 'EPIPE'].includes(transportFailure(error)) && requestSignal && !requestSignal.aborted) continue;
-        const refusal = new Refused('RELAY_UNAVAILABLE', `the relay ${state.url} did not answer (${transportFailure(error)} after ${Date.now() - startedAt} ms on ${method} ${path.split('?')[0]}); read the local board offline, then retry this move when the relay is reachable`);
+        const refusal = new Refused('RELAY_UNAVAILABLE', `the relay ${state.url} did not answer (${transportFailure(error)} after ${Date.now() - startedAt} ms on ${method} ${path.split('?')[0]}); read the local board offline, then retry this move when the relay is reachable${state.baselinePause ? `; this board's baseline upload is paused (${state.baselinePause.code}), so it waits for the relay and commands do not` : ''}`);
         refusal.transportFailure = transportFailure(error);
         throw refusal;
       }
@@ -361,6 +346,7 @@ async function rawRequest(state, path, { method = 'GET', body, allowMissing = fa
       error.relayCode = document.error?.code;
       error.relayMessage = document.error?.message;
       if (document.version === 1 && document.error?.code === 'BAD_UPLOAD') error.snapshotLimit = document.error.snapshotLimit;
+      if (document.version === 1 && document.error?.code === 'MOVE_TOO_LARGE') error.moveLimit = document.error.moveLimit;
       if (/^[0-9a-f]{64}$/u.test(document.error?.page ?? '')) error.page = document.error.page;
       const storage = relayStorage(document.error?.storage);
       if (storage) error.storage = storage;
@@ -404,7 +390,7 @@ function summary(root, state, { pairing = false, outboxFields, openBoard } = {})
     sequence: state.sequence, behind: (state.baselinePause ? behind(root, state, openBoard) : state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state, openBoard)) + Number(Boolean(state.snapshot || state.checkpoint))
       + (state.outbox?.moves?.length ?? 0),
     recovery: recoverySummary(state),
-    health: readRelayHealth(root, { queued: state.outbox?.moves?.length ?? 0 }),
+    health: parkedHealth(readRelayHealth(root, { queued: state.outbox?.moves?.length ?? 0 }), state),
     ...outboxFields(state),
     ...(relayStorage(state.storage) ? { storage: relayStorage(state.storage) } : {}),
     ...(oversizedSnapshot ? { oversizedSnapshot } : {}),
@@ -801,7 +787,9 @@ function recoveredMove(root, state, operation, args, command, io) {
 function outboxLink(root, file, state, io, senderPolicy) {
   return { root, file, state, io, senderPolicy, request, sealedRecord, localRecords: (root, work) => localRecords(io.openBoard, root, work), saveLink, safePauseCode, safePauseMessage,
     applyRecords: (root, key, state, records) => applyRecords(root, key, state, records, io), fetchCheckpoint: (key) => fetchCheckpoint(state, io, key, senderPolicy),
-    postPending: (checkout, link, current, pending, output) => postPending(checkout, link, current, pending, output, senderPolicy) };
+    postPending: (checkout, link, current, pending, output) => postPending(checkout, link, current, pending, output, senderPolicy),
+    // The board's own checkpoint document and page digest, for the outbox to publish over parked moves (#6693).
+    snapshotDocument: () => relaySnapshot(root, {}, io.nativeBoardPorts().presentation), presentationDigest };
 }
 
 /**
@@ -933,6 +921,7 @@ export async function relayOperation(root, operation, args, io, command, applyLo
         if (!io.relayCanary) recordClientHealth(root, true, null, Date.now() - roundTripStarted);
       }
       delete state.recovered;
+      if (operation === 'takeCoordinator' && !receipt.outcome.error && state.outboxRefusals) state.outboxRefusals = state.outboxRefusals.filter((kept) => kept.code !== 'COORDINATOR_HELD');
       saveLink(file, state);
       // A phone reads the next checkpoint; the background publisher sends it once moves go quiet (#1014).
       if (await io.checkpointInBackground()) await io.scheduleCheckpoint(root, file, io.checkpointWorker);
@@ -1019,11 +1008,11 @@ export async function syncRelay(root, io) {
         }
       } else if (error.code === 'AUTH_REQUIRED') {
         if (!orderedMoveCommand(io)) reportExpiredSignIn(state, io);
-      } else if (!(orderedMoveCommand(io) && (baselineNotAccepted(state) || (await io.outboxPolicy()).outboxQueueable(state, error, null, io)) && transientRelayFailure(error))) io.err(`pullboard: ${error.message}; run pullboard status to see pending uploads`);
+      } else if (!(orderedMoveCommand(io) && (baselineNotAccepted(state) || (await io.outboxPolicy()).outboxQueueable(state, error, null, io)) && transientRelayFailure(error))) io.err(`pullboard: ${error.message}; ${error.code === 'RELAY_ACTOR' && error.next ? error.next : 'run pullboard status to see pending uploads'}`);
       return { linked: true, board: state.board, url: state.url, sequence: state.sequence,
         behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state, io.openBoard)) + Number(Boolean(state.snapshot || state.checkpoint)) + (state.outbox?.moves?.length ?? 0),
         recovery: recoverySummary(state), ...io.outboxFields(state),
-        health: readRelayHealth(root, { queued: state.outbox?.moves?.length ?? 0 }) };
+        health: parkedHealth(readRelayHealth(root, { queued: state.outbox?.moves?.length ?? 0 }), state) };
     }
   }, io);
 }
@@ -1243,6 +1232,26 @@ export async function relayRecover(root, skip, io) {
   });
 }
 
+/**
+ * Resolve every parked move in place (#6693): send what still waits, then publish a sealed checkpoint of this local
+ * board under the SAME board id, so the relay and every computer hold the parked moves' effects with no new board id,
+ * no rejoin and no lost history, and clear the outbox. The outbox owns the queue, so it does the publishing.
+ */
+export async function relayRecoverParked(root, io) {
+  const senderPolicy = io.nativeBoardPorts().enginePorts;
+  const file = linkFile(root);
+  return locked(file, async () => {
+    const state = loadLink(file);
+    if (!state || state.unlinking || state.mode !== 'ordered' || state.baselineAccepted !== true) throw new Refused('RELAY_LINKED', `link this board to an accepted ordered relay board before ${RECOVER_COMMAND}`);
+    if (state.recovery) throw new Refused('RELAY_RECOVERY_PENDING', `finish the saved recovery for sequence ${state.recovery.skip} first: pullboard relay recover --skip ${state.recovery.skip}`);
+    if (!await ensureOrdered(root, file, state, io)) throw new Refused('RELAY_UNAVAILABLE', 'the relay has not accepted this board\u2019s baseline yet; run pullboard relay and retry');
+    const startedAt = Date.now();
+    const recovered = await io.flushOutbox(outboxLink(root, file, state, io, senderPolicy), { recover: true });
+    if (!io.relayCanary) recordClientHealth(root, true, null, Date.now() - startedAt);
+    return { ...summary(root, state, { outboxFields: io.outboxFields, openBoard: io.openBoard }), ...recovered };
+  }, io);
+}
+
 /** Read the local link and lag without opening a network connection or revealing its relay token. */
 export function relayStatus(root, io) { return withRelayExclusion(root, summary(root, loadLink(linkFile(root)), { outboxFields: io?.outboxFields, openBoard: io?.openBoard })); }
 
@@ -1265,7 +1274,7 @@ export async function relayOn(root, address, io, { session, credential, quiet = 
   const file = linkFile(root);
   // A clone whose pullboard.json names another board joins that board instead of linking a second one [E12].
   const joining = await (await import('./relay/join.js')).joinNamedBoardIfAny(root, file, { linked: Boolean(loadLink(file)), url: relayOrigin(address || DEFAULT_RELAY), repository, signIn: (url) => deviceSignIn(url, io), openBoard: io.openBoard }, io);
-  if (joining) return joining;
+  if (joining) return joining; (await import('./relay/board-size.js')).requireBoardFitsRelay(repoInfo(root).commonDir); // Too large a board refuses before anything changes [#7777].
   const { nameBoardInConfig } = await import('./relay/config.js');
   return locked(file, async () => {
     let state = loadLink(file);
@@ -1283,24 +1292,26 @@ export async function relayOn(root, address, io, { session, credential, quiet = 
     if (reusableSession && reusableSession.url !== url) throw new Refused('RELAY_SESSION', 'Sign in again to this relay with pullboard relay on --all.');
     // Every clone finds its board in pullboard.json [E12], written before the snapshot so its presentation carries it.
     const restoreConfig = nameBoardInConfig(repoInfo(root).root, nextBoard, io);
-    if (!state) {
-      const snapshot = localRecords(io.openBoard, root, (board) => {
-        startRelayEpoch(board, nextBoard);
-        return { board: store.boardId(board) };
-      });
-      snapshot.document = relaySnapshot(root, {}, presentationPorts);
-      // Save the device key before creating any remote link; a locked keychain cannot strand it.
-      const keyStorage = storeBoardKey(snapshot.board, key);
-      state = { version: 1, mode: 'ordered', board: snapshot.board, url, repository, token: null, personReauth: true,
-        keyStorage, presentationDigest: presentationDigest(snapshot.document.presentation), sequence: 0,
-        cursor: snapshot.document.tables.event.at(-1)?.event_id ?? 0, baselineCursor: snapshot.document.tables.event.at(-1)?.event_id ?? 0,
-        baselineAccepted: false, linkPending: true };
-      state.snapshot = { sequence: 0, sealed: await sealedRecord(key, snapshot.document, state, 'snapshot', 0) };
-      if (relink && replacement) { state.previousBoardNotice = relink.previous; state.replaces = replacement; }
+    let epoch; try {
+      if (!state) {
+        const snapshot = localRecords(io.openBoard, root, (board) => { epoch = startRelayEpoch(board, nextBoard); return { board: store.boardId(board) }; });
+        snapshot.document = relaySnapshot(root, {}, presentationPorts);
+        // Save the device key before creating any remote link; a locked keychain cannot strand it.
+        const keyStorage = storeBoardKey(snapshot.board, key);
+        state = { version: 1, mode: 'ordered', board: snapshot.board, url, repository, token: null, personReauth: true,
+          keyStorage, presentationDigest: presentationDigest(snapshot.document.presentation), sequence: 0,
+          cursor: snapshot.document.tables.event.at(-1)?.event_id ?? 0, baselineCursor: snapshot.document.tables.event.at(-1)?.event_id ?? 0,
+          baselineAccepted: false, linkPending: true };
+        state.snapshot = { sequence: 0, sealed: await sealedRecord(key, snapshot.document, state, 'snapshot', 0) };
+        if (relink && replacement) { state.previousBoardNotice = relink.previous; state.replaces = replacement; }
+      }
+      // Persist the exact sealed snapshot and a recoverable link intent before making the remote link.
+      saveLink(file, state);
+    } catch (error) {
+      restoreConfig(() => { if (epoch) localRecords(io.openBoard, root, (board) => restoreRelayEpoch(board, epoch)); });
+      throw error;
     }
     const account = signed.account ?? signed.user?.id;
-    // Persist the exact sealed snapshot and a recoverable link intent before making the remote link.
-    saveLink(file, state);
     if (relink) finishRelink(root);
     if (state.linkPending) {
       if (signed.linkConfirmed && signed.linkedBoard !== state.board) throw new Refused('RELAY_RESPONSE', 'the relay confirmed a different board; sign in again');

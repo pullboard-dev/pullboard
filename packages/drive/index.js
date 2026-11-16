@@ -1,7 +1,6 @@
-/** drive front door: continue a durable job from its last written step, and the dispatcher row that keeps one driver loop alive [C7]. */
+/** drive front door: continue a durable job from its last written step [C7]. */
 export { driveOnce, GATE_STALL_MS, GATE_STALL_RETRIES } from './src/io/once.js';
 export { PHASES, phaseOf, owedShards, shardSections, gateSections } from './src/logic/phase.js';
-export { ensureDispatcher, renewDispatcher, DISPATCHER_JOB } from './src/io/dispatcher.js';
 export { startDetachedCheck } from './src/io/detached.js';
 export { mainRedLookup, classifyGateRed, MAIN_TEST_JOB, mainOwnedVerdictPorts } from './src/io/main/red.js';
 export { drainLoop, DRAIN_INTERVAL_MS } from './src/io/drain.js';
@@ -11,15 +10,22 @@ export { FLAKE_DIAGNOSE_KIND, flakeDiagnoseKey, diagnoseTargets } from './src/lo
 export { reclaimPass, lapsedGateJobs, endDeadGateJobs, FALLBACK_BUDGET_MS, GATE_JOB_NO_PROGRESS_MS } from './src/io/reclaim.js';
 export { keyedResult, cellsInventoryJob } from './src/io/keyed.js';
 export { CELLS_INVENTORY_KIND, keyedJobId } from './src/logic/keyed.js';
-export { driveLanding, LANDING_STALL_MS } from './src/io/landing.js';
+export { runScreenJob, screenCommit } from './src/io/screen.js';
+export { SCREEN_KIND, screenKey, screenQueued, screenReceipt } from './src/logic/screen.js';
+export { driveLanding } from './src/io/landing.js';
 export { LANDING_RUN_KIND, landingRunJobId, landingRunSummary } from './src/logic/landing.js';
-export { admitGateDrive, recordGateDriveSpawn, endGateDriveUnstarted, readGateDrive, stalledGateDriveFindings } from './src/io/gate.js';
+export { admitGateDrive, renewGateDriveHop, recordGateDriveSpawn, endGateDriveUnstarted, readGateDrive, stalledGateDriveFindings } from './src/io/gate.js';
 export { GATE_DRIVE_KIND, gateDriveJobId, gateDriveRecord, gateDriverEnded, gateDriverGone, gateDriveStall, GATE_DRIVE_STUCK_MS } from './src/logic/gate.js';
-export { createGateAdmission, gateDispatcherRow } from './src/io/gate/admission.js';
-export { TEST_RUN_KIND, MACHINE_CONTEXT_ENV, machineContext, queuesTestRun, queueTestRun, testRunItem, workTestRun, testRunState, readFinalLine, START_BOUND_MS, readTestRun, ownTestRuns, deliverTestRun, deliverOwnTestRuns, deliverTestRunsWhenReady, testRunLines, endLostTestRuns, LOST, CANCELLED, cancelTestRun } from './src/io/queue.js';
+export { TEST_RUN_KIND, MACHINE_CONTEXT_ENV, machineContext, queuesTestRun, queueTestRun, testRunItem, workTestRun, testRunState, readFinalLine, START_BOUND_MS, readTestRun, ownTestRuns, deliverTestRun, deliverOwnTestRuns, deliverTestRunsWhenReady, testRunLines, endLostTestRuns, pulledJobState, LOST, PULLED, CANCELLED, cancelTestRun } from './src/io/queue.js';
 export * from './light.js';
-export { boardEndpoint, boardTrunkPack, checkoutCandidate, hostCapabilities, keptOutputFolder, runJob, serveRunner, GATE_RECEIPT, RUNNER_OUTPUT_ENV } from "./src/io/pull.js";
+export { localLoadAdmits, boardEndpoint, boardTrunkPack, checkoutCandidate, hostCapabilities, keptOutputFolder, runJob, serveRunner, GATE_RECEIPT, RUNNER_OUTPUT_ENV } from "./src/io/pull.js";
 export { pruneRunnerStores } from "./src/io/prune.js";
+export { pruneRunnerStoresYielding } from "./src/io/prune.js";
 export { pruneStaleSlots } from "./src/io/prune.js";
-export { restartOnCodeMove } from "./src/io/fresh.js";
-export { BOARD_HOST, addLocalBoard, localBoards, localRunnerState, processAlive, serveLocalRunner, startLocalRunner } from './src/io/local.js';
+export { pruneChromeTemp } from "./src/io/prune.js";
+export { runnerSettingOn } from "./src/io/runner-settings.js";
+export { restartOnCodeMove, servedClosure, servedModuleMoved } from "./src/io/fresh.js";
+export { SERVE_FD_ENV, announceListening, catchListeners, inheritedListener, spawnOnSocket } from "./src/io/handoff.js";
+export { BOARD_HOST, addLocalBoard, localBoards, localRunnerState, localRunnerStatus, processAlive, serveLocalRunner, startLocalRunner } from './src/io/local.js';
+export { startLoopWatchdog } from './src/io/watchdog.js';
+export { startBeat } from './src/io/beat.js';

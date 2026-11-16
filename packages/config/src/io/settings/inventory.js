@@ -13,7 +13,6 @@ import {
 } from '../main.js';
 import { repoInfo } from '../../../../git/index.js';
 import {
-  machineHome,
   machineSettingsFile,
 } from '../../../../resources/index.js';
 import {
@@ -26,21 +25,16 @@ import {
 } from '../settings.js';
 import { Refused } from '../../../../kernel/index.js';
 import { describeSetting } from './descriptions.js';
+import { MACHINE_DEFAULTS } from './machine-defaults.js';
 import { environmentProblem } from '../main.js';
 
-const MACHINE_DEFAULTS = {
-  gateSlots: 2, browserSlots: 1, 'gate.shortSlots': 0, 'gate.runnerWaitMs': 300_000,
-  'gate.queue.reviewsFirst': false, 'gate.queue.currentReleaseFirst': false, 'gate.queue.agingMinutes': 30,
-  'gate.memoryFloorMB': null, 'gate.diskFloorMB': 10_240, 'gate.browserFreeChecks': false, 'gate.browserByLaunch': false, 'gate.runnersFirst': false, 'gate.runnersOnly': false, 'gate.runnerDispatch': 'pull', 'gate.pullPilot.items': [], 'gate.pullPilot.share': 0, 'gate.localRunner': true, 'gate.mainComparison': 'on-red', 'gate.submitAuthorization': 'runner', 'gate.handoffWorkers': null, 'budget.dailyUsd': null, 'budget.totalUsd': null, 'gate.measuredSlots': false, 'gate.loadAwareDispatch': true, 'gate.runnerBusyCeiling': 90, 'gate.timingRunner': 'auto', 'gate.postLandSuite': false, 'inspection.clauses': false,
-  'health.sentinel': true, 'view.background': true, 'relay.offerAtInit': true, runners: [], 'landing.pools': [],
-  'serve.address': '127.0.0.1', 'serve.port': 0,
-};
 const OPTIONAL_REPO_DEFAULTS = {
-  'submit.handoff': false,
-  project: null, name: null, 'checks.provesNothing': 'warn', 'verify.unrelatedTrunkMoves': false, 'verify.composeAtAdmission': false, 'verify.familyRelaxAt': null,
+  'submit.handoff': false, 'withdraw.review': false, 'withdraw.refuseLanded': false,
+  project: null, name: null, generated: null, tiers: null, laneMode: 'on', 'checks.provesNothing': 'warn', 'verify.unrelatedTrunkMoves': false, 'verify.landedReviews': false, 'verify.queueAccept': false, 'verify.requireRowRewrite': false, 'resume.adoptOrphans': false, 'verify.composeAtAdmission': false, 'verify.familyRelaxAt': null,
   'flakes.rerun': false, 'flakes.quarantine': false, 'rigor.budget': 400, 'rigor.autoDraft': true, 'cells.cache': false, 'cells.shimMaxAgeDays': 7, 'relay.outbox': true, 'relay.board': null,
-  submitGate: null, submitDeferAbove: null, landingShards: 1, 'landing.publish': null, 'landing.pauseOnRed': false, 'landing.manualOverride': false, 'landing.perItem': true, 'landing.first': null, 'landing.auditOnly': null, 'landing.environment': null, 'landing.trunkRemote': null, positiveControl: null, affectedTests: null,
-  'health.sentinel': true, 'testConcurrency.browser': 2, approvers: null,
+  submitGate: null, submitDeferAbove: null, landingShards: 1, 'landing.publish': null, 'landing.pauseOnRed': false, 'landing.manualOverride': false, 'landing.perItem': true, 'landing.shardProof': false, 'landing.pipeline': false, 'landing.landedFromMain': false, 'landing.ledgerMainReds': false, 'landing.adaptiveBatch': false, 'landing.first': null, 'landing.auditOnly': null, 'landing.environment': null, 'landing.trunkRemote': null, positiveControl: null, affectedTests: null, affectedSuites: null,
+  'inbox.keepUntilActed': false, 'inbox.escalateAfterMinutes': null, 'queue.contention': false, 'queue.contentionThreshold': 1,
+  'health.sentinel': true, 'testConcurrency.browser': 2, approvers: null, 'claims.perSeat': null, 'claims.itemsInGate': false, 'claims.itemsInGateMax': 3, 'claims.fileLease': false, 'claims.fileLeaseHubs': [], 'seat.checkpoints': false,
 };
 
 /** Read one optional object without migrations, writes, or parser diagnostics containing its bytes. */
@@ -55,6 +49,8 @@ function readObject(file) {
 
 /** Resolve a supported dotted key without inheriting unrelated object members. */
 function at(value, key) {
+  // A key under `runners` is stored flat, since `runners` is the list of registered runners and cannot hold fields [C7,#9024].
+  if (value && typeof value === 'object' && Object.hasOwn(value, key)) return value[key];
   return key.split('.').reduce((part, name) => part && Object.hasOwn(part, name) ? part[name] : undefined, value);
 }
 
@@ -86,8 +82,10 @@ function leaves(value, prefix = '') {
 
 /** Refuse malformed supported scalar settings without echoing credential-bearing input. */
 function checkedValue(key, value, fallback) {
+  // gate.timingRunner is "auto", a runner host, or false (off), as the machine settings loader accepts.
+  if (key === 'gate.timingRunner' && value === false) return value;
   const expected = key === 'landing.environment' ? 'object' : fallback === null
-    ? (key === 'gate.memoryFloorMB' || key === 'submitDeferAbove' || key.startsWith('resources.') ? 'number' : key === 'approvers' ? 'array' : 'string') : typeof fallback;
+    ? (key === 'gate.memoryFloorMB' || key === 'submitDeferAbove' || key === 'claims.perSeat' || key.startsWith('resources.') ? 'number' : key === 'approvers' ? 'array' : 'string') : typeof fallback;
   if (value !== null && (expected === 'array' ? !Array.isArray(value) : expected !== 'object' && typeof value !== expected)) {
     throw new Refused('BAD_SETTINGS', `setting ${key} has an unsupported type; restore its documented value`);
   }
@@ -102,11 +100,26 @@ function checkedValue(key, value, fallback) {
   return safeValue(key, value);
 }
 
+/** Say in plain words which setting holds the wrong kind of value, where it lives and how to restore it. */
+function badValue(key, fallback, file) {
+  const label = describeSetting(key).label || key;
+  const documented = fallback === null || fallback === undefined ? 'its documented value' : JSON.stringify(fallback);
+  return { message: `${label} (${key}) holds the wrong kind of value.`,
+    fix: `Set ${key} back to ${documented} or remove it from ${file}.` };
+}
+
 /** Append one setting with both its effective value and explicit provenance. */
 function add(rows, { scope, board, root, file, raw, effective = raw }, key, fallback, { secret = false, value = at(effective, key), source, origin, error } = {}) {
-  rows.push({ key, scope, ...(board ? { board, root } : {}), value: error ? null : secret ? (value ? 'set' : 'not set') : checkedValue(key, value ?? fallback, fallback),
+  // One wrong-typed value becomes that row's plain-words problem; every other setting is still listed.
+  let problem = error;
+  let shown = null;
+  if (!error && !secret) {
+    try { shown = checkedValue(key, value ?? fallback, fallback); }
+    catch (refusal) { if (!(refusal instanceof Refused) || refusal.code !== 'BAD_SETTINGS') throw refusal; problem = badValue(key, fallback, file); }
+  }
+  rows.push({ key, scope, ...(board ? { board, root } : {}), value: problem ? null : secret ? (value ? 'set' : 'not set') : shown,
     default: secret ? 'not set' : fallback, source: source ?? file,
-    origin: origin ?? (at(raw, key) === undefined ? 'default' : 'configured'), ...describeSetting(key), ...(secret ? { secret: true } : {}), ...(error ? { error } : {}) });
+    origin: origin ?? (at(raw, key) === undefined ? 'default' : 'configured'), ...describeSetting(key), ...(secret ? { secret: true } : {}), ...(problem ? { error: problem } : {}) });
 }
 
 /** Remove one configured leaf in memory so the ordinary parser can isolate one bad setting. */
@@ -159,19 +172,6 @@ function settingError(key) {
     : `Restore ${key} to its documented value in pullboard.json.` };
 }
 
-/** Inspect capacity rows without opening the resource manager, which prunes and initializes storage. */
-function resourceSettings(rows, context, file) {
-  if (!existsSync(file)) return;
-  const db = new DatabaseSync(file, { readOnly: true });
-  try {
-    if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='resource'").get()) return;
-    for (const { name, capacity } of db.prepare('SELECT name, capacity FROM resource ORDER BY name').all()) {
-      add(rows, { ...context, file, raw: {} }, `resources.${name}.capacity`, null, { value: capacity });
-      rows.at(-1).origin = 'configured';
-    }
-  } finally { db.close(); }
-}
-
 /** Read machine configuration and credential presence without migrating legacy relay sessions. */
 function machineSettings(rows, { defaultViewPort, DEFAULT_VIEW_PORT }) {
   const file = machineSettingsFile();
@@ -189,7 +189,6 @@ function machineSettings(rows, { defaultViewPort, DEFAULT_VIEW_PORT }) {
   add(rows, relayContext, 'relay.owner.account', null, { value: relay.owner?.account ?? relay.session?.account, origin: relay.owner?.account !== undefined || relay.session?.account !== undefined ? 'configured' : 'default' });
   add(rows, relayContext, 'relay.owner.url', null, { value: relay.owner?.url ?? relay.session?.url, origin: relay.owner?.url !== undefined || relay.session?.url !== undefined ? 'configured' : 'default' });
   add(rows, relayContext, 'relay.session.token', 'not set', { secret: true });
-  resourceSettings(rows, { scope: 'machine' }, join(machineHome(), 'resources.sqlite'));
 }
 
 /** Project every supported repository setting plus its board's relay connection configuration. */
@@ -207,7 +206,6 @@ function repositorySettings(rows, board, { performanceCores }) {
     add(rows, context, key, fallback, { value, origin: key === invalidKey ? 'configured' : origin,
       ...(key === invalidKey ? { error: settingError(key) } : {}) });
   }
-  resourceSettings(rows, context, join(info.commonDir, 'pullboard', 'resources.sqlite'));
   const relayFile = join(info.commonDir, 'pullboard', 'relay.json');
   const relay = readObject(relayFile);
   const deletedFile = join(info.commonDir, 'pullboard', 'relay-deleted.json');

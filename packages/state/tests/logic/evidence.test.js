@@ -25,7 +25,7 @@ test('clause 1: a green check run ticks its clauses [C7]', () => {
   assert.equal(notes.length, 2, 'only the two [test] clauses are ticked');
   assert.match(notes[0], /^clause 1 \[test\]: green pullboard test run of test\/example\.test\.js at abc123$/u);
   assert.match(notes[1], /^clause 3 \[test\]:/u);
-  const testOnly = { ...item, item_criterion: '1) The heading is present [test]\n2) The count appears [test]' };
+  const testOnly = { ...item, item_criterion: '1) test/c.test.js: The heading is present [test]\n2) test/c.test.js: The count appears [test]' };
   const problem = clauseInspectionProblem(testOnly, thread(testRunTickNotes(testOnly, [FILE], 'abc123')));
   assert.equal(problem, null, 'submit does not refuse CLAUSE_UNTICKED after the run notes');
   const other = clauseInspectionProblem(item, thread(notes));
@@ -73,15 +73,15 @@ test('clause 1: a hand-written note after the green run does not hide it, so sub
   assert.equal(clauseInspectionProblem(PAIR, thread([...notes, ...later])), null);
 });
 
-test('clause 1: an unticked test clause on a plain test-file check names pullboard test of the check files as the one step [C7]', () => {
-  const refused = clauseInspectionProblem(PAIR, thread([]));
+test('clause 1: an unticked test clause naming a test file the gate does not run names pullboard test of the check files as the one step [C7]', () => {
+  const refused = clauseInspectionProblem({ ...PAIR, item_criterion: '1. test/c.test.js refuses [test]\n2. test/c.test.js says why [test]' }, thread([]));
   assert.equal(refused.code, 'CLAUSE_UNTICKED');
   assert.equal(refused.next, 'pullboard test test/a.test.js test/b.test.js, then submit again');
   assert.doesNotMatch(refused.message, /pullboard check 9/u);
 });
 
 const HEAD = '86ac47390cbf9d2d37ef9e83af946c5767d1f31d';
-const bar = { ...item, item_owner: 'core-2', item_criterion: '1) The heading is present [test]\n2) The count appears [test]' };
+const bar = { ...item, item_owner: 'core-2', item_criterion: '1) test/c.test.js: The heading is present [test]\n2) test/c.test.js: The count appears [test]' };
 const earlier = thread(testRunTickNotes(bar, [FILE], HEAD));
 
 test('clause 1: a re-claim of the same bar at the same head keeps the earlier holder\'s ticks [C7]', () => {

@@ -10,7 +10,7 @@ import { cellRepo } from '../fixtures/cell.js';
 
 /** A fresh repository with no relay link (cellRepo), and a pullboard home inside it whose files the test chooses; PULLBOARD_HOME points there until the test ends. */
 function machine(t, homeFiles) {
-  const repo = cellRepo(t).root;
+  const repo = cellRepo(t, { real: true }).root;
   // The home sits inside the private fixture folder that cellRepo removes after the test.
   const home = join(repo, 'pullboard-home');
   mkdirSync(home);

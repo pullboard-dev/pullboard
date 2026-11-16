@@ -1,5 +1,6 @@
 /** Explain why a queued run still waits, from the pool's own local facts and no network probe [C7,Q1,Q2]. */
 import { runnerRecoveryStatus } from '../recovery.js';
+import { runnerOverload } from './pick.js';
 
 /** The runner kept for timed checks, or '' when none is kept or this pool predates the reserve table. */
 function keptTimingRunner(db) {
@@ -31,8 +32,8 @@ function withTimingReserve(db, explained, waiter) {
   });
 }
 
-/** Explain each registered runner from the same local facts used by admission; no network probe. */
-export function runnerWaitReasons(db, runners, waiter, unavailable) {
+/** Explain each registered runner from local facts, no probe; `load` ({ policy, now }) names a runner skipped as overloaded [C7,#8351]. */
+export function runnerWaitReasons(db, runners, waiter, unavailable, load) {
   return withTimingReserve(db, runners.map(runner => {
     const recorded = db.prepare('SELECT detail,failure FROM runner_unavailable WHERE host = ?').get(runner.host);
     const observed = db.prepare('SELECT gui FROM runner_gui WHERE host = ?').get(runner.host);
@@ -48,6 +49,8 @@ export function runnerWaitReasons(db, runners, waiter, unavailable) {
     else if (holders.length >= runner.slots || holders.some(holder => holder.timing === 1)
       || waiter.timing === 1 && holders.length > 0
       || waiter.browser === 1 && holders.filter(holder => holder.browser === 1).length >= runner.browser) reason = 'busy';
+    const over = reason === 'available' && load?.policy?.enabled === true && runnerOverload(runner, load.policy, load.now);
+    if (over) reason = `overloaded (load ${over.load.toFixed(1)} on ${over.cores} cores, above ${over.factor}x)`;
     if (unavailable.has(runner.host) && recorded) {
       const probe = runnerRecoveryStatus(recorded.failure);
       reason += `; ${probe.step}: ${probe.reason}`;
@@ -84,4 +87,31 @@ export function localWaitBranch({ capacity, browserCapacity, runnerOnly, browser
 /** Format the same overdue facts for progress, resources, and status. */
 export function runnerDeadlineLine(wait) {
   return `runner wait deadline ${new Date(wait.at).toISOString()} passed; ${wait.branch}; ${wait.runners.map(runner => `${runner.host}: ${runner.reason}`).join('; ') || 'no registered runner'}`;
+}
+
+/** How often a gate past its runner deadline repeats an unchanged state: one heartbeat line a minute. */
+export const DEADLINE_HEARTBEAT_MS = 60_000;
+
+/**
+ * The lines a gate past its runner deadline prints for one poll. The deadline state prints once when it changes, then at
+ * most one heartbeat a minute naming the runner slots and the holders it waits for; the heartbeat states how many
+ * unchanged polls it left out, so the output stays bounded and says what it omits [C7].
+ *
+ * @param {{ line?: string, at?: number, skipped?: number }} memory - What this wait printed last, updated in place.
+ * @param {{ at: number, branch: string, runners: { host: string, reason: string }[] }} deadline - The overdue facts.
+ * @param {Parameters<typeof runnerWaitLine>[0] | undefined} wait - The slot and holder state the gate waits on, when known.
+ * @param {number} now - The poll's time in milliseconds.
+ * @returns {string[]} The lines to print: none, the changed state, or one heartbeat.
+ */
+export function runnerDeadlineOutput(memory, deadline, wait, now) {
+  const line = runnerDeadlineLine(deadline);
+  if (line !== memory.line) {
+    Object.assign(memory, { line, at: now, skipped: 0 });
+    return [line];
+  }
+  memory.skipped = (memory.skipped ?? 0) + 1;
+  if (now - (memory.at ?? now) < DEADLINE_HEARTBEAT_MS) return [];
+  const skipped = memory.skipped;
+  Object.assign(memory, { at: now, skipped: 0 });
+  return [`still past the runner deadline; ${wait ? runnerWaitLine(wait) : 'no runner slot state'}; ${skipped} unchanged polls not printed`];
 }

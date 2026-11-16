@@ -3,7 +3,7 @@ import { COST_ENGINE } from '../../../../state/light.js';
 import { sanitizedUsage } from '../cost.js';
 import { sumUsage } from './usage.js';
 import { ENGINE_VERSION } from '../../../../state/light.js';
-import { Refused } from '../../../../kernel/index.js';
+import { Refused } from '../../../../kernel/light.js';
 
 /** Read only sanitized public aliases and numeric counters, never private native session data. */
 export function sharedSessionTotals(board) {

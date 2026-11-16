@@ -8,7 +8,7 @@ import { recordSubmitHandoff } from '../../../../../jobs/index.js';
 import { requireAgentGrant } from '../../../../../state/index.js';
 import { ENGINE_VERSION } from '../../../../../state/index.js';
 import { QUEUED_START_GRANT_ENGINE } from '../../../../../state/light.js';
-import { fixtureBoard } from '../../../../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../../../../board/tests/fixtures/board.js';
 
 /** The minimal frozen bar a claim needs. */
 const FREEZE = (item) => ({ text: item.item_title, digest: `digest:${item.item_title}` });

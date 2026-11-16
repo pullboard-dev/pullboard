@@ -137,7 +137,7 @@ test('continuous native edits exhaust bounded preparation without a partial clai
       store.editItem(board, id, { agentId: 'coordinator', criterion: `Native edit ${observed.calls}` });
       return frozen;
     } }], agentId), error => error.code === 'BOARD_BUSY');
-  assert.equal(observed.calls, 3);
+  assert.equal(observed.calls, 5);
   assert.equal(store.getItem(board, id).item_status, 'open');
   assert.equal(store.events(board).filter(event => event.item_id === id && event.event_kind === 'claim').length, 0);
 });

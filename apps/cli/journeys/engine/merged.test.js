@@ -3,22 +3,12 @@
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import {
-  execFileSync,
-  spawnSync,
-} from 'node:child_process';
-import {
-  chmodSync,
   mkdirSync,
-  mkdtempSync,
-  rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
-import {
-  join,
-  resolve,
-} from 'node:path';
+import { join } from 'node:path';
 import {
   after,
   test,
@@ -32,47 +22,31 @@ import {
 } from '../../../../packages/state/src/io/engine.js';
 import { exportBoard } from '../../../../packages/store/index.js';
 import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
+import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { unpackRelease } from '../../tests/fixtures/release/archive.js';
 
-const TEMP_DIRS = [];
 const HOUR = 3_600_000;
-const BIN = resolve(import.meta.dirname, '../../pullboard.js');
-
-/** Remove fixture repositories and their real SQLite boards after tests finish. */
-function cleanup() {
-  for (const dir of TEMP_DIRS) rmSync(dir, { recursive: true, force: true });
-}
-
-after(cleanup);
+// Every CLI call here runs through runIn: in this process by default, a real process under PULLBOARD_JOURNEY_MODE=process, which the
+// gate's parity check compares (#8266). No case tests argv, exit codes of a child, hooks or child cleanup, so none needs its own process.
+const e2e = createE2eHelpers();
+after(e2e.cleanup);
 
 /** Run a command and keep its actual output for useful assertion failures. */
 async function command(box, args, cwd = box.repo) {
-  const result = spawnSync(process.execPath, [BIN, ...args], { cwd, env: box.env, encoding: 'utf8', timeout: 30_000 });
-  return { code: result.status, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
+  const result = await box.runIn(cwd, ...args);
+  return { code: result.code, stdout: result.out ?? '', stderr: result.stderr ?? '' };
 }
 
 /** Create an initialized real repo with one verified item commit and its claim base. */
 async function fixture(t) {
-  const dir = mkdtempSync(join(tmpdir(), 'pullboard-merged-'));
-  TEMP_DIRS.push(dir);
+  const sandbox = e2e.sandbox();
+  const { dir, env } = sandbox;
   const repo = join(dir, 'repo');
-  const bin = join(dir, 'bin');
   mkdirSync(repo);
-  mkdirSync(bin);
-  /** Quote executable paths used by the private hook shim. */
-  const shellWord = (value) => `'${String(value).replaceAll("'", "'\\''")}'`;
-  writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec ${shellWord(process.execPath)} ${shellWord(BIN)} "$@"\n`);
-  chmodSync(join(bin, 'pullboard'), 0o755);
-  const env = { ...process.env };
-  for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
-  Object.assign(env, { HOME: join(dir, 'home'), PULLBOARD_HOME: join(dir, 'pullboard-home'),
-    PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'), GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
-    GIT_AUTHOR_NAME: 'Merged fixture', GIT_AUTHOR_EMAIL: 'merged@example.invalid',
-    GIT_COMMITTER_NAME: 'Merged fixture', GIT_COMMITTER_EMAIL: 'merged@example.invalid', PATH: `${bin}:${process.env.PATH}` });
   /** Run Git in this isolated fixture with its private identity. */
-  const git = (...args) => execFileSync('git', args, { cwd: repo, env, encoding: 'utf8', stdio: 'pipe' }).trim();
+  const git = (...args) => sandbox.git(repo, ...args);
   git('init', '-q', '-b', 'main');
-  const initialized = await command({ repo, env }, ['init']);
+  const initialized = await command(sandbox, ['init'], repo);
   assert.equal(initialized.code, 0, `${initialized.stdout}${initialized.stderr}`);
   writeFileSync(join(repo, 'SPEC.md'), '# Fixture\n\n## G · Goals\n- G1 [approved, must] Work is tracked. | gate: true\n');
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'true', verify: 'any', lanes: { web: { owns: ['web/'], specs: ['G1'] } }, shared: [] }));
@@ -80,7 +54,7 @@ async function fixture(t) {
   const base = git('rev-parse', 'HEAD');
   const builder = join(dir, 'builder');
   git('worktree', 'add', '-q', builder, '-b', 'web/builder');
-  const joined = joinFixtureSeat({}, builder, 'web', { run: (root, ...args) => spawnSync(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8', timeout: 30_000 }) });
+  const joined = await joinFixtureSeat({}, builder, 'web', { run: sandbox.runIn });
   assert.equal(joined.code, 0, `${joined.out}${joined.err}`);
   const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
@@ -97,7 +71,7 @@ async function fixture(t) {
   const itemCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: builder, env, encoding: 'utf8' }).trim();
   submitFixture(board, id, { agentId, commit: itemCommit, tree: execFileSync('git', ['rev-parse', 'HEAD^{tree}'], { cwd: builder, env, encoding: 'utf8' }).trim() });
   store.verify(board, id, { agentId: 'coordinator', decision: 'ACCEPT', note: 'confirmed the committed file', head: itemCommit, digest, policy: 'any' });
-  return { dir, repo, builder, env, git, board, id, base, itemCommit };
+  return { dir, repo, builder, env, git, board, id, base, itemCommit, runIn: sandbox.runIn };
 }
 
 /** Read the latest merge event and decode its immutable detail. */

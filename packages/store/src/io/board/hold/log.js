@@ -7,9 +7,14 @@ import { openSync } from 'node:fs';
 import { readSync } from 'node:fs';
 import { writeSync } from 'node:fs';
 import { join } from 'node:path';
-import { machineHome } from '../../../../../resources/index.js';
+import { processMachineHome as machineHome } from '../../../../../kernel/light.js';
 
 export const BOARD_HOLD_MS = 1_000;
+/** The machine setting that records every write hold, not only those over a second; off unless set to 1 [C7]. */
+export const HOLD_LOG_ALL_ENV = 'PULLBOARD_BOARD_HOLD_LOG_ALL';
+
+/** Whether the machine records every write hold in the holds log, so the median and p90 are readable. */
+export function holdLogAll() { return process.env[HOLD_LOG_ALL_ENV] === '1'; }
 const DAY_MS = 86_400_000;
 const MAX_READ_BYTES = 32 * 1024 * 1024;
 
@@ -24,9 +29,14 @@ function label(value, fallback) {
   return typeof value === 'string' && /^[A-Za-z0-9_./:-]{1,100}$/u.test(value) ? value : fallback;
 }
 
+/** Keep a board file's absolute path, which may hold spaces, only when it is bounded and single-line [C7]. */
+function absolutePath(value) {
+  return typeof value === 'string' && value.startsWith('/') && value.length <= 1024 && !/[\u0000-\u001f]/u.test(value) ? value : null;
+}
+
 /** Append one bounded line after release; diagnostic I/O must never change a transaction's outcome. */
-export function recordBoardHold({ command, seat, item, pid, durationMs, outcome, acquiredAt, phase, phaseMs, move, step, stepMs, allWrites = false }) {
-  if (!Number.isFinite(durationMs) || (!allWrites && durationMs <= BOARD_HOLD_MS)) return;
+export function recordBoardHold({ command, seat, item, pid, durationMs, outcome, acquiredAt, phase, phaseMs, move, step, stepMs, boardFile, allWrites = false }) {
+  if (!Number.isFinite(durationMs) || (!allWrites && durationMs <= BOARD_HOLD_MS && !holdLogAll())) return;
   let fd;
   try {
     const directory = machineHome();
@@ -36,6 +46,8 @@ export function recordBoardHold({ command, seat, item, pid, durationMs, outcome,
     const row = { version: 1, at: new Date(acquiredAt).toISOString(), command: label(command, 'api'),
       seat: label(seat, 'unknown'), item: Number.isSafeInteger(item) && item > 0 ? item : null,
       heldMs: Math.round(durationMs), ...(allWrites ? { durationMs: Math.round(durationMs), pid: Number.isSafeInteger(pid) && pid > 0 ? pid : null } : {}), outcome: label(outcome, 'released'),
+      // The board file's absolute path, so live-board latency can be told apart from test boards in the same machine log [C7].
+      boardFile: absolutePath(boardFile),
       phase: label(phase, 'unknown'), phaseMs: Number.isFinite(phaseMs) && phaseMs >= 0 ? Math.round(phaseMs) : null,
       // The move body's name (the command when no move body ran) and its slowest named step, so a long native-move hold is readable to its cause [#3336].
       move: label(move ?? command, null), step: phase === 'native-move' ? label(step, null) : null,
@@ -88,8 +100,9 @@ export function boardHoldStats({ since, until = Date.now() } = {}) {
     catch { invalidLines++; continue; }
     if (!row || typeof row !== 'object' || Array.isArray(row) || typeof row.at !== 'string') { invalidLines++; continue; }
     const at = Date.parse(row.at);
-    if (row.version !== 1 || !Number.isFinite(at) || !Number.isSafeInteger(row.heldMs) || row.heldMs <= BOARD_HOLD_MS
+    if (row.version !== 1 || !Number.isFinite(at) || !Number.isSafeInteger(row.heldMs)
       || label(row.command, null) === null || label(row.seat, null) === null) { invalidLines++; continue; }
+    if (row.heldMs <= BOARD_HOLD_MS) continue; // A short hold is recorded only when every hold is logged; the over-a-second count skips it.
     if (at >= todayStart && at < end) todayCount++;
     if (at < start || at >= end) continue;
     count++;
@@ -107,6 +120,28 @@ export function boardHoldStats({ since, until = Date.now() } = {}) {
       const middle = Math.floor(durations.length / 2);
       return { ...group, p50Ms: durations.length % 2 ? durations[middle] : (durations[middle - 1] + durations[middle]) / 2 };
     }).sort((a, b) => b.slowestMs - a.slowestMs || a.command.localeCompare(b.command)) };
+}
+
+/**
+ * The median and 90th percentile of every recorded hold in a window, so a hold fix can be measured. Short holds exist
+ * in the log only while the machine records every hold (PULLBOARD_BOARD_HOLD_LOG_ALL=1); otherwise this reads the long ones.
+ *
+ * @param {{ since?: number | string, until?: number | string }} [window]
+ * @returns {{ count: number, medianMs: number | null, p90Ms: number | null, available: boolean }}
+ */
+export function boardHoldPercentiles({ since, until = Date.now() } = {}) {
+  const end = typeof until === 'number' ? until : Date.parse(until);
+  const start = since === undefined ? end - DAY_MS : typeof since === 'number' ? since : Date.parse(since);
+  const retained = retainedHolds(), held = [];
+  for (const line of retained.text.split('\n').filter(Boolean)) {
+    let row;
+    try { row = JSON.parse(line); } catch { continue; }
+    const at = typeof row?.at === 'string' ? Date.parse(row.at) : NaN;
+    if (row?.version === 1 && Number.isFinite(at) && at >= start && at < end && Number.isSafeInteger(row.heldMs) && row.heldMs >= 0) held.push(row.heldMs);
+  }
+  held.sort((a, b) => a - b);
+  const at = fraction => held[Math.min(held.length - 1, Math.ceil(fraction * held.length) - 1)];
+  return { count: held.length, medianMs: held.length ? at(0.5) : null, p90Ms: held.length ? at(0.9) : null, available: retained.available };
 }
 
 /** Keep absent or bounded history explicit instead of presenting an unmeasured total as zero. */
@@ -142,4 +177,17 @@ export function longestRecentHolds({ now = Date.now(), limit = 5, windowMs = 3_6
       stepMs: Number.isSafeInteger(row.stepMs) ? row.stepMs : null, heldMs: row.heldMs });
   }
   return rows.sort((a, b) => b.heldMs - a.heldMs).slice(0, limit);
+}
+
+/**
+ * Every retained hold-log row, parsed and unfiltered, for readers that judge them by board file and age.
+ *
+ * @returns {object[]} Version-1 rows; empty when the machine log is unavailable.
+ */
+export function holdLogRows() {
+  const rows = [];
+  for (const line of retainedHolds().text.split('\n').filter(Boolean)) {
+    try { const row = JSON.parse(line); if (row?.version === 1) rows.push(row); } catch { /* A torn line is not a row. */ }
+  }
+  return rows;
 }

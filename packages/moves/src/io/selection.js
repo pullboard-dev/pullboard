@@ -1,19 +1,24 @@
+/** @pullboard-module-loads packages/health/index.js */
 /**
  * The selection half of `pullboard next`: one pick-and-claim loop over a read snapshot, then only the chosen item's
  * claim guards under the write [N2,V15,C7]. The command line app passes its board access, seat lookup and claim helpers
  * in as one ports object, so this cell never loads it.
  */
+import { createRequire } from 'node:module';
+import { spawnSync } from 'node:child_process';
 import { mainPolicy } from '../../../sandbox/index.js';
 import { trunkMerge } from '../../../sandbox/index.js';
+import { UNBUILDABLE } from '../../../sandbox/index.js';
+import { reportUnbuildableOnce } from '../../../sandbox/index.js';
 import { recordedClaimWorktrees } from '../../../activity/index.js';
 import { claimOverlapLines } from '../../../activity/index.js';
 import { claimOverlaps } from '../../../items/index.js';
 import { localDependencyIds } from '../../../items/index.js';
+import { conflictRates } from '../../../items/index.js';
 import { rejectionReturnEnabled } from '../../../store/index.js';
 import { awaitingGateOrReview } from '../../../store/index.js';
 import * as store from '../../../store/index.js';
 import { agentSessionDigest } from '../../../person/index.js';
-import { shoutReviewCoverStuck } from '../../../health/index.js';
 import { mainRedReviewItems } from '../../../landing/index.js';
 import { computedReturnArgs } from '../../../landing/index.js';
 import { mainRedReworkItems } from '../../../landing/index.js';
@@ -22,22 +27,27 @@ import { focusReasons } from '../../../roadmap/index.js';
 import { milestoneFocus } from '../../../roadmap/index.js';
 import { laneNames } from '../../../seats/index.js';
 import { COORDINATOR } from '../../../config/index.js';
+import { nextReadinessCheck } from '../../../config/index.js';
 import { headCommit } from '../../../git/index.js';
 import { commandObservation } from '../../../git/index.js';
 import { statusPaths } from '../../../git/index.js';
 import { worktreeStatus } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { nextReview } from '../../../verify/index.js';
+import { forcedLandedUnreviewed } from '../../../verify/index.js';
 import { ownSessionReviews } from '../../../verify/index.js';
 import { relayLinked } from '../../../link/index.js';
 import { criterionFreezer } from './freezer.js';
+
+/** The health cell loads only when a fresh claim shouts a stuck review cover [C7,#7081]. */
+const requireModule = createRequire(import.meta.url);
 
 /**
  * The command line functions one next loop calls: board access, the seat lookup, the claim and item-folder helpers.
  *
  * @typedef {{ withBoardRead: Function, withBoard: Function, whoAmI: Function, idArg: Function, ordered: Function,
  *   claimOrdered: Function, currentReworkRoutingPolicy: Function, MainSpecMerged: Function, checkMainVerifier: Function,
- *   dirtyFiles: Function, recoverOwnSubmitHandoffs: Function, openItemFolder: Function, liveFolderRefusal: Function,
+ *   dirtyFiles: Function, openItemFolder: Function, liveFolderRefusal: Function,
  *   mainLaneWork: Function, claimWorktreeSnapshot: Function }} NextPorts
  */
 
@@ -78,12 +88,11 @@ function warmFiles(ctx, board, me, { dirtyFiles }) {
  */
 export async function nextOnce(ctx, values, ports) {
   const { withBoardRead, withBoard, whoAmI, idArg, ordered, claimOrdered, MainSpecMerged, checkMainVerifier,
-    recoverOwnSubmitHandoffs, liveFolderRefusal, claimWorktreeSnapshot } = ports;
+    liveFolderRefusal, claimWorktreeSnapshot } = ports;
   if (!(values.verify && values.verifyId !== undefined)) {
     const ineligible = withBoardRead(ctx, board => store.ineligibleReleaseIds(board, whoAmI(ctx, board).id));
     values = { ...values, omitIds: [...new Set([...(values.omitIds ?? []), ...ineligible])] };
   }
-  if (!values.verify) await recoverOwnSubmitHandoffs(ctx, withBoardRead(ctx, board => whoAmI(ctx, board)).id);
   if (!values.verify) {
     const waiting = withBoardRead(ctx, board => {
       const me = whoAmI(ctx, board);
@@ -99,17 +108,24 @@ export async function nextOnce(ctx, values, ports) {
         operation === 'reopen' ? computedReturnArgs(writable, args) : args)),
       nextFor: reviewPreview,
       idArg, trunkMerge, listItems: store.listItems, itemById: store.itemById, getItem: store.getItem,
-      mainRedReviewItems, agentSessionDigest,
+      mainRedReviewItems, agentSessionDigest, landedOffer: (landedBoard, me, skips) => landedReviewFor(landedBoard, me, { ...skips, policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }),
     });
   });
   const looked = withBoardRead(ctx, (board) => nextSelection.pick(ctx, board, values, ports));
   if (looked.autoReview) {
-    try { return { ...await nextOnce(ctx, { ...values, build: false, verify: true, verifyId: looked.autoReview.item_id }, ports), review: true }; }
+    try { return { ...await nextOnce(ctx, { ...values, build: false, verify: true, verifyId: looked.autoReview.item_id, unstartedReviewLapse: true }, ports), review: true }; }
     catch (error) {
       if (error instanceof Refused && ['REVIEW_HELD', 'NOT_SUBMITTED'].includes(error.code)) return { retry: true,
         retryDetail: { phase: 'first-review reservation', item: looked.autoReview.item_id, code: error.code } };
       throw error;
     }
+  }
+  if (looked.move) {
+    // This seat's lane has nothing it can take: the same seat, in the same worktree, re-joins the lane that has work and claims
+    // there, so the claim is its own and releases from this worktree. A seat made with --lock-lane never gets here (GH #27).
+    await withBoard(ctx, board => ordered(ctx, board, 'register', [{ lane: looked.move.lane, path: ctx.info.root, route: store.agentAt(board, ctx.info.root).agent_route, moveLane: true }]));
+    ctx.io.say(`moved from ${looked.move.from} to ${looked.move.lane}: ${looked.move.from} had nothing you can take`);
+    return { ...await nextOnce(ctx, { ...values, moved: true }, ports), moved: { from: looked.move.from, to: looked.move.lane } };
   }
   if (!looked.claim) return looked;
   // The read snapshot chose the item: the write runs only its claim guards, and a guard refusal selects again on the
@@ -120,6 +136,9 @@ export async function nextOnce(ctx, values, ports) {
     const current = withBoardRead(ctx, board => store.getItem(board, looked.item.item_id));
     if (current.item_status === 'open') return { ...looked, item: current, review: false, waitingOffer: true };
   }
+  // next.readinessCheck (off by default): an item whose readiness command exits non-zero is passed over and named [C7,#8793].
+  const notReady = !held && nextReadinessCheck() ? readinessFailure(ctx, withBoardRead(ctx, board => store.getItem(board, looked.item.item_id))) : null;
+  if (notReady) return { retry: true, skipItem: item.item_id, retryDetail: { phase: 'readiness', item: item.item_id, code: 'NOT_READY', message: notReady } };
   return await withBoard(ctx, async (board) => {
     // Claims belong to the seat that ran next, in its own item folder; next never routes a claim to another seat or opens one.
     const target = ctx;
@@ -154,7 +173,7 @@ export async function nextOnce(ctx, values, ports) {
     try {
       const claim = await claimOrdered(target, board, [item.item_id, { agentId: holder.id, lane: holder.lane, leaseMs: target.config.leaseMs, freeze: claimFreezer(target, board), head: headCommit(target.info.root), reviewSkipped, autoNext: true, itemFolder: true }]);
       item = { ...item, renewed: claim.renewed };
-      if (!claim.renewed) await shoutReviewCoverStuck(target, board, ordered, holder);
+      if (!claim.renewed) await requireModule('../../../health/index.js').shoutReviewCoverStuck(target, board, ordered, holder);
     } catch (error) {
       if (error instanceof MainSpecMerged) return { retry: true, specMerged: { item: item.item_id, rows: error.rows } };
       if (error instanceof Refused && ['HELD', 'ITEM_HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true, retryDetail: { phase: 'claim', item: item.item_id, code: error.code, message: error.message } };
@@ -179,8 +198,18 @@ export async function nextOnce(ctx, values, ports) {
   });
 }
 
-/** Claim refusals of a bar no build can satisfy: next passes over the item instead of stopping (#5709). */
-const UNBUILDABLE = new Set(['BAR_PATH_MISSING', 'CRITERION_PROVES_NOTHING']);
+/**
+ * Run an item's readiness command in this seat's checkout; the failure line (command, exit code, output) or null when it
+ * passes or the item has none. An unrunnable or hung command counts as failing, so next never offers an item that says it is not ready [C7,#8793].
+ */
+function readinessFailure(ctx, item) {
+  const command = typeof item.item_readiness_command === 'string' ? item.item_readiness_command.trim() : '';
+  if (!command) return null;
+  const run = spawnSync(command, { shell: true, cwd: ctx.info.root, encoding: 'utf8', timeout: 30_000 });
+  if (run.status === 0) return null;
+  const output = `${run.stdout ?? ''}${run.stderr ?? ''}`.trim().slice(0, 300);
+  return `readiness command \`${command}\` exited ${run.status ?? run.signal ?? run.error?.code}${output ? `: ${output}` : ''}`;
+}
 
 /** The claim refusals that name one item's frozen policy as stale; any other NO_POLICY still stops next. */
 const STALE_POLICY = /accepted submit policy changed|no longer contains the frozen policy|is frozen against an older accepted policy/u;
@@ -205,26 +234,6 @@ async function reportStalePolicyOnce(ctx, board, item, holder, message, ordered)
 }
 
 /**
- * Tell the coordinator once that next passed over an item no builder can satisfy [B7,B25,C7].
- *
- * Why: every seat's next skips the same item, so a note per call would flood the coordinator; a marker fact keyed on
- * the refusal keeps the report to one per bar, and an edit that changes what is missing is a new episode (#5709).
- */
-async function reportUnbuildableOnce(ctx, board, item, holder, refusal, ordered) {
-  const text = JSON.stringify({ unbuildableBar: { code: refusal.code, message: refusal.message } });
-  if (store.itemThread(board, item.item_id).some(entry => entry.type === 'fact' && entry.text === text)) return;
-  try {
-    await ordered(ctx, board, 'appendFact', [item.item_id, { agentId: holder.id, kind: 'note', text }]);
-    await ordered(ctx, board, 'shout', [{ from: holder.id, to: COORDINATOR, lanes: [],
-      // Short: the refusal's paste-ready next step can exceed a shout's length, and pullboard show <id> prints it.
-      text: `next passes over #${item.item_id} (${refusal.code}): ${refusal.message.replace(/^\[[A-Z_]+\] /u, '').slice(0, 240)}; pullboard show ${item.item_id}` }]);
-  } catch (error) {
-    // A refused report must never stop the seat it only reports on.
-    if (!/^[A-Z][A-Z_]+$/u.test(String(error?.code))) throw error;
-  }
-}
-
-/**
  * Prepare the criterion only after the board's other claim guards have passed, exactly as the claim command freezes it.
  *
  * @param {any} ctx
@@ -233,6 +242,17 @@ async function reportUnbuildableOnce(ctx, board, item, holder, refusal, ordered)
  */
 function claimFreezer(ctx, board) {
   return item => criterionFreezer({ root: ctx.info.root, isMain: ctx.info.isMain, config: ctx.config }, { board })(item);
+}
+
+/**
+ * The newest forced-landed item with no verdict that this seat may judge, or null: the builder, a refused route, policy or
+ * family, and an item already under review are skipped with the guards `verify` itself applies to a landed item [C7,#6490].
+ */
+function landedReviewFor(board, me, { omitIds = [], skipIds = [], policy, familyPolicy } = {}) {
+  const skip = new Set([...omitIds, ...skipIds]);
+  const checks = store.reviewerChecks(board, { agentId: me.id, policy, familyPolicy, relaxationFor: () => null });
+  return forcedLandedUnreviewed(store.listItems(board, { all: true }), item => store.events(board, { itemId: item.item_id })).find(item => !skip.has(item.item_id)
+    && item.item_built_by !== me.id && ['notBuilder', 'routeAllows', 'policyAllows', 'requiredReviewFamily', 'familyAllows', 'reviewFree'].every(guard => !checks[guard]?.(item))) ?? null;
 }
 
 /** Preview reviews with current heartbeat observations; the atomic reservation repeats eligibility before writing. */
@@ -253,6 +273,17 @@ function openNextFolder(ctx, board, me, id, options, { openItemFolder, ordered }
 function otherLaneWork(me, item, reasons) {
   const line = `#${item.item_id} (${item.item_title}) is next, in the ${item.item_lane} lane; this seat builds the ${me.lane} lane, so it stays unclaimed for a ${item.item_lane} seat: pullboard worktree ${item.item_lane} --model "<model name>"`;
   return { reasons: [...(reasons ?? []), line], idleReason: 'nothing-eligible', otherLane: { item: item.item_id, lane: item.item_lane } };
+}
+
+/**
+ * Open rework in another lane whose builder is still a seat in that lane and not gone: a conflict return or a reject
+ * goes back to that builder, so a seat from another lane never moves over to take it [C7].
+ * Why: a reviewer that took a returned head became one of its builders, so only the coordinator could review it (#7922).
+ */
+function builderRework(board, items, agents, me) {
+  const seats = new Map(agents.map(agent => [agent.agent_id, agent.agent_lane]));
+  return items.filter(item => item.item_status === 'open' && item.item_lane !== me.lane && item.item_built_by
+    && item.item_built_by !== me.id && seats.get(item.item_built_by) === item.item_lane && !store.seatGone(board, item.item_built_by));
 }
 
 /** Whether this seat's own claim is one it may keep building here: its lane, route and runnable filter (#2978). */
@@ -313,27 +344,32 @@ function nextPick(ctx, board, values, ports) {
     && !(values.wait > 0 && store.submitHandoffFailure(board, item)));
   // A review this seat's family can take only by relaxation never stands in front of build work (#3681).
   const familyOnly = familyRelaxedOnly(ctx, board, me, found?.item);
-  if (found?.mandatory && !ownClaim && !values.build && !familyOnly) return { autoReview: found.item, item: found.item, reasons: [] };
+  // An eligible review, reserved for this seat or not, comes before its own held build: N41 takes the review, then the build (#7060, #7721).
+  if (found?.mandatory && !values.build && !familyOnly) return { autoReview: found.item, item: found.item, reasons: [] };
   // A seat already holding a build continues it without selecting; only a starved review comes first (#2450, #2978).
   if (ownClaim && found?.urgent !== 'age' && !values.defaultLoop && !rejectionReturnEnabled(board) && ownClaim.item_parent_id === null && keepsClaim(me, ownClaim, values))
     return { claim: true, me, item: ownClaim, held: true, shared: [], reasons: [], reviewSkipped: null };
   const warm = warmFiles(ctx, board, me, ports);
+  // queue.contention (off unless a project turns it on): the recent conflict rate of each file steers next [C7,#8527].
+  const contention = ctx.config.queue?.contention === true ? { threshold: ctx.config.queue.contentionThreshold ?? 1,
+    rates: conflictRates(store.eventsOfKinds(board, ['reopen', 'hold_item']), board.clock.now()) } : null;
   const selection = { buildBudgetMinutes: mainPolicy(ctx.info.root).config.itemBuildBudgetMinutes ?? 30, agentId: me.id, lane: me.lane, routeCap: me.route, runnable: values.runnable, routes: values.routes, warm,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
     priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle,
-    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles };
+    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles, ...(contention ? { contention } : {}), ...(ctx.config.next?.wholeItemsFirst === true ? { wholeItemsFirst: true } : {}) };
   const own = store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
   // Other lanes are only named, never claimed (otherLaneWork), so the session this seat shares never decides what next serves (GH #27).
   // An empty look at other lanes never replaces this lane's own answer: its holds and skips are what the seat must read.
+  const reworks = own.item ? [] : builderRework(board, items, agents, me);
   const elsewhere = own.item || ctx.info.isMain || ctx.io.personChannel === 'view' || ctx.io.personRequest ? null : store.nextFor(board, { ...selection,
-    lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR && lane !== me.lane) });
+    omitIds: [...selection.omitIds, ...reworks.map(entry => entry.item_id)], lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR && lane !== me.lane) });
   const picked = elsewhere?.item ? elsewhere : own;
   const { item, reasons, shared, lightReserved } = picked;
   if (familyOnly && !item && found?.mandatory && !ownClaim && !values.build) return { autoReview: found.item, item: found.item, reasons: [] };
   const held = item?.item_status === 'claimed';
   // A seat holding a build still takes a starved review first: builders always hold a claim, so reviews waited (#2450).
-  const offer = held && found?.urgent !== 'age' && !values.defaultLoop || familyOnly && item?.item_lane === me.lane ? null : found;
+  const offer = held && found?.urgent !== 'age' || familyOnly && item?.item_lane === me.lane ? null : found;
   const focus = milestoneFocus(board, { milestones: store.milestones });
   const findFocusedReview = () => store.nextFor(board, { agentId: me.id, lane: me.lane, verify: true,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes,
@@ -344,6 +380,11 @@ function nextPick(ctx, board, values, ports) {
     ? { item: focusedReview.item, queue: store.reviewQueue(board), ratio: ctx.config.verify.reviewRatio } : null;
   const selectedOffer = focusOffer ?? offer;
   if (selectedOffer?.item && !values.build && !(rejectionReturnEnabled(board) && item?.item_verdict === 'REJECT' && item.item_built_by === me.id) && (focusOffer || held || (!focus || focus.ids.has(selectedOffer.item.item_id) || !item || !focus.ids.has(item.item_id)) && (selectedOffer.urgent || focusReviewFirst(board, selectedOffer.item, item, { milestones: store.milestones })))) return { item: selectedOffer.item, offer: selectedOffer, build: item ?? null, buildHeld: held, reasons: focusReasons(board, selectedOffer.item, [], { milestones: store.milestones }) };
+  if (!item && reworks.length && !ctx.info.isMain) {
+    const [first] = reworks;
+    const nextStep = `#${first.item_id} went back to its builder ${first.item_built_by} for rework, so this seat leaves it to them: run pullboard next again once ${first.item_built_by} resubmits it`;
+    return { reasons: [...(reasons ?? []), nextStep], nextStep, idleReason: 'nothing-eligible' };
+  }
   if (!item) {
     const other = items.find(entry => entry.item_status === 'open' && (entry.item_lane !== me.lane
       || !store.ROUTES.includes(entry.item_route) || !store.ROUTES.includes(me.route) || !store.canTake(me.route, entry.item_route)));
@@ -352,7 +393,8 @@ function nextPick(ctx, board, values, ports) {
   }
   const reviewSkipped = values.build && !held
     ? { offeredItem: offer?.item?.item_id ?? null, ratio: offer?.ratio ?? ctx.config.verify.reviewRatio, ...store.reviewQueue(board) } : null;
-  if (item.item_lane !== me.lane) return otherLaneWork(me, item, reasons);
+  if (item.item_lane !== me.lane) return values.moved || store.agentLaneLocked(board, me.id) ? otherLaneWork(me, item, reasons)
+    : { move: { from: me.lane, lane: item.item_lane, item: item.item_id }, reasons: reasons ?? [] };
   if (!store.ROUTES.includes(me.route) || !store.ROUTES.includes(item.item_route) || !store.canTake(me.route, item.item_route))
     return { reasons: [...(reasons ?? []), `#${item.item_id} is available on the ${item.item_route} route; this seat serves ${me.route} and leaves it unclaimed`], idleReason: 'nothing-eligible' };
   if (!held && store.diagnoseWanted(board, item, me.route)) return { diagnose: item, reasons: reasons ?? [] };

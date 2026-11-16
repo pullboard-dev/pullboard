@@ -9,7 +9,7 @@ import { layoutProblems } from '../../../src/io/static/layout.js';
 import {
   privateFixtureFiles,
   runFixtureGit,
-} from '../../../../../apps/cli/tests/fixtures/child.js';
+} from '../../fixtures/child.js';
 
 const BASELINE = 'packages/codemap/data/baselines/layout.json';
 const OFFENDER = 'packages/demo/data/stray.json';
@@ -68,4 +68,24 @@ test('clause 2: the class judges the checked tree\'s own baseline file, not the 
   const started = Date.now();
   assert.deepEqual(layoutProblems(repo), [], 'this repository is within its baseline');
   assert.ok(Date.now() - started < 2000, `ran in ${Date.now() - started} ms`); // budget: declared by clause 2 of #5420 as under 2 s
+});
+
+test('a plain project with no layout baseline, holding .claude, web and .mcp.json at its root, has no layout finding [C7,#6544]', t => {
+  const tree = privateFixtureFiles('pb-layout-plain-');
+  t.after(() => rmSync(tree.root, { recursive: true, force: true }));
+  runFixtureGit(['-c', 'init.defaultBranch=main', 'init', '-q'], { cwd: tree.root });
+  for (const file of ['.claude/settings.json', '.codex/config.toml', '.mcp.json', 'web/index.html']) tree.write(file, '{}\n');
+  addAll(tree.root);
+  assert.deepEqual(layoutProblems(tree.root), []);
+  tree.write('web/app.test.js', "import { test } from 'node:test';\n");
+  const waits = STATIC_CHECKS.find(check => check.name === 'test-waits');
+  assert.deepEqual(waits.run({ root: tree.root, files: ['web/app.test.js'], read: () => ({ source: "import { test } from 'node:test';\n" }) }), [], 'test-waits has no baseline to judge');
+});
+
+test('.pullboard is an allowed root entry in a tree that keeps a layout baseline [C7,#6544]', t => {
+  const { root, tree } = fixture(t);
+  tree.write(BASELINE, `${JSON.stringify({ version: 1, rules: { 'root-entry': 0 } })}\n`);
+  tree.write('.pullboard/test-file-budgets/audit.json', '{}\n');
+  addAll(root);
+  assert.deepEqual(layoutProblems(root), []);
 });

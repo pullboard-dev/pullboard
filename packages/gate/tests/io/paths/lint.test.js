@@ -1,7 +1,7 @@
 /** The path lint finds repository paths in code that do not exist, and the ratchet lets the count only fall [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../fixtures/child.js';
 import {
   missingPathFindings,
   missingPathGrowth,

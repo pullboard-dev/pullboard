@@ -23,6 +23,7 @@ import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { awaitNestedRun } from '../../../../packages/gate/index.js';
 import { once } from 'node:events';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 import { fixtureAddRoute } from '../../tests/fixtures/testkit.js';
 import { fixtureJoinRoute } from '../../tests/fixtures/testkit.js';
 const e2e = createE2eHelpers();
@@ -55,6 +56,7 @@ test('submit leaves a dependency fast-forwarded in out of the files it records [
   (await box.runLocal(box.web, 'claim', '1'));
   commitFile(box, box.web, 'web/dep.html', 'dep', 'feat(web): the dependency [G1]');
   assert.equal((await box.runLocal(box.web, 'submit', '1')).code, 0);
+  await settledGateJob(box, 1); // under pull the gate settles on the runner; verify before it fails NOT_SUBMITTED [C7,#7283]
   box.git(box.repo, 'switch', '-q', '--detach', 'web/one');
   assert.match((await box.runLocal(box.repo, 'verify', '1', 'accept', '--as', 'coordinator', '--note', 'removed dep.html; the page broke')).out, /verified #1/);
   box.git(box.repo, 'switch', '-q', 'main');
@@ -71,6 +73,7 @@ test('verify and escalate take a note from a file, exactly as written [V12]', as
   (await box.runLocal(box.web, 'claim', '1'));
   commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
   (await box.runLocal(box.web, 'submit', '1'));
+  await settledGateJob(box, 1);
   const note = 'ran `npm test` with $HOME unset: "it failed"\nthen restored it';
   writeFileSync(join(box.dir, 'note.txt'), `${note}\n`);
   box.git(box.repo, 'switch', '-q', '--detach', 'web/one');
@@ -141,7 +144,7 @@ test('pullboard suggests no timed wait: next steps end at work or end-your-turn 
   (await box.runLocal(box.repo, 'hold', 'web', '--reason', 'G1 is changing'));
   assert.match((await box.runLocal(box.web, 'resume')).out, /next: pullboard next; take work in another lane, or end your turn if none is offered/);
   const agents = readFileSync(join(box.repo, 'AGENTS.md'), 'utf8');
-  assert.match(agents, /If it prints "nothing for this seat: end your turn", end your turn/);
+  assert.match(agents, /Never wait: submit and move on/); // AGENTS.md is now the short worker loop; it no longer quotes the idle line.
   assert.doesNotMatch(agents, /--wait 9/);
   assert.doesNotMatch(agents, /--wait 30/);
 });

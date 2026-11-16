@@ -1,0 +1,15 @@
+{
+  "name": "rules",
+  "help": "  pullboard rules [--limit <N>] [--json]  replay the whole event log through the lifecycle rules, read-only: the agreement rate, then each disagreement with its event id\n",
+  "required": {
+    "rulesVersion": "number",
+    "judged": "number",
+    "agreed": "number",
+    "rate": "number",
+    "disagreements": "array",
+    "disagreementCount": "number",
+    "kinds": "array",
+    "final": "object",
+    "readiness": "object"
+  }
+}

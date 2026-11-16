@@ -14,9 +14,9 @@ import { snapshotState } from '../../../../../relay/index.js';
 /** Deliberate machine-local differences; all other fields retain complete reader parity. */
 export const LOCAL_PARITY_FIELDS = Object.freeze([
   { path: 'root', reason: 'Native routing uses a local repository directory; a relay reader routes by persistent board id.' },
-  { path: 'relayHealthAlerts', reason: 'Canary observations are private telemetry on this local client, never sealed board state.' },
+  { path: 'relayHealthAlerts', relayAbsent: true, reason: 'Canary observations are private telemetry on this local client, never sealed board state.' },
   { path: 'capacityForecast', reason: 'The forecast reads a machine-local derived proof-counter index, which sealed exports omit; only the local host serves it.' },
-  { path: 'needs', kind: 'relay-health', reason: 'Only Needs derived from this local client canary stay on that client.' },
+  { path: 'needs', kind: 'relay-health', relayAbsent: true, reason: 'Only Needs derived from this local client canary stay on that client.' },
 ]);
 
 /** Report the first undeclared field difference with both actual values, including missing keys. */
@@ -25,9 +25,15 @@ export function assertReaderParity(native, relay, localFields = LOCAL_PARITY_FIE
   assert.ok(localFields.every(entry => entry.path && entry.reason?.trim()), 'every local-only field has a reason');
   /** Compare structure as well as values; a missing field is never equivalent to an explicit null. */
   function compare(left, right, path) {
-    if (ignored.has(path)) return;
+    if (ignored.has(path)) {
+      const absent = localFields.some(entry => entry.path === path && entry.relayAbsent);
+      if (absent) assert.ok(right === undefined || (Array.isArray(right) && right.length === 0), `reader parity ${path}: machine-only field leaked to the relay side: ${JSON.stringify(right)}`);
+      return;
+    }
     const localKinds = localFields.filter(entry => entry.path === path && entry.kind).map(entry => entry.kind);
     if (localKinds.length && Array.isArray(left) && Array.isArray(right)) {
+      const leaked = right.filter(entry => localKinds.includes(entry.kind) && localFields.some(field => field.path === path && field.kind === entry.kind && field.relayAbsent));
+      assert.equal(leaked.length, 0, `reader parity ${path}: machine-only entry leaked to the relay side: ${JSON.stringify(leaked)}`);
       left = left.filter(entry => !localKinds.includes(entry.kind));
       right = right.filter(entry => !localKinds.includes(entry.kind));
     }

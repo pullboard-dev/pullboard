@@ -240,33 +240,38 @@
     },
     {
       "order": 45,
-      "name": "app:view",
-      "file": "packages/codemap/data/plan/45-app-view.json"
+      "name": "search",
+      "file": "packages/codemap/data/plan/45-search.json"
     },
     {
       "order": 46,
-      "name": "app:runner",
-      "file": "packages/codemap/data/plan/46-app-runner.json"
+      "name": "board",
+      "file": "packages/codemap/data/plan/46-board.json"
     },
     {
       "order": 47,
-      "name": "app:cli",
-      "file": "packages/codemap/data/plan/47-app-cli.json"
+      "name": "app:view",
+      "file": "packages/codemap/data/plan/47-app-view.json"
     },
     {
       "order": 48,
-      "name": "app:lib",
-      "file": "packages/codemap/data/plan/48-app-lib.json"
+      "name": "app:runner",
+      "file": "packages/codemap/data/plan/48-app-runner.json"
     },
     {
       "order": 49,
-      "name": "app:relay",
-      "file": "packages/codemap/data/plan/49-app-relay.json"
+      "name": "app:cli",
+      "file": "packages/codemap/data/plan/49-app-cli.json"
     },
     {
       "order": 50,
-      "name": "search",
-      "file": "packages/codemap/data/plan/50-search.json"
+      "name": "app:lib",
+      "file": "packages/codemap/data/plan/50-app-lib.json"
+    },
+    {
+      "order": 51,
+      "name": "app:relay",
+      "file": "packages/codemap/data/plan/51-app-relay.json"
     }
   ],
   "stays": [
@@ -1806,6 +1811,246 @@
         "packages/gate/tests/io/check/baseline.test.js",
         "seed"
       ]
+    },
+    {
+      "cell": "landing",
+      "row": [
+        "src/landing-history-plan.js",
+        "packages/landing/src/io/history.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "src/documentation/events/submit-handoff.json",
+        "apps/cli/src/io/documentation/events/submit/handoff.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "app:cli",
+      "row": [
+        "src/documentation/events/submit_handoff_returned.json",
+        "apps/cli/src/io/documentation/events/submit_handoff_returned.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "landing",
+      "row": [
+        "src/main-failure-noise.js",
+        "packages/landing/src/logic/main/noise.js",
+        "imports"
+      ]
+    },
+    {
+      "cell": "resources",
+      "row": [
+        "test/runner-wait-deadline.test.js",
+        "packages/resources/tests/runner-wait-deadline.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "resources",
+      "row": [
+        "test/submit-lease.test.js",
+        "packages/resources/tests/submit-lease.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "config",
+      "row": [
+        "test/watch.test.js",
+        "packages/config/tests/watch.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "commits",
+      "row": [
+        "test/landing-message.test.js",
+        "packages/commits/tests/landing-message.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "items",
+      "row": [
+        "test/bar-native-session.test.js",
+        "packages/items/tests/bar-native-session.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/usage-publish-batch.test.js",
+        "packages/stats/tests/usage-publish-batch.test.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "store",
+      "row": [
+        "test/badge.test.js",
+        "packages/store/tests/badge.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "store",
+      "row": [
+        "test/commit-metadata.test.js",
+        "packages/store/tests/commit-metadata.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "store",
+      "row": [
+        "test/shout-readable.test.js",
+        "packages/store/tests/shout-readable.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "sandbox",
+      "row": [
+        "test/lane-bypass.test.js",
+        "packages/sandbox/tests/lane-bypass.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "sandbox",
+      "row": [
+        "test/trusted-policy.test.js",
+        "packages/sandbox/tests/trusted-policy.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "person",
+      "row": [
+        "test/add-lanes.test.js",
+        "packages/person/tests/logic/add-lanes.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "person",
+      "row": [
+        "test/implies-phone.test.js",
+        "packages/person/tests/logic/implies-phone.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "person",
+      "row": [
+        "test/relay-person-credential.test.js",
+        "packages/person/tests/logic/relay-person-credential.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "person",
+      "row": [
+        "test/relay-person-requests.test.js",
+        "packages/person/tests/logic/relay-person-requests.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "person",
+      "row": [
+        "test/relay-upload-status.test.js",
+        "packages/person/tests/logic/relay-upload-status.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "keys",
+      "row": [
+        "test/relay-pairing-options.test.js",
+        "packages/keys/tests/relay-pairing-options.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "link",
+      "row": [
+        "test/relay-canary-history.test.js",
+        "packages/link/tests/relay-canary-history.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "link",
+      "row": [
+        "test/relay-device-confirmation.test.js",
+        "packages/link/tests/relay-device-confirmation.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "link",
+      "row": [
+        "test/relay-machine-storage.test.js",
+        "packages/link/tests/relay-machine-storage.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "link",
+      "row": [
+        "test/relay-setup-once.test.js",
+        "packages/link/tests/relay-setup-once.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "link",
+      "row": [
+        "test/relay-sync.test.js",
+        "packages/link/tests/relay-sync.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "api",
+      "row": [
+        "test/shout-item-cli.test.js",
+        "packages/api/tests/shout-item-cli.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "outbox",
+      "row": [
+        "test/relay-checkpoint.test.js",
+        "packages/outbox/tests/io/relay/relay-checkpoint.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "gate",
+      "row": [
+        "test/land-affected.test.js",
+        "packages/gate/tests/land-affected.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "store",
+      "row": [
+        "test/stacked-submit.test.js",
+        "packages/store/tests/stacked-submit.test.js",
+        "seed"
+      ]
     }
   ],
   "entries": [
@@ -1815,10 +2060,6 @@
     },
     {
       "path": "bin/check-baseline.js",
-      "cell": "app:lib"
-    },
-    {
-      "path": "bin/landing-candidate.js",
       "cell": "app:lib"
     },
     {
@@ -1850,19 +2091,7 @@
       "cell": "app:cli"
     },
     {
-      "path": "bin/automatic-landing.js",
-      "cell": "app:cli"
-    },
-    {
       "path": "bin/main-red-refresh.js",
-      "cell": "app:cli"
-    },
-    {
-      "path": "bin/handoff-worker-dispatcher.js",
-      "cell": "app:lib"
-    },
-    {
-      "path": "bin/gate-drive-worker.js",
       "cell": "app:cli"
     }
   ],
@@ -2182,9 +2411,12 @@
   ],
   "allowedEdges": [
     "apps/cli->apps/relay",
+    "apps/cli->commits",
+    "apps/cli->moves",
     "apps/cli->search",
+    "apps/cli->sandbox",
+    "sandbox->kernel",
     "apps/cli->state",
-    "apps/lib->apps/runner",
     "apps/lib->transport",
     "apps/cli->kernel",
     "gate->jobs",
@@ -2197,6 +2429,8 @@
     "config->kernel",
     "gate->codemap",
     "runners->config",
+    "items->config",
+    "items->state",
     "runners->verify",
     "landing->verify",
     "verify->kernel",
@@ -2217,7 +2451,6 @@
     "api->git",
     "api->store",
     "apps/lib->store",
-    "apps/lib->apps/view",
     "blueprints->store",
     "doctrine->git",
     "doctrine->store",
@@ -2228,6 +2461,9 @@
     "gate->resources",
     "gate->drive",
     "gate->config",
+    "merge->config",
+    "rigor->config",
+    "spec->config",
     "gate->seats",
     "github->store",
     "items->git",
@@ -2237,7 +2473,10 @@
     "api->jobs",
     "api->kernel",
     "keys->store",
+    "landing->gate",
     "landing->git",
+    "landing->jobs",
+    "landing->kernel",
     "landing->pin",
     "landing->store",
     "apps/cli->apps/lib/src",
@@ -2256,12 +2495,12 @@
     "apps/cli->sentinels",
     "apps/cli->config",
     "apps/cli->resources",
-    "state->store",
-    "stats->store",
     "stats->jobs",
     "stats->resources",
     "apps/cli->stats",
     "apps/cli->queue",
+    "apps/cli->health",
+    "apps/cli->store",
     "sync->store",
     "apps/cli->kernel",
     "apps/cli->git",
@@ -2300,12 +2539,15 @@
     "blueprints->doctrine",
     "health->doctrine",
     "rigor->doctrine",
+    "rigor->config",
+    "sentinels->config",
     "runners->doctrine",
     "apps/lib->doctrine",
     "store->items",
     "store->resources",
     "store->git",
     "store->jobs",
+    "store->kernel",
     "github->items",
     "link->kernel",
     "apps/relay->link",
@@ -2314,6 +2556,26 @@
     "apps/relay->outbox",
     "apps/relay->keys",
     "apps/relay->seats",
-    "search->store"
+    "search->store",
+    "board->git",
+    "board->items",
+    "board->jobs",
+    "board->kernel",
+    "board->moves",
+    "board->sandbox",
+    "board->seats",
+    "board->spec",
+    "board->state",
+    "board->store",
+    "board->verify",
+    "apps/lib->board"
+  ],
+  "upwardEdgesGrandfathered": [
+    "apps/cli->apps/relay",
+    "apps/cli->search",
+    "apps/cli->apps/lib",
+    "apps/cli->apps/lib/src",
+    "state->store",
+    "stats->store"
   ]
 }

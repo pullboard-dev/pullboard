@@ -34,8 +34,7 @@ function fixture(t, red = []) {
   const refuse = (part, code) => red.includes(part) ? `throw Object.assign(new Error('${part} is red'), { name: 'Refused', code: '${code}' });` : '';
   git(controller, 'config', 'pullboard.trunk', 'refs/heads/main');
   put('package.json', '{"type":"module"}\n');
-  put('packages/items/index.js', `export function requirePlannedSource() { ${refuse('preflight', 'PLACEMENT_RED')} }
-export function requireSubmitComposition() {}\n`);
+  put('packages/items/index.js', `export function requireSubmitComposition() { ${refuse('preflight', 'COMPOSITION_RED')} }\n`);
   put('packages/gate/index.js', `export function importsIn() {} export function commonJsIn() {} export function withImportParseCache() {}
 export function foreignNodeOptions() { return false; }
 export function submitGatePlan(root, config, options) { ${refuse('selection', 'SELECTION_RED')}
@@ -104,7 +103,7 @@ test('clause 1: the four analysis parts make one remoteSubmitAnalysis call, one 
 });
 
 test('clause 2: a red part refuses with its own code and message, unchanged, while the other parts stay green [C7]', async t => {
-  const expected = { preflight: ['PLACEMENT_RED', /preflight is red/u], selection: ['SELECTION_RED', /selection is red/u],
+  const expected = { preflight: ['COMPOSITION_RED', /preflight is red/u], selection: ['SELECTION_RED', /selection is red/u],
     cells: ['CELLS_SUBMIT', /cells is red/u], static: ['GATE_RED', /static checks are red.*static is red/su] };
   for (const part of PARTS) {
     const box = fixture(t, [part]), runner = countingRunner(box);

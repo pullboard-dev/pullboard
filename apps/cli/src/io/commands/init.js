@@ -110,7 +110,8 @@ export async function run(io, { values }) {
   const handleIdentity = await withBoard(context(io), board => projectBoardIdentity(info.root, store.boardId(board)));
   if (await registerProjectAndLink(info.root, new Date(), loadConfig(info.root), io, handleIdentity, projectLinkPorts(io))) io.say('registered this project on this machine, so pullboard view lists it');
   // Once registered, a background view lists this board for pullboard.dev [H5,N26].
-  const view = await keepViewRunning();
+  // --no-open asks for no browser and no background process, so it starts no view either.
+  const view = values['no-open'] ? { state: 'off' } : await keepViewRunning();
   io.result?.({ ...result, view });
   const viewLine = initViewLine(view, { verbose: values.verbose });
   if (viewLine) io.say(viewLine);

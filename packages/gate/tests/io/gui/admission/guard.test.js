@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { testsNeedGui } from '../../../../src/io/gui/admission.js';
-import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../fixtures/child.js';
 import { chromeLaunchingTests } from '../../../fixtures/marker.js';
 
 /** Read actual tracked paths through Git, preserving the source index as the completeness boundary. */

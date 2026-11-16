@@ -7,6 +7,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { lex } from '../scan.js';
 import { lineAt } from '../scan.js';
@@ -16,7 +17,7 @@ import { walk } from '../scan.js';
 
 const CEILINGS_URL = new URL('../../../data/tests/test-fixtures.json', import.meta.url);
 const TEST_SOURCE = /(?:^(?:test\/|packages\/[^/]+\/tests\/|apps\/[^/]+\/tests\/).*\.[cm]?js$|\.(?:test|spec)\.[cm]?js$)/u;
-const KIT = /^apps\/cli\/tests\/fixtures\/(?:kit\/|testkit\.js$)|^packages\/store\/tests\/fixtures\/cell\.js$/u; // the kit itself holds the one raw seam [V32]
+const KIT = /^(?:apps\/cli\/tests\/fixtures\/kit\/|packages\/gate\/tests\/fixtures\/testkit\.js$|packages\/board\/tests\/fixtures\/board\.js$)|^packages\/store\/tests\/fixtures\/cell\.js$/u; // the kit itself holds the one raw seam [V32]
 const GIT_CALLEE = /(?<![\w$.])(?:git|tryGit|runFixtureGit|execFileSync|spawnSync)\s*\(\s*(?:[^,()]*,\s*)?\[?\s*(['"`])init\1/gu;
 const RAW_CALL = /(?:((?:[\w$]+\s*\.\s*)*[\w$]*run[\w$]*)\s*\(\s*([^,()]+),\s*|\[\s*(?:BIN|bin|CLI)\s*,\s*)(['"`])(add|join)\3/gu;
 const MODEL = /(['"`])--model\1\s*,\s*['"`]|\bPULLBOARD_MODEL\s*(?:\?\?=|\|\|=|=|:)\s*['"`]|\bmodel\s*:\s*['"`][^'"`]/gu;
@@ -34,9 +35,9 @@ const SUBCOMMAND = /^\s*(['"`])[\w-]+\1\s*$/u; // run('lane', 'add', …): a quo
 /** The shared fixture helpers the messages point at; a test asserts each path exists. */
 export const FIXTURE_HELPERS = {
   tempdir: 'packages/gate/tests/fixtures/child.js',
-  'raw-cli': 'apps/cli/tests/fixtures/testkit.js',
-  model: 'apps/cli/tests/fixtures/testkit.js',
-  'hand-policy': 'apps/cli/tests/fixtures/testkit.js',
+  'raw-cli': 'packages/gate/tests/fixtures/testkit.js',
+  model: 'packages/gate/tests/fixtures/testkit.js',
+  'hand-policy': 'packages/gate/tests/fixtures/testkit.js',
 };
 
 const MESSAGES = {
@@ -141,8 +142,8 @@ export function fixtureSites(source, path) {
  * @param {string} root
  * @param {{ sitesOf?: (path: string, text: string) => ReturnType<typeof fixtureSites> }} [options] - `sitesOf` lets a caller answer a file's sites from a cache keyed by its text.
  */
-export function fixtureReport(root, { sitesOf = (path, text) => fixtureSites(text, path) } = {}) {
-  return walk(root, TEST_SOURCE).flatMap(path => sitesOf(path, readText(root, path)));
+export function fixtureReport(root, { sitesOf = (path, text) => fixtureSites(text, path), only = null } = {}) {
+  return (only ? only.filter(path => TEST_SOURCE.test(path) && existsSync(join(root, path))).sort() : walk(root, TEST_SOURCE)).flatMap(path => sitesOf(path, readText(root, path)));
 }
 
 /** Count sites per file and kind, so removing one kind cannot pay for another. */
@@ -167,11 +168,18 @@ export function fixtureGrowth(problems, ceilings) {
 
 /**
  * The trunk commit this tree was composed on: the second parent of a merge HEAD (the gate merges main into the builder's
- * source), else null. Why: a ratchet written at one trunk must not blame an item for rows its trunk already carries [C7].
+ * source), else the point where this tree last met main (a branch that merged main and then committed has no merge HEAD),
+ * else null. Why: a ratchet written at one trunk must not blame an item for rows its trunk already carries [C7,#8368].
  */
 export function compositionBase(root) {
-  const result = spawnSync('git', ['rev-parse', '--verify', '--quiet', 'HEAD^2^{commit}'], { cwd: root, encoding: 'utf8' });
-  return result.status === 0 && /^[0-9a-f]{40,64}$/u.test(result.stdout.trim()) ? result.stdout.trim() : null;
+  const commit = args => {
+    const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+    return result.status === 0 && /^[0-9a-f]{40,64}$/u.test(result.stdout.trim()) ? result.stdout.trim() : null;
+  };
+  const second = commit(['rev-parse', '--verify', '--quiet', 'HEAD^2^{commit}']);
+  if (second) return second;
+  const met = commit(['merge-base', 'HEAD', 'refs/heads/main']);
+  return met && met !== commit(['rev-parse', 'HEAD']) ? met : null;
 }
 
 /** One file's text at the base commit, or null when the base does not have it. */
@@ -189,9 +197,9 @@ function baseText(root, base, path) {
  * @param {string | URL} [ceilingsPath]
  * @param {{ base?: string | null, read?: (root: string, base: string, path: string) => string | null, sitesOf?: (path: string, text: string) => ReturnType<typeof fixtureSites> }} [options]
  */
-export function fixtureProblems(root, ceilingsPath = CEILINGS_URL, { base = compositionBase(root), read = baseText, sitesOf } = {}) {
+export function fixtureProblems(root, ceilingsPath = CEILINGS_URL, { base = compositionBase(root), read = baseText, sitesOf, only = null } = {}) {
   const committed = JSON.parse(readFileSync(ceilingsPath, 'utf8'));
-  const problems = fixtureReport(root, sitesOf ? { sitesOf } : {});
+  const problems = fixtureReport(root, { ...(sitesOf ? { sitesOf } : {}), only });
   let ceilings = committed;
   if (base && fixtureGrowth(problems, committed).length) {
     ceilings = { ...committed };

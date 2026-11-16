@@ -29,6 +29,7 @@ import {
   git,
   gitChildEnv,
   gitPath,
+  checkoutHead,
   gitConfig,
   invalidateGitFacts,
   mainCheckout,
@@ -40,6 +41,7 @@ import {
   configFromSource,
   DOCTRINE_FILE,
   LEGACY_DOCTRINE_FILE,
+  loadConfig,
 } from "../../../config/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { parseCommitMessage } from "../logic/message.js";
@@ -59,7 +61,7 @@ import {
 import { approvedRowProblems } from "../../../spec/index.js";
 import { specGateMoveOnly } from "../../../spec/index.js";
 
-export const HOOKS = ['pre-commit', 'pre-merge-commit', 'commit-msg', 'pre-push'];
+export const HOOKS = ['pre-commit', 'pre-merge-commit', 'commit-msg', 'pre-push', 'post-commit'];
 export const HOOKS_DIR = '.githooks';
 export const HOOK_MARK = 'Installed by pullboard';
 export const FIX_NOTE = 'Fix what each line names. Never work around a refusal with filler text.';
@@ -116,6 +118,18 @@ function headerProblems(header, rules) {
   }
   if (subject.endsWith('.')) problems.push('remove the period at the end of the subject');
   return { problems, type: match[1] };
+}
+
+/**
+ * Header problems alone (format, length, case, period) for one commit header; git-written merges, reverts and fixups are exempt.
+ * Why: trusted re-checks need the header rule without a spec or a claim (A8).
+ *
+ * @param {string} header
+ * @param {any} rules - The `commits` settings.
+ * @returns {string[]}
+ */
+export function commitHeaderProblems(header, rules) {
+  return EXEMPT_RE.test(header) ? [] : headerProblems(header, rules).problems;
 }
 
 /** Name usable approved citations, or the real draft-and-approval path when none are available. */
@@ -264,7 +278,7 @@ export function commitCitationWarnings(raw, { spec, doctrine }) {
  * @returns {{ touched: string[], written: string[] }}
  */
 export function stagedPaths(root, base = null) {
-  const fields = git(root, ['diff', '--cached', '--name-status', '-z', ...(base ? [base] : [])]).split('\0');
+  const fields = git(root, ['diff', '--cached', '--name-status', '-z', '-M', ...(base ? [base] : [])]).split('\0'); // -M matches the move-detection call below, so one memo answer serves both.
   const touched = [], companion = new Set(JSON.parse(process.env.PULLBOARD_HOOK_COMPANION_PATHS ?? '[]')); // #2593, #2614: a companion's own paths are exempt against the merged parent too
   const written = [];
   let index = 0;
@@ -281,6 +295,8 @@ export function stagedPaths(root, base = null) {
 
 /** The reads one pre-commit run shares, so git is asked once per kind of fact instead of once per path (#2232). */
 let readCache = null;
+/** The cells plan folder, listed with the first read of each revision once the shim check runs. */
+const PLAN_DIRECTORY = 'packages/codemap/data/plan/';
 
 /**
  * Run a check with shared git reads: one batched tree or index listing per revision, one resolve-undo
@@ -302,16 +318,21 @@ function withSharedReads(root, paths, check) {
 const sharedReads = (root) => (readCache?.root === root ? readCache : null);
 
 /** List the records of many literal paths at one revision in a few git calls. */
-function fillRecords(root, revision, map, paths) {
+function fillRecords(root, revision, map, paths, directory = null) {
   for (const path of paths) if (!map.has(path)) map.set(path, []);
-  for (let start = 0; start < paths.length; start += 400) {
+  for (let start = 0; start < paths.length || start === 0; start += 400) {
     const specs = paths.slice(start, start + 400).map((path) => `:(literal)${path}`);
+    // The cells plan and its shards are read at every revision by the shim check: list them in the same call [C7].
+    if (directory && start === 0) specs.push(directory);
+    if (!specs.length) continue;
     const raw = revision === ':index'
       ? git(root, ['ls-files', '--stage', '-z', '--', ...specs])
       : git(root, ['ls-tree', '-z', revision, '--', ...specs]);
     for (const record of raw.split('\0').filter(Boolean)) {
       const tab = record.indexOf('\t');
-      map.get(record.slice(tab + 1))?.push(record);
+      const path = record.slice(tab + 1);
+      if (directory && !map.has(path)) map.set(path, []);
+      map.get(path)?.push(record);
     }
   }
 }
@@ -328,9 +349,10 @@ function treeRaw(root, revision, path) {
       : git(root, ['ls-tree', '-z', revision, '--', `:(literal)${path}`]);
   }
   let map = shared.maps.get(revision);
-  if (!map) { map = new Map(); shared.maps.set(revision, map); fillRecords(root, revision, map, shared.paths); }
-  if (!map.has(path)) fillRecords(root, revision, map, [path]);
-  const records = map.get(path);
+  if (!map) { map = new Map(); map.planListed = Boolean(shared.plan); shared.maps.set(revision, map); fillRecords(root, revision, map, shared.paths, shared.plan ? PLAN_DIRECTORY : null); }
+  // A revision listed with the plan folder already knows every plan file it has; the rest are absent.
+  if (!map.has(path) && !(map.planListed && path.startsWith(PLAN_DIRECTORY))) fillRecords(root, revision, map, [path]);
+  const records = map.get(path) ?? [];
   return records.length ? `${records.join('\0')}\0` : '';
 }
 
@@ -421,7 +443,7 @@ function stagedChangedLines(root, path) {
   if (shared) {
     if (shared.lines === undefined) {
       try {
-        const rows = addedLines(shared.diff ?? git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0'], { maxBuffer: MAX_SECRET_DIFF_BYTES }));
+        const rows = addedLines(shared.diff ?? git(root, ['diff', '--cached', '--no-ext-diff', '--no-textconv', '--no-color', '-U0'], { maxBuffer: MAX_SECRET_DIFF_BYTES }));
         shared.lines = new Map();
         for (const row of rows) shared.lines.set(row.path, [...(shared.lines.get(row.path) ?? []), `${row.path}:${row.line}`]);
       } catch { shared.lines = null; }
@@ -431,7 +453,7 @@ function stagedChangedLines(root, path) {
     if (shared.lines && !treeRaw(root, ':index', path)) return [];
   }
   try {
-    const diff = git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0', '--', ':(literal)' + path], { maxBuffer: MAX_SECRET_DIFF_BYTES });
+    const diff = git(root, ['diff', '--cached', '--no-ext-diff', '--no-textconv', '--no-color', '-U0', '--', ':(literal)' + path], { maxBuffer: MAX_SECRET_DIFF_BYTES });
     return addedLines(diff).filter(row => row.path === path).map(row => `${path}:${row.line}`);
   } catch { return []; }
 }
@@ -480,6 +502,30 @@ export function secretsIn(added) {
       : pattern.test(entry.text));
     return found ? [`${found[0]} at ${entry.path}:${entry.line}`] : [];
   });
+}
+
+/**
+ * Re-check every commit in base..head for committed secrets and header-rule breaks, reading git directly so a
+ * skipped hook (`--no-verify`) hides nothing. Reuses the SECRETS table and the header rule above (A8).
+ *
+ * @param {string} repo - A checkout root the trusted caller owns.
+ * @param {string} base - Exclusive start of the range.
+ * @param {string} head - Inclusive end of the range.
+ * @param {{ rules?: any }} [options] - `rules` defaults to the repo's `commits` settings, or the built-in ones when it has none.
+ * @returns {{ commit: string, kind: 'secret' | 'header', problem: string }[]} Findings, empty when the range is clean.
+ */
+export function recheckRange(repo, base, head, { rules } = {}) {
+  const commitRules = rules ?? (existsSync(join(repo, CONFIG_FILE)) ? loadConfig(repo) : configFromSource('{}')).commits;
+  const listed = tryGit(repo, ['rev-list', '--reverse', `${base}..${head}`]);
+  if (listed.status !== 0) throw new Refused('RANGE_UNREADABLE', `cannot list ${base}..${head}: ${listed.stderr}; pass commits this checkout holds`);
+  const findings = [];
+  for (const commit of listed.stdout.split('\n').filter(Boolean)) {
+    const header = git(repo, ['log', '-1', '--format=%s', commit]);
+    for (const problem of commitHeaderProblems(header, commitRules)) findings.push({ commit, kind: 'header', problem });
+    const diff = git(repo, ['diff-tree', '--root', '-p', '-m', '--first-parent', '-U0', '--no-commit-id', '--no-ext-diff', '--no-textconv', '--no-color', commit], { maxBuffer: MAX_SECRET_DIFF_BYTES });
+    for (const problem of secretsIn(addedLines(diff))) findings.push({ commit, kind: 'secret', problem });
+  }
+  return findings;
 }
 
 /**
@@ -537,7 +583,7 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
     try {
       if (resolution) added = resolution();
       else {
-        const diff = git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0'], { maxBuffer: MAX_SECRET_DIFF_BYTES });
+        const diff = git(root, ['diff', '--cached', '--no-ext-diff', '--no-textconv', '--no-color', '-U0'], { maxBuffer: MAX_SECRET_DIFF_BYTES });
         if (readCache) readCache.diff = diff;
         added = addedLines(diff);
       }
@@ -552,11 +598,12 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
   problems.push(...approvedRowProblems(root, config, boardFile, approvedRowPorts));
   if (shimImports) {
     const revisions = new Map();
+    if (readCache) readCache.plan = true;
     problems.push(...shimImports({ paths: written,
       read: (revision, path) => {
         // An initial commit has an index but no HEAD; do not invent historical source or read the worktree.
         if (revision !== ':index') {
-          if (!revisions.has(revision)) revisions.set(revision, tryGit(root, ['rev-parse', '--verify', revision]).status === 0);
+          if (!revisions.has(revision)) revisions.set(revision, (revision === 'HEAD' ? checkoutHead(root) : undefined) ? true : tryGit(root, ['rev-parse', '--verify', revision]).status === 0);
           if (!revisions.get(revision)) return undefined;
         }
         const entry = importFileEntry(root, revision, path);
@@ -647,11 +694,13 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
  */
 export function deletedGateProblems(root, config) {
   if (!config?.spec) return [];
-  const status = tryGit(root, ['diff', '--cached', '--name-status', '-M', '--no-color']);
-  if (status.status !== 0) return [];
+  let raw;
+  try { raw = git(root, ['diff', '--cached', '--name-status', '-z', '-M']); } catch { return []; } // the same call kind as stagedPaths, so one memo answer serves both
   const gone = new Map();
-  for (const line of status.stdout.split('\n').filter(Boolean)) {
-    const [code, from, to] = line.split('\t');
+  const fields = raw.split('\0');
+  for (let at = 0; at < fields.length - 1;) {
+    const code = fields[at], from = fields[at + 1], to = /^[RC]/u.test(code) ? fields[at + 2] : undefined;
+    at += to === undefined ? 2 : 3;
     if (code.startsWith('D')) gone.set(from, 'deletes');
     else if (code.startsWith('R')) {
       const before = tryGit(root, ['rev-parse', `HEAD:${from}`]);
@@ -695,7 +744,7 @@ export function preMergeHookProblems(root) {
  * @param {string} root
  * @returns {string}
  */
-function activeHooksDir(root) {
+export function activeHooksDir(root) {
   return resolve(root, gitPath(root, 'hooks'));
 }
 
@@ -825,10 +874,9 @@ export function unwiredHookProblems(root) {
  * @returns {string[] | null}
  */
 function mainMergeHeads(root, preMergeHook) {
-  const gitPath = tryGit(root, ['rev-parse', '--git-path', 'MERGE_HEAD']);
-  if (gitPath.status !== 0) return null;
+  let mergeFile;
+  try { mergeFile = gitPath(root, 'MERGE_HEAD'); } catch { return null; }
   let merges;
-  const mergeFile = resolve(root, gitPath.stdout.trim());
   try {
     if (existsSync(mergeFile)) merges = readFileSync(mergeFile, 'utf8').split(/\r?\n/u).filter(Boolean);
     else if (preMergeHook) {
@@ -1094,7 +1142,7 @@ function installerVersion() {
  * any rule (#876): an older global install would otherwise apply its old rules under a newer CLI's
  * guidance, and an old binary cannot be trusted to notice. A mismatch stops the hook, names both
  * versions, and gives the one command that fixes it: install the hook's version (project or global, where
- * the binary came from) when the found one is older, or rewrite the hooks with `pullboard init` when newer.
+ * the binary came from) when the found one is older, or rewrite the hooks with `pullboard init` in the main checkout (init refuses a worktree) when newer.
  *
  * @param {string} hook
  * @param {string} [version] The installing version; tests pass their own.
@@ -1110,7 +1158,7 @@ export function hookScript(hook, version = installerVersion()) {
     `want='${version}'`,
     ...(hook === 'commit-msg' ? ['message="$1"'] : []),
     'root=$(git rev-parse --show-toplevel)',
-    'main=$(git rev-parse --path-format=absolute --git-common-dir)/..',
+    'main=$(cd "$(git rev-parse --path-format=absolute --git-common-dir)/.." && pwd)',
     'run() {',
     '  bin="$1"; scope="$2"',
     // Shell builtins only, so a hook works on a PATH that has no tail or sed: keep the last line of --version.
@@ -1123,7 +1171,7 @@ export function hookScript(hook, version = installerVersion()) {
     '  nl=$(printf \'\\n_\'); nl=${nl%_}; have=${have##*"$nl"}',
     '  if [ "$have" != "$want" ]; then',
     '    newer=$(node -e \'const [a,b]=process.argv.slice(1).map(v=>String(v).split(".").map(n=>parseInt(n,10)||0));for(let i=0;i<3;i++)if(a[i]!==b[i]){process.stdout.write(a[i]>b[i]?"yes":"no");process.exit(0)}process.stdout.write("no")\' "$have" "$want" 2>/dev/null)',
-    '    if [ "$newer" = yes ]; then fix="pullboard init"; else fix="npm i $scope pullboard@$want"; fi',
+    '    if [ "$newer" = yes ]; then fix="cd \\"$main\\" && pullboard init"; else fix="npm i $scope pullboard@$want"; fi',
     `    echo "pullboard ${hook}: stopped before running any rule; these hooks were installed by Pullboard $want, but $bin is Pullboard \${have:-unknown}. Run: $fix" >&2`,
     '    exit 1',
     '  fi',
@@ -1205,7 +1253,7 @@ function addedLinesInBatches(root, written) {
     if (!paths.length) continue;
     let diff;
     try {
-      diff = git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0', '--', ...paths], { maxBuffer: MAX_SECRET_DIFF_BYTES });
+      diff = git(root, ['diff', '--cached', '--no-ext-diff', '--no-textconv', '--no-color', '-U0', '--', ...paths], { maxBuffer: MAX_SECRET_DIFF_BYTES });
     } catch (error) {
       if (error.code !== 'ENOBUFS') throw error;
       if (paths.length === 1) throw new Refused('DIFF_TOO_LARGE', `${paths[0]} alone exceeds the safe scan limit; split that file into smaller commits, then retry`);

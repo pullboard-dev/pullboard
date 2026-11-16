@@ -1,4 +1,4 @@
-import { machineHome } from '../../../../../resources/index.js';
+import { processMachineHome as machineHome } from '../../../../../kernel/light.js';
 /** Advisory process-owned write records; never part of native board state or lock authority [C7,P4]. */
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
@@ -15,8 +15,9 @@ import { closeSync } from 'node:fs';
 import { writeSync } from 'node:fs';
 import { constants } from 'node:fs';
 import { join } from 'node:path';
-import { parseProcessCensus } from "../../../../../kernel/index.js";
+import { parseProcessCensus } from "../../../../../kernel/light.js";
 import { recordBoardHold } from "../hold/log.js";
+import { storeName } from '../../store-names.js';
 
 const pending = new WeakMap();
 let ownIdentity;
@@ -46,6 +47,11 @@ export function prepareBoardWriteIdentity() {
 function boardFile(db) {
   const file = db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
   return file ? realpathSync(file) : null;
+}
+
+/** The board's database path as SQLite reports it, with no filesystem I/O; null for a memory board [C7]. */
+function openBoardFile(db) {
+  try { return db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file || null; } catch { return null; }
 }
 
 /** Keep labels bounded and single-line; no user note, SQL, parameters, or session material is recorded. */
@@ -91,7 +97,7 @@ export function prepareBoardWriteMarker(db, context = {}) {
     const directory = file + '.write-holders';
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     if (!lstatSync(directory).isDirectory()) return null;
-    const marker = join(directory, `${process.pid}-${randomUUID()}.json`);
+    const marker = join(directory, `${process.pid}-${storeName(randomUUID())}`);
     const labels = contextFor(db, context);
     const detail = { version: 1, pid: process.pid, started: ownIdentity.started, processSha256: ownIdentity.processSha256,
       command: labels.command, seat: labels.seat, acquiredAt: Date.now(), contender: true };
@@ -108,7 +114,7 @@ export function discardBoardWriteMarker(marker) {
 /** Start timing after BEGIN without filesystem I/O. */
 export function beginBoardWrite(db, context = {}, marker = null) {
   const record = { db, start: performance.now(), acquiredAt: Date.now(), pid: process.pid,
-    command: 'api', seat: 'unknown', marker, complete: false };
+    command: 'api', seat: 'unknown', marker, complete: false, boardFile: openBoardFile(db) };
   let records = pending.get(db);
   if (!records) { records = new Set(); pending.set(db, records); }
   records.add(record);

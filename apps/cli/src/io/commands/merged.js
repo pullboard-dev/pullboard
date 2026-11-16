@@ -7,12 +7,13 @@ import { mainPolicy } from '../../../../../packages/sandbox/index.js';
 import { prepareTrainLanding } from '../../../../../packages/landing/index.js';
 import { smokeCommit } from '../../../../../packages/landing/index.js';
 import { landingPlanCheck } from '../../../../../packages/landing/index.js';
-import { placeUncoveredOnTrunk } from '../../../../../packages/landing/index.js';
+import { recordLandingAudit } from '../../../../../packages/landing/index.js';
 import { refreshEnvironment } from '../../../../../packages/landing/index.js';
 import { startDetachedCheck } from '../../../../../packages/drive/index.js';
 import { fileURLToPath } from 'node:url';
 import { landingFlakeRatchet } from '../../../../../packages/flakes/index.js';
 import { COORDINATOR } from '../../../../../packages/config/index.js';
+import { boardRunsHolder } from '../../../../../packages/store/index.js';
 import { landMerged } from '../../../../../packages/land/index.js';
 import {
   codeIsFromMain,
@@ -58,7 +59,7 @@ async function refreshMap(ctx, io, board, trunk) {
   const root = primaryCheckoutRoot(ctx.info);
   if (!root) return;
   try {
-    await warnMainMoved({ root, board, trunk, write: (operation, args) => ordered(ctx, board, operation, args), say: text => io.say(text) }, { listAgents: store.listAgents, listItems: store.listItems });
+    await warnMainMoved({ root, board, trunk, write: (operation, args) => ordered(ctx, board, operation, args), say: text => io.say(text) }, { listAgents: store.listAgents, listItems: store.listItems, submitHandoff: store.submitHandoff });
   } catch (error) { io.say('main-move warnings deferred: ' + error.message); }
   try {
     const { refreshLandedCodeMap } = await import('../../../../../packages/codemap/index.js');
@@ -158,7 +159,6 @@ export async function run(io, { first, second, values }) {
   /** The hand landing's checks, in today's order; any refusal leaves the landing job without steps. */
   const check = async () => {
     if (!deferred) {
-      placeUncoveredOnTrunk(ctx.info.root, commit, text => io.say(text));
       await landingPlanCheck(ctx.info.root, commit);
       // A hand landing never crosses the landing gate, so it gets the same scratch-board smoke before anything is recorded [C7].
       await smokeCommit(ctx.info.root, commit);
@@ -192,7 +192,7 @@ export async function run(io, { first, second, values }) {
     }
     const note = (textArg(io, values, 'note') ?? '').trim();
     const flakeRatchet = landingFlakeRatchet(board).snapshot;
-    await ordered(ctx, board, 'merged', [id, { agentId: me.id, commit, note, flakeRatchet, ...(values.forced === undefined ? {} : { forced: values.forced }) }]);
+    await ordered(ctx, board, 'merged', [id, { agentId: me.id, commit, note, flakeRatchet, ...(values.forced === undefined ? {} : { forced: values.forced }), ...(values['waive-proof'] === undefined ? {} : { waiveProof: values['waive-proof'] }) }]);
     return {};
   };
   let announced = false;
@@ -206,6 +206,7 @@ export async function run(io, { first, second, values }) {
   /** Publish: today's output, then the derived map refresh. */
   const publish = async ({ written }) => {
     announce(written.record);
+    if (!written.record?.already) for (const itemId of ids) recordLandingAudit(board, itemId, commit, me.id);
     if (deferred && !written.record?.already) {
       // Detached, with no checkout lease token or agent session id, so the follow-up never holds or waits on the checkout.
       const started = startDetachedCheck(fileURLToPath(new URL('../../../../../packages/landing/src/io/merged/scripts/followup.js', import.meta.url)),
@@ -216,7 +217,7 @@ export async function run(io, { first, second, values }) {
     return { map: true };
   };
   const landed = await landMerged(board.db, { repo: ctx.info.root, ids, commit, base: parent.status === 0 ? parent.stdout : undefined,
-    owner: `merged:${me.id}`, check, record, publish });
+    owner: `merged:${me.id}`, check, record, publish, runs: boardRunsHolder(board, ctx.file) });
   if (!announced) announce(landed.written.record);
   return 0;
 });

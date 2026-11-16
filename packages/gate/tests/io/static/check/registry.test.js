@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { STATIC_CHECKS } from '../../../../index.js';
+import { STATIC_CHECKS } from '../../../../heavy.js';
 
 const ROOT = fileURLToPath(new URL('../../../../../..', import.meta.url));
 
@@ -31,7 +31,7 @@ test('clause 1: one registry lists every static check class with a function that
   assert.match(entry, /viewPureGate\(root\)/u, 'the CLI adds the view-pure class beside the registry');
   assert.ok(!tree.includes("name: 'view-pure'"), 'the gate registry names no app class');
   // The import-style class compiles modules with vm.SourceTextModule, which needs the flag, so run the registry in a child.
-  const program = `import { runStaticRegistry, changedStaticFailures } from ${JSON.stringify(new URL('../../../../index.js', import.meta.url).href)};
+  const program = `import { runStaticRegistry, changedStaticFailures } from ${JSON.stringify(new URL('../../../../heavy.js', import.meta.url).href)};
 const root = ${JSON.stringify(ROOT)};
 const context = { root, files: [], staged: false, text: file => (file.endsWith('.json') ? '{}' : ''), previous: () => '', read: file => ({ file, source: '' }), sources: [], engineSources: [] };
 const bad = { ...context, sources: [{ file: 'src/x.js', source: "import { a, b } from './y.js';\\n" }] };

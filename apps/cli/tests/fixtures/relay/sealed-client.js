@@ -44,9 +44,15 @@ export function replayClient(root, env, ...args) {
   return runFixtureChildAsync(process.execPath, [resolve(import.meta.dirname, '../../../pullboard.js'), ...args, '--json'], { cwd: root, env })
     .then((result) => {
       if (result.failure) throw new Error(result.failure);
-      try { return JSON.parse(result.stdout); }
-      catch { throw new Error(result.failure ?? result.context); }
+      try { return JSON.parse(withoutDiagnostics(result.stdout)); }
+      catch { throw new Error(`${result.failure ?? result.context}\nstdout (${result.stdout.length} chars, not one JSON document): ${result.stdout}`); }
     });
+}
+
+/** Drop the trailing diagnostics envelope a --json command prints after its own document when the engine warned (a future-engine blocker). */
+function withoutDiagnostics(stdout) {
+  const at = stdout.lastIndexOf('\n{\n  "version": 1,\n  "messages"');
+  return at === -1 ? stdout : stdout.slice(0, at);
 }
 
 /** Initialize an import recipient without declaring a second coordinator; later commands retain their model. */
@@ -109,13 +115,21 @@ export async function independentReplayOrigin(t, origin) {
   return 'http://127.0.0.1:' + proxy.address().port;
 }
 
+/** Parse one --json document; a trailing diagnostics envelope (printed when the engine warned) becomes its `diagnostics` list. */
+function parseWithDiagnostics(stdout) {
+  const document = JSON.parse(withoutDiagnostics(stdout));
+  const rest = stdout.slice(withoutDiagnostics(stdout).length);
+  if (rest === '') return document;
+  return { ...document, diagnostics: JSON.parse(rest).diagnostics ?? [] };
+}
+
 /** Capture a real linked command's warnings and structured refusal without changing its exit status. */
 export function replayResult(root, env, ...args) {
   return runFixtureChildAsync(process.execPath, [resolve(import.meta.dirname, '../../../pullboard.js'), ...args, '--json'], { cwd: root, env })
     .then((result) => {
       if (result.error) throw new Error(result.failure);
-      try { return { document: JSON.parse(result.stdout), stderr: result.failure ?? result.stderr, status: result.status, failure: result.failure }; }
-      catch { throw new Error(result.failure ?? result.context); }
+      try { return { document: parseWithDiagnostics(result.stdout), stderr: result.failure ?? result.stderr, status: result.status, failure: result.failure }; }
+      catch { throw new Error(`${result.failure ?? result.context}\nstdout (${result.stdout.length} chars, not one JSON document): ${result.stdout}`); }
     });
 }
 /** Link one private fixture to a real relay with an engine-99 blocker at sequence one. */
@@ -295,3 +309,15 @@ export function cpuStandIn(t) {
   return { stop, count: busy.length, load };
 }
 
+/** Cell doors the split sealed recovery journeys read through this fixture, so the journeys carry no cell imports [H16]. */
+export { exportBoard } from '../../../../../packages/store/index.js';
+export { semanticBoardDigest } from '../../../../../packages/store/index.js';
+export { appliedSequence } from '../../../../../packages/state/index.js';
+export { checkpointSequence } from '../../../../../packages/state/index.js';
+export { requireSupportedEngine } from '../../../../../packages/state/index.js';
+export { seal as sealMove } from '../../../../../packages/kernel/index.js';
+export { store, openBoard, ENGINE_VERSION };
+
+/** Relay doors of the link cell, re-exported for the split sealed recovery journeys [H16]. */
+export { relayRecover } from '../../../../../packages/link/index.js';
+export { syncRelay } from '../../../../../packages/link/index.js';

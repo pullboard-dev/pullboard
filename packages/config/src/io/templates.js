@@ -90,6 +90,57 @@ Inherits Pullboard standard doctrine version 1.
 }
 
 /**
+ * The seat loop: the one source of the worker loop every harness gets. The AGENTS.md block takes it
+ * verbatim, and the Claude skill and Codex template are generated from it too, so they cannot drift.
+ * Ends in one newline, so a block puts a blank line after it.
+ */
+export const SEAT_LOOP = `## Worker loop
+
+Never wait: submit and move on.
+
+1. \`pullboard next\`: a build or a verify.
+2. \`pullboard show <id>\`: your bar, frozen at claim.
+3. **Build** in your lane's folders; pre-commit refuses others.
+4. **Commit**, then \`pullboard submit <id>\`; it returns at once.
+5. **Repeat.** \`next\` returns reds and rejects; fix and resubmit.
+
+### Building
+
+- **Gate:** Pullboard runs it; never run whole suites.
+- **Long commands:** background anything over 1 min.
+- **Other folders:** shout their owner.
+- **Can't build:** \`pullboard release <id> --reason <CODE>\`, then \`next\`.
+- **Shouts:** arrive only while a command runs.
+- **Stop:** after 4 empty \`next\` answers in a row.
+
+### Verifying
+
+- **Judge:** the diff against the bar and the gate's receipts.
+- **Rerun:** only if no recorded run covers a clause, or you doubt the gate.
+- **Accept:** \`pullboard verify <id> accept\`.
+- **Reject:** \`pullboard verify <id> reject --reason <CODE> --clause "<clause>" --note "..."\`.
+`;
+
+/**
+ * The Claude worker-loop skill, generated from SEAT_LOOP so it cannot drift from the AGENTS.md block [#8550].
+ *
+ * @returns {string}
+ */
+export function renderWorkerSkill() {
+  const body = SEAT_LOOP.replace(/^## Worker loop\n/u, '');
+  return `---
+name: pullboard-worker
+description: 'Run the worker loop on a Pullboard seat: take the next build or verify, build inside your lane, submit and move on. Use when you are a worker or verifier in a repo that runs on pullboard, or when pullboard next hands you an item.'
+---
+
+# Worker loop
+${body}`;
+}
+
+/** The most words the seat loop may hold; a longer loop is one agents skim past, so trim before raising this. */
+export const SEAT_LOOP_WORD_BUDGET = 160;
+
+/**
  * The agent instructions, between markers so init can find its own block and never touch the rest.
  * The text is the approved block from this repo's AGENTS.md, so every new board gets the same words.
  *
@@ -117,32 +168,7 @@ Agents think; Pullboard does everything deterministic.
 | Sub-agent | Any agent may launch one. Runs the worker loop as written, on its own seat. |
 | Pullboard | Runs gates, routes verifies, lands accepted work. |
 
-## Worker loop
-
-Never wait: submit and move on.
-
-1. \`pullboard next\`: a build or a verify.
-2. \`pullboard show <id>\`: your bar, frozen at claim.
-3. **Build** in your lane's folders; pre-commit refuses others.
-4. **Commit**, then \`pullboard submit <id>\`; it returns at once.
-5. **Repeat.** \`next\` returns reds and rejects; fix and resubmit.
-
-### Building
-
-- **Gate:** Pullboard runs it; never run whole suites.
-- **Long commands:** background anything over 1 min.
-- **Other folders:** shout their owner.
-- **Can't build:** \`pullboard release <id> --reason <CODE>\`, then \`next\`.
-- **Shouts:** arrive only while a command runs.
-- **Stop:** after 4 empty \`next\` answers in a row.
-
-### Verifying
-
-- **Judge:** the diff against the bar and the gate's receipts.
-- **Rerun:** only if no recorded run covers a clause, or you doubt the gate.
-- **Accept:** \`pullboard verify <id> accept\`.
-- **Reject:** \`pullboard verify <id> reject --reason <CODE> --note "…"\`.
-
+${SEAT_LOOP}
 ## Troubleshoot
 
 - **A refusal:** do what its \`next:\` line says.

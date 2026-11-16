@@ -1,3 +1,4 @@
+/** @pullboard-module-loads packages/resources/src/io/stale-test-sweep.js */
 /** A gate holder whose process is gone or replaced is freed and its captured request re-run once; the OS decides [C7]. */
 import { spawn } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
@@ -19,9 +20,16 @@ export const LIVENESS_RELAUNCH_ENV = 'PULLBOARD_LIVENESS_RELAUNCH';
  * @param {{ name: string, item: string, pid: number }} row - The holder the decision concerns.
  * @param {string} [detail] - A short human reason for the event.
  */
-function recordLiveness(db, kind, row, detail = '') {
+export function recordLiveness(db, kind, row, detail = '') {
   db.prepare('INSERT INTO liveness_event(at, kind, name, item, pid, detail) VALUES (?, ?, ?, ?, ?, ?)')
     .run(new Date().toISOString(), kind, row.name, row.item ?? '', row.pid, detail);
+}
+
+/** The machine's stale-test sweep, loaded on the first lease pass so the runner worker bundle's closure leaves it out (#4140). */
+let sweeper;
+function sweepStaleTests(db) {
+  if (sweeper) sweeper.pass(db, recordLiveness);
+  else import('./stale-' + 'test-sweep.js').then(module => { sweeper = module.staleTestSweeper(); }).catch(() => {});
 }
 
 /**
@@ -35,7 +43,8 @@ function recordLiveness(db, kind, row, detail = '') {
  */
 function freeHolder(db, row, relaunches, why = 'process gone, or its PID now names another process') {
   db.prepare('DELETE FROM holder WHERE token = ?').run(row.token);
-  recordLiveness(db, 'freed', row, why);
+  // The log names the holder it released, so a freed slot never changes hands silently [C7].
+  recordLiveness(db, 'freed', row, `released the ${row.name} slot held by ${row.agent || 'an unnamed holder'} (pid ${row.pid}${row.kind ? `, ${row.kind}` : ''}): ${why}`);
   if (!row.request) {
     recordLiveness(db, 'reopen', row, 'no captured request; the item reopens to its holder through next');
     return;
@@ -51,11 +60,8 @@ function freeHolder(db, row, relaunches, why = 'process gone, or its PID now nam
 
 /**
  * Free holders whose process is gone. The OS decides: a holder is alive while its PID answers (EPERM counts as alive)
- * and the OS start time matches the one recorded with the lease, so a reused PID never passes as the holder. A gone
- * PID, a zombie or a different start time frees the slot at once; a live holder is never reclaimed, however stale its
- * heartbeat timestamp. Holder rows always name a process on this machine, so no timestamp decides here.
- * Why: a holder blocked in synchronous child work (a gate execute, runOnRunner, a private check) could not refresh its
- * timestamp, and the 120 s hung window killed live gates and landings mid-run (#3088, #3154).
+ * and its OS start time matches the lease's, so a reused PID never passes. A gone PID, a zombie or a different start
+ * frees the slot at once; a live holder is never reclaimed, however stale its heartbeat (#3088, #3154).
  *
  * @param {import('node:sqlite').DatabaseSync} db - The open slot database inside the caller's write transaction.
  * @param {number} now - Epoch milliseconds, kept for the caller's interface.
@@ -63,16 +69,20 @@ function freeHolder(db, row, relaunches, why = 'process gone, or its PID now nam
  * @returns {Array<object>} Captured requests to re-dispatch after the commit.
  */
 export function reclaimHolders(db, now, probes) {
+  sweepStaleTests(db);
   const relaunches = [];
-  for (const row of db.prepare('SELECT token, name, pid, started, item, request, relaunched, agent, repo, kind FROM holder').all()) {
+  // Rows are read whole only when one could be freed: every row once any process looks gone, else just the source-cache
+  // pins. Why: each write turn read all 1,000 seat rows whole, most of a slot take's own time at 1,000 seats (#8699).
+  const suspect = db.prepare('SELECT DISTINCT pid, started FROM holder').all()
+    .some(({ pid, started }) => pid !== process.pid && !probes.alive(pid) || identityGone({ pid, started }, probes.processIdentity(pid)));
+  const columns = 'SELECT token, name, pid, started, item, request, relaunched, agent, repo, kind FROM holder';
+  for (const row of db.prepare(suspect ? columns : `${columns} WHERE kind = 'source-cache'`).all()) {
     if (row.pid !== process.pid && !probes.alive(row.pid)) { freeHolder(db, row, relaunches); continue; }
     // A source-cache pin never expires, so a live orphan whose job directory is gone is freed here (#5593).
     if (sourceCacheJobGone(row)) { freeHolder(db, row, relaunches, 'source-cache pin whose owning job directory is gone'); continue; }
-    // An unreadable identity, or one read from a different source than the recorded start, is unknown, not proof of
-    // death: the live PID keeps the slot. Our own PID is checked too, since it may reuse a dead holder's PID.
-    const gone = identity => identity && (row.pid !== process.pid && identity.zombie || differentStart(identity, row.started));
     // A cached identity may predate the PID's reuse, so a mismatch is read again uncached before any row is freed.
-    if (gone(probes.processIdentity(row.pid)) && gone(probes.freshIdentity ? probes.freshIdentity(row.pid) : probes.processIdentity(row.pid))) {
+    if (identityGone(row, probes.processIdentity(row.pid))
+      && identityGone(row, probes.freshIdentity ? probes.freshIdentity(row.pid) : probes.processIdentity(row.pid))) {
       freeHolder(db, row, relaunches);
     }
   }
@@ -80,8 +90,17 @@ export function reclaimHolders(db, now, probes) {
 }
 
 /**
+ * Whether an identity proves a holder's process gone. An unreadable identity, or one read from a different source than
+ * the recorded start, is unknown, not proof of death: the live PID keeps the slot. Our own PID is checked too, since it
+ * may reuse a dead holder's PID.
+ */
+function identityGone(row, identity) {
+  return Boolean(identity && (row.pid !== process.pid && identity.zombie || differentStart(identity, row.started)));
+}
+
+/**
  * Whether a source-cache holder belongs to a runner job whose directory under <runner root>/jobs no longer exists.
- * The worker names its pins pullboard-ssh-(pin|cache|return)-<job id> and creates <job id>-* before taking any of them.
+ * The worker names its pins pullboard-ssh-(pin|cache|return)-<job id>, creating <job id>-* first.
  *
  * @param {{ kind: string, agent: string, repo: string }} row - A holder row.
  * @returns {boolean} True only on definite evidence; any unreadable state keeps the holder.
@@ -170,11 +189,9 @@ export function platformIdentity(pid) {
 export const PINNED_HEARTBEAT = 8_640_000_000_000_000;
 
 /**
- * Blind every older pullboard's time-based reclaimer, from inside the shared slot database. The real heartbeat moves to
- * `beat`; `heartbeat` stays pinned in the future and `terminating` at 0, kept so by triggers that fire for every client,
- * old code included. Why: worktrees running a CLI from before #3154 still SIGTERMed live gate and verify holders whose
- * `heartbeat` was past their 120 s window (33 kills on 4 Nov); old code reads only those two columns before signalling,
- * so it now frees only holders whose process is gone, which is correct [C7,#3164].
+ * Blind every older pullboard's time-based reclaimer. The real heartbeat moves to `beat`; `heartbeat` stays pinned in
+ * the future and `terminating` at 0 by triggers that fire for every client. Why: CLIs from before #3154 still killed
+ * live holders past their 120 s window; they now free only holders whose process is gone [C7,#3164].
  *
  * @param {import('node:sqlite').DatabaseSync} db - The slot database inside the opener's write transaction.
  */

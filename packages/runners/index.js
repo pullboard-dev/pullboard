@@ -1,6 +1,7 @@
 /** Move runners stage model under its planned cell */
 export * from "./src/logic/stage.js";
 export { runtimeUrls } from "./src/logic/urls.js";
+export { jobPath, SYSTEM_PATH } from "./src/logic/path.js";
 export { sampleRunnerLoad, localRunnerDescriptor } from "./src/io/load.js";
 export { RUNNER_POLICY_FILE, validRunnerTrunk, runnerPolicyRecord, carriedRunnerTrunk } from "./src/io/policy.js";
 export { validateCacheTips, tagObjectBodies, sourcePreparationFields } from "./src/io/overhead.js";
@@ -43,8 +44,12 @@ export { cleanupTimeoutDetails, parentChain, readCleanupTimeoutDetails, cleanupP
 
 export { committedRunnerController, archivedToolingSource } from './src/io/tooling/committed.js';
 export { dirtyToolingFindings, observeDirtyRunnerTooling } from './src/io/tooling/dirty.js';
-export { currentCapacityDetail, currentCapacity, liveCapacity } from './src/io/handoff/capacity.js';
-export { staleDispatcherTools, dispatcherPass, handOver } from './src/io/handoff/handover.js';
-export { installRunnerService, serviceFiles, serviceBoard, SERVICE_ENTRY, SERVICE_LABEL } from './src/io/service.js';
+export { installRunnerService, runnerServiceProblems, runnerServiceRecords, serviceFiles, serviceBoard, SERVICE_ENTRY, SERVICE_LABEL } from './src/io/service.js';
+export { localNetworkHost, serviceForm } from './src/logic/service.js';
+export { expandTestFolders } from "./src/io/pull/folders.js";
 export { mainRedUpdates } from './src/logic/main/reds.js';
 export { filesOfMain } from './src/io/main/reds.js';
+export { roundTripProfile, roundTripLine, ROUND_TRIP_PHASES } from './src/logic/roundtrip.js';
+
+/** The board's runner key book, reached through this cell so the CLI adds no edge to transport [C7]. */
+export { issueRunnerKey, revokeRunnerKey } from "../transport/index.js";

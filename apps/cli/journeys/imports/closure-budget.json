@@ -1,9 +1,11 @@
 {
-  "whoami": 1580,
-  "runner-home whoami": 1580,
-  "show 1": 1156,
-  "list": 1310,
-  "next": 1658,
-  "test --status x": 1190,
-  "hook commit-msg": 1535
+  "whoami": 1460,
+  "runner-home whoami": 1460,
+  "show 1": 746,
+  "list": 419,
+  "next": 1603,
+  "test --status x": 1143,
+  "hook commit-msg": 247,
+  "claim 1": 1312,
+  "release 1 --reason OTHER --note x": 1312
 }

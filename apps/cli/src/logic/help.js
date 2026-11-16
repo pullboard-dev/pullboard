@@ -3,6 +3,8 @@ import { VERSION } from '../../../../packages/config/index.js';
 import { ALL_HELP } from './help/sections.js';
 import { WHY_EXPLANATION } from './why.js';
 import { WHY_FLAG } from './why.js';
+import { cleanFlag } from './help/flag-meanings.js';
+import { describeFlag } from './help/flag-meanings.js';
 export { VERSION };
 
 
@@ -18,6 +20,15 @@ const ADD_EXAMPLE = ['pullboard lane add web --owns src/web', 'pullboard spec dr
   'pullboard add web "Upload page" --specs G1'].join('\n');
 
 const HELP_EXAMPLES = {
+  // Real words, so a pasted example does what it says; each runs on a fresh board in help/examples.test.js (#7755).
+  shout: 'pullboard shout all "Main is green; pull before you start"',
+  withdraw: 'pullboard withdraw 12 "duplicate of #9"',
+  search: 'pullboard search "upload page"',
+  test: 'pullboard test --affected',
+  trace: 'pullboard trace 12 --since 2h',
+  sweep: 'pullboard sweep --run "npx eslint ." --check "npx eslint {file}" --dry-run',
+  blueprint: 'pullboard blueprint add web-app',
+  settings: 'pullboard settings gateSlots 2',
   'settings line': `pullboard settings line reviewsFirst on --reason "reviews are waiting" --window '{"windowMinutes":60}'`,
   'spec approve': 'pullboard spec approve G1',
   'spec decline': 'pullboard spec decline G1 --reason "The requirement needs revision"',
@@ -39,14 +50,14 @@ const HELP_EXAMPLES = {
   status: 'pullboard status', view: 'pullboard view', digest: 'pullboard digest --out briefing.md', mcp: 'pullboard mcp', flow: 'pullboard flow replay --json', stats: 'pullboard stats --since 2026-10-08', log: 'pullboard log 12', ledger: 'pullboard ledger',
   relay: 'pullboard relay on --all', 'relay recover': 'pullboard relay recover --skip 12', sync: 'pullboard sync',
   'lane add': 'pullboard lane add web --owns apps/web/', lane: 'pullboard lane add web --owns apps/web/',
-  queue: 'pullboard queue', roadmap: 'pullboard roadmap', rigor: 'pullboard rigor', 'rigor quality': 'pullboard rigor quality --rule silent-catch', 'rigor draft': 'pullboard rigor draft "refusal:MERGE_LOST" "Merges keep every hunk" --check "node bin/checks/merges.js" --red 0123456 --green 89abcde', milestone: 'pullboard milestone add "0.7.0" --items 12,13',
+  queue: 'pullboard queue', coordinate: 'pullboard coordinate', split: 'pullboard split 12', moves: 'pullboard moves', roadmap: 'pullboard roadmap', rigor: 'pullboard rigor', 'rigor quality': 'pullboard rigor quality --rule silent-catch', 'rigor draft': 'pullboard rigor draft "refusal:MERGE_LOST" "Merges keep every hunk" --check "node bin/checks/merges.js" --red 0123456 --green 89abcde', milestone: 'pullboard milestone add "0.7.0"',
   'milestone order': 'pullboard milestone order "0.7.0" 13,12 --reason "the release notes need it first"',
   'milestone pin': 'pullboard milestone pin "0.7.0" 13 --reason "the release notes need it first"',
   'milestone sink': 'pullboard milestone sink "0.7.0" 12 --reason "waits on a design answer"',
   'milestone lift': 'pullboard milestone lift "0.7.0" 12,13',
-  runner: 'pullboard runner add studio --slots 2 --browser 1', 'runner add': 'pullboard runner add studio --slots 2 --browser 1',
+  runner: 'pullboard runner add you@build-host --slots 2 --browser 1', 'runner add': 'pullboard runner add you@build-host --slots 2 --browser 1',
   edit: 'pullboard edit 12 --brief "Add the upload page"', release: 'pullboard release 12 --reason BLOCKED',
-  land: 'pullboard land --max 4',
+  land: 'pullboard land',
   map: 'pullboard map',
   publish: 'pullboard publish',
   handoff: 'pullboard handoff --take 12',
@@ -74,7 +85,7 @@ const HELP_ALIASES = {
   lane: { usage: 'pullboard lane add <name> --owns <path>[,<path>]', source: 'lane add' },
   status: { usage: 'pullboard status [--all]', source: 'whoami' },
   done: { usage: 'pullboard done <id> [--wait]', source: 'submit <id>' },
-  inbox: { usage: 'pullboard inbox', source: null, extraFlags: ['--acted-on <interrupt-ids>'] },
+  inbox: { usage: 'pullboard inbox', source: null, extraFlags: ['--acted-on <interrupt-ids>', '--archive <shout-ids>'] },
   'check accept': { usage: 'pullboard check accept <id>', source: 'check accept' },
   relay: { source: 'relay', every: true },
   lifecycle: { usage: 'pullboard lifecycle', source: null },
@@ -108,6 +119,7 @@ const HELP_FLAG_EXPLANATIONS = {
   '--blueprint': 'start from a bundled blueprint or a JSON file; repeat it for one product, one architecture and any practice blueprints',
   '--brief': 'what a cold agent needs',
   '--check': 'the command that proves it',
+  '--readiness': 'the command that tells whether the item is ready to start; an empty string clears it',
   '--expected-minutes': 'positive expected build minutes, or unknown to clear the estimate',
   '--check-timing': 'coordinator-only true|false, frozen exclusive timing admission for the check',
   '--conflict': 'one conflicting file, exactly as Git names it; repeat it for each file',
@@ -127,6 +139,10 @@ const HELP_FLAG_EXPLANATIONS = {
 
 /** Lines a command's own help adds after its example. */
 const HELP_NOTES = {
+  serve: [
+    'This is the board API (JSON, behind the session secret in its printed address); it serves no page.',
+    'To see the board in a browser, run pullboard view.',
+  ],
   status: [
     'Counts include live, idle and gone identities; plain text lists only live and idle seats.',
     '--all includes gone seats. JSON retains the full identity history and presence counts.',
@@ -184,7 +200,7 @@ function commandHelpRows(fullHelp, commandNames) {
     }
     const flags = [...flagMap.values()].map((flag) => {
       const explanation = HELP_FLAG_EXPLANATIONS[flag.split(/\s/u, 1)[0]];
-      return explanation ? `${flag} — ${explanation}` : flag;
+      return explanation ? `${cleanFlag(flag)} — ${explanation}` : describeFlag(name, flag);
     });
     const example = exampleFor(name, usages[0]);
     return [name, Object.freeze({ usages, flags, example, notes: HELP_NOTES[name] ?? [] })];
@@ -206,13 +222,17 @@ function overviewHelp(groups, firstRun = false) {
 }
 
 /** The settings forms settingsCommand dispatches with a value; each gets its own help, from this list (N2). */
-export const SETTING_FORMS = Object.freeze(['gateSlots', 'browserSlots', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'gate.runnerBusyCeiling', 'gate.runnersOnly', 'gate.runnerWaitMs', 'workers.budget', 'landing.pool', 'inspection.clauses']);
+export const SETTING_FORMS = Object.freeze(['gateSlots', 'browserSlots', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'gate.runnerBusyCeiling', 'gate.runnersOnly', 'gate.runnerWaitMs', 'workers.budget', 'landing.pool', 'inspection.clauses', 'runnerRates', 'budget.dailyUsd', 'budget.totalUsd', 'scratch', 'gate.diskFloorMB', 'gate.memoryFloorMB', 'gate.queue.agingMinutes', 'gate.queue.reviewsFirst', 'gate.queue.currentReleaseFirst', 'gate.browserFreeChecks', 'gate.browserByLaunch', 'health.sentinel', 'view.background', 'relay.offerAtInit']);
+
+/** How each plain-valued settings form takes its value, and an example of it; the values are checked by the config cell (PERSON_SET). */
+const PERSON_SET_USAGE = Object.freeze({ usd: ['<dollars>|off', '25'], folder: ['<folder>|off', '/Volumes/scratch'], mb: ['<n>|off', '4096'], minutes: ['<n>|off', '30'], switch: ['on|off', 'on'] });
+const PERSON_SET_KIND = Object.freeze({ 'budget.dailyUsd': 'usd', 'budget.totalUsd': 'usd', scratch: 'folder', 'gate.diskFloorMB': 'mb', 'gate.memoryFloorMB': 'mb', 'gate.queue.agingMinutes': 'minutes', 'gate.queue.reviewsFirst': 'switch', 'gate.queue.currentReleaseFirst': 'switch', 'gate.browserFreeChecks': 'switch', 'gate.browserByLaunch': 'switch', 'health.sentinel': 'switch', 'view.background': 'switch', 'relay.offerAtInit': 'switch' });
 
 /** Help for each settings form the printed usage did not already name, so each form is covered (N2). */
 function settingFormHelp(commands) {
   return Object.fromEntries(SETTING_FORMS.filter((form) => !commands[`settings ${form}`]).map((form) => [`settings ${form}`, Object.freeze({
-    usages: [`pullboard settings ${form} ${['landing.pool', 'gate.runnersOnly', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'inspection.clauses'].includes(form) ? 'on|off' : form === 'workers.budget' ? '<spend>/day|week' : '<n>'}`], flags: [`${WHY_FLAG} — ${WHY_EXPLANATION}`],
-    example: `pullboard settings ${form} ${['landing.pool', 'gate.runnersOnly', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'inspection.clauses'].includes(form) ? 'on' : form === 'workers.budget' ? '40/day' : '2'}`, notes: [],
+    usages: [`pullboard settings ${form} ${PERSON_SET_KIND[form] ? PERSON_SET_USAGE[PERSON_SET_KIND[form]][0] : ['landing.pool', 'gate.runnersOnly', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'inspection.clauses'].includes(form) ? 'on|off' : form === 'workers.budget' ? '<spend>/day|week' : form === 'runnerRates' ? '<runner> <price> <months> <watts> <kwhPrice>' : '<n>'}`], flags: [`${WHY_FLAG} — ${WHY_EXPLANATION}`],
+    example: `pullboard settings ${form} ${PERSON_SET_KIND[form] ? PERSON_SET_USAGE[PERSON_SET_KIND[form]][1] : ['landing.pool', 'gate.runnersOnly', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'inspection.clauses'].includes(form) ? 'on' : form === 'workers.budget' ? '40/day' : form === 'runnerRates' ? 'build-host.local 1200 36 85 0.14' : '2'}`, notes: [],
   })]));
 }
 

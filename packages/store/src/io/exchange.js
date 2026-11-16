@@ -1,10 +1,12 @@
 import { beginImmediateQueued } from './board/busy.js';
+import { ensureGateHopTable } from "./board/hop.js";
 import { blobDirOf } from "../../../jobs/index.js";
 import { parseStub } from "../../../jobs/index.js";
 import { readBlob } from "../../../jobs/index.js";
 import { withDerivedFamilies } from "../../../items/index.js";
 import { suspendStoreGuards } from "./board/guards.js";
 import { AGENT_GRANT_ENGINE } from "../../../state/light.js";
+import { MACHINE } from "../../../state/light.js";
 import { LANDING_LOCAL_PREFIX } from "../logic/board/landing/local.js";
 import { PROOF_COUNTER_PREFIX } from "../../../verify/index.js";
 import { FAMILY_RECORD_PREFIX } from "../../../items/index.js";
@@ -89,10 +91,10 @@ function nativeRows(db, table) {
 /**
  * Board tables an export may leave out; a missing one imports as empty [C7].
  *
- * Why: job, job_step and test_result are an additive upgrade (board-jobs-schema.js), so a board gains them on open while
+ * Why: job, job_step, test_result and gate_hop are an additive upgrade (board-jobs-schema.js), so a board gains them on open while
  * exports made before or without them never list them. Every other table still has to match exactly.
  */
-const ADDITIVE_TABLES = new Set(['job', 'job_step', 'test_result']);
+const ADDITIVE_TABLES = new Set(['job', 'job_step', 'test_result', 'run', 'gate_hop']);
 
 /**
  * Read every exported table's rows, leaving out an additive table that holds no rows, and its counter [C7].
@@ -208,6 +210,14 @@ function validateDocument(db, document, names) {
       }
     }
   }
+  // An item in a status the lifecycle never declared is refused before anything is inserted: the restore suspends the
+  // board's own triggers, so this is the only place that can stop it (SM15).
+  const declared = MACHINE.states.map((state) => state.id);
+  const unknown = suppliedRows(document, 'item').find((row) => !declared.includes(row.item_status));
+  if (unknown) {
+    throw new Refused('UNDECLARED_STATE', `item #${unknown.item_id} has status ${JSON.stringify(unknown.item_status)}; an item is ${declared.join(', ')}, so nothing was imported`,
+      'export the board again with the pullboard version that wrote this file');
+  }
   const eventLog = document.tables.board_meta.find(({ meta_key }) => meta_key === 'event_log_version');
   const eventLogVersion = eventLog && /^(?:0|[1-9]\d*)$/u.test(eventLog.meta_value) ? Number(eventLog.meta_value) : eventLog ? NaN : 0;
   if (!Number.isSafeInteger(eventLogVersion) || eventLogVersion < 0) {
@@ -314,6 +324,8 @@ export function restoreRelaySnapshot(board, document, sequence, expectedNativeDi
 /** Restore validated native rows with lifecycle guards suspended only inside the transaction. */
 function restoreDocument(board, document, replace = false, expectedNativeDigest = null) {
   const db = board.db;
+  // The hop table is opt-in: a document that carries its rows gives this board the table first, so the two table sets agree [C7].
+  if (document?.tables && typeof document.tables === 'object' && Object.hasOwn(document.tables, 'gate_hop')) ensureGateHopTable(db);
   const names = tableNames(db);
   validateDocument(db, document, names);
   prepareBoardWriteIdentity();

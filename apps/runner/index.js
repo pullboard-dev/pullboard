@@ -8,3 +8,4 @@ export { HANDOFF_STAGES, failureAccount, runHandoffStages } from "./src/io/hando
 export { assertDiskFree, sweepRunnerDisk, treeBytes } from './src/io/sweep.js';
 export { acquireResourceApi, registeredCapacity } from './src/io/worker/environment.js';
 export { runnerWorker } from './light.js';
+export { fetchTrunk } from './src/io/worker/checkout.js';

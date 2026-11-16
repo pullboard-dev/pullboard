@@ -14,7 +14,7 @@ import {
   readGateReceipt,
   receiptStore,
 } from "../../../../gate/index.js";
-import { runProfiledShell } from "../../../../gate/index.js";
+import { runProfiledShellAsync } from "../../../../gate/index.js";
 import { runFrozenProof } from "../../../../gate/index.js";
 import { recordNativeProof } from "../../../../verify/index.js";
 import { proofRunReceipt } from "../../../../store/index.js";
@@ -46,7 +46,7 @@ export async function recordMainComparison(ctx, receiptId, { ordered, withBoard,
 }
 
 /** Capture owner policy and source before admission, recording through the CLI's ordinary ordered board moves. */
-export function observer(ctx, { kind, board, main, commit, privateCheck = false, config = ctx.config } = {}, { ordered, withBoard, resourceAgent, checkAtCommit }) {
+export function observer(ctx, { kind, board, main, commit, privateCheck = false, config = ctx.config, cachedMain } = {}, { ordered, withBoard, resourceAgent, checkAtCommit }) {
   let acceptedConfig, pin, agentId;
   try {
     const owner = main ? policyAt(ctx.info.root, main) : mainPolicy(ctx.info.root);
@@ -74,7 +74,7 @@ export function observer(ctx, { kind, board, main, commit, privateCheck = false,
     if (kind === 'submit' && run.proofReceiptId) await recordRun(run.proofReceiptId);
     // A composed Submit phase runs in a private copy removed when the gate returns, while detached diagnostics still run; its commit lives in the board's repository.
     // The red output names its tests by absolute path under the root the run used, so it is read against that root, not the board's.
-    await observeNativeFailure({ root: pin.privateCheck ? ctx.info.root : root, outputRoot: root, config: acceptedConfig, pin, run, command, lease, kind, checkAtCommit,
+    await observeNativeFailure({ root: pin.privateCheck ? ctx.info.root : root, outputRoot: root, config: acceptedConfig, pin, run, command, lease, kind, checkAtCommit, cachedMain,
       record: observation => recordAll([observation]),
       // One board session records every case after all probes finish, rather than one open per case [#1899].
       recordBatch: observations => recordAll(observations), recordRun });
@@ -89,7 +89,7 @@ export function check(ctx, item, command, services) {
     pinRunMain(lease, observe);
     lease.quarantines = await services.withBoard(ctx, quarantineVerdictSnapshot);
     lease.proof = { item: item.item_id, frozenDigest: item.item_frozen_digest ?? null, seat: services.resourceAgent(ctx), kind: 'check' };
-    const run = runProfiledShell(ctx.info.root, command, { waitMs: lease.waitMs, artifactPrefix: `pullboard-check-${item.item_id}`, persistLog: true, gateLease: lease, stages: lease.quarantines.length > 0 });
+    const run = await runProfiledShellAsync(ctx.info.root, command, { waitMs: lease.waitMs, artifactPrefix: `pullboard-check-${item.item_id}`, persistLog: true, gateLease: lease, stages: lease.quarantines.length > 0 });
     await recordNativeProof(ctx, item, run, { ...services, proofRunReceipt });
     await recordRun(observe, run);
     if (!run.isGreen) await observe(run, { command, lease });
@@ -104,7 +104,11 @@ export function verify(ctx, item, command, options, services) {
     pinRunMain(lease, observe);
     lease.quarantines = options.board ? quarantineVerdictSnapshot(options.board) : await services.withBoard(ctx, quarantineVerdictSnapshot);
     lease.proof = { seat: services.resourceAgent(ctx) };
-    const result = runFrozenProof(ctx.info.root, item, { waitMs: lease.waitMs, gateLease: lease }, services);
+    const appendFact = (id, fact) => {
+      const write = board => services.ordered(ctx, board, 'appendFact', [id, { agentId: services.resourceAgent(ctx), ...fact }]);
+      return options.board ? write(options.board) : services.withBoard(ctx, write);
+    };
+    const result = await runFrozenProof(ctx.info.root, item, { waitMs: lease.waitMs, gateLease: lease }, { ...services, appendFact });
     await recordNativeProof(ctx, item, result, { ...services, proofRunReceipt }, options.board);
     await recordRun(observe, result);
     if (result.state === 'red') await observe({ isGreen: false, output: result.outputPath ? readFileSync(result.outputPath, 'utf8') : result.output,

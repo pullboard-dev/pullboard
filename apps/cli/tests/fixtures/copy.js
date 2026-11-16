@@ -1,10 +1,17 @@
 /** Commit complete shipped-source fixtures without exceeding the native staged-diff scan bound [C7]. */
+import { copyFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { statSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { posix } from 'node:path';
 import { join } from 'node:path';
 import { copyPackageFiles } from '../../../../packages/runners/index.js';
 import { readPathMap } from '../../../../packages/codemap/index.js';
 import { lex } from '../../../../packages/kernel/index.js';
 import { bindingReadsForModules } from '../../../../packages/codemap/index.js';
+import { importsIn } from '../../../../packages/codemap/index.js';
 
 /** Find executable hand copies of shipped tool paths; comments and fixture-program strings are not code. */
 export function fixtureCopierProblems(source, file = 'fixture.js') {
@@ -91,7 +98,7 @@ export function fixtureCopierProblems(source, file = 'fixture.js') {
     if (seen.size > 128) { problems.push(`${file}: opaque fixture source alias chain`); return true; }
     // Shipped tool source: root src and bin, any cell src, and packages outside their own tests folders.
     if (strings.some(row => row.start >= start && row.end <= finish
-      && /^(?:\.\.\/|\.\/)*(?:(?:src|bin)(?:\/|$)|packages(?:$|\/(?![\w-]+\/tests\/))|[\w-]+\/src\/)|^package\.json$/u.test(row.text))) return true;
+      && /^(?:\.\.\/|\.\/)*(?:(?:src|bin)(?:\/|$)|packages(?:$|\/(?![\w-]+\/tests\/))|(?:apps\/)?[\w-]+\/src\/)|^package\.json$/u.test(row.text))) return true;
     for (const match of code.slice(start, finish).matchAll(/\b[\w$]+\b/gu)) {
       if (seen.has(match[0])) continue;
       const next = new Set([...seen, match[0]]);
@@ -204,6 +211,34 @@ export { copyPackageFiles };
 /** Copy only explicitly requested fixture files, finding moved definitions through the committed source map. */
 export function copyPackageSubset(source, destination, files) {
   return copyPackageFiles(source, destination, { files, pathMap: readPathMap(source) });
+}
+
+/**
+ * Copy each repo-relative entry and every file its relative imports reach that the destination lacks.
+ * Why: a hand list of a launcher's helpers broke each time a helper moved (chrome.js now reaches cockpit/stable.js and the gate child fixture) [C7].
+ *
+ * @param {string} source - The repository root to copy from.
+ * @param {string} destination - The fixture root to copy into.
+ * @param {string[]} entries - Repo-relative module paths.
+ * @returns {string[]} The repo-relative files copied.
+ */
+export function copyModuleClosure(source, destination, entries) {
+  const pending = [...entries], seen = new Set(), copied = [];
+  while (pending.length) {
+    const file = pending.pop();
+    if (seen.has(file) || !existsSync(join(source, file))) continue;
+    seen.add(file);
+    if (!existsSync(join(destination, file))) {
+      mkdirSync(dirname(join(destination, file)), { recursive: true });
+      copyFileSync(join(source, file), join(destination, file));
+      copied.push(file);
+    }
+    if (!/\.m?js$/u.test(file)) continue; // a JSON or other asset is copied, never parsed
+    for (const request of importsIn([readFileSync(join(source, file), 'utf8')])[0]) {
+      if (request.startsWith('.')) pending.push(posix.normalize(posix.join(posix.dirname(file), request)));
+    }
+  }
+  return copied;
 }
 
 // Leave room for diff headers and one added-line marker per byte below the native 8 MiB limit.

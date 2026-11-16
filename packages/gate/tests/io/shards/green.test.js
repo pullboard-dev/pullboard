@@ -8,9 +8,11 @@ import { test } from 'node:test';
 import { plainCheckRun } from '../../../src/io/shards/green.js';
 import { recordGreenRun } from '../../../src/io/shards/green.js';
 import { reusableGreenRun } from '../../../src/io/shards/green.js';
+import { reusableProof } from '../../../src/io/shards/green.js';
+import { writeFileSync } from 'node:fs';
 import { runFixtureGit } from '../../fixtures/child.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
-import { fixtureCommittedGraph } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureCommittedGraph } from '../../fixtures/testkit.js';
 
 const RUNNER = 'node packages/gate/src/io/run/tests.js';
 const FILE = 'test/one.test.js';
@@ -71,4 +73,41 @@ test('clause 2: only a plain runner command over test files is a check a recorde
   assert.equal(plainCheckRun(`! ${RUNNER} ${FILE}`), null);
   assert.equal(plainCheckRun(`${RUNNER} --test-name-pattern=x ${FILE}`), null);
   assert.equal(plainCheckRun('test ! -e src/x.js'), null);
+});
+
+/** A builder's head that imports ./lib/helper.js, then a merge of a trunk commit changing only `touch`; the builder's green run is recorded. */
+function mergedHead(t, touch) {
+  const repo = repository(t);
+  const git = (...args) => runFixtureGit(args, { cwd: repo.root, env: repo.env });
+  const files = ['test/one.test.js', 'test/lib/helper.js', 'docs/other.txt'];
+  git('config', 'user.email', 'a@example.test'); git('config', 'user.name', 'a');
+  const put = (path, text) => { mkdirSync(join(repo.root, path, '..'), { recursive: true }); writeFileSync(join(repo.root, path), text); };
+  put('test/one.test.js', "import { x } from './lib/helper.js';\n"); put('test/lib/helper.js', 'export const x = 1;\n'); put('docs/other.txt', 'a\n');
+  git('add', '-A'); git('commit', '-qm', 'base');
+  const branch = git('rev-parse', '--abbrev-ref', 'HEAD').trim(), base = git('rev-parse', 'HEAD').trim();
+  put('source.txt', 'builder\n'); git('add', '-A'); git('commit', '-qm', 'builder');
+  const built = { commit: git('rev-parse', 'HEAD').trim(), tree: git('rev-parse', 'HEAD^{tree}').trim() };
+  git('checkout', '-q', '-b', 'trunk', base);
+  put(touch, 'changed on trunk\n'); git('add', '-A'); git('commit', '-qm', 'trunk');
+  git('checkout', '-q', branch);
+  git('merge', '--no-ff', '-qm', 'merge main', 'trunk');
+  const merged = { commit: git('rev-parse', 'HEAD').trim(), tree: git('rev-parse', 'HEAD^{tree}').trim() };
+  const wanted = { tree: merged.tree, head: merged.commit, runner: RUNNER, files: ['test/one.test.js'], tooling: TOOLING, folder: repo.folder };
+  assert.equal(recordGreenRun(greenRun(built), { runner: RUNNER, files: ['test/one.test.js'], timingRunId: TIMING, folder: repo.folder }), true);
+  assert.equal(reusableGreenRun(wanted), null, 'the merged tree itself has no recorded run');
+  return { wanted, root: repo.root, merged, files };
+}
+
+test('clause 1: a main merge that changes no file the check imports keeps the earlier green run [C7]', t => {
+  const { wanted, root, merged } = mergedHead(t, 'docs/other.txt');
+  const reused = reusableProof(root, wanted);
+  assert.equal(reused?.isGreen, true);
+  assert.equal(reused.executionSource.commit, merged.commit, 'the run is rebound to the merged head');
+});
+
+test('clause 2: a main merge that touches the test file or anything it imports reruns the check [C7]', t => {
+  for (const touch of ['test/lib/helper.js', 'test/one.test.js']) {
+    const { wanted, root } = mergedHead(t, touch);
+    assert.equal(reusableProof(root, wanted), null, `${touch} is in the closure`);
+  }
 });

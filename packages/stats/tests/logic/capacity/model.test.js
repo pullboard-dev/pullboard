@@ -78,8 +78,7 @@ test('capacity distinguishes observed file collision waves and actual landing se
 });
 
 test('capacity preserves blocked graphs, missing fits and empty work as different states [R1,R2]', () => {
-  for (const rows of [[item(1, { after: [900] })], [item(1, { after: [2] }), item(2, { after: [1] })],
-    [item(1, { held: true })], [item(1, { needsYou: true })], [item(1, { files: [] })]]) {
+  for (const rows of [[item(1, { after: [900] })], [item(1, { after: [2] }), item(2, { after: [1] })]]) {
     const result = plan(rows);
     assert.equal(result.available, false);
     assert.equal(result.agents.recommended, null);
@@ -87,6 +86,14 @@ test('capacity preserves blocked graphs, missing fits and empty work as differen
     assert.ok(result.unknown.length);
     assert.doesNotThrow(() => JSON.stringify(result));
   }
+  for (const rows of [[item(1, { held: true }), item(2)], [item(1, { needsYou: true }), item(2)]]) {
+    const result = plan(rows);
+    assert.equal(result.available, true, 'a held or person-waiting item lowers supply instead of voiding the plan');
+    assert.equal(result.agents.recommended, 1);
+  }
+  const fileless = plan([item(1, { files: [] }), item(2, { files: [] }), item(3)]);
+  assert.equal(fileless.available, true, 'an item with no files joins no collision');
+  assert.ok(!fileless.unknown.some(text => /collision/u.test(text)));
   assert.deepEqual(plan([item(1, { needsYou: true })]).needsYou, [1]);
   const unknown = plan([item(1)], fit([]));
   assert.equal(unknown.available, false);
@@ -177,7 +184,7 @@ test('a submitted item that needs only its review keeps its forecast without a b
   assert.equal(reworked.tInfinityHours, null, 'with observed rejects a missing build sample still leaves the span unknown');
 });
 
-test('accepted work includes known typed landing-return repair labor but never invents failed gate time [R1,R2]', () => {
+test('accepted work includes known typed landing-return repair labor and a failed landing still yields a number [R1,R2]', () => {
   const rows = samples({ reject: true, wait: 0 });
   rows.push({ at: AT, kind: 'landingOutcome', route: 'strong', sourceCommit: 'b'.repeat(40), acceptEvent: 2, failed: true, cause: 'conflict' },
     { at: AT, kind: 'build', route: 'strong', attempt: 'conflict', hours: 10 },
@@ -185,17 +192,18 @@ test('accepted work includes known typed landing-return repair labor but never i
     { at: AT, kind: 'build', route: 'strong', attempt: 'reject', hours: 2 });
   const result = plan([item(1, { state: 'accepted', files: [] })], fit(rows));
   assert.equal(result.workHours, 14, 'p=.5 repeats a ten-hour first repair plus two review hours and two reject-repair hours; the first repair build is not repeated on every review reject');
-  assert.equal(result.available, false);
-  assert.equal(result.agents.recommended, null);
-  assert.equal(result.finishHours.upper, null);
-  assert.equal(result.monteCarlo.completed, 0);
-  assert.match(result.unknown.join('; '), /failed landing-cycle service is unmeasured/);
+  assert.equal(result.available, true, 'failed landings use the observed lander cycles, never an unconditional unknown');
+  assert.equal(result.agents.recommended, 0, 'accepted work needs no new agents');
+  assert.ok(!result.unknown.some(text => /unmeasured/u.test(text)), result.unknown.join('; '));
   const noGap = plan([item(1, { state: 'accepted', files: [] })], fit(rows.filter(row => !(row.kind === 'reworkGap' && row.attempt === 'conflict'))));
   assert.equal(noGap.workHours, 14, 'known labor does not turn an unknown idle gap into zero latency');
-  assert.match(noGap.unknown.join('; '), /conflict repair gap is missing/);
+  assert.ok(!/repair gap is missing/u.test(noGap.unknown.join('; ')), 'a cause gap falls back to the pooled route gap, so it cannot void the estimate');
   const noBuild = plan([item(1, { state: 'accepted', files: [] })], fit(rows.filter(row => !(row.kind === 'build' && row.attempt === 'conflict'))));
-  assert.equal(noBuild.workHours, null);
-  assert.match(noBuild.unknown.join('; '), /conflict repair build service is missing/);
+  assert.equal(noBuild.available, true, 'a cause with no repair-build sample repairs at the route build service instead of voiding the board');
+  assert.ok(Number.isFinite(noBuild.workHours));
+  const noAnyBuild = plan([item(1, { state: 'accepted', files: [] })], fit(rows.filter(row => row.kind !== 'build')));
+  assert.equal(noAnyBuild.workHours, null);
+  assert.match(noAnyBuild.unknown.join('; '), /repair build service is missing/);
 });
 
 test('accepted zero labor requires genuinely observed zero landing-return outcomes [R1,R2]', () => {
@@ -209,18 +217,16 @@ test('accepted zero labor requires genuinely observed zero landing-return outcom
 });
 
 
-test('malformed landing provenance cannot turn a known route into observed zero risk [R1,R2]', () => {
+test('malformed landing provenance is right-censored, never counted as an outcome [R1,R2]', () => {
   for (const invalid of [{ sourceCommit: 'not-a-commit' }, { acceptEvent: 0 }]) {
     const rows = [...samples(), { at: AT, kind: 'landingOutcome', route: 'strong',
       sourceCommit: 'b'.repeat(40), acceptEvent: 2, failed: false, cause: 'merged', ...invalid }];
     const fitted = fit(rows);
-    assert.equal(fitted.routes[0].landingRisk.probability, null);
+    assert.equal(fitted.routes[0].landingRisk.probability, 0, 'the rate counts only the classified outcomes');
     assert.equal(fitted.routes[0].landingRisk.unknown, 1);
     const result = plan([item(1, { state: 'accepted', files: [] })], fitted);
-    assert.equal(result.workHours, null);
-    assert.equal(result.agents.recommended, null);
-    assert.equal(result.finishHours.lower, null);
-    assert.equal(result.finishHours.upper, null);
-    assert.match(result.unknown.join('; '), /landing outcome coverage is missing or unclassified/);
+    assert.equal(result.available, true);
+    assert.equal(result.workHours, 0);
+    assert.ok(!result.unknown.some(text => /landing outcome coverage/u.test(text)), result.unknown.join('; '));
   }
 });

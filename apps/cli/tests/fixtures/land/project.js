@@ -1,4 +1,5 @@
 /** Shared real Git landing setup for independently scheduled suites [B3,R3]. */
+import { fixtureSwitchSource } from '../runner/switches.js';
 import assert from 'node:assert/strict';
 import {
   mkdirSync,
@@ -7,6 +8,10 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { runFixtureChildAsync } from '../child.js';
+import {
+  verifySettled,
+  verifySettledSync,
+} from '../submit/settle.js';
 import {
   fileFixtureItem,
   joinFixtureSeat,
@@ -26,14 +31,15 @@ function gateFixture(box) {
   writeFileSync(gate, [
     "const fs = require('node:fs'); const path = require('node:path');",
     `const calls = ${JSON.stringify(callPath)}; const hold = ${JSON.stringify(hold)}; const entered = ${JSON.stringify(entered)}; const release = ${JSON.stringify(release)}; const trace = ${JSON.stringify(trace)};`,
+    fixtureSwitchSource(box.env),
     "const root = process.cwd(); const args = process.argv.slice(2); fs.appendFileSync(calls, JSON.stringify(args) + '\\n');",
     "const alone = args.includes('--alone'); const web = path.join(root, 'web'); const files = alone ? args.filter(a => a !== '--alone') : (fs.existsSync(web) ? fs.readdirSync(web).filter(n => /^land-\\d+\\.test\\.js$/.test(n)).map(n => 'web/' + n) : []);",
     "fs.appendFileSync(trace, JSON.stringify({ alone, files }) + '\\n'); const fullRuns = fs.readFileSync(trace, 'utf8').trim().split('\\n').map(line => JSON.parse(line)).filter(row => !row.alone).length;",
     "if (!alone && fs.existsSync(hold) && (fs.readFileSync(hold, 'utf8') === 'armed' || Number(fs.readFileSync(hold, 'utf8')) === fullRuns)) { fs.writeFileSync(entered, root); const end = Date.now() + 20000; while (!fs.existsSync(release) && Date.now() < end) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20); if (!fs.existsSync(release)) process.exit(24); }",
-    "if (process.env.LAND_UNNAMED_RED === '1' && !alone && files.length > 1) { console.log('TAP version 13'); console.log('1..0'); process.exit(1); }",
+    "if (fixtureSwitch('LAND_UNNAMED_RED') === '1' && !alone && files.length > 1) { console.log('TAP version 13'); console.log('1..0'); process.exit(1); }",
     "console.log('TAP version 13'); let failed = 0;",
-    "files.forEach((file, i) => { const text = fs.readFileSync(path.resolve(root, file), 'utf8'); const red = process.env.LAND_SUPPRESS_RED !== '1' && (text.includes('RED') || !alone && text.includes('FLAKE')); const name = (/NAME:(\\S+)/.exec(text) || [])[1] || file + ' keeps the landed behavior'; console.log('# Subtest: ' + name); console.log((red ? 'not ok ' : 'ok ') + (i + 1) + ' - ' + name); if (red) { failed++; console.log('  ---'); console.log('  location: ' + path.resolve(root, file) + ':1:1'); console.log('  failureType: testCodeFailure'); console.log('  error: fixture behavior is red'); console.log('  ...'); } });",
-    "const cancelled = process.env.LAND_CANCEL === '1' && !alone && failed > 0 ? 1 : 0; if (cancelled) { console.log('# Subtest: cancelled fixture'); console.log('not ok ' + (files.length + 1) + ' - cancelled fixture'); console.log('  ---'); console.log('  location: ' + path.resolve(root, files[0]) + ':2:1'); console.log('  failureType: cancelledByParent'); console.log('  error: Promise resolution is still pending but the event loop has already resolved'); console.log('  ...'); }",
+    "files.forEach((file, i) => { const text = fs.readFileSync(path.resolve(root, file), 'utf8'); const red = fixtureSwitch('LAND_SUPPRESS_RED') !== '1' && (text.includes('RED') || !alone && text.includes('FLAKE')); const name = (/NAME:(\\S+)/.exec(text) || [])[1] || file + ' keeps the landed behavior'; console.log('# Subtest: ' + name); console.log((red ? 'not ok ' : 'ok ') + (i + 1) + ' - ' + name); if (red) { failed++; console.log('  ---'); console.log('  location: ' + path.resolve(root, file) + ':1:1'); console.log('  failureType: testCodeFailure'); console.log('  error: fixture behavior is red'); console.log('  ...'); } });",
+    "const cancelled = fixtureSwitch('LAND_CANCEL') === '1' && !alone && failed > 0 ? 1 : 0; if (cancelled) { console.log('# Subtest: cancelled fixture'); console.log('not ok ' + (files.length + 1) + ' - cancelled fixture'); console.log('  ---'); console.log('  location: ' + path.resolve(root, files[0]) + ':2:1'); console.log('  failureType: cancelledByParent'); console.log('  error: Promise resolution is still pending but the event loop has already resolved'); console.log('  ...'); }",
     "console.log('1..' + (files.length + cancelled)); console.log('# tests ' + (files.length + cancelled)); console.log('# pass ' + (files.length - failed)); console.log('# fail ' + failed); console.log('# cancelled ' + cancelled); process.exitCode = failed || cancelled ? 1 : 0;",
   ].join('\n'));
   writeFileSync(checks, "const fs = require('node:fs'); const file = process.argv[2]; if (!fs.existsSync(file) || !fs.readFileSync(file, 'utf8').trim()) process.exit(1);\n");
@@ -101,7 +107,7 @@ function acceptItem(box, entry) {
   entry.reviewedTrunk = box.git(box.repo, 'rev-parse', 'main');
   box.git(box.repo, 'switch', '-q', '--detach', entry.commit);
   try {
-    const verdict = box.run(box.repo, 'verify', String(entry.item), 'accept', '--as', 'coordinator', '--note', 'private landing fixture check passed');
+    const verdict = verifySettledSync(box, box.repo, ['verify', String(entry.item), 'accept', '--as', 'coordinator', '--note', 'private landing fixture check passed']);
     assert.equal(verdict.code, 0, verdict.err);
   } finally { box.git(box.repo, 'switch', '-q', 'main'); }
 }
@@ -131,7 +137,7 @@ async function acceptItemLocal(box, entry) {
   entry.reviewedTrunk = box.git(box.repo, 'rev-parse', 'main');
   box.git(box.repo, 'switch', '-q', '--detach', entry.commit);
   try {
-    const verdict = await box.runLocal(box.repo, 'verify', String(entry.item), 'accept', '--as', 'coordinator', '--note', 'private landing fixture check passed');
+    const verdict = await verifySettled(box, box.runLocal, box.repo, ['verify', String(entry.item), 'accept', '--as', 'coordinator', '--note', 'private landing fixture check passed']);
     assert.equal(verdict.code, 0, verdict.err);
   } finally { box.git(box.repo, 'switch', '-q', 'main'); }
 }
@@ -147,5 +153,15 @@ function moveMainPastSubmit(box, number = 0) {
   } finally { delete box.env.LAND_SUPPRESS_RED; }
 }
 
-  return { FILES, landProject, itemWorktree, submitItem, acceptItem, itemWorktreeLocal, commitItemLocal, submitItemLocal, acceptItemLocal, moveMainPastSubmit };
+/** Prepare four independent submitted items and accept them in a caller-selected verdict order. */
+function verifiedFour(box, { red, flaky, order = [0, 1, 2, 3] } = {}) {
+  box.env.LAND_SUPPRESS_RED = '1';
+  const entries = FILES.map((file, index) => itemWorktree(box, index + 1, file));
+  for (const [index, entry] of entries.entries()) submitItem(box, entry, index === red ? 'RED\n' : (Array.isArray(flaky) ? flaky.includes(index) : index === flaky) ? 'FLAKE\n' : 'PASS\n');
+  for (const index of order) acceptItem(box, entries[index]);
+  delete box.env.LAND_SUPPRESS_RED;
+  return entries;
+}
+
+  return { FILES, landProject, itemWorktree, submitItem, acceptItem, itemWorktreeLocal, commitItemLocal, submitItemLocal, acceptItemLocal, moveMainPastSubmit, verifiedFour };
 }

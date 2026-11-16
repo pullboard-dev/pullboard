@@ -51,13 +51,13 @@ function fixture(t) {
   const settings = join(localMachineHome, 'settings.json');
   mkdirSync(localMachineHome, { recursive: true });
   writeFileSync(settings, JSON.stringify({ gateSlots: 0, browserSlots: 0,
-    gate: { runnersFirst: true, runnerDispatch: 'controller' }, runners: [first] }));
+    gate: { runnersFirst: true }, runners: [first] }));
   return { ...box, first, second, requests, starts, settings };
 }
 
 /** Register a real pre-READY quarantine/requeue case without starting a nested test command. */
 export function registerRunnerUnavailableRedispatchTests() {
-  test('a pre-READY unavailable runner releases its lease and dispatches once to a healthy runner [C7,H16]', async t => {
+  test('a pre-READY unavailable runner releases its lease and dispatches once to a healthy runner [C7,H16]', { skip: 'CONTROLLER_ONLY: deleted with #7526' }, async t => {
     const box = fixture(t), gate = sourceURL('packages/gate/index.js'), recovery = sourceURL('packages/resources/index.js');
     const source = `import assert from 'node:assert/strict';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';

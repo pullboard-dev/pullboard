@@ -79,7 +79,7 @@ export function assertNewestMainRedRouting(t) {
 
 /** Exercise default next and next --take against an actually measured red private main. */
 export async function assertMainRedCLI(t, { fixture, cli }) {
-  const box = await fixture(t, { mainRed: true });
+  const box = await fixture(t, { mainRed: true, perSeat: 1 }); // 9cce05c94b: next tops a seat up to N claims; keep the board unchanged
   const old = box.add('Older half-built item', { specIds: ['G2'], brief: 'Files: web/older.js' });
   box.claim(old, box.seats.actor);
   const repair = box.add('Repair actual main failure', { brief: 'Files: web/repair.js' });

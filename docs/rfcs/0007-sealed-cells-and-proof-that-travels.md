@@ -27,8 +27,6 @@ The causes:
 - **Judgement and bookkeeping are mixed.** A cache write or an accounting step that fails after the tests can change what the gate reports.
 - **Nothing outlives its board.** A cell proven on one machine is proven again on the next, and again in every repo that copies it.
 
-Before-and-after numbers from the 0.9.4 cells moves go here when the case study has them.
-
 ## Constraints
 
 RFC 0006's K1–K10 (CD1–CD10) hold. In addition:
@@ -60,8 +58,6 @@ The rows below make A1–A6 checkable: what a receipt is, what its key is, when 
 - [SC5] The verdict is recorded before bookkeeping runs (caches, accounting, logs, flake notes), and bookkeeping can never change it.
 - [SC6] Only a red verdict returns an item to its builder; an infra verdict is retried by the job that produced it (RFC 0008).
 
-**As built.** `packages/receipt` on main holds `judge(collected)`, `verdictStep(judgement, receiptId)` and `settle(collected, receiptId, io)`, with `SECTIONS` and `OUTCOMES`. They implement SC2–SC5 as written. The gate's existing run receipts (`packages/gate/src/io/run/receipt.js`) record a tree, the command's digest, the result and the failed tests under the git directory; they are the result files a receipt judges until RFC 0008's runner result files replace them. Not built yet: the key and the reuse rule below.
-
 ### 1.3 The reuse key
 
 - [SC7] A receipt's key is three tree ids: the candidate's tree, the base's tree, and the tooling pin's tree. Commit ids, branch names, paths, hosts and processes are never part of a key.
@@ -71,7 +67,7 @@ The rows below make A1–A6 checkable: what a receipt is, what its key is, when 
 - [SC11] A receipt is reusable for a different base when the base moved only through changes that touch none of the cells the candidate's change reaches, computed from the import graph (A2). Landing then adds only the merge composition and the batch's journeys (A4).
 - [SC12] The reuse decision is a pure function of the receipt, the new composition and the import graph, recorded with its reason on the job that reused it.
 
-**Why.** Tree ids are content: two checkouts of the same tree on two machines name it the same way, and a sweep that deletes a folder cannot change what a key names. Pinning the tooling means a verdict depends on which tooling judged it, never on which seat asked. The `pin` cell on main provides `treeOf` and `pinFor(commit) → {tree, tooling}`; the per-landing tooling pin (`writeToolingPin`, `toolingPin`, `toolingFor`) is on item branch `core/item-3407`.
+**Why.** Tree ids are content: two checkouts of the same tree on two machines name it the same way, and a sweep that deletes a folder cannot change what a key names. Pinning the tooling means a verdict depends on which tooling judged it, never on which seat asked.
 
 ### 1.4 Seals
 

@@ -10,8 +10,8 @@ import {
   writeFileSync,
 } from 'node:fs';
 import {
+  isAbsolute,
   join,
-  resolve,
 } from 'node:path';
 import * as store from '../../../../../store/index.js';
 import { runnerBaseline } from '../baseline.js';
@@ -35,8 +35,7 @@ import {
 } from '../../../../../store/index.js';
 import { Refused } from '../../../../../kernel/index.js';
 import { mainPolicy } from '../../../../../sandbox/index.js';
-
-const WORKER = resolve(import.meta.dirname, '../../../../../../apps/lib/src/io/check/baseline.js');
+import { storeName } from '../../store-names.js';
 
 /** Resolve private completion storage beside this repository's shared board. */
 function locations(root) {
@@ -69,7 +68,7 @@ async function complete(root, receipt, io, services) {
 function saveReceipt(root, receipt) {
   const directory = locations(root).receipts;
   mkdirSync(directory, { recursive: true, mode: 0o700 });
-  const file = join(directory, `${receipt.expected.request}.json`);
+  const file = join(directory, storeName(receipt.expected.request));
   const temporary = `${file}.${process.pid}.tmp`;
   writeFileSync(temporary, JSON.stringify(receipt), { mode: 0o600 });
   renameSync(temporary, file);
@@ -94,13 +93,29 @@ export async function retryCheckBaselines(root, io, services) {
 }
 
 /**
+ * Record a pulled check-baseline job's result on its item, as the detached worker records a push runner's: the same
+ * baseline shape, the same stale-request guard and, when main's policy says so, the same hold on a green check [#6560].
+ *
+ * @param {{ gitRoot?: string, db: object }} board - The open board the job came from.
+ * @param {{ item: number, expected: { command: string, main: string, request: string }, run: { exitCode: number, output: string }, seconds: number }} result
+ * @returns {boolean} False when the item's request has moved on, so nothing was recorded.
+ */
+export function recordPulledBaseline(board, { item, expected, run, seconds }) {
+  const baseline = runnerBaseline(expected, run, seconds);
+  return store.completeCheckBaseline(board, item, { agentId: 'coordinator', expected, baseline,
+    ...(baseline.result === 'green' && board.gitRoot && holdsProvesNothing(board.gitRoot) ? { holdProvesNothing: true } : {}) });
+}
+
+/**
  * Start a detached child with independent streams so the caller exits while its check is running.
  * With `wait`, the child stays attached and the result is a promise that settles once the worker has
  * exited, so none of its writes (the result commit, the relay flush) can race the caller's next command.
+ * Why `worker`: the executable composes app services, so the app passes its path in and no package names an app.
  */
-export async function startCheckBaseline(root, id, baseline, { wait = false } = {}) {
+export async function startCheckBaseline(root, id, baseline, { wait = false, worker } = {}) {
   if (baseline?.result !== 'pending') return;
-  const child = spawn(process.execPath, [WORKER, root, String(id), baseline.request], {
+  if (typeof worker !== 'string' || !isAbsolute(worker)) throw new TypeError('the baseline worker is an app executable; the caller passes its absolute path');
+  const child = spawn(process.execPath, [worker, root, String(id), baseline.request], {
     cwd: root, env: gitChildEnv(root), detached: true, stdio: 'ignore',
   });
   const exited = new Promise(resolve => { child.once('exit', code => resolve({ exited: true, code })); child.once('error', () => resolve({ exited: true, code: null })); });
@@ -146,13 +161,30 @@ export async function measureBaseline(root, id, expected, services) {
     agent: 'coordinator', item: String(id), kind: 'check-baseline', pinnedSource: source });
 }
 
+/**
+ * The unavailable baseline for a measurement that threw, keeping the refusal code and the first line of its message.
+ * Why: a bare "could not run" hid the cause, so each one needed a debug commit to diagnose (#6232, #6105, #6187) [C7].
+ *
+ * @param {{ command: string, main: string }} expected
+ * @param {unknown} error
+ * @returns {{ command: string, main: string, result: 'unavailable', reason: string }}
+ */
+export function unavailableBaseline(expected, error) {
+  const code = typeof error?.code === 'string' && error.code ? error.code : '';
+  const raw = String(error?.message ?? error ?? '').split('\n')[0].trim();
+  const line = (code ? raw.replace(`[${code}] `, '') : raw).slice(0, 300);
+  const cause = [code, line].filter(Boolean).join(': ') || 'unknown error';
+  return { command: expected.command, main: expected.main, result: 'unavailable',
+    reason: `background check could not run: ${cause}; set --check again from the coordinator` };
+}
+
 /** Measure the captured main once, then seal its terminal result without overwriting a newer check. */
 export async function runCheckBaselineWorker(root, id, request, services) {
   const expected = withBoard(root, (board) => store.getItem(board, id).item_check_baseline, services);
   if (expected?.result !== 'pending' || expected.request !== request) return;
   let baseline;
   try { baseline = await measureBaseline(root, id, expected, services); }
-  catch { baseline = { command: expected.command, main: expected.main, result: 'unavailable', reason: 'background check could not run; set --check again from the coordinator' }; }
+  catch (error) { baseline = unavailableBaseline(expected, error); }
   // No runner took it: the baseline stays pending on the item; it is never run on this machine.
   if (baseline === null) return;
   const receipt = { id, expected, baseline };

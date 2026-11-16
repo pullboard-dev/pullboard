@@ -9,8 +9,11 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../../gate/tests/fixtures/child.js';
+import { DEFAULT_TEST_FILE_BUDGET_MS } from '../../../../../gate/index.js';
 import { readTestFileBudgets } from '../../../../../gate/index.js';
+import { requireTestFileRatchet } from '../../../../../gate/index.js';
+import { testFileBudgetFailure } from '../../../../../gate/index.js';
 import { testFileBudgetPath } from '../../../../../gate/index.js';
 import { writePlacementIndex } from '../../../../../gate/index.js';
 import { indexedStageSelection } from '../../../../../gate/index.js';
@@ -42,7 +45,7 @@ function fixture(t) {
   git(main, 'add', '-A'); git(main, 'commit', '-qm', 'fixture main');
   git(main, 'worktree', 'add', '-qb', 'candidate', candidate);
   const run = (cwd = candidate, files = ['slow.test.js', 'later.test.js'], flags = []) => runFixtureChild(process.execPath, [runner, ...flags, ...files], {
-    cwd, env: { ...process.env, PULLBOARD_MACHINE_HOME: join(directory, 'machine') }, encoding: 'utf8', detached: true,
+    cwd, env: { ...process.env, PULLBOARD_MACHINE_HOME: join(directory, 'machine'), PULLBOARD_TEST_NO_FILE_LIMIT: '' }, encoding: 'utf8', detached: true,
   });
   return { main, candidate, git, path, run };
 }
@@ -125,4 +128,22 @@ test('a candidate cannot loosen or remove an accepted file limit [C7]', t => {
   writeFileSync(join(box.candidate, box.path), JSON.stringify({ version: 1, file: 'slow.test.js' }));
   box.git(box.candidate, 'add', box.path); box.git(box.candidate, 'commit', '-qm', 'malformed');
   assert.throws(() => readTestFileBudgets(box.candidate, ['slow.test.js']), /invalid test file budget row/u);
+});
+
+test('the default test file budget is 120 s [C7]', () => {
+  assert.equal(DEFAULT_TEST_FILE_BUDGET_MS, 120000);
+});
+
+test('a file with no recorded row that runs 121 s fails its gate naming the file and the split [C7]', t => {
+  const box = fixture(t);
+  assert.equal(readTestFileBudgets(box.candidate, ['later.test.js']).get('later.test.js').ms, 120000, 'an unrecorded file gets the default');
+  const message = testFileBudgetFailure('later.test.js', 121000, DEFAULT_TEST_FILE_BUDGET_MS);
+  assert.match(message, /later\.test\.js took 121000ms, over its 120000ms test file budget; split it/u);
+  assert.equal(testFileBudgetFailure('later.test.js', 120000, DEFAULT_TEST_FILE_BUDGET_MS), null, 'exactly the budget passes');
+});
+
+test('a recorded row stays the limit and can only go down [C7]', () => {
+  assert.equal(testFileBudgetFailure('slow.test.js', 5000, 1000)?.includes('over its 1000ms'), true, 'the row, not the default, is the limit');
+  assert.equal(requireTestFileRatchet('slow.test.js', 500000, 400000), 400000);
+  assert.throws(() => requireTestFileRatchet('slow.test.js', 400000, 500000), /may not increase from 400000ms to 500000ms/u);
 });

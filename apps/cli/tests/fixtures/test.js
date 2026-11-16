@@ -15,8 +15,7 @@ import {
   resolve,
 } from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { awaitNestedRun } from '../../../../packages/gate/index.js';
-import { runFixtureChildAsync } from './child.js';
+import { runCliInProcess } from './process.js';
 import {
   HOST,
   installSshStandIn,
@@ -47,12 +46,12 @@ function cpuLoadShell(e2e, commonjs, stage) {
   const remoteMachineHome = join(remoteHome, '.pullboard');
   const requests = join(box.dir, 'ssh-requests.jsonl');
   for (const path of [bin, join(box.dir, 'worker'), remoteMachineHome, join(box.repo, 'test')]) mkdirSync(path, { recursive: true });
-  const runtimeFiles = copyFixtureRunner(SOURCE, box.repo);
+  const runtimeFiles = copyFixtureRunner(SOURCE, box.repo, ['apps/runner/src/io/controller.js']);
   writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ name: 'pullboard', version: '1.0.0', type: 'module', files: runtimeFiles.filter(file => file !== 'package.json') }) + '\n');
   const standIn = { bin, worker: join(box.dir, 'worker'), home: remoteHome, machineHome: remoteMachineHome, nodeCommand: process.execPath };
   installSshStandIn({ ...standIn, requests });
   // The ordinary CLI registers its runner through this stand-in ssh, so it leads the box's own PATH; it starts with env node,
-  // which a vanilla runner's PATH lacks, so the current node's folder follows it.
+  // which a bare runner's PATH lacks, so the current node's folder follows it.
   box.env.PATH = `${bin}:${dirname(process.execPath)}:${box.env.PATH}`;
   const env = { ...box.env };
   for (const key of Object.keys(env)) if (/^PULLBOARD_(GATE|BROWSER|TEST|LANDING)_/u.test(key) || key === 'NODE_OPTIONS' || key === 'NODE_TEST_CONTEXT') delete env[key];
@@ -115,7 +114,6 @@ ${subtest ? '});' : ''}
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: commit declared CPU placement probe');
   stage('source-committed');
-  const cli = join(SOURCE, 'apps/cli/pullboard.js');
   return {
     ...box, env, requests, remoteHome, remoteMachineHome, command,
     /** Count real completed SSH requests without treating a configured host as execution proof. */
@@ -131,8 +129,7 @@ ${subtest ? '});' : ''}
     async runGate() {
       stage('gate-start');
       rmSync(join(box.repo, '.git', 'pullboard-gate.log'), { force: true }); // an earlier case's log must not answer for this gate
-      const result = await awaitNestedRun(runFixtureChildAsync(process.execPath, [cli, 'gate', '--landing', '--json'],
-        { cwd: box.repo, env, encoding: 'utf8' }));
+      const result = await runCliInProcess(['gate', '--landing', '--json'], { cwd: box.repo, env });
       stage('gate-returned');
       const log = readFileSync(join(box.repo, '.git', 'pullboard-gate.log'), 'utf8');
       if (result.status !== 0) console.error('CPU placement gate output:', result.stdout, '\nGate log:', log);

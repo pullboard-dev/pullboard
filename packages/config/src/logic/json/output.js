@@ -2,6 +2,29 @@
 /** The coordinator carries every seat's request for a person decision [B26]. */
 export const COORDINATOR_PERSON_REQUEST = 'ask the coordinator to bring it to the person: pullboard shout coordinator --kind question "<what is needed>" --decision';
 
+/** What the person reads when a refusal's own words carry a command, code, token or relay term. */
+export const PERSON_PLAIN_STEP = 'your coordinator will sort this out; nothing needs you right now';
+
+/** A step that opens with this is a command for the person's own terminal; it is the step, not a leak. */
+export const PERSON_RUNS = 'in your own terminal, run: ';
+
+/** Internals the person never sees (H23): a shell command line, a token or key, a relay term. */
+const PERSON_LEAK = /(?:^|[\s`$(/])(?:\$ ?)?(?:pullboard|node|git|npm|npx|sh|bash)\s+[-\w./<]|\b(?:sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|Bearer\s+[A-Za-z0-9._~+/=-]{16,}|[A-Fa-f0-9]{40,}|[A-Za-z0-9+/_-]{32,}={0,2})\b|\b(?:checkpoints?|outbox(?:es)?|digests?|leases?)\b/iu;
+
+/**
+ * Keep the person's refusal line free of codes, commands, tokens and relay terms; seats and the coordinator keep full text.
+ * Why: the person never needs to know how Pullboard works, so a leaking line becomes one plain sentence (H23).
+ *
+ * @param {string} text
+ * @param {{ caller?: 'seat'|'coordinator'|'person'|'unknown' }} [options]
+ * @returns {string}
+ */
+export function personPlainText(text, { caller } = {}) {
+  if (caller !== 'person') return text;
+  const plain = String(text).split('\n').map(line => line.replace(/\[[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\]\s*/gu, '')).filter(line => line.startsWith(PERSON_RUNS) || !PERSON_LEAK.test(line)).join('\n').trim();
+  return plain || PERSON_PLAIN_STEP;
+}
+
 /**
  * Route presentation-only person requests for a known seat; unknown callers retain existing text.
  * This does not change a refusal receipt, actor identity or permission to make the person's move.
@@ -11,6 +34,7 @@ export const COORDINATOR_PERSON_REQUEST = 'ask the coordinator to bring it to th
  * @returns {string}
  */
 export function personRequestStep(step, { caller } = {}) {
+  if (caller === 'person') return personPlainText(step, { caller });
   return caller === 'seat' && /\bask the person\b/iu.test(step) ? COORDINATOR_PERSON_REQUEST : step;
 }
 
@@ -36,6 +60,7 @@ function quotedAt(text, at) {
  * @returns {string}
  */
 export function personRequestGuidance(message, { caller, leading = false } = {}) {
+  if (caller === 'person') return personPlainText(message, { caller });
   if (caller !== 'seat') return message;
   const lines = String(message).split('\n');
   /** Route only an unquoted imperative, preserving clauses that explain the refusal. */
@@ -233,7 +258,9 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
       const focusedIdle = guidanceCommand === 'next' && result?.idleReason === 'focus'
         && result.reasons?.length === 1 && result.reasons[0].endsWith('overflow is off.');
       const cleanDoctor = command === 'doctor' && lastLine === 'board is clean' && !withheld;
-      if (!code && !refusal && finalAction && !focusedIdle && !cleanDoctor) {
+      // An empty inbox is one line: the footer would repeat the only thing a reader with no mail can do [C7,#8520].
+      const emptyInbox = command === 'inbox' && lastLine === 'no new shouts or activity' && !withheld;
+      if (!code && !refusal && finalAction && !focusedIdle && !cleanDoctor && !emptyInbox) {
         const action = explicitNext ?? withheldNext?.replace(/^next:[ \t]*/u, '') ?? successfulNext(guidanceCommand, result);
         const footer = cutLine(`next: ${action.replace(/[\r\n]+/gu, ' ')}`);
         if (lastLine?.toLowerCase() !== footer.toLowerCase()
@@ -245,7 +272,11 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
     if (!enabled || written) return;
     written = true;
     // A command that wrote its whole document itself owns stdout: a second, empty envelope would break parsers.
-    if (streamed && !refusal && !code && result === undefined && !messages.length && !diagnostics.length && !remote) return;
+    // Its diagnostics go to stderr, so `--json` stdout stays one document a parser can read [C7].
+    if (streamed && !refusal && !code && result === undefined && !messages.length && !remote) {
+      for (const line of diagnostics) streams.stderr.write(`${line}\n`);
+      return;
+    }
     let document;
     if (refusal || (code && result === undefined)) {
       const text = refusal?.message ?? [...diagnostics, ...messages].join('\n');

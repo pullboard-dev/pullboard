@@ -7,11 +7,11 @@ import { effectiveRunners } from '../../../../../packages/runners/index.js';
 import { shellWord } from '../../../../../packages/runners/index.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { trunkRemote } from '../../../../../packages/config/index.js';
+import { moveAcross } from '../../../../../packages/config/index.js';
 import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,6 +19,10 @@ import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runnerPhaseFields } from '../../../../../packages/gate/index.js';
+import { replayChangedTables } from '../../../../../packages/gate/index.js';
+import { replayReport } from '../../../../../packages/moves/index.js';
+import { boardFilePath } from '../../../../../packages/store/index.js';
+import { repoInfo } from '../../../../../packages/git/index.js';
 import { git } from '../../../../../packages/git/index.js';
 import { gitPath } from '../../../../../packages/git/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
@@ -34,11 +38,15 @@ const RESULT = 'PULLBOARD_TRUSTED_RESULT ';
  * Why: the runner's checkout is the candidate; its files are data the trusted entry reads, never code it loads.
  */
 export const BOOTSTRAP = `import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { symlinkSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 const request = JSON.parse(Buffer.from(ENCODED, 'base64').toString('utf8'));
 const root = process.cwd();
@@ -52,16 +60,25 @@ const run = (command, args, options = {}) => {
 const git = (...args) => run('git', ['--no-replace-objects', ...args]);
 const objects = git('rev-parse', '--path-format=absolute', '--git-path', 'objects').toString().trim();
 if (!objects || /[\\r\\n]/u.test(objects)) throw new Error('invalid object directory');
-const directory = mkdtempSync(join(tmpdir(), 'pullboard-trusted-main-'));
+// A named scratch root (PULLBOARD_SCRATCH) holds throwaway folders; unset keeps the OS temp root.
+const named = process.env.PULLBOARD_SCRATCH;
+const directory = mkdtempSync(join(named && isAbsolute(named) && existsSync(named) ? named : tmpdir(), 'pullboard-trusted-main-'));
 let status = 1;
 try {
   const metadata = join(directory, '.objects');
   git('init', '--quiet', '--bare', metadata);
   writeFileSync(join(metadata, 'objects/info/alternates'), objects + '\\n', { flag: 'wx' });
-  mkdirSync(join(metadata, 'info'), { recursive: true });
-  writeFileSync(join(metadata, 'info/attributes'), '* -text -filter -ident -export-subst -export-ignore\\n', { flag: 'wx' });
-  const archive = git('--git-dir', metadata, '-c', 'core.autocrlf=false', '-c', 'core.attributesFile=/dev/null', 'archive', '--format=tar', request.main);
-  run('tar', ['-xf', '-', '-C', directory], { input: archive });
+  // A project whose main is not Pullboard's own tree (no packages/items) is judged by the runner's installed Pullboard, never by its own code (#6265).
+  if (spawnSync('git', ['--no-replace-objects', '--git-dir', metadata, 'cat-file', '-e', request.main + ':packages/items/index.js'], { cwd: root, env }).status !== 0) {
+    const installed = env.PULLBOARD_RUNNER_TOOLS;
+    if (!installed || !existsSync(join(installed, 'packages/items/index.js'))) throw new Error('trusted tooling missing: main has no packages/items and this runner names no installed Pullboard');
+    for (const name of readdirSync(installed)) if (!name.startsWith('.')) symlinkSync(join(installed, name), join(directory, name));
+  } else {
+    mkdirSync(join(metadata, 'info'), { recursive: true });
+    writeFileSync(join(metadata, 'info/attributes'), '* -text -filter -ident -export-subst -export-ignore\\n', { flag: 'wx' });
+    const archive = git('--git-dir', metadata, '-c', 'core.autocrlf=false', '-c', 'core.attributesFile=/dev/null', 'archive', '--format=tar', request.main);
+    run('tar', ['-xf', '-', '-C', directory], { input: archive });
+  }
   const entry = join(directory, 'pullboard-trusted-entry.mjs');
   writeFileSync(entry, request.entry, { flag: 'wx', mode: 0o600 });
   // The step's stderr is its own pipe, replayed after its result line is whole, so a warning can never land inside a large result.
@@ -124,7 +141,7 @@ const trusted = command => command.split(/(\\s+)/u).map(word => /^[\\w./-]+\\.[c
 try {
   const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout?.trim();
   if (head !== input.source) throw refuse('RUNNER_SOURCE', 'the runner checkout is not the queued candidate; resubmit the captured source');
-  for (const name of ['requirePlannedSource', 'requireSubmitComposition']) if (typeof items[name] !== 'function') throw refuse('RUNNER_TOOLING_FILES', 'accepted main lacks ' + name);
+  for (const name of ['requireSubmitComposition']) if (typeof items[name] !== 'function') throw refuse('RUNNER_TOOLING_FILES', 'accepted main lacks ' + name);
   if (typeof cells.requireSubmitCells !== 'function' || typeof gate.submitGatePlan !== 'function') throw refuse('RUNNER_TOOLING_FILES', 'accepted main lacks the submit cells or selection tooling');
   // The change against main, read once: static and doctrine judge only its paths, and a green part is kept per head [5814].
   const change = typeof gate.analysisChange === 'function' ? gate.analysisChange(root, input.main, input.source) : null;
@@ -180,7 +197,6 @@ try {
       else result.authorization = { skipped: String(error?.message ?? error).slice(0, 2000) };
     }
   }));
-  if (selected('preflight')) await part('preflight', () => step('placement', () => items.requirePlannedSource(root, input.trunk, input.source, { deferUnplaced: true })));
   // Static checks run in their own process; per part they overlap cells and selection, else a red still ends the analysis first (#3916).
   // They are handed the changed paths when no whole-repo input changed, and a green run is kept for this head [5814].
   const staticKey = input.staticChecks ? keyOf('static', input.staticChecks, change?.raw) : null, staticKept = staticKey ? gate.readAnalysisMemo(staticKey) : null;
@@ -221,6 +237,8 @@ try {
     readCutItems: () => input.cutRows,
     onInventory: (mode, cause) => result.notes.push('submit cells inventory: ' + mode + (cause ? ': ' + cause : '')),
     onAllCells: file => result.notes.push('submit cells: checking all cells because shared policy or root-tool file changed: ' + file) })));
+  // The cells advisories ride in the receipt's notes, the one place a pulled gate can tell the submitter about them.
+  for (const line of result.cells?.warnings ?? []) result.notes.unshift(line);
   if (selected('selection')) await part('selection', async () => {
     result.plan = await step('selection', () => gate.submitGatePlan(root, input.config, { base: input.base, trunk: input.main, check: input.check, commit: input.source, crossRunTests: input.crossRunTests ?? [] }));
     if (typeof gate.submitGateAdmission === 'function') result.admission = await step('admission', () => gate.submitGateAdmission(root, result.plan,
@@ -279,6 +297,29 @@ export function trustedStepCommand({ main, entry, data, node = 'node' }) {
 }
 
 /**
+ * The Error line and first trusted-main frame of a pinned step that died on an uncaught exception, or null.
+ * Only an authenticated receipt counts: a non-zero exit with no signal or timeout, output matching its hash, no result line, and a stack frame inside the extracted main archive.
+ * Why: the exception is a defect in main's tooling, not machinery; retrying it as infrastructure repeats the same crash [C7].
+ */
+function toolingCrash(result, receipt, phase, { runner, source, tree }) {
+  if (result.executionRunner !== runner || result.executionSource?.commit !== source || result.executionSource?.tree !== tree
+    || receipt?.sourceUnchanged !== true || receipt.problem || !phase || phase.offset !== 0 || typeof phase.code !== 'number' || phase.code === 0
+    || phase.signal || phase.timedOut || !Number.isSafeInteger(phase.length) || phase.length < 0 || phase.length > 64 * 1024 * 1024) return null;
+  let raw;
+  try { raw = readFileSync(result.rawOutputPath); } catch { return null; }
+  if (raw.length !== phase.length || createHash('sha256').update(raw).digest('hex') !== phase.sha256) return null;
+  const text = `${raw.toString('utf8')}\n${String(result.stderr ?? '')}`;
+  if (text.split(/\r?\n/u).some(line => line.startsWith(RESULT))) return null;
+  const lines = text.split(/\r?\n/u);
+  const at = lines.findIndex(line => /^\s*at .*pullboard-trusted-main-/u.test(line));
+  if (at < 0) return null;
+  const error = lines.slice(0, at).reverse().find(line => /^(?:[A-Za-z]*Error|TypeError|ReferenceError|SyntaxError)\b.*:/u.test(line.trim()) || /^\w*Error\b/u.test(line.trim()));
+  if (!error) return null;
+  const marker = lines[at].match(/pullboard-trusted-main-[^/\\]*[/\\]([^)\s]*)/u);
+  return { error: error.trim().slice(0, 300), frame: (marker ? marker[1] : lines[at].trim()).slice(0, 300) };
+}
+
+/**
  * Run one trusted step on the admitted runner and accept only a complete result bound to its source and policy.
  * The private-check receipt hashes the exact request and output; any mismatch refuses rather than trusting bytes.
  */
@@ -314,6 +355,8 @@ export async function trustedRunnerStep(root, { main, source, stage, entry, data
     || receipt.sourceUnchanged !== true || receipt.problem || !phase || phase.offset !== 0
     || phase.code !== 0 || phase.signal || phase.timedOut || !Number.isSafeInteger(phase.length)
     || phase.length < 0 || phase.length > 64 * 1024 * 1024 || statSync(result.rawOutputPath).size !== phase.length) {
+    const crash = toolingCrash(result, receipt, phase, { runner: lease.runner.host, source, tree: checkedSource.tree });
+    if (crash) throw new Refused('RUNNER_TOOLING_CRASH', `the pinned ${stage} tooling crashed on the runner with ${crash.error}${crash.frame ? ` at ${crash.frame}` : ''}; the same main will crash again, so shout the coordinator with this line; kept in ${directory}${stderrNote(kept)}`);
     throw new Refused('RUNNER_RESULT_INVALID', `the remote ${stage} step did not return a complete pinned result; read ${directory}${stderrNote(kept)} and submit again`);
   }
   const bytes = readFileSync(result.rawOutputPath);
@@ -342,7 +385,7 @@ function runningToolingId() {
  * @returns {string}
  */
 export function analysisResultFile(artifactDirectory, { main, source, parts, tooling = runningToolingId() }) {
-  return join(artifactDirectory, 'results', `${parts ? parts.join('+') : 'all'}-${main}-${source}-${tooling}.json`);
+  return join(artifactDirectory, 'results', [parts ? parts.join('+') : 'all', main, source, tooling].join('-') + '.json');
 }
 
 /**
@@ -417,7 +460,7 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
       mkdirSync(dirname(resultFile), { recursive: true, mode: 0o700 });
       const pending = `${resultFile}.${process.pid}.tmp`;
       writeFileSync(pending, JSON.stringify({ version: 1, main, source, tooling: request.tooling ?? runningToolingId(), cuts: cutKey, value, directory, sha256, runner: lease.runner.host }) + '\n', { mode: 0o600 });
-      renameSync(pending, resultFile);
+      moveAcross(pending, resultFile);
     } catch { /* a result that cannot be recorded only means the next attempt runs the part again */ }
   }
   return { ...value, directory, sha256, runner: lease.runner.host };
@@ -492,9 +535,24 @@ export async function gateWithRunnerPlan(remoteMode, selection, pinned, runGate,
   catch (error) { early?.abort(); throw error; }
 }
 
+/**
+ * The submit gate's move-table replay, wired to this repository's board as the lander's source advance wires it.
+ * Why: the gate runs it only when gate.tableReplay is on and the diff changes a move table, so a submit is held to what the board recorded [C7,#8117].
+ *
+ * @param {string} root - The repository whose board holds the recorded moves.
+ * @param {typeof replayReport} [replay] - The moves cell's report; a test hands in its own.
+ * @returns {({ root, changed }: { root: string, changed?: string[] }) => Promise<object[]>}
+ */
+export function submitTableReplay(root, replay = replayReport) {
+  return ({ root: tree, changed }) => replayChangedTables(tree, { changed, replay, boardFile: boardFilePath(repoInfo(root).commonDir) });
+}
+
+/** The runner app's timed-shell entry, handed to the gate because the gate package names no app path [C7]. */
+const TIMED_SHELL = fileURLToPath(new URL('../../../../runner/src/io/shell.js', import.meta.url));
+
 /** Pass the runner's accepted selection into the controller's gate entry point without replanning locally. */
 export function runSubmitGateWithRunnerPlan(runSubmitGate, root, config, runnerPlan, options) {
-  return runSubmitGate(root, config, { ...options, ...runnerPlan });
+  return runSubmitGate(root, config, { tableReplay: submitTableReplay(root), timedShell: TIMED_SHELL, ...options, ...runnerPlan });
 }
 
 /** Sum sequential worker intervals only when every attempted run has complete measurements. */

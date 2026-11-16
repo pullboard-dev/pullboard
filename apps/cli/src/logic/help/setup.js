@@ -18,7 +18,7 @@ export const setupHelp = `Set up
   pullboard resources                  local resource holders and their FIFO queues
   pullboard settings line [<name> <value> --reason "why" --window <json>]  read or record board controller inputs; all off by default
       value is on, off, or a number within the setting range
-                                        names: order, reviewsFirst, wipPerReviewer (1.5-3), barReady, bar.check, takeoverMinutes (15-60), collisionFreeBatch, landingBatchSize (1-8), landingCadenceMinutes (5-30), route.liveOnly, route.liveOnly
+                                        names: order, reviewsFirst, wipPerReviewer (1.5-3), barReady, bar.check, bar.dryRunReview, takeoverMinutes (15-60), collisionFreeBatch, landingBatchSize (1-8), landingCadenceMinutes (5-30), route.liveOnly, route.liveOnly
   pullboard settings [gateSlots <n> | browserSlots <n> | gate.runnersFirst on|off]  view or set machine gate policy and capacity (gate default 2; browser default 1)
                                         browser-free check slots are opt-in: gate.browserFreeChecks in ~/.pullboard/settings.json (default false)
                                         a test file takes a browser slot only if it launches Chrome: gate.browserByLaunch (default false)
@@ -36,10 +36,12 @@ export const setupHelp = `Set up
                                         register SSH test capacity; no runner sign-in; root defaults to ~/.pullboard-runner
                                         measures the runner's cores and memory; --slots declares a fixed count that always wins
   pullboard runner measure [<ssh-host>]  re-measure cores and memory on the runner itself (run it again after a hardware change)
+  pullboard runner key issue <runner>   issue a pull runner its own key; the private half is shown once
+  pullboard runner key revoke <runner>  revoke a runner's key; it stays refused after a board restart
   pullboard runner drain <ssh-host>     take a runner out of rotation: no new job, running jobs finish; undrain returns it
   pullboard runner list                 each runner's slots and browsers, measured cores and memory, and the slots the formula gives
   pullboard runner serve <board-url>    pull jobs from a board over HTTPS and fetch code from its trunk remote; no ssh in
-  pullboard runner install-serve <ssh-host> --board <board-url> [--key <key>] | --remove
+  pullboard runner install-serve <ssh-host> --remove | --board <board-url> [--key <key>]
                                         run runner serve on that runner as a login service that restarts on exit
   pullboard runner local [--off]        this machine's own runner on loopback; a pull submit starts it, --off stops it
   pullboard view [--project] [--port N] [--no-open]  every project on this machine in your browser; default http://127.0.0.1:${DEFAULT_VIEW_PORT}
@@ -49,8 +51,8 @@ export const setupHelp = `Set up
                                         add items, shout and hold lanes from it
   pullboard view --export <dir> [--public]  a read-only snapshot with event replay, for any static host
                                         --public requires a checked public filter
-  pullboard serve [--port N] [--address <ipv4>]  local API v1: boards, state, moves, requests and live events,
-                                        behind the session secret in its printed address
+  pullboard serve [--port N] [--address <ipv4>]  the board API v1 (JSON, no page): boards, state, moves, requests and live events,
+                                        behind the session secret in its printed address; for the page, run pullboard view
                                         serve.address and serve.port in ~/.pullboard/settings.json listen for runners with the board key (default loopback)
   pullboard mcp                        MCP tools over stdio for this worktree's agent, started by its MCP client:
                                         board status, show, shout and capture an idea; a person's move is refused
@@ -68,10 +70,13 @@ export const setupHelp = `Set up
                                         approve on another paired phone, or sign in again with GitHub
   pullboard relay tokens                list this board's agent token ids, agents and expiry, never credentials
   pullboard relay revoke <token-id>     revoke one token from that list; other agents keep working
+  pullboard relay recover  person-only: resolve every move the relay refused for good, in place, under the same board id
   pullboard relay recover --skip <sequence>  person-only recovery of one blocked next relay position
   pullboard handoff [--take <id>]        write or take an agent hand-off; keep questions on its item
+                                        agent worktrees only; a coordinator's hand-off is its resume card
   pullboard resume [--diagnostics]      where you are: your claim, branch, what came back,
                                         unread shouts, what to do next; run it to start any session
+                                        --diagnostics adds git checks and verified-not-merged work (merges cleanly, conflicts, claimed for integration)
   pullboard badge                       write board-derived Shields endpoint JSON to docs/badges/
   pullboard hooks [uninstall]           install Git hooks and agent nudges; uninstall removes only Pullboard's agent nudges
   pullboard hook SessionStart|Stop|SessionEnd     native agent nudges; errors/timeouts warn and never block

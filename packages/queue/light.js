@@ -2,3 +2,6 @@
 export { LINE_SETTING_DEFINITIONS, validateKnownLineSetting } from './src/logic/definitions.js';
 export * from './src/logic/order.js';
 export * from './src/logic/settings.js';
+export { labelDeclarationProblems } from './src/logic/labels.js';
+/** The routing capacity a status read prints [C7,#8646]. */
+export { routingCapacity } from './src/logic/capacity.js';

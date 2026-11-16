@@ -39,6 +39,3 @@ export function lineBuildOrder({ agentId, release, rank, items, ready = () => fa
     || Number(ready(second)) - Number(ready(first))
     || rank(first) - rank(second) || fallback(first, second);
 }
-
-/** Signed bar readiness is deliberately inert until #1110 supplies its authoritative predicate; no records are inferred. */
-export function barReadyForOrder(_board, _item) { return false; }

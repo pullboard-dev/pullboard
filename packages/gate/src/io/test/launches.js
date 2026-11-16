@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 /** CLI launches in tests (journeys most) are a ceiling that only falls: convert to runCliInProcess, never add a process [C7]. */
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { blobOid } from '../static/cache.js';
 import { lex } from '../scan.js';
@@ -14,6 +16,14 @@ import { walk } from '../scan.js';
 const BASELINE_URL = new URL('../../../data/baselines/cli-launches.json', import.meta.url);
 const JOURNEY = /^(?:apps|packages)\/.*\.test\.[cm]?js$/u; // every test file, journeys included; the fixture kit that holds the one spawn seam is not a test file
 const MESSAGE = 'launches the CLI or a node child process; call runCliInProcess or captureCommandInProcess from apps/cli/tests/fixtures/process.js';
+/**
+ * The same advice for a test inside a packages/ cell. apps/cli/tests/fixtures/process.js is a CLI entry in another cell, so the
+ * cross-cell import rule refuses it there; the fix that passes is a helper in the cell's own tests/fixtures/ folder.
+ */
+function messageFor(path) {
+  const cell = /^packages\/([^/]+)\/tests\//u.exec(path)?.[1];
+  return cell ? `launches the CLI or a node child process; run the work in this process with a helper in packages/${cell}/tests/fixtures/ (a cell test may import its own cell, not apps/cli/tests/fixtures/process.js)` : MESSAGE;
+}
 /** Direct child-process calls; a launch only when the call names node or the CLI entry (git, sh and tar calls are not). */
 const SPAWN = /(?<![\w$])(?:(?:[\w$]+\s*\.\s*)?(?:spawnSync|execFileSync|execFile|execSync|spawn|fork)|runFixtureChild|runFixtureChildAsync|startFixtureChild|runFixtureExecFile|runFixtureExec)\s*\(/gu;
 /** Node or the CLI named in the call's text: a `node` string or the CLI entry file. */
@@ -26,7 +36,7 @@ const CLI_NAME = /pullboard(?:Bin|Cli|Entry)|\b(?:BIN|CLI|CLI_ENTRY|ENTRY|cli|bi
 /** Any call on a box (`box` is the kit's own name); the member counts only when its helper starts a process. */
 const BOX_CALL = /(?<![\w$.])box\s*\.\s*([\w$]+)\s*\(/gu;
 /** The kit box members that run the CLI as a child process (apps/cli/tests/fixtures/e2e.js), for a box the test file does not build itself. */
-const KIT_LAUNCH = new Set(['run', 'runAs', 'cli', 'cliAt', 'runGate', 'launch']);
+const KIT_LAUNCH = new Set(['run', 'runAs', 'cli', 'cliAt', 'launch']);
 /** A bare call of a name, not a member call; the name is the helper a local closure may define. */
 const BARE_CALL = /(?<![\w$.])([\w$]+)\s*\(/gu;
 
@@ -54,7 +64,7 @@ export function cliLaunchSites(source, path) {
   const { code } = lex(source);
   const found = [];
   /** Record one site at an offset of the source. */
-  const add = (at, target) => found.push({ path, line: lineAt(source, at), kind: 'launch', target, text: MESSAGE });
+  const add = (at, target) => found.push({ path, line: lineAt(source, at), kind: 'launch', target, text: messageFor(path) });
   for (const at of spawnSites(source, code, 0, code.length)) {
     const open = code.indexOf('(', at);
     const close = closingAt(code, open);
@@ -218,8 +228,8 @@ function launchReach(source, code) {
 }
 
 /** Inspect every test file as text; `cache` keeps a file's sites by blob. */
-export function cliLaunchReport(root, { cache = null } = {}) {
-  return walk(root, JOURNEY).flatMap(path => {
+export function cliLaunchReport(root, { cache = null, only = null } = {}) {
+  return (only ? only.filter(path => JOURNEY.test(path) && existsSync(join(root, path))).sort() : walk(root, JOURNEY)).flatMap(path => {
     const text = readText(root, path);
     return cache ? cache.get(path, blobOid(text), () => cliLaunchSites(text, path)) : cliLaunchSites(text, path);
   });
@@ -263,11 +273,17 @@ export function cliLaunchGrowth(problems, baseline) {
   });
 }
 
-/** The updater only lowers ceilings: it refuses before writing when any file has grown. */
+/**
+ * The updater only lowers ceilings: a row measured at 0 is dropped, and it refuses before writing when any file
+ * has grown or has no row, naming each such file.
+ *
+ * Why: a stale row of 0 launches is dead weight, and a recount must never raise or add a ceiling (#6228).
+ */
 export function tightenCliLaunchBaseline(problems, baseline) {
   const growth = cliLaunchGrowth(problems, baseline);
-  if (growth.length) throw new Error(growth.map(row => `${row.path}:${row.line}: ${row.text}`).join('\n'));
-  return cliLaunchCounts(problems);
+  if (growth.length) throw new Error(`Refused(CLI_LAUNCH_RAISE, the recount never raises or adds a row; fix the launches in these files): ${[...new Set(growth.map(row => row.path))].join(', ')}\n${growth.map(row => `${row.path}:${row.line}: ${row.text}`).join('\n')}`);
+  const counts = cliLaunchCounts(problems);
+  return Object.fromEntries(Object.entries(counts).filter(([, row]) => Object.values(row).some(count => count > 0)));
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

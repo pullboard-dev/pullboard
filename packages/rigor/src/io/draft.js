@@ -1,3 +1,4 @@
+/** @pullboard-module-loads packages/doctrine/index.js packages/codemap/index.js packages/sentinels/index.js packages/rigor/src/io/proof.js */
 /**
  * Rigor's second step: a repeated cause becomes a draft row with its proof [D1,D3,S1]. A work cause
  * becomes a Doctrine row whose check holds a count of 0; a product cause becomes a spec row gated
@@ -5,21 +6,27 @@
  * proof is the check run on real commits: red on the bad one, green on the fix. Nothing here
  * approves or applies a row.
  */
-import { loadDoctrine } from '../../../doctrine/index.js';
+import { createRequire } from 'node:module';
 import { PERSON } from '../../../store/index.js';
-import {
-  historyPathMap,
-  mappedCause,
-} from '../../../codemap/index.js';
 import { Refused } from '../../../kernel/index.js';
 import {
   causeProblem,
   rigorReport,
 } from '../../../store/index.js';
 import { draftRow } from '../../../spec/index.js';
-import { proveCauseCheck } from './proof.js';
 import { rigorSource } from '../../../store/index.js';
-import { rigorSentinelName } from '../../../sentinels/index.js';
+
+const requireModule = createRequire(import.meta.url);
+let draftPackagesLoaded = null;
+/** The doctrine, history-map and sentinel packages and the proof runner a draft needs, loaded at the first draft: a board that only counts rigor never pays for them [C7]. */
+function draftPackages() {
+  return draftPackagesLoaded ??= {
+    doctrine: requireModule('../../../doctrine/index.js'),
+    codemap: requireModule('../../../codemap/index.js'),
+    sentinels: requireModule('../../../sentinels/index.js'),
+    proof: requireModule('./proof.js'),
+  };
+}
 
 /**
  * Draft the rows for a repeated cause, after proving its check. Refused when the key is malformed,
@@ -36,17 +43,17 @@ import { rigorSentinelName } from '../../../sentinels/index.js';
 export async function rigorDraft({ root, config, events, person, agent, parseProcessCensus, reserve = async (row) => row, propose = null }, { key, text, check, red, green, section, sentinel = null }) {
   const malformed = causeProblem(key ?? '');
   if (malformed) throw malformed;
-  key = mappedCause(historyPathMap(root), key);
+  key = draftPackages().codemap.mappedCause(draftPackages().codemap.historyPathMap(root), key);
   const cause = rigorReport(events, { person, root }).causes.find((entry) => entry.key === key);
   if (!cause) throw new Refused('RIGOR_UNNOTICED', `${key} has not repeated, so there is nothing to draft yet; pullboard rigor lists the causes that can become rules`);
   if (sentinel && (text !== undefined && (!text.trim() || /[\r\n]/u.test(text)))) throw new Refused('USAGE', 'give the watch\'s next step as one line, or leave it out: pullboard rigor draft <key> --sentinel --check "<command>" --red <commit> --green <commit>');
   if (!sentinel && (!text?.trim() || /[\r\n|]/u.test(text))) throw new Refused('USAGE', 'give the rule as one nonempty line without a field separator: pullboard rigor draft <key> "<rule>" --check "<command>" --red <commit> --green <commit>');
   if (cause.reads !== 'work' && / \| /u.test(check ?? '')) throw new Refused('USAGE', 'a spec row gate cannot hold " | "; put the pipeline in a script and name the script in --check');
-  const proof = await proveCauseCheck(root, cause, { check, red, green }, { agent, parseProcessCensus });
+  const proof = await draftPackages().proof.proveCauseCheck(root, cause, { check, red, green }, { agent, parseProcessCensus });
   const evidence = { items: cause.items, occurrences: cause.occurrences, neverAgain: cause.neverAgain };
   if (sentinel) {
     // A cause a command can watch becomes a pending watch instead of a rule; it cites the repeats and its proof (#776).
-    const row = { name: rigorSentinelName(key), check: proof.check, every: sentinel.every ?? 'hourly', owner: sentinel.owner ?? 'coordinator',
+    const row = { name: draftPackages().sentinels.rigorSentinelName(key), check: proof.check, every: sentinel.every ?? 'hourly', owner: sentinel.owner ?? 'coordinator',
       next: text?.trim() || `find why ${key} went red again and repair it` };
     const proposed = await propose(row, { key, items: cause.items, occurrences: cause.occurrences,
       proof: { check: proof.check, red: { commit: proof.red.commit, exit: proof.red.exit }, green: { commit: proof.green.commit, exit: proof.green.exit } } });
@@ -58,8 +65,8 @@ export async function rigorDraft({ root, config, events, person, agent, parsePro
   const source = rigorSource(cause, proof);
   /** Plan a row, reserve its id on the board, then write it at the reserved id. */
   const write = async (request) => {
-    const planned = draftRow(root, config, { ...request, write: false }, { loadDoctrine });
-    return draftRow(root, config, { ...request, id: (await reserve({ ...planned.row, target: request.target })).id }, { loadDoctrine });
+    const planned = draftRow(root, config, { ...request, write: false }, { loadDoctrine: draftPackages().doctrine.loadDoctrine });
+    return draftRow(root, config, { ...request, id: (await reserve({ ...planned.row, target: request.target })).id }, { loadDoctrine: draftPackages().doctrine.loadDoctrine });
   };
   const drafts = [];
   if (cause.reads !== 'product') drafts.push(await write({ target: 'doctrine', text: rowText, gate: `check ${proof.countCheck}`, fields: ['count: 0', `source: ${source}`], section }));

@@ -1,7 +1,7 @@
 /**
  * The README's figures, drawn as SVG (I10). Each one is a card that carries its own light and dark
  * colors, so it reads on GitHub, on npm and in an editor's preview alike. The lifecycle is drawn
- * from src/machine.js, the one declaration of every state and move (M1): a state or a pair of
+ * from packages/state/src/io/machine.js, the one declaration of every state and move (M1): a state or a pair of
  * states this file has no place for is refused, never left out.
  *
  * After changing a figure or the lifecycle, redraw them from the repo root: node docs/img/draw.mjs
@@ -204,6 +204,7 @@ const ROUTES = {
   'open>withdrawn': { points: [[105, 208], [105, 313], [441, 313]], label: [210, 305, 'middle'] },
   'claimed>withdrawn': { points: [[315, 208], [315, 313]], tip: false },
   'submitted>withdrawn': { points: [[525, 208], [525, 280]] },
+  'verified>withdrawn': { points: [[675, 208], [675, 246], [585, 246], [585, 280]] },
 };
 
 /** Where the guards every move into a guarded state passes are listed, by state id. */
@@ -279,7 +280,7 @@ export function drawLifecycle(machine = MACHINE) {
     width: 840,
     height: 392,
     title: "An item's life",
-    desc: `Drawn from src/machine.js. An item starts ${machine.initial} and ends ${finals.join(' or ')}. ${[...verbs]
+    desc: `Drawn from packages/state/src/io/machine.js. An item starts ${machine.initial} and ends ${finals.join(' or ')}. ${[...verbs]
       .filter(([key]) => key.split('>')[0] !== key.split('>')[1])
       .map(([key, said]) => `${key.replace('>', ' to ')}: ${said.join(', ')}`)
       .join('. ')}.`,

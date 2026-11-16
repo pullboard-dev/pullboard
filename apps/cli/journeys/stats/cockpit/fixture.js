@@ -1,7 +1,5 @@
 /** Shared setup for the split stats cockpit journeys [N26]. */
 import { submitFixture } from '../../../tests/fixtures/board/submit.js';
-import { mkdirSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { machine } from '../../../tests/fixtures/cockpit/harness.js';
 import { accept } from '../../../tests/fixtures/cockpit/harness.js';
@@ -18,36 +16,6 @@ export function joinedAgent(box, p, name) {
   box.git(p.repo, 'worktree', 'add', '-q', web, '-b', `web/${name}`);
   box.run(web, 'join', 'web');
   return web;
-}
-
-/** Express one API duration at its rounded, human-readable unit for visible-label assertions. */
-export function displayDuration(value) {
-  if (value === null || value === undefined) return 'unmeasured';
-  const rounded = Math.round(value);
-  if (rounded < 60) return rounded + ' min';
-  const hours = Math.floor(rounded / 60);
-  return hours < 24 ? hours + ' h ' + rounded % 60 + ' min' : Math.floor(hours / 24) + ' d ' + hours % 24 + ' h';
-}
-
-/** Read the rendered stats toggle state and its focus target without deriving application behavior. */
-export async function statsToggleState(chrome) {
-  return JSON.parse(await chrome.stable(`JSON.stringify((() => {
-    const summary = document.querySelector('#proof-stats-summary');
-    const full = document.querySelector('#proof-stats-full');
-    return { expanded:summary?.getAttribute('aria-expanded') ?? null, sign:summary?.querySelector('.proof-stats-caret')?.textContent ?? null,
-      hidden:full?.hidden ?? true, closeCount:document.querySelectorAll('#proof-stats-close, [data-stats-close]').length,
-      focus:document.activeElement?.id ?? null, height:summary?.getBoundingClientRect().height ?? 0,
-      tap:getComputedStyle(document.documentElement).getPropertyValue('--tap').trim() };
-  })())`));
-}
-
-/** Save an optional visual receipt for one collapsed or expanded stats-card layout. */
-export async function saveStatsToggleShot(chrome, width, scheme, state) {
-  const directory = process.env.PULLBOARD_STATS_TOGGLE_PROOF;
-  if (!directory) return;
-  mkdirSync(directory, { recursive: true });
-  const shot = await chrome.send('Page.captureScreenshot', { format: 'png' });
-  writeFileSync(join(directory, `stats-toggle-${width}-${scheme}-${state}.png`), Buffer.from(shot.data, 'base64'));
 }
 
 /** Leave twenty real accepted items waiting long enough to exercise a long API recommendation. */

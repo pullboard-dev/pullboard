@@ -4,6 +4,7 @@ import { specApprovalBaselineExists } from "../../../store/index.js";
 import { relayRecovered } from "../../../link/index.js";
 import { prepareStaleObservation } from "../../../health/index.js";
 import { sweepClaims } from "../../../health/index.js";
+import { sweepLapsedClaims } from "../../../health/index.js";
 import { refreshCapacityOutsideWrite } from "../../../verify/index.js";
 import { atomic } from "../../../store/index.js";
 import { checkpointBoard } from "../../../store/index.js";
@@ -24,6 +25,7 @@ import { withSentinelTrunk } from "./runner.js";
 import { healthSentinelEnabled } from "../../../config/index.js";
 import { recordedHealthFindings } from "./findings.js";
 import { scanHealthSentinel } from "./findings.js";
+import { readScratchMemory } from "./memory.js";
 import { initialSpecApprovalBaseline } from "../../../spec/index.js";
 
 /** The watch command's existing string options, shared with the CLI parser. */
@@ -35,6 +37,7 @@ export const SENTINEL_OPTIONS = {
   next: { type: 'string' },
   sentinel: { type: 'boolean' },
   'health-only': { type: 'boolean' },
+  'lapsed-only': { type: 'boolean' },
 };
 
 /** Resume reports due watches in one line and never starts their commands. */
@@ -46,7 +49,15 @@ export function resumeSentinels({ ctx, withBoard }) {
 }
 
 /** Scan health, then run due approved watches on pinned trunk unless the observer requests health only. */
-async function runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensus, sweepSubmitHandoffs, stalledGateDrives, healthOnly = false }) {
+async function runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensus, sweepSubmitHandoffs, stalledGateDrives, healthOnly = false, lapsedOnly = false }) {
+  if (lapsedOnly) {
+    // The one-minute lapsed pass: expire lapsed claims and stop, so it stays cheap beside the ten-minute scan [C7,#8923].
+    return withBoard(ctx, async board => {
+      await sweepLapsedClaims(ctx, board, whoAmI(ctx, board).id, ordered);
+      ctx.io.say('Lapsed claims swept.');
+      return 0;
+    });
+  }
   // Dead submit workers end before the board scan, so the sweep never reports a gate as running with no worker (#2627).
   await sweepSubmitHandoffs?.();
   return withBoard(ctx, async board => {
@@ -73,7 +84,7 @@ async function runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensu
           ? { ...ctx.io, personRequest: undefined, personRequestMoveId: undefined } : ctx.io;
         await ordered({ ...ctx, io }, board, 'recordSpecApprovalBaseline', [{ agentId: 'coordinator', baseline }]);
       }
-      const observation = scanHealthSentinel(ctx.file, { root: ctx.info.root, config: ctx.config, now: ctx.clock.now(), returnRejected: me.id === 'coordinator',
+      const observation = scanHealthSentinel(ctx.file, { root: ctx.info.root, config: ctx.config, now: ctx.clock.now(), returnRejected: me.id === 'coordinator', memory: readScratchMemory,
         ...(stalledGateDrives ? { gateDrives: stalledGateDrives } : {}) });
       if (observation) {
         try { await ordered(ctx, board, 'recordHealthFindings', [{ agentId: me.id, ...observation }]); }
@@ -102,7 +113,7 @@ async function runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensu
  */
 export async function sentinelCommand({ ctx, words, values, withBoard, whoAmI, ordered, parseProcessCensus, sweepSubmitHandoffs, stalledGateDrives }) {
   const [verb, name, ...extra] = words;
-  if (verb === 'run' && !name && !extra.length) return runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensus, sweepSubmitHandoffs, stalledGateDrives, healthOnly: Boolean(values['health-only']) });
+  if (verb === 'run' && !name && !extra.length) return runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensus, sweepSubmitHandoffs, stalledGateDrives, healthOnly: Boolean(values['health-only']), lapsedOnly: Boolean(values['lapsed-only']) });
   if (extra.length || !['propose', 'approve', 'decline'].includes(verb) || !name) {
     throw new Refused('USAGE', 'use pullboard sentinel run, sentinel propose <name> --check "<command>" --every 10m --owner <seat or lane>, sentinel approve <name>, sentinel decline <name> --reason "<why>", or pullboard sentinels');
   }

@@ -5,10 +5,24 @@ Pullboard aims to help more people start businesses, make projects and think lik
 ## How
 
 1. **Install:** `npm i -g pullboard`
-2. **Write:** have your agent run the `pullboard-contribute` skill.
-3. **Send:** once `pullboard contribute check` passes. CI checks again.
+2. **Write:** a record in the shape below. Your agent can write it from the issue template.
+3. **Send:** once `pullboard contribute check <file>` passes. CI checks again.
 
 Every issue and PR is a record: 2-3 sentences, then YAML. Required. Spec: [RFC 0009](docs/rfcs/0009-contribution-records.md).
+
+> On Windows, `pullboard next` opens a second seat in a lane worktree. The tour stops at step 3.
+
+```yaml
+rows: [N2]
+env: Node 22.13, Windows 11
+version: "0.9.3"
+ran: pullboard next
+blocks: pullboard tour on Windows
+bar:
+  - 1: next in a lane worktree reuses its seat [test]
+check:
+  - 1: <test file> > <test name>
+```
 
 | Shape | For |
 |---|---|
@@ -32,8 +46,7 @@ Every issue and PR is a record: 2-3 sentences, then YAML. Required. Spec: [RFC 0
 
 ## CLA
 
-- **Sign:** once, by typed name, on your contributor profile. It covers every contribution.
-- **Witness:** on your first PR, a bot posts your acceptance.
+- **Sign:** once, by commenting on your first PR: `I have read CLA.md and I agree to it.`
 - **Ownership:** you keep it.
 - **License:** permanent; Pullboard may use, change, distribute and relicense it; patents included.
 - **Origin:** your own work, or you may contribute it.

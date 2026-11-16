@@ -12,7 +12,6 @@ import { createHash } from 'node:crypto';
 import {
   lstatSync,
   mkdirSync,
-  mkdtempSync,
   realpathSync,
   readFileSync,
   renameSync,
@@ -26,7 +25,6 @@ import {
   resolve,
   sep,
 } from 'node:path';
-import { tmpdir } from 'node:os';
 import { stripVTControlCharacters } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import {
@@ -54,6 +52,7 @@ import {
   takeResource,
   requiredExecutorOf,
 } from '../../../../resources/index.js';
+import { withEnvironment } from '../../../../resources/index.js';
 import { sameEnvironment } from '../../../../verify/light.js';
 import { Refused } from '../../../../kernel/index.js';
 import {
@@ -70,6 +69,9 @@ import { browserFreeChecksEnabled } from '../../../../config/index.js';
 import { loadMachineSettings } from '../../../../config/index.js';
 import { gateRunnerAdmission } from '../../../../config/index.js';
 import { recentReceipts } from '../../../../gate/index.js';
+import { scratchFolder } from '../../../../config/index.js';
+import { scratchRoot } from '../../../../config/index.js';
+import { storeName } from '../store-names.js';
 
 const CACHE_RELATIVE = 'pullboard/main-red.json';
 // Version 2 drops results cached while comparisons ran in a checkout without accepted main (#2950).
@@ -180,7 +182,7 @@ function gitCall(cwd, args, env) {
  */
 export async function withMainCheckout(root, commit, run, { onMainBranch = false } = {}) {
   // The real temp path: a runner reports realpath locations (macOS /private/var), which must resolve inside the checkout.
-  const directory = join(realpathSync(tmpdir()), `pullboard-main-red-${randomUUID()}`);
+  const directory = join(realpathSync(scratchRoot()), `pullboard-main-red-${randomUUID()}`);
   mkdirSync(directory, { mode: 0o700 });
   const checkout = join(directory, 'checkout');
   const env = cleanGitEnvironment();
@@ -221,7 +223,7 @@ export function mainRunnerSource(root, commit, trunkCommit = commit) {
 export function committedNeedsGui(root, commit, path) {
   const blob = gitCall(root, ['show', `${commit}:${path}`], cleanGitEnvironment());
   if (blob.status !== 0) return false;
-  const directory = mkdtempSync(join(realpathSync(tmpdir()), 'pullboard-main-gui-'));
+  const directory = realpathSync(scratchFolder('pullboard-main-gui-'));
   try {
     mkdirSync(dirname(join(directory, path)), { recursive: true });
     writeFileSync(join(directory, path), blob.stdout);
@@ -246,7 +248,7 @@ function retainComparisonReceipt(root, checkout, id) {
   if (!receipt || receipt.kind !== 'main-red' || !store) return null;
   const body = receiptBody(receipt);
   mkdirSync(store, { recursive: true, mode: 0o700 });
-  const file = join(store, `${id}.json`);
+  const file = join(store, storeName(id));
   try { writeFileSync(file, body, { flag: 'wx', mode: 0o600 }); }
   catch (error) {
     if (error.code !== 'EEXIST' || readFileSync(file, 'utf8') !== body) return null;
@@ -380,11 +382,17 @@ function storeOutcome(cache, keys, path, outcome) {
  * @param {object} profile
  * @param {(state:object)=>void} [onWait]
  * @param {string} [output] - The failed phase's unchanged reporter output.
- * @param {{commit?: string, detailed?: boolean, fresh?: boolean, allowCancelled?: boolean, onMeasuredReceipt?: (id:string)=>Promise<void>, onStart?: (start:{file:string, runner:string|null})=>void, runnerAdmission?: object, execution?: {executor:object, environment:object}}} [options] - Capture the submit base and require exact test identities; fresh bypasses completed exact-main comparisons; onMeasuredReceipt records only freshly executed native receipts; onStart is told the file and its runner once the slot is taken, before the run.
+ * @param {{env?: Record<string,string>, commit?: string, detailed?: boolean, fresh?: boolean, allowCancelled?: boolean, onMeasuredReceipt?: (id:string)=>Promise<void>, onStart?: (start:{file:string, runner:string|null})=>void, runnerAdmission?: object, execution?: {executor:object, environment:object}}} [options] - Capture the submit base and require exact test identities; fresh bypasses completed exact-main comparisons; onMeasuredReceipt records only freshly executed native receipts; onStart is told the file and its runner once the slot is taken, before the run.
  * A caller that names no runnerAdmission gets this machine's: with gate.runnersOnly on, every caller's comparison queues for a runner, never a local process (#3011).
+ * env, when given, is process.env for the whole comparison; absent, process.env is used and nothing changes.
  * @returns {Promise<{ main: string|null, files: Array<{file:string,result:'red'|'green'}>, unavailable?: string }>}
  */
 export function compareMainFailures(...args) {
+  return withEnvironment(args[4]?.env, () => compareMainFailuresIn(...args));
+}
+
+/** compareMainFailures under its environment. */
+function compareMainFailuresIn(...args) {
   // A red gate's comparison with main can run for many minutes (apps/cli/journeys/land/main.test.js: 1300-1900 s on a runner); inside a
   // driven gate it reports progress the whole time, so the drive's stall watch never restarts a gate that is still
   // comparing (#3451's gate stalled 20 min after its red). Outside a driven gate this reports nothing.
@@ -430,6 +438,15 @@ async function compareMainFailuresNow(root, profile, onWait, output = '', { comm
     }
   }
   const coarse = Object.create(null);
+  // With gate.mainCaseFilter on, a detailed comparison runs main's copy of a file with only the cases the candidate failed
+  // in it. Such a result answers this call alone: it is never read from or written to the whole-file cache [C7,#8761].
+  const caseFilter = detailed && loadMachineSettings().gate?.mainCaseFilter === true;
+  const casesOf = Object.create(null);
+  if (caseFilter) for (const path of files) {
+    const names = [...new Set((profile?.tests ?? []).filter(row => row.passed === false && row.file === path && typeof row.name === 'string' && row.name).map(row => row.name))];
+    if (names.length) casesOf[path] = names;
+  }
+  const filteredOutcome = Object.create(null);
   /** A detailed comparison cannot reuse an old file-only or obsolete-signature cache entry. */
   const usable = outcome => ['red', 'green'].includes(outcome?.result)
     && (!detailed || Array.isArray(outcome.failures) || outcome.result === 'red' && outcome.fileIsolation === true);
@@ -441,11 +458,11 @@ async function compareMainFailuresNow(root, profile, onWait, output = '', { comm
   const inputs = contentCache ? await contentKeys(root, main.commit, files) : new Map();
   const content = pinned ? new Map(files.map(path => [path, pinnedContentKey(inputs.get(path), execution)])) : inputs;
   /** A file's outcome at main: the exact commit's, else the one recorded for the same content key [C7,#3166]. */
-  const outcomeOf = (entries, path) => usable(entries[main.commit]?.[path]) ? entries[main.commit][path]
+  const outcomeOf = (entries, path) => casesOf[path] ? filteredOutcome[path] : usable(entries[main.commit]?.[path]) ? entries[main.commit][path]
     : content.get(path) && usable(entries[content.get(path)]?.[path]) ? entries[content.get(path)][path] : undefined;
   // A content-keyed outcome is already fresh: the same test and covered code at main were measured, so fresh reruns
   // only a file with no content key, and each main red runs at most once per content hash.
-  const rerun = path => fresh && !pinned && !content.get(path);
+  const rerun = path => Boolean(casesOf[path]) || fresh && !pinned && !content.get(path);
   let cache = await snapshot();
   const missing = files.filter(path => !outcomeOf(cache.entries, path) || rerun(path));
   if (pinned && missing.length) {
@@ -482,7 +499,7 @@ async function compareMainFailuresNow(root, profile, onWait, output = '', { comm
         // Another caller may have measured this content while this one waited for the slot: recheck after admission, so concurrent cold readers execute the file at most once [C7,#3166].
         if (!rerun(path) && outcomeOf((await snapshot()).entries, path)) return { reused: true };
         // A cache miss must execute main's file; completed exact-main comparisons remain reusable.
-        const run = await runMainComparison(checkout, path, { detailed, gateLease: lease, waitMs: lease.waitMs, ...(source ? { source } : {}), signatureCapture: { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true, allowCancelled }) } });
+        const run = await runMainComparison(checkout, path, { detailed, ...(casesOf[path] ? { cases: casesOf[path] } : {}), gateLease: lease, waitMs: lease.waitMs, ...(source ? { source } : {}), signatureCapture: { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true, allowCancelled }) } });
         if (pinned && ((executor.kind === 'ssh' ? !(executor.hosts ?? [executor.host]).includes(run.executionRunner) : Boolean(run.executionRunner))
           || !sameEnvironment(run.environment, execution.environment)
           || comparisonBrowser !== null && Boolean(lease.runner?.browser > 0) !== comparisonBrowser)) {
@@ -496,6 +513,8 @@ async function compareMainFailuresNow(root, profile, onWait, output = '', { comm
             if (id && onMeasuredReceipt) await onMeasuredReceipt(id);
           } catch { /* Timing retention never changes the exact-main failure verdict. */ }
         }
+        // A filtered run that ran none of the named cases tested nothing, so its green is never evidence [C7,#8761].
+        if (casesOf[path] && run.isGreen && !(run.profile?.tests ?? []).some(row => row.passed === true && !row.skip && casesOf[path].includes(row.name))) throw new Error('the filtered main comparison ran none of the named cases, so its green is not evidence');
         // A red that names no failing test or crashed file is a run that never tested main, not main's red (#2950).
         // Named failing cases in the raw output count as well as the profile's rows: either proves main's file ran [C7,#3073].
         if (!run.isGreen && !failingFiles(checkout, run.profile, run.output).length && !failureSignatures(run, checkout, { raw: true, allowCancelled })?.length) throw new Error('the main comparison run named no failing test or crashed file, so its red is not evidence');
@@ -510,7 +529,7 @@ async function compareMainFailuresNow(root, profile, onWait, output = '', { comm
           ...(fileIsolation ? { fileIsolation: true } : {}), ...(receiptId ? { receiptId } : {}), main: main.commit, at: new Date().toISOString() };
       };
       /** The slot options shared by both placements; only browser, gui and remote eligibility differ. */
-      const slotOptions = (browser, gui, remote) => ({ executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, diagnostic: runnerAdmission.landing !== true, browser, gui, remote, agent: process.env.PULLBOARD_AGENT, kind: 'main-red', onWait, ...runnerAdmission, ...(pinned ? { requiredExecutor: executor } : {}) });
+      const slotOptions = (browser, gui, remote) => ({ executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, diagnostic: runnerAdmission.landing !== true, browser, gui, remote, agent: process.env.PULLBOARD_AGENT, kind: 'main-red', item: 'main', onWait, ...runnerAdmission, ...(pinned ? { requiredExecutor: executor } : {}) });
       /** Measure the file on this machine in a temporary checkout, or (`remote`) on a runner straight from the object store. */
       const inCheckout = async remote => {
         // A run on this machine needs main's files: a clean temporary checkout, with the slot taken there as before.
@@ -546,6 +565,7 @@ async function compareMainFailuresNow(root, profile, onWait, output = '', { comm
       }
       if (measured.unavailable) throw new Error(measured.unavailable);
       if (measured.reused) return;
+      if (casesOf[path]) { filteredOutcome[path] = measured; return; }
       if (pinned) pinnedEntries[path] = measured;
       await withComparisonCache(root, onWait, () => {
         const current = readCache(file);
@@ -569,7 +589,7 @@ async function compareMainFailuresNow(root, profile, onWait, output = '', { comm
     const current = readCache(file);
     let copied = false;
     for (const path of files) {
-      if (usable(current.entries[main.commit]?.[path]) || !content.get(path)) continue;
+      if (casesOf[path] || usable(current.entries[main.commit]?.[path]) || !content.get(path)) continue;
       const served = current.entries[content.get(path)]?.[path];
       if (usable(served)) { storeOutcome(current, [main.commit], path, served); copied = true; }
     }
@@ -595,36 +615,46 @@ async function compareMainFailuresNow(root, profile, onWait, output = '', { comm
 
 /**
  * What the local cache already knows of main's failures in these files at one commit, without running anything. A file
- * the cache lacks is left out, so a case in it is never matched as main's [C7].
+ * the cache lacks is left out, so a case in it is never matched as main's [C7]. A file with no outcome at that commit
+ * answers from the outcome recorded under its test input key (`inputKeys`), which hashes the file, its whole import
+ * closure and its declared inputs. Why: main lands every few minutes, so a receipt keyed to one main is stale before a
+ * gate reads it; a main that moved only outside the file's closure keeps its key, and so its receipt [C7,SC11].
  *
  * @param {string} root
  * @param {string} commit - The main commit whose recorded outcomes to read.
  * @param {string[]} files - Repository-relative test files.
+ * @param {{ inputKeys?: Record<string, string> }} [options] - each file's test input key at that commit, when known.
  */
-export function cachedMainComparison(root, commit, files) {
+export function cachedMainComparison(root, commit, files, { inputKeys = {} } = {}) {
   try {
-    const entries = readCache(cacheFile(root)).entries[commit] ?? {};
-    return { main: commit, files: [...new Set(files)].filter(path => entries[path]).map(path => ({ file: path, ...entries[path] })) };
+    const all = readCache(cacheFile(root)).entries, entries = all[commit] ?? {};
+    const at = path => entries[path] ?? (/^[0-9a-f]{64}$/u.test(inputKeys[path] ?? '') ? all[inputKeys[path]]?.[path] : undefined);
+    return { main: commit, files: [...new Set(files)].filter(path => at(path)).map(path => ({ file: path, ...at(path) })) };
   } catch { return { main: commit, files: [], unavailable: 'the main comparison cache cannot be read' }; }
 }
 
 /**
  * Record one finished main-test job's verdict in the local comparison cache, so submit, landing and serve find the
- * receipt at that main commit [C7,P7]. A green is a complete row with no failing cases; a red names the whole file
- * (fileIsolation), since the job carries case names but no signatures. An existing row for the file is kept.
+ * receipt at that main commit [C7,P7], and under the file's test input key when the run named one, so a main whose
+ * inputs to the file are the same finds it too [C7,SC11]. A green is a complete row with no failing cases; a red names
+ * the whole file (fileIsolation), since the job carries case names but no signatures. An existing row is kept.
  *
  * @param {string} root - The board host's repository.
- * @param {{ main: string, file: string, verdict: 'green' | 'red', job: string, at?: number }} receipt
+ * @param {{ main: string, file: string, verdict: 'green' | 'red', job: string, at?: number, inputKey?: string }} receipt
  * @returns {boolean} whether a row was written
  */
-export function recordMainTestReceipt(root, { main, file, verdict, job, at = Date.now() }) {
+export function recordMainTestReceipt(root, { main, file, verdict, job, at = Date.now(), inputKey = null }) {
   if (!/^[0-9a-f]{40,64}$/u.test(main ?? '') || !file || !['green', 'red'].includes(verdict)) return false;
   // Synchronous on purpose: the receipt applier is; a racing writer only costs a re-measure of one file.
   const path = cacheFile(root);
   const cache = readCache(path);
-  if (cache.entries[main]?.[file]) return false;
+  const keys = [main, /^[0-9a-f]{64}$/u.test(inputKey ?? '') ? inputKey : null].filter(key => key && !cache.entries[key]?.[file]);
+  if (!keys.length) return false;
   const outcome = verdict === 'green' ? { result: 'green', failures: [], signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : { result: 'red', fileIsolation: true };
-  cache.entries[main] = { ...cache.entries[main], [file]: { ...outcome, receiptId: job, main, at: new Date(at).toISOString() } };
+  // A main keeps its place among the generations; past the bound, the oldest keys go, as storeOutcome drops them.
+  for (const key of keys) cache.entries[key] = { ...cache.entries[key], [file]: { ...outcome, receiptId: job, main, at: new Date(at).toISOString() } };
+  const all = Object.keys(cache.entries);
+  for (const key of all.slice(0, Math.max(0, all.length - CACHE_KEYS_KEPT))) delete cache.entries[key];
   writeCache(path, cache);
   return true;
 }
@@ -840,13 +870,13 @@ export function mainFailureNotices(root, failures, comparison, { items = [], exc
  *
  * @param {string} checkout - A clean committed checkout; the runner receives its HEAD.
  * @param {string} command - The shell command to run at the checkout's root.
- * @param {{ kind: string, admission?: object, onWait?: Function }} options - Receipt kind and the captured runner-only admission.
+ * @param {{ kind: string, item?: string, admission?: object, onWait?: Function }} options - Receipt kind, the work it serves, and the captured runner-only admission.
  * @returns {Promise<{ isGreen: boolean, output: string, executionRunner?: string }>}
  */
-export async function runCheckOnRunner(checkout, command, { kind, admission = gateRunnerAdmission(), onWait } = {}) {
+export async function runCheckOnRunner(checkout, command, { kind, item = '', admission = gateRunnerAdmission(), onWait } = {}) {
   return withGateSlot(checkout, lease => runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs }), {
     executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() },
-    diagnostic: true, kind, agent: process.env.PULLBOARD_AGENT, onWait, ...admission, runnerOnly: true, remote: true,
+    diagnostic: true, kind, item, agent: process.env.PULLBOARD_AGENT, onWait, ...admission, runnerOnly: true, remote: true,
   });
 }
 

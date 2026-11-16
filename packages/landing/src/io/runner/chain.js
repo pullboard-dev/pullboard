@@ -1,12 +1,11 @@
 /** A chained landing job: build on the parent candidate, drop only a culprit, push by compare-and-swap after the parent lands [C7]. */
 import { tryGit } from '../../../../git/index.js';
-import { IDENTITY } from './job.js';
 import { LANDING_JOB_KIND } from './job.js';
-import { citedIds } from './job.js';
 import { commandCheck } from './job.js';
 import { fetchItem } from './job.js';
 import { fetchTrunk } from './job.js';
 import { landingCheckout } from './job.js';
+import { landingMergeArgs } from './job.js';
 import { must } from './job.js';
 import { pushTrunk } from './job.js';
 
@@ -28,7 +27,7 @@ function mergeOnto(root, base, entries) {
   must(root, ['checkout', '-q', '--detach', '--force', base]);
   must(root, ['clean', '-q', '-fd']);
   for (const entry of entries) {
-    const merged = tryGit(root, [...IDENTITY, 'merge', '--no-ff', '--no-edit', '-q', '-m', `Merge #${entry.id} onto main [${citedIds(root, entry.commit)}]`, entry.commit]);
+    const merged = tryGit(root, landingMergeArgs(root, entry));
     if (merged.status !== 0) {
       tryGit(root, ['merge', '--abort']);
       return { tip: null, conflict: entry, detail: (merged.stdout || merged.stderr).slice(0, 240) };

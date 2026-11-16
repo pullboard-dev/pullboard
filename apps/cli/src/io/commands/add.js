@@ -1,17 +1,32 @@
 import { requireOwnLaneCheck } from '../lane.js';
+import {
+  COORDINATOR,
+  coordinatorPaths,
+  requireNoCoordinatorPath,
+  splitAdvice,
+} from '../item/bar.js';
+export {
+  barPaths,
+  coordinatorPaths,
+  pathTokens,
+  requireNoCoordinatorPath,
+  splitAdvice,
+} from '../item/bar.js';
 import { itemText } from '../../../../../packages/search/index.js';
 import { nearestOpenItems } from '../../../../../packages/search/index.js';
 import { searchSidecarPath } from '../../../../../packages/search/index.js';
 import { requireBarPathsOnMain } from '../item/bar.js';
-import { briefFiles } from '../../../../../packages/items/index.js';
+import { guardDuplicate } from '../item/duplicate.js';
+import { guardBar } from '../../../../../packages/state/index.js';
+import { addWarnUnnamedTest } from '../../../../../packages/config/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
 import { parseCheckTiming } from '../../../../../packages/items/index.js';
 import { criterionSize } from '../../../../../packages/items/index.js';
-import { criterionCells } from '../../../../../packages/items/index.js';
-import { checkTestFiles } from '../../../../../packages/items/index.js';
-import { defaultItemRoute } from '../../../../../packages/items/index.js';
 import { ENGINE_VERSION } from '../../../../../packages/state/index.js';
 import { TWO_TIER_DIAGNOSIS_ENGINE } from '../../../../../packages/state/index.js';
+import { criterionCells } from '../../../../../packages/items/index.js';
+import { checkTestFiles } from '../../../../../packages/items/index.js';
+import { shapeRoute } from '../../../../../packages/items/index.js';
 import { requirePersonChannel } from '../../../../../packages/person/index.js';
 import { githubPullClient } from '../../../../../packages/github/index.js';
 import {
@@ -29,11 +44,11 @@ import * as store from '../../../../../packages/store/index.js';
 import {
   prepareCheckBaseline,
   refuseCheckSyntax,
+  refuseCheckPullboardTest,
   sayCheckBaseline,
 } from '../../../../../packages/gate/index.js';
 import {
   isLane,
-  laneOf,
 } from '../../../../../packages/seats/index.js';
 import {
   Refused,
@@ -59,10 +74,11 @@ import {
   launchBaseline,
   CHECKOUT_LEASES,
 } from '../entry.js';
+import { anyRunnerLive } from '../runner/local.js';
 
 /**
- * The default route for an add with a check. A diagnosis can only follow the add, so on a board that requires one a
- * light default would refuse DIAGNOSIS_REQUIRED on every plain add; it starts mid, as next already offers it (#3120).
+ * The route an add files for a shape route. A diagnosis can only follow the add, so on a board that requires one a light
+ * route would refuse DIAGNOSIS_REQUIRED on every plain add; it is filed mid, the route next already offers (#3120, #8628).
  */
 function addedRoute(board, route) {
   return route === 'light' && (board.executionEngineVersion ?? ENGINE_VERSION) >= TWO_TIER_DIAGNOSIS_ENGINE ? 'mid' : route;
@@ -110,9 +126,12 @@ export async function run(io, args) {
     after,
     brief: briefInLane(ctx, first, laneBar.brief),
     reviewFamily: values['review-family'],
+    ...(values.readiness === undefined ? {} : { readinessCommand: values.readiness }),
     ...(values['expected-minutes'] === undefined ? {} : { expectedBuildMinutes: parseExpectedBuildMinutes(values['expected-minutes']) }),
-    // Mid needs a brief, which a check naming a test file fills in; with neither, the item is strong (#3178).
-    route: values.route ?? (values.check && (checkTestFiles(values.check).length || briefArg(io, values)) ? addedRoute(board, defaultItemRoute(values.criterion ?? '', criterionCells(ctx.info.root))) : 'strong'),
+    // Light when the shape is small, proven and briefed, otherwise strong; an explicit --route wins [C7,#3081].
+    route: values.route ?? addedRoute(board, shapeRoute({ criterion: values.criterion ?? '', check: values.check,
+      // A check naming a test file fills the brief, so it counts as one.
+      brief: briefArg(io, values) || (values.check && checkTestFiles(values.check).length ? 'filled from the check' : '') })),
     ...(values.sensitive === undefined ? {} : { sensitive: values.sensitive }),
     ...(values['review-family'] === undefined ? {} : { reviewFamily: values['review-family'] }),
     check: laneBar.check,
@@ -126,9 +145,12 @@ export async function run(io, args) {
     briefInLane(ctx, item.lane, item.brief);
   }
   const asPerson = personBarMode(ctx, board, me, values, personMode);
+  const barWarnings = guardBar(item.criterion, { allowLong: Boolean(values['force-size']?.trim()), warnUnnamedTest: addWarnUnnamedTest(), brief: item.brief });
   const size = criterionSize(item.criterion, criterionCells(ctx.info.root));
   const sizeReason = values['force-size']?.trim();
   if (values['force-size'] !== undefined && !sizeReason) throw new Refused('ITEM_SIZE_REASON', '--force-size needs a nonempty reason', 'use --force-size "why this scope must stay together"');
+  // Only the person grants size overrides; an agent or the coordinator splits the item instead [C7].
+  if (sizeReason && !asPerson) throw new Refused('ITEM_FORCE_SIZE_PERSON', '--force-size is a size override only the person grants', 'split the item with --after into pieces of 30 minutes or less, or ask the person');
   if (size.oversized && !sizeReason) throw new Refused('ITEM_TOO_LARGE', `criterion names ${size.cells.length} cells and ${size.clauses} clauses (size ${size.score})`,
     `split it into one item per named cell (${size.cells.join(', ') || 'none'}) and at most three numbered clauses per item; or use --force-size "reason"`);
   const confirmed = await confirmBarEffect(ctx, board, me, { verb: 'add', args: {
@@ -142,13 +164,17 @@ export async function run(io, args) {
   if (authors.length) item.referenceAuthors = authors;
   requireOwnLaneCheck(ctx.config, me, item.lane, item.check);
   requireNoCoordinatorPath(ctx.config, me, item);
+  if (item.check) refuseCheckPullboardTest(item.check);
   await requireBarPathsOnMain(ctx, { criterion: item.criterion, check: item.check });
   const { command, brief, evidenceWarnings = [] } = store.validateItemAddition(board, item);
   item.brief = brief;
   if (command) refuseCheckSyntax(command);
   if (command) item.checkBaseline = prepareCheckBaseline(ctx.info.root, command);
+  if (command) store.guardGreenCheck(board, item.checkBaseline, values['accept-green']);
   item.barActor = barActorForCommand(ctx, board, { asPerson });
+  const differs = guardDuplicate(ctx, board, item, values['not-duplicate-of']);
   const id = await ordered(ctx, board, 'addItem', [item]);
+  if (differs) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text: `Not a duplicate of #${differs.id}: ${differs.reason}` }]);
   const piece = split?.paths.length ? await fileCoordinatorPiece(ctx, board, { id, item, split, title, specIds }) : null;
   if (sizeReason) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
     text: `Criterion size override: ${sizeReason}\n${JSON.stringify(size)}` }]);
@@ -163,11 +189,12 @@ export async function run(io, args) {
       await exited;
     }
   }
-  io.result?.({ item: store.getItem(board, id), ...(piece === null ? {} : { coordinatorPiece: store.getItem(board, piece) }), ...(evidenceWarnings.length ? { warnings: evidenceWarnings } : {}) });
-  for (const warning of evidenceWarnings) io.err(warning.message);
+  const warnings = [...evidenceWarnings, ...barWarnings];
+  io.result?.({ item: store.getItem(board, id), ...(piece === null ? {} : { coordinatorPiece: store.getItem(board, piece) }), ...(warnings.length ? { warnings } : {}) });
+  for (const warning of warnings) io.err(`warning: [${warning.code ?? 'BAR'}] ${warning.message}`);
   io.say(`#${id}`);
   if (piece !== null) io.say(`#${piece} coordinator piece, after #${id}`);
-  sayCheckBaseline(io, store.getItem(board, id));
+  sayCheckBaseline(io, store.getItem(board, id), { runnerLive: anyRunnerLive() });
   sayRelated(io, ctx, board, id, item);
   return 0;
 });
@@ -253,69 +280,4 @@ export function splitBar(config, bar) {
   return { paths: coordinatorPaths(config, { criterion: bar.criterion, check: bar.check, brief: bar.brief }),
     lane: { criterion: joinClauses(parts, parts.clauses.filter(clause => !owned(clause))), check: checkOwned ? undefined : bar.check, brief: laneLines.join('\n') },
     coordinator: { criterion: joinClauses(parts, parts.clauses.filter(owned)), check: checkOwned ? bar.check : undefined, brief: pieceLines.join('\n') } };
-}
-
-/** Cross-ownership: a bar that names a coordinator-owned path cannot be built by a lane seat, so add and claim refuse it up front [C7,#2650]. */
-/** The coordinator's lane and seat id: laneOf gives it every path no lane owns (the queue cell's COORDINATOR). */
-const COORDINATOR = 'coordinator';
-
-/** A path-like token: a directory with a trailing slash, a dotted folder, or a file with an extension, or pullboard.json. */
-const PATH_TOKEN = /(?:^|[\s`'"(\[,])((?:\.?[\w-]+\/)+(?:[\w.-]*\.[\w-]+|[\w.-]*(?=[\s`'")\],;:]|$))|pullboard\.json)/gu;
-
-/**
- * The path-like tokens in free text, with a leading ./ removed.
- * Why: criterion, check and brief are prose, so only tokens shaped like paths can be judged by lane ownership.
- */
-export function pathTokens(text) {
-  const tokens = new Set();
-  for (const match of String(text ?? '').matchAll(PATH_TOKEN)) {
-    const token = match[1].replace(/^\.\//u, '');
-    if (token.endsWith('/') || token.includes('.') || token === 'pullboard.json') tokens.add(token);
-  }
-  return [...tokens];
-}
-
-/**
- * The paths an item's criterion, check or brief Files section names that no lane owns, so only the coordinator may change them.
- * Why: add and claim both read all three, so a lane item already on the board whose criterion alone names a
- * coordinator-owned path is refused at claim as it would be at add; `prose: false` reads only the check and Files list.
- *
- * @param {object} config - The frozen policy with its lanes.
- * @param {{ criterion?: string, check?: string, brief?: string }} item - The item's bar.
- * @param {{ prose?: boolean }} [options]
- * @returns {string[]}
- */
-export function coordinatorPaths(config, item, options) {
-  return barPaths(item, options).filter(path => laneOf(config, path) === COORDINATOR);
-}
-
-/**
- * The repo paths an item's criterion, check and brief Files section name, resolved against a lane-scoped check [C7].
- * Why: claim compares their owning lanes under two policies, so only items whose own files changed lanes go stale.
- *
- * @param {{ criterion?: string, check?: string, brief?: string }} item - The item's bar.
- * @param {{ prose?: boolean }} [options]
- * @returns {string[]}
- */
-export function barPaths(item, { prose = true } = {}) {
-  const named = [...(prose ? pathTokens(item.criterion) : []), ...pathTokens(item.check), ...briefFiles(item.brief ?? '').flatMap(file => pathTokens(` ${file}`))];
-  // A starter check scoped to its lane folder (`cd './app' && (...)`) runs there, so the paths its bar names are that folder's.
-  const scope = /^cd '\.\/([^']+)' && \(/u.exec(item.check ?? '')?.[1];
-  const scoped = scope ? named.map(path => (path === 'pullboard.json' || path.startsWith(`${scope}/`) ? path : `${scope}/${path}`)) : named;
-  return [...new Set(scoped)];
-}
-
-/** The next step of a cross-ownership refusal: the lane piece, then the coordinator piece filed --after it. */
-export function splitAdvice(lane, title, paths) {
-  return `split it: file the lane piece with only ${lane} paths (pullboard add ${lane} "${title}"), then file the coordinator piece `
-    + `(pullboard add coordinator "${title}: coordinator piece" --after <lane item id>) naming ${paths.join(', ')}`;
-}
-
-/** Refuse a lane item whose bar names a coordinator-owned path; the coordinator and the person may name any path. */
-export function requireNoCoordinatorPath(config, me, item, options) {
-  if (me.id === COORDINATOR || item.lane === COORDINATOR || item.by === 'person') return;
-  const paths = coordinatorPaths(config, item, options);
-  if (!paths.length) return;
-  throw new Refused('CROSS_OWNERSHIP', `the bar names ${paths.join(', ')}, which no lane owns, so lane ${item.lane} cannot build it`,
-    splitAdvice(item.lane, item.title, paths));
 }

@@ -8,15 +8,14 @@ import { Refused } from '../../../../kernel/index.js';
 import { gitSpawnSync } from '../../../../git/index.js';
 import { loadKeyedResult } from '../keyed.js';
 import { saveKeyedResult } from '../keyed.js';
+import { sharedCacheFolder } from '../keyed.js';
 import { fileURLToPath } from 'node:url';
 import { closeSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
 import { openSync } from 'node:fs';
 import { readSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { fstatSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { dirname } from 'node:path';
 import { mkdirSync } from 'node:fs';
@@ -27,6 +26,8 @@ import { renameSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
+import { scratchFolder } from '../../../../config/index.js';
+import { storeName } from '../store-names.js';
 
 export const MAX_BLOB_BYTES = 8 * 1024 ** 2;
 
@@ -36,7 +37,7 @@ export function sourceGit(root, args, options = {}) {
     cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: MAX_BLOB_BYTES, ...options,
   });
   if (result.error?.code === 'ENOBUFS') {
-    const directory = mkdtempSync(join(tmpdir(), 'pullboard-source-count-'));
+    const directory = scratchFolder('pullboard-source-count-');
     const fd = openSync(join(directory, 'stdout'), 'w+', 0o600);
     try {
       const counted = gitSpawnSync(['--no-replace-objects', '-c', 'core.hooksPath=/dev/null', ...args], {
@@ -52,7 +53,9 @@ export function sourceGit(root, args, options = {}) {
 }
 
 /** The tooling export manifest a controller runs from; its tree names the scanner rules that made a verdict. */
-const TOOLING_MANIFEST = fileURLToPath(new URL('../../../../../.pullboard-runner-source.json', import.meta.url));
+/** The file name of that manifest; a runtime-written file, never part of the shipped closure. */
+export const TOOLING_MANIFEST_NAME = '.pullboard-runner-source.json';
+const TOOLING_MANIFEST = fileURLToPath(new URL(`../../../../../${TOOLING_MANIFEST_NAME}`, import.meta.url));
 let toolingTree;
 
 /**
@@ -83,23 +86,62 @@ export function cachedScan(kind, parts, scan) {
   if (!tree) return scan();
   const folder = join(process.env.PULLBOARD_MACHINE_HOME || join(process.env.HOME || homedir(), '.pullboard'), 'source-scan');
   const key = JSON.stringify([kind, tree, ...parts]);
+  let saved = keptScan(folder, key);
+  if (saved) return saved.value;
+  // One scan per key: the shards and the analysis trip of one gate prepare the same commit at once, and each scanned
+  // it cold, 22-25 s apiece on the controller (11 Nov) [C7,#5728]. A waiter answers from the scanner's verdict; a
+  // refusal is never kept, so after it each waiter scans and refuses for itself.
+  const lock = join(folder, `${createHash('sha256').update(key).digest('hex').slice(0, 32)}.lock`);
+  const release = takeScan(lock, () => (saved = keptScan(folder, key)) !== null);
+  if (!release) return saved.value;
+  try {
+    saved = keptScan(folder, key);
+    if (saved) return saved.value;
+    const value = scan();
+    try { saveKeyedResult(folder, key, Buffer.from(JSON.stringify({ key, value }))); }
+    catch { /* An unwritable cache only costs the next scan its shortcut. */ }
+    return value;
+  } finally { release(); }
+}
+
+/** A kept clean verdict for this exact key, as { value }, or null; an unreadable verdict only costs the shortcut. */
+function keptScan(folder, key) {
   try {
     const saved = loadKeyedResult(folder, key);
     if (saved) {
       const entry = JSON.parse(saved.toString('utf8'));
-      if (entry?.key === key) return entry.value;
+      if (entry?.key === key) return { value: entry.value };
     }
   } catch { /* An unreadable verdict only costs this scan its shortcut. */ }
-  const value = scan();
-  try { saveKeyedResult(folder, key, Buffer.from(JSON.stringify({ key, value }))); }
-  catch { /* An unwritable cache only costs the next scan its shortcut. */ }
-  return value;
+  return null;
 }
 
 /** Scan every current blob and the commit message before any source bytes leave the controller; a clean commit's verdict is kept (cachedScan). */
 export function sourceObjects(root, source) {
   if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(source.commit ?? '')) return scanSourceObjects(root, source);
   return cachedScan('source-objects', [source.commit, source.protect ?? null], () => scanSourceObjects(root, source));
+}
+
+/**
+ * The blobs of `commit`'s tree this scanner already found clean, from the runner's shared cache, and a `save` that
+ * records a clean tree's blobs. A result is keyed by blob ids and the scanner's own tree, never a commit, so a job whose
+ * fixture commits the same tree again skips reading them. Why: each runner job starts with an empty HOME, and every cold
+ * trip rescanned the same blobs, 1.5-8 s beside four other jobs (#8189). Paths, sizes and the commit are still checked.
+ */
+function cleanBlobs(root, commit) {
+  const none = { objects: new Set(), save() {} };
+  const scanner = scannerTree(), folder = scanner && sharedCacheFolder('source-blobs');
+  if (!folder) return none;
+  let key;
+  try { key = JSON.stringify(['clean-blobs', scanner, sourceGit(root, ['rev-parse', `${commit}^{tree}`]).trim()]); } catch { return none; }
+  let objects = new Set();
+  try {
+    const entry = JSON.parse(loadKeyedResult(folder, key)?.toString('utf8') ?? 'null');
+    if (entry?.key === key && Array.isArray(entry.objects)) objects = new Set(entry.objects.filter(object => /^[a-f0-9]{40,64}$/u.test(object)));
+  } catch { /* An unreadable entry only costs this scan its shortcut. */ }
+  return { objects, save(clean) {
+    try { saveKeyedResult(folder, key, Buffer.from(JSON.stringify({ key, objects: clean }))); } catch { /* The next job scans again. */ }
+  } };
 }
 
 /** Scan every current blob and the commit message before any source bytes leave the controller. */
@@ -114,7 +156,7 @@ function scanSourceObjects(root, source) {
     const match = /^(\d+) (\w+) ([a-f0-9]{40,64})\t([\s\S]+)$/u.exec(record);
     if (!match || match[2] !== 'blob') throw new Refused('RUNNER_SOURCE', 'runner source contains a submodule or unsupported object; keep this run local');
     const [, , , object, path] = match;
-    if (blockedPaths([path], protect).length || /(?:^|\/)board\.sqlite(?:-(?:wal|shm))?$/u.test(path)) {
+    if (protectedHistoryPath(path, protect)) {
       throw new Refused('RUNNER_SECRET', 'committed runner source includes a blocked private file; remove it before remote execution');
     }
     return { object, path };
@@ -134,26 +176,29 @@ function scanSourceObjects(root, source) {
       }
       return size;
     });
-    const scratch = mkdtempSync(join(tmpdir(), 'pullboard-runner-source-'));
+    // Only blobs this scanner has not already found clean are read and scanned; every path and size is checked above.
+    const known = cleanBlobs(root, source.commit);
+    const pending = blobs.map((blob, index) => ({ ...blob, size: sizes[index] })).filter(({ object }) => !known.objects.has(object));
+    const scratch = scratchFolder('pullboard-runner-source-');
     try {
       const scan = join(scratch, 'current.scan');
-      for (let start = 0; start < blobs.length;) {
+      for (let start = 0; start < pending.length;) {
         let end = start, bytes = 0;
         // Bound scratch usage too: an otherwise valid large tree must not fill the temp volume.
         do {
-          bytes += sizes[end] + blobs[end].object.length + 32;
+          bytes += pending[end].size + pending[end].object.length + 32;
           end++;
-        } while (end < blobs.length && bytes + sizes[end] + blobs[end].object.length + 32 <= MAX_BLOB_BYTES);
+        } while (end < pending.length && bytes + pending[end].size + pending[end].object.length + 32 <= MAX_BLOB_BYTES);
         const output = openSync(scan, 'wx', 0o600);
         try { sourceGit(root, ['cat-file', '--batch'], {
-          input: blobs.slice(start, end).map(({ object }) => object + '\n').join(''), stdio: ['pipe', output, 'pipe'],
+          input: pending.slice(start, end).map(({ object }) => object + '\n').join(''), stdio: ['pipe', output, 'pipe'],
         }); } finally { closeSync(output); }
         const descriptor = openSync(scan, 'r');
         try {
           for (let index = start; index < end; index++) {
-            const { object, path } = blobs[index];
+            const { object, path, size } = pending[index];
             const record = objectRecord(descriptor);
-            if (record.object !== object || record.type !== 'blob' || record.data.length !== sizes[index]) {
+            if (record.object !== object || record.type !== 'blob' || record.data.length !== size) {
               throw new Refused('RUNNER_SOURCE', 'current source record differs from its inventory; retry from the committed repository');
             }
             const findings = secretsIn(record.data.toString('utf8').split(/\r?\n/u)
@@ -167,6 +212,7 @@ function scanSourceObjects(root, source) {
         start = end;
       }
     } finally { rmSync(scratch, { recursive: true, force: true }); }
+    if (pending.length) known.save(blobs.map(({ object }) => object));
   }
   const commit = sourceGit(root, ['cat-file', 'commit', source.commit]);
   if (secretsIn(commit.split('\n').map((text, index) => ({ path: 'commit', line: index + 1, text }))).length) {
@@ -175,8 +221,33 @@ function scanSourceObjects(root, source) {
   return protect;
 }
 
+/**
+ * The one committed board a runner may receive: a 0.9.3 board kept as a test fixture, one folder below
+ * `apps/cli/tests/fixtures/`. Why: the upgrade journey needs a genuine 0.9.3 board that today's code cannot make, and
+ * its path made every `--diagnose` run refuse RUNNER_SECRET [C7,R4,#7894]. Any other board file, and every wal or shm
+ * sidecar, stays refused.
+ */
+const FIXTURE_BOARD = /^apps\/cli\/tests\/fixtures\/[^/]+\/board\.sqlite$/u;
+
+/**
+ * The historical blobs the transfer secret scan skips, by full object id. Why: two old versions of the upgrade-093
+ * fixture board carry only random lease fencing tokens from a throwaway board, and history cannot be rewritten
+ * [C7,#7919]. A full id pins exact bytes, so a new version of that file, or the same value in any other blob, is
+ * scanned as usual. Blocked paths are still refused.
+ */
+const HISTORICAL_SCAN_EXEMPT_BLOBS = new Set([
+  '04f366c14bcff002de322adaa655d93f4a64477f',
+  '62068207fe7f881651fc26192e870d8b67c7f27b',
+]);
+
+/** Whether one historical blob is exempt from the transfer secret scan by its exact full id [C7,#7919]. */
+export function historicalScanExempt(object, type) {
+  return type === 'blob' && HISTORICAL_SCAN_EXEMPT_BLOBS.has(object);
+}
+
 /** Reject blocked historical paths as well as current ones before an object pack crosses SSH. */
 export function protectedHistoryPath(path, protect) {
+  if (FIXTURE_BOARD.test(path)) return false;
   return blockedPaths([path], protect).length || /(?:^|\/)board\.sqlite(?:-(?:wal|shm))?$/u.test(path);
 }
 
@@ -208,7 +279,7 @@ function cleanHistoryFile(root, policies) {
   const digest = createHash('sha256').update(JSON.stringify(policies)).digest('hex').slice(0, 32);
   const partial = existsSync(join(common, 'shallow')) || existsSync(join(common, 'info', 'grafts'));
   const home = process.env.PULLBOARD_MACHINE_HOME || join(process.env.HOME || homedir(), '.pullboard');
-  return join(partial ? join(common, 'pullboard') : home, 'history-scan', `${digest}.json`);
+  return join(partial ? join(common, 'pullboard') : home, 'history-scan', storeName(digest));
 }
 
 /** Read the cached clean commits, newest first; a missing or unreadable cache is empty. */

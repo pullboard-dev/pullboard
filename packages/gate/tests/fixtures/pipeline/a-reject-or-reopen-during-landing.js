@@ -39,7 +39,7 @@ test('a reopen between select and merge drops the item from the landing batch; m
     moveMainPastSubmit(box, 1);
     writeFileSync(box.hold, 'armed');
     const started = Date.now();
-    const landing = startFixtureChild(process.execPath, [`${ROOT}/apps/cli/pullboard.js`, 'land', '--max', '2', '--json'], { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const landing = startFixtureChild(process.execPath, [`${ROOT}/apps/cli/pullboard.js`, 'land', '--json'], { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '', err = '';
     landing.stdout.on('data', part => { out += part; });
     landing.stderr.on('data', part => { err += part; });

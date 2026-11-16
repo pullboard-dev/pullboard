@@ -80,7 +80,6 @@
     "apps/cli/journeys/inbox/projects.test.js": 308,
     "apps/cli/journeys/relay/cockpit.test.js": 1794,
     "apps/cli/journeys/roadmap/cockpit.test.js": 988,
-    "apps/cli/journeys/shout/search.test.js": 72,
     "apps/cli/journeys/shout/shouts.test.js": 544,
     "apps/cli/journeys/fact/snapshot.test.js": 280,
     "apps/cli/journeys/spec/cockpit.test.js": 817,

@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { temporaryDirectory } from '../fixtures/board.js';
 import { temporaryRepository } from '../fixtures/board/submit.js';
-import { toolsSnapshot } from '../../src/io/submit/handoff.js';
+import { toolsSnapshot } from '../../src/io/toolsnapshot.js';
 import { TOOLS_INDEX } from '../../src/io/toolsnapshot.js';
 
 /** Run git in a folder with no user config. */

@@ -1,10 +1,8 @@
 /** Remove one cell's re-export shims: repoint every importer to the cell front door, then delete what nothing imports [C7,D3]. */
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { posix } from 'node:path';
@@ -33,6 +31,8 @@ import {
   retiredProblems,
 } from './plan/cuts.js';
 import { ownerFor } from './plan/cuts.js';
+import { mkdtempSync } from 'node:fs';
+import { scratchBase } from '../../../../kernel/light.js';
 
 /** Marks a use that takes the shim's whole namespace, so every name it exports must stay reachable. */
 const ALL = Symbol('all');
@@ -524,7 +524,7 @@ export function writeShimHandoff(root, result, cell, { lane = 'core', directory,
   const quote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
   const add = ['add', lane, handoff.title, '--criterion', handoff.criterion, '--after', String(item ?? '<removal item id>'), '--force-size', 'one cut must enumerate every remaining shim importer'];
   const command = `pullboard ${add.map(quote).join(' ')}`;
-  const out = directory ?? mkdtempSync(join(tmpdir(), 'pullboard-shim-handoff-'));
+  const out = directory ?? mkdtempSync(join(scratchBase(), 'pullboard-shim-handoff-'));
   mkdirSync(out, { recursive: true });
   writeFileSync(join(out, 'fact.txt'), handoff.fact + '\n');
   writeFileSync(join(out, 'cut-item.txt'), `Title: ${handoff.title}\nCriterion: ${handoff.criterion}\n--after ${item ?? '<removal item id>'}\n${command}\n`);

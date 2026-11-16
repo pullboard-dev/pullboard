@@ -2,14 +2,130 @@
 
 Notable changes to Pullboard, for people using it. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.9.4] - 2026-11-15
+
+**Pullboard rebuilt itself, on its own board, in under three weeks.**
+
+- 13,000+ commits across 4,500+ items: three quarters of Pullboard's entire history.
+- Nearly 6,000 files changed, and almost 600,000 lines added.
+- Over 5x the test files: from about 400 to more than 2,400.
+- Cells: the code is split into self-contained parts, so many agents build at once.
+- Runners: add more machines to run your tests and land your work, and development scales with them.
+- Landing runs itself: accepted work lands on main with a receipt, and main refuses anything without one.
+- A redesigned view: Dashboard as home, a new Pipeline page, search and hotkeys, and it opens in seconds.
+- Agents never wait: tests and submits queue and return, and one agent can work several items at once.
+
+Your Pullboard now works from any machine that can reach it.
+
+The design behind it:
+
+- [RFC 0006: Cells, the structure of a codebase many agents build at once](docs/rfcs/0006-cells.md)
+- [RFC 0007: Sealed cells and proof that travels](docs/rfcs/0007-sealed-cells-and-proof-that-travels.md)
+- [RFC 0008: Durable jobs and the runner protocol](docs/rfcs/0008-durable-jobs-and-runner-protocol.md)
+- [RFC 0009: Contribution records](docs/rfcs/0009-contribution-records.md)
+- [RFC 0010: Releases: Cut. Clear. Ship.](docs/rfcs/0010-cut-clear-ship.md)
+
+Thank you to @klartext79, @McHersheys, @anhtahaylove, @bens27, @mlnj and @purbakusuma. Your reports are in this release; each fix below names the report it came from.
+
+### Added
+
+- Runners pull their work. A runner serves jobs from the board's queue by capability, renews a lease while it works and posts a signed receipt; only the runner holding a job's lease can post its result. `pullboard runner serve` runs gate, test, landing and main-check jobs, `--once` runs a single job, `runner install-serve` installs it as a service, and `runner drain` stops a runner taking new jobs (#3429, #5467, #5468, #5469, #5689, #5690, #5721, #5732, #5735, #5758, #5777, #5623, #6063).
+- A machine with no registered runners is its own runner: submit starts a local runner, a board command restarts it if it dies, and `runner list` and `doctor` show it (#5764, #6556, #6557, #6558).
+- Boards anywhere: with `board.url` set, `show`, `whoami`, `next`, `claim`, `fact`, `release`, `submit`, `verify` and `test` work over the board API from any machine, `join` registers a remote agent, and runners fetch code from the trunk remote or from the board itself (#5904, #5905, #5906, #5908, #5909, #5945, #5759).
+- Multi-item claims: a seat may hold several live claims, and one `next` hands it up to that many ready items whose files do not overlap, each in its own item folder. The allowance comes from board data (#6262, #6263, #6673, #7461).
+- `pullboard test` posts a proof run that a runner pulls and returns at once. It says when it is admitted and on which runner, prints progress every minute, and has `--status`, `--cancel`, `--diagnose` and `--compare-main`. A green run at the item's head ticks the clauses it proves (#3439, #4078, #5300, #5584, #5772, #5774, #5888, #3479, #3670).
+- The lander: accepted items land as a job on a runner. The land job takes every verified item that composes cleanly, lands them in accept order, refuses a candidate that fails the parse guard or CLI smoke, and publishes the landed tip; the trunk remote refuses a push to main without a landing receipt (#5568, #5734, #5815, #5848, #5863, #5864, #7307, #7387, #7395, #7398).
+- `pullboard search <text>` finds items by meaning across titles, bars and briefs, and `add` prints the nearest three open items. Filing a likely duplicate is refused unless you say how it differs (#5915, #5916, #5917, #6475).
+- The `withdraw.review` setting makes a withdrawal wait for a second agent to confirm it (#6474).
+- `pullboard trace <agent|item>` rebuilds a timeline from one trace line per command and the board's events, down to each gate step and runner lease (#3214, #3216, #3856).
+- `pullboard why` prints the release flow on one screen: one cause for each unlanded item and each idle seat. `pullboard land --why` says why nothing landed and what holds the line (#2887, #6326, #6327).
+- `pullboard status` prints the most agents this board can use and what limits it (#7322).
+- `pullboard stats runners`, `stats agents` and `stats review` report slot wait, utilization, run time and health per runner, claims, submits, landings and wait per seat, and review queue depth, time to review and reject rate. `stats` shows the pipeline per hour and Pullboard's disk use per store (#2186, #3000, #6031, #6032, #6033, #6034, #6136, #6137, #6138).
+- Items carry labels computed from the board, and `pullboard labels` lists them (#6321, #6322).
+- `pullboard contribute check <file>` prints every failure in a contribution record with its rule, its fix and a skill command (#3910, #6387, #6508).
+- The pullboard-release skill ships with Pullboard, with a release receipt check (#6511, #6522).
+- Commit hooks fix mechanical style themselves and say what they changed (#5775).
+- `init` detects every language in a mixed repo and sets up one gate per language (#3707).
+- A `scratch` setting names one root for throwaway folders (#6316).
+- The view has a search box, a command palette and hotkeys (#6616).
+- The view's account menu holds sign-in, settings, theme and phone pairing, and the project menu tells boards apart by owner, name and kind (#6648, #6650).
+- `pullboard edit` can change an item's title, keeping the old one in its thread; `add` and `edit` catch an ambiguous bar and name the fix (#4967, #4984).
+- `pullboard intake --brief` lets a pull request enter on the mid route, and `milestone --as person` lets the person ship a milestone (#3813, #5375).
+- The `rigor.autoDraft` setting turns off unproved Rigor drafts (#5403; reported in [GitHub #26](https://github.com/pullboard-dev/pullboard/issues/26) by @klartext79)
+- The `review.independence` setting chooses session-level verifier independence (#5407; reported in [GitHub #27](https://github.com/pullboard-dev/pullboard/issues/27) by @klartext79)
+
+### Changed
+
+- The repo is laid out in cells: shared code lives in `packages/` and each program in `apps/`, and packages never import apps. One scripted change moved the code; landing refuses a new file the layout does not place, and each cell is checked against the cells it may import (#3210, #3689, #4003, #4865, #4866, #6292, #6859, #6860, #6861).
+- Boards and runners made by 0.9.3 keep working after the upgrade to 0.9.4: old move history, worker paths and manifests are still read (#4868, #4869, #4870, #6267).
+- Pull is the default. Submit records the submit and returns; the whole gate runs as one runner job and posts one receipt. Nothing gate-related runs on the coordinator's machine (#2535, #5674, #5691, #5807, #5820, #6182).
+- Landing is automatic: accepted items land at once, the coordinator's machine only fast-forwards main, `pullboard land` offers the land job, and landing by hand says so and names `landing.manualOverride` (#3525, #5585, #6272, #6807).
+- Runners spread work by load: a runner pulls a job only while it has spare cores, runs a job's files in parallel, keeps tooling pinned and takes source as tree ids, and reuses a warm checkout between jobs. Agent test runs go ahead of queued gate shards, and job kinds have reserved shares (#3523, #3524, #5578, #5812, #5919, #6313, #6464, #6538, #6681).
+- Proof is reused: review and landing read the gate's receipt and run no tests again, a test whose inputs have not changed since its last green run is skipped, and one ledger records every reuse (#3526, #5471, #5839, #5842, #5843, #7277).
+- Faster board commands: commands start without the runner tooling capture, heartbeat and the commit hooks run through the warm board process, board writes hold the lock for milliseconds, `next` and `claim` open an item folder in under a second, and `next` picks for a build seat in under 2 s on a large board (#2437, #3172, #3250, #3847, #5561, #5776, #6357).
+- Read commands load less: `show`, `list` and offline `status` load only what they read, and a fresh seat's first inbox answers in under 300 ms (#5487, #6037, #6152, #6476, #6483, #7505).
+- Submit and the commit hooks do less git work: one status scan per submit, revisions and logs resolved in one batch, and at most 12 git processes per pre-commit (#5498, #6153, #6169, #6197, #6334, #6486, #6499).
+- The board API never blocks on a request: handlers run in a worker pool, survive main moving under them, and runners keep their leases across an API restart and reconnect within seconds (#6157, #6358, #6390, #6716, #6718, #6730, #6778).
+- A seat never waits: `test` and `submit` queue and return, `join`, `claim` and `submit` never print `next --wait` as the next step, and rejected work comes before new work in `next` (#2777, #5765, #5807, #6288).
+- A seat's route comes from the model running in it through one tier table; Sonnet seats take the strong route (#2848, #3678, #6268).
+- Review: eligibility follows the family of the builder of the submitted head, a seat that claimed or built an item never reviews it, and a seat that shares a parent session with the author is never offered the review. A forced landing gets a later review from another family (#2868, #3294, #5666, #6163, #6485, #7291).
+- A machine-verified item lands on its proof without waiting for a reviewer (#2183).
+- Policy is read live: a claim freezes the bar only, and a policy change never bounces work in flight (#2471, #5701, #5702, #5703).
+- Spec flow: `spec apply` applies approved rows at once on a busy board, a row cannot be approved while its gate file is missing, and commits can cite another board's spec ids (#1276, #2836, #6434, #7037).
+- Bars are checked at filing: `add`, `edit` and `claim` refuse a bar whose check names a missing path, and a per-item clause that needs the full suite or CI (#2843, #5709).
+- Every flag in `pullboard help` has a one-line meaning, and the reject form with reason codes is in the agent guide (#4966, #6564).
+- The person's screens use plain words: no codes, commands, tokens or relay terms in refusal lines, Needs you entries or banners, and the view calls the person's decisions Rulings (#3977, #3978, #3979, #6655).
+- The view loads a large board in seconds: it draws its frame at once, sends open work first, sends only what changed on a live update, draws only the rows on screen and serves compressed assets. Item search answers in under 300 ms and the Cost tab in under 1 s (#6584, #6586, #6588, #6630, #6658, #6663, #6665, #6667, #6668, #6676, #6678, #6679).
+- The view was redesigned to its approved mockups: Dashboard, Items, Activity, Roadmap, Shouts, Settings and Cost share one dense style that fits a phone (#6608, #6615, #6645, #6646, #6647, #6652, #6727, #6841, #6842, #6844, #6845, #6847, #6916, #6926, #6930, #7308, #7553).
+- Maintenance compacts the board daily and prunes runner results, temp tool trees and test caches by age and size, so disks stop filling (#3342, #3460, #5489, #6042, #7001, #7002, #7010).
 
 ### Fixed
 
+- Landing keeps moving: a batch blocked on infrastructure retries on the new main, a worker or lease holder that dies is replaced within 2 minutes, every refusal inside the lander is a recorded block, an item blocked twice by the same cause is parked so the line moves on, and a withdrawn dependency counts as satisfied (#2857, #2875, #2912, #3188, #3189, #3224, #3392, #5770, #5816, #7386).
+- A trunk test-defect hold closes itself when its tests pass at the trunk or its defect item closes, and `pullboard land --waive` lifts one while the board owns landing (#3675, #3694, #3719, #3761).
+- An accepted item that no longer merges is reopened with the conflict named, and a stale verdict goes back to its lane (#3466, #7269).
+- A gate stopped by infrastructure requeues itself, rotates to another runner with back-off, and never spends its retries on a busy board; a gate or job whose worker died is requeued from its captured candidate (#3074, #3086, #3101, #3365, #3714, #4040, #5518, #6546).
+- A runner whose health probe passes is never quarantined by a slow probe, a missed deadline, its own cleanup or a brief network blip, and runner SSH calls share one connection (#3313, #3432, #3655, #3658, #3698, #3738, #5683).
+- A claim stays alive while its test run, proof run or check is in flight, a stale claim returns to the queue only after 40 minutes with no board move or commit, and the sentinel never releases claims for a window in which the machine itself stalled (#3430, #3446, #3712, #5571, #5575, #5726, #6128).
+- A seat whose session ended counts as gone, not idle (#1982, #6329).
+- `next` stops repeating itself: it never offers an item whose folder belongs to another live session or whose worktree is gone, never keeps serving a claim whose new wait is unmet, skips an item frozen against an older lane policy or naming a missing path, and offers claimable work instead of "nothing is free" (#2716, #3203, #3681, #3688, #3691, #3723, #4990, #5700, #5786).
+- A release that says an item is blocked, routed elsewhere or ineligible stops `next` offering it to that seat or lane, and an exclusion from a temporary release expires (#2713, #3014, #3742).
+- Item folders that hold unlanded work are never cleaned up, and maintenance never removes a worktree with uncommitted changes or one joined to a live seat (#3222, #3539, #5969).
+- Submit refuses clearly and early: a head carrying another item's unverified commits, a folder problem before the board move, BOARD_BUSY that leaves the head and its evidence in place, and no refusal over its own lapsed-claim check (#3793, #4995, #5327, #5766, #6016, #6096).
+- A green proof survives a main merge that touches nothing its check reads, and re-claiming an item keeps its clause evidence when its commit and bar are unchanged (#5780, #5784).
+- A gate never reports green from a run that ran none of the selected tests, printed nothing, edited its own checkout or hid an early pipe failure, and a runner with no browser refuses browser-bound proof instead of skipping it (#7276, #7484, #7489, #7494, #7516).
+- A verify whose checkout or trunk moves during a fresh check cannot gain proof (#3024).
+- A move the relay permanently refuses is parked, and `pullboard relay recover` resolves it (#6693; reported in [GitHub #14](https://github.com/pullboard-dev/pullboard/issues/14) by @McHersheys)
+- Relay moves never wait silently: a move over the size limit gets a refusal with its size and the limit, the hosted relay takes up to 10 MB, and every relay refusal has a next step (#1196, #1300, #6696, #6707).
+- The board protects itself: archives refuse when they would fill the disk, old code refuses to write a board whose schema is ahead of it, a board whose shape drifted repairs its tables and triggers, export and sync stream a large board, and a long write never blocks other writers for minutes (#2089, #4996, #5825, #5899, #7297).
+- The pre-commit scan skips binary files, so one large binary is no longer refused (#1316; reported in [GitHub #3](https://github.com/pullboard-dev/pullboard/issues/3) by @mlnj)
+- The relay page cache reads its pending pages before uploading them, so acknowledging a page no longer fails with "database is locked" (#7560; reported in [GitHub #8](https://github.com/pullboard-dev/pullboard/issues/8) by @McHersheys)
+- Secrets: landing refuses a candidate whose added lines contain a secret, and the pre-commit scan checks only what a merge from main adds (#3762, #5968).
+- On Windows, `next` in a lane worktree reuses its seat instead of opening a second one, so `pullboard tour` passes step 3 (#3306; reported in [GitHub #16](https://github.com/pullboard-dev/pullboard/issues/16) by @anhtahaylove)
+- The refusal for a verifier in the builder's session says to start the review in a separate process, and the pullboard-run guide lists every refusal (#3311; reported in [GitHub #20](https://github.com/pullboard-dev/pullboard/issues/20) by @bens27)
+- After `takeover`, `land --adopt` hands the interrupted landing folder to the new coordinator session (#5399; reported in [GitHub #24](https://github.com/pullboard-dev/pullboard/issues/24) by @klartext79)
+- `pullboard publish` works from an agent's shell (#5400; reported in [GitHub #25](https://github.com/pullboard-dev/pullboard/issues/25) by @klartext79)
+- A declined Rigor rule stays declined, and reopening an item to correct its bar no longer counts as a failure (#5404; reported in [GitHub #26](https://github.com/pullboard-dev/pullboard/issues/26) by @klartext79)
+- Each subagent runs `next` as its own seat and stays in its lane (#5405; reported in [GitHub #27](https://github.com/pullboard-dev/pullboard/issues/27) by @klartext79)
+- A claim in the wrong lane refuses and names the lane instead of opening a seat (#5413; reported in [GitHub #27](https://github.com/pullboard-dev/pullboard/issues/27) by @klartext79)
+- Paths with spaces work in test subprocesses and recorded wait keys (#1873, #6763).
+- Daemons started by a desktop app keep that app's macOS Local Network permission (#5699).
+- Command fixes: `status` and `resume --diagnostics` no longer throw on the shared read path, `spec draft` writes the row it prints, `doctor` names a missing spec gate file instead of hanging, `merged` records an item once, `add` and `edit` never drop a repeated `--criterion`, and `withdraw`'s hint names the right flag (#2835, #3267, #3350, #3743, #3992, #4988).
+- `pullboard view` exits promptly, `view --export` finishes on a large board, and the view keeps answering while the repository is busy (#6186, #6661, #6768).
+- View fixes: Settings shows a plain problem instead of a raw error, the no-link page tells the visitor what to do, Dashboard counts show numbers instead of dashes, and rows, menus, tabs and tables fit a phone without stray boxes or shadows (#6607, #6644, #6720, #6769, #6771, #6774, #6775, #6776, #6931, #7302, #7303, #7304, #7309, #7311, #7312, #7389, #7400, #7403).
 - On Linux, landing cleanup sees each process's working directory, so it removes only clean landed worktrees and never one in use (#1462).
 - `pullboard status` stays light when offline and reads runner use without writing (#1462).
 - Opening the decision queue no longer loads choices meant for other readers (#1462).
 - A read-only Needs panel shows its draft summary as text instead of a navigation button it cannot use (#1541).
+
+### Removed
+
+- The SSH controller: the hand-off dispatcher, gate drivers, hand-off worker and its cap, the lifeline and the resources controller path are gone. Runners pull jobs instead (#3495, #5693, #6579, #6580).
+- The inline submit gate and the submit hand-off modules (#6824, #6832, #6833, #6834).
+- The Mac landing engine: the in-process landing batch, candidate and parallel planning, the landing scheduler, `pending.json` and `worker.log` (#6121, #6810, #6812, #6817, #6818).
+- Landing no longer reads the restructure plan; its plan checks went with it (#6295, #7375, #7376).
+- The view's Progress page; Dashboard is the home page (#6726).
+- `docs/lifecycle.md` and `docs/cli-help.txt` are no longer committed; help prints the same facts (#5309, #6420).
 
 ## [0.9.3] - 2026-10-26
 

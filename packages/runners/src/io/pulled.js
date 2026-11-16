@@ -3,13 +3,19 @@
 /** A serve that claimed nothing for this long no longer counts as running, so a stopped serve's setting drops out. */
 export const SERVE_RECENT_MS = 10 * 60 * 1000;
 
-/** The jobs setting a claim step carries, or null for a serve that did not say. */
-function declared(text) {
+/** One whole-number field a claim step carries, or null for a serve that did not say. */
+function field(text, name) {
   try {
-    const jobs = JSON.parse(text)?.jobs;
-    return Number.isSafeInteger(jobs) && jobs >= 1 ? jobs : null;
+    const value = JSON.parse(text)?.[name];
+    return Number.isSafeInteger(value) && value >= 1 ? value : null;
   } catch { return null; }
 }
+
+/** The jobs setting a claim step carries, or null for a serve that did not say. */
+function declared(text) { return field(text, 'jobs'); }
+
+/** The cores and RAM bytes a claim step carries, from the newest claim a serve posted. */
+function hostOf(text) { return { cores: field(text, 'cores'), ram: field(text, 'ram') }; }
 
 /**
  * Read per-serve claimed pulled jobs and declared jobs settings from the board's job table, plus fleet totals.
@@ -17,23 +23,30 @@ function declared(text) {
  * posted (held jobs, or any claim within SERVE_RECENT_MS), so a serve that never claimed is unknown to the board.
  * Why one reader: the live view and ops each counted per-service registrations and showed 3 of 120 while runners ran 8 jobs each.
  *
- * @param {import('node:sqlite').DatabaseSync} db - The board, read only.
- * @param {{ now?: number }} [options]
- * @returns {{ serves: { runner: string, claimed: number, jobs: number|null }[], totals: { claimed: number, jobs: number, serves: number } }}
+ * @param {import('node:sqlite').DatabaseSync} board - The board, read only.
+ * @param {{ now?: number, runs?: { db: import('node:sqlite').DatabaseSync | null } | null }} [options] - runs: with runs_store on, the read-only runs holder; the job rows are read from it and not from the board, and a missing runs file reads as no jobs [B2,#9014].
+ * @returns {{ serves: { runner: string, claimed: number, jobs: number|null, cores?: number, ram?: number }[], totals: { claimed: number, jobs: number, serves: number } }}
  */
-export function readPulledCapacity(db, { now = Date.now() } = {}) {
+export function readPulledCapacity(board, { now = Date.now(), runs = null } = {}) {
+  const db = runs ? runs.db : board;
+  if (!db) return { serves: [], totals: { claimed: 0, jobs: 0, serves: 0 } };
   const serves = new Map();
   const serve = runner => { if (!serves.has(runner)) serves.set(runner, { runner, claimed: 0, jobs: null }); return serves.get(runner); };
-  const note = (entry, jobs) => { if (jobs !== null && jobs > (entry.jobs ?? 0)) entry.jobs = jobs; };
+  const note = (entry, jobs, text) => {
+    if (jobs !== null && jobs > (entry.jobs ?? 0)) entry.jobs = jobs;
+    const host = hostOf(text);
+    if (host.cores !== null) entry.cores = host.cores;
+    if (host.ram !== null) entry.ram = host.ram;
+  };
   const held = db.prepare(`SELECT job.job_lease_owner AS runner, step.job_step_payload AS payload FROM job
     LEFT JOIN job_step AS step ON step.job_step_job = job.job_id AND step.job_step_name = 'claimed' AND step.job_step_seq = job.job_attempt
     WHERE job.job_lease_owner IS NOT NULL AND job.job_lease_until >= ? AND job.job_step <> 'done'`).all(now);
-  for (const row of held) { const entry = serve(row.runner); entry.claimed += 1; note(entry, declared(row.payload)); }
-  const recent = db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_name = 'claimed' AND job_step_at >= ?").all(now - SERVE_RECENT_MS);
+  for (const row of held) { const entry = serve(row.runner); entry.claimed += 1; note(entry, declared(row.payload), row.payload); }
+  const recent = db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_name = 'claimed' AND job_step_at >= ? ORDER BY job_step_at").all(now - SERVE_RECENT_MS);
   for (const row of recent) {
     let runner;
     try { runner = JSON.parse(row.payload)?.runner; } catch { continue; }
-    if (typeof runner === 'string' && runner) note(serve(runner), declared(row.payload));
+    if (typeof runner === 'string' && runner) note(serve(runner), declared(row.payload), row.payload);
   }
   const list = [...serves.values()].sort((a, b) => a.runner.localeCompare(b.runner));
   return { serves: list, totals: { claimed: list.reduce((sum, entry) => sum + entry.claimed, 0), jobs: list.reduce((sum, entry) => sum + (entry.jobs ?? 0), 0), serves: list.length } };

@@ -48,12 +48,12 @@ test('line order sends a send-back home first and gives the scarcest review firs
     clause: returnedItem.item_title, note: 'Synthetic rejected lifecycle record; no gate execution claimed.', head: returnedItem.item_commit,
     digest: returnedItem.item_frozen_digest, policy: 'any', reopenFirstRefusalMinutes: 15 });
   addMilestone(home.board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'first', items: [older] });
-  assert.equal(store.nextFor(home.board, { agentId: home.builder, lane: 'core' }).item.item_id, older, 'off retains release order before rework');
+  assert.equal(store.nextFor(home.board, { agentId: home.builder, lane: 'core' }).item.item_id, returned, 'rejected work leads new release work with line order off (5ff1545383, #5765)');
   assert.equal(store.lineSettings(home.board).reviewsFirst, false, 'review-versus-build selection is a separate control');
   home.order(true);
   assert.equal(store.nextFor(home.board, { agentId: home.builder, lane: 'core' }).item.item_id, returned, 'on returns the builder to its own send-back before new release work');
   home.order(false);
-  assert.equal(store.nextFor(home.board, { agentId: home.builder, lane: 'core' }).item.item_id, older, 'recorded off restores the prior order');
+  assert.equal(store.nextFor(home.board, { agentId: home.builder, lane: 'core' }).item.item_id, returned, 'recorded off still leads with rejected work (5ff1545383, #5765)');
 
   const scarce = lineOrderFixture(t, LINE_ORDER_ENGINE - 1);
   const otherAuthor = store.register(scarce.board, { lane: 'core', path: join(scarce.root, 'author-Q'), parent: 'author-Q', session: 'author-Q-child' });

@@ -15,7 +15,12 @@ import { realpathSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { runsFilePath } from '../../../store/index.js';
 import { elapsedMs } from '../logic/budgets.js';
+import { storeName } from './store-names.js';
+
+// Budget: the job lease a runner's renewal extends (the jobs cell's LEASE_MS, two minutes), so a lease's last renewal is its end minus this.
+const LEASE_RENEW_WINDOW_MS = 120_000;
 
 /** Whether a pid names a running process; EPERM is someone else's live process. */
 export function pidAlive(pid) {
@@ -68,6 +73,19 @@ function fileAge(file, now) {
 }
 
 /**
+ * Whether a waiter is queued behind runners that each name why they cannot take it: busy, quarantined, kept for timed checks
+ * or overloaded. That is a queue wait; the busy runner's holders and a quarantined runner's own runner-unavailable row carry
+ * the budget (#6857, #8023). Only a runner reported available leaves a wait with no holder and no cause, which stays a hold.
+ */
+function queuedForNamedRunners(row) {
+  if (row.name !== 'gate' || !row.reasons) return false;
+  try {
+    const runners = JSON.parse(row.reasons);
+    return Array.isArray(runners) && runners.length > 0 && runners.every(runner => !String(runner.reason).startsWith('available'));
+  } catch { return false; }
+}
+
+/**
  * Resource pool holders and waiters, one row per pool with a holder or a waiter. A checkout-session pool is the
  * checkout's write lease. A holder whose pid is gone is dead, and the queue's own prune reclaims it.
  */
@@ -76,7 +94,8 @@ export function readPools(file, scope, now, census) {
   if (!db) return { rows: [], unavailable: [] };
   try {
     const holders = db.prepare('SELECT name, pid, agent, since, item, kind FROM holder ORDER BY since').all();
-    const waiters = db.prepare('SELECT name, pid, agent, since, item, kind FROM waiter ORDER BY ticket').all();
+    const hasReasons = db.prepare("SELECT 1 FROM pragma_table_info('waiter') WHERE name = 'runner_wait_reasons'").get();
+    const waiters = db.prepare(`SELECT name, pid, agent, since, item, kind${hasReasons ? ", runner_wait_reasons AS reasons" : ''} FROM waiter ORDER BY ticket`).all().filter(row => !queuedForNamedRunners(row));
     const unavailable = scope === 'machine' && db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='runner_unavailable'").get()
       ? db.prepare('SELECT host, since, detail FROM runner_unavailable').all() : [];
     const names = [...new Set([...holders, ...waiters].map(row => row.name))].sort();
@@ -214,7 +233,7 @@ function lastSpanEnds(spanFolder, now) {
   const ends = new Map();
   for (const day of [now - 86_400_000, now]) {
     let text;
-    try { text = readFileSync(join(spanFolder, `${new Date(day).toISOString().slice(0, 10)}.jsonl`), 'utf8'); } catch { continue; }
+    try { text = readFileSync(join(spanFolder, `${storeName(new Date(day).toISOString().slice(0, 10), '.jsonl')}`), 'utf8'); } catch { continue; }
     for (const line of text.split('\n')) {
       if (!line) continue;
       try {
@@ -238,11 +257,16 @@ function leaseOwnerPid(owner) {
  * span, whichever is later; a landing run's age is since it started.
  */
 export function readJobs(boardFile, spanFolder, now, census) {
-  const db = readOnly(boardFile);
+  const board = readOnly(boardFile);
+  if (!board) return [];
+  // With runs_store on the job rows live in the runs file beside the board, read only; a missing runs file reads as no jobs [B2,#9014].
+  const runsOn = board.prepare("SELECT meta_value FROM board_meta WHERE meta_key = 'runs_store'").get()?.meta_value === '1';
+  const db = runsOn ? readOnly(runsFilePath(boardFile)) : board;
+  if (runsOn) board.close();
   if (!db) return [];
   try {
     if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='job'").get()) return [];
-    const jobs = db.prepare(`SELECT job_id, job_kind, job_item, job_step, job_lease_owner, job_created,
+    const jobs = db.prepare(`SELECT job_id, job_kind, job_item, job_step, job_lease_owner, job_lease_until, job_created,
       (SELECT MAX(job_step_at) FROM job_step WHERE job_step_job = job_id) AS last_step
       FROM job WHERE job_kind IN ('gate', 'gate-drive', 'landing-run') AND job_lease_until > ?`).all(now);
     const spans = jobs.some(job => job.job_kind !== 'landing-run') ? lastSpanEnds(spanFolder, now) : new Map();
@@ -254,7 +278,10 @@ export function readJobs(boardFile, spanFolder, now, census) {
           context: pid ? doing(census, pid) : null, detail: `lease owner ${job.job_lease_owner} (${owner})`, waiters: [], evidence: `${boardFile} job '${job.job_id}'` };
       }
       const bare = job.job_id.replace(/^(?:gate-drive:|handoff-drive-)/u, '');
-      const progress = Math.max(job.last_step ?? 0, spans.get(job.job_id) ?? 0, spans.get(bare) ?? 0) || job.job_created;
+      // A runner holding a gate renews its lease every few seconds while the gate's own phases (static, cells, selection) run
+      // with no step or span of their own, so the renewal is its progress; the runner-job row budgets how long it may run (#6724).
+      const renewed = !pid && job.job_kind === 'gate' && job.job_lease_owner ? job.job_lease_until - LEASE_RENEW_WINDOW_MS : 0;
+      const progress = Math.max(job.last_step ?? 0, spans.get(job.job_id) ?? 0, spans.get(bare) ?? 0, renewed) || job.job_created;
       return { surface: 'gate', key: `gate:#${job.job_item ?? '?'}:${job.job_kind}`, holder: `#${job.job_item ?? '?'} ${job.job_kind} ${job.job_step}`, pid,
         ageMs: Math.max(0, now - progress), context: pid ? doing(census, pid) : null,
         detail: `job ${job.job_id}; lease owner ${job.job_lease_owner} (${owner}); last progress ${new Date(progress).toISOString()}`,
@@ -308,7 +335,7 @@ function runnerJobRows(host, text, now) {
     const label = testFile ? testFile.split('/').slice(-2).join('/') : descendants.length ? `${descendants[0].command.split(' ')[0].split('/').at(-1)} without a script` : 'no job process';
     return { surface: 'runner-job', key: `${host}:${label}`, holder: `${host} worker ${worker.pid}: ${label}`, pid: worker.pid, ageMs: worker.ageMs ?? 0,
       context: testFile ?? null, detail: `${descendants.length} child process${descendants.length === 1 ? '' : 'es'}; job folder ${folder ? `~${folder}` : 'none'}${worker.ppid === 1 ? '; orphaned (ppid 1)' : ''}`,
-      waiters: [], evidence: `ssh ${host} ps -p ${worker.pid}` };
+      waiters: [], evidence: `ssh ${host} ps -p ${worker.pid}`, host, working: descendants.length > 0 && worker.ppid !== 1 };
   });
 }
 

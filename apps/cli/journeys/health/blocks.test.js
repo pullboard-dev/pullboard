@@ -23,6 +23,7 @@ import { Refused } from '../../../../packages/kernel/light.js';
 import {
   personBlockWords,
   readBlocks,
+  readLedgerBytes,
 } from '../../../../packages/items/index.js';
 import { relayPresentation } from '../../../../packages/pages/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
@@ -297,4 +298,37 @@ test('clause 1: a ledger that names none of a completed move\'s keys is never pa
   assert.deepEqual(named, readBlocks(commonDir).filter(block => block.moveKey === key), 'the blocks naming the key, as an unfiltered read gives them');
   assert.ok(!named.some(block => block.id === 'b3'), 'the cleared block stays cleared');
   assert.equal(parsed, 2_001, 'only the lines naming the key and the clear were parsed');
+});
+
+/** A ledger over the first 256 KB read window whose blocks name one of ten move keys, plus a clear of one; returns its folder and a key. */
+function largeLedger(t) {
+  const commonDir = privateFixtureFiles('pullboard-blocks-once-').root;
+  t.after(() => fs.rmSync(commonDir, { recursive: true, force: true }));
+  fs.mkdirSync(join(commonDir, 'pullboard'));
+  const lines = [];
+  for (let i = 0; i < 4_000; i++) lines.push(JSON.stringify({ at: '2026-11-09T00:00:00.000Z', code: 'B1', id: `b${i}`, moveKey: `${'c'.repeat(63)}${i % 10}`, command: 'x'.repeat(40) }));
+  lines.push(JSON.stringify({ kind: 'clear', at: '2026-11-09T00:00:01.000Z', ids: ['b7'] }));
+  const file = join(commonDir, 'pullboard', 'blocks.jsonl');
+  fs.writeFileSync(file, lines.join('\n') + '\n');
+  assert.ok(fs.statSync(file).size > 262_144, 'the ledger is larger than the first read window');
+  return { commonDir, key: `${'c'.repeat(63)}7` };
+}
+
+test('clause 1: readBlocks with mentioning returns the same blocks for a ledger over 256 KB as a read that walks the windows from the end [C7]', t => {
+  const { commonDir, key } = largeLedger(t);
+  const once = readBlocks(commonDir, { mentioning: [key] });
+  assert.equal(once.length, 399, 'the 400 blocks naming the key, less the cleared one');
+  assert.deepEqual(once, readBlocks(commonDir, { mentioning: [key], since: new Date(0) }));
+  assert.deepEqual(readBlocks(commonDir, { mentioning: ['f'.repeat(64)] }), []);
+});
+
+test('clause 2: readBlocks with mentioning and no since reads the ledger file once [C7]', t => {
+  const { commonDir, key } = largeLedger(t);
+  let reads = 0;
+  const read = (file, offset) => { reads += 1; return readLedgerBytes(file, offset); };
+  readBlocks(commonDir, { mentioning: [key], read });
+  assert.equal(reads, 1, 'one read of the whole ledger');
+  reads = 0;
+  readBlocks(commonDir, { mentioning: ['f'.repeat(64)], read });
+  assert.equal(reads, 1, 'a ledger naming no key is read once and never decoded');
 });

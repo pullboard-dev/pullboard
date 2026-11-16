@@ -15,7 +15,7 @@ import { test } from 'node:test';
 import {
   privateFixtureFiles,
   runFixtureGit,
-} from '../../../apps/cli/tests/fixtures/child.js';
+} from '../../gate/tests/fixtures/child.js';
 import { commitDerived } from '../src/io/step/derive.js';
 import { composeOnRunner } from '../src/io/step/compose.js';
 

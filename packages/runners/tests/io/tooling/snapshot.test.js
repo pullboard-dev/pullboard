@@ -5,8 +5,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { workerEntry } from '../../../src/io/package.js';
 import { captureRunnerTooling } from '../../../src/io/tooling/snapshot.js';
 import { currentRunnerTooling } from '../../../src/io/tooling/snapshot.js';
@@ -63,4 +64,29 @@ test('the controller providers are the packages its real imports reach, and thei
   assert.ok(currentRunnerTooling(f.root, loaded));
   f.write('packages/provider/index.js', 'export const provided = false;\n');
   assert.throws(() => currentRunnerTooling(f.root, loaded), error => error.code === 'RUNNER_TOOLING_CHANGED', 'a provider body the controller imports changes the pin');
+});
+
+test('a directory URL in the controller closure is skipped, not refused as RUNNER_TOOLING_FILES on . [C7,V32]', t => {
+  const f = tree(t, {
+    'apps/runner/runner-worker.js': "import '../../packages/leaf/src/value.js';\n",
+    'packages/runners/index.js': "export const own = new URL('../..', import.meta.url);\nexport const src = new URL('../leaf/src', import.meta.url);\n",
+  });
+  const loaded = captureRunnerTooling(f.root);
+  assert.equal(loaded.controller, readFileSync(join(f.root, 'packages/runners/index.js'), 'utf8'));
+  assert.ok(currentRunnerTooling(f.root, loaded));
+});
+
+test('capture succeeds on the real tree [C7,V32]', () => {
+  const root = fileURLToPath(new URL('../../../../../', import.meta.url));
+  const loaded = captureRunnerTooling(root);
+  assert.ok(loaded.controller.length > 0 && loaded.files);
+});
+
+test('dynamic-base URLs, computed requires and runtime-only files are skipped, literal ones kept [C7,V32]', t => {
+  const f = tree(t, {
+    'apps/runner/runner-worker.js': "import '../../packages/leaf/src/value.js';\n",
+    'packages/runners/index.js': "import { createRequire } from 'node:module';\nimport { pathToFileURL } from 'node:url';\nconst r = createRequire(import.meta.url);\nr('../leaf/src/value.js');\nexport const a = new URL('x.js', pathToFileURL('/tmp/'));\nexport const m = new URL('../../.pullboard-runner-source.json', import.meta.url);\nexport const c = (n) => r(n);\n",
+  });
+  const loaded = captureRunnerTooling(f.root);
+  assert.ok(loaded.files['packages/leaf/src/value.js']);
 });

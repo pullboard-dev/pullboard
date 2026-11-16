@@ -1,5 +1,10 @@
+export { rejectReport, rejectLines, classifyReject, REJECT_CLASSES } from './src/logic/review/rejects.js';
+export { settleCapacity, HYSTERESIS_BAND, HYSTERESIS_HOLD_MS } from './src/logic/capacity/hysteresis.js';
+export { maxUsefulBuilders, USEFUL_WINDOW_MS, USEFUL_MIN_MARGINAL } from './src/logic/capacity/useful.js';
+export { predictionAccuracy, predictionLine } from './src/logic/prediction.js';
 export { carryingCapacity } from './src/logic/carrying.js';
 export { readCarryingCapacity } from './src/io/carrying.js';
+export { escapeReport, escapeLines } from './src/logic/review/escapes.js';
 /** Canonical named entry points for the planned cell; implementations retain their current owner [C7]. */
 export { workFreeReleases, readWorkFreeReleases } from './src/logic/work/free.js';
 export { runnerUtilization, utilizationLines } from './src/logic/runners/utilization.js';
@@ -73,6 +78,7 @@ export {
   eventCounts,
   proofStats,
 } from './src/io/main.js';
+export { capacityWeekRow, isoWeek } from './src/logic/capacity/week.js';
 export {
   CAPACITY_VERSION,
   emptyCapacityCounter,
@@ -133,8 +139,11 @@ export {
 export {
   sanitizedUsage,
   recordUsage,
+  recordCoordinatorUsage,
   costTotals,
   budgetState,
+  budgetClaimRefusal,
+  machineBudgetState,
   storedSeatUsage,
 } from './src/io/cost.js';
 export {
@@ -155,6 +164,8 @@ export {
 export {
   wilson,
   costAnalytics,
+  costWindowStart,
+  costAnalyticsSliced,
 } from './src/io/cost/analytics.js';
 export {
   TIME_PHASES,
@@ -185,6 +196,7 @@ export { readPipelineLedger } from './src/io/ledger.js';
 export { nearestRank } from './src/logic/runners/rank.js';
 export { HEALTH_PAYLOAD_STEPS, HEALTH_STEP_NAMES, UP_GAP_MS, runnerHealth, runnerHealthLines } from './src/logic/runners/health.js';
 export { ABANDONED_AFTER_MS, WAIT_STEP_NAMES, runnerWaitLines, runnerWaits, waitRows } from './src/logic/runners/wait.js';
+export { serveHosts } from './src/logic/runners/serves.js';
 export { lastLimit } from './src/io/runners/limits.js';
 export { recordLimitChange as recordLimitEvent } from './src/io/runners/limits.js';
 export { readLimitChanges } from './src/io/runners/limits.js';
@@ -197,3 +209,5 @@ export { runnerDemand, demandLines } from './src/logic/runners/demand.js';
 export { readDemandSpans, readDemandEvents } from './src/io/runners/demand.js';
 export { AGENT_FLOW_KINDS, COMMAND_SPAN_MS, agentFlow, agentFlowLines, seatWaits } from './src/logic/agents.js';
 export { readAgentFlowEvents, readSeatActions } from './src/io/agents.js';
+export { reviewRows, reviewRowLines } from './src/logic/review/rows.js';
+export { itemRunnerCost } from './src/io/cost/runner.js';

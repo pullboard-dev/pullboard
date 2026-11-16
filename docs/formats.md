@@ -125,14 +125,14 @@ The version table is generated from the source-owned declarations in `src/format
 | `row grammar` | `1` | `SPEC_GRAMMAR_VERSION` in `packages/spec/src/logic/grammar.js`; optional `<!-- pullboard-grammar N -->` line in either file (absence means the current grammar) | Both files share the version. A declared version must match; an incompatible grammar change requires a coordinated version bump and compatible files. No automatic conversion occurs. |
 | `board schema` | `3` | `SCHEMA_VERSION` in `packages/store/src/io/board/schema/source.js`, persisted as `PRAGMA user_version` | On a write open of a board whose version is behind: create missing tables and indexes (version 3 adds the hot-path indexes), add missing columns in place with declared defaults, restore missing or changed triggers, and remove stale machine triggers without replacing rows. Read opens never migrate; a board at the current version whose shape differs is reported once on stderr and left as it is. |
 | `event log` | `1` | `EVENT_LOG_VERSION` in `packages/store/src/io/board/schema/source.js`, persisted in `board_meta` as `event_log_version` | Older event-log versions upgrade in place; newer versions are refused with `EVENT_LOG_VERSION`. Preserve event rows when the board schema changes. |
-| `move engine` | `250` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
+| `move engine` | `263` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
 <!-- format-versions:end -->
 
 A signed board uses event-log format 2; older tools refuse it.
 
 A builder never picks an engine number (#1101). An item that adds a board move adds its own `src/<name>-engine.js` leaf as `export const NAME_ENGINE = unassignedEngine();` (importing `unassignedEngine` from `./engine-next.js`); on its branch the leaf reads as one above the highest landed engine. The landing merge writes the next number into the leaf, in landing order, inside that item's merge commit, and sets the `move engine` row above to the highest landed number. A landed number never changes, so recorded moves replay as they were written. Moves are recorded under landed numbers only: code with an unnumbered engine is for its branch's own tests, and a move it records on a real board before landing may later read under another item's number, so the item lands before its moves are used.
 
-Engine 130 (`MECHANICAL_MERGE_ENGINE`) gives new automatic conflict returns version-two `computedConflict` receipts. Health, fresh conflict returns and landing share conservative mechanical decisions: structural JSON retains independent additions and unchanged-value removals, jointly raised numeric counters keep the larger value, and add-only text unions must pass a syntax-only check for JavaScript. Health classifies declared generated `docs/lifecycle.md` without executing item code; only landing runs its generator in the merged tree before its gate. A failed generator blocks with `LAND_MERGE`, naming the item, file and generator, rather than reopening accepted work as a conflict. Version-one receipts continue to verify their original plain-Git conflict paths on replay; version-two receipts verify mechanical conflict paths. The receipt version is part of the immutable-object cache identity. Fresh authors cannot reuse version-one semantics, and a version-two receipt requires engine 130 before changing a board or replay cursor.
+Engine 130 (`MECHANICAL_MERGE_ENGINE`) gives new automatic conflict returns version-two `computedConflict` receipts. Health, fresh conflict returns and landing share conservative mechanical decisions: structural JSON retains independent additions and unchanged-value removals, jointly raised numeric counters keep the larger value, and add-only text unions must pass a syntax-only check for JavaScript. Health classifies declared generated `apps/cli/src/logic/help/additions.js` without executing item code; only landing runs its generator in the merged tree before its gate. A failed generator blocks with `LAND_MERGE`, naming the item, file and generator, rather than reopening accepted work as a conflict. Version-one receipts continue to verify their original plain-Git conflict paths on replay; version-two receipts verify mechanical conflict paths. The receipt version is part of the immutable-object cache identity. Fresh authors cannot reuse version-one semantics, and a version-two receipt requires engine 130 before changing a board or replay cursor.
 
 Version-three conflict receipts additionally recognize source-generated API and formats tables, full CLI help and its browser-safe command additions. `GENERATED_DOCS_ENGINE` is their replay floor. Versions one and two keep their original conflict policy, even when version three can regenerate a newer output. Narrative conflicts remain ordinary conflicts; automatic generation never discards competing prose edits. Health and replay inspect immutable bytes only, while landing runs the candidate generator before the gate.
 
@@ -370,6 +370,20 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `job_step` | `job_step_seq` | `INTEGER` | `NOT NULL`; `DEFAULT 0`; `UNIQUE` |
 | `job_step` | `job_step_payload` | `TEXT` | `NOT NULL`; `DEFAULT '{}'` |
 | `job_step` | `job_step_at` | `INTEGER` | `NOT NULL` |
+| `run` | `run_job` | `TEXT` | `PRIMARY KEY` |
+| `run` | `run_kind` | `TEXT` | `NOT NULL` |
+| `run` | `run_item` | `INTEGER` | `nullable` |
+| `run` | `run_candidate` | `TEXT` | `nullable` |
+| `run` | `run_base` | `TEXT` | `nullable` |
+| `run` | `run_state` | `TEXT` | `NOT NULL` |
+| `run` | `run_attempt` | `INTEGER` | `NOT NULL`; `DEFAULT 0` |
+| `run` | `run_outcome` | `TEXT` | `nullable` |
+| `run` | `run_summary` | `TEXT` | `nullable` |
+| `run` | `run_record` | `TEXT` | `nullable` |
+| `run` | `run_lease_owner` | `TEXT` | `nullable` |
+| `run` | `run_lease_until` | `INTEGER` | `NOT NULL`; `DEFAULT 0` |
+| `run` | `run_created` | `INTEGER` | `NOT NULL` |
+| `run` | `run_updated` | `INTEGER` | `NOT NULL` |
 | `shout` | `shout_id` | `INTEGER` | `PRIMARY KEY` |
 | `shout` | `shout_from` | `TEXT` | `NOT NULL` |
 | `shout` | `shout_to` | `TEXT` | `NOT NULL` |
@@ -420,6 +434,12 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `event_kind_id` | `event` | `event_kind`, `event_id` | no |
 | `item_lane_status` | `item` | `item_lane`, `item_status` | no |
 | `job_kind_item` | `job` | `job_kind`, `job_item` | no |
+| `job_lease_live` | `job` | `job_lease_until` | no |
+| `job_step_lease` | `job` | `job_step`, `job_lease_until` | no |
+| `job_step_name_at` | `job_step` | `job_step_name`, `job_step_at` | no |
+| `job_step_name_seq` | `job_step` | `job_step_name`, `job_step_seq` | no |
+| `run_item_kind` | `run` | `run_item`, `run_kind` | no |
+| `run_open` | `run` | `run_state` | no |
 | `shout_answers` | `shout` | `shout_answers` | no |
 | `shout_evidence_item` | `shout` | `shout_evidence_item` | no |
 | `shout_from_at` | `shout` | `shout_from`, `shout_at` | no |
@@ -550,8 +570,7 @@ Automatic milestone placement records its chosen release, order position, rule a
 | `source_advanced` | coordinator | Exact checked source and native receipt custody: `version`, `board`, `submitted`, `status`, `previous`, `inputHead`, `trunk`, `bar`, `patchDigest`, `episode`, `reviewEpisode`, `reviewBy`, `reviewUntil`, `verdict`, `head`, `tree`, `mergeTree`, `paths`, `generated`, `selectionDigest`, `phases`. |
 | `next-idle` | idle seat | `version`, `engine`, `reason` (structured next observation; absent historical reasons stay unknown) |
 | `review-default` | board | Review-policy migration: `engine`, `count`, `unfinished`. |
-| `submit-handoff` | queued builder | Queue `state` (queued, running, green, submitted, red or incomplete) and captured source `commit`; submitted retains an accepted submission whose native gate was not green; job identifiers and refusal text stay in private board metadata. |
-| `submit_handoff_returned` | queued builder | Captured `commit`; from the queued red return engine, the failed item stays claimed by its builder with a fresh `leaseUntil` (its refusal stays in private board metadata) and opens for anyone only when that lease lapses. Older engines carried the builder's first-refusal window and returned the item open. No other claim is released. |
+| `coordinator-usage` | coordinator | `session`, `observedAt`, `records`, `estimate` (one coordinator session's usage, kept under the board key coordinator:session with no item) |
 <!-- events:end -->
 
 A CLI `accept` event includes `check: "none"` when no frozen item check ran or `check: "green"` when it passed. Older accept events and records without this field read as `unknown`; the result stays in event detail and does not change the board schema or event-log version.
@@ -826,6 +845,10 @@ The activity-delivery engine, numbered at landing, adds recipient-owned `recordA
 The machine resource database adds `waiter.runner_only` and `holder.runner_execution`, both integer booleans defaulting to zero. A runner-only gate ticket cannot consume local or short capacity while a runner is registered. The trusted SSH worker sets `runner_execution` on its own actual private gate holder; inherited admission reads that holder rather than accepting an environment-only claim of remote execution. These are local, additive scheduling metadata, not board move or relay formats.
 The CPU-sentinel engine, numbered at landing, names an agent-worktree process after more than twenty CPU minutes, once per host, PID and start time. Current `health-scan` receipts carry `pendingCpu`, the findings whose coordinator notice was held by the existing ten-notice cap. Later scans drain that durable queue without inventing another health-failure episode. An older engine refuses while this queue is pending, preserving its history; older receipts retain their original fields. Observation never signals a process.
 
+## Machine-local runner rate card
+
+A runner's rate card is part of the machine's `settings.json`, as `runnerRates`: a map from a runner host to `{price, months, watts, kwhPrice}` (purchase price, whole months to pay it off, load watts and power price per kWh, each a number of 0 or more and months 1 or more). Set one with `pullboard settings runnerRates <runner> <price> <months> <watts> <kwhPrice>`; a missing or invalid field refuses with `BAD_RUNNER_RATES` and stores nothing.
+
 ## Machine-local relay canary
 
 The canary setting is part of the machine's `settings.json`, not project `pullboard.json` or the native board. Its optional `relay.canary` object is `{enabled, root, agentId, deadlineMs}`. `root` is an absolute checkout path, `agentId` is an ordinary registered non-coordinator seat, and `deadlineMs` defaults to 5000 and may be 100 through 25000. `pullboard relay canary off` sets an existing object to `enabled: false` (or leaves an absent setting unset); it creates no board event or relay credential.
@@ -886,7 +909,7 @@ A `reject_returned` event records `rejection` (the exact reject event ID), `buil
 
 `SOURCE_ADVANCE_ENGINE` adds autonomous main-merge completion. The submitted `item_commit`, original verdict row, bar and native patch source bindings stay immutable. A coordinator worker records `source_advanced` only after ordinary admission executes both the frozen check and the raw affected selection (a full fallback really runs in full; submit deferral and placement tiering do not count). The event retains exact old/input/new heads, tree, trunk, native submission episode, patch-set digest, verdict id, selected-command digest and the gate's own source-clean phase receipts. `item_source_advance:<id>` is the bounded effective-head projection (at most 32 advances per retained verdict); `item_effective_head` and the accepted review's projected head identify the checked composition for review and landing without applying companions twice. A changed bar, patch set, submission episode, withdrawn verdict or missing receipt invalidates the continuation. Old verdict/proof rows never acquire new-head results.
 
-Only a finite trusted-main worker wakes after a landing/merged command or health run; there is no new coordinator command or publication. Its detached exact-source worktree and gate use ordinary custody and cleanup. Clean merges and the declared generated `docs/lifecycle.md` conflict may advance; source conflicts and genuine named red runs use the existing reopen transition with sealed `sourceAdvanceReturn` CAS context. Unknown infrastructure stays incomplete and records a measurement rather than endorsing or returning later work. The native item thread retains the source-advance event and its proof references. A first recorded effective-head projection raises fresh ordered writers to this feature's engine; already-recorded receipt retries still replay before that floor. The board never rewrites old engine histories.
+Only a finite trusted-main worker wakes after a landing/merged command or health run; there is no new coordinator command or publication. Its detached exact-source worktree and gate use ordinary custody and cleanup. Clean merges and the declared generated `apps/cli/src/logic/help/additions.js` conflict may advance; source conflicts and genuine named red runs use the existing reopen transition with sealed `sourceAdvanceReturn` CAS context. Unknown infrastructure stays incomplete and records a measurement rather than endorsing or returning later work. The native item thread retains the source-advance event and its proof references. A first recorded effective-head projection raises fresh ordered writers to this feature's engine; already-recorded receipt retries still replay before that floor. The board never rewrites old engine histories.
 
 The review-routing engine, numbered at landing, orders eligible reviews by current-main repair evidence and then current submission age. `reserveNextReview` carries captured local repair item IDs in `priority`; the ordered relay replays those IDs without inspecting a replica's filesystem, and offline item renumbering remaps them alongside `skipIds`. Presence of `priority`, including an empty array, requires this engine; historical envelopes without it keep their recorded engine's selection rules. Ordinary `next` also offers an eligible normal submission waiting more than ten minutes for its first reservation below the review ratio. Facts do not reset submission age, and another submit starts a new interval. Strict reviews retain different-session eligibility and additionally require different declared vendor families regardless of the ordinary family setting.
 

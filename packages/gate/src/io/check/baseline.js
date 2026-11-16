@@ -2,16 +2,15 @@ import {
   timingFromOutput,
   timingRunner,
 } from '../timing.js';
+import { scratchFolder } from '../../../../config/index.js';
 export { provingCheck, sayCheckBaseline } from '../../logic/format.js';
 /** Observe a proposed check on an isolated copy of main before recording its move [V2,H16]. */
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import {
-  mkdtempSync,
   realpathSync,
   rmSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import {
@@ -40,7 +39,7 @@ export function checkBaseline(root, command, { main = undefined } = {}) {
   const captured = main === undefined ? prepareCheckBaseline(root, command) : { command, main, result: 'pending' };
   if (captured.result !== 'pending') return captured;
   const base = { command, main: captured.main };
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-check-base-'));
+  const directory = scratchFolder('pullboard-check-base-');
   const checkout = join(directory, 'checkout');
   const env = gitChildEnv(root);
   try {
@@ -179,6 +178,16 @@ export function refuseCheckSyntax(command) {
   if (parsed.status === 0 || parsed.error || parsed.status === null) return;
   const said = `${parsed.stderr ?? ''}`.trim().split('\n').map((line) => line.trim()).filter(Boolean).join('; ') || `sh -n exited ${parsed.status}`;
   throw new Refused('CHECK_SYNTAX', `the check is not valid shell, so it would only ever run red: ${said}`);
+}
+
+/**
+ * Refuse a check that runs `node apps/cli/pullboard.js test`.
+ * Why: gate runners have no shared board, so that form dies with UNMERGED_SCHEMA and the check could only ever run red.
+ */
+export function refuseCheckPullboardTest(command) {
+  if (!/pullboard(?:\.js)?['"]?\s+test(?:\s|$)/u.test(command)) return;
+  throw new Refused('CHECK_RUNS_PULLBOARD_TEST', 'the check runs pullboard test, which fails inside gate runners with UNMERGED_SCHEMA',
+    'run the files directly: node packages/gate/src/io/run/tests.js <files>');
 }
 
 /** Capture the authorized check's immutable base without running its shell command [V2,H16]. */

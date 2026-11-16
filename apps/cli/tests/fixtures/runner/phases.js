@@ -1,4 +1,8 @@
 import { copyPackageFiles } from '../../../../../packages/runners/index.js';
+import { roundTripLine } from '../../../../../packages/runners/index.js';
+import { roundTripProfile } from '../../../../../packages/runners/index.js';
+import { runOnRunnerAsync } from '../../../../../packages/runners/index.js';
+import { copyRunnerPackage } from '../../../../../packages/runners/tests/fixtures/package.js';
 /** Pure registered-runner test helpers: snapshots, phase counting and bounded round-trip waits; nothing here launches the CLI. */
 import { executionServicesSource } from '../gate/execution.js';
 import { awaitNestedRun } from '../../../../../packages/gate/index.js';
@@ -10,11 +14,16 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  writeFileSync,
 } from 'node:fs';
 import {
+  delimiter,
   join,
   resolve,
 } from 'node:path';
+import { spawn } from 'node:child_process';
+import { cpus } from 'node:os';
+import { loadavg } from 'node:os';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import {
@@ -22,9 +31,13 @@ import {
   runFixtureChildAsync,
 } from '../child.js';
 import { stopGroup } from './group.js';
+import { HOST } from './ssh.js';
+import { installSshStandIn } from './ssh.js';
+import { privateFixtureFiles } from '../child.js';
+import { fixtureCommittedGraph } from '../testkit.js';
 
 export const TOOLING_SNAPSHOTS = new Map();
-export const ROUND_TRIP_DEADLINES = { dispatch: 20_000, 'remote run': 30_000, 'result return': 10_000 }; // budget: a stuck runner fails by name in about a minute, far under the 660-second per-test limit.
+export const ROUND_TRIP_DEADLINES = { dispatch: 45_000, 'remote run': 30_000, 'result return': 30_000 }; // budget: a stuck runner fails by name in about a minute, far under the 660-second per-test limit; dispatch took 20 s and result return 10 s on runners at twice their cores.
 
 /** Run Git in the private source repository and preserve useful failure context. */
 export function git(repo, env, ...args) {
@@ -45,7 +58,7 @@ export function committedToolingSnapshot(sourceRoot, env) {
   mkdirSync(home, { recursive: true });
   try {
     copyPackageFiles(key, root);
-    const gitEnv = { ...env, HOME: home, PULLBOARD_HOME: join(home, '.pullboard'),
+    const gitEnv = { ...env, HOME: home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(home, '.pullboard'),
       PULLBOARD_MACHINE_HOME: join(home, '.pullboard'), GIT_CONFIG_GLOBAL: '/dev/null',
       GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_COUNT: '0',
       GIT_AUTHOR_NAME: 'Runner Tooling Fixture', GIT_AUTHOR_EMAIL: 'runner-tooling@example.invalid',
@@ -99,7 +112,10 @@ export function awaitRoundTrip(child, closed, phasesFile, before, deadlines = RO
 
 /** Monitor the owned child's progress and cancellation inside its single explicit yielding wait. */
 async function monitorRoundTrip(child, closed, phasesFile, before, deadlines, firstReceiptAccepted) {
-  const limits = { ...ROUND_TRIP_DEADLINES, ...deadlines };
+  // A phase left at its default deadline is charged for machine load, so a loaded runner is not mistaken for a stuck one.
+  const scale = Math.min(6, Math.max(1, loadavg()[0] / Math.max(1, cpus().length)));
+  const limits = Object.fromEntries(Object.entries(ROUND_TRIP_DEADLINES).map(([name, ms]) =>
+    [name, deadlines === ROUND_TRIP_DEADLINES || deadlines?.[name] === undefined ? Math.round(ms * scale) : deadlines[name]]));
   let done = null;
   closed.then(result => { done = result; });
   const timings = [];
@@ -144,9 +160,9 @@ export async function runThroughGate(repo, env, command, { browser = true, timin
   const gateUrl = pathToFileURL(join(committedToolingSnapshot(sourceRoot, env), 'packages', 'gate', 'index.js')).href;
   const snapshot = TOOLING_SNAPSHOTS.get(sourceRoot);
   snapshot.active++;
-  const script = `const { runProfiledShell, withGateSlot } = await import(${JSON.stringify(gateUrl)});
+  const script = `const { runProfiledShellAsync, withGateSlot } = await import(${JSON.stringify(gateUrl)});
 ${executionServicesSource(gateUrl)}
-const result = await withGateSlot(${JSON.stringify(repo)}, lease => runProfiledShell(${JSON.stringify(repo)}, ${JSON.stringify(command)}, { gateLease: lease, landing: ${landing} }),
+const result = await withGateSlot(${JSON.stringify(repo)}, lease => runProfiledShellAsync(${JSON.stringify(repo)}, ${JSON.stringify(command)}, { gateLease: lease, landing: ${landing} }),
   { executionServices, browser: ${browser}, timing: ${timing}, item: ${JSON.stringify(item)}, kind: ${JSON.stringify(kind)}, landing: ${landing}, agent: 'runner-fixture' });
 process.stdout.write(result.output);
 process.stdout.write('PULLBOARD_RUN_RESULT ' + JSON.stringify({ isGreen: result.isGreen, runner: result.profile.executionRunner, sandboxBlocked: result.sandboxBlocked, profile: result.profile }) + '\\n');
@@ -179,3 +195,51 @@ export function fixtureResultContext(result) {
   return `${result.context}\nstdout tail:\n${String(result.stdout ?? '').slice(-4_000)}\nstderr tail:\n${String(result.stderr ?? '').slice(-4_000)}`;
 }
 
+/**
+ * Start `count` CPU-bound jobs beside the fixture runner, whose host is this machine, and return a stop that waits for
+ * each to exit. Why: a gate sends its shards to one runner at once, and a round trip must stay cheap beside them (#8145).
+ */
+export function otherJobs(count) {
+  const jobs = Array.from({ length: count }, () => spawn(process.execPath, ['-e', 'for (;;) {}'], { stdio: 'ignore' }));
+  const exits = jobs.map(job => new Promise(resolve => { if (job.exitCode !== null || job.signalCode !== null) resolve(); else job.once('exit', resolve); }));
+  return async () => { for (const job of jobs) job.kill('SIGKILL'); await Promise.all(exits); };
+}
+
+/**
+ * Run `count` round trips of one committed tree on one fixture runner, under a private controller home, and return
+ * each trip's phase profile with its printed line; the first trip really runs the test body on the runner.
+ */
+export async function profiledRoundTrips(t, count, { otherJobs: busy = 0 } = {}) {
+  const directory = privateFixtureFiles('pullboard-round-trip-').root;
+  const graph = fixtureCommittedGraph('pullboard-round-trip-repo-'), repo = graph.root;
+  t.after(() => { rmSync(directory, { recursive: true, force: true }); rmSync(repo, { recursive: true, force: true }); });
+  const [bin, worker, controller, home] = ['bin', 'worker', 'controller', 'machine'].map(name => join(directory, name));
+  for (const folder of [bin, worker, controller, home]) mkdirSync(folder, { recursive: true });
+  copyRunnerPackage(resolve(import.meta.dirname, '../../../../..'), repo);
+  const manifest = JSON.parse(readFileSync(join(repo, 'package.json'), 'utf8'));
+  writeFileSync(join(repo, 'package.json'), JSON.stringify({ ...manifest, name: 'round-trip-fixture', private: true, type: 'module' }) + '\n');
+  graph.put('test/probe.test.js', "import { test } from 'node:test';\ntest('round trip probe [C7]', () => { console.log('EXECUTED-ROUND-TRIP'); });\n");
+  const trunk = { ref: 'refs/heads/main', commit: graph.commit() };
+  const env = { HOME: controller, PULLBOARD_HOME: controller, PULLBOARD_MACHINE_HOME: join(controller, '.pullboard'), PATH: `${bin}${delimiter}${process.env.PATH}` };
+  const previous = Object.fromEntries([...Object.keys(env), 'PULLBOARD_TEST_REUSE'].map(key => [key, process.env[key]]));
+  t.after(() => { for (const [key, value] of Object.entries(previous)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } });
+  Object.assign(process.env, env);
+  delete process.env.PULLBOARD_TEST_REUSE;
+  installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'), requests: join(home, 'requests.jsonl'), nodeCommand: process.execPath });
+  const profiles = [];
+  for (let index = 0; index < count; index++) {
+    // Repeats run beside the other jobs; the first trip stays alone so its cold export fits the case's timeout.
+    const stop = index > 0 && busy ? otherJobs(busy) : null;
+    if (stop) t.after(stop);
+    const result = await runOnRunnerAsync(repo, 'node apps/cli/src/io/run/tests.js test/probe.test.js', {
+      runner: { host: HOST, slots: 1, browser: 0, node: process.execPath, root: join(home, 'runner') }, metadata: { item: 'fixture', kind: 'remote-command', testStage: 'submit', trunk } });
+    await stop?.();
+    assert.equal(result.isGreen, true, result.output);
+    // A repeat may reuse the first trip's receipt, as a real gate would; the first must run the body.
+    if (index === 0) assert.match(result.output, /EXECUTED-ROUND-TRIP/u, 'the runner really runs the test body');
+    const profile = roundTripProfile(result.phases), line = roundTripLine(profile);
+    t.diagnostic(line);
+    profiles.push({ ...profile, line });
+  }
+  return profiles;
+}

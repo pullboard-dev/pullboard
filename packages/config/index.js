@@ -19,7 +19,11 @@ export {
   defaultViewPort,
 } from './src/io/main.js';
 export { trunkRemote } from './src/io/trunk.js';
+export { hostOf, roleHosts } from './src/logic/hosts.js';
 export { trunkProblems, configTrunkRemote } from './src/logic/trunk.js';
+export { staleGeneratedFiles } from './src/logic/generated.js';
+export { scratchRoot } from './src/logic/scratch.js';
+export { scratchFolder, moveAcross, applyMachineScratch } from './src/logic/scratch/folder.js';
 export {
   JSON_SHAPES,
 } from './src/logic/json.js';
@@ -30,6 +34,9 @@ export {
   loadMachineSettings,
   declaredMachineSlots,
   validateRunner,
+  parseToolchains,
+  PERSON_SET,
+  parsePersonSet,
   relayCanaryConfig,
   DEFAULT_RUNNER_WAIT_MS,
   validateRunnerWaitMs,
@@ -40,24 +47,62 @@ export {
   browserFreeChecksEnabled,
   gateRunnersFirstEnabled,
   postLandSuiteEnabled,
+  censusRecordFileTimesEnabled,
+  censusBalanceByTimeEnabled,
+  censusJobMinutes,
+  censusJobsPerRunner,
+  jobsAvoidRunnersEnabled,
+  pushRerunFailedShardOnceEnabled,
+  tableReplayEnabled,
+  testNiceEnabled,
+  fencedHopEnabled,
+  endStaleJobsEnabled,
+  recaptureHandoffEnabled,
+  redFactLocationEnabled,
+  settleOnMainReceiptEnabled,
+  movesShadowEnabled,
+  censusRerunNonGreenEnabled,
+  censusRerunOnSettleEnabled,
+  registryStrictEnabled,
+  movesLiveEnabled,
   gateRunnerAdmission,
   setGateRunnersOnly,
   gateRunnerWaitMs,
+  gateTripOverheadBudgetMs,
   parseWorkerBudget,
   workerBudget,
   setWorkerBudget,
   setGateRunnerWaitMs,
+  setRunnerRate,
   browserByLaunchEnabled,
   runnerDispatchMode,
-  pullPilot,
-  pullGateFor,
-  jobQueueMode,
+  jobReserve,
   localRunnerEnabled,
+  localLoadShare,
+  staticCheckSlots,
+  staticMemoOn,
   serveListen,
   mainComparisonMode,
   submitAuthorizationMode,
+  refuseMissingCheckFile,
+  addWarnUnnamedTest,
+  holdsRequireOwner,
+  nextItemNotices,
+  nextReadinessCheck,
+  refuseTempWorktree,
+  refuseOffMainHead,
   viewBackgroundEnabled,
   healthSentinelEnabled,
+  reviewReleaseReasonsRequired,
+  lapsedSweepEnabled,
+  derivedStateEnabled,
+  testStatusOutcomesEnabled,
+  recordWriteHolderEnabled,
+  adaptiveBatchEnabled,
+  landingSquashEnabled,
+  reofferTrunkBusyEnabled,
+  reuseContractResultsEnabled,
+  reuseGateReceiptsEnabled,
   memoryFloorMB,
   relayOfferEnabled,
   setRelayCanary,
@@ -83,6 +128,9 @@ export {
   specTemplate,
   practiceTemplate,
   renderAgentsBlock,
+  SEAT_LOOP,
+  SEAT_LOOP_WORD_BUDGET,
+  renderWorkerSkill,
   renderCoordinatorGuide,
   COORDINATOR_GUIDE_FILE,
   PULLBOARD_LOOP_GIT_COMMANDS,
@@ -145,6 +193,12 @@ export {
   maintenanceDurations,
 } from './src/logic/maintenance.js';
 
+export { submitProofOnly } from './src/logic/settings.js';
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';
+export { listThinRead, namedImportSelectionOn } from './src/logic/settings.js';
+export { retireIdleSeatHours } from './src/logic/settings.js';
+export { healthDiskFloorGb } from './src/logic/settings.js';
 export { boardKey, boardKeyFile } from './src/io/settings.js';
 export { boardRemote, setBoardRemote } from './src/io/settings.js';
+export { setPersonSetting } from './src/io/settings.js';
+export { costPerMinute } from './src/logic/runner-rates.js';

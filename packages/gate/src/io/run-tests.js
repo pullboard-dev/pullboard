@@ -67,6 +67,7 @@ import { formatTestOutcomes } from './test/outcomes.js';
 import { removeGitRepositorySelectors } from '../../../git/index.js';
 // The front door loads gate.js eagerly, and a plain run must keep the gate lazy [C7,V4].
 import { testRunPhaseClock } from './test/run/phases.js';
+import { storeName } from './store-names.js';
 // Discovery and full-suite delegation happen before the existing per-worker isolation below.
 removeGitRepositorySelectors(process.env, text => process.stderr.write(text));
 /** Keep selected path parsing on the same native option-arity contract. */
@@ -88,9 +89,9 @@ const LANDING_SHARD_ENV = 'PULLBOARD_LANDING_SHARD';
 const LANDING_FILE_TIMES_ENV = 'PULLBOARD_LANDING_FILE_TIMES';
 export const DEFAULT_TEST_TIMEOUT_MS = 660_000;
 export { DEFAULT_TEST_FILE_TIMEOUT_MS };
-// Worker identity startup retries stay below the ordinary per-file ceiling even if ps is unavailable.
-const LANDING_WORKER_IDENTITY_TIMEOUT_MS = 12_000;
-const LANDING_CHILD_CUSTODY_TIMEOUT_MS = 12_000;
+// Worker identity startup retries stay below the ordinary per-file ceiling even if ps is unavailable; PULLBOARD_LANDING_IDENTITY_WAIT_MS (1 to 999999 ms) shortens both waits for fixtures that make ps fail on purpose [C7].
+const LANDING_WORKER_IDENTITY_TIMEOUT_MS = /^[1-9]\d{0,5}$/u.test(process.env.PULLBOARD_LANDING_IDENTITY_WAIT_MS ?? '') ? Number(process.env.PULLBOARD_LANDING_IDENTITY_WAIT_MS) : 12_000;
+const LANDING_CHILD_CUSTODY_TIMEOUT_MS = LANDING_WORKER_IDENTITY_TIMEOUT_MS;
 let reportFileTest = () => {};
 
 /**
@@ -303,10 +304,11 @@ function parseLandingProcessTable(output) {
 }
 
 /** Snapshot process identities on POSIX hosts, where the runner can verify process ancestry. */
-function landingProcessTable() {
+function landingProcessTable(pids = null) {
   if (process.platform === 'win32') return [];
-  const output = execFileSync('ps', ['-axo', 'pid=,ppid=,pgid=,stat=,lstart=,command='], { encoding: 'utf8', timeout: 2000, maxBuffer: 64 << 20 });
-  return parseLandingProcessTable(output);
+  const format = 'pid=,ppid=,pgid=,stat=,lstart=,command='; // Naming pids asks ps for those rows, not the whole machine's table (#6400).
+  try { return parseLandingProcessTable(execFileSync('ps', pids ? ['-o', format, '-p', pids.join(',')] : ['-axo', format], { encoding: 'utf8', timeout: 2000, maxBuffer: 64 << 20 })); }
+  catch (error) { if (pids && error?.status === 1 && typeof error.stdout === 'string') return parseLandingProcessTable(error.stdout); throw error; } // A named pid already gone leaves exit 1 with the live rows.
 }
 
 /** Mark a worker identity retry interrupted by the runner's explicit SIGTERM cancellation. */
@@ -462,7 +464,7 @@ function watchLandingChildSpawns(startsPath, attempt, file = null) {
       if (!Number.isInteger(child.pid)) return;
       recording = true;
       try {
-        const byPid = new Map(landingProcessTable().map(processInfo => [processInfo.pid, processInfo]));
+        const byPid = new Map(landingProcessTable([process.pid, child.pid]).map(processInfo => [processInfo.pid, processInfo]));
         const parent = byPid.get(process.pid);
         const spawned = byPid.get(child.pid);
         if (parent && spawned && spawned.pgid !== parent.pgid) {
@@ -536,7 +538,7 @@ function watchLandingChildCustody(startsPath, attempt) {
     if (!child || typeof child.once !== 'function') return;
     child.once('spawn', () => {
       if (!Number.isInteger(child.pid)) return;
-      const recordPath = join(directory, `${prefix}${sequence++}.${randomUUID()}.json`);
+      const recordPath = join(directory, storeName(`${prefix}${sequence++}.${randomUUID()}`));
       const record = { type: 'child-pending', attempt, file: process.env.PULLBOARD_TEST_FILE,
         parentPid: process.pid, pid: child.pid, spawnFile: child.spawnfile,
         spawnArgs: Array.isArray(child.spawnargs) ? child.spawnargs : [] };
@@ -1160,7 +1162,7 @@ function namesOnlyTestFiles(args) {
 
 
 /** Run tests in the disposable environment, preserving a marker only when a parent holds the slot. */
-async function executeTests(args, sandbox, gateMarkers, fullSuite, concurrency, timing) {
+async function executeTests(args, sandbox, gateMarkers, fullSuite, concurrency, timing, fullScope = fullSuite) {
   const setupAt = performance.now();
   const env = testEnvironment(sandbox, gateMarkers);
   timing.phase('setupMs', setupAt);
@@ -1197,7 +1199,7 @@ async function executeTests(args, sandbox, gateMarkers, fullSuite, concurrency, 
   timing.phase('selectionMs', selectionAt);
   const attemptAt = performance.now();
   const result = process.env[LANDING_RUN_ENV] === '1'
-    ? await runLandingTests(selectedArgs, env, concurrency, fullSuite && patterns.length === 0)
+    ? await runLandingTests(selectedArgs, env, concurrency, fullScope && patterns.length === 0)
     : await runTests(selectedArgs, env, concurrency);
   if (result.error) throw result.error;
   process.stderr.write(formatTestOutcomes(timing.id, result.testOutcomes));
@@ -1223,7 +1225,7 @@ async function main(args) {
       const direct = await runFullSuite(process.cwd(), runner, { runners: runnerExecutionServices(), landing: landingExecutionServices() });
       if (direct) {
         // The CLI records the receipt in its own process, so this entry never imports the native board.
-        if (direct.receiptId) try { spawnSync(process.execPath, [join(process.cwd(), 'apps/cli/pullboard.js'), 'flakes', 'record-suite', direct.receiptId], { cwd: process.cwd(), stdio: 'ignore', timeout: 60_000 }); } catch { /* the private receipt and the suite verdict stand */ }
+        if (direct.receiptId) try { spawnSync(process.execPath, [join(process.cwd(), JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8')).bin.pullboard), 'flakes', 'record-suite', direct.receiptId], { cwd: process.cwd(), stdio: 'ignore', timeout: 60_000 }); } catch { /* the private receipt and the suite verdict stand */ }
         process.stdout.write(direct.output); process.exitCode = direct.isGreen ? 0 : 1; return;
       }
     }
@@ -1289,7 +1291,7 @@ async function main(args) {
     try {
       clonesBefore = cloneCheck?.chromeCloneSnapshot();
       timing.phase('setupMs', setupAt); clock.mark('admission');
-      const result = await executeTests(actions.args, sandbox, gateMarkers, fullSuite && !actions.files, concurrency, timing);
+      const result = await executeTests(actions.args, sandbox, gateMarkers, fullSuite && !actions.files, concurrency, timing, fullSuite && actions.trimmed !== true);
       signal = result.signal;
       process.exitCode = result.status ?? 1; clock.mark('tests');
       if (fileTimes) (await services.landing()).printShardFileTimes(fileTimes);
@@ -1363,12 +1365,12 @@ async function main(args) {
       if (runnerOnly && !canShipRunner) throw new Error('Runner-only tests require a committed runner inside the checkout; no local fallback is allowed');
       await withGateSlot(process.cwd(), async (lease) => {
         if (!lease.runner) return run(gateSlotEnvironment(lease));
-        const { runOnRunner } = await services.runners();
+        const { runOnRunnerAsync } = await services.runners();
         /** Quote the unchanged runner arguments for the remote command shell. */
         const word = value => `'${String(value).replaceAll("'", "'\\''")}'`;
         const command = ['node', `./${runnerPath}`, ...actions.args].map(word).join(' ');
         timing.forward(); clock.mark('admission');
-        const result = runOnRunner(process.cwd(), command, { runner: lease.runner, source: lease.source,
+        const result = await runOnRunnerAsync(process.cwd(), command, { runner: lease.runner, source: lease.source,
           browser, metadata: lease.runMetadata }); clock.mark('runner');
         process.stdout.write(result.output);
         process.exitCode = result.exitCode;
@@ -1429,9 +1431,9 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
   if (fileTimes && process.env.NODE_TEST_CONTEXT === 'child-v8') {
     // One line per test file process: its wall time from start to exit, for the next shard plan.
     const timedFile = relative(process.cwd(), resolve(process.argv[1]));
-    process.once('exit', () => {
-      // The file's own time, not its wait for a token: the next shard plan weighs work, not this run's queue (#1046).
-      try { appendFileSync(fileTimes, `${JSON.stringify({ file: timedFile, ms: Math.round(process.uptime() * 1000 - tokenWaitMs) })}\n`); }
+    process.once('exit', (code) => {
+      // The file's own time, not its wait for a token (#1046), and its exit code, the file's own verdict (#8303).
+      try { appendFileSync(fileTimes, `${JSON.stringify({ file: timedFile, ms: Math.round(process.uptime() * 1000 - tokenWaitMs), code })}\n`); }
       catch { /* A missing time only weakens the next shard plan. */ }
     });
   }

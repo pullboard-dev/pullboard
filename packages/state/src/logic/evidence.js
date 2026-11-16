@@ -2,6 +2,7 @@
 import { Refused } from '../../../kernel/index.js';
 import { criterionClauses } from './clauses.js';
 import { EVIDENCE_KINDS } from './clauses.js';
+import { lintBar } from './bar-lint.js';
 
 /** Flag every reasoning declaration without presenting it as executable proof. */
 export function clauseEvidenceWarnings(criterion) {
@@ -23,4 +24,18 @@ export function requireCriterionEvidence(criterion) {
     && /\b(?:exits?|prints?|refuses?|passes?|returns?)\b|\bunder\s+\d+(?:\.\d+)?\s*(?:ms|s)\b/iu.test(clause.text)).map(clause => clause.number);
   if (observable.length) throw new Refused('CLAUSE_REASONING_ONLY', `clause ${observable.join(', ')} names an observable outcome with reasoning alone; declare test, command, screenshot or measurement evidence for that outcome`);
   return clauseEvidenceWarnings(criterion);
+}
+
+/**
+ * Refuse a criterion with a plain fault, naming the fix, and return the warnings for the rest.
+ *
+ * @param {string|undefined} criterion
+ * @param {{ allowLong?: boolean, warnUnnamedTest?: boolean, brief?: string }} [options]
+ * @returns {{ code: string, clause: number, message: string }[]}
+ */
+export function guardBar(criterion, options) {
+  if (criterion === undefined) return [];
+  const { problems, fix, warnings } = lintBar(criterion, options);
+  if (problems.length) throw new Refused('BAR_AMBIGUOUS', `this bar is not checkable yet: ${problems.join('; ')}`, `${fix.join('; ')}, then run the command again`);
+  return warnings;
 }

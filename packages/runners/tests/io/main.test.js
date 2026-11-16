@@ -24,7 +24,8 @@ test("the runner's computed capsule is closed under its relative imports [C7,O5]
   assert.equal(capsule.entry, 'apps/runner/src/io/scripts/worker.js');
   for (const [file, text] of Object.entries(capsule.files)) {
     assert.ok(allowed.has(file), `${file} belongs to the shipped manifest`);
-    for (const [, target] of text.matchAll(/(?:\bfrom\s+|\bimport\s*\(\s*|^import\s+)'(\.\.?\/[^']+)'/gmu)) {
+    // A literal joined to another string with + is no complete specifier (liveness.js loads its sweep that way).
+    for (const [, target] of text.matchAll(/(?:\bfrom\s+|\bimport\s*\(\s*|^import\s+)'(\.\.?\/[^']+)'(?!\s*\+)/gmu)) {
       const dependency = relative(root, resolve(root, dirname(file), target)).split(sep).join('/');
       assert.ok(Object.hasOwn(capsule.files, dependency), `${file} imports ${target}, which must reach the capsule`);
     }

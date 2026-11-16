@@ -11,6 +11,7 @@ import { testOutcomeFields } from '../outcomes.js';
 import { Refused } from '../../../../../kernel/index.js';
 import { literalShellWords } from '../../../../../kernel/index.js';
 import { generateTestTiersFrom } from '../tiers.js';
+import { pushOnlyTests } from '../push-only.js';
 import { commitSourceSnapshot } from '../../snapshot.js';
 import { ownerOf } from '../tiers.js';
 import { TEST_TIERS_FILE } from '../tiers.js';
@@ -22,6 +23,7 @@ import { checkSkippedSeals } from '../../seals.js';
 import { refusalFloor } from '../../refusal/floor.js';
 import { cellReadPathMap } from '../../../../../codemap/index.js';
 import { codeMapGraph } from '../../affected/tests.js';
+import { BASELINE_TABLES } from '../../../../../commits/light.js';
 import { readTierSnapshot } from './cache.js';
 import { writeTierSnapshot } from './cache.js';
 
@@ -177,8 +179,12 @@ function ownUnit(row, snapshot, unsealed) {
   return Boolean(owner) && owner !== '.' && unsealed.has(owner) && row.reasons.every(reason => reason.startsWith('cross-package:'));
 }
 
-/** Select only units belonging to changed packages and defer every current journey to the batch. */
-export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, runner = 'node --test' } = {}) {
+/**
+ * Select only units belonging to changed packages and defer every current journey to the batch.
+ * `auditOnly` is landing.auditOnly, joined by the push-only listing (packages/gate/data/tests/push-only.json): a listed file the change does not itself touch is left to the main audit and named in `auditLeft`,
+ * so a repo-wide inventory test never turns one item's gate red [C7].
+ */
+export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, runner = 'node --test', auditOnly = [] } = {}) {
   commit = commitAt(root, commit);
   if (trunk) {
     const mergeBase = sourceGit(root, ['merge-base', trunk, commit]).trim();
@@ -246,7 +252,13 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
   const readers = confined?.listings.length ? listingReaders(root, base, commit, confined.listings) : null;
   const journeys = confined ? after.manifest.files.filter(row => readers?.has(row.file) && !units.includes(row.file)).map(row => row.file)
     : after.manifest.files.filter(row => row.tier === 'T3' && !units.includes(row.file)).map(row => row.file);
-  return { version: 1, commit, base, packages: [...packages].sort(), changed: actual ?? [], units, journeys, skipped, ...(sealedCells.length ? { sealedCells } : {}), runner: runner?.trim() || 'node --test' };
+  // The push-only listing joins landing.auditOnly here, the one place every item gate selects its files [R4,C7].
+  const audit = new Set([...(Array.isArray(auditOnly) ? auditOnly : []), ...pushOnlyTests()].filter(file => typeof file === 'string'));
+  const touched = new Set(actual ?? []);
+  const left = [...new Set([...units, ...journeys])].filter(file => audit.has(file) && !touched.has(file)).sort();
+  const kept = file => !left.includes(file);
+  return { version: 1, commit, base, packages: [...packages].sort(), changed: actual ?? [], units: units.filter(kept), journeys: journeys.filter(kept), skipped,
+    ...(left.length ? { auditLeft: left } : {}), ...(sealedCells.length ? { sealedCells } : {}), runner: runner?.trim() || 'node --test' };
 }
 
 /**
@@ -273,7 +285,11 @@ function confinementOf(root, base, commit, actual, sealedCells) {
 
 /** A cell's own plan shard (`bin/cells-plan/NN-<cell>.json`); the index, path maps and transition file are not shards. */
 const PLAN_SHARD = /^packages\/codemap\/data\/plan\/\d+-[^/]+\.json$/u;
-const COMMITTED_LISTINGS = new Set(['packages/gate/data/tests/test-cells.json', 'packages/gate/data/ceilings/cells-edges.json', TEST_TIERS_FILE]);
+/** The generated fixture registry: one row per test file naming the fixtures it uses. */
+const [FIXTURE_REGISTRY] = BASELINE_TABLES;
+const COMMITTED_LISTINGS = new Set(['packages/gate/data/tests/test-cells.json', 'packages/gate/data/ceilings/cells-edges.json', TEST_TIERS_FILE, FIXTURE_REGISTRY]);
+/** The fixture registry keys each row by the test file it serves, so a row is a cell's own when that file lies in the cell (#4638). */
+const FILE_KEYED = new Set([FIXTURE_REGISTRY]);
 /**
  * The listing sections a tool regenerates from the tree (`--write`), by file; `true` means every section. A static check
  * and the tests that read the file compare them with a fresh run, so a hand edit or a raised ratchet is caught there and
@@ -340,7 +356,7 @@ function listingIsOwn(file, roots, read) {
   const [was, now] = [listingRows(before), listingRows(after)];
   const generated = section => GENERATED_SECTIONS[file] === true || GENERATED_SECTIONS[file]?.has(section);
   return [...new Set([...was.keys(), ...now.keys()])].filter(key => was.get(key) !== now.get(key))
-    .every(key => generated(key.slice(0, key.indexOf('\0'))) || owns(key.slice(key.indexOf('\0') + 1)));
+    .every(key => { const section = key.slice(0, key.indexOf('\0')); return generated(section) || owns(key.slice(section.length + 1)) || FILE_KEYED.has(file) && owns(section); });
 }
 
 /**
@@ -482,15 +498,22 @@ export function testTierReport(plan, { names = true } = {}) {
   const skipped = plan.skipped?.length ? `\nSealed packages skipped (${plan.skipped.length}): ${plan.skipped
     .map(row => `${row.package} by receipt ${row.receipt}`).join(', ')}` : '';
   const sealed = plan.sealedCells?.length ? `\nCells sealed by conforming tests (${plan.sealedCells.length}): ${plan.sealedCells.join(', ')}` : '';
-  return `${units}\nT3 journeys deferred to the landing batch (${plan.journeys.length})${skipped}${sealed}`;
+  const audit = plan.auditLeft?.length ? `\nLeft to the main audit (landing.auditOnly) (${plan.auditLeft.length}): ${plan.auditLeft.join(', ')}` : '';
+  return `${units}\nT3 journeys deferred to the landing batch (${plan.journeys.length})${skipped}${sealed}${audit}`;
 }
 
-/** A green exit with no observed test account cannot prove a selected unit or journey. */
+/**
+ * A green exit with no observed test account cannot prove a selected unit or journey. The refusal names the selected
+ * files the run gave no account for, so a runner that ignored them is found by name, on the controller and on a pulled gate.
+ */
 export function requireTestTierAccount(run, files) {
   const green = run.isGreen === true || run.green === true || run.state === 'pass';
   const outcomes = testOutcomeFields(run.profile?.testOutcomes) ?? testOutcomeFields(run.testOutcomes);
-  const accounted = outcomes
-    ? files.every(file => outcomes.some(row => row.file === posix.normalize(file)))
-    : Boolean(run.profile?.tests?.length);
-  if (green && files.length && !accounted) throw new Refused('TEST_SELECTION_UNVERIFIED', 'selected test files produced no test account; make the focused runner execute and report the selected tests');
+  const missing = outcomes
+    ? files.filter(file => !outcomes.some(row => row.file === posix.normalize(file)))
+    : run.profile?.tests?.length ? [] : [...files];
+  if (green && files.length && missing.length) {
+    const named = missing.slice(0, 20).join(', ') + (missing.length > 20 ? ` and ${missing.length - 20} more` : '');
+    throw new Refused('TEST_SELECTION_UNVERIFIED', `selected test files produced no test account (${missing.length} of ${files.length} unreported: ${named}); make the focused runner execute and report the selected tests`);
+  }
 }

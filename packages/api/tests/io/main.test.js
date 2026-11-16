@@ -51,11 +51,11 @@ test('clause 1 [P7]: a served board keeps answering after a commit lands that ch
   const { Worker } = await import('node:worker_threads');
   const cell = await import('../../../store/tests/fixtures/cell.js');
   const store = await import('../../../store/index.js');
-  const project = cell.cellProject(t);
+  const project = cell.cellProject(t, { real: true });
   const opened = cell.openCellBoard(project.boardFile);
   let id;
   try { id = store.boardId(opened); } finally { cell.closeCellBoard(opened); }
-  const code = cell.cellRepo(t);
+  const code = cell.cellRepo(t, { real: true });
   code.put('shared.cjs', 'exports.one = () => 1;\n');
   code.put('reader.cjs', "module.exports.check = () => require('./shared.cjs').one();\n");
   code.put('server.mjs', MOVING_SERVER);
@@ -137,7 +137,7 @@ function fixtureBoardId(project) {
 }
 
 test('clause 1 [P7]: a registered board that cannot be read is logged with its code, message and board id, and the refusal names the read failure instead of NO_BOARD (#6158)', async (t) => {
-  const project = cellProject(t);
+  const project = cellProject(t, { real: true });
   const id = fixtureBoardId(project);
   writeFileSync(project.boardFile, 'this is not a SQLite database, so every read of the board fails\n'.repeat(64));
   const logged = [];
@@ -155,7 +155,7 @@ test('clause 1 [P7]: a registered board that cannot be read is logged with its c
 });
 
 test('clause 1 [P7]: a board id no registered board carries still answers NO_BOARD when every board reads (#6158)', async (t) => {
-  const project = cellProject(t);
+  const project = cellProject(t, { real: true });
   fixtureBoardId(project);
   const logged = [];
   t.mock.method(process.stderr, 'write', (chunk) => { logged.push(String(chunk)); return true; });
@@ -163,4 +163,40 @@ test('clause 1 [P7]: a board id no registered board carries still answers NO_BOA
   assert.equal(answer.status, 404, JSON.stringify(answer.body));
   assert.equal(answer.body.error.code, 'NO_BOARD');
   assert.equal(logged.join('').includes('board read failed'), false, 'a readable board logs no read failure');
+});
+
+test('clause 1 [P7]: a landing that touches only docs or unrelated cells keeps the served process, a served-module landing restarts it (#6162)', { timeout: 60_000 }, async (t) => {
+  const { execFileSync } = await import('node:child_process');
+  const { join } = await import('node:path');
+  const { restartOnCodeMove, servedModuleMoved } = await import('../../../drive/index.js');
+  const cell = await import('../../../store/tests/fixtures/cell.js');
+  const code = cell.cellRepo(t, { real: true });
+  code.put('entry.mjs', "import './served.mjs';\nawait import('./lazy.mjs');\n");
+  code.put('served.mjs', 'export const one = 1;\n');
+  code.put('lazy.mjs', 'export const lazy = 1;\n');
+  code.put('docs/guide.md', 'one\n');
+  code.put('cells/unrelated.mjs', 'export const unrelated = 1;\n');
+  code.commitAll();
+  const revision = () => execFileSync('git', ['rev-parse', 'HEAD'], { cwd: code.root, encoding: 'utf8' }).trim();
+  let closed = 0, relaunched = 0, skipped;
+  const unaffected = new Promise((done) => { skipped = done; });
+  const judge = servedModuleMoved({ root: code.root, entries: [join(code.root, 'entry.mjs')] });
+  const fresh = restartOnCodeMove({ root: code.root, revision, interval: 25, drain: 25, log: () => {},
+    affects: async (from, to) => { const answer = await judge(from, to); if (!answer) skipped(); return answer; },
+    close: async () => { closed++; }, relaunch: () => { relaunched++; return { pid: null }; } });
+  // The watcher's timer is unref'd for a server that has other work; this test has none, so it holds the loop open.
+  const hold = setInterval(() => {}, 1_000);
+  t.after(() => { clearInterval(hold); fresh.stop(); });
+  code.put('docs/guide.md', 'two\n');
+  code.put('cells/unrelated.mjs', 'export const unrelated = 2;\n');
+  code.commitAll();
+  await unaffected;
+  assert.equal(closed, 0, 'a docs and unrelated-cell landing never stops listening');
+  assert.equal(relaunched, 0, 'a docs and unrelated-cell landing starts no new process');
+  code.put('lazy.mjs', 'export const lazy = 2;\n');
+  code.commitAll();
+  const moved = await fresh.restarted;
+  assert.equal(closed, 1, 'a landing that changes a served module stops the old server');
+  assert.equal(relaunched, 1, 'a landing that changes a served module relaunches it once');
+  assert.equal(moved.to, revision());
 });

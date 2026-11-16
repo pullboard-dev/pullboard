@@ -14,6 +14,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { renderWorkerSkill } from '../../../../packages/config/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 
 const SKILL_VERSIONS = [
@@ -73,6 +74,7 @@ export const ROLES = {
   verify: 'pullboard-verify',
   run: 'pullboard-run',
   triage: 'pullboard-triage',
+  worker: 'pullboard-worker',
 };
 
 /**
@@ -86,6 +88,8 @@ function shippedSkill(role) {
   if (!name) {
     throw new Refused('NO_ROLE', `no role "${role}"; roles: ${Object.keys(ROLES).join(', ')}`);
   }
+  // The worker loop has no file to drift: it is generated from the one shared seat-loop source (#8550).
+  if (role === 'worker') return renderWorkerSkill();
   return readFileSync(join(SKILLS_DIR, name, 'SKILL.md'), 'utf8');
 }
 
@@ -189,25 +193,51 @@ export function promptFor(root, role) {
   return withoutFrontMatter(shippedSkill(role));
 }
 
+/** Where each agent tool reads a project's skills; the same shipped bytes go to every tool the project declares. */
+const SKILL_HOMES = Object.freeze({
+  claude: { dir: ['.claude', 'skills'], label: 'Claude Code' },
+  codex: { dir: ['.agents', 'skills'], label: 'Codex' },
+});
+
 /**
- * Install the role guides as Claude Code skills under `.claude/skills/`, never replacing a file
- * that is already there (I2).
+ * The agent tools a project declares by the folders and files it already has before init writes anything:
+ * `.claude`, `CLAUDE.md` or `.mcp.json` mean Claude Code; `.codex` or `.agents` mean Codex. A project that
+ * declares neither, or both, is set up for both.
+ *
+ * @param {string} root
+ * @returns {Array<'claude'|'codex'>}
+ */
+export function declaredAgentTools(root) {
+  const claude = ['.claude', 'CLAUDE.md', '.mcp.json'].some(name => existsSync(join(root, name)));
+  const codex = ['.codex', '.agents'].some(name => existsSync(join(root, name)));
+  if (claude && !codex) return ['claude'];
+  if (codex && !claude) return ['codex'];
+  return ['claude', 'codex'];
+}
+
+/**
+ * Install the role guides as skills where each declared agent tool reads them (Claude Code under
+ * `.claude/skills/`, Codex under `.agents/skills/`), never replacing a file that is already there (I2).
  *
  * @param {string} root
  * @param {(path: string) => void} [onWrite] Observe only newly written skill files.
+ * @param {Array<'claude'|'codex'>} [tools] The agent tools to write for; Claude Code alone by default.
  * @returns {string[]} What happened.
  */
-export function installSkills(root, onWrite = () => {}) {
-  const written = [];
-  for (const [role, name] of Object.entries(ROLES)) {
-    const file = join(root, '.claude', 'skills', name, 'SKILL.md');
-    if (existsSync(file)) continue;
-    mkdirSync(join(root, '.claude', 'skills', name), { recursive: true });
-    writeFileSync(file, shippedSkill(role));
-    onWrite(`.claude/skills/${name}/SKILL.md`);
-    written.push(name);
+export function installSkills(root, onWrite = () => {}, tools = ['claude']) {
+  const notes = [];
+  for (const tool of tools) {
+    const { dir, label } = SKILL_HOMES[tool];
+    const written = [];
+    for (const [role, name] of Object.entries(ROLES)) {
+      const file = join(root, ...dir, name, 'SKILL.md');
+      if (existsSync(file)) continue;
+      mkdirSync(join(root, ...dir, name), { recursive: true });
+      writeFileSync(file, shippedSkill(role));
+      onWrite(`${dir.join('/')}/${name}/SKILL.md`);
+      written.push(name);
+    }
+    notes.push(written.length ? `wrote ${label} skills: ${written.join(', ')}` : `kept the ${label} skills`);
   }
-  return written.length
-    ? [`wrote Claude Code skills: ${written.join(', ')}`]
-    : ['kept the Claude Code skills'];
+  return notes;
 }

@@ -21,6 +21,9 @@ import { withBoardRead } from '../context.js';
 import { retrySync } from '../sync.js';
 import { events } from '../../../../../packages/store/index.js';
 import { verdictsFor } from '../../../../../packages/store/index.js';
+import { newestGateJob } from './show.js';
+import { queuedAcknowledgment } from '../submit/pulled.js';
+import { waitForPulledGate } from '../submit/pulled.js';
 import { waitForSubmissionVerdict } from '../../../../../packages/items/index.js';
 
 /** Resolve only this seat's claim or its explicit returned-work reservation before any Git mutation. */
@@ -38,7 +41,7 @@ function shippingItem(ctx, requested) {
       throw new Refused('NOT_YOURS', `ship cannot reclaim #${item.item_id}: this seat has neither a live claim nor its first-refusal window`,
         `claim #${item.item_id} normally before shipping; never take another builder's reserved work`);
     }
-    return { item, reclaim: !live };
+    return { item, reclaim: !live, me };
   });
 }
 
@@ -55,7 +58,7 @@ export async function run(io, { first, second, rest, values }) {
   if (second || rest.length) throw new Refused('USAGE', 'pullboard ship [id] [--note text] [--infra text]');
   if (values.note !== undefined && (typeof values.note !== 'string' || !values.note.trim())) throw new Refused('USAGE', '--note needs nonempty text');
   const ctx = context(io);
-  const { item, reclaim } = shippingItem(ctx, first);
+  const { item, reclaim, me } = shippingItem(ctx, first);
   const root = ctx.info.root;
   const unstaged = tryGit(root, ['diff', '--quiet'], { env: cleanGitEnvironment() });
   if (unstaged.status !== 0) throw new Refused('DIRTY', 'ship leaves unstaged tracked changes alone; stage exactly the work to ship', 'stage or restore the unstaged changes, then run pullboard ship again');
@@ -83,8 +86,13 @@ export async function run(io, { first, second, rest, values }) {
     gitStep(root, ['merge', '--no-edit', main.commit], 'merge', 'resolve the preserved merge conflict and commit normally, then run pullboard ship again');
     const code = await submit(io, { first: String(item.item_id), values: { ...values, wait: true, 'no-next': true }, rest: [] });
     if (code !== 0) { originalResult?.(result); return code; }
-    const gateResult = result;
     const waitContext = context(io);
+    let gateResult = result ?? queuedAcknowledgment(waitContext, item.item_id, gitStep(root, ['rev-parse', 'HEAD'], 'commit', 'rerun ship').trim(), { withBoardRead, getItem, newestGateJob });
+    // A pulled submit returns queued, and the claiming seat never blocks on its own gate: wait for the job's receipt here [C7,#7736].
+    if (gateResult?.queued) {
+      const gate = await waitForPulledGate(waitContext, item.item_id, gateResult, { withBoardRead, retrySync, getItem, newestGateJob });
+      gateResult = { ...gateResult, queued: false, gate };
+    }
     const receipt = withBoardRead(waitContext, board => events(board, { itemId: item.item_id })
       .findLast(event => event.event_kind === 'submit'
         && JSON.parse(event.event_detail).commit === gateResult.commit));
@@ -93,8 +101,8 @@ export async function run(io, { first, second, rest, values }) {
     if (reviewCode !== 0) { originalResult?.(result); return reviewCode; }
     const submission = result;
     if (values.note !== undefined) {
+      // The seat was resolved before the work moved: an item folder names its seat only while the item is claimed, and the verdict has landed it by now [C7,#7752].
       await withBoard(context(io), async board => {
-        const me = whoAmI(context(io), board);
         await ordered(context(io), board, 'appendFact', [item.item_id, { agentId: me.id, kind: 'note', text: values.note }]);
       });
     }

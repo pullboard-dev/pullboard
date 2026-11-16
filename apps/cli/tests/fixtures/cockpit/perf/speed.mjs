@@ -1,4 +1,5 @@
 /** Measure real input-to-painted tab changes with the #606 Chrome input boundary [N26]. */
+import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -9,10 +10,27 @@ import {
   press,
   stableChrome,
 } from '../stable.js';
+import { removeStressBoard } from './generate.mjs';
+import { statusCounts } from './generate.mjs';
+import { awaitStressBoard } from './stress-cache.mjs';
+import {
+  TAB_SPEED_GOAL_MS,
+  TAB_SPEED_ROWS,
+} from './tab-speed-rows.mjs';
 import {
   startView,
   stopView,
 } from './run.mjs';
+
+/** Every tab the speed contract measures, in strip order; files split them to stay inside the 120 s file budget. */
+export const ALL_TABS = ['spec', 'doctrine', 'items', 'roadmap', 'dashboard'];
+
+/** Setup wait for the large state's first load; not part of any measured click. */
+function firstLoadMs() { return 60_000; }
+const LOADED = "!!data?.project && !document.body.classList.contains('loading')";
+
+/** The strip menu each page lives in; Work's pages are plain tabs. */
+const MENU_OF = { spec: 'rules', doctrine: 'rules', dashboard: 'insights' };
 
 /** Observe actual fetch/body/parse work before the page starts, without replacing its data. */
 function observationScript() {
@@ -78,7 +96,7 @@ function inputScript() {
         if (sample.ready === false) return;
         const box = pane?.getBoundingClientRect();
         const targets = { spec: '#spec-list .row', doctrine: '#doctrine-list .row', items: '#chain .row',
-          roadmap: '#roadmap .milestone-head', dashboard: '#dashboard .dash-hero' };
+          roadmap: '#roadmap .milestone-head', dashboard: '#dashboard .dash-live .dash-stage' };
         const content = pane?.querySelector(targets[sample.tab]);
         const ready = Boolean(view.tab === sample.tab && pane && !pane.hidden && content && box.width > 0 && box.height > 0);
         const key = ready ? [revision, box.x, box.y, box.width, box.height, content.getBoundingClientRect().x, content.getBoundingClientRect().y].join(':') : null;
@@ -93,8 +111,8 @@ function inputScript() {
   })()`;
 }
 
-/** Measure first and repeated switches on one real generated board; always drain owned Chrome and server. */
-export async function measureTabSpeed(board) {
+/** Measure first and repeated switches of `tabs` on one real generated board; always drain owned Chrome and server. */
+export async function measureTabSpeed(board, tabs = ALL_TABS) {
   const executable = findChromeExecutable();
   if (!executable) throw new Error('Chrome is required for the tab speed contract');
   const profile = join(board.workspace, 'tab-speed-chrome');
@@ -106,30 +124,83 @@ export async function measureTabSpeed(board) {
       env: { HOME: profile, PATH: process.env.PATH ?? '/usr/bin:/bin' } }));
     await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: observationScript() });
     await chrome.navigate(server.link.href);
-    await chrome.waitFor("!!data?.project && !document.body.classList.contains('loading')");
-    await chrome.stable(inputScript(), "document.querySelector('[data-tab=spec]')");
+    // First load of the 40000-shout state is setup, not a measured click: give a loaded runner a minute [N26].
+    await chrome.waitFor(LOADED, firstLoadMs());
+    await chrome.stable(inputScript(), "document.querySelector('[data-tab=items]')");
+    const hangs = [], hung = new Set();
     for (const mode of [{ repeat: false }, { repeat: true }, { isolation: true }]) {
-      for (const tab of ['spec', 'doctrine', 'items', 'roadmap', 'dashboard']) {
-        await chrome.stable(`window.__tabSpeed.next = ${JSON.stringify(mode)}`, `document.querySelector('[data-tab="${tab}"]')`);
-        await press(chrome, `document.querySelector('[data-tab="${tab}"]')`);
-        // Observe the unchanged 100 ms bar without any CDP/layout sampling inside that window.
-        await new Promise(resolve => setTimeout(resolve, 100));
-        await chrome.stable(`(async () => {
-          const deadline = performance.now() + 60000;
-          while (performance.now() < deadline) {
-            const sample = window.__tabSpeed.current;
-            if (sample?.tab === '${tab}' && typeof sample.ready === 'boolean') return;
-            await new Promise(requestAnimationFrame);
-          }
-          throw new Error('the native tab measurement did not settle');
-        })()`, `document.querySelector('[data-tab="${tab}"]')`);
+      for (const tab of tabs) {
+        if (hung.has(tab)) continue; // a tab that hung once is not measured again; its hang is the record
+        try {
+          // Rules and Insights pages sit in a menu; open it first, outside the measured click [N26].
+          if (MENU_OF[tab]) await press(chrome, `document.querySelector('[data-nav-group="${MENU_OF[tab]}"]')`);
+          await chrome.stable(`window.__tabSpeed.next = ${JSON.stringify(mode)}`, `document.querySelector('[data-tab="${tab}"]')`);
+          await press(chrome, `document.querySelector('[data-tab="${tab}"]')`);
+          // Observe the unchanged 100 ms bar without any CDP/layout sampling inside that window.
+          await new Promise(resolve => setTimeout(resolve, 100));
+          await chrome.stable(`(async () => {
+            const deadline = performance.now() + 60000;
+            while (performance.now() < deadline) {
+              const sample = window.__tabSpeed.current;
+              if (sample?.tab === '${tab}' && typeof sample.ready === 'boolean') return;
+              await new Promise(requestAnimationFrame);
+            }
+            throw new Error('the native tab measurement did not settle');
+          })()`, `document.querySelector('[data-tab="${tab}"]')`);
+        } catch (error) {
+          // A page that never answers is recorded as a hang, not thrown, so the audit row can name it [N26].
+          if (error?.code !== 'CDP_TIMEOUT') throw error;
+          hung.add(tab);
+          hangs.push({ tab, mode: mode.repeat ? 'repeat' : mode.isolation ? 'isolation' : 'first', message: error.message });
+        }
       }
     }
-    return await chrome.stable(`({ ...window.__tabSpeed, next: undefined, current: undefined,
+    const report = await chrome.stable(`({ ...window.__tabSpeed, next: undefined, current: undefined,
       items: data.project.items.length, agents: data.project.agents.length,
       visibleTab: view.tab, browser: navigator.userAgent })`);
+    return { ...report, hangs };
   } finally {
     try { if (chrome) await chrome.close(); }
     finally { if (server) await stopView(server); }
   }
+}
+
+/** One split file's whole contract: generate the real large board, click each of `tabs` first, again and isolated, and hold the 100 ms bar [N26]. */
+export async function checkTabSpeed(t, tabs) {
+  const board = await awaitStressBoard({ seed: 'tab-speed-1600', size: 1600, agents: 1150, shouts: 40000 });
+  try {
+    assert.equal(board.agentCount, 1150);
+    assert.equal(board.shoutCount, 40000);
+    const report = await measureTabSpeed(board, tabs);
+    t.diagnostic(JSON.stringify({ population: { items: board.size, agents: board.agentCount, shouts: board.shoutCount }, ...report }));
+    // The first load is open-first since de3affd4f4 (#6697): withdrawn items arrive only when a screen that shows them asks.
+    // The roadmap and dashboard also ask for finished work since 2da4b43e24, so a run that clicks either holds every item [C7].
+    const asksFinished = tabs.includes('roadmap') || tabs.includes('dashboard');
+    assert.equal(report.items, asksFinished ? board.size : board.size - statusCounts(board.size).withdrawn);
+    // A tab that hung is recorded once in `hangs` and measured no further; every other tab keeps all its clicks.
+    const hungTabs = new Set(report.hangs.map(hang => hang.tab)), live = tabs.filter(tab => !hungTabs.has(tab));
+    assert.equal(report.actions.filter(sample => !hungTabs.has(sample.tab)).length, live.length * 2, 'every other tab is clicked first and again');
+    assert.ok(report.parse.length > 0, 'actual state body bytes and JSON parse time are observed');
+    assert.ok(report.fetch.length > 0, 'actual browser fetch time is observed');
+    assert.ok(report.render.length >= live.length * 2, 'every click retains its real render duration');
+    assert.equal(report.isolation.filter(sample => !hungTabs.has(sample.tab)).length, live.length, 'every other tab has its isolation control');
+    for (const sample of report.isolation) {
+      if (hungTabs.has(sample.tab)) continue;
+      assert.deepEqual(sample.hiddenMutations, [], `${sample.tab} does not rebuild another tab's data`);
+      assert.equal(sample.ready, true, `${sample.tab} isolation control reaches its real content`);
+    }
+    // Goal: 100 ms. A tab's row in tab-speed-rows.mjs is an audited exception at its measured worst paint; the bar itself never moves.
+    const goalMs = TAB_SPEED_GOAL_MS, rows = TAB_SPEED_ROWS;
+    for (const hang of report.hangs) {
+      assert.ok(rows[hang.tab]?.hang === true, `${hang.tab} ${hang.mode} never answered the browser: ${hang.message} (goal ${goalMs} ms; record it in tab-speed-rows.mjs only as an audited exception)`);
+    }
+    for (const sample of report.actions) {
+      if (hungTabs.has(sample.tab)) continue;
+      assert.equal(sample.ready, true, `${sample.tab} paints its actual content after the click`);
+      assert.ok(Number.isFinite(sample.end), `${sample.tab} has a real painted timestamp`);
+      const kind = sample.repeat ? 'repeat' : 'first', limit = rows[sample.tab]?.[kind] ?? goalMs, took = sample.end - sample.start;
+      assert.ok(took < limit, `${sample.tab} ${kind} click painted in ${took} ms (bar <${limit} ms, goal <${goalMs} ms)`);
+      if (took < goalMs && limit > goalMs) t.diagnostic(`${sample.tab} ${kind} click meets the ${goalMs} ms goal; remove its row in tab-speed-rows.mjs`);
+    }
+  } finally { removeStressBoard(board); }
 }

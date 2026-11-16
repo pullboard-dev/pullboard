@@ -288,19 +288,21 @@ test('secrets are named by kind and place, never echoed [C5]', () => {
   assert.ok(found.every((entry) => !entry.includes('abcdefghij')));
 });
 
-test('the secret scan handles 2.4 MiB of binary images and finds an embedded key [P4]', (t) => {
+test('a large staged binary commits without DIFF_TOO_LARGE [S1]', (t) => {
   const box = stagedRepo(t);
-  const secret = `sk-ant-${'A'.repeat(32)}`;
-  for (let index = 0; index < 17; index += 1) {
-    const image = Buffer.alloc(150_000);
-    image.set([0xff, 0xd8, 0xff, 0xe0, 0, 0x10, 0x4a, 0x46, 0x49, 0x46, 0]);
-    if (index === 0) image.write(`${secret}\n`, 11, 'ascii');
-    writeFileSync(join(box.root, `image-${index}.jpg`), image);
-  }
-  box.git('add', '--', '*.jpg');
-  const problems = stagedProblems(box.root);
-  assert.deepEqual(problems, ['possible secret: Anthropic key at image-0.jpg:1']);
-  assert.ok(!problems.join(' ').includes(secret));
+  const image = Buffer.alloc(9 * 1024 * 1024, 0x41);
+  image.set([0xff, 0xd8, 0xff, 0xe0, 0, 0x10, 0x4a, 0x46, 0x49, 0x46, 0]);
+  writeFileSync(join(box.root, 'big.jpg'), image);
+  box.git('add', '--', 'big.jpg');
+  assert.deepEqual(stagedProblems(box.root), []);
+});
+
+test('a path marked -diff is skipped by the secret scan as git itself skips it [S1]', (t) => {
+  const box = stagedRepo(t);
+  writeFileSync(join(box.root, '.gitattributes'), '*.dat -diff\n');
+  writeFileSync(join(box.root, 'blob.dat'), `${'ordinary text\n'.repeat(700_000)}`);
+  box.git('add', '--', '.gitattributes', 'blob.dat');
+  assert.deepEqual(stagedProblems(box.root), []);
 });
 
 test('a staged diff beyond the safe output limit is a private coded refusal [P4]', (t) => {
@@ -317,7 +319,7 @@ test('a staged diff beyond the safe output limit is a private coded refusal [P4]
   });
 });
 
-test('pre-commit still refuses and redacts a staged text secret [P4]', (t) => {
+test('a secret in a staged text file is still refused [S1]', (t) => {
   const box = stagedRepo(t);
   const secret = `sk-ant-${'A'.repeat(32)}`;
   writeFileSync(join(box.root, 'settings.js'), `const token = \"${secret}\";\n`);
@@ -533,7 +535,7 @@ test('a hook names a Pullboard version mismatch instead of running old rules [C1
   fake(bin, '0.9.9');
   result = commit();
   assert.equal(result.status, 1, 'a newer pullboard under older hooks is stopped too');
-  assert.match(result.stderr, /Pullboard 0\.9\.9\. Run: pullboard init/u, 'newer rules rewrite the hooks with init');
+  assert.match(result.stderr, /Pullboard 0\.9\.9\. Run: cd ".*" && pullboard init/u, 'newer rules rewrite the hooks with init, from the main checkout');
 
   fake(bin, '0.9.0');
   result = commit();
@@ -591,7 +593,7 @@ for (const channel of ['stderr', 'stdout', 'matching-output']) {
     writeFileSync(executable, `#!/bin/sh\nif [ "$1" = --version ]; then ${output}; exit 7; fi\nprintf '%s\\n' 'RULE_RAN' >&2\nexit 0\n`);
     chmodSync(executable, 0o755);
     const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
-    for (const hook of ['pre-commit', 'pre-merge-commit', 'commit-msg', 'pre-push']) {
+    for (const hook of ['pre-commit', 'pre-merge-commit', 'commit-msg', 'pre-push', 'post-commit']) {
       const file = join(box.root, `try-${hook}`);
       writeFileSync(file, hookScript(hook, '0.9.0'));
       const result = spawnSync('/bin/sh', [file, join(box.root, 'MESSAGE')], { cwd: box.root, env, input: 'private ref records\n', encoding: 'utf8', timeout: 6000 });

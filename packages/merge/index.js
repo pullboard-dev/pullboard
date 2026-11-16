@@ -1,7 +1,7 @@
 export * from './light.js';
 export { mainMovedWarnings, warnMainMoved } from './src/io/warning.js';
-export { MECHANICAL_VERSION, formatJson, mechanicalConflictFiles, resolveMechanicalIndex } from './src/io/mechanical.js';
-export { mergeMechanicalSources, resolveMechanicalMerge } from './src/io/train.js';
+export { MECHANICAL_VERSION, formatJson, mechanicalConflictFiles, mergePlanData, resolveMechanicalIndex } from './src/io/mechanical.js';
+export { mergeMechanicalSources, resolveMechanicalMerge } from './src/io/mechanical.js';
 export { trunkMerge, recordedTrunkMerge, refuseRecordedHistoryOverrides } from './src/io/trunk.js';
 export { preparedSourceComposition, sourceConflictFiles, withSourceComposition } from './src/io/compose.js';
 export { captureMergeOnly, deriveMergeOnly } from './src/io/only/source.js';
