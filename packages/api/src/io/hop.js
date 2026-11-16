@@ -87,6 +87,30 @@ export function moveGateClaimHop(db, hop, { item, candidate, runner, move, epoch
   }
 }
 
+/**
+ * Free the item's hop as a stopping runner hands back its gate job's lease: the table's fenced step checks the runner still drives the hop at its claim's epoch,
+ * and the hop's lease then ends at `now`, so the next runner's claim acquires it at once (a new epoch, so the stopped claim stays fenced) instead of being refused HOP_FENCED until it lapses [C7,#8700].
+ * Why only a hop this runner still drives: a hop already over, taken by another runner or lapsed has nothing of this claim's to free, so it is left as it is.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{ table: NonNullable<typeof hopTable> }} hop - From gateClaimHop.
+ * @param {{ job: string, runner: string, epoch: number, now: number, leaseMs?: number }} release - job: the gate job released; epoch: the hop epoch its claim took.
+ * @returns {{ freed: boolean }}
+ */
+export function freeGateHop(db, hop, { job, runner, epoch, now, leaseMs = LEASE_MS }) {
+  const { job_item: item, job_candidate: candidate } = db.prepare('SELECT job_item, job_candidate FROM job WHERE job_id = ?').get(job);
+  ensureGateHopTable(db);
+  const row = readGateHop(db, item);
+  if (row?.state !== 'driven' || row.owner !== runner || row.epoch !== epoch || row.commit !== candidate || leaseLapsed(row.leaseUntil, now)) return { freed: false };
+  const decide = hop.table(leaseMs);
+  const waiting = { status: 'claimed', commit: candidate, digest: candidate };
+  gateHopMove(db, { item, actor: runner, enabled: true, decide: read => {
+    const answer = decide({ item: waiting, hop: read, now }, { name: 'step', actor: runner, epoch });
+    return answer.refused ? { refused: answer.refused } : { hop: { ...answer.patch.hop, leaseUntil: now - 1 } };
+  } });
+  return { freed: true };
+}
+
 /** Refusals a step gets when its hop was ended or replaced by a resubmit rather than taken at a later epoch. */
 const STALE_STEP = new Set(['HOP_OVER', 'HOP_ITEM_MOVED', 'HOP_MISSING']);
 
