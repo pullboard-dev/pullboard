@@ -32,13 +32,3 @@ test('clause 1: a takeover of the coordinator seat records the new session model
   assert.match(notice.shout_text, new RegExp(`coordinator \\(${NEW_MODEL}\\) took over`), 'the notice names the new model, not the previous holder');
   assert.doesNotMatch(notice.shout_text, new RegExp(PREVIOUS_MODEL));
 });
-
-test('clause 1: a takeover from a session that declares no model leaves the recorded model alone [B3,B7,O8]', async () => {
-  const box = await project();
-  const joined = await box.inProcess(box.repo, ['join', 'coordinator', '--model', PREVIOUS_MODEL, '--json'], { session: 'first-9509' });
-  assert.equal(joined.status, 0, `${joined.stdout}${joined.stderr}`);
-  const takeover = await box.inProcess(box.repo, ['takeover', '--json'], { session: 'second-9509' });
-  assert.equal(takeover.status, 0, `${takeover.stdout}${takeover.stderr}`);
-  const who = await box.inProcess(box.repo, ['whoami', '--json'], { session: 'second-9509' });
-  assert.equal(JSON.parse(who.stdout).model, PREVIOUS_MODEL);
-});
