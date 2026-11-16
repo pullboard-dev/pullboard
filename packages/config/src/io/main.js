@@ -382,8 +382,9 @@ export function configProblems(config) {
     problems.push('"checks" is { "provesNothing": "hold" or "warn" }: "hold" refuses claim and submit while an item\'s check already passes on main');
   }
   if (config.withdraw !== undefined && (notPlain(config.withdraw)
-    || Object.keys(config.withdraw).some(key => key !== 'review') || typeof config.withdraw.review !== 'boolean')) {
-    problems.push('"withdraw" is { "review": true or false }: true makes a withdrawal wait for another seat to confirm it');
+    || Object.keys(config.withdraw).some(key => !['review', 'refuseLanded'].includes(key))
+    || Object.values(config.withdraw).some(value => typeof value !== 'boolean'))) {
+    problems.push('"withdraw" is { "review": true or false, "refuseLanded": true or false }: review makes a withdrawal wait for another seat to confirm it; refuseLanded refuses to withdraw an item whose commit is on main');
   }
   if (notPlain(config.pushGate) || Object.keys(config.pushGate).some(key => key !== 'shardMinutes' && key !== 'sizeFromBoard')
     || !Number.isSafeInteger(config.pushGate.shardMinutes) || config.pushGate.shardMinutes < 1 || config.pushGate.shardMinutes > 1440) {
