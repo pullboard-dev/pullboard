@@ -144,9 +144,13 @@ export const SEAT_LOOP_WORD_BUDGET = 160;
  * The agent instructions, between markers so init can find its own block and never touch the rest.
  * The text is the approved block from this repo's AGENTS.md, so every new board gets the same words.
  *
+ * When the project's doctrine carries a PB13 row, the Pullboard list also names docs/cells.md [#8819].
+ *
+ * @param {{ rows?: { id: string }[] } | null} [doctrine] - The composed project doctrine, if init has it.
  * @returns {string}
  */
-export function renderAgentsBlock() {
+export function renderAgentsBlock(doctrine = null) {
+  const cells = (doctrine?.rows ?? []).some(row => row.id === 'PB13') ? '- **Cells:** `docs/cells.md` maps the code into cells.\n' : '';
   return `<!-- pullboard:start -->
 ## Pullboard
 
@@ -156,7 +160,7 @@ This repo runs on Pullboard: board, lanes and spec, all in git.
 - **Commits:** \`feat(scope): subject [G1.2]\`, citing the ids served.
 - **Seats:** an agent is its worktree; the main checkout is the coordinator.
 - **Lanes:** join one with \`pullboard join <lane>\`.
-
+${cells}
 ## Roles
 
 Agents think; Pullboard does everything deterministic.
