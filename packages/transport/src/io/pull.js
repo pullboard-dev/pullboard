@@ -196,8 +196,8 @@ export function pullAdapter({ trusted, lease, record, checkResult, bundle, secre
      */
     register({ runner, publicKey, at, signature }) {
       if (!RUNNER.test(String(runner ?? ''))) throw new Refused('PULL_RUNNER_ID', 'a runner id is a plain name: letters, digits, dot, dash or underscore');
-      if (!trustedKeys().has(publicKey)) throw new Refused('PULL_RUNNER_UNTRUSTED', `runner ${runner}'s key is not trusted on this board; ask the person to trust it with the runner's public key`);
       if (revoked.has(runner) || revokedNames().includes(runner) || revokedKeys.has(publicKey)) throw new Refused('PULL_RUNNER_REVOKED', `runner ${runner}'s credential was revoked; ask the person to issue a key under a new runner name`);
+      if (!trustedKeys().has(publicKey)) throw new Refused('PULL_RUNNER_UNTRUSTED', `runner ${runner}'s key is not trusted on this board; ask the person to trust it with the runner's public key`);
       // Why: a key is one runner's credential; two runners behind one key could not be told apart or revoked singly [C7].
       for (const other of runners.values()) if (other.runner !== runner && other.publicKey === publicKey) throw new Refused('PULL_KEY_SHARED', `this key is already runner ${other.runner}'s credential; give runner ${runner} a key of its own`);
       checkSigned('register', runner, at, signature, publicKey);
