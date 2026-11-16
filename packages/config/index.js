@@ -50,6 +50,7 @@ export {
   testNiceEnabled,
   fencedHopEnabled,
   endStaleJobsEnabled,
+  recaptureHandoffEnabled,
   movesShadowEnabled,
   registryStrictEnabled,
   movesLiveEnabled,
