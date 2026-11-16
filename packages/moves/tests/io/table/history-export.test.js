@@ -126,3 +126,15 @@ test('#9000: fixture mode keeps only the batch fields a decision reads, drops a 
   const again = readLandingMoveRecords(reloaded(trimmed.landing, [['event', 'events']]), { since: SINCE });
   assert.deepEqual(tables.map(table => again[table].map(record => [record.event.id, record.recorded])), tables.map(table => full[table].map(record => [record.event.id, record.recorded])));
 });
+
+test('#9001: fixture mode cuts verify rows to what a verdict reads and rebuilds the same verdicts [M1]', () => {
+  const trimmed = exportTableHistory(file, { since: SINCE, home: HOME, fixture: true }).verify;
+  const detail = (id) => trimmed.events.find(row => row[0] === id)?.[5];
+  assert.equal(detail(3), '{}', 'an earlier claim keeps only the fields the fold reads');
+  assert.equal(detail(6), '{}', 'a follow-up the verdict did not write keeps only its place');
+  assert.deepEqual(trimmed.agents, [['core-2', 'mid']], 'only the verdict actors');
+  assert.deepEqual(trimmed.decisions, exported.verify.decisions, 'the same decisions with the same landing values');
+  const tables = [['event', 'events'], ['agent', 'agents'], ['item', 'items'], ['verdict', 'verdictRows'], ['shout', 'shouts'], ['board_meta', 'meta']];
+  const shape = (records) => records.verify.map(record => [record.event.id, record.move, record.recorded]);
+  assert.deepEqual(shape(readVerifyRecords(reloaded(trimmed, tables), { since: SINCE })), shape(readVerifyRecords(reloaded(exported.verify, tables), { since: SINCE })));
+});
