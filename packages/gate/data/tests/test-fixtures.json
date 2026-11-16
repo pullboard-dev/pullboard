@@ -725,11 +725,6 @@
     "raw-board": 18,
     "model": 16
   },
-  "apps/cli/journeys/imports/cross-lane-edits.test.js": {
-    "tempdir": 2,
-    "hand-policy": 2,
-    "model": 1
-  },
   "apps/cli/tests/fixtures/regression.js": {
     "tempdir": 2,
     "hand-policy": 2,
@@ -1349,9 +1344,6 @@
     "tempdir": 3,
     "env-spread": 1
   },
-  "apps/cli/journeys/inbox/budget.test.js": {
-    "raw-board": 1
-  },
   "apps/cli/tests/fixtures/budget-measure.js": {
     "raw-board": 2
   },
@@ -1469,9 +1461,6 @@
   "packages/link/tests/logic/relay/order.test.js": {
     "tempdir": 1,
     "repo-read": 1
-  },
-  "apps/cli/journeys/inbox/filters.test.js": {
-    "raw-board": 1
   },
   "apps/cli/journeys/doctrine/readme.test.js": {
     "repo-read": 17
