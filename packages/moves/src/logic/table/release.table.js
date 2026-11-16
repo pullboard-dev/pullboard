@@ -7,7 +7,9 @@ export { RELEASE_NEXT } from './next.js';
 /** A release note naming a machine fault: such a release says nothing about the item's bar. */
 const INFRA_NOTE = /GATE_INFRA_EXHAUSTED|DATABASE_LOCKED|runner admission/u;
 /** Reasons a holder's release counts toward the release-twice rule. */
-const QUALITY = Object.freeze(['BLOCKED', 'BUDGET', 'INELIGIBLE']);
+const QUALITY = Object.freeze(['BLOCKED', 'BUDGET', 'INELIGIBLE', 'ROUTED_ELSEWHERE']);
+/** Reasons an untouched hand-back counts, only with release.rerouteUntouched on (the caller puts it in the snapshot's io). */
+const UNTOUCHED_COUNTED = Object.freeze(['INELIGIBLE', 'ROUTED_ELSEWHERE']);
 const ROUTES = Object.freeze(['light', 'mid', 'strong']);
 
 const SHOUT = RELEASE_NEXT.NOT_YOURS;
@@ -79,11 +81,18 @@ function infraCaused(history, release) {
   return handoff?.detail?.state === 'infrastructure';
 }
 
+/** Does a release with this reason count toward the release-twice rule? ROUTED_ELSEWHERE and any untouched hand-back count only when `reroute` is on. */
+function countsToward(reason, wasUntouched, reroute) {
+  if (!QUALITY.includes(reason)) return false;
+  if (!wasUntouched && reason !== 'ROUTED_ELSEWHERE') return true;
+  return reroute === true && wasUntouched && UNTOUCHED_COUNTED.includes(reason);
+}
+
 /** A release the holder chose for a quality reason, counted toward the release-twice rule. */
-function chosenQuality(history, release) {
+function chosenQuality(history, release, reroute) {
   const d = release.detail ?? {};
-  if (!QUALITY.includes(d.reasonCode) || d.review || d.staleClaim || d.goneSeat || d.idleClaim || d.expiredClaim
-    || d.untouchedAutoClaim || d.exitHandoff || d.blockedOn?.length || INFRA_NOTE.test(d.reason ?? '') || infraCaused(history, release)) return false;
+  if (!countsToward(d.reasonCode, Boolean(d.untouchedAutoClaim), reroute) || d.review || d.staleClaim || d.goneSeat || d.idleClaim || d.expiredClaim
+    || d.exitHandoff || d.blockedOn?.length || INFRA_NOTE.test(d.reason ?? '') || infraCaused(history, release)) return false;
   const before = history.filter(e => e.id < release.id && LIFECYCLE.includes(e.kind)).at(-1);
   return before?.kind === 'claim' && before.by === release.by;
 }
@@ -93,7 +102,7 @@ function lastTwoChosen(s) {
   const history = numbered(s.history ?? []);
   const unhold = Math.max(0, ...history.filter(e => e.kind === 'unhold_item').map(e => e.id));
   const routeChange = Math.max(0, ...history.filter(e => e.kind === 'escalate' && e.detail?.from !== e.detail?.to).map(e => e.id));
-  return history.filter(e => e.kind === 'release' && e.id > unhold && e.id > routeChange && chosenQuality(history, e)).reverse().slice(0, 2);
+  return history.filter(e => e.kind === 'release' && e.id > unhold && e.id > routeChange && chosenQuality(history, e, s.io?.rerouteUntouched)).reverse().slice(0, 2);
 }
 
 const listReasons = (releases) => [...releases].reverse().map(e => `${e.by}: ${e.detail.reasonCode}${e.detail.reason ? ` (${e.detail.reason})` : ''}`).join('; ');
@@ -168,8 +177,8 @@ function releaseRules({ reasons, staleLimits }) {
       calibrates: { says: 'a holder released BUDGET or INELIGIBLE at their own route',
         holds: (s, m) => returnsClaim(s.before, m) && chosenByHolder(s.before, m) && ['BUDGET', 'INELIGIBLE'].includes(m.reason) && s.before.actor?.route === s.before.item.route },
       releasedTwice: { says: 'this is the second chosen quality release since the last unhold or route change',
-        holds: (s, m) => returnsClaim(s.before, m) && m.reason !== 'DIAGNOSIS_WRONG' && chosenByHolder(s.before, m)
-          && QUALITY.includes(m.reason) && !s.before.item.holdReason && lastTwoChosen(s).length === 2 },
+        holds: (s, m) => returnsClaim(s.before, m) && m.reason !== 'DIAGNOSIS_WRONG' && !m.stale && claimedByMe(s.before, m)
+          && countsToward(m.reason, untouched(s.before, m), s.before.io?.rerouteUntouched) && !s.before.item.holdReason && lastTwoChosen(s).length === 2 },
     }),
   };
 }
