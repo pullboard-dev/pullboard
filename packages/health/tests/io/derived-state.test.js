@@ -44,7 +44,7 @@ test('clause 1: with health.derivedState on, the sweep writes rows keyed by main
 test('clause 2: the holds rows equal the holds the board reports for the same main commit [C7]', t => {
   const { board, file, held } = heldBoard(t);
   sweepDerivedHolds(board, { mainCommit: MAIN, enabled: true, listItems: store.listItems });
-  const reported = store.listItems(board).filter(item => item.item_hold_at).map(item => [String(item.item_id), item.item_hold_reason]);
+  const reported = store.listItems(board).filter(item => item.item_hold_at).map(item => [String(item.item_id), item.item_hold_reason]).sort((a, b) => a[0] - b[0]);
   assert.deepEqual(rows(file, 'hold').map(row => [row.key, JSON.parse(row.value).reason]), reported);
   assert.deepEqual(rows(file, 'hold').map(row => Number(row.key)), held);
   // A lifted hold leaves the next sweep at the same commit: rows follow the board, not the old file.
