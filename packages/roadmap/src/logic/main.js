@@ -106,7 +106,7 @@ export function milestoneRoadmap(root, board, options = {}) {
   const placed = queuePositions(board, ports);
   const landedAt = firstLandings(board, items, ports);
   return milestones.map(milestone => {
-    const active = milestone.items.filter(entry => entry.status !== 'withdrawn');
+    const active = milestone.items.filter(entry => entry.status !== 'withdrawn' || entry.state === 'landed');
     const summary = { total: active.length, left: active.length - milestone.landed,
       landed: 0, landing: 0, review: 0, building: 0, held: 0, waiting: 0,
       needsYou: active.filter(entry => typeof entry.id === 'number' && needsYou.has(entry.id)).map(entry => entry.id),
