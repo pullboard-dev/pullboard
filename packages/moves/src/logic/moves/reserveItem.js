@@ -8,6 +8,6 @@ export default Object.freeze({ operation: "reserveItem", order: 10012, engine: R
   itemIdFirstArgument: false, minimumEngine, actor,
   nextSteps: Object.freeze({
     "ENGINE_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
-    "ITEM_NOT_OPEN": "reserve only open or claimed items; see pullboard list",
+    "ITEM_NOT_OPEN": "hold only open or claimed items; see pullboard list",
     "USAGE": "name the holder: pullboard route <id> --to <seat or block>"
   }) });
