@@ -1,7 +1,7 @@
 import { viewApiPorts } from '../../../../view/index.js';
 import { nativeBoardOpeners } from '../context.js';
 import { moveArgs } from '../../../../../packages/person/index.js';
-import { receiveCommits } from '../../../../../packages/pin/index.js';
+import { receiveMoveCommits as receiveCommits } from '../submit/pushed.js';
 import { withBoardRead } from '../context.js';
 import { withBoard } from '../context.js';
 import { serveReconciler } from '../reconcile.js';
