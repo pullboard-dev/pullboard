@@ -15,7 +15,7 @@ import { needsFullCensus } from '../../../../index.js';
 import { receiptDigest } from '../../../../../git/index.js';
 import { checkCommandDefinition } from '../../../../../git/index.js';
 import { fileURLToPath } from 'node:url';
-import { git } from '../git.js';
+import { cellGit as git } from '../../../../index.js';
 import { cellsCacheDirectory } from '../cache-files.js';
 import { publishCacheEntry } from '../cache-files.js';
 import { Refused } from '../../../../../kernel/index.js';
