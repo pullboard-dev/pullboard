@@ -1,5 +1,5 @@
 /** Item lifecycle, source custody and routing behind one front door [C7]. */
-export { criterionSize, defaultItemRoute } from './src/logic/size.js';
+export { criterionSize, defaultItemRoute, shapeRoute } from './src/logic/size.js';
 export { itemCollisionPlan } from './src/io/planning.js';
 export { criterionCells } from './src/io/criterion.js';
 export { BLOCKS_FILE, recordBlock, readBlocks, blockMoveKey, blockMoveKeys, blockOwner, clearCompletedBlocks, personBlockWords, budgetWords } from './src/io/blocks.js';

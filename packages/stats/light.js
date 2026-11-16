@@ -35,3 +35,5 @@ export { emptyReportCounter, appendReportCounter } from './src/logic/flow/report
 export { FLOW_REPORT_VERSION, reportEvent, newReportPolicy } from './src/logic/flow/report.js';
 export { roleOf, moveFlowItem, projectFlowStats, compareFlowWindows } from './src/logic/flow.js';
 export { barStats } from './src/logic/bar.js';
+/** The capacity lines a status read prints [C7,#8646]. */
+export { capacityLines } from './src/logic/capacity/model.js';
