@@ -11,6 +11,7 @@ import { PROOF_COUNTER_PREFIX } from '../../src/io/proof/counters.js';
 import { DERIVED_SETTING } from '../../src/io/proof/derived.js';
 import { derivedPath } from '../../src/io/proof/derived.js';
 import { derivedRows } from '../../src/io/proof/derived.js';
+import { writeDerived } from '../../src/io/proof/derived.js';
 
 /** A file-backed board with a few items' events, the setting on, and the rebuilt counters; closed and cleaned after the test. */
 function recorded(t) {
@@ -69,4 +70,14 @@ test('clause 1: with the setting off no derived database is made [C7]', t => {
   assert.deepEqual(derivedRows(bare), []);
   assert.equal(derivedProofCounter(bare, 'summary'), null);
   assert.ok(file);
+});
+
+test('clause 1: writeDerived prepares its upsert once per board connection, not once per call [C7,#9020]', t => {
+  const { board } = recorded(t);
+  const upserts = [];
+  const counting = { prepare: sql => { if (/INSERT INTO proof_derived/.test(sql)) upserts.push(sql); return board.db.prepare(sql); }, exec: sql => board.db.exec(sql) };
+  const counted = { ...board, db: counting };
+  for (let call = 0; call < 50; call++) writeDerived(counted, [`k:${call}`, 'a', `j:${call}`, 'b']);
+  assert.equal(upserts.length, 1, 'fifty calls prepared the upsert once');
+  assert.equal(derivedRows(board).filter(row => /^[kj]:/.test(row.meta_key)).length, 100, 'every pair was written');
 });

@@ -9,6 +9,8 @@ export const DERIVED_SETTING = 'PULLBOARD_PROOF_DERIVED_DB';
 const SCHEMA = 'proof_derived';
 /** Boards whose derived file is attached, by connection. */
 const ATTACHED = new WeakMap();
+/** The prepared upsert, by connection: preparing it per call made a 100,000-event replay on a file board ~30x slower [C7]. */
+const PUT = new WeakMap();
 
 /** The derived file's path beside a board file: `<board file>.proof-derived.sqlite`, the way the presence database sits beside it. */
 export function derivedPath(boardFile) {
@@ -36,7 +38,11 @@ function attached(board) {
 export function writeDerived(board, pairs) {
   const schema = attached(board);
   if (!schema) return;
-  const put = board.db.prepare(`INSERT INTO ${schema}.proof_counter(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value`);
+  let put = PUT.get(board.db);
+  if (!put) {
+    put = board.db.prepare(`INSERT INTO ${schema}.proof_counter(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value`);
+    PUT.set(board.db, put);
+  }
   for (let at = 0; at < pairs.length; at += 2) put.run(pairs[at], pairs[at + 1]);
 }
 
