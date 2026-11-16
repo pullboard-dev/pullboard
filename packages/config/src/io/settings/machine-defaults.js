@@ -76,6 +76,7 @@ export const MACHINE_DEFAULTS = {
   'moves.live.job': false,
   'moves.live.outbox': false,
   'moves.live.outcome': false,
+  'moves.live.reclaim': false,
   'moves.live.reopen': false,
   'moves.live.submit': false,
   'moves.shadow': false,
@@ -103,5 +104,6 @@ export const MACHINE_DEFAULTS = {
   'submit.proofOnly': false,
   'test.statusOutcomes': false,
   'tests.registryStrict': false,
+  'tests.requireRegistered': false,
   'view.background': true,
 };
