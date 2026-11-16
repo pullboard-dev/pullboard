@@ -33,7 +33,8 @@ function newestPin(root, itemId) {
 export function adoptPinnedHead(root, folder, itemId) {
   const found = newestPin(root, itemId);
   if (!found) return null;
-  if (!adoptPinnedHead(ctx.info.root, folder, found.id)) return null;
+  const merged = tryGit(folder, ['merge', '--no-edit', found.pin]);
+  if (merged.status !== 0) { tryGit(folder, ['merge', '--abort']); return null; }
   return found;
 }
 
@@ -80,8 +81,7 @@ export async function adoptOrphanedClaim(io, ctx) {
   quiet.result = result => { folder = result.itemFolder ?? null; };
   const { run } = await import('../commands/claim.js');
   if (await run(quiet, { first: String(found.id) }) !== 0 || typeof folder !== 'string') return null;
-  const merged = tryGit(folder, ['merge', '--no-edit', found.pin]);
-  if (merged.status !== 0) { tryGit(folder, ['merge', '--abort']); return null; }
+  if (!adoptPinnedHead(ctx.info.root, folder, found.id)) return null;
   await (await import('../board/access.js')).actOn(io, (c, board, me) => ordered(c, board, 'appendFact', [found.id, { agentId: me.id, kind: 'note',
     text: `Adopted the orphaned claim of ${found.holder} from ${found.pin}; head ${found.head.slice(0, 12)} restored, credit to ${found.holder}.`, ref: null }]));
   io.say(`adopted #${found.id} from ${found.holder}: head ${found.head.slice(0, 12)} restored from ${found.pin}`);
