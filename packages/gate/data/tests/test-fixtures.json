@@ -10,10 +10,6 @@
   "docs/api.test.js": {
     "repo-read": 3
   },
-  "docs/architecture.test.js": {
-    "repo-read": 4,
-    "tempdir": 1
-  },
   "docs/formats.test.js": {
     "repo-read": 1,
     "tempdir": 6,
