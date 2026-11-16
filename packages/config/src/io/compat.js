@@ -20,7 +20,7 @@ function schema(base) {
     withdraw: fields(['review', 'refuseLanded']),
     claims: { ...shape(base.claims), ...fields(['perSeat', 'fileLease', 'fileLeaseHubs']) },
     queue: fields(['contention', 'contentionThreshold']),
-    inbox: { tokenBudget: null, keepUntilActed: null },
+    inbox: { tokenBudget: null, keepUntilActed: null, escalateAfterMinutes: null },
     publish: fields(['pullRequest']),
     pushReceiptCheck: fields(['smoke']),
     landing: { ...fields(['publish', 'timeout', 'stall', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'shardProof', 'landedFromMain', 'first', 'auditOnly', 'splitRed', 'trunkRemote']),
