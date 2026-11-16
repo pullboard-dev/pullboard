@@ -11,6 +11,7 @@ const INVENTORY = new URL('../../../src/io/settings/inventory.js', import.meta.u
 /** The key/default list as it stood before the move [O5,O6]. */
 const BEFORE = {
   'add.warnUnnamedTest': false,
+  'api.codeStampCache': false,
   'board.archiveEvents': false,
   'browserSlots': 1,
   'budget.dailyUsd': null,
@@ -117,6 +118,7 @@ const BEFORE = {
   'review.canonicalFamilies': false,
   'review.relaxRequiredFamily': false,
   'review.releaseReasons': false,
+  'review.starveShout': false,
   'runner.packCache': false,
   'runnerRates': {},
   'runners': [],
@@ -131,6 +133,7 @@ const BEFORE = {
   'serve.pullRoute': false,
   'spec.cascadeReject': false,
   'spec.commitOnApply': false,
+  'stats.recordCoordinatorUsage': false,
   'status.showUsefulBuilders': false,
   'submit.clauseMarks': false,
   'submit.proofOnly': false,

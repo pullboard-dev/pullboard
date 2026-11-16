@@ -9,6 +9,7 @@ import { queueFor } from '../../../../../packages/api/index.js';
 import { openJob } from '../../../../../packages/api/index.js';
 import { endGateHop } from '../../../../../packages/api/index.js';
 import { endStaleGateJobs } from '../../../../../packages/api/index.js';
+import { gateRunnerAdmission } from '../../../../../packages/config/index.js';
 import { endStaleJobsEnabled } from '../../../../../packages/config/index.js';
 import { submitGateHop } from './hop.js';
 import { recordCheckpoint } from '../seat-checkpoint.js';
@@ -82,6 +83,23 @@ const PLAN_COMMAND_CHARS = 2000;
 const TEST_FILE = /\.(?:test|spec)\.[cm]?js$/u;
 /** Where the browser journeys look for Chrome (apps/cli/tests/fixtures/chrome.js), besides PULLBOARD_CHROME. */
 const KNOWN_BROWSERS = ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
+
+/**
+ * The refusal line for a pinned analysis that died on an uncaught exception, or null when its output holds no thrown error and stack frame.
+ * Why: the pulled entry once reported only "returned no result", so a builder read main's tooling fault as their own red; the code names it [C7,P7].
+ * It is injected into the gate entry's source, so it uses nothing outside itself.
+ *
+ * @param {string} said The analysis's stderr then stdout.
+ * @returns {string | null}
+ */
+export function analysisCrash(said) {
+  const lines = String(said ?? '').split(/\r?\n/u);
+  const at = lines.findIndex(line => /^\s*at /u.test(line));
+  if (at < 0) return null;
+  const error = lines.slice(0, at).reverse().find(line => /^\w*Error\b/u.test(line.trim()));
+  if (!error) return null;
+  return `RUNNER_TOOLING_CRASH: the pinned analysis tooling crashed on the runner with ${error.trim().slice(0, 300)} at ${lines[at].trim().slice(0, 300)}; the same main will crash again, so shout the coordinator with this line`;
+}
 
 /**
  * The gate job's entry, written into accepted main's archive by the bootstrap: it runs main's analysis entry on the
@@ -174,6 +192,7 @@ const receipt = shard ? { version: 1, kind: 'shard', main: input.main, source: i
   : { version: 1, main: input.analysis.main, source: input.analysis.source, steps: {}, phases: [], environment };
 const timed = (name, work) => { const started = performance.now(); try { return work(); } finally { receipt.steps[name] = Math.round(performance.now() - started); } };
 const tail = text => text.length > 4000 ? text.slice(-4000) : text;
+${analysisCrash.toString()}
 /** The run's own TAP or Node reporter totals, the last ones printed; null when it printed none, so a count is never guessed. */
 const totals = text => {
   const found = {};
@@ -325,7 +344,7 @@ let analysis = null;
 try { analysis = JSON.parse(line.slice(line.indexOf(' ') + 1)); } catch { /* reported below */ }
 if (!analysis) {
   const said = String(analysed.stderr ?? '') + String(analysed.stdout ?? ''), kept = keepOutput('analysis.log', Buffer.from(said));
-  receipt.error = 'the analysis returned no result: ' + tail(said);
+  receipt.error = analysisCrash(said) ?? 'the analysis returned no result: ' + tail(said);
   if (kept) receipt.kept = kept;
 }
 else {
@@ -575,7 +594,7 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   await withBoard(ctx, board => recordCheckpoint(ctx, board, { item: id, agent: me.id, moment: 'submit', parts: { done: [`submitted ${commit}`], left: ['gate result and review'], evidence: [`gate job ${job.id}`] } }, ordered));
   // With no registered runners this machine is its own runner: the same pull path, on loopback [P7].
   const host = primaryCheckoutRoot(ctx.info);
-  const local = host ? await ensureLocalRunner(host) : { running: false, started: false, pid: null };
+  const local = host && !gateRunnerAdmission().runnerOnly ? await ensureLocalRunner(host) : { running: false, started: false, pid: null };
   // The controller path delivers the activity digest after a submit; the pulled one does as the job is queued, in json too, and the acknowledgment carries its receipt (#7076).
   const delivered = {};
   await deliverSubmitActivity(ctx, id, delivered);

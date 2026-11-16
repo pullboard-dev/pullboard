@@ -44,6 +44,7 @@ import { readFileSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
 export { doctrineExecutionPhases } from '../submit/gate.js';
+import { gateRunnerAdmission } from '../../../../../packages/config/index.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { submitAuthorizationMode } from '../../../../../packages/config/index.js';
 import { withBoardRead as waitBoardRead } from '../context.js';
@@ -320,6 +321,10 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   if (recovered?.operation === 'appendFact' && recovered.args[0] === id) {
     const offered = await (await import('../submit/pull.js')).recoverOfferedGate(ctx, id, recovered);
     if (offered !== null) return offered;
+  }
+  // gate.runnersOnly means no gate runs on this computer: with no registered runner a pulled submit would queue for the loopback local runner or wait forever, so refuse before any job row, read here in the IO layer [C7,V4,#9398].
+  if (gateRunnerAdmission().runnerOnly && !(loadMachineSettings().runners ?? []).length) {
+    throw new Refused('RUNNER_WAIT_DEADLINE', `gate.runnersOnly is on and no runner is registered, so the gate for #${id} has nowhere to run`, 'register a runner with pullboard runner add, or turn the setting off with pullboard settings gate.runnersOnly off, then retry');
   }
   const preflightStart = performance.now();
   // The fail-before check reads a base run of each [test] clause's file; produce it first, only when that check is on [C7,#8090].

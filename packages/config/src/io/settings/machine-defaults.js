@@ -1,6 +1,7 @@
 /** Machine-wide setting defaults, one key per line in sorted order so parallel items adding settings do not conflict [O5,O6]. */
 export const MACHINE_DEFAULTS = {
   'add.warnUnnamedTest': false,
+  'api.codeStampCache': false,
   'board.archiveEvents': false,
   browserSlots: 1,
   'budget.dailyUsd': null,
@@ -108,6 +109,7 @@ export const MACHINE_DEFAULTS = {
   'review.canonicalFamilies': false,
   'review.relaxRequiredFamily': false,
   'review.releaseReasons': false,
+  'review.starveShout': false,
   'runner.packCache': false,
   runnerRates: {},
   runners: [],
@@ -122,6 +124,7 @@ export const MACHINE_DEFAULTS = {
   'serve.pullRoute': false,
   'spec.cascadeReject': false,
   'spec.commitOnApply': false,
+  'stats.recordCoordinatorUsage': false,
   'status.showUsefulBuilders': false,
   'submit.clauseMarks': false,
   'submit.proofOnly': false,
