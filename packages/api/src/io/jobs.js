@@ -27,6 +27,7 @@ import { endJob } from '../../../jobs/index.js';
 import { noteLease } from '../../../jobs/index.js';
 import { setJobRow } from '../../../jobs/index.js';
 import { moveGateClaimHop } from './hop.js';
+import { freeGateHop } from './hop.js';
 
 /** The job kind of one part of a pulled gate's proof, which the board offers from the gate's plan and any runner pulls [P7]. */
 export const SHARD_JOB_KIND = 'gate-shard';
@@ -648,19 +649,23 @@ export function readLandShardReceipts(db, { job, runner, token, shards }) {
  * runner passes backoff false and the job is free at once.
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ job: string, runner: string, token: string, reason?: string, backoff?: boolean, now?: number }} request
+ * @param {{ job: string, runner: string, token: string, reason?: string, backoff?: boolean, draining?: boolean, now?: number, hop?: { table: Function } | null }} request - hop: from gateClaimHop, null with gate.fencedHop off.
  * @returns {{ released: boolean, until?: number }}
  */
-export function releaseJob(db, { job, runner, token, reason, backoff = true, draining = false, now = Date.now() }) {
-  return shadowed(db, { name: 'release', job, runner, token, free: backoff === false && draining }, now, () => releaseHeld(db, { job, runner, token, reason, backoff, draining, now }));
+export function releaseJob(db, { job, runner, token, reason, backoff = true, draining = false, now = Date.now(), hop = null }) {
+  return shadowed(db, { name: 'release', job, runner, token, free: backoff === false && draining }, now, () => releaseHeld(db, { job, runner, token, reason, backoff, draining, now, hop }));
 }
 
-/** The writer's release: back off, or free at once for a draining runner. */
-function releaseHeld(db, { job, runner, token, reason, backoff, draining, now }) {
-  const { attempt } = heldBy(db, job, runner, token);
-  // A free release leaves no step and no backoff, so only a runner the board lists as draining may ask for one (#7386).
-  if (backoff === false && draining) return { released: releaseLease(db, job, runner, { now }) };
-  return backOffLease(db, job, runner, { attempt, reason: reason ?? 'unspecified', now });
+/** The writer's release: back off, or free at once for a draining runner; a stopping runner's release also frees its gate hop. */
+function releaseHeld(db, { job, runner, token, reason, backoff, draining, now, hop }) {
+  return atomically(db, () => {
+    const { attempt, hopEpoch } = heldBy(db, job, runner, token);
+    // A stopping runner (backoff false) has ended its check, so its gate hop is freed with the lease: the next runner's claim takes the job without HOP_FENCED [C7,#8700].
+    if (backoff === false && hop && hopEpoch !== undefined) freeGateHop(db, hop, { job, runner, epoch: hopEpoch, now });
+    // A free release leaves no step and no backoff, so only a runner the board lists as draining may ask for one (#7386).
+    if (backoff === false && draining) return { released: releaseLease(db, job, runner, { now }) };
+    return backOffLease(db, job, runner, { attempt, reason: reason ?? 'unspecified', now });
+  });
 }
 
 /**
@@ -777,7 +782,7 @@ export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => n
   if (action === 'renew') return renewJob(db, { job, runner, token, now, hop });
   if (action === 'shardReceipts') return readLandShardReceipts(db, { job, runner, token, shards: body.shards });
   if (action === 'shards') return offerLandShards(db, { job, runner, token, merged: body.merged, ref: body.ref, plan: body.plan, gate: body.gate, now });
-  if (action === 'release') return releaseJob(db, { job, runner, token, reason, backoff, draining: drained().includes(runner), now });
+  if (action === 'release') return releaseJob(db, { job, runner, token, reason, backoff, draining: drained().includes(runner), now, hop });
   if (action === 'progress') return postProgress(db, { job, runner, token, progress, now });
   if (action === 'artifact') return postArtifact(db, { job, runner, token, artifact: body.artifact, now });
   if (action === 'receipt') {
