@@ -64,8 +64,10 @@ export async function joinRemote(io, { positionals, values }, origin, postMove) 
 }
 
 /** Run `pullboard join` and return its exit code. */
-export async function run(io, { first, values }) {
+export async function run(io, { first: named, values }) {
   const ctx = context(io);
+  // laneMode off: a seat names no lane; it is labelled with the first declared one and next serves every lane [C7,#8906].
+  const first = named ?? (ctx.config.laneMode === 'off' && !ctx.info.isMain ? laneNames(ctx.config).filter(lane => lane !== COORDINATOR)[0] : undefined);
   const folder = itemFolderSeat(ctx.info.root);
   if (folder) {
     const from = folder.seat ? JSON.stringify(folder.seat) : 'the lane worktree this folder was made from';

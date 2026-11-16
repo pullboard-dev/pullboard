@@ -131,7 +131,9 @@ export async function nextTake(ctx, values = {}, services) {
     return { retry: true, retryDetail: { phase: 'urgent preemption', item: looked.item.item_id, code: 'WAITING_CLAIM_RELEASED' } };
   }
   if (!looked.item || looked.buildOffer || looked.held && !looked.review) return looked;
-  if (!looked.review && (looked.item.item_lane !== me.lane || !store.ROUTES.includes(me.route)
+  // laneMode off: any lane's item is on this seat's route, and the claim is made in that item's lane [C7,#8906].
+  const laneOff = ctx.config.laneMode === 'off' && !ctx.info.isMain;
+  if (!looked.review && ((!laneOff && looked.item.item_lane !== me.lane) || !store.ROUTES.includes(me.route)
     || !store.ROUTES.includes(looked.item.item_route) || !store.canTake(me.route, looked.item.item_route)))
     return { reasons: [`#${looked.item.item_id} is available in ${looked.item.item_lane} on the ${looked.item.item_route} route; this seat leaves it unclaimed`], idleReason: 'nothing-eligible' };
   return await withBoard(ctx, async board => {
@@ -154,7 +156,7 @@ export async function nextTake(ctx, values = {}, services) {
     }
     try {
       await claimOrdered(ctx, board, [looked.item.item_id, {
-        agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs,
+        agentId: me.id, lane: laneOff ? looked.item.item_lane : me.lane, leaseMs: ctx.config.leaseMs,
         freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root), autoNext: true,
       }]);
       if (!looked.held) await services.shoutReviewCoverStuck?.(ctx, board, (c, b, op, args) => ordered(c, b, op, args), me);
