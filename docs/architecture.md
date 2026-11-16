@@ -563,6 +563,37 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 | `claimed` | `runaway` | the job has been claimed gate.jobMaxAttempts times without a receipt, so it ends and the coordinator hears once | `endRunaway` in `packages/api/src/io/jobs.js` |
 | `runaway` | `done` | the ended job is finished so no runner takes it again | `endRunaway` in `packages/api/src/io/jobs.js` |
 
+#### `screen`: keyed sprint screen
+
+- **Id:** `screen:<commit>:<digest>@<base>`. Created by `runScreenJob` in `packages/drive/src/io/screen.js`.
+- **Serves:** a submitted sprint item at its commit on the current base: the merge, static checks on its changed files, and secrets and hook rules re-checked by trusted code.
+- **States:** `produce.started`, `part.<name>`, `result`. Terminal: `result`.
+- **Lease:** LEASE_MS 120 s renewed every 5 s until the screen settles, with no stall bound.
+- **Ends when its item moves on:** n/a, at `runScreenJob` in `packages/drive/src/io/screen.js`: keyed by commit, digest and base, so a moved item or base names a new screen; items not frozen at sprint are never screened
+- **Harness:** `packages/drive/tests/io/screen.test.js`.
+
+| From | To | Trigger | Where |
+|---|---|---|---|
+| (none) | `produce.started` | the first driver to screen a sprint item at this commit, digest and base takes the lease | `produceUnderLease` in `packages/drive/src/io/keyed.js` |
+| `produce.started` | `result` | the scratch-tree merge, static checks and trusted re-check returned one green or red receipt | `produceUnderLease` in `packages/drive/src/io/keyed.js` |
+
+#### `pull-out`: sprint pull-out
+
+- **Id:** `pull-out:<item>:<landed commit, 12 hex>`. Created by `runPullOutJob` in `packages/landing/src/io/step/pull.js`.
+- **Serves:** an item whose landing is pulling: the lander reverts its landed commit on main and records pulled.
+- **States:** `queued`, `reverted`, `pushed`, `blocked`, `done`. Terminal: `blocked`, `done`.
+- **Lease:** none: one runPullOutJob call reverts, pushes and records in turn; a rerun finds the item no longer pulling.
+- **Ends when its item moves on:** held, at `runPullOutJob` in `packages/landing/src/io/step/pull.js`: created only while the item's landing is pulling, and recordPulled refuses NOT_PULLING, so a moved item is never pulled twice; only a sprint item reaches pulling
+- **Harness:** `packages/landing/tests/io/step/pull.test.js`.
+
+| From | To | Trigger | Where |
+|---|---|---|---|
+| (none) | `queued` | the item's landing is pulling, so the lander creates its pull-out job at the landed commit and the fetched trunk | `runPullOutJob` in `packages/landing/src/io/step/pull.js` |
+| `queued` | `blocked` | the revert of the landed commit conflicts on the trunk tip; the step names the conflicted paths and the landing stays pulling | `runPullOutJob` in `packages/landing/src/io/step/pull.js` |
+| `queued` | `reverted` | revertLanded wrote the revert commit on the trunk tip | `runPullOutJob` in `packages/landing/src/io/step/pull.js` |
+| `reverted` | `pushed` | pushTrunkThroughFence pushed the revert to trunk under the item's hop epoch | `runPullOutJob` in `packages/landing/src/io/step/pull.js` |
+| `pushed` | `done` | recordPulled wrote the pulled event at the pushed revert, and the job finished | `runPullOutJob` in `packages/landing/src/io/step/pull.js` |
+
 #### Processes that are not job rows
 
 | Process | What it does | Where | Serves | Harness |

@@ -19,6 +19,7 @@ import { probeRunnerTransport } from '../../../../../packages/runners/index.js';
 import { readPulledCapacity } from '../../../../../packages/runners/index.js';
 import { lastRecordedLimit } from './stats/limits.js';
 import { recordLimitChange } from './stats/limits.js';
+import { boardRunsReader } from '../../../../../packages/store/index.js';
 import { openBoardReadOnly } from '../../../../../packages/store/index.js';
 import { atomic } from '../../../../../packages/store/index.js';
 import { logEvent } from '../../../../../packages/store/index.js';
@@ -27,6 +28,8 @@ import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
 import { createHostedItemFolder } from '../../../../../packages/runners/index.js';
 import { serveRunner } from '../../../../../packages/drive/index.js';
+import { runnerSettingOn } from '../../../../../packages/drive/index.js';
+import { machineSettingsFile } from '../../../../../packages/resources/index.js';
 import { localRunnerStatus } from '../../../../../packages/drive/index.js';
 import { localRunnerFolder } from '../runner/local.js';
 import { pullGit } from '../runner/git.js';
@@ -47,7 +50,7 @@ import {
 /** The runners the board sees live (serves that claimed within minutes), or undefined when it sees none or cannot be read. Why here: it is the board's one reader of pulled capacity [U151]. */
 export function liveRunnerCount(ctx) {
   try {
-    const { totals } = withBoardRead(ctx, board => readPulledCapacity(board.db));
+    const { totals } = withBoardRead(ctx, board => readPulledCapacity(board.db, { runs: boardRunsReader(board, ctx.file) }));
     return totals.serves > 0 ? totals.serves : undefined;
   } catch { return undefined; }
 }
@@ -93,7 +96,7 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     if (!existsSync(ctx.file)) throw new Refused('NO_BOARD', 'there is no board here', 'run pullboard runner status inside a board repository');
     const db = openBoardReadOnly(ctx.file);
     let capacity;
-    try { capacity = readPulledCapacity(db); } finally { db.close(); }
+    try { capacity = readPulledCapacity(db, { runs: boardRunsReader({ db }, ctx.file) }); } finally { db.close(); }
     io.result?.(capacity);
     io.say(capacity.serves.length ? [...capacity.serves.map(entry => `${entry.runner}: ${entry.claimed} of ${entry.jobs ?? 'unknown'} jobs`),
       `fleet: ${capacity.totals.claimed} of ${capacity.totals.jobs} jobs`].join('\n') : 'no serves have claimed pulled jobs');
@@ -129,7 +132,10 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     const stop = new AbortController();
     for (const name of ['SIGINT', 'SIGTERM']) process.once(name, () => stop.abort());
     const served = await serveRunner({ board: second, key: values.key ?? process.env.PULLBOARD_BOARD_KEY, runner: values.as,
-      ...(values.directory ? { cache: values.directory } : {}), ...(values.jobs !== undefined ? { jobs: values.jobs } : {}), once: values.once === true, handlers: { land: landJobHandler }, git: pullGit, signal: stop.signal, say: line => io.say(line) })
+      ...(values.directory ? { cache: values.directory } : {}), ...(values.jobs !== undefined ? { jobs: values.jobs } : {}), once: values.once === true, handlers: { land: landJobHandler }, git: pullGit, signal: stop.signal, say: line => io.say(line),
+      fetchFailFast: runnerSettingOn(machineSettingsFile(), 'runners.fetchFailFast'), drainOnFetchFailure: runnerSettingOn(machineSettingsFile(), 'runners.drainOnFetchFailure'),
+      pruneYields: runnerSettingOn(machineSettingsFile(), 'runners.yieldWhilePruning'),
+      postedLineNamesCase: runnerSettingOn(machineSettingsFile(), 'runners.postedLineNamesCase') })
       .catch(error => { throw error?.code && !(error instanceof Refused) ? new Refused(error.code, error.message) : error; });
     io.result?.(served);
     return 0;

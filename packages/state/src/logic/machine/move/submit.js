@@ -22,6 +22,7 @@ export const MOVES = [
       { code: 'BAR_PATH_MISSING', rule: 'every path the frozen bar names exists on main', next: 'name the paths where they live on main now (pullboard edit <id> --criterion/--check/--brief), or withdraw the item' },
       { code: 'TEST_HASH_CHANGED', rule: 'a test file the frozen bar named keeps its frozen content unless the person ruled on the new content', next: 'restore the file, or ask the coordinator to bring the change to the person for a test-hash ruling' },
       { code: 'TEST_AUTHOR_SAME_SEAT', rule: 'when verify.testAuthorSplit is on, a bar-named test file the submitting seat changed was authored by another seat', next: 'restore the test to accepted main and build against it as written, or have another seat write it and record itself as the author' },
+      { code: 'SLICE_PATHS', rule: 'when slices.enforcePaths is on, a slice changes only paths its declared set owns', next: 'revert the outside path, or ask the parent holder for a slice that declares it' },
       { code: 'EMPTY_SUBMIT', rule: 'the submitted source changes accepted main', next: 'commit the item work in its native item folder, then submit' },
       { code: 'KERNEL_EXPORT_APPROVAL', rule: 'the person approved the exact Kernel front-door change', next: 'ask the coordinator to bring the exact export decision to the person' },
       { code: 'KERNEL_EXPORT_SOURCE', rule: 'Kernel interface inspection reads regular committed files', next: 'restore regular committed Kernel source files' },

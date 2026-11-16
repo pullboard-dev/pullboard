@@ -158,6 +158,21 @@ export function fixtureProjectPolicy(repo, { config = {}, spec } = {}) {
 }
 
 /**
+ * Make a fixture folder a repository on main and commit everything in it, so a policy and tests there are clean source.
+ *
+ * Why: the tempdir check sends repository creation here; hooks are skipped because a setup commit tests no hook [C7].
+ *
+ * @param {string} repo - The fixture folder.
+ * @returns {void}
+ */
+export function fixtureCommitAll(repo) {
+  const git = (...args) => runFixtureGit(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', '-c', 'core.hooksPath=/dev/null', ...args], { cwd: repo });
+  git('init', '-q', '-b', 'main');
+  git('add', '.');
+  git('commit', '-q', '-m', 'fixture');
+}
+
+/**
  * Write a fixture's machine settings file with exactly the fields the test names.
  *
  * Why: the hand-policy check sends tests here instead of writing settings.json by hand.

@@ -174,7 +174,7 @@
     },
     {
       "path": "land-runners",
-      "file": "apps/cli/journeys/verify/team/repair.test.js",
+      "file": "apps/cli/journeys/verify/team/repair-landing.test.js",
       "specs": [
         "E8",
         "R3",

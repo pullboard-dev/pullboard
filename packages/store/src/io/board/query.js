@@ -239,17 +239,22 @@ export function unreadCount(board, agentId) {
 }
 
 /**
- * The event log, oldest first, for one item or the whole board.
+ * The event log, oldest first, for one item or the whole board; `since` (an ISO time) and `kinds` narrow it in the query.
  *
  * @param {any} board
- * @param {{ itemId?: number }} [filter]
+ * With `last`, only that many newest events come back (still oldest first), so a large board is never read whole.
+ *
+ * @param {{ itemId?: number, since?: string, kinds?: string[], last?: number }} [filter]
  * @returns {any[]}
  */
-export function events(board, { itemId } = {}) {
-  if (itemId === undefined || itemId === null) {
-    return board.db.prepare('SELECT * FROM event ORDER BY event_id').all();
-  }
-  return board.db.prepare('SELECT * FROM event WHERE item_id = ? ORDER BY event_id').all(itemId);
+export function events(board, { itemId, since, kinds, last } = {}) {
+  const where = [], bindings = [];
+  if (itemId !== undefined && itemId !== null) { where.push('item_id = ?'); bindings.push(itemId); }
+  if (since) { where.push('event_at >= ?'); bindings.push(since); }
+  if (kinds?.length) { where.push(`event_kind IN (${kinds.map(() => '?').join(', ')})`); bindings.push(...kinds); }
+  const filtered = `FROM event${where.length ? ` WHERE ${where.join(' AND ')}` : ''}`;
+  if (Number.isInteger(last) && last > 0) return board.db.prepare(`SELECT * FROM (SELECT * ${filtered} ORDER BY event_id DESC LIMIT ?) ORDER BY event_id`).all(...bindings, last);
+  return board.db.prepare(`SELECT * ${filtered} ORDER BY event_id`).all(...bindings);
 }
 
 /** One event of an item's thread, as itemThread lists it; `withdrawals` maps an accept event to the withdrawal that undid it. */

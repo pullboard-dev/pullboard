@@ -88,7 +88,7 @@ test('moves.outbox.counts-and-state: generated: queue, send, acknowledge, park a
   for (const c of ok) {
     const o = c.s.outbox, after = c.result.patch.outbox, count = c.move.count ?? 1;
     const same = (...keys) => keys.forEach(key => assert.equal(after[key], o[key], `seed ${c.seed}: ${c.move.name} changed ${key}`));
-    if (c.move.name === 'queue') { assert.equal(after.moves, o.moves + 1); assert.equal(after.state, o.state === 'none' ? 'queued' : o.state); same('sent', 'receipted', 'parked', 'baseSequence'); }
+    if (c.move.name === 'queue') { assert.equal(after.moves, o.moves + 1); assert.equal(after.state, ['none', 'parked'].includes(o.state) ? 'queued' : o.state); same('sent', 'receipted', 'parked', 'baseSequence'); }
     if (c.move.name === 'send') { assert.deepEqual([after.state, after.sent], ['sent', o.sent + count], `seed ${c.seed}`); same('moves', 'receipted', 'parked'); }
     if (c.move.name === 'acknowledge') { assert.deepEqual([after.state, after.receipted], ['acknowledged', o.receipted + count], `seed ${c.seed}`); same('moves', 'sent', 'parked'); }
     if (c.move.name === 'park') { assert.deepEqual([after.state, after.parked], [o.parked + 1 === o.moves ? 'parked' : o.state, o.parked + 1], `seed ${c.seed}`); same('moves', 'sent', 'receipted'); }

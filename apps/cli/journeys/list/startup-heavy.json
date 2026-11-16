@@ -25,7 +25,5 @@
     "packages/store/src/io/board/event/log.js",
     "packages/store/src/logic/board/landing/lease.js"
   ],
-  "list": [
-    "packages/state/src/io/machine.js"
-  ]
+  "list": []
 }

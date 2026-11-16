@@ -100,7 +100,20 @@ function fileOverlap(file) {
   return { files, browser, starts };
 }
 
-test('the landing gate bounds its own concurrency [C7]', () => {
+/** Run a node child to completion without blocking this process, so independent cases overlap; same result shape as the sync runner. */
+function runAsync(args, options) {
+  return new Promise((resolveRun) => {
+    const child = spawn(process.execPath, args, { ...options, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '', stderr = '';
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (part) => { stdout += part; });
+    child.stderr.on('data', (part) => { stderr += part; });
+    child.once('close', (status) => resolveRun({ status, stdout, stderr }));
+  });
+}
+
+test('the landing gate bounds its own concurrency [C7]', async () => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-file-caps-')));
   dirs.push(root);
   copyPackageFiles(resolve(import.meta.dirname, '../../../..'), root);
@@ -134,15 +147,14 @@ test('record real file ${id} [C7]', async () => {
       { name: 'landing large integer override', args: ['--test-concurrency=9'], landing: true },
       { name: 'landing serial override', args: ['--test-concurrency=false'], landing: true, serial: true },
     ];
-    for (const [caseIndex, example] of cases.entries()) {
+    // The cases write their own capture and machine home, so they run side by side; the setting file is fixed for the batch.
+    await Promise.all(cases.map(async (example, caseIndex) => {
       const capture = join(root, `overlap-${setting.files}-${caseIndex}.jsonl`);
       const env = { ...process.env, PULLBOARD_CAP_CAPTURE: capture,
         PULLBOARD_MACHINE_HOME: join(root, `machine-${setting.files}-${caseIndex}`) };
       env.PULLBOARD_LANDING_RUN = example.landing ? '1' : '0';
       // process-level: the test runner is its own node entry and reads its own argv and env.
-      const result = runFixtureChild(process.execPath, [join(root, 'apps/cli/src/io/run/tests.js'), ...example.args, ...selected], {
-        cwd: root, env, encoding: 'utf8',
-      });
+      const result = await runAsync([join(root, 'apps/cli/src/io/run/tests.js'), ...example.args, ...selected], { cwd: root, env });
       assert.equal(result.status, 0, `${example.name}: ${result.stdout}${result.stderr}`);
       const peak = fileOverlap(capture);
       assert.ok(peak.files <= setting.files, `${example.name}: file-body overlap ${peak.files} exceeds ${setting.files}`);
@@ -152,20 +164,21 @@ test('record real file ${id} [C7]', async () => {
         `${example.name}: every selected file runs once`);
       assert.match(result.stdout, /# tests 9\b/u);
       assert.match(result.stdout, /# fail 0\b/u);
-    }
+    }));
   }
   writeFileSync(config, JSON.stringify({ testConcurrency: { files: 3, browser: 2 } }));
+  const refusals = [];
   for (const value of ['4294967296', '9'.repeat(400)]) {
     const capture = join(root, `invalid-concurrency-${value.length}.jsonl`);
     // process-level: the test runner is its own node entry and reads its own argv and env.
-    const result = runFixtureChild(process.execPath, [join(root, 'apps/cli/src/io/run/tests.js'),
-      `--test-concurrency=${value}`, ...selected], {
+    refusals.push(runAsync([join(root, 'apps/cli/src/io/run/tests.js'), `--test-concurrency=${value}`, ...selected], {
       cwd: root, env: { ...process.env, PULLBOARD_LANDING_RUN: '1', PULLBOARD_CAP_CAPTURE: capture,
-        PULLBOARD_MACHINE_HOME: join(root, `machine-invalid-${value.length}`) }, encoding: 'utf8',
-    });
-    assert.notEqual(result.status, 0, 'an invalid native concurrency value is refused');
-    assert.match(result.stderr, /invalid --test-concurrency value/u);
-    assert.equal(existsSync(capture), false, 'invalid concurrency is refused before any file body runs');
+        PULLBOARD_MACHINE_HOME: join(root, `machine-invalid-${value.length}`) },
+    }).then((result) => {
+      assert.notEqual(result.status, 0, 'an invalid native concurrency value is refused');
+      assert.match(result.stderr, /invalid --test-concurrency value/u);
+      assert.equal(existsSync(capture), false, 'invalid concurrency is refused before any file body runs');
+    }));
   }
   let isolationCase = 0;
   for (const flag of ['--test-isolation', '--test_isolation', '--experimental-test-isolation',
@@ -173,15 +186,17 @@ test('record real file ${id} [C7]', async () => {
     for (const args of [[`${flag}=none`], [flag, 'none']]) {
       const capture = join(root, `isolation-${isolationCase++}.jsonl`);
       // process-level: the test runner is its own node entry and reads its own argv and env.
-      const result = runFixtureChild(process.execPath, [join(root, 'apps/cli/src/io/run/tests.js'), ...args, selected.at(-1)], {
+      refusals.push(runAsync([join(root, 'apps/cli/src/io/run/tests.js'), ...args, selected.at(-1)], {
         cwd: root, env: { ...process.env, PULLBOARD_CAP_CAPTURE: capture,
-          PULLBOARD_MACHINE_HOME: join(root, 'machine-isolation') }, encoding: 'utf8',
-      });
-      assert.notEqual(result.status, 0, `${args.join(' ')} must refuse non-isolated test files`);
-      assert.match(result.stderr, /bounded browser test files require process isolation/u);
-      assert.equal(existsSync(capture), false, 'a refused isolation mode never starts a test-file body');
+          PULLBOARD_MACHINE_HOME: join(root, 'machine-isolation') },
+      }).then((result) => {
+        assert.notEqual(result.status, 0, `${args.join(' ')} must refuse non-isolated test files`);
+        assert.match(result.stderr, /bounded browser test files require process isolation/u);
+        assert.equal(existsSync(capture), false, 'a refused isolation mode never starts a test-file body');
+      }));
     }
   }
+  await Promise.all(refusals);
   writeFileSync(config, JSON.stringify({ testConcurrency: { browser: 3 } }));
   assert.throws(() => testConcurrency(root, 7), /browser must be 1 or 2/);
 });

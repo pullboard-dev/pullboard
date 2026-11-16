@@ -166,7 +166,7 @@ export function budgetState(board, prices, budget, now) {
  */
 export function budgetClaimRefusal(state) {
   if (state?.state !== 'stop') return null;
-  const step = state.which === 'dailyUsd' ? 'raise budget.dailyUsd in the machine settings file, or wait for the next UTC day'
+  const step = state.which === 'dailyUsd' ? 'raise budget.dailyUsd in the machine settings file, or resume after the next UTC day begins'
     : 'raise budget.totalUsd in the machine settings file';
   return new Refused('BUDGET_STOP', `the board has spent ${dollarText(state.spend)} against its ${state.which} limit of ${dollarText(state.limit)}; ${step}`);
 }

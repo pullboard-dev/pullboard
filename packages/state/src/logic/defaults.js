@@ -611,7 +611,16 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   LAND_OFFER_ONLY: 'run pullboard land with no option, or land <id> --forced "<why>"',
   TIMED_SHELL_MISSING: 'pass the timed shell entry (options.timedShell or PULLBOARD_TIMED_SHELL) from the app that owns the shell, or run without a timeout',
   RELAY_OUTBOX_DEPENDS: 'add the item first and let the relay accept it, then repeat the move that acts on it',
-  RUNS_BOARD_MISMATCH: 'move the stray runs file aside; the board rebuilds in-flight work from its run rows'
+  RUNS_BOARD_MISMATCH: 'move the stray runs file aside; the board rebuilds in-flight work from its run rows',
+  COMMITS_NOT_SERVED: 'run pullboard settings board.commits off in the clone, or serve the board with pullboard serve',
+  INBOX_KEEP_OFF: 'set inbox.keepUntilActed to true to keep and archive inbox entries',
+  BAD_REVIEW_LIMIT: 'pullboard join <lane> --review-limit not-same-family',
+  RANGE_UNREADABLE: 'pass commits this checkout holds, or fetch the missing ones first',
+  REVIEW_RELEASE_REASON: 'run pullboard release <id> --reason BAR|FAMILY|INFRA|TOO_LARGE --note "why"',
+  RUNNER_RUN_SYNC: 'await a run on a runner: call runProfiledShellAsync instead of the synchronous runner',
+  RUNNER_BRIDGE_DEADLINE: 'rerun the verdict; if it repeats, shout the coordinator with this line',
+  BUDGET_STOP: 'raise budget.dailyUsd or budget.totalUsd in the machine settings file, or resume after the next UTC day begins',
+  MOVE_TABLES_MISSING: 'open the board through packages/board, or call provideMoveTables before the store runs its move tables'
 });
 
 /** The generic recovery footer old receipts recorded; defined here so light doors name it without loading Refused [C7,H16]. */

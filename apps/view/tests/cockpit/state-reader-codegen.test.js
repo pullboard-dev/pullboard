@@ -155,3 +155,24 @@ test('the first read asks for open work only, and the finished items load once, 
   assert.deepEqual(paths, ['/api/v1/boards/board/state?items=compact&finished=omit&kept=1', '/api/v1/boards/board/finished',
     '/api/v1/boards/board/state?since=40&eventLogVersion=7']);
 });
+
+test('clause 1: a delta read that began before the finished items arrived keeps them [A2,N26,C7]', async () => {
+  const row = (id, status) => ({ id, title: 'Item ' + id, lane: 'web', status });
+  const open = { sequence: 40, itemsOmitted: 'finished', finished: { verified: 1, withdrawn: 0 }, items: [row(3, 'open')] };
+  const rest = { version: 1, sequence: 40, state: { items: [row(1, 'verified')] } };
+  const delta = { sequence: 41, eventLogVersion: 7, delta: { replace: { sequence: 41, itemsOmitted: 'finished', finished: { verified: 1, withdrawn: 0 } },
+    merge: { items: { key: 'id', set: [], ids: [3, 1] } } } };
+  const data = { root: '/r', projects: [{ id: 'board', root: '/r', ok: true }], project: null };
+  let answer;
+  const slow = new Promise((resolve) => { answer = resolve; });
+  const { read, ensureFinished } = compactBoardReader([{ state: open, eventLogVersion: 7 }, slow, rest], { context: { data, render: () => {} } });
+  data.project = await read(null);
+  const inFlight = read(null);
+  ensureFinished(data.project);
+  await new Promise((done) => setImmediate(done));
+  assert.deepEqual([...data.project.items.map((item) => item.id)], [3, 1], 'the finished items joined while the delta was on its way');
+  answer(delta);
+  const state = await inFlight;
+  assert.deepEqual([...state.items.map((item) => item.id)], [3, 1], 'the late delta does not put the open-only state back');
+  assert.equal(Object.hasOwn(state, 'itemsOmitted'), false);
+});

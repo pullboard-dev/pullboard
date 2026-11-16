@@ -21,6 +21,7 @@ export {
 export { trunkRemote } from './src/io/trunk.js';
 export { hostOf, roleHosts } from './src/logic/hosts.js';
 export { trunkProblems, configTrunkRemote } from './src/logic/trunk.js';
+export { staleGeneratedFiles } from './src/logic/generated.js';
 export { scratchRoot } from './src/logic/scratch.js';
 export { scratchFolder, moveAcross, applyMachineScratch } from './src/logic/scratch/folder.js';
 export {
@@ -46,10 +47,20 @@ export {
   browserFreeChecksEnabled,
   gateRunnersFirstEnabled,
   postLandSuiteEnabled,
+  censusRecordFileTimesEnabled,
+  censusBalanceByTimeEnabled,
+  censusJobMinutes,
+  censusJobsPerRunner,
+  jobsAvoidRunnersEnabled,
   tableReplayEnabled,
   testNiceEnabled,
   fencedHopEnabled,
+  endStaleJobsEnabled,
+  recaptureHandoffEnabled,
+  redFactLocationEnabled,
+  settleOnMainReceiptEnabled,
   movesShadowEnabled,
+  censusRerunNonGreenEnabled,
   registryStrictEnabled,
   movesLiveEnabled,
   gateRunnerAdmission,
@@ -67,14 +78,26 @@ export {
   localRunnerEnabled,
   localLoadShare,
   staticCheckSlots,
+  staticMemoOn,
   serveListen,
   mainComparisonMode,
   submitAuthorizationMode,
   refuseMissingCheckFile,
   holdsRequireOwner,
+  nextItemNotices,
   refuseTempWorktree,
+  refuseOffMainHead,
   viewBackgroundEnabled,
   healthSentinelEnabled,
+  reviewReleaseReasonsRequired,
+  lapsedSweepEnabled,
+  derivedStateEnabled,
+  testStatusOutcomesEnabled,
+  recordWriteHolderEnabled,
+  adaptiveBatchEnabled,
+  landingSquashEnabled,
+  reofferTrunkBusyEnabled,
+  reuseGateReceiptsEnabled,
   memoryFloorMB,
   relayOfferEnabled,
   setRelayCanary,
@@ -165,7 +188,12 @@ export {
   maintenanceDurations,
 } from './src/logic/maintenance.js';
 
+export { submitProofOnly } from './src/logic/settings.js';
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';
+export { listThinRead, namedImportSelectionOn } from './src/logic/settings.js';
+export { retireIdleSeatHours } from './src/logic/settings.js';
+export { healthDiskFloorGb } from './src/logic/settings.js';
 export { boardKey, boardKeyFile } from './src/io/settings.js';
 export { boardRemote, setBoardRemote } from './src/io/settings.js';
 export { setPersonSetting } from './src/io/settings.js';
+export { costPerMinute } from './src/logic/runner-rates.js';

@@ -359,6 +359,10 @@
         "packages/store/src/io/presence.js": 1
       }
     },
+    "*.proof-derived.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/verify/src/io/proof/derived.js"
+    },
     "*.profile.json": {
       "kind": "json",
       "owner": "packages/gate/src/io/submit.js",
@@ -797,6 +801,10 @@
       "kind": "repo-data",
       "owner": "apps/view/src/io/cost/tab.js"
     },
+    "runtime-profiles.json": {
+      "kind": "repo-data",
+      "owner": "packages/seats/src/io/runtime-profile.js"
+    },
     "model-tiers.json": {
       "kind": "repo-data",
       "owner": "packages/config/src/io/main.js"
@@ -892,6 +900,10 @@
     "pullboard-gate-runs.jsonl": {
       "kind": "jsonl",
       "owner": "packages/gate/src/io/control.js"
+    },
+    "pullboard-inbox-marks.jsonl": {
+      "kind": "jsonl",
+      "owner": "packages/store/src/io/inbox-marks.js"
     },
     "pullboard-item.json": {
       "kind": "json",
@@ -1552,12 +1564,10 @@
   },
   "exceptions": [],
   "writeOwnerDebt": [
-    "publish.json",
     "pullboard-item.json",
     "pullboard-runner-policy.json",
     "recovery.json",
     "relay-health.sqlite",
-    "row.json",
     "stats-history.jsonl",
     "timer.guard.sqlite",
     "timer.json",
