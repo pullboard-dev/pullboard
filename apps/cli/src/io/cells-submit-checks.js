@@ -319,12 +319,12 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   const fallback = allCellsReason(changed, [before, after]);
   if (fallback) onAllCells(fallback);
   const direct = touchedCells(changed, before, after, []);
-  // A new forwarding file is a shim even outside any planned cell's folder, so the shim count still runs for it [C7].
+  // A file that newly only forwards is a shim even outside any planned cell's folder, so the shim count still runs for it [C7].
   const addsShim = changed.some(file => {
     const text = shimSnapshotFile(candidateRoot, file);
-    return text !== undefined && shimSnapshotFile(mainRoot, file) === undefined && onlyForwards(text, false);
+    const was = shimSnapshotFile(mainRoot, file);
+    return text !== undefined && onlyForwards(text, false) && !(was !== undefined && onlyForwards(was, false));
   });
-  console.log('DBG', JSON.stringify({ changed, direct, addsShim, policy, t: changed.map(f => [shimSnapshotFile(candidateRoot, f), shimSnapshotFile(mainRoot, f), onlyForwards(shimSnapshotFile(candidateRoot, f) ?? '', false)]) }));
   if (!direct.length && !addsShim) return { cells: [], problems: policy, warnings, reorg, ...(collectMachinery ? { machinery } : {}) };
   const oldReport = inventories?.report?.(mainRoot, acceptedMain) ?? cellLintReport(mainRoot, parsers, { inventory: oldInventory });
   const newReport = cellLintReport(candidateRoot, parsers, { inventory: newInventory });
@@ -336,7 +336,6 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   const problems = [...policy, ...cellLintGrowth(newReport, baseline, { enforcedOnly: true })
     .map(row => `cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`)];
   problems.push(...shimCountProblems({ before: oldReport, after: newReport, beforeInventory: oldInventory, afterInventory: newInventory }));
-  console.log('DBG2', JSON.stringify({ problems, shims: newReport.metrics.shims.findings.map(r => r.key), old: oldReport.metrics.shims.findings.map(r => r.key) }));
   for (const name of cells) {
     const previous = before.cells.some(cell => cell.name === name);
     const moved = cellHasMovedPaths(name, [mainMap, candidateMap]);
