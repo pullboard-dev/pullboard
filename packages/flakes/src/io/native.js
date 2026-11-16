@@ -39,7 +39,7 @@ import {
   mainPolicy,
 } from "../../../sandbox/index.js";
 import { fileURLToPath } from 'node:url';
-import { runProfiledShell } from "../../../gate/index.js";
+import { runProfiledShellAsync } from "../../../gate/index.js";
 import { runFrozenProof } from "../../../gate/index.js";
 import {
   committedTest,
@@ -160,9 +160,9 @@ function targetResults(run, root, names) {
 }
 
 /** Run an exact-target private source comparison, preserving the trusted check's full receipt. */
-function privateProbe(root, commit, command, lease, policyCommit, checkAtCommit, submitDiagnostic = false) {
+async function privateProbe(root, commit, command, lease, policyCommit, checkAtCommit, submitDiagnostic = false) {
   const item = { item_id: submitDiagnostic ? lease.proof.item : 0, item_commit: commit, item_claim_head: policyCommit, item_frozen: JSON.stringify({ check: command }) };
-  const check = submitDiagnostic ? runFrozenProof(root, item, { gateLease: lease, diagnostic: true }, { checkAtCommit }) : checkAtCommit(root, item, { gateLease: lease });
+  const check = submitDiagnostic ? await runFrozenProof(root, item, { gateLease: lease, diagnostic: true }, { checkAtCommit }) : await checkAtCommit(root, item, { gateLease: lease });
   const output = check.outputPath ? readFileSync(check.outputPath, 'utf8') : '';
   return { ...(check.proofReceiptId ? { proofReceiptId: check.proofReceiptId } : {}), isGreen: check.state === 'pass', unverified: check.state === 'unverified', output, log: check.outputPath,
     executionRoot: check.executionRoot, executionSourceUnchanged: check.executionSourceUnchanged, profilePath: check.profilePath, profile: check.profile,
@@ -250,7 +250,7 @@ async function observeFailure({ root, outputRoot = root, config, pin, run, comma
   }
   const pairedReceipts = [];
   for (const [file, group] of groups) {
-    const pairedRun = probeFile(root, pin, lease, prefix, checkAtCommit, file, group, cachedMain);
+    const pairedRun = await probeFile(root, pin, lease, prefix, checkAtCommit, file, group, cachedMain);
     if (kind === 'submit' && pairedRun?.proofReceiptId) pairedReceipts.push(pairedRun.proofReceiptId);
   }
   const observations = [];
@@ -298,13 +298,13 @@ export function recordedMainResults(cachedMain, file, names) {
  * Run one candidate probe and one main probe for every failing case of one file, selecting the cases by exact name,
  * then classify each case from its own result in those two shared receipts.
  */
-function probeFile(root, pin, lease, prefix, checkAtCommit, file, group, cachedMain) {
+async function probeFile(root, pin, lease, prefix, checkAtCommit, file, group, cachedMain) {
   const names = group.map(entry => entry.failure.name);
   const pattern = '^(?:' + names.map(name => name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('|') + ')$';
   const selected = prefix + ' --test-name-pattern ' + word(pattern) + ' ' + word(file);
   const submitDiagnostic = lease?.proof?.kind === 'submit' && Boolean(lease.proof.diagnosticAdmission);
-  const pairRun = pin.privateCheck || submitDiagnostic ? privateProbe(root, pin.head, selected, lease, pin.main ?? pin.head, checkAtCommit, submitDiagnostic)
-    : runProfiledShell(root, selected, { gateLease: lease });
+  const pairRun = pin.privateCheck || submitDiagnostic ? await privateProbe(root, pin.head, selected, lease, pin.main ?? pin.head, checkAtCommit, submitDiagnostic)
+    : await runProfiledShellAsync(root, selected, { gateLease: lease });
   // Every remote receipt a classification rests on carries both facts, the paired rerun's and main's included; a
   // probe that ran in a local private copy has no remote receipt to check.
   const gaps = [];
@@ -315,7 +315,7 @@ function probeFile(root, pin, lease, prefix, checkAtCommit, file, group, cachedM
   const recorded = pin.main && pin.main !== pin.head && committedTest(root, pin.main, file) ? recordedMainResults(cachedMain, file, names) : null;
   if (recorded) mainResults = recorded;
   else if (pin.main && pin.main !== pin.head && committedTest(root, pin.main, file)) {
-    mainRun = privateProbe(root, pin.main, selected, lease, pin.main, checkAtCommit);
+    mainRun = await privateProbe(root, pin.main, selected, lease, pin.main, checkAtCommit);
     const mainGap = mainRun.executionRunner ? remoteGap(mainRun, pin, 'main remote') : null;
     if (mainGap) gaps.push(mainGap);
     if (!mainRun.unverified && !mainGap) mainResults = targetResults(mainRun, root, names);
