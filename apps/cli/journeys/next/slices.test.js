@@ -36,9 +36,9 @@ async function focused(t) {
 }
 
 test('clause 1: with next.wholeItemsFirst on, a free seat is offered a whole item of the focused release before an open slice [C7,#8811]', async t => {
-  const { box, whole } = await focused(t);
-  const offered = store.nextFor(box.board, { agentId: box.seats.sibling.id, lane: 'review', wholeItemsFirst: true }).item?.item_id;
-  assert.equal(offered, whole);
+  const { box, whole, slice } = await focused(t);
+  const answer = store.nextFor(box.board, { agentId: box.seats.sibling.id, lane: 'review', wholeItemsFirst: true });
+  assert.equal(answer.item?.item_id, whole, JSON.stringify({ reasons: answer.reasons, focus: store.lineSettings(box.board).focusMilestone, engine: box.board.executionEngineVersion, whole, slice }));
 });
 
 test('clause 2: the setting defaults to off and the offer order is then unchanged [C7,#8811]', async t => {
