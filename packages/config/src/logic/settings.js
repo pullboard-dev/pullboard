@@ -184,6 +184,9 @@ export function loadMachineSettings() {
   if (value.gate?.testNice !== undefined && typeof value.gate.testNice !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.testNice in ${file} must be true or false`);
   }
+  if (value.gate?.sampleDiskIo !== undefined && typeof value.gate.sampleDiskIo !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.sampleDiskIo in ${file} must be true or false`);
+  }
   if (value.gate?.runnersFirst !== undefined && typeof value.gate.runnersFirst !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnersFirst in ${file} must be true or false`);
   }
