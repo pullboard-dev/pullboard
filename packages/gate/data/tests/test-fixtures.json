@@ -1542,8 +1542,11 @@
     "model": 5,
     "tempdir": 2
   },
-  "apps/cli/journeys/relay/outbox.test.js": {
+  "apps/cli/journeys/relay/outbox-offline.test.js": {
     "model": 2
+  },
+  "apps/cli/journeys/relay/outbox.test.js": {
+    "model": 1
   },
   "apps/relay/tests/io/store/page.test.js": {
     "tempdir": 1
