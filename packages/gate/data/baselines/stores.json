@@ -1248,7 +1248,8 @@
     "table:item": {
       "kind": "table",
       "owner": "packages/items/src/io/rehome.js"
-    },    "table:item_field": {
+    },
+    "table:item_field": {
       "kind": "table",
       "owner": "packages/store/src/io/board/item/fields.js"
     },
@@ -1587,6 +1588,14 @@
     "workers-usage.json": {
       "kind": "json",
       "owner": "apps/cli/src/io/scale.js"
+    },
+    "push.sqlite": {
+      "kind": "sqlite",
+      "owner": "apps/relay/src/io/push/subscriptions.js"
+    },
+    "table:push_subscription": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/push/subscriptions.js"
     }
   },
   "exceptions": [],

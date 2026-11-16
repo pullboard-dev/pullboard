@@ -622,7 +622,7 @@ function moveMessage(move, result) {
   if (move.verb === 'add') return 'added #' + result.item.item_id;
   if (move.verb === 'shout') return 'shouted to ' + move.args.to;
   if (move.verb === 'answer') return 'answered #' + move.item;
-  if (move.verb === 'spec-approve') return 'approved rows ' + move.args.ids + ' (pending apply)';
+  if (move.verb === 'spec-approve') return (${scope.approveMessage})(move.args.ids, result);
   if (move.verb === 'spec-decline') return 'declined rows ' + move.args.ids + ' (pending apply)';
   if (move.verb === 'spec-answer') return 'answered row ' + move.args.row + ' (pending apply)';
   if (move.verb === 'sentinel-approve') return 'approved sentinel ' + move.args.name;
