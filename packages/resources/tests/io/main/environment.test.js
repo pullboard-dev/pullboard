@@ -36,3 +36,15 @@ test('two takeResource calls with their own env hold leases in their own machine
   }
   assert.equal(process.env.PULLBOARD_AGENT, before.agent, 'no call left its env behind');
 });
+
+test('clause 1: an env scope still applies after something replaced process.env, so a runner preload cannot hide it [C7]', () => {
+  const original = process.env;
+  const replaced = { ...original, ENV_SCOPE_PROBE: 'outer' };
+  try {
+    process.env = replaced;
+    assert.equal(withEnvironment({ ENV_SCOPE_PROBE: 'inner' }, () => process.env.ENV_SCOPE_PROBE), 'inner', 'the scope wins over the replaced object');
+    assert.equal(process.env.ENV_SCOPE_PROBE, 'outer', 'outside the scope the replaced object is read');
+    process.env = { ...original, ENV_SCOPE_PROBE: 'again' };
+    assert.equal(withEnvironment({ ENV_SCOPE_PROBE: 'inner' }, () => process.env.ENV_SCOPE_PROBE), 'inner', 'a second replacement is handled too');
+  } finally { process.env = original; }
+});
