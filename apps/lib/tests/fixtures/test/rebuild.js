@@ -52,8 +52,8 @@ export function copyFiles(root, files) {
   }
 }
 
-/** The relative files a source names: import and export specifiers, dynamic imports and `new URL('./x', import.meta.url)` references. */
-const REFERENCE = /(?:\bfrom\s*|\bimport\s*\(?\s*|\bimport\s+)['"](\.{1,2}\/[^'"]+)['"]|new URL\(\s*['"](\.{1,2}\/[^'"]+)['"]\s*,\s*import\.meta\.url/gu;
+/** The relative code files a source names: import and export specifiers, dynamic imports, loaded modules and `new URL('./x', import.meta.url)`; any quoted relative path to code counts, so a lazy load is never missed. */
+const REFERENCE = /['"](\.{1,2}\/[^'"\s]+\.(?:m?js|cjs))['"]|new URL\(\s*['"](\.{1,2}\/[^'"]+)['"]\s*,\s*import\.meta\.url/gu;
 /** The producer's process entry: the files it starts from. */
 const PRODUCER_ENTRY = 'apps/cli/src/io/landing/audit.js';
 let runnableCache = null;
