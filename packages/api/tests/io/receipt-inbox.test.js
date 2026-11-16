@@ -40,12 +40,14 @@ function boardWith(t, flag) {
 }
 
 /** Offer a job to where it lives (queued when the flag is on), claim it there, and post its receipt. */
+let tick = 0;
 function posted(board, queue, home, { id, kind, item = null, receipt, keyed = null }) {
-  offerJob(board.db, { id, kind, item, candidate: MAIN, base: MAIN, needs: [], now: 1 }, queue);
-  if (keyed) writeStep(home, id, 'receipt', keyed, { seq: 0, now: 2 });
-  const held = claimJob(home, { runner: 'r1', capabilities: [], now: 3 });
+  const base = (tick += 10), runner = `r${base}`;
+  offerJob(board.db, { id, kind, item, candidate: MAIN, base: MAIN, needs: [], now: base + 1 }, queue);
+  if (keyed) writeStep(home, id, 'receipt', keyed, { seq: 0, now: base + 2 });
+  const held = claimJob(home, { runner, capabilities: [], now: base + 3 });
   assert.equal(held.job, id);
-  return postReceipt(home, { job: id, runner: 'r1', token: held.token, receipt, now: 4 });
+  return postReceipt(home, { job: id, runner, token: held.token, receipt, now: base + 4 });
 }
 
 /** The cases the lookup was asked about while settling, for a main-test receipt recorded on FILE. */
