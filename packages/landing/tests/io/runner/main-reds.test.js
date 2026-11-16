@@ -9,7 +9,8 @@ import { landingMainReds } from '../../../index.js';
 import { mainOwnedReds } from '../../../index.js';
 
 const ON = { landing: { ledgerMainReds: true } };
-const row = (file, status, at, commit) => ({ file, command: 'proof', context: 'ctx', status, inputKey: `k${at}`, commit, at });
+// redNow's answer over the ledger rows: one red per file and context class, with the commit its newest red row ran at.
+const red = (file, at, commit, context = 'ctx') => ({ file, inputKey: `k${at}`, context, commit, at });
 
 /** A real main with two commits holding the red files, and an item branch commit off main. */
 function mainFixture(t) {
@@ -34,8 +35,8 @@ function mainFixture(t) {
 test('clause 1: a land job whose only reds are files redNow records red on main at the base lands with those files named [C7,#8556]', async t => {
   const box = mainFixture(t);
   // red.test.js: red at an earlier main commit, still the newest row; later.test.js: red at the base itself.
-  const mainReds = landingMainReds(ON, [row('tests/red.test.js', 'fail', 10, box.earlier), row('tests/later.test.js', 'fail', 12, box.base), row('tests/later.test.js', 'pass', 5, box.earlier)]);
-  assert.deepEqual(mainReds, [['tests/later.test.js', box.base], ['tests/red.test.js', box.earlier]], 'the red-now files ride with their newest red commit, newest first');
+  const mainReds = landingMainReds(ON, [red('tests/red.test.js', 10, box.earlier), red('tests/later.test.js', 12, box.base), red('tests/later.test.js', 5, box.earlier, 'other')]);
+  assert.deepEqual(mainReds, [['tests/later.test.js', box.base], ['tests/red.test.js', box.earlier]], 'each red-now file rides once with its newest red commit, newest first');
   const failures = [{ file: 'tests/red.test.js', name: 'case a' }, { file: 'tests/later.test.js', name: 'case b' }];
   const reran = [];
   const known = await mainOwnedReds({ root: box.root, base: box.base }, failures, { mainReds, rerun: async rows => { reran.push(rows); return null; } });
@@ -46,20 +47,20 @@ test('clause 1: a land job whose only reds are files redNow records red on main 
 test('clause 2: a land job with a red redNow does not record on main is held [C7,#8556]', async t => {
   const box = mainFixture(t);
   // green.test.js is red only at the item's own commit, which is not on main; red.test.js is red on main.
-  const mainReds = landingMainReds(ON, [row('tests/red.test.js', 'fail', 10, box.earlier), row('tests/green.test.js', 'fail', 11, box.item)]);
+  const mainReds = landingMainReds(ON, [red('tests/red.test.js', 10, box.earlier), red('tests/green.test.js', 11, box.item)]);
   const failures = [{ file: 'tests/red.test.js', name: 'case a' }, { file: 'tests/green.test.js', name: 'new red' }];
   const reran = [];
   const held = await mainOwnedReds({ root: box.root, base: box.base }, failures, { mainReds, rerun: async rows => { reran.push(rows); return null; } });
   assert.equal(held, null, 'a red the base passes holds the landing');
   assert.deepEqual(reran, [[{ file: 'tests/green.test.js', name: 'new red' }]], 'only the red the ledger does not record on main is rerun on the base');
-  const cleared = landingMainReds(ON, [row('tests/red.test.js', 'fail', 10, box.earlier), row('tests/red.test.js', 'pass', 20, box.base)]);
-  assert.deepEqual(cleared, [], 'a newer pass clears the file, so its red is the merge\'s again');
+  const cleared = landingMainReds(ON, []);
+  assert.deepEqual(cleared, [], 'a file redNow no longer lists rides on no job');
   assert.equal(await mainOwnedReds({ root: box.root, base: box.base }, [failures[0]], { mainReds: cleared, rerun: async () => null }), null);
 });
 
 test('clause 3: with landing.ledgerMainReds off, a land job behaves as today [C7,#8556]', async t => {
   const box = mainFixture(t);
-  const rows = [row('tests/red.test.js', 'fail', 10, box.earlier)];
+  const rows = [red('tests/red.test.js', 10, box.earlier)];
   assert.deepEqual(landingMainReds({}, rows), [], 'off by default: no ledger reds ride on the job');
   assert.deepEqual(landingMainReds({ landing: { ledgerMainReds: false } }, rows), []);
   const failures = [{ file: 'tests/red.test.js', name: 'case a' }];

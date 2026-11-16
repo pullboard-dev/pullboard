@@ -17,6 +17,7 @@ import { tryGit } from '../../../../../packages/git/index.js';
 import { unverifiedSubmissions } from '../../../../../packages/store/index.js';
 import { lineSettings } from '../../../../../packages/store/index.js';
 import { testResults } from '../../../../../packages/store/index.js';
+import { redNow } from '../../../../../packages/gate/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { checkLandingMessages } from '../../../../../packages/landing/index.js';
 import { landingContext } from '../../../../../packages/landing/index.js';
@@ -238,7 +239,7 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
       const size = ids ? free.length : Math.min(free.length, batchCap(board));
       const jobs = [];
       // landing.ledgerMainReds: the ledger's red-now files ride on each job, so a red main already records holds no landing [C7,U152].
-      const mainReds = landingMainReds(policy.config, policy.config.landing?.ledgerMainReds === true ? testResults(board.db) : []);
+      const mainReds = landingMainReds(policy.config, policy.config.landing?.ledgerMainReds === true ? redNow(testResults(board.db)) : []);
       for (let start = 0; start < free.length; start += size) {
         const batch = free.slice(start, start + size);
         // Each item's submit may have deferred test files to this landing; the job runs them on the merged tree [C7].
