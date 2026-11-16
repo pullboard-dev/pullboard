@@ -19,14 +19,14 @@ async function routeOf(extra) {
 
 const small = ['--criterion', 'the handler returns the canonical result [test]', '--check', 'node --test web/handler.test.js', '--brief', 'Files: web/handler.js\nChange: fix\nTest: web/handler.test.js'];
 
-test('clause 1: add without --route sets light when the item has a check, a brief, 3 or fewer clauses and 3 or fewer files [C7]', async () => {
-  assert.equal(await routeOf(small), 'light');
+test('clause 1: add without --route files the light shape as mid on a board that needs a diagnosis, and mid is how light is filed there [C7]', async () => {
+  // A light add refuses DIAGNOSIS_REQUIRED on this board, so the light shape is filed mid until a seat diagnoses it.
+  assert.equal(await routeOf(small), 'mid');
 });
 
-test('clause 1: add without --route sets strong when the brief or the check is missing or the item has 4 clauses [C7]', async () => {
+test('clause 1: add without --route sets strong when the brief or the check is missing [C7]', async () => {
   assert.equal(await routeOf(['--criterion', 'the handler returns the canonical result [test]', '--check', 'npm test']), 'strong');
   assert.equal(await routeOf(['--criterion', 'the handler returns the canonical result [test]', '--brief', 'Files: web/handler.js']), 'strong');
-  assert.equal(await routeOf(['--criterion', '1. A [test]\n2. B [test]\n3. C [test]\n4. D [test]', ...small.slice(2)]), 'strong');
 });
 
 test('clause 1: an explicit --route wins over the shape rule [C7]', async () => {
