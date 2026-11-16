@@ -449,6 +449,8 @@ test('clause 1: a broken copy of the declaration fails the check against the cod
     'AGENT_APPROVAL_REQUIRED is raised by refreeze but not declared there',
     'BAD_CONFIG is raised by claim but not declared there',
     'BAD_CONFIG is raised by refreeze but not declared there',
+    'BAR_EMPTY is raised by claim but not declared there',
+    'BAR_EMPTY is raised by refreeze but not declared there',
     'NO_POLICY is raised by claim but not declared there',
     'NO_POLICY is raised by refreeze but not declared there',
     'UNKNOWN_SPEC is raised by claim but not declared there',
