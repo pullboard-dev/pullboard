@@ -2200,7 +2200,10 @@
     "env-spread": 1
   },
   "apps/cli/tests/io/commands/test.test.js": {
-    "tempdir": 8,
+    "tempdir": 5
+  },
+  "apps/cli/tests/io/commands/test-discovery.test.js": {
+    "tempdir": 3,
     "env-spread": 2,
     "hand-policy": 1
   },
