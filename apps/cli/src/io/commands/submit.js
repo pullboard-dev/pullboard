@@ -114,6 +114,7 @@ import { withBoardRead } from '../entry.js';
 import { context } from '../entry.js';
 import { filesSince } from '../entry.js';
 import { gateTestFiles } from '../entry.js';
+import { fileEdgeFollowUp } from '../submit/edge-follow-up.js';
 import { freezer } from '../entry.js';
 import { idArg } from '../entry.js';
 import { ordered } from '../entry.js';
@@ -510,6 +511,8 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     const notes = testAuthorNotes(held, store.itemThread(board, id), { atHead: committedReader(root, commit), atMain: committedReader(root, acceptedMain.commit), seat: me.id, family: seatFamily(board, me.id) });
     for (const text of notes) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text }]);
   });
+  // With submit.edgeFollowUps on accepted main, the import edges this diff adds are filed once as one linked follow-up (#8874) [C7].
+  await fileEdgeFollowUp(ctx, { held, me, id, root, commit, claimHead, config: acceptedMain.config });
   reportSubmitStage(ctx, 'authorization and source', preflightStart);
   withBoard(ctx, (board) => refuseUnsubmittableStack(root, board, held, commit, trunk));
   withBoard(ctx, board => requireSlicePaths(board, held, changedSince(root, acceptedMain.commit, commit), acceptedMain.config.slices?.enforcePaths));
