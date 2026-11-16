@@ -13,11 +13,15 @@ test('measure 9020 [C7]', () => {
   writeDerived(old, ['warm', '1']);
   const sql = 'INSERT INTO proof_derived.proof_counter(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value';
   let t0 = performance.now();
+  old.db.exec('BEGIN');
   for (let i = 0; i < N; i++) { old.db.prepare(sql).run(`k:${i % 50}`, String(i)); old.db.prepare(sql).run(`j:${i % 50}`, String(i)); }
+  old.db.exec('COMMIT');
   const before = performance.now() - t0;
   const fresh = mk();
   t0 = performance.now();
+  fresh.db.exec('BEGIN');
   for (let i = 0; i < N; i++) writeDerived(fresh, [`k:${i % 50}`, String(i), `j:${i % 50}`, String(i)]);
+  fresh.db.exec('COMMIT');
   const after = performance.now() - t0;
   console.log(`MEASURE9020 events=${N} per-call-prepare=${before.toFixed(0)}ms cached=${after.toFixed(0)}ms ratio=${(before / after).toFixed(2)}`);
 });
