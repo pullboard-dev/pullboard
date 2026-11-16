@@ -32,7 +32,7 @@ test('clause 1 and clause 2: a hold row names the calling file and line, not the
   for (const phase of phases) assert.doesNotMatch(phase, /^work:log\.js:/u, `${phase} names the event log itself`);
 });
 
-test('clause 2: a stack whose checkout folder has a space still skips the event log and names the caller [C7,#8496]', () => {
+test('clause 1 and clause 2: a stack whose checkout folder has a space still skips the event log and names the caller [C7,#8496]', () => {
   const own = '/Users/dev/Open Source/pullboard/packages/store/src/io/board/event/log.js';
   const caller = '/Users/dev/Open Source/pullboard/apps/cli/src/io/move.js';
   const stack = `Error\n    at transaction (${pathToFileURL(own).href}:115:3)\n    at move (${pathToFileURL(caller).href}:9:1)`;
