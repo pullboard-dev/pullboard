@@ -96,7 +96,7 @@ export function pulledGateReds(board, item) {
 }
 
 /** The job's kind, item, candidate, base, frozen check and the submit fields its offer recorded; null when the job is gone. runs: as latestGateJob [#9149]. */
-export function offeredGate(db, job, { runs = null } = {}) {
+function offeredGate(db, job, { runs = null } = {}) {
   db = runs ? runs.db : db;
   const row = db.prepare(`SELECT job.job_kind, job.job_item, job.job_candidate, job.job_base, step.job_step_payload FROM job JOIN job_step AS step
     ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0 WHERE job.job_id = ?`).get(job);
@@ -105,6 +105,9 @@ export function offeredGate(db, job, { runs = null } = {}) {
   return { kind: row.job_kind, item: row.job_item, candidate: row.job_candidate, main: row.job_base, submit: request?.submit ?? null,
     check: typeof request?.input?.data?.check === 'string' ? request.input.data.check : null };
 }
+
+// Exported by name, not inline: the dispatch-gates operation check reads an `export function offer...Gate` as a second dispatch entry [C7,#9149].
+export { offeredGate };
 
 /** The submit phase each gate-job phase proves, as today's submit names its native receipts. */
 const SUBMIT_PHASES = { check: 'criterion', proof: 'proof' };
