@@ -1641,8 +1641,17 @@
     "raw-board": 2
   },
   "apps/cli/journeys/verify/checks.test.js": {
-    "raw-board": 3,
-    "hand-policy": 2
+    "raw-board": 1,
+    "hand-policy": 1
+  },
+  "apps/cli/journeys/verify/checks-output.test.js": {
+    "raw-board": 1
+  },
+  "apps/cli/journeys/verify/checks-large-output.test.js": {
+    "raw-board": 1
+  },
+  "apps/cli/journeys/verify/checks-timeouts.test.js": {
+    "hand-policy": 1
   },
   "apps/cli/journeys/runner/e2e.test.js": {
     "hand-policy": 2
@@ -2786,7 +2795,6 @@
     "raw-board": 4
   },
   "apps/cli/journeys/relay/local/first.test.js": {
-    "model": 4,
     "tempdir": 1,
     "raw-board": 3
   },

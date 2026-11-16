@@ -80,6 +80,11 @@ export function fencedHopEnabled() {
   return loadMachineSettings().gate?.fencedHop !== false;
 }
 
+/** End an item's older open gate jobs on a new candidate or a landing only when this machine opted in [C7,#8816]. */
+export function endStaleJobsEnabled() {
+  return loadMachineSettings().gate?.endStaleJobs === true;
+}
+
 /** Fail the registry check on an unregistered test only when this machine opted in; off, it reports [C7,#8374]. */
 export function registryStrictEnabled() {
   return loadMachineSettings().tests?.registryStrict === true;
@@ -290,6 +295,14 @@ export function localLoadShare() {
 export function staticCheckSlots() {
   const slots = loadMachineSettings().gate?.staticSlots;
   return Number.isSafeInteger(slots) && slots > 0 ? slots : 2;
+}
+
+/**
+ * Whether a green local `pullboard gate --static` is kept for its exact clean tree and main: gate.staticMemo, default off.
+ * Why: a refused submit is usually resubmitted on the same tree, and its static rerun repeated a green minute of full CPU [C7].
+ */
+export function staticMemoOn() {
+  return loadMachineSettings().gate?.staticMemo === true;
 }
 
 /**
