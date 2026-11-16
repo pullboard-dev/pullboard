@@ -135,6 +135,11 @@ export function censusBalanceByTimeEnabled() {
   return loadMachineSettings().census?.balanceByTime === true;
 }
 
+/** Whether census.selfTune is on: off by default; only an exact `true` lets a pulled census size its jobs from the previous census's shard times [C7,U151]. */
+export function censusSelfTuneEnabled() {
+  return loadMachineSettings().census?.selfTune === true;
+}
+
 /** Minutes of measured time one pulled census job may hold; null (the default) keeps jobs cut by file count [C7]. */
 export function censusJobMinutes() {
   const minutes = loadMachineSettings().census?.jobMinutes;

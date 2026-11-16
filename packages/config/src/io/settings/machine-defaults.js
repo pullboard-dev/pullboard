@@ -10,6 +10,7 @@ export const MACHINE_DEFAULTS = {
   'census.recordFileTimes': false,
   'census.rerunNonGreen': false,
   'census.rerunOnSettle': false,
+  'census.selfTune': false,
   'claim.refuseOffMainHead': false,
   'gate.browserByLaunch': false,
   'gate.browserFreeChecks': false,
