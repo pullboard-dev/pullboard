@@ -1516,6 +1516,10 @@
       "kind": "json",
       "owner": "packages/resources/src/io/handoff/worker/cap.js"
     },
+    "worker-imports.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/static/worker-imports.js"
+    },
     "worker-owner.json": {
       "kind": "json",
       "owner": "packages/runners/src/io/transport.js"

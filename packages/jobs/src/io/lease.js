@@ -122,6 +122,20 @@ export function finishJob(db, job, owner, { now = Date.now() } = {}) {
 }
 
 /**
+ * Set a job row's step, attempt, owner and lease to what the job move table decided [C7,#8387].
+ * Why here: the table answers with the whole row, and this file is the one writer of those columns, so the api's live writer hands the answer to it.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {{ step: string, attempt: number, owner?: string | null, leaseUntil?: number | null }} row
+ * @param {{now?: number}} [options]
+ */
+export function setJobRow(db, job, { step, attempt, owner = null, leaseUntil = null }, { now = Date.now() } = {}) {
+  db.prepare('UPDATE job SET job_step = ?, job_attempt = ?, job_lease_owner = ?, job_lease_until = ?, job_updated = ? WHERE job_id = ?')
+    .run(step, attempt, owner, leaseUntil, now, String(job));
+}
+
+/**
  * Point a queued job at the commit it runs at, as its candidate and base, before it is offered to runners.
  *
  * Why: a main-test job is queued by main's tree id, which a runner cannot check out; the board names the main commit
