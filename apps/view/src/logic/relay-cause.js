@@ -1,7 +1,7 @@
 /** Turns the relay status cause into the phone's words and the one command that fixes it, as plain data [H5,H17,N26]. */
 
 /** The name a message uses for a machine: its name when known, else "that computer". */
-const nameOf = (cause) => (typeof cause.machine === 'string' && cause.machine ? cause.machine : 'that computer');
+const nameOf = (cause) => [cause.label, cause.machine].find((value) => typeof value === 'string' && value) ?? 'that computer';
 
 /**
  * Map one relay-unavailable cause (the shape relayUnavailableCause returns) to what the phone shows. A network failure stays
