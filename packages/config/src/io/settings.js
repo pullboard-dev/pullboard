@@ -80,6 +80,11 @@ export function fencedHopEnabled() {
   return loadMachineSettings().gate?.fencedHop !== false;
 }
 
+/** End an item's older open gate jobs on a new candidate or a landing only when this machine opted in [C7,#8816]. */
+export function endStaleJobsEnabled() {
+  return loadMachineSettings().gate?.endStaleJobs === true;
+}
+
 /** Fail the registry check on an unregistered test only when this machine opted in; off, it reports [C7,#8374]. */
 export function registryStrictEnabled() {
   return loadMachineSettings().tests?.registryStrict === true;
