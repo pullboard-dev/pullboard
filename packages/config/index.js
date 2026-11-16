@@ -99,6 +99,7 @@ export {
   submitAuthorizationMode,
   refuseMissingCheckFile,
   addWarnUnnamedTest,
+  holdsLiftSettled,
   holdsRequireOwner,
   nextIdleBlockers,
   nextAdoptPreserved,
