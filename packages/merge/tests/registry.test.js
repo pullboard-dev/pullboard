@@ -4,9 +4,34 @@ import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { registryFindings } from '../../verify/index.js';
-import { registryOutcome } from '../../verify/index.js';
-import { registryStrict } from '../../verify/index.js';
+import { registryStrictEnabled as registryStrict } from '../../config/index.js';
+
+const TITLE_ID = /^test\('([^':\s]+): /gmu;
+const TESTS = /^test\(/gmu;
+
+/** Inlined from the verify cell's registryFindings: a cell test may not import another cell's front door; a later item holds the shared check (rg4). */
+function registryFindings(files, records) {
+  const ids = [];
+  const findings = [];
+  const known = new Set(Object.keys(records));
+  for (const { file, source } of files) {
+    const found = [...source.matchAll(TITLE_ID)].map((match) => match[1]);
+    const missing = [...source.matchAll(TESTS)].length - found.length;
+    if (missing > 0) findings.push(`${file}: ${missing} test title(s) start without an ID and a colon`);
+    for (const id of found) {
+      ids.push(id);
+      if (!known.has(id)) findings.push(`${file}: test ${id} has no registry record`);
+    }
+  }
+  const written = new Set(ids);
+  for (const id of known) if (!written.has(id)) findings.push(`registry.json: record ${id} names no test`);
+  return { ids, findings };
+}
+
+/** Findings fail only in strict mode (tests.registryStrict on) and only when there is one. */
+function registryOutcome(findings, strict) {
+  return { fails: strict && findings.length > 0, report: findings.length === 0 ? '' : `${findings.length} unregistered: ${findings.join('; ')}` };
+}
 
 const DIR = import.meta.dirname;
 const KINDS = ['cell unit', 'contract', 'journey', 'harness'];
