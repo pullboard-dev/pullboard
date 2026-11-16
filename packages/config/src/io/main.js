@@ -271,10 +271,11 @@ export function configProblems(config) {
       || config.approvers.some((login) => typeof login !== 'string' || !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/u.test(login)))) problems.push('"approvers" lists the GitHub logins who act as the person on a linked board, at most fifty; leave it out for today\'s behaviour');
   if (!['inside', 'beside'].includes(config.worktrees)) problems.push('"worktrees" is "inside" or "beside"');
   if (notPlain(config.inbox)
-    || Object.keys(config.inbox).some(key => !['tokenBudget', 'keepUntilActed'].includes(key))
+    || Object.keys(config.inbox).some(key => !['tokenBudget', 'keepUntilActed', 'escalateAfterMinutes'].includes(key))
     || !Number.isSafeInteger(config.inbox.tokenBudget) || config.inbox.tokenBudget < 1024) {
     problems.push('"inbox.tokenBudget" is a whole number of at least 1024 UTF-8 bytes; 8192 by default');
   }
+  if (config.inbox?.escalateAfterMinutes !== undefined && (!Number.isSafeInteger(config.inbox.escalateAfterMinutes) || config.inbox.escalateAfterMinutes < 1)) problems.push('"inbox.escalateAfterMinutes" is a whole number of minutes, off by default; with inbox.keepUntilActed on, an entry unacted this long goes to the coordinator, and twice as long to the person');
   if (config.inbox?.keepUntilActed !== undefined && typeof config.inbox.keepUntilActed !== 'boolean') problems.push('"inbox.keepUntilActed" is a boolean, off by default; true keeps each inbox entry listed until an action its kind allows is recorded');
   if (typeof config.itemBuildBudgetMinutes !== 'number' || !Number.isFinite(config.itemBuildBudgetMinutes) || config.itemBuildBudgetMinutes <= 0) {
     problems.push('"itemBuildBudgetMinutes" is positive finite minutes; 30 by default');
@@ -294,7 +295,7 @@ export function configProblems(config) {
   problems.push(...labelDeclarationProblems(config.labels));
   if (typeof config.staticChecks !== 'string') problems.push('"staticChecks" is an optional project static-check command');
   if (config.landing !== undefined && (notPlain(config.landing)
-    || Object.keys(config.landing).some(key => !['publish', 'environment', 'timeout', 'stall', 'cadence', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'shardProof', 'landedFromMain', 'first', 'auditOnly', 'splitRed', 'trunkRemote'].includes(key)) || ![undefined, 'separate'].includes(config.landing.publish))) {
+    || Object.keys(config.landing).some(key => !['publish', 'environment', 'timeout', 'stall', 'cadence', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'shardProof', 'landedFromMain', 'ledgerMainReds', 'first', 'auditOnly', 'splitRed', 'trunkRemote'].includes(key)) || ![undefined, 'separate'].includes(config.landing.publish))) {
     problems.push('"landing" has optional environment: { platform, arch, node }, "timeout", "stall" (no-progress limit, default 10m) and "cadence" durations, "parallel": true for concurrent candidate gates, "first": item ids to land ahead of the accept order, and "publish": "separate" to land locally and push through pullboard publish');
   } else if (config.landing?.environment !== undefined && environmentProblem(config.landing.environment)) {
     problems.push(`"landing.environment" ${environmentProblem(config.landing.environment)}`);
@@ -305,6 +306,7 @@ export function configProblems(config) {
   if (config.queue !== undefined && (notPlain(config.queue) || Object.keys(config.queue).some(key => !['contention', 'contentionThreshold'].includes(key)))) problems.push('"queue" holds only "contention" and "contentionThreshold"');
   if (config.queue?.contention !== undefined && typeof config.queue.contention !== 'boolean') problems.push('"queue.contention" is a boolean, off by default; true makes next start the least contended ready item and wait on a hot file');
   if (config.queue?.contentionThreshold !== undefined && (typeof config.queue.contentionThreshold !== 'number' || !Number.isFinite(config.queue.contentionThreshold) || config.queue.contentionThreshold <= 0)) problems.push('"queue.contentionThreshold" is a number above zero, 1 by default: the score at which next makes an item wait on a hot file');
+  if (config.landing?.ledgerMainReds !== undefined && typeof config.landing.ledgerMainReds !== 'boolean') problems.push('"landing.ledgerMainReds" is a boolean, off by default: on, a land job counts a red in a file the test ledger records red on main at its base as main\'s own');
   if (config.landing?.shardProof !== undefined && typeof config.landing.shardProof !== 'boolean') problems.push('"landing.shardProof" is a boolean, off by default; true spreads a landing\'s proof over runner shard jobs');
   if (config.landing?.splitRed !== undefined && typeof config.landing.splitRed !== 'boolean') problems.push('"landing.splitRed" is a boolean; true always splits a red batch into singles, false always bisects; unset, the batch\'s measured gate decides');
   if (config.landing?.parallel !== undefined && typeof config.landing.parallel !== 'boolean') problems.push('"landing.parallel" is a boolean; omit it or use false to keep serial landing');
