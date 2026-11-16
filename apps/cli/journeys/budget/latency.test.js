@@ -132,8 +132,7 @@ test('clause 2: the check fails when a registry move has no timing [C7]', () => 
 });
 
 test('clause 1: the journey fails a fixture move that holds the board lock over 200 ms and passes one that stays under it [C7]', t => {
-  const box = largeBoard(t);
-  const board = openKitBoard(box.board);
+  const board = openKitBoard(':memory:');
   t.after(() => board.db.close());
   const hold = ms => () => atomic(board, () => { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); });
   const slow = loggedHolds(hold(LOCK_HOLD_BUDGET_MS + 100));
