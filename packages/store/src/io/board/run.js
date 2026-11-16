@@ -171,6 +171,34 @@ export function settleRunWithoutReceipt(board, { by, job, state, outcome }) {
 }
 
 /**
+ * Write a gate verdict's run row: one row per verdict job, state `awaiting` while main's receipts are outstanding, then
+ * `done` (or `withdrawn`) with its outcome. The record carries what the verdict needs to be judged again or read back.
+ * Why: with runs_store on a verdict waiting for main is a board run row, not a job step on the board's job tables [B2,M3].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - The board's handle, inside the move.
+ * @param {{ id: string, item: number, candidate: string, base?: string | null, state: 'awaiting'|'done'|'withdrawn', outcome?: string | null, record: object, now?: number }} verdict
+ * @returns {{ id: string, state: string }}
+ */
+export function writeVerdictRun(db, { id, item, candidate, base = null, state, outcome = null, record, now = Date.now() }) {
+  db.prepare(`INSERT INTO run (run_job, run_kind, run_item, run_candidate, run_base, run_state, run_outcome, run_record, run_created, run_updated)
+    VALUES (?, 'gate-verdict', ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (run_job) DO UPDATE SET run_state = excluded.run_state, run_outcome = excluded.run_outcome, run_record = excluded.run_record, run_updated = excluded.run_updated`)
+    .run(id, item, candidate, base, state, outcome, JSON.stringify(record), now, now);
+  return { id, state };
+}
+
+/**
+ * The gate verdicts still waiting on main, oldest first, each with the record it was written with.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @returns {{ id: string, item: number, candidate: string, record: Record<string, any> }[]}
+ */
+export function awaitingVerdictRuns(db) {
+  return db.prepare("SELECT run_job, run_item, run_candidate, run_record FROM run WHERE run_kind = 'gate-verdict' AND run_state = 'awaiting' ORDER BY run_created, rowid").all()
+    .map(row => ({ id: row.run_job, item: row.run_item, candidate: row.run_candidate, record: JSON.parse(row.run_record) }));
+}
+
+/**
  * Hold an item's review on its run row's lease columns: the row `review:<item>` is created queued on first sight and
  * taken for the reviewer unless another reviewer's lease is still live. Written in the caller's move, never as a job row.
  * Why: with runs_store on a review lease is board data a move decides on, so it lives on the board's run row [B2].
