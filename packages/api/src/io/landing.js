@@ -29,7 +29,7 @@ export const LAND_HOPS_SHAPE = 3;
 // Budget: a land job whose push failed is offered again this many times, then the coordinator hears a named refusal (#7791).
 export const LAND_PUSH_RETRIES = 2;
 // The payload parts a runner may read from the job's request instead: what the board derived, never ids, commits or refs.
-const SPILLABLE = ['proof', 'deferred', 'badges', 'waivers', 'checks', 'shardProof'];
+const SPILLABLE = ['proof', 'deferred', 'badges', 'waivers', 'checks', 'shardProof', 'mainReds'];
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u;
 const REF = /^refs\/[A-Za-z0-9._/-]{1,200}$/u;
 // A landing merge's header is one line; its trailers are the builder's Pullboard- lines and nothing else.
@@ -84,16 +84,17 @@ function landingItems(items) {
  * One job kind for every landing: automatic on accept, by hand, and forced, whatever gate.runnerDispatch says (#5864).
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ items: { id: number, commit: string, ref?: string }[], expect: string, config: { trunk?: { remote?: string }, landing?: { trunkRemote?: string, shardProof?: boolean } }, shardGate?: { run: string[], entry: string } | null,
+ * @param {{ items: { id: number, commit: string, ref?: string }[], expect: string, mainReds?: Array<[string, string]>, config: { trunk?: { remote?: string }, landing?: { trunkRemote?: string, shardProof?: boolean } }, shardGate?: { run: string[], entry: string } | null,
  *   flakes?: { rerun: boolean, prefixes?: { check?: string | null, proof?: string | null } } | null, mode?: string, trunk?: string, check?: string[] | null, needs?: string[], checkout?: boolean, upstream?: string | null, forced?: string | null, badges?: { path: string, text: string }[], now?: number }} request - badges: the
  *   badge documents the board computed, which the runner writes into the landing merge (it has no board) [C7]; checkout: the
  *   remote is the board host's own checkout with trunk checked out, so the push updates its work tree too [P7]; upstream: that
  *   checkout's own remote URL, which the runner then pushes the landed tip to [#7398]; forced: the
  *   reason a forced landing names, carried on the job and its key, and its job runs no check; mode is no longer read, since landing
  *   pulls in any mode. config.landing.publish "separate" rides on the job, so a red item parks and the clean ones land.
+ *   mainReds: the `[file, commit]` pairs the board's red-now ledger records red (landing.ledgerMainReds); they ride with the contracts, so the runner counts a red in such a file as main's [C7,U152].
  * @returns {ReturnType<typeof offerJob>}
  */
-export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads/main', check = null, needs = [], checkout = false, upstream = null, forced = null, badges = [], deferred = null, flakes = null, hops = [], shardGate = null, now = Date.now() }) {
+export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads/main', check = null, needs = [], checkout = false, upstream = null, forced = null, badges = [], deferred = null, flakes = null, hops = [], shardGate = null, mainReds = [], now = Date.now() }) {
   // trunk.remote, else its old name landing.trunkRemote: config's configTrunkRemote order, kept here since the cell ratchet allows no new api->config import.
   const remote = config?.trunk?.remote || config?.landing?.trunkRemote;
   if (typeof remote !== 'string' || !remote || remote.startsWith('-')) throw new Refused('LANDING_TRUNK_REMOTE', 'a runner landing pushes the trunk remote of record; set trunk.remote in pullboard.json to its git URL');
@@ -131,7 +132,7 @@ export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads
   const shardOn = config?.landing?.shardProof === true && !forced;
   if (shardOn && (!Array.isArray(shardGate?.run) || !shardGate.run.length || typeof shardGate.entry !== 'string')) throw new Refused('LANDING_SHARD_GATE', 'landing.shardProof is on, so the offer names the gate a proof shard runs: { run, entry }');
   const shardProof = shardOn ? { run: shardGate.run, entry: shardGate.entry } : null;
-  const payload = { shape: fenced.length ? LAND_HOPS_SHAPE : LAND_PAYLOAD_SHAPE, remote, trunk, expect, items: landed, ...(fenced.length ? { hops: fenced } : {}), ...(check ?? own?.gate ?? deferGate ? { check: check ?? own?.gate ?? deferGate } : {}), ...(own?.checks ? { checks: own.checks } : {}), ...(proof ? { proof } : {}), ...(shardProof ? { shardProof } : {}), ...(defer ? { deferred: defer } : {}), ...(contracts ? { contracts } : {}), ...(staticChecks ? { staticChecks } : {}), ...(waivers.length ? { waivers } : {}),
+  const payload = { shape: fenced.length ? LAND_HOPS_SHAPE : LAND_PAYLOAD_SHAPE, remote, trunk, expect, items: landed, ...(fenced.length ? { hops: fenced } : {}), ...(check ?? own?.gate ?? deferGate ? { check: check ?? own?.gate ?? deferGate } : {}), ...(own?.checks ? { checks: own.checks } : {}), ...(proof ? { proof } : {}), ...(shardProof ? { shardProof } : {}), ...(defer ? { deferred: defer } : {}), ...(contracts ? { contracts } : {}), ...(contracts && Array.isArray(mainReds) && mainReds.length ? { mainReds } : {}), ...(staticChecks ? { staticChecks } : {}), ...(waivers.length ? { waivers } : {}),
     ...(separate ? { publish: 'separate' } : {}), ...(batchOnly ? { perItem: false } : {}), ...(proofMinutes ? { proofMinutes } : {}), ...(badges.length ? { badges } : {}), ...(checkout ? { checkout: true } : {}), ...(upstream ? { upstream } : {}), ...(flakes ? { flakes: { rerun: flakes.rerun, prefixes: { check: flakes.prefixes?.check ?? null, proof: flakes.prefixes?.proof ?? null } } } : {}), ...(forced ? { forced: forced.trim() } : {}) };
   const spilled = spillLargeInputs(payload);
   return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, priority: 'landing', needs, now, payload: spilled.payload, ...(spilled.request ? { request: spilled.request } : {}) });
