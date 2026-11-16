@@ -608,7 +608,7 @@ test('Rigor historical data boundaries do not hide a new projection refusal [M1,
   assert.ok(codeProblems(machineRules.MACHINE, broken).includes('RIGOR_PROBE is raised by claim but not declared there'));
 });
 
-test('a source walk scans local facts once while retaining caller-specific refusal traversal [C7,M1]', () => {
+test('clause 2: a source walk scans local facts once while retaining caller-specific refusal traversal [C7,M1]', () => {
   assertMachineWalkMemo(codeWalk);
 });
 
