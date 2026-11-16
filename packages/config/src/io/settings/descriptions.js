@@ -30,6 +30,7 @@ const ROWS = [
   ['gate.timingRunner', 'Runner for timed checks', 'With two or more runners, timed checks run only on this one and ordinary runs use the rest, and borrow it only when the rest are full and no timed check waits; auto picks the runner with the most measured headroom and off drains a busy runner instead.', 'Capacity', 'host'],
   // This machine: Order
   ['gate.jobReserve', 'Runner job classes', 'Off by default; when set, a runner takes interactive runs, then gates, then landings, then background sweeps, while each class keeps this share of every runner\'s slots.', 'Order', 'share'],
+  ['holds.requireOwner', 'Holds need an owner', 'When enabled, an item hold names an owner (a seat, lane or person) and records a deadline one day out unless one is given; off (default), holds are exactly as before.', 'Order', 'on/off'],
   ['gate.queue.reviewsFirst', 'Reviews first', 'Queued checks run in the order landing, review, submit, then the rest, instead of landings first and then arrival order.', 'Order', 'on/off'],
   ['gate.queue.currentReleaseFirst', 'Current release first', 'Among otherwise tied checks on each board, work in the release being shipped goes ahead of later releases.', 'Order', 'on/off'],
   ['gate.queue.agingMinutes', 'Waiting bonus', 'A waiting check moves up one class every this many minutes, so nothing waits forever; used only while an order setting above is on.', 'Order', 'minutes'],
@@ -160,6 +161,8 @@ const ROWS = [
   ['claims.releaseCooldownMinutes', 'Release cooldown', 'After a seat releases an item, next offers it other work for this many minutes unless nothing else is open.', 'Claims', 'minutes'],
   ['claims.itemsInGate', 'Build beside the gate', 'On, a seat keeps claiming and editing while its items wait in the gate.', 'Claims', 'on/off'],
   ['claims.itemsInGateMax', 'Items in the gate', 'Most gate-waiting items per seat.', 'Claims', 'count'],
+  ['queue.contention', 'Steer next away from hot files', 'On, next starts the least contended ready item of equal priority and makes an item wait when its files are in flight elsewhere; off, next orders ready items as before.', 'Claims', 'on/off'],
+  ['queue.contentionThreshold', 'Contention score that waits', 'With queue.contention on, an item whose score (file conflict rate times changes in flight on it) passes this waits.', 'Claims', 'count'],
   ['claims.fileLease', 'Lease the files a claim will change', 'On, a claim whose predicted files (from the brief and the bar) a live claim of another seat already leases is refused FILE_LEASED, naming the holder and the file; off, claims are unchanged.', 'Claims', 'on/off'],
   ['claims.fileLeaseHubs', 'Files many items share', 'Files no claim leases, such as an index or a registry every item touches.', 'Claims', 'list'],
   ['claims.perSeat', 'Live claims per seat', 'How many build claims one seat may hold at once; blank lets the board set N = clamp(1, 5, floor(free test-run slots / live seats)), counting local cores when no runner serves.', 'Claims', 'count'],
