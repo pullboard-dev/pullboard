@@ -57,7 +57,7 @@ test('queued submit returns before its gate and remains bound when the builder c
   assert.equal(gateJob(box).candidate, queued.composed, 'later commits and claims leave the queued gate on its captured source');
   writeFileSync(box.release, 'release\n');
   const job = await settledGateJob(box, box.id);
-  assert.equal(job.gate.green, true);
+  assert.equal(job.gate.green, true, JSON.stringify(state(box, box.id).thread?.slice(-4)));
   assert.equal((await settledGateJob(box, box.second)).gate.green, true, 'the second pulled submit completes independently');
   const completed = state(box, box.id);
   assert.equal(completed.item.item_status, 'submitted');
