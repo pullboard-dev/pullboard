@@ -2,6 +2,8 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { pullAdapter } from '../pull.js';
+import { revokedRunnerNames } from './keys.js';
+import { trustedRunnerKeys } from './keys.js';
 import { fileStore } from './store.js';
 import { PULL_STORE_FILE } from './store.js';
 
@@ -13,10 +15,10 @@ export { PULL_STORE_FILE };
  * Why: an adapter built without a store forgets its offers and its spent take nonces at every restart, which reopens
  * the replay window; the board's own builder never leaves the store out, so a caller cannot forget it.
  *
- * @param {{ folder: string } & Omit<Parameters<typeof pullAdapter>[0], 'store'>} options - The adapter's ports, and the board folder.
+ * @param {{ folder: string } & Omit<Parameters<typeof pullAdapter>[0], 'store' | 'trusted'> & { trusted?: Parameters<typeof pullAdapter>[0]['trusted'] }} options - The adapter's ports, and the board folder; the trusted keys default to the board's runner key book.
  * @returns {ReturnType<typeof pullAdapter>}
  */
 export function boardPullAdapter({ folder, ...ports }) {
   mkdirSync(folder, { recursive: true, mode: 0o700 });
-  return pullAdapter({ ...ports, store: fileStore(join(folder, PULL_STORE_FILE)) });
+  return pullAdapter({ trusted: () => trustedRunnerKeys(folder), revokedNames: () => revokedRunnerNames(folder), ...ports, store: fileStore(join(folder, PULL_STORE_FILE)) });
 }
