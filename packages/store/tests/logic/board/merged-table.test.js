@@ -12,7 +12,10 @@ const COMMIT = 'c'.repeat(40);
 /** A board with one item in `status`, so a merge can be tried from any state. */
 function boardWith(t, status) {
   const board = cellBoard(t, ':memory:', { now: () => new Date(AT) });
-  board.db.prepare(`INSERT INTO item (item_id, item_lane, item_title, item_route, item_status, item_created_by, item_created_at, item_updated_at) VALUES (7, 'core', 'landed', 'strong', ?, 'coordinator', ?, ?)`).run(status, STAMP, STAMP);
+  board.db.prepare(`INSERT INTO item (item_id, item_lane, item_title, item_route, item_status, item_created_by, item_created_at, item_updated_at) VALUES (7, 'core', 'landed', 'strong', 'open', 'coordinator', ?, ?)`).run(STAMP, STAMP);
+  board.db.exec('INSERT INTO temp.moving VALUES (1)');
+  board.db.prepare('UPDATE item SET item_status=? WHERE item_id=7').run(status);
+  board.db.exec('DELETE FROM temp.moving');
   return board;
 }
 
