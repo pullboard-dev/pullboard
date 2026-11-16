@@ -2648,30 +2648,6 @@
         "spawns a child process (apps/cli/tests/fixtures/child.js)"
       ]
     },
-    "apps/cli/journeys/status/counts.test.js": {
-      "cells": [
-        "api",
-        "app:cli",
-        "app:lib",
-        "app:view",
-        "flakes",
-        "gate",
-        "kernel",
-        "outbox",
-        "person",
-        "spec",
-        "store",
-        "sync",
-        "verify"
-      ],
-      "reasons": [
-        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
-        "imports past app:lib front door (apps/lib/src/logic/native.js)",
-        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
-        "runs the CLI (apps/cli/tests/fixtures/e2e.js)",
-        "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
-      ]
-    },
     "apps/cli/tests/fixtures/owner.js": {
       "cells": [
         "app:lib",
@@ -3111,24 +3087,6 @@
         "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
         "runs the CLI (apps/cli/tests/fixtures/e2e.js)",
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
-      ]
-    },
-    "apps/cli/journeys/stats/pipeline.test.js": {
-      "cells": [
-        "api",
-        "app:cli",
-        "app:lib",
-        "app:view",
-        "kernel",
-        "outbox",
-        "person",
-        "stats",
-        "store",
-        "sync"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/logic/native.js)",
-        "spawns a child process (apps/cli/tests/fixtures/child.js)"
       ]
     },
     "apps/cli/journeys/submit/gate/selection/frozen.test.js": {
