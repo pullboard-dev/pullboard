@@ -16,13 +16,14 @@ import {
   resolveMove,
   strayItemRefs,
 } from '../../../../packages/outbox/index.js';
-import { runFixtureGit } from '../../tests/fixtures/child.js';
+import {
+  runFixtureGit,
+  runFixtureSetupGit,
+} from '../../tests/fixtures/child.js';
 import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
-import { relayFixtureChild } from '../../tests/fixtures/relay/client.js';
 import { Refused } from '../../../../packages/kernel/light.js';
 import { outboxQueueable } from '../../../../packages/outbox/index.js';
 
-const CLI = fileURLToPath(new URL('../../pullboard.js', import.meta.url));
 
 /** Turn the board's committed relay.outbox setting on, as its coordinator would. */
 function enableOutbox(box) {
@@ -33,7 +34,8 @@ function enableOutbox(box) {
   const cliPath = fileURLToPath(new URL('../../pullboard.js', import.meta.url));
   writeFileSync(join(box.env.PATH, 'pullboard'), `#!/bin/sh\nexec node "${cliPath}" "$@"\n`, { mode: 0o700 });
   runFixtureGit(['add', 'pullboard.json'], { cwd: box.root, env: box.env });
-  runFixtureGit(['commit', '-q', '-m', 'chore(config): queue relay moves while the relay is down'], { cwd: box.root, env: box.env });
+  // Setup commit without hooks (two Node launches); no case here is about the commit hook [C7].
+  runFixtureSetupGit(['commit', '-q', '-m', 'chore(config): queue relay moves while the relay is down'], { cwd: box.root, env: box.env });
 }
 
 /** The shout texts a board export holds, in board order. */
@@ -48,8 +50,8 @@ function shoutTexts(exported) {
 async function otherAgent(box, other) {
   const path = join(dirname(other.root), 'other-agent');
   runFixtureGit(['worktree', 'add', '-q', '-b', 'agent/other', path], { cwd: other.root, env: other.env });
-  /** Run the real CLI in the other machine's agent worktree. */
-  const run = (...args) => relayFixtureChild(path, other.env, [CLI, ...args, '--json']);
+  /** Run the CLI in-process in the other machine's agent worktree. */
+  const run = (...args) => other.cliAtLocal(path, ...args);
   const joined = await run('join', box.lane, '--model', 'fixture-model');
   assert.equal(joined.code, 0, joined.failure);
   return run;
@@ -63,7 +65,7 @@ async function twoMachines(t, title, { beforeLink } = {}) {
   await box.link();
   const contested = (await box.cliLocal('add', box.lane, title)).document.item.item_id;
   const printed = await box.cliLocal('relay', 'pair');
-  const other = await box.otherDeviceJoin(printed.document.code);
+  const other = await box.otherDeviceJoin(printed.document.code, undefined, { inProcess: true });
   assert.equal(JSON.parse(readFileSync(box.linkFile, 'utf8')).baselineAccepted, true, 'the relay accepted this board before the outage');
   return { box, other, contested };
 }
