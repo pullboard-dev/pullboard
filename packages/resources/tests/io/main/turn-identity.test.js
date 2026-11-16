@@ -9,7 +9,7 @@ import {
   refreshIdentitiesAsync,
 } from '../../../src/io/identities.js';
 
-const STALE = 'Mon Jan  1 00:00:00 2024';
+const STALE = 'Mon Jan 1 00:00:00 2024';
 /** A ps standing in for the real one: it reports this process as started long ago, so any real read replaces it visibly. */
 const read = async pids => pids.map(pid => `${pid} ${STALE} S`).join('\n');
 
