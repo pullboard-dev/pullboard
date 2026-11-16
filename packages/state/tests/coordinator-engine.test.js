@@ -11,7 +11,7 @@ import { readEngineLeaves } from '../src/io/engine/numbers.js';
 
 const leaves = () => readEngineLeaves(resolve(import.meta.dirname, '../../..', ENGINE_FOLDER));
 
-test('COORDINATOR_USAGE_ENGINE is registered in its own engine leaf under the number it exports [C7]', () => {
+test('clause 1: COORDINATOR_USAGE_ENGINE is registered in its own engine leaf under the number it exports [C7]', () => {
   assert.ok(Number.isInteger(COORDINATOR_USAGE_ENGINE));
   const own = leaves().filter(leaf => leaf.name === 'COORDINATOR_USAGE_ENGINE');
   assert.deepEqual(own.map(leaf => [leaf.file, leaf.number]), [['coordinator-usage-engine.js', COORDINATOR_USAGE_ENGINE]]);
