@@ -10,7 +10,7 @@ import { DatabaseSync } from 'node:sqlite';
 import * as store from '../../../../packages/store/index.js';
 import { storeTriggers } from '../../../../packages/state/index.js';
 import { privateFixtureFiles } from '../../../../packages/gate/tests/fixtures/child.js';
-import { openKitBoard } from '../../tests/fixtures/testkit.js';
+import { openKitBoard } from '../../tests/fixtures/board.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { offerGateJob } from '../../src/io/submit/pull.js';
 

@@ -4,6 +4,7 @@ import { fixture } from '../../tests/fixtures/next/take.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -489,4 +490,23 @@ test('a queued merge-repair shout keeps the captured submit source ahead of a ne
     { item: result.id, head: result.itemHead, trunk: result.trunk, files: ['web/shared.txt'] });
   assert.match(result.shouts[0].args[0].text, new RegExp(result.itemHead.slice(0, 12)));
   assert.doesNotMatch(result.shouts[0].args[0].text, new RegExp(result.seatHead.slice(0, 12)));
+});
+
+test('clause 1: next after a release from an item folder that cleanup removed runs from the seat checkout and hands out work [B5,N2]', async t => {
+  const box = await fixture(t, { files: { 'web/shared.txt': 'base\n' } });
+  const id = box.add('Released from its own item folder');
+  const claimed = await cli(box, box.seats.actor.path, ['claim', String(id), '--no-next']);
+  assert.equal(claimed.code, 0, claimed.out + claimed.err);
+  const folder = claimed.document.itemFolder;
+  assert.ok(folder && existsSync(folder), 'the live claim has its own item folder');
+  const released = await cli(box, folder, ['release', String(id), '--reason', 'OTHER', '--note', 'Release from the item folder, then chain next', '--no-next']);
+  assert.equal(released.code, 0, released.out + released.err);
+  assert.equal(existsSync(folder), false, 'cleanup removed the clean item folder the release ran in');
+  const other = box.add('Work next hands out after the release');
+  // The agent's shell still stands in the removed folder, so its next starts with that path as its working directory.
+  const chained = await cli(box, folder, ['next', '--take']);
+  assert.doesNotMatch(chained.out + chained.err, /uv_cwd|ENOENT/u);
+  assert.equal(chained.code, 0, chained.out + chained.err);
+  assert.ok([id, other].includes(chained.document.item.item_id), 'next hands out build work');
+  assert.equal(store.getItem(box.board, chained.document.item.item_id).item_owner, box.seats.actor.id);
 });
