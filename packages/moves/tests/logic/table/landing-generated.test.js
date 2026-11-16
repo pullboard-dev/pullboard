@@ -326,7 +326,7 @@ test('moves.landing.spoiled-fact: metamorphic: spoil any one fact of an accepted
   }
 });
 
-test('clause 3: every landing-select row tagged always appears in the rows of sprint and strict, and steady holds none of them [M2,#8865]', () => {
+test('moves.landing.always-rows: clause 3: every landing-select row tagged always appears in the rows of sprint and strict, and steady holds none of them [M2,#8865]', () => {
   const select = TABLES.select.guards;
   const tagged = select.filter(row => row.always);
   assert.deepEqual(tagged.map(row => [row.id, row.always]), [['a6-bar-frozen', 'A6'], ['a8-irreversible', 'A8']]);
