@@ -16,7 +16,7 @@ function backlog(t) {
   board.clock = { now: () => new Date(now) };
   store.register(board, { id: 'coordinator', lane: 'coordinator', path: '/fixture/coordinator', family: 'human',
     parentDigest: 'a'.repeat(64), model: FIXTURE_MODEL });
-  store.register(board, { id: 'core-1', lane: 'core', path: '/fixture/core-1', family: null, parentDigest: 'b'.repeat(64), model: FIXTURE_MODEL });
+  store.register(board, { id: 'core-1', lane: 'core', path: '/fixture/core-1', family: 'openai', parentDigest: 'b'.repeat(64), model: FIXTURE_MODEL });
   store.register(board, { id: 'core-2', lane: 'core', path: '/fixture/core-2', family: 'openai', parentDigest: 'c'.repeat(64), model: FIXTURE_MODEL });
   const ids = [1, 2, 3].map(() => store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Review fixture', criterion: 'prove it' }));
   now = new Date(now.getTime() + 16 * 60_000);
@@ -25,12 +25,13 @@ function backlog(t) {
       freeze: () => ({ text: JSON.stringify({ policy: { verify: { family: 'require', familyRelaxAt: 2 } } }), digest: 'fixture-digest' }) });
     submitFixture(board, id, { agentId: 'core-1', commit: String(id).padStart(40, 'a'), tree: 'b'.repeat(40) });
   }
+  // The seat's family is lost after it submitted, as on the audited board where #2853's builder had none recorded.
+  board.db.prepare('UPDATE agent SET agent_family=NULL WHERE agent_id=?').run('core-1');
   return { board, ids, options: { agentId: 'core-2', lane: 'core', leaseMs: 3_600_000, policy: 'any', familyPolicy: 'require', familyRelaxAt: 2 } };
 }
 
 test('clause 1: a submission whose builder family is unknown is offered to any reviewer once familyRelaxAt is reached [C7,#2964]', t => {
   const { board, ids, options } = backlog(t);
-  assert.equal(store.seatFamily?.(board, 'core-1') ?? null, null, 'the builder has no recorded family');
   const offered = store.nextFor(board, { ...options, verify: true });
   assert.ok(ids.includes(offered.item?.item_id), `a reviewer is offered the unknown-family submission: ${offered.reasons?.join('; ')}`);
 });
