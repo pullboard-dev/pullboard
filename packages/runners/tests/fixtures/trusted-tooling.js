@@ -1,3 +1,4 @@
+/** @pullboard-module-loads packages/runners/index.js */
 import { copyRunnerPackage } from './package.js';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
