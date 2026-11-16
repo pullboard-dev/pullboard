@@ -25,10 +25,6 @@ const RAW_CLIENT_TESTS = new Map([
   ['packages/gate/tests/io/clone/devtools.test.js', "tests the raw CDP client's own evaluate formats, labels and command errors"],
   ['packages/gate/tests/io/clone/startup.test.js', "tests the raw Chrome client's own startup budget and diagnostics"],
   ['packages/gate/tests/io/clone/wait.test.js', "tests the raw CDP client's own waits through navigation errors"],
-  ['apps/cli/journeys/relay/browser.test.js', 'drives the sealed relay phone page, not the cockpit, through its own relay browser client'],
-  ['apps/cli/journeys/relay/browser/revoked.test.js', 'drives the sealed relay phone page, not the cockpit, through its own relay browser client'],
-  ['apps/cli/journeys/relay/browser/client.test.js', 'tests the relay browser client itself against real Chrome, raw protocol included'],
-  ['apps/cli/journeys/relay/hosted/shapes.test.js', 'drives hosted relay pages across browser engines, where the Chrome-only shared wait cannot reach'],
 ]);
 const EXEMPT_FUNCTIONS = new Set(['rawChromeEvaluation', 'waitForStableBoxes', 'press', 'tapTouch']);
 

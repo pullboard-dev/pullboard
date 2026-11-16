@@ -6,7 +6,7 @@ import { cellClaim } from '../../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { headTree } from '../../../../git/index.js';
 import * as store from '../../../../store/index.js';
 import { boardJobQueueCall } from '../../../index.js';
 import { claimJob } from '../../../index.js';
@@ -26,7 +26,7 @@ test('a gate offered as a pull job settles the submit with no dispatcher row on 
   cellClaim(board, item.item_id, seat, { root: repo.root });
   const held = store.getItem(board, item.item_id);
   const head = repo.commit;
-  const tree = String(runFixtureGit(['rev-parse', `${head}^{tree}`], { cwd: repo.root }).stdout).trim();
+  const tree = headTree(repo.root);
   const job = `gate:${item.item_id}:pull`;
   offerJob(board.db, { id: job, kind: 'gate', needs: [], item: item.item_id, candidate: head, base: head, now: 1,
     request: { run: ['true'], input: { data: {} }, submit: { agentId: seat.id, digest: held.item_frozen_digest, tree, files: [] } } });

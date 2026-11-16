@@ -80,14 +80,25 @@ function snapshotFile(board) {
   return { cacheId, key: `${cacheId}\0${code}`, folder: process.env.PULLBOARD_STATE_CACHE_DIR || folder };
 }
 
-/** Restore one decoded snapshot and post its record, when it was saved by this code for this board. */
+/** The record fields a read of any variant needs, so a snapshot of other code is served only when it has them all. */
+const SERVED_FIELDS = ['summary', 'compact', 'open', 'finished', 'search', 'shouts', 'deltas', 'reportValidator', 'sequence'];
+
+/**
+ * Restore one decoded snapshot and post its record, when it was saved for this board. One saved by this code resumes its builds;
+ * one saved by other code (a landing changed a source file) is only served to kept reads until the full build by this code lands,
+ * so the first load of a restarted server never waits out a rebuild of the whole board [C7,#8471].
+ */
 function restoreValue(value, board) {
-  if (value?.version !== SNAPSHOT_VERSION || !board || value.key !== snapshotFile(board).key) return;
+  if (value?.version !== SNAPSHOT_VERSION || !board) return;
+  const { key: wanted, cacheId } = snapshotFile(board);
+  const exact = value.key === wanted;
+  // Other code's record must be of this board and these formats (never an older schema or event log) and carry every field a read joins.
+  if (!exact && !(typeof value.key === 'string' && value.key.startsWith(`${cacheId}\0`) && value.formats === snapshots.formats && SERVED_FIELDS.every(field => value.record?.[field] != null))) return;
   const key = board.id + '\0' + board.root;
   if (restored.has(key)) return;
   restored.add(key);
-  snapshots.restore(value.carry);
-  parentPort.postMessage({ type: 'record', key, board, restored: true, record: { ...value.record, current: false } });
+  if (exact) snapshots.restore(value.carry);
+  parentPort.postMessage({ type: 'record', key, board, restored: true, record: { ...value.record, current: false, ...(exact ? {} : { revision: null }) } });
 }
 
 /** Serve a board's saved record at once and resume its builds from the saved build, when its key matches. */
@@ -108,7 +119,7 @@ function save(board, record, { force = false } = {}) {
   const carry = snapshots.carry(cacheId);
   if (!carry || !store) return;
   try {
-    store.save(folder, cacheId, serialize({ version: SNAPSHOT_VERSION, key, board: { id: board.id, root: board.root }, sequence: record.sequence, carry, record }));
+    store.save(folder, cacheId, serialize({ version: SNAPSHOT_VERSION, key, formats: snapshots.formats, board: { id: board.id, root: board.root }, sequence: record.sequence, carry, record }));
     saved.set(cacheId, { at: Date.now(), board, record, sequence: record.sequence });
   } catch { /* A snapshot only speeds the next start; failing to save one never fails a build. */ }
 }

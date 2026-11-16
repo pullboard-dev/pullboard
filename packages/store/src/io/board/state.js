@@ -20,6 +20,7 @@ import { repoInfo } from "../../../../git/index.js";
 import { listApiProjects } from "../../../../seats/index.js";
 import { nativeStateClockWindow } from "../../logic/clock.js";
 import { stageLimits } from "../../logic/clock.js";
+import { landedOnMain } from '../../../../roadmap/index.js';
 import { workProgress } from '../../../../roadmap/index.js';
 import { milestoneRoadmap } from "../../../../roadmap/index.js";
 import { proofStats } from "../../../../stats/light.js";
@@ -96,7 +97,7 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
       const verdictState = freshness(item);
       return verdictState ? { ...kept, verdictState } : kept;
     } });
-    const progressById = workProgress(board);
+    const progressById = workProgress(board, { onMain: landedOnMain(root, config) });
     const healthById = claimHealthSnapshot(board, config, new Date(observedAt));
     state.items = state.items.map(item => ({ ...item, progress: withoutClockReading(progressById.get(item.id)),
       claimHealth: claimHealthWithoutClock(healthById.get(item.id)) }));
@@ -114,8 +115,8 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
       requests: store.openRequests(board),
       personRequests: personRequestStatuses(board),
       milestones: scopeCommonDir === null
-        ? milestoneRoadmap(root, board, { ports: { ...store, roadmap, openBoard, workQueue, listApiProjects } })
-        : milestoneRoadmap(root, board, { projects, hideOutOfScope: true, ports: { ...store, roadmap, openBoard, workQueue } }),
+        ? milestoneRoadmap(root, board, { landedFromMain: config.landing?.landedFromMain === true, ports: { ...store, roadmap, openBoard, workQueue, listApiProjects } })
+        : milestoneRoadmap(root, board, { projects, hideOutOfScope: true, landedFromMain: config.landing?.landedFromMain === true, ports: { ...store, roadmap, openBoard, workQueue } }),
       rowDecisions: store.rowDecisions(board),
       proofStats: viewProofSummary(proofStats(board, { now: observedAt }, { events: store.events, counterProofStats })),
     };

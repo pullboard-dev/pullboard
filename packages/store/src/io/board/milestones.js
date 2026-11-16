@@ -51,6 +51,6 @@ export function shipMilestone(board, name, options) {
 }
 
 /** Bind canonical store operations for roadmap without changing its public arguments or result. */
-export function roadmap(board, resolveExternal = null) {
-  return roadmapMoves.roadmap(board, resolveExternal, ports);
+export function roadmap(board, resolveExternal = null, onMain = null) {
+  return roadmapMoves.roadmap(board, resolveExternal, onMain ? { ...ports, onMain } : ports);
 }

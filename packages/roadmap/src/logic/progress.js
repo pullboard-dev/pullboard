@@ -4,14 +4,29 @@
 export function progressWaits(item, byId) {
   const waits = String(item.item_after ?? '').split(',').filter(Boolean).flatMap(reference => {
     const dependency = byId.get(Number(reference));
-    return dependency && (dependency.item_merged_commit || dependency.item_status === 'withdrawn') ? [] : [`#${reference}`];
+    return dependency && (isLanded(dependency) || dependency.item_status === 'withdrawn') ? [] : [`#${reference}`];
   });
   if (item.item_hold_reason) waits.push(`hold: ${item.item_hold_reason}`);
   return waits;
 }
 
+/**
+ * Whether an item has landed: its merged commit, or else its own commit, is on main [C7].
+ * Why: the item view, roadmap, milestone and release card all read this one fact. With no main reader it reads the
+ * recorded merge commit, as before, so a caller opts into the git fact by passing `onMain`.
+ *
+ * @param {{ item_merged_commit?: string | null, item_commit?: string | null } | null | undefined} item
+ * @param {((commit: string) => boolean) | null} [onMain] - true when the commit is on main.
+ * @returns {boolean}
+ */
+export function isLanded(item, onMain = null) {
+  if (!item) return false;
+  if (typeof onMain !== 'function') return Boolean(item.item_merged_commit);
+  return [item.item_merged_commit, item.item_commit].some(commit => Boolean(commit) && onMain(commit));
+}
+
 /** Compute one consistent snapshot in bounded queries, rather than rescanning history per item. */
-export function workProgress(board, { now = board.clock.now(), workObservation } = {}) {
+export function workProgress(board, { now = board.clock.now(), workObservation, onMain = null } = {}) {
   const items = board.db.prepare('SELECT * FROM item').all();
   const byId = new Map(items.map(item => [item.item_id, item]));
   const activity = new Map(board.db.prepare(`SELECT item_id,MAX(event_at) AS at FROM event
@@ -21,7 +36,7 @@ export function workProgress(board, { now = board.clock.now(), workObservation }
   const observations = new Map();
   const at = new Date(now).toISOString();
   return new Map(items.map(item => {
-    const stage = item.item_merged_commit ? 'landed' : item.item_status === 'verified' ? 'accepted' : item.item_status;
+    const stage = isLanded(item, onMain) ? 'landed' : item.item_status === 'verified' ? 'accepted' : item.item_status;
     const holder = item.item_status === 'claimed' && item.item_lease_until > at ? item.item_owner
       : item.item_status === 'submitted' && item.item_review_until > at ? item.item_review_by : null;
     if (holder && workObservation && !observations.has(holder)) observations.set(holder, workObservation(board, holder));

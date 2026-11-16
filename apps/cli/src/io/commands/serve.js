@@ -33,13 +33,18 @@ import {
   traceServeStartup,
 } from '../main.js';
 import { serveListen } from '../../../../../packages/config/index.js';
+import { movesShadowEnabled } from '../../../../../packages/config/index.js';
+import { movesLiveEnabled } from '../../../../../packages/config/index.js';
 import { mainComparisonMode } from '../../../../../packages/config/index.js';
 import { criterionMainReceipts } from '../submit/receipt.js';
 import { provideMainComparison } from '../../../../../packages/api/index.js';
 import { provideGateHopTable } from '../../../../../packages/api/index.js';
-import { hopEngine } from '../../../../../packages/moves/index.js';
+import { provideJobTable } from '../../../../../packages/api/index.js';
+import { JOB_MAX_ATTEMPTS } from '../../../../../packages/api/index.js';
+import { jobEngine } from '../../../../../packages/moves/index.js';
 import { runTable } from '../../../../../packages/moves/index.js';
-import { leaseLapsed } from '../../../../../packages/jobs/index.js';
+import { LEASE_MS } from '../../../../../packages/jobs/index.js';
+import { gateHopTable } from '../submit/hop.js';
 import { provideCompanionInheritance } from '../../../../../packages/api/index.js';
 import { provideMainRedNotes } from '../../../../../packages/api/index.js';
 import { provideRefusalTrials } from '../../../../../packages/api/index.js';
@@ -112,6 +117,7 @@ export async function serveHere(io, values) {
   // A pulled gate's red cases are read against main's receipts like a submit gate's, unless gate.mainComparison is off [P7].
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
   provideGateHopTable(gateHopTable);
+  provideJobTable(jobShadowTable(), movesShadowEnabled, () => movesLiveEnabled('job'));
   provideCompanionInheritance(companionMainFailuresUntouched);
   provideMainTestRecorder(recordMainTestReceipt);
   provideMainRedNotes(MAIN_RED_NOTES);
@@ -206,6 +212,7 @@ export async function loopbackBoardApi(io, { projects, secret }) {
   const ctx = context(io), openers = { ...nativeBoardOpeners(io), launchRelaySender: io.launchRelaySender, trunkPack: servedTrunkPack }, ids = new Map();
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
   provideGateHopTable(gateHopTable);
+  provideJobTable(jobShadowTable(), movesShadowEnabled, () => movesLiveEnabled('job'));
   provideCompanionInheritance(companionMainFailuresUntouched);
   provideMainTestRecorder(recordMainTestReceipt);
   provideMainRedNotes(MAIN_RED_NOTES);
@@ -233,9 +240,9 @@ export function boardStatePorts() {
     snapshotStore: { load: loadKeyedResult, save: saveKeyedResult, saved: savedKeyedResults } };
 }
 
-/** The hop table the claim route decides with under gate.fencedHop, over the jobs cell's own lease rule [C7,#8352]. */
-function gateHopTable(leaseMs) {
-  const { rules, table } = hopEngine({ leaseMs, leaseLapsed });
+/** The job table the writer's shadow compare decides with, over the jobs cell's lease and the api's claim cap, so each stays one source [C7,#8381]. */
+function jobShadowTable() {
+  const { rules, table } = jobEngine({ leaseMs: LEASE_MS, maxAttempts: JOB_MAX_ATTEMPTS });
   return (snapshot, move) => runTable(table, rules, snapshot, move);
 }
 
@@ -247,6 +254,7 @@ function gateHopTable(leaseMs) {
 export async function boardHandlerPorts({ isMain } = {}) {
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
   provideGateHopTable(gateHopTable);
+  provideJobTable(jobShadowTable(), movesShadowEnabled, () => movesLiveEnabled('job'));
   provideCompanionInheritance(companionMainFailuresUntouched);
   provideMainTestRecorder(recordMainTestReceipt);
   provideMainRedNotes(MAIN_RED_NOTES);
