@@ -237,6 +237,11 @@ export function refuseTempWorktree() {
   return loadMachineSettings().gate?.refuseTempWorktree === true;
 }
 
+/** Whether a review release must name why it was dropped (#8920): off by default; only an exact `true` turns it on. */
+export function reviewReleaseReasonsRequired() {
+  return loadMachineSettings().review?.releaseReasons === true;
+}
+
 /** Whether health.derivedState is on (#8974): off by default; nothing reads it yet, and only an exact `true` turns it on. */
 export function derivedStateEnabled() {
   return loadMachineSettings().health?.derivedState === true;
