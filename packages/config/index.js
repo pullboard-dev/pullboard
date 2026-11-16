@@ -47,6 +47,7 @@ export {
   gateRunnersFirstEnabled,
   postLandSuiteEnabled,
   censusBalanceByTimeEnabled,
+  censusJobMinutes,
   tableReplayEnabled,
   testNiceEnabled,
   fencedHopEnabled,
