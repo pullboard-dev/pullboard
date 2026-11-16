@@ -17,7 +17,7 @@ function schema(base) {
     relay: fields(['outbox', 'board']),
     checks: fields(['provesNothing']),
     withdraw: fields(['review', 'refuseLanded']),
-    claims: { ...shape(base.claims), ...fields(['perSeat']) },
+    claims: { ...shape(base.claims), ...fields(['perSeat', 'fileLease', 'fileLeaseHubs']) },
     publish: fields(['pullRequest']),
     pushReceiptCheck: fields(['smoke']),
     landing: { ...fields(['publish', 'timeout', 'stall', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'shardProof', 'landedFromMain', 'first', 'auditOnly', 'splitRed', 'trunkRemote']),
