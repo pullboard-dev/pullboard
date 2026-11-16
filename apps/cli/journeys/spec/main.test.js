@@ -33,6 +33,7 @@ import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
 import { fixtureProjectPolicy } from '../../tests/fixtures/testkit.js';
 import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
 import { specBox } from '../../tests/fixtures/spec/box.js';
 
 test('rows parse with id, status, tier, text, gate, serves, section and line [S1]', () => {
@@ -373,4 +374,6 @@ test('clause 1: an approved revision applies while an unrelated held item cites 
   const document = JSON.parse(applied.stdout);
   assert.deepEqual(document.applied.map(row => row.id), ['G1'], 'only the approved revision is applied');
   assert.deepEqual(document.held, [], 'the unrelated held item holds nothing back');
+  // The loopback runner the claim started may still write its home; stop it before the box is removed [C7].
+  stopFixtureLocalRunner(box.env.PULLBOARD_MACHINE_HOME);
 });
