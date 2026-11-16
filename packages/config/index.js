@@ -46,13 +46,18 @@ export {
   browserFreeChecksEnabled,
   gateRunnersFirstEnabled,
   postLandSuiteEnabled,
+  censusRecordFileTimesEnabled,
   censusBalanceByTimeEnabled,
+  censusJobMinutes,
+  censusJobsPerRunner,
   tableReplayEnabled,
   testNiceEnabled,
   fencedHopEnabled,
   endStaleJobsEnabled,
+  redFactLocationEnabled,
   settleOnMainReceiptEnabled,
   movesShadowEnabled,
+  censusRerunNonGreenEnabled,
   registryStrictEnabled,
   movesLiveEnabled,
   gateRunnerAdmission,
@@ -78,12 +83,15 @@ export {
   holdsRequireOwner,
   nextItemNotices,
   refuseTempWorktree,
+  refuseOffMainHead,
   viewBackgroundEnabled,
   healthSentinelEnabled,
   reviewReleaseReasonsRequired,
   lapsedSweepEnabled,
   derivedStateEnabled,
+  recordWriteHolderEnabled,
   adaptiveBatchEnabled,
+  reofferTrunkBusyEnabled,
   memoryFloorMB,
   relayOfferEnabled,
   setRelayCanary,
@@ -174,7 +182,11 @@ export {
   maintenanceDurations,
 } from './src/logic/maintenance.js';
 
+export { submitProofOnly } from './src/logic/settings.js';
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';
+export { listThinRead, namedImportSelectionOn } from './src/logic/settings.js';
+export { retireIdleSeatHours } from './src/logic/settings.js';
+export { healthDiskFloorGb } from './src/logic/settings.js';
 export { boardKey, boardKeyFile } from './src/io/settings.js';
 export { boardRemote, setBoardRemote } from './src/io/settings.js';
 export { setPersonSetting } from './src/io/settings.js';

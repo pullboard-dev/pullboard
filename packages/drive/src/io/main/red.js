@@ -17,31 +17,33 @@ export { MAIN_TEST_JOB };
  * Answer whether a file is red on main from its keyed receipt; on a miss, enqueue the main-test job that writes it.
  * Enqueueing is idempotent on the key, so many gates asking about one file at one tree make one job.
  *
- * @param {import('node:sqlite').DatabaseSync} db
+ * @param {import('node:sqlite').DatabaseSync} db - The board, which the receipts read from.
  * @param {Iterable<object> | Map<string, object>} receipts - main-test receipts known to the board
- * @param {{ tree: string, file: string, command: string, now?: number }} at
+ * @param {{ tree: string, file: string, command: string, now?: number, runs?: { db: import('node:sqlite').DatabaseSync } | null }} at - runs: the board's runs holder while runs_store is on (boardRunsHolder); the job row goes there and not to `db`, which stays the board [P7,#9080].
  * @returns {ReturnType<typeof mainRedStatus> & { job: string | null }}
  */
-export function mainRedLookup(db, receipts, { tree, file, command, now = Date.now() }) {
+export function mainRedLookup(db, receipts, { tree, file, command, now = Date.now(), runs = null }) {
   const status = mainRedStatus(receipts, { tree, file, command });
   if (status.status !== 'missing') return { ...status, job: null };
   const id = mainTestJobId(status.key);
-  createJob(db, { id, kind: MAIN_TEST_JOB, base: tree, now });
-  writeStep(db, id, 'queued', { tree, file, command }, { now });
-  return { ...status, job: jobView(db, id).id };
+  // The job row lives in the runs file while the flag is on, else on the board as before.
+  const jobs = runs?.db ?? db;
+  createJob(jobs, { id, kind: MAIN_TEST_JOB, base: tree, now });
+  writeStep(jobs, id, 'queued', { tree, file, command }, { now });
+  return { ...status, job: jobView(jobs, id).id };
 }
 
 /**
  * Classify a gate's reds in one file as main's own or the candidate's, from main's receipt; the receipt id goes in
  * the result so the gate result names its proof. A missing receipt enqueues the main-test job and stays unknown.
  *
- * @param {import('node:sqlite').DatabaseSync} db
+ * @param {import('node:sqlite').DatabaseSync} db - The board, which the receipts read from.
  * @param {Iterable<object> | Map<string, object>} receipts
- * @param {{ tree: string, file: string, command: string, reds: string[], now?: number }} gate
+ * @param {{ tree: string, file: string, command: string, reds: string[], now?: number, runs?: { db: import('node:sqlite').DatabaseSync } | null }} gate - runs: as for mainRedLookup.
  * @returns {ReturnType<typeof classifyMainRed> & { file: string, job: string | null }}
  */
-export function classifyGateRed(db, receipts, { tree, file, command, reds, now = Date.now() }) {
-  const main = mainRedLookup(db, receipts, { tree, file, command, now });
+export function classifyGateRed(db, receipts, { tree, file, command, reds, now = Date.now(), runs = null }) {
+  const main = mainRedLookup(db, receipts, { tree, file, command, now, runs });
   return { file, ...classifyMainRed(reds, main), job: main.job };
 }
 
