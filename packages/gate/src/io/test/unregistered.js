@@ -33,20 +33,42 @@ function goldenPaths(root) {
   try { return JSON.parse(readFileSync(join(root, GOLDEN_FILE), 'utf8')).paths ?? []; } catch { return []; }
 }
 
+/** The raw findings for the test files this change adds, or none when it adds nothing. */
+function findingsFor(root, { base, only }) {
+  const added = addedPaths(root, base).filter(path => !only || only.includes(path));
+  if (!added.length) return [];
+  const { cells, records } = registries(root);
+  const files = added.map(path => ({ path, text: readFileSync(join(root, path), 'utf8') }));
+  return unregisteredNewTests({ added: files, registeredCells: cells, records, golden: goldenPaths(root) });
+}
+
 /**
  * One row per finding for the test files this change adds, each leading with the rule code TEST_UNREGISTERED and ending
- * with the one next step. Only added files are judged, so editing an existing test never trips it. Why: a registry that
- * only describes tests already written does not stop new ones arriving without an ID [C7,U148].
+ * with the one next step. Only added files are judged, so editing an existing test never trips it. An added journey with
+ * no golden path is judged by its own rule, journeyPathRows. Why: a registry that only describes tests already written
+ * does not stop new ones arriving without an ID [C7,U148].
  *
  * @param {string} root checkout root
  * @param {{ base?: string | null, only?: string[] | null }} [options] the composition base and the changed paths, when known
  * @returns {string[]} `path: TEST_UNREGISTERED (code): message; next: step` rows
  */
 export function unregisteredTestRows(root, { base = compositionBase(root), only = null } = {}) {
-  const added = addedPaths(root, base).filter(path => !only || only.includes(path));
-  if (!added.length) return [];
-  const { cells, records } = registries(root);
-  const files = added.map(path => ({ path, text: readFileSync(join(root, path), 'utf8') }));
-  return unregisteredNewTests({ added: files, registeredCells: cells, records, golden: goldenPaths(root) })
+  return findingsFor(root, { base, only }).filter(found => found.code !== 'JOURNEY_NO_PATH')
     .map(found => `${found.file}: TEST_UNREGISTERED (${found.code}): ${found.message}; next: ${found.next}`);
+}
+
+/**
+ * One row per CLI journey this change adds that golden.json does not name, each leading with the rule code
+ * JOURNEY_NO_PATH, naming the golden paths list and the one next step. Editing an existing journey or adding a cell
+ * test never trips it. Why: a journey is a user path, and a new one needs the coordinator's OK [C7,#9403].
+ *
+ * @param {string} root checkout root
+ * @param {{ base?: string | null, only?: string[] | null }} [options] the composition base and the changed paths, when known
+ * @returns {string[]} `path: JOURNEY_NO_PATH: message; golden paths: list; next: step` rows
+ */
+export function journeyPathRows(root, { base = compositionBase(root), only = null } = {}) {
+  const found = findingsFor(root, { base, only }).filter(row => row.code === 'JOURNEY_NO_PATH');
+  if (!found.length) return [];
+  const list = goldenPaths(root).map(entry => entry.file).join(', ') || 'none';
+  return found.map(row => `${row.file}: JOURNEY_NO_PATH: ${row.message}; golden paths: ${list}; next: use a cell test, or ask the coordinator to add a user path to ${GOLDEN_FILE}`);
 }
