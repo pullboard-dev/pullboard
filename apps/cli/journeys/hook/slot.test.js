@@ -18,8 +18,8 @@ import { loadClock } from '../../tests/fixtures/load.js';
 
 const helpers = createE2eHelpers();
 
-/** The frozen #2505 budgets, charged for runner load per core: a one-line commit with its hooks 2 s, pre-commit alone 1 s (#6525, #8505). */
-const COMMIT_BUDGET_MS = 2000;
+/** The #2505 budgets, charged for runner load per core: pre-commit alone 1 s (#6525, #8505); a one-line commit with its hooks 6 s, the audited exception of #8729 (frozen 2 s, restored by #8841). */
+const COMMIT_BUDGET_MS = 6000;
 const PRE_COMMIT_BUDGET_MS = 1000;
 after(helpers.cleanup);
 
@@ -66,7 +66,7 @@ test('clause 1; clause 2; clause 3: with every local slot held, a one-line commi
     assert.equal(direct.code, 0, direct.err);
     t.diagnostic(`commit ${chargedText(ok.time)} [${ok.hooks}]; pre-commit ${chargedText(hook)}`);
     // Both budgets charge runner load per core like the file budgets (#6525), so each number is the work the case itself costs.
-    assert.ok(ok.time.ms < COMMIT_BUDGET_MS && hook.ms < PRE_COMMIT_BUDGET_MS, // budget: frozen #2505 ceilings, 2 s for the commit and 1 s for pre-commit.
+    assert.ok(ok.time.ms < COMMIT_BUDGET_MS && hook.ms < PRE_COMMIT_BUDGET_MS, // budget: 6 s for the commit (audited exception, #8729; the frozen 2 s moves to #8841) and the frozen 1 s for pre-commit.
       `the commit with its hooks took ${chargedText(ok.time)} [${ok.hooks}] and pre-commit ${chargedText(hook)} with every slot held`);
     const refused = commitAs(box, box.web, session, 'api/other.js', 'feat(web): outside the lane [G1]');
     assert.notEqual(refused.status, 0, 'a lane violation is still refused');
