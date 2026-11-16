@@ -172,14 +172,14 @@ function legacySnapshot(snapshot) {
 }
 
 /**
- * Drop the derived pipeline stage an archived client never computed.
+ * Drop the derived fields an archived client never computed.
  *
- * Why: c85ddac55a added item_stage to current item reads; clients before it return the same row without it.
+ * Why: c85ddac55a added item_stage and the readiness engine added item_readiness_command to current item reads; clients before them return the same row without them.
  * @param {any} row
  * @returns {any}
  */
 function withoutStage(row) {
-  const { item_stage: _stage, ...rest } = row;
+  const { item_stage: _stage, item_readiness_command: _readiness, ...rest } = row;
   return rest;
 }
 

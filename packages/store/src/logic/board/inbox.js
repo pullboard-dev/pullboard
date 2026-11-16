@@ -31,6 +31,19 @@ function selectWithReach(board, query, seats, through) {
 }
 
 /**
+ * Raise each named agent's recorded shout mark in one short transaction; a mark never lowers.
+ *
+ * @param {any} board
+ * @param {[string, number][]} entries - agent id and the shout id it has been shown
+ */
+function writeMarks(board, entries) {
+  atomic(board, () => {
+    const acknowledge = board.db.prepare('UPDATE agent SET agent_last_shout_id=MAX(agent_last_shout_id,?) WHERE agent_id=?');
+    for (const [agentId, mark] of entries) acknowledge.run(mark, agentId);
+  });
+}
+
+/**
  * Unread shouts for an agent, oldest first; an unrecorded delivery can inspect them without consuming them.
  *
  * @param {any} board
@@ -52,13 +65,63 @@ export function inbox(board, agentId, { through, markRead = true } = {}) {
   const last = shouts.at(-1)?.shout_id;
   const acknowledged = Math.max(last ?? 0, reach);
   if (markRead && query.seats.some(seat => seat.agent_last_shout_id < acknowledged)) {
-    atomic(board, () => {
-      const acknowledge = board.db.prepare('UPDATE agent SET agent_last_shout_id=MAX(agent_last_shout_id,?) WHERE agent_id=?');
-      for (const seat of query.seats) acknowledge.run(acknowledged, seat.agent_id);
-    });
+    writeMarks(board, query.seats.map(seat => [seat.agent_id, acknowledged]));
   }
   if (agentId !== COORDINATOR) return shouts;
   const requests = openRequests(board);
   const ids = new Set(requests.map((shout) => shout.shout_id));
   return [...requests, ...shouts.filter((shout) => !ids.has(shout.shout_id))];
+}
+
+/** Delivery marks waiting for one batched write, per board; the queue is memory only and a flush empties it. */
+const pendingMarks = new WeakMap();
+
+/**
+ * Queue one agent's inbox delivery mark (the highest shout id it has been shown) without writing it.
+ *
+ * Why: marks written inline cost one board write per inbox read; queued, many seats' marks flush in one transaction.
+ * Only the highest mark per agent is kept, so a queue never holds more than one row per agent.
+ *
+ * @param {any} board
+ * @param {string} agentId
+ * @param {number} mark
+ * @returns {void}
+ */
+export function enqueueInboxMark(board, agentId, mark) {
+  if (!Number.isSafeInteger(mark) || mark < 0) {
+    throw new Refused('BAD_ACTIVITY_CURSOR', 'an inbox delivery mark is a nonnegative shout id; enqueue the id the read reached');
+  }
+  const queue = pendingMarks.get(board) ?? new Map();
+  queue.set(agentId, Math.max(queue.get(agentId) ?? 0, mark));
+  pendingMarks.set(board, queue);
+}
+
+/**
+ * Write every queued inbox mark in one transaction and empty the queue; an empty queue writes nothing.
+ *
+ * Each write is `MAX(recorded, mark)`, so a flush never lowers an agent's recorded mark, however late it runs.
+ *
+ * @param {any} board
+ * @returns {number} how many agents' marks were written
+ */
+export function flushInboxMarks(board) {
+  const queue = pendingMarks.get(board);
+  if (!queue?.size) return 0;
+  const entries = [...queue];
+  writeMarks(board, entries);
+  queue.clear();
+  return entries.length;
+}
+
+/**
+ * Hand over every queued inbox mark and empty the queue without writing, for a worker that writes them elsewhere.
+ *
+ * @param {any} board
+ * @returns {[string, number][]} agent id and the highest shout id it was shown
+ */
+export function takeInboxMarks(board) {
+  const queue = pendingMarks.get(board);
+  const entries = queue?.size ? [...queue] : [];
+  queue?.clear();
+  return entries;
 }

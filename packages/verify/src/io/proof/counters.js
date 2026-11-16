@@ -11,9 +11,19 @@ import { NATIVE_FLAKE_ENGINE } from '../../../../state/light.js';
 import { moveFlowItem } from '../../../../stats/light.js';
 import { roleOf } from '../../../../stats/light.js';
 import { appendRuleProof } from '../rule/proof/append.js';
+import { deleteDerived } from './derived.js';
+import { derivedText } from './derived.js';
+import { writeDerived } from './derived.js';
 
 export const PROOF_COUNTER_PREFIX = 'local:proof-stats:';
 const PREFIX = `${PROOF_COUNTER_PREFIX}v2:`;
+/** This code's flow report namespace: each FLOW_REPORT_VERSION keeps its projections and cursor under its own folder, so writers on different versions never touch each other's keys (#2288). It sits inside PROOF_COUNTER_PREFIX, so the board exchange treats it as local derived state and never exports it. */
+const REPORT_FOLDER = `report-v${FLOW_REPORT_VERSION}:`;
+
+/** The stored key of a counter: the report's `report-*` keys live in this version's folder, every other key as named. */
+function stored(key) {
+  return PREFIX + (key.startsWith('report-') ? REPORT_FOLDER + key.slice('report-'.length) : key);
+}
 const REPLAYING = new WeakSet();
 
 /**
@@ -72,17 +82,21 @@ function statement(db, sql) {
   return prepared;
 }
 
-/** Keys a replay keeps decoded in memory: the report policy grows with the whole board, so decoding and encoding it per event was most of a replay (#8562). */
-const HOT_KEYS = new Set(['report-policy']);
-/** Cursors every event reads and writes: they stay held for the whole replay, while other shards are stored and released in batches. Each read decodes a fresh copy. */
-const HOT_TEXT_KEYS = new Set(['summary', 'report-summary', 'capacity-summary']);
+/** Keys a replay keeps decoded in memory: the report policy grows with the whole board, and the cursors are read and written by every event, so decoding and encoding them per event was most of a replay (#8562, #8818). */
+const HOT_KEYS = new Set(['report-policy', 'summary', 'report-summary', 'capacity-summary']);
+/** Key prefixes held decoded and kept for the whole replay: one actor and one family shard per seat and model, a bounded few that every event reads and writes. */
+const HOT_PREFIXES = ['actor:', 'family:'];
+/** Key prefixes held decoded until the next batch store: an item's shards are read and written by each of its few events, and each reader reads one, folds the event into it and writes it back. */
+const ITEM_PREFIXES = ['item:', 'capacity-item:', 'report-item:'];
 /** How many held shards a replay stores at once, so memory stays bounded however long the history. */
 const HOT_FLUSH = 20_000;
 /** How many rows one store statement carries; SQLite's limit is 32,766 values per statement. */
 const STORE_ROWS = 100;
 
-/** Whether a replay keeps this key's stored text in memory: every shard but the policy, which is kept decoded. */
-function hotText(key) { return !HOT_KEYS.has(key); }
+/** Whether a replay keeps this key decoded for the whole replay. */
+function retained(key) { return HOT_KEYS.has(key) || HOT_PREFIXES.some(prefix => key.startsWith(prefix)); }
+/** Whether a replay keeps this key decoded and hands every reader the one object: each reader folds an event into it and writes it back. */
+function hotDecoded(key) { return retained(key) || ITEM_PREFIXES.some(prefix => key.startsWith(prefix)); }
 /** Per connection, only while a replay runs: each hot key's decoded value (or, for a text key, its stored text) and whether it was stored since. */
 const HOT = new WeakMap();
 
@@ -106,7 +120,7 @@ function replayHot(board, work) {
 /** Store every changed held shard, in the order each was first held, so new rows keep their order of arrival. */
 function storeHeld(board, held) {
   const changed = [];
-  for (const [key, entry] of held) if (entry.dirty) changed.push(PREFIX + key, entry.text ?? encode(entry.value));
+  for (const [key, entry] of held) if (entry.dirty) changed.push(stored(key), entry.text ?? encode(entry.value));
   storeRows(board, changed);
 }
 
@@ -119,39 +133,45 @@ function dropHeld(board, prefix) {
 /** Read a single small derived record; none of these keys is exported native state. */
 export function proofCounter(board, key) {
   const held = HOT.get(board.db);
-  if (held && hotText(key)) {
+  if (held && hotDecoded(key)) {
+    let entry = held.get(key);
+    if (!entry) { entry = { value: readCounter(board, key), dirty: false }; held.set(key, entry); }
+    return entry.value;
+  }
+  if (held) {
     let entry = held.get(key);
     if (!entry) {
-      const row = statement(board.db, 'SELECT meta_value FROM board_meta WHERE meta_key=?').get(PREFIX + key);
+      const row = statement(board.db, 'SELECT meta_value FROM board_meta WHERE meta_key=?').get(stored(key));
       if (!row) return null;
       entry = { text: row.meta_value, dirty: false }; held.set(key, entry);
     }
     return decode(entry.text);
   }
-  if (held && HOT_KEYS.has(key)) {
-    let entry = held.get(key);
-    if (!entry) { entry = { value: readCounter(board, key), dirty: false }; held.set(key, entry); }
-    return entry.value;
-  }
   return readCounter(board, key);
+}
+
+/** Read one counter from the derived database, decoded; null when the setting is off or the row is absent. Why: slice 2 moves readers here; board_meta still serves every ordinary read in this slice [C7]. */
+export function derivedProofCounter(board, key) {
+  const text = derivedText(board, stored(key));
+  return text === null ? null : decode(text);
 }
 
 /** Read and decode one stored record. */
 function readCounter(board, key) {
-  const row = statement(board.db, 'SELECT meta_value FROM board_meta WHERE meta_key=?').get(PREFIX + key);
+  const row = statement(board.db, 'SELECT meta_value FROM board_meta WHERE meta_key=?').get(stored(key));
   return row ? decode(row.meta_value) : null;
 }
 
 /** Replace one affected shard without rewriting the board's accumulated history. */
 function put(board, key, value) {
   const held = HOT.get(board.db);
-  if (held && HOT_KEYS.has(key)) { held.set(key, { value, dirty: true }); return; }
-  if (held && hotText(key)) {
+  if (held && hotDecoded(key)) { held.set(key, { value, dirty: true }); return; }
+  if (held) {
     held.set(key, { text: encode(value), dirty: true });
     if (held.size > HOT_FLUSH) {
-      // Store and release the shards read by key only; the policy and the cursors stay held.
+      // Store and release the shards read by key only; the policy, the cursors and the actors stay held.
       storeHeld(board, held);
-      for (const [name, entry] of held) if (!HOT_KEYS.has(name) && !HOT_TEXT_KEYS.has(name)) held.delete(name); else entry.dirty = false;
+      for (const [name, entry] of held) if (!retained(name)) held.delete(name); else entry.dirty = false;
     }
     return;
   }
@@ -159,16 +179,22 @@ function put(board, key, value) {
 }
 
 /** Store one shard's encoded text now. */
-function storeText(board, key, text) { storeRows(board, [PREFIX + key, text]); }
+function storeText(board, key, text) { storeRows(board, [stored(key), text]); }
 
 /** Store rows given as flat key, text pairs, many per statement: most of a replay's store time was the call into SQLite for each row. */
 function storeRows(board, pairs) {
   const rows = pairs.length / 2;
+  writeDerived(board, pairs);
   for (let at = 0; at < rows; at += STORE_ROWS) {
     const count = Math.min(STORE_ROWS, rows - at);
-    statement(board.db, `INSERT INTO board_meta(meta_key,meta_value) VALUES ${Array(count).fill('(?,?)').join(',')} ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value`)
-      .run(...pairs.slice(at * 2, (at + count) * 2));
+    statement(board.db, storeSql(count)).run(...(rows <= STORE_ROWS ? pairs : pairs.slice(at * 2, (at + count) * 2)));
   }
+}
+
+/** The store statement's text for this many rows, built once: assembling a 100-row statement per call cost as much as running it. */
+const STORE_SQL = [];
+function storeSql(count) {
+  return STORE_SQL[count] ??= `INSERT INTO board_meta(meta_key,meta_value) VALUES ${Array(count).fill('(?,?)').join(',')} ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value`;
 }
 
 /** The kinds whose shards are written once, one per event, and never rewritten: what a reader may keep. */
@@ -186,14 +212,15 @@ const keptShards = new Map();
  */
 export function proofCounterRows(board, kind) {
   const file = APPEND_ONLY_KINDS.has(kind) && typeof board.db.location === 'function' ? board.db.location() : null;
-  if (!file) return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key GLOB ? ORDER BY rowid').all(`${PREFIX}${kind}:*`)
+  const prefix = stored(`${kind}:`);
+  if (!file) return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key GLOB ? ORDER BY rowid').all(`${prefix}*`)
     .map(row => decode(row.meta_value));
   const id = `${file}\0${kind}`;
   let kept = keptShards.get(id);
   const at = board.db.prepare('SELECT meta_key FROM board_meta WHERE rowid = ?');
   if (kept && (at.get(kept.firstRowid)?.meta_key !== kept.firstKey || at.get(kept.lastRowid)?.meta_key !== kept.lastKey)) kept = null;
   if (!kept) kept = { rows: [], firstRowid: 0, firstKey: null, lastRowid: 0, lastKey: null };
-  const added = board.db.prepare('SELECT rowid, meta_key, meta_value FROM board_meta WHERE rowid > ? AND meta_key GLOB ? ORDER BY rowid').all(kept.lastRowid, `${PREFIX}${kind}:*`);
+  const added = board.db.prepare('SELECT rowid, meta_key, meta_value FROM board_meta WHERE rowid > ? AND meta_key GLOB ? ORDER BY rowid').all(kept.lastRowid, `${prefix}*`);
   if (added.length) {
     kept = { ...kept, rows: kept.rows.concat(added.map(row => decode(row.meta_value))), lastRowid: added.at(-1).rowid, lastKey: added.at(-1).meta_key };
     if (kept.firstKey === null) Object.assign(kept, { firstRowid: added[0].rowid, firstKey: added[0].meta_key });
@@ -202,19 +229,14 @@ export function proofCounterRows(board, kind) {
   return kept.rows.slice();
 }
 
-/** Whether a newer writer stored the flow report, so this older code must leave it alone. */
-function reportIsNewer(board) {
-  const summary = proofCounter(board, 'report-summary');
-  return Boolean(summary && summary.version > FLOW_REPORT_VERSION);
-}
-
 /**
- * Remove local projections without modifying any native event or verdict. A flow report that a newer writer stored
- * survives: deleting it only to rebuild an older version made mixed-version writers replay all history in turn.
+ * Remove local projections without modifying any native event or verdict. Every flow report folder survives, this
+ * version's and any other's: each belongs to the writers of its own version, and deleting one only to rebuild it made
+ * mixed-version writers replay all history in turn (#2288).
  */
 export function clearProofCounters(board) {
-  const keep = reportIsNewer(board) ? ` AND meta_key NOT GLOB '${PREFIX}report-*'` : '';
-  board.db.prepare(`DELETE FROM board_meta WHERE meta_key GLOB ?${keep}`).run(`${PROOF_COUNTER_PREFIX}*`);
+  board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ? AND meta_key NOT GLOB ?').run(`${PROOF_COUNTER_PREFIX}*`, `${PREFIX}report-*`);
+  deleteDerived(board, `${PROOF_COUNTER_PREFIX}*`, `${PREFIX}report-*`);
 }
 
 /** Start a bounded all-time aggregate; window-specific contributions live in separate event shards. */
@@ -347,6 +369,7 @@ function ensureCapacityCounters(board, until) {
   let summary = proofCounter(board, 'capacity-summary');
   if (!summary || summary.version !== CAPACITY_VERSION) {
     board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ?').run(`${PREFIX}capacity-*`);
+    deleteDerived(board, `${PREFIX}capacity-*`);
     dropHeld(board, 'capacity-');
     summary = emptyCapacityCounter(); put(board, 'capacity-summary', summary);
   }
@@ -383,22 +406,22 @@ function replayProofTail(board, cursor) {
   } finally { if (!nested) REPLAYING.delete(board); }
 }
 
-/** Reset only the optional report when its representation changes; preserve established proof shards. */
+/** Reset only this version's report folder; preserve established proof shards and every other version's report. */
 function resetReportCounters(board) {
-  board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ?').run(`${PREFIX}report-*`);
+  board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ?').run(`${PREFIX}${REPORT_FOLDER}*`);
+  deleteDerived(board, `${PREFIX}${REPORT_FOLDER}*`);
   dropHeld(board, 'report-');
   put(board, 'report-summary', emptyReportCounter());
   put(board, 'report-policy', newReportPolicy());
 }
 
 /**
- * Catch up only missed report events after an older writer, without recounting other statistics. Returns whether this
- * code keeps the report: a report a newer writer stored is left alone, because resetting it to this older version made
- * old and new worktrees replay all history in turn under the board lock.
+ * Catch up only the events this version's report folder missed, without recounting other statistics or touching another
+ * version's folder, so old and new worktrees never replay history in turn under the board lock. Returns true: this code
+ * always keeps its own report.
  */
 function ensureReportCounters(board, until) {
   let summary = proofCounter(board, 'report-summary');
-  if (summary && summary.version > FLOW_REPORT_VERSION) return false;
   if (!summary || summary.version !== FLOW_REPORT_VERSION) {
     resetReportCounters(board);
     summary = proofCounter(board, 'report-summary');
@@ -433,11 +456,10 @@ function ensureReportCounters(board, until) {
  */
 export function rebuildProofCounters(board, { refresh = true } = {}) {
   const { ensureRigorCounters } = board.runtimePorts.verification;
-  const keepNewer = reportIsNewer(board);
   clearProofCounters(board);
   ensureRigorCounters(board);
   put(board, 'summary', emptySummary());
-  if (!keepNewer) resetReportCounters(board);
+  resetReportCounters(board);
   replayProofTail(board, 0);
   ensureCapacityCounters(board, proofCounter(board, 'summary').last);
   if (refresh) refreshCapacityCache(board, { force: true });
