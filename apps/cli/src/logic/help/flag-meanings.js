@@ -217,6 +217,7 @@ export const FLAG_MEANINGS = Object.freeze({
   'rules --limit': ['--limit <N>', 'prints only the first N disagreements'],
   'mutate --all': 'seeds a fault on every line of the cell, not only the lines changed against main',
   'mutate --item': ['--item <id>', 'writes the per-kind score onto this item'],
+  '--lapsed-only': 'only expires claims whose lease lapsed; scans nothing else',
   '--health-only': 'only scans board health; runs no watch commands',
   '--coverage-file': ['--coverage-file <json>', 'the whole-file coverage rows the signer observed'],
   '--options': ['--options <json>', 'the choices as a JSON list, such as ["first","second"]'],

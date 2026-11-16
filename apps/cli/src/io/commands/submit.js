@@ -15,6 +15,8 @@ import { checkoutBranch } from '../../../../../packages/git/index.js';
 import { heartbeatCommand } from '../presence.js';
 import { mergeSubmissionMain } from '../../../../../packages/merge/index.js';
 import { requireNonEmptySubmit } from '../empty.js';
+import { proofOnlyTicked } from '../empty.js';
+import { submitProofOnly } from '../../../../../packages/config/index.js';
 import { criterionClauses } from '../../../../../packages/state/index.js';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
 import { clauseReceiptProblem } from '../../../../../packages/state/index.js';
@@ -24,6 +26,7 @@ import { testRunTickNotes } from '../../../../../packages/state/index.js';
 import { recordedToolCommits } from '../../../../../packages/git/index.js';
 import { toolRegenerationSource } from '../../../../../packages/git/index.js';
 import { regenerateToolChange } from '../../../../../packages/sandbox/index.js';
+import { regenerateDeclaredFiles } from '../../../../../packages/gate/index.js';
 import {
   pendingSubmitHandoff,
   submitHandoff,
@@ -114,6 +117,7 @@ import { withBoardRead } from '../entry.js';
 import { context } from '../entry.js';
 import { filesSince } from '../entry.js';
 import { gateTestFiles } from '../entry.js';
+import { titleCases } from '../submit.js';
 import { freezer } from '../entry.js';
 import { idArg } from '../entry.js';
 import { ordered } from '../entry.js';
@@ -288,7 +292,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const submitVerify = (submitHandoffPolicy(ctx) ?? mainPolicy(root)).config.verify;
   const inspectClauses = submitVerify.inspectClauses === true;
   const failBefore = submitVerify.failBefore === true;
-  const folderTicks = submitVerify.folderTicks === true, gateFilesOf = item => gateTestFiles(root, item, { folderTicks }); // verify.folderTicks (#8847) [C7]
+  const folderTicks = submitVerify.folderTicks === true, titleTicks = submitVerify.titleTicks === true, gateFilesOf = item => gateTestFiles(root, item, { folderTicks, titleTicks }); // verify.folderTicks (#8847), verify.titleTicks (#8880) [C7]
   const recovered = relayRecovered(root, {}, ctx.io);
   if (recovered?.operation === 'submit' && recovered.args[0] === id) {
     const preflight = withBoard(ctx, (board) => {
@@ -333,7 +337,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     }
     const readiness = barReadyProblem(board, item);
     if (readiness) throw readiness;
-    const clauseProblem = inspectClauses ? authorizationStep('clause-inspection', () => clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateFilesOf(item), head: headCommit(root), folderTicks })) : null;
+    const clauseProblem = inspectClauses ? authorizationStep('clause-inspection', () => clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateFilesOf(item), head: headCommit(root), folderTicks, titleTicks, cases: titleTicks ? titleCases(root, gateFilesOf(item)) : [] })) : null;
     if (clauseProblem) throw clauseProblem;
     // A [test] clause also needs a recorded run that failed on an assertion at the item's base (fail-before, pass-after) [C7].
     const receiptProblem = inspectClauses && failBefore ? clauseReceiptProblem(item, { gateFiles: gateFilesOf(item), baseRows: store.recordedBaseRows(board, item.item_claim_head), baseCommit: item.item_claim_head }) : null;
@@ -381,7 +385,9 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
       ctx.io.say(`Merged main ${acceptedMain.commit.slice(0, 12)} into the builder source as ${commit.slice(0, 12)}; checking the composed tree.`);
     }
   }
-  authorizationStep('non-empty', () => requireNonEmptySubmit(root, id, commit, acceptedMain.commit));
+  // submit.proofOnly (#9105): an all-proof item with every clause ticked may submit an empty head.
+  authorizationStep('non-empty', () => requireNonEmptySubmit(root, id, commit, acceptedMain.commit,
+    { proofOnly: () => submitProofOnly() && withBoard(ctx, board => proofOnlyTicked(held, store.itemThread(board, id), commit)) }));
   // A test file the bar froze at claim keeps its content unless the person ruled; under the test-author split another seat wrote it [C7,V4].
   authorizationStep('test-hashes', () => withBoard(ctx, (board) => {
     const source = { atHead: committedReader(root, commit), atMain: committedReader(root, acceptedMain.commit), person: store.PERSON, seat: submitVerify?.testAuthorSplit === true ? whoAmI(ctx, board).id : null };
@@ -405,6 +411,17 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     commit = regenerated.commit;
     trunk = requireTrunkMerge(root, commit, acceptedMain.commit);
     ctx.io.say(`Regenerated recorded board tools on main ${acceptedMain.commit.slice(0, 12)}; new head ${commit.slice(0, 12)} needs fresh full proof and review.`);
+  }
+  // With submit.regenerateDeclared on accepted main, a stale declared generated file is regenerated in the composed tree and committed (#8876) [C7].
+  if (!isSubmitHandoffWorker(ctx) && acceptedMain.config.submit?.regenerateDeclared === true && !regenerated) {
+    let declared;
+    try { declared = regenerateDeclaredFiles(root, acceptedMain.config, { base: held.item_claim_head, item: id }); }
+    catch (error) { throw new Refused('GENERATED_STALE', `${error.message}; next: run the generator yourself, commit, and submit again`); }
+    if (declared) {
+      commit = declared.commit;
+      trunk = requireTrunkMerge(root, commit, acceptedMain.commit);
+      ctx.io.say(`Regenerated ${declared.files.join(', ')} from its declared generator; new head ${commit.slice(0, 12)}.`);
+    }
   }
   const requireComposition = withBoard(ctx, board => barReadySetting(board).enabled);
   ctx = copySubmitHandoffOrigin(ctx, { ...ctx, config: policy.config });

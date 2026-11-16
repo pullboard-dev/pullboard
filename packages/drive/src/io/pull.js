@@ -38,9 +38,11 @@ import { pathProcesses } from './leftovers.js';
 import { reapLeftovers } from './leftovers.js';
 import { PRUNE_INTERVAL_MS } from './prune.js';
 import { pruneRunnerStores } from './prune.js';
+import { pruneRunnerStoresYielding } from './prune.js';
 import { claimSlotPrefix } from './prune.js';
 import { pruneStaleSlots } from './prune.js';
 import { storeName } from './store-names.js';
+import { firstFailingCase } from './posted-case.js';
 
 // Budget: the lease the board grants is 2 minutes; renewing every 30 s survives three lost renewals in a row.
 const RENEW_MS = 30_000;
@@ -59,6 +61,13 @@ const CEILING_MS = 3_600_000;
 const REAP_MS = 2_000;
 // Budget: one concurrent job per 3 cores, so a ten-core runner serves 3 jobs and leaves room for each job's own workers.
 const CORES_PER_JOB = 3;
+// Budget: with runners.fetchFailFast on, a claim whose trunk fetch has not ended 120 s after the claim goes back to the queue, the board's lease length; a dead trunk then costs a job two minutes, not the 22 it cost on 15 Nov (#9024).
+const FETCH_FAIL_MS = 120_000;
+// Budget: with runners.fetchFailFast on, a trunk fetch that failed less than 60 s ago sends the next waiting job back without its own fetch, so ten slots behind one dead ssh try it once, not ten times in a row (#9024).
+const FETCH_MEMO_MS = 60_000;
+// Budget: with runners.drainOnFetchFailure on, 3 trunk fetch failures in a row stop new claims, and the trunk is probed every 30 s until it answers (#9024).
+const DRAIN_AFTER = 3;
+const DRAIN_PROBE_MS = 30_000;
 // Budget: 32 fetched-commit refs give a fetch recent haves; one ref file each.
 const FETCHED_REFS = 32;
 /** This runner's own Pullboard install, which a job's trusted step uses to judge a project whose main is not Pullboard's tree (#6265). */
@@ -272,9 +281,10 @@ async function pruneFetched(git, store, keep = FETCHED_REFS) {
  * @param {{ ref?: string | null, main?: string | null, pack?: ((commit: string) => Promise<{ file: string } | null>) | null, git?: PullGit | null }} [options] - main: the
  *   commit the primary's main branch names; default none. pack: a shared trunk pack a cold store takes before fetching.
  *   git: the Git launches the caller hands in, since drive launches no git of its own [C7]; ref: the landing ref a land shard's candidate sits under, fetched by name when the commit is absent [#7818].
+ *   fetchGate: asked inside the fetch turn before each fetch; a reason it returns ends the checkout without fetching. onFetch: told each fetch's reason, or null once it worked [#9024].
  * @returns {Promise<{ ok: true, folder: string, primary: string, reused: boolean } | { ok: false, reason: string }>}
  */
-export async function checkoutCandidate(cache, trunk, commit, name, also = [], { main = null, pack = null, exclusive = work => work(), git = null, ref = null } = {}) {
+export async function checkoutCandidate(cache, trunk, commit, name, also = [], { main = null, pack = null, exclusive = work => work(), git = null, ref = null, fetchGate = null, onFetch = null } = {}) {
   if (!git) return { ok: false, reason: 'this runner was given no git launcher; pass serveRunner its git option' };
   if (!SHA.test(String(commit ?? ''))) return { ok: false, reason: `the job names no commit (${commit})` };
   if (typeof trunk !== 'string' || !trunk) return { ok: false, reason: 'the board named no trunk remote' };
@@ -295,7 +305,11 @@ export async function checkoutCandidate(cache, trunk, commit, name, also = [], {
   const absent = wanted.filter((_, index) => !present[index]);
   if (absent.length) {
     const missing = await exclusive(async () => {
-      for (const one of absent) { const reason = await fetchCommit(git, store, trunk, one, pack, one === commit ? ref : null); if (reason) return reason; }
+      for (const one of absent) {
+        const refused = fetchGate?.(); if (refused) return refused;
+        const reason = await fetchCommit(git, store, trunk, one, pack, one === commit ? ref : null);
+        onFetch?.(reason); if (reason) return reason;
+      }
       return null;
     });
     if (missing) return { ok: false, reason: missing };
@@ -617,12 +631,12 @@ export function localLoadAdmits({ load, cores, share, running = 1 }) {
  * @returns {Promise<{ jobs: Array<{ job: string, outcome: 'posted' | 'released' | 'lost', receipt?: object }>, waits: number[], slots: number }>}
  */
 export async function serveRunner({ board, key, runner, capabilities = hostCapabilities(), cache = join(homedir(), '.pullboard-runner', 'pull'),
-  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = null, say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
+  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = null, say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, fetchFailFast = false, drainOnFetchFailure = false, postedLineNamesCase = false, pruneYields = false, prune: pruneStores = pruneRunnerStores, pruneYielding = pruneRunnerStoresYielding, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
   const endpoint = boardEndpoint(board, key);
   const pack = trunkPack ?? boardTrunkPack(endpoint, fetchImpl, join(cache, 'packs'));
   const host = hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner';
   const id = runner ?? `${host}-${randomBytes(3).toString('hex')}`;
-  const { renewMs = RENEW_MS, renewRetryMs = RENEW_RETRY_MS, leaseMs = LEASE_MS, idleMs = IDLE_MS, firstMs = BACKOFF.firstMs, maxMs = BACKOFF.maxMs, ceilingMs = CEILING_MS, reapMs = REAP_MS } = timing;
+  const { renewMs = RENEW_MS, renewRetryMs = RENEW_RETRY_MS, leaseMs = LEASE_MS, idleMs = IDLE_MS, firstMs = BACKOFF.firstMs, maxMs = BACKOFF.maxMs, ceilingMs = CEILING_MS, reapMs = REAP_MS, fetchFailMs = FETCH_FAIL_MS, fetchMemoMs = FETCH_MEMO_MS, drainProbeMs = DRAIN_PROBE_MS, pruneMs = PRUNE_INTERVAL_MS } = timing;
   const slots = once ? 1 : serveSlots(jobsSetting, cores);
   // Every wait ends the moment the signal aborts, so an idle runner stops at once and its timer leaves nothing alive [C7,#8250].
   const stopped = signal ? new Promise(resolve => { if (signal.aborted) resolve(); else signal.addEventListener('abort', resolve, { once: true }); }) : null;
@@ -644,11 +658,19 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   try { const gone = slotName.shared ? [] : await pruneStaleSlots({ cache, instance: folders }); if (gone.length) say(`removed ${gone.length} stale slot folder(s)`); } catch { /* Pruning is best effort. */ }
   // A killed serve ran no cleanup: its orphaned jobs' processes, Chrome above all, end before the first job (#7811).
   try { const left = await reapLeftovers([join(cache, 'env'), join(cache, 'work')]); say(`killed ${left.length} leftover process(es) of earlier jobs`); } catch { /* Sweeping is best effort. */ }
-  /** Prune old results and dead environment folders at most once an interval; a failure never stops serving. */
+  /**
+   * Prune old results and dead environment folders at most once an interval; a failure never stops serving.
+   * With runners.yieldWhilePruning on, the walk runs beside the serve and gives the event loop back as it goes, so no held
+   * lease lapses while it measures a large cache; off, it blocks the serve until it ends (#9025).
+   */
+  let pruning = null;
   const prune = () => {
-    if (Date.now() - prunedAt < PRUNE_INTERVAL_MS) return;
+    if (Date.now() - prunedAt < pruneMs || pruning) return;
     prunedAt = Date.now();
-    try { const done = pruneRunnerStores({ root: dirname(cache), cache, live: liveEnvironments }); if (done.removed.length) say(`pruned ${done.removed.length} old folder(s)`); } catch { /* Pruning is best effort. */ }
+    const options = { root: dirname(cache), cache, live: liveEnvironments };
+    const said = done => { if (done.removed.length) say(`pruned ${done.removed.length} old folder(s)`); };
+    if (pruneYields) { pruning = pruneYielding(options).then(said, () => { /* Pruning is best effort. */ }).finally(() => { pruning = null; }); return; }
+    try { said(pruneStores(options)); } catch { /* Pruning is best effort. */ }
   };
   /** Wait out an unreachable board, longer each time in a row, and note the wait. */
   let failures = 0;
@@ -723,6 +745,11 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
       return { outcome: 'lost' };
     }
   };
+  // Trunk fetch health, kept only when runners.fetchFailFast or runners.drainOnFetchFailure is on: the last failure and the failures in a row [#9024].
+  let trunkDown = null, fetchFailures = 0, lastTrunk = null;
+  const onFetch = reason => { if (reason) { fetchFailures += 1; trunkDown = { at: Date.now(), reason }; } else { fetchFailures = 0; trunkDown = null; } };
+  /** The reason a waiting job is sent back without a fetch of its own: the trunk fetch failed moments ago. */
+  const recentFetchFailure = () => trunkDown && Date.now() - trunkDown.at < fetchMemoMs ? `the trunk fetch failed ${Math.round((Date.now() - trunkDown.at) / 1000)} s ago: ${trunkDown.reason}` : null;
   /** Hand checkout work to the shared object cache one job at a time: concurrent fetches into one bare store race on its refs. */
   let cacheLock = Promise.resolve();
   const serially = work => { const turn = cacheLock.then(work, work); cacheLock = turn.catch(() => {}); return turn; };
@@ -788,7 +815,14 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const gate = input !== null;
     const name = `${claim.job.replace(/[^A-Za-z0-9._-]/gu, '-')}-${claim.attempt}`;
     // Each slot reuses its own folder: concurrent jobs never share one, and only the shared object store's writes take turns.
-    const checkout = await checkoutCandidate(cache, trunk, claim.candidate, `${folders}-${slot}`, also, { main: claim.base ?? null, pack, exclusive: serially, git, ref });
+    let late = false, deadline = null;
+    const fetching = checkoutCandidate(cache, trunk, claim.candidate, `${folders}-${slot}`, also, { main: claim.base ?? null, pack, exclusive: serially, git, ref,
+      ...(fetchFailFast || drainOnFetchFailure ? { onFetch } : {}), ...(fetchFailFast ? { fetchGate: () => late ? 'the claim already went back to the queue' : recentFetchFailure() } : {}) });
+    // With runners.fetchFailFast on, a fetch still running 120 s after the claim sends the job back naming that, and a fetch queued behind it never starts for this job [#9024].
+    const checkout = await (fetchFailFast ? Promise.race([fetching, new Promise(resolve => {
+      deadline = setTimeout(() => { late = true; resolve({ ok: false, reason: `the trunk fetch did not end within ${Math.round(fetchFailMs / 1000)} s of the claim${trunkDown ? `; the last failure was: ${trunkDown.reason}` : ''}` }); }, Math.max(0, fetchFailMs - (Date.now() - claimedAt)));
+    })]).finally(() => clearTimeout(deadline)) : fetching);
+    fetching.catch(() => {});
     if (!checkout.ok || !run.length) {
       // A candidate this runner cannot fetch is an infrastructure wait: hand the job back, never a red receipt.
       const reason = checkout.ok ? 'the job names nothing to run' : checkout.reason; say(`releasing ${claim.job}: ${reason}`);
@@ -847,12 +881,14 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     // Exclusivity evidence: this serve took no other job from admission to finish, so the run's whole span was the runner's alone.
     const finishedAt = Date.now();
     const exclusiveEvidence = timed ? { timing: true, exclusive: true, unfencedClients: [], occupiedSlots: slots, admittedAt: new Date(started).toISOString(), finishedAt: new Date(finishedAt).toISOString() } : {};
+    // With runners.postedLineNamesCase on, a red job's posted line ends naming its first failing case, so serve.log shows it without the board [#9084].
+    const postedCase = outcome => { const named = postedLineNamesCase && outcome.status !== 0 ? firstFailingCase(outcome.tail) : ''; return named ? `; ${named}` : ''; };
     const receipt = { ...exclusiveEvidence, ...(gate ? gateReceipt(result, claim.candidate, Date.now() - started)
       : { status: result.status, signal: result.signal, commit: claim.candidate, run, outputSha256: result.outputSha256,
         outputBytes: result.outputBytes, tail: result.tail, durationMs: Date.now() - started }), startup, ...(kept ? { output: { runner: id, folder: kept } } : {}) };
     try {
       const answer = await reliably({ action: 'receipt', ...held, receipt });
-      say(`posted ${claim.job}: exit ${result.status}${gate ? `, gate ${receipt.gate.green ? 'green' : 'red'}` : ''}${answer?.relayed ? `; ${answer.relayed.moves} board moves sent to the relay` : ''}${answer?.applied?.outcome ? `; board: ${answer.applied.outcome}${answer.applied.reason ? ` (${answer.applied.reason})` : ''}` : ''}`);
+      say(`posted ${claim.job}: exit ${result.status}${gate ? `, gate ${receipt.gate.green ? 'green' : 'red'}` : ''}${answer?.relayed ? `; ${answer.relayed.moves} board moves sent to the relay` : ''}${answer?.applied?.outcome ? `; board: ${answer.applied.outcome}${answer.applied.reason ? ` (${answer.applied.reason})` : ''}` : ''}${postedCase(result)}`);
       // A relay-linked board orders the receipt's moves through the relay; one it refused is named here, never lost (#7562).
       for (const why of answer?.relayed?.refused ?? []) say(`${claim.job}: the relay refused a receipt move: ${why}`);
       return { job: claim.job, outcome: 'posted', receipt };
@@ -866,6 +902,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   let failure = null;
   // The job holding the runner for exclusive check timing; nothing else is claimed while it is set [C7,#8187].
   let exclusive = null;
+  // The drain: whether it was announced, and when the trunk was last probed [#9024].
+  let drained = false, probedAt = 0;
   const start = (claim, trunk) => {
     const slot = free.shift();
     let task, known;
@@ -880,6 +918,17 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     prune();
     if (active.size >= slots) { await Promise.race(active); continue; }
     if (exclusive) { await Promise.race(active); continue; }
+    // With runners.drainOnFetchFailure on, a trunk that failed 3 fetches in a row gets no new claim until a probe of it answers [#9024].
+    if (fetchFailures < DRAIN_AFTER) drained = false;
+    if (drainOnFetchFailure && fetchFailures >= DRAIN_AFTER) {
+      if (!drained) { drained = true; say(`not claiming: ${fetchFailures} trunk fetches failed in a row (${trunkDown?.reason ?? 'no reason given'}); probing the trunk until it answers`); }
+      if (lastTrunk && Date.now() - probedAt >= drainProbeMs) {
+        probedAt = Date.now();
+        const probe = await git.run(join(cache, 'git'), ['ls-remote', '--exit-code', lastTrunk, 'HEAD']).catch(() => ({ status: 1 }));
+        if (probe.status === 0) { fetchFailures = 0; trunkDown = null; drained = false; say('the trunk answers again; claiming'); continue; }
+      }
+      await Promise.race([nap(idleMs), ...active]); continue;
+    }
     if (!admit({ running: active.size })) {
       if (once) { say('not claiming: the machine is over its load share'); break; }
       await Promise.race([nap(idleMs), ...active]); continue;
@@ -892,12 +941,14 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
       if (once) { say('nothing to claim: the queue is empty'); break; }
       await Promise.race([nap(idleMs), ...active]); continue;
     }
+    lastTrunk = answer.trunk;
     const task = start(answer.claim, answer.trunk);
     if (once) { await task; break; }
     // The next claim waits for this job to say whether it holds the runner, so a timed gate is never claimed beside another [C7,#8187].
     await Promise.race([task.learned, task]);
   }
   await Promise.all(active);
+  await pruning;
   slotName.release();
   if (failure) throw failure;
   return { jobs, waits, slots };

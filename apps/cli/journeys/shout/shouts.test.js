@@ -132,7 +132,7 @@ test('an empty feed says so on one line [N26]', async () => {
     await view.stop();
   }
 });
-test('a shout shows the evidence it carries [B22]', async () => {
+test('clause 2: a shout shows the evidence it carries [B22]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
   box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');

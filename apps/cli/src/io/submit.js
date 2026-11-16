@@ -14,6 +14,9 @@ import { recordReviewPacket } from '../../../../packages/verify/index.js';
 import { barTestFiles } from '../../../../packages/verify/index.js';
 import { criterionClauses } from '../../../../packages/state/index.js';
 import { gateCoveredFiles } from '../../../../packages/state/index.js';
+import { testCaseTitles } from '../../../../packages/state/index.js';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { frozenRowGates } from '../../../../packages/verify/index.js';
 import { ordered } from './claim.js';
 import { whoAmI } from './join.js';
@@ -51,8 +54,10 @@ export function selectedGateFiles(candidates, units) {
  * ticked by are selected: a changed test no bar text quotes is left out without reading the tier plan. With
  * `folderTicks` (verify.folderTicks, default off), a changed test under a folder a [test] clause quotes is kept too, since
  * that clause is then ticked by it: bars say "a new test in <folder>" because a bar may only name paths on main (#8847).
+ * With `titleTicks` (verify.titleTicks, default off), a changed test holding a case titled "clause N:" for a [test] clause no
+ * file covers is kept too (#8880).
  */
-export function gateTestFiles(root, item, { folderTicks = false } = {}) {
+export function gateTestFiles(root, item, { folderTicks = false, titleTicks = false } = {}) {
   const changed = filesSince(root, item.item_id, item.item_claim_head, 'HEAD');
   const named = barTestFiles(item).all.filter(file => tryGit(root, ['cat-file', '-e', `HEAD:${file}`]).status === 0);
   // A clause ticks only for a file it quotes by path or base name, so a changed test no bar text quotes cannot matter here.
@@ -61,7 +66,8 @@ export function gateTestFiles(root, item, { folderTicks = false } = {}) {
   const quoted = `${item.item_criterion ?? ''}\n${item.item_frozen ?? ''}\n${item.item_brief ?? ''}`.toLowerCase();
   const changedTests = selectedGateFiles(changed, null);
   const inFolder = folderTicks ? folderCoveredFiles(item, changedTests) : new Set();
-  const candidates = [...changedTests].filter(file => !named.includes(file) && (inFolder.has(file) || quoted.includes(file.toLowerCase()) || quoted.includes(file.split('/').pop().toLowerCase())));
+  const inTitle = titleTicks ? titleCoveredFiles(root, item, changedTests) : new Set();
+  const candidates = [...changedTests].filter(file => !named.includes(file) && (inFolder.has(file) || inTitle.has(file) || quoted.includes(file.toLowerCase()) || quoted.includes(file.split('/').pop().toLowerCase())));
   if (!candidates.length) return selectedGateFiles(named, null);
   let units = null;
   // An unreadable selection ticks nothing from the changed files, but submit still runs the bar-named files.
@@ -73,6 +79,18 @@ export function gateTestFiles(root, item, { folderTicks = false } = {}) {
 function folderCoveredFiles(item, changedTests) {
   const clauses = criterionClauses(item.item_criterion ?? '');
   return new Set(clauses.flatMap(clause => gateCoveredFiles(clause, changedTests, item, { folderTicks: true })).filter(file => changedTests.has(file)));
+}
+
+/** The case titles declared by the given test files in the working tree, as rows for the clause readers' `cases`; unreadable files give none (#8880) [C7]. */
+export function titleCases(root, files) {
+  return [...files].flatMap(file => { try { return testCaseTitles(file, readFileSync(join(root, file), 'utf8')); } catch { return []; } });
+}
+
+/** The changed tests a [test] clause no file covers is ticked by under verify.titleTicks: those holding a case titled for its number (#8880) [C7]. */
+function titleCoveredFiles(root, item, changedTests) {
+  const cases = titleCases(root, changedTests);
+  const clauses = criterionClauses(item.item_criterion ?? '');
+  return new Set(clauses.flatMap(clause => gateCoveredFiles(clause, changedTests, item, { titleTicks: true, cases })).filter(file => changedTests.has(file)));
 }
 
 /** Selections already read in this process, by checkout, base and HEAD: submit asks twice for the same pair (clause inspection, then preflight). */

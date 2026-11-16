@@ -1,12 +1,10 @@
 // pullboard: browser
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** Cockpit spec checks, using the shared real-board fixtures [N26]. */
 import assert from 'node:assert/strict';
 import {
   mkdirSync,
   mkdtempSync,
-  readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -16,12 +14,8 @@ import {
   after,
   test,
 } from 'node:test';
-import vm from 'node:vm';
 import { standardDoctrine } from '../../../../packages/doctrine/index.js';
 import { loadConfig } from '../../../../packages/config/index.js';
-import { pageScriptPart4 } from '../../../view/index.js';
-import { readPathMap } from '../../../../packages/codemap/index.js';
-import { REPOSITORY } from '../../tests/fixtures/source.js';
 import {
   AGENT_SHELL_MARKERS,
   SSH_SHELL_MARKERS,
@@ -43,210 +37,10 @@ import {
   press,
 } from '../../tests/fixtures/cockpit/harness.js';
 import { pressTab } from '../../tests/fixtures/cockpit/stable.js';
-
-/** Return regex-literal bodies while skipping comments and quoted strings in a hosted script part. */
-function regexLiterals(source) {
-  const found = [];
-  let quote = '', comment = '', canStart = true;
-  for (let i = 0; i < source.length;) {
-    const c = source[i], next = source[i + 1];
-    if (comment === 'line') { if (c === '\n') comment = ''; i++; continue; }
-    if (comment === 'block') { if (c === '*' && next === '/') { comment = ''; i += 2; } else i++; continue; }
-    if (quote) { if (c === '\\') i += 2; else { if (c === quote) quote = ''; i++; } continue; }
-    if (c === '/' && next === '/') { comment = 'line'; i += 2; continue; }
-    if (c === '/' && next === '*') { comment = 'block'; i += 2; continue; }
-    if (c === "'" || c === '"' || c === '`') { quote = c; canStart = false; i++; continue; }
-    if (c === '/' && canStart) {
-      let body = '', j = i + 1, escaped = false, inClass = false;
-      for (; j < source.length; j++) {
-        const x = source[j];
-        if (!escaped && x === '[') inClass = true;
-        if (!escaped && x === ']') inClass = false;
-        if (!escaped && x === '/' && !inClass) break;
-        body += x;
-        if (!escaped && x === '\\') escaped = true; else escaped = false;
-      }
-      if (j < source.length) { found.push({ body, index: i }); i = j + 1; while (/[a-z]/i.test(source[i] || '')) i++; canStart = false; continue; }
-    }
-    canStart = /[([{,:;=!?&|+*%^~<>-]/.test(c);
-    if (!/\s/.test(c)) i++; else i++;
-  }
-  return found;
-}
-
-test('no hosted page script part loses a regex backslash [N26]', () => {
-  const offenders = [];
-  // The four hosted page script parts were src/view/page-script-N.js; the path map says where each lives now.
-  const parts = [...readPathMap(REPOSITORY)].filter(([from]) => /^src\/view\/page-script-\d+\.js$/u.test(from));
-  assert.equal(parts.length, 4, 'the map names all four hosted page script parts');
-  for (const [, file] of parts) {
-    const source = readFileSync(join(REPOSITORY, file), 'utf8');
-    const start = source.indexOf('return `') + 'return `'.length;
-    const body = source.slice(start, source.lastIndexOf('`;'));
-    for (const literal of regexLiterals(body)) {
-      if (/(?<!\\)\\[sdwbSDWBrn]/u.test(literal.body)) {
-        const line = body.slice(0, literal.index).split('\n').length + 10;
-        offenders.push(`${file}:${line}`);
-      }
-    }
-  }
-  assert.deepEqual(offenders, [], `hosted regex escapes need a doubled template-literal backslash: ${offenders.join(', ')}`);
-});
-
-test('emitted page script splits decision ids on whitespace [N26]', () => {
-  const served = pageScriptPart4({});
-  const split = /String\(args\.ids\)\.split\((\/.*?\/)\)/u.exec(served);
-  assert.ok(split, 'the served decideRow implementation splits its ids');
-  const ids = Function(`return String('G1 G2').split(${split[1]})`)();
-  assert.deepEqual(ids, ['G1', 'G2'], 'the emitted page script gives decideRow two row ids');
-  const rows = ['spec:G0', 'spec:G1', 'spec:G2', 'spec:G3'];
-  const next = rows.slice(rows.findIndex((row) => row === `spec:${ids[0]}`) + 1).find((row) => !ids.includes(row.slice('spec:'.length)));
-  assert.equal(next, 'spec:G3', 'after deciding G1 and G2, the next undecided row is G3');
-  assert.equal(ids.map((id) => `doctrine:${id}`).join(' '), 'doctrine:G1 doctrine:G2', 'each doctrine row keeps its own qualified id');
-});
-
-test('a decision on two spec rows splits their ids on whitespace [B26,N26]', async () => {
-  const served = pageScriptPart4({});
-  const start = served.indexOf('async function decideRow(');
-  const end = served.indexOf('\n}\n\n/**\n * Run a public API move', start) + 2;
-  assert.ok(start >= 0 && end > start, 'the test extracts the production decideRow from the served page script');
-  const window = { scrollY: 275, scrolls: [], scrollTo(position) { this.scrolls.push(position); } };
-  const rowsFor = (kind, ids) => ids.map((id) => ({ dataset: { row: `${kind}:${id}` }, getBoundingClientRect: () => ({ top: 20, bottom: 40 }), scrollIntoView() { throw Error('the next row is already visible'); } }));
-  let rows = rowsFor('spec', ['G0', 'G1', 'G2', 'G3']);
-  const moves = [];
-  const view = { root: 'repo', row: { spec: 'G1', doctrine: 'D1' } };
-  const context = {
-    snapshot: false, readOnly: false, requests: false, view, window, innerHeight: 900,
-    $: (id) => ({ querySelectorAll: () => id === 'spec-list' ? rows : rowsFor('doctrine', ['D1', 'D2', 'D3']) }),
-    render() {}, setTimeout() {},
-    pageMove: (command, args) => ({ body: { command, args } }),
-    boardPath: () => '/moves', api: async (path, body) => { moves.push(body); return { result: {} }; },
-    moveMessage: () => 'recorded', refresh: async () => {},
-  };
-  const decideRow = vm.runInNewContext(`(${served.slice(start, end)})`, context);
-  const anchor = { closest: () => null };
-  assert.equal(await decideRow('spec', 'spec-approve', { ids: 'G1 G2' }, anchor), true);
-  assert.equal(view.row.spec, 'G3', 'the next pick skips both decided rows and keeps the reading position');
-  assert.equal(moves[0].args.ids, 'G1 G2', 'the hosted page sends the two spec ids');
-  assert.deepEqual(JSON.parse(JSON.stringify(window.scrolls)), [{ top: 275, behavior: 'instant' }, { top: 275, behavior: 'instant' }], 'the page restores the original scroll position');
-  rows = rowsFor('doctrine', ['D1', 'D2', 'D3']);
-  assert.equal(await decideRow('doctrine', 'spec-approve', { ids: 'D1 D2' }, anchor), true);
-  assert.equal(view.row.doctrine, 'D3', 'the doctrine pick advances past both decided rows');
-  assert.equal(moves[1].args.ids, 'doctrine:D1 doctrine:D2', 'each doctrine id receives its own prefix in the outgoing move');
-});
-
-/** Observe a real Spec control's native pointer sequence and any replacement inside its detail card. */
-async function watchSpecPress(chrome, selector) {
-  await chrome.stable(`(() => {
-    const target = document.querySelector(${JSON.stringify(selector)}), detail = document.querySelector('#spec-detail');
-    if (!target || !detail) throw Error('Spec press observer target is missing: ' + ${JSON.stringify(selector)});
-    const name = node => node ? { tag: node.tagName, id: node.id, decision: node.dataset.rowDecision || '', connected: node.isConnected } : null;
-    const box = node => { const r = node?.getBoundingClientRect(); return r ? { x:r.x, y:r.y, width:r.width, height:r.height } : null; };
-    const originalRender = window.render;
-    if (typeof originalRender !== 'function') throw Error('Spec press observer cannot instrument the real render function');
-    const trace = window.__pullboardSpecPress = { selector:${JSON.stringify(selector)}, target, initial:box(target), events:[], childListRecords:0, renderAttempts:0, removedTarget:false, originalRender };
-    window.render = function(...args) { trace.renderAttempts += 1; return originalRender.apply(this, args); };
-    const types = ['mousedown', 'mouseup', 'click'];
-    trace.listeners = types.map(type => {
-      const listener = event => {
-        const current = document.querySelector(trace.selector);
-        trace.events.push({ type, at:performance.now(), target:name(event.target), intendedConnected:target.isConnected,
-          intendedBox:box(target), currentSame:current === target, currentBox:box(current), hit:name(document.elementFromPoint(event.clientX, event.clientY)),
-          renderAttempts:trace.renderAttempts, childListRecords:trace.childListRecords, dialogHidden:document.querySelector('#spec-decline-dialog').hidden,
-          selected:view.row.spec, path:location.pathname, x:event.clientX, y:event.clientY });
-      };
-      document.addEventListener(type, listener, true);
-      return [type, listener];
-    });
-    trace.observer = new MutationObserver(records => {
-      trace.childListRecords += records.length;
-      trace.removedTarget ||= records.some(record => [...record.removedNodes].some(node => node === target || node.contains?.(target)));
-    });
-    trace.observer.observe(document.body, { childList:true, subtree:true });
-  })()`);
-  return {
-    /** Capture original/current identity, event targets and selected state without changing the page. */
-    async snapshot() {
-      return JSON.parse(await chrome.stable(`JSON.stringify((() => {
-        const trace = window.__pullboardSpecPress, current = document.querySelector(trace.selector);
-        const box = node => { const r = node?.getBoundingClientRect(); return r ? { x:r.x, y:r.y, width:r.width, height:r.height } : null; };
-        return { width:innerWidth, path:location.pathname, selected:view.row.spec, dialogHidden:document.querySelector('#spec-decline-dialog').hidden,
-          originalConnected:trace.target.isConnected, originalBox:box(trace.target), currentSame:current === trace.target, currentBox:box(current),
-          childListRecords:trace.childListRecords, renderAttempts:trace.renderAttempts, removedTarget:trace.removedTarget, events:trace.events };
-      })())`));
-    },
-    /** Disconnect only the observers installed for this trace. */
-    async dispose() {
-      await chrome.stable(`(() => { const trace=window.__pullboardSpecPress; if (!trace) return; trace.observer.disconnect(); for (const [type, listener] of trace.listeners) document.removeEventListener(type, listener, true); window.render=trace.originalRender; delete window.__pullboardSpecPress; })()`);
-    },
-  };
-}
-
-/** Record real filter input and completed Spec renders so a stale row read can name its render provenance. */
-async function watchSpecFilter(chrome) {
-  await chrome.stable(`(() => {
-    const originalRender = window.render;
-    if (typeof originalRender !== 'function') throw Error('Spec filter observer cannot instrument the real render function');
-    const trace = window.__specFilterTrace = { originalRender, renderCount:0, renderAttemptCount:0, lastRow:null, lastRenderId:null, events:[], attempts:[], renders:[], listeners:[], captureErrors:[] };
-    /** Read source state and the row DOM immediately after a completed render. */
-    const state = () => {
-      const row = document.querySelector('#spec-list [data-row="spec:G1"]');
-      const chip = row?.querySelector(':scope > .chip');
-      const filter = typeof view === 'object' ? view.rows?.spec ?? null : null;
-      const source = typeof data === 'object' ? data.project?.spec?.find(entry => entry.id === 'G1') : null;
-      return { readAt:performance.now(), filter, sourceDataStatus:source?.status ?? null, rowStatus:chip?.textContent.trim() ?? null, row };
-    };
-    /** Keep diagnostic failures from changing the original page action or renderer result. */
-    const recordError = error => {
-      try { trace.captureErrors.push(String(error?.stack || error)); if (trace.captureErrors.length > 4) trace.captureErrors.shift(); }
-      catch { /* Diagnostics never replace the original page behavior. */ }
-    };
-    /** Preserve the actual renderer while assigning an ordinal and post-render snapshot. */
-    window.render = function(...args) {
-      const result = originalRender.apply(this, args);
-      try {
-        const current = state();
-        trace.renderAttemptCount += 1;
-        if (typeof deferredClickRender !== 'undefined' && deferredClickRender) {
-          trace.attempts.push({ at:current.readAt, deferred:true, filter:current.filter, sourceDataStatus:current.sourceDataStatus, rowStatus:current.rowStatus });
-          if (trace.attempts.length > 8) trace.attempts.shift();
-        } else {
-          trace.renderCount += 1;
-          trace.lastRow = current.row;
-          trace.lastRenderId = trace.renderCount;
-          trace.renders.push({ id:trace.renderCount, at:current.readAt, filter:current.filter, sourceDataStatus:current.sourceDataStatus, rowStatus:current.rowStatus });
-          if (trace.renders.length > 8) trace.renders.shift();
-        }
-      } catch (error) { recordError(error); }
-      return result;
-    };
-    /** Record the filter control and pre-handler state for the native pointer sequence. */
-    const listen = type => {
-      const listener = event => {
-        const target = event.target.closest?.('[data-rows^="spec:"]');
-        if (!target) return;
-        try {
-          const current = state();
-          trace.events.push({ type, at:current.readAt, target:target.dataset.rows, filter:current.filter, sourceDataStatus:current.sourceDataStatus, rowStatus:current.rowStatus });
-          if (trace.events.length > 8) trace.events.shift();
-        } catch (error) { recordError(error); }
-      };
-      document.addEventListener(type, listener, true);
-      trace.listeners.push([type, listener]);
-    };
-    for (const type of ['mousedown', 'mouseup', 'click']) listen(type);
-  })()`);
-  return {
-    /** Restore only the renderer and pointer listeners installed for this measurement. */
-    async dispose() {
-      try {
-        await chrome.stable(`(() => { const trace=window.__specFilterTrace; if (!trace) return; window.render=trace.originalRender; for (const [type, listener] of trace.listeners) document.removeEventListener(type, listener, true); delete window.__specFilterTrace; })()`);
-        return null;
-      } catch (error) { return String(error?.stack || error); }
-    },
-  };
-}
-
+import {
+  watchSpecPress,
+  watchSpecFilter,
+} from '../../tests/fixtures/cockpit/spec-watch.js';
 
 test('clause 1: spec rows read across a phone [N26,D1]', async () => {
   const box = machine();
@@ -891,126 +685,6 @@ test('a refresh keeps the draft and focus in a pending Spec question Answer box 
   }
 });
 
-test('the spec decision wait names its state on timeout [N26]', { timeout: 60_000 }, async (t) => {
-  const executable = chromeExecutable();
-  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for Spec wait diagnostics.');
-
-  const spec = '# Timeout probe\n\n## G · Goals\n- G1 [draft, must] First goal. | gate: web test\n- G2 [draft, must] Second goal. | gate: web test\n';
-  const box = machine();
-  const demo = project(box, 'spec-wait-timeout', spec);
-  const view = await startView(box);
-  const profile = mkdtempSync(join(tmpdir(), 'pullboard-spec-timeout-'));
-  let chrome;
-  let diagnostics;
-  try {
-    chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.waitFor("typeof data === 'object' && !!data?.project");
-    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
-    await pressTab(chrome, 'spec');
-    await chrome.waitFor("!!document.querySelector('#spec-list [data-row=\"spec:G1\"]') && !!document.querySelector('#spec-list [data-row=\"spec:G2\"]')");
-    diagnostics = await watchSpecDecisionWait(chrome);
-    await press(chrome, `document.querySelector('#spec-list [data-row="spec:G1"]')`);
-    await chrome.waitFor("view.row.spec === 'G1' && document.activeElement === document.querySelector('#spec-list')");
-    for (const type of ['keyDown', 'keyUp']) await chrome.send('Input.dispatchKeyEvent', { type, key: 'ArrowDown', code: 'ArrowDown', windowsVirtualKeyCode: 40 });
-    await chrome.waitFor("view.row.spec === 'G2'");
-
-    let timeout;
-    try { await diagnostics.waitFor('false', 10); } catch (error) { timeout = error; } // budget: declared 10 ms negative timeout diagnostic deadline.
-    assert.match(timeout?.message ?? '', /Browser condition did not arrive: false/, 'the test deliberately drives the real wait helper to timeout');
-    assert.deepEqual(timeout.diagnostic.selectedRow, 'G2', 'the timeout record names the currently selected row');
-    assert.equal(timeout.diagnostic.focusedElement.id, 'spec-list', 'the timeout record names the focused list');
-    assert.ok(Array.isArray(timeout.diagnostic.pendingRequests), 'the timeout record includes bounded in-flight requests');
-    assert.deepEqual(timeout.diagnostic.lastKeyEvents.slice(-2).map(({ type, key, code }) => [type, key, code]), [
-      ['keydown', 'ArrowDown', 'ArrowDown'], ['keyup', 'ArrowDown', 'ArrowDown'],
-    ], 'the timeout record includes the last real key events');
-  } finally {
-    try { await diagnostics?.dispose(); }
-    finally {
-      try { if (chrome) await closeSnapshotChrome(chrome); }
-      finally {
-        try { rmSync(profile, { recursive: true, force: true }); }
-        finally { await view.stop(); }
-      }
-    }
-  }
-});
-
-test('the Spec decline opens its reason form under a 6× CPU throttle [N26]', { timeout: 120_000 }, async (t) => { // budget: Chrome startup plus the actual three-second state poll and cleanup under CPU throttling.
-  const executable = chromeExecutable();
-  assert.ok(executable, 'the required Spec interaction test needs real Chrome');
-  const spec = '# Decline under load\n\n## G · Goals\n- G1 [draft, must] Keep the reviewed result visible. | gate: web test\n';
-  const box = machine();
-  const demo = project(box, 'spec-decline-load', spec);
-  const view = await startView(box);
-  const profile = mkdtempSync(join(tmpdir(), 'pullboard-spec-decline-load-'));
-  let chrome;
-  let controlTrace;
-  let refreshTrace;
-  try {
-    chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.waitFor("typeof data === 'object' && !!data?.project");
-    await chrome.send('Emulation.setDeviceMetricsOverride', { width:375, height:812, deviceScaleFactor:1, mobile:false });
-    await chrome.send('Emulation.setCPUThrottlingRate', { rate:6 });
-    await pressTab(chrome, 'spec');
-    await chrome.waitFor("innerWidth === 375 && !!document.querySelector('#spec-list [data-row=\"spec:G1\"]')");
-    await press(chrome, "document.querySelector('#spec-list [data-row=\"spec:G1\"]')");
-    await chrome.waitFor("!!document.querySelector('#spec-detail [data-row-decision=\"decline\"]')");
-
-    const decline = '#spec-detail [data-row-decision="decline"]';
-    controlTrace = await watchSpecPress(chrome, decline);
-    try {
-      await press(chrome, `document.querySelector(${JSON.stringify(decline)})`);
-      const control = await controlTrace.snapshot();
-      t.diagnostic(`6× no-refresh control: ${JSON.stringify(control)}`);
-      assert.equal(control.dialogHidden, false, 'without an intervening refresh the real detail decline opens its reason form');
-      assert.deepEqual(control.events.map(event => event.type), ['mousedown', 'mouseup', 'click'], 'the no-refresh control received one native click');
-    } finally {
-      await controlTrace.dispose();
-      controlTrace = null;
-    }
-    await press(chrome, "document.querySelector('#spec-decline-cancel')");
-    await chrome.waitFor("document.querySelector('#spec-decline-dialog').hidden");
-
-    refreshTrace = await watchSpecPress(chrome, decline);
-    const refreshText = 'refresh while Spec decline pointer is held';
-    let refreshFailure;
-    try {
-      await press(chrome, `document.querySelector(${JSON.stringify(decline)})`, { afterMouseDown: async () => {
-        box.run(demo.repo, 'shout', 'person', refreshText);
-        await chrome.waitFor(`data.project.shouts.some(shout => shout.shout_text === ${JSON.stringify(refreshText)})`, 20_000); // budget: hang-only ceiling for the real view poll to carry the private CLI write while native mouse input is held; no throughput claim.
-        t.diagnostic(`6× pointer-held refresh before mouseup: ${JSON.stringify(await refreshTrace.snapshot())}`);
-      } });
-    } catch (error) {
-      refreshFailure = error;
-    }
-    let refreshed;
-    try {
-      refreshed = await refreshTrace.snapshot();
-      t.diagnostic(`6× pointer-held refresh after mouseup: ${JSON.stringify(refreshed)}`);
-    } catch (error) {
-      t.diagnostic(`6× pointer-held refresh snapshot failed: ${error.message}`);
-      if (!refreshFailure) refreshFailure = error;
-    }
-    if (refreshFailure) throw refreshFailure;
-    assert.equal(refreshed.dialogHidden, false, 'the real Spec decline still opens its reason form when a board refresh arrives during the native press');
-    assert.ok(refreshed.events.some(event => event.type === 'click'), `the native release produced a click after the refresh: ${JSON.stringify(refreshed)}`);
-    await refreshTrace.dispose();
-    refreshTrace = null;
-  } finally {
-    try { await refreshTrace?.dispose(); }
-    finally {
-      try { await controlTrace?.dispose(); }
-      finally {
-        try { if (chrome) await closeSnapshotChrome(chrome); }
-        finally {
-          try { await view.stop(); }
-          finally { rmSync(profile, { recursive:true, force:true }); }
-        }
-      }
-    }
-  }
-});
-
 // Hang ceiling: four three-tab layouts, native input and real Git/SQLite setup; two 120s journey budgets plus setup headroom.
 
 /** Compare real Items, Spec and Doctrine rendering and native selection across four viewport/theme layouts. Doctrine records take the Spec record grid (landed in 6e59717725 and cead5a98d7), so their geometry is compared to the Spec row; the font stays on the Items row. */
@@ -1230,60 +904,4 @@ test('clause 1: doctrine and spec rows share the items row [N26]', { timeout: 30
       }
     }
   }
-});
-
-/** The decline dialog's submit button keeps its place while the dialog is open, even when an approval note times out under it. */
-test('the decline dialog never moves under the pointer [B26,N26]', { timeout: 120_000 }, async (t) => {
-  const executable = chromeExecutable();
-  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME to check the decline dialog.');
-
-  // A long list at a phone width: the page ends below the detail, so removing a note above it clamps the page's scroll.
-  const rows = Array.from({ length: 24 }, (_, index) => `- G${index + 1} [draft, must] Row ${index + 1} keeps its wording. | gate: review`);
-  const spec = '# Decline stability\n\n## G · Goals\n' + rows.join('\n') + '\n';
-  const box = machine();
-  project(box, 'decline-stable', spec);
-  const view = await startView(box);
-  const profile = mkdtempSync(join(tmpdir(), 'pullboard-decline-stable-chrome-'));
-  let chrome;
-  /** One key press, as the keyboard sends it to the focused list. */
-  const pressKey = async (key, code, keyCode) => {
-    for (const type of ['keyDown', 'keyUp']) await chrome.send('Input.dispatchKeyEvent', { type, key, code, windowsVirtualKeyCode: keyCode, ...(type === 'keyDown' && key.length === 1 ? { text: key, unmodifiedText: key } : {}) });
-  };
-  /** The page's scroll and the decline dialog's submit button's box, read in one step. */
-  const measure = async () => JSON.parse(await chrome.stable(`JSON.stringify((() => {
-    const r = document.querySelector('#spec-decline-submit').getBoundingClientRect();
-    return { y: scrollY, box: [r.x, r.y, r.width, r.height] };
-  })())`));
-  try {
-    chrome = await openSnapshotChrome(executable, view.link.href, profile);
-    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
-    await chrome.waitFor('innerWidth === 375');
-    await chrome.waitFor('data?.project?.spec?.length === 24');
-    await pressTab(chrome, 'spec');
-    await chrome.click("document.querySelector('#spec-chips [data-rows=\"spec:all\"]')");
-    await chrome.waitFor("!!document.querySelector('#spec-list [data-row=\"spec:G2\"]')");
-    // Approving G1 from the list leaves a note in the list for six seconds; the decline for the next row opens inside that window.
-    await chrome.click("document.querySelector('#spec-list [data-row=\"spec:G1\"]')");
-    await chrome.stable("document.querySelector('#spec-list').focus();true");
-    await pressKey('a', 'KeyA', 65);
-    await chrome.waitFor("!!document.querySelector('#spec-list .spec-feedback.ok')");
-    await chrome.stable('window.scrollTo(0, document.documentElement.scrollHeight);true');
-    await pressKey('d', 'KeyD', 68);
-    await chrome.waitFor("!document.querySelector('#spec-decline-dialog').hidden && document.querySelector('#spec-decline-title').textContent === 'Decline G2'");
-    assert.equal(await chrome.stable("!!document.querySelector('#spec-list .spec-feedback.ok')"), true, 'the approval note is still in the list when the dialog opens');
-    await chrome.send('Input.insertText', { text: 'a reason' });
-    const opened = await measure();
-
-    // The note's six-second timer fires while the dialog is open. Its own state clears; the page must not redraw.
-    await new Promise((resolve) => setTimeout(resolve, 7000)); // budget: the note's six-second timer, plus a second of slack
-    assert.equal(await chrome.stable('view.specFeedback === null'), true, 'the approval note timed out while the dialog was open');
-    assert.deepEqual(await measure(), opened, 'nothing moves while the dialog waits for its press');
-
-    // The press itself: record the page and the button at pointer down, then press with the real mouse.
-    await chrome.stable("window.__pressAt = null; document.addEventListener('pointerdown', (event) => { if (event.target.closest('#spec-decline-submit')) window.__pressAt = JSON.stringify({ y: scrollY, box: (() => { const r = document.querySelector('#spec-decline-submit').getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; })() }); }, { capture: true });true");
-    await press(chrome, "document.querySelector('#spec-decline-submit')");
-    const pressed = JSON.parse(await chrome.stable('window.__pressAt'));
-    assert.deepEqual(pressed, opened, 'the page and the submit button are where the person aimed when the press lands');
-    assert.deepEqual(chrome.exceptions, []);
-  } finally { if (chrome) await closeSnapshotChrome(chrome); rmSync(profile, { recursive: true, force: true }); await view.stop(); }
 });

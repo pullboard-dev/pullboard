@@ -42,6 +42,7 @@ export { acceptedInventoryKey, acceptedInventoryRuntimeIdentity, readAcceptedInv
 export { cellExistsSync, cellLstatSync, cellReadFileSync, cellReaddirSync, cellSourceSnapshot, withCellSourceSnapshots } from './src/io/cell/snapshot.js';
 export { moveDeclarationFiles, runnerWorkerFiles } from './src/io/cells/move/closure.js';
 export { withParseScope, importsIn, commonJsIn, compileModules, moduleCompiles, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from './src/io/module/imports.js';
+export { namedBindingsIn } from './src/io/module/names.js';
 export { importParseScopes } from './src/io/module/cache.js';
 export { LAYOUT_RULES, layoutCounts, layoutRatchet, layoutViolations } from './src/logic/layout.js';
 export { LAYOUT_BASELINE, layoutCheck, layoutReport, layoutWrite } from './src/io/layout.js';

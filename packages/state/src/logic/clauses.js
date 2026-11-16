@@ -64,6 +64,18 @@ export function gateCoveredFiles(clause, gateFiles, item = null, { folderTicks =
   return checked.length || !titleTicks ? checked : titledFiles(clause.number, gateFiles, cases);
 }
 
+/**
+ * The case titles a test file's source declares, as rows for gateCoveredFiles' `cases`. Why: before the gate runs, submit has
+ * no outcomes, so it reads the titles the changed tests hold to decide which clauses the gate will tick (#8880) [C7].
+ *
+ * @param {string} file - The test file path.
+ * @param {string} source - Its text.
+ * @returns {{ file: string, name: string }[]}
+ */
+export function testCaseTitles(file, source) {
+  return [...String(source ?? '').matchAll(/\b(?:test|it|describe)(?:\.\w+)?\(\s*(['"`])((?:\\.|(?!\1)[^\\\n])*)\1/gu)].map(match => ({ file, name: match[2] }));
+}
+
 /** True when a test case's title cites a clause as "clause N:", the fleet's naming rule for clause cases. */
 function titledFor(number, name) {
   return new RegExp(`(?:^|[\\s>:(])clause\\s+${number}\\s*:`, 'iu').test(String(name ?? ''));
@@ -160,7 +172,7 @@ function citesHead(evidence, heads) {
  * exact commit ran. Why: the gate already proved that file; refusing the submit until the builder retypes the case
  * name with "clause N" cost two or three submits per item on 6 Nov (588 tick notes in a morning) [C7].
  */
-export function clauseInspectionProblem(item, thread, { greenFiles = new Set(), gateFiles = new Set(), head = null, folderTicks = false } = {}) {
+export function clauseInspectionProblem(item, thread, { greenFiles = new Set(), gateFiles = new Set(), head = null, folderTicks = false, titleTicks = false, cases = [] } = {}) {
   const clauses = criterionClauses(item.item_criterion);
   if (!clauses.length) return null;
   const ticks = clauseTicks(thread, item.item_owner, { criterion: item.item_criterion, head });
@@ -170,7 +182,7 @@ export function clauseInspectionProblem(item, thread, { greenFiles = new Set(), 
     const tick = ticks.get(clause.number);
     const label = `clause ${clause.number} (${clause.text.slice(0, 80)})`;
     const proven = () => RUN_EVIDENCE.test(tick.evidence) || [...greenFiles].some(file => file && tick.evidence.includes(file));
-    if (!tick && gateCoveredFiles(clause, new Set([...gateFiles, ...greenFiles]), item, { folderTicks }).length) continue;
+    if (!tick && gateCoveredFiles(clause, new Set([...gateFiles, ...greenFiles]), item, { folderTicks, titleTicks, cases }).length) continue;
     if (!tick) { problems.push(`${label} has no evidence`); if (clause.kind === null || clause.kind === 'test') testClauses.push(clause); }
     else if (clause.kind && clause.kind !== tick.kind) {
       problems.push(`${label} needs ${clause.kind} evidence, not ${tick.kind}${tick.kind === 'reasoning' ? ' (the weakest kind)' : ''}`);
@@ -273,12 +285,12 @@ export function gateClauseTickNotes(item, thread, { gateFiles, outcomes, head, f
 }
 
 /** One reviewer-facing line per clause with its evidence; reasoning is flagged as the weakest kind. */
-export function clauseInspectionSummary(item, thread, { gateFiles = new Set(), head = null, folderTicks = false } = {}) {
+export function clauseInspectionSummary(item, thread, { gateFiles = new Set(), head = null, folderTicks = false, titleTicks = false, cases = [] } = {}) {
   const clauses = criterionClauses(item.item_criterion);
   if (!clauses.length) return null;
   const ticks = clauseTicks(thread, item.item_owner, { criterion: item.item_criterion, head });
   return `inspection, clause by clause: ${clauses.map(clause => {
-    const named = ticks.has(clause.number) ? [] : gateCoveredFiles(clause, gateFiles, item, { folderTicks });
+    const named = ticks.has(clause.number) ? [] : gateCoveredFiles(clause, gateFiles, item, { folderTicks, titleTicks, cases });
     const tick = named.length ? { kind: 'test', evidence: `ticked by the gate run of ${named.join(' ')}` } : ticks.get(clause.number);
     return `${clause.number}. ${clause.text.slice(0, 80)} -> ${tick.kind}${tick.kind === 'reasoning' ? ' (weakest evidence)' : ''}: ${tick.evidence}`;
   }).join(' | ')}`;

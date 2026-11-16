@@ -18,11 +18,16 @@ import { orderMilestoneItems } from '../../../../../packages/store/index.js';
 import { proofStats } from '../../../../../packages/stats/index.js';
 import { flowStats } from '../../../../../packages/stats/index.js';
 import { FLOW_REPORT_VERSION } from '../../../../../packages/stats/index.js';
+import { DERIVED_SETTING } from '../../../../../packages/verify/index.js';
+import { derivedProofCounter } from '../../../../../packages/verify/index.js';
 import { ensureProofCounters } from '../../../../../packages/verify/index.js';
 import { runFixtureGit } from '../../../../cli/tests/fixtures/child.js';
 import { submitFixture } from '../../../../cli/tests/fixtures/board/submit.js';
 import { repositoryBoardFile } from '../../../../cli/tests/fixtures/board/submit.js';
 import { MILESTONE_PLACEMENT_ENGINE } from '../../../../../packages/state/light.js';
+
+// The report counters are read from the derived database, which the dual write fills while this setting is on (#8910, #8961).
+process.env[DERIVED_SETTING] = '1';
 
 /** This code's flow report folder: each report version keeps its shards and cursor under its own name (#2288). */
 const REPORT = `local:proof-stats:v2:report-v${FLOW_REPORT_VERSION}:`;
@@ -55,12 +60,13 @@ test('an empty indexed board has a measured empty report rather than a missing c
   assert.equal(report.overall.submissionsPerLanded, null);
 });
 
-test('flow report indexed projection matches canonical replay without hot raw history reads [R1,R2]', t => {
+test('clause 2: flow report indexed projection matches canonical replay without hot raw history reads [R1,R2]', t => {
   const board = fixture(t);
   const now = Date.now() + 60_000;
   const history = store.events(board);
   const stats = proofStats(board, { now }, statsReadPorts);
   assert.deepEqual(stats.flow.report, flowStats(history, null, now, stats).report);
+  assert.equal(derivedProofCounter(board, 'report-summary').last, history.at(-1).event_id, 'the derived database holds the report cursor at the latest event');
   const prepare = board.db.prepare.bind(board.db);
   const reads = [];
   board.db.prepare = sql => { reads.push(sql); return prepare(sql); };
@@ -306,5 +312,6 @@ test('clause 3: writers alternating between a v2-shaped and the current report v
     assert.deepEqual(proofEvents, [], `round ${round}: ordinary proof statistics are not recounted`);
     assert.deepEqual(legacyRows(), before, `round ${round}: the legacy report keys are exactly as the older writer stored them`);
   }
+  assert.equal(derivedProofCounter(board, 'report-summary').last, store.events(board).at(-1).event_id, 'the derived report cursor ends at the latest event');
   assert.equal(resets(), 0, 'no write or catch-up zeroed or restarted this version\'s report cursor');
 });

@@ -6,6 +6,7 @@ import { ITEM_GUARDS } from './item-moves.js';
 import { ITEM_OUTCOMES } from './item-moves.js';
 import { KNOWN_RULES } from './item-moves.js';
 import { LANDINGS } from './rules.js';
+import { landingOf } from './rules.js';
 import { defineRules } from './rules.js';
 
 /**
@@ -27,7 +28,28 @@ export const JOB_KINDS = Object.freeze([
   { kind: 'gate-shard', serves: 'item submitted at the candidate, one slice of its proof files; the gate result applies when the last shard posts' },
   { kind: 'test', serves: 'no item that it ends: the seat waiting on pullboard test; the board records the receipt and applies nothing' },
   { kind: 'check-baseline', serves: "item whose frozen check is measured at main; the receipt is recorded on the item's pending baseline" },
+  // Created by runScreenJob in the drive cell, for sprint items only [#8867].
+  { kind: 'screen', serves: "a submitted sprint item at its commit on the current base: the merge, static checks on its changed files, and secrets and hook rules re-checked by trusted code" },
+  // Created by runPullOutJob in the landing cell, for sprint items only: only a sprint item reaches landing pulling [#8870,#9099].
+  { kind: 'pull-out', serves: "an item whose landing is pulling: the lander reverts its landed commit on main and records pulled" },
 ]);
+
+/** The job kinds some code creates today, the ones the state map lists; a kind declared with `created: false` waits for its runner. */
+export const CREATED_JOB_KINDS = Object.freeze(JOB_KINDS.filter(job => job.created !== false).map(job => job.kind));
+
+/**
+ * Whether a job receipt counts for an item: green, from trusted code under a live lease, at the item's commit and frozen digest, and for a screen on the current base.
+ * Why one predicate: the landing rows that demand a receipt (screened, and the Always rows after it) read it here, so no row restates what a receipt must prove.
+ *
+ * @param {{ kind?: string, green?: boolean, trusted?: boolean, leased?: boolean, commit?: string, digest?: string, base?: string } | null | undefined} receipt
+ * @param {{ kind: string, item: { commit?: string | null, digest?: string | null }, base?: string | null }} at - The kind wanted, the item as it stands, and the current base.
+ * @returns {boolean}
+ */
+export function receiptCounts(receipt, { kind, item, base }) {
+  if (!receipt || receipt.kind !== kind || receipt.green !== true || receipt.trusted !== true || receipt.leased !== true) return false;
+  if (!item?.commit || receipt.commit !== item.commit || receipt.digest !== item.digest) return false;
+  return kind !== 'screen' || (Boolean(base) && receipt.base === base);
+}
 
 /**
  * The legal (status, landing) pairs, declared once; every other pair is unreachable.
@@ -55,7 +77,7 @@ const pinned = (snapshot) => snapshot.item?.commit === snapshot.job?.commit && s
 const everyItem = (snapshot, ok) => Array.isArray(snapshot.items) && snapshot.items.length > 0 && snapshot.items.every(ok);
 
 /**
- * The backbone's rules over a snapshot `{ item, items, job }`: the item's state facts, then one `serves.<kind>` fact per job kind.
+ * The backbone's rules over a snapshot `{ item, items, job, base, history }` (`base` is the current trunk tip, `history` the item's events, for its landing): the item's state facts, then one `serves.<kind>` fact per job kind.
  * Why: the serves facts are U152 rules, so a job's reason to exist is derived the same way as every guard.
  */
 export const BACKBONE_RULES = defineRules({
@@ -80,6 +102,9 @@ export const BACKBONE_RULES = defineRules({
   [servesRule('land')]: { says: JOB_KINDS[10].serves, reads: ['verifiedUnmerged'], holds: (s, m, fact) => s.job?.kind === 'land' && fact('verifiedUnmerged') && everyItem(s, (i) => i.acceptedAt === s.job.trunk) },
   [servesRule('gate-shard')]: { says: JOB_KINDS[11].serves, reads: ['submitted', 'atJobCommit'], holds: (s, m, fact) => s.job?.kind === 'gate-shard' && fact('submitted') && fact('atJobCommit') },
   [servesRule('test')]: { says: JOB_KINDS[12].serves, holds: (s) => s.job?.kind === 'test' && typeof s.job.seat === 'string' },
+  [servesRule('screen')]: { says: JOB_KINDS[14].serves, reads: ['submitted'],
+    holds: (s, m, fact) => s.job?.kind === 'screen' && fact('submitted') && s.item.pace === 'sprint' && s.item.commit === s.job.commit && Boolean(s.base) && s.job.base === s.base },
+  [servesRule('pull-out')]: { says: JOB_KINDS[15].serves, holds: (s) => s.job?.kind === 'pull-out' && Boolean(s.item) && landingOf(s.item, s.history) === 'pulling' },
   [servesRule('check-baseline')]: { says: JOB_KINDS[13].serves, holds: (s) => s.job?.kind === 'check-baseline' && s.item?.check !== undefined && s.item.check !== null },
 });
 

@@ -45,7 +45,7 @@ export function changedStaticFailures(root, files, { staged = false, only = null
       let text = mainText(file);
       // Source only: a ceiling or baseline file is keyed by path, and the move already rewrote its keys.
       if (text === null && /\.(?:[cm]?js|css)$/u.test(file)) {
-        aliases ??= movedFrom(root, staged);
+        aliases ??= movedFrom(root, staged ? (indexed ??= indexReader(root)) : null);
         text = (aliases.get(file) ?? []).map(mainText).filter(old => old !== null).join('\n');
       }
       accepted.set(file, text ?? '');
@@ -117,9 +117,10 @@ export function stagedHookFailures(root, { also = [] } = {}) {
 /**
  * New path to every older path the candidate's path map moves into it, through chains of moves. Read from the index for a
  * commit hook, else the working tree; an unreadable shard adds nothing, so a missing alias only reads as new code.
+ * Why the index reader: one `git show` per shard was 46 Git processes, most of a 20-file hook's 2 s on a slow runner [C7].
  *
  * @param {string} root - Checkout root.
- * @param {boolean} staged - Read the shards from the index.
+ * @param {((file: string) => string) | null} staged - The index reader for a commit hook; null reads the working tree.
  * @returns {Map<string, string[]>}
  */
 function movedFrom(root, staged) {
@@ -129,8 +130,7 @@ function movedFrom(root, staged) {
   for (const shard of (listed.status === 0 ? listed.stdout : '').split('\0').filter(name => name.endsWith('.json'))) {
     let data;
     try {
-      data = JSON.parse(staged ? gitSpawnSync(['show', `:${shard}`], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }).stdout
-        : readFileSync(join(root, shard), 'utf8'));
+      data = JSON.parse(staged ? staged(shard) : readFileSync(join(root, shard), 'utf8'));
     } catch { continue; } // an unreadable shard maps nothing
     if (data && typeof data === 'object' && !Array.isArray(data)) for (const [from, to] of Object.entries(data)) if (typeof to === 'string') map.set(from, to);
   }

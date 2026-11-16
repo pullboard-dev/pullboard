@@ -9,13 +9,15 @@ import { isAbsolute } from 'node:path';
 import { resolve } from 'node:path';
 import { offerLandingJob } from '../../../../../packages/api/index.js';
 import { openLandingJob } from '../../../../../packages/api/index.js';
+import { queueFor } from '../../../../../packages/api/index.js';
 import { configTrunkRemote } from '../../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { fencedHopEnabled } from '../../../../../packages/config/index.js';
+import { adaptiveBatchEnabled } from '../../../../../packages/config/index.js';
+import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { mainCheckout } from '../../../../../packages/git/index.js';
 import { tryGit } from '../../../../../packages/git/index.js';
 import { unverifiedSubmissions } from '../../../../../packages/store/index.js';
-import { lineSettings } from '../../../../../packages/store/index.js';
 import { testResults } from '../../../../../packages/store/index.js';
 import { redNow } from '../../../../../packages/gate/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
@@ -35,6 +37,7 @@ import { ensureLocalRunner } from '../runner/local.js';
 import { pullGit } from '../runner/git.js';
 import { landingShardGate } from '../submit/pull.js';
 import { openLandJobs } from './waiting.js';
+import { batchCap } from './adaptive.js';
 import { trunkCheckedOut } from './checkout.js';
 
 const TRUNK = 'refs/heads/main';
@@ -229,14 +232,16 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     for (const entry of items) publishItemRef(root, remote, entry);
     const listed = tryGit(root, ['ls-remote', '--', remote, trunkRef(root)]);
     const expect = listed.status === 0 && /^[0-9a-f]{40}/u.test(listed.stdout) ? listed.stdout.slice(0, 40) : policy.commit;
-    return underBoardWriteLock(board.db, () => {
+    // runs_store on: queueRun makes its own board transaction (intent, move, confirm), so the offers cannot sit inside this raw write lock; their ids are minted from the items, so a retried offer reuses its job [B2,P7].
+    const queue = queueFor(board, 'coordinator', { file: ctx.file });
+    return (queue ? work => work() : work => underBoardWriteLock(board.db, work))(() => {
       // A concurrent accept may have offered some of these since they were chosen; those stay with its job [C7,#7728].
       const fresh = ids ? new Set() : openLandingItems(board.db);
       const free = items.filter(entry => !fresh.has(entry.id));
       if (!free.length) return { offered: openLandingJob(board.db), items: [], waiting: false };
       // A set line.landingBatchSize splits an automatic offer into jobs of at most that many, as it capped the engine's
       // batches; each job's push finds trunk moved by the one before and merges again on the new tip [C7,#7728].
-      const size = ids ? free.length : Math.min(free.length, batchCap(board));
+      const size = ids ? free.length : Math.min(free.length, batchCap(board, { adaptive: adaptiveBatchEnabled() }));
       const jobs = [];
       // landing.ledgerMainReds: the ledger's red-now files ride on each job, so a red main already records holds no landing [C7,U152].
       const mainReds = landingMainReds(policy.config, policy.config.landing?.ledgerMainReds === true ? redNow(testResults(board.db)) : []);
@@ -248,7 +253,7 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
         const flakes = typeof pairPrefix === 'function' ? landingFlakes(root, policy, chosen.find(item => item.item_id === batch[0].id), batch[0].commit, pairPrefix) : null;
         // With gate.fencedHop on, each item's gate hop epoch rides on the job, and the runner pushes trunk through the fences [C7,#8437].
         const hops = carryLandingHops(board.db, batch, { enabled: fencedHopEnabled() });
-        const job = offerLandingJob(board.db, { items: batch, expect, trunk: trunkRef(root), forced, deferred, flakes, hops, mainReds, ...(policy.config.landing?.shardProof === true ? { shardGate: landingShardGate() } : {}), badges: badgeDocuments?.(board) ?? [],
+        const job = offerLandingJob(board.db, { items: batch, expect, trunk: trunkRef(root), forced, deferred, flakes, hops, mainReds, reofferTrunkBusy: loadMachineSettings().landing?.reofferTrunkBusy === true, reuseGateReceipts: loadMachineSettings().landing?.reuseGateReceipts === true, ...(policy.config.landing?.shardProof === true ? { shardGate: landingShardGate() } : {}), badges: badgeDocuments?.(board) ?? [], ...(queue ? { queue } : {}),
           ...(hosted ? { config: { ...policy.config, trunk: { ...policy.config.trunk, remote } }, needs: [BOARD_HOST], checkout: true, upstream: hostUpstream(root, policy.config) } : { config: policy.config, checkout: intoCheckout }) });
         ctx.io.say?.(`offered ${forced ? 'forced ' : ''}land job ${job.id} for ${batch.map(entry => `#${entry.id}`).join(' ')}; a runner merges and pushes trunk`);
         jobs.push(job.id);
@@ -256,10 +261,4 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
       return { offered: jobs[0], items: free.map(entry => entry.id), waiting: false, ...(jobs.length > 1 ? { jobs } : {}), ...(forced ? { forced } : {}) };
     });
   });
-}
-
-/** The most items one automatic land offer takes: a set line.landingBatchSize, else no cap. */
-function batchCap(board) {
-  const size = lineSettings(board).landingBatchSize;
-  return Number.isSafeInteger(size) && size >= 1 ? size : Infinity;
 }

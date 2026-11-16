@@ -6,9 +6,9 @@ import { test } from 'node:test';
 import { rebuildProofCounters } from '../../src/io/proof/counters.js';
 
 const EVENTS = 100_000;
-// Budget: the criterion's bar for a replay of this size (#8562); the replay took 71-108 s before.
+// Budget: the criterion's bar for a replay of this size (#8818, after #8562's 8 s); the replay took 71-108 s before #8562 and 7.3 s before #8818.
 // It is counted in the process's own CPU seconds: runners share one machine, and a replay's wall clock there ran 2-3 times its CPU time with other jobs queued, which says nothing about the replay.
-const REPLAY_SECONDS = 8;
+const REPLAY_SECONDS = 5;
 // Digest of every stored counter row, per kind in insertion order, from the replay of these exact events before the replay was made cheap.
 const BEFORE_DIGEST = '01f0b10ad75f7cb2';
 
@@ -49,9 +49,11 @@ function replay() {
   const seconds = (cpu.user + cpu.system) / 1e6;
   const kinds = new Map();
   for (const row of db.prepare('SELECT meta_key, meta_value FROM board_meta ORDER BY rowid').all()) {
-    const kind = row.meta_key.replace(/^local:proof-stats:v\d+:/u, '').split(':')[0];
+    // A flow report version keeps its keys in its own folder (report-v4:policy); the earlier replay stored them as report-policy, so compare under that name.
+    const name = row.meta_key.replace(/^local:proof-stats:v\d+:/u, '').replace(/^report-v\d+:/u, 'report-');
+    const kind = name.split(':')[0];
     if (!kinds.has(kind)) kinds.set(kind, createHash('sha256'));
-    kinds.get(kind).update(`${row.meta_key}\0${row.meta_value}\n`);
+    kinds.get(kind).update(`local:proof-stats:v2:${name}\0${row.meta_value}\n`);
   }
   const digest = createHash('sha256');
   for (const [kind, hash] of [...kinds].sort()) digest.update(kind + hash.digest('hex'));
@@ -59,10 +61,10 @@ function replay() {
   return (replayed = { wall, seconds, digest: digest.digest('hex').slice(0, 16), kinds: [...kinds.keys()].sort() });
 }
 
-test('clause 1: a replay of 100,000 proof counter events takes under 8 CPU seconds [C7]', t => {
+test('clause 1: a replay of 100,000 proof counter events takes under 5 CPU seconds [C7]', t => {
   const { seconds, wall } = replay();
   t.diagnostic(`replay cpu ${seconds.toFixed(2)} s, wall ${wall.toFixed(2)} s`);
-  assert.ok(seconds < REPLAY_SECONDS, `the replay took ${seconds.toFixed(1)} CPU s; the bar is ${REPLAY_SECONDS} s`); // budget: declared by #8562's frozen bar.
+  assert.ok(seconds < REPLAY_SECONDS, `the replay took ${seconds.toFixed(1)} CPU s; the bar is ${REPLAY_SECONDS} s`); // budget: declared by #8818's frozen bar.
 });
 
 test('clause 2: the replayed counters equal the counters the earlier replay stored for the same events [C7]', () => {

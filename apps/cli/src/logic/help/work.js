@@ -46,6 +46,8 @@ export const workHelp = `Work
   pullboard moves [--json]              each move table's recorded shadow compares, disagreements and first compare,
                                         and whether it is live, shadow or none; read-only
   pullboard coordinate                  resume the coordinator and print how to add agents, lane by lane; read-only, safe to run twice
+  pullboard split <id>                  file one child per numbered clause of item <id>, each with its clause and the parent's check,
+                                        each --after the one before
   pullboard roadmap                     ordered milestones, N/M landed, targets, and each item as landed,
                                         accepted or its status
   pullboard milestone add <name> [--note ...] [--items 1,2,3 --reason "<why>"]   create a release catalog entry
@@ -129,7 +131,7 @@ export const workHelp = `Work
   pullboard bar sweep-full-suite       coordinator: remove full-suite/CI pass clauses from active bars; refused rows are listed
   pullboard bar <id>                    show missing prerequisites and the current revision
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
-  pullboard release <id> --reason INELIGIBLE|ROUTED_ELSEWHERE|BLOCKED|BUDGET|TAKEN_OVER|OTHER [--note "why"] [--on <ids>] [--no-next]
+  pullboard release <id> --reason INELIGIBLE|ROUTED_ELSEWHERE|BLOCKED|BUDGET|TAKEN_OVER|OTHER (a review: BAR|FAMILY|INFRA|TOO_LARGE) [--note "why"] [--on <ids>] [--no-next]
                                         hand it back, naming why; OTHER needs the note; the reason is recorded on the release
   pullboard release <id> --stale --reason BLOCKED --note "why"  coordinator only; requires measured inactivity and a note
   pullboard release --session-end       the SessionEnd hook frees your build claims at once, keeping the work at a board ref
