@@ -50,6 +50,7 @@ function fixture(t) {
   let at = new Date('2026-01-01T00:00:00.000Z');
   // A file board, because the derived database attaches beside a board file only.
   const dir = privateFixtureFiles('pullboard-counts-').root;
+  // @pullboard-board-file persistence: the derived database attaches beside a board file only
   const board = openBoard(join(dir, 'board.sqlite'), { now: () => new Date(at) });
   t.after(() => { closeBoard(board); rmSync(dir, { recursive: true, force: true }); });
   /** Advance the deterministic board clock for the next public lifecycle move. */

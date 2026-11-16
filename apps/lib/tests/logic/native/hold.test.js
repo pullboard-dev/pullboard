@@ -95,6 +95,7 @@ test('a counter rebuild on open and a board import derive no capacity forecast u
   assert.notEqual(derived(reopened, 'summary'), null, 'opening rebuilt the missing counters');
   assert.equal(derived(reopened, 'capacity-snapshot'), null, 'the rebuild on open left the forecast to background maintenance');
   // The derived database attaches to a file board only, so the import target is a file.
+  // @pullboard-board-file persistence: the derived database attaches beside a board file only
   const replica = openBoard(join(dir, 'replica.sqlite'));
   t.after(() => store.closeBoard(replica));
   importBoard(replica, snapshot);
