@@ -73,7 +73,7 @@ export { provideMoveTables, LANDING_LEASE_MS, renewLocalLanding, assertLandingLe
 export { LANDING_LOCAL_PREFIX, localLandingEntry, rememberLocalLanding, forgetLocalLanding } from './src/logic/board/landing/local.js';
 export { COORDINATION_SHOUT, itemShoutTarget, itemShoutReader, shoutMatchesAudience, UNREAD_SHOUT_SQL, unreadShoutBindings, checkEvidence } from './src/logic/board/audience.js';
 export { workerInboxSeats, workerInboxQuery } from './src/logic/board/worker.js';
-export { holdUntilKind, rememberHoldCondition, forgetHoldMaintenance, liftConditionalHold } from './src/logic/board/holds.js';
+export { holdUntilKind, rememberHoldCondition, rememberHoldOwner, itemHoldOwner, forgetHoldMaintenance, liftConditionalHold } from './src/logic/board/holds.js';
 export { HEALTH_SHOUT_CAP, hasPendingCpuNotices, hasPendingDispatchNotices, normalizedHealthFindings, healthFindingIdentity, healthFindingNotice, healthTargets, deliverHealthNotices } from './src/logic/board/receipts.js';
 export { MISSED_AFTER, cadenceMs, recurringJobs, missedJobFindings } from './src/logic/board/jobs.js';
 export { releaseClaim } from './src/logic/board/claim.js';
@@ -130,9 +130,12 @@ export { objectItemPatch } from './src/io/board.js';
 
 export { deferOwnership, ownershipWait, ownershipWaiting, ownershipWaitForJob } from './src/io/board/wait.js';
 export { relandAccepted, acceptedRelandCandidate, relandConflictRecorded } from "./src/logic/board/reland.js";
+export { upgradeHoldOwners } from './src/io/board/hold/upgrade.js';
 export { boardHoldLog, boardHoldPercentiles, boardHoldStats, boardHoldLines, longestRecentHolds } from './src/io/board/hold/log.js';
 export { readBoardHoldBaseline, boardHoldBaselineProblems, committedBoardHoldBaselineProblems } from './src/io/board/hold/ratchet.js';
 export { GATE_HOP_SCHEMA_SQL, ensureGateHopTable, readGateHop, gateHopMove } from './src/io/board/hop.js';
 export { recordShadow, readShadow, shadowHook, claimDiffers, firstDifference } from './src/io/board/shadow-record.js';
 export { reopenDecision, reopenDiffers } from './src/io/board/reopen-table.js';
+export { mergedDecision } from './src/io/board/merged-table.js';
 export { readShadows } from './src/io/board/shadow-record.js';
+export { ENTRY_ACTIONS, KIND_ACTIONS, allowedActions, requireAllowedAction, entryLines, openEntries, recordEntryAction } from './src/logic/board/entries.js';

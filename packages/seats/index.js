@@ -187,3 +187,4 @@ export {
 } from './src/io/watchdog.js';
 export { claimWorktreeSnapshot } from './src/io/untouched.js';
 export { readSeatTiming, seatLedger, seatLines, worktreeActivity } from './src/io/ledger.js';
+export { CHECKPOINT_PARTS, buildCheckpoint } from './src/logic/checkpoint.js';
