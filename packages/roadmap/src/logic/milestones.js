@@ -44,13 +44,14 @@ function engineOf(board) {
  * @returns {string}
  */
 export function roadmapState(status, landed) {
-  if (status === 'verified' && landed) return 'landed';
+  // A hand landing closes the item as withdrawn but records a merge commit: it landed, so it keeps its place and count [#8470].
+  if ((status === 'verified' || status === 'withdrawn') && landed) return 'landed';
   return status === 'verified' ? 'accepted' : status;
 }
 
 /** Order work for shipping: unfinished items first, then verified items, preserving each group. */
 export function shippingOrder(entries) {
-  const kept = entries.filter((item) => item.status !== 'withdrawn');
+  const kept = entries.filter((item) => item.status !== 'withdrawn' || item.state === 'landed');
   const verified = kept.filter((item) => item.status === 'verified');
   return [...kept.filter((item) => item.status !== 'verified'), ...verified];
 }
