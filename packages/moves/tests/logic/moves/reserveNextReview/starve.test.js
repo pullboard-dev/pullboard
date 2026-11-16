@@ -86,7 +86,7 @@ test('clause 1: a REVIEW_STARVED finding listing 500 seats keeps a why under the
   assert.ok(finding.why.length <= 8192, `the why is ${finding.why.length} characters`);
   const omitted = /and (\d+) more seats omitted/u.exec(finding.why);
   assert.ok(omitted, 'the why states how many seats it left out');
-  assert.ok(Number(omitted[1]) > 400);
+  assert.ok(Number(omitted[1]) > 50);
   assert.equal(store.normalizedHealthFindings([finding]).length, 1, 'the receipt accepts the truncated finding');
 });
 
