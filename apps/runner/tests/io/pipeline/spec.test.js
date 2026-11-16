@@ -18,7 +18,7 @@ import {
   hopCheck,
   scratch,
   within,
-} from './kit.js';
+} from '../../../../../packages/gate/tests/fixtures/pipeline/kit.js';
 
 /** The runner request frame bound requestFor enforces. */
 const SPEC_LIMIT = 1024 ** 2;
