@@ -1,0 +1,27 @@
+/** Relay is on by demand: nothing leaves the machine until the person signs in, and a person exclusion stays [H5,H17,B26]. */
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
+
+test('a fresh machine sends no relay traffic, says it is local, and shares sealed after sign-in [H5,H17]', async (t) => {
+  const box = await relayClientFixture(t);
+  const status = await box.cli('status');
+  assert.equal(status.code, 0);
+  assert.equal(box.calls.length, 0, 'before any sign-in no request reaches the relay');
+  assert.equal(status.document.relay?.excluded, undefined);
+  await box.link();
+  assert.ok(box.calls.length > 0, 'the sign-in turns relay on and the board then syncs');
+  assert.ok(box.uploads.length > 0, 'a baseline snapshot is uploaded after sign-in');
+  assert.doesNotMatch(JSON.stringify(box.uploads), /\bitem\b.*title/u, 'uploads leave the machine sealed');
+});
+
+test('a board the person turned off stays excluded and sends nothing more [H5,B26]', async (t) => {
+  const box = await relayClientFixture(t);
+  await box.link();
+  assert.equal((await box.cli('relay', 'off')).code, 0);
+  const sent = box.calls.length;
+  const status = await box.cli('status');
+  assert.equal(status.document.relay.excluded, true);
+  assert.equal(status.document.relay.exclusion.reason, 'person relay off');
+  assert.equal(box.calls.length, sent, 'an excluded board makes no further relay request');
+});
