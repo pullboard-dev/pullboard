@@ -37,7 +37,7 @@ function landing(t) {
 
 test('clause 1: with reuseCommits the shard holding the item\'s file lists the item\'s own gate key first, before newer rows of other origins [C7,#9515]', t => {
   const { call, hits } = landing(t);
-  assert.deepEqual(hits(call({ reuseCommits: [ITEM] })), [1, 4]);
+  assert.deepEqual(hits(call({ reuseCommits: [ITEM] })), [1, 4, 3]);
 });
 
 test('clause 1: without reuseCommits the shards carry the newest rows only, as before [C7,#9515]', t => {
