@@ -80,6 +80,11 @@ export function fencedHopEnabled() {
   return loadMachineSettings().gate?.fencedHop !== false;
 }
 
+/** Whether gate.recaptureHandoff is on (#8989): off by default; nothing reads it yet, and only an exact `true` turns it on. */
+export function recaptureHandoffEnabled() {
+  return loadMachineSettings().gate?.recaptureHandoff === true;
+}
+
 /** End an item's older open gate jobs on a new candidate or a landing only when this machine opted in [C7,#8816]. */
 export function endStaleJobsEnabled() {
   return loadMachineSettings().gate?.endStaleJobs === true;
@@ -308,6 +313,11 @@ export function adaptiveBatchEnabled() {
 /** Whether the wait audit records who held a slow board write (#9118): off by default; only an exact `true` turns it on. */
 export function recordWriteHolderEnabled() {
   return loadMachineSettings().sentinels?.recordWriteHolder === true;
+}
+
+/** Whether landing.squash is on (#9217): off by default; only an exact `true` turns it on. */
+export function landingSquashEnabled() {
+  return loadMachineSettings().landing?.squash === true;
 }
 
 /** Whether the sentinel expires lapsed claims every minute (#8923): off by default; only an exact `true` turns it on. */
@@ -704,4 +714,9 @@ export function boardKey() {
   chmodSync(file, 0o600);
   if (!/^[A-Za-z0-9_-]{24,128}$/u.test(key)) throw new Refused('BAD_BOARD_KEY', `${file} does not hold a board key; delete it and run pullboard serve again to make a new one`);
   return key;
+}
+
+/** Whether landing.reuseGateReceipts is on (#9243): off by default; only an exact `true` turns it on. */
+export function reuseGateReceiptsEnabled() {
+  return loadMachineSettings().landing?.reuseGateReceipts === true;
 }

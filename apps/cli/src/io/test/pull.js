@@ -321,7 +321,7 @@ async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS,
 async function runJobFor(ctx, fields, { agent, say, testRun }) {
   const runs = testRunsHolder(ctx);
   const offered = await offerTestJob(ctx, fields, runs);
-  if (typeof testRun === 'string' && testRun) withBoard(ctx, board => writeStep(board.db, testRun, PULLED, { job: offered.job, until: Date.now() + gateRunnerWaitMs() }));
+  if (typeof testRun === 'string' && testRun) withBoard(ctx, board => writeStep((runs ?? board).db, testRun, PULLED, { job: offered.job, until: Date.now() + gateRunnerWaitMs() }));
   say?.(`pullboard test: offered test job ${offered.job} for ${fields.commit.slice(0, 12)}; a runner fetches it from the trunk remote and runs it`);
   try {
     const { receipt, runner } = await receiptOf(ctx, { job: offered.job, agent, say, runs });
