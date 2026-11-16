@@ -306,7 +306,7 @@ const ROWS = [
   // This board: line settings (recorded by the coordinator with a reason)
   ['line.agingMinutes', 'Item waiting bonus', 'A ready item gains one queue position per this many minutes waited; off preserves the existing order.', 'Line', 'minutes'],
   ['line.bar.check', 'Criterion needs a check', 'A criterion must name an executable check.', 'Line', 'on/off'],
-  ['line.bar.dryRunReview', 'Dry-run review checklist', 'submit --dry-run-review prints the verifier checklist (each bar clause, the bar-check edge cases, a test that fails without the fix) and records that it ran; advisory, never a verdict.', 'Line', 'on/off'],
+  ['line.bar.dryRunReview', 'Dry-run review checklist', 'submit --dry-run-review prints the verifier checklist (each bar clause, the bar-check edge cases, a test that fails without the fix) and records that it ran; advisory, never a verdict. ab alternates items between on and off by id and records each item\'s arm.', 'Line', 'off/on/ab'],
   ['line.bar.sharpenToPerson', 'Send vague criteria to the person', 'A rejected criterion that is unclear goes to the person to sharpen.', 'Line', 'on/off'],
   ['line.barReady', 'Criterion must be ready', 'A new criterion needs its baseline, notes and a second signature before it can be claimed.', 'Line', 'on/off'],
   ['line.collisionFreeBatch', 'Collision-free landing batches', 'Items that change the same files are kept out of the same landing batch.', 'Line', 'on/off'],
