@@ -111,6 +111,7 @@ import { fencedHopEnabled } from '../../../config/index.js';
 import { endStaleJobsEnabled } from '../../../config/index.js';
 import { redFactLocationEnabled } from '../../../config/index.js';
 import { settleOnMainReceiptEnabled } from '../../../config/index.js';
+import { recordLapseEnabled } from '../../../config/index.js';
 import { reofferTrunkBusyEnabled } from '../../../config/index.js';
 import { gateClaimHop } from './hop.js';
 import { boardJobQueueCall } from './gate.js';
@@ -1313,7 +1314,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
 async function boardJobsCall({ board, body, now }, isMain, boardOpeners) {
   // On a relay-linked board a receipt's engine moves are ordered through the relay, so every replica sees the gate's result (#7562).
   const ordered = relayLinked(board.root) ? [] : null;
-  const answer = await withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, () => 'pull'), now, drained: drainedRunnerHosts, reserve: jobReserve, hop: gateClaimHop(fencedHopEnabled()), endStale: endStaleJobsEnabled(), redLocation: redFactLocationEnabled(), settleOnMainReceipt: settleOnMainReceiptEnabled(), reofferTrunkBusy: reofferTrunkBusyEnabled(), trunk: () => trunkRemote(board.root) ?? board.root, ordered }), isMain, boardOpeners);
+  const answer = await withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, () => 'pull'), now, drained: drainedRunnerHosts, reserve: jobReserve, hop: gateClaimHop(fencedHopEnabled()), endStale: endStaleJobsEnabled(), redLocation: redFactLocationEnabled(), settleOnMainReceipt: settleOnMainReceiptEnabled(), reofferTrunkBusy: reofferTrunkBusyEnabled(), recordLapse: recordLapseEnabled(), trunk: () => trunkRemote(board.root) ?? board.root, ordered }), isMain, boardOpeners);
   if (!ordered) return answer;
   return { ...answer, relayed: await relayReceiptMoves(board.root, ordered, boardOpeners) };
 }
