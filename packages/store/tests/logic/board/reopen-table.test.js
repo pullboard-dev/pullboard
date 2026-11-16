@@ -19,6 +19,7 @@ function boardFor(t, record, { builder = false } = {}) {
   sql.prepare('INSERT INTO agent (agent_id, agent_lane, agent_path, agent_route, agent_created_at) VALUES (?, ?, ?, ?, ?)').run('core-1', 'core', '/seat/core-1', 'strong', STAMP);
   sql.prepare(`INSERT INTO item (item_id, item_lane, item_title, item_route, item_status, item_created_by, item_created_at, item_updated_at) VALUES (?, 'core', 'recorded', 'strong', 'open', 'coordinator', ?, ?)`).run(item.id, STAMP, STAMP);
   const walk = (state, fields) => { const all = { ...fields, item_status: state }; sql.prepare(`UPDATE item SET ${Object.keys(all).map(k => `${k}=?`).join(', ')} WHERE item_id=?`).run(...Object.values(all), item.id); };
+  if (record.accepted !== undefined) sql.prepare(`INSERT INTO verdict (item_id, verdict_by, verdict_decision, verdict_reason, verdict_commit, verdict_digest, verdict_head, verdict_at) VALUES (?, 'verifier-1', 'ACCEPT', 'ok', ?, ?, ?, ?)`).run(item.id, item.commit, 'd'.repeat(64), item.commit, STAMP);
   sql.exec('INSERT INTO temp.moving VALUES (1)');
   walk('claimed', { item_owner: 'core-1', item_lease_until: '2099-01-01T00:00:00.000Z', item_frozen_digest: 'd'.repeat(64) });
   walk('submitted', { item_built_by: builder ? 'core-1' : 'builder', item_commit: item.commit });
@@ -26,7 +27,6 @@ function boardFor(t, record, { builder = false } = {}) {
   sql.exec('DELETE FROM temp.moving');
   const event = sql.prepare('INSERT INTO event (event_id, event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?, ?)');
   if (record.accepted !== undefined) {
-    sql.prepare(`INSERT INTO verdict (item_id, verdict_by, verdict_decision, verdict_reason, verdict_commit, verdict_digest, verdict_head, verdict_at) VALUES (?, 'verifier-1', 'ACCEPT', 'ok', ?, ?, ?, ?)`).run(item.id, item.commit, 'd'.repeat(64), item.commit, STAMP);
     event.run(record.accepted, STAMP, 'verifier-1', 'accept', item.id, JSON.stringify({ commit: item.commit }));
   }
   if (record.failure) event.run(record.accepted + 1, STAMP, 'coordinator', 'landing_batch', null, JSON.stringify({ batch: { id: record.failure.batch, culprits: [{ id: item.id, commit: item.commit, mergeCommit: record.failure.mergeCommit, tests: record.failure.tests }] } }));
