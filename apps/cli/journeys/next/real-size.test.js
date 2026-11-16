@@ -10,6 +10,8 @@ import { seedRealSize } from '../../tests/fixtures/next/real-size.js';
 async function takeOnRealSizeBoard(t) {
   const box = await fixture(t, { route: 'light' });
   seedRealSize(box);
+  // The seat's lane and route need one open item filed the ordinary way, so the take on the big board hands out real work.
+  box.add('Real-size handout', { route: 'light' });
   const before = process.env.PULLBOARD_NEXT_PROFILE;
   process.env.PULLBOARD_NEXT_PROFILE = '1';
   try {
