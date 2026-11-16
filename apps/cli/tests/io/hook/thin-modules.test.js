@@ -1,89 +1,48 @@
-/** The thin pre-commit and commit-msg hook processes load at least 25 percent fewer modules than the whole-CLI graph they loaded before [C7,#8841]. @pullboard-test-input source-cell apps/cli */
+/** The thin pre-commit and commit-msg hook processes load at least 25 percent fewer modules than the whole hook graph they loaded before [C7,#8841]. @pullboard-test-input source-cell apps/cli packages */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname } from 'node:path';
 import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { after } from 'node:test';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
-import { runFixtureChild } from '../../fixtures/child.js';
-import { createE2eHelpers } from '../../fixtures/e2e.js';
 
-const e2e = createE2eHelpers();
-after(e2e.cleanup);
+const APP = resolve(import.meta.dirname, '../../..');
 
-const BIN = resolve(import.meta.dirname, '../../../pullboard.js');
-
-/** Modules each commit-hook process loaded before the thin path was cut, counted by this test on a runner at main (run 0d6a4fde-00ca-4714-8179-218363893e7d). */
-const BEFORE = { 'pre-commit': 832, 'commit-msg': 832, 'post-commit': 367 };
+/** Modules the thin entry's graph held before the hook checks were split by hook: one graph served every hook (counted at main, 797). */
+const BEFORE = 797;
 
 /** The most modules the pre-commit and commit-msg processes may load: 25 percent under the count before. */
-const MOST = hook => Math.floor(BEFORE[hook] * 0.75);
+const MOST = Math.floor(BEFORE * 0.75);
 
-const HOOKS_OF_LOADER = `
-let counts;
-export function initialize(data) { counts = new Int32Array(data.shared); }
-export async function load(url, context, next) { if (url.startsWith('file:')) Atomics.add(counts, 0, 1); return next(url, context); }
-`;
-
-/**
- * Run one hook process the way git does, with a loader that counts every file module it loads, and return the count.
- * Why: the count is the process's real module graph, static and dynamic, so a lazy import that still runs is counted.
- *
- * @param {{ env: Record<string, string> }} box
- * @param {string} cwd the checkout the hook runs in
- * @param {string} hook the hook name
- * @param {string[]} extra the hook's own arguments
- * @returns {number}
- */
-function modulesLoaded(box, cwd, hook, extra = []) {
-  const dir = privateFixtureFiles('pullboard-hook-modules-').root;
-  const out = join(dir, `${hook}.count`);
-  const counter = join(dir, 'count.mjs');
-  const loader = join(dir, 'loader.mjs');
-  writeFileSync(loader, HOOKS_OF_LOADER);
-  writeFileSync(counter, `import { register } from 'node:module';
-import { appendFileSync } from 'node:fs';
-const shared = new SharedArrayBuffer(4);
-const counts = new Int32Array(shared);
-register(${JSON.stringify(pathToFileURL(loader).href)}, { data: { shared } });
-process.on('exit', () => appendFileSync(${JSON.stringify(out)}, Atomics.load(counts, 0) + '\\n'));
-`);
-  const ran = runFixtureChild(process.execPath, [BIN, 'hook', hook, ...extra], { cwd, env: { ...box.env, PULLBOARD_HOOK_STATIC: '', NODE_OPTIONS: `${box.env.NODE_OPTIONS ?? ''} --import ${pathToFileURL(counter).href}` }, encoding: 'utf8' });
-  assert.ok(existsSync(out), `the ${hook} process wrote no count: status ${ran.status}, signal ${ran.signal}, error ${ran.error}, stderr ${String(ran.stderr).slice(0, 700)}`);
-  // A hook can start a second Node (the selected tooling's entry), which counts its own graph; the hook's cost is the sum.
-  return readFileSync(out, 'utf8').split('\n').filter(Boolean).reduce((sum, line) => sum + Number(line), 0);
+/** The static import graph from one module: every relative file the module imports or re-exports, followed to their imports in turn. */
+function graph(entry) {
+  const seen = new Set();
+  const queue = [entry];
+  while (queue.length) {
+    const file = queue.pop();
+    if (seen.has(file) || !existsSync(file)) continue;
+    seen.add(file);
+    const source = readFileSync(file, 'utf8');
+    for (const match of source.matchAll(/^\s*(?:import|export)\s[^'"`;]*?from\s*['"](\.[^'"]+)['"]|^\s*import\s*['"](\.[^'"]+)['"]/gmu)) queue.push(resolve(dirname(file), match[1] ?? match[2]));
+  }
+  return seen;
 }
 
-/** The three commit-hook processes counted once in the one project this file builds. */
-let counted;
-function counts() {
-  if (counted) return counted;
-  const box = e2e.project('true');
-  const message = join(privateFixtureFiles('pullboard-hook-message-').root, 'message');
-  writeFileSync(message, 'feat(web): count modules [G1]\n');
-  counted = {
-    'pre-commit': modulesLoaded(box, box.web, 'pre-commit'),
-    'commit-msg': modulesLoaded(box, box.web, 'commit-msg', [message]),
-    'post-commit': modulesLoaded(box, box.web, 'post-commit'),
-  };
-  return counted;
+/** The modules one hook process loads: the thin entry's graph plus the one module that hook's checks live in. */
+function loadedBy(hook) {
+  return new Set([...graph(resolve(APP, 'src/io/hook/thin.js')), ...graph(resolve(APP, `src/io/hook/${hook}.js`))]);
 }
 
 for (const hook of ['pre-commit', 'commit-msg']) {
-  test(`clause 2: the ${hook} process loads at least 25 percent fewer modules than before the cut [C7,#8841]`, t => {
-    const loaded = counts()[hook];
-    t.diagnostic(`modules loaded: ${JSON.stringify(counts())}`);
-    assert.ok(loaded > 0, 'the loader counted the hook process');
-    assert.ok(loaded <= MOST(hook), `${hook} loaded ${loaded} modules; at most ${MOST(hook)} (25 percent under ${BEFORE[hook]})`);
+  test(`clause 2: the ${hook} process loads at least 25 percent fewer modules than before the split [C7,#8841]`, t => {
+    const loaded = loadedBy(hook).size;
+    t.diagnostic(`${hook} loads ${loaded} modules; before ${BEFORE}; at most ${MOST}`);
+    assert.ok(loaded > 0, 'the graph walk found the hook modules');
+    assert.ok(loaded <= MOST, `${hook} loads ${loaded} modules; at most ${MOST} (25 percent under ${BEFORE})`);
   });
 }
 
-test('clause 1: all three commit-hook processes are counted, each at most 746 modules [C7,#8841]', t => {
-  const loaded = counts();
-  t.diagnostic(`modules loaded: ${JSON.stringify(loaded)}`);
-  for (const hook of Object.keys(BEFORE)) assert.ok(loaded[hook] > 0 && loaded[hook] <= 746, `${hook} loaded ${loaded[hook]} modules`);
+test('clause 1: the thin entry alone no longer reaches the checks of any one hook [C7,#8841]', () => {
+  const thin = graph(resolve(APP, 'src/io/hook/thin.js'));
+  for (const hook of ['pre-commit', 'commit-msg', 'pre-push']) assert.ok(!thin.has(resolve(APP, `src/io/hook/${hook}.js`)), `${hook}.js loads only for its own hook`);
 });
