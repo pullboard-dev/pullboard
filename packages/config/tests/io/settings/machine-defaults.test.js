@@ -21,6 +21,7 @@ const BEFORE = {
   'census.rerunOnSettle': false,
   'claim.refuseOffMainHead': false,
   'flakes.rereadRatchet': false,
+  'freeze.refuseEmptyBar': false,
   'gate.browserByLaunch': false,
   'gate.browserFreeChecks': false,
   'gate.diskFloorMB': 10240,
