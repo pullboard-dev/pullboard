@@ -77,7 +77,7 @@ async function rerunNonGreen({ rows, out, sha, run, base, pulled }) {
       const header = parseShardHeader(text);
       if (header) { pending = header; return; }
       if (!pending || /^# landing (?:shards?|timing|floor|file|result)\b/u.test(text) || !finalStatus(pending.status)) return;
-      [again] = shardRows({ ...pending, files: [first.file], outcomes: allTestOutcomes(text), times: shardFileTimes(text) }, sha);
+      [again] = shardRows({ ...pending, output: text, files: [first.file], outcomes: allTestOutcomes(text), times: shardFileTimes(text) }, sha);
       pending = null;
     };
     try { await run({ ...base, files: [first.file], count: 1, write }); } catch { /* a rerun with no answer leaves the file unrun */ }
