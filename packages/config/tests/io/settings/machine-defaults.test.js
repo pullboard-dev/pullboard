@@ -36,6 +36,7 @@ const BEFORE = {
   'gate.queue.agingMinutes': 30,
   'gate.queue.currentReleaseFirst': false,
   'gate.queue.reviewsFirst': false,
+  'gate.recaptureHandoff': false,
   'gate.redFactLocation': false,
   'gate.refuseMissingCheckFile': false,
   'gate.refuseTempWorktree': false,
