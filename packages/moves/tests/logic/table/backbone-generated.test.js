@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { BACKBONE_RULES } from '../../../index.js';
 import { BACKBONE_STATES } from '../../../index.js';
 import { BACKBONE_TABLE } from '../../../index.js';
+import { CREATED_JOB_KINDS } from '../../../index.js';
 import { JOB_KINDS } from '../../../index.js';
 import { LEGAL_LANDING } from '../../../index.js';
 import { landingEngine } from '../../../index.js';
@@ -217,4 +218,9 @@ test('moves.backbone.legal-landing-pair: clause 3: every outcome of every move t
   assert.ok(writes.some(w => w.to[0] === 'withdrawn' && w.to[1] === 'landed'), 'a forced hand landing of unfinished work writes withdrawn with landed');
   const illegal = writes.filter(w => !legalLanding(...w.to));
   assert.deepEqual(illegal.slice(0, 5), [], `${illegal.length} writes left an illegal pair`);
+});
+
+test('clause 2: every declared job kind is created by code, pull-out by the lander, so none waits for a runner [M2,R3,#9100]', () => {
+  assert.deepEqual(CREATED_JOB_KINDS, KINDS);
+  assert.equal(JOB_KINDS.some(job => job.created === false), false);
 });
