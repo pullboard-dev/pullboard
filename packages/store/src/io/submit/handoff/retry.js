@@ -1,6 +1,8 @@
 import { movesLiveEnabled } from "../../../../../config/index.js";
 import { shadowed } from "./shadow.js";
 import { startDecision } from "./shadow.js";
+import { liveStartDecision } from "./shadow.js";
+import { liveSetting } from "../../board/submit.js";
 import { shadowHook } from "../../board/shadow-record.js";
 import { shadowDecide } from "../../board/shadow-record.js";
 import { firstDifference } from "../../board/shadow-record.js";
@@ -294,8 +296,48 @@ function withdrawGate(board, id, { agentId }) {
  */
 export function startSubmitHandoff(board, id, options) {
   const hookProblem = () => { try { requireSubmitHandoffHookProof(board, id, submitHandoff(board, id), options.hookProjection); return null; } catch (error) { return { code: error.code, message: error.message, next: error.next }; } };
-  return shadowed(board, 'startSubmitHandoffShadow', id, (board.executionEngineVersion ?? ENGINE_VERSION) >= RUNNING_HANDOFF_ITEM_CHECK_ENGINE,
+  const modelled = (board.executionEngineVersion ?? ENGINE_VERSION) >= RUNNING_HANDOFF_ITEM_CHECK_ENGINE;
+  // With moves.live.handoff on (a board's own `movesLive.handoff` stands in for the setting in a store test), the START table decides: it refuses before any
+  // write opens and the record and events it names are the ones written. The setting is read here, before the board write, so no file I/O runs inside it [C7,#8385].
+  if (modelled && liveHandoff(board)) return liveStartHandoff(board, id, options, hookProblem);
+  return shadowed(board, 'startSubmitHandoffShadow', id, modelled,
     () => startDecision(board, id, options, { retryLimit: INFRASTRUCTURE_RETRY_LIMIT, infrastructureCodes: INFRASTRUCTURE_CODES }, hookProblem), () => writeStartHandoff(board, id, options), { table: 'start', differs: startDiffers });
+}
+
+/** Whether moves.live.handoff is on for this board: its own `movesLive.handoff` (a store test), else the machine setting. A file read, so call it before a board write opens. */
+function liveHandoff(board) {
+  return (board.movesLive?.handoff ?? liveSetting('handoff')) === true;
+}
+
+/** What a move's refusal and the state it must still find on the board: the saved hand-off and the item's claim, as one string to compare. */
+function basis(board, id) {
+  const item = board.db.prepare('SELECT item_status, item_owner, item_lease_until, item_frozen_digest FROM item WHERE item_id = ?').get(id);
+  return JSON.stringify([submitHandoff(board, id), item ? { ...item } : null]);
+}
+
+/**
+ * Write what a hand-off table decided: its events in order, a shout as a shout and the hand-off record as the saved record, which logs its own event.
+ * `release` is the one event whose item move the writer's release does, so it is called, not logged twice.
+ */
+function writeHandoffEvents(board, id, decided) {
+  for (const event of decided.events) {
+    if (event.kind === 'shout') insertShout(board, { from: event.by, to: event.detail.to, text: event.detail.text, lanes: [] });
+    else if (event.kind === 'submit-handoff') record(board, id, decided.record ?? decided.job);
+    else if (event.kind === 'release') release(board, id, event.by, event.detail.reason, undefined, event.detail.reasonCode);
+    else logEvent(board, event.by, event.kind, id, event.detail);
+  }
+}
+
+/** The live start: the START table decides before the write opens, then its record and events are written; a hand-off that moved in between is refused. */
+function liveStartHandoff(board, id, options, hookProblem) {
+  const was = basis(board, id);
+  const decided = liveStartDecision(board, id, options, { retryLimit: INFRASTRUCTURE_RETRY_LIMIT, infrastructureCodes: INFRASTRUCTURE_CODES }, hookProblem);
+  if (decided.refused) throw new Refused(decided.refused.code, decided.refused.message, decided.refused.next);
+  return atomic(board, () => {
+    if (basis(board, id) !== was) throw new Refused('SUBMIT_HANDOFF_CHANGED', 'the hand-off changed while this move was decided', `read pullboard show ${id} for the current queued submission and try again`);
+    writeHandoffEvents(board, id, decided);
+    return { started: decided.via === 'start', job: decided.events.length ? structuredClone(decided.job) : decided.job };
+  });
 }
 
 /** Where the START table's answer and the start writer's part: the refusals, whether a gate started, or else the kept hand-off record. */
@@ -339,18 +381,27 @@ function writeStartHandoff(board, id, options) {
  */
 export function completionDecision(board, id, { result, agentId, job: jobId, returnToBoard: toBoard }) {
   const saved = submitHandoff(board, id);
-  if (!saved || saved.id !== jobId || saved.agentId !== agentId) return { refused: { code: 'SUBMIT_HANDOFF_CHANGED' } };
+  const changed = 'read the current queued submission; an old or foreign worker cannot complete it';
+  if (!saved || saved.id !== jobId || saved.agentId !== agentId) return { refused: { code: 'SUBMIT_HANDOFF_CHANGED', message: changed, next: changed } };
   const item = getItem(board, id);
   const wait = ownershipWaitForJob(board, saved.id);
+  // The writer's own check of an ownership wait's receipt, handed to the table as the refusal it passes through (a finished hand-off is stored as it is, so it asks nothing).
+  const waitProblem = ['queued', 'running'].includes(saved.state) && (wait || result?.code === 0 && result.ownershipWait)
+    && (!wait || wait.agentId !== saved.agentId || wait.commit !== saved.executionCommit || result?.ownershipWait && wait.key !== result.ownershipWait
+      || wait.tree !== saved.executionTree || wait.digest !== saved.digest || wait.main !== saved.main)
+    ? { code: 'SUBMIT_HANDOFF_RESULT', message: 'the queued source needs its own immutable ownership-wait receipt', next: 'wait for the ownership receipt of this exact source, then complete the queued gate' } : null;
   const events = board.db.prepare("SELECT event_by AS by, event_detail AS detail FROM event WHERE item_id=? AND event_kind='submit' ORDER BY event_id").all(id).map(row => ({ by: row.by, detail: JSON.parse(row.detail) }));
   const snapshot = { now: now(board), actor: { id: agentId, joined: true },
     item: { id, status: item.item_status, owner: item.item_owner, leaseUntil: item.item_lease_until, frozenDigest: item.item_frozen_digest, builtBy: item.item_built_by, commit: item.item_commit },
-    children: [], rejects: [], history: [], submits: events, receipts: proofReceipts(board, id), handoff: saved, io: {}, deferred: { ownershipWait: wait ? { key: wait.key } : null } };
+    children: [], rejects: [], history: [], submits: events, receipts: proofReceipts(board, id), handoff: saved, io: {}, deferred: { ownershipWait: wait ? { key: wait.key } : null, ownershipWaitProblem: waitProblem } };
   const move = { id, actor: agentId, job: jobId, result, ...(toBoard === true ? { returnToBoard: true } : {}), ...(result?.windowSpent === true ? { windowSpent: true } : {}) };
   const answer = runSubmitTable('COMPLETE', { retryLimit: INFRASTRUCTURE_RETRY_LIMIT, infrastructureCodes: INFRASTRUCTURE_CODES }, snapshot, move);
-  if (answer.refused) return { refused: { code: answer.refused.code, message: answer.refused.message } };
+  if (answer.refused) {
+    const injected = answer.refused.code.startsWith('deferred:') ? snapshot.deferred[answer.refused.code.slice('deferred:'.length)] : null;
+    return { refused: injected ? { code: injected.code, message: injected.message, next: injected.next } : { code: answer.refused.code, message: answer.refused.message, next: answer.refused.next } };
+  }
   const outcome = answer.table.outcomes.find(o => o.id === answer.via[0]);
-  return { via: answer.via[0], events: answer.events, record: outcome.record?.(snapshot, move) };
+  return { via: answer.via[0], events: answer.events, patch: answer.patch, record: outcome.record?.(snapshot, move) };
 }
 
 /** The events a write left on the thread since `after`, in the shape the table writes them: shouts by recipient and text, the rest by kind, writer and detail. */
@@ -369,6 +420,8 @@ function eventsSince(board, after) {
 export function completeSubmitHandoff(board, id, options) {
   const { result, withdrawn } = options;
   const modeled = (board.executionEngineVersion ?? ENGINE_VERSION) >= Math.max(QUEUED_RED_RETURN_ENGINE, PIPELINE_CAUSE_ENGINE, CONVEYOR_RETURN_ENGINE, INFRA_HANDOFF_RECOVERY_ENGINE, DEAD_HANDOFF_RETRY_ENGINE);
+  // With moves.live.handoff on, the COMPLETE table decides before the write opens, and the record and events it names are the ones written [C7,#8385].
+  if (withdrawn !== true && result != null && modeled && liveHandoff(board)) return liveCompleteHandoff(board, id, options);
   const hook = withdrawn === true || result == null || !modeled ? null : shadowHook(board, 'submitCompleteShadow', 'complete', completeDiffers, shadowSetting);
   if (!hook) return writeCompletion(board, id, options);
   const decided = shadowDecide(hook, () => completionDecision(board, id, options));
@@ -378,6 +431,19 @@ export function completeSubmitHandoff(board, id, options) {
   hook({ id, decided, wrote });
   if (wrote.refused) throw new Refused(wrote.refused.code, wrote.refused.message);
   return wrote.record;
+}
+
+/** The live completion: the COMPLETE table refuses before the write opens, or its lease patch, events and hand-off record are written; a hand-off that moved in between is refused. */
+function liveCompleteHandoff(board, id, options) {
+  const was = basis(board, id);
+  const decided = completionDecision(board, id, options);
+  if (decided.refused) throw new Refused(decided.refused.code, decided.refused.message, decided.refused.next);
+  return atomic(board, () => {
+    if (basis(board, id) !== was) throw new Refused('SUBMIT_HANDOFF_CHANGED', 'the hand-off changed while this move was decided', `read pullboard show ${id} for the current queued submission and try again`);
+    if (decided.patch?.leaseUntil) setItem(board, id, { item_lease_until: decided.patch.leaseUntil });
+    writeHandoffEvents(board, id, decided);
+    return decided.record ? structuredClone(decided.record) : submitHandoff(board, id);
+  });
 }
 
 /** Where the COMPLETE table's answer and the completion writer's part: the refusals' codes, then the saved record, then the events written. */
