@@ -93,6 +93,7 @@ const BEFORE = {
   'moves.live.reopen': false,
   'moves.live.submit': false,
   'moves.shadow': false,
+  'next.capBuilders': 0,
   'next.itemNotices': false,
   'next.readinessCheck': false,
   'push.rerunFailedShardOnce': false,

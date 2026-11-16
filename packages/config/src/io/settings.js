@@ -422,6 +422,15 @@ export function nextItemNotices() {
 }
 
 /**
+ * The builder cap behind next.capBuilders (#8545): the most seats that may hold a claim at once before next offers a review
+ * instead of a build; 0 (default) is off, and anything but a positive whole number is off, so a damaged value never starves builds.
+ */
+export function nextCapBuilders() {
+  const cap = loadMachineSettings().next?.capBuilders;
+  return Number.isInteger(cap) && cap > 0 ? cap : 0;
+}
+
+/**
  * Whether next passes over an item whose readiness command exits non-zero (#8793): off by default, so next offers items as
  * before; only an exact `true` turns it on.
  */
