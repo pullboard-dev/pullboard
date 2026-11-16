@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { closeBoard } from '../../index.js';
+import { submitFixture } from '../../../../apps/cli/tests/fixtures/board/submit.js';
 import { writeBoardMeta } from '../../index.js';
 import { FIXTURE_MODEL } from '../../../../apps/cli/tests/fixtures/child.js';
 // The board composition root through the board package's fixture, which tests already use (#8202).
@@ -281,4 +282,24 @@ export function cellClaim(board, id, seat, { root, leaseMs = 2 * 60 * 60 * 1000,
   const info = repoInfo(root);
   const freeze = criterionFreezer({ root: info.root, isMain: info.isMain, config: loadConfig(info.root) }, { board });
   return claim(board, id, { agentId: seat.id, lane: seat.lane, leaseMs, freeze, head: headCommit(info.root), ...options });
+}
+
+/**
+ * Seed a board file with one submitted item whose builder declared a family, and review seats of that family that declared not-same-family.
+ * Why: a test of what health says about review supply needs seats and a waiting review without running a gate.
+ *
+ * @param {string} file - The board file.
+ * @param {{ lane: string, family: string, reviewers: number }} shape
+ * @returns {number} The submitted item's id.
+ */
+export function seedLimitedReviewQueue(file, { lane, family, reviewers }) {
+  const board = openKitBoard(file);
+  try {
+    const builder = register(board, { lane, path: '/seeded/builder', route: 'strong', family, model: FIXTURE_MODEL });
+    for (let index = 0; index < reviewers; index++) register(board, { lane, path: `/seeded/reviewer-${index}`, route: 'strong', family, model: FIXTURE_MODEL, reviewLimits: ['not-same-family'] });
+    const id = addItem(board, { by: 'coordinator', lane, title: 'Seeded review waits', route: 'strong' });
+    claim(board, id, { agentId: builder, lane, leaseMs: 3_600_000, freeze: row => ({ text: row.item_title, digest: `digest:${row.item_title}` }) });
+    submitFixture(board, id, { agentId: builder, commit: '1'.repeat(40), tree: '1'.repeat(40) });
+    return id;
+  } finally { closeBoard(board); }
 }
