@@ -9,6 +9,7 @@ import { openCellBoard } from '../../fixtures/cell.js';
 import { exportBoard } from '../../../index.js';
 import { importBoard } from '../../../index.js';
 import { RUN_OBJECT_NAMES } from '../../../index.js';
+import { ensureGateHopTable } from '../../../index.js';
 
 /** Every schema object on the board except the run table's own (its key index included) and SQLite's statistics tables, by name, with its SQL. */
 function otherObjects(db) {
@@ -43,6 +44,8 @@ test('a board opens with the run table, its columns and its two indexes [R2,S2]'
 test('a board without the run table gains it on its next open, and no other table, index or version changes [R2,S2]', t => {
   const file = join(cellSandbox(t).dir, 'board.sqlite');
   const first = openCellBoard(file);
+  // The fenced hop creates the hop table on a live board, so this board has it and only the run table is missing (#8465).
+  ensureGateHopTable(first.db);
   first.db.exec('DROP TABLE run');
   const before = otherObjects(first.db);
   const version = first.db.prepare('PRAGMA user_version').get().user_version;

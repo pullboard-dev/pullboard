@@ -7,6 +7,7 @@ import { runStaticStageAdmitted } from '../../../src/io/static/stage.js';
 import { staticCheckSlots } from '../../../../../packages/config/index.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { fixtureMachineSettings } from '../../fixtures/testkit.js';
+import { fixtureCommittedGraph } from '../../fixtures/testkit.js';
 
 /** A stage command that prints the given lines and exits with the given status, through the real shell. */
 const printing = (lines, status) => `printf '%s\\n' ${lines.map(line => `'${line}'`).join(' ')}; exit ${status}`;
@@ -113,4 +114,46 @@ test('clause 2: the static slot count is 2 by default and comes from the gate.st
   try { assert.equal(staticCheckSlots(), 2); } finally { restore(); }
   restore = isolatedMachine({ gate: { staticSlots: 5 } });
   try { assert.equal(staticCheckSlots(), 5); } finally { restore(); }
+});
+
+/** A committed repository with main at its first commit and the item one commit ahead; returns its writer and main's commit. */
+function committedItem() {
+  const graph = fixtureCommittedGraph('pullboard-static-memo-');
+  graph.put('a.js', 'export const a = 1;\n');
+  const main = graph.commit();
+  graph.put('b.js', 'export const b = 2;\n');
+  graph.commit();
+  return { files: { root: graph.root, write: graph.put }, main };
+}
+
+/** Run the admitted stage twice on one tree, `between` running after the first; returns how often the stage ran and what the second said. */
+async function twice(settings, between = () => {}) {
+  const restore = isolatedMachine(settings);
+  const { files, main } = committedItem();
+  try {
+    let runs = 0;
+    const said = [];
+    const options = { command: 'true', main, run: async () => { runs += 1; return 0; } };
+    assert.equal(await runStaticStageAdmitted({ say() {} }, files.root, options), 0);
+    between(files);
+    assert.equal(await runStaticStageAdmitted({ say: text => said.push(text) }, files.root, options), 0);
+    return { runs, said: said.join('\n') };
+  } finally { restore(); rmSync(files.root, { recursive: true, force: true }); }
+}
+
+test('clause 1: with gate.staticMemo on, a rerun on the same clean tree and main answers green without running the stage [C7]', async () => {
+  const { runs, said } = await twice({ gate: { staticMemo: true } });
+  assert.equal(runs, 1);
+  assert.match(said, /static stage green: kept from a green run of this exact clean tree and main/u);
+});
+
+test('clause 2: with gate.staticMemo at its default (off), the stage runs again on the same tree [C7]', async () => {
+  const { runs, said } = await twice(undefined);
+  assert.equal(runs, 2);
+  assert.doesNotMatch(said, /kept/u);
+});
+
+test('clause 2: with gate.staticMemo on, an uncommitted change runs the stage again [C7]', async () => {
+  const { runs } = await twice({ gate: { staticMemo: true } }, files => files.write('b.js', 'export const b = 3;\n'));
+  assert.equal(runs, 2);
 });

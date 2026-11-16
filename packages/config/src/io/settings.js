@@ -80,6 +80,11 @@ export function fencedHopEnabled() {
   return loadMachineSettings().gate?.fencedHop !== false;
 }
 
+/** End an item's older open gate jobs on a new candidate or a landing only when this machine opted in [C7,#8816]. */
+export function endStaleJobsEnabled() {
+  return loadMachineSettings().gate?.endStaleJobs === true;
+}
+
 /** Fail the registry check on an unregistered test only when this machine opted in; off, it reports [C7,#8374]. */
 export function registryStrictEnabled() {
   return loadMachineSettings().tests?.registryStrict === true;
@@ -232,12 +237,25 @@ export function refuseTempWorktree() {
   return loadMachineSettings().gate?.refuseTempWorktree === true;
 }
 
+/** Whether the sentinel expires lapsed claims every minute (#8923): off by default; only an exact `true` turns it on. */
+export function lapsedSweepEnabled() {
+  return loadMachineSettings().health?.lapsedSweep === true;
+}
+
 /**
  * Whether an item hold must name an owner and records a deadline (#8539): off by default, so holds are unchanged; only an
  * exact `true` turns it on.
  */
 export function holdsRequireOwner() {
   return loadMachineSettings().holds?.requireOwner === true;
+}
+
+/**
+ * Whether next lists the shouts and rulings that name the item it hands out (#8787): off by default, so next prints exactly
+ * what it did before; only an exact `true` turns it on.
+ */
+export function nextItemNotices() {
+  return loadMachineSettings().next?.itemNotices === true;
 }
 
 /**
@@ -282,6 +300,14 @@ export function localLoadShare() {
 export function staticCheckSlots() {
   const slots = loadMachineSettings().gate?.staticSlots;
   return Number.isSafeInteger(slots) && slots > 0 ? slots : 2;
+}
+
+/**
+ * Whether a green local `pullboard gate --static` is kept for its exact clean tree and main: gate.staticMemo, default off.
+ * Why: a refused submit is usually resubmitted on the same tree, and its static rerun repeated a green minute of full CPU [C7].
+ */
+export function staticMemoOn() {
+  return loadMachineSettings().gate?.staticMemo === true;
 }
 
 /**
