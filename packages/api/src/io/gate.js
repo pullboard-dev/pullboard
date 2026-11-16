@@ -1046,8 +1046,9 @@ export function settleWaitingGates(board, mainTest, { compareWithMain = null, se
     try {
       const applied = applyGateReceipt(board, { job, receipt }, { compareWithMain });
       if (applied.applied) settled.push(job);
-      // The settled result is named on the thread, so show says no resubmit was needed [C7,#9057].
-      if (settleOnMainReceipt && ['review', 'red'].includes(applied.outcome)) store.appendFact(board, item, { agentId: 'coordinator', kind: 'measurement',
+      // The settled result is named on the thread under the submitting seat, as the gate's own result is, so show says no resubmit was needed [C7,#9057].
+      const agentId = offeredGate(db, job)?.submit?.agentId;
+      if (settleOnMainReceipt && agentId && ['review', 'red'].includes(applied.outcome)) store.appendFact(board, item, { agentId, kind: 'measurement',
         text: `Gate job ${job} settled ${applied.outcome === 'review' ? 'green' : 'red'} when main-test job ${mainTest} recorded main's receipt for ${file}; judged from the item's recorded run, with no new submit.`.slice(0, 2000) });
     }
     catch (error) {
