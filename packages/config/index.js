@@ -57,6 +57,7 @@ export {
   redFactLocationEnabled,
   settleOnMainReceiptEnabled,
   movesShadowEnabled,
+  censusRerunNonGreenEnabled,
   registryStrictEnabled,
   movesLiveEnabled,
   gateRunnerAdmission,
