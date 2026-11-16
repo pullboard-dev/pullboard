@@ -6,5 +6,3 @@ export {
   policyRepository,
   temporaryRepository,
 } from '../../../../../packages/store/tests/fixtures/submit.js';
-/** The store cell's fixture opens its boards through this app door, which reaches the board package's fixture through the lib door. */
-export { openKitBoard } from '../../../../lib/tests/fixtures/board.js';
