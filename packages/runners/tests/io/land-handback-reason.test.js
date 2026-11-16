@@ -3,10 +3,9 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import { serveRunner } from '../../../drive/index.js';
-import { testGit as pullGit } from '../../../drive/tests/fixtures/git.js';
-import { runLandingJob } from '../../../landing/index.js';
+import { testGit as pullGit } from '../fixtures/git.js';
 import { cellBoard } from '../../../store/tests/fixtures/cell.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { backOffLease } from '../../../jobs/index.js';
 import { createJob } from '../../../jobs/index.js';
 import { jobView } from '../../../jobs/index.js';
@@ -42,12 +41,13 @@ function boardBehindFetch(t, payload) {
   return board;
 }
 
-/** Serve one claim with the same land handler the installed runner service uses, and the setting as given. */
+/** Serve one claim with a land handler stand-in, and the setting as given. */
 async function serve(t, board, handBackUnrunnable) {
   const { root } = privateFixtureFiles('pullboard-landback-cache-');
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const handlers = { land: (claim, { renew, env }) => runLandingJob(claim.payload, { workdir: `${root}/land`, renew, env, handBackUnrunnable }) };
-  return serveRunner({ git: pullGit, board: BOARD, runner: 'mill', capabilities: [], cache: root, once: true, fetchImpl: board.fetchImpl, handlers, trunkPack: async () => {} });
+  // The stand-in land handler would start the job; with the setting on, the runner never reaches it for this request.
+  const handlers = { land: async () => ({ outcome: 'started' }) };
+  return serveRunner({ git: pullGit, board: BOARD, runner: 'mill', capabilities: [], cache: root, once: true, fetchImpl: board.fetchImpl, handlers, trunkPack: async () => {}, handBackUnrunnable });
 }
 
 test('clause 1: with jobs.handBackUnrunnable on, a runner given a land job whose shardProof run is missing releases it before any fetch, in the claim call, with a LAND_UNRUNNABLE reason [test] [C7,#9249]', async t => {

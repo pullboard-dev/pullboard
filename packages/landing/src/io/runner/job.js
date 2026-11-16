@@ -227,20 +227,6 @@ function landingGuards(payload, phases) {
 }
 
 /**
- * Why a land job cannot start on this runner, or null when it can: its shardProof run is missing (moved to the request and never read back) or has no argv or entry [C7,#9249].
- *
- * @param {Record<string, any>} payload
- * @returns {string | null}
- */
-export function unrunnableLandReason(payload) {
-  const moved = Array.isArray(payload?.requested) && payload.requested.includes('shardProof');
-  const proof = payload?.shardProof;
-  if (!proof) return moved ? 'shardProof was moved to the job request and the request did not carry it back' : null;
-  if (!Array.isArray(proof.run) || !proof.run.length || !proof.run.every(word => typeof word === 'string')) return 'shardProof.run is not a non-empty argv of strings';
-  return typeof proof.entry === 'string' && proof.entry ? null : 'shardProof.entry is missing';
-}
-
-/**
  * The land job's check of the items merged so far: the landing guards, each merged item's own check, the job's command,
  * the ledger proof over the proved files the merged tree holds, then the contracts, stopping at the first red. Why the file filter: a
  * culprit search merges items one at a time, and a file only a later item adds is not in that tree yet [P7].
@@ -366,18 +352,15 @@ function firstMerges(root, base, tip, pending) {
  *   the remote is the board host's checkout, whose checked-out trunk the push updates in place [P7]; upstream: that checkout's own remote, which then takes the
  *   landed tip fast-forward [#7398]; waivers: the person's live waivers the proof may honour [#655].
  * @param {{ workdir: string, checks?: (context: { root: string, base: string, items: number[], renew: () => Promise<boolean> | boolean }) => Promise<{ ok: boolean, detail?: string | null }> | { ok: boolean, detail?: string | null },
- *   renew?: () => boolean | Promise<boolean>, diagnose?: Function | null, handBackUnrunnable?: boolean, attempts?: number, pushOptions?: () => string[], env?: NodeJS.ProcessEnv }} options - env: the proof's environment, a pulled job's so its ledger context key matches the gate's; pushOptions: the current lease's landing permit as git push options.
+ *   renew?: () => boolean | Promise<boolean>, diagnose?: Function | null, attempts?: number, pushOptions?: () => string[], env?: NodeJS.ProcessEnv }} options - env: the proof's environment, a pulled job's so its ledger context key matches the gate's; pushOptions: the current lease's landing permit as git push options.
  * `diagnose` (from the runner's handler setup, since packages never import apps) reads a red's failing cases and pairs them: ({ root, base, output, role, flakes, head, tree }) => the receipt's `red` record, or null.
  * @returns {Promise<{ kind: string, outcome: 'landed' | 'conflict' | 'red' | 'item-moved' | 'trunk-busy' | 'lease-lost' | 'push-failed' | 'proof-timeout',
  *   expect: string, base: string | null, trunk: string | null, landed: number[], already: number[], attempts: number, moved: string[], detail: string | null,
  *   returned: { id: number, reason: 'red' | 'conflict' | 'hook', detail: string }[] }>} returned: the items the board sends back to their builders, or parks
  *   under separate publish (payload.publish), as 0.9.3's landing did; a red outcome lands nothing.
  */
-export async function runLandingJob(payload, { workdir, checks = null, renew = () => true, attempts = PUSH_ATTEMPTS, pushOptions = () => [], env = process.env, diagnose = null, shards = null, handBackUnrunnable = false }) {
+export async function runLandingJob(payload, { workdir, checks = null, renew = () => true, attempts = PUSH_ATTEMPTS, pushOptions = () => [], env = process.env, diagnose = null, shards = null }) {
   const { remote, trunk, expect, items } = payload;
-  // jobs.handBackUnrunnable: the runner releases the job with this message at once, as it does for a newer payload shape below [C7,#9249].
-  const unrunnable = handBackUnrunnable ? unrunnableLandReason(payload) : null;
-  if (unrunnable) throw Object.assign(new Error(`[LAND_UNRUNNABLE] this runner cannot run the land job: ${unrunnable}; next: the board offers it again once the request is whole`), { code: 'LAND_UNRUNNABLE' });
   if (Number.isSafeInteger(payload.shape) && payload.shape > LANDING_PAYLOAD_SHAPE) {
     // A plain coded error: this cell takes no kernel import, and the runner releases the job with this message, which names the code.
     throw Object.assign(new Error(`[LANDING_PAYLOAD_VERSION] land job payload shape ${payload.shape} is newer than this runner's code (shape ${LANDING_PAYLOAD_SHAPE}); next: update this runner's pullboard checkout and restart it`), { name: 'Refused', code: 'LANDING_PAYLOAD_VERSION' });

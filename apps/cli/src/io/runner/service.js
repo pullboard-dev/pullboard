@@ -16,8 +16,7 @@ import { pullGit } from './git.js';
 /** A pulled land job, as `pullboard runner serve` runs it: merge, check and push trunk by compare-and-swap in the cache [P7]. */
 async function land(claim, { cache, renew, env }) {
   const { runLandingJob } = await import('../../../../../packages/landing/index.js');
-  // jobs.handBackUnrunnable: a land job this runner cannot start goes back with the reason, not to a lapsed lease [C7,#9249].
-  return runLandingJob(claim.payload, { workdir: join(cache, 'land'), renew, env, handBackUnrunnable: runnerSettingOn(machineSettingsFile(), 'jobs.handBackUnrunnable') });
+  return runLandingJob(claim.payload, { workdir: join(cache, 'land'), renew, env });
 }
 
 const [board, keyFile, cache, hint] = process.argv.slice(2);
@@ -28,7 +27,7 @@ try {
   say(`runner serve pulling from ${board}`);
   await serveRunner({ board, key: readFileSync(keyFile, 'utf8').trim(), cache, handlers: { land }, git: pullGit, signal: stop.signal, say, unreachableHint: hint,
     fetchFailFast: runnerSettingOn(machineSettingsFile(), 'runners.fetchFailFast'), drainOnFetchFailure: runnerSettingOn(machineSettingsFile(), 'runners.drainOnFetchFailure'),
-    pruneYields: runnerSettingOn(machineSettingsFile(), 'runners.yieldWhilePruning'),
+    pruneYields: runnerSettingOn(machineSettingsFile(), 'runners.yieldWhilePruning'), handBackUnrunnable: runnerSettingOn(machineSettingsFile(), 'jobs.handBackUnrunnable'),
     postedLineNamesCase: runnerSettingOn(machineSettingsFile(), 'runners.postedLineNamesCase') });
 } catch (error) {
   // An exit is a restart: the service manager starts it again, so a refusal is logged with its code and nothing is lost.
