@@ -2,6 +2,7 @@
 export * from "./src/logic/bar/ready.js";
 export * from "./src/io/registry.js";
 export * from "./src/io/freezer.js";
+export { PACES, admittedPace, itemPace } from "./src/logic/pace.js";
 export { nextOnce, nextSelection } from "./src/io/selection.js";
 export { defineRules, deriveFact } from "./src/logic/table/rules.js";
 export { runTable } from "./src/logic/table/run.js";
