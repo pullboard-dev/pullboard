@@ -5,13 +5,14 @@
  */
 import {
   existsSync,
+  lstatSync,
+  readFileSync,
   readdirSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { repoInfo } from "../../../git/light.js";
 import { Refused } from "../../../kernel/light.js";
-import { gitSyncMarkerLinked } from "../../../config/light.js";
 
 /** A pending baseline result's file name: one per request id. */
 export const BASELINE_RECEIPT = /^[a-f0-9-]{36}\.json$/;
@@ -36,9 +37,34 @@ export function relayLinkFile(commonDir) {
   return join(commonDir, 'pullboard', 'relay.json');
 }
 
-/** Whether this machine explicitly enabled account-free Git board sharing [H11]. */
+/** A repository's Git-sharing marker, beside its board in the shared Git directory. */
+export function gitSyncMarkerFile(commonDir) {
+  return join(commonDir, 'pullboard', 'git-sync.json');
+}
+
+/**
+ * Whether this machine explicitly enabled account-free Git board sharing [H11]: the marker is a bounded regular file of
+ * valid opt-in metadata. This is the same test as the config cell's marker reader, held here so the light door never
+ * loads the config package [C7]. A malformed or replaced marker never selects Git sharing.
+ */
 export function gitSyncLinked(root) {
-  return gitSyncMarkerLinked(root);
+  const marker = gitSyncMarkerFile(repoInfo(root).commonDir);
+  let stat;
+  try { stat = lstatSync(marker); }
+  catch (error) {
+    if (error.code === 'ENOENT' || error.code === 'ELOOP') return false;
+    if (error.code === 'ENOTDIR') throw new Refused('GIT_SYNC_FOLDER', `${join(marker, '..')} is not a directory, so the board folder is damaged`,
+      `move ${join(marker, '..')} aside, then run pullboard doctor`);
+    throw error;
+  }
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 4096) return false;
+  let value;
+  try { value = JSON.parse(readFileSync(marker, 'utf8')); } catch { return false; }
+  const writer = value?.writer;
+  const validWriter = writer === undefined || writer && typeof writer === 'object'
+    && writer.command === 'sync' && Number.isSafeInteger(writer.pid) && writer.pid > 0
+    && typeof writer.at === 'string' && Number.isFinite(Date.parse(writer.at));
+  return Boolean(value?.version === 1 && value.remote === 'origin' && value.ref === 'refs/pullboard/board' && validWriter);
 }
 
 /** A repository's notice that its relay copy was deleted, which relay status still reads. */
@@ -78,7 +104,7 @@ export function syncMayAct(cwd) {
     // Outside a repository every step refuses quietly with these codes; any other failure takes the full path.
     return !(error instanceof Refused && ['NOT_A_REPO', 'CORE_BARE'].includes(error.code));
   }
-  if (existsSync(relayLinkFile(info.commonDir)) || existsSync(join(info.commonDir, 'pullboard', 'git-sync.json'))) return true;
+  if (existsSync(relayLinkFile(info.commonDir)) || existsSync(gitSyncMarkerFile(info.commonDir))) return true;
   return baselineReceiptsPending(info.commonDir);
 }
 
