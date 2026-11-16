@@ -44,8 +44,8 @@ test('submit without a frozen check reports no item check and still runs affecte
   const marker = join(box.dir, 'without-check.log');
   put(box.root, 'test/a.test.js', `import '../src/a.js'; import { appendFileSync } from 'node:fs'; appendFileSync(${JSON.stringify(marker)}, 'ran');\n`);
   put(box.root, 'test/b.test.js', "import assert from 'node:assert/strict'; assert.fail('unrelated');\n");
-  commitAll(box);
-  box = builderRepo(box);
+  commitAll(box, 'chore: fixture state', true);
+  box = builderRepo(box, [], { plumbing: true });
   assert.equal((await coordinatorLocal(box, 'add', 'build', 'No frozen command')).code, 0);
   assert.equal((await runLocal(box, 'claim', '1')).code, 0);
   put(box.root, 'src/a.js', 'export const value = 2;\n');
@@ -65,8 +65,8 @@ test('submit without a frozen check reports no item check and still runs affecte
 test('a red frozen item check refuses submit before affected tests run [V4,C7,V16]', async (t) => {
   let box = privateRepo(t);
   put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', affectedTests: 'node --test' }));
-  seedGraph(box);
-  box = builderRepo(box);
+  seedGraph(box, true);
+  box = builderRepo(box, [], { plumbing: true });
   // The pulled gate runs the frozen check without this test's environment, so the refusal is a file the check looks for.
   const refusal = join(box.dir, 'check-refuse');
   const added = await coordinatorLocal(box, 'add', 'build', 'Frozen check', '--check', `node -e "process.exit(require('fs').existsSync(${JSON.stringify(refusal)}) ? 1 : 0)"`);
@@ -91,28 +91,28 @@ test('CommonJS and nested package scopes fall back instead of silently missing r
   put(common.root, 'src/a.js', 'module.exports = 1;\n');
   put(common.root, 'test/a.test.js', "require('../src/a.js');\n");
   put(common.root, 'test/b.test.js', "require('node:assert/strict').ok(true);\n");
-  const base = commitAll(common);
+  const base = commitAll(common, 'chore: fixture state', true);
   put(common.root, 'src/a.js', 'module.exports = 2;\n');
-  const commit = commitAll(common, 'feat(core): change CommonJS source [G1]');
+  const commit = commitAll(common, 'feat(core): change CommonJS source [G1]', true);
   const selection = selectAffectedTests(common.root, { base, commit });
   assert.equal(selection.full, true, 'require import edges cannot be silently omitted');
   assert.match(selection.reason, /does not declare "type": "module"|package scope/u);
 
   const nested = privateRepo(t);
-  seedGraph(nested);
+  seedGraph(nested, true);
   put(nested.root, 'legacy/package.json', '{"type":"commonjs"}\n');
   put(nested.root, 'legacy/value.js', 'module.exports = 1;\n');
-  const nestedBase = commitAll(nested);
+  const nestedBase = commitAll(nested, 'chore: fixture state', true);
   put(nested.root, 'legacy/value.js', 'module.exports = 2;\n');
-  const nestedCommit = commitAll(nested, 'feat(core): change nested CommonJS source [G1]');
+  const nestedCommit = commitAll(nested, 'feat(core): change nested CommonJS source [G1]', true);
   const scoped = selectAffectedTests(nested.root, { base: nestedBase, commit: nestedCommit });
   assert.equal(scoped.full, true, 'nested package policy makes a single ESM graph incomplete');
   assert.match(scoped.reason, /package scope/u);
 
   const esm = privateRepo(t);
-  const esmBase = seedGraph(esm);
+  const esmBase = seedGraph(esm, true);
   put(esm.root, 'src/a.js', "import { createRequire } from 'node:module'; export const load = createRequire(import.meta.url);\n");
-  const esmCommit = commitAll(esm, 'feat(core): create a CommonJS loader [G1]');
+  const esmCommit = commitAll(esm, 'feat(core): create a CommonJS loader [G1]', true);
   const loader = selectAffectedTests(esm.root, { base: esmBase, commit: esmCommit });
   assert.equal(loader.full, true, 'a reached CommonJS loader also makes the ESM import graph incomplete');
   assert.match(loader.reason, /CommonJS/u);
@@ -123,7 +123,7 @@ for (const mode of ['topic parent', 'merge commit']) {
   test(`affected tests include source changes carried by a ${mode} [V4,C7,V16]`, async (t) => {
     let box = privateRepo(t);
     put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', affectedTests: 'node --test' }));
-    seedGraph(box);
+    seedGraph(box, true);
     // The pulled gate runs in the runner's checkout without this test's environment, so the marker path is written into the importer.
     const marker = join(box.dir, 'merged-test-ran.log');
     put(box.root, 'test/a.test.js', [
@@ -133,7 +133,7 @@ for (const mode of ['topic parent', 'merge commit']) {
       `appendFileSync(${JSON.stringify(marker)}, 'ran\\n');`,
       'assert.equal(value, 1);',
     ].join('\n'));
-    box = builderRepo(box);
+    box = builderRepo(box, [], { plumbing: true });
     assert.equal((await coordinatorLocal(box, 'add', 'build', 'Merged source', '--check', 'true')).code, 0);
     assert.equal((await runLocal(box, 'claim', '1')).code, 0);
     const branch = box.git('branch', '--show-current');
