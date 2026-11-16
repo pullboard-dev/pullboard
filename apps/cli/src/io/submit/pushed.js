@@ -1,6 +1,7 @@
 import { tryGit } from '../../../../../packages/git/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { trunkRemote } from '../../../../../packages/config/index.js';
+import { pullGit } from '../runner/git.js';
 import { receiveCommits } from '../../../../../packages/pin/index.js';
 import { placeRemoteItem } from '../../../../../packages/pin/index.js';
 
@@ -20,9 +21,9 @@ export function carriesPushedRef(commits) {
  * @param {(read: (board: any) => any) => any} readBoard - Opens the host's board for one read.
  * @param {(board: any, id: number) => any} getItem - The store's item reader.
  * @param {{ remote?: string | null }} [options] - remote: the trunk remote of record; read from the board's configuration when omitted.
- * @returns {string} The host folder at the pushed commit.
+ * @returns {Promise<string>} The host folder at the pushed commit.
  */
-export function receivePushed(root, body, seat, readBoard, getItem, { remote = trunkRemote(root) } = {}) {
+export async function receivePushed(root, body, seat, readBoard, getItem, { remote = trunkRemote(root) } = {}) {
   const { verb, item, agent, commits } = body;
   if (!['submit', 'done'].includes(verb) || !seat.remoteAgent) throw new Refused('BAD_REQUEST', 'only a submit from a seat joined by board.url carries commits; remove commits from this move');
   if (Object.keys(commits).some((key) => !['head', 'ref'].includes(key)) || !/^[0-9a-f]{40}$/u.test(commits.head ?? '')
@@ -40,7 +41,7 @@ export function receivePushed(root, body, seat, readBoard, getItem, { remote = t
   if (!/^[0-9a-f]{40}$/u.test(tip)) {
     throw new Refused('REMOTE_COMMIT_MISSING', `${head.slice(0, 12)} is not on ${ref} at the trunk remote; push it (git push <remote> HEAD:${ref}) and submit again`);
   }
-  if (tryGit(root, ['fetch', '--quiet', '--no-tags', remote, ref]).status !== 0) {
+  if ((await pullGit.fetchTrunk(root, remote, [ref])).status !== 0) {
     throw new Refused('REMOTE_COMMIT_MISSING', `the board host could not fetch ${ref} from the trunk remote; push the commit and submit again`);
   }
   const reachable = tip === head || (tryGit(root, ['cat-file', '-e', `${head}^{commit}`]).status === 0
