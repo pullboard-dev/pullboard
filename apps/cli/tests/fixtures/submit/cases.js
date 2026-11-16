@@ -19,6 +19,7 @@ import { testClosures } from '../../../../../packages/gate/index.js';
 import { copyPackageFiles } from '../../../../../packages/runners/index.js';
 import { createE2eHelpers } from '../e2e.js';
 import { fixtureAdd } from '../testkit.js';
+import { settledGateJob } from './settle.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -73,17 +74,19 @@ function fixture() {
 /** Install only through the affected-tests wrappers, one mode per file (#4939); this helper is not another test root. */
 export function installSubmitTestTreeCases(modes = ['large selection', 'full fallback']) {
   for (const mode of modes) {
-    test(`submit names the new board-open file and line before ${mode} defers [C7]`, () => {
+    test(`submit names the new board-open file and line before ${mode} defers [C7]`, async () => {
       const box = fixture();
       const source = ["import {test} from 'node:test';", "import {DatabaseSync as openBoard} from 'node:sqlite';",
         "test('file-backed board [G1]', () => { const db = new openBoard('board.sqlite'); db.close(); });", ''].join('\n');
       put(box.web, 'test/new-board.test.js', source);
       if (mode === 'full fallback') put(box.web, 'web/opaque.data', 'unknown input requires full fallback\n');
       commit(box, box.web, 'test: add an unclassified board-file open');
+      // A pulled submit returns queued; the gate's red lands on the item as the job's receipt [C7].
       const result = box.run(box.web, 'submit', String(box.id));
-      assert.equal(result.code, 1, result.err + result.out);
-      assert.match(result.err + result.out, /test\/new-board\.test\.js:3:/u, 'native submit names the actual lint location');
-      assert.match(result.err + result.out, /unclassified file board open/u);
+      assert.equal(result.code, 0, result.err + result.out);
+      const red = JSON.stringify(await settledGateJob(box, box.id));
+      assert.match(red, /test\/new-board\.test\.js:3:/u, 'the gate names the actual lint location');
+      assert.match(red, /unclassified file board open/u);
       const state = box.run(box.web, 'show', String(box.id), '--json');
       assert.equal(state.code, 0, state.err);
       assert.equal(JSON.parse(state.out).item_status, 'claimed', 'no false green submission is recorded');
@@ -91,6 +94,7 @@ export function installSubmitTestTreeCases(modes = ['large selection', 'full fal
       commit(box, box.web, 'test: use a memory-only SQLite fixture');
       const repaired = box.run(box.web, 'submit', String(box.id));
       assert.equal(repaired.code, 0, repaired.err + repaired.out);
+      await settledGateJob(box, box.id);
       const exported = box.run(box.web, 'export', '--json');
       assert.equal(exported.code, 0, exported.err);
       const event = JSON.parse(exported.out).tables.event.findLast(row => row.event_kind === 'submit');
