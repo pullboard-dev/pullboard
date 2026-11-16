@@ -64,7 +64,7 @@ async function twoMachines(t, title, { beforeLink } = {}) {
 async function stopAfter(box, step) {
   let stopped = false;
   watchRebuild((reached) => { if (reached === step && !stopped) { stopped = true; throw new Error('stopped after ' + step); } });
-  try { const r = await box.cliLocal('status'); console.error('STATUS', step, r.code, Object.keys(r).join(), JSON.stringify([r.err, r.stderr, r.failure, r.document?.relay?.outbox, r.document?.relay?.health?.code, r.document?.error]).slice(0, 1500)); } catch (error) { if (!String(error?.message ?? error).includes('stopped after')) throw error; } finally { watchRebuild(null); }
+  try { await box.cliLocal('status'); } catch (error) { if (!String(error?.message ?? error).includes('stopped after')) throw error; } finally { watchRebuild(null); }
   return stopped;
 }
 
@@ -80,16 +80,16 @@ async function queuedBehindRemoteWork(t) {
   return { box, other };
 }
 
-/** Item titles on a machine, in item order. */
-async function titles(machine) {
-  return (await machine.cli('export')).document.tables.item.map((row) => row.item_title);
+/** Item titles on a machine, in item order; `local` reads without catching up, so a stopped rebuild stays stopped. */
+async function titles(machine, local = false) {
+  return (await (local ? machine.cliLocal('export') : machine.cli('export'))).document.tables.item.map((row) => row.item_title);
 }
 
 test('clause 1: the outbox rebuild resumes from its last step after a stop at each step [B26,H16,H17]', { timeout: 280_000 }, async (t) => {
   const { box, other } = await queuedBehindRemoteWork(t);
   for (const step of ['undo', 'apply', 'settle', 'reapply', 'write']) {
     assert.equal(await stopAfter(box, step), true, `the rebuild reached ${step}`);
-    const shown = await titles(box);
+    const shown = await titles(box, true);
     // However far it got, this machine keeps showing its own queued moves once, never twice and never lost.
     assert.equal(shown.filter((title) => title === 'First item added here offline').length <= 1, true, `no row is undone twice after ${step}`);
   }
