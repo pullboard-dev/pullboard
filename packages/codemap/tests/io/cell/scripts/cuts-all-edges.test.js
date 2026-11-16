@@ -29,11 +29,12 @@ test('clause 1: --cuts-all reports none of the four hidden upward edges measured
   const swept = await runPlan('--cuts-all', ROOT);
   // The sweep itself ran: it names other findings, so an empty report cannot pass by never looking.
   assert.match(swept.stderr, / --cuts-all: /u, swept.stderr.slice(0, 400));
+  // Each edge is named by its importing file and the start of its target, so a rename of the target cannot hide it.
   const edges = [
     'packages/commits/src/logic/import-only-change.js -> packages/codemap/',
-    'packages/board/src/logic/ports.js -> packages/health/index.js',
-    'apps/runner/src/io/shell.js -> apps/runner/src/io/custody.js',
-    'apps/runner/src/io/controller.js -> apps/runner/src/io/private/guard.js',
+    'packages/board/src/logic/ports.js -> packages/health/',
+    'apps/runner/src/io/shell.js -> ',
+    'apps/runner/src/io/controller.js -> ',
   ];
   for (const edge of edges) assert.ok(!swept.stderr.includes(edge), `the sweep still reports ${edge}`);
 });
