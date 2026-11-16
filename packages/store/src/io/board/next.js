@@ -356,7 +356,7 @@ export function nextFor(board, options) {
     }
     const reserved = rework ? null : firstRefusalReason(board, entry.item_id, agentId, { firstRefusal, otherBuilderFirst: (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE, offering: true, seatGone });
     if (reserved) { skip(entry, 'FIRST_REFUSAL'); reasons.push(reserved); continue; }
-    if (hot?.get(entry.item_id).score >= contention.threshold) {
+    if (hot && hot.get(entry.item_id).score >= contention.threshold) {
       const { file, score } = hot.get(entry.item_id);
       skip(entry, 'CONTENTION'); reasons.push(`#${entry.item_id} waits on ${file}: contention ${score} reaches ${contention.threshold}; changes in flight on it land first`); continue;
     }
