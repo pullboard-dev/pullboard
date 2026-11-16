@@ -41,5 +41,5 @@ test('clause 1: --cuts-all runs the strict check for every cell and prints every
   assert.equal(swept.status, 1, swept.stderr);
   assert.match(swept.stderr, /kernel --cuts-all: kernel still imports later stats: src\/refused\.js -> src\/stats\.js/u);
   assert.match(swept.stderr, /store --cuts-all: store still imports later stats: src\/board\.js -> src\/claims\.js/u, 'the fixture cycle between store and items is named too');
-  assert.match(swept.stderr, /store --cuts-all: store still imports later stats: src\/stats-flow\.js -> src\/stats\.js/u);
+  assert.match(swept.stderr, /store --cuts-all: store still imports later stats: src\/board\.js -> src\/stats-flow\.js/u);
 });
