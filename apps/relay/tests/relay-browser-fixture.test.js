@@ -34,7 +34,7 @@ async function stalledCommand(chrome, pending) {
   );
 }
 
-test('real Chrome names a stalled command when it exceeds the CDP bound [H16,C7]', {
+test('clause 2: real Chrome names a stalled command when it exceeds the CDP bound [H16,C7]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
   const chrome = await stableChrome(await startChrome({ commandTimeoutMs: STALL_BOUND_MS }));
