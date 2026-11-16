@@ -372,8 +372,11 @@
     "raw-board": 1
   },
   "apps/cli/journeys/verify/main.test.js": {
-    "raw-board": 3,
+    "raw-board": 2,
     "hand-policy": 1
+  },
+  "apps/cli/tests/fixtures/verify/unsealed.js": {
+    "raw-board": 1
   },
   "packages/sync/tests/io/local.test.js": {
     "tempdir": 1
