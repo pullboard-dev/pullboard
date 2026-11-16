@@ -1249,6 +1249,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .floor-chip { flex: none; padding: 0 var(--space-3); border-radius: var(--radius-chip); font: 600 var(--text-2xs)/19px var(--mono); white-space: nowrap; }
 .floor-chip.build { background: color-mix(in oklab, var(--stage-building) 16%, var(--surface)); color: color-mix(in oklab, var(--stage-building) 60%, var(--ink)); }
 .floor-chip.review { background: color-mix(in oklab, var(--stage-review) 16%, var(--surface)); color: color-mix(in oklab, var(--stage-review) 60%, var(--ink)); }
+.floor-chip.stalled { background: color-mix(in oklab, var(--ink-muted) 14%, var(--surface)); color: var(--ink-muted); }
 .floor-nothing { color: var(--ink-faint); font-size: var(--text-xs); }
 .floor-n { text-align: right; font: var(--text-xs) var(--mono); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
 .floor-axis { min-height: 26px; border-bottom: var(--border); font: 600 var(--text-2xs) var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-faint); }
