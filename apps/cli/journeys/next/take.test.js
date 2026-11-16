@@ -27,6 +27,7 @@ import { recordItemSession } from '../../../../packages/items/index.js';
 import { dispatchHealth } from '../../../../packages/sentinels/index.js';
 import { healthReport } from '../../../../packages/health/index.js';
 import { deliverHealthNotices } from '../../../../packages/store/index.js';
+import { warnMainMoved } from '../../../../packages/merge/index.js';
 
 
 test('a free seat is handed one eligible item without screening [N2,V1,B3]', async t => {
@@ -413,6 +414,82 @@ test('clause 2: list, status data and the health report name each excluded item 
   assert.match(excluded[0].reasons[0], /ROUTED_ELSEWHERE.*released 7 min ago/u);
   const finding = healthReport({ db: box.board.db, root: box.root, config: box.config, now: box.clock.now(), dispatchHealth }).stuck.find(row => row.cause === 'NEEDS_RESCOPE' && row.item === id);
   assert.match(finding.why, /released 7 min ago/u);
+});
+
+/** Capture a claimed item's merge warning while its seat and immutable queue may name different sources. */
+async function mainMoveWarningFixture(t, { queued = false } = {}) {
+  const box = await fixture(t, { files: { 'web/shared.txt': 'base\n' } });
+  const id = box.add('Warn from the item source, not the seat checkout');
+  const claimed = await cli(box, box.seats.actor.path, ['claim', String(id)]);
+  assert.equal(claimed.code, 0, claimed.out + claimed.err);
+  const folder = claimed.document.itemFolder;
+  assert.ok(folder, 'the live claim has its own item worktree');
+  writeFileSync(join(folder, 'web/shared.txt'), 'item source\n');
+  box.git(folder, 'add', 'web/shared.txt');
+  box.git(folder, 'commit', '-q', '-m', 'feat(web): item folder source [G1]');
+  const itemHead = box.git(folder, 'rev-parse', 'HEAD');
+  if (queued) {
+    const item = store.getItem(box.board, id);
+    const tree = box.git(folder, 'rev-parse', 'HEAD^{tree}');
+    store.queueSubmitHandoff(box.board, id, { agentId: box.seats.actor.id, job: randomUUID(),
+      main: box.git(box.root, 'rev-parse', 'HEAD'), commit: itemHead, tree,
+      executionCommit: itemHead, executionTree: tree, digest: item.item_frozen_digest,
+      companionDigest: null, leaseMs: 3_600_000 });
+    writeFileSync(join(folder, 'web/later.txt'), 'newer worktree head\n');
+    box.git(folder, 'add', 'web/later.txt');
+    box.git(folder, 'commit', '-q', '-m', 'feat(web): newer item folder source [G1]');
+  }
+  writeFileSync(join(box.seats.actor.path, 'web/seat-source.txt'), 'another item source\n');
+  box.git(box.seats.actor.path, 'add', 'web/seat-source.txt');
+  box.git(box.seats.actor.path, 'commit', '-q', '-m', 'feat(web): another seat source [G1]');
+  const seatHead = box.git(box.seats.actor.path, 'rev-parse', 'HEAD');
+  assert.notEqual(itemHead, seatHead, 'the seat checkout no longer names this item source');
+  writeFileSync(join(box.root, 'web/shared.txt'), 'main source\n');
+  box.git(box.root, 'add', 'web/shared.txt');
+  box.git(box.root, 'commit', '-q', '-m', 'chore(web): conflicting main source [G1]');
+  const trunk = box.git(box.root, 'rev-parse', 'HEAD');
+  const shouts = [], lines = [];
+  const warnings = await warnMainMoved({ root: box.root, board: box.board, trunk,
+    write: async (operation, args) => shouts.push({ operation, args }), say: line => lines.push(line) },
+  { listAgents: store.listAgents, listItems: store.listItems, submitHandoff: store.submitHandoff });
+  return { box, id, folder, itemHead, seatHead, trunk, warnings, shouts, lines };
+}
+
+test("submit merges main from the item's own folder when the seat checkout has another source [B5,V4]", async t => {
+  const result = await mainMoveWarningFixture(t);
+  assert.deepEqual(result.warnings.find(warning => warning.item === result.id),
+    { item: result.id, head: result.itemHead, trunk: result.trunk, files: ['web/shared.txt'] });
+  assert.equal(result.shouts.length, 1);
+  assert.equal(result.shouts[0].operation, 'shout');
+  assert.match(result.shouts[0].args[0].text, new RegExp(result.itemHead.slice(0, 12)));
+  assert.doesNotMatch(result.shouts[0].args[0].text, new RegExp(result.seatHead.slice(0, 12)));
+
+  const { box, id, folder, itemHead, trunk } = result;
+  const item = store.getItem(box.board, id);
+  submitFixture(box.board, id, { agentId: box.seats.actor.id, commit: itemHead,
+    tree: box.git(folder, 'rev-parse', 'HEAD^{tree}') });
+  store.verify(box.board, id, { agentId: box.seats.outside.id, decision: 'REJECT', reason: 'TEST_FAILURE',
+    clause: item.item_criterion, note: 'Synthetic return retains the submitted source for repair.',
+    head: itemHead, digest: item.item_frozen_digest, policy: 'any' });
+  box.claim(id, box.seats.actor);
+  box.git(box.root, 'worktree', 'move', folder, folder + '-retained');
+  const shouts = [];
+  const warnings = await warnMainMoved({ root: box.root, board: box.board, trunk,
+    write: async (operation, args) => shouts.push({ operation, args }), say: () => {} },
+  { listAgents: store.listAgents, listItems: store.listItems, submitHandoff: store.submitHandoff });
+  assert.deepEqual(warnings.find(warning => warning.item === id),
+    { item: id, head: itemHead, trunk, files: ['web/shared.txt'] }, 'a returned item keeps its submitted head without its original folder');
+  assert.equal(shouts.length, 1);
+  assert.match(shouts[0].args[0].text, new RegExp(itemHead.slice(0, 12)));
+  assert.doesNotMatch(shouts[0].args[0].text, new RegExp(result.seatHead.slice(0, 12)));
+});
+
+test('a queued merge-repair shout keeps the captured submit source ahead of a newer item-folder head [B5,V4]', async t => {
+  const result = await mainMoveWarningFixture(t, { queued: true });
+  assert.deepEqual(result.warnings.find(warning => warning.item === result.id),
+    { item: result.id, head: result.itemHead, trunk: result.trunk, files: ['web/shared.txt'] });
+  assert.match(result.shouts[0].args[0].text, new RegExp(result.itemHead.slice(0, 12)));
+  assert.doesNotMatch(result.shouts[0].args[0].text, new RegExp(result.seatHead.slice(0, 12)));
 });
 
 test('clause 1: next after a release from an item folder that cleanup removed runs from the seat checkout and hands out work [B5,N2]', async t => {
