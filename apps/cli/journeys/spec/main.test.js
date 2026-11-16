@@ -341,7 +341,7 @@ test('the check command is part of the frozen bar; items without one keep their 
   assert.notEqual(frozenCriterion(parseSpec(SPEC), { ...item, item_check: 'npm test' }).digest, before);
 });
 
-test('an approved revision applies while an unrelated held item cites a drifted row [S18,C7]', async (t) => {
+test('clause 1: an approved revision applies while an unrelated held item cites a drifted row [S18,C7]', async (t) => {
   const box = specBox(t);
   const gitAt = (cwd, ...args) => runFixtureGit(args, { cwd, env: box.env, encoding: 'utf8', stdio: 'pipe' });
   const runAt = (cwd, ...args) => runCliInProcess(args, { cwd, env: box.env });
@@ -354,7 +354,7 @@ test('an approved revision applies while an unrelated held item cites a drifted 
   gitAt(box.root, 'worktree', 'add', '-q', builder, '-b', 'builder');
   assert.equal((await joinFixtureSeat(box, builder, 'web', { run: runAt })).code, 0);
   // A held item freezes K1, then K1 drifts in Git: the item now cites a row that moved.
-  const { item } = await fileFixtureItem(box, box.root, { lane: 'web', title: 'Held on K1', criterion: 'K1 holds.', args: ['--specs', 'K1'], run: runAt });
+  const item = await fileFixtureItem(box, box.root, { lane: 'web', title: 'Held on K1', criterion: 'K1 holds.', args: ['--specs', 'K1'], run: runAt });
   const id = item.item_id;
   assert.equal((await runAt(builder, 'claim', String(id))).status, 0);
   assert.equal((await runAt(builder, 'release', String(id), '--reason', 'BLOCKED', '--no-next')).status, 0);
