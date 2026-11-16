@@ -209,6 +209,7 @@ test('a confirmation approved before its deadline can reach the SSH CLI just aft
   const delivered = await box.auth.pollDevice(flow.ticket);
   assert.equal(delivered.linkConfirmed, true, 'the valid approval remains retrievable after its decision deadline');
   assert.equal(delivered.linkedBoard, intent.board);
+  // Not CLI wording: the credential format is the in-process box.auth.pollDevice() API contract, so a pattern is the right assert.
   assert.match(delivered.token, /^ps_[A-Za-z0-9_-]{43}$/u);
 });
 

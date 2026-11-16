@@ -182,6 +182,7 @@ export const FLAG_MEANINGS = Object.freeze({
   '--aim': 'drafts the row as an aim instead of a must',
   '--gate': ['--gate "<gate>"', 'how the row is proved; defaults to review'],
   '--revises': ['--revises <id>', 'the approved row this draft changes'],
+  '--row': ['--row <id>', 'applies only this row\'s pending decision'],
   '--status': ['--status <status>', 'the status the row takes'],
   'test --status': ['--status <run id>', 'prints a queued run\'s state once'],
   'test --census': ['--census [prefix..]', 'runs every tracked test file, or those under the prefixes, in a few shards per runner'],

@@ -844,10 +844,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "packages/codemap/src/io/cells/backlog.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "packages/codemap/src/io/cells/git.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -2051,6 +2047,22 @@
         "packages/store/tests/stacked-submit.test.js",
         "seed"
       ]
+    },
+    {
+      "cell": "spec",
+      "row": [
+        "test/doctrine-rulings.test.js",
+        "packages/spec/tests/io/doctrine-rulings.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "person",
+      "row": [
+        "test/row-decisions.test.js",
+        "packages/person/tests/logic/row-decisions.test.js",
+        "seed"
+      ]
     }
   ],
   "entries": [
@@ -2559,7 +2571,6 @@
     "search->store",
     "board->git",
     "board->items",
-    "board->jobs",
     "board->kernel",
     "board->moves",
     "board->sandbox",

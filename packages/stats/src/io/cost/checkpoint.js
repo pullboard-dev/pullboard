@@ -5,6 +5,9 @@ import { usageCheckpointInline } from './due.js';
 import { USAGE_BATCH_LIMIT } from './usage.js';
 import { publicUsage } from './usage.js';
 import { usageCheckpoint } from './ledger.js';
+import { coordinatorUsagePending } from './ledger.js';
+import { coordinatorUsageAcknowledge } from './ledger.js';
+import { sessionSource } from './session.js';
 import { sharedSessionTotals } from './shared.js';
 import { storedSeatUsage } from '../cost.js';
 
@@ -125,4 +128,31 @@ export async function checkpointAfterMove(ctx, board, request, services) {
       ctx.io.err(`pullboard: USAGE_PENDING: [stage=${checkpointStage(error)}] the lifecycle move was recorded, but its usage checkpoint is pending; the next native claim, submit or release will retry. Missing native attribution stays unknown.`);
     }
   }
+  // stats.recordCoordinatorUsage (off by default, read by the command layer): the coordinator's own session, never blocking the move.
+  if (services.recordCoordinatorUsage === true) {
+    try { await recordCoordinatorSession(ctx, board, request, services); } catch { /* the next coordinator move retries from the same cursor */ }
+  }
+}
+
+/** The id of the session a shell belongs to, when it names one the board accepts as a coordinator session id. */
+function sessionId(environment) {
+  const id = environment.CLAUDE_CODE_SESSION_ID || environment.CODEX_THREAD_ID || environment.CODEX_SESSION_ID;
+  return typeof id === 'string' && /^[A-Za-z0-9._-]{1,120}$/u.test(id) ? id : null;
+}
+
+/**
+ * Record the coordinator's own session usage as one ordered move, from the new bytes of its session log only.
+ * Why: the coordinator never claims an item, so no item checkpoint ever reads its log and its cost read zero (#9685).
+ *
+ * @returns {Promise<boolean>} Whether a record was written.
+ */
+export async function recordCoordinatorSession(ctx, board, { agent }, { ordered, environment = process.env, now = ctx.clock.now().getTime() } = {}) {
+  if (board.db.prepare('SELECT agent_lane FROM agent WHERE agent_id=?').get(agent)?.agent_lane !== 'coordinator') return false;
+  const session = sessionId(environment), source = session && sessionSource(environment);
+  if (!source) return false;
+  const pending = coordinatorUsagePending(ctx.info, { session, source, now });
+  if (!pending) return false;
+  await ordered(ctx, board, 'recordCoordinatorUsage', [{ agentId: agent, session: pending.id, observedAt: now, records: pending.records }]);
+  coordinatorUsageAcknowledge(ctx.info, { session, totals: pending.totals });
+  return true;
 }

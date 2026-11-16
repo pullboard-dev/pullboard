@@ -27,6 +27,7 @@ const OPTIONS = {
   'review-limit': { type: 'string' },
   reason: { type: 'string' },
   revises: { type: 'string' },
+  row: { type: 'string' },
   status: { type: 'string' },
   cancel: { type: 'string' },
   off: { type: 'boolean' },
