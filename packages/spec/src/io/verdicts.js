@@ -6,7 +6,6 @@ import {
   parseSpec,
 } from './main.js';
 import { Refused } from '../../../kernel/index.js';
-import { cascadeRejectEnabled } from '../../../config/index.js';
 import { servesClosure } from '../logic/row/closure.js';
 import {
   rowVerificationSource,
@@ -44,7 +43,7 @@ function outsideParent(board, author, verifier) {
 
 /** Record an exact-row receipt under the authenticated operation actor, without writing a file. */
 /**
- * Record a verifier's verdict on one spec row. With spec.cascadeReject on and `cascade` (the spec's rows with their serves) given,
+ * Record a verifier's verdict on one spec row. With `cascade` (the spec's rows with their serves) given, which the caller passes only while spec.cascadeReject is on,
  * a rejection also writes one row_needs_review event for each row that serves the rejected one, naming it [C7,#9341].
  * Why events: needs-review is board data, never a SPEC.md status, so the approved status list stays as it is.
  */
@@ -71,7 +70,7 @@ export function recordRowVerification(board, { agentId, source, decision, reason
     const records = [...rowVerifications(board).filter(old => old.id !== row.id), entry];
     board.db.prepare("INSERT INTO board_meta(meta_key,meta_value) VALUES ('row_verifications',?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value")
       .run(JSON.stringify(records));
-    if (decision === 'rejected' && Array.isArray(cascade) && cascadeRejectEnabled()) {
+    if (decision === 'rejected' && Array.isArray(cascade)) {
       for (const served of servesClosure({ rows: cascade }, row.id)) logEvent(board, agentId, 'row_needs_review', null, { id: served, because: row.id, verification: entry.event });
     }
     return entry;
