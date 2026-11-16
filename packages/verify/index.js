@@ -14,7 +14,7 @@ export { nextReview, forcedLandedUnreviewed, ownSessionReviews, returnUnmergeabl
 export { completeMoveHandoff } from './src/logic/post/move.js';
 export { recordNativeProof } from './src/logic/proof/native.js';
 export { counterCaught, counterProofStats } from './src/io/proof/caught.js';
-export { PROOF_COUNTER_PREFIX, appendProofCounter, clearProofCounters, currentProofCounters, ensureProofCounters, proofCounter, proofCounterRows, rebuildProofCounters } from './src/io/proof/counters.js';
+export { PROOF_COUNTER_PREFIX, appendProofCounter, clearProofCounters, ensureProofCounters, proofCounterRows, rebuildProofCounters } from './src/io/proof/counters.js';
 export { refreshCapacityOutsideWrite } from './src/io/proof/counters.js';
 export { registryFindings, registryOutcome } from './src/logic/registry.js';
 export { registryStrictEnabled as registryStrict } from '../config/index.js';
@@ -24,10 +24,9 @@ export { anyRequiredReviewFamilyEngine, projectReviewFamily, requiredReviewFamil
 export { eligibilityProblem, reviewEligibility } from './src/logic/review/eligibility.js';
 export { earlierHolderProblem, committedItemAuthors, itemReviewPolicy, reviewFamilyProblem, reviewPolicyChange, saveItemReviewPolicy, strictReviewProblem, twoTierReviews } from './src/io/review/independence.js';
 export { aliasEngineOn, anyItemReviewPolicyEngine, familiesDiffer, familyAliasesOf, familyIndex, familyName, itemReviewPolicyEngine } from './src/logic/review/policy.js';
-export { reviewQueueLine } from './src/logic/review/queue.js';
 export { canonicalFamily, overdueReview, prioritizeReviews, requireStrictBuilderFamily, reviewReleaseCooldown, reviewRoutingEnabled, reviewWait, seatFamily, strictReviewProblem as routingStrictReviewProblem, builderFamilyOf, declaredLimitProblem } from './src/io/review/routing.js';
-export { ruleProofCounts, ruleProofWindow } from './src/io/rule/proof/counts.js';
-export { bindProofRunner, committedRuleCoverage, proofCoverageFingerprint } from './src/io/rule/proof/coverage.js';
+export { ruleProofWindow } from './src/io/rule/proof/counts.js';
+export { committedRuleCoverage, proofCoverageFingerprint } from './src/io/rule/proof/coverage.js';
 export { appendRuleProof } from './src/io/rule/proof/append.js';
 export { advancedVerdict, effectiveItemHead, requireSourceAdvanceReview, sourceAdvanceChain, sourceAdvanceEpisode, sourceAdvanceFloor, sourceAdvanceReviewEpisode } from './src/logic/advance.js';
 export { composeReview, composesAtAdmission } from './src/io/verdict/admission.js';

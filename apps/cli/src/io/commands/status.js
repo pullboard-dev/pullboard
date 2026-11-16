@@ -1,6 +1,6 @@
-import { claimHealthProjection } from '../../../../../packages/health/index.js';
-import { currentProofCounters } from '../../../../../packages/verify/index.js';
-import { proofCounter } from '../../../../../packages/verify/index.js';
+import { claimHealthProjection } from '../../../../../packages/health/light.js';
+import { currentProofCounters } from '../../../../../packages/verify/light.js';
+import { proofCounter } from '../../../../../packages/verify/light.js';
 import { localDependencyIds } from '../../../../../packages/items/index.js';
 import { dependencyLabel } from '../../../../../packages/items/index.js';
 import { itemFileCollisions } from '../../../../../packages/items/index.js';
@@ -8,8 +8,8 @@ import { allItemsNeedingRescope } from '../../../../../packages/store/index.js';
 import { withLocalSeatPresence } from '../../../../../packages/store/index.js';
 import { readCapacity } from '../../../../../packages/stats/index.js';
 import { capacityLines } from '../../../../../packages/stats/index.js';
-import { releaseBlockingItems } from '../../../../../packages/health/index.js';
-import { staleStateSnapshot } from '../../../../../packages/health/index.js';
+import { releaseBlockingItems } from '../../../../../packages/health/light.js';
+import { staleStateSnapshot } from '../../../../../packages/health/light.js';
 import { staleStateLine } from '../../../../../packages/store/index.js';
 import { lineSettings } from '../../../../../packages/state/index.js';
 import { routingCapacity } from '../../../../../packages/queue/index.js';
@@ -35,8 +35,8 @@ import { personNeedsSummary } from '../../../../view/index.js';
 import { identifyCaller } from '../read.js';
 import { relayStateExists } from '../../../../../packages/store/index.js';
 import { unlinkedRelayStatus } from '../../../../../packages/link/index.js';
-import { ruleProofCounts } from '../../../../../packages/verify/index.js';
-import { bindProofRunner } from '../../../../../packages/verify/index.js';
+import { ruleProofCounts } from '../../../../../packages/verify/light.js';
+import { bindProofRunner } from '../../../../../packages/verify/light.js';
 import { fileURLToPath } from 'node:url';
 import { memoryHeldRuns } from '../../../../../packages/store/index.js';
 import { retainedReceipts } from '../../../../../packages/gate/index.js';
@@ -44,7 +44,7 @@ import { readRunnerUtilization } from '../../../../../packages/runners/index.js'
 import { longestRecentHolds } from '../../../../../packages/store/index.js';
 import { runnerDeadlineLine } from '../../../../../packages/resources/index.js';
 import { runnerDeadlineRuns } from '../../../../../packages/runners/index.js';
-import { reviewQueueLine } from '../../../../../packages/verify/index.js';
+import { reviewQueueLine } from '../../../../../packages/verify/light.js';
 import {
   productLine,
   productSummaries,

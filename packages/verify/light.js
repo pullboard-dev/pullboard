@@ -1,5 +1,11 @@
 export { receiptFields, runTimingFields, sameEnvironment, testRuntimeEnvironment, testRuntimeRows } from './src/logic/proof/provenance.js';
 
+/** The proof counters, rule counts and review queue line a status read prints, without the rest of the verify cell [C7,#8645]. */
+export { currentProofCounters, proofCounter } from './src/io/proof/counters.js';
+export { ruleProofCounts } from './src/io/rule/proof/counts.js';
+export { bindProofRunner } from './src/io/rule/proof/coverage.js';
+export { reviewQueueLine } from './src/logic/review/queue.js';
+
 /** Normalize bounded per-test facts; malformed or duplicate identities grant no quarantine evidence. */
 export function testOutcomeFields(value) {
   if (!Array.isArray(value) || !value.length || value.length > 100000) return null;
