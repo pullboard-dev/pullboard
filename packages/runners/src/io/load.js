@@ -6,7 +6,7 @@ import { freemem } from 'node:os';
 import { hostname } from 'node:os';
 import { loadavg } from 'node:os';
 import { platform } from 'node:os';
-import { loadMachineSettings } from '../../../config/light.js';
+import { machineSettingsFile } from '../../../resources/light.js';
 
 /**
  * Cumulative disk counters since boot, summed over every whole disk, or null when this host exposes none.
@@ -64,7 +64,7 @@ export function diskSample(read = readDiskCounters, now = Date.now) {
 
 /** Whether this machine's gate.sampleDiskIo is on; an unreadable settings file reads off. */
 function diskIoSetting() {
-  try { return loadMachineSettings().gate?.sampleDiskIo === true; } catch { return false; }
+  try { return JSON.parse(readFileSync(machineSettingsFile(), 'utf8')).gate?.sampleDiskIo === true; } catch { return false; }
 }
 
 /**
