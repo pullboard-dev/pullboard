@@ -399,10 +399,6 @@
     "tempdir": 1,
     "hand-policy": 1
   },
-  "apps/cli/journeys/fact/family.test.js": {
-    "raw-board": 5,
-    "model": 3
-  },
   "apps/cli/journeys/publish/catalog.test.js": {
     "tempdir": 2,
     "env-spread": 1,
@@ -712,9 +708,6 @@
   "apps/view/tests/logic/main.test.js": {
     "model": 1
   },
-  "apps/cli/journeys/fact/msg.test.js": {
-    "hand-policy": 2
-  },
   "packages/items/tests/way.test.js": {
     "tempdir": 8
   },
@@ -751,12 +744,6 @@
   "apps/cli/tests/fixtures/doctrine-name.js": {
     "tempdir": 1,
     "hand-policy": 2
-  },
-  "apps/cli/journeys/doctrine/name.verify.test.js": {
-    "hand-policy": 1
-  },
-  "apps/cli/journeys/doctrine/rulings.test.js": {
-    "model": 1
   },
   "apps/view/tests/doctrine.test.js": {
     "tempdir": 1,
