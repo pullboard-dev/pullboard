@@ -22,13 +22,14 @@ const PASSING = ['a', 'b', 'd', 'e'];
 const FILES = ['a', 'b', 'c', 'd', 'e'].map(name => `test/${name}.test.js`);
 
 const TEMPLATE = {};
+after(() => { if (TEMPLATE.dir) rmSync(TEMPLATE.dir, { recursive: true, force: true }); });
 const ENV_GIT = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid', GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
 
 /** The five-file project with a full package copy, copied and committed once for the file; each case clones it and sets only its shard count. */
 function template() {
   if (TEMPLATE.repo) return TEMPLATE.repo;
   const dir = privateFixtureFiles('pullboard-hung-template-').root;
-  after(() => rmSync(dir, { recursive: true, force: true }));
+  TEMPLATE.dir = dir;
   const repo = join(dir, 'repo');
   mkdirSync(join(repo, 'test'), { recursive: true });
   copyPackageFiles(SOURCE, repo);
