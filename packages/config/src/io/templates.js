@@ -121,6 +121,22 @@ Never wait: submit and move on.
 - **Reject:** \`pullboard verify <id> reject --reason <CODE> --clause "<clause>" --note "..."\`.
 `;
 
+/**
+ * The Claude worker-loop skill, generated from SEAT_LOOP so it cannot drift from the AGENTS.md block [#8550].
+ *
+ * @returns {string}
+ */
+export function renderWorkerSkill() {
+  const body = SEAT_LOOP.replace(/^## Worker loop\n/u, '');
+  return `---
+name: pullboard-worker
+description: 'Run the worker loop on a Pullboard seat: take the next build or verify, build inside your lane, submit and move on. Use when you are a worker or verifier in a repo that runs on pullboard, or when pullboard next hands you an item.'
+---
+
+# Worker loop
+${body}`;
+}
+
 /** The most words the seat loop may hold; a longer loop is one agents skim past, so trim before raising this. */
 export const SEAT_LOOP_WORD_BUDGET = 160;
 

@@ -54,6 +54,9 @@ process.stdout.on('error', (error) => {
   process.exit(process.exitCode ?? 0);
 });
 
+// A shell left standing in a removed item folder starts here with no working directory: move to the seat checkout (#2456).
+try { process.cwd(); } catch { (await import('./src/io/cli-main/live-cwd.js')).liveCwd(undefined); }
+
 // The common version probe needs only the release metadata, not the command dispatcher.
 if (process.argv.length === 3 && process.argv[2] === '--version') {
   const { default: packageData } = await import('../../package.json', { with: { type: 'json' } });

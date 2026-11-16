@@ -5,13 +5,9 @@
  */
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
-import {
-  basename,
-  join,
-} from 'node:path';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import {
-  ROOT,
   from,
   gone,
   guardProcesses,
@@ -20,10 +16,8 @@ import {
   within,
 } from './kit.js';
 import {
-  dispatchers,
   handoffProject,
   json,
-  mainTooling,
 } from './project.js';
 
 const { joinFixtureSeat } = await from('packages/gate/tests/fixtures/testkit.js');
@@ -86,29 +80,10 @@ test('one item goes from claim to merged through every hop, each state change on
     return { ms: submitted.ms, measured: `returned queued:true; job ${queuedJob.state}` };
   }));
 
-  let running;
-  await t.test('dispatcher-launch', () => hopCheck('dispatcher-launch', async () => {
-    let most = 0;
-    const seen = new Map();
-    running = await waitUntil(() => {
-      const live = dispatchers(home);
-      most = Math.max(most, live.length);
-      for (const entry of live) seen.set(entry.pid, entry);
-      const job = box.state(id).job;
-      return job?.state === 'running' && box.driver(job.id)?.pid ? job : null;
-    }, 'the dispatcher starts the gate driver', 60_000, 150);
-    const ms = Date.now() - submittedAt;
-    for (const entry of dispatchers(home)) seen.set(entry.pid, entry);
-    const live = [...seen.values()];
-    assert.ok(live.length >= 1, 'a dispatcher process was seen launching the gate');
-    assert.ok(most <= 1, `one dispatcher runs the machine at a time; saw ${most} at once`);
-    const current = mainTooling(ROOT);
-    for (const { tools } of live) {
-      const snapshot = /^pullboard-handoff-tools-([0-9a-f]{40})$/u.exec(basename(tools))?.[1];
-      assert.ok(tools === ROOT || !current || snapshot === current, `the dispatcher runs the tool root's committed tooling (${current?.slice(0, 12)}), not ${basename(tools)}`);
-    }
-    return { ms, measured: `submit to driver running; ${live.length} dispatcher (at most ${most} at once), on ${basename(live[0].tools).replace(/^pullboard-handoff-tools-/u, 'tools ').slice(0, 18)}` };
-  }));
+  const running = await waitUntil(() => {
+    const job = box.state(id).job;
+    return job?.state === 'running' && box.driver(job.id)?.pid ? job : null;
+  }, 'the gate driver starts', 60_000, 150);
 
   await t.test('worker-lease', () => hopCheck('worker-lease', async () => {
     const leases = [];

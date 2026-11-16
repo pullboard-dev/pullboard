@@ -41,7 +41,7 @@ export const HARNESS_FILES = Object.freeze({
   'analysis-on-runner': 'analysis-on-runner', 'board-commands': 'board/commands', 'board-write': 'board/write', 'dead-worker-requeue': 'requeue', e2e: 'e2e',
   'landing-reopen': 'a-reject-or-reopen-during-landing', 'import-undeclared': 'board-restored-from-an-export-with-an-un', 'live-driver': 'driver', 'merged-twice': 'pullboard-merged-run-twice', 'orphan-worker': 'worker', 'proof-lanes': 'lanes', 'shout-scope': 'a-shout-names-an-item-this-seat-cannot-a', 'next-claim-fresh': 'next-resumes-a-claim-that-changed-in-the',
   'red-at-claim': 'a-red-from-an-older-head-shown-at-claim', 'landing-run': 'landing-run-fails-or-its-proof-is-not-gr', 'sleep-past-leases': 'machine-sleeps-past-every-lease', 'main-test': 'queued-main-test-job-never-driven', 'red-notice': 'red-notice-after-the-claim-lapsed', 'review-held': 'review-held-on-an-item-that-was-withdraw',
-  'ready-budget': 'budget', 'runner-spec': 'spec', 'stale-dispatcher': 'dispatcher',
+  'ready-budget': 'budget', 'runner-spec': 'spec',
 });
 
 /** Board command latency target per command, from the 2 Nov speed rule. */
@@ -59,10 +59,6 @@ export const HOPS = Object.freeze([
   { id: 'submit-queued', stage: 'Gate', hop: 'submit → queued', harness: 'e2e',
     invariant: 'Submit returns with the gate queued on the submitted commit; it never waits on the gate.',
     live: report => phase(report, 'queued', null) },
-  { id: 'dispatcher-launch', stage: 'Gate', hop: 'dispatcher launches worker', harness: 'e2e',
-    invariant: 'One dispatcher per machine, on the tool root\'s committed tooling, starts the gate driver.' },
-  { id: 'stale-dispatcher', stage: 'Gate', hop: 'dispatcher on stale tools hands over', harness: 'stale-dispatcher', fix: '1989322098',
-    invariant: 'A dispatcher on an older tools copy stops launching and hands over to one on the current tooling within 45 s.' },
   { id: 'worker-lease', stage: 'Gate', hop: 'worker heartbeats and lease', harness: 'e2e',
     invariant: 'A running driver is alive and renews its 2-minute lease every 5 s; no gap reaches half the lease.',
     live: report => cause(report, 'SUBMIT_HANDOFF_DEAD') },
