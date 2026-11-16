@@ -4,9 +4,9 @@ import { defineRules } from './rules.js';
 import { RELEASE_NEXT } from './next.js';
 export { RELEASE_NEXT } from './next.js';
 
-/** Reasons a holder's release counts toward the release-twice rule. */
 /** A release note naming a machine fault: such a release says nothing about the item's bar. */
 const INFRA_NOTE = /GATE_INFRA_EXHAUSTED|DATABASE_LOCKED|runner admission/u;
+/** Reasons a holder's release counts toward the release-twice rule. */
 const QUALITY = Object.freeze(['BLOCKED', 'BUDGET', 'INELIGIBLE']);
 const ROUTES = Object.freeze(['light', 'mid', 'strong']);
 
