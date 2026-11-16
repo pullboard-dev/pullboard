@@ -208,6 +208,24 @@ function injectedCallees(file, body, load) {
 const tableDataCodes = (file, source) => /\/packages\/moves\/src\/logic\/table\/[\w-]+\.table\.js$/u.test(file)
   ? [...source.matchAll(/\bcode: '([A-Z][A-Z0-9_]*)'/g)].map(([, code]) => code) : [];
 
+const FACTS_BY_SOURCE = new Map();
+/**
+ * The parsed facts of one file's source, shared by every walk in this file. Why: the broken-copy
+ * cases each start a fresh walk over nearly the same tree, and parsing every file again for each
+ * was most of this file's time. The key is the exact source text and its path, so a rewritten file
+ * is parsed on its own and no walk ever sees another's edit; the facts are only read, never changed.
+ *
+ * @param {string} source
+ * @param {string} sourceFile
+ * @returns {ReturnType<typeof sourceFacts>}
+ */
+function factsOf(source, sourceFile) {
+  const key = `${sourceFile}\u0000${source}`;
+  let facts = FACTS_BY_SOURCE.get(key);
+  if (!facts) FACTS_BY_SOURCE.set(key, facts = sourceFacts(source, sourceFile));
+  return facts;
+}
+
 /**
  * A walk over this package's source: the refusal codes a function raises, itself or through the
  * functions it calls, followed across imports and into the functions the CLI hands the board.
@@ -222,7 +240,7 @@ function codeWalk(read, { caught = false } = {}) {
   const load = (file) => {
     if (!files.has(file)) {
       const { sourceFile, source } = machineSourceModule(file, read);
-      files.set(file, sourceFacts(source, sourceFile));
+      files.set(file, factsOf(source, sourceFile));
     }
     return files.get(file);
   };
