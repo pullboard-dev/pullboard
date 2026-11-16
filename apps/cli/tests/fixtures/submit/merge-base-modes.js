@@ -7,7 +7,7 @@ import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { runFixtureChild } from '../child.js';
+import { runChildTests } from '../../../../../packages/gate/tests/fixtures/child-tests.js';
 import { runLocal } from '../../../journeys/submit/gate/local.js';
 import { submitSettled } from '../../../journeys/submit/gate/local.js';
 import { whenRunnerSettles } from '../runner/local-start.js';
@@ -55,7 +55,7 @@ export function affectedSubmitModeCases(test, modes) {
     }
     assert.equal(box.git('branch', '--show-current'), 'main', 'submit runs in the actual main checkout');
     // Process-level: the unchanged importer runs under its own node --test, not the CLI.
-    const standalone = runFixtureChild(process.execPath, ['--test', 'test/a.test.js'], { cwd: box.root, env: box.env, encoding: 'utf8' });
+    const standalone = runChildTests(['test/a.test.js'], { cwd: box.root, env: box.env });
     assert.equal(standalone.status, 1, 'the unchanged importer detects the source regression');
     assert.match(standalone.stdout, mode === 'deleted source' ? /ERR_MODULE_NOT_FOUND/u : /ERR_ASSERTION/u);
     rmSync(marker, { force: true });
