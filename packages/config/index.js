@@ -97,6 +97,8 @@ export {
   specTemplate,
   practiceTemplate,
   renderAgentsBlock,
+  SEAT_LOOP,
+  SEAT_LOOP_WORD_BUDGET,
   renderCoordinatorGuide,
   COORDINATOR_GUIDE_FILE,
   PULLBOARD_LOOP_GIT_COMMANDS,
