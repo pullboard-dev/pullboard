@@ -10,6 +10,7 @@ import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
+import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 
 /** Require actual successful CLI execution before inspecting its document. */
 function document(result) {
@@ -28,7 +29,7 @@ function asSession(box, session, cwd, ...args) {
   }
 }
 
-test('a reviewer gets the companion-composed tree and a bare tree cannot reject [V4,H16,G1]', t => {
+test('a reviewer gets the companion-composed tree and a bare tree cannot reject [V4,H16,G1]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -40,7 +41,8 @@ test('a reviewer gets the companion-composed tree and a bare tree cannot reject 
   document(asSession(box, 'rc-builder', box.web, 'claim', String(id)));
   assert.equal(helpers.commitFile(box, box.web, 'web/source.js', 'export const source = true;\n', 'feat(web): build source [G1]').status, 0);
   const source = box.git(box.web, 'rev-parse', 'HEAD');
-  document(asSession(box, 'rc-builder', box.web, 'submit', String(id)));
+  // A pulled submit returns queued: wait for the gate's receipt to move the item before reading its status [C7].
+  await settleSubmit(t, box, document(asSession(box, 'rc-builder', box.web, 'submit', String(id))));
   assert.equal(store.getItem(board, id).item_status, 'submitted', 'the private journey uses the actual native Submit pipeline');
   const patchFile = join(box.dir, 'companion.patch');
   writeFileSync(patchFile, ['diff --git a/web/companion.js b/web/companion.js', 'new file mode 100644', 'index 0000000..e69de29',
