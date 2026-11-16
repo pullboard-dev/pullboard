@@ -1,3 +1,4 @@
 {
-  "runner-spec": "apps/runner/tests/io/pipeline/spec.test.js"
+  "runner-spec": "apps/runner/tests/io/pipeline/spec.test.js",
+  "orphan-worker": "apps/runner/tests/io/pipeline/worker.test.js"
 }
