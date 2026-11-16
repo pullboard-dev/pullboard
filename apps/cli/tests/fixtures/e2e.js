@@ -68,6 +68,9 @@ export function parityText(text, dir) {
     .replace(/^comparison (?:pending for #\d+|unavailable: .*|#\d+.*(?:\n(?:head |base |new red:|fixed:|No new red).*)*)$/gmu, '<comparison>')
     .replace(/"steps":\{[^}]*\}/gu, '"steps":"<steps>"')
     .replace(/\(pid \d+\)/gu, '(pid <pid>)')
+    // The detached comparison worker also writes its own thread facts at no fixed moment, so the lines and the digest's fact count follow timing, not the runtime.
+    .replace(/^ +<time> +.*fact measurement <uuid>: Review comparison: .*\n/gmu, '')
+    .replace(/\b\d+ fact activities\b/gu, '<n> fact activities')
     .replace(/"pid":\d+/gu, '"pid":"<pid>"')
     // Whether init's background view starts or finds port 4890 taken depends on what else runs on the machine, not on the runtime.
     .replace(/Pullboard view is running; open [^"\\]*|Port \d+ is in use; the background view did not start\./gu, '<view state>');
@@ -99,6 +102,8 @@ export function parityRecord({ dir, env, cwd, args, result }) {
   // at no fixed moment, so whether a call sees "measuring" or a total, and the byte counts, depend on timing, not on the runtime.
   const DISK_MEASURED = ['total', 'stores', 'measuredAt', 'measuring', 'warning'];
   const mask = (value, key) => key === 'comparison' ? '<comparison>'
+    : key === 'pid' && typeof value === 'number' ? '<pid>' // a runner's process id
+    : value?.kind === 'fact' && typeof value.count === 'number' ? mask({ ...value, count: '<n>' }) // the digest counts the late comparison fact
     : key === 'steps' && value && typeof value === 'object' && Object.values(value).every(Number.isFinite) ? '<steps>' // gate step timings, in milliseconds
     : typeof value === 'number' && /Ms$/u.test(key ?? '') ? '<ms>' // a measured duration
     : typeof value === 'string' ? parityText(value, dir).replace(/^disk use under \.git\/pullboard: .*$/gmu, 'disk use under .git/pullboard: <measured>')
