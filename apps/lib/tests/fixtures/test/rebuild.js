@@ -71,7 +71,10 @@ export function runnableFiles() {
     const file = queue.pop();
     keep.add(file);
     if (!/\.(?:js|mjs|cjs)$/u.test(file) || !existsSync(join(REPO, file))) continue;
-    for (const match of readFileSync(join(REPO, file), 'utf8').matchAll(REFERENCE)) {
+    const source = readFileSync(join(REPO, file), 'utf8');
+    // A source that lists folders may load whatever it finds there, so its whole folder comes along.
+    if (source.includes('readdirSync')) for (const sibling of tracked) if (sibling.startsWith(`${dirname(file)}/`) && !keep.has(sibling)) { keep.add(sibling); queue.push(sibling); }
+    for (const match of source.matchAll(REFERENCE)) {
       const target = relative(REPO, resolve(REPO, dirname(file), match[1] ?? match[2]));
       if (tracked.has(target) && !keep.has(target)) { keep.add(target); queue.push(target); }
     }
