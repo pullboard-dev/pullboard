@@ -8,8 +8,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChildAsync } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
+import { runFixtureChildAsync } from '../../../gate/tests/fixtures/child.js';
 import { makeTreeBundlePort } from '../../index.js';
 
 const root = privateFixtureFiles('pullboard-bundle-port-').root;
