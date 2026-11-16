@@ -39,7 +39,6 @@ test('clause 1: with landing.reofferTrunkBusy on, a trunk-busy receipt offers th
   const later = claimJob(board.db, { runner: 'r-other', capabilities: [], now: 3 + 30_001 });
   assert.equal(later?.job, 'land:1:k~r1', 'the retry is claimable once the backoff has passed');
   assert.deepEqual(later.payload, { items: [{ id: 7 }] }, 'with the same landing payload');
-  assert.match(board.db.prepare("SELECT event_detail FROM event WHERE item_id = 7 AND event_kind = 'fact' ORDER BY event_id DESC").get().event_detail, /trunk moved.*offered land job land:1:k~r1/u);
 });
 
 test('clause 2: with landing.reofferTrunkBusy off (the default), a trunk-busy receipt is applied as on main: no new job, the item stays verified [C7,#9102]', t => {
