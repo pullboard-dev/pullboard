@@ -288,7 +288,7 @@ export function fileEdgeFollowUp(board, id, { agentId, edges }) {
   if (!edges.length || itemThread(board, id).some(entry => entry.type === 'fact' && EDGE_FILED.test(String(entry.text)))) return null;
   const listed = edges.slice(0, 12).map(edge => `${edge.from} -> ${edge.to}`).join('\n');
   const plural = edges.length === 1 ? '' : 's';
-  const item = { by: agentId, lane: getItem(board, id).item_lane, title: `Review the ${edges.length} import edge${plural} added by #${id}`, route: 'mid', specIds: [], parentId: id, after: [],
+  const item = { by: agentId, lane: getItem(board, id).item_lane, title: `Review the ${edges.length} import edge${plural} added by #${id}`, route: 'strong', specIds: [], parentId: id, after: [],
     criterion: '1. Each import edge listed in the brief is kept or removed, with the reason given [reasoning].',
     brief: `Filed when the gate settled #${id}, whose diff adds ${edges.length} import edge${plural}:\n${listed}${edges.length > 12 ? `\n... and ${edges.length - 12} more` : ''}` };
   return atomic(board, () => {
