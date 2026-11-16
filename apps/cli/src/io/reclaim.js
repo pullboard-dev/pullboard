@@ -22,15 +22,34 @@ import { submitHandoff } from '../../../../packages/store/light.js';
 export async function fallbackReclaim(ctx, command) {
   const now = () => ctx.clock.now().getTime();
   try {
-    const lapsed = await withBoardRead(ctx, board => lapsedGateJobs(board.db, { now: now() }));
+    const { lapsed, runs } = await withBoardRead(ctx, async board => {
+      const runs = await runsHolder(ctx, board);
+      return { runs, lapsed: lapsedGateJobs(board.db, { now: now(), runs }) };
+    });
     if (!lapsed.length) return null;
     // The list read above is handed on, so the whole fallback is one reclaimLapsed pass; driveOnce rechecks the lease.
     // A job whose item is no longer submitted at its commit is ended, never renewed (zombie gate jobs, 9 Nov).
-    return await writeFallback(ctx, board => reclaimPass(board.db, { owner: `fallback:${command}:${process.pid}`, repo: ctx.info.root, now, lapsed,
+    return await writeFallback(ctx, board => reclaimPass(board.db, { owner: `fallback:${command}:${process.pid}`, repo: ctx.info.root, now, lapsed, runs,
       active: view => servingNow(board, view) }));
   } catch {
     return null;
   }
+}
+
+/** The board_meta row that turns the runs file on; the same key as RUNS_STORE_KEY in packages/store, which this light helper must not import statically [P7,#9113]. */
+const RUNS_STORE_KEY = 'runs_store';
+
+/**
+ * The runs holder while runs_store is on, else null. The store barrel (and its sqlite.js) is imported only when the flag
+ * is on, so a default board's next and status load nothing more and open no runs file [P7,#9113].
+ *
+ * @param {any} ctx
+ * @param {any} board - An open board handle.
+ * @returns {Promise<{ readonly db: import('node:sqlite').DatabaseSync } | null>}
+ */
+export async function runsHolder(ctx, board) {
+  if (board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(RUNS_STORE_KEY)?.meta_value !== '1') return null;
+  return (await import('../../../../packages/store/index.js')).boardRunsHolder(board, ctx.file);
 }
 
 /** The id of the newest gate job offered for an item, or null; an older one's receipt would apply as stale. */
