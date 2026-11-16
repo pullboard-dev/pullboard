@@ -10,7 +10,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { cellProject } from '../../../../../store/tests/fixtures/cell.js';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../../gate/tests/fixtures/child.js';
 import { batchGatePlan } from '../../../../src/io/step/gate.js';
 
 const cleanups = [];

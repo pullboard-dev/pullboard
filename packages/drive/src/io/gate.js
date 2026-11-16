@@ -12,6 +12,39 @@ import { gateDriveStall } from '../logic/gate.js';
 import { leasedJobs } from '../../../jobs/index.js';
 
 /**
+ * @typedef {object} GateHopPort
+ * @property {boolean} enabled - gate.fencedHop, read by the caller.
+ * @property {number} item - The item whose hop this gate drives.
+ * @property {Function} write - The store's gateHopMove.
+ * @property {Function} decide - The hop table's decision over the read row and the move.
+ */
+
+/**
+ * Move the item's fenced hop row for one gate driver: the caller hands in the row writer, the hop table's decision and the
+ * gate.fencedHop setting, so the drive cell reads no settings and imports neither the store nor the moves cell. With the
+ * setting off it does nothing. A hop held by another live driver is refused HOP_FENCED, naming that driver [C7,#8274].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {GateHopPort | undefined} hop
+ * @param {{ name: 'acquire' | 'step', actor: string, epoch?: number }} move
+ * @returns {{ off: true } | { hop: { owner: string | null, epoch: number } }}
+ */
+function moveHop(db, hop, move) {
+  if (hop?.enabled !== true) return { off: true };
+  const write = decide => hop.write(db, { item: hop.item, actor: move.actor, enabled: true, decide });
+  try {
+    if (move.name !== 'acquire') return write(row => hop.decide(row, move));
+    // A first driver finds no row: the table creates the queued hop, then the same driver acquires it.
+    let created = false;
+    const first = write(row => { if (row) return hop.decide(row, move); created = true; return hop.decide(null, { name: 'create', actor: move.actor }); });
+    return created ? write(row => hop.decide(row, move)) : first;
+  } catch (error) {
+    if (error.code === 'HOP_HELD') throw new Refused('HOP_FENCED', error.message, 'stop driving: another driver owns the hop; acquire it again if its lease lapses');
+    throw error;
+  }
+}
+
+/**
  * The count of steps with this name already on the job, the seq the next one takes.
  *
  * @param {ReturnType<typeof jobView>} view
@@ -35,13 +68,32 @@ function nextSeq(view, name) {
  * @param {{ owner: string, relaunches?: number, now?: number }} options
  * @returns {ReturnType<typeof gateDriveRecord>}
  */
-export function admitGateDrive(db, handoff, { owner, relaunches = 0, now = Date.now() }) {
+export function admitGateDrive(db, handoff, { owner, relaunches = 0, now = Date.now(), hop }) {
   const id = gateDriveJobId(handoff);
   createJob(db, { id, kind: GATE_DRIVE_KIND, now });
   const take = takeJob(db, id, owner, { now });
   if (!take.taken) throw new Refused('GATE_DRIVE_LEASED', `gate ${handoff} already has a live driver (${take.job.leaseOwner}); leave it to finish`);
-  writeStep(db, id, 'admitted', { owner, relaunches }, { seq: nextSeq(take.job, 'admitted'), now });
+  let acquired;
+  try { acquired = moveHop(db, hop, { name: 'acquire', actor: owner }); }
+  catch (error) { releaseLease(db, id, owner, { now }); throw error; }
+  writeStep(db, id, 'admitted', { owner, relaunches, ...(acquired.hop ? { hopEpoch: acquired.hop.epoch } : {}) }, { seq: nextSeq(take.job, 'admitted'), now });
   return readGateDrive(db, handoff);
+}
+
+/**
+ * Renew a gate driver's hop through the fenced row at the epoch it acquired, so a driver whose hop lapsed and was taken is refused HOP_FENCED.
+ * With gate.fencedHop off it renews nothing and answers `{ off: true }`.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} handoff - The hand-off job id.
+ * @param {{ owner: string, hop?: GateHopPort }} options
+ * @returns {ReturnType<typeof moveHop>}
+ */
+export function renewGateDriveHop(db, handoff, { owner, hop }) {
+  if (hop?.enabled !== true) return { off: true };
+  const steps = jobView(db, gateDriveJobId(handoff))?.steps ?? [];
+  const epoch = [...steps].reverse().find(step => step.name === 'admitted' && step.payload.owner === owner)?.payload.hopEpoch;
+  return moveHop(db, hop, { name: 'step', actor: owner, epoch });
 }
 
 /**

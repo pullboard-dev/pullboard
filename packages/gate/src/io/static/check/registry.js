@@ -107,10 +107,10 @@ export const STATIC_CHECKS = Object.freeze([
   { name: 'cells-edges', run: ({ root, sources, text }) => cellsEdgeProblems(root, { files: sources.map(row => row.file), read: text })
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
   // A synchronous child process in a module a leased job, driver or producer reaches freezes its lease timer (packages/codemap/src/io/sync-spawn-in-leases.js).
-  { name: 'sync-spawn-in-leases', run: ({ root, text }) => syncSpawnProblems(root, { read: text })
+  { name: 'sync-spawn-in-leases', run: ({ root, files, text }) => syncSpawnProblems(root, { read: text, only: files })
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
   // Core code names no test runner or operating system; those literals live in adapters (packages/codemap/src/io/no-runtime-assumptions.js).
-  { name: 'no-runtime-assumptions', run: ({ root, text }) => assumptionProblems(root, { read: text })
+  { name: 'no-runtime-assumptions', run: ({ root, files, text }) => assumptionProblems(root, { read: text, only: files })
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
   { name: 'import-style', run: ({ sources }) => importStyleViolations(sources).map(row => `${row.file}:${row.line}: one import binding per line (${row.count} bindings)`) },
   // The approved state metadata chain is proved across the whole tree, so judge the tree and report only changed files.

@@ -105,9 +105,9 @@ function runImporting() {
     const options = { cwd: repo, env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } };
     runFixtureSetupGit(['init', '-q', '-b', 'main'], options);
     mkdirSync(join(repo, 'kernel'), { recursive: true });
-    mkdirSync(join(repo, 'pkg', 'src'), { recursive: true });
+    mkdirSync(join(repo, 'pkg/src'), { recursive: true });
     writeFileSync(join(repo, 'kernel', 'light.js'), 'export const LIMIT = 10;\n');
-    writeFileSync(join(repo, 'pkg', 'src', 'judge.js'), "import { LIMIT } from '../../kernel/light.js';\nexport const judge = (n) => n < LIMIT;\n");
+    writeFileSync(join(repo, 'pkg/src/judge.js'), "import { LIMIT } from '../../kernel/light.js';\nexport const judge = (n) => n < LIMIT;\n");
     writeFileSync(join(repo, 'pkg', 'judge.test.js'), "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\nimport { judge } from './src/judge.js';\ntest('judge', () => { assert.equal(judge(3), true); assert.equal(judge(30), false); });\n");
     runFixtureSetupGit(['add', '-A'], options);
     runFixtureSetupGit(['commit', '-q', '-m', 'base'], options);

@@ -17,8 +17,8 @@ import { requireLandingModuleResolution } from '../../index.js';
 import { requireLandingSecretFree } from '../../index.js';
 import { scanLanding } from '../../src/io/scan.js';
 import { runShell } from '../../../gate/index.js';
-import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../gate/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 
 /** Build two genuine shell children with distinct TAP accounts and observable working directories. */
 function fixture(t) {

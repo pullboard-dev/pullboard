@@ -4,10 +4,11 @@
  * command, and every git hook, runs the installed pullboard, never this repo's bin.
  */
 import assert from 'node:assert/strict';
-import { runFixtureExecFile as execFileSync } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild as spawnSync } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureExecFile as execFileSync } from '../../fixtures/child.js';
+import { runFixtureChild as spawnSync } from '../../fixtures/child.js';
+import { runFixtureChild } from '../../fixtures/child.js';
+import { runFixtureGit } from '../../fixtures/child.js';
+import { runFixtureSetupGit } from '../../fixtures/child.js';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -78,7 +79,8 @@ test('a packed release installs with no network and runs the whole loop from a f
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'test -f web/greet.txt', lanes: { web: { owns: ['web/'], specs: ['G1'] } } }, null, 2));
   writeFileSync(join(repo, 'SPEC.md'), '# Greeter\n\n## G · Goals\n- G1 [approved, must] It greets. | gate: test\n');
   git(repo, 'add', '-A');
-  git(repo, 'commit', '-q', '-m', 'chore: set up pullboard');
+  // The set-up commit is not the claim, so it skips hooks (one Node launch saved); the builder's commit below runs the installed hooks.
+  runFixtureSetupGit(['commit', '-q', '-m', 'chore: set up pullboard'], { cwd: repo, env });
   assert.equal(pullboard(repo, 'add', 'web', 'Greet', '--specs', 'G1').split('\n')[0].trim(), '#1');
 
   assert.match(pullboard(repo, 'worktree', 'web'), /joined as web-1/);
@@ -91,6 +93,10 @@ test('a packed release installs with no network and runs the whole loop from a f
   const commit = git(builder, 'rev-parse', 'HEAD');
   const submitted = pullboard(builder, 'submit', '1');
   assert.match(submitted, new RegExp(`#1 is in the gate as job gate:1:${commit.slice(0, 12)}:[a-z0-9]+: a runner pulls the whole gate and posts one receipt`));
+  // The verifier's worktree is made while the pulled gate settles, so its Node launches overlap the runner's wait.
+  assert.match(pullboard(repo, 'worktree', 'web'), /joined as web-2/);
+  const verifier = join(dir, 'repo-web-2');
+  git(verifier, 'switch', '-q', '--detach', commit);
   // The pulled gate settles on the machine's local runner; verify needs its receipt applied (#6249, #7283, #7867): read the
   // item through the installed bin until the receipt has moved it off claimed.
   const deadline = Date.now() + 180_000;
@@ -99,9 +105,6 @@ test('a packed release installs with no network and runs the whole loop from a f
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
   }
 
-  assert.match(pullboard(repo, 'worktree', 'web'), /joined as web-2/);
-  const verifier = join(dir, 'repo-web-2');
-  git(verifier, 'switch', '-q', '--detach', commit);
   assert.match(pullboard(verifier, 'verify', '1', 'accept', '--note', 'checked out the commit; web/greet.txt says hello'), /verified #1/);
 
   git(repo, 'merge', '-q', '--no-edit', commit);

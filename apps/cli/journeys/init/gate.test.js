@@ -70,6 +70,16 @@ function writeGateSentinel(file, marker) {
   chmodSync(file, 0o755);
 }
 
+/**
+ * Run a printed `pullboard ...` line as the person would paste it: a real shell parses its words, and the production CLI
+ * answers them in this process. Why: a node start-up per setter cost seconds on a loaded runner; the shell still proves the quoting [C7].
+ */
+async function runPrinted(box, cwd, line) {
+  const words = runFixtureChild('sh', ['-c', `pullboard() { printf '%s\\0' "$@"; }\n${line}`], { cwd, env: box.env, encoding: 'utf8' });
+  assert.equal(words.status, 0, words.failure || words.stderr);
+  return box.runLocal(cwd, ...words.stdout.split('\0').slice(0, -1));
+}
+
 test('init says when its gate command cannot run [I1, I2]', async () => {
   const box = e2e.sandbox();
   for (const name of ['UV_PROJECT_ENVIRONMENT', 'POETRY_ACTIVE', 'POETRY_VIRTUALENVS_PATH', 'VIRTUAL_ENV']) delete box.env[name];
@@ -180,13 +190,13 @@ test('a repo without package.json is told a gate that fits it [C7,B26]', async (
   box.git(root, 'add', '-A');
   box.git(root, 'commit', '-q', '-m', 'chore: set up the no-manifest board');
 
-  const added = fixtureAdd(box.run, root, 'app', 'No-manifest newcomer change',
+  const added = await fixtureAdd(box.runLocal, root, 'app', 'No-manifest newcomer change',
     '--criterion', 'the result file is present', '--check', 'test -f app/result.txt', '--json');
   assert.equal(added.code, 0, added.err || added.out);
   const id = String(JSON.parse(added.out).item.item_id);
   const worktree = join(box.dir, 'app-agent');
   box.git(root, 'worktree', 'add', '-q', '-b', 'app/one', worktree);
-  const joined = fixtureJoin(box.run, worktree, 'app', '--route', 'strong');
+  const joined = await fixtureJoin(box.runLocal, worktree, 'app', '--route', 'strong');
   assert.equal(joined.code, 0, joined.err || joined.out);
   const claimed = await box.runLocal(worktree, 'claim', id, '--json');
   assert.equal(claimed.code, 0, claimed.err || claimed.out);
@@ -226,11 +236,11 @@ test('a repo without package.json is told a gate that fits it [C7,B26]', async (
   const configuredWorktree = join(box.dir, 'configured-app-agent');
   box.git(root, 'worktree', 'add', '-q', '-b', 'app/chosen', configuredWorktree, 'main');
   // 1388ce262a: an item frozen under the empty gate refuses its claim once the gate policy changes, so the chosen gate gets a fresh item.
-  const refiled = fixtureAdd(box.run, root, 'app', 'Chosen-gate newcomer change',
+  const refiled = await fixtureAdd(box.runLocal, root, 'app', 'Chosen-gate newcomer change',
     '--criterion', 'the result file is present', '--check', 'test -f app/result.txt', '--not-duplicate-of', `${id} refiled under the chosen gate`, '--json');
   assert.equal(refiled.code, 0, refiled.err || refiled.out);
   const configuredId = String(JSON.parse(refiled.out).item.item_id);
-  const configuredJoin = fixtureJoin(box.run, configuredWorktree, 'app', '--route', 'strong');
+  const configuredJoin = await fixtureJoin(box.runLocal, configuredWorktree, 'app', '--route', 'strong');
   assert.equal(configuredJoin.code, 0, configuredJoin.err || configuredJoin.out);
   const configuredClaim = await box.runLocal(configuredWorktree, 'claim', configuredId, '--json');
   assert.equal(configuredClaim.code, 0, configuredClaim.err || configuredClaim.out);
@@ -326,7 +336,7 @@ test('NO_GATE names the project test before a spec-only fallback [I1,C3,B26]', a
   assert.equal(suggested, "pullboard gate set 'make test'", 'the next step keeps the actual project test');
   assert.doesNotMatch(refusal.next, /pullboard spec check/u, 'a known test command is not replaced with a spec check');
   assert.equal(existsSync(marker), false, 'finding a test command never executes it');
-  const configured = runFixtureChild('sh', ['-c', suggested], { cwd: root, env: box.env, encoding: 'utf8' });
+  const configured = await runPrinted(box, root, suggested);
   assert.equal(configured.status, 0, configured.failure || configured.stderr || configured.stdout);
   assert.equal(JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8')).gate, 'make test');
   assert.equal(existsSync(marker), false, 'the printed setter does not execute the test');
@@ -388,7 +398,7 @@ test('NO_GATE preserves a failing Makefile test with ordinary multiple targets [
   assert.equal(refusal.code, 'NO_GATE');
   const printed = /pullboard gate set '[^']*'/u.exec(refusal.next)?.[0];
   assert.ok(printed, 'the current refusal must provide the executable setter');
-  const set = runFixtureChild('sh', ['-c', printed], { cwd: root, env: box.env, encoding: 'utf8' });
+  const set = await runPrinted(box, root, printed);
   assert.equal(set.status, 0, set.failure || set.stderr || set.stdout);
   assert.equal(existsSync(marker), false, 'detection and configuration must not run the project gate');
   box.git(root, 'add', 'pullboard.json');
@@ -433,7 +443,7 @@ test('NO_GATE finds test anywhere in literal Makefile target lists [C3,I1,B26]',
     assert.equal(refusal.code, 'NO_GATE');
     const printed = /pullboard gate set '[^']*'/u.exec(refusal.next)?.[0];
     assert.equal(printed, `pullboard gate set '${target ? 'make test' : 'pullboard spec check'}'`, rule);
-    const configured = runFixtureChild('sh', ['-c', printed], { cwd: root, env: box.env, encoding: 'utf8' });
+    const configured = await runPrinted(box, root, printed);
     assert.equal(configured.status, 0, configured.failure || configured.stderr || configured.stdout);
     assert.equal(existsSync(marker), false, 'finding and setting the gate never runs Makefile code');
     box.git(root, 'add', 'pullboard.json');

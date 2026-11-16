@@ -34,7 +34,7 @@ test('clause 1: the setting defaults off, so no repo is refused until it opts in
   assert.deepEqual(run(repo(t, { ratchets: { boardOpens: false } }), 'packages/x/tests/new.test.js', OPEN), []);
 });
 
-test('clause 2: a change with no test file leaves the check silent without reading anything [C7]', t => {
+test('clause 3: a change with no test file leaves the board-open check silent without reading anything [C7]', t => {
   const root = repo(t, { ratchets: { boardOpens: true } });
   const read = () => { throw new Error('no file may be read'); };
   assert.deepEqual(check.run({ root, files: ['packages/x/src/io/main.js', 'README.md'], read }), []);

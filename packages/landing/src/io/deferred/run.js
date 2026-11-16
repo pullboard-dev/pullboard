@@ -64,7 +64,7 @@ export async function runDeferredAffectedTests(root, config, files, { directory,
     affectedCommand(config, files), { waitMs: lease.waitMs, gateLease: lease,
       stages: true, landing: true, persistLog: true, artifactDirectory: directory, artifactPrefix: 'deferred', timeoutMs: config.landing?.timeoutMs });
   },
-  { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', kind: 'gate', landing: true, browser, gui: testsNeedGui(root, files), onWait });
+  { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', kind: 'gate', item: 'landing batch', landing: true, browser, gui: testsNeedGui(root, files), onWait });
   refuseSandboxBlocked(run);
   if (run.timedOut) throw new Refused('LAND_GATE_TIMEOUT', `the deferred landing command timed out; no file is blamed; inspect ${run.logPath}`);
   if (!run.isGreen) {

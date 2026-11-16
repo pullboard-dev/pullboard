@@ -8,6 +8,7 @@ import { Refused } from '../../../../kernel/index.js';
 import { gitSpawnSync } from '../../../../git/index.js';
 import { loadKeyedResult } from '../keyed.js';
 import { saveKeyedResult } from '../keyed.js';
+import { sharedCacheFolder } from '../keyed.js';
 import { fileURLToPath } from 'node:url';
 import { closeSync } from 'node:fs';
 import { openSync } from 'node:fs';
@@ -121,6 +122,28 @@ export function sourceObjects(root, source) {
   return cachedScan('source-objects', [source.commit, source.protect ?? null], () => scanSourceObjects(root, source));
 }
 
+/**
+ * The blobs of `commit`'s tree this scanner already found clean, from the runner's shared cache, and a `save` that
+ * records a clean tree's blobs. A result is keyed by blob ids and the scanner's own tree, never a commit, so a job whose
+ * fixture commits the same tree again skips reading them. Why: each runner job starts with an empty HOME, and every cold
+ * trip rescanned the same blobs, 1.5-8 s beside four other jobs (#8189). Paths, sizes and the commit are still checked.
+ */
+function cleanBlobs(root, commit) {
+  const none = { objects: new Set(), save() {} };
+  const scanner = scannerTree(), folder = scanner && sharedCacheFolder('source-blobs');
+  if (!folder) return none;
+  let key;
+  try { key = JSON.stringify(['clean-blobs', scanner, sourceGit(root, ['rev-parse', `${commit}^{tree}`]).trim()]); } catch { return none; }
+  let objects = new Set();
+  try {
+    const entry = JSON.parse(loadKeyedResult(folder, key)?.toString('utf8') ?? 'null');
+    if (entry?.key === key && Array.isArray(entry.objects)) objects = new Set(entry.objects.filter(object => /^[a-f0-9]{40,64}$/u.test(object)));
+  } catch { /* An unreadable entry only costs this scan its shortcut. */ }
+  return { objects, save(clean) {
+    try { saveKeyedResult(folder, key, Buffer.from(JSON.stringify({ key, objects: clean }))); } catch { /* The next job scans again. */ }
+  } };
+}
+
 /** Scan every current blob and the commit message before any source bytes leave the controller. */
 function scanSourceObjects(root, source) {
   const records = sourceGit(root, ['ls-tree', '-r', '-z', '--full-tree', source.commit]).split('\0').filter(Boolean);
@@ -153,26 +176,29 @@ function scanSourceObjects(root, source) {
       }
       return size;
     });
+    // Only blobs this scanner has not already found clean are read and scanned; every path and size is checked above.
+    const known = cleanBlobs(root, source.commit);
+    const pending = blobs.map((blob, index) => ({ ...blob, size: sizes[index] })).filter(({ object }) => !known.objects.has(object));
     const scratch = scratchFolder('pullboard-runner-source-');
     try {
       const scan = join(scratch, 'current.scan');
-      for (let start = 0; start < blobs.length;) {
+      for (let start = 0; start < pending.length;) {
         let end = start, bytes = 0;
         // Bound scratch usage too: an otherwise valid large tree must not fill the temp volume.
         do {
-          bytes += sizes[end] + blobs[end].object.length + 32;
+          bytes += pending[end].size + pending[end].object.length + 32;
           end++;
-        } while (end < blobs.length && bytes + sizes[end] + blobs[end].object.length + 32 <= MAX_BLOB_BYTES);
+        } while (end < pending.length && bytes + pending[end].size + pending[end].object.length + 32 <= MAX_BLOB_BYTES);
         const output = openSync(scan, 'wx', 0o600);
         try { sourceGit(root, ['cat-file', '--batch'], {
-          input: blobs.slice(start, end).map(({ object }) => object + '\n').join(''), stdio: ['pipe', output, 'pipe'],
+          input: pending.slice(start, end).map(({ object }) => object + '\n').join(''), stdio: ['pipe', output, 'pipe'],
         }); } finally { closeSync(output); }
         const descriptor = openSync(scan, 'r');
         try {
           for (let index = start; index < end; index++) {
-            const { object, path } = blobs[index];
+            const { object, path, size } = pending[index];
             const record = objectRecord(descriptor);
-            if (record.object !== object || record.type !== 'blob' || record.data.length !== sizes[index]) {
+            if (record.object !== object || record.type !== 'blob' || record.data.length !== size) {
               throw new Refused('RUNNER_SOURCE', 'current source record differs from its inventory; retry from the committed repository');
             }
             const findings = secretsIn(record.data.toString('utf8').split(/\r?\n/u)
@@ -186,6 +212,7 @@ function scanSourceObjects(root, source) {
         start = end;
       }
     } finally { rmSync(scratch, { recursive: true, force: true }); }
+    if (pending.length) known.save(blobs.map(({ object }) => object));
   }
   const commit = sourceGit(root, ['cat-file', 'commit', source.commit]);
   if (secretsIn(commit.split('\n').map((text, index) => ({ path: 'commit', line: index + 1, text }))).length) {

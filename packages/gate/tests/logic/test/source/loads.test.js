@@ -8,8 +8,8 @@ import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../fixtures/child.js';
+import { runFixtureGit } from '../../../fixtures/child.js';
 import { selectAffectedTests } from '../../../../index.js';
 
 /** Make a real committed ES-module graph without executing any candidate source. */
