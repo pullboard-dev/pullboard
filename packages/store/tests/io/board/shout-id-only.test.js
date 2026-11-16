@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../index.js';
 import { cellBoard } from '../../fixtures/cell.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../../../gate/tests/fixtures/testkit.js';
 
 // fixture-subject: addItem (a store unit test over a stand-in board; the machine home holds the one setting under test)
