@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { gateRunnerLoadPolicy } from '../../index.js';
 import { cellProject } from '../../../store/tests/fixtures/cell.js';
-import { runFixtureChildAsync } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChildAsync } from '../fixtures/child.js';
 
 /** Run a body against a real private machine queue; fake runner names exercise admission with no network. */
 async function scenario(t, body) {

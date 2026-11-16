@@ -157,7 +157,7 @@ test('native cache lease serializes peers and Git CAS refuses a changed ref with
   };
   await assert.rejects(pruneSourceCache({ ...box, lease, roots: [box.commits.at(-1)], limit: 2, git: conflictingGit }), /cannot lock ref|expected/u);
   assert.equal(changed, true);
-  assert.equal(git(box.cache, ['for-each-ref', '--format=%(refname)', 'refs/pullboard/candidates']).split('\n').length, 6);
+  assert.equal(git(box.cache, ['for-each-ref', '--format=%(refname)', 'refs/pullboard/candidates']).split('\n').length, box.commits.length);
 });
 
 /** Wait for an actual child-created marker; the timeout is solely a failure hang ceiling. */
@@ -186,7 +186,7 @@ test('a real worker runs beyond 1024 legacy refs while another live job keeps it
   const command = `node --input-type=module -e ${JSON.stringify(`import fs from 'node:fs';import cp from 'node:child_process';const head=cp.execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();fs.writeFileSync(${JSON.stringify(started)},head);while(!fs.existsSync(${JSON.stringify(release)}))await new Promise(r=>setTimeout(r,25));console.log('SOURCE_HEAD:'+head)`)}`;
   /** Dispatch through the real controller, work spec, native worker and source scanner in private fixture storage. */
   async function execute(command, expected) {
-    const source = `import {runOnRunnerAsync} from ${JSON.stringify(new URL('../../../../packages/runners/index.js', import.meta.url).href)};const result=await runOnRunnerAsync(process.cwd(),${JSON.stringify(command)},{runner:{host:${JSON.stringify(HOST)},slots:2,browser:1}});console.log(JSON.stringify({green:result.isGreen,output:result.output}));`;
+    const source = `import {runOnRunnerAsync} from ${JSON.stringify(new URL('../../../../packages/runners/index.js', import.meta.url).href)};const result=await runOnRunnerAsync(process.cwd(),${JSON.stringify(command)},{runner:{host:${JSON.stringify(HOST)},slots:2,browser:1},metadata:{item:'fixture',kind:'remote-command'}});console.log(JSON.stringify({green:result.isGreen,output:result.output}));`;
     const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source], {
       cwd: repo, env: { ...box.env, PATH: `${bin}:${box.env.PATH}` }, encoding: 'utf8',
     });
@@ -211,7 +211,7 @@ test('a real worker runs beyond 1024 legacy refs while another live job keeps it
     writeFileSync(join(legacy, 'stderr.log'), 'old worker diagnostic, no live spec');
     try {
       git(cache, ['update-ref', '--stdin'], commits.map(head => `update refs/pullboard/candidates/${head} ${head}`).join('\n') + '\n');
-      assert.equal(git(cache, ['for-each-ref', '--format=%(refname)', 'refs/pullboard/candidates']).split('\n').length, 1030);
+      assert.equal(git(cache, ['for-each-ref', '--format=%(refname)', 'refs/pullboard/candidates']).split('\n').length, commits.length);
     } finally { lease.release(); }
     git(repo, ['checkout', '-q', '--detach', commits.at(-1)]);
     await execute(showHead, commits.at(-1));

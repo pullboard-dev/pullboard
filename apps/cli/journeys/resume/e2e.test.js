@@ -4,13 +4,14 @@
  */
 import assert from 'node:assert/strict';
 import {
-  runFixtureChild as spawnSync,
+  runFixtureChildAsync as spawnChild,
 } from '../../tests/fixtures/child.js';
 import {
   chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   writeFileSync,
 } from 'node:fs';
 import {
@@ -18,16 +19,23 @@ import {
 } from 'node:path';
 import {
   after,
-  test,
+  describe,
+  it,
 } from 'node:test';
 import { claudeLoopRules } from '../../../../packages/config/index.js';
 
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { fixtureAddRoute } from '../../tests/fixtures/testkit.js';
 import { fixtureJoinRoute } from '../../tests/fixtures/testkit.js';
+/** Cases are collected, then run concurrently: each owns its sandbox, repo and machine home, so they overlap their waits instead of adding them [C7]. */
+const cases = [];
+/** Register one case; it runs inside the concurrent suite at the end of this file. */
+const test = (name, body) => cases.push([name, body]);
+
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
@@ -79,10 +87,12 @@ test('init adds a Claude Code session hook that runs resume, and keeps every oth
   assert.equal(settings.hooks.Stop.length, mine.hooks.Stop.length + 1, 'only the new nonblocking Stop nudge is appended');
   assert.equal(settings.hooks.SessionStart.length, 1);
   const { command } = settings.hooks.SessionStart[0].hooks[0];
-  const card = spawnSync('sh', ['-c', command], { cwd: repo, env: box.env, encoding: 'utf8' });
+  // The hook's 2 s worker budget is the product's; a loaded runner starting a fresh node for it times out, so the card runs in this process [I6].
+  assert.match(command, /exec pullboard hook SessionStart$/);
+  const card = await runCliInProcess(['hook', 'SessionStart'], { cwd: repo, env: box.env });
   assert.equal(card.status, 0, card.stderr);
   assert.match(JSON.parse(card.stdout).hookSpecificOutput.additionalContext, /^resume: coordinator/);
-  const bare = spawnSync('sh', ['-c', command], { cwd: repo, env: { ...box.env, PATH: '/usr/bin:/bin' }, encoding: 'utf8' });
+  const bare = await spawnChild('sh', ['-c', command], { cwd: repo, env: { ...box.env, PATH: '/usr/bin:/bin' }, encoding: 'utf8' });
   assert.equal(bare.status, 0, 'without pullboard installed, the session still starts');
   assert.equal(bare.stdout, '');
 });
@@ -98,6 +108,7 @@ test('the run pack names verified items that touched the same files, so a cold a
   await addDiagnosedLight(box, 'Greet', '--route', 'mid', '--criterion', 'says Hi', '--check', 'grep -q Hi web/page.js', '--brief', LIGHT_BRIEF);
   const runner = (await box.runLocal(box.repo, 'worktree', 'web', '--route', 'light')).out.match(/^made (\S+) /)[1];
   assert.match((await box.runLocal(runner, 'run', '--agent-light', greet, '--attempts', '1')).out, /#1 is in the gate as job /);
+  await settledGateJob(box, 1); // the pulled gate records the item commit only once its receipt is applied [C7]
   const firstCommit = JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out).item_commit;
   box.git(box.web, 'merge', '-q', '--ff-only', firstCommit);
   assert.match((await box.runLocal(box.web, 'verify', '1', 'accept', '--note', 'emptied the page; the check failed')).out, /verified #1/);
@@ -115,32 +126,40 @@ test('the run pack names verified items that touched the same files, so a cold a
 test('a fresh worktree with no install of its own runs pullboard from the main checkout, for git hooks and the session hook [I6]', async () => {
   const box = project();
   const bare = { ...box.env, PATH: '/usr/bin:/bin' };
-  const commit = () => spawnSync('git', ['commit', '-q', '-m', 'feat(web): page [G1]'], { cwd: box.web, env: bare, encoding: 'utf8' });
+  const commit = () => spawnChild('git', ['commit', '-q', '-m', 'feat(web): page [G1]'], { cwd: box.web, env: bare, encoding: 'utf8' });
   const { command } = JSON.parse(readFileSync(join(box.web, '.claude', 'settings.json'), 'utf8')).hooks.SessionStart[0].hooks[0];
-  const resume = () => spawnSync('sh', ['-c', command], { cwd: box.web, env: bare, encoding: 'utf8' });
+  const resume = () => spawnChild('sh', ['-c', command], { cwd: box.web, env: bare, encoding: 'utf8' });
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web', 'page.html'), '<h1>Hi</h1>');
   box.git(box.web, 'add', '-A');
-  const refused = commit();
+  const refused = await commit();
   assert.notEqual(refused.status, 0);
   assert.match(refused.stderr, /pullboard is not installed/);
-  assert.deepEqual([resume().status, resume().stdout], [0, ''], 'no install anywhere: the session still starts, silently');
+  const [quiet1, quiet2] = await Promise.all([resume(), resume()]);
+  assert.deepEqual([quiet1.status, quiet2.stdout], [0, ''], 'no install anywhere: the session still starts, silently');
   const bin = join(box.repo, 'node_modules', '.bin');
   mkdirSync(bin, { recursive: true });
-  writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "${BIN}" "$@"\n`);
+  // The shell stub notes who the session hook reached; the card itself runs in this process, because the hook's 2 s worker budget is the product's and a loaded runner cannot start two fresh nodes inside it [I6].
+  const reached = join(box.repo, 'session-hook-reached');
+  writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nif [ "$1" = hook ] && [ "$2" = SessionStart ]; then echo "$0" > "${reached}"; exit 0; fi\nexec "${process.execPath}" "${BIN}" "$@"\n`);
   chmodSync(join(bin, 'pullboard'), 0o755);
-  const committed = commit();
+  const committed = await commit();
   assert.equal(committed.status, 0, committed.stderr);
-  assert.match(JSON.parse(resume().stdout).hookSpecificOutput.additionalContext, /^resume: web-1 \(fixture-model\), web lane/);
+  assert.equal((await resume()).status, 0);
+  assert.equal(realpathSync(readFileSync(reached, 'utf8').trim()), realpathSync(join(bin, 'pullboard')), 'the session hook found the main checkout install');
+  const card = await runCliInProcess(['hook', 'SessionStart'], { cwd: box.web, env: bare });
+  assert.match(JSON.parse(card.stdout).hookSpecificOutput.additionalContext, /^resume: web-1 \(fixture-model\), web lane/);
 });
+
+const OK_LINES = 400, NOTE_LINES = 100;
 
 test('the gate reaches the agent as a digest: one line when green, the failure when red; the whole output stays in the git dir [V10]', async t => {
   const box = project(undefined, sandbox(), { withWorktree: false });
   writeFileSync(join(box.repo, 'gate.cjs'), [
     "const red = require('node:fs').existsSync('RED');",
     "const { writeSync } = require('node:fs');",
-    "for (let i = 0; i < 400; i++) writeSync(1, `ok ${i} ${'x'.repeat(red ? 10 : 3000)}\\n`);",
-    "if (red) { writeSync(2, 'not ok 401 - the page renders a heading\\n'); for (let i = 0; i < 100; i++) writeSync(1, `# note ${i}\\n`); process.exitCode = 1; }",
+    "for (let i = 0; i < " + OK_LINES + "; i++) writeSync(1, `ok ${i} ${'x'.repeat(red ? 10 : 3000)}\\n`);",
+    "if (red) { writeSync(2, 'not ok " + (OK_LINES + 1) + " - the page renders a heading\\n'); for (let i = 0; i < " + NOTE_LINES + "; i++) writeSync(1, `# note ${i}\\n`); process.exitCode = 1; }",
     '',
   ].join('\n'));
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, gate: 'node gate.cjs # prints a lot' }));
@@ -158,12 +177,12 @@ test('the gate reaches the agent as a digest: one line when green, the failure w
   box.git(box.repo, 'commit', '-q', '-m', 'chore: turn the gate red');
   const red = await fixtureCommand(box, box.repo, 'gate');
   assert.equal(red.code, 1);
-  assert.match(red.out, /^gate red in \d+s:\n {2}not ok 401 - the page renders a heading\n/);
-  assert.match(red.out, / {2}# note 99\n[\s\S]*the whole output is in /);
+  assert.match(red.out, new RegExp(`^gate red in \\d+s:\\n {2}not ok ${OK_LINES + 1} - the page renders a heading\\n`));
+  assert.match(red.out, new RegExp(` {2}# note ${NOTE_LINES - 1}\\n[\\s\\S]*the whole output is in `));
   assert.ok(red.out.length < 4000, `${red.out.length} characters`);
   const lines = readFileSync(log, 'utf8').split('\n');
-  assert.equal(lines.length, 502);
-  assert.equal(lines[400], 'not ok 401 - the page renders a heading', 'stdout and stderr in one stream, in order');
+  assert.equal(lines.length, OK_LINES + 1 + NOTE_LINES + 1, 'every ok line, the stderr line, every note and the final newline');
+  assert.equal(lines[OK_LINES], `not ok ${OK_LINES + 1} - the page renders a heading`, 'stdout and stderr in one stream, in order');
   const web = join(box.dir, 'digest-builder');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/digest', web, 'main');
   const joined = await fixtureCommand(box, web, 'join', 'web');
@@ -241,4 +260,8 @@ test('check runs the item\'s own check command, yours by default, and prints a d
   assert.equal((await box.runLocal(box.repo, 'check', '1')).code, 1, 'named, from another checkout: there the file is missing');
   assert.match((await box.runLocal(box.web, 'check', '2')).err, /NO_CHECK.*#2 has no check command/);
   assert.match((await box.runLocal(box.repo, 'help', '--all')).out, /pullboard check \[id\]/);
+});
+
+describe('resume journeys [I6,N21,V10,V11,S10,N23,C7]', { concurrency: true }, () => {
+  for (const [name, body] of cases) it(name, body);
 });

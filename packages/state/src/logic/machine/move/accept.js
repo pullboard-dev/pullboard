@@ -18,6 +18,7 @@ export const MOVES = [
       ...VERDICT_REACHED_REFUSALS,
       { code: 'NOT_LANDED', rule: 'a verdict on a withdrawn item needs its forced merge, and no verdict yet', next: 'see its state with pullboard show <id>; only an item a forced merge landed with no verdict takes this accept' },
       { code: 'AGENT_APPROVAL_REQUIRED', rule: 'the reviewed source satisfies the accepted spec approval policy', next: 'ask the coordinator to arrange the person confirmation or decline' },
+      { code: 'BAR_EMPTY', rule: 'a criterion with no text freezes only while freeze.refuseEmptyBar is off', next: 'ask the coordinator to give the item numbered clauses: pullboard edit <id> --criterion "1. ... [test]" --reason "..."' },
       { code: 'UNKNOWN_SPEC', rule: 'the reviewed criterion cites governing approved rows', next: 'restore the governing spec rows or ask the coordinator to correct the item' },
       { code: 'SUBMISSION_PROOF', rule: 'recorded submission and known-main proof bind the reviewed source and trunk', next: 'retain native source-matched proof receipts and submit again before verification' },
       { code: 'SEAL_REVISION', rule: 'a reviewed plan that skips sealed packages names revisions this clone holds', next: 'fetch the submitted base and head, then verify again' },

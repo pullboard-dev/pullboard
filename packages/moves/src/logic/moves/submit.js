@@ -17,6 +17,7 @@ import { KNOWN_MAIN_REWORKS_ENGINE } from "../../../../state/light.js";
 import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from "../../../../state/light.js";
 import { KNOWN_MAIN_RECEIPT_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by submit, discovered without a shared registry edit [C7,V4,H16]. */
+import { SUBMIT_COMMAND_NEXT } from "../table/next.js";
 import { BAR_READY_ENGINE } from "../../../../state/light.js";
 import { barReadySetting } from "../bar/ready.js";
 import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";
@@ -64,6 +65,7 @@ function actor(move) { return move.args[1]?.agentId ?? null; }
 export default Object.freeze({ operation: "submit", order: 15, engine: 1,
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
+  ...SUBMIT_COMMAND_NEXT,
   "CLAUSE_UNTICKED": "tick each named clause with its declared evidence kind using pullboard fact <id> note, then submit again",
   "TEST_SELECTION_SOURCE": "restore Git history and retry the selected test run",
   "TEST_TIER_MANIFEST": "regenerate and commit the testing tier manifest",
@@ -94,19 +96,18 @@ export default Object.freeze({ operation: "submit", order: 15, engine: 1,
   "A5_GRAMMAR_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
   "BAD_CONFIG": "fix pullboard.json as the message says, then commit it: git commit -m \"chore: fix pullboard config\" pullboard.json",
   "BAD_REVIEW_POLICY": 'restore the native review policy before reviewing this item',
+  "RUNS_BOARD_MISMATCH": "move the stray runs file aside; the board rebuilds in-flight work from its run rows",
+  "BAR_EMPTY": "ask the coordinator to give the item numbered clauses: pullboard edit <id> --criterion \"1. ... [test]\" --reason \"...\"",
   "BAR_NOT_READY":"read pullboard bar <id>; ask its author to complete the named red baseline and measurement/edge notes, then have an outside parent session sign the current bar",
-  "CHILDREN_OPEN": "finish the child items (pullboard list --all), or ask the coordinator to withdraw them",
   "CELLS_PLAN_COUNTS": "repair the named placement source or cut count, commit, then submit again",
   "CELLS_PLAN_RETIRED": "repair the named retirement contract or retain its original placement, commit, then submit again",
   "CELLS_SUBMIT": "repair the named new cell diagnostic or unplaced path, commit it, then submit again",
-  "CRITERIA_CHANGED": "ask the coordinator to refreeze it: pullboard shout coordinator --kind question \"please refreeze #<id>\"",
   "CRITERION_PROVES_NOTHING": "set a check that fails before the work: pullboard edit <id> --check \"<command>\", or ask the person to accept this one: pullboard check accept <id>",
   "DIRTY": "commit your changes, then run the command again",
   "HOSTED_BRANCH_MISMATCH": "on the runner, check out the claimed item branch in the item folder, then run pullboard submit <id> again",
   "HOSTED_PUSH_FAILED": "on the runner, fix the push the message names (git pull origin <branch> when the coordinator branch moved), then run pullboard submit <id> again",
   "GATE_RED": "fix what the gate report names, commit, and submit again",
   "GIT_GRAFTS": "ask the coordinator to remove the git graft file: pullboard shout coordinator --kind question \"please remove .git/info/grafts\"",
-  "HEAD_NOT_NEW": "commit the rework, then pullboard submit <id>",
   "HOST_NAME": "reword the named commit's message without this machine's name (git rebase -i, then reword), then run pullboard submit <id> again",
   "ITEM_LEASE_LOST": "read pullboard show <id>; if the item is free, claim it again for a build or reserve it with pullboard next --verify <id> for a review, then retry",
   "LAND_GATE_OUTPUT": "inspect the retained timed gate output directory and free disk space, then start another landing",
@@ -117,16 +118,13 @@ export default Object.freeze({ operation: "submit", order: 15, engine: 1,
   "MERGE_CONFLICT": "merge main into your branch, resolve the conflicts, commit, and run the command again",
   "MOVED_DURING_GATE": "leave the worktree alone until the gate finishes, then submit again",
   "NOT_A_REPO": "cd into a git repo, or make one: git init",
-  "NOT_JOINED": "join a lane from this worktree: pullboard join <lane> --model \"<model name>\" (see: pullboard lanes)",
-  "NOT_YOURS": "shout its holder or the coordinator: pullboard shout coordinator --kind question \"<what you need>\"",
+  "CHECK_FILE_MISSING": "commit the test file the frozen check names, or ask the coordinator to correct the check, then submit again",
   "NO_COMMIT": "commit your work, or name a commit that exists: git log --oneline",
   "NO_CONFIG": "run pullboard init in the main checkout and commit pullboard.json",
   "NO_GATE": "in the main checkout, run pullboard gate set \"<project test command>\", then commit pullboard.json",
-  "NO_ITEM": "find the item id: pullboard list --all",
   "NO_POLICY": "restore and commit pullboard.json, then run the command again",
   "NO_TRUNK": "in the main checkout, switch to the repository’s trunk branch and run pullboard inbox",
   "OUTSIDE_LANE": "move those changes out of this commit, and shout the lane that owns them: pullboard shout <lane> \"<text>\"",
-  "PENDING_REFREEZE": "the coordinator runs pullboard refreeze <id>",
   "PIPEFAIL_UNAVAILABLE": "rewrite the gate in pullboard.json without a pipe",
   "RATCHET_ROSE": "fix the new doctrine problems named in the report, commit, and submit again; only the person can sign an increased count",
   "RATCHET_UNCOUNTED": "fix the named doctrine check to exit zero or one within its configured timeout, or ask the coordinator to repair it, then submit again",
@@ -147,5 +145,4 @@ export default Object.freeze({ operation: "submit", order: 15, engine: 1,
   "TIMING_SLOT_REQUIRED": "start the timing check outside its inherited ordinary lease and acquire the machine gate with timing true",
   "UNDECLARED_BUILDER_FAMILY": "rejoin with your vendor family: pullboard join <lane> --family <vendor> --model \"<model name>\", then submit again",
   "UNTRACKED":"commit or ignore the untracked files, then run the command again",
-  "USAGE": "run pullboard help"
 }) });

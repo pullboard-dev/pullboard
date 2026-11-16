@@ -18,6 +18,8 @@ import {
   join,
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { slowestSteps } from '../logic/tour-steps.js';
+import { typed } from '../logic/tour-steps.js';
 import { CHECKOUT_SESSION_TOKEN_ENV } from '../../../../packages/seats/index.js';
 import { displayAgentName } from '../../../../packages/seats/index.js';
 import { scratchFolder } from '../../../../packages/config/index.js';
@@ -79,28 +81,9 @@ function paint(text, code, enabled) {
 }
 
 /**
- * Arguments as a person would type them.
- *
- * @param {string[]} args
- * @returns {string}
- */
-const typed = (args) => args.map((arg) => (/[\s"'$|()]/.test(arg) ? JSON.stringify(arg) : arg)).join(' ');
-
-/**
  * A step that did not do what the script expects, with what it printed.
  */
 class TourStopped extends Error {}
-
-/**
- * The three slowest commands the tour ran, with their times, so a slow tour says where its time went (N10).
- *
- * @param {{ label: string, ms: number }[]} timings
- * @returns {string}
- */
-function slowestSteps(timings) {
-  const slowest = [...timings].sort((a, b) => b.ms - a.ms).slice(0, 3);
-  return `slowest steps: ${slowest.map(({ label, ms }) => `${label} ${Math.round(ms)} ms`).join('; ')}`;
-}
 
 /**
  * Block for a moment, so a person can read along.

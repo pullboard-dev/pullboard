@@ -34,6 +34,7 @@ import {
 import {
   recordReceipt,
   receiptOf,
+  tripOverheadMs,
   slotOf,
   startReceipt,
 } from './receipt.js';
@@ -117,7 +118,7 @@ export function rotateRunners(runners, avoided, tried) {
 
 /** Snapshot required canonical operations before admission; functions remain private process-local lease state. */
 export function requireGateExecutionServices(value) {
-  const runners = ['sampleRunnerLoad', 'localRunnerDescriptor', 'carriedRunnerTrunk', 'probeRunnerTransport', 'probeRunnerHealth', 'runOnRunner', 'runOnRunnerAsync', 'effectiveRunners', 'refreshRunnerMeasurements'];
+  const runners = ['sampleRunnerLoad', 'localRunnerDescriptor', 'carriedRunnerTrunk', 'probeRunnerTransport', 'probeRunnerHealth', 'runOnRunnerAsync', 'effectiveRunners', 'refreshRunnerMeasurements'];
   const landing = ['captureReleaseQueue', 'constrainedLandingHost', 'releaseExecutors'];
   if (!runners.every(name => typeof value?.runners?.[name] === 'function')
     || !landing.every(name => typeof value?.landing?.[name] === 'function')) {
@@ -183,6 +184,9 @@ export function settleReceipt(lease) {
     ...(lease.infrastructureAttempts?.length ? { infrastructureAttempts: [...lease.infrastructureAttempts] } : {}),
     ...(local ? lease.timingEvidence?.() ?? { exclusive: false, unfencedClients: [] }
       : { exclusive: executor?.exclusive === true, unfencedClients: executor?.unfencedClients ?? [] }) };
+  // The trip's time outside tests, so the static stage and U151's capacity model read one number per receipt [C7].
+  const overheadMs = tripOverheadMs(lease.receipt);
+  if (overheadMs !== null) lease.receipt.tripOverheadMs = overheadMs;
   return lease.receipt;
 }
 

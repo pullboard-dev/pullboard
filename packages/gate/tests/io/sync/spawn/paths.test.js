@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
-import { fixtureCommittedGraph } from '../../../../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureCommittedGraph } from '../../../fixtures/testkit.js';
 import { selectAffectedTests } from '../../../../index.js';
 
 /** Make a real committed ES-module graph with a CLI, a launcher and the modules the CLI imports. */

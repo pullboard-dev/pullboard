@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { runFixtureChildAsync } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChildAsync } from '../../fixtures/child.js';
 import { childJournalPreloadSource } from '../../../index.js';
 import { foreignNodeOptions } from '../../../index.js';
 import { gateMachineHome } from '../../../index.js';

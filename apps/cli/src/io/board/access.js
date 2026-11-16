@@ -13,7 +13,6 @@ import { CHECKOUT_LEASES } from '../main.js';
 import { main } from '../main.js';
 import { COORDINATOR } from '../../../../../packages/config/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
-import { runPrivateBoard } from '../../../../../packages/github/index.js';
 import { relayMachineOwner } from '../../../../../packages/link/index.js';
 import { relayMachineContext } from '../../../../../packages/link/index.js';
 import { ordered } from '../claim.js';
@@ -40,11 +39,11 @@ export function personMode(ctx, me, values) {
   }
   return true;
 }
-/** Run board work for the caller's checkout, or select its device-local repo board for a private add. */
+/** Run board work for the caller's checkout, or select its device-local repo board for a private add; the github package loads only for that add [C7]. */
 export function actOn(io, work, { privateBoard = false } = {}) {
   const ctx = personCommandContext(io, { main, ordered });
-  if (privateBoard) return runPrivateBoard(ctx, work, { withBoard, whoAmI,
-    checkoutLeases: CHECKOUT_LEASES, checkoutBoardOnly: CHECKOUT_BOARD_ONLY, relayMachineOwner, relayMachineContext, ...nativeBoardOpeners(io) });
+  if (privateBoard) return import('../../../../../packages/github/index.js').then(({ runPrivateBoard }) => runPrivateBoard(ctx, work, { withBoard, whoAmI,
+    checkoutLeases: CHECKOUT_LEASES, checkoutBoardOnly: CHECKOUT_BOARD_ONLY, relayMachineOwner, relayMachineContext, ...nativeBoardOpeners(io) }));
   return withBoard(ctx, (board) => work(ctx, board, whoAmI(ctx, board)));
 }
 

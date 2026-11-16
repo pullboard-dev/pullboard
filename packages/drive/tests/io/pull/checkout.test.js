@@ -1,6 +1,8 @@
 /** A runner reuses one checkout across its jobs, reset and cleaned for each, instead of preparing a fresh one (#5812) [P7]. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -36,7 +38,7 @@ function trunkRepo(t) {
  * Why a stand-in: the clauses time the runner's own steps between claim and command, which no board shapes.
  */
 function fakeBoard(trunk, jobs) {
-  const claimedAt = [], receipts = [];
+  const claimedAt = [], receipts = [], releases = [];
   let next = 0;
   const reply = document => ({ status: 200, json: async () => document });
   const fetchImpl = async (_url, { body }) => {
@@ -47,18 +49,20 @@ function fakeBoard(trunk, jobs) {
       return reply({ trunk, claim: job ? { job: job.id, attempt: 1, token: `t-${job.id}`, candidate: job.commit, base: job.commit, run: job.run } : null });
     }
     if (call.action === 'receipt') receipts.push(call.receipt);
+    if (call.action === 'release') releases.push(call.reason);
     return reply({ ok: true, renewed: true });
   };
-  return { fetchImpl, claimedAt, receipts };
+  return { fetchImpl, claimedAt, receipts, releases };
 }
 
 /** A node argv that prints its cwd and start time, writes `stamp`, then prints the folder's files with `git status`. */
-function job(stamp) {
+function job(stamp, meet = null) {
   const script = `const fs=require('node:fs');const cp=require('node:child_process');console.log('START '+Date.now());console.log('CWD '+process.cwd());`
     + `console.log('FILES '+JSON.stringify(fs.readdirSync('.').filter(f=>f!=='.git').sort()));`
     + `console.log('RELEASE '+cp.execFileSync('git',['rev-parse','v0.0.1^{commit}'],{encoding:'utf8'}).trim());`
     + `console.log('TRUNK '+cp.execFileSync('git',['config','pullboard.trunk'],{encoding:'utf8'}).trim());`
     + `console.log('STATUS '+JSON.stringify(cp.execFileSync('git',['status','--porcelain','--ignored'],{encoding:'utf8'})));`
+    + (meet ? `fs.writeFileSync(${JSON.stringify(meet)}+'/'+process.pid,'');const limit=Date.now()+20000;while(fs.readdirSync(${JSON.stringify(meet)}).length<2&&Date.now()<limit)Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,25);` : '')
     + (stamp ? `fs.writeFileSync('tracked.txt','dirty\\n');fs.writeFileSync('left.txt','x');fs.writeFileSync('run.log','x');fs.mkdirSync('out/deep',{recursive:true});fs.writeFileSync('out/deep/a','x');` : '');
   return ['node', '-e', script];
 }
@@ -132,3 +136,47 @@ test('#6681: slots checking out one commit at once fetch it once and each reuse 
     assert.ok(board.receipts.every(receipt => receipt.startup.totalMs < 10_000), JSON.stringify(board.receipts.map(receipt => receipt.startup)));
     assert.ok(board.receipts.some(receipt => receipt.startup.reused), 'a slot that ran a job before reuses its folder');
   });
+
+/** One serve with no runner name, as `runner serve` starts it, over the shared cache, until the board has no job left. */
+async function serveUnnamed(cache, trunk, jobs) {
+  const board = fakeBoard(trunk, jobs);
+  const stop = new AbortController();
+  await serveRunner({ git: pullGit, board: BOARD, capabilities: [], cache, jobs: 1, signal: stop.signal, fetchImpl: board.fetchImpl, sleep: async () => { stop.abort(); }, timing: { idleMs: 1 } });
+  return board.receipts;
+}
+
+test('clause 1: after a runner serve restart, a job slot reuses the same checkout folder, keeping its warm files [P7]', { timeout: 60_000 }, // budget: as clause 1.
+  async t => {
+    const { cache, trunk, first, second } = trunkRepo(t);
+    const before = await serveUnnamed(cache, trunk, [{ id: 'j1', commit: first, run: job(true) }]);
+    // A file git ignores is what a warm test-action cache is; a restart that kept the folder would still reset it, so the folder is the proof.
+    const after = await serveUnnamed(cache, trunk, [{ id: 'j2', commit: second, run: job(false) }]);
+    assert.deepEqual([before.length, after.length], [1, 1]);
+    const folder = field(before[0], 'CWD');
+    assert.equal(field(after[0], 'CWD'), folder, 'the restarted serve runs in the first serve\'s slot folder');
+    assert.match(folder, /[\\/]work[\\/]runner-[^\\/]+-0$/u);
+    assert.doesNotMatch(folder, /-[0-9a-f]{6}-0$/u, 'no per-restart hash in the folder name');
+    assert.ok(existsSync(join(folder, 'second.txt')), 'the folder was adopted and reset to the new commit');
+    assert.deepEqual(slotLocks(cache), [], 'a finished serve gives its slot prefix back');
+  });
+
+test('clause 2: a second live serve on one host and cache takes its own slot folders, never the first serve\'s [P7]', { timeout: 60_000 }, // budget: as clause 1.
+  async t => {
+    const { cache, trunk, first } = trunkRepo(t);
+    const folders = [];
+    // Each job waits until the other is running too, so the two serves hold their slots at the same moment, however the claims interleave.
+    const { root: meet } = privateFixtureFiles('pullboard-reuse-meet-');
+    t.after(() => rmSync(meet, { recursive: true, force: true }));
+    const board = fakeBoard(trunk, [{ id: 'j1', commit: first, run: job(false, meet) }, { id: 'j2', commit: first, run: job(false, meet) }]);
+    const stop = new AbortController();
+    const inner = serveRunner({ git: pullGit, board: BOARD, capabilities: [], cache, jobs: 1, once: true, signal: stop.signal, fetchImpl: board.fetchImpl, sleep: async () => {}, timing: { idleMs: 1 } });
+    const outer = serveRunner({ git: pullGit, board: BOARD, capabilities: [], cache, jobs: 1, once: true, signal: stop.signal, fetchImpl: board.fetchImpl, sleep: async () => {}, timing: { idleMs: 1 } });
+    await Promise.all([inner, outer]);
+    for (const receipt of board.receipts) folders.push(field(receipt, 'CWD'));
+    assert.equal(new Set(folders).size, 2, `${folders.join('\n')}\nreleased: ${JSON.stringify(board.releases)}`);
+  });
+
+/** The slot-lock files left in a cache. */
+function slotLocks(cache) {
+  try { return readdirSync(join(cache, 'slots')); } catch { return []; }
+}

@@ -33,6 +33,21 @@ export function queuedGateLines(queued, gateText = null) {
   return lines;
 }
 
+/**
+ * The line show prints for a claimed item whose newest gate passed its checks but deferred its proof to shard jobs: the
+ * proof is waiting, not red. Why: a deferred receipt has gate.green false yet names no failing case, and the GATE_RED
+ * line sent builders to resubmit and re-queue the whole gate while the shards were only queued [C7].
+ *
+ * @param {{ id: string, step: string, gate: Record<string, any> | null } | null} gateJob - show's newest gate job.
+ * @param {{ item_id: number, item_status?: string }} item
+ * @returns {string[]} none unless the gate is done, deferred, and the item is still claimed.
+ */
+export function pulledWaitingLines(gateJob, item) {
+  const gate = gateJob?.gate;
+  if (gateJob?.step !== 'done' || !gate || gate.green === true || gate.deferred !== true || item?.item_status !== 'claimed') return [];
+  return [`GATE_WAITING: gate job ${gateJob.id} passed its checks; its proof waits on its shard jobs, so do not resubmit #${item.item_id}`];
+}
+
 /** Budget: a red pulled gate prints at most 10 failing cases, and 10 tail lines for a phase that names none. */
 const RED_ROWS = 10;
 /** Budget: one failing case's error is one line of at most 240 characters; the full log keeps the rest. */
@@ -49,7 +64,7 @@ const RED_ERROR_CHARS = 240;
  */
 export function pulledRedLines(gateJob, item) {
   const gate = gateJob?.gate;
-  if (gateJob?.step !== 'done' || !gate || gate.green === true || item?.item_status !== 'claimed') return [];
+  if (gateJob?.step !== 'done' || !gate || gate.green === true || gate.deferred === true || item?.item_status !== 'claimed') return [];
   const oneLine = text => String(text ?? '').replace(/\s+/gu, ' ').trim().slice(0, RED_ERROR_CHARS);
   const counts = gate.counts ? `: ${gate.counts.passed ?? 'unknown'} passed, ${gate.counts.failed ?? 'unknown'} failed` : '';
   const seen = new Set(), cases = [], tails = [];

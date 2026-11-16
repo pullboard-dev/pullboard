@@ -13,14 +13,21 @@ import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
-import { rmSync } from 'node:fs';
+import { removeFixtureDirectory } from '../../../../packages/gate/tests/fixtures/diagnostics.js';
 import { writeFileSync } from 'node:fs';
 import { runFixtureChild } from './child.js';
 import { runFixtureGit } from './child.js';
 import { serveApi } from '../../../../packages/api/index.js';
+import { createStateSnapshots } from '../../../../packages/api/index.js';
 import { apiBoardOpeners } from './board.js';
+import { withFixtureBoard } from './board.js';
 import { main } from './native.js';
 import { runCliInProcess } from './process.js';
+import { runCliSync } from './sync/cli.js';
+import { JOURNEY_MODE } from './e2e.js';
+import { journeyCall } from './e2e.js';
+import { parityRecord } from './e2e.js';
+import { appendFileSync } from 'node:fs';
 import { fixtureSettledMachine } from './testkit.js';
 import { fixtureProjectPolicy } from './testkit.js';
 import { refusalDocument } from '../../index.js';
@@ -28,12 +35,14 @@ import { JSON_SHAPES } from '../../../../packages/config/index.js';
 import { fetchFresh } from './http.js';
 import { startFixtureLocalRunner } from './runner/local-start.js';
 import { whenRunnerSettles } from './runner/local-start.js';
+import { CLI_ENTRY } from './runner/entry.js';
 import { stopFixtureLocalRunner } from './runner/local-stop.js';
 import { safeFixtureDiagnostic } from './child.js';
 import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import {
   addItem as addBoardItem,
   appendFact,
+  itemThread,
 } from '../../../../packages/store/index.js';
 import {
   HOST,
@@ -150,6 +159,49 @@ export function addRoutedItem(board, fields) {
   return id;
 }
 
+/** The board with its database wrapped so every statement run is listed, one entry per run. */
+function boardWithStatements(board, statements) {
+  const db = new Proxy(board.db, { get(target, key) {
+    const value = target[key];
+    if (key !== 'prepare') return typeof value === 'function' ? value.bind(target) : value;
+    return sql => new Proxy(target.prepare(sql), { get(statement, name) {
+      const method = statement[name];
+      if (typeof method !== 'function') return method;
+      return (...args) => { if (name === 'all' || name === 'get' || name === 'run') statements.push(String(sql)); return method.apply(statement, args); };
+    } });
+  } });
+  return Object.assign(Object.create(board), { db });
+}
+
+/**
+ * File `count` items on the fixture's board, then build its state from nothing as a server's first build does, listing the SQL
+ * that build ran. A control runs the per-item thread read on a few items through the same counter.
+ * Why: how many reads a cold build makes is the claim under test, and no build result shows it [C7,#8480].
+ *
+ * @param {{ root: string }} box - An apiHttpFixture.
+ * @param {number} count - How many items to file before the build.
+ * @returns {{ ids: number[], built: number[], statements: string[], control: string[], threads: Map<number, any[]>, expected: Map<number, any[]> }} The filed ids, the ids the build projected, the build's SQL, the control's, the built threads and itemThread's own.
+ */
+export function coldStateReads(box, count) {
+  const file = join(box.root, '.git/pullboard/board.sqlite');
+  const ids = withFixtureBoard(file, board => Array.from({ length: count }, (_, index) => addRoutedItem(board, { by: 'coordinator', lane: 'app', title: `cold build item ${index}`, criterion: 'The build reads its thread.', check: 'true', route: 'mid',
+    brief: 'Files: app/cold.js\nTest: the cold build reads this thread with the rest in one pass.' })));
+  const statements = [], control = [], built = [];
+  const { openBoard: openFile, openBoardForRead: openForRead } = apiBoardOpeners;
+  const openers = { ...apiBoardOpeners,
+    openBoard: path => boardWithStatements(openFile(path), statements),
+    openBoardForRead: path => { const opened = openForRead(path); return opened && boardWithStatements(opened, statements); } };
+  const snapshots = createStateSnapshots({ projects: () => [{ root: box.root, name: 'HTTP fixture' }], viewPorts: viewApiPorts, boardOpeners: openers, onItemBuild: ({ itemId }) => built.push(itemId) });
+  const record = snapshots.materialize({ id: 'cold-build', root: box.root }, { full: true });
+  const threads = new Map(JSON.parse(record.full.json.join('0')).items.map(item => [item.id, item.thread]));
+  const expected = new Map();
+  withFixtureBoard(file, board => {
+    for (const id of ids) expected.set(id, JSON.parse(JSON.stringify(itemThread(board, id))));
+    for (const id of ids.slice(0, 5)) itemThread(boardWithStatements(board, control), id);
+  });
+  return { ids, built, statements, control, threads, expected };
+}
+
 /** File a light item through the CLI: `json` adds it mid and checks the add shape, then its own brief diagnoses it; returns the added document. */
 export function addLightViaCli(json, box, cwd, args) {
   const added = json(box, cwd, 'add', args, 'add');
@@ -207,7 +259,7 @@ const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 export function apiHttpFixture(t) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-http-')));
   // A pulled submit starts the loopback local runner in this machine home; it stops before the sandbox goes, or it keeps writing into it.
-  t.after(() => { stopFixtureLocalRunner(join(dir, 'machine-home')); rmSync(dir, { recursive: true, force: true }); });
+  t.after(() => { stopFixtureLocalRunner(join(dir, 'machine-home')); removeFixtureDirectory(dir); });
   const root = join(dir, 'repo');
   const bin = join(dir, 'bin');
   mkdirSync(root);
@@ -221,8 +273,18 @@ export function apiHttpFixture(t) {
   mkdirSync(env.HOME);
   /** Run Git only inside the private fixture. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env, stdio: 'pipe', encoding: 'utf8' });
-  /** Exercise this worktree's real CLI with a private environment. */
-  const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+  /** One real CLI process with a private environment: the fixture's process-mode path, so PULLBOARD_JOURNEY_MODE=process still runs every call for real [C7]. */
+  const realRun = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+  /**
+   * This worktree's CLI with a private environment, answered synchronously by a warm worker thread (no node start-up), or as a real
+   * process under PULLBOARD_JOURNEY_MODE=process; PULLBOARD_PARITY_RECORD appends each call's record for the parity check [C7].
+   * Why: these are quick setup moves (init, add, fact, settings, runner add); none settles a pulled job, so none needs a process.
+   */
+  const run = (cwd, ...args) => {
+    const result = JOURNEY_MODE === 'process' ? realRun(cwd, ...args) : runCliSync(args, { cwd, env });
+    if (process.env.PULLBOARD_PARITY_RECORD) appendFileSync(process.env.PULLBOARD_PARITY_RECORD, `${JSON.stringify(parityRecord({ dir, env, cwd, args, result: { code: result.status, out: result.stdout, stderr: result.stderr } }))}\n`);
+    return result;
+  };
   /** Decode one versioned CLI result, failing with its refusal code and message when it did not succeed. */
   function decodeCli(result) {
     let reason = result.stderr;
@@ -244,7 +306,8 @@ export function apiHttpFixture(t) {
   }
   /** The same call answered by the production dispatcher in this process, without a node start-up [C7]. */
   async function cliLocal(cwd, ...args) {
-    return decodeCli(await runCliInProcess([...args, '--json'], { cwd, env }));
+    const called = [...args, '--json'];
+    return decodeCli(await journeyCall({ dir, env, cwd, args: called, inProcess: () => runCliInProcess(called, { cwd, env }), real: () => realRun(cwd, ...called) }));
   }
   git('init', '-q', '-b', 'main');
   cli(root, 'init');
@@ -332,7 +395,7 @@ export async function submitSettled(t, box, move, id, agent) {
     // Only policy committed to trunk grants the override (mainPolicy reads trunk), so commit it or the board still offers land jobs whose push fails and retries.
     runFixtureGit(['add', 'pullboard.json'], { cwd: box.root, env: box.env, stdio: 'pipe' });
     runFixtureGit(['commit', '-q', '-m', 'chore: fixture lands by hand'], { cwd: box.root, env: box.env, stdio: 'pipe' });
-    startFixtureLocalRunner(box.env, box.root);
+    startFixtureLocalRunner(box.env, box.root, { entry: CLI_ENTRY });
     box.localRunnerStarted = true;
   }
   const result = await move({ verb: 'submit', item: id, agent });

@@ -844,10 +844,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "packages/codemap/src/io/cells/backlog.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "packages/codemap/src/io/cells/git.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1843,6 +1839,230 @@
         "packages/landing/src/logic/main/noise.js",
         "imports"
       ]
+    },
+    {
+      "cell": "resources",
+      "row": [
+        "test/runner-wait-deadline.test.js",
+        "packages/resources/tests/runner-wait-deadline.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "resources",
+      "row": [
+        "test/submit-lease.test.js",
+        "packages/resources/tests/submit-lease.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "config",
+      "row": [
+        "test/watch.test.js",
+        "packages/config/tests/watch.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "commits",
+      "row": [
+        "test/landing-message.test.js",
+        "packages/commits/tests/landing-message.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "items",
+      "row": [
+        "test/bar-native-session.test.js",
+        "packages/items/tests/bar-native-session.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "test/usage-publish-batch.test.js",
+        "packages/stats/tests/usage-publish-batch.test.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "store",
+      "row": [
+        "test/badge.test.js",
+        "packages/store/tests/badge.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "store",
+      "row": [
+        "test/commit-metadata.test.js",
+        "packages/store/tests/commit-metadata.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "store",
+      "row": [
+        "test/shout-readable.test.js",
+        "packages/store/tests/shout-readable.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "sandbox",
+      "row": [
+        "test/lane-bypass.test.js",
+        "packages/sandbox/tests/lane-bypass.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "sandbox",
+      "row": [
+        "test/trusted-policy.test.js",
+        "packages/sandbox/tests/trusted-policy.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "person",
+      "row": [
+        "test/add-lanes.test.js",
+        "packages/person/tests/logic/add-lanes.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "person",
+      "row": [
+        "test/implies-phone.test.js",
+        "packages/person/tests/logic/implies-phone.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "person",
+      "row": [
+        "test/relay-person-credential.test.js",
+        "packages/person/tests/logic/relay-person-credential.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "person",
+      "row": [
+        "test/relay-person-requests.test.js",
+        "packages/person/tests/logic/relay-person-requests.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "person",
+      "row": [
+        "test/relay-upload-status.test.js",
+        "packages/person/tests/logic/relay-upload-status.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "keys",
+      "row": [
+        "test/relay-pairing-options.test.js",
+        "packages/keys/tests/relay-pairing-options.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "link",
+      "row": [
+        "test/relay-canary-history.test.js",
+        "packages/link/tests/relay-canary-history.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "link",
+      "row": [
+        "test/relay-device-confirmation.test.js",
+        "packages/link/tests/relay-device-confirmation.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "link",
+      "row": [
+        "test/relay-machine-storage.test.js",
+        "packages/link/tests/relay-machine-storage.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "link",
+      "row": [
+        "test/relay-setup-once.test.js",
+        "packages/link/tests/relay-setup-once.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "link",
+      "row": [
+        "test/relay-sync.test.js",
+        "packages/link/tests/relay-sync.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "api",
+      "row": [
+        "test/shout-item-cli.test.js",
+        "packages/api/tests/shout-item-cli.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "outbox",
+      "row": [
+        "test/relay-checkpoint.test.js",
+        "packages/outbox/tests/io/relay/relay-checkpoint.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "gate",
+      "row": [
+        "test/land-affected.test.js",
+        "packages/gate/tests/land-affected.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "store",
+      "row": [
+        "test/stacked-submit.test.js",
+        "packages/store/tests/stacked-submit.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "spec",
+      "row": [
+        "test/doctrine-rulings.test.js",
+        "packages/spec/tests/io/doctrine-rulings.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "person",
+      "row": [
+        "test/row-decisions.test.js",
+        "packages/person/tests/logic/row-decisions.test.js",
+        "seed"
+      ]
     }
   ],
   "entries": [
@@ -2267,6 +2487,8 @@
     "keys->store",
     "landing->gate",
     "landing->git",
+    "landing->jobs",
+    "landing->kernel",
     "landing->pin",
     "landing->store",
     "apps/cli->apps/lib/src",
@@ -2337,6 +2559,7 @@
     "store->resources",
     "store->git",
     "store->jobs",
+    "store->kernel",
     "github->items",
     "link->kernel",
     "apps/relay->link",
@@ -2348,7 +2571,6 @@
     "search->store",
     "board->git",
     "board->items",
-    "board->jobs",
     "board->kernel",
     "board->moves",
     "board->sandbox",

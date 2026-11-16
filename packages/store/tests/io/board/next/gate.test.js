@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { recordSubmitHandoff } from '../../../../../jobs/index.js';
 import { addItem } from '../../../../index.js';
 import { nextFor } from '../../../../index.js';
-import { fixtureBoard } from '../../../../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../../../../board/tests/fixtures/board.js';
 
 const HEAD = 'a'.repeat(40);
 

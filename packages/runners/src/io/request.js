@@ -66,9 +66,26 @@ export function queuedSource(root, source) {
 /** The test-result store a request's exchange wrote to, rebuilt by the later short process that finishes a pulled job [C7,#5465]. */
 export async function exchangeStore(root) { return (await import('../../../gate/index.js')).testResultStore(root); }
 
+/**
+ * Refuse a request whose metadata names no item or no kind, when gate.requireRunnerAttribution is on; off by default,
+ * so a caller that names neither still runs. Why: runner time with no item and purpose cannot be charged to anything,
+ * and the refusal waits behind a setting until every caller names both (#4000) [C7].
+ *
+ * @param {{ item?: unknown, kind?: unknown } | null | undefined} metadata
+ */
+function requireAttribution(metadata) {
+  if (readMachineSettingsFile(machineSettingsFile())?.gate?.requireRunnerAttribution !== true) return;
+  for (const field of ['item', 'kind']) {
+    if (String(metadata?.[field] ?? '').trim() === '') {
+      throw new Refused('RUNNER_UNATTRIBUTED', `the runner request names no ${field} in its metadata; pass metadata.${field} naming the work it runs for, or turn gate.requireRunnerAttribution off`);
+    }
+  }
+}
+
 /** Prepare the pinned request before negotiating history; cleanup owns only its scratch directory. */
 export async function requestFor(root, command, { runner, source, browser = false, byLaunch, pipefail = false, stages = false, waivers = [], metadata = {}, privateCheck, checkedSource, rawOutputPath, analysisArtifact }, { privateCheckEnvelope }) {
   runner = validateRunner(runner);
+  requireAttribution(metadata);
   // A pinned source runs an exact commit from this repository's objects whatever its checkout holds; the cache id below
   // is still this repository's, so the runner reuses the cache its submits fill [C7,#3323].
   const current = queuedSource(root, source);

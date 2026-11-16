@@ -206,7 +206,7 @@ const RUNNER_SMOKE = `node --input-type=module -e "const { runLandingCliSmoke } 
 export async function smokeCandidate(candidate, { admission = gateRunnerAdmission(), record = false } = {}) {
   if (admission.runnerOnly !== true) return runLandingCliSmoke(candidate, { record });
   if (!existsSync(join(candidate, 'apps/cli/pullboard.js'))) return { ran: [] };
-  const run = await runCheckOnRunner(candidate, RUNNER_SMOKE, { kind: 'landing-smoke', admission });
+  const run = await runCheckOnRunner(candidate, RUNNER_SMOKE, { kind: 'landing-smoke', item: 'landing batch', admission });
   if (!run.isGreen) throw new Refused('LAND_CLI_SMOKE', `the candidate's CLI smoke failed on runner ${run.executionRunner ?? 'unknown'}: ${runTail(run)}; fix it before landing`);
   if (record) recordSmokeReceipt(candidate);
   return { ran: ['runner'], runner: run.executionRunner };

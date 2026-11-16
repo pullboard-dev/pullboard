@@ -8,9 +8,9 @@ import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { baseCheckouts } from '../../src/io/checkouts.js';
-import { fixtureCommittedGraph } from '../../../../apps/cli/tests/fixtures/testkit.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
+import { fixtureCommittedGraph } from '../../../gate/tests/fixtures/testkit.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../gate/tests/fixtures/child.js';
 
 /** A private shared clone of the repository at one commit, removed on close, as the hold's own opener makes. */
 function openBaseCheckout(root, commit) {

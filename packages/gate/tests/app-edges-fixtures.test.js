@@ -8,6 +8,7 @@ import { cellsEdgeReport } from '../src/io/edges.js';
 const REPO = join(import.meta.dirname, '../../..');
 const FILES = [
   'packages/gate/tests/fixtures/clone.js',
+  'packages/gate/tests/fixtures/cockpit/probe.mjs',
   'packages/gate/tests/fixtures/diagnostics.js',
   'packages/gate/tests/fixtures/functions.js',
   'packages/gate/tests/fixtures/p95.js',

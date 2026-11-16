@@ -1,6 +1,7 @@
+/** @pullboard-module-loads packages/moves/src/io/selection.js */
 /** The command line side of `pullboard next`'s selection: its wait labels and the ports the moves cell selects through [C7]. */
 import { claimWorktreeSnapshot } from '../../../../packages/seats/index.js';
-import { nextOnce as nextOnceThrough } from '../../../../packages/moves/index.js';
+import { createRequire } from 'node:module';
 import { mainLaneWork } from './next/steps.js';
 import { withBoardRead } from './context.js';
 import { agentDisplayName } from './context.js';
@@ -16,6 +17,9 @@ import { whoAmI } from './join.js';
 import { MainSpecMerged } from './claim.js';
 import { dirtyFiles } from './submit.js';
 import * as store from '../../../../packages/store/index.js';
+
+/** Next's selection, loaded at the first selection: its landing and gate loads never ride on the command's load [C7,#7081]. */
+const requireModule = createRequire(import.meta.url);
 
 /** Label the holder at the start of a generated wait reason without rewriting its quoted reason. */
 export function displayedWait(reason, agents, config) {
@@ -35,7 +39,7 @@ export const nextPorts = Object.freeze({ withBoardRead, withBoard, whoAmI, idArg
  * @returns {Promise<{ item?: any, held?: boolean, retry?: boolean, reasons?: string[] }>}
  */
 export function nextOnce(ctx, values) {
-  return nextOnceThrough(ctx, values, nextPorts);
+  return requireModule('../../../../packages/moves/src/io/selection.js').nextOnce(ctx, values, nextPorts);
 }
 
 /** Ids of this seat's live top-level build claims, the ones the claim guard counts against N (reworks and gated work aside) [C7]. */
@@ -74,7 +78,7 @@ export async function topUpClaims(ctx, values, { most = Infinity } = {}) {
       // A claim the seat already holds is left out too, or selection hands it back as held and nothing new is claimed.
       for (const item of mine) omit.add(item.item_id);
       for (const item of items) if (item.item_status === 'open' && store.itemFiles(item).some(file => held.has(file))) omit.add(item.item_id);
-      return store.claimsPerSeat(board, perSeat).n - heldTop(ctx, board).length;
+      return store.claimsPerSeat(board, perSeat, { runs: store.boardRunsReader(board, ctx.file) }).n - heldTop(ctx, board).length;
     });
     if (room <= 0) break;
     const found = await nextOnce(ctx, { ...values, build: true, omitIds: [...omit] });

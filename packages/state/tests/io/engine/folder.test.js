@@ -18,8 +18,10 @@ import { engineFolderProblems } from '../../../index.js';
 import { engineFolderViolations } from '../../../index.js';
 import { assignEngineNumbers } from '../../../src/io/engine/numbers.js';
 import { readEngineLeaves } from '../../../src/io/engine/numbers.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { nextEngineNumber } from '../../../src/io/engine/numbers.js';
+import { LANDING_DIMENSION_ENGINE } from '../../../light.js';
+import { runFixtureChild } from '../../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 import { copyPackageSubset } from '../../../../../apps/cli/tests/fixtures/copy.js';
 
 /** The one folder engine leaves live in. */
@@ -197,4 +199,23 @@ test('canonical state front door preserves engine identity without accepting cop
   assert.ok(engineFolderViolations([canonical, { file: 'packages/state/index.js', source: front },
     { ...caller, source: "export { SAMPLE_ENGINE } from '../../state/lookalike.js';" }]).some(row => row.file === caller.file));
   assert.ok(engineFolderViolations([canonical, caller]).some(row => row.file === caller.file), 'a missing state entry remains unproved');
+});
+
+test('clause 1: the landing-dimension engine leaf registers one above the previous highest engine number [M1,C7]', t => {
+  const leaves = readEngineLeaves(resolve(import.meta.dirname, '../../../../..', E));
+  const own = leaves.filter(leaf => leaf.name === 'LANDING_DIMENSION_ENGINE');
+  assert.deepEqual(own.map(leaf => leaf.file), ['landing-dimension-engine.js'], 'the floor lives in its own leaf');
+  const others = leaves.filter(leaf => leaf.name !== 'LANDING_DIMENSION_ENGINE');
+  // Unlanded it reads as the next number; once landed, it stays one above every engine landed before it.
+  const previous = own[0].number === null ? nextEngineNumber(others) - 1
+    : Math.max(...others.map(leaf => leaf.number ?? 0).filter(number => number < own[0].number));
+  assert.equal(LANDING_DIMENSION_ENGINE, previous + 1);
+  assert.equal(own[0].number ?? LANDING_DIMENSION_ENGINE, previous + 1);
+  const root = fixture(t);
+  writeFileSync(join(root, E, 'landing-dimension-engine.js'), "import { unassignedEngine } from './engine-next.js';\nexport const LANDING_DIMENSION_ENGINE = unassignedEngine();\n");
+  // Two unlanded leaves in one landing merge each take their own engine.
+  writeFileSync(join(root, E, 'readiness-engine.js'), "import { unassignedEngine } from './engine-next.js';\nexport const READINESS_ENGINE = unassignedEngine();\n");
+  assert.deepEqual(assignEngineNumbers(root).assigned, [{ name: 'LANDING_DIMENSION_ENGINE', number: 18 }, { name: 'READINESS_ENGINE', number: 19 }],
+    'the landing merge registers it one above the highest (17), and no two leaves share a number');
+  assert.equal(readFileSync(join(root, E, 'landing-dimension-engine.js'), 'utf8'), 'export const LANDING_DIMENSION_ENGINE = 18;\n');
 });

@@ -148,3 +148,32 @@ async t => {
   assert.deepEqual(served.jobs.map(entry => [entry.job, entry.outcome, entry.receipt?.outcome]), [['land:7815', 'posted', 'green']], said.join('\n'));
   assert.equal(board.attempt, 1, 'one claim');
 });
+
+test('#6680 clause 1: a serve with a free slot claims an offered job within one idle poll, and a second claim never waits for the first job to end [C7]', { timeout: 30_000 }, // budget: two handler jobs on a stand-in board, no git, the sleep injected.
+async t => {
+  // The board answers empty once, then offers two jobs; the first job cannot end until the second has started in its own slot.
+  const naps = [], claimedAfterNaps = [], posted = [];
+  let polls = 0, secondStarted;
+  const bothRunning = new Promise(resolve => { secondStarted = resolve; });
+  const stop = new AbortController();
+  const fetchImpl = async (_url, { body }) => {
+    const call = JSON.parse(body);
+    let reply = { recorded: true };
+    if (call.action === 'claim') {
+      polls += 1;
+      const job = polls === 2 ? 'j1' : polls === 3 ? 'j2' : null;
+      if (job) claimedAfterNaps.push([job, naps.length]);
+      reply = job ? { claim: { job, kind: 'land', needs: [], run: [], candidate: null, base: null, attempt: 1, token: `r-poll:${job}` }, trunk: 'unused' } : { claim: null };
+    } else if (call.action === 'receipt') { posted.push(call.job); if (posted.length === 2) stop.abort(); }
+    return { status: 200, json: async () => reply };
+  };
+  const handlers = { land: async claim => {
+    if (claim.job === 'j1') await bothRunning; else secondStarted();
+    return { outcome: 'green' };
+  } };
+  const served = await serveRunner({ git: pullGit, board: BOARD, runner: 'r-poll', capabilities: [], cache: runnerCache(t), jobs: 2, signal: stop.signal, fetchImpl, handlers, trunkPack: async () => {},
+    sleep: async ms => { naps.push(ms); await new Promise(resolve => setImmediate(resolve)); } });
+  assert.deepEqual(claimedAfterNaps, [['j1', 1], ['j2', 1]], 'the offered job is claimed after one idle poll, and the next claim follows at once, with no further wait');
+  assert.equal(naps[0], 2_000, 'the idle poll before the first claim is the 2 s default');
+  assert.deepEqual(served.jobs.map(entry => entry.job).sort(), ['j1', 'j2'], 'the first job ran beside the second, so the claim never waited behind it');
+});

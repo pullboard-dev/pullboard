@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { takeResource } from '../../../../index.js';
-import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../../gate/tests/fixtures/child.js';
 
 /** Isolate a real repository and resource SQLite database, including a second item worktree. */
 function fixture(t) {

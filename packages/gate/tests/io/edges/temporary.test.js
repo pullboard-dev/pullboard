@@ -18,8 +18,8 @@ import { readPathMap } from '../../../../codemap/index.js';
 import { tryGit } from '../../../../git/index.js';
 import { importCuts } from '../../../../codemap/index.js';
 import { cellLintReport } from '../../../../codemap/index.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../fixtures/child.js';
+import { runFixtureGit } from '../../fixtures/child.js';
 
 /** Compute the plan with the plain Git reader; a fixture repository needs no snapshot-aware reads. */
 const computePlan = root => modelComputePlan(root, { tryGit });

@@ -35,6 +35,7 @@ import {
 import { closeBoard } from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { fetchFresh } from '../http.js';
+import { main as viewMain } from '../native.js';
 import {
   guardChromeGroup,
   requireBrowserSlot,
@@ -77,7 +78,7 @@ function build(box, p, id, file) {
  * The in-process twin of build: the same claim, commit and submit, with the CLI calls awaited in this process instead of launched.
  * Why: a journey's before() seeds a whole board, and a launch per call ran it past the wall limit.
  */
-async function buildLocal(box, p, id, file) {
+async function buildLocal(box, p, id, file, { queued = false } = {}) {
   const key = `${p.baseBranch}:${id}`;
   let branch = p.itemBranches.get(key);
   if (!branch) {
@@ -93,7 +94,7 @@ async function buildLocal(box, p, id, file) {
   writeFileSync(join(p.web, 'web', file), `${file}\n`);
   box.git(p.web, 'add', '-A');
   box.git(p.web, 'commit', '-q', '-m', `feat(web): ${file} [G1]`);
-  await box.inProcess(p.web, 'submit', String(id), '--no-next');
+  await (queued ? box.inProcessQueued : box.inProcess)(p.web, 'submit', String(id), '--no-next');
 }
 
 /**
@@ -150,8 +151,69 @@ function throwIfFixtureAborted(signal) {
   if (signal?.aborted) throw fixtureAbortError(signal);
 }
 
-/** Start the real view and wait for a complete HTTP answer, rather than just its printed link. */
-async function startView(box, { bin = BIN, signal, onOwned } = {}) {
+/**
+ * Start the production view in this process on a free loopback port, giving this process the machine's environment until stop() is called.
+ * Why: the view child cost seconds to start, and the view reads its board registry from the environment on every request, so a
+ * browser that reaches it directly needs that environment in place for as long as the view runs [C7,#8362].
+ */
+async function startViewInProcess(box) {
+  const saved = { ...process.env };
+  const restore = () => { for (const key of Object.keys(process.env)) delete process.env[key]; Object.assign(process.env, saved); };
+  for (const key of Object.keys(process.env)) delete process.env[key];
+  Object.assign(process.env, box.env, { PULLBOARD_VIEW_FOREGROUND: '1' });
+  let stdout = '';
+  let stderr = '';
+  let pending;
+  let timer;
+  let link;
+  try {
+    const ready = new Promise((found, fail) => {
+      timer = setTimeout(() => fail(new Error(`view readiness deadline (30000ms) expired; stderr:\n${stderr}`)), 30_000); // budget: hang ceiling for view readiness; no throughput claim.
+      pending = viewMain(['view', '--no-open', '--port', '0', '--json'], {
+        cwd: box.dir,
+        stdin: process.stdin,
+        stdout: { isTTY: false, write(text) {
+          stdout += String(text);
+          try { found(JSON.parse(stdout)); } catch { /* Wait until the one JSON document is complete. */ }
+          return true;
+        } },
+        stderr: { isTTY: false, write(text) { stderr += String(text); return true; } },
+      }).then((code) => { fail(new Error(`view exited before readiness with code ${code}; stderr:\n${stderr}`)); return code; }, (error) => { fail(error); });
+    });
+    link = new URL((await ready).url);
+  } catch (error) {
+    clearTimeout(timer);
+    process.emit('SIGTERM');
+    await pending;
+    restore();
+    throw error;
+  }
+  clearTimeout(timer);
+  let stopped;
+  /** Stop this view once and put the previous environment back. */
+  const stop = () => {
+    stopped ??= (async () => { process.emit('SIGTERM'); await pending; restore(); })();
+    return stopped;
+  };
+  let cookie;
+  try {
+    const opened = await fetchLive(link, { redirect: 'manual', signal: AbortSignal.timeout(30_000) });
+    assert.equal(opened.status, 303, 'the printed link exchanges its key');
+    cookie = (opened.headers.get('set-cookie') ?? '').split(';')[0];
+    await opened.arrayBuffer();
+    const ready = await fetchLive(new URL(opened.headers.get('location') ?? '/', link), { headers: { cookie }, signal: AbortSignal.timeout(30_000) });
+    assert.equal(ready.status, 200, 'the view answers before the test fetches its page');
+    await ready.arrayBuffer();
+  } catch (error) {
+    await stop();
+    throw error;
+  }
+  return { link, key: link.searchParams.get('k'), cookie, base: `http://127.0.0.1:${link.port}`, stop };
+}
+
+/** Start the real view and wait for a complete HTTP answer, rather than just its printed link; inProcess runs it in this process instead of a child [C7]. */
+async function startView(box, { bin = BIN, signal, onOwned, inProcess = false } = {}) {
+  if (inProcess) return startViewInProcess(box);
   throwIfFixtureAborted(signal);
   const child = spawn(process.execPath, [bin, 'view', '--no-open', '--port', '0'], { cwd: box.dir, env: { ...box.env, PULLBOARD_VIEW_FOREGROUND: '1' } });
   let stopPromise;

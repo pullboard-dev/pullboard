@@ -15,7 +15,7 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../gate/tests/fixtures/child.js';
 import { stageFixtureTests } from '../../fixtures/tests.js';
 
 

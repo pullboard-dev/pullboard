@@ -8,9 +8,9 @@ import { rmSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { HOST } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { installSshStandIn } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { HOST } from '../../../../gate/tests/fixtures/runner/ssh.js';
+import { installSshStandIn } from '../../../../gate/tests/fixtures/runner/ssh.js';
 import { enqueueRunnerJob } from '../../../src/io/pull/enqueue.js';
 import { fetchRunnerFile } from '../../../src/io/pull/enqueue.js';
 import { uploadRunnerPack } from '../../../src/io/pull/enqueue.js';
@@ -121,9 +121,10 @@ test('5468 clause 1: the status script reports every job folder and applies want
 
 test('5468 clause 1: many waiters on one runner share one status refresh, and each learns its own job ended [C7]', async t => {
   const f = runnerFixture(t);
+  // The mirror's freshness window is pinned wide: its clock starts before the ssh, so on a loaded runner a slow ssh would otherwise leave it stale on arrival and the claim would measure runner speed.
   const ids = Array.from({ length: 12 }, (_, index) => `w${index}`);
   for (const id of ids) f.job('done', id, { 'control.log': RESULT(id), exit: '{"code":0,"signal":null}' });
-  const ends = await Promise.all(ids.map(id => waitRunnerJob({ runner: f.runner, id, tickMs: 30, mirror: f.mirror })));
+  const ends = await Promise.all(ids.map(id => waitRunnerJob({ runner: f.runner, id, tickMs: 30, mirror: { ...f.mirror, intervalMs: 60_000 } })));
   assert.deepEqual(ends.map(end => end.end), ids.map(() => 'result'));
   assert.ok(ends.every(end => end.finishReason === null && end.cancel === false));
   assert.equal(f.calls(), 1, 'twelve waiters, one ssh');

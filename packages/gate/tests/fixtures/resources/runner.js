@@ -21,14 +21,14 @@ import {
   resolve,
 } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../child.js';
 import { createE2eHelpers } from '../../../../../apps/cli/tests/fixtures/e2e.js';
 import {
   HOST,
   installSshStandIn,
-} from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { fixtureAdd } from '../../../../../apps/cli/tests/fixtures/testkit.js';
-import { fixturePolicy } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+} from '../runner/ssh.js';
+import { fixtureAdd } from '../testkit.js';
+import { fixturePolicy } from '../testkit.js';
 
 const RESOURCES = pathToFileURL(resolve(import.meta.dirname, '../../../../resources/index.js')).href;
 const SETTINGS = pathToFileURL(resolve(import.meta.dirname, '../../../../config/src/io/settings.js')).href;
@@ -130,28 +130,6 @@ for(const attempt of [1,2]) {
   await assert.rejects(takeResource({...base,...captured,runnerProvider:()=>[],agent:'captured-'+attempt}),
     error=>error.code==='RUNNER_WAIT_DEADLINE' && error.message.includes(new Date(captured.runnerDeadlineAt).toISOString()));
 }`);
-  });
-
-  test('native submit runner-only refuses before its frozen body and opt-out still executes it [C7,V4]', () => {
-    const box = helpers.project('true');
-    const marker = join(box.dir, 'submit-frozen-body');
-    const command = `printf ran > '${marker.replaceAll("'", "'\\''")}'`;
-    const added = succeeded(fixtureAdd(box.run, box.repo, 'web', 'Private runner-only submission', '--specs', 'G1',
-      '--criterion', 'The native frozen check remains mandatory.', '--check', command, '--wait', '--json'));
-    const id = JSON.parse(added.out).item.item_id;
-    succeeded(box.run(box.web, 'claim', String(id), '--json'));
-    const committed = helpers.commitFile(box, box.web, 'web/runner-only.js', 'export const ready = true;\n', 'feat(web): private runner-only control [G1]');
-    assert.equal(committed.status, 0, committed.failure ?? committed.stderr);
-    // Native bar baseline setup may itself have run the command; it is not the subject submission.
-    rmSync(marker, { force: true });
-    policy(box, true);
-    const refused = box.run(box.web, 'submit', String(id), '--wait', '--no-next', '--json');
-    assert.notEqual(refused.code, 0, refused.out);
-    assert.equal(JSON.parse(refused.out).error.code, 'RUNNER_WAIT_DEADLINE', refused.err || refused.out);
-    assert.equal(existsSync(marker), false, 'no frozen or diagnostic local body ran');
-    policy(box, false);
-    succeeded(box.run(box.web, 'submit', String(id), '--wait', '--no-next', '--json'));
-    assert.equal(readFileSync(marker, 'utf8'), 'ran', 'opt-out still runs the actual frozen check');
   });
 
   test('opt-in native submit uses a real registered worker even with free local capacity [C7,V4]', () => {

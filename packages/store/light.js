@@ -6,8 +6,9 @@ export { landingMayWait, openBoardReadOnly, boardId, listItems, busyRefusal, rea
 export { landingTestDefects } from './src/logic/board/landing/test/history.js';
 export { hasPendingCpuNotices, hasPendingDispatchNotices } from './src/logic/board/receipts.js';
 export { awaitingGateOrReview, pendingSubmitHandoff, submitHandoff } from './src/io/submit/handoff/records.js';
-export { syncMayAct, baselineReceiptsPending, relayStateExists } from './src/io/home.js';
+export { syncMayAct, baselineReceiptsPending, relayStateExists, gitSyncLinked } from './src/io/home.js';
 export { openBoardForRead, closeBoard } from './src/io/board/read/snapshot.js';
 export { schemaMissing, writeRefused } from './src/io/board/migrate.js';
 export { PERSON, events, listAgents, agentById, ensureCoordinator, ReadNeedsWrite, acceptedVerdict, verdictReviewProblem, getItem, itemThread, proofReceipts, relatedItems, reviewHolder, verdictsFor, specApprovalBaseline, rowDecisions } from './src/io/board/query.js';
 export { allItemsNeedingRescope } from './src/io/cooldown.js';
+export { rotateBoardWritesLog, BOARD_WRITES_MAX_BYTES } from './src/io/board/hold/rotate.js';

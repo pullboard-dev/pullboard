@@ -1,7 +1,7 @@
 /** A gate verdict waiting on main ends in a withdrawn step when its item is no longer submitted at its candidate [SM16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fixtureBoard } from '../../../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../../../board/tests/fixtures/board.js';
 import * as jobs from '../../../../jobs/index.js';
 import { finishAwaitingVerdicts } from '../../../index.js';
 import { recordGateVerdict } from '../../../index.js';

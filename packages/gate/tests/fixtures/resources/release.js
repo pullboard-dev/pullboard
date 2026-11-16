@@ -2,10 +2,8 @@ import { addItem } from '../../../../store/index.js';
 import { addMilestone } from '../../../../store/index.js';
 import { closeBoard } from '../../../../store/index.js';
 import { moveMilestone } from '../../../../store/index.js';
-import { openKitBoard } from '../../../../../apps/cli/tests/fixtures/testkit.js';
-import { machineSettings } from '../../../../../apps/cli/tests/fixtures/resources/settings.js';
+import { openKitBoard } from '../../../../store/tests/fixtures/cell.js';
 /** Real board, roadmap and queue scenarios for release admission [C7,V4]. */
-import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -15,7 +13,8 @@ import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 
 const GATE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../index.js')).href;
-const RELEASE_WORKER = `
+/** The child process source for one queued gate action; the caller supplies the execution-services source. */
+const releaseWorker = executionServicesSource => `
 import { withGateSlot } from ${JSON.stringify(GATE_MODULE)};
 ${executionServicesSource(GATE_MODULE)}
 const [root, agent, item, kind, landing] = process.argv.slice(1);
@@ -71,14 +70,15 @@ function age(box, agent) {
  * test file does not grow another block of fixture code. The outer native runner owns the real
  * machine lease; these child queues use only the fixture's separate machine home.
  *
- * @param {{ fixture: Function, poolWorker: Function, privateList: Function, event: Function, acquired: Function, release: Function, legacyModule: string }} helpers
+ * @param {{ fixture: Function, poolWorker: Function, privateList: Function, event: Function, acquired: Function, release: Function, legacyModule: string, machineSettings: Function, executionServicesSource: Function }} helpers
  * @returns {Promise<void>}
  */
-export async function releaseQueueProof({ fixture, poolWorker, privateList, event, acquired, release, legacyModule }) {
+export async function releaseQueueProof(helpers) {
+  const { fixture, poolWorker, privateList, event, acquired, release, legacyModule, executionServicesSource } = helpers;
   const line = box => privateList(box).find(row => row.name === 'gate').line.map(row => row.agent);
   /** Launch a real gate action that captures its board and item when joining the pool. */
   const run = (box, root, agent, item, kind = 'submit', landing = false) => {
-    const child = poolWorker(box, { agent, script: RELEASE_WORKER, args: [root, agent, String(item), kind, String(landing)] });
+    const child = poolWorker(box, { agent, script: releaseWorker(executionServicesSource), args: [root, agent, String(item), kind, String(landing)] });
     child.releaseAgent = agent;
     return child;
   };
@@ -126,12 +126,12 @@ export async function releaseQueueProof({ fixture, poolWorker, privateList, even
   const landing = await queue(on, on.first, 'A-landing', 3, 'landing', true);
   assert.deepEqual(line(on), ['A-landing', 'A-current', 'B-current', 'A-later', 'A-unplanned'],
     'landing stays first and each board retains its opportunity positions');
-  assert.equal(machineSettings(off, 'gateQueueSettings').value.currentReleaseFirst, false);
+  assert.equal(helpers.machineSettings(off, 'gateQueueSettings').value.currentReleaseFirst, false);
   moveBefore(on.first, 'later', 'current');
   assert.deepEqual(line(on), ['A-landing', 'A-current', 'B-current', 'A-later', 'A-unplanned'],
     'queued ranks remain captured despite a roadmap reorder');
   await drain(on, onHolders, [landing, current, foreign, later, unplanned]);
-  assert.equal(machineSettings(on, 'gateQueueSettings').value.currentReleaseFirst, true);
+  assert.equal(helpers.machineSettings(on, 'gateQueueSettings').value.currentReleaseFirst, true);
 
   const aging = fixture();
   board(aging, aging.first);
@@ -158,7 +158,7 @@ export async function releaseQueueProof({ fixture, poolWorker, privateList, even
   await drain(mixed, mixedHolders, [old, newReview]);
 
   settings(aging, { currentReleaseFirst: 'yes' });
-  const bad = machineSettings(aging, 'loadMachineSettings');
+  const bad = helpers.machineSettings(aging, 'loadMachineSettings');
   assert.ok(bad.error, 'a non-boolean release setting is refused');
   assert.match(bad.error.message, /gate\.queue\.currentReleaseFirst/u);
 }

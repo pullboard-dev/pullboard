@@ -29,8 +29,11 @@ import { signOff } from '../../../../packages/spec/index.js';
 import { standings } from '../../../../packages/spec/index.js';
 import { unmetRows } from '../../../../packages/spec/index.js';
 import { SPEC } from '../../tests/fixtures/spec/box.js';
+import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
+import { fixtureProjectPolicy } from '../../tests/fixtures/testkit.js';
 import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
 import { specBox } from '../../tests/fixtures/spec/box.js';
 
 test('rows parse with id, status, tier, text, gate, serves, section and line [S1]', () => {
@@ -105,24 +108,24 @@ test('real spec check refuses future grammar in either configured file [A5]', as
   assert.equal((await box.spec('check')).status, 0);
 });
 
-test('spec check names both locations when ids repeat within or across configured files [A5]', (t) => {
+test('spec check names both locations when ids repeat within or across configured files [A5]', async (t) => {
   const practiceRow = '# Practice\n\n## P\n- P1 [draft] A local rule.\n';
   const crossFile = specBox(t, { practice: practiceRow });
   writeFileSync(join(crossFile.root, crossFile.practiceName), practiceRow.replace('P1', 'G1'));
-  const cross = crossFile.run('check');
+  const cross = await crossFile.spec('check');
   assert.equal(cross.status, 1);
   assert.match(cross.stdout, /SPEC\.md:6 G1 error: duplicate id; also appears at PRACTICE\.md:4/u);
   assert.match(cross.stdout, /PRACTICE\.md:4 G1 error: duplicate id; also appears at SPEC\.md:6/u);
 
   const duplicateSpec = specBox(t);
   writeFileSync(join(duplicateSpec.root, 'SPEC.md'), SPEC.replace('- G1.2 [draft, aim]', '- G1 [draft, aim]'));
-  const duplicateSpecResult = duplicateSpec.run('check');
+  const duplicateSpecResult = await duplicateSpec.spec('check');
   assert.equal(duplicateSpecResult.status, 1);
   assert.match(duplicateSpecResult.stdout, /SPEC\.md:7 G1 error: duplicate id; also appears at SPEC\.md:6/u);
 
   const duplicatePractice = specBox(t, { practice: practiceRow });
   writeFileSync(join(duplicatePractice.root, 'PRACTICE.md'), practiceRow.replace('- P1 [draft] A local rule.', '- P1 [draft] First.\n- P1 [draft] Second.'));
-  const duplicatePracticeResult = duplicatePractice.run('check');
+  const duplicatePracticeResult = await duplicatePractice.spec('check');
   assert.equal(duplicatePracticeResult.status, 1);
   assert.match(duplicatePracticeResult.stdout, /PRACTICE\.md:5 P1 error: duplicate id; also appears at PRACTICE\.md:4/u);
 });
@@ -337,4 +340,40 @@ test('the check command is part of the frozen bar; items without one keep their 
   const before = frozenCriterion(parseSpec(SPEC), item).digest;
   assert.equal(frozenCriterion(parseSpec(SPEC), { ...item, item_check: '' }).digest, before);
   assert.notEqual(frozenCriterion(parseSpec(SPEC), { ...item, item_check: 'npm test' }).digest, before);
+});
+
+test('clause 1: an approved revision applies while an unrelated held item cites a drifted row [S18,C7]', async (t) => {
+  const box = specBox(t);
+  const gitAt = (cwd, ...args) => runFixtureGit(args, { cwd, env: box.env, encoding: 'utf8', stdio: 'pipe' });
+  const runAt = (cwd, ...args) => runCliInProcess(args, { cwd, env: box.env });
+  const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
+  config.lanes.web = { owns: ['web/'] };
+  fixtureProjectPolicy(box.root, { config });
+  gitAt(box.root, 'add', 'pullboard.json');
+  gitAt(box.root, 'commit', '-q', '-m', 'chore: add the web lane');
+  const builder = join(box.root, 'builder');
+  gitAt(box.root, 'worktree', 'add', '-q', builder, '-b', 'builder');
+  assert.equal((await joinFixtureSeat(box, builder, 'web', { run: runAt })).code, 0);
+  // A held item freezes K1, then K1 drifts in Git: the item now cites a row that moved.
+  const item = await fileFixtureItem(box, box.root, { lane: 'web', title: 'Held on K1', criterion: 'K1 holds.', args: ['--specs', 'K1'], run: runAt });
+  const id = item.item_id;
+  assert.equal((await runAt(builder, 'claim', String(id))).status, 0);
+  assert.equal((await runAt(builder, 'release', String(id), '--reason', 'BLOCKED', '--no-next')).status, 0);
+  const drifted = readFileSync(join(box.root, 'SPEC.md'), 'utf8').replace('Runs offline.', 'Runs offline and online.');
+  fixtureProjectPolicy(box.root, { config, spec: drifted });
+  gitAt(box.root, 'add', 'SPEC.md');
+  // Setup commit: the hook would refuse unapproved K1 wording, and this case needs the drift to exist.
+  gitAt(box.root, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'docs: drift K1');
+  // The person approves a revision of the unrelated G1; apply must succeed.
+  const text = 'Same file twice changes nothing.';
+  const approved = await box.spec('approve', 'G1', '--text', text, '--json');
+  assert.equal(approved.status, 0, `${approved.stdout}${approved.stderr}`);
+  const applied = await box.spec('apply', '--json');
+  assert.equal(applied.status, 0, `${applied.stdout}${applied.stderr}`);
+  assert.ok(readFileSync(join(box.root, 'SPEC.md'), 'utf8').includes(text), 'the approved revision is written');
+  const document = JSON.parse(applied.stdout);
+  assert.deepEqual(document.applied.map(row => row.id), ['G1'], 'only the approved revision is applied');
+  assert.deepEqual(document.held, [], 'the unrelated held item holds nothing back');
+  // The loopback runner the claim started may still write its home; stop it before the box is removed [C7].
+  stopFixtureLocalRunner(box.env.PULLBOARD_MACHINE_HOME);
 });

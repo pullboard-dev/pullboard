@@ -9,7 +9,7 @@ import { layoutProblems } from '../../../src/io/static/layout.js';
 import {
   privateFixtureFiles,
   runFixtureGit,
-} from '../../../../../apps/cli/tests/fixtures/child.js';
+} from '../../fixtures/child.js';
 
 const BASELINE = 'packages/codemap/data/baselines/layout.json';
 const OFFENDER = 'packages/demo/data/stray.json';

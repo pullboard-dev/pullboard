@@ -5,7 +5,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { cellProject } from '../../../../../store/tests/fixtures/cell.js';
-import { runFixtureChildAsync } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChildAsync } from '../../../../../gate/tests/fixtures/child.js';
 
 /** Run a body against a real private machine queue; fake runner names exercise admission with no network. */
 async function scenario(t, body) {
@@ -25,7 +25,7 @@ const stale = { at: '2026-11-06T17:40:52.285Z', busyPercent: 1, average: [3, 3, 
 const runners = [
   { host: 'mini-a', slots: 2, browser: 1, gui: true, cores: 10, cpuLoad: stale },
   { host: 'mini-b', slots: 2, browser: 1, gui: true, cores: 10, cpuLoad: stale },
-  { host: 'vanilla', slots: 3, browser: 2, gui: true, cores: 12 },
+  { host: 'studio-host', slots: 3, browser: 2, gui: true, cores: 12 },
 ];
 const policy = { enabled: false, timingRunner: 'auto' };
 const base = { name: 'gate', capacity: 2, scope: 'machine', root, remote: true, runnerOnly: true, runnerProvider: () => runners, runnerLoadPolicyProvider: () => policy };
@@ -59,44 +59,44 @@ finally { for (const entry of pending) entry.control.cancel = true; for (const l
   assert.equal(result.status, 0, `${result.context}\n${result.stdout}\n${result.stderr}`);
 }
 
-test('clause 1: with every other runner busy, a queued browser run is admitted to the idle kept runner vanilla [C7]', async t => {
+test('clause 1: with every other runner busy, a queued browser run is admitted to the idle kept runner studio-host [C7]', async t => {
   await scenario(t, `
 const first = await hold('browser-1', { browser: true });
 const second = await hold('browser-2', { browser: true });
 assert.deepEqual([first.runner.host, second.runner.host].sort(), ['mini-a', 'mini-b'], 'the first browser runs fill the other runners');
 const kept = db.prepare('SELECT host, reason FROM runner_timing_reserve').get();
-assert.deepEqual({ ...kept }, { host: 'vanilla', reason: 'most cores' }, 'auto keeps vanilla for timed checks, as on 7 Nov');
-// The hand-off worker logs' waiting state: the others show browser 0 free, vanilla is wholly free with no holder.
+assert.deepEqual({ ...kept }, { host: 'studio-host', reason: 'most cores' }, 'auto keeps studio-host for timed checks, as on 7 Nov');
+// The hand-off worker logs' waiting state: the others show browser 0 free, studio-host is wholly free with no holder.
 const line = runnerWaitLine({ browser: true, gui: false, timing: false, runners: runnerWaitReasons(db, runners, { browser: 1, gui: 0, timing: 0 }, new Set()) });
 assert.match(line, /mini-a: busy, gate 1\\/2 free, browser 0\\/1 free/u);
 assert.match(line, /mini-b: busy, gate 1\\/2 free, browser 0\\/1 free/u);
-assert.match(line, /vanilla: queue priority, gate 3\\/3 free, browser 2\\/2 free, leases none/u);
-assert.equal(on('vanilla'), 0, 'no holder on vanilla before the queued run');
+assert.match(line, /studio-host: queue priority, gate 3\\/3 free, browser 2\\/2 free, leases none/u);
+assert.equal(on('studio-host'), 0, 'no holder on studio-host before the queued run');
 const third = await hold('browser-3', { browser: true });
-assert.equal(third.runner.host, 'vanilla', 'the queued browser run is admitted to vanilla');
+assert.equal(third.runner.host, 'studio-host', 'the queued browser run is admitted to studio-host');
 const fourth = await hold('browser-4', { browser: true });
-assert.equal(fourth.runner.host, 'vanilla', 'a second queued browser run takes vanilla\\'s other browser slot');
+assert.equal(fourth.runner.host, 'studio-host', 'a second queued browser run takes studio-host\\'s other browser slot');
 const plain = await hold('plain-1');
 assert.ok(['mini-a', 'mini-b'].includes(plain.runner.host), 'an ordinary run still prefers a free slot on another runner over the kept one: ' + plain.runner.host);
-assert.equal(on('vanilla'), 2);
+assert.equal(on('studio-host'), 2);
 `);
 });
 
-test('clause 1: a queued gate run waits while a timed check waits, then the timed check gets vanilla once its lent runs end [C7]', async t => {
+test('clause 1: a queued gate run waits while a timed check waits, then the timed check gets studio-host once its lent runs end [C7]', async t => {
   await scenario(t, `
 for (let n = 0; n < 4; n++) await hold('fill-' + n);
 assert.equal(on('mini-a') + on('mini-b'), 4, 'ordinary runs fill every slot on the other runners');
 const lent = await hold('lent-1');
-assert.equal(lent.runner.host, 'vanilla', 'a queued gate run is admitted to idle vanilla once the others are full');
+assert.equal(lent.runner.host, 'studio-host', 'a queued gate run is admitted to idle studio-host once the others are full');
 const timed = ask('timed-1', { timing: true });
-await until(() => timed.control.waiting, 'timed check waiting for vanilla to drain');
+await until(() => timed.control.waiting, 'timed check waiting for studio-host to drain');
 const queued = ask('queued-1');
 await until(() => queued.control.waiting, 'ordinary run waiting while the timed check waits');
-assert.equal(on('vanilla'), 1, 'no new ordinary run joins vanilla while a timed check waits');
+assert.equal(on('studio-host'), 1, 'no new ordinary run joins studio-host while a timed check waits');
 lent.release();
 leases.splice(leases.indexOf(lent), 1);
 const timedLease = await timed.promise;
-assert.equal(timedLease.runner.host, 'vanilla');
+assert.equal(timedLease.runner.host, 'studio-host');
 assert.equal(timedLease.timing, true);
 `);
 });
@@ -105,14 +105,14 @@ test('clause 2: the runner wait line names the kept-runner reason for a skipped 
   await scenario(t, `
 for (let n = 0; n < 4; n++) await hold('fill-' + n);
 const lent = await hold('lent-1');
-assert.equal(lent.runner.host, 'vanilla');
+assert.equal(lent.runner.host, 'studio-host');
 const timed = ask('timed-1', { timing: true });
 await until(() => timed.control.lines.length, 'timed check wait line');
 const queued = ask('queued-1', { browser: true });
 await until(() => queued.control.lines.length, 'ordinary run wait line');
 const ordinaryLine = queued.control.lines.at(-1);
-assert.match(ordinaryLine, /vanilla: kept for timed checks \\(a timed check is waiting\\), gate 2\\/3 free, browser 2\\/2 free/u, ordinaryLine);
-assert.doesNotMatch(ordinaryLine, /vanilla: queue priority/u, ordinaryLine);
+assert.match(ordinaryLine, /studio-host: kept for timed checks \\(a timed check is waiting\\), gate 2\\/3 free, browser 2\\/2 free/u, ordinaryLine);
+assert.doesNotMatch(ordinaryLine, /studio-host: queue priority/u, ordinaryLine);
 assert.match(ordinaryLine, /mini-a: busy/u);
 assert.match(timed.control.lines.at(-1), /mini-a: busy, gate 0\\/2 free/u, 'a full runner stays busy for the timed check');
 lent.release();
@@ -123,11 +123,11 @@ const admitted = await queued.promise;
 assert.equal(admitted.runner.host, 'mini-a', 'the waiting browser run starts once a runner frees');
 // With a free slot on another runner, the kept runner is skipped for its reservation, not queue priority.
 const ordinary = runnerWaitLine({ browser: false, gui: false, timing: false, runners: runnerWaitReasons(db, runners, { browser: 0, gui: 0, timing: 0 }, new Set()) });
-assert.match(ordinary, /vanilla: kept for timed checks \\(lent only when every other runner is full\\), gate 3\\/3 free/u, ordinary);
+assert.match(ordinary, /studio-host: kept for timed checks \\(lent only when every other runner is full\\), gate 3\\/3 free/u, ordinary);
 assert.match(ordinary, /mini-b: queue priority/u, ordinary);
 // A timed check is told the other runners are not for it, even with their slots free.
 const timedWait = runnerWaitLine({ browser: false, gui: false, timing: true, runners: runnerWaitReasons(db, runners, { browser: 0, gui: 0, timing: 1 }, new Set()) });
-assert.match(timedWait, /mini-b: unavailable \\(timed checks run only on vanilla, the runner kept for them\\), gate 2\\/2 free/u, timedWait);
-assert.match(timedWait, /vanilla: queue priority, gate 3\\/3 free/u, timedWait);
+assert.match(timedWait, /mini-b: unavailable \\(timed checks run only on studio-host, the runner kept for them\\), gate 2\\/2 free/u, timedWait);
+assert.match(timedWait, /studio-host: queue priority, gate 3\\/3 free/u, timedWait);
 `);
 });

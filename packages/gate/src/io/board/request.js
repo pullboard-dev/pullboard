@@ -25,6 +25,15 @@ const CALLBACK_LISTS = Object.freeze([
   { file: 'apps/cli/src/io/commands/serve.js', list: /settingsProviders:\s*\{([^}]*)\}/u, what: 'settingsProviders' },
 ]);
 const RUN_COMMAND = 'apps/cli/src/io/main.js#main';
+/**
+ * Further walk roots a caller may name through `extraRoots`: the materializer worker (every function in its file, as
+ * it answers the API off the request path) and the rule-proof append. A root is `file#function`, or a bare `file`
+ * for every function in it. Off by default, so today's known set is unchanged [#9677].
+ */
+export const EXTRA_REQUEST_ROOTS = Object.freeze([
+  'packages/api/src/io/state/materializer/worker.js',
+  'packages/verify/src/io/rule/proof/append.js#appendRuleProof',
+]);
 // Calls that block the event loop: a child until it exits (`gitSpawnSync` is git's own wrapper over spawnSync), a
 // whole directory listing, and a thread parked on `Atomics.wait` [#6754].
 const BLOCKING = /^(?:(?:node:)?child_process#(?:spawnSync|execSync|execFileSync)|(?:node:)?fs#readdirSync|global:Atomics#wait|.*#(?:gitSpawnSync|gitExecFileSync))$/u;
@@ -50,6 +59,10 @@ export const KNOWN_REQUEST_BLOCKERS = Object.freeze({
   'packages/git/src/io/main.js#git': 'gate-receipt submit finds an item folder through a synchronous git helper',
   'packages/git/src/io/main.js#rawGit': 'code viewer request resolves a commit through a synchronous git helper',
   'packages/git/src/io/main.js#prefetchedShow': 'code viewer request reads a blob through a synchronous git helper',
+  'packages/items/src/io/patch/compose.js#git': 'gate-receipt submit composes item patches through a synchronous git helper',
+  'packages/items/src/io/patch/compose.js#mergeFromOrigin': 'gate-receipt submit merges main with synchronous git',
+  'packages/items/src/io/patch/compose.js#composeItemPatches': 'gate-receipt submit composes patches with synchronous git',
+  'packages/items/src/io/patch/submit.js#git': 'gate-receipt submit seals the item patch through a synchronous git helper',
   'packages/keys/src/io/relay.js#keychain': 'relay move reads the OS keychain through a synchronous child process',
   'packages/keys/src/io/relay.js#removeKeychainValue': 'relay forget removes a keychain value through a synchronous child process',
   'packages/keys/src/io/relay.js#readBoardKey': 'relay move reads the board key through a synchronous child process',
@@ -64,6 +77,7 @@ export const KNOWN_REQUEST_BLOCKERS = Object.freeze({
   'packages/sandbox/src/io/trusted/policy/committed.js#policyGit': 'mainReceipts reads the main committed policy with synchronous git',
   'packages/spec/src/io/signature.js#runTool': 'spec approval evidence runs a signing tool in a synchronous child process',
   'packages/store/src/io/board/busy.js#beginImmediateQueued': 'a queued board write parks the thread on Atomics.wait between retries',
+  'packages/store/src/io/board/submit.js#recordedBaseRows': 'gate-receipt submit lists the recorded base rows with a whole-directory synchronous read',
   'packages/store/src/io/board/write/lock.js#boardWriteHolderText': 'busy-board error text lists lock holders with a synchronous directory read',
   'packages/store/src/io/board/write/lock.js#identities': 'busy-board error text lists lock holders through a synchronous process lookup',
   'packages/verify/src/io/verdict/freshness.js#readGit': 'verdict freshness reads git synchronously while building relay state',
@@ -95,10 +109,10 @@ export function candidateKnownBlockers(sources) {
  * Reach follows resolved calls between repository functions (named imports, namespaces, re-exports); a callback passed
  * in at run time, such as the CLI's `runCommand`, is not followed.
  * @param {{file:string,source:string}[]} sources Runtime source inventory.
- * @param {{known?:Record<string,string>}} [options] The listed known violations, each with its one-line why.
+ * @param {{known?:Record<string,string>,extraRoots?:string[]}} [options] The listed known violations, each with its one-line why; `extraRoots` names further walk roots (default none).
  * @returns {{file:string,line:number,call:string,owner:string,chain:string[],stale?:boolean}[]}
  */
-export function apiRequestIoProblems(sources, { known = KNOWN_REQUEST_BLOCKERS } = {}) {
+export function apiRequestIoProblems(sources, { known = KNOWN_REQUEST_BLOCKERS, extraRoots = [] } = {}) {
   const { modules, targets } = callGraph(sources, { barrels: true });
   const seen = new Set(), found = new Map();
   /** Walk one function's calls; the first path to a function is the chain reported for it. */
@@ -131,6 +145,10 @@ export function apiRequestIoProblems(sources, { known = KNOWN_REQUEST_BLOCKERS }
     }
   }
   walk(RUN_COMMAND.slice(0, RUN_COMMAND.indexOf('#')), RUN_COMMAND.slice(RUN_COMMAND.indexOf('#') + 1), []);
+  for (const root of extraRoots) {
+    const at = root.indexOf('#'), file = at < 0 ? root : root.slice(0, at);
+    for (const name of at < 0 ? modules.get(file)?.functions.keys() ?? [] : [root.slice(at + 1)]) walk(file, name, []);
+  }
   const rows = [...lost, ...[...found.values()].filter(row => !(row.owner in known))];
   const owners = new Set([...found.values()].map(row => row.owner));
   for (const owner of Object.keys(known)) {

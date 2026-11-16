@@ -21,6 +21,8 @@ import { exportOnlyProblems } from '../../../logic/export/only.js';
 import { LOAD_BEARING_CEILINGS } from '../../../logic/load/bearing.js';
 import { loadBearingFailures } from '../../../logic/load/bearing.js';
 import { loadBearingJudged } from '../../../logic/load/bearing.js';
+import { MARKDOWN_ALLOWLIST } from '../../../logic/markdown/allowlist.js';
+import { markdownProblems } from '../../../logic/markdown/allowlist.js';
 import { gitSpawnSync } from '../../../../../git/index.js';
 import { compatibilityToggleProblems } from '../../../../../config/index.js';
 import { INVENTORY_FILE } from '../../../../../config/index.js';
@@ -98,20 +100,30 @@ export const STATIC_CHECKS = Object.freeze([
   { name: 'cells-edges', run: ({ root, sources, text }) => cellsEdgeProblems(root, { files: sources.map(row => row.file), read: text })
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
   // A synchronous child process in a module a leased job, driver or producer reaches freezes its lease timer (packages/codemap/src/io/sync-spawn-in-leases.js).
-  { name: 'sync-spawn-in-leases', run: ({ root, text }) => syncSpawnProblems(root, { read: text })
+  { name: 'sync-spawn-in-leases', run: ({ root, files, text }) => syncSpawnProblems(root, { read: text, only: files })
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
   // Core code names no test runner or operating system; those literals live in adapters (packages/codemap/src/io/no-runtime-assumptions.js).
-  { name: 'no-runtime-assumptions', run: ({ root, text }) => assumptionProblems(root, { read: text })
+  { name: 'no-runtime-assumptions', run: ({ root, files, text }) => assumptionProblems(root, { read: text, only: files })
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
   { name: 'import-style', run: ({ sources }) => importStyleViolations(sources).map(row => `${row.file}:${row.line}: one import binding per line (${row.count} bindings)`) },
   // The approved state metadata chain is proved across the whole tree, so judge the tree and report only changed files.
-  { name: 'engine-folder', run: ({ root, files, staged, engineSources }) => (staged ? engineFolderViolations(engineSources) : engineFolderProblems(root))
+  // Only changed files are reported, so a change with no JS source has nothing to report and skips the 1.5 s whole-tree proof [C7].
+  { name: 'engine-folder', run: ({ root, files, staged, engineSources }) => (!staged && !files.some(file => /\.[cm]?js$/u.test(file)) ? [] : staged ? engineFolderViolations(engineSources) : engineFolderProblems(root))
     .filter(row => files.includes(row.file)).map(row => `${row.file}:${row.line}: ${row.text}`) },
   // A file of only exports outside a cell's index.js may leave the ceilings, never join them (packages/gate/src/logic/export/only.js).
   { name: 'export-only', run: ({ sources, text }) => {
     let allowed;
     try { allowed = JSON.parse(text(EXPORT_ONLY_CEILINGS)).files ?? []; } catch { return []; } // a project without the ceilings file has nothing to judge
     return exportOnlyProblems(sources, allowed, declaredDoorFiles(text)).map(row => `${row.path}:${row.line}: ${row.text}`);
+  } },
+  // With the allowlist's "enforce" switch on (default off), only .md files on the allowlist may be committed; the whole tracked tree is judged, so an old stray fails too (packages/gate/src/logic/markdown/allowlist.js).
+  { name: 'markdown-allowlist', run: ({ root, text }) => {
+    let source;
+    try { source = text(MARKDOWN_ALLOWLIST); } catch { return []; } // a project without the allowlist file has nothing to judge
+    try { if (JSON.parse(source)?.enforce !== true) return []; } catch { /* unreadable JSON is reported by markdownProblems */ } // the refusal is opt-in: the allowlist's "enforce" switch defaults off, and an empty stand-in never has it
+    const listed = gitSpawnSync(['ls-files', '-z', '--', '*.md'], { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+    if (listed.status !== 0) throw new Error('cannot list tracked markdown files');
+    return markdownProblems(source, listed.stdout.split('\0').filter(Boolean)).map(row => `${row.path}:${row.line}: ${row.text}`);
   } },
   // A default export joins only as a declared reporter or a move module (packages/gate/src/logic/export/only.js) [CD22].
   { name: 'default-export', run: ({ sources }) => defaultExportProblems(sources).map(row => `${row.path}:${row.line}: ${row.text}`) },

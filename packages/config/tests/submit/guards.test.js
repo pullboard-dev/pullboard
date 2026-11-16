@@ -5,8 +5,8 @@ import { test } from 'node:test';
 import { git } from '../../../git/index.js';
 import { selectRegistryGuards } from '../../../kernel/index.js';
 import { configFromSource } from '../../index.js';
-import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
-import { fixtureCommittedGraph } from '../../../../apps/cli/tests/fixtures/testkit.js';
+import { runFixtureGit } from '../../../gate/tests/fixtures/child.js';
+import { fixtureCommittedGraph } from '../../../gate/tests/fixtures/testkit.js';
 
 /** A private plain Git repository on a `web` branch holding one registered move input, with no board, hooks or CLI. */
 function registryRepo(t) {

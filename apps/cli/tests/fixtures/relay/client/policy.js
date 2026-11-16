@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { ROLES } from '../../../../index.js';
 
 const INITIALIZED_REPO_FILES = [
+  ...Object.values(ROLES).map(name => `.agents/skills/${name}/SKILL.md`),
   '.claude/settings.json',
   ...Object.values(ROLES).map(name => `.claude/skills/${name}/SKILL.md`),
   '.codex/config.toml',

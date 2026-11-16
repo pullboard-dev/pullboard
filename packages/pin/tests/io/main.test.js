@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fixtureProjectPolicy } from '../../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureProjectPolicy } from '../../../gate/tests/fixtures/testkit.js';
 import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureExecFile } from '../../../../apps/cli/tests/fixtures/child.js';

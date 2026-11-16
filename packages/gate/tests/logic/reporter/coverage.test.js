@@ -16,7 +16,7 @@ import { requireSubmitComposition } from '../../../../items/index.js';
 import { nativeBarActor } from '../../../../verify/index.js';
 import { baselineTestEvidence } from '../../../index.js';
 import { configFromSource } from '../../../../config/index.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../fixtures/child.js';
 
 const SHA = 'a'.repeat(40);
 /** Synthetic observations test schema and arithmetic, not an actual performance claim. */

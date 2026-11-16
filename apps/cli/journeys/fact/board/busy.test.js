@@ -223,6 +223,7 @@ test('a nested rolled-back writer logs once and leaves no live advisory record [
       if (error.message !== 'private rollback control') throw error;
     } finally { store.closeBoard(board); }
   `;
+  // Process-level: a real process holds the board write, so its pid, stderr diagnostic and exit status are what is asserted.
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, file], {
     cwd: box.repo, env: box.env, encoding: 'utf8',
   });
@@ -266,6 +267,7 @@ test('a real CLI writer labels its long transaction without changing JSON or nat
       return statement;
     };
   `);
+  // Process-level: a --import preload patches SQLite inside the CLI's own node process; argv, stderr and exit status need that real process.
   const result = runFixtureChild(process.execPath, ['--import', preload, BIN, 'shout', 'all', 'private timed shout', '--json'], {
     cwd: box.web, env: box.env, encoding: 'utf8',
   });
@@ -316,7 +318,7 @@ test('opening an older board names and logs its genuine index-building write [C7
   try {
     assert.equal(indexes.length, 3);
     for (const index of indexes) fixture.exec(`DROP INDEX "${index.name}"`);
-    fixture.exec(`PRAGMA user_version = ${version - 1}; PRAGMA application_id = 0`);
+    fixture.exec("UPDATE board_meta SET meta_value = '0' WHERE meta_key = 'event_log_version'; PRAGMA application_id = 0"); // the oldest upgradable schema is the current one, so an old event log version is the genuine pending migration
   } finally { fixture.close(); }
   const releaseFile = join(box.dir, 'release-private-index');
   const preload = join(box.dir, 'hold-private-index.mjs');
@@ -464,6 +466,7 @@ test('native import observes committed and rolled-back write ownership without c
         process.stdout.write(JSON.stringify({ restored: !${rollback}, rolledBack: ${rollback} }));
       } finally { store.closeBoard(board); }
     `;
+    // Process-level: a real process owns the board handle, so write ownership and its process identity are observed from outside.
     const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, file, input], {
       cwd: box.repo, env: box.env, encoding: 'utf8',
     });
@@ -507,6 +510,7 @@ test('journal conversion reports total wait-plus-hold separately and preserves i
       'invalid optional diagnostic context must preserve the original journal failure');
     db.close();
   `;
+  // Process-level: a real process runs the journal conversion, so its exit status and stderr diagnostic are what is asserted.
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, file], {
     cwd: box.repo, env: box.env, encoding: 'utf8',
   });
@@ -535,15 +539,15 @@ test('a failed owning migration rolls back schema, index and stamp work together
   mkdirSync(installed);
   copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), installed);
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const before = snapshot(file);
   const db = new DatabaseSync(file);
   const version = db.prepare('PRAGMA user_version').get().user_version;
   const indexes = db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'event_fact_%_v2'").all();
   try {
     assert.equal(indexes.length, 3);
     for (const index of indexes) db.exec(`DROP INDEX "${index.name}"`);
-    db.exec(`PRAGMA user_version=${version - 1}; PRAGMA application_id=0`);
+    db.exec("UPDATE board_meta SET meta_value = '0' WHERE meta_key = 'event_log_version'; PRAGMA application_id=0");
   } finally { db.close(); }
+  const before = snapshot(file); // taken after the downgrade, so the rollback is compared with the board it started from
   const preload = join(box.dir, 'fail-private-index.mjs');
   writeFileSync(preload, `
     import { DatabaseSync } from 'node:sqlite';
@@ -555,6 +559,7 @@ test('a failed owning migration rolls back schema, index and stamp work together
       return result;
     };
   `);
+  // Process-level: a --import preload and the installed copy's own entry run in a real process; its exit status and rollback after failure are asserted.
   const result = runFixtureChild(process.execPath, ['--import', preload, join(installed, 'apps/cli/pullboard.js'), 'shout', 'all', 'must roll back', '--json'], {
     cwd: box.repo, env: box.env, encoding: 'utf8',
   });
@@ -563,7 +568,7 @@ test('a failed owning migration rolls back schema, index and stamp work together
   assert.deepEqual(snapshot(file), before, 'native rows remain unchanged after failed schema work');
   const unchanged = new DatabaseSync(file, { readOnly: true });
   try {
-    assert.equal(unchanged.prepare('PRAGMA user_version').get().user_version, version - 1);
+    assert.equal(unchanged.prepare("SELECT meta_value FROM board_meta WHERE meta_key = 'event_log_version'").get().meta_value, '0');
     assert.equal(unchanged.prepare('PRAGMA application_id').get().application_id, 0);
     assert.equal(unchanged.prepare("SELECT count(*) AS n FROM sqlite_master WHERE type='index' AND name LIKE 'event_fact_%_v2'").get().n, 0);
   } finally { unchanged.close(); }
@@ -571,10 +576,10 @@ test('a failed owning migration rolls back schema, index and stamp work together
 });
 
 
-test('a standalone native attempt and nested rollback each observe only their actual outer write [C7,P4]', () => {
+test('a standalone native attempt and nested rollback each observe only their actual outer write [C7,P4]', async () => {
   const box = e2e.project();
   box.env.PULLBOARD_BOARD_QUEUE_MS = '0'; // These tests assert the refusal at SQLite timeout; #1854 queueing has its own test.
-  const added = fixtureAdd(box.run, box.repo, 'web', 'private native attempt', '--specs', 'G1', '--criterion', 'the private page renders', '--json');
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'private native attempt', '--specs', 'G1', '--criterion', 'the private page renders', '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
@@ -626,6 +631,7 @@ test('a standalone native attempt and nested rollback each observe only their ac
         process.stdout.write(JSON.stringify({ pid: process.pid, holderText, contenderCode }));
       } finally { store.closeBoard(board); }
     `;
+    // Process-level: a real process is the contender, so its pid, holder identity and cleanup on refusal are observed.
     const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, file], {
       cwd: box.repo, env: box.env, encoding: 'utf8',
     });

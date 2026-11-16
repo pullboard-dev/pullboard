@@ -125,7 +125,7 @@ The version table is generated from the source-owned declarations in `src/format
 | `row grammar` | `1` | `SPEC_GRAMMAR_VERSION` in `packages/spec/src/logic/grammar.js`; optional `<!-- pullboard-grammar N -->` line in either file (absence means the current grammar) | Both files share the version. A declared version must match; an incompatible grammar change requires a coordinated version bump and compatible files. No automatic conversion occurs. |
 | `board schema` | `3` | `SCHEMA_VERSION` in `packages/store/src/io/board/schema/source.js`, persisted as `PRAGMA user_version` | On a write open of a board whose version is behind: create missing tables and indexes (version 3 adds the hot-path indexes), add missing columns in place with declared defaults, restore missing or changed triggers, and remove stale machine triggers without replacing rows. Read opens never migrate; a board at the current version whose shape differs is reported once on stderr and left as it is. |
 | `event log` | `1` | `EVENT_LOG_VERSION` in `packages/store/src/io/board/schema/source.js`, persisted in `board_meta` as `event_log_version` | Older event-log versions upgrade in place; newer versions are refused with `EVENT_LOG_VERSION`. Preserve event rows when the board schema changes. |
-| `move engine` | `256` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
+| `move engine` | `263` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
 <!-- format-versions:end -->
 
 A signed board uses event-log format 2; older tools refuse it.
@@ -316,6 +316,13 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `event` | `event_kind` | `TEXT` | `NOT NULL` |
 | `event` | `item_id` | `INTEGER` | `nullable` |
 | `event` | `event_detail` | `TEXT` | `NOT NULL`; `DEFAULT '{}'` |
+| `event_archive` | `event_id` | `INTEGER` | `PRIMARY KEY` |
+| `event_archive` | `event_at` | `TEXT` | `NOT NULL` |
+| `event_archive` | `event_by` | `TEXT` | `NOT NULL` |
+| `event_archive` | `event_kind` | `TEXT` | `NOT NULL` |
+| `event_archive` | `item_id` | `INTEGER` | `nullable` |
+| `event_archive` | `event_detail` | `TEXT` | `NOT NULL`; `DEFAULT '{}'` |
+| `event_archive` | `event_archived_at` | `TEXT` | `NOT NULL` |
 | `hold` | `hold_lane` | `TEXT` | `PRIMARY KEY` |
 | `hold` | `hold_reason` | `TEXT` | `NOT NULL` |
 | `hold` | `hold_by` | `TEXT` | `NOT NULL` |
@@ -426,6 +433,10 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `board_meta_agent_session_value_v1` | `board_meta` | `meta_value` | no |
 | `board_meta_grant_activation_unsafe_v1` | `board_meta` | `meta_key` | no |
 | `board_meta_grant_activation_v2` | `board_meta` | `(expression)` | no |
+| `event_archive_fact_identity_v2` | `event_archive` | `(expression)`, `event_id` | no |
+| `event_archive_fact_malformed_v2` | `event_archive` | `event_id` | no |
+| `event_archive_fact_unknown_v2` | `event_archive` | `event_id` | no |
+| `event_archive_item_id_event_id` | `event_archive` | `item_id`, `event_id` | no |
 | `event_by_at` | `event` | `event_by`, `event_at` | no |
 | `event_fact_identity_v2` | `event` | `(expression)`, `event_id` | no |
 | `event_fact_malformed_v2` | `event` | `event_id` | no |
@@ -438,6 +449,7 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `job_step_lease` | `job` | `job_step`, `job_lease_until` | no |
 | `job_step_name_at` | `job_step` | `job_step_name`, `job_step_at` | no |
 | `job_step_name_seq` | `job_step` | `job_step_name`, `job_step_seq` | no |
+| `job_step_updated` | `job` | `job_step`, `job_updated`, `job_kind` | no |
 | `run_item_kind` | `run` | `run_item`, `run_kind` | no |
 | `run_open` | `run` | `run_state` | no |
 | `shout_answers` | `shout` | `shout_answers` | no |
@@ -570,6 +582,7 @@ Automatic milestone placement records its chosen release, order position, rule a
 | `source_advanced` | coordinator | Exact checked source and native receipt custody: `version`, `board`, `submitted`, `status`, `previous`, `inputHead`, `trunk`, `bar`, `patchDigest`, `episode`, `reviewEpisode`, `reviewBy`, `reviewUntil`, `verdict`, `head`, `tree`, `mergeTree`, `paths`, `generated`, `selectionDigest`, `phases`. |
 | `next-idle` | idle seat | `version`, `engine`, `reason` (structured next observation; absent historical reasons stay unknown) |
 | `review-default` | board | Review-policy migration: `engine`, `count`, `unfinished`. |
+| `coordinator-usage` | coordinator | `session`, `observedAt`, `records`, `estimate` (one coordinator session's usage, kept under the board key coordinator:session with no item) |
 <!-- events:end -->
 
 A CLI `accept` event includes `check: "none"` when no frozen item check ran or `check: "green"` when it passed. Older accept events and records without this field read as `unknown`; the result stays in event detail and does not change the board schema or event-log version.

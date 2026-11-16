@@ -11,7 +11,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { packTestResults } from '../../../../index.js';
-import { temporaryDirectory } from '../../../../../../apps/cli/tests/fixtures/board.js';
+import { temporaryDirectory } from '../../../../../board/tests/fixtures/board.js';
 import {
   firstChangedInput,
   recordInputParts,
