@@ -36,5 +36,5 @@ test('clause 2: with runs_store off, the pull gate offer writes the same rows as
   assert.equal(queue, null, 'the flag is off, so there is no queue');
   assert.equal(job.step, 'offered');
   assert.equal(jobView(board.db, job.id).step, 'offered', 'the board itself holds the offered job');
-  assert.equal(boardRun(board.db, job.id), undefined, 'no run row is written');
+  assert.ok(!boardRun(board.db, job.id), 'no run row is written');
 });
