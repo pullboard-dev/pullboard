@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
-import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
@@ -11,14 +10,19 @@ import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { createJob } from '../../../jobs/index.js';
 import { takeJob } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
-import { openRunsStore } from '../../../store/index.js';
-import { boardRunsReader } from '../../../store/index.js';
 import { readDemandSpans } from '../../index.js';
 import { readJobSpans } from '../../index.js';
 import { readRunnerJobs } from '../../index.js';
 import { readSeatActions } from '../../index.js';
 
 const NOW = 1_000_000;
+
+/** The job tables a board or a runs file holds, as the jobs cell reads and writes them. */
+const JOB_SCHEMA_SQL = `
+  CREATE TABLE job (job_id TEXT PRIMARY KEY, job_kind TEXT NOT NULL, job_item INTEGER, job_candidate TEXT, job_base TEXT, job_step TEXT NOT NULL DEFAULT 'queued',
+    job_attempt INTEGER NOT NULL DEFAULT 0, job_lease_owner TEXT, job_lease_until INTEGER NOT NULL DEFAULT 0, job_created INTEGER NOT NULL, job_updated INTEGER NOT NULL);
+  CREATE TABLE job_step (job_step_id INTEGER PRIMARY KEY AUTOINCREMENT, job_step_job TEXT NOT NULL, job_step_name TEXT NOT NULL, job_step_seq INTEGER NOT NULL DEFAULT 0,
+    job_step_payload TEXT NOT NULL DEFAULT '{}', job_step_at INTEGER NOT NULL, UNIQUE (job_step_job, job_step_name, job_step_seq));`;
 
 /** Job rows: a gate job held by r1 (declared 4 jobs), a queued test-run for seat-1 and a landing run held by a live-looking owner. */
 function seed(db) {
@@ -44,7 +48,8 @@ function fixture(t) {
   const box = privateFixtureFiles('pullboard-runs-readers-');
   t.after(() => rmSync(box.root, { recursive: true, force: true }));
   const runsFile = join(box.root, 'board.runs.sqlite');
-  const runs = openRunsStore(runsFile, { boardId: 'b1' });
+  const runs = new DatabaseSync(runsFile);
+  runs.exec(JOB_SCHEMA_SQL);
   seed(runs);
   runs.close();
   const boardFile = join(box.root, 'board.sqlite');
@@ -60,7 +65,8 @@ function offFixture(t) {
   const boardFile = join(box.root, 'board.sqlite');
   const db = board(boardFile, false);
   t.after(() => db.close());
-  const full = openRunsStore(':memory:', { boardId: 'b1' });
+  const full = new DatabaseSync(':memory:');
+  full.exec(JOB_SCHEMA_SQL);
   seed(full);
   db.exec(full.prepare("SELECT group_concat(sql, ';') AS sql FROM sqlite_master WHERE type = 'table' AND name IN ('job', 'job_step')").get().sql);
   for (const table of ['job', 'job_step']) {
@@ -84,10 +90,10 @@ function answers(db, runs) {
 }
 
 test('clause 2: with runs_store on, the stats job readers read the runs file read-only and write nothing to it [B2,#9014]', t => {
-  const { db, boardFile, runsFile } = fixture(t);
+  const { db, runsFile } = fixture(t);
   const digest = () => createHash('sha256').update(readFileSync(runsFile)).digest('hex');
   const before = digest();
-  const runs = boardRunsReader({ db }, boardFile);
+  const runs = { db: new DatabaseSync(runsFile, { readOnly: true }) };
   t.after(() => runs.db?.close());
   const got = answers(db, runs);
   assert.deepEqual(got.jobs.filter(row => row[1].length), [['gate:1', ['claimed']]]);
