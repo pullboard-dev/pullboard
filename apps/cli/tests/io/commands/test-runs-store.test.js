@@ -1,0 +1,82 @@
+/** With runs_store on, pullboard test queues, reads and cancels a run through the runs file; off, the board holds the rows as on main [P7,#9111]. */
+import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { after } from 'node:test';
+import { test } from 'node:test';
+import { readTestRun } from '../../../../../packages/drive/index.js';
+import { RUNS_STORE_KEY } from '../../../../../packages/store/index.js';
+import { boardRunsHolder } from '../../../../../packages/store/index.js';
+import { runsFilePath } from '../../../../../packages/store/index.js';
+import { withFixtureBoard } from '../../fixtures/board.js';
+import { createE2eHelpers } from '../../fixtures/e2e.js';
+import { fileFixtureItem } from '../../fixtures/testkit.js';
+import { fixtureProjectPolicy } from '../../../../../packages/gate/tests/fixtures/testkit.js';
+
+const e2e = createE2eHelpers();
+after(e2e.cleanup);
+
+/** The board file of a fixture project. */
+const boardFileOf = box => join(box.repo, '.git', 'pullboard', 'board.sqlite');
+
+const TEST_FILE = 'web/runs.test.js';
+
+/** A box whose web seat holds a claim and can queue a run; the runs_store flag is set as asked. */
+function seatBox(flag) {
+  const box = e2e.project();
+  // A queued run's worker is a long sleep, so it is still running when the case reads and cancels it.
+  const config = JSON.parse(readFileSync(join(box.web, 'pullboard.json'), 'utf8'));
+  fixtureProjectPolicy(box.web, { config: { ...config, affectedTests: 'node -e "setTimeout(() => {}, 60000)"' } });
+  mkdirSync(join(box.web, 'web'), { recursive: true });
+  writeFileSync(join(box.web, TEST_FILE), "import { test } from 'node:test';\ntest('runs [G1]', () => {});\n");
+  const item = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Runs store wiring', args: ['--specs', 'G1'] });
+  assert.equal(box.run(box.web, 'claim', String(item.item_id)).code, 0);
+  if (flag) withFixtureBoard(boardFileOf(box), board => board.db.prepare('INSERT OR REPLACE INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(RUNS_STORE_KEY, '1'));
+  // A seat at its own prompt: no machine variable, no outer CLI.
+  for (const key of ['NODE_TEST_CONTEXT', 'PULLBOARD_CLI_PID', 'CI']) delete box.env[key];
+  return box;
+}
+
+/** The id the queue line printed. */
+function queuedId(out) {
+  const id = /queued test run ([0-9a-f-]{36})/u.exec(out)?.[1];
+  assert.ok(id, out);
+  return id;
+}
+
+test('clause 1: with runs_store on, test queues, reads and cancels a run through the runs file [P7,#9111]', async () => {
+  const box = seatBox(true);
+  const queued = await box.runAsync(box.web, 'test', TEST_FILE);
+  assert.equal(queued.code, 0, `${queued.out}${queued.err}`);
+  const id = queuedId(queued.out);
+  const where = withFixtureBoard(boardFileOf(box), board => ({
+    board: board.db.prepare('SELECT COUNT(*) AS n FROM job WHERE job_id = ?').get(id).n,
+    runs: boardRunsHolder(board, boardFileOf(box)).db.prepare('SELECT COUNT(*) AS n FROM job WHERE job_id = ?').get(id).n,
+  }));
+  assert.deepEqual(where, { board: 0, runs: 1 }, 'the run lives in the runs file and not on the board');
+  const status = await box.runAsync(box.web, 'test', '--status', id);
+  assert.equal(status.code, 0, `${status.out}${status.err}`);
+  assert.match(status.out, new RegExp(`test run ${id} (queued|running)`, 'u'));
+  const cancelled = await box.runAsync(box.web, 'test', '--cancel', id);
+  assert.equal(cancelled.code, 0, `${cancelled.out}${cancelled.err}`);
+  assert.match(cancelled.out, new RegExp(`cancelled test run ${id}`, 'u'));
+  const after = await box.runAsync(box.web, 'test', '--status', id);
+  assert.match(after.out, new RegExp(`test run ${id} cancelled`, 'u'));
+});
+
+test('clause 2: with runs_store off, the board holds the run rows and no runs file is made [P7,#9111]', async () => {
+  const box = seatBox(false);
+  const queued = await box.runAsync(box.web, 'test', TEST_FILE);
+  assert.equal(queued.code, 0, `${queued.out}${queued.err}`);
+  const id = queuedId(queued.out);
+  const found = withFixtureBoard(boardFileOf(box), board => ({ run: readTestRun(board, id).id, runsFile: existsSync(runsFilePath(boardFileOf(box))) }));
+  assert.deepEqual(found, { run: id, runsFile: false }, 'the board reads the run and the runs file is never opened');
+  const status = await box.runAsync(box.web, 'test', '--status', id);
+  assert.equal(status.code, 0, `${status.out}${status.err}`);
+  const cancelled = await box.runAsync(box.web, 'test', '--cancel', id);
+  assert.equal(cancelled.code, 0, `${cancelled.out}${cancelled.err}`);
+  assert.match(cancelled.out, new RegExp(`cancelled test run ${id}`, 'u'));
+});
