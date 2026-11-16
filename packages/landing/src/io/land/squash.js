@@ -27,7 +27,10 @@ export function squashOnto(root, { base, tip, message, item }) {
   }
   if (merged.status !== 0) throw new Refused('SQUASH_MERGE', `could not merge #${item} onto ${base.slice(0, 12)}: ${merged.stderr.split('\n')[0]}`, 'check both commits exist in this repository');
   const tree = merged.stdout.split('\n')[0];
-  const commit = tryGit(root, ['commit-tree', tree, '-p', base, '-m', message]);
+  // Why a fallback identity: the lander may run where git has none configured, and commit-tree refuses without one.
+  const known = tryGit(root, ['config', 'user.email']).stdout !== '';
+  const fallback = { GIT_AUTHOR_NAME: 'pullboard', GIT_AUTHOR_EMAIL: 'lander@pullboard.invalid', GIT_COMMITTER_NAME: 'pullboard', GIT_COMMITTER_EMAIL: 'lander@pullboard.invalid' };
+  const commit = tryGit(root, ['commit-tree', tree, '-p', base, '-m', message], known ? {} : { env: { ...process.env, ...fallback } });
   if (commit.status !== 0) throw new Refused('SQUASH_COMMIT', `could not write the squash commit for #${item}: ${commit.stderr.split('\n')[0]}`, 'check the repository can be written and git has an identity');
   const kept = tryGit(root, ['update-ref', itemKeepRef(item), tip]);
   if (kept.status !== 0) throw new Refused('SQUASH_KEEP', `could not keep ${itemKeepRef(item)} for #${item}: ${kept.stderr.split('\n')[0]}`, 'check the repository can be written');
