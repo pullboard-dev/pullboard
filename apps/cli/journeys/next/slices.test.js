@@ -29,7 +29,7 @@ test('clause 2: a seat in another lane is never offered the slice [C7,#8810]', a
 /** A sliced parent plus one whole item placed in a focused milestone. */
 async function focused(t) {
   const { box, slice } = await sliced(t, 'review');
-  const whole = box.add('Whole item of the focused release');
+  const whole = box.add('Whole item of the focused release', { lane: 'review' });
   store.addMilestone(box.board, { agentId: 'coordinator', reason: 'Focus the release for the fixture', name: 'focused', items: [slice, whole] });
   store.setLineSetting(box.board, { agentId: 'coordinator', key: 'focusMilestone', value: 'focused', reason: 'Focus the release for the fixture', window: { activeReviews: 2 } });
   return { box, slice, whole };
