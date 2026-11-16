@@ -7,6 +7,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
+import { MACHINE_CONTEXT_ENV } from '../../../../../packages/drive/index.js';
 import { readTestRun } from '../../../../../packages/drive/index.js';
 import { RUNS_STORE_KEY } from '../../../../../packages/store/index.js';
 import { boardRunsHolder } from '../../../../../packages/store/index.js';
@@ -39,7 +40,7 @@ function seatBox(flag) {
   assert.equal(box.run(box.web, 'claim', String(item.item_id)).code, 0);
   if (flag) withFixtureBoard(boardFileOf(box), board => board.db.prepare('INSERT OR REPLACE INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(RUNS_STORE_KEY, '1'));
   // A seat at its own prompt: no machine variable, no outer CLI.
-  for (const key of ['NODE_TEST_CONTEXT', 'PULLBOARD_CLI_PID', 'CI']) delete box.env[key];
+  for (const key of [...MACHINE_CONTEXT_ENV, 'PULLBOARD_TEST_RUNNER_PID']) delete box.env[key];
   return box;
 }
 
