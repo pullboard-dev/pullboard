@@ -49,7 +49,7 @@ async function otherAgent(box, other) {
   const path = join(dirname(other.root), 'other-agent');
   runFixtureGit(['worktree', 'add', '-q', '-b', 'agent/other', path], { cwd: other.root, env: other.env });
   /** Run the real CLI in the other machine's agent worktree. */
-  const run = (...args) => relayFixtureChild(path, other.env, [CLI, ...args, '--json']);
+  const run = (...args) => other.cliAtLocal(path, ...args);
   const joined = await run('join', box.lane, '--model', 'fixture-model');
   assert.equal(joined.code, 0, joined.failure);
   return run;
@@ -69,7 +69,7 @@ async function twoMachines(t, title, { beforeLink } = {}) {
   await box.link();
   const contested = (await box.cliLocal('add', box.lane, title)).document.item.item_id;
   const printed = await box.cliLocal('relay', 'pair');
-  const other = prof(t, 'other', await box.otherDeviceJoin(printed.document.code));
+  const other = prof(t, 'other', await box.otherDeviceJoin(printed.document.code, undefined, { inProcess: true }));
   assert.equal(JSON.parse(readFileSync(box.linkFile, 'utf8')).baselineAccepted, true, 'the relay accepted this board before the outage');
   return { box, other, contested };
 }
