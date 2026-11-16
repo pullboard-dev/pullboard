@@ -93,6 +93,7 @@ export {
   testStatusOutcomesEnabled,
   recordWriteHolderEnabled,
   adaptiveBatchEnabled,
+  landingSquashEnabled,
   reofferTrunkBusyEnabled,
   memoryFloorMB,
   relayOfferEnabled,

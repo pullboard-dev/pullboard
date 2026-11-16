@@ -74,3 +74,28 @@ test('the check refuses an unknown flag and a non-numeric limit with its usage [
   }
   assert.equal(calls.length, 0);
 });
+
+test('clause 1: --only checks just the delete-tagged journeys under the listed prefixes, and a prefix matching none exits 1 naming it [C7]', async t => {
+  const files = fixture(t);
+  const { mutate, calls } = seam('none');
+  const result = await runJourneyCheck(['--manifest', 'manifest.json', '--only', 'apps/cli/journeys/edges/j2,apps/cli/journeys/edges/j4', files.root], { mutate, reachOf: () => new Map() });
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(calls.map(call => call.extra[0]), ['apps/cli/journeys/edges/j2.test.js', 'apps/cli/journeys/edges/j4.test.js']);
+  assert.match(result.stdout, /2 of 2 sampled delete tags hold .* of 4 delete tags/u);
+  const none = await runJourneyCheck(['--manifest', 'manifest.json', '--only', 'apps/cli/journeys/edges/j1,apps/nowhere/', files.root], { mutate, reachOf: () => new Map() });
+  assert.equal(none.status, 1);
+  assert.match(none.stderr, /apps\/nowhere\/.*next:/u);
+  const keep = await runJourneyCheck(['--manifest', 'manifest.json', '--only', 'apps/cli/journeys/edges/keep', files.root], { mutate, reachOf: () => new Map() });
+  assert.equal(keep.status, 1, 'a kept journey is not a delete tag');
+  const bare = await runJourneyCheck(['--only'], { mutate, reachOf: () => new Map() });
+  assert.equal(bare.status, 1);
+});
+
+test('clause 2: without --only the check samples the same journeys as before, and the usage line lists --only [C7]', async t => {
+  const files = fixture(t);
+  const { mutate, calls } = seam('none');
+  await runJourneyCheck(['--manifest', 'manifest.json', '--limit', '2', files.root], { mutate, reachOf: () => new Map() });
+  assert.deepEqual(calls.map(call => call.extra[0]), ['apps/cli/journeys/edges/j1.test.js', 'apps/cli/journeys/edges/j3.test.js']);
+  const refused = await runJourneyCheck(['--bogus'], { mutate, reachOf: () => new Map() });
+  assert.match(refused.stderr, /\[--only prefix,prefix\]/u);
+});
