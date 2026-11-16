@@ -310,6 +310,11 @@ export function testStatusOutcomesEnabled() {
   return group?.statusOutcomes === true;
 }
 
+/** Whether items.typedFields is on (#9350): off by default; only an exact `true` turns it on. */
+export function typedFieldsEnabled() {
+  return loadMachineSettings().items?.typedFields === true;
+}
+
 /** Whether health.derivedState is on (#8974): off by default; nothing reads it yet, and only an exact `true` turns it on. */
 export function derivedStateEnabled() {
   return loadMachineSettings().health?.derivedState === true;

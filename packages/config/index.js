@@ -97,6 +97,7 @@ export {
   lapsedSweepEnabled,
   derivedStateEnabled,
   testStatusOutcomesEnabled,
+  typedFieldsEnabled,
   recordWriteHolderEnabled,
   adaptiveBatchEnabled,
   landingSquashEnabled,
