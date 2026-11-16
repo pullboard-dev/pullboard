@@ -212,7 +212,7 @@ export async function awaitPushShards(ctx, jobs, { say, wait = pause, pollMs = P
       const infra = Boolean(receipt?.payload?.receipt?.gate?.analysis?.infra ?? receipt?.payload?.gate?.analysis?.infra);
       const lapsed = !receipt && before && (view.leaseOwner && view.leaseUntil <= now() || holder && holder !== before);
       if (rerun && reoffer && !posted.has(job) && (lapsed || infra)) {
-        const runner = infra ? view.leaseOwner : before.slice(0, before.lastIndexOf(':'));
+        const runner = infra ? (receipt.payload?.runner ?? view.leaseOwner ?? before?.slice(0, before.lastIndexOf(':')) ?? null) : before.slice(0, before.lastIndexOf(':'));
         if (again.has(at)) {
           if (lapsed) { write(board => endJobs(board.db, [job], { reason: 'the shard lapsed a second time' })); return { refused: `shard job ${job} lapsed on runner ${runner} after it was re-offered once; push again` }; }
         } else {
