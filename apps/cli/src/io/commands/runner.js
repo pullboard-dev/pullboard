@@ -19,6 +19,7 @@ import { probeRunnerTransport } from '../../../../../packages/runners/index.js';
 import { readPulledCapacity } from '../../../../../packages/runners/index.js';
 import { lastRecordedLimit } from './stats/limits.js';
 import { recordLimitChange } from './stats/limits.js';
+import { boardRunsReader } from '../../../../../packages/store/index.js';
 import { openBoardReadOnly } from '../../../../../packages/store/index.js';
 import { atomic } from '../../../../../packages/store/index.js';
 import { logEvent } from '../../../../../packages/store/index.js';
@@ -49,7 +50,7 @@ import {
 /** The runners the board sees live (serves that claimed within minutes), or undefined when it sees none or cannot be read. Why here: it is the board's one reader of pulled capacity [U151]. */
 export function liveRunnerCount(ctx) {
   try {
-    const { totals } = withBoardRead(ctx, board => readPulledCapacity(board.db));
+    const { totals } = withBoardRead(ctx, board => readPulledCapacity(board.db, { runs: boardRunsReader(board, ctx.file) }));
     return totals.serves > 0 ? totals.serves : undefined;
   } catch { return undefined; }
 }
@@ -95,7 +96,7 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     if (!existsSync(ctx.file)) throw new Refused('NO_BOARD', 'there is no board here', 'run pullboard runner status inside a board repository');
     const db = openBoardReadOnly(ctx.file);
     let capacity;
-    try { capacity = readPulledCapacity(db); } finally { db.close(); }
+    try { capacity = readPulledCapacity(db, { runs: boardRunsReader({ db }, ctx.file) }); } finally { db.close(); }
     io.result?.(capacity);
     io.say(capacity.serves.length ? [...capacity.serves.map(entry => `${entry.runner}: ${entry.claimed} of ${entry.jobs ?? 'unknown'} jobs`),
       `fleet: ${capacity.totals.claimed} of ${capacity.totals.jobs} jobs`].join('\n') : 'no serves have claimed pulled jobs');

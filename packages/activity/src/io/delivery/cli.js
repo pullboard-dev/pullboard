@@ -140,7 +140,11 @@ export async function deliverActivity(ctx, { actedIds = [], afterSubmit = false,
       }
     }
     if (directShouts && !['RELAY_KEY_MISSING', 'AUTH_REQUIRED'].includes(activity.receipt?.code)) {
-      if (batched) enqueueShoutMark(board, me.id, markThrough());
+      if (batched) {
+        enqueueShoutMark(board, me.id, markThrough());
+        // The command owns the background worker, so a queued mark outlives this process (#9117).
+        ports.handOffMarks?.(ctx, store.takeInboxMarks(board));
+      }
       else store.inbox(board, me.id, { through: markThrough() });
     }
     return { ...bounded, local };

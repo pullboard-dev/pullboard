@@ -901,6 +901,10 @@
       "kind": "jsonl",
       "owner": "packages/gate/src/io/control.js"
     },
+    "pullboard-inbox-marks.jsonl": {
+      "kind": "jsonl",
+      "owner": "packages/store/src/io/inbox-marks.js"
+    },
     "pullboard-item.json": {
       "kind": "json",
       "owner": "apps/cli/src/io/item/folder/identity.js"

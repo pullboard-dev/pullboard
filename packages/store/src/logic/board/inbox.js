@@ -112,3 +112,16 @@ export function flushInboxMarks(board) {
   queue.clear();
   return entries.length;
 }
+
+/**
+ * Hand over every queued inbox mark and empty the queue without writing, for a worker that writes them elsewhere.
+ *
+ * @param {any} board
+ * @returns {[string, number][]} agent id and the highest shout id it was shown
+ */
+export function takeInboxMarks(board) {
+  const queue = pendingMarks.get(board);
+  const entries = queue?.size ? [...queue] : [];
+  queue?.clear();
+  return entries;
+}

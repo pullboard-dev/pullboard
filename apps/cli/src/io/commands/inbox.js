@@ -6,6 +6,8 @@ import { context } from '../context.js';
 import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
 import { evidenceLine } from '../shout.js';
+import { startMarksWorker } from '../../../../../packages/jobs/index.js';
+import { MARKS_WORKER } from '../inbox-marks-worker.js';
 import { whoAmI } from '../join.js';
 import { COORDINATOR } from '../../../../../packages/config/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
@@ -14,6 +16,7 @@ import { openEntries } from '../../../../../packages/store/index.js';
 import { recordEntryAction } from '../../../../../packages/store/index.js';
 import { escalateEntries } from '../../../../../packages/store/index.js';
 import { sayQueuedReds } from '../../../../../packages/store/index.js';
+import { spoolInboxMarks } from '../../../../../packages/store/index.js';
 
 /**
  * Load the ordered writer only when a read must record something.
@@ -29,7 +32,9 @@ export async function run(io, { values = {} } = {}) {
   if (values.history) return history(io, ctx, values);
   if (values.archive !== undefined) return archive(io, ctx, values);
   const actedIds = (values['acted-on'] ?? '').split(',').filter(Boolean);
-  const ports = { agentDisplayName, evidenceLine, ordered, whoAmI, withBoard, withBoardRead };
+  const ports = { agentDisplayName, evidenceLine, ordered, whoAmI, withBoard, withBoardRead,
+    // inbox.batchedMarks: queued marks go to a background worker that writes them in one batch (#9117).
+    handOffMarks: (c, entries) => { if (!entries.length) return; spoolInboxMarks(c.file, entries); startMarksWorker(MARKS_WORKER, c.file); } };
   withBoardRead(ctx, board => sayQueuedReds(io, board, () => whoAmI(ctx, board)));
   const result = await deliverActivity(ctx, { actedIds }, ports);
   const { agents, ...document } = result;
