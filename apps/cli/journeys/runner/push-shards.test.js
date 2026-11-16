@@ -17,7 +17,7 @@ const HEAVY = './test/heavy.test.js';
 const NAMES = ['heavy', ...Array.from({ length: 11 }, (_, at) => `t${String(at + 1).padStart(2, '0')}`)];
 
 /** A real committed repository of twelve test files with recorded times (one 300 s file, eleven of 60 s), and a command context over a real board file. */
-function pushGateProject(t) {
+function pushGateProject() {
   const project = fixtureCommittedGraph('pullboard-push-shards-');
   for (const name of NAMES) project.put(`test/${name}.test.js`, `import { test } from 'node:test';\ntest('${name}', () => {});\n`);
   project.commit();
@@ -28,17 +28,16 @@ function pushGateProject(t) {
   // The seat is no primary checkout of a registered folder, so the offer starts no local runner of its own.
   const ctx = { file, config: { gate: 'node --test', pushGate: { sizeFromBoard: true, shardMinutes: 20 } }, clock: undefined, allowSchemaUpgrade: true,
     info: { root: project.root, isMain: false, commonDir: join(project.root, 'missing') }, io: { err() {} }, nativeBoard: { openBoard: (path, clock, options) => openKitBoard(path, clock, options) } };
-  t.after(() => { /* the repository is a private temp folder owned by the fixture */ });
   return { ...project, ctx, file };
 }
 
-test('clause 1: the full gate suite is offered as one pull shard job per runner, every file once, the heaviest file in the first shard [C7,#1799]', async t => {
-  const box = pushGateProject(t);
+test('clause 1: the full gate suite is offered as one pull shard job per runner, every file once, the heaviest file in the first shard [C7,#1799]', async () => {
+  const box = pushGateProject();
   const plan = await pushShardPlan(box.root, box.ctx.config, { runners: RUNNERS });
   assert.equal(plan.shards.length, RUNNERS, 'one shard for each available runner');
   assert.deepEqual(plan.shards.flatMap(shard => shard.files).sort(), NAMES.map(name => `./test/${name}.test.js`).sort(), 'every tracked test file runs in exactly one shard');
   assert.ok(plan.shards[0].files.includes(HEAVY), 'the heaviest file leads the first shard');
-  assert.ok(plan.shards.every(shard => shard.command.startsWith('node --test ')), 'each shard is the whole gate command over its own files');
+  assert.ok(plan.shards.every(shard => shard.command.includes('node --test') && shard.files.every(file => shard.command.includes(file.slice(2)))), 'each shard is the whole gate command over its own files');
 
   const { jobs, ref } = await offerPushShards(box.ctx, plan);
   assert.equal(jobs.length, RUNNERS);
