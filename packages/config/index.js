@@ -102,6 +102,7 @@ export {
   holdsRequireOwner,
   nextIdleBlockers,
   nextItemNotices,
+  statsRecordCoordinatorUsage,
   nextCapBuilders,
   nextReadinessCheck,
   nextReadinessCache,
