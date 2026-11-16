@@ -18,7 +18,7 @@ import { RUNNER_PRELOAD_ENV } from '../../../../kernel/index.js';
 import { declareKnownNodeOption } from '../../../../kernel/index.js';
 import { declareNodeOptionProofs } from '../../../../kernel/index.js';
 import { foreignNodeOptions as classifyNodeOptions } from '../../../../kernel/index.js';
-import { gateRuntimeCaptureSource } from '../../logic/preload.js';
+import { gateRuntimeCaptureSource } from '../preload.js';
 import { PULLED_JOB_ENV } from './concurrency.js';
 import { JOB_WORKERS_ENV } from '../../../../drive/light.js';
 import { childJournalPreloadSource } from '../journal/source.js';
