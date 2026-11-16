@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { planFreeze } from '../src/logic/test/freeze.js';
+import { planFreeze } from '../src/io/test/freeze/plan.js';
 
 const ROOT = new URL('../../../', import.meta.url);
 const manifest = JSON.parse(readFileSync(new URL('packages/gate/data/tests/test-manifest.json', ROOT), 'utf8'));
