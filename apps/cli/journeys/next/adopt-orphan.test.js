@@ -64,5 +64,5 @@ test('clause 2: with next.adoptPreserved off, the default, next --take claims th
   assert.doesNotMatch(taken.out, /restored the pinned work/u);
   const folder = taken.out.match(/^item folder: (.+?);/m)[1];
   assert.equal(existsSync(join(folder, 'web', 'page.html')), false, 'nothing of the returned work is restored');
-  assert.equal(f.box.tryGit(folder, ['merge-base', '--is-ancestor', f.head, 'HEAD']).status !== 0, true);
+  assert.equal(f.box.tryGit(folder, 'merge-base', '--is-ancestor', f.head, 'HEAD').status !== 0, true);
 });
