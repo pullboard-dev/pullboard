@@ -102,6 +102,7 @@ const BEFORE = {
   'moves.live.submit': false,
   'moves.shadow': false,
   'next.capBuilders': 0,
+  'next.idleBlockers': false,
   'next.itemNotices': false,
   'next.readinessCache': false,
   'next.readinessCheck': false,
