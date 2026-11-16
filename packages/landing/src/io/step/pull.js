@@ -20,14 +20,16 @@ export function pullOutJobId(item, mergedCommit) {
   return `${PULL_OUT_KIND}:${item}:${mergedCommit.slice(0, 12)}`;
 }
 
-/** The commit the remote's trunk names now, fetched into `root` so a revert can be built on it. */
+/**
+ * The commit the remote's trunk names now, which `root` must already hold so a revert can be built on it.
+ * Why no fetch here: the runner's checkout entry point is the one place that fetches; the lander's checkout already tracks trunk.
+ */
 function remoteTrunk(root, remote, branch) {
-  const fetched = tryGit(root, ['fetch', '-q', remote, branch]);
-  const tip = fetched.status === 0 ? tryGit(root, ['rev-parse', '--verify', '-q', 'FETCH_HEAD^{commit}']) : fetched;
-  if (tip.status !== 0 || !tip.stdout) {
-    throw new Refused('PULL_OUT_TRUNK', `could not fetch ${branch} from ${remote}: ${(tip.stderr || tip.stdout).split('\n')[0]}`, 'check the remote is reachable, then run the pull-out again');
+  const tip = tryGit(root, ['ls-remote', remote, branch]).stdout.split(/\s+/u)[0];
+  if (!tip || tryGit(root, ['cat-file', '-e', `${tip}^{commit}`]).status !== 0) {
+    throw new Refused('PULL_OUT_TRUNK', `${branch} on ${remote} names ${tip ? tip.slice(0, 12) : 'nothing'}, which this checkout does not hold`, 'fetch the trunk into the lander\'s checkout, then run the pull-out again');
   }
-  return tip.stdout;
+  return tip;
 }
 
 /**
