@@ -549,6 +549,18 @@ function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
     }));
   }
 
+  // A seat that joined without a model (no record, or the word unknown) cannot be routed by model or family: name each active one by seat id [C7,#9696].
+  const models = new Map(board.db.prepare("SELECT meta_key AS key, meta_value AS value FROM board_meta WHERE meta_key LIKE 'agent_model:%'").all().map(row => [row.key.slice('agent_model:'.length), String(row.value ?? '').trim().toLowerCase()]));
+  for (const agent of active.filter(candidate => !models.get(candidate.id) || models.get(candidate.id) === 'unknown')) {
+    findings.push(finding('SEAT_NO_MODEL', null, {
+      subject: agent.id, key: `SEAT_NO_MODEL:agent:${agent.id}`, since: new Date(agent.created ? Date.parse(agent.created) : agent.last).toISOString(), now,
+      title: 'joined without a model',
+      why: `${agent.id} in ${agent.lane} has no recorded model, so its work cannot be routed by model`,
+      next: `rejoin ${agent.path} with the model named: in a shell with PULLBOARD_MODEL set, run pullboard join ${agent.lane}`,
+      owner: { role: 'coordinator', who: COORDINATOR }, detail: { lane: agent.lane, route: agent.route },
+    }));
+  }
+
   const open = [...queue.releases.flatMap((release) => release.items), ...queue.unreleased].filter((entry) => entry.status === 'open');
   /** A returned repair belongs with its still-active last builder, not a different occupied holder. */
   const reworkBuilder = item => {
