@@ -16,6 +16,7 @@ export const coordinatorHelp = `Coordinator
                                         return accepted work that conflicts with the trunk for a main merge
   pullboard hold <lane> --reason "..."   pause a lane: next there claims nothing and names the reason
   pullboard hold <id> "reason" [--until verified|landed]  hold until the next named event on this item
+  pullboard hold <id> "reason" --owner <seat|lane|person> [--deadline <ISO time>]  name who answers for the hold; the deadline defaults to a day out (holds.requireOwner makes --owner required)
   pullboard hold <lane|id> --off        lift a lane or item hold
 
 `;

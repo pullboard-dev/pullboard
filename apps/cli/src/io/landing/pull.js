@@ -16,6 +16,8 @@ import { mainCheckout } from '../../../../../packages/git/index.js';
 import { tryGit } from '../../../../../packages/git/index.js';
 import { unverifiedSubmissions } from '../../../../../packages/store/index.js';
 import { lineSettings } from '../../../../../packages/store/index.js';
+import { testResults } from '../../../../../packages/store/index.js';
+import { redNow } from '../../../../../packages/gate/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { checkLandingMessages } from '../../../../../packages/landing/index.js';
 import { landingContext } from '../../../../../packages/landing/index.js';
@@ -25,6 +27,7 @@ import { publishRedTouched } from '../../../../../packages/landing/index.js';
 import { landingChangedFiles } from '../../../../../packages/landing/index.js';
 import { relandAcceptedItems } from '../../../../../packages/landing/index.js';
 import { carryLandingHops } from '../../../../../packages/landing/index.js';
+import { landingMainReds } from '../../../../../packages/landing/index.js';
 import { ordered } from '../../../index.js';
 import { withBoard } from '../context.js';
 import { BOARD_HOST } from '../runner/local.js';
@@ -235,6 +238,8 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
       // batches; each job's push finds trunk moved by the one before and merges again on the new tip [C7,#7728].
       const size = ids ? free.length : Math.min(free.length, batchCap(board));
       const jobs = [];
+      // landing.ledgerMainReds: the ledger's red-now files ride on each job, so a red main already records holds no landing [C7,U152].
+      const mainReds = landingMainReds(policy.config, policy.config.landing?.ledgerMainReds === true ? redNow(testResults(board.db)) : []);
       for (let start = 0; start < free.length; start += size) {
         const batch = free.slice(start, start + size);
         // Each item's submit may have deferred test files to this landing; the job runs them on the merged tree [C7].
@@ -243,7 +248,7 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
         const flakes = typeof pairPrefix === 'function' ? landingFlakes(root, policy, chosen.find(item => item.item_id === batch[0].id), batch[0].commit, pairPrefix) : null;
         // With gate.fencedHop on, each item's gate hop epoch rides on the job, and the runner pushes trunk through the fences [C7,#8437].
         const hops = carryLandingHops(board.db, batch, { enabled: fencedHopEnabled() });
-        const job = offerLandingJob(board.db, { items: batch, expect, trunk: trunkRef(root), forced, deferred, flakes, hops, ...(policy.config.landing?.shardProof === true ? { shardGate: landingShardGate() } : {}), badges: badgeDocuments?.(board) ?? [],
+        const job = offerLandingJob(board.db, { items: batch, expect, trunk: trunkRef(root), forced, deferred, flakes, hops, mainReds, ...(policy.config.landing?.shardProof === true ? { shardGate: landingShardGate() } : {}), badges: badgeDocuments?.(board) ?? [],
           ...(hosted ? { config: { ...policy.config, trunk: { ...policy.config.trunk, remote } }, needs: [BOARD_HOST], checkout: true, upstream: hostUpstream(root, policy.config) } : { config: policy.config, checkout: intoCheckout }) });
         ctx.io.say?.(`offered ${forced ? 'forced ' : ''}land job ${job.id} for ${batch.map(entry => `#${entry.id}`).join(' ')}; a runner merges and pushes trunk`);
         jobs.push(job.id);

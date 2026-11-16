@@ -51,7 +51,7 @@ export function unaccountedRedFindings(db, now) {
   let rows;
   try {
     rows = db.prepare(`SELECT j.job_id AS job, j.job_item AS item, s.job_step_payload AS payload, s.job_step_at AS at
-      FROM job j JOIN job_step s ON s.job_step_id = (SELECT MAX(job_step_id) FROM job_step WHERE job_step_job = j.job_id)
+      FROM job j JOIN job_step s ON s.job_step_id = (SELECT MAX(job_step_id) FROM job_step WHERE job_step_job = j.job_id AND job_step_name NOT LIKE 'note:%')
       WHERE j.job_kind = 'gate' AND j.job_updated >= ?`).all(at - UNACCOUNTED_RED_WINDOW_MS);
   } catch (error) { if (/no such table/u.test(error.message)) return []; throw error; }
   const reds = rows.flatMap(row => {

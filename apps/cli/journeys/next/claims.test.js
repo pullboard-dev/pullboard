@@ -22,8 +22,6 @@ import { chargedText } from '../../tests/fixtures/load.js';
 import { loadClock } from '../../tests/fixtures/load.js';
 
 const BUDGET_MS = 200;
-/** Audited exception at measured own time for warm next, inbox and show (#6525, run 6ff98f24: next 383 ms at load 1.4x); target BUDGET_MS. */
-const WARM_EXCEPTION_MS = 400;
 const CLI = new URL('../../tests/fixtures/native.js', import.meta.url).href;
 
 const CLAIMS = 40;
@@ -82,19 +80,22 @@ function gitLog(box) {
 function warmTimes(box, cwd, commands) {
   const source = `import { main } from ${JSON.stringify(CLI)};
 const sink = { isTTY: false, write() { return true; } };
-const run = async argv => { const started = performance.now(); const code = await main(argv, { cwd: ${JSON.stringify(cwd)}, stdout: sink, stderr: sink, stdin: process.stdin }); return { code, ms: performance.now() - started }; };
+let profile = [];
+const errSink = { isTTY: false, write(text) { if (String(text).startsWith('next profile:')) profile.push(String(text).trim()); return true; } };
+const run = async argv => { profile = []; const started = performance.now(); const code = await main(argv, { cwd: ${JSON.stringify(cwd)}, stdout: sink, stderr: errSink, stdin: process.stdin }); return { code, ms: performance.now() - started, profile }; };
 const result = {};
 for (const argv of ${JSON.stringify(commands)}) {
   const first = await run(argv);
   if (first.code !== 0) { result[argv.join(' ')] = { code: first.code }; continue; }
   const times = [];
-  for (let round = 0; round < 3; round++) times.push((await run(argv)).ms);
-  result[argv.join(' ')] = { code: 0, median: times.sort((a, b) => a - b)[1] };
+  let last;
+  for (let round = 0; round < 3; round++) { last = await run(argv); times.push(last.ms); }
+  result[argv.join(' ')] = { code: 0, median: times.sort((a, b) => a - b)[1], profile: last.profile.join(' | ') };
 }
 console.log(JSON.stringify(result));`;
   // Process-level case, kept: the 200 ms budget is wall-clock in one warm process, charged for the runner load over it (#6525).
   const stop = loadClock();
-  const child = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { cwd, env: box.env, encoding: 'utf8' });
+  const child = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { cwd, env: { ...box.env, PULLBOARD_NEXT_PROFILE: '1' }, encoding: 'utf8' });
   const { scale } = stop();
   assert.equal(child.status, 0, child.stderr || child.stdout);
   const result = JSON.parse(child.stdout.trim().split('\n').at(-1));
@@ -135,11 +136,10 @@ test('next, inbox and show stay under 200 ms with forty recorded claims and scan
   launches.reset();
   const times = warmTimes(box, box.web, [['next'], ['inbox'], ['show', '1']]);
   for (const [command, result] of Object.entries(times)) assert.equal(result.code, 0, `${command} succeeds`);
-  // Charged for runner load per core (#6525). On a loaded runner the charged medians are still over the H24 200 ms ceiling,
-  // so they hold an audited exception at the measured value, ratchet-only; the 0.9.5 remainder of #6525 removes it.
+  // Charged for runner load per core (#6525): each median is the command's own time, held to the H24 200 ms ceiling.
   const report = Object.entries(times).map(([command, result]) => `${command} ${chargedText({ ms: result.median, wall: result.wall, scale: result.scale })}`).join('; ');
-  assert.ok(Object.values(times).every(result => result.median < WARM_EXCEPTION_MS), `medians with ${CLAIMS} claims: ${report}`); // budget: audited exception #6525 at measured run 6ff98f24; H24 target 200 ms.
-  t.diagnostic(`medians with ${CLAIMS} claims: ${report} (H24 target ${BUDGET_MS} ms)`);
+  assert.ok(Object.values(times).every(result => result.median < BUDGET_MS), `medians with ${CLAIMS} claims: ${report}`); // budget: approved row H24 sets this 200 ms speed ceiling.
+  t.diagnostic(`medians with ${CLAIMS} claims: ${report} (H24 ceiling ${BUDGET_MS} ms); next phases: ${times.next?.profile}`);
   const foreign = launches.lines().filter(line => others.some(path => line.startsWith(`${path}\t`)));
   assert.deepEqual(foreign, [], 'commands read other seats from the maintenance record without running Git there');
 });

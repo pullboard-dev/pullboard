@@ -39,7 +39,7 @@ import { readTestOutcomes } from '../../../../../packages/gate/index.js';
 import { queueTestRun } from '../../../../../packages/drive/index.js';
 import { runResident } from '../../../src/io/resident/client.js';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
-import { withFixtureBoard } from '../../fixtures/testkit.js';
+import { withFixtureBoard } from '../../fixtures/board.js';
 
 test('tests run without inherited Git identity or config and refuse ambient pullboard [C7, S13]', (t) => {
   assert.equal(process.env.GIT_CONFIG_GLOBAL, '/dev/null');

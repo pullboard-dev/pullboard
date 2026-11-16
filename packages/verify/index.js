@@ -4,13 +4,14 @@ export { laneCheckFiles, requireOwnLaneCheck, coordinatorCheck } from './src/io/
 export { normalizeReviewDefaults } from './src/io/review/default.js';
 export { barActorForCommand, nativeBarActor, nativeBarActorForSeat, normalizeBarActor } from './src/io/bar/actor.js';
 export { barCheckEnabled, barCheckFactFields, barCheckState, barCheckWarning } from './src/logic/bar/check.js';
+export { dryRunReviewChecklist, dryRunReviewEnabled } from './src/logic/bar/dryRun.js';
 export { barCoverageCommand, barCoverageDigest, barCoverageForPolicy, barTestPath, normalizeBarCoverage, prepareBarCoverage, previewBarCoverage } from './src/io/bar/coverage.js';
 export { barDigest, barNotes, barReadiness, barReadinessRequired, barReadyProblem, recordBarRevision, setBarReady, signBar, barReadySetting } from './src/io/bar/readiness.js';
 export { PROVES_NOTHING_HOLD, PROVES_NOTHING_HOLD_REASON, acceptCheck, checkAcceptCommand, checkAcceptance, checkDigest, provingCheck, refuseClaimProvesNothing, refuseProvesNothing } from './src/io/check/accept.js';
 export { citedTestFiles, rowEvidence, rowStage } from './src/io/evidence.js';
 export { barTestFiles, frozenBar, frozenRowGates, namedClause, wording } from './src/logic/frozen.js';
 export { changedTestFiles, contentHash, frozenTestHashes, frozenTestsProblem, namedTestHashes, testHashProblem, testHashRulings, testAuthors, testAuthorNotes, authorSplitProblem } from './src/logic/testHashes.js';
-export { nextReview, ownSessionReviews, returnUnmergeable } from './src/logic/next.js';
+export { nextReview, forcedLandedUnreviewed, ownSessionReviews, returnUnmergeable } from './src/logic/next.js';
 export { completeMoveHandoff } from './src/logic/post/move.js';
 export { recordNativeProof } from './src/logic/proof/native.js';
 export { counterCaught, counterProofStats } from './src/io/proof/caught.js';
@@ -25,7 +26,7 @@ export { eligibilityProblem, reviewEligibility } from './src/logic/review/eligib
 export { earlierHolderProblem, committedItemAuthors, itemReviewPolicy, reviewFamilyProblem, reviewPolicyChange, saveItemReviewPolicy, strictReviewProblem, twoTierReviews } from './src/io/review/independence.js';
 export { aliasEngineOn, anyItemReviewPolicyEngine, familiesDiffer, familyAliasesOf, familyIndex, familyName, itemReviewPolicyEngine } from './src/logic/review/policy.js';
 export { reviewQueueLine } from './src/logic/review/queue.js';
-export { canonicalFamily, overdueReview, prioritizeReviews, requireStrictBuilderFamily, reviewReleaseCooldown, reviewRoutingEnabled, reviewWait, seatFamily, strictReviewProblem as routingStrictReviewProblem, builderFamilyOf } from './src/io/review/routing.js';
+export { canonicalFamily, overdueReview, prioritizeReviews, requireStrictBuilderFamily, reviewReleaseCooldown, reviewRoutingEnabled, reviewWait, seatFamily, strictReviewProblem as routingStrictReviewProblem, builderFamilyOf, declaredLimitProblem } from './src/io/review/routing.js';
 export { ruleProofCounts, ruleProofWindow } from './src/io/rule/proof/counts.js';
 export { bindProofRunner, committedRuleCoverage, proofCoverageFingerprint } from './src/io/rule/proof/coverage.js';
 export { appendRuleProof } from './src/io/rule/proof/append.js';

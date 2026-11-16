@@ -13,7 +13,18 @@ export const nativeBoardRequired = false;
  */
 export async function run(io, { first, second, values }) {
   if (!first || second) throw new Refused('USAGE', 'use pullboard mutate <cell folder> [--all] [--item <id>]', 'pullboard mutate packages/search');
-  const report = await mutateCell(io.cwd, first, { all: Boolean(values?.all) });
+  // A stop (Ctrl-C or a kill) must end the test children too, or they outlive the run as orphans [#8500].
+  const stopper = new AbortController();
+  const stop = () => stopper.abort();
+  process.once('SIGINT', stop);
+  process.once('SIGTERM', stop);
+  let report;
+  try {
+    report = await mutateCell(io.cwd, first, { all: Boolean(values?.all), signal: stopper.signal });
+  } finally {
+    process.off('SIGINT', stop);
+    process.off('SIGTERM', stop);
+  }
   io.result?.(report);
   for (const file of report.redBefore) io.say(`red-before  ${file}  fails unmutated; left out`);
   for (const fault of report.faults) {

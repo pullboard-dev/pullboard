@@ -37,6 +37,8 @@ import { reviewHolder } from "./query.js";
 import { laneHold } from "./query.js";
 import { itemFiles } from "../../../../items/index.js";
 import { itemFileCollisions } from "../../../../items/index.js";
+import { contentionScores } from "../../../../items/index.js";
+import { orderByContention } from "../../../../items/index.js";
 import { itemCollisionPlan } from "../../../../items/index.js";
 import { firstRefusalReason } from "../../../../items/index.js";
 import { seatGone } from "../presence.js";
@@ -125,7 +127,7 @@ export function nextFor(board, options) {
     runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds: skippedIds = [], sessionIds = [], omitIds = [],
     afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(),
     focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null, routeFloor = null,
-    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null, routeCap = null } = options;
+    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null, routeCap = null, contention = null } = options;
   // `sessionIds` are the items this seat's own session authored: skipped like `skipIds`, and the only ones REVIEWER_SAME_SESSION names.
   const skipIds = [...new Set([...skippedIds, ...sessionIds])];
   const idleSkips = [];
@@ -325,6 +327,14 @@ export function nextFor(board, options) {
       .map(row => Number(row.meta_key.slice('item_urgent:'.length)))]);
     mine.sort((a, b) => Number(emergency.has(b.entry.item_id)) - Number(emergency.has(a.entry.item_id)));
   }
+  // queue.contention: among equal-priority work the least contended item leads, and a hot one waits [C7,#8527].
+  const hot = contention ? contentionScores(mine.map(({ entry }) => entry), inFlight, contention.rates) : null;
+  if (hot) {
+    const position = milestonePriorities(board);
+    const urgent = new Set([...priority, ...board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'item_urgent:*' AND meta_value='on'").all().map(row => Number(row.meta_key.slice('item_urgent:'.length)))]);
+    const alone = ({ entry, reworkRouting }) => urgent.has(entry.item_id) || redUnowned.has(entry.item_id) || parked.has(entry.item_id) || Boolean(reworkRouting?.rejection) || rejectedFirstEnabled(board) && isReturned(board, entry);
+    orderByContention(mine, candidate => alone(candidate) ? `#${candidate.entry.item_id}` : `${tier(candidate.entry)}|${position(candidate.entry)}|${focus?.ids.has(candidate.entry.item_id)}`, hot);
+  }
   const overlapping = [];
   for (const { entry, shared, reworkRouting: rework } of mine) {
     if (restrictFocus && !focus.ids.has(entry.item_id)) { skip(entry, 'FOCUS_BOUNDARY'); continue; }
@@ -346,6 +356,10 @@ export function nextFor(board, options) {
     }
     const reserved = rework ? null : firstRefusalReason(board, entry.item_id, agentId, { firstRefusal, otherBuilderFirst: (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE, offering: true, seatGone });
     if (reserved) { skip(entry, 'FIRST_REFUSAL'); reasons.push(reserved); continue; }
+    if (hot && hot.get(entry.item_id).score >= contention.threshold) {
+      const { file, score } = hot.get(entry.item_id);
+      skip(entry, 'CONTENTION'); reasons.push(`#${entry.item_id} waits on ${file}: contention ${score} reaches ${contention.threshold}; changes in flight on it land first`); continue;
+    }
     const functionPlan = itemCollisionPlan(board, entry, inFlight, workingFiles);
     const collisions = functionPlan?.blockers ?? [...new Set([...itemFileCollisions(entry, inFlight), ...liveClaimCollisions(entry, inFlight, workingFiles)])];
     if (collisions.length) { skip(entry, 'COLLISION'); reasons.push(...collisions); overlapping.push({ entry, shared, collisions, functionPlan, rework, waiting }); continue; }

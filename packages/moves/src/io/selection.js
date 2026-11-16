@@ -13,6 +13,7 @@ import { recordedClaimWorktrees } from '../../../activity/index.js';
 import { claimOverlapLines } from '../../../activity/index.js';
 import { claimOverlaps } from '../../../items/index.js';
 import { localDependencyIds } from '../../../items/index.js';
+import { conflictRates } from '../../../items/index.js';
 import { rejectionReturnEnabled } from '../../../store/index.js';
 import { awaitingGateOrReview } from '../../../store/index.js';
 import * as store from '../../../store/index.js';
@@ -31,6 +32,7 @@ import { statusPaths } from '../../../git/index.js';
 import { worktreeStatus } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { nextReview } from '../../../verify/index.js';
+import { forcedLandedUnreviewed } from '../../../verify/index.js';
 import { ownSessionReviews } from '../../../verify/index.js';
 import { relayLinked } from '../../../link/index.js';
 import { criterionFreezer } from './freezer.js';
@@ -104,7 +106,7 @@ export async function nextOnce(ctx, values, ports) {
         operation === 'reopen' ? computedReturnArgs(writable, args) : args)),
       nextFor: reviewPreview,
       idArg, trunkMerge, listItems: store.listItems, itemById: store.itemById, getItem: store.getItem,
-      mainRedReviewItems, agentSessionDigest,
+      mainRedReviewItems, agentSessionDigest, landedOffer: (landedBoard, me, skips) => landedReviewFor(landedBoard, me, { ...skips, policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }),
     });
   });
   const looked = withBoardRead(ctx, (board) => nextSelection.pick(ctx, board, values, ports));
@@ -224,6 +226,17 @@ function claimFreezer(ctx, board) {
   return item => criterionFreezer({ root: ctx.info.root, isMain: ctx.info.isMain, config: ctx.config }, { board })(item);
 }
 
+/**
+ * The newest forced-landed item with no verdict that this seat may judge, or null: the builder, a refused route, policy or
+ * family, and an item already under review are skipped with the guards `verify` itself applies to a landed item [C7,#6490].
+ */
+function landedReviewFor(board, me, { omitIds = [], skipIds = [], policy, familyPolicy } = {}) {
+  const skip = new Set([...omitIds, ...skipIds]);
+  const checks = store.reviewerChecks(board, { agentId: me.id, policy, familyPolicy, relaxationFor: () => null });
+  return forcedLandedUnreviewed(store.listItems(board, { all: true }), item => store.events(board, { itemId: item.item_id })).find(item => !skip.has(item.item_id)
+    && item.item_built_by !== me.id && ['notBuilder', 'routeAllows', 'policyAllows', 'requiredReviewFamily', 'familyAllows', 'reviewFree'].every(guard => !checks[guard]?.(item))) ?? null;
+}
+
 /** Preview reviews with current heartbeat observations; the atomic reservation repeats eligibility before writing. */
 function reviewPreview(board, selection) {
   const reviewHeartbeats = new Map(store.listAgents(board).map(({ agent_id, heartbeatAt }) => [agent_id, heartbeatAt]));
@@ -319,11 +332,14 @@ function nextPick(ctx, board, values, ports) {
   if (ownClaim && found?.urgent !== 'age' && !values.defaultLoop && !rejectionReturnEnabled(board) && ownClaim.item_parent_id === null && keepsClaim(me, ownClaim, values))
     return { claim: true, me, item: ownClaim, held: true, shared: [], reasons: [], reviewSkipped: null };
   const warm = warmFiles(ctx, board, me, ports);
+  // queue.contention (off unless a project turns it on): the recent conflict rate of each file steers next [C7,#8527].
+  const contention = ctx.config.queue?.contention === true ? { threshold: ctx.config.queue.contentionThreshold ?? 1,
+    rates: conflictRates(store.eventsOfKinds(board, ['reopen', 'hold_item']), board.clock.now()) } : null;
   const selection = { buildBudgetMinutes: mainPolicy(ctx.info.root).config.itemBuildBudgetMinutes ?? 30, agentId: me.id, lane: me.lane, routeCap: me.route, runnable: values.runnable, routes: values.routes, warm,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
     priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle,
-    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles };
+    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles, ...(contention ? { contention } : {}) };
   const own = store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
   // Other lanes are only named, never claimed (otherLaneWork), so the session this seat shares never decides what next serves (GH #27).
   // An empty look at other lanes never replaces this lane's own answer: its holds and skips are what the seat must read.
