@@ -29,8 +29,13 @@ function label(value, fallback) {
   return typeof value === 'string' && /^[A-Za-z0-9_./:-]{1,100}$/u.test(value) ? value : fallback;
 }
 
+/** Keep a board file's absolute path, which may hold spaces, only when it is bounded and single-line [C7]. */
+function absolutePath(value) {
+  return typeof value === 'string' && value.startsWith('/') && value.length <= 1024 && !/[\u0000-\u001f]/u.test(value) ? value : null;
+}
+
 /** Append one bounded line after release; diagnostic I/O must never change a transaction's outcome. */
-export function recordBoardHold({ command, seat, item, pid, durationMs, outcome, acquiredAt, phase, phaseMs, move, step, stepMs, allWrites = false }) {
+export function recordBoardHold({ command, seat, item, pid, durationMs, outcome, acquiredAt, phase, phaseMs, move, step, stepMs, boardFile, allWrites = false }) {
   if (!Number.isFinite(durationMs) || (!allWrites && durationMs <= BOARD_HOLD_MS && !holdLogAll())) return;
   let fd;
   try {
@@ -41,6 +46,8 @@ export function recordBoardHold({ command, seat, item, pid, durationMs, outcome,
     const row = { version: 1, at: new Date(acquiredAt).toISOString(), command: label(command, 'api'),
       seat: label(seat, 'unknown'), item: Number.isSafeInteger(item) && item > 0 ? item : null,
       heldMs: Math.round(durationMs), ...(allWrites ? { durationMs: Math.round(durationMs), pid: Number.isSafeInteger(pid) && pid > 0 ? pid : null } : {}), outcome: label(outcome, 'released'),
+      // The board file's absolute path, so live-board latency can be told apart from test boards in the same machine log [C7].
+      boardFile: absolutePath(boardFile),
       phase: label(phase, 'unknown'), phaseMs: Number.isFinite(phaseMs) && phaseMs >= 0 ? Math.round(phaseMs) : null,
       // The move body's name (the command when no move body ran) and its slowest named step, so a long native-move hold is readable to its cause [#3336].
       move: label(move ?? command, null), step: phase === 'native-move' ? label(step, null) : null,
