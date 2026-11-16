@@ -67,5 +67,5 @@ test('clause 2: an added cell test or an edited journey passes with the setting 
   const lines = [];
   assert.deepEqual(check.run(off, [], { requireJourneyPath: false, report: line => lines.push(line) }), []);
   assert.equal(lines.length, 1);
-  assert.match(lines[0], /^diagnostic \(tests\.requireJourneyPath off\): apps\/cli\/journeys\/fresh\/walk\.test\.js: JOURNEY_NO_PATH /u);
+  assert.match(lines[0], /^diagnostic \(tests\.requireJourneyPath off\): apps\/cli\/journeys\/fresh\/walk\.test\.js: JOURNEY_NO_PATH: /u);
 });
