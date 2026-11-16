@@ -85,6 +85,21 @@ export function deriveFact(rules, name, snapshot, move = {}) {
   return { fact: name, holds, trace };
 }
 
+/** The values of an item's landing dimension, beside its status [M1,M4]. */
+export const LANDINGS = Object.freeze(['none', 'landed', 'pulling', 'published']);
+
+/**
+ * The item's landing value, derived: landed once it has a landing receipt (a merged commit), else none.
+ * Why: landing is its own dimension of item state, not a flag on a verified item; today only the merged commit records it,
+ * and pulling and published arrive with their own events later, so no column or event is added here.
+ *
+ * @param {{ mergedCommit?: string | null, merged?: boolean } | null | undefined} item - A table snapshot's item.
+ * @returns {'none' | 'landed'}
+ */
+export function landingOf(item) {
+  return item?.mergedCommit || item?.merged === true ? 'landed' : 'none';
+}
+
 /** Freeze a plain value and everything under it, stopping at anything already frozen. */
 function deepFreeze(value) {
   if (value === null || typeof value !== 'object' || Object.isFrozen(value)) return value;

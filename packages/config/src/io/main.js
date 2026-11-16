@@ -52,7 +52,8 @@ export function defaults() {
     spec: 'SPEC.md',
     practice: DOCTRINE_FILE,
     gate: '',
-    submit: { requireInfraNote: false, autoFileMainReds: false },
+    // edgeFollowUps is off by default: on, submit lists the import edges the diff adds (files nothing yet) [C7].
+    submit: { requireInfraNote: false, autoFileMainReds: false, edgeFollowUps: false },
     toolBuild: { enabled: false, autoGate: false, refreshMs: 3_600_000 },
     testEconomics: { costOfEscape: 3600, costOfWaiting: 1, costOfFalseRed: 300 },
     itemSizeBudget: 100,
@@ -66,7 +67,7 @@ export function defaults() {
     reviewLease: '30m',
     worktrees: 'beside',
     worktreeMaintenance: maintenanceSettings.maintenanceDefaults(),
-    verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true, failBefore: false, frozenTests: false, testAuthorSplit: false },
+    verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true, failBefore: false, frozenTests: false, testAuthorSplit: false, folderTicks: false },
     // Off by default: toolingPin refuses an unsigned or edited pin file only when pin.signed is true [#8038].
     pin: { signed: false },
     review: { starveMinutes: 5, independence: 'off', excludeEarlierHolders: false },
@@ -368,7 +369,7 @@ export function configProblems(config) {
     && (!Number.isSafeInteger(config.verify.familyRelaxAt) || config.verify.familyRelaxAt < 1)) {
     problems.push('"verify.familyRelaxAt" is off or a positive integer');
   }
-  const flags = ['inspectClauses', 'failBefore', 'frozenTests', 'testAuthorSplit'];
+  const flags = ['inspectClauses', 'failBefore', 'frozenTests', 'testAuthorSplit', 'folderTicks'];
   if (!flags.every(key => typeof config.verify?.[key] === 'boolean')) problems.push(`"verify.${flags.join('", "')}" are true or false`);
   if (notPlain(config.families)
     || Object.entries(config.families).some(([name, aliases]) => !name.trim() || name.length > 80
@@ -389,9 +390,12 @@ export function configProblems(config) {
     problems.push('"check" is an object with optional "install" and "timeout" fields');
   }
   if (notPlain(config.submit)
-      || Object.keys(config.submit).some(key => !['requireInfraNote', 'autoFileMainReds', 'handoff'].includes(key))
+      || Object.keys(config.submit).some(key => !['requireInfraNote', 'autoFileMainReds', 'handoff', 'edgeFollowUps'].includes(key))
       || typeof config.submit.requireInfraNote !== 'boolean' || typeof config.submit.autoFileMainReds !== 'boolean') {
     problems.push('"submit" is an object with boolean "requireInfraNote" and "autoFileMainReds" settings');
+  }
+  if (typeof config.submit?.edgeFollowUps !== 'boolean') {
+    problems.push('"submit.edgeFollowUps" is true or false: on, submit lists the import edges the diff adds');
   }
   if (config.submit?.handoff !== undefined && typeof config.submit.handoff !== 'boolean') {
     problems.push('"submit.handoff" is a boolean; deprecated, no effect');

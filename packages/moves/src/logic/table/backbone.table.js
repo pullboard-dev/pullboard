@@ -5,6 +5,7 @@ import { GUARD_RULES } from './item-moves.js';
 import { ITEM_GUARDS } from './item-moves.js';
 import { ITEM_OUTCOMES } from './item-moves.js';
 import { KNOWN_RULES } from './item-moves.js';
+import { LANDINGS } from './rules.js';
 import { defineRules } from './rules.js';
 
 /**
@@ -27,6 +28,22 @@ export const JOB_KINDS = Object.freeze([
   { kind: 'test', serves: 'no item that it ends: the seat waiting on pullboard test; the board records the receipt and applies nothing' },
   { kind: 'check-baseline', serves: "item whose frozen check is measured at main; the receipt is recorded on the item's pending baseline" },
 ]);
+
+/**
+ * The legal (status, landing) pairs, declared once; every other pair is unreachable.
+ * Why: a landed item that is not yet verified (Sprint) and a pull-out need the pair, not a merged flag on verified work.
+ * withdrawn with landed is today's forced hand landing of unfinished work; pulling and published have no writer yet.
+ */
+export const LEGAL_LANDING = Object.freeze({
+  open: Object.freeze(['none', 'pulling']),
+  claimed: Object.freeze(['none', 'pulling']),
+  submitted: Object.freeze(['none', 'landed']),
+  verified: Object.freeze(['none', 'landed', 'published']),
+  withdrawn: Object.freeze(['none', 'landed', 'pulling', 'published']),
+});
+
+/** Whether a status and landing value form a legal pair. */
+export const legalLanding = (status, landing) => LANDINGS.includes(landing) && Object.hasOwn(LEGAL_LANDING, status) && LEGAL_LANDING[status].includes(landing);
 
 /** The rule name that says what a job kind serves. */
 export const servesRule = (kind) => `serves.${kind}`;

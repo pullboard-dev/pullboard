@@ -166,6 +166,9 @@ export function loadMachineSettings() {
   if (value.gate?.fencedHop !== undefined && typeof value.gate.fencedHop !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.fencedHop in ${file} must be true or false`);
   }
+  if (value.gate?.endStaleJobs !== undefined && typeof value.gate.endStaleJobs !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.endStaleJobs in ${file} must be true or false`);
+  }
   if (value.tests?.registryStrict !== undefined && typeof value.tests.registryStrict !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `tests.registryStrict in ${file} must be true or false`);
   }
