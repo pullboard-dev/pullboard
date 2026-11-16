@@ -185,6 +185,9 @@ export function loadMachineSettings() {
   if (value.gate?.redFactLocation !== undefined && typeof value.gate.redFactLocation !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.redFactLocation in ${file} must be true or false`);
   }
+  if (value.spec?.cascadeReject !== undefined && typeof value.spec.cascadeReject !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `spec.cascadeReject in ${file} must be true or false`);
+  }
   if (value.items?.typedFields !== undefined && typeof value.items.typedFields !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `items.typedFields in ${file} must be true or false`);
   }
@@ -215,6 +218,9 @@ export function loadMachineSettings() {
   }
   if (value.jobs?.avoidRunners !== undefined && typeof value.jobs.avoidRunners !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `jobs.avoidRunners in ${file} must be true or false`);
+  }
+  if (value.push?.recordTiming !== undefined && typeof value.push.recordTiming !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `push.recordTiming in ${file} must be true or false`);
   }
   if (value.push?.rerunFailedShardOnce !== undefined && typeof value.push.rerunFailedShardOnce !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `push.rerunFailedShardOnce in ${file} must be true or false`);

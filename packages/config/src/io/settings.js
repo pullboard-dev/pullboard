@@ -152,6 +152,11 @@ export function jobsAvoidRunnersEnabled() {
   return loadMachineSettings().jobs?.avoidRunners === true;
 }
 
+/** Whether push.recordTiming is on: off by default; only an exact `true` makes a finished pre-push gate record its wall clock and per-shard times on the board [C7,U151,#9371]. */
+export function pushRecordTimingEnabled() {
+  return loadMachineSettings().push?.recordTiming === true;
+}
+
 /** Whether push.rerunFailedShardOnce is on: off by default; only an exact `true` lets the pre-push gate re-offer a failed shard once [C7,#9274]. */
 export function pushRerunFailedShardOnceEnabled() {
   return loadMachineSettings().push?.rerunFailedShardOnce === true;
@@ -313,6 +318,11 @@ export function reviewReleaseReasonsRequired() {
 export function testStatusOutcomesEnabled() {
   const group = loadMachineSettings().test;
   return group?.statusOutcomes === true;
+}
+
+/** Whether spec.cascadeReject is on (#9341): off by default; only an exact `true` turns it on. */
+export function cascadeRejectEnabled() {
+  return loadMachineSettings().spec?.cascadeReject === true;
 }
 
 /** Whether items.typedFields is on (#9350): off by default; only an exact `true` turns it on. */
