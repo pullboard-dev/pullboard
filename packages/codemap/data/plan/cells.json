@@ -2047,6 +2047,22 @@
         "packages/store/tests/stacked-submit.test.js",
         "seed"
       ]
+    },
+    {
+      "cell": "spec",
+      "row": [
+        "test/doctrine-rulings.test.js",
+        "packages/spec/tests/io/doctrine-rulings.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "person",
+      "row": [
+        "test/row-decisions.test.js",
+        "packages/person/tests/logic/row-decisions.test.js",
+        "seed"
+      ]
     }
   ],
   "entries": [
