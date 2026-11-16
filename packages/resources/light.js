@@ -4,5 +4,3 @@ export { recoveryIdentity } from './src/io/recovery.js';
 export { openPoolReadOnly } from './src/io/lock.js';
 export { analysisArtifactDescriptor, receiveAnalysisArtifact } from './src/io/artifact.js';
 export { machineHome, machineSettingsFile } from './src/io/home.js';
-/** The runner deadline line a status read prints [C7,#8647]. */
-export { runnerDeadlineLine } from './src/io/runner/reasons.js';
