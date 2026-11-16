@@ -57,7 +57,7 @@ test('clause 3: the merged table with the setting off or without a publish, and 
     assert.deepEqual(forced.events.map(event => event.kind), ['merged'], `seed ${seed}: forced`);
     assert.equal(reads(s, forced), 'landed', `seed ${seed}: forced reads landed`);
 
-    const entry = { id, commit: 'c1', merge: COMMIT };
+    const entry = { id, commit: 'c1', reviewedCommit: s.item.checked, merge: COMMIT };
     const recordState = { now: NOW, lineage: null, batch: { id: 'b5', tip: 'tip1', state: 'pushed', items: [entry] }, items: { [id]: { ...s.item } }, lease: { holder: { token: 'k1', generation: 4, branch: 'main', lineage: null, until: '2026-11-16T12:01:00.000Z' } } };
     const recorded = run('record', recordState, { name: 'record', actor: 'coordinator', tip: 'tip1', fence: { token: 'k1', generation: 4, branch: 'main' } });
     assert.ok(!recorded.refused, `seed ${seed}: ${recorded.refused?.code}`);
