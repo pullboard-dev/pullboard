@@ -2,7 +2,6 @@
 /** The actual repository preflight keeps source oracles separate from browser behavior [C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -10,10 +9,8 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
-import { after } from 'node:test';
 import { test } from 'node:test';
 import { runFixtureChild } from '../../gate/tests/fixtures/child.js';
-import { copyPackageFiles } from '../index.js';
 
 const repository = resolve(import.meta.dirname, '../../..');
 const staticArgs = ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', 'apps/cli/src/io/static/checks.js'];
@@ -25,25 +22,29 @@ let fullRun;
 function fullPreflightWithViolation() {
   if (fullRun) return fullRun;
   const root = mkdtempSync(join(tmpdir(), 'pullboard-static-style-recursive-'));
-  after(() => rmSync(root, { recursive: true, force: true }));
-  copyPackageFiles(repository, root);
-  cpSync(join(repository, 'packages/gate/tests/fixtures/budgets.js'), join(root, 'packages/gate/tests/fixtures/budgets.js'));
-  cpSync(join(repository, 'pullboard.json'), join(root, 'pullboard.json'));
-  mkdirSync(join(root, 'apps/cli/src/io/nested'), { recursive: true });
-  writeFileSync(join(root, nested), "import { strict as assert, equal } from 'node:assert';\nvoid assert; void equal;\n");
-  for (const args of [
-    ['init', '-q', '-b', 'main'],
-    ['add', '-A'],
-    ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-q', '-m', 'fixture'],
-  ]) {
-    const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
-    assert.equal(result.status, 0, result.stderr);
-  }
+  try {
+    // The full preflight reads test and policy files that the distribution package omits.
+    const checkout = spawnSync('git', ['checkout-index', '--all', `--prefix=${root}/`],
+      { cwd: repository, encoding: 'utf8' });
+    assert.equal(checkout.status, 0, checkout.stderr);
+    mkdirSync(join(root, 'apps/cli/src/io/nested'), { recursive: true });
+    writeFileSync(join(root, nested), "import { strict as assert, equal } from 'node:assert';\nvoid assert; void equal;\n");
+    for (const args of [
+      ['init', '-q', '-b', 'main'],
+      ['add', '-A'],
+      ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-q', '-m', 'fixture'],
+    ]) {
+      const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr);
+    }
 
-  const before = performance.now();
-  fullRun = runFixtureChild(process.execPath, staticArgs, { cwd: root, encoding: 'utf8' });
-  console.log(JSON.stringify({ staticProgramWallMs: performance.now() - before, status: fullRun.status }));
-  return fullRun;
+    const before = performance.now();
+    fullRun = runFixtureChild(process.execPath, staticArgs, { cwd: root, encoding: 'utf8' });
+    console.log(JSON.stringify({ staticProgramWallMs: performance.now() - before, status: fullRun.status }));
+    return fullRun;
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 }
 
 test('clause 1: the repository static style command enforces its source rules [C7]', () => {
