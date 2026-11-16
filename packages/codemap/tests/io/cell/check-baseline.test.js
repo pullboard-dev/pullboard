@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
-import { fixtureCommittedGraph } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureCommittedGraph } from '../../../../gate/tests/fixtures/testkit.js';
 import { importsIn } from '../../../index.js';
 import { commonJsIn } from '../../../index.js';
 import { checkCellLints } from '../../../index.js';
