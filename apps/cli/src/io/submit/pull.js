@@ -9,6 +9,7 @@ import { queueFor } from '../../../../../packages/api/index.js';
 import { openJob } from '../../../../../packages/api/index.js';
 import { endGateHop } from '../../../../../packages/api/index.js';
 import { endStaleGateJobs } from '../../../../../packages/api/index.js';
+import { gateRunnerAdmission } from '../../../../../packages/config/index.js';
 import { endStaleJobsEnabled } from '../../../../../packages/config/index.js';
 import { submitGateHop } from './hop.js';
 import { recordCheckpoint } from '../seat-checkpoint.js';
@@ -575,7 +576,7 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   await withBoard(ctx, board => recordCheckpoint(ctx, board, { item: id, agent: me.id, moment: 'submit', parts: { done: [`submitted ${commit}`], left: ['gate result and review'], evidence: [`gate job ${job.id}`] } }, ordered));
   // With no registered runners this machine is its own runner: the same pull path, on loopback [P7].
   const host = primaryCheckoutRoot(ctx.info);
-  const local = host ? await ensureLocalRunner(host) : { running: false, started: false, pid: null };
+  const local = host && !gateRunnerAdmission().runnerOnly ? await ensureLocalRunner(host) : { running: false, started: false, pid: null };
   // The controller path delivers the activity digest after a submit; the pulled one does as the job is queued, in json too, and the acknowledgment carries its receipt (#7076).
   const delivered = {};
   await deliverSubmitActivity(ctx, id, delivered);
