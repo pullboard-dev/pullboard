@@ -14,6 +14,13 @@ import { appendRuleProof } from '../rule/proof/append.js';
 
 export const PROOF_COUNTER_PREFIX = 'local:proof-stats:';
 const PREFIX = `${PROOF_COUNTER_PREFIX}v2:`;
+/** This code's flow report namespace: each FLOW_REPORT_VERSION keeps its projections and cursor under its own folder, so writers on different versions never touch each other's keys (#2288). It sits inside PROOF_COUNTER_PREFIX, so the board exchange treats it as local derived state and never exports it. */
+const REPORT_FOLDER = `report-v${FLOW_REPORT_VERSION}:`;
+
+/** The stored key of a counter: the report's `report-*` keys live in this version's folder, every other key as named. */
+function stored(key) {
+  return PREFIX + (key.startsWith('report-') ? REPORT_FOLDER + key.slice('report-'.length) : key);
+}
 const REPLAYING = new WeakSet();
 
 /** Encode non-finite timestamps with external paths, so user detail objects cannot collide with markers. */
@@ -59,14 +66,14 @@ function statement(db, sql) {
 
 /** Read a single small derived record; none of these keys is exported native state. */
 export function proofCounter(board, key) {
-  const row = statement(board.db, 'SELECT meta_value FROM board_meta WHERE meta_key=?').get(PREFIX + key);
+  const row = statement(board.db, 'SELECT meta_value FROM board_meta WHERE meta_key=?').get(stored(key));
   return row ? decode(row.meta_value) : null;
 }
 
 /** Replace one affected shard without rewriting the board's accumulated history. */
 function put(board, key, value) {
   statement(board.db, 'INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
-    .run(PREFIX + key, encode(value));
+    .run(stored(key), encode(value));
 }
 
 /** The kinds whose shards are written once, one per event, and never rewritten: what a reader may keep. */
@@ -84,14 +91,15 @@ const keptShards = new Map();
  */
 export function proofCounterRows(board, kind) {
   const file = APPEND_ONLY_KINDS.has(kind) && typeof board.db.location === 'function' ? board.db.location() : null;
-  if (!file) return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key GLOB ? ORDER BY rowid').all(`${PREFIX}${kind}:*`)
+  const prefix = stored(`${kind}:`);
+  if (!file) return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key GLOB ? ORDER BY rowid').all(`${prefix}*`)
     .map(row => decode(row.meta_value));
   const id = `${file}\0${kind}`;
   let kept = keptShards.get(id);
   const at = board.db.prepare('SELECT meta_key FROM board_meta WHERE rowid = ?');
   if (kept && (at.get(kept.firstRowid)?.meta_key !== kept.firstKey || at.get(kept.lastRowid)?.meta_key !== kept.lastKey)) kept = null;
   if (!kept) kept = { rows: [], firstRowid: 0, firstKey: null, lastRowid: 0, lastKey: null };
-  const added = board.db.prepare('SELECT rowid, meta_key, meta_value FROM board_meta WHERE rowid > ? AND meta_key GLOB ? ORDER BY rowid').all(kept.lastRowid, `${PREFIX}${kind}:*`);
+  const added = board.db.prepare('SELECT rowid, meta_key, meta_value FROM board_meta WHERE rowid > ? AND meta_key GLOB ? ORDER BY rowid').all(kept.lastRowid, `${prefix}*`);
   if (added.length) {
     kept = { ...kept, rows: kept.rows.concat(added.map(row => decode(row.meta_value))), lastRowid: added.at(-1).rowid, lastKey: added.at(-1).meta_key };
     if (kept.firstKey === null) Object.assign(kept, { firstRowid: added[0].rowid, firstKey: added[0].meta_key });
@@ -100,19 +108,13 @@ export function proofCounterRows(board, kind) {
   return kept.rows.slice();
 }
 
-/** Whether a newer writer stored the flow report, so this older code must leave it alone. */
-function reportIsNewer(board) {
-  const summary = proofCounter(board, 'report-summary');
-  return Boolean(summary && summary.version > FLOW_REPORT_VERSION);
-}
-
 /**
- * Remove local projections without modifying any native event or verdict. A flow report that a newer writer stored
- * survives: deleting it only to rebuild an older version made mixed-version writers replay all history in turn.
+ * Remove local projections without modifying any native event or verdict. Every flow report folder survives, this
+ * version's and any other's: each belongs to the writers of its own version, and deleting one only to rebuild it made
+ * mixed-version writers replay all history in turn (#2288).
  */
 export function clearProofCounters(board) {
-  const keep = reportIsNewer(board) ? ` AND meta_key NOT GLOB '${PREFIX}report-*'` : '';
-  board.db.prepare(`DELETE FROM board_meta WHERE meta_key GLOB ?${keep}`).run(`${PROOF_COUNTER_PREFIX}*`);
+  board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ? AND meta_key NOT GLOB ?').run(`${PROOF_COUNTER_PREFIX}*`, `${PREFIX}report-*`);
 }
 
 /** Start a bounded all-time aggregate; window-specific contributions live in separate event shards. */
@@ -278,21 +280,20 @@ function replayProofTail(board, cursor) {
   } finally { if (!nested) REPLAYING.delete(board); }
 }
 
-/** Reset only the optional report when its representation changes; preserve established proof shards. */
+/** Reset only this version's report folder; preserve established proof shards and every other version's report. */
 function resetReportCounters(board) {
-  board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ?').run(`${PREFIX}report-*`);
+  board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ?').run(`${PREFIX}${REPORT_FOLDER}*`);
   put(board, 'report-summary', emptyReportCounter());
   put(board, 'report-policy', newReportPolicy());
 }
 
 /**
- * Catch up only missed report events after an older writer, without recounting other statistics. Returns whether this
- * code keeps the report: a report a newer writer stored is left alone, because resetting it to this older version made
- * old and new worktrees replay all history in turn under the board lock.
+ * Catch up only the events this version's report folder missed, without recounting other statistics or touching another
+ * version's folder, so old and new worktrees never replay history in turn under the board lock. Returns true: this code
+ * always keeps its own report.
  */
 function ensureReportCounters(board, until) {
   let summary = proofCounter(board, 'report-summary');
-  if (summary && summary.version > FLOW_REPORT_VERSION) return false;
   if (!summary || summary.version !== FLOW_REPORT_VERSION) {
     resetReportCounters(board);
     summary = proofCounter(board, 'report-summary');
@@ -325,11 +326,10 @@ function ensureReportCounters(board, until) {
  */
 export function rebuildProofCounters(board, { refresh = true } = {}) {
   const { ensureRigorCounters } = board.runtimePorts.verification;
-  const keepNewer = reportIsNewer(board);
   clearProofCounters(board);
   ensureRigorCounters(board);
   put(board, 'summary', emptySummary());
-  if (!keepNewer) resetReportCounters(board);
+  resetReportCounters(board);
   replayProofTail(board, 0);
   ensureCapacityCounters(board, proofCounter(board, 'summary').last);
   if (refresh) refreshCapacityCache(board, { force: true });
