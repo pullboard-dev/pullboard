@@ -240,6 +240,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `mutate` | `version:number`, `cell:string`, `all:boolean`, `redBefore:array`, `tests:array`, `faults:array`, `caught:number`, `missed:number` |
 | `red` | `version:number`, `file:string` |
 | `replay` | `version:number`, `table:string`, `days:number`, `agreed:number`, `disagreed:number`, `beforeCut:number`, `disagreements:array` |
+| `route` | `version:number`, `suggest:string`, `items:array` |
 | `rules` | `version:number`, `rulesVersion:number`, `judged:number`, `agreed:number`, `rate:number`, `disagreements:array`, `disagreementCount:number`, `kinds:array`, `final:object`, `readiness:object` |
 | `search` | `version:number`, `query:string`, `matches:array` |
 | `seats` | `version:number`, `seats:array` |
