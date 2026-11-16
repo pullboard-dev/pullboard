@@ -5,6 +5,7 @@
  * from the first job's queue time to the last job's end. Phase spans overlap (the submit stages start together and
  * a stage may hold a runner run), so a gate's phases are reported side by side, never summed into its total.
  */
+import { redNow } from './red-now.js';
 
 /** Phases in the order a gate meets them; any other phase sorts after these. */
 const GATE_PHASE_ORDER = Object.freeze(['queued', 'authorization', 'composition', 'cells', 'doctrine', 'changed-static', 'static',
@@ -84,12 +85,13 @@ function gatePhases(jobs, spansByJob) {
 /**
  * Summarise the gates that ended in the window, and the phase spans recorded for them.
  *
- * @param {{ records: object[], spans: object[], since: number, now: number }} input - `records` are hand-off job records
- *   (the chain of any job in the window included); `spans` are the span lines read for the window.
+ * @param {{ records: object[], spans: object[], since: number, now: number, ledgerRows?: object[] }} input - `records` are hand-off job records
+ *   (the chain of any job in the window included); `spans` are the span lines read for the window; `ledgerRows` are the
+ *   recorded test_result rows the red list is read from, and nothing else feeds it.
  * @returns {{ since: string, asOf: string, gates: number, live: number, spanned: number, total: { p50: number|null, p90: number|null },
- *   phases: object[], causes: object[], slowest: object[] }}
+ *   phases: object[], causes: object[], slowest: object[], reds: ReturnType<typeof redNow> }}
  */
-export function gateHealthSummary({ records, spans, since, now }) {
+export function gateHealthSummary({ records, spans, since, now, ledgerRows = [] }) {
   const spansByJob = new Map();
   for (const span of spans) {
     if (!spansByJob.has(span.job)) spansByJob.set(span.job, []);
@@ -139,7 +141,8 @@ export function gateHealthSummary({ records, spans, since, now }) {
   return { since: new Date(since).toISOString(), asOf: new Date(now).toISOString(), gates: gates.length, live,
     spanned: gates.filter(gate => gate.spanned).length,
     total: { p50: percentile(gates.map(gate => gate.totalMs), 0.5), p90: percentile(gates.map(gate => gate.totalMs), 0.9) },
-    phases, causes: [...causes.values()].sort((a, b) => b.count - a.count || a.cause.localeCompare(b.cause) || String(a.code).localeCompare(String(b.code))), slowest };
+    phases, causes: [...causes.values()].sort((a, b) => b.count - a.count || a.cause.localeCompare(b.cause) || String(a.code).localeCompare(String(b.code))), slowest,
+    reds: redNow(ledgerRows) };
 }
 
 /** A duration in the report's short form: 950ms, 42s, 12m05s or 1h02m. */
@@ -163,6 +166,10 @@ function shortDuration(ms) {
 export function gateHealthLines(report, window) {
   const lines = [`gate health, last ${window} (${report.since} to ${report.asOf})`,
     `${report.gates} gates ended (${report.spanned} with phase spans), ${report.live} still queued or running; total p50 ${shortDuration(report.total.p50)}, p90 ${shortDuration(report.total.p90)}`];
+  if (report.reds?.length) {
+    lines.push(`red now, from the ledger (${report.reds.length}):`);
+    for (const red of report.reds) lines.push(`  ${red.file}${red.context ? ` [${red.context}]` : ''}`);
+  }
   if (!report.gates) return lines;
   lines.push('', 'time per phase (spans overlap; each phase is summed over the gates that have it):');
   for (const row of report.phases) lines.push(`  ${row.phase.padEnd(16)} ${String(row.gates).padStart(4)} gates  sum ${shortDuration(row.sumMs).padStart(7)}  p50 ${shortDuration(row.p50Ms).padStart(7)}`);

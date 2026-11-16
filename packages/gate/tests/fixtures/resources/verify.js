@@ -15,20 +15,17 @@ import {
 import {
   runFixtureChild,
   runFixtureGit,
-} from '../../../../../apps/cli/tests/fixtures/child.js';
-import { createE2eHelpers } from '../../../../../apps/cli/tests/fixtures/e2e.js';
-import { fixtureAdd } from '../../../../../apps/cli/tests/fixtures/testkit.js';
-import { fixtureJoin } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+} from '../child.js';
+import { fixtureAdd } from '../testkit.js';
+import { fixtureJoin } from '../testkit.js';
 
-const BIN = resolve(import.meta.dirname, '../../../../../apps/cli/pullboard.js');
-
-/** Create a minimal real board whose CPU check and affected tests share the private gate pool. */
-export function checkProject(box) {
+/** Create a minimal real board whose CPU check and affected tests share the private gate pool; the caller supplies the CLI bin path. */
+export function checkProject(box, { bin }) {
   // This admission probe must execute its marker body rather than reuse an earlier filtered result.
   box.env.PULLBOARD_TEST_REUSE = '0';
   const repo = box.first;
   runFixtureGit(['branch', '-M', 'main'], { cwd: repo, env: box.env });
-  const initialized = runFixtureChild(process.execPath, [BIN, 'init'], { cwd: repo, env: box.env, encoding: 'utf8' });
+  const initialized = runFixtureChild(process.execPath, [bin, 'init'], { cwd: repo, env: box.env, encoding: 'utf8' });
   assert.equal(initialized.status, 0, initialized.stderr);
   const configPath = join(repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
@@ -52,9 +49,8 @@ export function checkProject(box) {
   return { repo, base };
 }
 
-/** Submit a genuine private item and join a different reviewer before occupying its test pool. */
-export function verificationProject(t, { checked = false, landed = false } = {}) {
-  const helpers = createE2eHelpers();
+/** Submit a genuine private item and join a different reviewer before occupying its test pool; the caller supplies the e2e helpers. */
+export function verificationProject(t, { checked = false, landed = false } = {}, { helpers }) {
   t.after(helpers.cleanup);
   const sandbox = helpers.sandbox();
   sandbox.env.PULLBOARD_MODEL = 'gate-test-fixture';

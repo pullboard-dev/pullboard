@@ -12,17 +12,17 @@ const item = {
 };
 const changed = { atHead: () => 'weaker', atMain: () => 'one', person: 'person' };
 
-test('clause 1: with verify.frozenTests unset or false, a changed named test file is accepted [C7]', () => {
+test('verify.frozen.setting-off: clause 1: with verify.frozenTests unset or false, a changed named test file is accepted [C7]', () => {
   assert.equal(frozenTestsProblem(undefined, item, [], changed), null);
   assert.equal(frozenTestsProblem({}, item, [], changed), null);
   assert.equal(frozenTestsProblem({ frozenTests: false }, item, [], changed), null);
 });
 
-test('clause 2: with verify.frozenTests true, the changed file is refused with TEST_HASH_CHANGED [C7]', () => {
+test('verify.frozen.setting-on: clause 2: with verify.frozenTests true, the changed file is refused with TEST_HASH_CHANGED [C7]', () => {
   assert.equal(frozenTestsProblem({ frozenTests: true }, item, [], changed)?.code, 'TEST_HASH_CHANGED');
   assert.equal(frozenTestsProblem({ frozenTests: true }, item, [], { ...changed, atHead: () => 'one' }), null, 'unchanged still passes');
 });
 
-test('clause 3: the frozen hash of each named test file is still recorded whatever the setting [C7]', () => {
+test('verify.frozen.hash-recorded: clause 3: the frozen hash of each named test file is still recorded whatever the setting [C7]', () => {
   assert.deepEqual(namedTestHashes({ item_criterion: item.item_criterion }, path => (path === 'a/one.test.js' ? 'one' : null)), { 'a/one.test.js': contentHash('one') });
 });

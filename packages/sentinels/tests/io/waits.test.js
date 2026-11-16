@@ -10,8 +10,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { fixtureBoard } from '../../../../apps/cli/tests/fixtures/board.js';
-import { temporaryDirectory } from '../../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../../board/tests/fixtures/board.js';
+import { temporaryDirectory } from '../../../board/tests/fixtures/board.js';
 import { addItem } from '../../../store/index.js';
 import { claim } from '../../../store/index.js';
 import { register } from '../../../store/index.js';
@@ -29,7 +29,7 @@ import { startServeSentinel } from '../../index.js';
 import { localCensus } from '../../src/io/surfaces.js';
 import { readRunnerJobs } from '../../src/io/surfaces.js';
 import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
-import { waitForCondition } from '../../../../apps/cli/tests/fixtures/runner/holders.js';
+import { waitForCondition } from '../../../gate/tests/fixtures/runner/holders.js';
 
 /** Whether a pid is gone. */
 function gone(pid) {
@@ -121,6 +121,28 @@ test('clause 1: a gate waiter queued behind busy runners is a queue wait, not a 
   resourceDatabase(join(m.paths.commonDir, 'pullboard', 'resources.sqlite'), [],
     [{ name: 'gate', pid: waiter.pid, agent: 'view-1', since: ago(5), reasons: busy }]);
   assert.equal((await m.snapshot()).rows.some(entry => entry.surface === 'pool'), false, 'a gate waiter behind busy runners files nothing');
+});
+
+test('clause 1: the cause is fixed: a gate wait behind runners that each name a cause (busy, quarantined, kept, overloaded) is a queue wait, within budget [C7,#8023]', async t => {
+  const m = machine(t);
+  const waiter = m.sleeper();
+  const ago = minutes => new Date(Date.now() - minutes * MINUTE).toISOString();
+  const named = JSON.stringify([{ host: 'a', reason: 'busy' }, { host: 'b', reason: 'unavailable (cleanup or draining); idle proof: waiting' },
+    { host: 'c', reason: 'kept for timed checks (lent only when every other runner is full)' }, { host: 'd', reason: 'overloaded (load 9.0 on 4 cores, above 1.5x)' }]);
+  resourceDatabase(join(m.paths.commonDir, 'pullboard', 'resources.sqlite'), [],
+    [{ name: 'gate', pid: waiter.pid, agent: 'coordinator', since: ago(5), reasons: named }]);
+  assert.equal((await m.snapshot()).rows.some(entry => entry.surface === 'pool'), false, 'a waiter whose every runner names its cause files no pool hold');
+});
+
+test('clause 2: the hold reproduced from the evidence (static waiter, no holder, one runner quarantined) ends within budget [C7,#8023]', async t => {
+  const m = machine(t);
+  const waiter = m.sleeper();
+  const ago = minutes => new Date(Date.now() - minutes * MINUTE).toISOString();
+  const named = JSON.stringify([{ host: 'a', reason: 'busy' }, { host: 'b', reason: 'unavailable (cleanup or draining); idle proof: waiting' },
+    { host: 'c', reason: 'kept for timed checks (lent only when every other runner is full)' }, { host: 'd', reason: 'overloaded (load 9.0 on 4 cores, above 1.5x)' }]);
+  resourceDatabase(join(m.paths.commonDir, 'pullboard', 'resources.sqlite'), [],
+    [{ name: 'gate', pid: waiter.pid, agent: 'coordinator', since: ago(5), reasons: named }]);
+  assert.equal((await m.snapshot()).rows.some(entry => entry.surface === 'pool'), false, 'a waiter whose every runner names its cause files no pool hold');
 });
 
 test('clause 2: the hold reproduced from the evidence: a gate waiter with a free runner and no holder is still over budget [C7,#6857]', async t => {
@@ -361,11 +383,15 @@ function runnerHeldGate(m, now) {
   m.board.db.prepare('INSERT INTO job_step (job_step_job, job_step_name, job_step_at) VALUES (?, ?, ?)').run('gate:6121:ae14aa8fd0f8:x', 'claimed', now - 6 * MINUTE);
 }
 
-test('clause 1: a runner-held gate that renews its lease through a six-minute claim is not over its progress budget [C7]', async t => {
+test('clause 1: the audit files no stall item for a runner-held gate whose lease renews through a six-minute claim [C7]', async t => {
   const m = machine(t);
   runnerHeldGate(m, Date.now());
-  const [gate] = (await m.snapshot()).rows.filter(entry => entry.surface === 'gate');
+  const snapshot = await m.snapshot();
+  const [gate] = snapshot.rows.filter(entry => entry.surface === 'gate');
   assert.equal(gate.breach, false, `a live lease is progress: ${gate.ageMs} ms old`);
+  const recorded = await recordWaits(snapshot, m.ports());
+  assert.deepEqual(recorded.filed, [], 'no item is filed for a hold that is still renewing its lease');
+  assert.deepEqual(m.items(), [], 'the board holds no waits: item for it');
 });
 
 test('clause 2: the hold read from #6121\'s job ends within budget: its age counts from the last lease renewal [C7]', async t => {

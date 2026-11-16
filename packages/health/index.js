@@ -10,9 +10,11 @@ export { staleStateSnapshot } from './src/io/stale/state/snapshot.js';
 
 export { captureLapsedClaims, pinClaimHandoff } from './src/io/stale/state/capture.js';
 export { sweepClaims } from './src/io/claim/sweep.js';
+export { sweepLapsedClaims } from './src/io/claim/sweep.js';
 export { unaccountedRedFindings, redIsUnaccounted, firstUnparsedLine } from './src/io/detector.js';
 export { landingFailureFindings, landingFailureObservation } from './src/io/landing.js';
-export { reviewFamilyCover, reviewFamilyBuildPause, reviewFamilyBacklog, shoutReviewCoverStuck, REVIEW_COVER_WAIT_MS, REVIEW_COVER_BACKLOG, REVIEW_COVER_PAUSE_TAIL, shoutConflictedReviews } from './src/io/cover.js';
+export { reviewFamilyCover, reviewFamilyBuildPause, reviewFamilyBacklog, shoutReviewCoverStuck, shoutStarvedReviews, REVIEW_COVER_WAIT_MS, REVIEW_COVER_BACKLOG, REVIEW_COVER_PAUSE_TAIL, shoutConflictedReviews } from './src/io/cover.js';
 
 export { claimHealthProjection, claimHealthSnapshot } from './src/io/claim/projection.js';
 export { runScheduledClaimWatchdog } from './src/io/claim/sweep.js';
+export { slowHoldLines } from './src/io/holds.js';

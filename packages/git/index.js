@@ -3,6 +3,8 @@ export * from "./src/io/committed.js";
 export * from "./src/io/launch/ratchet.js";
 export * from "./src/io/memory.js";
 export * from "./src/io/main.js";
+export * from "./src/io/board-folder.js";
+export * from "./src/io/landed.js";
 export * from "./src/io/receipts.js";
 export * from "./src/io/evidence.js";
 export * from "./src/io/lease.js";

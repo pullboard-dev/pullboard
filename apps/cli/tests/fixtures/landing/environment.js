@@ -8,8 +8,9 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { fixtureMachineSettings } from '../testkit.js';
+import { fixtureSettledMachine } from '../testkit.js';
 import { reviveFixtureLocalRunner } from '../runner/local-start.js';
+import { CLI_ENTRY } from '../runner/entry.js';
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import {
@@ -56,8 +57,8 @@ function commit(box, root, message) {
 /** A real Node test passes for either item alone and fails when their changes meet. */
 function fixture(helpers) {
   const box = helpers.project('node --test --test-reporter=tap web/landing.test.js');
-  // The landings and their gates settle in the commands' own processes, so this fixture pins controller dispatch (#6249).
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
+  // The gates settle on the loopback local runner, as every submit does (#6832); no controller pin remains.
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME);
   // This is an independent Node runner; an inherited worker context makes Node skip recursive runs.
   delete box.env.NODE_TEST_CONTEXT;
   mkdirSync(join(box.repo, 'web'), { recursive: true });
@@ -95,8 +96,7 @@ const GATE_SETTLE_MS = 180_000;
 
 /**
  * Wait until the item's pulled gate receipt has moved it to submitted, reviving the local runner a gate switch stopped.
- * Why: every submit offers its gate as a pull job (#6832), but this fixture pins controller dispatch for its landings,
- * and the shared settle skips controller-pinned boards, so the verify after a submit would race the receipt.
+ * Why: every submit offers its gate as a pull job (#6832), so the verify after a submit would race the receipt.
  */
 function submittedAfterGate(box, cwd, id) {
   const deadline = Date.now() + GATE_SETTLE_MS;
@@ -105,7 +105,7 @@ function submittedAfterGate(box, cwd, id) {
     const status = shown.document?.item_status;
     if (status && status !== 'claimed') { assert.equal(status, 'submitted', `#${id} gate: ${shown.out}`); return; }
     assert.ok(Date.now() < deadline, `#${id} gate did not settle in ${GATE_SETTLE_MS} ms: ${shown.out}${shown.err}`);
-    reviveFixtureLocalRunner(cwd, box.env);
+    reviveFixtureLocalRunner(cwd, box.env, { entry: CLI_ENTRY });
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
   }
 }
@@ -188,7 +188,7 @@ export function assertMatchingLandingHost(helpers) {
   });
 
   // The host-policy refusals and the peer-environment warning rode the host landing batch, which land no longer runs: it only offers
-  // the runner land job (9069644c61, 1a432cf0c2, 1e1a9586af), so `land` here refuses LAND_NO_RUNNER on this controller-pinned board [C7].
+  // the runner land job (9069644c61, 1a432cf0c2, 1e1a9586af), so `land` here offers the land job to the local runner [C7].
   // The runner's land gate validates the host through constrainedLandingHost (packages/gate/src/io/execution.js).
 }
 

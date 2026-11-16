@@ -5,7 +5,7 @@ import * as store from '../index.js';
 import { CLAUSE_EVIDENCE_ENGINE } from '../../state/index.js';
 import { requireCriterionEvidence } from '../../state/index.js';
 import { clauseInspectionSummary } from '../../state/index.js';
-import { fixtureBoard } from '../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../board/tests/fixtures/board.js';
 
 /** Use native SQLite storage and native item writers, without a replacement board implementation. */
 function fixture(t, engine = CLAUSE_EVIDENCE_ENGINE) {

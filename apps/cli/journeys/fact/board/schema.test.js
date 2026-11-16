@@ -1,30 +1,25 @@
 /** Main owns declaration upgrades; valid old stamps and manual drift remain distinct [M3,A5,A6,C7,H16]. */
 import { copyPackageFiles } from '../../../../../packages/runners/index.js';
 import assert from 'node:assert/strict';
-import { cpSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import {
-  join,
-  resolve,
-} from 'node:path';
+import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
-import { MACHINE } from '../../../../../packages/state/index.js';
 import { storeTriggers } from '../../../../../packages/state/index.js';
+import { MACHINE } from '../../../../../packages/state/index.js';
 import { SCHEMA_DIGEST } from '../../../../../packages/store/index.js';
 import { SCHEMA_VERSION } from '../../../../../packages/store/index.js';
 import { boardStanding } from '../../../../../packages/store/index.js';
 import { recordSchemaStamp } from '../../../../../packages/store/index.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
-import { waitForCondition } from '../../../tests/fixtures/runner/holders.js';
-import { runFixtureChild } from '../../../tests/fixtures/child.js';
 import { exportBoard } from '../../../../../packages/store/index.js';
 import { importBoard } from '../../../../../packages/store/index.js';
 import { undoQueued } from '../../../../../packages/outbox/index.js';
@@ -34,43 +29,18 @@ import { localAuthority } from '../../../../../packages/person/index.js';
 import { restoreRelaySnapshot } from '../../../../../packages/store/index.js';
 import { ENGINE_VERSION } from '../../../../../packages/state/index.js';
 
+
+import { createSchemaFixture } from '../../../../../packages/store/tests/fixtures/schema-declaration.js';
+
 const e2e = createE2eHelpers();
+const { openRawBoard, olderDeclaration, observe, privateMainSource } = createSchemaFixture({
+  MACHINE, storeTriggers, SCHEMA_DIGEST, SCHEMA_VERSION, boardStanding, recordSchemaStamp, copyPackageFiles });
 after(e2e.cleanup);
-
-/** Open the board file the way the store does: a live pulled gate job writes it, so a raw handle waits out a lock instead of failing at once [C7]. */
-function openRawBoard(file, options = {}) {
-  const db = new DatabaseSync(file, options);
-  db.exec('PRAGMA busy_timeout = 30000');
-  return db;
-}
-
-/** Install and stamp the real previous declaration in a private fixture, without changing its data version. */
-function olderDeclaration(file, stamp = true) {
-  const db = openRawBoard(file);
-  try {
-    const old = storeTriggers({ ...MACHINE, moves: MACHINE.moves.filter(move => move.verb !== 'submit-merge') })
-      .find(trigger => trigger.name === 'machine_item_move');
-    assert.ok(!old.sql.includes("'claimed>verified'"));
-    db.exec(`DROP TRIGGER machine_item_move; ${old.sql}`);
-    if (stamp) recordSchemaStamp(db, SCHEMA_DIGEST);
-  } finally { db.close(); }
-}
-
-/** Read persistent shape and native evidence without invoking a writable opener. */
-function observe(file) {
-  const db = openRawBoard(file, { readOnly: true });
-  try {
-    return {
-      standing: boardStanding(db, SCHEMA_DIGEST, SCHEMA_VERSION),
-      version: db.prepare('PRAGMA user_version').get().user_version,
-      stamp: db.prepare('PRAGMA application_id').get().application_id,
-      schema: db.prepare("SELECT type, name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name").all(),
-      identity: db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='board_id'").get().meta_value,
-      items: db.prepare('SELECT * FROM item ORDER BY item_id').all(),
-      guards: db.prepare("SELECT event_detail FROM event WHERE event_kind='guards' ORDER BY event_id").all(),
-    };
-  } finally { db.close(); }
-}
+// Clause 3: the file ends with no network socket or server alive, so the runner's file-exit timeout never waits on one [C7].
+after(() => {
+  const open = process.getActiveResourcesInfo().filter(name => /^(TCP|UDP)/u.test(name));
+  assert.deepEqual(open, [], 'schema.test.js leaves no socket open when it ends');
+});
 
 /** Create a file-backed private board with ordinary native data and a valid legacy stamp. */
 function legacyBoard(t) {
@@ -78,6 +48,8 @@ function legacyBoard(t) {
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, 'board.sqlite');
   const board = openBoard(file);
+  // The additive declaration now holds the hop table, so a board these journeys call drifted already has it and main has nothing to add [C7,#8465].
+  store.ensureGateHopTable(board.db);
   try { store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Keep this row' }); }
   finally { store.closeBoard(board); }
   olderDeclaration(file);
@@ -127,69 +99,16 @@ test('main leaves manually drifted triggers and their invalid stamp untouched [M
   assert.match(diagnostics.join('\n'), /different shape/u);
 });
 
-/** Require a real private public command to succeed with its original diagnostics. */
-async function succeeds(box, cwd, ...args) {
-  const result = await box.runLocal(cwd, ...args);
-  assert.equal(result.code, 0, `${args.join(' ')}\n${result.out}\n${result.err}`);
-  return result;
-}
-
-/** Commit one real source change in the private Git fixture. */
-function choice(box, cwd, value) {
-  const result = e2e.commitFile(box, cwd, 'web/feature.js', `export const choice = '${value}';\n`, 'feat(web): fixture choice [G1]');
-  assert.equal(result.status, 0, result.stderr);
-  return box.git(cwd, 'rev-parse', 'HEAD');
-}
-
-test('a stamped pre-carry board upgrades on main open and completes a native merge-only submission [M3,V1,V4,H16]', async () => {
-  const box = e2e.project();
-  choice(box, box.repo, 'base');
-  box.git(box.web, 'merge', '-q', '--no-edit', 'main');
-  const added = await succeeds(box, box.repo, 'add', 'web', 'Carry after declaration upgrade', '--specs', 'G1',
-    '--criterion', 'The unchanged acceptance survives a trunk-only merge', '--check', 'node --check web/feature.js', '--json');
-  const id = JSON.parse(added.out).item.item_id;
-  await succeeds(box, box.web, 'claim', String(id));
-  const accepted = choice(box, box.web, 'accepted');
-  await succeeds(box, box.web, 'submit', String(id));
-  // A pulled submit returns queued; the item is submitted only once the gate job's receipt lands, so wait on the item itself [P7,C7].
-  const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  await waitForCondition(() => observe(file).items.find(row => row.item_id === id)?.item_status === 'submitted', `the pulled gate submits #${id}`, { signal: AbortSignal.timeout(150_000) });
-  box.git(box.repo, 'switch', '-q', '--detach', accepted);
-  try { await succeeds(box, box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'checked the accepted choice'); }
-  finally { box.git(box.repo, 'switch', '-q', 'main'); }
-  choice(box, box.repo, 'trunk');
-  await succeeds(box, box.repo, 'reopen', String(id), '--conflict', 'web/feature.js');
-  await succeeds(box, box.web, 'claim', String(id));
-  assert.notEqual(box.tryGit(box.web, 'merge', '-q', '--no-edit', 'main').status, 0);
-  const head = choice(box, box.web, 'resolved');
-  olderDeclaration(file);
-  const before = observe(file);
-  await succeeds(box, box.repo, 'status');
-  assert.deepEqual(observe(file), before, 'a public main read still does not migrate declarations');
-  // The ordinary E2E CLI runs this agent's unmerged source, which correctly cannot own another
-  // repository's shared DDL. Copy the actual candidate into a genuine private main source checkout.
-  const application = join(box.dir, 'main-application');
-  mkdirSync(application);
-  copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), application);
-  box.git(application, 'init', '-q', '-b', 'main');
-  box.git(application, 'add', '-A');
-  box.git(application, 'commit', '-q', '-m', 'chore: candidate main source');
-  // Process-level: this runs the copied candidate main checkout's own entry, which an in-process call cannot reach.
-  const opened = runFixtureChild(process.execPath, [join(application, 'apps/cli/pullboard.js'), 'inbox', '--json'],
-    { cwd: box.repo, env: box.env, encoding: 'utf8' });
-  assert.equal(opened.status, 0, opened.stderr + opened.stdout);
-  assert.ok(observe(file).schema.find(row => row.name === 'machine_item_move').sql.includes("'claimed>verified'"));
-  await succeeds(box, box.web, 'submit', String(id));
-  // The carry completes with the pulled gate job's receipt, which can land just after the settled command returns [P7,C7].
-  await waitForCondition(() => observe(file).items.find(row => row.item_id === id)?.item_status === 'verified', `the pulled gate carries #${id}`, { signal: AbortSignal.timeout(150_000) });
-  const db = openRawBoard(file, { readOnly: true });
-  try {
-    const item = db.prepare('SELECT * FROM item WHERE item_id=?').get(id);
-    assert.equal(item.item_status, 'verified');
-    assert.equal(item.item_commit, head);
-    assert.equal(db.prepare('SELECT count(*) AS n FROM verdict WHERE item_id=?').get(id).n, 1, 'carry retains the original reviewer verdict');
-    assert.equal(db.prepare("SELECT count(*) AS n FROM event WHERE item_id=? AND event_kind='merge-only-accept'").get(id).n, 1);
-  } finally { db.close(); }
+test('clause 1: a private main source checkout is the candidate tree in its own repository with no commit made of it [C7]', () => {
+  const box = e2e.sandbox();
+  const directory = join(box.dir, 'main-source');
+  mkdirSync(directory);
+  privateMainSource(box, directory);
+  assert.ok(readFileSync(join(directory, 'apps/cli/pullboard.js'), 'utf8').length > 0, 'the candidate entry is copied');
+  const gitDir = box.git(directory, 'rev-parse', '--absolute-git-dir');
+  const common = box.git(directory, 'rev-parse', '--path-format=absolute', '--git-common-dir');
+  assert.equal(realpathSync(gitDir.trim()), realpathSync(common.trim()), 'its Git directory is the common one, which is what makes it main');
+  assert.notEqual(box.tryGit(directory, 'rev-parse', '--verify', 'HEAD').status, 0, 'no commit hashes the copied tree');
 });
 
 /** Install a real future transition so the running module is genuinely older than the installed declaration. */
@@ -334,6 +253,7 @@ function legacySigningBoard(t, mode) {
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, 'board.sqlite');
   const board = openBoard(file);
+  store.ensureGateHopTable(board.db);
   try {
     store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Keep signed legacy data' });
     board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?)').run('relay_applied_sequence', '0');

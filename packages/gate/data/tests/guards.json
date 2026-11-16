@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "about": "Guard and budget journeys the freeze keeps; each is tagged harness in test-manifest.json, and the manifest generator and freeze-guards test both read this list (#8430)",
+  "files": [
+    "apps/cli/journeys/imports/closure-budget.test.js",
+    "apps/cli/journeys/imports/ratchet.test.js",
+    "apps/cli/journeys/speed/spawns.test.js",
+    "apps/cli/journeys/release/size.test.js",
+    "apps/cli/journeys/doctrine/checks.test.js",
+    "apps/cli/journeys/next/claims.test.js",
+    "apps/cli/journeys/inbox/growth.test.js"
+  ]
+}

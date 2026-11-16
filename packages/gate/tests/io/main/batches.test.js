@@ -14,8 +14,8 @@ import { proveBatches } from '../../../src/io/shards/proof.js';
 import { shardSlotOptions } from '../../../src/io/shards/proof.js';
 import { formatTestOutcomes } from '../../../src/io/test/outcomes.js';
 import { readTestOutcomes } from '../../../src/io/test/outcomes.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { waitForCondition } from '../../../../../apps/cli/tests/fixtures/runner/holders.js';
+import { privateFixtureFiles } from '../../fixtures/child.js';
+import { waitForCondition } from '../../fixtures/runner/holders.js';
 
 const FILES = Array.from({ length: 60 }, (_, index) => `test/f${String(index).padStart(2, '0')}.test.js`);
 const RUNNERS = [{ host: 'fixture-a', slots: 6, browser: 0 }];

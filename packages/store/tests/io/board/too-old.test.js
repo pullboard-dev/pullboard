@@ -6,8 +6,8 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { fixtureBoard } from '../../../../../apps/cli/tests/fixtures/board.js';
-import { temporaryDirectory } from '../../../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../../../board/tests/fixtures/board.js';
+import { temporaryDirectory } from '../../../../board/tests/fixtures/board.js';
 
 /** The fixture options that open an existing board file. */
 const at = (file) => ({ storage: 'file', purpose: 'migration', file });

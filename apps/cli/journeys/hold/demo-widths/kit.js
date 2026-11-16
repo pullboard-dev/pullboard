@@ -7,6 +7,7 @@ import {
   tapTarget,
   machine,
   project,
+  SPEC,
   startView,
   boardOf,
   chromeExecutable,
@@ -39,15 +40,15 @@ export function demoWidthTest(only, phase = 'both') {
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for viewport checks.');
 
   const box = machine();
-  const demo = project(box, 'phone-demo');
-  const other = project(box, 'other-demo');
-  box.run(demo.repo, 'add', 'web', 'Starter item', '--specs', 'G1', '--criterion', 'visible in the detail pane');
+  const demo = project(box, 'phone-demo', SPEC, {}, { plumbing: true });
+  const other = project(box, 'other-demo', SPEC, {}, { bare: true, plumbing: true }); // listed in the project picker only, so it needs no checkout or seat [#8366]
+  await box.inProcess(demo.repo, 'add', 'web', 'Starter item', '--specs', 'G1', '--criterion', 'visible in the detail pane');
   const wrapTitle = 'word boundary test ' + 'abcdef0123456789'.repeat(12);
-  box.run(demo.repo, 'add', 'web', wrapTitle, '--specs', 'G1', '--criterion', 'the activity title wraps without splitting words');
-  box.run(demo.repo, 'shout', 'person', 'Should the phone demo ship?', '--decision');
-  box.run(demo.web, 'shout', 'coordinator', 'Should this waiting ask span the full row?', '--decision', '--kind', 'question');
-  if (only === 1280) box.run(demo.repo, 'shout', 'person', 'Should the desktop demo ship?', '--decision'); // filed before the view opens, so the feed already holds it
-  const view = await startView(box);
+  await box.inProcess(demo.repo, 'add', 'web', wrapTitle, '--specs', 'G1', '--criterion', 'the activity title wraps without splitting words');
+  await box.inProcess(demo.repo, 'shout', 'person', 'Should the phone demo ship?', '--decision');
+  await box.inProcess(demo.web, 'shout', 'coordinator', 'Should this waiting ask span the full row?', '--decision', '--kind', 'question');
+  if (only === 1280) await box.inProcess(demo.repo, 'shout', 'person', 'Should the desktop demo ship?', '--decision'); // filed before the view opens, so the feed already holds it
+  const view = await startView(box, { inProcess: true });
   const profile = join(box.dir, 'chrome-profile'); // under the scratch machine, which the fixtures remove at exit
   mkdirSync(profile);
   let chrome;

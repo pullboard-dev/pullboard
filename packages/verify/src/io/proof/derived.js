@@ -1,0 +1,61 @@
+/** The derived database beside a board: proof counters written there as well as to board_meta, when the setting is on [C7]. */
+import { basename } from 'node:path';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
+
+/** The setting that turns the dual write on; off unless it is exactly "1". */
+export const DERIVED_SETTING = 'PULLBOARD_PROOF_DERIVED_DB';
+/** The schema name the derived file is attached under. */
+const SCHEMA = 'proof_derived';
+/** Boards whose derived file is attached, by connection. */
+const ATTACHED = new WeakMap();
+
+/** The derived file's path beside a board file: `<board file>.proof-derived.sqlite`, the way the presence database sits beside it. */
+export function derivedPath(boardFile) {
+  return join(dirname(boardFile), `${basename(boardFile)}.proof-derived.sqlite`);
+}
+
+/**
+ * Attach the derived database to the board's connection and return its schema name, or null when the setting is off or the
+ * board is not a file. Why: one connection writes both stores in the same transaction, so the two never disagree mid-event.
+ */
+function attached(board) {
+  if (process.env[DERIVED_SETTING] !== '1') return null;
+  if (ATTACHED.has(board.db)) return ATTACHED.get(board.db);
+  const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
+  const schema = file ? SCHEMA : null;
+  if (schema) {
+    board.db.prepare(`ATTACH DATABASE ? AS ${SCHEMA}`).run(derivedPath(file));
+    board.db.exec(`CREATE TABLE IF NOT EXISTS ${SCHEMA}.proof_counter(meta_key TEXT PRIMARY KEY, meta_value TEXT) WITHOUT ROWID`);
+  }
+  ATTACHED.set(board.db, schema);
+  return schema;
+}
+
+/** Write flat key, text pairs to the derived database, as the board_meta write just did. */
+export function writeDerived(board, pairs) {
+  const schema = attached(board);
+  if (!schema) return;
+  const put = board.db.prepare(`INSERT INTO ${schema}.proof_counter(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value`);
+  for (let at = 0; at < pairs.length; at += 2) put.run(pairs[at], pairs[at + 1]);
+}
+
+/** Delete the derived rows a board_meta delete just removed: keys matching `glob` and, when given, not matching `except`. */
+export function deleteDerived(board, glob, except = null) {
+  const schema = attached(board);
+  if (!schema) return;
+  if (except) board.db.prepare(`DELETE FROM ${schema}.proof_counter WHERE meta_key GLOB ? AND meta_key NOT GLOB ?`).run(glob, except);
+  else board.db.prepare(`DELETE FROM ${schema}.proof_counter WHERE meta_key GLOB ?`).run(glob);
+}
+
+/** One stored counter's text from the derived database; null when the setting is off or the row is absent. */
+export function derivedText(board, storedKey) {
+  const schema = attached(board);
+  return schema ? board.db.prepare(`SELECT meta_value FROM ${schema}.proof_counter WHERE meta_key=?`).get(storedKey)?.meta_value ?? null : null;
+}
+
+/** Every stored counter row of the derived database, by key, for comparing totals with board_meta. */
+export function derivedRows(board) {
+  const schema = attached(board);
+  return schema ? board.db.prepare(`SELECT meta_key, meta_value FROM ${schema}.proof_counter ORDER BY meta_key`).all() : [];
+}

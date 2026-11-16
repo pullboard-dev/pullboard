@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { styleSources } from '../../../../../codemap/index.js';
 import { apiRequestIoProblems } from '../../../../src/io/board/request.js';
+import { EXTRA_REQUEST_ROOTS } from '../../../../src/io/board/request.js';
 import { HTTP_SERVERS } from '../../../../src/io/board/request.js';
 import { KNOWN_REQUEST_BLOCKERS } from '../../../../src/io/board/request.js';
 import { candidateKnownBlockers } from '../../../../src/io/board/request.js';
@@ -152,4 +153,32 @@ test('#7340 clause 1: a candidate tree that removes a blocker together with its 
   assert.ok(mentions(check.run(root, edit({ [requestFile]: withoutRow }))).length > 0, 'a dropped row with the blocker still present fails');
   assert.deepEqual(mentions(check.run(root, edit({ [requestFile]: withoutRow, [receipt]: fixedReceipt }))), [], 'removing the blocker with its row gates clean');
   assert.ok(mentions(check.run(root, edit({ [receipt]: fixedReceipt }))).length > 0, 'removing only the blocker leaves a stale row');
+});
+
+test('#7613 clause 1: a call on an object that spreads an imported namespace is followed into that namespace [C7]', () => {
+  const files = { wrapper: { file: 'packages/api/src/io/wrapped.js', source: "import * as inner from './inner.js';\nexport const wrapped = Object.freeze({ ...inner, other: 1 });\n" },
+    inner: { file: 'packages/api/src/io/inner.js', source: "import { spawnSync } from 'node:child_process';\nexport function runIt() { return spawnSync('ls'); }\n" },
+    caller: { file: 'packages/api/src/io/caller.js', source: "import { wrapped } from './wrapped.js';\nexport function entry() { return wrapped.runIt(); }\n" } };
+  const rows = apiRequestIoProblems(Object.values(files), { known: {} }).filter(row => row.file.startsWith('packages/api/'));
+  assert.deepEqual(rows.map(row => row.owner), ['packages/api/src/io/inner.js#runIt']);
+});
+
+test('clause 1: extraRoots naming the materializer worker and the rule-proof append report a blocking call only they reach, and empty extraRoots leave the report unchanged [C7,#9677]', () => {
+  assert.deepEqual(EXTRA_REQUEST_ROOTS, ['packages/api/src/io/state/materializer/worker.js', 'packages/verify/src/io/rule/proof/append.js#appendRuleProof']);
+  const added = { file: 'packages/jobs/src/io/extra-root-added.js', source: "import { spawnSync } from 'node:child_process';\nexport function addedBlocker() { return spawnSync('ls'); }\n" };
+  const owner = 'packages/jobs/src/io/extra-root-added.js#addedBlocker';
+  const inject = (file, anchor) => [...sources.map(row => row.file === file ? { ...row, source: `import { addedBlocker } from '${'../'.repeat(file.split('/').length - 1)}packages/jobs/src/io/extra-root-added.js';\n` + row.source.replace(anchor, `${anchor}\n  addedBlocker();`) } : row), added];
+  for (const [file, anchor] of [['packages/api/src/io/state/materializer/worker.js', 'function prewarm() {'], ['packages/verify/src/io/rule/proof/append.js', 'export function appendRuleProof(board, event, detail, get, put) {']]) {
+    // The append is also reached from the counters module; cut that one call so only the extra root reaches it.
+    const cut = tree => tree.map(row => row.file === 'packages/verify/src/io/proof/counters.js' ? { ...row, source: row.source.replace('  appendRuleProof(board,', '  void (board,') } : row);
+    const tree = file.endsWith('append.js') ? cut(inject(file, anchor)) : inject(file, anchor);
+    const base = apiRequestIoProblems(file.endsWith('append.js') ? cut(sources) : sources);
+    if (file.endsWith('append.js')) assert.ok(!cut(sources).find(row => row.file.endsWith('proof/counters.js')).source.includes('  appendRuleProof(board,'), 'the other caller is cut');
+    assert.ok(tree.find(row => row.file === file).source.includes('addedBlocker();'), `${file} carries the seeded call`);
+    assert.deepEqual(apiRequestIoProblems(tree, { extraRoots: [] }).map(row => row.owner), base.map(row => row.owner), `${file}: with extraRoots empty the report is unchanged`);
+    assert.deepEqual(apiRequestIoProblems(tree).map(row => row.owner), base.map(row => row.owner), `${file}: with no option the report is unchanged`);
+    const found = apiRequestIoProblems(tree, { extraRoots: EXTRA_REQUEST_ROOTS });
+    assert.deepEqual(found.filter(row => row.owner === owner).map(row => row.chain.at(-1)), [owner], `${file}: the seeded blocking call is reported through its extra root`);
+    assert.ok(found.find(row => row.owner === owner).chain[0].startsWith(file), `${file}: the chain starts at the extra root`);
+  }
 });

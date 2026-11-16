@@ -49,6 +49,11 @@ function boardFile(db) {
   return file ? realpathSync(file) : null;
 }
 
+/** The board's database path as SQLite reports it, with no filesystem I/O; null for a memory board [C7]. */
+function openBoardFile(db) {
+  try { return db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file || null; } catch { return null; }
+}
+
 /** Keep labels bounded and single-line; no user note, SQL, parameters, or session material is recorded. */
 function label(value, fallback) {
   return typeof value === 'string' && /^[A-Za-z0-9_./:-]{1,100}$/u.test(value) ? value : fallback;
@@ -109,7 +114,7 @@ export function discardBoardWriteMarker(marker) {
 /** Start timing after BEGIN without filesystem I/O. */
 export function beginBoardWrite(db, context = {}, marker = null) {
   const record = { db, start: performance.now(), acquiredAt: Date.now(), pid: process.pid,
-    command: 'api', seat: 'unknown', marker, complete: false };
+    command: 'api', seat: 'unknown', marker, complete: false, boardFile: openBoardFile(db) };
   let records = pending.get(db);
   if (!records) { records = new Set(); pending.set(db, records); }
   records.add(record);

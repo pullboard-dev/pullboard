@@ -50,6 +50,17 @@ export function checkTestFiles(check) {
   return [...new Set([...String(check ?? '').matchAll(/(?:^|\s)(['"]?)([\w./-]+\.(?:test\.[cm]?js|spec\.[cm]?js))\1(?=\s|$)/gu)].map(match => match[2]))];
 }
 
+/**
+ * The test files a check names that a commit lacks, so a submit can refuse before it queues a gate (#3095).
+ *
+ * @param {string} check
+ * @param {(file: string) => boolean} exists - Whether the submitted commit holds the file.
+ * @returns {string[]}
+ */
+export function missingCheckFiles(check, exists) {
+  return checkTestFiles(check).filter(file => !exists(file));
+}
+
 /** Fill absent low-route file and test sections from literal test paths, bare or quoted, in the item's check (#3120). */
 function inferBrief(brief, check, engine) {
   const referenceOptions = { references: engine >= REFERENCE_ENGINE };

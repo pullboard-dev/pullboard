@@ -105,13 +105,21 @@ import { trunkRevisionReader } from '../../../git/index.js';
 import { relayPresentationShout } from '../../../pages/index.js';
 import { createApiHandler } from './http.js';
 import { settingsInventory } from '../../../config/index.js';
-import { jobQueueMode } from '../../../config/index.js';
 import { drainedRunnerHosts } from '../../../config/index.js';
 import { jobReserve } from '../../../config/index.js';
+import { fencedHopEnabled } from '../../../config/index.js';
+import { codeStampCacheEnabled } from '../../../config/index.js';
+import { endStaleJobsEnabled } from '../../../config/index.js';
+import { redFactLocationEnabled } from '../../../config/index.js';
+import { settleOnMainReceiptEnabled } from '../../../config/index.js';
+import { reofferTrunkBusyEnabled } from '../../../config/index.js';
+import { jobsAvoidRunnersEnabled } from '../../../config/index.js';
+import { gateClaimHop } from './hop.js';
 import { boardJobQueueCall } from './gate.js';
 import { boardQueueMode } from './jobs.js';
 import { trunkRemote } from '../../../config/index.js';
 import { personRequestStatuses } from '../../../link/index.js';
+import { RELAY_HEALTH_FILE } from '../../../link/index.js';
 import { relayCanaryNeeds } from '../../../link/index.js';
 import { relayFiles } from '../../../store/index.js';
 import { startStateMaterializer } from './state/materializer.js';
@@ -177,8 +185,8 @@ function boardStateRevision(root, id, isMain, { projects = listApiProjects, scop
     const hasExternalMilestones = inputs.milestones.some((milestone) => milestone.items.some((item) => typeof item !== 'number'));
     return { ...inputs, externalMilestones: hasExternalMilestones
       ? scopeCommonDir === null
-        ? milestoneRoadmap(info.root, board, { ports: { ...store, roadmap, openBoard, workQueue, listApiProjects } })
-        : milestoneRoadmap(info.root, board, { projects, hideOutOfScope: true, ports: { ...store, roadmap, openBoard, workQueue } })
+        ? milestoneRoadmap(info.root, board, { landedFromMain: config.landing?.landedFromMain === true, ports: { ...store, roadmap, openBoard, workQueue, listApiProjects } })
+        : milestoneRoadmap(info.root, board, { projects, hideOutOfScope: true, landedFromMain: config.landing?.landedFromMain === true, ports: { ...store, roadmap, openBoard, workQueue } })
       : null };
   }, isMain, boardOpeners);
   const inputs = {
@@ -204,7 +212,7 @@ function boardStateRevision(root, id, isMain, { projects = listApiProjects, scop
 /** Invalidate only this local API state when its private canary record or queued link changes. */
 function localRelayMarker(info) {
   const files = relayFiles(info.commonDir);
-  return [fileMarkerForPath(join(info.commonDir, 'pullboard', 'relay-health.sqlite')), fileMarkerForPath(files.link)];
+  return [fileMarkerForPath(join(info.commonDir, 'pullboard', RELAY_HEALTH_FILE)), fileMarkerForPath(files.link)];
 }
 
 /** Read HEAD and its selected ref without spawning Git on every 200 ms poll. */
@@ -348,7 +356,7 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
       catch (error) { if (error.code === 'ENOENT') return []; throw error; }
     });
     const paths = [dbPath, dbPath + '-wal', ...files.map(file => file.path), registryFile(), ...heads, ...refs, join(info.commonDir, 'packed-refs'),
-      join(info.commonDir, 'pullboard/relay-health.sqlite'), join(info.commonDir, 'pullboard/relay-health.sqlite-wal'), relay.link,
+      join(info.commonDir, 'pullboard', RELAY_HEALTH_FILE), join(info.commonDir, 'pullboard', RELAY_HEALTH_FILE + '-wal'), relay.link,
       ...(external?.paths() ?? []), ...(external?.inputs ?? []).flatMap(input => input.path ? [input.path, input.path + '-wal'] : [])];
     notifications.update(paths);
     clearTimeout(expiryTimer);
@@ -482,6 +490,10 @@ function snapshotEntry(revision, state, preparedFlow, { inputs = null, itemMeta 
   return { revision, sequence: state.sequence, state, summary, preparedFlow, comparisonHistory, reportValidator, summaryFields: prepareStateJson(summary), stateJsonFields: null,
     print: fingerprint(summary), items: new Map(state.items.map((item) => [item.id, item])), itemMeta, itemMoveCounts, inputs, clockWindow, searchTexts: null };
 }
+
+/** A cached build with its idle minutes current for the observed time, its summary views derived again only when they changed. */
+const withCurrentIdle = (entry, at) => store.idleEntry(entry, at, state => { const summary = { ...state, items: state.items.map(itemSummary) };
+  return { summary, summaryFields: prepareStateJson(summary), print: fingerprint(summary) }; });
 
 /** Per-read projections, including observation time, are not part of a cached build fingerprint. */
 const DELTA_WHOLE = new Set([...WHOLE_STATE_DELTA_FIELDS, 'claimOverlaps']);
@@ -856,7 +868,7 @@ function remoteJoin(root, body, isMain, boardOpeners) {
 
 /** Execute one actual CLI command and retain its emitted event without a latest-row race. */
 export async function executeMove(root, body, runCommand, isMain, personChannel = 'view', refusalDocument, boardOpeners) {
-  if (Object.keys(body).some((key) => !['verb', 'item', 'args', 'agent'].includes(key))) throw new Refused('BAD_REQUEST', 'a move takes only verb, item, args and agent; remove the unknown fields');
+  if (Object.keys(body).some((key) => !['verb', 'item', 'args', 'agent', 'commits'].includes(key))) throw new Refused('BAD_REQUEST', 'a move takes only verb, item, args, agent and commits; remove the unknown fields');
   if (typeof boardOpeners?.moveArgs !== 'function') throw new TypeError('executeMove needs moveArgs from the higher composition root');
   if (body.verb === 'join') return { status: 200, body: remoteJoin(root, body, isMain, boardOpeners) };
   const argv = boardOpeners.moveArgs(body);
@@ -866,6 +878,9 @@ export async function executeMove(root, body, runCommand, isMain, personChannel 
     if (typeof refusalDocument !== 'function') throw new TypeError(`executeMove needs the caller's refusalDocument renderer to answer ${error.code}`);
     return { status: error.code === 'WRONG_BOARD' ? 403 : 409, body: refusalDocument(error) };
   }
+  // A URL-joined seat's submit may carry its clone's commits; the submit then runs where the host checked them out [P7,C7].
+  if (body.commits !== undefined && typeof boardOpeners.receiveCommits !== 'function') throw new Refused('COMMITS_NOT_SERVED', 'this board service takes no commit bundles; run pullboard settings board.commits off in the clone, or serve the board with pullboard serve');
+  if (body.commits !== undefined) seat = { ...seat, cwd: await boardOpeners.receiveCommits(root, body, seat, (read) => withBoard(root, read, isMain, boardOpeners), store.getItem) };
   let output = '';
   let diagnostics = '';
   const events = [];
@@ -984,12 +999,13 @@ export function createStateSnapshots({ projects = listApiProjects, scope, isMain
     const before = boardStateRevision(board.root, board.id, codeIsMain, { projects: apiProjects, scopeCommonDir, observedAt, boardOpeners });
     const cached = stateCache.get(before.cacheId);
     if (before.cacheable && cached?.revision === before.revision && nativeStateClockMatches(cached.clockWindow, observedAt)) {
-      const result = read(cached, true);
+      const live = withCurrentIdle(cached, observedAt);
+      const result = read(live, true);
       const after = boardStateRevision(board.root, board.id, codeIsMain, { projects: apiProjects, scopeCommonDir, observedAt, boardOpeners });
       if (after.cacheable && after.revision === before.revision) {
-        cached.clockWindow.observedAt = observedAt; // A backwards request must rebuild even within the prior constant window.
+        live.clockWindow.observedAt = observedAt; // A backwards request must rebuild even within the prior constant window.
         stateCache.delete(before.cacheId);
-        stateCache.set(before.cacheId, cached);
+        stateCache.set(before.cacheId, live);
         return result;
       }
     }
@@ -1018,13 +1034,13 @@ export function createStateSnapshots({ projects = listApiProjects, scope, isMain
     // windows from those cached canonical inputs without another database scan or state rebuild.
     const state = { ...built.state, sequence: built.sequence,
       statsComparison: compareFlowWindows(built.history, { now: observedAt, windowMinutes: 120, complete: true }) };
-    const entry = snapshotEntry(before.revision, state, prepareFlowHistory(built.history, { agentIds: new Set(state.agents.filter(isProofAgent).map(agent => agent.agent_id)) }), {
+    const entry = withCurrentIdle(snapshotEntry(before.revision, state, prepareFlowHistory(built.history, { agentIds: new Set(state.agents.filter(isProofAgent).map(agent => agent.agent_id)) }), {
       inputs: before.inputs,
       itemMeta: built.itemMeta,
       itemMoveCounts: built.itemMoveCounts,
       clockWindow: built.clockWindow,
       comparisonHistory: built.history,
-    });
+    }), observedAt);
     entry.cacheId = before.cacheId;
     const after = boardStateRevision(board.root, board.id, codeIsMain, { projects: apiProjects, scopeCommonDir, observedAt, boardOpeners });
     // Missing Git objects can arrive without a board event or trunk move; retry that uncertainty. A build the
@@ -1142,7 +1158,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
   const snapshots = createStateSnapshots({ projects, scope, isMain, onStateBuild, onItemBuild, now, boardOpeners, viewPorts });
   const { withSnapshot } = snapshots;
   // With statePorts, a worker keeps each board's state built and a state read only serves its latest text.
-  const materializer = statePorts ? startStateMaterializer({ portsModule: statePorts, projects, scope, isMain, onStateBuild, onRecord: onStateRecord, Refused, openRevision: (board) => { const watcher = projectRead(board, () => watchLocalStateRevision(board, { scopeCommonDir })); return { revision: () => projectRead(board, () => watcher.revision()), close: () => watcher.close() }; },
+  const materializer = statePorts ? startStateMaterializer({ portsModule: statePorts, projects, scope, isMain, codeStampCache: codeStampCacheEnabled(), onStateBuild, onRecord: onStateRecord, Refused, openRevision: (board) => { const watcher = projectRead(board, () => watchLocalStateRevision(board, { scopeCommonDir })); return { revision: () => projectRead(board, () => watcher.revision()), close: () => watcher.close() }; },
     onFailure: (error) => process.stderr.write(`pullboard: the state worker stopped (${error?.message ?? error}); state reads are refused until the API restarts\n`) }) : null;
   /**
    * Serve a read from the worker while it runs. Once it has stopped, a read, including one that was waiting on it,
@@ -1305,7 +1321,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
 async function boardJobsCall({ board, body, now }, isMain, boardOpeners) {
   // On a relay-linked board a receipt's engine moves are ordered through the relay, so every replica sees the gate's result (#7562).
   const ordered = relayLinked(board.root) ? [] : null;
-  const answer = await withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, jobQueueMode), now, drained: drainedRunnerHosts, reserve: jobReserve, trunk: () => trunkRemote(board.root) ?? board.root, ordered }), isMain, boardOpeners);
+  const answer = await withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, () => 'pull'), now, drained: drainedRunnerHosts, reserve: jobReserve, avoidRunners: jobsAvoidRunnersEnabled(), hop: gateClaimHop(fencedHopEnabled()), endStale: endStaleJobsEnabled(), redLocation: redFactLocationEnabled(), settleOnMainReceipt: settleOnMainReceiptEnabled(), reofferTrunkBusy: reofferTrunkBusyEnabled(), trunk: () => trunkRemote(board.root) ?? board.root, ordered }), isMain, boardOpeners);
   if (!ordered) return answer;
   return { ...answer, relayed: await relayReceiptMoves(board.root, ordered, boardOpeners) };
 }
@@ -1361,14 +1377,15 @@ export function poolHandlers({ boardOpeners }, { isMain, runCommand, refusalDocu
  * Serve the RFC 0002 API on loopback, or a chosen interface address, behind the session-secret boundary as the view. Its
  * state sends item summaries unless asked for detail=full; each item's detail has its own path (A2).
  */
-export function serveApi({ port = 0, address = ADDRESS, secret = randomBytes(18).toString('base64url'), runCommand, projects = listApiProjects, isMain, onStateBuild, onItemBuild, stateDetail = 'summary', now = () => Date.now(), scope, settingsProviders, refusalDocument, boardOpeners, viewPorts, statePorts, onStateRecord, handlerPorts, watchdog, onStallRecord } = {}) {
+export function serveApi({ port = 0, address = ADDRESS, secret = randomBytes(18).toString('base64url'), runCommand, projects = listApiProjects, isMain, onStateBuild, onItemBuild, stateDetail = 'summary', now = () => Date.now(), scope, settingsProviders, refusalDocument, boardOpeners, viewPorts, statePorts, onStateRecord, handlerPorts, watchdog, onStallRecord, pullRoute } = {}) {
   if (typeof runCommand !== 'function') throw new TypeError('serveApi needs the actual CLI entry point as runCommand');
   let bound;
   // A serve key authenticates board access, never a person, even in an ordinary terminal.
   const handler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, projects, isMain, onStateBuild, onItemBuild, personChannel: 'api', stateDetail, now, scope, settingsProviders, refusalDocument, boardOpeners, viewPorts, statePorts, onStateRecord, handlerPorts, allowedHosts: address === ADDRESS ? [] : [address] });
   // A watchdog, when given, names the routes behind any request-thread stall and records it on the boards [A2,C7].
   const watched = watchdog?.({ onStall: (stall) => { process.stderr.write(`pullboard: the API request thread stalled ${Math.round(stall.lagMs)} ms during ${stall.routes.join(', ') || stall.route}\n`); void handler.recordStall({ route: stall.route, lagMs: stall.lagMs, board: /\/api\/v1\/boards\/([^/?]+)/u.exec(stall.route)?.[1] ?? null }).then(onStallRecord, () => {}); } });
-  const server = createServer((req, res) => { if (watched) res.once('close', watched.enter(`${req.method} ${String(req.url ?? '').split('?')[0]}`)); return handler(req, res); });
+  // serve.pullRoute: a handler given here answers /pull/ itself; without one the path falls to the API handler as before (#8765).
+  const server = createServer((req, res) => { if (pullRoute && String(req.url ?? '').startsWith('/pull/')) return pullRoute(req, res); if (watched) res.once('close', watched.enter(`${req.method} ${String(req.url ?? '').split('?')[0]}`)); return handler(req, res); });
   server.requestTimeout = 15_000;
   return new Promise((ready, fail) => {
     server.once('error', (error) => fail(new Refused(error.code === 'EADDRINUSE' ? 'PORT_BUSY' : 'API_LISTEN', `cannot listen on ${address}:${port}: ${error.message}; run pullboard serve --port 0 to choose a free port, or fix serve.address`)));
@@ -1402,10 +1419,10 @@ function verdictOf(row) {
  * @param {any} board
  * @param {any} item The item's current row, as store.listItems reads it.
  * @param {Map<number, string>} status Every current item's status by its id.
- * @returns {any}
+ * @returns {any} Verdicts come from board.verdictReads when a wide build set it (store.verdictReads), else one read per item.
  */
 export function projectItemState(board, item, status) {
-  const verdicts = store.verdictsFor(board, item.item_id).map(verdictOf);
+  const verdicts = store.verdictsFor(board, item.item_id, board.verdictReads).map(verdictOf);
   const history = store.events(board, { itemId: item.item_id }).map(lifecycleEvent);
   const after = dependencyValues(item);
   const foreign = new Map(store.foreignDependencyStates(board, item).map(ref => [`${ref.repo}#${ref.id}`, ref.status]));

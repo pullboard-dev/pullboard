@@ -5,13 +5,13 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 import { takeResource } from '../../../../resources/index.js';
 import { queuedSource } from '../../../index.js';
 
 /** Six 18-slot runners and one 10-slot runner: the 118 slots of the 9 Nov fleet. */
-const FLEET = [...[51, 52, 53, 54, 55, 56].map(n => ({ host: `fixture-${n}`, slots: 18, browser: 12 })), { host: 'fixture-vanilla', slots: 10, browser: 6 }];
+const FLEET = [...[51, 52, 53, 54, 55, 56].map(n => ({ host: `fixture-${n}`, slots: 18, browser: 12 })), { host: 'fixture-studio-host', slots: 10, browser: 6 }];
 
 /** A private machine home and one real repository whose resource database the requests share. */
 function pool(t) {

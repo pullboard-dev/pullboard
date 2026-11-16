@@ -9,7 +9,11 @@ import {
 import { boardRemote } from '../../../../../packages/config/index.js';
 import { roleHosts } from '../../../../../packages/config/index.js';
 import { trunkRemote } from '../../../../../packages/config/index.js';
+import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
+import { runsStoreOn } from '../../../../../packages/store/index.js';
+import { reconcilerLine } from '../reconcile.js';
+import { settleOnce } from '../reconcile.js';
 import {
   bareWorktreeFinding,
   tryGit,
@@ -32,9 +36,16 @@ import {
 } from '../entry.js';
 import { agentHookStatus } from '../../../../../packages/seats/index.js';
 import { runnerServiceProblems } from '../../../../../packages/runners/index.js';
+import { spawnReachable } from '../../../../../packages/jobs/index.js';
 import { unclaimedGateJobs } from '../../../../../packages/jobs/index.js';
+
+/** The jobs cell's reachable launcher, for the resident client: it starts a daemon as a launchd job, as doctor expects every daemon to be [C7,#5760]. */
+export { spawnReachable };
 import { trunkUpdateInsteadProblem } from '../landing/checkout.js';
 import { anyRunnerLive } from '../runner/local.js';
+import { residentDaemons } from '../resident/daemons.js';
+import { appDaemonProblems } from '../../logic/runner/daemons.js';
+import { loadMachineSettings } from '../../../../../packages/config/index.js';
 
 /** `pullboard doctor --hosts`: one line per role naming the hosts and ports it needs, for a sandbox allowlist [P7]. */
 function runHosts(io) {
@@ -73,6 +84,7 @@ export async function run(io, { values = {} } = {}) {
   if (!problems.some(problem => incompatible.has(problem.code)) && !anyRunnerLive()) for (const job of withBoardRead(ctx, board => unclaimedGateJobs(board.db))) problems.push({ code: 'GATE_NO_RUNNER',
     message: `gate job ${job.id} waited over 2 min with no runner`,
     next: 'run pullboard runner add <ssh-host> or pullboard submit again to start the local runner' });
+  problems.push(...appDaemonProblems({ daemons: residentDaemons(ctx.info.root), runners: loadMachineSettings().runners ?? [] }));
   const trunkProblem = trunkUpdateInsteadProblem(trunkRemote(io.cwd), ctx.info.root, 'refs/heads/main');
   if (trunkProblem) problems.push(trunkProblem);
   const outdated = outdatedSender();
@@ -84,7 +96,11 @@ export async function run(io, { values = {} } = {}) {
   if (oversizedSnapshot) problems.push({ code: 'RELAY_SNAPSHOT_LIMIT',
     message: formatSnapshotLimit(oversizedSnapshot),
     next: 'reduce the sealed board snapshot below the relay limit, then run pullboard status' });
-  io.result?.({ problems, agentHooks });
+  // With the runs_store flag on, one reconciler tick settles board-and-runs disagreements and names what it settled [B2,P7].
+  const incompatibleBoard = problems.some(problem => incompatible.has(problem.code));
+  const settled = !incompatibleBoard && withBoardRead(ctx, board => runsStoreOn(board.db)) ? withBoard(ctx, board => settleOnce(board, ctx.file)) : null;
+  io.result?.({ problems, agentHooks, ...(settled ? { reconciled: settled } : {}) });
+  if (settled) io.say(reconcilerLine(settled));
   for (const hook of agentHooks.filter(hook => hook.configured)) io.say(`${hook.vendor} agent hooks: ${hook.events.join(', ') || 'not installed'}${hook.trust ? '; trust unverified: the Stop reminder may be off; review /hooks' : ''}`);
   if (!problems.length) {
     io.say('board is clean');

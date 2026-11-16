@@ -19,7 +19,6 @@
     "apps/cli/journeys/shout/readable.test.js": 1,
     "apps/cli/journeys/shout/routing.test.js": 1,
     "apps/cli/journeys/show/check.test.js": 1,
-    "apps/cli/journeys/show/history.test.js": 1,
     "apps/cli/journeys/show/main.test.js": 1,
     "apps/cli/journeys/show/policy/trusted.test.js": 1,
     "apps/cli/journeys/show/thread.test.js": 1,

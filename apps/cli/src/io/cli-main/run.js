@@ -12,6 +12,7 @@ import { traceServeStartup } from './session.js';
 import { asksGitNothing } from './options.js';
 import { parseCommandArgs } from './options.js';
 import { appendTrace } from '../trace.js';
+import { liveCwd } from './live-cwd.js';
 import { extractWhy } from '../../logic/why.js';
 
 let startupMainTraced = false;
@@ -103,7 +104,8 @@ export async function main(rawArgv, streams) {
   // Reads and the commit-msg hook make no throwaway folder, so they skip the config barrel's load; every other command hands the scratch root down first [C7].
   if (!NO_SCRATCH.has(argv[0] === 'hook' ? `hook ${argv[1]}` : argv[0])) (await import('../../../../../packages/config/index.js')).applyMachineScratch();
   const { beginSeatTiming, timingSeat } = await import('../../../../../packages/seats/light.js');
-  const cwd = streams.cwd ?? process.cwd();
+  const cwd = liveCwd(streams.cwd);
+  if (streams.cwd !== undefined && cwd !== streams.cwd) streams = { ...streams, cwd };
   const item = /^[1-9][0-9]*$/u.test(argv[1] ?? '') ? Number(argv[1]) : null;
   const binding = timingSeat(cwd);
   const finish = beginSeatTiming(cwd, 'command', argv[0] ?? 'help', item, binding);
@@ -117,6 +119,7 @@ export async function main(rawArgv, streams) {
   try { status = await timedMain(argv, { ...streams, traceRecord: traced }); return status; }
   catch (error) { thrown = error; status = 1; throw error; }
   finally {
+    try { (await import('../../../../../packages/store/light.js')).rotateBoardWritesLog(); } catch { /* A log that cannot rotate never changes a command's outcome. */ }
     stopBeat(); finish(); if (previous) globalThis[lockPort] = previous; else delete globalThis[lockPort];
     // One line per run on every exit path, a thrown Refused or an uncaught error included [C7].
     appendTrace({ argv, cwd, startedAt, status, error: thrown, refusal: traced.refusal, seat: binding?.seat ?? null, why });

@@ -1,0 +1,311 @@
+{
+  "version": 1,
+  "about": "One journey per user path, the only journeys the conversion keeps; each is tagged harness in test-manifest.json (plan 4d, #8230)",
+  "paths": [
+    {
+      "path": "init",
+      "file": "apps/cli/journeys/init/gate.test.js",
+      "specs": [
+        "A1",
+        "B26",
+        "C3",
+        "C7",
+        "H5",
+        "I1",
+        "I2",
+        "L3",
+        "N26"
+      ],
+      "commands": [
+        "init",
+        "gate",
+        "resume",
+        "lane",
+        "claim",
+        "submit",
+        "release"
+      ],
+      "ms": null,
+      "msSource": null,
+      "why": "walks init in fresh repos of each language, then a claim, submit and release under the detected gate; cites the most init ids",
+      "msNote": "killed at the 3-minute file limit in the census; no clean time yet"
+    },
+    {
+      "path": "add",
+      "file": "apps/cli/journeys/add/brief.test.js",
+      "specs": [
+        "B35",
+        "C7",
+        "V4"
+      ],
+      "commands": [
+        "add",
+        "edit"
+      ],
+      "ms": null,
+      "msSource": null,
+      "why": "adds items through the real CLI: routes, briefs, the clause cap and the size override, then edit refusing a bad check",
+      "msNote": "no recorded run yet"
+    },
+    {
+      "path": "next",
+      "file": "apps/cli/journeys/next/take.test.js",
+      "specs": [
+        "A6",
+        "B13",
+        "B3",
+        "B5",
+        "C7",
+        "H16",
+        "I6",
+        "N2",
+        "R3",
+        "V1",
+        "V2",
+        "V4"
+      ],
+      "commands": [
+        "next"
+      ],
+      "ms": null,
+      "msSource": null,
+      "why": "next hands a seat one eligible item, resumes a held claim and refuses siblings; cites the most next ids",
+      "msNote": "killed at the 3-minute file limit in the census; no clean time yet"
+    },
+    {
+      "path": "claim-release",
+      "file": "apps/cli/journeys/show/rules.test.js",
+      "specs": [
+        "B13",
+        "B3",
+        "C7",
+        "H16",
+        "N2",
+        "N41",
+        "V1"
+      ],
+      "commands": [
+        "add",
+        "claim",
+        "release",
+        "log",
+        "show"
+      ],
+      "ms": null,
+      "msSource": null,
+      "why": "claims an item, releases it with and without a reason code, and reads the log",
+      "msNote": "no recorded run yet"
+    },
+    {
+      "path": "submit",
+      "file": "apps/cli/journeys/submit/handoff/queued.test.js",
+      "specs": [
+        "B5",
+        "E18",
+        "H16",
+        "P7",
+        "V4"
+      ],
+      "commands": [
+        "add",
+        "join",
+        "patch",
+        "claim",
+        "submit",
+        "next"
+      ],
+      "ms": null,
+      "msSource": null,
+      "why": "a pulled submit returns before its gate, binds the captured source, and the reviewer reaches it through next --verify",
+      "msNote": "no recorded run yet"
+    },
+    {
+      "path": "verify",
+      "file": "apps/cli/journeys/verify/main.test.js",
+      "specs": [
+        "B3",
+        "C7",
+        "V1",
+        "V18",
+        "V4",
+        "V8"
+      ],
+      "commands": [
+        "add",
+        "claim",
+        "next",
+        "verify",
+        "takeover",
+        "shout",
+        "whoami",
+        "show"
+      ],
+      "ms": null,
+      "msSource": null,
+      "why": "a reviewer verifies at the submitted commit, is refused for work its session built, and a frozen check runs to its timeout",
+      "msNote": "no recorded run yet"
+    },
+    {
+      "path": "land",
+      "file": "apps/cli/journeys/land/main.test.js",
+      "specs": [
+        "B3",
+        "C7",
+        "H5",
+        "I1",
+        "Q1",
+        "Q3",
+        "R3"
+      ],
+      "commands": [
+        "init",
+        "add",
+        "worktree",
+        "claim",
+        "submit",
+        "verify",
+        "relay",
+        "land",
+        "status"
+      ],
+      "ms": 38300,
+      "msSource": "census-0250",
+      "why": "a local-only repo goes init, add, build, submit, accept and land into the local trunk"
+    },
+    {
+      "path": "land-runners",
+      "file": "apps/cli/journeys/verify/team/repair-landing.test.js",
+      "specs": [
+        "E8",
+        "R3",
+        "V8"
+      ],
+      "commands": [
+        "add",
+        "worktree",
+        "claim",
+        "submit",
+        "verify",
+        "land"
+      ],
+      "ms": null,
+      "msSource": null,
+      "why": "a pulled land offers a runner job and returns at once; settleLand waits for its receipt and the exact repair reaches the remote",
+      "msNote": "no recorded run yet"
+    },
+    {
+      "path": "upgrade",
+      "file": "apps/cli/journeys/upgrade/previous-release.test.js",
+      "specs": [
+        "A5",
+        "I1",
+        "R4"
+      ],
+      "commands": [
+        "--version",
+        "doctor"
+      ],
+      "ms": null,
+      "msSource": null,
+      "why": "a 0.9.3 board opens, replays, commits through its old hooks and ends clean under doctor",
+      "msNote": "no recorded run yet"
+    },
+    {
+      "path": "relay-pair",
+      "file": "apps/cli/journeys/relay/main-pairing.test.js",
+      "specs": [
+        "A4",
+        "B26",
+        "H1",
+        "H2",
+        "H21",
+        "H5",
+        "H7",
+        "H8",
+        "H9",
+        "N26",
+        "P6"
+      ],
+      "commands": [
+        "relay on"
+      ],
+      "ms": 93,
+      "msSource": "manifest",
+      "why": "relay on from an SSH shell pairs only after the person confirms in the browser; expiry, cancel and one-use tickets"
+    },
+    {
+      "path": "view-open",
+      "file": "apps/cli/journeys/view/e2e.test.js",
+      "specs": [
+        "A2",
+        "D1",
+        "D2",
+        "D3",
+        "D4",
+        "I8",
+        "N26",
+        "N27",
+        "N32",
+        "N39",
+        "S8"
+      ],
+      "commands": [
+        "view",
+        "init",
+        "spec",
+        "claim",
+        "submit",
+        "verify",
+        "show",
+        "shout",
+        "next",
+        "inbox"
+      ],
+      "ms": null,
+      "msSource": null,
+      "why": "an agent prints the view link, it opens through its cookie redirect, and the person acts from the page",
+      "msNote": "no recorded run yet"
+    },
+    {
+      "path": "doctor-first-run",
+      "file": "apps/cli/journeys/doctor/frozen.test.js",
+      "specs": [
+        "A5",
+        "S19",
+        "V2",
+        "V3"
+      ],
+      "commands": [
+        "add",
+        "worktree",
+        "claim",
+        "submit",
+        "verify",
+        "doctor",
+        "resume"
+      ],
+      "ms": null,
+      "msSource": null,
+      "why": "doctor and resume list stale frozen items in every state on real Git; the first-run walk itself is init",
+      "msNote": "no recorded run yet"
+    },
+    {
+      "path": "release",
+      "file": "apps/cli/journeys/release/cut.test.js",
+      "specs": [
+        "C7"
+      ],
+      "commands": [
+        "roadmap",
+        "add",
+        "milestone",
+        "ship"
+      ],
+      "ms": null,
+      "msSource": null,
+      "why": "cuts a version: milestone add, items and ship take a clean board to a release recorded at main",
+      "msNote": "no recorded run yet"
+    }
+  ],
+  "gaps": []
+}

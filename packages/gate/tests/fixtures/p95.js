@@ -7,6 +7,8 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { dirname } from 'node:path';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { runFixtureChild } from './child.js';
@@ -20,7 +22,12 @@ import { GATE_SLOT_TOKEN_ENV } from '../../../resources/index.js';
 import { BROWSER_SLOT_HELD_ENV } from '../../../resources/index.js';
 import { testsNeedBrowser } from '../../index.js';
 
-const runner = fileURLToPath(new URL('../../src/io/run/tests.js', import.meta.url));
+const root = fileURLToPath(new URL('../../../../', import.meta.url));
+/**
+ * The launcher the shim at gate/src/io/run/tests.js forwards to, found from the root package's `bin` so this fixture names no app path.
+ * Why: a gate lease is held by the launcher's own pid, one hop below the shim, so the run's parent pid must be the launcher's for the lease count to see it.
+ */
+const runner = resolve(root, dirname(JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).bin.pullboard), 'src/io/run/tests.js');
 
 /**
  * Make a real test file; its exit record includes startup and any post-spawn pool wait, never dispatcher queue time.

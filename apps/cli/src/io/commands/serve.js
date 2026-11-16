@@ -1,7 +1,10 @@
 import { viewApiPorts } from '../../../../view/index.js';
 import { nativeBoardOpeners } from '../context.js';
 import { moveArgs } from '../../../../../packages/person/index.js';
+import { receiveMoveCommits as receiveCommits } from '../submit/pushed.js';
 import { withBoardRead } from '../context.js';
+import { withBoard } from '../context.js';
+import { serveReconciler } from '../reconcile.js';
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { openBoardForRead } from '../../../../lib/index.js';
@@ -23,7 +26,14 @@ import { catchListeners } from '../../../../../packages/drive/index.js';
 import { inheritedListener } from '../../../../../packages/drive/index.js';
 import { spawnOnSocket } from '../../../../../packages/drive/index.js';
 import { fileURLToPath } from 'node:url';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+import { boardPullAdapter } from '../../../../../packages/runners/index.js';
+import { pullHandler } from '../../../../../packages/runners/index.js';
+import { jobsPullPorts } from '../../../../../packages/jobs/index.js';
+import { checkSignedResult } from '../../../../../packages/landing/index.js';
+import { servePullRoute } from '../../../../../packages/config/index.js';
 import { spawnReachable } from '../../../../../packages/jobs/index.js';
 import { pullboardHome } from '../../../../../packages/store/index.js';
 import { servedTrunkPack } from '../../../../../packages/runners/index.js';
@@ -33,9 +43,18 @@ import {
   traceServeStartup,
 } from '../main.js';
 import { serveListen } from '../../../../../packages/config/index.js';
+import { movesShadowEnabled } from '../../../../../packages/config/index.js';
+import { movesLiveEnabled } from '../../../../../packages/config/index.js';
 import { mainComparisonMode } from '../../../../../packages/config/index.js';
 import { criterionMainReceipts } from '../submit/receipt.js';
 import { provideMainComparison } from '../../../../../packages/api/index.js';
+import { provideGateHopTable } from '../../../../../packages/api/index.js';
+import { provideJobTable } from '../../../../../packages/api/index.js';
+import { JOB_MAX_ATTEMPTS } from '../../../../../packages/api/index.js';
+import { jobEngine } from '../../../../../packages/moves/index.js';
+import { runTable } from '../../../../../packages/moves/index.js';
+import { LEASE_MS } from '../../../../../packages/jobs/index.js';
+import { gateHopTable } from '../submit/hop.js';
 import { provideCompanionInheritance } from '../../../../../packages/api/index.js';
 import { provideMainRedNotes } from '../../../../../packages/api/index.js';
 import { provideRefusalTrials } from '../../../../../packages/api/index.js';
@@ -89,6 +108,22 @@ export function serveBanner(url) {
   return [`Pullboard API v1 (JSON only, it has no page): ${url}`, 'To see the board in a browser, run: pullboard view'];
 }
 
+/**
+ * The request handler that answers runner pulls at /pull/, or null while serve.pullRoute is off.
+ *
+ * Why: the pull adapter had no caller outside tests; mounting it here, behind a setting that is off, lets a board host
+ * serve runners that dial out without changing what serve answers for anyone who has not turned it on (#8765). The
+ * lease and record ports are the job table's (#8764); the bundle port is a stub until the tree-to-bundle slice (#9316).
+ *
+ * @param {{ folder: string, openDb: () => import('node:sqlite').DatabaseSync, enabled?: boolean }} options - The board folder, the opener of a connection to the board's job table, and the setting's value.
+ * @returns {((request: object, response: object) => Promise<void>) | null} A request handler taking the Node HTTP request and response, or null.
+ */
+export function pullRouteHandler({ folder, openDb, enabled = servePullRoute() }) {
+  if (!enabled) return null;
+  const db = openDb();
+  return pullHandler(boardPullAdapter({ folder, ...jobsPullPorts(db), checkResult: checkSignedResult, bundle: () => null }));
+}
+
 /** Serve API v1 until a shutdown signal, printing its address before waiting (A2). */
 export async function serveHere(io, values) {
   traceServeStartup('serve-context-start');
@@ -107,6 +142,8 @@ export async function serveHere(io, values) {
   const networked = address !== LOOPBACK;
   // A pulled gate's red cases are read against main's receipts like a submit gate's, unless gate.mainComparison is off [P7].
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
+  provideGateHopTable(gateHopTable);
+  provideJobTable(jobShadowTable(), movesShadowEnabled, () => movesLiveEnabled('job'));
   provideCompanionInheritance(companionMainFailuresUntouched);
   provideMainTestRecorder(recordMainTestReceipt);
   provideMainRedNotes(MAIN_RED_NOTES);
@@ -115,9 +152,11 @@ export async function serveHere(io, values) {
   provideComparisonStart(startPulledComparison);
   provideLandingStart(startReceiptLanding);
   traceServeStartup('serve-listen-start');
+  // serve.pullRoute (off by default): runners that dial out pull jobs through this API's /pull/ routes [C7,#8765].
+  const pullRoute = pullRouteHandler({ folder: dirname(ctx.file), openDb: () => { const db = new DatabaseSync(ctx.file); db.exec('PRAGMA busy_timeout = 5000'); return db; } });
   // The board's own checkout serves one cached trunk pack per commit to cold runners [C7].
   // serveApi passes `port` to server.listen, which takes the inherited { fd } in its place.
-  const listening = await catchListeners(() => serveApi({ viewPorts: viewApiPorts, boardOpeners: { ...nativeBoardOpeners(io), launchRelaySender: io.launchRelaySender, trunkPack: servedTrunkPack }, port: inherited ?? port, address, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade, refusalDocument,
+  const listening = await catchListeners(() => serveApi({ viewPorts: viewApiPorts, boardOpeners: { ...nativeBoardOpeners(io), launchRelaySender: io.launchRelaySender, trunkPack: servedTrunkPack }, port: inherited ?? port, address, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade, refusalDocument, pullRoute: pullRoute ?? undefined,
     ...(networked ? { secret: boardKey(), scope: { projectRoot: mainRoot } } : {}),
     settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT }, statePorts: import.meta.url, handlerPorts: import.meta.url, watchdog: startLoopWatchdog }));
   const api = listening.value;
@@ -132,6 +171,8 @@ export async function serveHere(io, values) {
   if (networked) io.say(`Any computer that can reach ${address} and holds the board key can use this board. Ctrl-C stops it.`);
   io.flush?.(0);
   traceServeStartup('serve-ready-written');
+  // With the board's runs_store flag on, the loop settles board-and-runs disagreements at most once every 5 s; off, it opens no runs file [B2,P7].
+  const reconciler = serveReconciler({ withBoard: work => withBoard(ctx, work), boardFile: ctx.file, onError: error => process.stderr.write(`reconciler tick failed: ${error.message}\n`) });
   // A landing that moves this checkout restarts the API on the new code and the same port (#6157).
   // Where the socket can be handed on, the new process listens before this one stops accepting, so no request is refused (#6723).
   const log = join(pullboardHome(), 'serve.log');
@@ -147,6 +188,7 @@ export async function serveHere(io, values) {
     fresh.restarted.then(() => stopped(true));
   });
   fresh.stop();
+  reconciler.stop();
   if (!restarted) await api.close();
   return 0;
 }
@@ -200,6 +242,8 @@ const MAIN_RED_NOTES = { message: (root, board, comparison) => mainRedMessage(ro
 export async function loopbackBoardApi(io, { projects, secret }) {
   const ctx = context(io), openers = { ...nativeBoardOpeners(io), launchRelaySender: io.launchRelaySender, trunkPack: servedTrunkPack }, ids = new Map();
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
+  provideGateHopTable(gateHopTable);
+  provideJobTable(jobShadowTable(), movesShadowEnabled, () => movesLiveEnabled('job'));
   provideCompanionInheritance(companionMainFailuresUntouched);
   provideMainTestRecorder(recordMainTestReceipt);
   provideMainRedNotes(MAIN_RED_NOTES);
@@ -227,6 +271,12 @@ export function boardStatePorts() {
     snapshotStore: { load: loadKeyedResult, save: saveKeyedResult, saved: savedKeyedResults } };
 }
 
+/** The job table the writer's shadow compare decides with, over the jobs cell's lease and the api's claim cap, so each stays one source [C7,#8381]. */
+function jobShadowTable() {
+  const { rules, table } = jobEngine({ leaseMs: LEASE_MS, maxAttempts: JOB_MAX_ATTEMPTS });
+  return (snapshot, move) => runTable(table, rules, snapshot, move);
+}
+
 /**
  * The ports the API's handler pool workers run with: the native board openers, and the gate's main comparison and
  * main-test and baseline recorders a posted receipt reaches; provided inside each worker thread, which cannot be
@@ -234,6 +284,8 @@ export function boardStatePorts() {
  */
 export async function boardHandlerPorts({ isMain } = {}) {
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
+  provideGateHopTable(gateHopTable);
+  provideJobTable(jobShadowTable(), movesShadowEnabled, () => movesLiveEnabled('job'));
   provideCompanionInheritance(companionMainFailuresUntouched);
   provideMainTestRecorder(recordMainTestReceipt);
   provideMainRedNotes(MAIN_RED_NOTES);
@@ -248,7 +300,7 @@ export async function boardHandlerPorts({ isMain } = {}) {
   };
   // A receipt on a relay-linked board queues its moves in the relay outbox, so the worker carries the relay ports too (#7562).
   const { loadProcessPorts } = await import('../ports/process.js');
-  const boardOpeners = { ...await loadProcessPorts(), moveArgs, openBoard, openBoardForRead, nativeBoardPorts };
+  const boardOpeners = { ...await loadProcessPorts(), moveArgs, receiveCommits, openBoard, openBoardForRead, nativeBoardPorts };
   return { handlers: poolHandlers({ boardOpeners }, { isMain, runCommand, refusalDocument }) };
 }
 

@@ -1,6 +1,11 @@
+export { rejectReport, rejectLines, classifyReject, REJECT_CLASSES } from './src/logic/review/rejects.js';
 export { settleCapacity, HYSTERESIS_BAND, HYSTERESIS_HOLD_MS } from './src/logic/capacity/hysteresis.js';
+export { maxUsefulBuilders, usefulBuilderLines, USEFUL_WINDOW_MS, USEFUL_MIN_MARGINAL } from './src/logic/capacity/useful.js';
+export { readMaxUsefulBuilders } from './src/io/useful.js';
+export { predictionAccuracy, predictionLine } from './src/logic/prediction.js';
 export { carryingCapacity } from './src/logic/carrying.js';
 export { readCarryingCapacity } from './src/io/carrying.js';
+export { escapeReport, escapeLines } from './src/logic/review/escapes.js';
 /** Canonical named entry points for the planned cell; implementations retain their current owner [C7]. */
 export { workFreeReleases, readWorkFreeReleases } from './src/logic/work/free.js';
 export { runnerUtilization, utilizationLines } from './src/logic/runners/utilization.js';
@@ -74,6 +79,7 @@ export {
   eventCounts,
   proofStats,
 } from './src/io/main.js';
+export { capacityWeekRow, isoWeek } from './src/logic/capacity/week.js';
 export {
   CAPACITY_VERSION,
   emptyCapacityCounter,
@@ -94,6 +100,7 @@ export {
 export {
   publishUsage,
   checkpointAfterMove,
+  recordCoordinatorSession,
 } from './src/io/cost/checkpoint.js';
 export {
   USAGE_CHECKPOINT_ENV,
@@ -134,8 +141,12 @@ export {
 export {
   sanitizedUsage,
   recordUsage,
+  recordCoordinatorUsage,
   costTotals,
+  coordinatorUsage,
   budgetState,
+  budgetClaimRefusal,
+  machineBudgetState,
   storedSeatUsage,
 } from './src/io/cost.js';
 export {
@@ -201,3 +212,6 @@ export { runnerDemand, demandLines } from './src/logic/runners/demand.js';
 export { readDemandSpans, readDemandEvents } from './src/io/runners/demand.js';
 export { AGENT_FLOW_KINDS, COMMAND_SPAN_MS, agentFlow, agentFlowLines, seatWaits } from './src/logic/agents.js';
 export { readAgentFlowEvents, readSeatActions } from './src/io/agents.js';
+export { reviewRows, reviewRowLines } from './src/logic/review/rows.js';
+export { itemRunnerCost } from './src/io/cost/runner.js';
+export { readMaxAgentsSeries, maxAgentsLines } from './src/io/max-agents.js';

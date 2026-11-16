@@ -14,8 +14,8 @@ import { eligibilityProblem } from '../../../verify/index.js';
 
 export const REVIEW_COVER_WAIT_MS = 5 * 60_000;
 export const REVIEW_COVER_BACKLOG = 3;
-/** The pause reason ends with this text; the idle answer lists it before every other reason [#3741]. */
-export const REVIEW_COVER_PAUSE_TAIL = 'new builds wait for independent review cover';
+import { REVIEW_COVER_PAUSE_TAIL } from '../../light.js';
+export { REVIEW_COVER_PAUSE_TAIL };
 
 /** Read source-bound green submissions once, including younger work in the family's backlog count. */
 function greenReviews(board, items, at) {
@@ -129,6 +129,31 @@ export async function shoutConflictedReviews(ctx, board, ordered) {
     await ordered(ctx, board, 'appendFact', [row.item.item_id, { agentId: 'coordinator', kind: 'note', text }]);
     await ordered(ctx, board, 'shout', [{ from: 'sentinel', to: 'coordinator', lanes: [],
       text: `#${row.item.item_id} is green but every independent reviewer is refused by its own history of the item; it no longer counts toward the build pause. Give it a reviewer from another family.` }]);
+    shouted.push(row.item.item_id);
+  }
+  return shouted;
+}
+
+/**
+ * Shout the coordinator once per green submission that has waited past review.starveMinutes with no eligible reviewer, naming
+ * each guard that refuses the seats. One shout per head commit: an unchanged submission stays quiet on every later sweep.
+ * Why: #2940 #2943 #2948 sat green for hours while ten seats were live and nobody saw which guard refused them (#9682).
+ */
+export async function shoutStarvedReviews(ctx, board, ordered) {
+  const minutes = ctx.config.review?.starveMinutes ?? 5;
+  const seats = listAgents(board).filter(seat => seat.agent_id !== 'coordinator');
+  const shouted = [];
+  for (const row of greenReviews(board, listItems(board), board.clock.now().getTime())) {
+    if (row.ageMs <= minutes * 60_000) continue;
+    const refusals = seats.map(seat => eligibilityProblem(board, row.item, seat, { policy: ctx.config.verify?.policy, familyPolicy: ctx.config.verify?.family })?.code ?? null);
+    if (refusals.includes(null)) continue;
+    const marker = `Stuck: review starved. #${row.item.item_id} (${String(row.item.item_commit).slice(0, 12)})`;
+    if (board.db.prepare("SELECT 1 FROM shout WHERE shout_from='sentinel' AND shout_to='coordinator' AND shout_text LIKE ?").get(`${marker}%`)) continue;
+    const counts = new Map();
+    for (const code of refusals) counts.set(code, (counts.get(code) ?? 0) + 1);
+    const guards = [...counts].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0]))).map(([code, n]) => `${code} x${n}`).join(', ') || 'no seat joined';
+    await ordered(ctx, board, 'shout', [{ from: 'sentinel', to: 'coordinator', lanes: [], kind: 'blocker',
+      text: `${marker} is green and has waited ${Math.floor(row.ageMs / 60_000)} minutes with no eligible reviewer. Refused by: ${guards}.` }]);
     shouted.push(row.item.item_id);
   }
   return shouted;

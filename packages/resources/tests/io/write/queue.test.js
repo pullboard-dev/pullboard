@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';

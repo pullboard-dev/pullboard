@@ -47,6 +47,7 @@ import { readStdin } from '../hook/stdin.js';
 import { checkedLandingCommit } from '../../../../../packages/verify/index.js';
 import {
   landingBatches,
+  landingBatchesAt,
   headTree,
   headCommit,
   tryGit,
@@ -142,13 +143,19 @@ export async function hookCommand(io, { first, second }) {
   if (first === 'pre-commit' || first === 'pre-merge-commit') {
     // A composed run's fixers already ran against the real index, so the checked bytes are the committed bytes (#2593).
     if (process.env.PULLBOARD_HOOK_COMPOSED !== '1') [...applyFixers(info.root, ctx.config.fix), ...fixStagedImportBindings(info.root)].forEach((note) => io.err(`pullboard pre-commit: ${note}`));
+    // Behind docs.regenerateOnCommit (off by default): the generated documentation copies follow the declarations they are built from [C7,#9664].
+    if (process.env.PULLBOARD_HOOK_COMPOSED !== '1' && (await import('../../../../../packages/config/index.js')).docsRegenerateOnCommit()) {
+      const { regenerateStagedDocs } = await import('../generated/docs.js');
+      const { openBoard } = await import('../../../../lib/index.js');
+      regenerateStagedDocs(info.root, { openBoard }).forEach((note) => io.err(`pullboard pre-commit: ${note}`));
+    }
     if (process.env.PULLBOARD_HOOK_COMPOSED === 'fix') return 0;
     // A boardless clone with board.url set is a seat whose lane the served board names, never the coordinator [P7].
     const remoteSeat = existsSync(ctx.file) ? null : await (await import('../remote/board.js')).remoteHookSeat(info.root);
     const isMain = info.isMain && !remoteSeat;
     const agent = remoteSeat ?? (isMain ? null : hookRead(ctx, (board) => (store.agentAt(board, info.root) ?? itemFolderIdentity(board, info.root)?.agent)
       ?? (first === 'pre-merge-commit' ? submitHandoffHookActor(ctx, board) : null)));
-    const landing = hookRead(ctx, (board) => landingBatches(board).some((batch) => landingBatchOwnsRoot(batch, info.root)));
+    const landing = hookRead(ctx, (board) => landingBatchesAt(board, info.root).some((batch) => landingBatchOwnsRoot(batch, info.root)));
     if (first === 'pre-commit' && !landing) refuseSeatItemWork(info.root, hookRead(ctx, (board) => store.agentAt(board, info.root)));
     if (landing) io.caller('coordinator', info.root);
     else if (agent) io.caller('seat', info.root);
@@ -169,16 +176,19 @@ export async function hookCommand(io, { first, second }) {
     const originalMessage = readFileSync(second ?? '', 'utf8');
     const metadataContext = hookRead(ctx, board => {
       const agent = (store.agentAt(board, info.root) ?? itemFolderIdentity(board, info.root)?.agent);
-      const items = store.listItems(board, { all: true });
       const folderItem = itemFolderIdentity(board, info.root)?.item;
-      const landing = info.isMain || landingBatches(board).some(batch => landingBatchOwnsRoot(batch, info.root));
+      const batches = info.isMain ? [] : landingBatchesAt(board, info.root);
+      const landing = info.isMain || batches.some(batch => landingBatchOwnsRoot(batch, info.root));
+      // The open list holds every claim; the closed items are read only where a landing may merge a verified one.
+      const open = store.listItems(board);
+      const items = landing ? store.listItems(board, { all: true }) : open;
       return {
         migration: landing && existsSync(gitPath(info.root, 'MERGE_HEAD'))
           ? { base: headCommit(info.root), side: tryGit(info.root, ['rev-parse', '--verify', 'MERGE_HEAD']).stdout } : null,
-        claims: submittedClaimsFallback(items.filter(item => item.item_status === 'claimed' && item.item_owner === agent?.agent_id && (folderItem === undefined || item.item_id === folderItem)),
+        claims: submittedClaimsFallback(open.filter(item => item.item_status === 'claimed' && item.item_owner === agent?.agent_id && (folderItem === undefined || item.item_id === folderItem)),
           item => awaitingGateOrReview(board, item)),
         landings: info.isMain ? items.filter(item => item.item_status === 'verified' && !item.item_merged_commit)
-          : landingBatchItemsAtRoot(landingBatches(board), info.root, items, item => checkedLandingCommit(board, item)),
+          : landingBatchItemsAtRoot(batches, info.root, items, item => checkedLandingCommit(board, item)),
       };
     }) ?? {};
     const spec = withRowDrafts(loadSpec(info.root, ctx.config), hookRead(ctx, (board) => store.rowDrafts(board)));

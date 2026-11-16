@@ -28,7 +28,7 @@ import { privateFixtureFiles } from '../../tests/fixtures/child.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { runFixtureSetupGit } from '../../tests/fixtures/child.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
-import { withFixtureBoard } from '../../tests/fixtures/testkit.js';
+import { withFixtureBoard } from '../../tests/fixtures/board.js';
 
 const FIXTURE = join(import.meta.dirname, '../../tests/fixtures/upgrade-093');
 const BIN = join(import.meta.dirname, '../../pullboard.js');
@@ -161,20 +161,21 @@ test('a seat commits through the hooks 0.9.3 installed, or is told one command t
 
 test('doctor on the upgraded board ends clean after the steps it names [R4,A5]', async t => {
   const box = project(t);
-  const problems = await box.cli(box.repo, box.coordinator, 'doctor');
-  const steps = [...(problems.stdout + problems.stderr).matchAll(/repair: (?:run )?(pullboard [^;\n]+)/gu)].map(match => match[1]);
-  for (const step of steps) {
+  const repairs = problems => problems.map(problem => /^(?:run )?(pullboard [^;\n]+)/u.exec(problem.next ?? '')?.[1]).filter(Boolean);
+  const found = await box.cli(box.repo, box.coordinator, 'doctor', '--json');
+  for (const step of repairs(JSON.parse(found.stdout).problems)) {
     const [, ...args] = words(step);
     const done = await box.cli(box.repo, box.coordinator, ...args);
     assert.equal(done.status, 0, `${step}: ${done.stderr}${done.stdout}`);
   }
-  const after = await box.cli(box.repo, box.coordinator, 'doctor');
+  const after = await box.cli(box.repo, box.coordinator, 'doctor', '--json');
+  const remaining = JSON.parse(after.stdout).problems;
   // Only the main checkout's code repairs a board; a runner runs this source from a linked worktree, where doctor sends the person to main (#7761).
   if (codeIsFromMain()) {
     assert.equal(after.status, 0, after.stdout + after.stderr);
-    assert.match(after.stdout, /board is clean/u);
+    assert.deepEqual(remaining, [], 'doctor reports no problems');
   } else {
     // A changed trigger's repair is a board write, inbox, since 443661e6e2 (#7924).
-    assert.match(after.stdout + after.stderr, /repair: (?:run pullboard (?:status|inbox)|merge this code into the main checkout first)/u, 'doctor still names a repair');
+    assert.ok(remaining.some(problem => /^(?:run pullboard (?:status|inbox)|merge this code into the main checkout first)/u.test(problem.next)), 'doctor still names a repair');
   }
 });

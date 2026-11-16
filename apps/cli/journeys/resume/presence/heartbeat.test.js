@@ -102,8 +102,8 @@ test('status reads and explicit hooks heartbeat without a shared board write [B3
   const board = openBoard(file);
   const events = board.db.prepare('SELECT COUNT(*) AS n FROM event').get().n;
   board.db.exec('BEGIN IMMEDIATE');
-  const status = box.run(box.web, 'status', '--json');
-  const explicit = box.run(box.web, 'heartbeat', '--json');
+  const status = await box.runIn(box.web, 'status', '--json');
+  const explicit = await box.runIn(box.web, 'heartbeat', '--json');
   board.db.exec('ROLLBACK');
   assert.equal(status.code, 0, status.err + status.out);
   const summary = JSON.parse(status.out);
@@ -120,6 +120,7 @@ test('status reads and explicit hooks heartbeat without a shared board write [B3
     const commands = settings.hooks[event].flatMap(entry => entry.hooks.map(hook => hook.command));
     assert.ok(commands.some(command => command.includes(`hook ${event}`)), event);
   }
+  // Real process on purpose: the claim is about a separate CLI process, so this call must not share this one.
   const heartbeat = box.run(box.web, 'heartbeat', '--json');
   assert.equal(heartbeat.code, 0, heartbeat.err + heartbeat.out);
   assert.equal(JSON.parse(heartbeat.out).presence, 'live');
@@ -156,27 +157,28 @@ test('plain status counts large seat history and hides gone seats behind --all [
   let at = Date.now() - 40 * 60_000;
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date(at) });
   const gone = [];
-  for (let index = 0; index < 100; index += 1) gone.push(store.register(board, { lane: 'api', path: join(box.dir, `history-${index}`) }));
+  const HISTORY_SEATS = 100;
+  for (let index = 0; index < HISTORY_SEATS; index += 1) gone.push(store.register(board, { lane: 'api', path: join(box.dir, `history-${index}`) }));
   at = Date.now() - 11 * 60_000;
   const idle = store.register(board, { lane: 'api', path: join(box.dir, 'idle-seat') });
   at = Date.now();
   heartbeatSeat(board, 'coordinator');
   heartbeatSeat(board, 'web-1');
-  assert.equal(store.listAgents(board).filter(seat => seat.presence === 'gone').length, 100);
+  assert.equal(store.listAgents(board).filter(seat => seat.presence === 'gone').length, HISTORY_SEATS);
   store.closeBoard(board);
-  const plain = box.run(box.web, 'status');
+  const plain = await box.runIn(box.web, 'status');
   assert.equal(plain.code, 0, plain.err + plain.out);
-  assert.match(plain.out, /seats: 2 live, 1 idle, 100 gone/u);
+  assert.match(plain.out, new RegExp(`seats: 2 live, 1 idle, ${HISTORY_SEATS} gone`, 'u'));
   assert.ok(plain.out.includes(`${idle}: idle`));
   assert.ok(gone.every(id => !plain.out.includes(`${id}: gone`)), 'plain status never prints historical gone rows');
-  const all = box.run(box.web, 'status', '--all');
+  const all = await box.runIn(box.web, 'status', '--all');
   assert.equal(all.code, 0, all.err + all.out);
   assert.ok(gone.every(id => all.out.includes(`${id}: gone`)), 'the explicit flag retains access to every identity');
-  const structured = box.run(box.web, 'status', '--json');
+  const structured = await box.runIn(box.web, 'status', '--json');
   assert.equal(structured.code, 0, structured.err + structured.out);
   const summary = JSON.parse(structured.out);
-  assert.deepEqual(summary.presenceCounts, { live: 2, idle: 1, gone: 100 });
-  assert.equal(summary.agents.length, 103, 'JSON may retain full history per outside1705');
+  assert.deepEqual(summary.presenceCounts, { live: 2, idle: 1, gone: HISTORY_SEATS });
+  assert.equal(summary.agents.length, 2 + 1 + HISTORY_SEATS, 'JSON may retain full history per outside1705');
   assert.equal(JSON_SHAPES.commands.heartbeat.required.seat, 'string|null');
   assert.equal(JSON_SHAPES.commands.heartbeat.required.heartbeatAt, 'string|null');
 });

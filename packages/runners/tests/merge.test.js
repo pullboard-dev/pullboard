@@ -20,10 +20,11 @@ import { pathToFileURL } from 'node:url';
 import {
   runFixtureChild,
   runFixtureGit,
-} from '../../../apps/cli/tests/fixtures/child.js';
+} from '../../gate/tests/fixtures/child.js';
 import { copyPackageSubset } from '../../../apps/cli/tests/fixtures/copy.js';
 import { copyPackageFiles } from '../index.js';
 import { repoPath } from '../../kernel/light.js';
+import { ENGINE_VERSION } from '../../state/index.js';
 
 /** The folder holding one file per CLI command: what `src/commands` was before the layout move. */
 const COMMANDS = 'apps/cli/src/io/commands';
@@ -80,10 +81,10 @@ test('clause 1: two commands added at the same sorted spot merge without conflic
 test('clause 1: two engines added at the same sorted spot merge without conflict [C7,V4]', async (t) => {
   const engineFiles = readdirSync(new URL(`${ENGINES}/`, ROOT)).filter((file) => /-engine\.js$/u.test(file));
   const engine = (name, number) => ({ name, files: { [`${name}-engine.js`]: `/** An independent private engine. */\nexport const ${name.toUpperCase().replace(/-/gu, '_')}_ENGINE = ${number};\n` } });
-  const repo = mergeTwo(t, { folder: ENGINES, files: engineFiles, complete: true, additions: [engine('check-alpha', 63), engine('check-beta', 64)] });
+  const repo = mergeTwo(t, { folder: ENGINES, files: engineFiles, complete: true, additions: [engine('check-alpha', ENGINE_VERSION + 1), engine('check-beta', ENGINE_VERSION + 2)] });
   const { discoverEngines } = await import(pathToFileURL(join(repo.root, 'packages/state/index.js')).href);
   assert.equal(typeof discoverEngines, 'function', 'the state front door discovers its engines');
   const found = discoverEngines(pathToFileURL(join(repo.root, ENGINES, '/')));
-  assert.equal(found['check-alpha'], 63);
-  assert.equal(found['check-beta'], 64);
+  assert.equal(found['check-alpha'], ENGINE_VERSION + 1);
+  assert.equal(found['check-beta'], ENGINE_VERSION + 2);
 });

@@ -1,5 +1,7 @@
 /** Select committed Node test files through import edges; uncertainty requires the full gate [V4,C7]. */
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { cachedAffectedGraph } from './graph/cache.js';
 import { DOCS_TREE_INPUT } from './inputs.js';
 import { isSourceCellLine } from './inputs.js';
@@ -9,6 +11,8 @@ import { changedModules } from './graph/delta.js';
 import { forkWithout } from './graph/delta.js';
 import { documentationInputs } from './inputs.js';
 import { unknownRootTests } from './roots.js';
+import { namedReach } from './names.js';
+import { join } from 'node:path';
 import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
@@ -164,6 +168,30 @@ function readBlobs(root, hashes) {
     sources.set(hash, result.stdout.subarray(at, at + size).toString('utf8'));
     at += size + 1;
   }
+  return sources;
+}
+
+/**
+ * The given object ids' source text, read from the checkout's own files where a file hashes to the object, else from Git.
+ * Why: a first trip reads about 30 MB of modules, which one Git batch inflates in ~1 s under load; a checkout at the commit
+ * holds the same bytes, and the object hash proves they are exact, so a dirty, other-commit or filtered file falls back to Git [C7,#8135].
+ *
+ * @param {string} root
+ * @param {Map<string, string>} wanted - Object id to the committed path it was listed under.
+ * @returns {Map<string, string>}
+ */
+function readCommittedSources(root, wanted) {
+  const sources = new Map();
+  for (const [hash, path] of wanted) {
+    try {
+      const bytes = readFileSync(join(root, path));
+      const algorithm = hash.length === 64 ? 'sha256' : 'sha1';
+      const actual = createHash(algorithm).update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
+      if (actual === hash) sources.set(hash, bytes.toString('utf8'));
+    } catch { /* A missing or unreadable file is read from Git. */ }
+  }
+  const rest = [...wanted.keys()].filter(hash => !sources.has(hash));
+  for (const [hash, text] of readBlobs(root, rest)) sources.set(hash, text);
   return sources;
 }
 
@@ -454,8 +482,8 @@ export function scopedTestClosures(root, commit, tests, runnerEntries, probe = n
     const hashes = new Map(tree.entries.map(entry => [entry.path, entry.hash]));
     const sources = new Map();
     const load = paths => {
-      const missing = [...new Set(paths.map(path => hashes.get(path)))].filter(hash => !sources.has(hash));
-      for (const [hash, text] of readBlobs(root, missing)) sources.set(hash, text);
+      const missing = new Map(paths.filter(path => !sources.has(hashes.get(path))).map(path => [hashes.get(path), path]));
+      for (const [hash, text] of readCommittedSources(root, missing)) sources.set(hash, text);
     };
     // Unparsed modules read on demand, so a consumer that asks for a module outside the walk still gets its exact bytes.
     const modules = new (class extends Map {
@@ -619,16 +647,38 @@ function selectionReason(test, via, changed, isReached, unresolved) {
 }
 
 /**
+ * Select declared suites for a polyglot repo: the suites whose folder globs cover every changed path [C7].
+ * Why conservative: a path no glob covers, or a glob that cannot be read, could affect anything, so it asks for the full gate.
+ *
+ * @param {string[]} changed
+ * @param {Record<string,string>} suites - the repo config key affectedSuites, folder glob to suite path
+ * @returns {{full:boolean, reason:string, files:string[]}}
+ */
+export function selectDeclaredSuites(changed, suites) {
+  const rules = Object.entries(suites).map(([glob, suite]) => ({ glob, suite, pattern: globPattern(glob) }));
+  const unreadable = rules.find(rule => !rule.pattern);
+  if (unreadable) return { full: true, reason: `affectedSuites glob ${unreadable.glob} cannot be read`, files: [] };
+  if (!changed.length) return { full: true, reason: 'no changed path to select suites for', files: [] };
+  const picked = new Set();
+  for (const path of changed) {
+    const covering = rules.filter(rule => rule.pattern.test(path));
+    if (!covering.length) return { full: true, reason: `no affectedSuites glob covers ${path}`, files: [] };
+    for (const rule of covering) picked.add(rule.suite);
+  }
+  return { full: false, reason: '', files: [...picked].sort() };
+}
+
+/**
  * Select changed tests and every transitive importer in the old and new trees. Old edges cover
  * deletions and renames; declared tree readers also cover changed test or source inputs. Other filesystem
  * reads and process launches are not import edges, except literal documentation inputs and modules that
  * mention the Pullboard CLI entry (`apps/cli/pullboard.js`), whose imported modules they exercise as subprocesses.
  *
  * @param {string} root
- * @param {{base:string|null, trunk?:string, commit?:string, changed?:string[]}} options
+ * @param {{base:string|null, trunk?:string, commit?:string, changed?:string[], namedImports?:boolean}} options - namedImports defaults to gate.namedImportSelection.
  * @returns {{full:boolean, reason:string, files:string[]}}
  */
-export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', changed, probe = null }) {
+export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', changed, probe = null, suites = null, namedImports }) {
   let files = [];
   try {
     if (!base) return { full: true, reason: 'no claim head recorded; the change cannot be selected', files };
@@ -641,6 +691,8 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
       changed = undefined;
     }
     changed ??= selectionGit(root, ['diff', '--no-renames', '--name-only', '-z', base, commit]).split('\0').filter(Boolean);
+    // A repo that declares affectedSuites selects by folder, never by import graph; without the key nothing changes.
+    if (suites && typeof suites === 'object' && Object.keys(suites).length) return selectDeclaredSuites(changed, suites);
     const changedDocs = changed.filter(path => DOC.test(path));
     const before = graphAt(root, base, changedDocs, null, probe);
     const after = graphAt(root, commit, changedDocs, before, probe);
@@ -654,10 +706,9 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
     const unsupported = changed.find(path => !MODULE.test(path) && !DOC.test(path)
       && !before.reverse.has(path) && !after.reverse.has(path));
     if (unsupported) return { full: true, reason: `import selection cannot compute the effect of ${unsupported}`, files };
-    // A test whose computed import cannot be read is an unknown root: it and every test importing it always run, and the
-    // rest stay focused, so one unreadable file never forces the whole suite (it planned 1,044 files per landing) [C7].
+    // An unreadable computed import is an unknown root: it and its importers always run, the rest stay focused (it once planned 1,044 files) [C7].
     const reached = new Set(changed);
-    const queue = [...changed];
+    const queue = [...changed], narrow = namedReach(namedImports, reached);
     // Why each path joined: the path that reached it, so a selected test can name its changed file and import chain.
     const via = new Map();
     for (const doc of changed.filter(path => DOC.test(path))) {
@@ -669,12 +720,15 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
         }
       }
     }
+    // A reached file whose own reads are unknown still has known importers; the tests that could load it dynamically are
+    // the unknown roots retained below, so reaching it never selects the whole suite [C7].
     for (let at = 0; at < queue.length; at += 1) {
       const path = queue[at];
       for (const graph of [before, after]) {
-        if (graph.unknown.has(path)) return { full: true, reason: `${graph.unknown.get(path)} in reached file ${path}`, files };
+        // A malformed, unmatched or escaping declared test input has no complete reader custody: stay conservative.
+        if (/\bdeclared test input|\bdeclared input\b/u.test(graph.unknown.get(path) ?? '')) return { full: true, reason: `${graph.unknown.get(path)} in reached file ${path}`, files };
         for (const importer of graph.reverse.get(path) ?? []) {
-          if (!reached.has(importer)) { reached.add(importer); via.set(importer, path); queue.push(importer); }
+          if (narrow.reach(graph, path, importer)) { if (!reached.has(importer)) { reached.add(importer); via.set(importer, path); } queue.push(importer); }
         }
       }
     }

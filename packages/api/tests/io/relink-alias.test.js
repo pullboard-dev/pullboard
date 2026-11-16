@@ -6,7 +6,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fetchFresh } from '../../../../apps/cli/tests/fixtures/http.js';
-import { fixtureMachineSettings } from '../../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
 import { boardId } from '../../../store/index.js';
 import { openBoardForRead } from '../../../store/index.js';
 import { cellProject } from '../../../store/tests/fixtures/cell.js';
@@ -32,7 +32,8 @@ async function served(t, { relink }) {
   }
   const home = join(project.dir, 'machine-home');
   mkdirSync(home, { recursive: true });
-  fixtureMachineSettings(home, { gate: { runnerDispatch: 'pull' } });
+  // gate.fencedHop is on by default (3e125d823d) and this journey serves no hop table: the relink answer is the subject, not the hop [C7].
+  fixtureMachineSettings(home, { gate: { runnerDispatch: 'pull', fencedHop: false } });
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = home;
   t.after(() => { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; });

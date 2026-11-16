@@ -1,12 +1,13 @@
 /** Pure shaping of job rows into the view every reader shares [C7]. */
 
 /**
- * The current step: `done` once finished; else the last step written, except a `released` one, which is a lease handed back and not progress, so the job reads as the step it kept.
+ * The current step: `done` once finished; else the last step written, except a `released` one or a posted artifact, which is a lease handed back and not progress, so the job reads as the step it kept.
  * Why: a stopped runner releases its claim with a backoff, and every view of the job still reads it as claimed [C7].
  */
 function currentStep(job, steps) {
   if (job.job_step === 'done') return 'done';
-  const last = steps.length ? steps[steps.length - 1].job_step_name : job.job_step;
+  const worked = steps.filter(step => !step.job_step_name.startsWith('artifact:') && !step.job_step_name.startsWith('note:')); // a posted artifact or a lease note is a keepsake, never a move of the job
+  const last = worked.length ? worked[worked.length - 1].job_step_name : job.job_step;
   return last === 'released' ? job.job_step : last;
 }
 

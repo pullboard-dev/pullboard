@@ -7,10 +7,10 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { historyPack } from '../../../src/io/pack.js';
 import { historicalScanExempt } from '../../../src/io/source/scan.js';
-import { fixtureCommittedGraph } from '../../../../../apps/cli/tests/fixtures/testkit.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { fixtureCommittedGraph } from '../../../../gate/tests/fixtures/testkit.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 
 /** The upgrade fixture board path the listed blobs were committed at. */
 const FIXTURE = 'apps/cli/tests/fixtures/upgrade-093/board.sqlite';

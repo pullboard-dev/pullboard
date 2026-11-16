@@ -9,6 +9,8 @@ import { Refused } from "../../../../kernel/index.js";
 import { JOB_SCHEMA_SQL } from "./jobs.js";
 import { RUN_SCHEMA_SQL } from "./jobs.js";
 import { LEDGER_SCHEMA_SQL } from "./ledger.js";
+import { GATE_HOP_SCHEMA_SQL } from "./hop.js";
+import { FIELD_SCHEMA_SQL } from "./item/fields.js";
 import { BOARD_WAL_LIMIT_BYTES } from "./checkpoint.js";
 import { jobBlobsPending } from "./blobs.js";
 import { migrateJobBlobs } from "./blobs.js";
@@ -157,11 +159,41 @@ export function openRunsStore(file, { boardId }) {
  * @returns {ReturnType<typeof runsPort> | null}
  */
 export function boardRunsPort(board, boardFile) {
+  const holder = boardRunsHolder(board, boardFile);
+  return holder ? runsPort(holder) : null;
+}
+
+/**
+ * The holder of the board's runs handle, or null while the flag is off: `holder.db` opens the runs file on first use and is
+ * the same handle after. Why: a machine-local driver keeps the board db for item reads and sends its job rows to this handle [P7,#9080].
+ *
+ * @param {{ db: import('node:sqlite').DatabaseSync }} board - An open board.
+ * @param {string} boardFile - The board's file path.
+ * @returns {{ readonly db: import('node:sqlite').DatabaseSync } | null}
+ */
+export function boardRunsHolder(board, boardFile) {
   if (!runsStoreOn(board.db)) return null;
   const boardId = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key = 'board_id'").get()?.meta_value;
   let runs = null;
   const open = () => (runs ??= openRunsStore(runsFilePath(boardFile), { boardId }));
-  return runsPort({ get db() { return open(); } });
+  return { get db() { return open(); } };
+}
+
+/**
+ * The holder of a read-only view of the board's runs file, or null while the flag is off: `holder.db` opens the file on first
+ * use and is null when no runs file exists yet. Why: show, trace, stats and the pulled-runner view read runner state without
+ * ever creating or writing the runs file, so a reader never takes its write lock or a board write's place [B2,#9013].
+ *
+ * @param {{ db: import('node:sqlite').DatabaseSync }} board - An open board.
+ * @param {string} boardFile - The board's file path.
+ * @returns {{ readonly db: import('node:sqlite').DatabaseSync | null } | null}
+ */
+export function boardRunsReader(board, boardFile) {
+  if (!runsStoreOn(board.db)) return null;
+  const file = runsFilePath(boardFile);
+  let runs;
+  const open = () => (runs === undefined ? (runs = existsSync(file) ? new DatabaseSync(file, { readOnly: true }) : null) : runs);
+  return { get db() { return open(); } };
 }
 
 /**
@@ -274,7 +306,9 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
     } else {
       // Read compatibility before any local effect; persistent schema belongs to trunk alone.
       readEventLogVersion(db);
-      const expected = expectedBoardSchema(SCHEMA + JOB_SCHEMA_SQL + RUN_SCHEMA_SQL + LEDGER_SCHEMA_SQL, migrate, storeTriggers);
+      // The opt-in item-field tables count as known too, so a board with typed fields is not newer than this code [C7,#9351].
+      // The opt-in hop table counts as known: a board whose gate took a fenced hop is not newer than this code [C7,#8327].
+      const expected = expectedBoardSchema(`${SCHEMA}${JOB_SCHEMA_SQL}${RUN_SCHEMA_SQL}${LEDGER_SCHEMA_SQL};${GATE_HOP_SCHEMA_SQL};${FIELD_SCHEMA_SQL}`, migrate, storeTriggers);
       // Code behind trunk refuses before any write: carrying on replayed newer caches under the lock for minutes (#5899).
       const ahead = sharedColumnsAhead(db, expected);
       if (ahead.length) {

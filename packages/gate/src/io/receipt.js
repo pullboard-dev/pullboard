@@ -72,6 +72,36 @@ export function phasesOf(marks, endAt) {
   };
 }
 
+/**
+ * Seconds a runner trip spent outside running tests, in milliseconds: admission, setup, the executor's own
+ * non-command time and evidence, never the wait for a slot (that is queueing, not trip cost).
+ * Null when the receipt is not a runner trip or its executor reported no phases, since nothing then separates test time [C7].
+ * Why: Corey's runner-worker design guards speed with a per-trip overhead budget; the same number feeds U151 capacity.
+ */
+export function tripOverheadMs(receipt) {
+  const command = receipt?.executionPhases?.commandMs;
+  if (receipt?.slot?.kind !== 'runner' || !Number.isSafeInteger(command)) return null;
+  const parts = [receipt.admissionMs, receipt.setupMs, receipt.runMs, receipt.evidenceMs];
+  if (!parts.every(Number.isFinite)) return null;
+  return Math.max(0, parts.reduce((sum, ms) => sum + ms, 0) - command);
+}
+
+/**
+ * Report-only lines for receipts whose recorded trip overhead is above the budget, each naming the runner and the trip.
+ * Why never a refusal: a slow trip is a number to watch and feed capacity, not a reason to stop work [C7].
+ *
+ * @param {object[]} receipts - Receipt rows as the log holds them.
+ * @param {number} budgetMs
+ * @returns {string[]}
+ */
+export function tripOverheadReport(receipts, budgetMs) {
+  return receipts.flatMap(receipt => {
+    const ms = receipt?.tripOverheadMs;
+    if (!Number.isFinite(ms) || ms <= budgetMs) return [];
+    return [`# TRIP_OVERHEAD_OVER_BUDGET runner ${receipt.runner?.id ?? 'unknown'} trip ${receipt.kind ?? 'gate'} ending ${receipt.at}: ${seconds(ms)} outside tests, ${seconds(ms - budgetMs)} over the ${seconds(budgetMs)} budget (report only)`];
+  });
+}
+
 /** One receipt: the run's kind, its phases and its slot. */
 export function receiptOf(tracker, { kind, slot, endAt = Date.now() }) {
   return { at: new Date(endAt).toISOString(), kind: kind || 'gate', ...phasesOf(tracker.marks, endAt), slot };

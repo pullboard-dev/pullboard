@@ -73,3 +73,26 @@ export function labelRows(declared, items, context = {}) {
     return { label, min, max, holders: who, unmet: min !== null && who.length < min };
   });
 }
+
+/**
+ * The item a label below its minimum should take next, or null when every minimum is met or nothing fits [N2,B13].
+ * Walks the rows in label order; a label is filled from when it is under its min and under its max, and the first
+ * candidate (the queue's order) carrying it wins. A label at its max is never filled, and a candidate whose milestone
+ * is not open for work (`milestoneOpen === false`) is never picked to fill a minimum.
+ * Why pure: `next` hands in the board's items, the agent's servable candidates in queue order and the open-milestone
+ * flag, so the pick is decided here with no board read and no setting.
+ *
+ * @param {Record<string, { min?: number, max?: number }>} declared - The validated `labels` declaration.
+ * @param {Array<object>} items - Every board item, to count each label's holders.
+ * @param {Array<object>} candidates - Items this agent could serve, in queue order; `milestoneOpen: false` marks a closed milestone.
+ * @param {{ brokenMain?: boolean }} [context] - Passed to itemLabels for every item.
+ * @returns {object | null}
+ */
+export function pickForLabelMinimum(declared, items, candidates, context = {}) {
+  for (const row of labelRows(declared, items, context)) {
+    if (!row.unmet || (row.max !== null && row.holders.length >= row.max)) continue;
+    const pick = candidates.find(item => item.milestoneOpen !== false && itemLabels(item, context).includes(row.label));
+    if (pick) return pick;
+  }
+  return null;
+}

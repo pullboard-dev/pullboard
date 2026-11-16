@@ -1,11 +1,12 @@
 /** Derive authority from existing seats and claims; no mutable saved grant supplies permission [E21]. */
-import { AGENT_GRANT_ENGINE } from './engines/agent-grant-engine.js';
-import { REVIEW_GRANT_ENGINE } from './engines/review-grant-engine.js';
-import { BAR_SIGN_GRANT_ENGINE } from './engines/bar-sign-grant-engine.js';
+import { engineNumber } from './engine/number.js';
 import { Refused } from '../../../kernel/light.js';
 import { recordedGrantActivation } from '../../index.js';
 import { completesAdmittedSubmit } from '../../index.js';
-import { QUEUED_START_GRANT_ENGINE } from './engines/queued-start-grant-engine.js';
+const AGENT_GRANT_ENGINE = engineNumber('AGENT_GRANT_ENGINE');
+const REVIEW_GRANT_ENGINE = engineNumber('REVIEW_GRANT_ENGINE');
+const BAR_SIGN_GRANT_ENGINE = engineNumber('BAR_SIGN_GRANT_ENGINE');
+const QUEUED_START_GRANT_ENGINE = engineNumber('QUEUED_START_GRANT_ENGINE');
 
 // Attributed append-only findings never confer authority over item state.
 const ADMINISTRATIVE = new Set(['shout', 'claim', 'release', 'reserveReview', 'appendFact', 'recordAttempt', 'completeSubmitHandoff']);
@@ -24,6 +25,12 @@ function target(move, registry) {
  * Why here: the grant check runs inside the state cell, which reads the job tables but never writes them.
  */
 function queuedGateRecord(db, itemId) {
+  // With runs_store on the record is the gate job's run row, written in the move that saved it [B2,M3].
+  if (db.prepare("SELECT meta_value FROM board_meta WHERE meta_key = 'runs_store'").get()?.meta_value === '1') {
+    const kept = db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name = 'run'").get().n === 1
+      ? db.prepare("SELECT run_record AS record FROM run WHERE run_kind = 'gate' AND run_item = ? AND run_record IS NOT NULL ORDER BY run_updated DESC, rowid DESC LIMIT 1").get(itemId) : undefined;
+    try { return kept ? JSON.parse(kept.record) : null; } catch { return null; }
+  }
   const tables = db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name IN ('job','job_step')").get().n;
   if (tables < 2) return null;
   const row = db.prepare(`SELECT s.job_step_payload AS payload FROM job j JOIN job_step s ON s.job_step_job = j.job_id
@@ -94,11 +101,15 @@ export function requireAgentGrant(board, move, at = board.clock.now(), { registr
   if (move.operation === 'objectItemPatch') return;
   if (item?.item_review_by === actor && item.item_status === 'submitted' && item.item_review_until > now
     && move.operation === 'verify') return;
-  const claims = board.db.prepare("SELECT item_id,item_lease_until FROM item WHERE item_owner=? AND item_status='claimed'").all(actor);
+  const held = board.db.prepare("SELECT item_id,item_lease_until FROM item WHERE item_owner=? AND item_status='claimed'").all(actor);
+  // itemsInGate sealed in the move: up to that many gate-waiting claims are not the building claim [C7,#8420].
+  const waiting = held.filter(c => c.item_id !== item?.item_id && ['queued', 'running', 'green'].includes(queuedGateRecord(board.db, c.item_id)?.state)).slice(0, move.itemsInGate > 0 ? move.itemsInGate : 0);
+  const claims = held.filter(claim => !waiting.includes(claim));
   const own = claims.find(claim => claim.item_id === item?.item_id);
   const live = claims.filter(claim => claim.item_lease_until > now);
+  const liveHeld = held.filter(claim => claim.item_lease_until > now);
   const previous = board.db.prepare("SELECT event_id FROM event WHERE event_by=? AND event_kind IN ('claim','renew') ORDER BY event_id DESC LIMIT 1").get(actor);
-  if (((own && !(own.item_lease_until > now)) || (previous && !live.length))
+  if (((own && !(own.item_lease_until > now)) || (previous && !liveHeld.length))
     && !completesAdmittedSubmit(board, move, item, actor) && !startsQueuedSubmit(board, move, item, actor)) {
     throw new Refused('AGENT_GRANT_EXPIRED', `${actor} has no live item claim; claim work before changing an item`,
       'claim the intended item, or shout the coordinator if its claim is unavailable');

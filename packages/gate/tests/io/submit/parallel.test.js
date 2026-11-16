@@ -16,7 +16,7 @@ import { runProofShards } from '../../../src/io/shards/proof.js';
 import { shardStartupMs } from '../../../src/io/shards/proof.js';
 import { proofFields } from '../../../../verify/index.js';
 import { receiptFields } from '../../../../verify/index.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../fixtures/child.js';
 
 const FILES = ['test/a.test.js', 'test/b.test.js', 'test/c.test.js', 'test/d.test.js'];
 const FILE_MS = { 'test/a.test.js': 300, 'test/b.test.js': 200, 'test/c.test.js': 250, 'test/d.test.js': 100 };

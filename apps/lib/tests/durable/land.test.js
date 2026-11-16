@@ -88,7 +88,8 @@ test('clause 1: the six landing steps are job steps written in order, merge writ
     assert.equal(result.job.step, 'publish');
     const payload = name => result.job.steps.find(s => s.name === name).payload;
     assert.deepEqual(payload('compose'), { candidate, base, candidateTree: treeOf(repo, candidate), baseTree: treeOf(repo, base) });
-    assert.deepEqual(payload('prove'), { receipt: `${treeOf(repo, candidate)}@${treeOf(repo, base)}`, reused: true, verdict: 'green', code: null });
+    // The receipt key carries the tooling tree (1411384ebb); with no pin yet it is the candidate's own tree.
+    assert.deepEqual(payload('prove'), { receipt: `${treeOf(repo, candidate)}@${treeOf(repo, base)}@${treeOf(repo, candidate)}`, reused: true, verdict: 'green', code: null });
     assert.equal(calls.prove, 0, 'a green receipt at the composition trees is reused, not run');
     assert.deepEqual(payload('merge'), { commit: candidate, tooling: treeOf(repo, candidate) });
     assert.deepEqual(toolingPin(repo), { tree: treeOf(repo, candidate), commit: candidate }, 'merge writes the tooling pin for the landed commit');

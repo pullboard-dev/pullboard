@@ -8,7 +8,7 @@ import { readdirSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import { join } from 'node:path';
-import { temporaryDirectory } from '../../../../../../apps/cli/tests/fixtures/board.js';
+import { temporaryDirectory } from '../../../../../board/tests/fixtures/board.js';
 import { memoizedActionKeys } from '../../../../src/io/test/action/memo.js';
 
 const MODULE = new URL('../../../../src/io/test/action/memo.js', import.meta.url).href;

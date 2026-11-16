@@ -58,6 +58,25 @@ export function loadDiscovered(file, directory) {
   return loadMove(fileURLToPath(new URL(file, directory)));
 }
 
+/** The move files beneath the folders, by file name, each with its operation; reading names loads no module. */
+function moveEntries(folders) {
+  return (Array.isArray(folders) ? folders : [folders]).flatMap(directory => discovered(readdirSync(directory), MOVE_CANDIDATE, MOVE_FILE, 'move')
+    .map(file => ({ file, directory, operation: file.slice(0, -'.js'.length) })));
+}
+
+/** Order the declarations and build the registry, its operation list and merged next steps, refusing duplicates and step conflicts. */
+function assembled(declarations) {
+  const ordered = [...declarations].sort((a, b) => a.order - b.order || (a.operation < b.operation ? -1 : a.operation > b.operation ? 1 : 0));
+  const registry = {};
+  const nextSteps = {};
+  for (const declaration of ordered) {
+    if (Object.hasOwn(registry, declaration.operation)) throw new Error(`${declaration.operation} is declared twice; keep one module per operation`);
+    Object.defineProperty(registry, declaration.operation, { value: declaration, enumerable: true });
+    addSteps(nextSteps, declaration.nextSteps, declaration.operation);
+  }
+  return Object.freeze({ registry: Object.freeze(registry), operations: Object.freeze(ordered.map(declaration => declaration.operation)), nextSteps: Object.freeze(nextSteps) });
+}
+
 /**
  * Discover strict operation modules in deterministic order, also usable with isolated fixture folders.
  * New moves may omit order and append by file name; existing moves retain their historical order.
@@ -66,21 +85,79 @@ export function loadDiscovered(file, directory) {
  * @returns {{registry: Readonly<Record<string, any>>, operations: readonly string[], nextSteps: Readonly<Record<string,string>>}}
  */
 export function discoverMoves(folders = MOVE_DIRECTORIES) {
-  const entries = (Array.isArray(folders) ? folders : [folders]).flatMap(directory => discovered(readdirSync(directory), MOVE_CANDIDATE, MOVE_FILE, 'move').map(file => ({ file, directory })));
-  const declarations = entries.map(({ file, directory }) => declarationFor(file, loadDiscovered(file, directory).default));
-  declarations.sort((a, b) => a.order - b.order || (a.operation < b.operation ? -1 : a.operation > b.operation ? 1 : 0));
-  const registry = {};
-  const nextSteps = {};
-  for (const declaration of declarations) {
-    if (Object.hasOwn(registry, declaration.operation)) throw new Error(`${declaration.operation} is declared twice; keep one module per operation`);
-    Object.defineProperty(registry, declaration.operation, { value: declaration, enumerable: true });
-    addSteps(nextSteps, declaration.nextSteps, declaration.operation);
-  }
-  return Object.freeze({ registry: Object.freeze(registry), operations: Object.freeze(declarations.map(declaration => declaration.operation)), nextSteps: Object.freeze(nextSteps) });
+  return assembled(moveEntries(folders).map(({ file, directory }) => declarationFor(file, loadDiscovered(file, directory).default)));
 }
 
-const found = discoverMoves();
-/** Every discovered operation declaration, in preserved historical order. */
+/**
+ * A frozen-looking view whose target fills on first use: every trap loads the whole value, then answers from it.
+ * Why: an exported array or object must keep its shape (Array.isArray, keys, order) while loading nothing until read.
+ */
+function filledOnUse(empty, fill) {
+  let full = false;
+  const target = () => {
+    if (!full) { fill(empty); Object.freeze(empty); full = true; }
+    return empty;
+  };
+  const traps = {};
+  for (const name of ['get', 'has', 'ownKeys', 'getOwnPropertyDescriptor', 'defineProperty', 'deleteProperty', 'set', 'isExtensible', 'preventExtensions', 'getPrototypeOf', 'setPrototypeOf']) {
+    traps[name] = (_, ...rest) => Reflect[name](target(), ...rest);
+  }
+  return new Proxy(empty, traps);
+}
+
+/**
+ * The cell's moves, loaded on first use [C7]: naming one operation loads only its own module, and listing or ordering
+ * them loads all of them once. Why: every command used to load all moves at startup, though most dispatch none.
+ * Each declaration is validated exactly as discoverMoves does, and the ordered view equals discoverMoves' result.
+ *
+ * @param {URL|URL[]} [folders] one folder, or the cell's pure and effectful move folders by default
+ * @returns {{registry: Readonly<Record<string, any>>, operations: readonly string[], withNextSteps: (defaults: Readonly<Record<string,string>>) => Readonly<Record<string,string>>}}
+ */
+export function lazyMoves(folders = MOVE_DIRECTORIES) {
+  let entries, whole;
+  const loaded = new Map();
+  const listed = () => entries ??= moveEntries(folders);
+  /** One file's validated declaration, loaded once. */
+  const load = entry => {
+    const key = fileURLToPath(new URL(entry.file, entry.directory));
+    if (!loaded.has(key)) loaded.set(key, declarationFor(entry.file, loadDiscovered(entry.file, entry.directory).default));
+    return loaded.get(key);
+  };
+  const all = () => whole ??= assembled(listed().map(load));
+  /** One operation's declaration, loading only its own file; a name two folders share loads all, which refuses it. */
+  const one = operation => {
+    const found = listed().filter(entry => entry.operation === operation);
+    if (found.length > 1) all();
+    return found.length ? load(found[0]) : undefined;
+  };
+  const isMove = key => typeof key === 'string' && listed().some(entry => entry.operation === key);
+  const target = {};
+  /** Define one loaded operation on the target, so each reported descriptor obeys the proxy invariants. */
+  const define = operation => {
+    if (!Object.hasOwn(target, operation)) Object.defineProperty(target, operation, { value: one(operation), enumerable: true });
+  };
+  const defineAll = () => { const { operations } = all(); for (const operation of operations) define(operation); return operations; };
+  const registry = new Proxy(target, {
+    get: (_, key, receiver) => isMove(key) ? one(key) : Reflect.get(target, key, receiver),
+    has: (_, key) => isMove(key) || Reflect.has(target, key),
+    getOwnPropertyDescriptor: (_, key) => { if (isMove(key)) define(key); return Reflect.getOwnPropertyDescriptor(target, key); },
+    ownKeys: () => [...defineAll()],
+    preventExtensions: () => { defineAll(); return Reflect.preventExtensions(target); },
+    defineProperty: () => false,
+    deleteProperty: () => false,
+    set: () => false,
+    setPrototypeOf: () => false,
+  });
+  const operations = filledOnUse([], array => array.push(...all().operations));
+  return Object.freeze({
+    registry,
+    operations,
+    withNextSteps: defaults => filledOnUse({}, steps => { Object.assign(steps, defaults); addSteps(steps, all().nextSteps, 'move declarations'); }),
+  });
+}
+
+const found = lazyMoves();
+/** Every discovered operation declaration, in preserved historical order; one operation loads only its own module. */
 export const MOVE_REGISTRY = found.registry;
 /** The allowed operation names, derived rather than hand-kept. */
 export const MOVE_OPERATIONS = found.operations;
@@ -105,7 +182,5 @@ export function declaredMoveActor(move) {
 
 /** Add operation-owned next steps while refusing silent disagreements with general CLI guidance. */
 export function withMoveNextSteps(defaults) {
-  const nextSteps = { ...defaults };
-  addSteps(nextSteps, found.nextSteps, 'move declarations');
-  return Object.freeze(nextSteps);
+  return found.withNextSteps(defaults);
 }

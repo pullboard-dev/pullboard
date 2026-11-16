@@ -1,0 +1,16 @@
+{
+  "units": [
+    "apps/runner",
+    "packages/config",
+    "packages/gate",
+    "packages/git",
+    "packages/jobs",
+    "packages/kernel",
+    "packages/queue",
+    "packages/resources",
+    "packages/runners",
+    "packages/sandbox",
+    "packages/transport",
+    "packages/verify"
+  ]
+}

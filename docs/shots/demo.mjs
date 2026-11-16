@@ -49,9 +49,12 @@ function command(file, args, cwd, env) {
  */
 async function settleSubmitted(pb, cwd, id) {
   const deadline = Date.now() + 180_000;
+  // Back off from 0.5 s to 3 s: each poll launches the CLI, and on a loaded runner those launches are most of the wait.
+  let pause = 500;
   while (!/^#\d+ +submitted\b/u.test(pb(cwd, 'show', id))) {
     if (Date.now() > deadline) throw new Error(`#${id} did not settle its gate within 180 s`);
-    await new Promise((resolveWait) => setTimeout(resolveWait, 500));
+    await new Promise((resolveWait) => setTimeout(resolveWait, pause));
+    pause = Math.min(pause * 2, 3000);
   }
 }
 
@@ -184,7 +187,10 @@ async function exportBoard(repo, env) {
   await writeFile(statePath, JSON.stringify(state) + '\n');
 }
 
-/** Build the demo board by issuing real commands in a temporary git repo. */
+/**
+ * Build the demo board by issuing real commands in a temporary git repo.
+ * Why: the fixture's own commits skip the installed hooks (core.hooksPath), which would only launch two node processes each; the demo shows board moves, not hook refusals.
+ */
 async function buildBoard(base, env) {
   const repo = join(base, 'demo-board');
   await mkdir(repo, { recursive: true });
@@ -193,7 +199,7 @@ async function buildBoard(base, env) {
   await writeFile(join(repo, 'pullboard.json'), JSON.stringify({ name: 'Demo board', project: 'Demo project', gate: 'node --check src/demo.js', spec: 'SPEC.md', verify: { policy: 'any', family: 'require' }, lease: '2h', lanes: { app: { owns: ['src/'], specs: ['G'] }, review: { owns: [], specs: [] } }, shared: [] }, null, 2) + '\n');
   await writeFile(join(repo, 'SPEC.md'), '# Demo\n\n## G · Goals\n- G1 [approved, must] A demo item exists to show the board. | gate: none\n- G2 [approved, must] The verified item shows its review history. | gate: none\n');
   command('git', ['add', '-A'], repo, env);
-  command('git', ['commit', '-q', '-m', 'chore: initialize demo board'], repo, env);
+  command('git', ['-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'chore: initialize demo board'], repo, env);
   const pb = (cwd, ...args) => command(process.execPath, [BIN, ...args], cwd, env);
   pb(repo, 'add', 'app', 'Reviewed and accepted', '--specs', 'G1', '--criterion', 'The demo item is accepted after review.');
   pb(repo, 'add', 'app', 'Future work', '--specs', 'G1', '--criterion', 'The board keeps another item open for later work.');
@@ -214,7 +220,7 @@ async function buildBoard(base, env) {
   await mkdir(join(app, 'src'), { recursive: true });
   await writeFile(join(app, 'src', 'demo.js'), 'export const reviewed = false;\n');
   command('git', ['add', '-A'], app, env);
-  command('git', ['commit', '-q', '-m', 'feat(app): draft the demo change [G1]'], app, env);
+  command('git', ['-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'feat(app): draft the demo change [G1]'], app, env);
   setDemoMinutes(env, 2);
   pb(app, 'submit', '1', '--no-next');
   await settleSubmitted(pb, app, '1');
@@ -228,7 +234,7 @@ async function buildBoard(base, env) {
   pb(app, 'claim', '1');
   await writeFile(join(app, 'src', 'demo.js'), 'export const reviewed = true;\n');
   command('git', ['add', '-A'], app, env);
-  command('git', ['commit', '-q', '-m', 'feat(app): revise the reviewed demo [G1]'], app, env);
+  command('git', ['-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'feat(app): revise the reviewed demo [G1]'], app, env);
   setDemoMinutes(env, 6);
   pb(app, 'submit', '1', '--no-next');
   await settleSubmitted(pb, app, '1');
@@ -246,7 +252,7 @@ async function buildBoard(base, env) {
   await mkdir(join(folder, 'src'), { recursive: true });
   await writeFile(join(folder, 'src', 'review.js'), 'export const ready = true;\n');
   command('git', ['add', '-A'], folder, env);
-  command('git', ['commit', '-q', '-m', 'feat(app): prepare the next review [G1]'], folder, env);
+  command('git', ['-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'feat(app): prepare the next review [G1]'], folder, env);
   pb(folder, 'submit', '3', '--no-next');
   pb(app, 'claim', '4');
   setDemoMinutes(env, 75);

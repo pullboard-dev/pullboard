@@ -16,8 +16,8 @@ import { operationRatchetGrowth } from '../../../src/io/static/operations.js';
 import { tightenOperationBaseline } from '../../../src/io/static/operations.js';
 import { STATIC_TREE_CHECKS } from '../../../src/io/static/registry.js';
 import { walk } from '../../../src/io/scan.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../fixtures/child.js';
+import { runFixtureGit } from '../../fixtures/child.js';
 
 const ROOT = new URL('../../../../..', import.meta.url);
 const BASELINE = 'packages/gate/data/baselines/operation-entries.json';

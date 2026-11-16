@@ -1,10 +1,10 @@
+/** @pullboard-module-loads packages/health/src/io/stale/state/capture.js packages/moves/index.js */
 import { seatAt } from './item/folder/identity.js';
 import { claimWorktreeSnapshot } from '../../../../packages/seats/index.js';
 import {
   submitHandoffActor,
   isSubmitHandoffWorker,
 } from '../../../../packages/sandbox/index.js';
-import { captureLapsedClaims } from '../../../../packages/health/index.js';
 /** Helpers for `pullboard claim`: ordered moves and the criterion freeze. Split from src/cli.js, which re-exports it [C7]. */
 import { writeBoardCommand } from '../../../../packages/store/index.js';
 import { laneSeatContext } from '../../../../packages/seats/index.js';
@@ -29,6 +29,8 @@ async function gitSyncOn(ctx, board) {
   return false;
 }
 import { randomUUID } from 'node:crypto';
+import { recordCheckpoint } from './seat-checkpoint.js';
+import { sealExitCheckpoints } from './exit/checkpoint.js';
 import * as itemSessions from '../../../../packages/items/index.js';
 import * as store from '../../../../packages/store/index.js';
 import { cdTo } from './context.js';
@@ -57,7 +59,7 @@ import { isReturnedRework } from '../../../../packages/store/index.js';
 import { sealReworkRoutingPolicy } from '../../../../packages/store/index.js';
 import { SEAT_LIVE_WINDOW_MS } from '../../../../packages/store/index.js';
 import { maintenanceDurations } from '../../../../packages/config/index.js';
-import { criterionFreezer } from '../../../../packages/moves/index.js';
+import { createRequire } from 'node:module';
 import { sessionRoute } from './route.js';
 
 /** Capture accepted coordinator retirement grace beside the native line takeover window. */
@@ -78,6 +80,9 @@ async function withItemSession(info, operation, args, move) { const noted = oper
 export { relayOutboxSetting } from './relay-outbox.js';
 import { relayOutboxSetting } from './relay-outbox.js';
 
+/** The lapsed-claim capture and the criterion freezer load at the claim that runs them, never with the command [C7,#7081]. */
+const requireModule = createRequire(import.meta.url);
+
 const LAPSE_MAINTENANCE = new WeakSet();
 
 /**
@@ -91,6 +96,7 @@ async function maintainLapsedBeforeWrite(ctx, board, operation, args, actor) {
   if (relayRecovered(ctx.info.root, { includePending: true }, ctx.io)) return;
   LAPSE_MAINTENANCE.add(board);
   try {
+    const { captureLapsedClaims } = requireModule('../../../../packages/health/src/io/stale/state/capture.js');
     const snapshot = captureLapsedClaims(ctx, board, actor, { lapsedOnly: true });
     if (!snapshot) return;
     const io = { ...ctx.io, personRequest: undefined, personRequestMoveId: undefined, relayCommand: undefined, requestedCommand: undefined };
@@ -249,21 +255,29 @@ export async function claimOrdered(ctx, board, args) {
     const refusal = (await (await import('./exit/rules.js')).loadExitRules()).contextCeilingRefusal(exitRules);
     if (refusal) throw refusal;
   }
+  // A budget at its stop line refuses a new claim only; a claim the seat already holds renews, so nothing stops mid-item [N2].
+  if (!(held.item_status === 'claimed' && held.item_owner === args[1].agentId)) {
+    const { budgetClaimRefusal, machineBudgetState } = await import('../../../../packages/stats/light.js');
+    const refusal = budgetClaimRefusal(machineBudgetState(board, Date.now()));
+    if (refusal) throw refusal;
+  }
   const estimate = held.item_expected_build_minutes;
   const autoNextSnapshot = args[1].autoNext ? claimWorktreeSnapshot(ctx.info.root) : null;
   // The claiming session's declared model caps its seat's route, so a light-route session in a strong seat cannot claim strong work (#3678).
   const seat = store.agentById(board, args[1].agentId);
   const sessionCap = seat && seat.agent_lane !== COORDINATOR ? sessionRoute(seat.agent_route, seat.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers) : null;
   const routeCap = sessionCap && sessionCap !== seat.agent_route ? sessionCap : null;
-  const result = await ordered(ctx, board, 'claim', [args[0], { ...args[1], ...(estimate == null ? {} : { buildBudgetMinutes: accepted.itemBuildBudgetMinutes ?? 30 }), ...(autoNextSnapshot ? { autoNextSnapshot } : {}), ...(exitRules?.enabled ? { exitRules, exitClaimKey: randomUUID() } : {}),
+  const result = await ordered(ctx, board, 'claim', [args[0], { ...args[1], ...(estimate == null ? {} : { buildBudgetMinutes: accepted.itemBuildBudgetMinutes ?? 30 }), ...(autoNextSnapshot ? { autoNextSnapshot } : {}), ...(exitRules?.enabled ? { exitRules: sealExitCheckpoints(ctx.config, exitRules), exitClaimKey: randomUUID() } : {}),
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     ...(refreshPolicy && !adoptCorrection ? { refreshPolicy: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     ...(routingPolicy ? { reworkRoutingPolicy: routingPolicy } : {}),
     ...(routeCap ? { routeCap } : {}), ...(Number.isSafeInteger(ctx.config.claims?.perSeat) ? { perSeat: ctx.config.claims.perSeat } : {}),
     // The gate waits and N this computer reads travel in the move, so a replay after an outage decides alike (#7775).
-    ...store.claimAdmission(board, args[0], args[1].agentId, Number.isSafeInteger(ctx.config.claims?.perSeat) ? ctx.config.claims.perSeat : null),
+    ...store.claimAdmission(board, args[0], args[1].agentId, Number.isSafeInteger(ctx.config.claims?.perSeat) ? ctx.config.claims.perSeat : null, { runs: store.boardRunsReader(board, ctx.file) }),
     reviewPolicy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }]);
   if (!result.renewed && exitRules?.enabled) (await (await import('./exit/rules.js')).loadExitRules()).captureExitAnchor(ctx, board, args[0], args[1].agentId);
+  // seat.checkpoints (off by default): a fresh claim records what is left to build; a renewal or a correction re-claim records nothing [C7,#8549].
+  if (!result.renewed && !adoptCorrection && !refreshPolicy) await recordCheckpoint(ctx, board, { item: args[0], agent: args[1].agentId, moment: 'claim', parts: { left: [`build #${args[0]}: ${held.item_title}`], evidence: args[1].head ? [`claim head ${args[1].head}`] : [] } }, ordered);
   return result;
 }
 
@@ -275,7 +289,7 @@ export async function claimOrdered(ctx, board, args) {
  * @returns {(item: any) => { text: string, digest: string }}
  */
 export function freezer(ctx, options = {}) {
-  return criterionFreezer({ root: ctx.info.root, isMain: ctx.info.isMain, config: ctx.config }, options);
+  return requireModule('../../../../packages/moves/index.js').criterionFreezer({ root: ctx.info.root, isMain: ctx.info.isMain, config: ctx.config }, options);
 }
 
 /** Carry a safe main fast-forward out of the board transaction so claim can retry at the new HEAD. */

@@ -1,3 +1,5 @@
+import { listThinRead } from '../../../../../packages/config/light.js';
+import { thinListRows } from '../list/thin.js';
 import { trunkRef } from '../../../../../packages/sandbox/light.js';
 import { withBoardRead } from '../board/read.js';
 /** The pullboard list command, in its own module so an item adding another command never edits these lines. */
@@ -20,16 +22,18 @@ export const nativeBoardRequired = false;
 /** Run `pullboard list` and return its exit code. */
 export async function run(io, { first, values }) {
   const ctx = context(io);
-  const { items, agents, merging, needsRescope = [] } = await withBoardRead(ctx, (board) => {
+  // With list.thinRead on, the thin door serves the rows; null (no readable board, or one a read must not open) takes the full path below [C7,#9089].
+  const thin = listThinRead() ? thinListRows({ cwd: io.cwd, lane: first, all: values.all, clock: ctx.clock }) : null;
+  const { items, agents, merging, needsRescope = [] } = thin ?? await withBoardRead(ctx, (board) => {
     const rows = store.listItems(board, { lane: first, all: values.all });
     const items = rows.map(verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).project);
     // JSON returns these complete rows; agent names and merge labels belong only to the text rendering.
-    if (values.json) return { items };
+    if (values.json) return { items, needsRescope: store.allItemsNeedingRescope(board) };
     return { needsRescope: store.allItemsNeedingRescope(board), items, agents: store.listAgents(board),
       merging: new Set(rows.filter(item => !['verified', 'withdrawn'].includes(item.item_status) && mainMergeFor(board, item.item_id)).map(item => item.item_id)) };
   });
   const filtered = items.filter((item) => !values.route || item.item_route === values.route);
-  if (values.json) io.result({ items: filtered });
+  if (values.json) io.result({ items: filtered, needsRescope });
   else if (!filtered.length) io.say(values.all ? 'no items yet' : 'nothing open; --all shows closed items');
   else filtered.forEach((item) => io.say(itemLine(item, (id) => agentDisplayName(agents, ctx.config, id), merging.has(item.item_id))));
   // Items next is holding back from a lane and route after a release, each with its reason and age (#3742).

@@ -19,6 +19,7 @@ import { reviewReleaseCooldown as routingReviewReleaseCooldown } from "../../../
 import { seatFamily } from "../../../verify/index.js";
 import { routingStrictReviewProblem } from "../../../verify/index.js";
 import { reviewFamilyProblem } from "../../../verify/index.js";
+import { declaredLimitProblem } from "../../../verify/index.js";
 import { twoTierReviews } from "../../../verify/index.js";
 import { setItem as writeItemFields } from "../../../items/index.js";
 import { foreignBlockers as readForeignBlockers } from "../../../items/index.js";
@@ -39,6 +40,7 @@ import { atomic } from "./board/event/log.js";
 import { logEvent } from "./board/event/log.js";
 import { verdictReviewProblem } from "../../../verify/index.js";
 import { verdictsFor } from "../../../verify/index.js";
+import { verdictReads } from "../../../verify/index.js";
 import { acceptedVerdict } from "../../../verify/index.js";
 import { checkedLandingCommit } from "../../../verify/index.js";
 import { itemFiles } from "../../../items/index.js";
@@ -161,7 +163,7 @@ export { setBarReady, signBar, seatFamily, canonicalFamily } from "../../../veri
 export { coordinatorCheck, completeCheckBaseline, itemCheckAuthor } from "./baseline/check.js";
 
 export { atomic, logEvent };
-export { verdictReviewProblem, verdictsFor, acceptedVerdict, checkedLandingCommit };
+export { verdictReviewProblem, verdictReads, verdictsFor, acceptedVerdict, checkedLandingCommit };
 export { landingTestDefects, recordLandingTestDefect, closeLandingTestDefect } from "../logic/board/landing/test/defects.js";
 export { recordSelectorGap, selectorGapCandidate } from "../logic/board/gap.js";
 export { relandAccepted, acceptedRelandCandidate, relandConflictRecorded } from "../logic/board/reland.js";
@@ -174,6 +176,7 @@ export { landingFlakes, landingWaiverCovers, landingWaiverKind };
 export { acceptCheck } from "../../../verify/index.js";
 export { declareJob, recordJobRun } from "../logic/board/jobs.js";
 export { recordUsage } from "../../../stats/light.js";
+export { recordCoordinatorUsage } from "../../../stats/light.js";
 export { recordUsageBatch } from "../../../stats/light.js";
 export { recordSharedUsage } from "../../../stats/light.js";
 export { proofReceipts, recordProofRun, storeTestReceipt } from "./receipts.js";
@@ -354,7 +357,7 @@ export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', r
     policyAllows: (found) =>
       policy === COORDINATOR && found.item_lane !== COORDINATOR && agentId !== COORDINATOR ? new Refused('COORDINATOR_VERIFIES', 'this repo has the coordinator verify lane work') : null,
     requiredReviewFamily: found => requiredReviewFamilyProblem(board, found, agentId),
-    familyAllows: (found) => routingStrictReviewProblem(board, found, agentId) ?? (twoTierReviews(board) ? reviewFamilyProblem(board, found, agentId, relaxationFor && relaxationFor(found) ? 'prefer' : relaxationFor ? frozenFamilyPolicy(found, familyPolicy) : familyPolicy) : familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
+    familyAllows: (found) => declaredLimitProblem(board, found, agentId) ?? routingStrictReviewProblem(board, found, agentId) ?? (twoTierReviews(board) ? reviewFamilyProblem(board, found, agentId, relaxationFor && relaxationFor(found) ? 'prefer' : relaxationFor ? frozenFamilyPolicy(found, familyPolicy) : familyPolicy) : familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
       ? new Refused('O2_FAMILY_MATCH', `#${found.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`)
       : null),
     reviewFree: (found) => {
@@ -388,7 +391,7 @@ export { EVIDENCE_KINDS } from "../logic/board/audience.js";
 
 export { openDecisions } from "./board/query.js";
 
-export { inbox } from "../logic/board/inbox.js";
+export { inbox, enqueueInboxMark, flushInboxMarks, takeInboxMarks } from "../logic/board/inbox.js";
 
 export { unreadCount } from "./board/query.js";
 
@@ -398,6 +401,8 @@ export { FACT_KINDS } from "../../../items/index.js";
 export { factReference };
 
 export { itemThread } from "./board/query.js";
+
+export { itemThreads } from "./board/query.js";
 
 /** The enclosing move's transaction owns these implicit notices; older replay emits none. */
 export function postRigorNotices(board, trigger) {

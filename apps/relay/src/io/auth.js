@@ -29,6 +29,8 @@ import {
 import { presenceAttestation } from '../../../../packages/person/index.js';
 
 export const ACCESS_WINDOW_MS = 10 * 60_000;
+/** The credential database's file name under the relay data folder; this module opens and writes it, so it owns the store. */
+export const AUTH_DATABASE_FILE = 'auth.sqlite';
 const MAX_TTL = 30 * 24 * 3600_000;
 
 /** Hash credentials before any database lookup or persistence. */
@@ -735,6 +737,22 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
       if (label !== undefined) db.prepare('UPDATE relay_credentials SET name=? WHERE id=?').run(label, issued.id);
       return { ...issued, board, machine };
     },
+    /** Extend only a live machine or its own person-issued coordinator, without changing its authority. */
+    async renewCredential(token, { board }) {
+      identifier(board, 'BAD_BOARD');
+      await auth.authenticate(token, { board, write: true });
+      return lifecycle(() => {
+        const row = credential(token);
+        if (row.kind !== 'machine' && !(row.kind === 'board' && row.agent === 'coordinator' && row.root)) {
+          throw new Refused('HUMAN_REQUIRED', 'renew this board’s live machine or its own person-issued coordinator credential; sign in explicitly to replace an expired credential');
+        }
+        const renewedAt = now();
+        const expires = renewedAt + MAX_TTL;
+        db.prepare('UPDATE relay_credentials SET expires=? WHERE id=?').run(expires, row.id);
+        return { id: row.id, kind: row.kind, board: row.board, created: row.created, renewedAt, expires,
+          ...(row.kind === 'machine' ? { machine: row.agent } : { agent: row.agent, root: true }) };
+      });
+    },
     /** List live computer identities only for this board's machine or a freshly authorized person. */
     async listMachines(token, board) {
       identifier(board, 'BAD_BOARD');
@@ -764,7 +782,9 @@ export function createRelayAuth({ database, github, now = Date.now, sessionTTL =
         const existing = seat(board, agent);
         if (principal.kind === 'board') {
           if (!recover && principal.agent === agent) {
-            const renewed = issue(principal.user, 'board', board, agent, expiresIn, Boolean(current.root), current.lineage ?? null);
+            // A person-issued coordinator keeps the rolling monthly lease when its client rotates it.
+            // Ordinary agent tokens retain their requested/default short lifetime.
+            const renewed = issue(principal.user, 'board', board, agent, current.root ? MAX_TTL : expiresIn, Boolean(current.root), current.lineage ?? null);
             db.prepare('UPDATE relay_credentials SET revoked=1 WHERE id=?').run(current.id);
             return { ...renewed, board, agent };
           }

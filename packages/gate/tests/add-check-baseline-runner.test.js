@@ -6,18 +6,18 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from './fixtures/child.js';
+import { runFixtureGit } from './fixtures/child.js';
 import { policyRepository } from '../../store/tests/fixtures/submit.js';
-import { fixtureMachineSettings } from '../../../apps/cli/tests/fixtures/testkit.js';
-import { fixtureProjectPolicy } from '../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureMachineSettings } from './fixtures/testkit.js';
+import { fixtureProjectPolicy } from './fixtures/testkit.js';
 import { executionServices } from '../../../apps/cli/tests/fixtures/gate/execution.js';
-import { HOST } from '../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { installSshStandIn } from '../../../apps/cli/tests/fixtures/runner/ssh.js';
+import { HOST } from './fixtures/runner/ssh.js';
+import { installSshStandIn } from './fixtures/runner/ssh.js';
 import { measureBaseline } from '../src/io/check/baseline/worker.js';
 import { CHECK_BASELINE_KIND } from '../../api/index.js';
 import { offerCheckBaseline } from '../../api/index.js';
-import { openKitBoard } from '../../../apps/cli/tests/fixtures/testkit.js';
+import { openKitBoard } from '../../board/tests/fixtures/board.js';
 
 const EXPECTED = { command: 'node apps/cli/src/io/run/tests.js test/a.test.js', main: 'a'.repeat(40) };
 

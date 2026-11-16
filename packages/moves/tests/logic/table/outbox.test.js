@@ -163,3 +163,11 @@ test('a rebuild stopped after any step is finished by resume: acknowledged moves
   }
   assert.deepEqual([...stops].sort(), [0, 1, 2, 3, 4]);
 });
+
+test('clause 1: a move queued onto an all-parked outbox leaves it queued, as the writer records it [C7,#8436]', () => {
+  // The writer (outboxCounts) reads an outbox as parked only when every move is parked; a new unparked move makes it queued, and parked means refused for good while later moves keep flowing (docs/api.md).
+  const answer = run(snap({ state: 'parked', moves: 2, parked: 2 }), { name: 'queue' });
+  assert.deepEqual([answer.patch.outbox.state, answer.patch.outbox.moves, answer.patch.outbox.parked], ['queued', 3, 2]);
+  assert.equal(run(snap({ state: 'none', moves: 0 }), { name: 'queue' }).patch.outbox.state, 'queued');
+  assert.equal(run(snap({ state: 'sent', sent: 1 }), { name: 'queue' }).patch.outbox.state, 'sent');
+});

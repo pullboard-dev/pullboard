@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { withGateSlot } from '../../../index.js';
 import { listResources } from '../../../../resources/index.js';
 import { fixtureCommittedGraph } from '../../../../store/tests/fixtures/cell.js';
-import { fixtureMachineSettings } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureMachineSettings } from '../../fixtures/testkit.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { executionServices } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
 

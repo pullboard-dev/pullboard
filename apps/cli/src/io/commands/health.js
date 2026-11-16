@@ -10,24 +10,29 @@ import { unfinishedFolders } from '../item/folder.js';
 import { fileURLToPath } from 'node:url';
 /** The pullboard health command, in its own module so an item adding another command never edits these lines. */
 import { existsSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
 import {
   boardHealth,
   healthLines,
+  slowHoldLines,
 } from '../../../../../packages/health/index.js';
 import {
   context,
 } from '../entry.js';
+import { holdLogRows } from '../../../../../packages/store/index.js';
 import { openBoardReadOnly } from '../../../../../packages/store/index.js';
 import { HEALTH_SENTINEL_ENGINE } from '../../../../../packages/store/index.js';
 import { readBlocks } from '../../../../../packages/items/index.js';
 import { rigorReport } from '../../../../../packages/store/index.js';
 import { dispatchHealth } from '../../../../../packages/sentinels/index.js';
-import { readGitSyncRepairs } from '../../../../../packages/config/index.js';
+import { readGitSyncRepairs } from '../../../../../packages/sync/index.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { runnerLeaseHealth } from '../../../../../packages/resources/index.js';
+import { healthDiskFloorGb } from '../../../../../packages/config/index.js';
+import { diskFloorFinding } from '../health/disk.js';
 
 /** Run `pullboard health` and return its exit code. */
-export async function run(io, { values = {} } = {}) {
+export async function run(io, { values = {}, statfs } = {}) {
   const ctx = context(io);
   const report = boardHealth(ctx.file, { root: ctx.info.root, config: ctx.config, now: ctx.clock.now(), dispatchHealth, machineSettings: loadMachineSettings() });
   report.runnerTransportLosses = runnerLossHealth(recentReceipts(ctx.info.root, ctx.clock.now().getTime()), ctx.clock.now().getTime());
@@ -48,6 +53,7 @@ export async function run(io, { values = {} } = {}) {
     report.maintenanceTimer = maintenanceTimerHealth(ctx.info.commonDir);
     report.dirtyWorktrees = maintenanceHealth(ctx.info.commonDir, await readMaintenanceSnapshot(ctx), ctx.clock.now().getTime());
   }
+  report.lowDisk = diskFloorFinding(ctx.info.root, healthDiskFloorGb(), statfs);
   report.unfinishedFolders = unfinishedFolders(ctx.info.root, seatsByPath(ctx.file));
   report.blocks = blockReport(readBlocks(ctx.info.commonDir, { since: new Date(ctx.clock.now().getTime() - 86_400_000) }), seatsByPath(ctx.file));
   io.result?.(report);
@@ -56,6 +62,7 @@ export async function run(io, { values = {} } = {}) {
     io.say(`maintenance timer: ${timer.state}; key ${timer.key ?? 'unknown'}; pid ${timer.pid ?? 'unknown'}; last run ${timer.lastRun?.completedAt ?? 'unknown'}${timer.cause ? '; ' + timer.cause : ''}`);
   }
   for (const line of healthLines(report)) io.say(line);
+  for (const line of slowHoldLines(holdLogRows(), realBoardFile(ctx.file), { now: ctx.clock.now().getTime() })) io.say(line);
   for (const line of runnerLossLines(report.runnerTransportLosses)) io.say(line);
   if (report.toolBuild.enabled) io.say(report.toolBuild.build
     ? `Pinned tool build ${report.toolBuild.build.commit}; age ${Math.floor(report.toolBuild.ageMs / 1000)}s; running ${report.toolBuild.runningCommit ?? 'live installation'}`
@@ -65,6 +72,7 @@ export async function run(io, { values = {} } = {}) {
   for (const lease of report.runnerLifecycleProblems) io.say(`runner lifecycle observation unavailable; holder pid ${lease.pid}${lease.item ? ` item #${lease.item}` : ''}; ${lease.problem}; ${lease.repo}`);
   for (const entry of report.autoQuarantines) io.say(`Automatic quarantine: ${entry.file} :: ${entry.name}; repair #${entry.item} must land`);
   for (const repair of report.gitSyncRepairs) io.say('Git sync recovery: ' + JSON.stringify(repair));
+  if (report.lowDisk) io.say(report.lowDisk.line);
   for (const line of blockLines(report.blocks, { detail: Boolean(values.detail) })) io.say(line);
   for (const row of report.dirtyWorktrees) io.say(row.kind === 'withdrawal-retained'
     ? `withdrawal cleanup deferred for #${row.item}: ${JSON.stringify(row.path)}; ${row.reason}`
@@ -132,4 +140,9 @@ function automaticQuarantines(file, clock) {
   const db = openBoardReadOnly(file);
   try { return flakeQuarantines({ db, clock }).filter(entry => entry.autoSubmit && entry.status === 'quarantined'); }
   finally { db.close(); }
+}
+
+/** The board file's real path, which is how the hold log names it; the given path when it cannot be resolved. */
+function realBoardFile(file) {
+  try { return realpathSync(file); } catch { return file; }
 }

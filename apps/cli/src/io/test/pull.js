@@ -1,5 +1,5 @@
 /**
- * `pullboard test` by pull: under gate.runnerDispatch pull, or for an item the gate.pullPilot setting picks, a test run
+ * `pullboard test` by pull: a test run
  * is one runner job row. This host pins the committed source as a git ref, offers the job and waits on its row; a
  * runner fetches the commit from the trunk remote and runs the files. Nothing here packs code or opens ssh [P7].
  *
@@ -10,7 +10,7 @@ import { randomBytes } from 'node:crypto';
 import { setTimeout as pause } from 'node:timers/promises';
 import { Refused } from '../../../../../packages/kernel/light.js';
 import { FILE_TIME_LINE } from '../../../../../packages/gate/index.js';
-import { pullGateFor } from '../../../../../packages/config/index.js';
+import { allTestOutcomes } from '../../../../../packages/gate/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { gateRunnerWaitMs } from '../../../../../packages/config/index.js';
 import { git } from '../../../../../packages/git/index.js';
@@ -18,6 +18,7 @@ import { headCommit } from '../../../../../packages/git/index.js';
 import { jobView } from '../../../../../packages/jobs/index.js';
 import { writeStep } from '../../../../../packages/jobs/index.js';
 import { PULLED } from '../../../../../packages/drive/index.js';
+import { boardRunsHolder } from '../../../../../packages/store/index.js';
 import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
 import { fileBudgetField } from './file-limit.js';
@@ -52,6 +53,8 @@ let light = null;
 try { light = await import(pathToFileURL(join(tools, 'packages', 'gate', 'light.js')).href); } catch { /* an older main: a red run names no cases */ }
 const input = JSON.parse(readFileSync(0, 'utf8'));
 const started = performance.now();
+// The job's own start time and the runner's 1-minute load at that moment, so a census row can place the job [C7,#9284].
+const startedAt = new Date().toISOString(), loadAtStart = loadavg()[0];
 // A runner job is nobody's subtest: a node:test context inherited from the runner's own host would skip every file.
 // This runner is the job's whole execution host, so the run spreads its files over every core [P7,#5790].
 // The job's main names the base the candidate's import graph forks from, so its key analysis parses only what changed [C7,#6672].
@@ -93,7 +96,7 @@ const framed = () => {
 const receipt = { version: 1, kind: 'test', main: input.main, source: input.source, files: input.files, steps: { test: Math.round(performance.now() - started) },
   environment: { node: process.versions.node, platform: process.platform, arch: process.arch }, green: ran.status === 0,
   // The runner's own load, so the board can keep main's side of a comparison as a native receipt [V4,C7].
-  load: { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) },
+  load: { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) }, startedAt, endedAt: new Date().toISOString(), loadAtStart,
   phases: [{ role: 'test', status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: '', ...(ran.status !== 0 ? { failures, ...(failureSignatures ? { failureSignatures } : {}) } : {}) }] };
 // The receipt line stays under the runner's receipt-line cap: the tail shrinks until the whole line fits.
 if (runId) receipt.outcomes = framed();
@@ -134,6 +137,35 @@ const verdicts = () => {
   return out;
 };
 try { receipt.verdicts = verdicts(); } catch { receipt.verdicts = null; }
+// Each file's own wall ms from its time line, read from the whole output before the tail is cut, so a clipped receipt still times every file [C7,#8576].
+try {
+  const times = {};
+  for (const row of text.split('\\n')) {
+    if (!row.startsWith(${JSON.stringify(FILE_TIME_LINE)})) continue;
+    const rest = row.slice(${FILE_TIME_LINE.length}), space = rest.indexOf(' '), ms = Number(rest.slice(0, space));
+    if (space > 0 && Number.isFinite(ms) && ms >= 0) times[rest.slice(space + 1).trim()] = Math.max(times[rest.slice(space + 1).trim()] ?? 0, ms);
+  }
+  receipt.times = times;
+} catch { receipt.times = null; }
+// Each file's ms inside its top-level cases, read from the whole TAP before the tail is cut and placed by case name through the outcome rows, so the census can say how much of a file's wall is setup [C7,#9028].
+try {
+  const owners = new Map();
+  for (const row of receipt.outcomes ?? []) owners.set(row[1], [...new Set([...(owners.get(row[1]) ?? []), row[0]])]);
+  const caseMs = {}, rows = text.split('\\n');
+  for (let at = 0; at < rows.length; at += 1) {
+    const head = /^(?:not ok|ok)\\s+\\d+\\s+-\\s+(.*)$/u.exec(rows[at]);
+    if (!head) continue;
+    let ms = null;
+    for (let next = at + 1; next < rows.length && /^\\s/u.test(rows[next]); next += 1) {
+      if (/^\\s+(?:not ok|ok)\\s+\\d+\\s+-/u.test(rows[next])) break;
+      const field = /^ {2}duration_ms:\\s*([\\d.]+)\\s*$/u.exec(rows[next]);
+      if (field) { ms = Number(field[1]); break; }
+    }
+    const files = owners.get(head[1].replace(/\\s+#\\s*(?:SKIP|TODO)\\b.*$/iu, '')) ?? owners.get(head[1]);
+    if (ms !== null && files && files.length) for (const file of files) caseMs[file] = (caseMs[file] ?? 0) + ms / files.length;
+  }
+  receipt.caseMs = receipt.outcomes ? caseMs : null;
+} catch { receipt.caseMs = null; }
 let keep = 40000, line;
 do { receipt.phases[0].tail = text.slice(-keep); line = ${JSON.stringify(GATE_RECEIPT)} + JSON.stringify(receipt); keep = Math.floor(keep / 2); } while (Buffer.byteLength(line) > 56 * 1024 && keep > 0);
 // Outcomes too many for the line are dropped whole, so the comparison reads them unavailable, never partial.
@@ -143,8 +175,7 @@ process.exitCode = receipt.green ? 0 : 1;
 `;
 
 /**
- * True when this test run is a runner job row: under gate.runnerDispatch pull, or when the seat's claimed item is one
- * the pull pilot picks, as its submit would be. `--affected` and `--diagnose` keep the existing path, since their
+ * True when this test run is a runner job row: always, since every runner job is a row. `--affected` and `--diagnose` keep the existing path, since their
  * selection and full log are read on this machine.
  *
  * @param {number | undefined} item - The seat's sole claimed item.
@@ -152,7 +183,7 @@ process.exitCode = receipt.green ? 0 : 1;
  */
 export function pullTestWanted(item, values) {
   if (values.affected === true || values.diagnose === true) return false;
-  return runnerDispatchMode() === 'pull' || (item !== undefined && pullGateFor(Number(item)));
+  return runnerDispatchMode() === 'pull';
 }
 
 /**
@@ -181,23 +212,79 @@ export function testJobData({ main, commit, command, files, runId = null, fileBu
 }
 
 /**
- * Pin a commit under refs/pullboard/test and offer one test job for it. Returns the job id and the pinned ref.
+ * Pin a commit under refs/pullboard/test and name the one test job row for it, without writing the row.
  * Why a ref: the trunk remote serves only reachable commits, and an agent's commit is reachable from nothing else yet.
  */
-async function offerTestJob(ctx, { item, commit, main, command, files, runId = null, fileBudgetMs = null }) {
+async function testJobRow(ctx, { item, commit, main, command, files, runId = null, fileBudgetMs = null, censusPerRunner = null, censusPerRunnerQuiet = null }) {
   const { root } = ctx.info;
-  const [{ offerJob }, { GATE_NEEDS, GATE_RECEIPT, gateJobRun }, { PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX }, { FAILURE_DIAGNOSTICS_SOURCE }] = await Promise.all([import('../../../../../packages/api/index.js'), import('../submit/pull.js'),
+  const [{ GATE_NEEDS, GATE_RECEIPT, gateJobRun }, { PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX }, { FAILURE_DIAGNOSTICS_SOURCE }] = await Promise.all([import('../submit/pull.js'),
     import('../../../../../packages/gate/index.js'), import('../../../../../packages/kernel/index.js')]);
   const tag = randomBytes(6).toString('hex');
   const ref = `refs/pullboard/test/${tag}`;
   git(root, ['update-ref', ref, commit]);
   const request = { run: gateJobRun(), input: { main, entry: testJobEntry(GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX, FAILURE_DIAGNOSTICS_SOURCE), data: testJobData({ main, commit, command, files, runId, fileBudgetMs }) }, commits: [main] };
-  const job = withBoard(ctx, board => offerJob(board.db, { id: `test:${commit.slice(0, 12)}:${tag}`, kind: TEST_JOB_KIND, priority: 'interactive', needs: GATE_NEEDS,
-    item: item === undefined ? null : Number(item), candidate: commit, base: main, request }));
-  // With no registered runners this machine is its own runner, as a pull submit makes it: otherwise the job waits unclaimed [P7,C7].
+  return { ref, row: { id: `test:${commit.slice(0, 12)}:${tag}`, kind: TEST_JOB_KIND, priority: 'interactive', needs: GATE_NEEDS,
+    item: item === undefined ? null : Number(item), candidate: commit, base: main, request, ...(censusPerRunner ? { censusPerRunner } : {}), ...(censusPerRunner && censusPerRunnerQuiet ? { censusPerRunnerQuiet } : {}) } };
+}
+
+/** Start this machine's loopback runner when it has no registered one, as a pull submit does: otherwise the job waits unclaimed [P7,C7]. */
+async function startLocalRunner(ctx) {
   const [{ primaryCheckoutRoot }, { ensureLocalRunner }] = await Promise.all([import('../worktree.js'), import('../runner/local.js')]);
   const host = primaryCheckoutRoot(ctx.info);
   if (host) await ensureLocalRunner(host);
+}
+
+/**
+ * The holder of the board's runs handle while runs_store is on, else null: an interactive test job's rows live there and
+ * nowhere on the board, since no move uses them [P7,B2,#9011]. The runs file opens on first use of `holder.db`.
+ *
+ * @param {object} ctx
+ * @returns {{ readonly db: import('node:sqlite').DatabaseSync } | null}
+ */
+export function testRunsHolder(ctx) {
+  return withBoardRead(ctx, board => boardRunsHolder(board, ctx.file));
+}
+
+/**
+ * Offer a test job row to the store that holds it: the runs file when `runs` is given, else the board. With runs_store on
+ * the job gets no board run row, because nothing on the board decides on it; off, it is the board job row as on main.
+ *
+ * @param {Function} offerJob - The api's offerJob.
+ * @param {{ board?: { db: import('node:sqlite').DatabaseSync }, runs?: { db: import('node:sqlite').DatabaseSync } | null }} stores
+ * @param {object} row
+ */
+export function offerTestRow(offerJob, { board, runs = null }, row) {
+  return offerJob((runs ?? board).db, row);
+}
+
+/** A test job's view from the store that holds it: the runs file when `runs` is given, else the board. */
+export function readTestRow({ board, runs = null }, job) {
+  return jobView((runs ?? board).db, job);
+}
+
+/** Offer one test job for a commit. Returns the job id and the pinned ref. */
+async function offerTestJob(ctx, fields, runs) {
+  const { offerJob } = await import('../../../../../packages/api/index.js');
+  const { ref, row } = await testJobRow(ctx, fields);
+  const job = runs ? offerTestRow(offerJob, { runs }, row) : withBoard(ctx, board => offerTestRow(offerJob, { board }, row));
+  await startLocalRunner(ctx);
+  return { job: job.id, ref };
+}
+
+/**
+ * Queue an accept's frozen check as one runner job on the open board and return its id at once; the caller settles the
+ * verdict from the job's receipt, so no waiting happens here. The commit stays pinned under the returned ref until then [C7,#3161].
+ *
+ * @param {object} ctx
+ * @param {{ db: import('node:sqlite').DatabaseSync }} board - The board the verdict is being recorded on.
+ * @param {{ item: number, commit: string, main: string, command: string }} fields - command: the item's frozen check.
+ * @returns {Promise<{ job: string, ref: string }>}
+ */
+export async function offerAcceptCheck(ctx, board, { item, commit, main, command }) {
+  const { offerJob } = await import('../../../../../packages/api/index.js');
+  const { ref, row } = await testJobRow(ctx, { item, commit, main, command, files: [] });
+  const job = offerJob(board.db, row);
+  await startLocalRunner(ctx);
   return { job: job.id, ref };
 }
 
@@ -207,11 +294,11 @@ async function offerTestJob(ctx, { item, commit, main, command, files, runId = n
  *
  * @returns {Promise<{ receipt: Record<string, any>, runner: string | null }>}
  */
-async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS }) {
+async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS, runs = null }) {
   const deadline = Date.now() + gateRunnerWaitMs();
   let beat = 0, claimed = null;
   for (;;) {
-    const view = withBoardRead(ctx, board => jobView(board.db, job));
+    const view = runs ? readTestRow({ runs }, job) : withBoardRead(ctx, board => readTestRow({ board }, job));
     if (!view) throw new Refused('TEST_JOB_MISSING', `test job ${job} is gone from the board; run pullboard test again`);
     const posted = [...view.steps].reverse().find(step => step.name === 'receipt');
     if (posted) return { receipt: posted.payload.receipt ?? {}, runner: posted.payload.runner ?? null };
@@ -234,19 +321,26 @@ async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS 
  * names the job on its run, so the receipt still settles the run if the worker stops before it (#7574).
  */
 async function runJobFor(ctx, fields, { agent, say, testRun }) {
-  const offered = await offerTestJob(ctx, fields);
-  if (typeof testRun === 'string' && testRun) withBoard(ctx, board => writeStep(board.db, testRun, PULLED, { job: offered.job, until: Date.now() + gateRunnerWaitMs() }));
+  // The moment a runner took the job, for a census row's claimedAt [C7,#9284].
+  let claimedAt = null;
+  const noted = say;
+  say = line => { if (claimedAt === null && /took test job/u.test(String(line))) claimedAt = new Date().toISOString(); noted?.(line); };
+  const runs = testRunsHolder(ctx);
+  const offered = await offerTestJob(ctx, fields, runs);
+  if (typeof testRun === 'string' && testRun) withBoard(ctx, board => writeStep((runs ?? board).db, testRun, PULLED, { job: offered.job, until: Date.now() + gateRunnerWaitMs() }));
   say?.(`pullboard test: offered test job ${offered.job} for ${fields.commit.slice(0, 12)}; a runner fetches it from the trunk remote and runs it`);
   try {
-    const { receipt, runner } = await receiptOf(ctx, { job: offered.job, agent, say });
+    const { receipt, runner } = await receiptOf(ctx, { job: offered.job, agent, say, runs });
     const gate = receipt.gate ?? {};
     const phase = gate.phases?.[0] ?? null;
     const green = receipt.status === 0 && gate.green === true && phase?.status === 0;
     const output = phase?.tail ?? gate.error ?? receipt.tail ?? '';
     const outcomes = Array.isArray(gate.outcomes) ? gate.outcomes.filter(Array.isArray).map(([file, name, passed, skipped]) => ({ file, name, passed, skipped })) : null;
-    return { job: offered.job, runner, green, output: String(output), failures: Array.isArray(phase?.failures) ? phase.failures : null,
+    return { job: offered.job, runner, green, claimedAt, startedAt: typeof gate.startedAt === 'string' ? gate.startedAt : null, endedAt: typeof gate.endedAt === 'string' ? gate.endedAt : null, loadAtStart: Number.isFinite(gate.loadAtStart) ? gate.loadAtStart : null, output: String(output), failures: Array.isArray(phase?.failures) ? phase.failures : null,
       signatures: Array.isArray(phase?.failureSignatures) && phase.failureSignatures.length === phase?.failures?.length ? phase.failureSignatures : null, durationMs: receipt.durationMs ?? null, outcomes,
-      verdicts: gate.verdicts && typeof gate.verdicts === 'object' && !Array.isArray(gate.verdicts) ? gate.verdicts : null };
+      verdicts: gate.verdicts && typeof gate.verdicts === 'object' && !Array.isArray(gate.verdicts) ? gate.verdicts : null,
+      times: gate.times && typeof gate.times === 'object' && !Array.isArray(gate.times) ? gate.times : null,
+      caseMs: gate.caseMs && typeof gate.caseMs === 'object' && !Array.isArray(gate.caseMs) ? gate.caseMs : null };
   } finally {
     try { git(ctx.info.root, ['update-ref', '-d', offered.ref]); } catch { /* a pin left behind only keeps a commit reachable */ }
   }
@@ -279,10 +373,10 @@ export async function probeTestAt(ctx, { commit, file, say }) {
  *
  * @param {object} ctx
  * @param {{ item: number, commit: string, main: string, command: string, files: string[], runId: string, say?: (line: string) => void, fileBudgetMs?: number | null }} fields
- * @returns {Promise<{ job: string, runner: string | null, green: boolean, output: string, outcomes: { file: string, name: string, passed: boolean, skipped: boolean }[] | null, verdicts: Record<string, 'green' | string[]> | null }>}
+ * @returns {Promise<{ job: string, runner: string | null, green: boolean, output: string, outcomes: { file: string, name: string, passed: boolean, skipped: boolean }[] | null, verdicts: Record<string, 'green' | string[]> | null, times: Record<string, number> | null, caseMs: Record<string, number> | null }>}
  */
-export async function runPulledComparison(ctx, { item, commit, main, command, files, runId, say, fileBudgetMs = null }) {
-  return runJobFor(ctx, { item, commit, main, command, files, runId, fileBudgetMs }, { say });
+export async function runPulledComparison(ctx, { item, commit, main, command, files, runId, say, fileBudgetMs = null, censusPerRunner = null, censusPerRunnerQuiet = null }) {
+  return runJobFor(ctx, { item, commit, main, command, files, runId, fileBudgetMs, censusPerRunner, censusPerRunnerQuiet }, { say });
 }
 
 /**
@@ -385,6 +479,43 @@ async function compareWithMain(ctx, run, { main, runner, paths, agent, say }) {
 }
 
 /**
+ * The summary's failures plus every failing case the run's outcome rows name that the output's tail did not show.
+ * Why: the runner keeps only the end of a long output, so a 25-file chunk with 10 failures listed one; the outcome
+ * rows cover every case, and `--json` failures[] must list every failing file [C7,#8949].
+ *
+ * @param {{ file: string | null, name: string, error: string }[]} failures - The failures the output's TAP shows.
+ * @param {{ output?: string, outcomes?: object[] | null, failures?: object[] | null }} ran
+ * @returns {{ file: string | null, name: string, error: string }[]}
+ */
+export function withOutcomeFailures(failures, ran) {
+  const seen = new Set(failures.map(row => `${row.file}\0${row.name}`));
+  const extra = [];
+  for (const row of [...failingOutcomes(ran).filter(one => !one.passed && !one.skipped), ...(ran.failures ?? [])]) {
+    const name = String(row.name ?? '').slice(0, 300), key = `${row.file}\0${name}`;
+    if (!row.file || !name || seen.has(key)) continue;
+    // A failure the TAP showed without its file is the same case once its outcome row names the file.
+    const unplaced = failures.find(one => !one.file && one.name === name);
+    if (unplaced) { unplaced.file = row.file; seen.add(key); continue; }
+    seen.add(key);
+    extra.push({ file: row.file, name, error: String(row.error ?? row.failure ?? 'no error line recorded') });
+  }
+  return [...failures, ...extra];
+}
+
+/**
+ * The case outcomes a pulled run's output names, so a failing case whose TAP carries no file still gets the file its
+ * outcome line names: the receipt's own outcomes when it has them, else every frame in the output [C7,#8852].
+ *
+ * @param {{ output?: string, outcomes?: object[] | null }} ran
+ * @returns {object[]}
+ */
+export function failingOutcomes(ran) {
+  const rows = (ran.outcomes ?? []).filter(row => row?.file && row.name);
+  if (rows.length) return rows;
+  try { return allTestOutcomes(ran.output); } catch { return []; }
+}
+
+/**
  * Run named test files as a pulled test job and return the result in the shape runTestFiles returns, so `pullboard
  * test` prints, records and exits as it does today. A red run is compared with main as today's run is: not for one
  * file unless --compare-main, and not when every red file is a known red.
@@ -409,7 +540,10 @@ export async function runPulledTests(ctx, { agent, item, files, values, knownRed
   const started = Date.now();
   const command = `${config.affectedTests.trimEnd()} ${paths.map(path => shellWord('./' + path)).join(' ')}`;
   const ran = await runJobFor(ctx, { item, commit, main, command, files: paths, ...(fileBudgetField(values).fileBudgetMs ? { fileBudgetMs: fileBudgetField(values).fileBudgetMs } : {}) }, { agent, say, testRun: values['test-run'] });
-  const summary = retainTestOutput(root, ran.output);
+  const summary = retainTestOutput(root, ran.output, { profile: { testOutcomes: failingOutcomes(ran) } });
+  const shown = summary.failures.length;
+  summary.failures = withOutcomeFailures(summary.failures, ran);
+  summary.omittedFailures = Math.max(0, summary.omittedFailures - (summary.failures.length - shown));
   // A runner's TAP names a case's file by the runner's own work folder; a failure is shown by the repo path the seat named [C7].
   for (const row of summary.failures) {
     const seen = String(row.file ?? ran.failures?.find(found => found.name === row.name)?.file ?? '').replace(/^\.\//u, '');

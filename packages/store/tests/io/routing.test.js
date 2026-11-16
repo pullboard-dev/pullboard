@@ -5,7 +5,7 @@ import * as store from '../../index.js';
 import { addMilestone } from '../../index.js';
 import { roadmap } from '../../index.js';
 import { setLineSetting } from '../../index.js';
-import { fixtureBoard } from '../../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../../board/tests/fixtures/board.js';
 import { cellSeat } from '../fixtures/cell.js';
 
 const HOUR = 60 * 60 * 1000;

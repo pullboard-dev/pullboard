@@ -6,6 +6,16 @@ import { launchRelaySender } from '../../index.js';
 
 let pending = Promise.resolve();
 
+/**
+ * Run work after every earlier awaited in-process call, and hold later ones until it settles.
+ * Why: scripts and CLI calls both touch process-global environment, cwd and streams [C7,#8251].
+ */
+export function serializeInProcess(work) {
+  const run = pending.then(work);
+  pending = run.then(() => undefined, () => undefined);
+  return run;
+}
+
 /** Restore an exact environment, including absent keys; never remove identity markers selectively. */
 function restoreEnvironment(saved) {
   for (const key of Object.keys(process.env)) if (!Object.hasOwn(saved, key)) delete process.env[key];

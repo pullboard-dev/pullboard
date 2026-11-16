@@ -2,9 +2,9 @@
 /** Real gates and item checks share the machine queue; landing priority and lease behavior stay intact [Q1,Q2,Q4,O5,O6,V18]. */
 import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
 import assert from 'node:assert/strict';
-import { startFixtureChild as spawn } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild as spawnSync } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { startFixtureChild as spawn } from '../../fixtures/child.js';
+import { runFixtureChild as spawnSync } from '../../fixtures/child.js';
+import { runFixtureChild } from '../../fixtures/child.js';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { renameSync } from 'node:fs';

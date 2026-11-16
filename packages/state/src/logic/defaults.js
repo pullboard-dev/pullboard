@@ -31,6 +31,10 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   NO_CLI_ENTRY: 'pass the pullboard entry file as cli when starting the serve sentinel',
   RUNNER_RESULT_SIGNATURE: 're-register the runner with pullboard runner add before accepting another result',
   RUNNER_RESULT_SOURCE: 'discard the result and rerun the pinned source on the runner',
+  TEMP_WORKTREE: 'keep the project outside the temporary folder, where the default placement ("worktrees": "beside") is persistent, then run pullboard worktree again',
+  CHECK_FILE_MISSING: 'commit the test file the frozen check names, or ask the coordinator to correct the check, then submit again',
+  RUNNER_UNATTRIBUTED: 'pass metadata.item and metadata.kind naming the work the runner runs for, or turn gate.requireRunnerAttribution off: pullboard settings',
+  BOARD_TOO_OLD: 'open this board with pullboard 0.9.3 first, then open it with this version',
   MACHINE_PROOF: 'run each frozen check on the composed tree so every clause has its own native receipt, then submit again',
   GATE_PENDING: 'take your next item now with pullboard next --take; the board holds the gate and next brings its result, or fix and resubmit if the gate went red',
   MACHINE_CLAUSE_RED: 'fix the failing command named in the message, commit, merge main, then submit again',
@@ -307,6 +311,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "RELAY_CONFIG": "ask the relay operator to repair the named service setting and restart; retain the local board and pending upload",
   "RELAY_PAGE_CACHE": "close other local Pullboard commands, then restore the private relay-pages cache permissions or remove only that device cache and retry; keep the board, relay link and key",
   "SHORT_SLOT_FULL_SUITE": "run the whole suite outside the short check, where it queues for an ordinary gate slot; short slots are only for runs that name their test files",
+  "CLOUD_BOARD_UNAPPROVED": "keep the board in its git repository with pullboard init; a cloud board waits for the person to approve spec row H29",
   "HUMAN_REQUIRED": "send it from the paired phone, or run pullboard relay on --all from the person's terminal",
   "IMPORT_FORMAT": "make an export with pullboard export > board.json, then import that file",
   "IMPORT_NOT_EMPTY": "import into a fresh repo whose board is empty: git init <dir> && cd <dir> && pullboard init",
@@ -606,7 +611,16 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   LAND_OFFER_ONLY: 'run pullboard land with no option, or land <id> --forced "<why>"',
   TIMED_SHELL_MISSING: 'pass the timed shell entry (options.timedShell or PULLBOARD_TIMED_SHELL) from the app that owns the shell, or run without a timeout',
   RELAY_OUTBOX_DEPENDS: 'add the item first and let the relay accept it, then repeat the move that acts on it',
-  RUNS_BOARD_MISMATCH: 'move the stray runs file aside; the board rebuilds in-flight work from its run rows'
+  RUNS_BOARD_MISMATCH: 'move the stray runs file aside; the board rebuilds in-flight work from its run rows',
+  COMMITS_NOT_SERVED: 'run pullboard settings board.commits off in the clone, or serve the board with pullboard serve',
+  INBOX_KEEP_OFF: 'set inbox.keepUntilActed to true to keep and archive inbox entries',
+  BAD_REVIEW_LIMIT: 'pullboard join <lane> --review-limit not-same-family',
+  RANGE_UNREADABLE: 'pass commits this checkout holds, or fetch the missing ones first',
+  REVIEW_RELEASE_REASON: 'run pullboard release <id> --reason BAR|FAMILY|INFRA|TOO_LARGE --note "why"',
+  RUNNER_RUN_SYNC: 'await a run on a runner: call runProfiledShellAsync instead of the synchronous runner',
+  RUNNER_BRIDGE_DEADLINE: 'rerun the verdict; if it repeats, shout the coordinator with this line',
+  BUDGET_STOP: 'raise budget.dailyUsd or budget.totalUsd in the machine settings file, or resume after the next UTC day begins',
+  MOVE_TABLES_MISSING: 'open the board through packages/board, or call provideMoveTables before the store runs its move tables'
 });
 
 /** The generic recovery footer old receipts recorded; defined here so light doors name it without loading Refused [C7,H16]. */

@@ -3,6 +3,8 @@ import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runRelaySender } from '../../../../packages/outbox/index.js';
+import * as outboxDoor from '../../../../packages/outbox/index.js';
+import { withOutboxShadow } from './outbox-shadow.js';
 import {
   outboxParkedOnly,
   outboxWaiting,
@@ -50,6 +52,7 @@ export function launchRelaySender(root, env) {
  * @returns {Promise<object>}
  */
 export async function relaySenderIo(root, io = {}) {
+  await withOutboxShadow(outboxDoor);
   const { relayOutboxSetting } = await import('./entry.js');
   const loadNativeBoard = () => import('../../../lib/index.js');
   const hookWorker = fileURLToPath(new URL('./hook/work.js', import.meta.url));

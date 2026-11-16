@@ -14,7 +14,7 @@ import { readTestOutcomes } from '../../../src/io/test/outcomes.js';
 import { formatTestOutcomes } from '../../../src/io/test/outcomes.js';
 import { INFRASTRUCTURE_CODES } from '../../../src/io/requeue.js';
 import { submitUntilSettled } from '../../../src/io/requeue.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../fixtures/child.js';
 
 const FILES = ['test/a.test.js', 'test/b.test.js', 'test/c.test.js', 'test/d.test.js'];
 const TREE = 'c'.repeat(40);

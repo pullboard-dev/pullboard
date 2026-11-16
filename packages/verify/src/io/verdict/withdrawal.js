@@ -12,9 +12,9 @@ function verdictPairs(board, id) {
 }
 
 /** Reuse an existing ordered read when supplied; standalone callers still load their own immutable pairs. */
-export function verdictWithdrawals(board, id, pairs = verdictPairs(board, id)) {
+export function verdictWithdrawals(board, id, pairs = verdictPairs(board, id), reopens = board.db.prepare("SELECT * FROM event WHERE item_id = ? AND event_kind = 'reopen' ORDER BY event_id").all(id)) {
   const result = new Map();
-  for (const row of board.db.prepare("SELECT * FROM event WHERE item_id = ? AND event_kind = 'reopen' ORDER BY event_id").all(id)) {
+  for (const row of reopens) {
     const detail = JSON.parse(row.event_detail), binding = detail.withdrawnVerdict;
     if (!binding) continue;
     const pair = pairs.find(({ verdict, event }) => verdict.verdict_id === binding.verdictId
