@@ -270,7 +270,11 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
     if (!enabled || written) return;
     written = true;
     // A command that wrote its whole document itself owns stdout: a second, empty envelope would break parsers.
-    if (streamed && !refusal && !code && result === undefined && !messages.length && !diagnostics.length && !remote) return;
+    // Its diagnostics go to stderr, so `--json` stdout stays one document a parser can read [C7].
+    if (streamed && !refusal && !code && result === undefined && !messages.length && !remote) {
+      for (const line of diagnostics) streams.stderr.write(`${line}\n`);
+      return;
+    }
     let document;
     if (refusal || (code && result === undefined)) {
       const text = refusal?.message ?? [...diagnostics, ...messages].join('\n');
