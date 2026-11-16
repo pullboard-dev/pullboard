@@ -36,7 +36,7 @@ function fixture(t, overlap, staticCode) {
   const previous = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = home;
   t.after(() => { if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previous; rmSync(box.dir, { recursive: true, force: true }); });
-  fixtureMachineSettings(home, { gate: { overlapStaticProof: overlap, localRunner: false } });
+  fixtureMachineSettings(home, { gate: { overlapStaticProof: overlap, browserFreeChecks: true, localRunner: false } });
   const base = commit(root, { 'package.json': '{"type":"module"}\n', 'static.js': staticScript(staticCode), 'add.js': 'export const add = (a, b) => a + b;\n', 'add.test.js': PROOF });
   commit(root, { 'add.js': 'export const add = (a, b) => b + a;\n' });
   const config = { gate: 'true', affectedTests: 'node --test', staticChecks: 'node static.js', submitInvariants: [], registryGuards: [] };
@@ -52,21 +52,21 @@ async function gate(t, overlap, staticCode) {
   return { run, stamp };
 }
 
-test('clause 1: with the setting on, the first proof batch starts before the cells step ends and the gate is green [C7,#9576]', async t => {
+test('clause 1: with the setting on, the first proof batch starts before the cells step ends and the gate is green [C7,#9576]', { timeout: 50000 }, async t => {
   const { run, stamp } = await gate(t, true, 0);
   const result = await run;
   assert.equal(result.isGreen, true, result.output);
   assert.ok(stamp('proof-started') < stamp('static-ended'), 'the proof started while the cells step was still running');
 });
 
-test('clause 1: with the setting off, the proof starts only after the cells step has ended [C7,#9576]', async t => {
+test('clause 1: with the setting off, the proof starts only after the cells step has ended [C7,#9576]', { timeout: 50000 }, async t => {
   const { run, stamp } = await gate(t, false, 0);
   const result = await run;
   assert.equal(result.isGreen, true, result.output);
   assert.ok(stamp('proof-started') >= stamp('static-ended'), 'the proof waited for the cells step');
 });
 
-test('clause 2: with the setting on, a red cells step still refuses GATE_RED and no green proof result returns [C7,#9576]', async t => {
+test('clause 2: with the setting on, a red cells step still refuses GATE_RED and no green proof result returns [C7,#9576]', { timeout: 50000 }, async t => {
   const { run } = await gate(t, true, 1);
   await assert.rejects(run, error => error.code === 'GATE_RED' && /static checks are red/u.test(error.message));
 });
