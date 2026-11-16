@@ -44,9 +44,9 @@ test('clause 1: list and show load no gate, relay or landing module beyond their
   }
 });
 
-test('clause 1: list loads at most the state machine of the heavy set, and a row names only modules that exist [C7]', () => {
+test('clause 1: list loads none of the heavy set, and a row names only modules that exist [C7]', () => {
   const heavy = staticClosure('apps/cli/src/io/commands/list.js').filter(path => HEAVY.includes(path));
-  assert.deepEqual(heavy, ['packages/state/src/io/machine.js']);
+  assert.deepEqual(heavy, []);
   for (const [command, modules] of Object.entries(rows).filter(([, value]) => Array.isArray(value))) {
     for (const path of modules) assert.ok(existsSync(resolve(REPO, path)), `${command} row names ${path}, which is gone`);
   }
