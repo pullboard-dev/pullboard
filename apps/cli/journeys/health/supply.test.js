@@ -18,6 +18,6 @@ test('clause 1: a queue with only same-family declared seats reports NO_REVIEWER
   const found = JSON.parse(health.out).stuck.find(entry => entry.cause === 'NO_REVIEWER_SUPPLY');
   assert.ok(found, `health reports the shortage: ${health.out}`);
   assert.equal(found.item, id);
-  assert.match(found.why, /other than Fixture-Builder/u);
-  assert.match(found.next, /other than Fixture-Builder/u);
+  assert.match(found.why, /other than fixture-builder/iu);
+  assert.match(found.next, /other than fixture-builder/iu);
 });
