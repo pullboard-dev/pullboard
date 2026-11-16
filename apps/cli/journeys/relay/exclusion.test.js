@@ -9,7 +9,7 @@ import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
 test('a legacy exclusion shows as unknown historical exclusion with a stable first-seen time [H5,H17]', async (t) => {
   const box = await relayClientFixture(t);
   const file = join(box.env.PULLBOARD_HOME, 'relay-machine/state.json');
-  await box.cli('relay', 'status');
+  await box.link();
   const state = JSON.parse(readFileSync(file, 'utf8'));
   state.excluded = [box.root];
   delete state.exclusionDetails;
