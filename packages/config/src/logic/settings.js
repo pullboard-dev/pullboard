@@ -333,6 +333,9 @@ export function loadMachineSettings() {
   if (value.next?.readinessCheck !== undefined && typeof value.next.readinessCheck !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `next.readinessCheck in ${file} must be true or false`);
   }
+  if (value.submit?.clauseMarks !== undefined && typeof value.submit.clauseMarks !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `submit.clauseMarks in ${file} must be true or false`);
+  }
   if (value.submit?.proofOnly !== undefined && typeof value.submit.proofOnly !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `submit.proofOnly in ${file} must be true or false`);
   }
@@ -456,6 +459,11 @@ export function namedImportSelectionOn() {
   return loadMachineSettings().gate?.namedImportSelection === true;
 }
 
+
+/** Whether a submit records its clause marks (#9440): off by default; only an exact `true` turns it on. */
+export function submitClauseMarks() {
+  return loadMachineSettings().submit?.clauseMarks === true;
+}
 
 /** Whether a submit with no change may pass for an item that is all ticked proof clauses (#9105): off by default; only an exact `true` turns it on. */
 export function submitProofOnly() {
