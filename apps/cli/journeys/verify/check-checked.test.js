@@ -12,10 +12,10 @@ import { succeeds } from '../../tests/fixtures/verdict-check.js';
 import { submitted } from '../../tests/fixtures/verdict-check.js';
 import { clean } from '../../tests/fixtures/verdict-check.js';
 
-test('accept records green in its event and JSON after a real frozen check [V19,V8]', async (t) => {
+test('accept records green in its event and JSON after a real frozen check [V19,V8]', async () => {
   const started = Date.now();
   /** Print the elapsed seconds at each step, so a slow run on a loaded runner names the step it stalled in [C7]. */
-  const step = (name) => t.diagnostic(`check-checked step ${name}: ${((Date.now() - started) / 1000).toFixed(1)} s`);
+  const step = (name) => process.stderr.write(`check-checked step ${name}: ${((Date.now() - started) / 1000).toFixed(1)} s\n`);
   const box = sandbox();
   try {
     const { repo, web } = await project(box);
@@ -38,6 +38,7 @@ test('accept records green in its event and JSON after a real frozen check [V19,
     assert.equal(JSON.parse(redCheck.out).green, false);
     assert.match(redCheck.err, /failure diagnostics could not finish \(NO_POLICY\).*original result stays red/u);
     writeFileSync(checkedSource, originalSource);
+    step('red check asserted, accept starting');
     const checkedJson = JSON.parse(await succeeds(box, repo, 'verify', String(checked.id), 'accept', '--as', 'coordinator', '--note', 'the frozen check passed', '--json'));
     step('accept done');
     assert.equal(checkedJson.check, 'green');
