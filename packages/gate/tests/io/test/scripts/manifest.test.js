@@ -168,3 +168,15 @@ test('the command prints a keep count of at most 20 however many journeys walk t
   const result = runManifestCommand(['--out', 'rows.json', fixture(t, sources).root], { times: {} });
   assert.match(result.stdout, /journey tags: 20 keep, 10 convert, 0 delete/u);
 });
+
+test('clause 1: a full regeneration keeps the harness tag on every journey the guard list names [C7]', t => {
+  const guards = ['apps/cli/journeys/imports/closure-budget.test.js', 'apps/cli/journeys/inbox/growth.test.js'];
+  const manifest = generateTestManifest(fixture(t, { ...SOURCES,
+    'packages/gate/data/tests/guards.json': JSON.stringify({ version: 1, files: guards }),
+    ...Object.fromEntries(guards.map(file => [file, 'import "../../../../packages/math/index.js";'])) }).root, { times: {} });
+  for (const file of guards) {
+    assert.equal(row(manifest, file).kind, 'harness', file);
+    assert.equal(row(manifest, file).tag, undefined, file);
+  }
+  assert.equal(row(manifest, 'apps/cli/journeys/add/main.test.js').kind, 'journey', 'a journey the list leaves out stays a journey');
+});

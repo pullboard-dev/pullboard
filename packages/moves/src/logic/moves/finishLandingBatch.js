@@ -13,7 +13,7 @@ import { landingTestDefects } from "../../../../store/browser.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
 import { SUBMISSION_PROOF_ENGINE } from "../../../../state/light.js";
 import { FORCED_MERGE_ENGINE } from "../../../../state/light.js";
-import { LANDING_NEXT } from "../table/landing.table.js";
+import { LANDING_NEXT } from "../table/next.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function existingEngine(args, board, at) {

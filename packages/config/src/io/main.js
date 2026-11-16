@@ -65,8 +65,8 @@ export function defaults() {
     reviewLease: '30m',
     worktrees: 'beside',
     worktreeMaintenance: maintenanceSettings.maintenanceDefaults(),
-    verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true, failBefore: false, frozenTests: false },
-    // Off by default: pin.signed makes toolingPin refuse an unsigned pin [#8038].
+    verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true, failBefore: false, frozenTests: false, testAuthorSplit: false },
+    // Off by default: toolingPin refuses an unsigned or edited pin file only when pin.signed is true [#8038].
     pin: { signed: false },
     review: { starveMinutes: 5, independence: 'off', excludeEarlierHolders: false },
     // Vendor spellings: canonical family -> alias names; never inferred [#1762].
@@ -348,9 +348,8 @@ export function configProblems(config) {
     && (!Number.isSafeInteger(config.verify.familyRelaxAt) || config.verify.familyRelaxAt < 1)) {
     problems.push('"verify.familyRelaxAt" is off or a positive integer');
   }
-  if (!['inspectClauses', 'failBefore', 'frozenTests'].every(key => typeof config.verify?.[key] === 'boolean')) {
-    problems.push('"verify.inspectClauses", "failBefore" and "frozenTests" are true or false');
-  }
+  const flags = ['inspectClauses', 'failBefore', 'frozenTests', 'testAuthorSplit'];
+  if (!flags.every(key => typeof config.verify?.[key] === 'boolean')) problems.push(`"verify.${flags.join('", "')}" are true or false`);
   if (notPlain(config.families)
     || Object.entries(config.families).some(([name, aliases]) => !name.trim() || name.length > 80
       || !Array.isArray(aliases) || aliases.some(alias => typeof alias !== 'string' || !alias.trim() || alias.length > 80))) {
@@ -393,7 +392,7 @@ export function configProblems(config) {
     problems.push('"pushGate.sizeFromBoard" is true or false');
   }
   if (notPlain(config.claims)
-    || Object.keys(config.claims).some(key => !['releaseGone', 'releaseCooldownMinutes', 'perSeat'].includes(key)) || typeof config.claims.releaseGone !== 'boolean'
+    || Object.keys(config.claims).some(key => !/^(releaseGone|releaseCooldownMinutes|perSeat|itemsInGate(Max)?)$/.test(key)) || typeof config.claims.releaseGone !== 'boolean'
     || typeof config.claims.releaseCooldownMinutes !== 'number' || !Number.isFinite(config.claims.releaseCooldownMinutes) || config.claims.releaseCooldownMinutes < 0) {
     problems.push('claims.releaseGone is a boolean, false by default; claims.releaseCooldownMinutes is zero or more minutes, 30 by default');
   }
