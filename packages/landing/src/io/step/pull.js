@@ -36,14 +36,18 @@ function remoteTrunk(root, remote, branch) {
  * A revert that conflicts records the job blocked, naming the conflicted paths, and records nothing on the item, so its landing stays pulling.
  * Why only pulling: only a Sprint item ever reaches pulling, so a Steady board never creates this job and its replay is unchanged.
  * Why the hop epoch: the same fence every landing push carries keeps a stale owner from moving trunk under a newer one [C7,#8275].
- * Why publish.js is loaded lazily: it is the one move-trunk entry point, and loading it eagerly would pull the gate and CLI into this cell's reach.
+ * Why the push is a port: publish.js is the one move-trunk entry point, and importing it here would pull the gate and CLI into this file's reach.
  *
  * @param {any} board - The open board; its db holds the job rows unless `jobs` names the runs file.
  * @param {{ root: string, remote: string, branch: string, item: number, agentId?: string, fenced?: boolean,
  *   jobs?: import('node:sqlite').DatabaseSync, now?: () => number }} options - root: a checkout of the repository; fenced: gate.fencedHop.
- * @returns {Promise<{ state: 'skipped' } | { state: 'blocked', job: string, conflicts: string[], trunk: string } | { state: 'pulled', job: string, revert: string, trunk: string }>}
+ * @param {{ fenceHop: Function, pushTrunkThroughFence: Function }} ports - publish.js's fenceHop and pushTrunkThroughFence, passed in by the lander.
+ * @returns {{ state: 'skipped' } | { state: 'blocked', job: string, conflicts: string[], trunk: string } | { state: 'pulled', job: string, revert: string, trunk: string }}
  */
-export async function runPullOutJob(board, { root, remote, branch, item, agentId = 'coordinator', fenced = true, jobs = board.db, now = Date.now }) {
+export function runPullOutJob(board, { root, remote, branch, item, agentId = 'coordinator', fenced = true, jobs = board.db, now = Date.now }, { fenceHop, pushTrunkThroughFence } = {}) {
+  if (typeof fenceHop !== 'function' || typeof pushTrunkThroughFence !== 'function') {
+    throw new Refused('PULL_OUT_PUSH_PORT', 'a pull-out pushes through the fence', 'pass { fenceHop, pushTrunkThroughFence } from packages/landing/src/io/step/publish.js');
+  }
   const pulling = pullingLanding(board, item);
   if (!pulling) return { state: 'skipped' };
   const id = pullOutJobId(item, pulling.mergedCommit);
@@ -57,7 +61,6 @@ export async function runPullOutJob(board, { root, remote, branch, item, agentId
   writeStep(jobs, id, 'reverted', { revert: reverted.commit, trunk }, { now: now() });
   const hops = carryLandingHops(board.db, [{ id: item }], { enabled: fenced });
   requireCarriedHops(board.db, hops);
-  const { fenceHop, pushTrunkThroughFence } = await import('./publish.js');
   for (const hop of hops) fenceHop(root, { remote, ...hop });
   const pushed = pushTrunkThroughFence(root, { remote, branch, base: trunk, tip: reverted.commit, hops });
   if (pushed.status !== 0) {
