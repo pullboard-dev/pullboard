@@ -1144,7 +1144,8 @@ function retryFailedLanding(board, job, named, receipt, { code, what, next, back
  * @returns {{ applied: boolean, outcome: string, merged?: number[], returned: number[] }}
  */
 export function applyLandingReceipt(board, { job, receipt }, ports = {}) {
-  const offered = JSON.parse(board.db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job)?.job_step_payload ?? '{}');
+  // With runs_store on the job's offered row is in the runs file, which the queue holds [B2,P7,#9114].
+  const offered = JSON.parse((ports.queue ? ports.queue.runs.db : board.db).prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job)?.job_step_payload ?? '{}');
   const named = new Set((offered.payload?.items ?? []).map(entry => entry.id));
   const returned = receipt ? returnLandedReds(board, job, named, receipt, offered.payload?.publish === 'separate') : [];
   // A red's failing cases become observations after the items go back, once per receipt (the job's receipt applies once) [C7,H16].
