@@ -8,6 +8,36 @@ import { whoAmI } from '../entry.js';
 import { withBoardRead } from '../board/read.js';
 
 /**
+ * The newest handoff pin of an item and the head it names, or null when the repository holds none.
+ *
+ * @param {string} root the repository to read refs from
+ * @param {number} itemId
+ * @returns {{ pin: string, head: string } | null}
+ */
+function newestPin(root, itemId) {
+  const refs = tryGit(root, ['for-each-ref', '--sort=-committerdate', '--format=%(refname) %(objectname)', `refs/pullboard/handoffs/${itemId}/`]);
+  const [pin, head] = refs.status === 0 ? (refs.stdout.split('\n')[0] ?? '').split(' ') : [];
+  return pin && head ? { pin, head } : null;
+}
+
+/**
+ * Merge the newest handoff pin of an item into a folder: returns its pin and head, or null with the folder left clean
+ * when no pin exists or the merge conflicts.
+ * Why: only resume adopted pinned work, so the pin lookup and merge were buried in its one caller (#9688).
+ *
+ * @param {string} root the repository to read refs from
+ * @param {string} folder the item folder to merge the pin into
+ * @param {number} itemId
+ * @returns {{ pin: string, head: string } | null}
+ */
+export function adoptPinnedHead(root, folder, itemId) {
+  const found = newestPin(root, itemId);
+  if (!found) return null;
+  if (!adoptPinnedHead(ctx.info.root, folder, found.id)) return null;
+  return found;
+}
+
+/**
  * The open item in this lane whose last holder's seat folder is gone and whose work is pinned under refs/pullboard/handoffs.
  *
  * Why: a reboot or a cleaned folder strands a claim with its commits still in the shared repository; the pin names them.
@@ -23,9 +53,8 @@ export function orphanedClaim(board, me, root) {
     const claimed = store.events(board, { itemId: item.item_id }).filter(event => event.event_kind === 'claim').at(-1);
     const holder = claimed ? store.agentById(board, claimed.event_by) : null;
     if (!holder || holder.agent_id === me.id || (holder.agent_path && existsSync(holder.agent_path))) continue;
-    const refs = tryGit(root, ['for-each-ref', '--sort=-committerdate', '--format=%(refname) %(objectname)', `refs/pullboard/handoffs/${item.item_id}/`]);
-    const [pin, head] = refs.status === 0 ? (refs.stdout.split('\n')[0] ?? '').split(' ') : [];
-    if (pin && head) return { id: item.item_id, holder: holder.agent_id, pin, head };
+    const pinned = newestPin(root, item.item_id);
+    if (pinned) return { id: item.item_id, holder: holder.agent_id, ...pinned };
   }
   return null;
 }
