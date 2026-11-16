@@ -262,6 +262,11 @@ export function derivedStateEnabled() {
   return loadMachineSettings().health?.derivedState === true;
 }
 
+/** Whether landing.adaptiveBatch is on (#9017): off by default; only an exact `true` turns it on. */
+export function adaptiveBatchEnabled() {
+  return loadMachineSettings().landing?.adaptiveBatch === true;
+}
+
 /** Whether the sentinel expires lapsed claims every minute (#8923): off by default; only an exact `true` turns it on. */
 export function lapsedSweepEnabled() {
   return loadMachineSettings().health?.lapsedSweep === true;
