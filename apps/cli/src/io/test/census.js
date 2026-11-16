@@ -77,7 +77,7 @@ function pulledCensus(ctx, io, values = {}) {
     if (typeof command !== 'string' || !command.trim()) throw new Refused('NO_TEST_RUNNER', 'a pulled census runs each shard with "affectedTests" from pullboard.json, and it is unset', 'set "affectedTests" to the command that runs named test files, then run the census again');
     const { mainPolicy } = await import('../../../../../packages/sandbox/index.js');
     const commit = headCommit(root), main = mainPolicy(root).commit ?? commit;
-    const plan = cutPlan(root, files, count, pulled);
+    const plan = cutPlan(root, files, count);
     await Promise.all(plan.map(async (shard, index) => {
       const label = `${index + 1}/${plan.length}`, started = Date.now();
       const shell = `${LANDING_COLLECT_ALL_ENV}=1 ${LANDING_SHARD_ENV}=${word(label)} ${command.trimEnd()} ${shard.files.map(file => word(`./${file}`)).join(' ')}`;
@@ -125,7 +125,7 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run } 
   const timed = pulled && censusJobMinutes() ? cutPlan(root, files, 1).length : null;
   const count = Math.min(timed ?? shards ?? (pulled ? pulledShardCount(files.length, runners) : runners), files.length);
   // The same plan runLandingShards cuts, so a shard's label names the files it held.
-  const plan = cutPlan(root, files, count);
+  const plan = cutPlan(root, files, count, pulled);
   const rows = new Map();
   const last = new Map();
   const emit = (shard, record) => {
