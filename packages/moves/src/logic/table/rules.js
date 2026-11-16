@@ -88,15 +88,22 @@ export function deriveFact(rules, name, snapshot, move = {}) {
 /** The values of an item's landing dimension, beside its status [M1,M4]. */
 export const LANDINGS = Object.freeze(['none', 'landed', 'pulling', 'published']);
 
+/** The landing events that move an item's landing past its merged commit, newest last: pull_out starts a pull-out, published makes it final [M1,M2]. */
+const LANDING_EVENTS = Object.freeze({ pull_out: 'pulling', published: 'published' });
+
 /**
- * The item's landing value, derived: landed once it has a landing receipt (a merged commit), else none.
- * Why: landing is its own dimension of item state, not a flag on a verified item; today only the merged commit records it,
- * and pulling and published arrive with their own events later, so no column or event is added here.
+ * The item's landing value, derived: the newest landing event's value when the history holds one (pull_out: pulling, published: published),
+ * else landed once it has a landing receipt (a merged commit), else none.
+ * Why: landing is its own dimension of item state, not a flag on a verified item; the merged commit records landed, and only a
+ * Sprint item ever gets a pull_out or published event, so a Steady item's landing is exactly what its merged commit says.
  *
  * @param {{ mergedCommit?: string | null, merged?: boolean } | null | undefined} item - A table snapshot's item.
- * @returns {'none' | 'landed'}
+ * @param {{ kind: string }[]} [history] - The item's events, oldest first; absent reads as none.
+ * @returns {'none' | 'landed' | 'pulling' | 'published'}
  */
-export function landingOf(item) {
+export function landingOf(item, history = []) {
+  const last = (Array.isArray(history) ? history : []).findLast(event => Object.hasOwn(LANDING_EVENTS, event?.kind));
+  if (last) return LANDING_EVENTS[last.kind];
   return item?.mergedCommit || item?.merged === true ? 'landed' : 'none';
 }
 
