@@ -10,6 +10,7 @@ import { tryGit } from '../../../../git/index.js';
 import { permitPushOptions } from '../../../../git/index.js';
 import { RUNNER_POLICY_FILE } from '../../../../sandbox/light.js';
 import { runnerPolicyRecord } from '../../../../sandbox/light.js';
+import { squashOnto } from '../land/squash.js';
 import { amendLandingEngines } from '../derive.js';
 import { amendLandingRegistries } from '../derive.js';
 import { proofLimitMs } from './deadline.js';
@@ -280,12 +281,29 @@ async function landingCheck(payload, env, phases = null, shards = null) {
   };
 }
 
-/** Merge one item onto HEAD with --no-ff; null when it merged, else why not, with the merge aborted. */
-function mergeItem(root, entry, base) {
+/**
+ * Land one item onto HEAD; null when it landed, else why not, with the merge aborted.
+ * Off (the default) it is the --no-ff merge. With `squash` (landing.squash) it is one single-parent commit through
+ * squashOnto, with the same message, and HEAD moves to it. Why: main keeps one commit per item, and the branch stays
+ * under refs/pullboard/items/<id> for audit [C7,#9219].
+ */
+function mergeItem(root, entry, base, squash = false) {
+  if (squash) return squashItem(root, entry, base);
   const merged = tryGit(root, landingMergeArgs(root, entry));
   if (merged.status === 0) return null;
   tryGit(root, ['merge', '--abort']);
   return `#${entry.id} does not merge on ${base.slice(0, 12)}: ${(merged.stdout || merged.stderr).slice(0, 240)}`;
+}
+
+/** The squash path of mergeItem: the offered header and trailers (or the merge fallback subject) as the one commit's message. */
+function squashItem(root, entry, base) {
+  const message = typeof entry.header === 'string' && typeof entry.trailers === 'string'
+    ? `${entry.header}\n\n${entry.trailers}` : `Merge #${entry.id} onto main [${citedIds(root, entry.commit)}]`;
+  const head = must(root, ['rev-parse', 'HEAD']);
+  const squashed = squashOnto(root, { base: head, tip: entry.commit, message, item: entry.id });
+  if (squashed.conflict) return `#${entry.id} does not merge on ${base.slice(0, 12)}: conflict in ${squashed.files.join(', ').slice(0, 240)}`;
+  must(root, ['reset', '-q', '--hard', squashed.commit]);
+  return null;
 }
 
 /**
@@ -312,7 +330,7 @@ async function isolateReds(root, { base, trunk, pending, check, renew, payload }
   let detail = null;
   for (const entry of pending) {
     const before = must(root, ['rev-parse', 'HEAD']);
-    if (mergeItem(root, entry, base)) { red.push(entry.id); continue; }
+    if (mergeItem(root, entry, base, payload.squash === true)) { red.push(entry.id); continue; }
     if (!await renew()) return null;
     const derived = await deriveMerged(root, { base, badges: payload.badges });
     admitTrunk(root, { trunk, base });
@@ -394,8 +412,9 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     must(root, ['clean', '-q', '-fd']);
     // A sibling that collides goes back alone, as in 0.9.3: the items that merge cleanly still land [P7].
     const mergeStart = Date.now();
+    const squash = payload.squash === true;
     let pending = waiting.filter(entry => {
-      const collided = mergeItem(root, entry, base);
+      const collided = mergeItem(root, entry, base, squash);
       if (collided) giveBack(entry.id, 'conflict', collided);
       return !collided;
     });
