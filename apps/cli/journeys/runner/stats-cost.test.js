@@ -25,7 +25,7 @@ async function costedItem() {
   const db = new DatabaseSync(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     db.prepare('INSERT INTO board_meta(meta_key, meta_value) VALUES(?, ?)')
-      .run(`cost:${id}:a`, JSON.stringify({ observedAt: 0, records: [{ model: FIXTURE_MODEL, inputTokens: 10, outputTokens: 5 }] }));
+      .run(`cost:${id}:a`, JSON.stringify({ item: id, agent: 'coordinator', observedAt: 0, records: [{ model: FIXTURE_MODEL, inputTokens: 10, outputTokens: 5 }] }));
     for (const [check, minutes] of [['a', 10], ['b', 2]]) {
       db.prepare("INSERT INTO event(event_at, event_by, event_kind, item_id, event_detail) VALUES('2026-11-16T00:00:00.000Z', 'coordinator', 'proof-run', ?, ?)")
         .run(id, JSON.stringify({ receipt: { id: check, kind: 'check', runner: 'big', durationMs: minutes * MINUTE } }));
