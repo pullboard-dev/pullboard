@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { cellBoard } from '../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../store/tests/fixtures/cell.js';
 import { cellSandbox } from '../../../store/tests/fixtures/cell.js';
 import { boardRun } from '../../../store/index.js';
 import { RUNS_STORE_KEY } from '../../../store/index.js';
@@ -21,7 +22,9 @@ const GATE = { run: ['node', '-e', 'x'], entry: 'gate.js', commits: [MAIN] };
 
 /** A file board with the runs_store flag set as asked, and its queue (null when off). */
 function boardWith(t, flag) {
-  const board = cellBoard(t, join(cellSandbox(t).dir, 'board.sqlite'), undefined, { real: true });
+  const dir = cellSandbox(t).dir;
+  const board = cellBoard(t, join(dir, 'board.sqlite'), undefined, { real: true });
+  board.seat = cellSeat(board, { lane: 'web', path: join(dir, 'seat') });
   if (flag) board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(RUNS_STORE_KEY, '1');
   const queue = queueFor(board, 'coordinator');
   t.after(() => queue?.runs.db.close());
@@ -35,7 +38,7 @@ function shardedGate(t, flag) {
   offerJob(board.db, { id: 'gate:s', kind: 'gate', item: item.item_id, candidate: MAIN, base: MAIN, now: 1,
     request: { run: ['true'], input: { entry: 'gate.js', data: {} } } }, queue);
   const receipt = { version: 1, status: 0, gate: { source: MAIN, green: true, phases: [], proofPlan: { runner: 'node --test', cores: 2, files: FILES } } };
-  const offered = { item: item.item_id, candidate: MAIN, main: MAIN, submit: { agentId: 'coordinator' } };
+  const offered = { item: item.item_id, candidate: MAIN, main: MAIN, submit: { agentId: board.seat.id } };
   return { board, home, answer: offerProofShards(board, { job: 'gate:s', receipt, offered }) };
 }
 
