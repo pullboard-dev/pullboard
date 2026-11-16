@@ -78,6 +78,7 @@ const BEFORE = {
   'jobs.avoidRunners': false,
   'jobs.handBackUnrunnable': false,
   'landing.asyncFetch': false,
+  'landing.byHand': false,
   'landing.pools': [],
   'landing.reofferTrunkBusy': false,
   'landing.reuseContractResults': false,
@@ -104,6 +105,7 @@ const BEFORE = {
   'relay.offerAtInit': true,
   'relay.pruneReceipts': false,
   'relay.push': false,
+  'review.relaxRequiredFamily': false,
   'review.releaseReasons': false,
   'runner.packCache': false,
   'runnerRates': {},
@@ -190,4 +192,9 @@ test('clause 3: removing a BEFORE key or changing its value fails the check [O6]
 test('clause 1: landing.asyncFetch is a machine setting, false by default, with a description [C7]', () => {
   assert.equal(MACHINE_DEFAULTS['landing.asyncFetch'], false);
   assert.ok(SETTING_DESCRIPTIONS['landing.asyncFetch']);
+});
+
+test('clause 1: review.relaxRequiredFamily is a machine setting, false by default, with a description [V1]', () => {
+  assert.equal(MACHINE_DEFAULTS['review.relaxRequiredFamily'], false);
+  assert.ok(SETTING_DESCRIPTIONS['review.relaxRequiredFamily']);
 });
