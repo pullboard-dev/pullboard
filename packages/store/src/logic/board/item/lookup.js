@@ -25,7 +25,7 @@ export function itemById(board, id) {
   const { check_timing, expected_build, readiness_command, ...stored } = row;
   const expected = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE && expected_build !== null
     ? { ...stored, item_expected_build_minutes: JSON.parse(expected_build) } : stored;
-  // From READINESS_ENGINE every item has a readiness command, empty until one is authored; older engines read no such field [#2176].
+  // From READINESS_ENGINE every item has a readiness command, empty until one is authored; older engines read no such field [C7].
   const item = (board.executionEngineVersion ?? ENGINE_VERSION) >= READINESS_ENGINE
     ? { ...expected, item_readiness_command: readiness_command === null ? '' : JSON.parse(readiness_command) } : expected;
   return (board.executionEngineVersion ?? ENGINE_VERSION) >= CHECK_TIMING_ENGINE && check_timing !== null
