@@ -330,6 +330,12 @@ function installWritePolicy(ctx, board) {
   }
   /** A main-independent write pins no accepted-main snapshot, so main moving never refuses or retries it [#6036]. */
   function unpinned() {
+    // Read both inputs now, before BEGIN: left lazy they ran under the writer lock, where a policy read may start Git and
+    // a loaded machine held a release for 7.0 s (#8770). A read that fails stays lazy, keeping its original refusal.
+    try {
+      quarantine ??= mainPolicy(ctx.info.root).config.flakes?.quarantine === true;
+      aliases ??= familyIndex(declaredFamilies(ctx.info.root));
+    } catch { /* The consuming guard reads it again and refuses as before. */ }
     const frame = {
       /** Nothing was pinned, so nothing can go stale. */
       current() { return true; },
