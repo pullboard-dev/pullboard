@@ -127,6 +127,7 @@ export {
   commitOnApplyEnabled,
   reofferTrunkBusyEnabled,
   archiveEventsEnabled,
+  codeStampCacheEnabled,
   reuseContractResultsEnabled,
   reuseGateReceiptsEnabled,
   memoryFloorMB,
