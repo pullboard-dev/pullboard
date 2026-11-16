@@ -4,7 +4,7 @@ import * as store from '../../../../packages/store/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { createRequire } from 'node:module';
 import { moveArgs } from '../../../../packages/person/index.js';
-import { receiveCommits } from '../../../../packages/pin/index.js';
+import { receiveMoveCommits as receiveCommits } from './submit/pushed.js';
 import {
   agentDisplayName,
   context,

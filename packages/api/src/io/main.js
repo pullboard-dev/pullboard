@@ -876,7 +876,7 @@ export async function executeMove(root, body, runCommand, isMain, personChannel 
   }
   // A URL-joined seat's submit may carry its clone's commits; the submit then runs where the host checked them out [P7,C7].
   if (body.commits !== undefined && typeof boardOpeners.receiveCommits !== 'function') throw new Refused('COMMITS_NOT_SERVED', 'this board service takes no commit bundles; run pullboard settings board.commits off in the clone, or serve the board with pullboard serve');
-  if (body.commits !== undefined) seat = { ...seat, cwd: boardOpeners.receiveCommits(root, body, seat, (read) => withBoard(root, read, isMain, boardOpeners), store.getItem) };
+  if (body.commits !== undefined) seat = { ...seat, cwd: await boardOpeners.receiveCommits(root, body, seat, (read) => withBoard(root, read, isMain, boardOpeners), store.getItem) };
   let output = '';
   let diagnostics = '';
   const events = [];
