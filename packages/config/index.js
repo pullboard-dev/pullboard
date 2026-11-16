@@ -125,6 +125,7 @@ export {
   testStatusOutcomesEnabled,
   cascadeRejectEnabled,
   typedFieldsEnabled,
+  nameBehindDeviceEnabled,
   recordWriteHolderEnabled,
   adaptiveBatchEnabled,
   landingSquashEnabled,

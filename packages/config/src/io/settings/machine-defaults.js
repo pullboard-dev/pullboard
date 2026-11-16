@@ -18,6 +18,7 @@ export const MACHINE_DEFAULTS = {
   'claim.keepWhileRunning': false,
   'claim.refuseOffMainHead': false,
   'docs.regenerateOnCommit': false,
+  'engine.nameBehindDevice': false,
   'freeze.refuseEmptyBar': false,
   'gate.adapterLintClock': false,
   'gate.adapterLintFs': false,
