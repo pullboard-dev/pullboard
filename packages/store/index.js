@@ -135,4 +135,5 @@ export { readBoardHoldBaseline, boardHoldBaselineProblems, committedBoardHoldBas
 export { GATE_HOP_SCHEMA_SQL, ensureGateHopTable, readGateHop, gateHopMove } from './src/io/board/hop.js';
 export { recordShadow, readShadow, shadowHook, claimDiffers, firstDifference } from './src/io/board/shadow-record.js';
 export { reopenDecision, reopenDiffers } from './src/io/board/reopen-table.js';
+export { mergedDecision } from './src/io/board/merged-table.js';
 export { readShadows } from './src/io/board/shadow-record.js';
