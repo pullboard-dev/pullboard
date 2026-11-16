@@ -417,6 +417,9 @@ export function configProblems(config) {
   if (config.verify?.unrelatedTrunkMoves !== undefined && typeof config.verify.unrelatedTrunkMoves !== 'boolean') {
     problems.push('"verify.unrelatedTrunkMoves" is true or false');
   }
+  if (config.verify?.landedReviews !== undefined && typeof config.verify.landedReviews !== 'boolean') {
+    problems.push('"verify.landedReviews" is true or false; true makes next --verify offer forced-landed items that have no verdict');
+  }
   if (config.map?.slice !== undefined && typeof config.map.slice !== 'boolean') {
     problems.push('"map.slice" is true or false');
   }
