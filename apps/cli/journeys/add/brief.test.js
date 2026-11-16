@@ -1,4 +1,4 @@
-/** An add with no route and no brief is strong unless its check names a test file, which fills a mid brief [V4]. */
+/** An add with no route and no brief is strong unless its check names a test file, which fills a brief that makes a small item light [V4,C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -28,9 +28,9 @@ test('clause 1: add with no route, no brief and a check naming no test file succ
   assert.equal(item.item_route, 'strong');
 });
 
-test('clause 2: add with no route whose check names a test file lands mid with Files and Test filled from the check [V4]', async t => {
+test('clause 2: add with no route whose check names a test file lands light, the shape rule route, with Files and Test filled from the check [V4,C7]', async t => {
   const item = await addWith(t, 'node --test web/handler.test.js');
-  assert.equal(item.item_route, 'mid');
+  assert.equal(item.item_route, 'light');
   assert.match(item.item_brief, /Files:\s*\n- web\/handler\.test\.js/u);
   assert.match(item.item_brief, /Test: web\/handler\.test\.js/u);
 });
