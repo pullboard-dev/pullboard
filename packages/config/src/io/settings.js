@@ -457,6 +457,11 @@ export function lapsedSweepEnabled() {
   return loadMachineSettings().health?.lapsedSweep === true;
 }
 
+/** Whether docs.regenerateOnCommit is on (#9664): off by default; only an exact `true` turns it on. */
+export function docsRegenerateOnCommit() {
+  return loadMachineSettings().docs?.regenerateOnCommit === true;
+}
+
 /** Whether add.warnUnnamedTest is on (#9303): off by default; only an exact `true` turns it on. */
 export function addWarnUnnamedTest() {
   return loadMachineSettings().add?.warnUnnamedTest === true;
@@ -917,6 +922,11 @@ export function codeStampCacheEnabled() {
 /** Whether landing.reuseContractResults is on (#9301): off by default; only an exact `true` turns it on. */
 export function reuseContractResultsEnabled() {
   return loadMachineSettings().landing?.reuseContractResults === true;
+}
+
+/** Whether landing.stallStop is on (#8749): off by default; only an exact `true` turns it on. */
+export function stallStopEnabled() {
+  return loadMachineSettings().landing?.stallStop === true;
 }
 
 /** Whether landing.reuseGateReceipts is on (#9243): off by default; only an exact `true` turns it on. */
