@@ -1,12 +1,25 @@
+import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 /** Read-only machine settings retain the same validation as admission, without loading writers [C7]. */
 import { validateCostPrices } from './prices.js';
 import { validateRunnerRates } from './runner-rates.js';
 import { Refused } from '../../../kernel/light.js';
 import { machineSettingsFile } from '../../../resources/light.js';
-import { readMachineSettingsFile } from '../../../queue/light.js';
+import { parseMachineSettings } from '../../../queue/light.js';
 import { validateGateQueue } from '../../../queue/light.js';
 const DEFAULT_GATE_SLOTS = 2;
+
+/**
+ * Read the machine settings file as a plain object, or null when there is none.
+ * Why: the queue light door stays free of file reads, so a logic test never reaches fs through it [C7].
+ *
+ * @param {string} file - The machine settings file the caller resolved.
+ * @returns {object|null}
+ */
+function readMachineSettingsFile(file) {
+  return parseMachineSettings(existsSync(file) ? readFileSync(file, 'utf8') : null, file);
+}
 
 /**
  * The machine settings a person sets that carry a plain value, by the kind of value each takes. Each one is also a
