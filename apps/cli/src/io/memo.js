@@ -174,13 +174,31 @@ export function withFixtureMemos(inventory, host, directory = controllerMemoStor
     const held = runnerIndex(directory)[host] ?? {};
     const memos = storedFixtureMemos(directory).filter(memo => held[memo.name] !== memoDigest(memo));
     if (!memos.length) return inventory;
-    const bytes = serialize({ ...deserialize(inventory.bytes), fixtureMemos: memos });
-    if (bytes.length > 60 * 1024 ** 2) return inventory;
-    const digest = createHash('sha256').update(bytes).digest('hex'), bundles = join(directory, 'bundles');
-    mkdirSync(bundles, { recursive: true, mode: 0o700 });
-    for (const old of readdirSync(bundles).filter(name => name.endsWith('.bundle')).map(name => ({ name, at: statSync(join(bundles, name)).mtimeMs }))
-      .sort((a, b) => b.at - a.at).slice(16)) rmSync(join(bundles, old.name), { force: true });
-    publish(bundles, `${digest}.bundle`, bytes);
-    return { file: join(bundles, `${digest}.bundle`), bytes, digest, descriptor: { ...inventory.descriptor, digest } };
+    const bundle = writeBundle(directory, { ...deserialize(inventory.bytes), fixtureMemos: memos });
+    return bundle ? { ...bundle, descriptor: { ...inventory.descriptor, digest: bundle.digest } } : inventory;
   } catch { return inventory; } // Without the memos the gate still runs, only colder.
+}
+
+/** Write a bundle beside the store, named by its digest, keeping the 16 newest; null when it is over the bound. */
+function writeBundle(directory, value) {
+  const bytes = serialize(value);
+  if (bytes.length > 60 * 1024 ** 2) return null;
+  const digest = createHash('sha256').update(bytes).digest('hex'), bundles = join(directory, 'bundles');
+  mkdirSync(bundles, { recursive: true, mode: 0o700 });
+  for (const old of readdirSync(bundles).filter(name => name.endsWith('.bundle')).map(name => ({ name, at: statSync(join(bundles, name)).mtimeMs }))
+    .sort((a, b) => b.at - a.at).slice(16)) rmSync(join(bundles, old.name), { force: true });
+  publish(bundles, `${digest}.bundle`, bytes);
+  return { file: join(bundles, `${digest}.bundle`), bytes, digest };
+}
+
+/**
+ * An artifact carrying only the shared memos the runner at `host` does not hold, for a job with no inventory bundle
+ * such as the fixture warm (#4045); null when there is nothing to carry or it cannot be written.
+ */
+export function fixtureMemoArtifact(host, directory = controllerMemoStore()) {
+  try {
+    const held = runnerIndex(directory)[host] ?? {};
+    const memos = storedFixtureMemos(directory).filter(memo => held[memo.name] !== memoDigest(memo));
+    return memos.length ? writeBundle(directory, { version: 1, artifacts: [], fixtureMemos: memos }) : null;
+  } catch { return null; } // The warm then builds from the runner's own memo.
 }
