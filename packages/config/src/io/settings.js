@@ -135,6 +135,11 @@ export function adapterLintFsEnabled() {
   return loadMachineSettings().gate?.adapterLintFs === true;
 }
 
+/** Whether the static check refuses a statement shape copied into 3 or more files: off by default; only an exact `true` turns it on [C7,#9521]. */
+export function idiomSpreadEnabled() {
+  return loadMachineSettings().gate?.idiomSpread === true;
+}
+
 /** Record each move table shadow compare on the board only when this machine opted in [C7,#8376]. */
 export function movesShadowEnabled() {
   return loadMachineSettings().moves?.shadow === true;
@@ -174,6 +179,12 @@ export function censusSelfTuneEnabled() {
 export function censusJobMinutes() {
   const minutes = loadMachineSettings().census?.jobMinutes;
   return typeof minutes === 'number' && Number.isFinite(minutes) && minutes > 0 ? minutes : null;
+}
+
+/** Seconds over which a file recorded in an earlier census plans as a census job to itself; null (the default) plans as before [C7,#9499]. */
+export function censusSoloFileSeconds() {
+  const secs = loadMachineSettings().census?.soloFileSeconds;
+  return Number.isSafeInteger(secs) && secs >= 1 ? secs : null;
 }
 
 /** Census test jobs one runner may hold at once; null (the default) leaves census jobs uncapped beyond runner slots [C7,#9136]. */
