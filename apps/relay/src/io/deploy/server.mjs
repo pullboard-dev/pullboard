@@ -12,6 +12,7 @@ import {
   resolve,
 } from 'node:path';
 import { createAuthHandler } from '../../../index.js';
+import { AUTH_DATABASE_FILE } from '../../../index.js';
 import { createRelayAuth } from '../../../index.js';
 import { createGitHubClient } from '../../../index.js';
 import { createRelayHandler } from '../../../index.js';
@@ -80,7 +81,7 @@ async function startRelay() {
     throw new Refused('RELAY_USER', 'start as the image node user, or set RAILWAY_RUN_UID=0 so startup can prepare the volume and drop privileges');
   }
   const auth = createRelayAuth({
-    database: join(data, 'auth.sqlite'),
+    database: join(data, AUTH_DATABASE_FILE),
     github: createGitHubClient({
       clientId: process.env.GITHUB_APP_CLIENT_ID || '',
       clientSecret: process.env.GITHUB_APP_CLIENT_SECRET || '',
