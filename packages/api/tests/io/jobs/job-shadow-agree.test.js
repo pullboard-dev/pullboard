@@ -47,7 +47,7 @@ test('clause 1: the job table reads the row inside the writer\'s transaction, an
   const { db, id, token } = claimed(t, reads);
   renewJob(db, { job: id, runner: 'r-holder', token, now: T0 + 1_000 });
   postReceipt(db, { job: id, runner: 'r-holder', token, receipt: { status: 0 }, now: T0 + 2_000 });
-  assert.deepEqual(reads, [true, true], 'every table read happened inside the write transaction');
+  assert.deepEqual([...reads], [true, true], 'every table read happened inside the write transaction');
   const counts = readShadow({ db }, 'job');
   assert.equal(counts.compared, 2);
   assert.equal(counts.disagreed, 0, `the job table agreed: ${JSON.stringify(counts.last)}`);
