@@ -1,12 +1,25 @@
+import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 /** Read-only machine settings retain the same validation as admission, without loading writers [C7]. */
 import { validateCostPrices } from './prices.js';
 import { validateRunnerRates } from './runner-rates.js';
 import { Refused } from '../../../kernel/light.js';
-import { machineSettingsFile } from '../../../resources/index.js';
-import { readMachineSettingsFile } from '../../../queue/index.js';
-import { validateGateQueue } from '../../../queue/index.js';
+import { machineSettingsFile } from '../../../resources/light.js';
+import { parseMachineSettings } from '../../../queue/light.js';
+import { validateGateQueue } from '../../../queue/light.js';
 const DEFAULT_GATE_SLOTS = 2;
+
+/**
+ * Read the machine settings file as a plain object, or null when there is none.
+ * Why: the queue light door stays free of file reads, so a logic test never reaches fs through it [C7].
+ *
+ * @param {string} file - The machine settings file the caller resolved.
+ * @returns {object|null}
+ */
+function readMachineSettingsFile(file) {
+  return parseMachineSettings(existsSync(file) ? readFileSync(file, 'utf8') : null, file);
+}
 
 /**
  * The machine settings a person sets that carry a plain value, by the kind of value each takes. Each one is also a
@@ -180,6 +193,9 @@ export function loadMachineSettings() {
   }
   if (value.gate?.requireRunnerAttribution !== undefined && typeof value.gate.requireRunnerAttribution !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.requireRunnerAttribution in ${file} must be true or false`);
+  }
+  if (value.gate?.refuseMissingCheckFile !== undefined && typeof value.gate.refuseMissingCheckFile !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.refuseMissingCheckFile in ${file} must be true or false`);
   }
   const reserve = value.gate?.jobReserve;
   if (reserve != null && (typeof reserve !== 'object' || Array.isArray(reserve) || Object.values(reserve).some(share => !Number.isFinite(share) || share < 0 || share > 1)
@@ -369,4 +385,14 @@ export function validRunnerCpuLoad(value) {
   return value !== null && typeof value === 'object' && Number.isFinite(Date.parse(value.at))
     && Number.isFinite(value.busyPercent) && value.busyPercent >= 0 && value.busyPercent <= 100
     && Array.isArray(value.average) && value.average.length === 3 && value.average.every(n => Number.isFinite(n) && n >= 0);
+}
+
+/**
+ * The board this machine's seats read over HTTP, or null for the local board: board.url and board.token [P7].
+ * Why: a seat on another host has no board.sqlite; it reaches the board host's pullboard serve instead.
+ * @returns {{ url: string, token: string } | null}
+ */
+export function boardRemote() {
+  const board = loadMachineSettings().board;
+  return board?.url ? { url: board.url, token: board.token ?? '' } : null;
 }
