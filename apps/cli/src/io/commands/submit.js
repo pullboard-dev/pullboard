@@ -60,7 +60,8 @@ import {
 import { barCheckWarning } from '../../../../../packages/verify/index.js';
 import { barCheckState } from '../../../../../packages/verify/index.js';
 import { dryRunReviewChecklist } from '../../../../../packages/verify/index.js';
-import { dryRunReviewEnabled } from '../../../../../packages/verify/index.js';
+import { dryRunReviewArm } from '../../../../../packages/verify/index.js';
+import { dryRunReviewMode } from '../../../../../packages/verify/index.js';
 /** The pullboard submit command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
@@ -344,7 +345,11 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     if (!isSubmitHandoffWorker(ctx) && !folder) refuseHeldElsewhere(ctx.info, store.listAgents(board), item, 'submit', agentSessionDigest);
     if (item.item_status !== 'claimed' || item.item_owner !== me.id) throw new Refused('NOT_YOURS', 'claim this item before submitting it');
     if (!isSubmitHandoffWorker(ctx)) heartbeatCommand(ctx.io, { ctx, board });
-    if (ctx.dryRunReview && dryRunReviewEnabled(board)) {
+    const reviewMode = dryRunReviewMode(board);
+    const reviewArm = dryRunReviewArm(reviewMode, id);
+    // Under ab every submitted item records the arm it received, and the on arm prints the checklist without the flag [C7].
+    if (reviewMode === 'ab') await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text: `dry-run review arm: ${reviewArm}` }]);
+    if (reviewMode === 'ab' ? reviewArm === 'on' : ctx.dryRunReview && reviewMode !== false) {
       // Advisory only: print the verifier checklist before any clause refusal and record that it ran; off prints and records nothing [C7].
       for (const line of dryRunReviewChecklist({ id, clauses: criterionClauses(item.item_criterion), criterion: item.item_criterion, barNote: barCheckState(board, item).note })) ctx.io.say(line);
       await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text: 'dry-run review ran: checklist printed to the builder before submit; advisory, not a verdict' }]);
