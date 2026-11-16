@@ -151,13 +151,15 @@ test('a fresh worktree with no install of its own runs pullboard from the main c
   assert.match(JSON.parse(card.stdout).hookSpecificOutput.additionalContext, /^resume: web-1 \(fixture-model\), web lane/);
 });
 
+const OK_LINES = 400, NOTE_LINES = 100;
+
 test('the gate reaches the agent as a digest: one line when green, the failure when red; the whole output stays in the git dir [V10]', async t => {
   const box = project(undefined, sandbox(), { withWorktree: false });
   writeFileSync(join(box.repo, 'gate.cjs'), [
     "const red = require('node:fs').existsSync('RED');",
     "const { writeSync } = require('node:fs');",
-    "for (let i = 0; i < 400; i++) writeSync(1, `ok ${i} ${'x'.repeat(red ? 10 : 3000)}\\n`);",
-    "if (red) { writeSync(2, 'not ok 401 - the page renders a heading\\n'); for (let i = 0; i < 100; i++) writeSync(1, `# note ${i}\\n`); process.exitCode = 1; }",
+    "for (let i = 0; i < " + OK_LINES + "; i++) writeSync(1, `ok ${i} ${'x'.repeat(red ? 10 : 3000)}\\n`);",
+    "if (red) { writeSync(2, 'not ok " + (OK_LINES + 1) + " - the page renders a heading\\n'); for (let i = 0; i < " + NOTE_LINES + "; i++) writeSync(1, `# note ${i}\\n`); process.exitCode = 1; }",
     '',
   ].join('\n'));
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, gate: 'node gate.cjs # prints a lot' }));
@@ -175,12 +177,12 @@ test('the gate reaches the agent as a digest: one line when green, the failure w
   box.git(box.repo, 'commit', '-q', '-m', 'chore: turn the gate red');
   const red = await fixtureCommand(box, box.repo, 'gate');
   assert.equal(red.code, 1);
-  assert.match(red.out, /^gate red in \d+s:\n {2}not ok 401 - the page renders a heading\n/);
-  assert.match(red.out, / {2}# note 99\n[\s\S]*the whole output is in /);
+  assert.match(red.out, new RegExp(`^gate red in \\d+s:\\n {2}not ok ${OK_LINES + 1} - the page renders a heading\\n`));
+  assert.match(red.out, new RegExp(` {2}# note ${NOTE_LINES - 1}\\n[\\s\\S]*the whole output is in `));
   assert.ok(red.out.length < 4000, `${red.out.length} characters`);
   const lines = readFileSync(log, 'utf8').split('\n');
-  assert.equal(lines.length, 502);
-  assert.equal(lines[400], 'not ok 401 - the page renders a heading', 'stdout and stderr in one stream, in order');
+  assert.equal(lines.length, OK_LINES + 1 + NOTE_LINES + 1, 'every ok line, the stderr line, every note and the final newline');
+  assert.equal(lines[OK_LINES], `not ok ${OK_LINES + 1} - the page renders a heading`, 'stdout and stderr in one stream, in order');
   const web = join(box.dir, 'digest-builder');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/digest', web, 'main');
   const joined = await fixtureCommand(box, web, 'join', 'web');

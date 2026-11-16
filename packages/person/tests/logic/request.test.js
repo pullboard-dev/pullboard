@@ -9,7 +9,7 @@ import {
 } from '../../light.js';
 import { Refused } from '../../../kernel/light.js';
 
-test('[H12,H16] each supported person intent becomes literal CLI arguments', () => {
+test('person.request.intents-become-args: [H12,H16] each supported person intent becomes literal CLI arguments', () => {
   const cases = [
     [{ verb: 'add', args: { lane: 'app', title: 'A title' } }, ['add', '--json', '--', 'app', 'A title']],
     [{ verb: 'shout', args: { to: 'coordinator', text: 'Please review' } }, ['shout', '--json', '--', 'coordinator', 'Please review']],
@@ -24,7 +24,7 @@ test('[H12,H16] each supported person intent becomes literal CLI arguments', () 
   }
 });
 
-test('[H12,H16] person intent preserves literal leading-dash values and forces person answers', () => {
+test('person.request.keeps-dash-values: [H12,H16] person intent preserves literal leading-dash values and forces person answers', () => {
   const add = personRequestMove({ verb: 'add', args: { lane: 'app', title: '--looks-like-a-flag' } });
   assert.deepEqual(moveArgs(add), ['add', '--json', '--', 'app', '--looks-like-a-flag']);
 
@@ -36,7 +36,7 @@ test('[H12,H16] person intent preserves literal leading-dash values and forces p
   assert.deepEqual(moveArgs(answer), ['answer', '9', '--as=person', '--json', '--', 'done']);
 });
 
-test('[H12,H16] request documents reject engine operations, impersonation and malformed arguments', () => {
+test('person.request.rejects-unsafe-documents: [H12,H16] request documents reject engine operations, impersonation and malformed arguments', () => {
   const refused = (call, code = 'BAD_REQUEST') => {
     assert.throws(call, error => error instanceof Refused && error.code === code);
   };
@@ -49,7 +49,7 @@ test('[H12,H16] request documents reject engine operations, impersonation and ma
   refused(() => personRequestMove({ operation: 'verify', args: [1, {}] }));
 });
 
-test('[H12,H16] versioned person requests reject newer formats and unstable identifiers', () => {
+test('person.request.rejects-newer-formats: [H12,H16] versioned person requests reject newer formats and unstable identifiers', () => {
   const request = preparePersonRequest({ verb: 'add', args: { lane: 'app', title: 'A title' } }, 'browser_req-1');
   assert.deepEqual(request, {
     version: 1,
