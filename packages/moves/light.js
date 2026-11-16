@@ -1,4 +1,4 @@
-/** @pullboard-module-loads packages/moves/src/logic/table/lease.table.js packages/moves/src/logic/table/run.js packages/moves/src/logic/table/submit.table.js packages/moves/src/logic/table/withdraw.table.js packages/moves/src/logic/table/claim.table.js packages/moves/src/logic/table/release.table.js packages/moves/src/logic/table/job.table.js packages/moves/src/logic/table/reopen.table.js */
+/** @pullboard-module-loads packages/moves/src/logic/table/lease.table.js packages/moves/src/logic/table/run.js packages/moves/src/logic/table/submit.table.js packages/moves/src/logic/table/withdraw.table.js packages/moves/src/logic/table/claim.table.js packages/moves/src/logic/table/release.table.js packages/moves/src/logic/table/job.table.js packages/moves/src/logic/table/reopen.table.js packages/moves/src/logic/table/pulled.table.js */
 /** The move registry's next steps and the move tables, without the freezer, selection and the rest the cell index also loads [C7]. */
 import { createRequire } from 'node:module';
 import { withMoveNextSteps as withRegistrySteps } from './src/io/registry.js';
@@ -40,10 +40,16 @@ export const withdrawEngine = tableOnDemand('./src/logic/table/withdraw.table.js
 export const claimEngine = tableOnDemand('./src/logic/table/claim.table.js', 'claimEngine');
 /** The verify move table's engine, for the store's verify writer to run [C7,#8272]. */
 export const verifyEngine = tableOnDemand('./src/logic/table/verify.table.js', 'verifyEngine');
+/** The landing tables' engine, for the store's merged writer to run [C7,#8268]. */
+export const landingEngine = tableOnDemand('./src/logic/table/landing.table.js', 'landingEngine');
 /** The release move table's engine, for the store's release writer to run [C7,#8246]. */
 export const releaseEngine = tableOnDemand('./src/logic/table/release.table.js', 'releaseEngine');
 /** The gate-job queue table's engine, for the api job writer's shadow compare [C7,#8310]. */
 export const jobEngine = tableOnDemand('./src/logic/table/job.table.js', 'jobEngine');
 /** The reopen move table's engine, for the store's reopen writer's shadow compare [C7,#8388]. */
 export const reopenEngine = tableOnDemand('./src/logic/table/reopen.table.js', 'reopenEngine');
+/** The reclaim table's engine, for the store's stale-state maintenance shadow compare [C7,#9367]. */
+export const reclaimEngine = tableOnDemand('./src/logic/table/reclaim.table.js', 'reclaimEngine');
+/** The landing-pulled table's engine, for the store's pulled writer to run [M2,R3,#9098]. */
+export const pulledEngine = tableOnDemand('./src/logic/table/pulled.table.js', 'pulledEngine');
 

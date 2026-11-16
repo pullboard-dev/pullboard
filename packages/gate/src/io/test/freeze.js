@@ -8,10 +8,10 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { git } from '../../../../git/index.js';
 import { Refused } from '../../../../kernel/index.js';
-import { countActions } from '../../logic/test/freeze.js';
-import { planFreeze } from '../../logic/test/freeze.js';
-import { rebaseSpecifiers } from '../../logic/test/freeze.js';
-import { rebasePathMath } from '../../logic/test/freeze-paths.js';
+import { countActions } from './freeze/plan.js';
+import { planFreeze } from './freeze/plan.js';
+import { rebaseSpecifiers } from './freeze/plan.js';
+import { rebasePathMath } from './freeze/paths.js';
 import { idRenames } from './ids.js';
 import { testIdIndex } from './ids.js';
 import { ORDER as ORDER_FILE } from './cells.js';
@@ -19,6 +19,27 @@ import { TEST_JOURNEYS_FILE as JOURNEYS_FILE } from './derived.js';
 import { TEST_MANIFEST_FILE } from './manifest.js';
 
 export const FREEZE_RECORD_FILE = 'packages/gate/data/tests/freeze-moves.json';
+
+/** The generated move-table test that now proves each move's rules, by the journeys folder it replaced [C7,#8744]. */
+export const GENERATED_MOVE_TESTS = Object.freeze({
+  release: 'packages/moves/tests/logic/table/release-generated.test.js',
+  claim: 'packages/moves/tests/logic/table/claim-generated.test.js',
+  submit: 'packages/moves/tests/logic/table/submit-generated.test.js',
+  verify: 'packages/moves/tests/logic/table/verify-generated.test.js',
+  land: 'packages/moves/tests/logic/table/landing-generated.test.js',
+});
+
+/**
+ * The generated move-table test that stands in for a deleted journey, or null when its folder is not a release, claim, submit, verify or landing journey.
+ * Why: the record must name what replaced a deletion, so a reader can find the proof without searching.
+ *
+ * @param {string} file the deleted journey's path
+ * @returns {string|null}
+ */
+export function generatedTestFor(file) {
+  const folder = /^apps\/cli\/journeys\/([^/]+)\//u.exec(file)?.[1];
+  return folder && Object.hasOwn(GENERATED_MOVE_TESTS, folder) ? GENERATED_MOVE_TESTS[folder] : null;
+}
 
 /** Read a JSON file under the root, or the fallback when it is absent. */
 function readJson(root, file, fallback) {
@@ -97,7 +118,8 @@ export function applyFreeze(root, plan) {
     if (change.action === 'delete') {
       git(root, ['rm', '-q', '--', change.file]);
       // The covering files are counted, not listed: a broad spec id is cited by hundreds of tests, so lists made the record 36 MB; the committed manifest rederives them.
-      deleted.push({ file: change.file, specs: change.specs ?? [], coveredBy: change.coveredBy.length, because: change.because });
+      const generatedBy = generatedTestFor(change.file);
+      deleted.push({ file: change.file, specs: change.specs ?? [], coveredBy: change.coveredBy.length, because: change.because, ...(generatedBy ? { generatedBy } : {}) });
     } else if (change.action === 'move' || change.action === 'convert') {
       mkdirSync(dirname(join(root, change.to)), { recursive: true });
       git(root, ['mv', '--', change.file, change.to]);

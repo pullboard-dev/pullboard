@@ -1,4 +1,5 @@
 /** `pullboard stats runners`: measurement of the runner fleet, read-only over the job tables [C7]. */
+import { boardRunsReader } from '../../../../../../packages/store/index.js';
 import {
   WAIT_STEP_NAMES,
   readLimitChanges,
@@ -30,9 +31,9 @@ export function runRunners(io, ctx, { second, rest, values }) {
   }
   const until = values.until === undefined ? ctx.clock.now().getTime() : instant(values.until, '--until');
   const from = until - flowWindowMinutes(values.window ?? '24h') * 60_000;
-  const jobs = withBoard(ctx, board => readRunnerJobs(board.db, { from, until, steps: WAIT_STEP_NAMES }));
+  const jobs = withBoard(ctx, board => readRunnerJobs(board.db, { from, until, steps: WAIT_STEP_NAMES, runs: boardRunsReader(board, ctx.file) }));
   const waits = runnerWaits(waitRows(jobs), { from, until });
-  const serves = serveHosts(withBoard(ctx, board => readRunnerJobs(board.db, { from, until, steps: ['claimed'], payloads: ['claimed'] })));
+  const serves = serveHosts(withBoard(ctx, board => readRunnerJobs(board.db, { from, until, steps: ['claimed'], payloads: ['claimed'], runs: boardRunsReader(board, ctx.file) })));
   const limits = withBoard(ctx, board => readLimitChanges(board.db, { from, until }));
   io.result?.({ runners: { waits, limits, serves } });
   for (const line of runnerWaitLines(waits)) io.say(line);

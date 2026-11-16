@@ -95,6 +95,21 @@ export function recordCoordinatorUsage(board, { agentId = 'coordinator', session
   });
 }
 
+/** The coordinator sessions recorded under coordinator:<session id> (#9685). */
+function coordinatorSessions(board) {
+  return board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key LIKE 'coordinator:%'").all().map((row) => JSON.parse(row.meta_value));
+}
+
+/**
+ * The coordinator's recorded usage as one entry of its own: summed over its sessions, or unknown, never zero, when none is recorded.
+ * Why: the coordinator claims no item, so the item totals never held its tokens (#9686).
+ */
+export function coordinatorUsage(board, prices) {
+  const sessions = coordinatorSessions(board);
+  return sessions.length ? { sessions: sessions.length, ...sumUsage(sessions.flatMap((value) => value.records), prices) }
+    : { sessions: 0, ...unknownInputSplit(), inputTokens: null, outputTokens: null, knownInputTokens: 0, knownOutputTokens: 0, wallMs: 0, models: [], unknownReasons: ['not-recorded'], shared: false, estimate: true };
+}
+
 /** Read shared summaries, grouping the same immutable numeric records for every machine. */
 export function costTotals(board, prices) {
   const sharedItems = new Set(board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'shared-item:*'").all().map((row) => Number(row.meta_key.slice('shared-item:'.length))));
@@ -105,9 +120,10 @@ export function costTotals(board, prices) {
   });
   const sharedSessions = publicSharedSessions(board);
   const sharedModels = sharedSessions.flatMap((group) => group.records.map((row) => ({ ...row, wallMs: 0 })));
+  const coordinatorRecords = coordinatorSessions(board).flatMap((value) => value.records);
   /** Group numeric records without multiplying totals across models. */
   const grouped = (name, values) => [...new Set(values.map((row) => row[name]))].map((value) => ({ [name]: value, ...sumUsage(values.filter((row) => row[name] === value), prices) }));
-  return { items: grouped('item', records), lanes: grouped('lane', records), models: grouped('model', [...records, ...sharedModels]),
+  return { items: grouped('item', records), lanes: grouped('lane', records), models: grouped('model', [...records, ...sharedModels, ...coordinatorRecords]),
     milestones: board.nativePorts.milestones(board).map((milestone) => ({ milestone: milestone.name, ...sumUsage(records.filter((row) => milestone.items.includes(row.item)), prices) })),
     seats: grouped('agent', records), sharedSessions };
 }
@@ -147,7 +163,7 @@ const BUDGET_WARN_AT = 0.8;
 export function budgetState(board, prices, budget, now) {
   const rows = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key LIKE 'cost:%'").all().map(row => JSON.parse(row.meta_value));
   const day = new Date(now).toISOString().slice(0, 10);
-  const dollars = values => usageDollars(values.flatMap(value => value.records.map(record => ({ ...record, shared: Boolean(value.shared) }))), prices).knownCostUSD;
+  const dollars = values => usageDollars(values.flatMap(value => value.records.map(record => ({ ...record, shared: Boolean(value.shared) }))), prices).knownCostUSD ?? 0;
   const spend = { dailyUsd: dollars(rows.filter(value => new Date(value.observedAt).toISOString().slice(0, 10) === day)), totalUsd: dollars(rows) };
   const limits = ['dailyUsd', 'totalUsd'].filter(name => budget?.[name] !== undefined);
   if (!limits.length) return { state: 'ok', spend: spend.totalUsd, limit: null, which: null };
@@ -155,4 +171,23 @@ export function budgetState(board, prices, budget, now) {
   const which = limits.reduce((worst, name) => spend[name] / budget[name] > spend[worst] / budget[worst] ? name : worst);
   const ratio = spend[which] / budget[which];
   return { state: ratio >= 1 ? 'stop' : ratio >= BUDGET_WARN_AT ? 'warn' : 'ok', spend: spend[which], limit: budget[which], which };
+}
+
+/**
+ * The refusal a new claim meets when the budget is at its stop line, or null when the claim may go ahead [N2].
+ * Only new claims are asked: an item already claimed keeps submitting and releasing, so nothing stops mid-item.
+ *
+ * @param {{state: string, spend: number, limit: number|null, which: string|null}|null} state the result of budgetState, or null with no budget
+ * @returns {Refused|null} BUDGET_STOP naming the spend, the limit and the next step, or null
+ */
+export function budgetClaimRefusal(state) {
+  if (state?.state !== 'stop') return null;
+  const step = state.which === 'dailyUsd' ? 'raise budget.dailyUsd in the machine settings file, or resume after the next UTC day begins'
+    : 'raise budget.totalUsd in the machine settings file';
+  return new Refused('BUDGET_STOP', `the board has spent ${dollarText(state.spend)} against its ${state.which} limit of ${dollarText(state.limit)}; ${step}`);
+}
+
+/** Dollars as the refusal prints them, two decimals. */
+function dollarText(value) {
+  return '$' + value.toFixed(2);
 }

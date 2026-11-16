@@ -40,6 +40,8 @@ export function insertShout(board, { from, to, text, lanes, item, decision = fal
   }
   const validatedDecision = itemDecisions.itemDecisionDetail(board, { options, decision, item, from, effects }, { itemShoutReader }, engine);
   detail = { ...detail, ...validatedDecision };
+  // inbox.keepUntilActed: the kind rides on the shout event so the inbox can name the actions it allows [C7,#8519].
+  if (board.inboxKeep && kind !== undefined && detail.messageKind === undefined) detail = { ...detail, messageKind: kind };
   if (item !== undefined) {
     if (engine < ITEM_SHOUT_ENGINE) throw new Refused('ENGINE_VERSION', 'item messages require engine 93; upgrade every linked device before sending one');
     to = itemShoutTarget(board.db, item);

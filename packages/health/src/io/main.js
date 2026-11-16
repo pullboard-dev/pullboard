@@ -1,10 +1,13 @@
 import { allItemsNeedingRescope } from '../../../store/index.js';
 import { landingBatches } from '../../../store/index.js';
+import { readBoardMeta } from '../../../store/index.js';
 import { flowWhy } from '../logic/flow.js';
 import { shimLifecycle } from '../../../codemap/index.js';
 import { rankInversionHistory } from './inversion.js';
 import { readWorkFreeReleases } from '../../../stats/index.js';
 import { landingFailureFindings } from './landing.js';
+import { noReviewerSupplyFindings } from './supply.js';
+import { capacityWorsenedFindings } from './capacity.js';
 import { firstRefusal } from '../../../store/index.js';
 import { compositionFamilyFallback } from '../../../verify/index.js';
 import { reviewWait } from '../../../verify/index.js';
@@ -12,6 +15,9 @@ import { eligibilityProblem } from '../../../verify/index.js';
 import { lineSettings } from '../../../state/light.js';
 import { familyIndex } from '../../../verify/index.js';
 import { unreviewableStrict } from '../../../verify/index.js';
+import { declaredLimitProblem } from '../../../verify/index.js';
+import { builderFamilyOf } from '../../../verify/index.js';
+import { canonicalFamily } from '../../../verify/index.js';
 import { withLocalSeatPresence } from '../../../store/index.js';
 import { mechanicalConflictFiles } from '../../../merge/index.js';
 import { localDependencyIds } from '../../../items/index.js';
@@ -162,6 +168,7 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
   const age = (iso) => at - Date.parse(iso);
   const board = { ...readBoardSnapshot(db, { now: () => now }), familyAliases: familyIndex(config?.families) };
   report.stuck.push(...missedJobFindings(board, at), ...dispatchHealth(board, config).findings);
+  report.waiting.push(...capacityWorsenedFindings(db, at, finding));
   for (const stale of staleRowDecisions(rowDecisions(board), root, config)) {
     report.stuck.push(finding('STALE_ROW_DECISION', null, {
       subject: `${stale.kind}:${stale.id}`, key: `STALE_ROW_DECISION:${stale.kind}:${stale.id}`,
@@ -194,6 +201,7 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
     }));
   }
 
+  report.stuck.push(...noReviewerSupplyFindings(board, items, listAgents(board), at, finding, item => item.item_updated_at, { limitProblem: declaredLimitProblem, familyOf: (b, item) => canonicalFamily(b, builderFamilyOf(b, item)) }));
   const history = itemHistory(db, items.map((item) => item.item_id));
   const trunk = trunkTip(root);
   const releases = roadmap(board);
@@ -272,7 +280,7 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
         found(report.stuck, finding('REVIEW_STARVED', item, {
           since: wait.since, now: at, title: 'review starved',
           why: eligible.length ? `submitted ${Math.floor(wait.ageMs / 60_000)} minutes ago without a live reviewer`
-            : `no joined agent is eligible: ${excluding.map(entry => `${entry.agent}: ${entry.code}`).join('; ') || 'no joined agents'}`,
+            : `no joined agent is eligible: ${listedSeats(excluding.map(entry => `${entry.agent}: ${entry.code}`))}`,
           next: eligible.length ? `an eligible idle agent takes pullboard next before new build work` : `inspect the eligibility checks with pullboard show ${id}`,
           command: `pullboard show ${id}`, owner: { role: 'coordinator', who: COORDINATOR },
           detail: { ageMs: wait.ageMs, eligible, excluding },
@@ -364,6 +372,22 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
           owner, detail: { reason: item.item_hold_reason, by: holder },
         }));
       }
+    }
+  }
+
+  // Behind holds.requireOwner (off by default): a hold whose recorded deadline has passed is the owner's to lift or renew [C7,#8541].
+  if (machineSettings?.holds?.requireOwner === true) {
+    for (const item of items.filter(entry => entry.item_hold_reason)) {
+      let record = null;
+      try { record = JSON.parse(readBoardMeta(db, `hold_owner:${item.item_id}`) ?? 'null'); } catch { record = null; }
+      if (!record || !(Date.parse(record.deadline) <= at)) continue;
+      found(report.stuck, finding('HOLD_LAPSED', item, {
+        since: record.deadline, now: at,
+        title: 'hold past its deadline',
+        why: `${record.owner} owns the hold, which lapsed ${record.deadline}: ${firstLine(item.item_hold_reason)}`,
+        next: `lift the hold with pullboard hold ${item.item_id} --off, or hold it again with a new --deadline`, command: `pullboard hold ${item.item_id} --off`,
+        owner: { role: 'coordinator', who: record.owner }, detail: { reason: item.item_hold_reason, owner: record.owner, deadline: record.deadline },
+      }));
     }
   }
 
@@ -599,8 +623,34 @@ function finding(cause, item, { subject, key, since, now, title, why, next, comm
   const label = subject ?? `#${item.item_id}`;
   return {
     key: key ?? `${cause}:item:${item.item_id}`, cause, item: item?.item_id ?? null, subject: label, title,
-    since, ageMinutes: Math.max(0, Math.floor((now - Date.parse(since)) / 60_000)), why, next, command, owner, detail,
+    since, ageMinutes: Math.max(0, Math.floor((now - Date.parse(since)) / 60_000)), why: capText(why), next: capText(next), command, owner, detail,
   };
+}
+
+/** The longest text a health receipt keeps for one finding field; the store refuses more [#3113]. */
+const FINDING_TEXT_CAP = 8192;
+
+/**
+ * Cut a finding's text to the receipt cap, saying how many characters were left out.
+ * Why: one oversized finding made the receipt refuse the whole health scan [#3113].
+ */
+function capText(text) {
+  if (typeof text !== 'string' || text.length <= FINDING_TEXT_CAP) return text;
+  const kept = FINDING_TEXT_CAP - 48;
+  return `${text.slice(0, kept)} ... ${text.length - kept} more characters omitted`;
+}
+
+/**
+ * Join seat lines with "; " while they fit the receipt cap, then say how many seats were left out.
+ * Why: a board with hundreds of excluded seats wrote a finding longer than the cap and stopped the scan [#3113].
+ */
+function listedSeats(lines) {
+  if (!lines.length) return 'no joined agents';
+  const budget = FINDING_TEXT_CAP - 400;
+  let used = 0, shown = 0;
+  while (shown < lines.length && used + lines[shown].length + 2 <= budget) used += lines[shown++].length + 2;
+  const omitted = lines.length - shown;
+  return lines.slice(0, shown).join('; ') + (omitted ? `; and ${omitted} more seats omitted` : '');
 }
 
 /**

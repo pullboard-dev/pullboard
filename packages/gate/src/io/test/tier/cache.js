@@ -10,7 +10,7 @@ import { serialize } from 'node:v8';
 import { gunzipSync } from 'node:zlib';
 import { gzipSync } from 'node:zlib';
 import { userInfo } from 'node:os';
-import { gateMachineHome } from '../../../logic/preload.js';
+import { gateMachineHome } from '../../preload.js';
 import { foreignNodeOptions } from '../isolation.js';
 
 /** This machine's shared home, as the parse cache finds it; tests isolate it with their machine or account home. */

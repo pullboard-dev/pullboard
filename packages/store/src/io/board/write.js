@@ -10,6 +10,7 @@ import { requireAgentGrant } from "../../../../state/index.js";
 import { ENGINE_VERSION } from "../../../../state/index.js";
 import { REVIEW_GATE_RECEIPT_ENGINE } from "../../../../state/light.js";
 import { Refused } from "../../../../kernel/index.js";
+import { requireFileLease } from "../../../../items/index.js";
 
 const PREPARE_ATTEMPTS = 4;
 
@@ -97,6 +98,11 @@ function warmHistories(board) {
 export function writeBoardCommand(board, operation, args, actor, { prepareInWriter } = {}) {
   requireHandoffActive(board, actor, operation, args);
   requireExitActive(board, actor, operation, args);
+  // claims.fileLease (off by default): a live claim's predicted files are leased to it; a refusal writes nothing [C7,#8521].
+  if (board.fileLease && operation === 'claim' && actor) {
+    const item = board.db.prepare('SELECT * FROM item WHERE item_id=?').get(args[0]);
+    if (item) requireFileLease(board.db, item, actor, board.fileLease, board.clock.now().toISOString());
+  }
   requireAgentGrant(board, { operation, args, engine: ENGINE_VERSION, ...(board.itemsInGate > 0 ? { itemsInGate: board.itemsInGate } : {}) });
   const prepare = PREPARATIONS[operation];
   // Another connection's commit (a peer's renewal, a baseline worker) can land between preparation and

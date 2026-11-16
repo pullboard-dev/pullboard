@@ -1,8 +1,11 @@
 import { setItem as writeItemFields } from "../../../../../items/index.js";
 import { now } from "../query.js";
 import { liftInfraHold } from "../../../logic/board/release.js";
+import { liftTwiceHold } from "../../../logic/board/release.js";
+import { liftSettledHolds } from "../../../logic/board/holds.js";
 import { liftConditionalHold } from "../../../logic/board/holds.js";
 import { requireHandoffActive } from "../../../../../state/light.js";
+import { eventKindRefusal } from "../../../../../state/light.js";
 /** Append native events and their rebuildable proof projection in the same transaction [R2]. */
 import { ENGINE_VERSION } from "../../../../../state/index.js";
 import { writeSync } from 'node:fs';
@@ -24,6 +27,7 @@ import {
 } from "../write/lock.js";
 
 import { BOARD_PROGRESS_ENGINE } from '../../../../../state/index.js';
+import { suspendStoreGuards } from "../guards.js";
 import { notifyUnblocked } from '../../../logic/board/notices.js';
 
 const OWN_FILE = fileURLToPath(import.meta.url);
@@ -197,6 +201,9 @@ export function logEvent(board, by, kind, itemId, detail = {}, at) {
   // Standalone native writers take the same actual lock; nested moves retain their existing savepoints.
   if (!(TRANSACTION_DEPTH.get(board) ?? 0)) return atomic(board, () => logEvent(board, by, kind, itemId, detail, at));
   noteBoardWriteItem(board.db, itemId);
+  // A kind a newer engine declares is refused before anything is written, so an older board's history keeps its meaning [M1].
+  const tooNew = eventKindRefusal(board, kind);
+  if (tooNew) throw new Refused(tooNew.code, tooNew.message, tooNew.next);
   // A refused authenticated request remains auditable; it is not an outgoing board move.
   if (kind !== 'relay_refused') requireHandoffActive(board, by, kind, [{ item: kind === 'shout' ? detail.item : undefined }]);
   board.db.exec('SAVEPOINT proof_event_append');
@@ -215,6 +222,8 @@ export function logEvent(board, by, kind, itemId, detail = {}, at) {
     (board.emittedEvents ??= []).push(event);
     liftConditionalHold(board, event, logEvent, setItem);
     liftInfraHold(board, event, logEvent, setItem);
+    liftTwiceHold(board, event, logEvent, setItem);
+    liftSettledHolds(board, event, logEvent, setItem);
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= BOARD_PROGRESS_ENGINE && ['merged', 'withdraw', 'unhold_item', 'unhold'].includes(kind)) {
       notifyUnblocked(board, event, logEvent);
     }
@@ -226,6 +235,28 @@ export function logEvent(board, by, kind, itemId, detail = {}, at) {
   }
 }
 
+
+/**
+ * Move every event of the named items into event_archive, stamped with `archivedAt`, in one transaction; returns how many moved.
+ * Why here: this module is the one writer of the event tables, so the archiver asks it to move rows instead of writing them [#9334].
+ * @param {any} board
+ * @param {number[]} itemIds
+ * @param {string} archivedAt - ISO time recorded on each archived row.
+ * @returns {number}
+ */
+export function moveEventsToArchive(board, itemIds, archivedAt) {
+  if (!itemIds.length) return 0;
+  const ids = JSON.stringify(itemIds);
+  return atomic(board, () => {
+    // Events are append-only under the board's guards; the archive is the one sanctioned move out, so lift them for this transaction and put them back.
+    const restore = suspendStoreGuards(board);
+    const moved = board.db.prepare(`INSERT INTO event_archive (event_id, event_at, event_by, event_kind, item_id, event_detail, event_archived_at)
+      SELECT event_id, event_at, event_by, event_kind, item_id, event_detail, ? FROM event WHERE item_id IN (SELECT value FROM json_each(?))`).run(archivedAt, ids).changes;
+    board.db.prepare('DELETE FROM event WHERE item_id IN (SELECT value FROM json_each(?))').run(ids);
+    restore();
+    return Number(moved);
+  });
+}
 
 /** Preserve the native clock fallback when conditional holds write item fields [M1,C7]. */
 function setItem(board, id, fields, at) { return writeItemFields(board, id, fields, at, now); }

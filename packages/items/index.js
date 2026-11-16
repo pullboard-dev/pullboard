@@ -1,8 +1,8 @@
 /** Item lifecycle, source custody and routing behind one front door [C7]. */
-export { criterionSize, defaultItemRoute } from './src/logic/size.js';
+export { criterionSize, defaultItemRoute, shapeRoute } from './src/logic/size.js';
 export { itemCollisionPlan } from './src/io/planning.js';
 export { criterionCells } from './src/io/criterion.js';
-export { BLOCKS_FILE, recordBlock, readBlocks, blockMoveKey, blockMoveKeys, blockOwner, clearCompletedBlocks, personBlockWords, budgetWords } from './src/io/blocks.js';
+export { BLOCKS_FILE, recordBlock, readBlocks, readLedgerBytes, blockMoveKey, blockMoveKeys, blockOwner, clearCompletedBlocks, personBlockWords, budgetWords } from './src/io/blocks.js';
 export { briefFiles } from './src/logic/brief.js';
 export { CAUGHT_KINDS, caughtFrom, caughtLines } from './src/logic/caught.js';
 export { firstRefusalProblem, firstRefusalReason, firstRefusalDetail, tellFirstRefusal, firstRefusalArgs, manualLandingFailure } from './src/logic/claims.js';
@@ -16,6 +16,7 @@ export { itemAuthors, retainedVerifierIdentityProblem, itemAuthorProblem } from 
 export { itemDecisionDetail, recordItemDecision, projectItemDecisions } from './src/logic/decision/queue.js';
 export { dependencyValues, foreignDependencies, dependencyLabel, hasForeignDependencies, dependencyReferences, localDependencyIds, parseDependency, validateNativeDependencies } from './src/logic/dependencies.js';
 export { setItem } from './src/logic/fields.js';
+export { contentionScores, orderByContention, conflictRates } from './src/logic/contention.js';
 export { itemFiles, itemFileCollisions, addedFileCollisions, notifyFileGrowth } from './src/logic/files.js';
 export { applyItemHold, applyItemHoldRelease } from './src/logic/holds.js';
 export { milestoneNamesByItem, SUMMARY_KEYS, withdrawnFrom, withListFields, itemSummary } from './src/logic/list.js';
@@ -74,6 +75,7 @@ export { touchToolTree } from './src/io/submit/recovery.js';
 export { claimedItemRoot } from './src/io/patch/submit.js';
 export { dependencyWaiters, dependencyWorkAt } from './src/logic/progress.js';
 export { parseDiagnosis, diagnosisBrief } from './src/logic/diagnosis.js';
-export { itemFolderIdentity, itemFolderPath, writeItemMarker } from './src/io/claim.js';
+export { ITEM_MARKER_FILE, itemFolderIdentity, itemFolderPath, writeItemMarker } from './src/io/claim.js';
 export { mainRedRootCause, mainRedKey, mainRedKeyLines, mainRedEvidenceLines, splitMainReds, mainRedFact, fileMainRed } from './src/logic/audit/main-red.js';
-export { vendorOfModel } from './src/logic/vendors.js';
+export { canonicalVendorFamily, vendorOfModel } from './src/logic/vendors.js';
+export { predictedFiles, requireFileLease, fileMiss } from './src/logic/lease.js';

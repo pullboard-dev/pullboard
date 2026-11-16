@@ -1,6 +1,6 @@
 /** Relay app front door: the relay modules other code imports [C7,H5]. */
 export { createAuthHandler } from './src/io/auth/http.js';
-export { ACCESS_WINDOW_MS, createRelayAuth } from './src/io/auth.js';
+export { ACCESS_WINDOW_MS, AUTH_DATABASE_FILE, createRelayAuth } from './src/io/auth.js';
 export { BROWSER_IO_TIMEOUT_MS, browserJSON, withBrowserDeadline } from './src/logic/browser/deadline.js';
 export { createPhoneHistory } from './src/io/browser/history.js';
 export { registerApp, requestPairingPersistence } from './src/logic/browser/install.js';
@@ -17,6 +17,7 @@ export { createRelayPages } from './src/io/store/page.js';
 export { createRelayPagesHandler, snapshotPageRoot } from './src/io/pages.js';
 export { createPairingHandler } from './src/logic/pairing/http.js';
 export { createPairingStore } from './src/logic/pairing/store.js';
+export { WAKEUP_KINDS, buildWakeup, openWakeup } from './src/logic/push/wakeup.js';
 export { createRelayRetention } from './src/io/retention.js';
 export { createRelayHandler, serveRelay } from './src/io/service.js';
 export { ACCOUNT_STORAGE_BYTES, boardStorageBytes, createStorageQuota, storageLimitMessage } from './src/io/quota.js';

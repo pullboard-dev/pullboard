@@ -36,7 +36,7 @@ export function startCodeMapRefresh(root) {
 export async function refreshLandedCodeMap(state) {
   const deferred = [];
   try {
-    await warnMainMoved({ root: state.root, board: state.board, trunk: state.batch.tip, write: state.write, say: state.say }, { listAgents: store.listAgents, listItems: store.listItems });
+    await warnMainMoved({ root: state.root, board: state.board, trunk: state.batch.tip, write: state.write, say: state.say }, { listAgents: store.listAgents, listItems: store.listItems, submitHandoff: store.submitHandoff });
   } catch (error) {
     state.say('main-move warnings deferred: ' + error.message);
     deferred.push({ kind: 'main-moved', main: state.batch.tip });

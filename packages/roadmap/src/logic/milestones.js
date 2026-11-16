@@ -3,6 +3,7 @@ import { COORDINATOR_ACTIONS_ENGINE } from '../../../state/index.js';
 import { MILESTONE_LIMIT_ENGINE } from "../../../state/light.js";
 import { MILESTONE_PERSON_LIMIT_ENGINE } from "../../../state/index.js";
 import { MILESTONE_SHIP_ENGINE } from "../../../state/light.js";
+import { MILESTONE_MODE_ENGINE } from "../../../state/light.js";
 /**
  * The roadmap's milestones: ordered names, notes, targets and item references kept in one
  * board_meta value, with automatic placement and reasoned coordinator or person overrides (N26,B35).
@@ -108,6 +109,7 @@ export function roadmap(board, resolveExternal = null, ports) {
       shipped: milestone.shipped ?? null,
       count: milestone.items.length,
       limit: milestone.limit ?? null,
+      mode: milestone.mode ?? 'rollover',
       items: entries,
       landed,
       done: landed,
@@ -248,7 +250,7 @@ function enforceMilestoneLimit(board, milestone, items, itemById, plainAdd = fal
  * Edit membership atomically. A swap removes and adds in one receiver transaction, checked against
  * the final count; historical add/remove moves retain their recorded meaning [N26,H16].
  */
-export function editMilestoneItems(board, name, { agentId, add = [], remove = [], swap = [], reason }, ports) {
+export function editMilestoneItems(board, name, { agentId, add = [], remove = [], swap = [], reason, asPerson = false }, ports) {
   const { atomic, itemById, logEvent, milestones, PERSON } = milestonePorts(ports, ["atomic", "itemById", "logEvent", "milestones", "PERSON"]);
   const why = placementActor(board, agentId, PERSON, reason);
   const additions = normalizeMilestoneItems(add);
@@ -273,7 +275,9 @@ export function editMilestoneItems(board, name, { agentId, add = [], remove = []
     const nextItems = swaps.length
       ? current.items.map(id => id === swaps[0] ? additions[0] : id)
       : [...current.items.filter(id => !removed.includes(id)), ...additions];
-    if (additions.length) enforceMilestoneLimit(board, current, nextItems, itemById, swaps.length === 0);
+    // The person's signed add may grow a milestone past its limit; an agent or the coordinator may not [N26,H16].
+    const personGrows = asPerson && swaps.length === 0 && engineOf(board) >= MILESTONE_PERSON_LIMIT_ENGINE;
+    if (additions.length && !personGrows) enforceMilestoneLimit(board, current, nextItems, itemById, swaps.length === 0);
     entries[index] = { ...current, items: nextItems,
       ...((board.executionEngineVersion ?? ENGINE_VERSION) >= MILESTONE_RANK_ENGINE && current.order
         ? { order: current.order.map(id => swaps.includes(id) ? additions[0] : id).filter(id => nextItems.includes(id)) } : {}) };
@@ -282,7 +286,7 @@ export function editMilestoneItems(board, name, { agentId, add = [], remove = []
     }
     movePlacedItems(entries, index, placed);
     saveMilestones(board, entries);
-    logEvent(board, agentId, 'milestone_items', null, { name, add: additions, remove: removals, ...(swaps.length ? { swap: swaps } : {}), ...(why ? { reason: why } : {}) });
+    logEvent(board, agentId, 'milestone_items', null, { name, add: additions, remove: removals, ...(swaps.length ? { swap: swaps } : {}), ...(why ? { reason: why } : {}), ...(personGrows ? { asPerson: true } : {}) });
     for (const id of placed) logEvent(board, agentId, 'milestone_placed', id, { milestone: name, rule: 'override', reason: why, note: `placed in ${name} by override: ${why}` });
     return nextItems;
   });
@@ -425,6 +429,12 @@ export function moveMilestone(board, name, { agentId, before }, ports) {
   });
 }
 
+/** The fill mode a milestone takes: rollover passes items on when full, explicit leaves placement to the coordinator [N26]. */
+function normalizeMilestoneMode(mode) {
+  if (mode === 'rollover' || mode === 'explicit') return mode;
+  throw new Refused('MILESTONE_MODE', 'set --mode to rollover or explicit');
+}
+
 /** Whether a new limit lets a milestone hold more than its current one; turning a limit off counts, setting the first one does not. */
 function raisesLimit(current, next) {
   if (current == null) return false;
@@ -435,18 +445,20 @@ function raisesLimit(current, next) {
  * Rename a milestone, update its note, or set its target without touching its items. A target is
  * an engine-45 meaning, so an older engine's edit replays exactly as it did.
  */
-export function editMilestone(board, name, { agentId, newName, note, target, limit, asPerson = false }, ports) {
+export function editMilestone(board, name, { agentId, newName, note, target, limit, mode, asPerson = false }, ports) {
   const { atomic, itemById, logEvent, milestones } = milestonePorts(ports, ["atomic", "itemById", "logEvent", "milestones"]);
   requireCoordinator(agentId);
   const engine = engineOf(board);
   if (limit !== undefined && engine < MILESTONE_LIMIT_ENGINE) throw new Refused('ENGINE_VERSION', `milestone limit requires engine ${MILESTONE_LIMIT_ENGINE}; upgrade Pullboard before using --limit`);
+  if (mode !== undefined && engine < MILESTONE_MODE_ENGINE) throw new Refused('ENGINE_VERSION', `a milestone mode requires engine ${MILESTONE_MODE_ENGINE}; upgrade Pullboard before using --mode`);
   if (target !== undefined && engine < MILESTONE_SHIP_ENGINE) {
     throw new Refused('ENGINE_VERSION', `a milestone target requires engine ${MILESTONE_SHIP_ENGINE}; this board uses engine ${engine}; upgrade Pullboard before using --target`);
   }
-  if (newName === undefined && note === undefined && target === undefined && limit === undefined) {
+  if (newName === undefined && note === undefined && target === undefined && limit === undefined && mode === undefined) {
     throw new Refused('MILESTONE_EDIT', engine < MILESTONE_SHIP_ENGINE ? 'supply --name or --note to edit a milestone' : 'supply --name, --note or --target to edit a milestone');
   }
   const limitValue = limit === undefined ? undefined : normalizeMilestoneLimit(limit);
+  const modeValue = mode === undefined ? undefined : normalizeMilestoneMode(mode);
   const targetValue = target === undefined ? undefined : normalizeMilestoneTarget(target);
   return atomic(board, () => {
     const entries = milestones(board);
@@ -463,9 +475,10 @@ export function editMilestone(board, name, { agentId, newName, note, target, lim
       enforceMilestoneLimit(board, { ...entries[index], limit: limitValue }, entries[index].items, itemById);
       entries[index].limit = limitValue;
     }
+    if (modeValue !== undefined) entries[index].mode = modeValue;
     saveMilestones(board, entries);
     logEvent(board, agentId, 'milestone_edit', null, { before: name, after: renamed, noteChanged: note !== undefined,
-      ...(targetValue === undefined ? {} : { target: targetValue }), ...(limitValue === undefined ? {} : { limit: limitValue }) });
+      ...(targetValue === undefined ? {} : { target: targetValue }), ...(limitValue === undefined ? {} : { limit: limitValue }), ...(modeValue === undefined ? {} : { mode: modeValue }) });
     return entries[index];
   });
 }

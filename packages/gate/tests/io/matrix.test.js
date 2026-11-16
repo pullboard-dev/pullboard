@@ -7,14 +7,17 @@
  */
 import assert from 'node:assert/strict';
 import {
+  existsSync,
   readdirSync,
   readFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import {
+  APP_HARNESSES,
   HARNESS_FILES,
   HOPS,
+  harnessFile,
   matrixRows,
   parseArgs,
   renderMatrix,
@@ -40,7 +43,7 @@ test('every hop names an existing harness or none, and every harness file is a h
   const helpers = new Set(['kit.js', 'project.js']);
   const files = readdirSync(HARNESSES, { recursive: true }).filter(name => name.endsWith('.js') && !helpers.has(name)).map(name => name.replace(/\.js$/u, ''));
   const named = new Set(HOPS.map(hop => hop.harness).filter(Boolean));
-  for (const name of named) assert.ok(files.includes(HARNESS_FILES[name]), `hop harness ${name} exists`);
+  for (const name of named) assert.ok(existsSync(harnessFile(name)), `hop harness ${name} exists`);
   const mapped = new Set(named.values().map(name => HARNESS_FILES[name]));
   for (const name of files) assert.ok(mapped.has(name), `harness ${name} proves a hop in the matrix`);
   assert.equal(new Set(HOPS.map(hop => hop.id)).size, HOPS.length, 'hop ids are unique');
@@ -52,7 +55,10 @@ test('the architecture page lists every hop with its harness, and NONE exactly w
   for (const hop of HOPS) {
     const row = rows.find(line => line.includes(`<a id="hop-${hop.id}"></a>`));
     assert.ok(row, `the page has a row for ${hop.id}`);
-    if (hop.harness) assert.ok(row.includes(`packages/gate/tests/fixtures/pipeline/${HARNESS_FILES[hop.harness]}.js`), `${hop.id}'s row names its harness`);
+    if (hop.harness) {
+      const moved = APP_HARNESSES[hop.harness];
+      assert.ok(row.includes(moved ?? `packages/gate/tests/fixtures/pipeline/${HARNESS_FILES[hop.harness]}.js`), `${hop.id}'s row names its harness`);
+    }
     else assert.match(row, /\| NONE \|/u, `${hop.id}'s row says NONE: no harness is real debt`);
   }
   assert.equal(rows.length, HOPS.length, 'one row per hop, no others');
@@ -80,7 +86,7 @@ test('the runner reads harness rows into PASS, FAIL and NONE, fails a leak, and 
   assert.equal(rows['live-driver'].status, 'FAIL', 'a hop its harness never reported fails with the harness\'s error');
   assert.match(rows['live-driver'].cause, /Cannot find module/u);
   assert.equal(rows['analysis-on-runner'].status, 'PASS', 'a hop with a mapped harness reports what the harness printed');
-  assert.equal(rows['stale-dispatcher'].status, 'SKIPPED', 'a harness left out with --only is not a pass');
+  assert.equal(rows['runner-spec'].status, 'SKIPPED', 'a harness left out with --only is not a pass');
   // Every hop has a harness now, so the NONE rendering is checked on a row emptied of its result.
   const noHarness = Object.values(rows).map(row => (row.id === 'analysis-on-runner' ? { ...row, status: 'NONE', ms: null, measured: '', cause: '', current: false } : row));
   const text = renderMatrix(noHarness, { at: 'now', against: null, live: true });
