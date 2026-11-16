@@ -49,6 +49,7 @@ export * from "./src/io/step/gate.js";
 export { runLandingCliSmoke, runCommitCliSmoke, recordSmokeReceipt, smokeCandidate, smokeCommit } from "./src/io/smoke.js";
 export * from "./src/io/step/diagnose.js";
 export * from "./src/io/step/publish.js";
+export { PULL_OUT_KIND, pullOutJobId, runPullOutJob } from "./src/io/step/pull.js";
 export * from "./src/io/step/trunk.js";
 export { withoutStaleVerdicts } from "./src/io/pulled/fresh.js";
 export { relandAcceptedItems } from "./src/io/reland.js";
