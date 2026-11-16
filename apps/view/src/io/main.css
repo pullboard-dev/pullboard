@@ -845,6 +845,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .spec-feedback { margin: var(--space-3) 0; padding: var(--space-3); border: var(--border-strong); border-radius: var(--radius-lg); overflow-wrap: anywhere; font-size: var(--text-sm); }
 .spec-feedback.ok { color: var(--accent-strong); }
 .spec-feedback.no { color: var(--reject); }
+.spec-feedback.spent { visibility: hidden; }
 
 /* The agents panel: a row for each agent holding work, a pill for each holding none. */
 .agent-card { border-radius: var(--radius-lg); }
