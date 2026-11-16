@@ -62,3 +62,19 @@ export function lineOrderFixture(t, engine = null) {
   }
   return { board, root, builder, reviewer, order };
 }
+
+/** An open strong-route core item whose brief names these files, so file contention can see it. */
+export function filesItem(board, title, files) {
+  // fixture-subject: addItem
+  return store.addItem(board, { by: 'coordinator', lane: 'core', title, route: 'strong', brief: `Files: ${files.join(', ')}` });
+}
+
+/** Register one more strong core builder seat. */
+export function builderSeat(board, name) {
+  return store.register(board, { lane: 'core', path: `/${name}`, route: 'strong' });
+}
+
+/** Claim an item for a seat, so its files are in flight. */
+export function takeItem(board, id, agentId) {
+  store.claim(board, id, { agentId, lane: 'core', leaseMs: HOUR, freeze: FREEZE });
+}
