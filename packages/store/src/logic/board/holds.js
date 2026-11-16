@@ -67,3 +67,16 @@ export function liftConditionalHold(board, event, logEvent, setItem) {
   logEvent(board, 'coordinator', 'unhold_item', event.item_id, { reason: item.item_hold_reason,
     until: condition.kind, holdEventId: condition.holdEventId, triggerEventId: event.event_id });
 }
+
+const DONE = new Set(['landed', 'withdrawn']);
+
+/** True when every item a hold reason names has landed or been withdrawn; a reason naming none is never settled [C7]. Pure: no board writes. */
+export function settledHoldReason(reason, statusOf) {
+  const ids = [...new Set(String(reason ?? '').match(/#\d+/g) ?? [])];
+  return ids.length > 0 && ids.every(id => DONE.has(statusOf(id.slice(1))));
+}
+
+/** True when a parent has at least one child and every child has landed or been withdrawn [C7]. */
+export function parentHoldSettled(childStatuses) {
+  return childStatuses.length > 0 && childStatuses.every(status => DONE.has(status));
+}
