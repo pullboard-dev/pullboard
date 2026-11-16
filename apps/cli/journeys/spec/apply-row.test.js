@@ -39,13 +39,13 @@ async function applyEvents(box) {
 
 test('clause 1: spec apply --row writes only that row and records only its decision event [C7]', { timeout: 180_000 }, async () => {
   const box = fixtures.project('true');
-  const first = await approvedProposal(box, 'G1', 'The page renders accessibly.');
-  const second = await approvedProposal(box, 'G2', 'The API answers quickly.');
-  succeeds(await box.runIn(box.repo, 'spec', 'apply', '--row', first));
+  await approvedProposal(box, 'G1', 'The page renders accessibly.');
+  await approvedProposal(box, 'G2', 'The API answers quickly.');
+  succeeds(await box.runIn(box.repo, 'spec', 'apply', '--row', 'G1'));
   assert.equal(row(box, 'G1').text, 'The page renders accessibly.', 'the named row was applied');
   assert.equal(row(box, 'G2').text, 'The API answers.', 'the other row stayed as it was');
   const { events, applies } = await applyEvents(box);
-  const decision = events.find(event => event.event_kind === 'row_decision' && event.event_detail.includes(`"${first}"`));
+  const decision = events.find(event => event.event_kind === 'row_decision' && event.event_detail.includes('"id":"G1"'));
   assert.ok(decision, 'the first proposal has its decision event');
   assert.deepEqual(applies, [[decision.event_id]], 'one row_apply event names only the first decision');
 });
@@ -54,12 +54,13 @@ test('clause 2: the other approval is still pending after spec apply --row [C7]'
   const box = fixtures.project('true');
   const first = await approvedProposal(box, 'G1', 'The page renders accessibly.');
   const second = await approvedProposal(box, 'G2', 'The API answers quickly.');
-  succeeds(await box.runIn(box.repo, 'spec', 'apply', '--row', first));
+  succeeds(await box.runIn(box.repo, 'spec', 'apply', '--row', 'G1'));
   assert.ok(!personNeedsState(box.repo).needs.some(entry => entry.id === first), 'the applied row leaves Needs you');
-  const refused = await box.runIn(box.repo, 'spec', 'apply', '--row', first);
+  assert.ok(personNeedsState(box.repo).needs.some(entry => entry.id === second), 'the other approval is still pending');
+  const refused = await box.runIn(box.repo, 'spec', 'apply', '--row', 'G1');
   assert.notEqual(refused.code, 0, 'an id with no pending decision is refused, not a silent no-op');
   assert.match(`${refused.out}${refused.err}`, /no pending decision/u);
-  succeeds(await box.runIn(box.repo, 'spec', 'apply', '--row', second));
+  succeeds(await box.runIn(box.repo, 'spec', 'apply', '--row', 'G2'));
   assert.equal(row(box, 'G2').text, 'The API answers quickly.', 'the second row applies when named in turn');
 });
 
