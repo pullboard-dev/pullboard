@@ -23,3 +23,13 @@ export function vendorOfModel(model) {
   for (const word of model.toLowerCase().split(/[^a-z0-9]+/u)) if (BUILTINS.has(word)) return BUILTINS.get(word);
   return null;
 }
+
+/**
+ * The canonical vendor family a declared label names (OpenAI and openai read as openai; Claude and anthropic as anthropic), or the
+ * label itself when no known vendor spelling matches. Why: seats register mixed spellings and the family guard then sees four
+ * families where there are two (#9681).
+ */
+export function canonicalVendorFamily(label) {
+  if (typeof label !== 'string' || !label.trim()) return label;
+  return BUILTINS.get(label.trim().toLowerCase()) ?? label;
+}

@@ -23,7 +23,7 @@ import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js'
 import {
   HOST,
   installSshStandIn,
-} from '../../../../apps/cli/tests/fixtures/runner/ssh.js';
+} from '../../../gate/tests/fixtures/runner/ssh.js';
 
 const SOURCE = resolve(import.meta.dirname, '../../../..');
 const EXECUTED = 'EXECUTED-FLEET-CACHE-PROBE';

@@ -9,23 +9,23 @@ import { relayNoticeView } from '../../src/logic/relay-cause.js';
 const esc = (value) => String(value).replace(/[&<>"']/gu, (c) => `&#${c.charCodeAt(0)};`);
 
 test('clause 1: an asleep status names the machine in asleep wording with no error role [H5]', () => {
-  const html = relayNoticeMarkup({ cause: 'asleep', machine: 'm1', label: 'Studio' }, esc);
-  assert.match(html, /Studio is asleep/u);
+  const html = relayNoticeMarkup({ cause: 'asleep', machine: 'm1', label: 'Tower' }, esc);
+  assert.match(html, /Tower is asleep/u);
   assert.match(html, /data-tone="asleep"/u);
   assert.doesNotMatch(html, /role="alert"|error|check your connection/iu);
   assert.match(html, /catch up when it wakes/u);
 });
 
 test('clause 1: an offline status reads the same as asleep [H5]', () => {
-  assert.deepEqual(relayCauseMessage({ cause: 'offline', label: 'Studio' }), relayCauseMessage({ cause: 'asleep', label: 'Studio' }));
-  assert.equal(relayNoticeView({ cause: 'offline', machine: 'Studio' }).tone, 'asleep');
-  assert.match(relayNoticeMarkup({ cause: 'offline', machine: 'Studio' }, esc), /Studio is asleep/u);
+  assert.deepEqual(relayCauseMessage({ cause: 'offline', label: 'Tower' }), relayCauseMessage({ cause: 'asleep', label: 'Tower' }));
+  assert.equal(relayNoticeView({ cause: 'offline', machine: 'Tower' }).tone, 'asleep');
+  assert.match(relayNoticeMarkup({ cause: 'offline', machine: 'Tower' }, esc), /Tower is asleep/u);
 });
 
 test('clause 1: after the machine wakes the note is gone and a real trouble still shows as an error [H5]', () => {
   assert.equal(relayNoticeMarkup(null, esc), '');
   assert.equal(relayNoticeView(null), null);
-  const trouble = relayNoticeMarkup({ cause: 'relay_off', machine: 'Studio' }, esc);
+  const trouble = relayNoticeMarkup({ cause: 'relay_off', machine: 'Tower' }, esc);
   assert.match(trouble, /role="alert"/u);
   assert.match(trouble, /pullboard relay on/u);
 });
