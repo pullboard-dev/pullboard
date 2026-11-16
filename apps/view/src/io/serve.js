@@ -724,7 +724,7 @@ const derivedKept = new Map();
  * @param {object} [options]
  * @returns {any}
  */
-function liveProjectState(root, options = {}) {
+export function liveProjectState(root, options = {}) {
   return projectState(root, { ...options, rowAgesLater: true });
 }
 
