@@ -117,6 +117,32 @@ export function pushMaxShards(files, times, config, runners) {
 }
 
 /**
+ * What the push gate would offer now, with the numbers behind it, for pullboard capacity. Every field is null (never zero)
+ * when its input is unknown. shards is what pushMaxShards picks under the current setting, capped by the file count, like
+ * planPushShards; targetMs is the per-shard target the board-sized plan uses. Report only: it reads and plans nothing. Why:
+ * a person must be able to see the sizes the board picks from its own data [U151].
+ *
+ * @param {string[] | null} files - The gate's test files, or null when they cannot be named.
+ * @param {Record<string, number>} times
+ * @param {{ pushGate?: { shardMinutes?: number, sizeFromBoard?: boolean } } | undefined} config
+ * @param {number | undefined} runners - Live runners on the board, when known.
+ * @returns {{ shards: number|null, targetMs: number, runners: number|null, totalMs: number|null, fileCount: number|null, sizeFromBoard: boolean, why: string }}
+ */
+export function pushGateReport(files, times, config, runners) {
+  const sizeFromBoard = config?.pushGate?.sizeFromBoard === true;
+  const targetMs = (config?.pushGate?.shardMinutes ?? DEFAULT_SHARD_MINUTES) * 60_000 / 4;
+  const known = Array.isArray(files) && files.length > 0 ? [...new Set(files)] : null;
+  const live = Number.isFinite(runners) && runners > 0 ? runners : null;
+  if (!known) return { shards: null, targetMs, runners: live, totalMs: null, fileCount: null, sizeFromBoard, why: 'the gate files are unknown, so no shard count is picked' };
+  const totalMs = known.reduce((sum, file) => sum + pushFileWeight(file, times), 0);
+  const shards = Math.min(pushMaxShards(known, times, config, live ?? undefined), known.length);
+  const why = !sizeFromBoard ? `pushGate.sizeFromBoard is off, so the fixed plan of up to ${PUSH_MAX_SHARDS} shards applies`
+    : live === null ? `no live runner count, so the fixed plan of up to ${PUSH_MAX_SHARDS} shards applies`
+      : `ceil(${Math.round(totalMs)} ms total / ${targetMs} ms target), at most ${live} live runners and ${PUSH_MAX_SHARDS}`;
+  return { shards, targetMs, runners: live, totalMs, fileCount: known.length, sizeFromBoard, why };
+}
+
+/**
  * How long the gate waits on one held shard: the pushGate.shardMinutes limit, or the heaviest partition's estimated time
  * when that is longer. Why: with at most eight partitions each holds far more than the old 5-minute shards, so a flat
  * 20-minute limit would give up on a healthy run of main.
