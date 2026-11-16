@@ -11,7 +11,7 @@ import { test } from 'node:test';
 import { fixtureMachineSettings } from '../../../../gate/tests/fixtures/testkit.js';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { cleanGitEnvironment } from '../../../../git/index.js';
-import { realGitAdapter } from '../../../../git/src/io/adapter.js';
+import { realGitAdapter } from '../../../../git/index.js';
 import { withGitAdapter } from '../../../../git/index.js';
 import { landingPlanCheck } from '../../../src/io/plan/check.js';
 
