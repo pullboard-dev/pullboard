@@ -48,7 +48,7 @@ test('clause 1: with next.adoptPreserved on, next --take of a returned item chec
   const taken = await f.box.runLocal(f.fresh, 'next', '--take');
   assert.equal(taken.code, 0, taken.err + taken.out);
   assert.match(taken.out, new RegExp(`restored the pinned work of #${f.id}: head ${f.head.slice(0, 12)} from ${f.pin}`));
-  const folder = taken.out.match(/^item folder: (.+?);/m)[1];
+  const folder = taken.out.match(/^item folder: (.+?);/m)?.[1] ?? f.fresh;
   assert.ok(existsSync(join(folder, 'web', 'page.html')), 'the returned file is in the new item folder');
   assert.equal(readFileSync(join(folder, 'web', 'page.html'), 'utf8'), '<h1>Returned work</h1>');
   assert.equal(f.box.git(folder, 'merge-base', '--is-ancestor', f.head, 'HEAD') ?? '', '', 'the pinned head is in the folder branch');
@@ -62,7 +62,7 @@ test('clause 2: with next.adoptPreserved off, the default, next --take claims th
   assert.equal(taken.code, 0, taken.err + taken.out);
   assert.match(taken.out, new RegExp(`claimed #${f.id}`));
   assert.doesNotMatch(taken.out, /restored the pinned work/u);
-  const folder = taken.out.match(/^item folder: (.+?);/m)[1];
+  const folder = taken.out.match(/^item folder: (.+?);/m)?.[1] ?? f.fresh;
   assert.equal(existsSync(join(folder, 'web', 'page.html')), false, 'nothing of the returned work is restored');
   assert.equal(f.box.tryGit(folder, 'merge-base', '--is-ancestor', f.head, 'HEAD').status !== 0, true);
 });

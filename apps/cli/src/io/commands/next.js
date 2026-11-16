@@ -354,7 +354,7 @@ async function nextWithProgress(io, values, progress) {
         if (found.seat) io.say(`${found.seat.created ? 'opened' : 'work in'} ${found.seat.agent}, ${found.seat.lane} lane: ${here}`);
         if (found.itemFolder) io.say(`item folder: ${found.itemFolder}; seat ${found.holder}; build, commit and submit there`);
         // next.adoptPreserved (off by default): a returned item's pinned head is merged into the folder this claim opened [C7,#9689].
-        if (found.itemFolder && !found.held && values.take && nextAdoptPreserved()) await (await import('../resume/adopt.js')).adoptReturnedWork(io, ctx, item.item_id, found.itemFolder);
+        if ((found.itemFolder || own) && !found.held && values.take && nextAdoptPreserved()) await (await import('../resume/adopt.js')).adoptReturnedWork(io, ctx, item.item_id, found.itemFolder ?? ctx.info.root);
         if (found.shared?.length) io.say(`it touches ${found.shared.length === 1 ? 'a file' : `${found.shared.length} files`} you worked in recently: ${found.shared.slice(0, 4).join(', ')}`);
         if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
         if (item.item_check) io.say(`check: ${item.item_check}   (run it before you submit)`);
