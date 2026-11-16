@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { runFixtureSetupGit } from '../../tests/fixtures/child.js';
-import { privateFixtureFiles } from '../../../../packages/gate/tests/fixtures/child.js';
-import { runCliInProcess } from '../../tests/fixtures/process.js';
-import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
-import { fixtureAdd } from '../../tests/fixtures/testkit.js';
-import { fixtureJoin } from '../../tests/fixtures/testkit.js';
-import { fixtureProjectPolicy } from '../../tests/fixtures/testkit.js';
+import { runFixtureSetupGit } from '../../fixtures/child.js';
+import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
+import { runCliInProcess } from '../../fixtures/process.js';
+import { settleSubmit } from '../../fixtures/submit/settle.js';
+import { fixtureAdd } from '../../fixtures/testkit.js';
+import { fixtureJoin } from '../../fixtures/testkit.js';
+import { fixtureProjectPolicy } from '../../fixtures/testkit.js';
 
 /**
  * End the fixture's local runner at once. Why: it ignores SIGTERM for the whole 10 s stopFixtureLocalRunner allows before it kills it, and this case needs the runner only until its gate settles.

@@ -9,6 +9,20 @@
       "idsFollowed": true
     },
     {
+      "from": "apps/cli/journeys/verify/reserve.test.js",
+      "to": "apps/cli/tests/journeys/verify/reserve.test.js",
+      "action": "convert",
+      "because": "runs in process, so the journey folder is not needed",
+      "idsFollowed": true
+    },
+    {
+      "from": "apps/cli/journeys/verify/clause-refusal.test.js",
+      "to": "apps/cli/tests/journeys/verify/clause-refusal.test.js",
+      "action": "convert",
+      "because": "runs in process, so the journey folder is not needed",
+      "idsFollowed": true
+    },
+    {
       "from": "apps/cli/journeys/spec/boards.test.js",
       "to": "apps/cli/tests/io/spec/boards.test.js",
       "action": "convert",
