@@ -12,10 +12,10 @@ import { openLandingJob } from '../../../../../packages/api/index.js';
 import { configTrunkRemote } from '../../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { fencedHopEnabled } from '../../../../../packages/config/index.js';
+import { adaptiveBatchEnabled } from '../../../../../packages/config/index.js';
 import { mainCheckout } from '../../../../../packages/git/index.js';
 import { tryGit } from '../../../../../packages/git/index.js';
 import { unverifiedSubmissions } from '../../../../../packages/store/index.js';
-import { lineSettings } from '../../../../../packages/store/index.js';
 import { testResults } from '../../../../../packages/store/index.js';
 import { redNow } from '../../../../../packages/gate/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
@@ -35,6 +35,7 @@ import { ensureLocalRunner } from '../runner/local.js';
 import { pullGit } from '../runner/git.js';
 import { landingShardGate } from '../submit/pull.js';
 import { openLandJobs } from './waiting.js';
+import { batchCap } from './adaptive.js';
 import { trunkCheckedOut } from './checkout.js';
 
 const TRUNK = 'refs/heads/main';
@@ -236,7 +237,7 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
       if (!free.length) return { offered: openLandingJob(board.db), items: [], waiting: false };
       // A set line.landingBatchSize splits an automatic offer into jobs of at most that many, as it capped the engine's
       // batches; each job's push finds trunk moved by the one before and merges again on the new tip [C7,#7728].
-      const size = ids ? free.length : Math.min(free.length, batchCap(board));
+      const size = ids ? free.length : Math.min(free.length, batchCap(board, { adaptive: adaptiveBatchEnabled() }));
       const jobs = [];
       // landing.ledgerMainReds: the ledger's red-now files ride on each job, so a red main already records holds no landing [C7,U152].
       const mainReds = landingMainReds(policy.config, policy.config.landing?.ledgerMainReds === true ? redNow(testResults(board.db)) : []);
@@ -256,10 +257,4 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
       return { offered: jobs[0], items: free.map(entry => entry.id), waiting: false, ...(jobs.length > 1 ? { jobs } : {}), ...(forced ? { forced } : {}) };
     });
   });
-}
-
-/** The most items one automatic land offer takes: a set line.landingBatchSize, else no cap. */
-function batchCap(board) {
-  const size = lineSettings(board).landingBatchSize;
-  return Number.isSafeInteger(size) && size >= 1 ? size : Infinity;
 }
