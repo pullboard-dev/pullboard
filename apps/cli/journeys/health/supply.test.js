@@ -12,7 +12,7 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
 test('clause 1: a queue with only same-family declared seats reports NO_REVIEWER_SUPPLY naming the family needed [C7,O2]', async () => {
-  const box = e2e.project();
+  const box = e2e.project(undefined, undefined, { withWorktree: false });
   const id = seedLimitedReviewQueue(join(box.repo, '.git', 'pullboard', 'board.sqlite'), { lane: 'web', family: 'Fixture-Builder', reviewers: 2 });
   const health = await box.runLocal(box.repo, 'health', '--json');
   const found = JSON.parse(health.out).stuck.find(entry => entry.cause === 'NO_REVIEWER_SUPPLY');
