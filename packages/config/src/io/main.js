@@ -301,6 +301,9 @@ export function configProblems(config) {
   if (config.landing?.manualOverride !== undefined && typeof config.landing.manualOverride !== 'boolean') problems.push('"landing.manualOverride" is a person-set boolean; true permits manual landing instead of automatic landing');
   if (config.landing?.landedFromMain !== undefined && typeof config.landing.landedFromMain !== 'boolean') problems.push('"landing.landedFromMain" is a boolean, off by default: on, roadmap, show, the view and withdraw count an item landed when its commit is on main');
   if (config.landing?.perItem !== undefined && typeof config.landing.perItem !== 'boolean') problems.push('"landing.perItem" is a boolean, on by default: a landing takes every verified item that merges cleanly and a red item of one goes back alone; false sizes automatic batches from recorded redness');
+  if (config.queue !== undefined && (notPlain(config.queue) || Object.keys(config.queue).some(key => !['contention', 'contentionThreshold'].includes(key)))) problems.push('"queue" holds only "contention" and "contentionThreshold"');
+  if (config.queue?.contention !== undefined && typeof config.queue.contention !== 'boolean') problems.push('"queue.contention" is a boolean, off by default; true makes next start the least contended ready item and wait on a hot file');
+  if (config.queue?.contentionThreshold !== undefined && (typeof config.queue.contentionThreshold !== 'number' || !Number.isFinite(config.queue.contentionThreshold) || config.queue.contentionThreshold <= 0)) problems.push('"queue.contentionThreshold" is a number above zero, 1 by default: the score at which next makes an item wait on a hot file');
   if (config.landing?.shardProof !== undefined && typeof config.landing.shardProof !== 'boolean') problems.push('"landing.shardProof" is a boolean, off by default; true spreads a landing\'s proof over runner shard jobs');
   if (config.landing?.splitRed !== undefined && typeof config.landing.splitRed !== 'boolean') problems.push('"landing.splitRed" is a boolean; true always splits a red batch into singles, false always bisects; unset, the batch\'s measured gate decides');
   if (config.landing?.parallel !== undefined && typeof config.landing.parallel !== 'boolean') problems.push('"landing.parallel" is a boolean; omit it or use false to keep serial landing');
@@ -401,10 +404,12 @@ export function configProblems(config) {
     problems.push('"pushGate.sizeFromBoard" is true or false');
   }
   if (notPlain(config.claims)
-    || Object.keys(config.claims).some(key => !/^(releaseGone|releaseCooldownMinutes|perSeat|itemsInGate(Max)?)$/.test(key)) || typeof config.claims.releaseGone !== 'boolean'
+    || Object.keys(config.claims).some(key => !/^(releaseGone|releaseCooldownMinutes|perSeat|itemsInGate(Max)?|fileLease(Hubs)?)$/.test(key)) || typeof config.claims.releaseGone !== 'boolean'
     || typeof config.claims.releaseCooldownMinutes !== 'number' || !Number.isFinite(config.claims.releaseCooldownMinutes) || config.claims.releaseCooldownMinutes < 0) {
     problems.push('claims.releaseGone is a boolean, false by default; claims.releaseCooldownMinutes is zero or more minutes, 30 by default');
   }
+  if (config.claims?.fileLease !== undefined && typeof config.claims.fileLease !== 'boolean') problems.push('"claims.fileLease" is a boolean, off by default; true refuses a claim whose predicted files a live claim already leases');
+  if (config.claims?.fileLeaseHubs !== undefined && (!Array.isArray(config.claims.fileLeaseHubs) || !config.claims.fileLeaseHubs.every(file => typeof file === 'string'))) problems.push('"claims.fileLeaseHubs" is a list of file paths that many items share and no claim leases');
   if (config.claims?.perSeat != null && (!Number.isSafeInteger(config.claims.perSeat) || config.claims.perSeat < 1)) problems.push('claims.perSeat is a whole number of live build claims, 1 or more; blank lets the board size it');
   if (notPlain(config.claim)
     || !Number.isSafeInteger(config.claim.reopenFirstRefusalMinutes) || config.claim.reopenFirstRefusalMinutes < 0
