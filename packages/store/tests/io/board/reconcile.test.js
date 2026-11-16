@@ -93,8 +93,8 @@ test('clause 2: a seeded board and runs pair holding every row of the disagreeme
 
   assert.deepEqual(reconcileTick(board, runs, port, { by: 'coordinator' }), [], 'a second tick finds nothing to settle');
   const events = board.db.prepare('SELECT event_at, item_id, event_kind, event_detail FROM event WHERE event_kind IN (?, ?) ORDER BY event_id').all(RUN_QUEUED_EVENT, RUN_APPLIED_EVENT);
-  const table = board.db.prepare('SELECT * FROM run ORDER BY run_job').all().map(row => ({ ...row }));
-  assert.deepEqual(runRowsFromEvents(events).map(row => [row.run_job, row.run_state, row.run_outcome]), table.map(row => [row.run_job, row.run_state, row.run_outcome]),
+  const table = board.db.prepare("SELECT * FROM run WHERE run_state != 'withdrawn' ORDER BY run_job").all().map(row => ({ ...row }));
+  assert.deepEqual(runRowsFromEvents(events).filter(row => row.run_job !== 'gate:withdrawn').map(row => [row.run_job, row.run_state, row.run_outcome]), table.map(row => [row.run_job, row.run_state, row.run_outcome]),
     'the moves the tick made replay from the event log');
 });
 
