@@ -263,6 +263,11 @@ export function refuseTempWorktree() {
   return loadMachineSettings().gate?.refuseTempWorktree === true;
 }
 
+/** Whether claim refuses a folder whose HEAD is not on main (#9104): off by default; only an exact `true` turns it on. */
+export function refuseOffMainHead() {
+  return loadMachineSettings().claim?.refuseOffMainHead === true;
+}
+
 /** Whether a review release must name why it was dropped (#8920): off by default; only an exact `true` turns it on. */
 export function reviewReleaseReasonsRequired() {
   return loadMachineSettings().review?.releaseReasons === true;

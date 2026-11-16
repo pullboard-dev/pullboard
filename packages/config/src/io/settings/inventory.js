@@ -36,7 +36,7 @@ const MACHINE_DEFAULTS = {
   'runners.fetchFailFast': false, 'runners.drainOnFetchFailure': false,
   'submit.proofOnly': false,
   'serve.address': '127.0.0.1', 'serve.port': 0, scratch: null, 'moves.shadow': false, 'tests.registryStrict': false, 'census.balanceByTime': false, 'census.recordFileTimes': false, 'moves.live.claim': false, 'moves.live.outbox': false, 'moves.live.handoff': false, 'moves.live.submit': false, 'moves.live.outcome': false, 'moves.live.job': false, 'moves.live.reopen': false,
-  'census.jobMinutes': null,
+  'census.jobMinutes': null, 'claim.refuseOffMainHead': false,
   'runners.yieldWhilePruning': false, 'runners.postedLineNamesCase': false,
 };
 const OPTIONAL_REPO_DEFAULTS = {
