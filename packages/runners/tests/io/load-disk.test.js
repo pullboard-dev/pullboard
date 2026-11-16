@@ -54,8 +54,3 @@ test('clause 2: with the setting off or unset, the sample is exactly the four lo
     }
   }
 });
-
-test('clause 1: the setting turns the disk fields on without any argument [C7,#9029]', () => {
-  const sample = withSettings({ gate: { sampleDiskIo: true } }, () => sampleRunnerLoad({ read: () => null }));
-  assert.deepEqual([sample.diskBusyPct, sample.ioWaitPct], [null, null]);
-});

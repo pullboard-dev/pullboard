@@ -6,7 +6,6 @@ import { freemem } from 'node:os';
 import { hostname } from 'node:os';
 import { loadavg } from 'node:os';
 import { platform } from 'node:os';
-import { machineSettingsFile } from '../../../resources/light.js';
 
 /**
  * Cumulative disk counters since boot, summed over every whole disk, or null when this host exposes none.
@@ -62,17 +61,12 @@ export function diskSample(read = readDiskCounters, now = Date.now) {
   return { busyPct, ioWaitPct: jiffies > 0 ? Math.round((b.cpuWait - a.cpuWait) / jiffies * 1000) / 10 : null };
 }
 
-/** Whether this machine's gate.sampleDiskIo is on; an unreadable settings file reads off. */
-function diskIoSetting() {
-  try { return JSON.parse(readFileSync(machineSettingsFile(), 'utf8')).gate?.sampleDiskIo === true; } catch { return false; }
-}
-
 /**
  * Sample this executing machine now, never the controller on behalf of a remote run. With `diskIo` (the
- * gate.sampleDiskIo setting, off by default) the sample also carries `diskBusyPct` and `ioWaitPct`; without it
+ * gate.sampleDiskIo setting, read by the caller; off by default) the sample also carries `diskBusyPct` and `ioWaitPct`; without it
  * the sample is exactly the four load fields and no child is launched.
  */
-export function sampleRunnerLoad({ diskIo = diskIoSetting(), read, now } = {}) {
+export function sampleRunnerLoad({ diskIo = false, read, now } = {}) {
   const sample = { at: new Date().toISOString(), average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) };
   if (diskIo !== true) return sample;
   const { busyPct, ioWaitPct } = diskSample(read, now);
