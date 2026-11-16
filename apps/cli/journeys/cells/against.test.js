@@ -29,8 +29,11 @@ import { withMainCheckout } from '../../../../packages/landing/index.js';
 import { computePlan } from '../../../../packages/codemap/index.js';
 import { writePlan } from '../../../../packages/codemap/index.js';
 import { requireSubmitCells } from '../../index.js';
+import { withCellLintParser } from '../../../../packages/codemap/index.js';
+import { checkCellLints } from '../../../../packages/codemap/index.js';
+import { cellLintParsers } from '../../../../packages/codemap/index.js';
 import { cellsMove } from '../../../../packages/codemap/src/io/cells/move/tool.js';
-import { runFixtureChild } from '../../tests/fixtures/child.js';
+import { journeyCall } from '../../tests/fixtures/e2e.js';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
 
 const parsers = { importsIn, commonJsIn };
@@ -103,7 +106,13 @@ function staleLintMain(t) {
     GIT_AUTHOR_NAME: 'Ratchet fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid', GIT_COMMITTER_NAME: 'Ratchet fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' } });
   /** Write one private fixture file. */
   const put = (file, source) => { mkdirSync(dirname(join(root, file)), { recursive: true }); writeFileSync(join(root, file), source); };
-  const check = () => runFixtureChild(process.execPath, [LINTS, '--check', root], { encoding: 'utf8' });
+  // The lints script's --check answered in this process (the same parser and checkCellLints call the script makes), or as the real script under
+  // PULLBOARD_JOURNEY_MODE=process so the gate's parity check can compare the two [C7].
+  const check = () => journeyCall({ dir: root, env: process.env, cwd: root, args: ['--check', root], bin: LINTS, inProcess: async () => {
+    const lines = [];
+    const status = withCellLintParser(compile => checkCellLints(root, cellLintParsers(compile), line => lines.push(line), { code: [LINTS] }));
+    return { status, stdout: '', stderr: lines.map(line => `${line}\n`).join('') };
+  } });
   git('init', '-q', '-b', 'main');
   put('package.json', JSON.stringify({ type: 'module', imports: { '#*': './packages/*/index.js' } }));
   put('apps/demo/index.js', "import { value } from '#sample'; console.log(value);\n");
@@ -122,24 +131,24 @@ function staleLintMain(t) {
   return { root, git, put, check };
 }
 
-test('cell-lints --check refuses an unrelated item while main carries non-shim debt over its committed baseline [C7]', t => {
+test('cell-lints --check refuses an unrelated item while main carries non-shim debt over its committed baseline [C7]', async t => {
   const box = staleLintMain(t);
   box.put('packages/sample/index.js', 'export const value = 2;\n');
-  const checked = box.check();
+  const checked = await box.check();
   assert.notEqual(checked.status, 0, "main's committed baseline is the allowance, so debt landed past it is still refused");
   assert.match(checked.stderr, /strays:landed-stray\.js/u);
   rmSync(join(box.root, 'packages/codemap/data/baselines/lints'), { recursive: true, force: true });
   box.git('add', '-A'); box.git('commit', '-qm', 'candidate deletes the stored baseline');
-  const without = box.check();
+  const without = await box.check();
   assert.notEqual(without.status, 0, `deleting the stored baseline cannot lift main's committed allowance: ${without.stderr}`);
   assert.match(without.stderr, /strays:landed-stray\.js/u);
 });
 
-test("cell-lints --check names the debt the item adds over main's committed baseline, naming its file [C7]", t => {
+test("cell-lints --check names the debt the item adds over main's committed baseline, naming its file [C7]", async t => {
   const box = staleLintMain(t);
   box.put('item-stray.js', 'void 0;\n');
   box.git('add', '-A'); // the cell inventory reads tracked files only
-  const checked = box.check();
+  const checked = await box.check();
   assert.notEqual(checked.status, 0);
   assert.match(checked.stderr, /strays:item-stray\.js/u);
   assert.match(checked.stderr, /exceeds .* on main/u);
