@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/cli packages/api packages/kernel packages/resources packages/person */
+/** @pullboard-test-input source-cell apps/cli */
 /** A takeover of the main checkout records the new session's model [B3,B7,O8]. */
 import assert from 'node:assert/strict';
 import { after } from 'node:test';
