@@ -29,24 +29,24 @@ function succeeded(result) {
   return result;
 }
 
-test('clause 1: native submit runner-only refuses before its frozen body and opt-out still executes it [C7,Q1,V4]', () => {
+test('clause 1: native submit runner-only refuses before its frozen body and opt-out still executes it [C7,Q1,V4]', async () => {
   const box = helpers.project('true');
   const marker = join(box.dir, 'submit-frozen-body');
   const command = `printf ran > '${marker.replaceAll("'", "'\\''")}'`;
-  const added = succeeded(fixtureAdd(box.run, box.repo, 'web', 'Private runner-only submission', '--specs', 'G1',
+  const added = succeeded(await fixtureAdd(box.runLocal, box.repo, 'web', 'Private runner-only submission', '--specs', 'G1',
     '--criterion', 'The native frozen check remains mandatory.', '--check', command, '--wait', '--json'));
   const id = JSON.parse(added.out).item.item_id;
-  succeeded(box.run(box.web, 'claim', String(id), '--json'));
+  succeeded(await box.runLocal(box.web, 'claim', String(id), '--json'));
   const committed = helpers.commitFile(box, box.web, 'web/runner-only.js', 'export const ready = true;\n', 'feat(web): private runner-only control [G1]');
   assert.equal(committed.status, 0, committed.failure ?? committed.stderr);
   // Native bar baseline setup may itself have run the command; it is not the subject submission.
   rmSync(marker, { force: true });
   policy(box, true);
-  const refused = box.run(box.web, 'submit', String(id), '--wait', '--no-next', '--json');
+  const refused = await box.runAsync(box.web, 'submit', String(id), '--wait', '--no-next', '--json');
   assert.notEqual(refused.code, 0, refused.out);
   assert.equal(JSON.parse(refused.out).error.code, 'RUNNER_WAIT_DEADLINE', refused.err || refused.out);
   assert.equal(existsSync(marker), false, 'no frozen or diagnostic local body ran');
   policy(box, false);
-  succeeded(box.run(box.web, 'submit', String(id), '--wait', '--no-next', '--json'));
+  succeeded(await box.runAsync(box.web, 'submit', String(id), '--wait', '--no-next', '--json'));
   assert.equal(readFileSync(marker, 'utf8'), 'ran', 'opt-out still runs the actual frozen check');
 });
