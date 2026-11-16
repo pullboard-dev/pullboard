@@ -65,19 +65,20 @@ function nextSeq(view, name) {
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {string} handoff - The hand-off job id.
- * @param {{ owner: string, relaunches?: number, now?: number }} options
+ * @param {{ owner: string, relaunches?: number, now?: number, hop?: GateHopPort, runs?: { db: import('node:sqlite').DatabaseSync } | null }} options - runs: the board's runs holder while runs_store is on; the drive job's rows go there, and the hop stays on `db` [P7,#9080].
  * @returns {ReturnType<typeof gateDriveRecord>}
  */
-export function admitGateDrive(db, handoff, { owner, relaunches = 0, now = Date.now(), hop }) {
+export function admitGateDrive(db, handoff, { owner, relaunches = 0, now = Date.now(), hop, runs = null }) {
   const id = gateDriveJobId(handoff);
-  createJob(db, { id, kind: GATE_DRIVE_KIND, now });
-  const take = takeJob(db, id, owner, { now });
+  const jobs = runs?.db ?? db;
+  createJob(jobs, { id, kind: GATE_DRIVE_KIND, now });
+  const take = takeJob(jobs, id, owner, { now });
   if (!take.taken) throw new Refused('GATE_DRIVE_LEASED', `gate ${handoff} already has a live driver (${take.job.leaseOwner}); leave it to finish`);
   let acquired;
   try { acquired = moveHop(db, hop, { name: 'acquire', actor: owner }); }
-  catch (error) { releaseLease(db, id, owner, { now }); throw error; }
-  writeStep(db, id, 'admitted', { owner, relaunches, ...(acquired.hop ? { hopEpoch: acquired.hop.epoch } : {}) }, { seq: nextSeq(take.job, 'admitted'), now });
-  return readGateDrive(db, handoff);
+  catch (error) { releaseLease(jobs, id, owner, { now }); throw error; }
+  writeStep(jobs, id, 'admitted', { owner, relaunches, ...(acquired.hop ? { hopEpoch: acquired.hop.epoch } : {}) }, { seq: nextSeq(take.job, 'admitted'), now });
+  return readGateDrive(db, handoff, { runs });
 }
 
 /**
@@ -86,12 +87,12 @@ export function admitGateDrive(db, handoff, { owner, relaunches = 0, now = Date.
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {string} handoff - The hand-off job id.
- * @param {{ owner: string, hop?: GateHopPort }} options
+ * @param {{ owner: string, hop?: GateHopPort, runs?: { db: import('node:sqlite').DatabaseSync } | null }} options
  * @returns {ReturnType<typeof moveHop>}
  */
-export function renewGateDriveHop(db, handoff, { owner, hop }) {
+export function renewGateDriveHop(db, handoff, { owner, hop, runs = null }) {
   if (hop?.enabled !== true) return { off: true };
-  const steps = jobView(db, gateDriveJobId(handoff))?.steps ?? [];
+  const steps = jobView(runs?.db ?? db, gateDriveJobId(handoff))?.steps ?? [];
   const epoch = [...steps].reverse().find(step => step.name === 'admitted' && step.payload.owner === owner)?.payload.hopEpoch;
   return moveHop(db, hop, { name: 'step', actor: owner, epoch });
 }
@@ -102,12 +103,13 @@ export function renewGateDriveHop(db, handoff, { owner, hop }) {
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {string} handoff
- * @param {{ owner: string, pid: number, started: string, now?: number }} options
+ * @param {{ owner: string, pid: number, started: string, now?: number, runs?: { db: import('node:sqlite').DatabaseSync } | null }} options
  */
-export function recordGateDriveSpawn(db, handoff, { owner, pid, started, now = Date.now() }) {
-  const view = jobView(db, gateDriveJobId(handoff));
+export function recordGateDriveSpawn(db, handoff, { owner, pid, started, now = Date.now(), runs = null }) {
+  const jobs = runs?.db ?? db;
+  const view = jobView(jobs, gateDriveJobId(handoff));
   if (!view) throw new Refused('JOB_MISSING', `gate ${handoff} was never admitted: admit it before recording its driver`);
-  writeStep(db, view.id, 'spawned', { owner, pid, started }, { seq: nextSeq(view, 'spawned'), now });
+  writeStep(jobs, view.id, 'spawned', { owner, pid, started }, { seq: nextSeq(view, 'spawned'), now });
 }
 
 /**
@@ -116,14 +118,15 @@ export function recordGateDriveSpawn(db, handoff, { owner, pid, started, now = D
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {string} handoff
- * @param {{ owner: string, code: string, message: string, now?: number }} options
+ * @param {{ owner: string, code: string, message: string, now?: number, runs?: { db: import('node:sqlite').DatabaseSync } | null }} options
  */
-export function endGateDriveUnstarted(db, handoff, { owner, code, message, now = Date.now() }) {
+export function endGateDriveUnstarted(db, handoff, { owner, code, message, now = Date.now(), runs = null }) {
   const id = gateDriveJobId(handoff);
-  createJob(db, { id, kind: GATE_DRIVE_KIND, now });
-  const view = jobView(db, id);
-  writeStep(db, id, 'unstarted', { owner, code, message }, { seq: nextSeq(view, 'unstarted'), now });
-  releaseLease(db, id, owner, { now });
+  const jobs = runs?.db ?? db;
+  createJob(jobs, { id, kind: GATE_DRIVE_KIND, now });
+  const view = jobView(jobs, id);
+  writeStep(jobs, id, 'unstarted', { owner, code, message }, { seq: nextSeq(view, 'unstarted'), now });
+  releaseLease(jobs, id, owner, { now });
 }
 
 /**
@@ -131,11 +134,12 @@ export function endGateDriveUnstarted(db, handoff, { owner, code, message, now =
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {string} handoff
+ * @param {{ runs?: { db: import('node:sqlite').DatabaseSync } | null }} [options]
  * @returns {ReturnType<typeof gateDriveRecord>}
  */
-export function readGateDrive(db, handoff) {
+export function readGateDrive(db, handoff, { runs = null } = {}) {
   let view;
-  try { view = jobView(db, gateDriveJobId(handoff)); }
+  try { view = jobView(runs?.db ?? db, gateDriveJobId(handoff)); }
   catch (error) { if (/no such table/u.test(error.message)) return null; throw error; }
   return gateDriveRecord(handoff, view);
 }
@@ -147,13 +151,14 @@ export function readGateDrive(db, handoff) {
  *
  * @param {import('node:sqlite').DatabaseSync} db - The board's SQLite handle, read only.
  * @param {Date} now
+ * @param {{ runs?: { db: import('node:sqlite').DatabaseSync } | null }} [options]
  * @returns {{ key: string, cause: string, item: number|null, subject: string, title: string, since: string, ageMinutes: number,
  *   why: string, next: string, command: null, owner: { role: 'coordinator', who: 'coordinator' }, detail: object }[]}
  */
-export function stalledGateDriveFindings(db, now) {
+export function stalledGateDriveFindings(db, now, { runs = null } = {}) {
   const at = now.getTime();
   let views;
-  try { views = leasedJobs(db, { kind: GATE_DRIVE_KIND, now: at }); }
+  try { views = leasedJobs(runs?.db ?? db, { kind: GATE_DRIVE_KIND, now: at }); }
   catch (error) { if (/no such table/u.test(error.message)) return []; throw error; }
   return views.map(view => gateDriveStall(view, at)).filter(Boolean).map(stall => {
     const minutes = Math.floor(stall.idleMs / 60_000);
