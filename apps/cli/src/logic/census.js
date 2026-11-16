@@ -116,8 +116,13 @@ export function shardRows({ files, status, host, label, output, outcomes, times 
     const key = path.replace(/^\.\//u, '');
     exits.set(key, Math.max(exits.get(key) ?? 0, Number(code)));
   }
+  // Files overlap inside a shard, so their wall times can sum past the shard's own tests phase; scale them down to it so
+  // overlap is never counted twice and the census total is real runner time [C7,#8890].
+  const phase = [...String(output).matchAll(/^run-tests: phases .*?\btests (\d+(?:\.\d+)?)s/gmu)].at(-1);
+  const total = files.reduce((sum, file) => sum + (Number.isFinite(times[file]) ? times[file] : 0), 0);
+  const scale = phase && total > Number(phase[1]) * 1000 ? (Number(phase[1]) * 1000) / total : 1;
   return files.map((file) => {
-    const ms = times[file], exit = exits.get(file);
+    const ms = Number.isFinite(times[file]) ? times[file] * scale : times[file], exit = exits.get(file);
     const verdict = status !== 'green' && status !== 'red' ? 'unrun'
       : isHung(file) ? 'hung'
         : failed.has(file) || exit > 0 ? 'red'
@@ -125,7 +130,7 @@ export function shardRows({ files, status, host, label, output, outcomes, times 
           : !ran || (status === 'red' && !passed.has(file)) ? 'no-result'
           : cut && !Number.isFinite(ms) ? 'unrun' : 'green';
     const cases = failed.get(file) ?? (exit > 0 ? [`its test process exited ${exit} with no failing case named`] : []);
-    return { file, status: verdict, cases, secs: Number.isFinite(ms) ? Math.round(ms / 100) / 10 : null, sha, shard: label, host };
+    return { file, status: verdict, cases, secs: Number.isFinite(ms) ? (scale < 1 ? Math.floor(ms / 100) : Math.round(ms / 100)) / 10 : null, sha, shard: label, host };
   });
 }
 
