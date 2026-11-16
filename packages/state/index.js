@@ -214,6 +214,7 @@ export const PULLED_RED_COUNT_ENGINE = engineNumber('PULLED_RED_COUNT_ENGINE');
 export const COORDINATOR_USAGE_ENGINE = engineNumber('COORDINATOR_USAGE_ENGINE');
 export const MILESTONE_MODE_ENGINE = engineNumber('MILESTONE_MODE_ENGINE');
 export const REVIEW_RELEASE_REASON_ENGINE = engineNumber('REVIEW_RELEASE_REASON_ENGINE');
+export const RECAPTURE_SUBMIT_HANDOFF_ENGINE = engineNumber('RECAPTURE_SUBMIT_HANDOFF_ENGINE');
 export const READINESS_ENGINE = engineNumber('READINESS_ENGINE');
 export { DEFAULT_NEXT_STEPS } from './src/logic/defaults.js';
 export const INFRA_RELEASE_ENGINE = engineNumber('INFRA_RELEASE_ENGINE');
