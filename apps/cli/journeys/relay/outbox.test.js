@@ -56,14 +56,20 @@ async function otherAgent(box, other) {
 }
 
 /** Two machines on one accepted relay board with the outbox on, and an item added before the outage. */
+function prof(t, name, obj) {
+  for (const k of Object.keys(obj)) if (typeof obj[k] === 'function') { const f = obj[k]; obj[k] = async (...a) => { const s = performance.now(); try { return await f(...a); } finally { t.diagnostic(`PROF ${name}.${k} ${a[0] ?? ''} ${Math.round(performance.now() - s)}ms`); } }; }
+  return obj;
+}
 async function twoMachines(t, title, { beforeLink } = {}) {
-  const box = await relayClientFixture(t);
+  const s0 = performance.now();
+  const box = prof(t, 'box', await relayClientFixture(t));
+  t.diagnostic(`PROF fixture ${Math.round(performance.now() - s0)}ms`);
   enableOutbox(box);
   await beforeLink?.(box);
   await box.link();
   const contested = (await box.cliLocal('add', box.lane, title)).document.item.item_id;
   const printed = await box.cliLocal('relay', 'pair');
-  const other = await box.otherDeviceJoin(printed.document.code);
+  const other = prof(t, 'other', await box.otherDeviceJoin(printed.document.code));
   assert.equal(JSON.parse(readFileSync(box.linkFile, 'utf8')).baselineAccepted, true, 'the relay accepted this board before the outage');
   return { box, other, contested };
 }
