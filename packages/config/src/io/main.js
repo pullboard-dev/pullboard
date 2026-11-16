@@ -271,10 +271,11 @@ export function configProblems(config) {
       || config.approvers.some((login) => typeof login !== 'string' || !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/u.test(login)))) problems.push('"approvers" lists the GitHub logins who act as the person on a linked board, at most fifty; leave it out for today\'s behaviour');
   if (!['inside', 'beside'].includes(config.worktrees)) problems.push('"worktrees" is "inside" or "beside"');
   if (notPlain(config.inbox)
-    || Object.keys(config.inbox).some(key => key !== 'tokenBudget')
+    || Object.keys(config.inbox).some(key => !['tokenBudget', 'keepUntilActed'].includes(key))
     || !Number.isSafeInteger(config.inbox.tokenBudget) || config.inbox.tokenBudget < 1024) {
     problems.push('"inbox.tokenBudget" is a whole number of at least 1024 UTF-8 bytes; 8192 by default');
   }
+  if (config.inbox?.keepUntilActed !== undefined && typeof config.inbox.keepUntilActed !== 'boolean') problems.push('"inbox.keepUntilActed" is a boolean, off by default; true keeps each inbox entry listed until an action its kind allows is recorded');
   if (typeof config.itemBuildBudgetMinutes !== 'number' || !Number.isFinite(config.itemBuildBudgetMinutes) || config.itemBuildBudgetMinutes <= 0) {
     problems.push('"itemBuildBudgetMinutes" is positive finite minutes; 30 by default');
   }
@@ -301,6 +302,9 @@ export function configProblems(config) {
   if (config.landing?.manualOverride !== undefined && typeof config.landing.manualOverride !== 'boolean') problems.push('"landing.manualOverride" is a person-set boolean; true permits manual landing instead of automatic landing');
   if (config.landing?.landedFromMain !== undefined && typeof config.landing.landedFromMain !== 'boolean') problems.push('"landing.landedFromMain" is a boolean, off by default: on, roadmap, show, the view and withdraw count an item landed when its commit is on main');
   if (config.landing?.perItem !== undefined && typeof config.landing.perItem !== 'boolean') problems.push('"landing.perItem" is a boolean, on by default: a landing takes every verified item that merges cleanly and a red item of one goes back alone; false sizes automatic batches from recorded redness');
+  if (config.queue !== undefined && (notPlain(config.queue) || Object.keys(config.queue).some(key => !['contention', 'contentionThreshold'].includes(key)))) problems.push('"queue" holds only "contention" and "contentionThreshold"');
+  if (config.queue?.contention !== undefined && typeof config.queue.contention !== 'boolean') problems.push('"queue.contention" is a boolean, off by default; true makes next start the least contended ready item and wait on a hot file');
+  if (config.queue?.contentionThreshold !== undefined && (typeof config.queue.contentionThreshold !== 'number' || !Number.isFinite(config.queue.contentionThreshold) || config.queue.contentionThreshold <= 0)) problems.push('"queue.contentionThreshold" is a number above zero, 1 by default: the score at which next makes an item wait on a hot file');
   if (config.landing?.shardProof !== undefined && typeof config.landing.shardProof !== 'boolean') problems.push('"landing.shardProof" is a boolean, off by default; true spreads a landing\'s proof over runner shard jobs');
   if (config.landing?.splitRed !== undefined && typeof config.landing.splitRed !== 'boolean') problems.push('"landing.splitRed" is a boolean; true always splits a red batch into singles, false always bisects; unset, the batch\'s measured gate decides');
   if (config.landing?.parallel !== undefined && typeof config.landing.parallel !== 'boolean') problems.push('"landing.parallel" is a boolean; omit it or use false to keep serial landing');
@@ -329,6 +333,12 @@ export function configProblems(config) {
   }
   if (config.affectedTests !== undefined && (typeof config.affectedTests !== 'string' || !config.affectedTests.trim())) {
     problems.push('"affectedTests" is a nonempty command prefix used to run selected test files');
+  }
+  if (config.affectedSuites !== undefined && (!config.affectedSuites || typeof config.affectedSuites !== 'object' || Array.isArray(config.affectedSuites)
+    || Object.entries(config.affectedSuites).some(([glob, suite]) => !glob.trim() || typeof suite !== 'string' || !suite.trim()))) {
+    problems.push('"affectedSuites" maps folder globs to suite paths, like {"api/**": "api/tests"}');
+  } else if (config.affectedSuites && Object.keys(config.affectedSuites).length && (typeof config.affectedTests !== 'string' || !config.affectedTests.trim())) {
+    problems.push('"affectedSuites" requires the project "affectedTests" runner');
   }
   const registryProblem = registryGuardsProblem(config.registryGuards);
   if (registryProblem) problems.push(registryProblem);
@@ -395,10 +405,13 @@ export function configProblems(config) {
     problems.push('"pushGate.sizeFromBoard" is true or false');
   }
   if (notPlain(config.claims)
-    || Object.keys(config.claims).some(key => !/^(releaseGone|releaseCooldownMinutes|perSeat|itemsInGate(Max)?)$/.test(key)) || typeof config.claims.releaseGone !== 'boolean'
+    || Object.keys(config.claims).some(key => !/^(releaseGone|releaseCooldownMinutes|perSeat|itemsInGate(Max)?|fileLease(Hubs)?)$/.test(key)) || typeof config.claims.releaseGone !== 'boolean'
     || typeof config.claims.releaseCooldownMinutes !== 'number' || !Number.isFinite(config.claims.releaseCooldownMinutes) || config.claims.releaseCooldownMinutes < 0) {
     problems.push('claims.releaseGone is a boolean, false by default; claims.releaseCooldownMinutes is zero or more minutes, 30 by default');
   }
+  if (config.claims?.fileLease !== undefined && typeof config.claims.fileLease !== 'boolean') problems.push('"claims.fileLease" is a boolean, off by default; true refuses a claim whose predicted files a live claim already leases');
+  if (config.seat !== undefined && (notPlain(config.seat) || Object.keys(config.seat).some(key => key !== 'checkpoints') || (config.seat.checkpoints !== undefined && typeof config.seat.checkpoints !== 'boolean'))) problems.push('"seat.checkpoints" is a boolean, off by default; true records a checkpoint fact at claim, submit, an exit-rule stop and handoff');
+  if (config.claims?.fileLeaseHubs !== undefined && (!Array.isArray(config.claims.fileLeaseHubs) || !config.claims.fileLeaseHubs.every(file => typeof file === 'string'))) problems.push('"claims.fileLeaseHubs" is a list of file paths that many items share and no claim leases');
   if (config.claims?.perSeat != null && (!Number.isSafeInteger(config.claims.perSeat) || config.claims.perSeat < 1)) problems.push('claims.perSeat is a whole number of live build claims, 1 or more; blank lets the board size it');
   if (notPlain(config.claim)
     || !Number.isSafeInteger(config.claim.reopenFirstRefusalMinutes) || config.claim.reopenFirstRefusalMinutes < 0
@@ -416,6 +429,12 @@ export function configProblems(config) {
   }
   if (config.verify?.unrelatedTrunkMoves !== undefined && typeof config.verify.unrelatedTrunkMoves !== 'boolean') {
     problems.push('"verify.unrelatedTrunkMoves" is true or false');
+  }
+  if (config.verify?.landedReviews !== undefined && typeof config.verify.landedReviews !== 'boolean') {
+    problems.push('"verify.landedReviews" is true or false; true makes next --verify offer forced-landed items that have no verdict');
+  }
+  if (config.resume?.adoptOrphans !== undefined && typeof config.resume.adoptOrphans !== 'boolean') {
+    problems.push('"resume.adoptOrphans" is true or false; true makes pullboard resume in a fresh worktree adopt an orphaned seat claim from its pinned ref');
   }
   if (config.map?.slice !== undefined && typeof config.map.slice !== 'boolean') {
     problems.push('"map.slice" is true or false');

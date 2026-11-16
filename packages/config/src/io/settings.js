@@ -25,6 +25,7 @@ import { parseRunnerRate } from '../logic/runner-rates.js';
 import { validateServe } from '../logic/settings.js';
 import { validateBoardRemote } from '../logic/settings.js';
 export { loadMachineSettings };
+export { boardRemote } from '../logic/settings.js';
 import { Refused } from '../../../kernel/index.js';
 import { relayCanaryConfig } from '../logic/settings.js';
 import {
@@ -62,6 +63,11 @@ export function browserFreeChecksEnabled() {
 /** Runner-first admission is machine-wide and remains off unless explicitly enabled. */
 export function gateRunnersFirstEnabled() {
   return loadMachineSettings().gate?.runnersFirst === true;
+}
+
+/** Run test processes at a lower scheduling priority than board writers only when this machine opted in [C7,#8509]. */
+export function testNiceEnabled() {
+  return loadMachineSettings().gate?.testNice === true;
 }
 
 /** Replay a changed move table in the submit gate only when this machine opted in [C7,#8073]. */
@@ -152,19 +158,10 @@ export function setWorkerBudget(budget) {
   return next;
 }
 
-/**
- * The board this machine's seats read over HTTP, or null for the local board: board.url and board.token [P7].
- * Why: a seat on another host has no board.sqlite; it reaches the board host's pullboard serve instead.
- * @returns {{ url: string, token: string } | null}
- */
-export function boardRemote() {
-  const board = loadMachineSettings().board;
-  return board?.url ? { url: board.url, token: board.token ?? '' } : null;
-}
 
 /**
- * Set board.url or board.token; the value off removes it, so seats use the local board again [P7].
- * @param {'url' | 'token'} key
+ * Set board.url, board.token or board.commits; the value off removes it, so seats use the local board again [P7].
+ * @param {'url' | 'token' | 'commits'} key
  * @param {string} value
  */
 export function setBoardRemote(key, value) {
@@ -220,6 +217,30 @@ export function mainComparisonMode() {
 }
 
 /**
+ * Whether submit refuses at once when the frozen check names a test file the submitted commit lacks (#3095): off by
+ * default, so a submit queues its gate as before; only an exact `true` turns the refusal on.
+ */
+export function refuseMissingCheckFile() {
+  return loadMachineSettings().gate?.refuseMissingCheckFile === true;
+}
+
+/**
+ * Whether `pullboard worktree` refuses a seat folder under the OS temporary directory (#8513): off by default, so
+ * worktrees are made where they always were; only an exact `true` turns the refusal on.
+ */
+export function refuseTempWorktree() {
+  return loadMachineSettings().gate?.refuseTempWorktree === true;
+}
+
+/**
+ * Whether an item hold must name an owner and records a deadline (#8539): off by default, so holds are unchanged; only an
+ * exact `true` turns it on.
+ */
+export function holdsRequireOwner() {
+  return loadMachineSettings().holds?.requireOwner === true;
+}
+
+/**
  * Where a queued submit's authorization source checks run when a runner is registered: `runner` (default) puts them in
  * the gate's one runner analysis job beside doctrine, cells, static and selection; `local` keeps them on this machine as
  * before #5674. Anything but an exact `local` is the default, so a damaged value never moves work back here [C7].
@@ -252,6 +273,15 @@ export function localRunnerEnabled() {
 export function localLoadShare() {
   const share = loadMachineSettings().gate?.localLoadShare;
   return Number.isFinite(share) && share > 0 ? share : 1;
+}
+
+/**
+ * How many local `pullboard gate --static` runs this machine admits at once: gate.staticSlots, default 2. Why: each run
+ * is about a minute of full-CPU tree work, and 14 at once drove a Mac to load 104; a waiting run queues instead [C7,#8501].
+ */
+export function staticCheckSlots() {
+  const slots = loadMachineSettings().gate?.staticSlots;
+  return Number.isSafeInteger(slots) && slots > 0 ? slots : 2;
 }
 
 /**

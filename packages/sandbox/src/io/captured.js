@@ -1,10 +1,14 @@
 /** Bounded asynchronous child execution with the same result fields as spawnSync [C7,V4]. */
 import { spawn } from 'node:child_process';
 
+/** Stops of the children started with `reapGroup`, run when this process exits so none outlives it [#8500]. */
+const reapOnExit = new Set();
+let exitHooked = false;
+
 /** Drain an owned child before returning its status, including timeout, output-limit and caller cancellation. */
 export async function spawnCaptured(command, args, options) {
   const grouped = process.platform !== 'win32';
-  const { signal, onSpawn, onOutput, ...spawnOptions } = options;
+  const { signal, onSpawn, onOutput, reapGroup, ...spawnOptions } = options;
   signal?.throwIfAborted();
   const child = spawn(command, args, { ...spawnOptions, detached: grouped, timeout: undefined });
   onSpawn?.(child);
@@ -18,6 +22,10 @@ export async function spawnCaptured(command, args, options) {
     try { if (grouped) process.kill(-child.pid, options.killSignal ?? 'SIGKILL'); else child.kill(options.killSignal ?? 'SIGKILL'); }
     catch (failure) { if (failure.code !== 'ESRCH') error ??= failure; }
   };
+  if (reapGroup && grouped) {
+    if (!exitHooked) { exitHooked = true; process.on('exit', () => { for (const end of reapOnExit) end(); }); }
+    reapOnExit.add(stop);
+  }
   /** Give a cancelled command a short graceful shutdown before stopping its still-owned process group. */
   const cancel = () => {
     try { if (grouped) process.kill(-child.pid, 'SIGTERM'); else child.kill('SIGTERM'); }
@@ -43,5 +51,9 @@ export async function spawnCaptured(command, args, options) {
   try {
     const result = await new Promise(resolve => child.once('close', (status, signal) => resolve({ status, signal })));
     return { ...result, stdout: output.stdout.join(''), stderr: output.stderr.join(''), ...(error ? { error } : {}) };
-  } finally { clearTimeout(timer); clearTimeout(cancelTimer); signal?.removeEventListener('abort', cancel); }
+  } finally {
+    clearTimeout(timer); clearTimeout(cancelTimer); signal?.removeEventListener('abort', cancel);
+    // The child has ended, but `node --test` runs each file in a child of its own that may outlive it: end the whole group [#8500].
+    if (reapGroup) { stop(); reapOnExit.delete(stop); }
+  }
 }

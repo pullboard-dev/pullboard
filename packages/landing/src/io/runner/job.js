@@ -269,7 +269,7 @@ async function landingCheck(payload, env, phases = null, shards = null) {
       if (result?.proof) proof = result.proof;
       if (result?.contracts) contracts = result.contracts;
       if (result?.waived?.length) waived = result.waived;
-      if (!result?.ok) return { ok: false, detail: result?.detail ?? 'the landing check failed', role, ...(result?.timeout ? { timeout: true } : {}), ...(result?.guard ? { guard: result.guard } : {}), ...(typeof result?.output === 'string' ? { output: result.output } : {}), ...(proof ? { proof } : {}), ...(contracts ? { contracts } : {}) };
+      if (!result?.ok) return { ok: false, detail: result?.detail ?? 'the landing check failed', role, ...(result?.timeout ? { timeout: true } : {}), ...(result?.guard ? { guard: result.guard } : {}), ...(typeof result?.output === 'string' ? { output: result.output } : {}), ...(result?.failed ? { failed: result.failed } : {}), ...(proof ? { proof } : {}), ...(contracts ? { contracts } : {}) };
     }
     return { ok: true, detail: null, ...(waived ? { waived } : {}), ...(proof ? { proof } : {}), ...(contracts ? { contracts } : {}) };
   };
@@ -410,6 +410,11 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     // A check that ran past its deadline is no red: nothing is returned to a builder, and the board offers the landing again [C7,#7820].
     if (result?.timeout) return done('proof-timeout', { detail: result.detail });
     if (!result?.ok) {
+      // The merged commit stays reachable under a ref per item, with the failing names and full-log path, until the item is resolved [#8499].
+      const mergedTip = tryGit(root, ['rev-parse', 'HEAD']).stdout.trim();
+      const refs = [];
+      for (const entry of pending) if (mergedTip && tryGit(root, ['update-ref', `refs/pullboard/land-red/${entry.id}`, mergedTip]).status === 0) refs.push(`refs/pullboard/land-red/${entry.id}`);
+      receipt.failed = { commit: mergedTip || null, refs, ...(result?.failed ?? {}) };
       // The red's failing cases, and their paired reruns when the offer turned reruns on, are read while the merged tree is still checked out [C7,H16].
       if (!receipt.red && typeof diagnose === 'function' && payload.flakes && typeof result?.output === 'string') {
         try { receipt.red = await diagnose({ root, base, output: result.output, role: result.role ?? 'check', flakes: payload.flakes, head: must(root, ['rev-parse', 'HEAD']), tree: must(root, ['rev-parse', 'HEAD^{tree}']) }); } catch { /* a diagnosis that cannot run leaves the red unrecorded, never changed */ }

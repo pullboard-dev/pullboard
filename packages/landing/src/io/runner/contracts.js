@@ -85,7 +85,7 @@ export function contractCheck(payload, env) {
     const result = await ledgerProofCheck({ runner, files, ledger: null }, { env: own, waivers })(context);
     const known = result.ok ? null : await baseReds(context, { runner, trunk: payload.trunk, failures: result.failures, env: own });
     if (known) return { ok: true, detail: null, contracts: { ...contracts, mainRed: known } };
-    return { ok: result.ok, detail: result.ok ? null : result.detail?.replace(/^landing proof/u, 'landing contracts'), contracts, ...(result.waived ? { waived: result.waived } : {}) };
+    return { ok: result.ok, detail: result.ok ? null : result.detail?.replace(/^landing proof/u, 'landing contracts'), contracts, ...(result.waived ? { waived: result.waived } : {}), ...(result.failed ? { failed: result.failed } : {}) };
   };
 }
 
