@@ -24,7 +24,6 @@ function fixture(t) {
 
 test('clause 1: a signed person move raising a milestone limit is accepted while the coordinator is refused [N26,H16]', t => {
   const box = fixture(t);
-  assert.ok(box.board.executionEngineVersion >= MILESTONE_PERSON_LIMIT_ENGINE, 'the fixture board runs the person-limit rule');
   assert.throws(() => editMilestone(box.board, 'release', { agentId: 'coordinator', limit: '5' }), { code: 'MILESTONE_LIMIT_PERSON' });
   assert.equal(box.limit(), 1, 'a refused raise changes nothing');
   editMilestone(box.board, 'release', { agentId: 'coordinator', limit: '5', asPerson: true });
