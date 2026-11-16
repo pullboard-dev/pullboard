@@ -71,11 +71,12 @@ export async function measureNext(box, command) {
   const dir = seatOnRealSizeBoard(box);
   const samples = { [command]: [] };
   const args = command.split(' ');
-  for (let round = 0; round < ROUNDS; round++) {
+  // Round -1 is a warm-up: the first in-process call loads the command's modules, which a real process pays once per run, not per call.
+  for (let round = -1; round < ROUNDS; round++) {
     await file(box, `Budget work ${round}.0`);
     await file(box, `Budget work ${round}.1`);
     const run = await timedIn(box, dir, ...args);
-    samples[command].push(run.ms);
+    if (round >= 0) samples[command].push(run.ms);
     if (command !== 'next --take') continue;
     assert.equal(run.code, 0, `next --take: ${run.err}${run.out}`);
     // The queue hands out the lowest open item, which may be one an earlier round left open.
