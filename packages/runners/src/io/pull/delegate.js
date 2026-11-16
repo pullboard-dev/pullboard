@@ -15,6 +15,7 @@ import { runnerControllerEntry } from '../tooling/committed.js';
 import { loadedToolingFiles } from '../tooling/remote.js';
 import { probeRunnerJob } from '../health.js';
 import { watchSource } from './observe.js';
+import { jobPath } from '../../logic/path.js';
 import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { statSync } from 'node:fs';
@@ -32,9 +33,9 @@ function controllerEnvironment() {
   try {
     mkdirSync(folder, { recursive: true, mode: 0o700 });
     const state = statSync(folder);
-    if (!state.isDirectory() || state.uid !== process.getuid?.() || (state.mode & 0o077) !== 0) return process.env;
-  } catch { return process.env; }
-  return { ...process.env, NODE_COMPILE_CACHE: folder };
+    if (!state.isDirectory() || state.uid !== process.getuid?.() || (state.mode & 0o077) !== 0) return { ...process.env, PATH: jobPath(process.env.PATH) };
+  } catch { return { ...process.env, PATH: jobPath(process.env.PATH) }; }
+  return { ...process.env, PATH: jobPath(process.env.PATH), NODE_COMPILE_CACHE: folder };
 }
 
 /**

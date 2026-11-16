@@ -6,7 +6,7 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { testActionKeys } from '../../../../src/io/test/action/cache.js';
-import { fixtureCommittedGraph } from '../../../../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureCommittedGraph } from '../../../fixtures/testkit.js';
 
 const PLAIN = 'packages/demo/tests/plain.test.js';
 const OTHER = 'packages/demo/tests/other.test.js';

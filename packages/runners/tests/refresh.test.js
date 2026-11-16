@@ -11,7 +11,7 @@ import { cellSandbox } from '../../store/tests/fixtures/cell.js';
 import { copyPackageFiles } from '../index.js';
 import { HOST } from '../../../apps/cli/tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { runFixtureChildAsync } from '../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChildAsync } from '../../gate/tests/fixtures/child.js';
 
 /** Simulate an older worker's pre-execution reply, then let the real pinned capsule execute after refresh. */
 function mismatchTransport(box, paths, mode) {

@@ -1,7 +1,6 @@
 /** @pullboard-test-loads packages/store/src/io/board.js packages/state/src/io/engine.js src/exchange.js src/person-signing.js apps/relay/src/io/passkeys.js */
 /** Scenario partition: original case bytes and deadlines remain unchanged. */
 import {
-  CLI,
   assert,
   childProcess,
   existsSync,
@@ -10,7 +9,6 @@ import {
   personSession,
   randomBytes,
   readdirSync,
-  relayFixtureChild,
   relayWorkBudgetMs,
   rmSync,
   runFixtureChild,
@@ -23,6 +21,14 @@ import {
 } from '../../../tests/fixtures/scenarios/team.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { runCliInProcess } from '../../../tests/fixtures/process.js';
+import { parseCommandDocument } from '../../../tests/fixtures/relay/client.js';
+
+/** A member device's CLI run in this process, in the childResult shape its cli() returns; saves a node start per call [C7]. */
+const local = (device) => async (...args) => {
+  const run = await runCliInProcess([...args, '--json'], { cwd: device.root, env: device.env });
+  return { code: run.code, stderr: run.stderr, document: parseCommandDocument(run.stdout) };
+};
 
 test('a clone of a linked repo joins its board; a member device hands over the key [E1,E12,E17]', { timeout: relayWorkBudgetMs(20) }, async (t) => { // budget: hang ceiling for four devices' real CLI runs, ssh-keygen and relay calls; not a speed target.
   const box = await teamBoard(t, ['alice']);
@@ -46,10 +52,10 @@ test('a clone of a linked repo joins its board; a member device hands over the k
 
   // S5: a clone made before pullboard.json named the board links no second board for the repository.
   const early = memberDevice(t, box, 'bob-early');
-  assert.equal((await early.cli('init')).code, 0);
-  assert.equal((await early.cli('add', box.lane, 'Health endpoint')).code, 0);
+  assert.equal((await local(early)('init')).code, 0);
+  assert.equal((await local(early)('add', box.lane, 'Health endpoint')).code, 0);
   box.providerState.signer = 'bob';
-  const split = await early.cli('relay', 'on', '--url', box.origin);
+  const split = await local(early)('relay', 'on', '--url', box.origin);
   assert.equal(split.document?.error?.code, 'BOARD_REPO_LINKED', `the relay refuses a second board for the repository: ${JSON.stringify(split.document?.error ?? null)}`);
   assert.match(split.document.error.message + ' ' + split.document.error.next, new RegExp(link.board + '[\\s\\S]*pullboard.json'), 'the refusal names the board and where a clone finds it');
   assert.equal(box.auth.linkedBoards().length, 1, 'the relay holds one board for the repository');
@@ -60,7 +66,7 @@ test('a clone of a linked repo joins its board; a member device hands over the k
   runFixtureGit(['-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'chore: name the relay board'], { cwd: box.root, env: box.env });
   rmSync(join(early.root, 'pullboard.json')); // the clone's own init wrote it before the repository carried one
   runFixtureGit(['pull', '-q', '--no-rebase', box.root, 'HEAD'], { cwd: early.root, env: early.env });
-  const kept = await early.cli('relay', 'on', '--url', box.origin);
+  const kept = await local(early)('relay', 'on', '--url', box.origin);
   assert.equal(kept.document?.error?.code, 'RELAY_JOIN_NOT_EMPTY', `a clone with work of its own is not joined over it: ${JSON.stringify(kept.document?.error ?? null)}`);
   assert.equal(box.auth.linkedBoards().length, 1);
 
@@ -71,7 +77,7 @@ test('a clone of a linked repo joins its board; a member device hands over the k
   // E17: a device key signed by an SSH key that is not on bob's GitHub account gets no board key.
   box.providerState.sshKeys = { alice: [alicePublic], bob: [] };
   const stray = memberDevice(t, box, 'bob-stray');
-  assert.equal((await stray.cli('init')).code, 0);
+  assert.equal((await local(stray)('init')).code, 0);
   stray.sshKey();
   const strayOn = stray.start('relay', 'on', '--url', box.origin);
   assert.equal(await strayOn.said('no member device is online'), true, 'with no member online the new device says so and waits');
@@ -82,7 +88,7 @@ test('a clone of a linked repo joins its board; a member device hands over the k
 
   // E17: bob's new device, its key on his GitHub account, joins once a member device is online.
   const fresh = memberDevice(t, box, 'bob-new');
-  assert.equal((await fresh.cli('init')).code, 0);
+  assert.equal((await local(fresh)('init')).code, 0);
   box.providerState.sshKeys = { alice: [alicePublic], bob: [fresh.sshKey()] };
   const freshOn = fresh.start('relay', 'on', '--url', box.origin);
   assert.equal(await freshOn.said('no member device is online'), true, 'the new device says no member is online and waits');
@@ -92,14 +98,14 @@ test('a clone of a linked repo joins its board; a member device hands over the k
   assert.equal(joined.code, 0, `relay on in the clone joins the board: ${joined.stderr}; ${JSON.stringify(joined.document?.error ?? null)}`);
   assert.equal(JSON.parse(readFileSync(join(fresh.root, '.git', 'pullboard', 'relay.json'), 'utf8')).board, link.board, 'the clone works on the board pullboard.json names');
   assert.equal(box.auth.linkedBoards().length, 1, 'joining never links another board');
-  const listed = await fresh.cli('list', '--all');
+  const listed = await local(fresh)('list', '--all');
   assert.ok(listed.document.items.some((item) => (item.title ?? item.item_title) === 'Health endpoint'), 'the joined clone reads the team board');
   const bobLink = JSON.parse(readFileSync(join(fresh.root, '.git', 'pullboard', 'relay.json'), 'utf8'));
   assert.equal(bobLink.agentTokens?.coordinator, undefined, 'list membership does not create person coordinator authority');
   const coordinatorPath = withBoard(box.root, board => store.listAgents(board).find(agent => agent.agent_id === 'coordinator').agent_path);
   const bobWork = fresh.root + '-lane';
   runFixtureGit(['worktree', 'add', '--detach', bobWork, 'HEAD'], { cwd: fresh.root, env: fresh.env });
-  const bobCli = (...args) => relayFixtureChild(bobWork, fresh.env, [CLI, ...args, '--json']);
+  const bobCli = local({ root: bobWork, env: fresh.env });
   const bobJoined = await bobCli('join', box.lane, '--model', 'Fixture Model');
   assert.equal(bobJoined.code, 0, `the member registers an ordinary lane seat: ${JSON.stringify(bobJoined.document?.error ?? null)}`);
   const freshAdd = await bobCli('add', box.lane, 'From bob’s new computer');

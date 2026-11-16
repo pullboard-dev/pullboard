@@ -13,8 +13,8 @@ import { test } from 'node:test';
 import { failureSignatures } from '../../../../index.js';
 import { matchingMainFailures } from '../../../../index.js';
 import { normalizedFailureDiagnostics } from '../../../../index.js';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../../gate/tests/fixtures/child.js';
 
 /** Commit a real private test, then retain the actual failing TAP with that repository's source identity. */
 function failure(t, { message = 'same assertion', expected = 2, leaf = 'state.json' } = {}) {

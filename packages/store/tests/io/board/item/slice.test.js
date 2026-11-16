@@ -11,7 +11,7 @@ import { cellClaim } from '../../../fixtures/cell.js';
 import { cellItem } from '../../../fixtures/cell.js';
 import { cellProject } from '../../../fixtures/cell.js';
 import { cellSeat } from '../../../fixtures/cell.js';
-import { FIXTURE_MODEL_EARLIER } from '../../../../../../apps/cli/tests/fixtures/testkit.js';
+import { FIXTURE_MODEL_EARLIER } from '../../../fixtures/cell.js';
 
 test('holder and coordinator create slices, others are refused, and old engines cannot replay them [C7,B26,H16]', t => {
   const project = cellProject(t, { real: true });

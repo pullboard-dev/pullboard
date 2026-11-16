@@ -4,14 +4,14 @@ import { deriveFact } from './rules.js';
 /**
  * @typedef {object} MoveTable
  * @property {string} name - The table's name, quoted when it has a gap.
- * @property {{ id: string, requires: string, code: string, message: string | Function, next: string | Function }[]} guards - Tried in order; the first whose required fact fails refuses.
+ * @property {{ id: string, requires: string, code: string, codeOf?: Function, message: string | Function, next: string | Function }[]} guards - Tried in order; the first whose required fact fails refuses.
  * @property {{ id: string, when?: string, patch: Function, events: Function }[]} outcomes - The first whose `when` fact holds (or that has none) wins.
  * @property {{ id: string, when: string, apply: Function }[]} [followups] - Each sees the item before and after the move so far.
  */
 
 /**
  * Run a move table against a snapshot and a move, using only facts the rules layer defines.
- * Guards are tried in order and the first failing one refuses, as today's first throw wins; with none refusing,
+ * Guards are tried in order and the first failing one refuses, as today's first throw wins (a guard whose code the shell decides names it with `codeOf`); with none refusing,
  * the first matching outcome gives the patch and events, then each follow-up fact is read over the item as it stands after the events so far.
  * Why: a rule lives in one row and one named fact, so the refusal, its trace and its words never drift apart.
  *
@@ -25,7 +25,7 @@ export function runTable(table, rules, snapshot, move) {
   for (const guard of table.guards) {
     const answer = deriveFact(rules, guard.requires, snapshot, move);
     if (!answer.holds) {
-      return { refused: { code: guard.code, message: text(guard.message, snapshot, move), next: text(guard.next, snapshot, move), row: guard.id, fact: guard.requires, trace: answer.trace } };
+      return { refused: { code: guard.codeOf ? guard.codeOf(snapshot, move) : guard.code, message: text(guard.message, snapshot, move), next: text(guard.next, snapshot, move), row: guard.id, fact: guard.requires, trace: answer.trace } };
     }
   }
   const outcome = table.outcomes.find(entry => entry.when === undefined || deriveFact(rules, entry.when, snapshot, move).holds);

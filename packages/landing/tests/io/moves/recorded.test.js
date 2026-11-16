@@ -5,8 +5,8 @@ import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { requireRecordedMoves } from '../../../src/io/guards.js';
 
 const BODY = Array.from({ length: 40 }, (_, line) => `export const row${line} = ${line};`).join('\n') + '\n';

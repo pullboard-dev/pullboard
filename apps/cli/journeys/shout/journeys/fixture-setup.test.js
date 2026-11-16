@@ -1,3 +1,4 @@
+/** @pullboard-test-gui */
 /** @pullboard-test-input source-cell apps/cli apps/lib store */
 /** Cockpit fixture setup without a model, and the view reading its release notes once [N26]. */
 import assert from 'node:assert/strict';

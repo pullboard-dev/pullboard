@@ -26,6 +26,35 @@ export const SETUP_REFUSALS = {
   BRIEF_TOO_LONG: 'only a diagnosis fact routes the item and checks its brief; a release appends a note',
   NO_BRIEF: 'only a diagnosis fact routes the item and checks its brief; a release appends a note',
   CHECK_MASKS_EXIT: 'only a diagnosis fact routes the item and checks its check; a release appends a note',
+  // The move tables (packages/moves) check their own definition and input shape before a rule reads any item state.
+  CLAIM_TABLE_INPUTS: 'the claim table\'s input shape is checked by the table engine before any rule reads item state',
+  RELEASE_TABLE_INPUTS: 'the release table\'s input shape is checked by the table engine before any rule reads item state',
+  SUBMIT_TABLE_INPUTS: 'the submit table\'s input shape is checked by the table engine before any rule reads item state',
+  WITHDRAW_TABLE_INPUTS: 'the withdraw table\'s input shape is checked by the table engine before any rule reads item state',
+  RULE_SHAPE: 'a table rule with a malformed definition is a table defect found when the table is defined, not an item refusal',
+  RULE_UNDEFINED: 'a table rule that names an undefined fact is a table defect, not an item refusal',
+  RULE_CYCLE: 'a table whose rules depend on each other in a cycle is a table defect, not an item refusal',
+  RULE_UNDECLARED_READ: 'a table rule reading a fact it did not declare is a table defect, not an item refusal',
+  RULE_NOT_BOOLEAN: 'a table rule that returns a non-boolean is a table defect, not an item refusal',
+  // A reject on a landed item opens a follow-up item the move composes itself: lane, title, criterion and brief come from the
+  // rejected item, with no check, parent, spec row, dependency or reference, so none of the add validations can refuse it.
+  NO_TITLE: 'the landed-reject follow-up item is composed by the move with a title, so the add validation cannot refuse it',
+  PARENT_LANE: 'the landed-reject follow-up item has no parent',
+  PARENT_CLOSED: 'the landed-reject follow-up item has no parent',
+  BAD_CHECK: 'the landed-reject follow-up item is composed with no check',
+  BAD_CHECK_BASELINE: 'the landed-reject follow-up item is composed with no check',
+  COORDINATOR_CHECK: 'the landed-reject follow-up item is composed with no check',
+  LANE_CHECK_FOREIGN: 'the landed-reject follow-up item is composed with no check',
+  BAD_REVIEW_FAMILY: 'the landed-reject follow-up item declares no reviewer family',
+  BAR_PARENT_UNKNOWN: 'the landed-reject follow-up item records its bar under the verifying seat\'s own identity',
+  CLAUSE_EVIDENCE_REQUIRED: 'the landed-reject follow-up item is composed with one clause that declares its evidence kind',
+  REFERENCE_IS_BOARD: 'the landed-reject follow-up item is composed with no reference lines',
+  REFERENCE_AUTHOR: 'the landed-reject follow-up item is composed with no reference lines',
+  B26_PERSON_CHANNEL: 'the landed-reject follow-up item is composed with no person-only reference',
+  S10: 'the landed-reject follow-up item is composed with a per-item criterion',
+  WITHDRAWN: 'the landed-reject follow-up item waits on no other item',
+  DEPENDENCY_CYCLE: 'the landed-reject follow-up item waits on no other item',
+  RUNNER_UNATTRIBUTED: 'machine-wide setting gate.requireRunnerAttribution is checked when a runner accepts a request, before any item move',
 };
 
 

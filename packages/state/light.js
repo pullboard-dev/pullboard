@@ -84,6 +84,7 @@ export const LANDING_LOCAL_LEASE_ENGINE = engineNumber('LANDING_LOCAL_LEASE_ENGI
 export const LAND_COLLISION_ENGINE = engineNumber('LAND_COLLISION_ENGINE');
 export const LANE_LEAD_ENGINE = engineNumber('LANE_LEAD_ENGINE');
 export const LANDED_VERDICT_ENGINE = engineNumber('LANDED_VERDICT_ENGINE');
+export const LANDED_REJECT_ENGINE = engineNumber('LANDED_REJECT_ENGINE');
 export const LEASE_LAPSE_ENGINE = engineNumber('LEASE_LAPSE_ENGINE');
 export const LEDGER_QUARANTINE_ENGINE = engineNumber('LEDGER_QUARANTINE_ENGINE');
 export const LINE_CAPACITY_ENGINE = engineNumber('LINE_CAPACITY_ENGINE');
@@ -220,7 +221,7 @@ export { VERDICT_REVIEW_ENGINE } from './src/logic/move/constants.js';
 export { VERIFIER_STANDING_ENGINE } from './src/logic/move/constants.js';
 export { CHECK_ACCEPT_ENGINE, MILESTONE_SHIP_ENGINE } from './src/logic/move/constants.js';
 
-/** The highest engine number the exported engines declare: the registry's ENGINE_VERSION, from the numbers the leaves' text gives, so no leaf module loads [C7,H16]. */
+/** The highest engine number the exported engines declare: the registry's ENGINE_VERSION without reading the engines folder, so this door stays free of node:fs [C7,H16]. */
 export const ENGINE_VERSION = Math.max(...Reflect.ownKeys(self).filter(name => typeof name === 'string' && name !== 'ENGINE_VERSION' && name.endsWith('_ENGINE')).map(name => self[name]));
 export { DEFAULT_NEXT_STEPS } from './src/logic/defaults.js';
 export { RECORDED_GENERIC_NEXT } from './src/logic/defaults.js';

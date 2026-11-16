@@ -6,8 +6,8 @@ import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../fixtures/child.js';
+import { runFixtureGit } from '../../fixtures/child.js';
 import { selectAffectedTests } from '../../../index.js';
 import { declaresSource } from '../../../src/io/test/inputs.js';
 

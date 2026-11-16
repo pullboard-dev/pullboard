@@ -14,9 +14,13 @@ const CELL_TESTS = /^(?:packages|apps)\/[^/]+\/tests?\//u;
  * Why: each kind has its own standard, so the rule is recorded and a wrong kind is visible, not silent.
  *
  * @param {{ file: string, spawns: { process: boolean, browser: boolean, board: boolean } }} row
+ * @param {Set<string>} [golden] files the golden registry names; each is a harness, the one real-CLI walk of its user path
+ * @param {Set<string>} [guards] files the guard list names; each is a harness guarding a budget, ratchet, baseline or ceiling
  * @returns {{ kind: string, because: string }}
  */
-export function testKind({ file, spawns }) {
+export function testKind({ file, spawns }, golden = new Set(), guards = new Set()) {
+  if (golden.has(file)) return { kind: 'harness', because: 'golden journey: the one real-CLI walk of a user path (golden registry)' };
+  if (guards.has(file)) return { kind: 'harness', because: 'guards a budget, ratchet, baseline or ceiling the mutation check cannot see' };
   if (HARNESS.test(file)) return { kind: 'harness', because: 'tests a shared fixture' };
   if (JOURNEY.test(file)) return { kind: 'journey', because: 'lives under journeys/' };
   const outside = spawns.process || spawns.browser;
@@ -87,9 +91,11 @@ export function tagJourneys(rows) {
  * Turn per-file evidence into sorted manifest rows.
  *
  * @param {{ file: string, ms: number|null, specs?: string[], direct: Set<string>, via: Map<string, Set<string>> }[]} inputs
+ * @param {Set<string>} [golden] files the golden registry names, kept as harness so a regeneration never undoes the registry
+ * @param {Set<string>} [guards] files the guard list names, kept as harness for the same reason
  * @returns {object[]} one row per file, sorted by file
  */
-export function manifestRows(inputs) {
+export function manifestRows(inputs, golden = new Set(), guards = new Set()) {
   return tagJourneys(inputs.map(({ file, ms, specs = [], direct, via }) => {
     const started = category => direct.has(category) || [...via.values()].some(found => found.has(category));
     const spawns = {
@@ -99,7 +105,28 @@ export function manifestRows(inputs) {
       direct: direct.has('process') || direct.has('runner') || direct.has('browser'),
       via: [...via].filter(([, found]) => found.has('process') || found.has('runner') || found.has('browser')).map(([path]) => path).sort(),
     };
-    const { kind, because } = testKind({ file, spawns });
+    const { kind, because } = testKind({ file, spawns }, golden, guards);
     return { file, kind, because, specs, unproven: specs.length === 0, cost: { ms }, spawns };
   }).sort((a, b) => (a.file < b.file ? -1 : 1)));
+}
+
+export const TIME_TOLERANCE = 0.25;
+
+/**
+ * The runtime to record per file: the measured time when it is new or has moved more than the tolerance, else the recorded one.
+ * Why: a gate run's times jitter, so an unchanged file keeps its row byte for byte and only a real change rewrites it [C7].
+ *
+ * @param {Record<string, number>} recorded milliseconds already in the manifest, by file
+ * @param {Record<string, number>} measured latest measured milliseconds, by file
+ * @param {number} [tolerance] relative change that counts as real
+ * @returns {Record<string, number>} the milliseconds to record, by file, sorted keys
+ */
+export function settleTimes(recorded, measured, tolerance = TIME_TOLERANCE) {
+  const out = {};
+  for (const file of [...new Set([...Object.keys(recorded), ...Object.keys(measured)])].sort()) {
+    const was = recorded[file], now = Object.hasOwn(measured, file) ? Math.round(measured[file]) : undefined;
+    if (now === undefined) out[file] = was;
+    else out[file] = was === undefined || Math.abs(now - was) > was * tolerance ? now : was;
+  }
+  return out;
 }

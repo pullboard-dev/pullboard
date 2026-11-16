@@ -7,7 +7,7 @@ import { unplanned } from '../../../../codemap/index.js';
 import { readPlan } from '../../../../codemap/index.js';
 import { moveHistoryPlacement } from '../../../../codemap/index.js';
 import { requirePlannedSource } from '../../../../items/index.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../fixtures/child.js';
 import { fixture } from '../../../../landing/tests/fixtures/plan.js';
 import { git } from '../../../../landing/tests/fixtures/plan.js';
 
