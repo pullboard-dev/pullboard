@@ -61,6 +61,7 @@ export const MACHINE_DEFAULTS = {
   'jobs.handBackUnrunnable': false,
   'landing.pools': [],
   'landing.reofferTrunkBusy': false,
+  'landing.reuseContractResults': false,
   'landing.reuseGateReceipts': false,
   'landing.squash': false,
   'list.thinRead': false,
