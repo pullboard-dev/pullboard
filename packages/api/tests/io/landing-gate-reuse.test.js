@@ -17,7 +17,7 @@ function board(t, { fail = false } = {}) {
   const db = cellBoard(t, ':memory:').db;
   const row = (file, inputKey, status = 'pass') => ({ file, inputKey: key(inputKey), command: 'proof', context: CONTEXT, status });
   recordTestResults(db, { receipt: 'gate:item#0', origin: 'pulled:r-1', commit: COMMIT, rows: FILES.map(file => row(file, 1)) });
-  recordTestResults(db, { receipt: 'gate:other#0', origin: 'pulled:r-2', commit: OTHER, rows: FILES.flatMap(file => [row(file, 2), row(file, 3), row(file, 4)]) });
+  for (const at of [2, 3, 4]) recordTestResults(db, { receipt: `gate:other-${at}#0`, origin: 'pulled:r-2', commit: OTHER, rows: FILES.map(file => row(file, at)) });
   if (fail) recordTestResults(db, { receipt: 'gate:red#0', origin: 'pulled:r-3', commit: COMMIT, rows: [row(FILES[1], 1, 'fail')] });
   return db;
 }
