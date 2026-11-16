@@ -8,6 +8,7 @@ export const FLAG_MEANINGS = Object.freeze({
   'relay --all': 'links every registered project after one sign-in',
   'relay on --all': 'links every registered project after one sign-in',
   'list --all': 'adds closed items',
+  'roadmap --field': ['--field <name><op><value>', 'keeps items whose typed field matches; op is =, !=, >, >=, < or <= (a number field compares as a number)'],
   'request list --all': 'includes answered requests',
   '--owns': ['--owns <path>[,<path>]', 'the folders this lane owns'],
   '--companion': 'attaches this companion patch to the submission',
