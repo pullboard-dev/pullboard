@@ -403,12 +403,13 @@ test('clause 4: every test file that launches Chrome on main carries the browser
   const repository = resolve(import.meta.dirname, '../../../..');
   // This file's own launches are fixture sources run by nested runners with their own declarations.
   const launching = chromeLaunchingTests(repository).filter(file => file !== 'apps/cli/journeys/test/resources.test.js');
-  assert.ok(launching.length > 20, `the scan finds the real Chrome journeys: ${launching.length}`);
+  // The freeze deleted Chrome journeys on purpose (#8151, #8154: 51 -> 27 -> 14); the scan finds 13 on the post-freeze tree, so the floor sits just under that.
+  assert.ok(launching.length > 10, `the scan finds the real Chrome journeys: ${launching.length}`);
   const declared = new Set(await browserBoundFiles(repository, launching));
   const undeclared = launching.filter(file => !declared.has(file));
   assert.deepEqual(undeclared, [], `make the first line of each ${BROWSER_MARKER}`);
-  for (const file of ['apps/cli/journeys/shout/journeys/auth.test.js', 'apps/cli/journeys/relay/relay-pairing.test.js', 'packages/gate/tests/stable.test.js', 'packages/gate/tests/fixtures/cockpit/probe.mjs',
-    'packages/kernel/tests/logic/seal.test.js', 'docs/shots/shots.test.js', 'apps/cli/journeys/relay/hosted/shapes.test.js']) {
+  // The freeze deleted shout/journeys/auth, relay/relay-pairing and relay/hosted/shapes (#8151, #8154); the named files left are checked.
+  for (const file of ['packages/gate/tests/stable.test.js', 'packages/gate/tests/fixtures/cockpit/probe.mjs', 'packages/kernel/tests/logic/seal.test.js', 'docs/shots/shots.test.js']) {
     assert.equal(declaresBrowser(readFileSync(join(repository, file), 'utf8')), true, `${file} launches Chrome and declares it`);
   }
 });

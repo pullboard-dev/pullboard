@@ -59,7 +59,6 @@ import { measureBoardWritePhase } from './write/lock.js';
 import { endReviewLease } from './review/lease.js';
 import { applyVerdict } from './verify-table.js';
 import { verifyDecision } from './verify-table.js';
-import { verifyEngine } from "../../../../moves/light.js";
 import { pipelineCause } from "../../../../kernel/index.js";
 import { frozenBar } from "../../../../verify/index.js";
 import { namedClause } from "../../../../verify/index.js";
@@ -74,7 +73,7 @@ import { SPEC_APPROVAL_ENGINE } from "../../../../state/light.js";
 import { STRONG_REJECTION_NOTICE_ENGINE } from "../../../../state/light.js";
 
 /** What the verify table needs from the cells the writer already reads; the table decides a verdict only from the engine where every rule it holds was in force. */
-const VERIFY_TABLE_DEPS = Object.freeze({ verifyEngine, pipelineCause, frozenBar, namedClause, wording, seatFamily, nativeFlakeEngine: NATIVE_FLAKE_ENGINE, strongNoticeEngine: STRONG_REJECTION_NOTICE_ENGINE,
+const VERIFY_TABLE_DEPS = Object.freeze({ pipelineCause, frozenBar, namedClause, wording, seatFamily, nativeFlakeEngine: NATIVE_FLAKE_ENGINE, strongNoticeEngine: STRONG_REJECTION_NOTICE_ENGINE,
   from: Math.max(VERDICT_REVIEW_ENGINE, REVIEW_REQUEST_ENGINE, REJECT_CLAUSE_ENGINE, REJECT_OPEN_ENGINE, REOPEN_FIRST_REFUSAL_ENGINE, RIGOR_AUTO_ENGINE, SPEC_APPROVAL_ENGINE,
     AUTO_ESCALATE_ENGINE, STRONG_REJECTION_NOTICE_ENGINE, ROUTE_CALIBRATION_ENGINE, NATIVE_FLAKE_ENGINE) });
 

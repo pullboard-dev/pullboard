@@ -45,7 +45,7 @@ function existingEngine(args, board, at) {
 function minimumEngine(args, board, at) {
   return Math.max(args[0]?.batch?.flakeRatchet ? FLAKE_RATCHET_ENGINE : 1, existingEngine(args, board, at), (quarantineBatchGates(args[0]?.batch).length || Object.hasOwn(args[0]?.batch?.proof?.receipt ?? {}, 'blockingVerdict')) ? QUARANTINE_VERDICT_ENGINE : 1);
 }
-import { LANDING_NEXT } from "../table/landing.table.js";
+import { LANDING_NEXT } from "../table/next.js";
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */
 function actor(move) { return move.args[0]?.agentId ?? null; }

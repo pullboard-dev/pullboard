@@ -1,6 +1,7 @@
 /** Move runners stage model under its planned cell */
 export * from "./src/logic/stage.js";
 export { runtimeUrls } from "./src/logic/urls.js";
+export { jobPath, SYSTEM_PATH } from "./src/logic/path.js";
 export { sampleRunnerLoad, localRunnerDescriptor } from "./src/io/load.js";
 export { RUNNER_POLICY_FILE, validRunnerTrunk, runnerPolicyRecord, carriedRunnerTrunk } from "./src/io/policy.js";
 export { validateCacheTips, tagObjectBodies, sourcePreparationFields } from "./src/io/overhead.js";

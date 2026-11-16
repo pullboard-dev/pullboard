@@ -24,6 +24,8 @@ const LAND_PAYLOAD_BYTES = 8 * 1024;
  * its code never learned (#7791). Shape 2: fields such as `checkout` may sit in the job's request (#7766).
  */
 export const LAND_PAYLOAD_SHAPE = 2;
+// The shape a land job carrying hop epochs is written in: a runner that cannot push through the fences refuses it rather than land unfenced [C7,#8437].
+export const LAND_HOPS_SHAPE = 3;
 // Budget: a land job whose push failed is offered again this many times, then the coordinator hears a named refusal (#7791).
 export const LAND_PUSH_RETRIES = 2;
 // The payload parts a runner may read from the job's request instead: what the board derived, never ids, commits or refs.
@@ -48,6 +50,15 @@ export function livePersonWaivers(db, now) {
     .filter(row => row.event_by === PERSON).map(row => JSON.parse(row.event_detail).waiver)
     .filter(waiver => typeof waiver?.test === 'string' && Date.parse(waiver.until) > now)
     .map(({ id, test, until, reason }) => ({ id, kind: landingWaiverKind(test), test, until, reason }));
+}
+
+/** Refuse hop epochs that do not name a landed item and a whole epoch; return them as { item, epoch } [C7,#8437]. */
+function landingHops(hops, landed) {
+  const ids = new Set(landed.map(entry => entry.id));
+  if (!Array.isArray(hops) || hops.some(hop => !ids.has(hop?.item) || !Number.isSafeInteger(hop.epoch) || hop.epoch < 1)) {
+    throw new Refused('LANDING_HOPS', 'a landing job\'s hops are { item, epoch }: a landed item and the whole hop epoch its gate row holds');
+  }
+  return hops.map(({ item, epoch }) => ({ item, epoch }));
 }
 
 /** Refuse an accepted-items list a runner could not land as written; return it in landing order. */
@@ -82,7 +93,7 @@ function landingItems(items) {
  *   pulls in any mode. config.landing.publish "separate" rides on the job, so a red item parks and the clean ones land.
  * @returns {ReturnType<typeof offerJob>}
  */
-export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads/main', check = null, needs = [], checkout = false, upstream = null, forced = null, badges = [], deferred = null, flakes = null, now = Date.now() }) {
+export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads/main', check = null, needs = [], checkout = false, upstream = null, forced = null, badges = [], deferred = null, flakes = null, hops = [], now = Date.now() }) {
   // trunk.remote, else its old name landing.trunkRemote: config's configTrunkRemote order, kept here since the cell ratchet allows no new api->config import.
   const remote = config?.trunk?.remote || config?.landing?.trunkRemote;
   if (typeof remote !== 'string' || !remote || remote.startsWith('-')) throw new Refused('LANDING_TRUNK_REMOTE', 'a runner landing pushes the trunk remote of record; set trunk.remote in pullboard.json to its git URL');
@@ -96,6 +107,7 @@ export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads
     throw new Refused('LANDING_FLAKES', 'a landing job\'s flakes are { rerun, prefixes: { check, proof } }: whether a red pairs its failing cases, and the runner prefix of each command');
   }
   const landed = landingItems(items);
+  const fenced = landingHops(hops, landed);
   const defer = deferredPayload(deferred, config?.affectedTests, landed);
   const ids = landed.map(entry => entry.id).join('+').slice(0, 120);
   const proof = landingProof(db, landed, config?.affectedTests, expect);
@@ -108,14 +120,14 @@ export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads
   const contracts = !forced && runner && !/[\0\n\r]/u.test(runner) ? { runner } : null;
   // The person's live waivers ride on the job, so its runner holds no landing for a waived test, whether the proof or the contracts ran it; a new waiver is a new job [#655,C7].
   const waivers = proof || contracts ? livePersonWaivers(db, now) : [];
-  const key = createHash('sha256').update(JSON.stringify([remote, trunk, expect, landed, ...(forced ? [forced] : []), ...(waivers.length ? [waivers.map(waiver => waiver.id)] : [])])).digest('hex').slice(0, 16);
+  const key = createHash('sha256').update(JSON.stringify([remote, trunk, expect, landed, ...(forced ? [forced] : []), ...(waivers.length ? [waivers.map(waiver => waiver.id)] : []), ...(fenced.length ? [fenced] : [])])).digest('hex').slice(0, 16);
   // The board's static guard runs on the merged tree, from accepted main's config, never the item's own [C7,#7492].
   const staticChecks = !forced && typeof config?.staticChecks === 'string' && config.staticChecks.trim() && !/\0/u.test(config.staticChecks) ? config.staticChecks.trim() : null;
   // landing.perItem is on by default (off under parallel landing); only off rides on the job, so default payloads stay as they were [C7,#2901].
   const batchOnly = config?.landing?.perItem === false || config?.landing?.parallel === true;
   // The landing's checks may run this long (the push shard limit setting) before the runner stops them and posts LAND_PROOF_TIMEOUT; only a non-default limit rides on the job [C7,#7820].
   const proofMinutes = Number.isSafeInteger(config?.pushGate?.shardMinutes) && config.pushGate.shardMinutes > 0 && config.pushGate.shardMinutes !== 20 ? config.pushGate.shardMinutes : null;
-  const payload = { shape: LAND_PAYLOAD_SHAPE, remote, trunk, expect, items: landed, ...(check ?? own?.gate ?? deferGate ? { check: check ?? own?.gate ?? deferGate } : {}), ...(own?.checks ? { checks: own.checks } : {}), ...(proof ? { proof } : {}), ...(defer ? { deferred: defer } : {}), ...(contracts ? { contracts } : {}), ...(staticChecks ? { staticChecks } : {}), ...(waivers.length ? { waivers } : {}),
+  const payload = { shape: fenced.length ? LAND_HOPS_SHAPE : LAND_PAYLOAD_SHAPE, remote, trunk, expect, items: landed, ...(fenced.length ? { hops: fenced } : {}), ...(check ?? own?.gate ?? deferGate ? { check: check ?? own?.gate ?? deferGate } : {}), ...(own?.checks ? { checks: own.checks } : {}), ...(proof ? { proof } : {}), ...(defer ? { deferred: defer } : {}), ...(contracts ? { contracts } : {}), ...(staticChecks ? { staticChecks } : {}), ...(waivers.length ? { waivers } : {}),
     ...(separate ? { publish: 'separate' } : {}), ...(batchOnly ? { perItem: false } : {}), ...(proofMinutes ? { proofMinutes } : {}), ...(badges.length ? { badges } : {}), ...(checkout ? { checkout: true } : {}), ...(upstream ? { upstream } : {}), ...(flakes ? { flakes: { rerun: flakes.rerun, prefixes: { check: flakes.prefixes?.check ?? null, proof: flakes.prefixes?.proof ?? null } } } : {}), ...(forced ? { forced: forced.trim() } : {}) };
   const spilled = spillLargeInputs(payload);
   return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, priority: 'landing', needs, now, payload: spilled.payload, ...(spilled.request ? { request: spilled.request } : {}) });

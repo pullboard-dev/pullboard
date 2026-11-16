@@ -1,32 +1,12 @@
-/** @pullboard-world-pin reads the recorded verdict history fixture to replay each verdict through the store verify writer. The store verify writer agrees with the verify table on every replayed verdict [C7,#8272]. */
+/** @pullboard-world-pin reads the recorded verdict records fixture to replay each verdict through the store verify writer. The store verify writer agrees with the verify table on every replayed verdict [C7,#8272]. */
+/** @pullboard-test-input packages/store/tests/fixtures/verify-records.json */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { DatabaseSync } from 'node:sqlite';
 import { verify } from '../../../index.js';
-import { boardVerifyEngine } from '../../fixtures/cell.js';
 import { cellBoard } from '../../fixtures/cell.js';
-import { readVerifyRecords } from '../../fixtures/cell.js';
-import { runTable } from '../../fixtures/cell.js';
 
-const HISTORY = JSON.parse(readFileSync(new URL('../../../../moves/tests/fixtures/table/verify-history.json', import.meta.url), 'utf8'));
 const STAMP = '2026-01-01T00:00:00.000Z';
-
-/** The recorded events, verdicts and items on a scratch in-memory board, read the way the replay reads them. */
-function recorded() {
-  const db = new DatabaseSync(':memory:');
-  db.exec(`CREATE TABLE event (event_id INTEGER PRIMARY KEY, event_at TEXT NOT NULL, event_by TEXT NOT NULL, event_kind TEXT NOT NULL, item_id INTEGER, event_detail TEXT NOT NULL DEFAULT '{}');
-    CREATE TABLE agent (agent_id TEXT PRIMARY KEY, agent_route TEXT);
-    CREATE TABLE item (item_id INTEGER PRIMARY KEY, item_frozen TEXT, item_frozen_digest TEXT, item_lane TEXT);
-    CREATE TABLE verdict (verdict_id INTEGER PRIMARY KEY, item_id INTEGER, verdict_by TEXT, verdict_decision TEXT, verdict_reason TEXT, verdict_note TEXT, verdict_commit TEXT,
-      verdict_digest TEXT, verdict_head TEXT, verdict_verifier_family TEXT, verdict_at TEXT);
-    CREATE TABLE shout (shout_id INTEGER PRIMARY KEY, shout_to TEXT, shout_text TEXT, shout_decision INTEGER);
-    CREATE TABLE board_meta (meta_key TEXT PRIMARY KEY, meta_value TEXT)`);
-  const insert = (table, rows) => { for (const row of rows) db.prepare(`INSERT INTO ${table} VALUES (${row.map(() => '?').join(',')})`).run(...row); };
-  insert('event', HISTORY.events); insert('agent', HISTORY.agents); insert('item', HISTORY.items);
-  insert('verdict', HISTORY.verdictRows); insert('shout', HISTORY.shouts); insert('board_meta', HISTORY.meta);
-  return { db };
-}
 
 /** What the board stores for an event, without the actor's model, which the event writer stamps on every event and no move decides. */
 const stored = ({ model, ...rest }) => JSON.parse(JSON.stringify(rest));
@@ -102,19 +82,17 @@ function differences(wrote, expected) {
   return out;
 }
 
-const records = readVerifyRecords(recorded(), { since: HISTORY.since, only: HISTORY.verdicts }).verify;
+const records = JSON.parse(readFileSync(new URL('../../fixtures/verify-records.json', import.meta.url), 'utf8'));
 
 test('clause 1: the store verify writer agrees with the verify table on every replayed verdict [C7,#8272]', t => {
-  const { rules, table } = boardVerifyEngine();
   assert.ok(records.length >= 10, 'the replay holds accepts and rejects');
   const disagreements = [];
   const via = new Set();
   for (const record of records) {
-    const answer = runTable(table, rules, structuredClone(record.snapshot), structuredClone(record.move));
-    for (const step of answer.via) via.add(step);
+    for (const step of record.via) via.add(step);
     const board = boardFor(t, record);
     const wrote = asEvents(board, drive(board, record).filter(e => e.kind !== 'fact'));
-    const expected = answer.events.filter(e => e.kind !== 'fact').map(shape);
+    const expected = record.table.filter(e => e.kind !== 'fact').map(shape);
     if (JSON.stringify(wrote) !== JSON.stringify(expected)) disagreements.push({ event: record.event.id, differences: differences(wrote, expected) });
   }
   assert.deepEqual(disagreements, []);

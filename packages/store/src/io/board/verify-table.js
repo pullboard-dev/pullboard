@@ -1,17 +1,12 @@
 /** The verify move table run over the live board: the store's verify writer reads the verdict event and its automatic follow-ups from it [C7,#8272]. */
 import { causeProblem } from "../../logic/board/rigor.js";
-import { runMoveTable } from "../../logic/board/landing/lease.js";
+import { runVerifyTable } from "../../logic/board/landing/lease.js";
 import { ACCEPT_REASON } from "../board.js";
 import { REJECT_REASONS } from "../board.js";
 
 /** The event kinds the table's rules read, as the history reader of the replay reads them. */
 const KINDS = Object.freeze(['add', 'edit', 'claim', 'renew', 'release', 'submit', 'accept', 'reject', 'reopen', 'withdraw', 'merged', 'escalate',
   'hold_item', 'unhold_item', 'refreeze', 'reserve', 'bar-sharpen', 'strong-rejection-notice', 'fact']);
-
-/** The verify table's engine, built once from the board's own reasons, the caller's bar readers and cause rules. */
-let built = null;
-const tableEngine = (deps) => built ??= deps.verifyEngine({ acceptReason: ACCEPT_REASON, rejectReasons: REJECT_REASONS, wording: deps.wording, causeProblem, pipelineCause: deps.pipelineCause,
-  frozenBar: (frozenText) => deps.frozenBar({ item_frozen: frozenText }), namedClause: (bar, quote) => deps.namedClause(bar, quote, true), strongNoticeEngine: deps.strongNoticeEngine });
 
 /** The id the board's next row in a table will take: its autoincrement sequence, which never reuses a deleted row's id. */
 function nextId(db, table, column) {
@@ -73,7 +68,9 @@ export function verifyDecision(board, item, call, deps) {
     ...(call.check !== undefined ? { check: call.check } : {}), ...(call.knownMainFailures !== undefined ? { knownMainFailures: call.knownMainFailures } : {}),
     ...(call.quarantineProofId !== undefined ? { quarantineProofId: call.quarantineProofId } : {}), ...(call.sandbox !== undefined ? { sandbox: call.sandbox } : {}),
     ...(call.implies ? { implies: call.implies } : {}) };
-  const answer = runMoveTable(tableEngine(deps), structuredClone(snapshot), structuredClone(move));
+  const build = () => ({ acceptReason: ACCEPT_REASON, rejectReasons: REJECT_REASONS, wording: deps.wording, causeProblem, pipelineCause: deps.pipelineCause,
+    frozenBar: (frozenText) => deps.frozenBar({ item_frozen: frozenText }), namedClause: (bar, quote) => deps.namedClause(bar, quote, true), strongNoticeEngine: deps.strongNoticeEngine });
+  const answer = runVerifyTable(build, structuredClone(snapshot), structuredClone(move));
   return answer.refused ? null : { events: answer.events };
 }
 

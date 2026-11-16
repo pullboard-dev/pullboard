@@ -6,6 +6,8 @@
 import { gateLedgerHits } from '../../../../../packages/api/index.js';
 import { offerJob } from '../../../../../packages/api/index.js';
 import { openJob } from '../../../../../packages/api/index.js';
+import { endGateHop } from '../../../../../packages/api/index.js';
+import { submitGateHop } from './hop.js';
 import { pulledGateReds } from '../../../../../packages/api/index.js';
 import { mappedCheck } from '../../../../../packages/codemap/index.js';
 import { pullGateFor } from '../../../../../packages/config/index.js';
@@ -148,12 +150,14 @@ const failingCases = (status, text, run) => {
  * pullboard by name, as on the controller, where the seat's CLI is on PATH; a runner job's PATH has none, and the check exited 127.
  */
 const cliPath = () => {
+  // The service's PATH may lack /usr/bin: a job's tests spawn git, ps and lsof from the system directories (#8245).
+  const held = String(process.env.PATH ?? '').split(delimiter).filter(Boolean), kept = held.concat(['/usr/bin', '/bin', '/usr/sbin', '/sbin'].filter(directory => !held.includes(directory))).join(delimiter);
   const cli = join(tools, 'apps', 'cli', 'pullboard.js'), bin = join(tools, '.pullboard-bin');
-  if (!existsSync(cli)) return [dirname(process.execPath), process.env.PATH].filter(Boolean).join(delimiter);
+  if (!existsSync(cli)) return [dirname(process.execPath), kept].filter(Boolean).join(delimiter);
   mkdirSync(bin, { recursive: true, mode: 0o700 });
   // The archive keeps the CLI's mode and its env-node line, which finds this Node next on PATH.
   if (!existsSync(join(bin, 'pullboard'))) symlinkSync(cli, join(bin, 'pullboard'));
-  return [bin, dirname(process.execPath), process.env.PATH].filter(Boolean).join(delimiter);
+  return [bin, dirname(process.execPath), kept].filter(Boolean).join(delimiter);
 };
 const input = JSON.parse(readFileSync(0, 'utf8'));
 // A proof shard the board offered from a gate's plan runs only its part of the proof, with the same trusted runner [P7].
@@ -460,11 +464,14 @@ export function gateShardRequest({ main, source, shard }) {
  * queues a second run of the same source.
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ item: number, main: string, source: string, request: object, now?: number }} fields
+ * @param {{ item: number, main: string, source: string, request: object, now?: number, hop?: { table: Function } | null }} fields - hop: the submit's hop port, null with gate.fencedHop off.
  */
-export function offerGateJob(db, { item, main, source, request, now = Date.now() }) {
-  return openJob(db, { kind: 'gate', item, candidate: source })
-    ?? offerJob(db, { id: `gate:${item}:${source.slice(0, 12)}:${now.toString(36)}`, kind: 'gate', priority: 'gate', needs: GATE_NEEDS, item, candidate: source, base: main, request, now });
+export function offerGateJob(db, { item, main, source, request, now = Date.now(), hop = null }) {
+  const open = openJob(db, { kind: 'gate', item, candidate: source });
+  if (open) return open;
+  // With gate.fencedHop on, a resubmit at a new candidate ends the item's open hop, so the old candidate's gate job cannot renew or land [C7,#8353].
+  endGateHop(db, hop, { item, candidate: source, now });
+  return offerJob(db, { id: `gate:${item}:${source.slice(0, 12)}:${now.toString(36)}`, kind: 'gate', priority: 'gate', needs: GATE_NEEDS, item, candidate: source, base: main, request, now });
 }
 
 /**
@@ -537,7 +544,7 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   git(root, ['update-ref', `refs/pullboard/gate/${id}`, source]);
   // The same pin the controller path writes, so doctor and review find the work whatever the gate's outcome (#7076).
   git(root, ['update-ref', `refs/pullboard/items/${id}/${commit.slice(0, 12)}`, commit]);
-  const job = withBoard(ctx, board => offerGateJob(board.db, { item: id, main: main.commit, source, request }));
+  const job = withBoard(ctx, board => offerGateJob(board.db, { item: id, main: main.commit, source, request, hop: submitGateHop() }));
   noteSubmitSession(ctx.info, id, true);
   // The runner's receipt applies the submit with no agent session, so the usage checkpoint the ordered submit took is taken here, as the gate is offered [N2].
   await withBoard(ctx, board => checkpointAfterMove(ctx, board, { agent: me.id, item: id, operation: 'submit' }, { ordered, worker: usageCheckpointWorkerEntrypoint() }));

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../index.js';
-import { openKitBoard } from '../../../apps/cli/tests/fixtures/testkit.js';
+import { openKitBoard } from './fixtures/cell.js';
 import { recordSubmitHandoff } from '../../jobs/index.js';
 
 // fixture-subject: addItem (a store unit test of next over seeded items; the board is opened through the kit)
