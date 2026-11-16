@@ -101,6 +101,7 @@ test('resume asks the coordinator to commit an applied row file [I1,L3]', async 
   assert.equal(after.lines.some((line) => line.startsWith(PERSON_LINE)), false, `the person commits nothing:\n${after.lines.join('\n')}`);
   assert.match(after.card.next, /^commit the applied row file first: cd .+ && git add -- SPEC\.md && git commit .+; then /u);
   assert.deepEqual(after.card.commits, { coordinator: { files: ['SPEC.md'], command: commit(clean, ['SPEC.md']) }, person: null });
+  // Stays real: it runs the printed shell command, which commits through git, not the CLI.
   const committed = runFixtureChild('sh', ['-c', after.card.commits.coordinator.command], { cwd: clean.repo, env: clean.env, encoding: 'utf8' });
   assert.equal(committed.status, 0, committed.failure || committed.stderr || committed.stdout);
   assert.deepEqual((await resume(clean)).card.commits, { coordinator: null, person: null }, 'the command resume names commits the row file, and only it');
@@ -129,6 +130,7 @@ test('resume asks the coordinator to commit an applied row file [I1,L3]', async 
   // A signed apply: the receipt spec apply appended goes in the coordinator's commit with the row.
   const signed = releaseFixture(t, { freshSetup: true, historyBeforeInit: true });
   const keyPath = join(signed.root, 'co-signing-key');
+  // Stays real: ssh-keygen is not the CLI.
   const keyed = runFixtureChild('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-C', 'resume@example.invalid', '-f', keyPath], { encoding: 'utf8' });
   assert.equal(keyed.status, 0, keyed.failure || keyed.stderr);
   signed.git(signed.repo, 'config', 'user.signingkey', keyPath);
@@ -145,6 +147,7 @@ test('resume asks the coordinator to commit an applied row file [I1,L3]', async 
   const receipted = (await resume(signed));
   assert.deepEqual(receipted.card.commits.coordinator?.files, ['SPEC.md', '.pullboard/signoffs.jsonl'], 'the receipt spec apply appended is the coordinator\'s to commit with the row');
   assert.ok(receipted.lines.some((line) => line.startsWith('The coordinator must commit the row file spec apply changed and its sign-off receipt: ')), receipted.lines.join('\n'));
+  // Stays real: it runs the printed shell command, which commits through git, not the CLI.
   const landed = runFixtureChild('sh', ['-c', receipted.card.commits.coordinator.command], { cwd: signed.repo, env: signed.env, encoding: 'utf8' });
   assert.equal(landed.status, 0, landed.failure || landed.stderr || landed.stdout);
   assert.equal(signed.git(signed.repo, 'cat-file', '-t', 'HEAD:.pullboard/signoffs.jsonl').trim(), 'blob', 'the printed command commits the receipt, so the next worktree or clone has it');
@@ -152,14 +155,15 @@ test('resume asks the coordinator to commit an applied row file [I1,L3]', async 
 });
 
 // Process-level cases below stay processes: they run the fixture's copied CLI at a chosen release version and changelog, which the in-process dispatcher cannot stand in for.
-test('resume says what is new once after an upgrade [N19]', t => {
+test('resume says what is new once after an upgrade [N19]', async t => {
   const box = releaseFixture(t, { previous: '0.8.5' });
   const otherCheckout = join(box.root, 'other-checkout');
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: initialize resume release fixture [N19]');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'other', otherCheckout);
   const lane = Object.keys(JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8')).lanes)[0];
-  const joined = fixtureJoin(box.run, otherCheckout, lane, '--model', 'Fixture');
+  // The join reads no release version or changelog, so it runs in-process; the resume calls below read them and stay real.
+  const joined = await fixtureJoin(box.runLocal, otherCheckout, lane, '--model', 'Fixture');
   assert.equal(joined.status, 0, joined.failure || joined.stderr || joined.stdout);
   const firstCheckoutRun = box.run(otherCheckout, 'resume');
   assert.equal(firstCheckoutRun.status, 0, firstCheckoutRun.failure || firstCheckoutRun.stderr || firstCheckoutRun.stdout);
