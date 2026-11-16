@@ -185,7 +185,7 @@ const pairAfter = (item, result) => {
   return [after.status, landingOf(after)];
 };
 
-test('clause 3: every outcome of every move table over generated snapshots writes only a legal status and landing pair [M1,M4]', () => {
+test('moves.backbone.legal-landing-pair: clause 3: every outcome of every move table over generated snapshots writes only a legal status and landing pair [M1,M4]', () => {
   const writes = [];
   // Every declared item move, from every legal start pair it can meet.
   for (let seed = 1; seed <= GENERATED; seed++) {
