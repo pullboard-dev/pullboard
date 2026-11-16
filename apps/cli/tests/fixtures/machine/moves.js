@@ -31,6 +31,7 @@ export const SETUP_REFUSALS = {
   RELEASE_TABLE_INPUTS: 'the release table\'s input shape is checked by the table engine before any rule reads item state',
   SUBMIT_TABLE_INPUTS: 'the submit table\'s input shape is checked by the table engine before any rule reads item state',
   WITHDRAW_TABLE_INPUTS: 'the withdraw table\'s input shape is checked by the table engine before any rule reads item state',
+  VERIFY_TABLE_INPUTS: 'the verify table\'s input shape is checked by the table engine before any rule reads item state',
   RULE_SHAPE: 'a table rule with a malformed definition is a table defect found when the table is defined, not an item refusal',
   RULE_UNDEFINED: 'a table rule that names an undefined fact is a table defect, not an item refusal',
   RULE_CYCLE: 'a table whose rules depend on each other in a cycle is a table defect, not an item refusal',
@@ -64,6 +65,7 @@ export const SETUP_REFUSALS = {
  */
 export const NOT_MOVES = {
   ...SETUP_REFUSALS,
+  MOVE_TABLES_MISSING: 'the store runs its move tables through the board composition root; opening the board without it is a wiring fault, not an item move',
   USAGE: 'how a command was typed',
   NO_FILE: 'how a command was typed: a --note-file that does not exist',
   ALREADY_JOINED: 'registering who is asking, before any move',
