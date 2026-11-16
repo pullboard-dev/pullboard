@@ -72,7 +72,7 @@ caseTest('ssh', 'a synchronous runner call is refused by the retired SSH control
     catch(error){console.log(JSON.stringify({name:error.name,diagnostic:error.diagnostic}));}`);
   assert.equal(result.name, 'RunnerDropped');
   assert.equal(result.diagnostic.exitCode, 1);
-  assert.equal(result.diagnostic.reason, 'receipt-count');
+  assert.equal(result.diagnostic.reason, 'bridge-json');
   assert.match(result.diagnostic.stderr, /SSH runner controller is retired/u);
   assert.match(result.diagnostic.source, /^[0-9a-f]{40}$/u);
 });
