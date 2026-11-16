@@ -8,8 +8,8 @@ import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js'
 import { cellSeat } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
 import { gateClauseTickNotes } from '../../../../../packages/state/index.js';
-import { configFromSource } from '../../../../../packages/config/src/io/main.js';
-import { defaults } from '../../../../../packages/config/src/io/main.js';
+import { configFromSource } from '../../../../../packages/config/index.js';
+import { defaults } from '../../../../../packages/config/index.js';
 import { fixtureCommittedGraph } from '../../fixtures/testkit.js';
 import { gateTestFiles } from '../../../src/io/submit.js';
 
