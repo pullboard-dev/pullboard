@@ -82,6 +82,7 @@ export {
   reviewReleaseReasonsRequired,
   lapsedSweepEnabled,
   derivedStateEnabled,
+  adaptiveBatchEnabled,
   memoryFloorMB,
   relayOfferEnabled,
   setRelayCanary,
