@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** With submit.proofOnly on, an all-proof item with every clause ticked submits with no change; off, it is refused EMPTY_SUBMIT [C7,#9105]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
