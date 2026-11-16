@@ -1017,7 +1017,10 @@
     "launch": 1
   },
   "apps/cli/tests/io/commands/test.test.js": {
-    "launch": 7
+    "launch": 2
+  },
+  "apps/cli/tests/io/commands/test-discovery.test.js": {
+    "launch": 5
   },
   "apps/cli/journeys/hook/amend.test.js": {
     "launch": 2
