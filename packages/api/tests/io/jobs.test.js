@@ -6,7 +6,6 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { cellBoard } from '../../../store/tests/fixtures/cell.js';
 import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
-import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
 import { fetchFresh } from '../../../../apps/cli/tests/fixtures/http.js';
 import { runnerDispatchMode } from '../../../config/index.js';
 import { jobView } from '../../../jobs/index.js';
@@ -23,18 +22,17 @@ test('clauses 1-3: over the loopback API a runner claims by capability, a rival 
   const { root } = privateFixtureFiles('pullboard-jobs-api-');
   const home = join(root, 'machine-home');
   mkdirSync(home, { recursive: true });
-  // Controller first, set explicitly since pull is the default [P7].
-  fixtureMachineSettings(home, { gate: { runnerDispatch: 'controller' } });
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = home;
   t.after(() => { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; });
   const db = cellBoard(t, join(root, 'board.sqlite')).db;
   offerJob(db, { id: 'gate:http', kind: 'gate', needs: ['node22'] });
-  // The local adapter's jobs port, as packages/api/src/io/main.js wires it: the machine's dispatch mode decides.
+  // The local adapter's jobs port, as packages/api/src/io/main.js wires it; the queue mode is a port, so the test names it: refused first, then pull [P7].
+  let mode = 'controller';
   const handler = createApiHandler({ refusalDocument,
     authenticate: () => ({ local: true }),
     board: (id) => ({ id }),
-    jobs: (board, body) => jobQueueCall(db, body, { mode: runnerDispatchMode() }),
+    jobs: (board, body) => jobQueueCall(db, body, { mode }),
   });
   const server = createServer(handler);
   await new Promise((done) => server.listen(0, '127.0.0.1', done));
@@ -48,7 +46,7 @@ test('clauses 1-3: over the loopback API a runner claims by capability, a rival 
   assert.deepEqual([off.status, off.document.error.code], [400, 'JOBS_NOT_PULL'], 'the controller path never serves the queue');
   assert.equal(jobView(db, 'gate:http').leaseOwner, null);
 
-  fixtureMachineSettings(home, { gate: { runnerDispatch: 'pull' } });
+  mode = runnerDispatchMode();
   assert.equal((await jobs({ action: 'claim', runner: 'r-thin', capabilities: [] })).document.claim, null, 'a runner without node22 takes nothing');
   const won = await jobs({ action: 'claim', runner: 'r-a', capabilities: ['node22', 'browser'] });
   assert.equal(won.status, 200);
