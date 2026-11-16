@@ -10,6 +10,7 @@ import { tryGit } from '../../../../packages/git/index.js';
 import { fixtureCommittedGraph } from '../../../../packages/store/tests/fixtures/cell.js';
 import { openKitBoard } from '../../tests/fixtures/child.js';
 import { offerPushShards } from '../../src/io/hook/push.js';
+import { GATE_NEEDS } from '../../src/io/submit/pull.js';
 import { pushShardPlan } from '../../src/io/hook/push.js';
 
 const RUNNERS = 3;
@@ -49,10 +50,10 @@ test('clause 1: the full gate suite is offered as one pull shard job per runner,
     assert.ok(views.every(view => view.kind === 'gate-shard' && view.step === 'offered'), JSON.stringify(views.map(view => [view.kind, view.step])));
     assert.ok(views.every(view => view.candidate === plan.source), 'each shard names the pushed commit');
     // Every registered runner pulls one shard, the heaviest-first shard goes to the first to ask, and a fourth finds none.
-    const claims = Array.from({ length: RUNNERS }, (_, at) => claimJob(board.db, { runner: `runner-${at + 1}` }));
+    const claims = Array.from({ length: RUNNERS }, (_, at) => claimJob(board.db, { runner: `runner-${at + 1}`, capabilities: GATE_NEEDS }));
     assert.deepEqual(claims.map(claim => claim?.job), jobs, 'the runners take the shards in order, heaviest first');
     assert.equal(new Set(claims.map(claim => claim.job)).size, RUNNERS, 'no shard is claimed twice');
-    assert.equal(claimJob(board.db, { runner: 'runner-4' }), null, 'nothing is left over for a fourth runner');
+    assert.equal(claimJob(board.db, { runner: 'runner-4', capabilities: GATE_NEEDS }), null, 'nothing is left over for a fourth runner');
     const heavy = views.map(view => JSON.stringify(view)).map(text => text.includes('test/heavy.test.js'));
     assert.deepEqual(heavy, [true, false, false], 'only the first shard carries the heaviest file');
   } finally { board.db.close(); }
