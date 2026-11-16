@@ -1002,7 +1002,10 @@
     "hand-policy": 1
   },
   "apps/cli/journeys/init/gate.test.js": {
-    "hand-policy": 5
+    "hand-policy": 4
+  },
+  "apps/cli/journeys/init/gate-set.test.js": {
+    "hand-policy": 1
   },
   "apps/cli/journeys/init/ignore.test.js": {
     "tempdir": 2,
