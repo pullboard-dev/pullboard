@@ -35,7 +35,14 @@ const OWN_FILE = fileURLToPath(import.meta.url);
  * @returns {RegExpExecArray|undefined} Match groups: path, line.
  */
 export function writeOrigin(stack) {
-  return stack?.split('\n').slice(1).map(line => /(?:file:\/\/)?(\/[^\s():]+\.js):(\d+):\d+/u.exec(line)).find(match => match && match[1] !== OWN_FILE);
+  return stack?.split('\n').slice(1).map(line => {
+    const match = /(file:\/\/)?(\/[^\s():]+\.js):(\d+):\d+/u.exec(line);
+    if (!match) return null;
+    // A file URL percent-encodes a folder name with a space; decode it, or this module's own frame never equals OWN_FILE.
+    let path = match[2];
+    if (match[1]) try { path = decodeURIComponent(path); } catch { /* A malformed escape keeps the raw path. */ }
+    return [match[0], path, match[3]];
+  }).find(match => match && match[1] !== OWN_FILE);
 }
 
 const TRANSACTION_DEPTH = new WeakMap();

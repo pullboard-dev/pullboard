@@ -2,9 +2,13 @@
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { appendFact } from '../../../../index.js';
+import { writeOrigin } from '../../../../index.js';
 import { cellBoard } from '../../../fixtures/cell.js';
 import { cellItem } from '../../../fixtures/cell.js';
 import { cellProject } from '../../../fixtures/cell.js';
@@ -28,4 +32,14 @@ test('clause 1 and clause 2: a hold row names the calling file and line, not the
   const phases = rows.map(row => row.phase).filter(phase => phase.startsWith('work'));
   assert.ok(phases.length > 0, 'a work phase was recorded');
   for (const phase of phases) assert.doesNotMatch(phase, /^work:log\.js:/u, `${phase} names the event log itself`);
+});
+
+test('clause 2: a stack whose checkout folder has a space still skips the event log and names the caller [C7,#8496]', () => {
+  const cell = fileURLToPath(import.meta.resolve('../../../../index.js'));
+  const own = join(dirname(cell), 'src', 'io', 'board', 'event', 'log.js');
+  const encoded = pathToFileURL(own).href;
+  const caller = pathToFileURL(join(dirname(own), '..', '..', 'work folder', 'caller.js')).href;
+  const origin = writeOrigin(`Error\n    at transaction (${encoded}:115:3)\n    at move (${caller}:9:1)`);
+  assert.match(origin[1], /caller\.js$/u, 'the caller, not the event log, holds the write');
+  assert.equal(origin[2], '9');
 });
