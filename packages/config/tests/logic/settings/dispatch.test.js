@@ -1,4 +1,4 @@
-/** gate.runnerDispatch names how runner jobs are watched: pull by default, controller only when set exactly [C7,P7,#5465]. */
+/** gate.runnerDispatch names how runner jobs are watched: pull is the default and the only value; controller is refused with a next step [C7,P7,#5465,#8181]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -20,15 +20,15 @@ function withSettings(settings, work) {
   } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 }
 
-test('clause 1: the runner dispatch mode is pull until the machine setting is exactly controller [C7,P7,#5465]', () => {
+test('clause 1: the runner dispatch mode is pull with no setting and with pull set [C7,P7,#5465]', () => {
   assert.equal(withSettings(null, runnerDispatchMode), 'pull');
   assert.equal(withSettings({ gate: {} }, runnerDispatchMode), 'pull');
-  assert.equal(withSettings({ gate: { runnerDispatch: 'controller' } }, runnerDispatchMode), 'controller');
   assert.equal(withSettings({ gate: { runnerDispatch: 'pull' } }, runnerDispatchMode), 'pull');
 });
 
-test('any other runner dispatch value is a machine settings refusal that names the two choices [C7,#5465]', () => {
-  for (const bad of ['Pull', 'poll', true, 1, null]) {
-    assert.throws(() => withSettings({ gate: { runnerDispatch: bad } }, loadMachineSettings), /BAD_MACHINE_SETTINGS.*"controller" or "pull"/u, `${JSON.stringify(bad)} is refused`);
+test('clause 1: controller and any other runner dispatch value is refused with the step to pull, and the schema holds no controller value [C7,#5465,#8181]', () => {
+  for (const bad of ['controller', 'Pull', 'poll', true, 1, null]) {
+    assert.throws(() => withSettings({ gate: { runnerDispatch: bad } }, loadMachineSettings),
+      error => error.code === 'BAD_MACHINE_SETTINGS' && /must be "pull"/u.test(error.message) && /next: run pullboard settings gate\.runnerDispatch pull/u.test(error.message), `${JSON.stringify(bad)} is refused`);
   }
 });

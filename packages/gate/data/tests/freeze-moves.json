@@ -9,6 +9,20 @@
       "idsFollowed": true
     },
     {
+      "from": "apps/cli/journeys/verify/reserve.test.js",
+      "to": "apps/cli/tests/journeys/verify/reserve.test.js",
+      "action": "convert",
+      "because": "runs in process, so the journey folder is not needed",
+      "idsFollowed": true
+    },
+    {
+      "from": "apps/cli/journeys/verify/clause-refusal.test.js",
+      "to": "apps/cli/tests/journeys/verify/clause-refusal.test.js",
+      "action": "convert",
+      "because": "runs in process, so the journey folder is not needed",
+      "idsFollowed": true
+    },
+    {
       "from": "apps/cli/journeys/spec/boards.test.js",
       "to": "apps/cli/tests/io/spec/boards.test.js",
       "action": "convert",
@@ -9228,6 +9242,15 @@
       ],
       "coveredBy": "packages/outbox/tests/io/relay/replies.test.js",
       "because": "a recovered descriptor with no durable receipt stays pending and is never taken as an outcome, and a mismatched ciphertext is not a reply, in the outbox cell against a stand-in relay"
+    },
+    {
+      "file": "apps/cli/journeys/show/history.test.js",
+      "specs": [
+        "V1",
+        "V17"
+      ],
+      "coveredBy": "packages/store/tests/io/board/historical-heads.test.js",
+      "because": "a rejected head stays unverified after a sibling resubmission until the latest head is accepted, proven in the store cell on a real board; the refusal on that head is proven in apps/cli/tests/io/submit/stack.test.js"
     },
     {
       "file": "apps/cli/journeys/land/cadence.test.js",

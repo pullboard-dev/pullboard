@@ -6,14 +6,20 @@ export { REOPEN_NEXT } from './next.js';
 
 /** The note the event records: the caller's, else the one a reported conflict states. */
 const noteOf = (m) => (typeof m.note === 'string' ? m.note.trim() : '') || m.conflictNote;
+/** The cause fields a return records: the derived rigor cause, ordered against `returned` (a conflict's own cause) as the board's engine orders them. */
+const withCause = (s, returned) => (s.cause?.overrides === false ? { ...(s.cause?.derived ?? {}), ...returned } : { ...returned, ...(s.cause?.derived ?? {}) });
+/** The first-refusal window, recorded only on the returns that hand the item back to its builder. */
+const windowOf = (s) => s.reservation ?? {};
 const blank = (text) => !(typeof text === 'string' && text.trim());
 
 /**
  * Build the reopen rules and table over the board's own cause check, handed in by the caller.
  * Why: moves may not reach into the store, and the cause forms must stay one source; the caller passes the store's `causeProblem`.
- * Snapshot: `{ actor: { id, joined }, item: { id, status, commit, mergedCommit } | null, landing: { accepted, failure }, conflict: { accepted }, withdrawal: { acceptEventId } }`,
- * where the last three are what git, the landing batches and the verdict lookup answered before the move ran.
- * Move: `{ id, actor, note, cause, conflict, conflictNote, withdrawVerdict }`. The derived cause, first-refusal reservation, shouts and the lease end stay with the shell.
+ * Snapshot: `{ actor: { id, joined }, item: { id, status, commit, mergedCommit } | null, landing: { accepted, failure }, conflict: { accepted, supersedes, detail, computed }, withdrawal: { acceptEventId },
+ * cause: { derived, overrides }, reservation }`, where landing, conflict and withdrawal are what git, the landing batches and the verdict lookup answered before the move ran,
+ * `cause.derived` is the board's derived rigor cause (`overrides`: it wins over the conflict's own cause), and `reservation` is the first-refusal window the board offers.
+ * The table decides which of them each outcome records: the cause on every return, the conflict detail on a conflict return, the reservation on a conflict, landing-failure or verdict-withdrawal return only.
+ * Move: `{ id, actor, note, cause, conflict, conflictNote, withdrawVerdict }`. Shouts and the lease end stay with the shell.
  *
  * @param {{ causeProblem: (cause: unknown) => { message: string } | null, states: readonly string[] }} board
  * @returns {{ rules: Readonly<Record<string, object>>, table: Readonly<object> }}
@@ -54,13 +60,13 @@ export function reopenEngine(board) {
     ]),
     outcomes: Object.freeze([
       { id: 'withdraw-verdict', when: 'withdrawing', patch: () => ({ status: 'open', verdict: null, verifiedBy: null, owner: null, leaseUntil: null, reviewBy: null, reviewUntil: null }),
-        events: (s, m) => [{ kind: 'reopen', by: m.actor, detail: { commit: s.item.commit, note: noteOf(m), judgment: null, supersedes: s.withdrawal.acceptEventId } }] },
+        events: (s, m) => [{ kind: 'reopen', by: m.actor, detail: { commit: s.item.commit, note: noteOf(m), judgment: null, ...windowOf(s), ...withCause(s, { supersedes: s.withdrawal.acceptEventId }) } }] },
       { id: 'return-conflict', when: 'supersedesConflict', patch: () => ({ status: 'open', verdict: null, verifiedBy: null, owner: null, leaseUntil: null, reviewBy: null, reviewUntil: null }),
-        events: (s, m) => [{ kind: 'reopen', by: m.actor, detail: { commit: s.item.commit, note: noteOf(m), judgment: null, ...(s.conflict.supersedes === undefined ? {} : { supersedes: s.conflict.supersedes }), conflict: m.conflict } }] },
+        events: (s, m) => [{ kind: 'reopen', by: m.actor, detail: { commit: s.item.commit, note: noteOf(m), judgment: null, ...windowOf(s), ...withCause(s, { ...(s.conflict.supersedes === undefined ? {} : { supersedes: s.conflict.supersedes }), ...(s.conflict.detail ?? { conflict: m.conflict }), ...(s.conflict.computed === undefined ? {} : { computedConflict: s.conflict.computed }) }) } }] },
       { id: 'return-landing-failure', when: 'landingFailureReturn', patch: () => ({ status: 'open', verdict: null, verifiedBy: null, owner: null, leaseUntil: null, reviewBy: null, reviewUntil: null }),
-        events: (s, m) => [{ kind: 'reopen', by: m.actor, detail: { commit: s.item.commit, note: noteOf(m), judgment: null, supersedes: s.landing.accepted, landingFailure: s.landing.failure } }] },
+        events: (s, m) => [{ kind: 'reopen', by: m.actor, detail: { commit: s.item.commit, note: noteOf(m), judgment: null, ...windowOf(s), ...withCause(s, { supersedes: s.landing.accepted, landingFailure: s.landing.failure }) } }] },
       { id: 'return-submission', patch: () => ({ status: 'open', verdict: null, verifiedBy: null, owner: null, leaseUntil: null, reviewBy: null, reviewUntil: null }),
-        events: (s, m) => [{ kind: 'reopen', by: m.actor, detail: { commit: s.item.commit, note: noteOf(m), judgment: null } }] },
+        events: (s, m) => [{ kind: 'reopen', by: m.actor, detail: { commit: s.item.commit, note: noteOf(m), judgment: null, ...withCause(s, {}) } }] },
     ]),
   });
   return Object.freeze({ rules, table });
