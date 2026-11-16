@@ -46,5 +46,5 @@ export function createFakeClock(start = 0) {
     }
     current = target;
   };
-  return Object.assign(createClock(source), { advance, pending: () => timers.size });
+  return Object.freeze({ ...createClock(source), advance, pending: () => timers.size });
 }
