@@ -698,8 +698,11 @@
   },
   "apps/cli/journeys/spec/cockpit.test.js": {
     "repo-read": 2,
-    "tempdir": 9,
+    "tempdir": 7,
     "raw-cli": 1
+  },
+  "apps/cli/journeys/spec/cockpit/rows.test.js": {
+    "tempdir": 2
   },
   "apps/cli/journeys/spec/cockpit/pointer.test.js": {
     "tempdir": 3
@@ -844,7 +847,9 @@
     "hand-policy": 2
   },
   "apps/cli/journeys/view/e2e.test.js": {
-    "model": 1,
+    "model": 1
+  },
+  "apps/cli/journeys/view/e2e-doctrine.test.js": {
     "hand-policy": 1
   },
   "apps/cli/journeys/merged/e2e.test.js": {
