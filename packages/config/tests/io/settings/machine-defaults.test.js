@@ -91,6 +91,7 @@ const BEFORE = {
   'next.readinessCheck': false,
   'push.rerunFailedShardOnce': false,
   'relay.offerAtInit': true,
+  'relay.pruneReceipts': false,
   'review.releaseReasons': false,
   'runnerRates': {},
   'runners': [],
