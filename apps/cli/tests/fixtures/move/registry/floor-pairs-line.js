@@ -32,9 +32,9 @@ export const LINE_TABLE = { move: 'setLineSetting', options: [
   { name: 'key route.liveOnly', args: [{ key: 'route.liveOnly' }, {}], floor: LIVE_ROUTE_ENGINE, group: 'key' },
   { name: 'key returnRejectedWork', args: [{ key: 'returnRejectedWork' }, {}], floor: REJECTION_RETURN_ENGINE, group: 'key' },
   { name: 'key reworkSameFamily', args: [{ key: 'reworkSameFamily' }, {}], floor: REWORK_SAME_FAMILY_ENGINE, group: 'key' },
-  { name: 'landingFence', args: [{ key: 'other', landingFence: 1 }, {}], floor: LANDING_LEASE_ENGINE },
-  { name: 'cause conflict', args: [{ key: 'other' }, { cause: 'conflict:x' }], floor: RIGOR_AUTO_ENGINE, group: 'cause' },
-  { name: 'cause sentinel', args: [{ key: 'other' }, { cause: 'sentinel:x' }], floor: BOARD_SENTINEL_ENGINE, group: 'cause' },
+  { name: 'landingFence', args: [{ landingFence: 1 }, {}], floor: LANDING_LEASE_ENGINE },
+  { name: 'cause conflict', args: [{}, { cause: 'conflict:x' }], floor: RIGOR_AUTO_ENGINE, group: 'cause' },
+  { name: 'cause sentinel', args: [{}, { cause: 'sentinel:x' }], floor: BOARD_SENTINEL_ENGINE, group: 'cause' },
 ] };
 
 /** The pairs that fail today, each with the conflict named. Never grows; later slices fix the floors and shrink it. */
