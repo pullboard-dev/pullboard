@@ -1055,7 +1055,7 @@
     },
     "settled.json": {
       "kind": "json",
-      "owner": "packages/sandbox/src/io/source/advance/worker.js"
+      "owner": "packages/gate/src/io/main/audit/state.js"
     },
     "setup-complete.json": {
       "kind": "json",
@@ -1558,7 +1558,6 @@
     "recovery.json",
     "relay-health.sqlite",
     "row.json",
-    "settled.json",
     "stats-history.jsonl",
     "timer.guard.sqlite",
     "timer.json",
