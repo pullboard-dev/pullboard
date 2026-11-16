@@ -144,7 +144,7 @@ async function serveUnnamed(cache, trunk, jobs) {
   return board.receipts;
 }
 
-test('after a runner serve restart, a job slot reuses the same checkout folder, keeping its warm files [P7]', { timeout: 60_000 }, // budget: as clause 1.
+test('clause 1: after a runner serve restart, a job slot reuses the same checkout folder, keeping its warm files [P7]', { timeout: 60_000 }, // budget: as clause 1.
   async t => {
     const { cache, trunk, first, second } = trunkRepo(t);
     const before = await serveUnnamed(cache, trunk, [{ id: 'j1', commit: first, run: job(true) }]);
@@ -159,7 +159,7 @@ test('after a runner serve restart, a job slot reuses the same checkout folder, 
     assert.deepEqual(slotLocks(cache), [], 'a finished serve gives its slot prefix back');
   });
 
-test('a second live serve on one host and cache takes its own slot folders, never the first serve\'s [P7]', { timeout: 60_000 }, // budget: as clause 1.
+test('clause 2: a second live serve on one host and cache takes its own slot folders, never the first serve\'s [P7]', { timeout: 60_000 }, // budget: as clause 1.
   async t => {
     const { cache, trunk, first } = trunkRepo(t);
     const folders = [];
