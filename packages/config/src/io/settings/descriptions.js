@@ -117,6 +117,7 @@ const ROWS = [
   ['relay.owner.account', 'Sharing account', 'The account that owns this computer\'s device sharing.', 'Relay', 'text'],
   ['relay.owner.url', 'Sharing service', 'The address of the sharing service this computer signs in to.', 'Relay', 'text'],
   ['relay.personReauth', 'Needs the person to sign in again', 'This board\'s sharing sign-in was cleared, so the person must sign in again before sharing resumes.', 'Relay', 'on/off'],
+  ['relay.queueOnFailure', 'Queue moves when the relay is down', 'When enabled, a move on a linked board that finds the relay down or answering a server error is recorded here and queued to go up later, even with the outbox off; off (default), that move is refused RELAY_UNAVAILABLE.', 'Relay', 'on/off'],
   ['relay.session.token', 'Device sign-in', 'Whether this computer holds a sharing sign-in; the value is never shown.', 'Relay', 'set/not set'],
   ['relay.token', 'Board sign-in', 'Whether this board holds a sharing sign-in; the value is never shown.', 'Relay', 'set/not set'],
   ['relay.url', 'Board sharing service', 'The address of the sharing service this board is linked to.', 'Relay', 'text'],

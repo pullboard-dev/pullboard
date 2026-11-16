@@ -108,6 +108,7 @@ export {
   reuseGateReceiptsEnabled,
   memoryFloorMB,
   relayOfferEnabled,
+  relayQueueOnFailureEnabled,
   setRelayCanary,
   setLandingPool,
   setGateSlots,

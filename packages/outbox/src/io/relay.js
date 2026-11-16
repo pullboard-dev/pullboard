@@ -371,9 +371,13 @@ async function finishEntry(link, outbox, where, key) {
 
 export { outboxFields } from '../../light.js';
 
-/** Whether this command may queue a move in the ordered outbox: the board's relay.outbox setting, on unless opted out (#922,H21). */
+/**
+ * Whether this command may queue a move in the ordered outbox: the board's relay.outbox setting, on unless opted out (#922,H21),
+ * or the machine's relay.queueOnFailure, which queues a move on a down relay even with the outbox off (#9410).
+ */
 function outboxEnabled(io) {
-  try { return io?.relayOutbox?.() === true; } catch { return false; }
+  try { if (io?.relayOutbox?.() === true) return true; } catch { /* fall through to the machine setting */ }
+  try { return io?.relayQueueOnFailure?.() === true; } catch { return false; }
 }
 
 /**

@@ -764,6 +764,11 @@ export function reuseContractResultsEnabled() {
   return loadMachineSettings().landing?.reuseContractResults === true;
 }
 
+/** Whether relay.queueOnFailure is on (#9410): off by default; only an exact `true` turns it on. */
+export function relayQueueOnFailureEnabled() {
+  return loadMachineSettings().relay?.queueOnFailure === true;
+}
+
 /** Whether landing.reuseGateReceipts is on (#9243): off by default; only an exact `true` turns it on. */
 export function reuseGateReceiptsEnabled() {
   return loadMachineSettings().landing?.reuseGateReceipts === true;
