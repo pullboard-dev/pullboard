@@ -31,7 +31,7 @@ function fixture(t) {
   const { publicKey, privateKey } = generateKeyPairSync('ed25519');
   const pub = publicKey.export({ type: 'spki', format: 'der' }).toString('base64url');
   const signText = text => sign(null, Buffer.from(text), privateKey).toString('base64url');
-  const adapter = boardPullAdapter({ folder: join(files.root, `board-${t.name.length}-${Math.random().toString(36).slice(2)}`), trusted: [pub], now: () => at, ...jobsPullPorts(db, { now: () => at }), checkResult: checkSignedResult, bundle: () => '/dev/null' });
+  const adapter = boardPullAdapter({ folder: join(files.root, `board-${Math.random().toString(36).slice(2)}`), trusted: [pub], now: () => at, ...jobsPullPorts(db, { now: () => at }), checkResult: checkSignedResult, bundle: () => '/dev/null' });
   adapter.register({ runner: 'r1', publicKey: pub, at, signature: signText(pullStatement('register', 'r1', at)) });
   adapter.open({ host: 'pool' }).startShard({ job: 'gate-9', shard: 's1', command: COMMAND, tree: TREE });
   const nonce = 'jobs-nonce-00000001';
@@ -40,10 +40,10 @@ function fixture(t) {
 
 test('clause 1: boardPullAdapter built with jobs-table ports on a SQLite board leases a queued job to a trusted runner take [C7]', t => {
   const { db, take } = fixture(t);
-  assert.equal(jobView(db, 'gate-9').lease.owner, null, 'the queued job is unleased');
+  assert.equal(jobView(db, 'gate-9').leaseOwner, null, 'the queued job is unleased');
   const claim = take();
   assert.equal(claim.job, 'gate-9');
-  assert.equal(jobView(db, 'gate-9').lease.owner, 'r1', 'the job row names the runner that took it');
+  assert.equal(jobView(db, 'gate-9').leaseOwner, 'r1', 'the job row names the runner that took it');
 });
 
 test('clause 2: a result posted through the adapter is recorded on the job row [C7]', t => {
