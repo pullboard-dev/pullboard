@@ -18,7 +18,7 @@ async function shownAfterSubmit(t, { on, ticked }) {
   put(box.root, 'src/a.js', 'export const value = 2;\n');
   commitAll(box, 'feat(core): change a [G1]');
   if (ticked) assert.equal((await inProcess(box, box.root, 'fact', '1', 'note', 'clause 1 [reasoning]: the change is the whole bar, see src/a.js')).code, 0);
-  const queued = box.run('submit', '1', '--json', '--no-next', '--infra', 'the clause marks fixture');
+  const queued = await inProcess(box, box.root, 'submit', '1', '--json', '--no-next', '--infra', 'the clause marks fixture');
   assert.equal(queued.code, 0, JSON.stringify(queued));
   return (await inProcess(box, box.root, 'show', '1')).out;
 }
