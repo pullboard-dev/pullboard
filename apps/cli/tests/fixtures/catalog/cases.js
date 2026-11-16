@@ -49,6 +49,7 @@ import {
 } from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { JSON_SHAPES } from '../../../../../packages/config/index.js';
+import { FIXTURE_DISTINCT_ENV } from '../../../src/io/item/duplicate.js';
 import { projectState } from '../../../src/io/view.js';
 import { serveView } from '../../../src/io/commands/view.js';
 import { registerProject } from '../../../../../packages/seats/index.js';
@@ -1345,9 +1346,8 @@ catalogCase('[A1,C7,#8378] moves reports each move table state through real CLI 
 catalogCase('[A1,C7,#8916] split files one child per numbered clause through real CLI JSON', [], async () => {
   const box = await project();
   const parent = (await json(box, box.repo, 'add', ['coordinator', 'Split parent', '--criterion', '1. The first part holds [test] 2. The second part holds [test]', '--check', 'true', '--accept-green', 'catalog fixture'], 'add')).item;
-  // Children of an open parent read as likely duplicates of it, so the parent is claimed first, as the slice case does.
-  await json(box, box.repo, 'check', ['accept', String(parent.item_id)], 'accept');
-  await json(box, box.repo, 'claim', [String(parent.item_id)]);
+  // Each child is titled from its parent, so the likely-duplicate guard would refuse it; the fixture variable turns that guard off for this box only.
+  box.env[FIXTURE_DISTINCT_ENV] = '1';
   const split = await uncataloguedRootJSON(box, box.repo, 'split', [String(parent.item_id)]);
   assert.equal(split.parent, parent.item_id);
   assert.equal(split.children.length, 2, 'one child per numbered clause');
