@@ -3,6 +3,7 @@ export { settleCapacity, HYSTERESIS_BAND, HYSTERESIS_HOLD_MS } from './src/logic
 export { maxUsefulBuilders, USEFUL_WINDOW_MS, USEFUL_MIN_MARGINAL } from './src/logic/capacity/useful.js';
 export { carryingCapacity } from './src/logic/carrying.js';
 export { readCarryingCapacity } from './src/io/carrying.js';
+export { escapeReport, escapeLines } from './src/logic/review/escapes.js';
 /** Canonical named entry points for the planned cell; implementations retain their current owner [C7]. */
 export { workFreeReleases, readWorkFreeReleases } from './src/logic/work/free.js';
 export { runnerUtilization, utilizationLines } from './src/logic/runners/utilization.js';
