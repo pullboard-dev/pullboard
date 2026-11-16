@@ -4,6 +4,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -102,8 +103,9 @@ export async function measureColdNext(box, t) {
     const run = timed(box, dir, 'next');
     if (round >= 0) samples['cold next'].push(run.ms);
   }
-  const { floor, top } = coldNextPhases(box, dir);
+  const { floor, top, children } = coldNextPhases(box, dir);
   t.diagnostic(`cold next phases: process start and exit alone ${floor.toFixed(0)} ms; next's self time by file: ${top.join('; ')}`);
+  t.diagnostic(`cold next child processes (${children.length}): ${children.slice(0, 12).join(' | ')}`);
   return samples;
 }
 
@@ -112,8 +114,21 @@ export function coldNextPhases(box, dir) {
   const floor = timed(box, dir, '--version').ms;
   const prof = join(box.dir, 'cold-prof');
   mkdirSync(prof, { recursive: true });
+  // A preload that logs every child process next starts and how long a synchronous one took, so the slow phase is named by command.
+  const log = join(prof, 'children.log');
+  const preload = join(prof, 'children.cjs');
+  writeFileSync(preload, `const cp = require('node:child_process'); const fs = require('node:fs'); const { performance } = require('node:perf_hooks');
+for (const name of ['spawnSync', 'execFileSync', 'execSync', 'spawn', 'execFile']) {
+  const original = cp[name];
+  cp[name] = function (...args) {
+    const started = performance.now();
+    try { return original.apply(this, args); }
+    finally { fs.appendFileSync(${JSON.stringify(log)}, name + ' ' + String(args[0]).slice(0, 60) + ' ' + JSON.stringify(Array.isArray(args[1]) ? args[1] : []).slice(0, 70) + ' ' + (performance.now() - started).toFixed(0) + ' ms\\n'); }
+  };
+}
+require('node:module').syncBuiltinESMExports();`);
   const before = box.env.NODE_OPTIONS;
-  box.env.NODE_OPTIONS = `${before ?? ''} --cpu-prof --cpu-prof-dir=${prof}`.trim();
+  box.env.NODE_OPTIONS = `${before ?? ''} --cpu-prof --cpu-prof-dir=${prof} --require=${preload}`.trim();
   try { timed(box, dir, 'next'); } finally { if (before === undefined) delete box.env.NODE_OPTIONS; else box.env.NODE_OPTIONS = before; }
   const self = new Map();
   for (const name of readdirSync(prof).filter(file => file.endsWith('.cpuprofile'))) {
@@ -125,7 +140,9 @@ export function coldNextPhases(box, dir) {
     });
   }
   const top = [...self].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([url, ms]) => `${url} ${ms.toFixed(0)} ms`);
-  return { floor, top };
+  let children = [];
+  try { children = readFileSync(log, 'utf8').trim().split('\n'); } catch { /* No child process started. */ }
+  return { floor, top, children };
 }
 
 /** Measure claim and release of one filed item per round, in this process like next, so a loaded runner's node start-up is not billed to the command [#6998,C7]. */
