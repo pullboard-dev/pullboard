@@ -29,6 +29,11 @@ async function landOne(t, squash) {
   mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, squash ? { landing: { squash: true } } : {});
   t.after(() => { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; });
+  // The merge commit needs an identity; a runner has none configured.
+  const identity = { GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com', GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com' };
+  const before = Object.fromEntries(Object.keys(identity).map(key => [key, process.env[key]]));
+  Object.assign(process.env, identity);
+  t.after(() => { for (const [key, value] of Object.entries(before)) if (value === undefined) delete process.env[key]; else process.env[key] = value; });
   const root = repo.root;
   const base = repo.commit;
   repo.put('web/page.txt', 'page\n');
