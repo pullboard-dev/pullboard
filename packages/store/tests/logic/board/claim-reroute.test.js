@@ -17,7 +17,7 @@ function handedBack(t, { first, reroute }) {
   if (reroute !== undefined) board.rerouteUntouched = reroute;
   store.register(board, { lane: 'coordinator', path: '/repo' });
   const seat = store.register(board, { lane: 'core', path: '/one', route: 'strong' });
-  const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'work', criterion: 'prove it', route: 'mid' });
+  const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'work', criterion: 'prove it', route: 'mid', check: 'true', brief: 'Files: src/a.js\nTest: proves it' });
   const claim = () => store.claim(board, id, { agentId: seat, lane: 'core', leaseMs: 7200000, head: SNAPSHOT.head, autoNext: true, autoNextSnapshot: SNAPSHOT,
     freeze: item => ({ text: JSON.stringify({ criterion: item.item_criterion, policy: { version: 1, commit, verify: { policy: 'any', family: 'off' } } }), digest: 'digest' }) });
   const release = reason => store.release(board, id, seat, '', { worktreeSnapshot: { ...SNAPSHOT } }, reason);
