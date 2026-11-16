@@ -49,9 +49,11 @@ function replay() {
   const seconds = (cpu.user + cpu.system) / 1e6;
   const kinds = new Map();
   for (const row of db.prepare('SELECT meta_key, meta_value FROM board_meta ORDER BY rowid').all()) {
-    const kind = row.meta_key.replace(/^local:proof-stats:v\d+:/u, '').split(':')[0];
+    // A flow report version keeps its keys in its own folder (report-v4:policy); the earlier replay stored them as report-policy, so compare under that name.
+    const name = row.meta_key.replace(/^local:proof-stats:v\d+:/u, '').replace(/^report-v\d+:/u, 'report-');
+    const kind = name.split(':')[0];
     if (!kinds.has(kind)) kinds.set(kind, createHash('sha256'));
-    kinds.get(kind).update(`${row.meta_key}\0${row.meta_value}\n`);
+    kinds.get(kind).update(`local:proof-stats:v2:${name}\0${row.meta_value}\n`);
   }
   const digest = createHash('sha256');
   for (const [kind, hash] of [...kinds].sort()) digest.update(kind + hash.digest('hex'));
