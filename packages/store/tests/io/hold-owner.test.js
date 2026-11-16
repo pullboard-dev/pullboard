@@ -8,20 +8,18 @@ import { cellBoard } from '../fixtures/cell.js';
 import { cellProject } from '../fixtures/cell.js';
 import { cellItem } from '../fixtures/cell.js';
 import { cellSeat } from '../fixtures/cell.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 
 const DAY = 86_400_000;
 const LIGHT_BRIEF = 'Files:\n- web/page.js\nChange:\n- copy the header from the api\nTest:\n- the page test asserts the header\nOut of scope: anything else\n';
 
 /** A real private board with a coordinator and one open item, on an empty machine home, so the setting is at its default. */
 function heldBoard(t) {
-  const { root } = privateFixtureFiles('pullboard-hold-owner-');
-  const home = join(root, 'machine-home');
-  mkdirSync(home, { recursive: true });
+  const project = cellProject(t, { real: true, gate: 'true' });
+  const home = join(project.dir, 'machine-home');
+  mkdirSync(home);
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = home;
   t.after(() => { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; });
-  const project = cellProject(t, { real: true, gate: 'true' });
   const board = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: project.repo });
   cellSeat(board, { lane: 'coordinator', path: project.repo });
   const id = cellItem(board, { lane: 'web', title: 'Held work', route: 'mid',
