@@ -229,6 +229,9 @@ export function loadMachineSettings() {
   if (value.health?.derivedState !== undefined && typeof value.health.derivedState !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `health.derivedState in ${file} must be true or false`);
   }
+  if (value.landing?.adaptiveBatch !== undefined && typeof value.landing.adaptiveBatch !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `landing.adaptiveBatch in ${file} must be true or false`);
+  }
   if (value.next?.itemNotices !== undefined && typeof value.next.itemNotices !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `next.itemNotices in ${file} must be true or false`);
   }
