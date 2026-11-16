@@ -19,6 +19,7 @@ import {
   staleBoardRefusal,
 } from "./write/preparation.js";
 import { checkedSubmitOutcome } from "../submit/outcome.js";
+import { recordPendingOutcome } from "../submit/outcome.js";
 import { submitAdmission as checkedSubmitAdmission } from "../../../../state/light.js";
 import { AUTOMATIC_DISPATCH_ENGINE } from "../../../../state/light.js";
 import {
@@ -46,6 +47,11 @@ import {
 import { outsideBuildProblem } from "../../../../items/index.js";
 import { barReadyProblem } from "../../../../verify/index.js";
 import { COORDINATOR } from "../../../../config/index.js";
+import { movesShadowEnabled } from "../../../../config/index.js";
+import { movesLiveEnabled } from "../../../../config/index.js";
+import { shadowHook } from "./shadow-record.js";
+import { claimDiffers } from "./shadow-record.js";
+import { shadowDecide } from "./shadow-record.js";
 import { Refused } from "../../../../kernel/index.js";
 import { routeOf } from "../../../../seats/index.js";
 import { canTake } from "../../../../seats/index.js";
@@ -60,6 +66,7 @@ import { REWORK_SAME_FAMILY_ENGINE } from "../../../../state/index.js";
 import { CLAIM_RETURNS_ENGINE } from "../../../../state/index.js";
 import { claimProblem } from "../../../../seats/index.js";
 import { randomUUID } from 'node:crypto';
+import { claimDecision } from "./claim-table.js";
 import { availableParallelism } from 'node:os';
 import { withLocalSeatPresence } from "../presence.js";
 import {
@@ -67,28 +74,50 @@ import {
   logEvent,
 } from "./event/log.js";
 
-/** Free pulled test-run slots: jobs each recently claiming runner declared, less live jobs; null when no runner serves. */
-function runnerSlots(board) {
-  if (!board.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='job_step'").get()) return null;
-  const at = board.clock.now().getTime(), serves = new Map();
-  for (const row of board.db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_name = 'claimed' AND job_step_at >= ?").all(at - 600_000)) {
+/**
+ * Free pulled test-run slots: jobs each recently claiming runner declared, less live jobs; null when no runner serves.
+ * The job tables are read from `home`: the board while runs_store is off, the runs file while it is on [B2,#9015].
+ */
+function slotsIn(home, at) {
+  if (!home?.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='job_step'").get()) return null;
+  const serves = new Map();
+  for (const row of home.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_name = 'claimed' AND job_step_at >= ?").all(at - 600_000)) {
     let step = null;
     try { step = JSON.parse(row.payload); } catch { /* an unreadable step declares nothing */ }
     if (typeof step?.runner === 'string' && Number.isSafeInteger(step.jobs) && step.jobs >= 1) serves.set(step.runner, Math.max(serves.get(step.runner) ?? 0, step.jobs));
   }
   if (serves.size === 0) return null;
-  const busy = board.db.prepare("SELECT count(*) AS n FROM job WHERE job_lease_owner IS NOT NULL AND job_lease_until >= ? AND job_step <> 'done'").get(at).n;
+  const busy = home.prepare("SELECT count(*) AS n FROM job WHERE job_lease_owner IS NOT NULL AND job_lease_until >= ? AND job_step <> 'done'").get(at).n;
   return Math.max(0, [...serves.values()].reduce((sum, jobs) => sum + jobs, 0) - busy);
+}
+
+/**
+ * The runner slots read once from the runs file, before any board write opens: a snapshot that can be one read old. A claim
+ * takes it as its input and never opens a runs handle inside its own board write [B2,#9015].
+ *
+ * @param {{ clock: { now: () => Date } }} board
+ * @param {{ db: import('node:sqlite').DatabaseSync | null }} runs - The read-only runs holder (boardRunsReader).
+ * @returns {number | null} Free slots, or null when no runner serves or there is no runs file.
+ */
+export function runnerSlotsSnapshot(board, runs) {
+  return slotsIn(runs.db, board.clock.now().getTime());
+}
+
+/** Free pulled test-run slots on the board's own job tables, as before runs_store. */
+function runnerSlots(board) {
+  return slotsIn(board.db, board.clock.now().getTime());
 }
 
 /**
  * How many live top-level build claims one seat may hold, and one line saying how N was found [C7].
  * Why: a seat builds its next item while the last one's tests run; free test-run slots per live seat bound that.
  * perSeat is the claims.perSeat setting the claiming command read, so a replay reads the same number.
+ * With runs_store on the caller reads `runs` (a read-only runs holder) here, before the claim's board write opens, so the runner
+ * slots come from a snapshot; without it the board's own job rows are read as on main [B2,#9015].
  */
-export function claimsPerSeat(board, perSeat = null) {
+export function claimsPerSeat(board, perSeat = null, { runs = null } = {}) {
   if (Number.isSafeInteger(perSeat) && perSeat >= 1) return { n: perSeat, how: `claims.perSeat sets ${perSeat}` };
-  const runners = runnerSlots(board);
+  const runners = runs ? runnerSlotsSnapshot(board, runs) : runnerSlots(board);
   const slots = runners ?? availableParallelism();
   const seats = Math.max(1, withLocalSeatPresence(board, board.db.prepare('SELECT agent_id FROM agent WHERE agent_lane != ?').all(COORDINATOR)).filter(seat => seat.presence === 'live').length);
   const n = Math.min(5, Math.max(1, Math.floor(slots / seats)));
@@ -100,10 +129,10 @@ export function claimsPerSeat(board, perSeat = null) {
  * which of the seat's live claims wait on their own gate here, and the N this computer sizes. A pulled gate's job
  * and the runner slots live only on the computer that submitted, so a replay elsewhere could not see them.
  */
-export function claimAdmission(board, id, agentId, perSeat = null) {
+export function claimAdmission(board, id, agentId, perSeat = null, { runs = null } = {}) {
   const gateWaits = board.db.prepare("SELECT item_id FROM item WHERE item_owner = ? AND item_status = 'claimed' AND item_id != ? ORDER BY item_id")
     .all(agentId, id).map(row => row.item_id).filter(item => awaitingGateOrReview(board, itemById(board, item)));
-  return { gateWaits, seatCap: claimsPerSeat(board, perSeat).n };
+  return { gateWaits, seatCap: claimsPerSeat(board, perSeat, { runs }).n };
 }
 
 /** A claim's gate waits: the sealed list when the claim carries one, else this computer's own gate records. */
@@ -385,7 +414,17 @@ function commitClaim(board, id, prepared, binding, ports) {
   const { snapshot, plan } = binding;
   const { agentId, head = null, reviewSkipped = null } = prepared;
   const { leaseUntil, isRenewal, admission, outcome, adopts, refreshes } = plan;
+  // Shadow compare: a board that carries `claimShadow` hands it the table's answer and what the writer wrote. The table reads
+  // seat presence from disk, so it runs before the write opens; no file I/O happens inside the board write [C7,#8270].
+  // With moves.shadow on and no test hook, the compare is recorded on the board instead [C7,#8376].
+  // With moves.live.claim on (a board's own `movesLive.claim` stands in for the setting in a store test) the table decides instead: it
+  // refuses before any write opens, and the events it names are the ones written. Boards below the grant engine keep the writer's rules [C7,#8383].
+  const live = (board.executionEngineVersion ?? ENGINE_VERSION) >= AGENT_GRANT_ENGINE && (board.movesLive?.claim ?? movesLiveEnabled('claim')) === true;
+  const hook = live ? null : shadowHook(board, 'claimShadow', 'claim', claimDiffers, movesShadowEnabled);
+  const decided = live ? claimDecision(board, id, { options, plan }) : hook ? shadowDecide(hook, () => claimDecision(board, id, { options, plan })) : null;
+  if (live && decided.refused) throw new Refused(decided.refused.code, decided.refused.message, decided.refused.next);
   return atomic(board, () => {
+    const shadow = decided && !live ? { before: board.db.prepare('SELECT COALESCE(MAX(event_id),0) id FROM event').get().id, decided } : null;
     // Under the lock only the claim's own rows are compared; the guards below read the current board (#6016).
     if (!claimStillPrepared(board, id, binding)) throw staleBoardRefusal(board, snapshot, 'claim');
     const item = moveItem(board, id, 'claim', plan.how);
@@ -410,13 +449,14 @@ function commitClaim(board, id, prepared, binding, ports) {
     }
     const continuationSummary = !renewed ? exitContinuationSummary(board, id) : null;
     if (!renewed && continuationSummary) board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run(`exit-handoff:${id}`);
-    logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest, ...(!renewed && (board.executionEngineVersion ?? ENGINE_VERSION) >= UNTOUCHED_CLAIM_ENGINE && options.autoNext === true && options.autoNextSnapshot?.head === head && /^[0-9a-f]{64}$/u.test(options.autoNextSnapshot?.digest ?? '') ? { autoNextSnapshot: options.autoNextSnapshot } : {}), ...(!renewed && options.itemFolder === true ? { itemFolder: true } : {}), ...(!renewed && plan.seatN() !== null ? { claimsPerSeat: plan.seatN() } : {}), ...(!renewed && exitRules ? { exitRules, exitClaimKey: options.exitClaimKey } : {}), ...(adopts ? { adoptedCorrection: digest } : {}), ...(refreshes && frozen ? { policyRefreshed: digest } : {}), ...(!renewed && reviewSkipped ? { reviewSkipped } : {}),
+    if (live) for (const event of decided.events) logEvent(board, event.by, event.kind, id, event.detail);
+    else logEvent(board, agentId, renewed ? 'renew' : 'claim', id, { leaseUntil, digest, ...(!renewed && (board.executionEngineVersion ?? ENGINE_VERSION) >= UNTOUCHED_CLAIM_ENGINE && options.autoNext === true && options.autoNextSnapshot?.head === head && /^[0-9a-f]{64}$/u.test(options.autoNextSnapshot?.digest ?? '') ? { autoNextSnapshot: options.autoNextSnapshot } : {}), ...(!renewed && options.itemFolder === true ? { itemFolder: true } : {}), ...(!renewed && plan.seatN() !== null ? { claimsPerSeat: plan.seatN() } : {}), ...(!renewed && exitRules ? { exitRules, exitClaimKey: options.exitClaimKey } : {}), ...(adopts ? { adoptedCorrection: digest } : {}), ...(refreshes && frozen ? { policyRefreshed: digest } : {}), ...(!renewed && reviewSkipped ? { reviewSkipped } : {}),
       ...(!renewed && item.item_expected_build_minutes != null && (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE ? { buildBudgetMinutes: options.buildBudgetMinutes ?? 30, expectedBuildMinutes: item.item_expected_build_minutes ?? null } : {}),
       ...(admission ? { submitAdmission: admission } : {}),
       ...(outcome ? { submitOutcome: outcome } : {}),
       ...((board.executionEngineVersion ?? ENGINE_VERSION) >= AGENT_GRANT_ENGINE ? { grantEngine: AGENT_GRANT_ENGINE } : {}) });
     const policyRefreeze = plan.policyRefreeze();
-    if (!renewed && policyRefreeze) logEvent(board, agentId, 'fact', id, {
+    if (!live && !renewed && policyRefreeze) logEvent(board, agentId, 'fact', id, {
       id: randomUUID(), kind: 'note',
       text: `policy re-frozen automatically: ${policyRefreeze.before} -> ${policyRefreeze.after}; only ${policyRefreeze.changed.join(', ')} changed`,
       ref: null, supersedes: null,
@@ -431,6 +471,8 @@ function commitClaim(board, id, prepared, binding, ports) {
         logEvent(board, 'board', 'fact', id, { id: factId, kind: 'note', text: `No live ${route.builderFamily} family seat was available for rework #${id}; checked families: ${route.checkedFamilies.join(', ') || 'none'}. The ordinary queue assigned it to ${agentId}.`, ref: null, supersedes: null });
       }
     }
+    recordPendingOutcome(outcome);
+    if (shadow) hook({ id, ...shadow, wrote: board.db.prepare('SELECT event_kind kind, event_by by, event_detail detail FROM event WHERE event_id>? ORDER BY event_id').all(shadow.before) });
     return { leaseUntil, digest, renewed, ...(continuationSummary ? { continuationSummary } : {}) };
   });
 }

@@ -52,7 +52,7 @@ function fixture(spec = SPEC) {
   mkdirSync(root);
   box.git(root, 'init', '-q', '-b', 'main');
   writeFileSync(join(root, 'SPEC.md'), spec);
-  assert.equal(box.run(root, 'init').code, 0);
+  assert.equal(box.runSync(root, 'init').code, 0); // the warm in-process worker; no node start-up per fixture [C7]
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ ...helpers.CONFIG, gate: GATE }));
   mkdirSync(join(root, 'test'), { recursive: true });
   for (const file of ['proven', 'unproven', 'contradicted', 'both', 'draft']) {
@@ -83,7 +83,7 @@ function seedRun(box, { head = box.head, main = head, green = true, days = 0, co
 
 /** Read the public status JSON and actual authenticated HTTP state for the same board. */
 async function documents(box, api) {
-  const result = box.run(box.root, 'status', '--json');
+  const result = await box.runIn(box.root, 'status', '--json');
   assert.equal(result.code, 0, result.err);
   const headers = { 'x-pullboard-key': new URL(api.url).searchParams.get('k') };
   const origin = new URL(api.url).origin;
@@ -232,22 +232,22 @@ test('a gate command with npm flags counts as opaque [S1,A1,A2]', async (t) => {
     ['npm run --if-present && node --test test/proven.test.js', 0],
     ['node --test test/proven.test.js && npm run --silent', 0],
   ];
+  // One private project and one server serve every case: each case commits its own gate, so earlier seeded runs sit on older trees [C7].
+  const box = fixture();
+  t.after(() => store.closeBoard(box.board));
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, isMain: true,
+    projects: () => [{ root: box.root, name: 'Npm gate proof fixture' }] });
+  t.after(() => api.close());
+  writeFileSync(join(box.root, 'package.json'), JSON.stringify({ private: true, type: 'module', scripts }));
   for (const [command, proven] of cases) {
-    const box = fixture();
-    t.after(() => store.closeBoard(box.board));
-    writeFileSync(join(box.root, 'package.json'), JSON.stringify({ private: true, type: 'module', scripts }));
     writeFileSync(join(box.root, 'pullboard.json'), JSON.stringify({ ...helpers.CONFIG, gate: command }));
     box.git(box.root, 'add', '-A');
     box.git(box.root, 'commit', '-q', '-m', 'chore(fixture): configure the npm gate');
     box.head = box.git(box.root, 'rev-parse', 'HEAD').trim();
     // These historical records are seeded classification inputs, never a claim that npm ran the script.
     seedRun(box, { command });
-    const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, isMain: true,
-      projects: () => [{ root: box.root, name: 'Npm gate proof fixture' }] });
-    try {
-      const seen = await documents(box, api);
-      const expected = { approved: 6, gated: 5, ungated: 1, proven, unproven: 5 - proven, contradicted: 0 };
-      assert.deepEqual(seen.map(document => document.ruleCounts), [expected, expected], command);
-    } finally { await api.close(); }
+    const seen = await documents(box, api);
+    const expected = { approved: 6, gated: 5, ungated: 1, proven, unproven: 5 - proven, contradicted: 0 };
+    assert.deepEqual(seen.map(document => document.ruleCounts), [expected, expected], command);
   }
 });

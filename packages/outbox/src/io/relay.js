@@ -51,6 +51,16 @@ import {
 import { captureBoardChanges } from '../../../store/index.js';
 import { undoQueued } from './relay/undo.js';
 import {
+  clearRebuild,
+  markRebuild,
+  readRebuildMark,
+  readRemade,
+  rebuildStep,
+  remadeJournal,
+} from './relay/rebuild-journal.js';
+import { shadowOutbox } from './relay/shadow.js';
+import { liveDecision } from './relay/shadow.js';
+import {
   requireKnownCoordinatorHold,
   stampCoordinatorHolder,
 } from '../../../seats/index.js';
@@ -213,7 +223,7 @@ export const ITEM_SLOTS = Object.freeze({
   queueSubmitHandoff: [[0]], relandAccepted: [[0]], startSubmitHandoff: [[0]],
   recordUsageBatch: [[0, 'items', '*', 'item'], [0, 'sharedSessions', '*', 'allocations', '*', 'item']],
   recordExitProgress: [[0, 'item']],
-  recordUsage: [[0, 'item']], recordSharedUsage: [[0, 'allocations', '*', 'item']],
+  recordCoordinatorUsage: [], recordUsage: [[0, 'item']], recordSharedUsage: [[0, 'allocations', '*', 'item']],
   requestCompanion: [[0, 'parentId']],
   fileTypedRequest: [[0, 'itemId']],
   // A rule scope names a board item, but the rule itself is the coordinator's record, not a delegated item reference.
@@ -414,6 +424,24 @@ export function outboxGeneration(linkFile) {
   try { return Number(readFileSync(generationFile(linkFile), 'utf8')) || 0; } catch { return 0; }
 }
 
+/**
+ * With moves.live.outbox on, let the outbox table decide a queue or park before the writer changes anything: it refuses with the table's
+ * code and next step, or the state it names is the one the outbox document keeps. Off, or with no table provided, it does nothing and returns false.
+ * Why before the write: the table reads the outbox as it stood, so a refused move leaves the document and its file untouched [C7,#8391].
+ *
+ * @param {'queue' | 'park'} name
+ * @param {object | null | undefined} before - The outbox document before the move.
+ * @param {object} document - The document the writer is about to write; the table's state is recorded on it as `state`.
+ * @returns {boolean} Whether the table decided this move.
+ */
+export function liveOutbox(name, before, document) {
+  const decided = liveDecision(name, before);
+  if (!decided) return false;
+  if (decided.refused) throw new Refused(decided.refused.code, decided.refused.message, decided.refused.next);
+  document.state = decided.state;
+  return true;
+}
+
 /** Count one more queued move. */
 function bumpGeneration(linkFile) {
   writeFileSync(generationFile(linkFile), `${outboxGeneration(linkFile) + 1}\n`, { mode: 0o600 });
@@ -447,6 +475,10 @@ export async function queueMove(link, { operation, args, command, move, error, a
     throw new Refused('RELAY_OUTBOX_UNBOUND', `this move names #${stray[0]}, which this machine added while the relay was down, in a field the outbox cannot follow if the relay renumbers it; run it again once the relay answers`);
   }
   // `after` is the relay sequence this machine had seen: a refusal at replay names the moves ordered since.
+  const wasQueued = outbox.moves.map(row => ({ parked: row.parked }));
+  // With moves.live.outbox on, the outbox table decides this queue before anything is written, and its state is the one kept [C7,#8391].
+  const priorState = outbox.state;
+  const live = liveOutbox('queue', { baseSequence: outbox.baseSequence, moves: wasQueued }, outbox);
   const entry = { move, refs: bindRefs(outbox, move), intent: operationIntent(operation, args), queuedAt: new Date().toISOString(),
     after: Math.max(state.sequence, outbox.baseSequence),
     ...(command ? { command, commandIntent: operationIntent('cli:' + command.cliOperation, command) } : {}) };
@@ -469,6 +501,7 @@ export async function queueMove(link, { operation, args, command, move, error, a
     entry.changes = encodeChanges(applied.changes);
   } catch (refusal) {
     outbox.moves.pop();
+    if (live) { if (priorState === undefined) delete outbox.state; else outbox.state = priorState; }
     if (outbox.moves.length) await writeOutbox(where, key, state.board, outbox);
     else removeOutbox(where);
     saveOutboxSummary(link, outbox);
@@ -476,6 +509,7 @@ export async function queueMove(link, { operation, args, command, move, error, a
   }
   rememberCreatedItems(entry, result);
   await writeOutbox(where, key, state.board, outbox);
+  if (!live) shadowOutbox(link, 'queue', { baseSequence: outbox.baseSequence, moves: wasQueued }, outbox, move.id);
   if (!quiet && !OUTBOX_NOTICES.has(io)) {
     OUTBOX_NOTICES.add(io);
     io.err(`pullboard: [${safePauseCode(error)}] ${error.transportFailure ? `the relay did not answer (${error.transportFailure})` : safePauseMessage(error)}; the move is saved on this machine and waits in the relay outbox (${outbox.moves.length} pending); it goes up in order when the relay answers, and pullboard status lists it`);
@@ -505,11 +539,15 @@ function encodeChanges(changes) {
 async function reapply(link, outbox, entry) {
   const { root, localRecords } = link;
   const { move } = resolveMove(entry, outbox, { local: true });
+  // A stop after this move was made leaves its rows and result on the board, so a restart takes them instead of making it twice (#6728).
+  const done = localRecords(root, (board) => readRemade(board, move.id));
+  if (done) { entry.changes = done.changes; entry.sequences = done.sequences; return done.result ?? null; }
   entry.sequences = localRecords(root, rowCounters);
+  const made = { result: null };
   const applied = await captureBoardChanges(() => localRecords(root, (board) => {
-    try { return store.atomic(board, () => board.enginePorts.store[move.operation](board, ...executableArgs(move, board))); }
+    try { return store.atomic(board, () => { made.result = board.enginePorts.store[move.operation](board, ...executableArgs(move, board)); return made.result; }); }
     catch (error) { if (!(error instanceof Refused)) throw error; return null; }
-  }));
+  }), remadeJournal(move.id, entry, made));
   entry.changes = encodeChanges(applied.changes);
   return applied.result;
 }
@@ -527,17 +565,33 @@ function takeBack(link, outbox) {
   }
   return localRecords(root, (board) => {
     const cursors = board.db.prepare('SELECT agent_id, agent_last_shout_id FROM agent').all();
-    const problem = undoQueued(board, outbox.moves);
+    const problem = undoQueued(board, outbox.moves, (inside) => markRebuild(inside, outbox));
     if (problem) {
       link.io.err(`pullboard: the queued moves cannot be taken back row for row (${problem}); the board is rebuilt from the relay checkpoint`);
       return false;
     }
     if (appliedSequence(board) !== outbox.baseSequence) {
       link.io.err(`pullboard: taking the queued moves back left the board at relay sequence ${appliedSequence(board)}, not ${outbox.baseSequence}; the board is rebuilt from the relay checkpoint`);
+      clearRebuild(board);
       return false;
     }
     keepNewerCursors(board, cursors);
     return true;
+  });
+}
+
+/**
+ * Reconcile an outbox whose base is behind the receipts its own board holds: a rebuild by an older version stopped after
+ * applying the relay's records. Moves with receipts were ordered, so the settle step answers them; the rest are taken
+ * back if the board still holds them, and left as they are if it does not, then made again like any rebuild's tail.
+ * The undo is all or nothing, so a board that lost them changes nothing; a part-made tail is for the recovery script.
+ */
+function reconcileBehind(link, outbox) {
+  link.localRecords(link.root, (board) => {
+    const cursors = board.db.prepare('SELECT agent_id, agent_last_shout_id FROM agent').all();
+    const tail = outbox.moves.filter((entry) => !engineReceipt(board, entry.move.id) && Array.isArray(entry.changes) && Array.isArray(entry.sequences));
+    if (undoQueued(board, tail, (inside) => markRebuild(inside, outbox)) !== null) markRebuild(board, outbox);
+    keepNewerCursors(board, cursors);
   });
 }
 
@@ -646,6 +700,7 @@ async function rebuild(link, key, pulled) {
   const outbox = await readOutbox(where, key, state.board);
   if (!outbox?.moves.length) {
     removeOutbox(where);
+    localRecords(root, clearRebuild);
     saveOutboxSummary(link, null);
     return false;
   }
@@ -653,10 +708,22 @@ async function rebuild(link, key, pulled) {
   // Nothing new from the relay: the board already shows the base and every queued move on top.
   if (!pulled.checkpoint && !pulled.events.length && outbox.restored !== true) return true;
   // Back to the relay's order: the relay's checkpoint, an older outbox's image, or the queued moves taken back.
-  if (pulled.checkpoint) restoreBase(link, pulled.checkpoint.native, pulled.checkpoint.sequence);
-  else if (outbox.base) restoreBase(link, outbox.base, outbox.baseSequence);
-  else if (!takeBack(link, outbox)) return 'checkpoint';
-  await link.applyRecords(root, key, state, pulled.events);
+  // Each step leaves its record on the board, so a stop at any step resumes where it was (#6728).
+  const mark = localRecords(root, readRebuildMark);
+  const behind = localRecords(root, appliedSequence) > outbox.baseSequence;
+  if (mark && mark.from !== outbox.baseSequence) { // The outbox was rewritten, then the stop came before the marker cleared.
+    localRecords(root, clearRebuild);
+    return true;
+  }
+  if (pulled.checkpoint) { restoreBase(link, pulled.checkpoint.native, pulled.checkpoint.sequence); localRecords(root, clearRebuild); }
+  else if (outbox.base) { restoreBase(link, outbox.base, outbox.baseSequence); localRecords(root, clearRebuild); }
+  // A board whose receipts run past the outbox's base is reconciled from them, not refused (#6728).
+  else if (!mark && behind) reconcileBehind(link, outbox);
+  else if (!mark && !takeBack(link, outbox)) return 'checkpoint';
+  rebuildStep('undo');
+  const applied = localRecords(root, appliedSequence);
+  await link.applyRecords(root, key, state, pulled.events.filter((event) => event.event_id > applied));
+  rebuildStep('apply');
   state.sequence = localRecords(root, appliedSequence);
   outbox.results ??= {};
   const waiting = [];
@@ -668,6 +735,7 @@ async function rebuild(link, key, pulled) {
     settle(link, outbox, entry, receipt);
   }
   outbox.moves = [];
+  rebuildStep('settle');
   for (const entry of waiting) {
     const { lost } = resolveMove(entry, { ...outbox, moves: waiting });
     // A move on an item whose add was refused is refused itself; sent, it would act on another item.
@@ -685,6 +753,7 @@ async function rebuild(link, key, pulled) {
   outbox.restored = false;
   if (!outbox.moves.length) {
     removeOutbox(where);
+    localRecords(root, clearRebuild);
     saveOutboxSummary(link, null);
     saveLink(file, state);
     return false;
@@ -697,8 +766,11 @@ async function rebuild(link, key, pulled) {
     for (const { item: was, resultPath } of shown) {
       noteRenumbered(link, was, entryCreatedItems(entry).find((row) => JSON.stringify(row.resultPath) === JSON.stringify(resultPath))?.item);
     }
+    rebuildStep('reapply');
   }
   await writeOutbox(where, key, state.board, outbox);
+  rebuildStep('write');
+  localRecords(root, clearRebuild);
   saveOutboxSummary(link, outbox);
   saveLink(file, state);
   return true;
@@ -760,9 +832,12 @@ async function park(link, key, entry, error) {
     const outbox = await readOutbox(where, key, state.board);
     const held = outbox?.moves.find((row) => row.move.id === entry.move.id);
     if (!held) return;
+    const wasParked = { baseSequence: outbox.baseSequence, moves: outbox.moves.map(row => ({ parked: row.parked })) };
+    const live = liveOutbox('park', wasParked, outbox);
     held.parked = parked;
     await writeOutbox(where, key, state.board, outbox);
     saveOutboxSummary(link, outbox);
+    if (!live) shadowOutbox(link, 'park', wasParked, outbox, entry.move.id);
   });
   entry.parked = parked;
   link.saveLink(file, state);

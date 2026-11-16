@@ -12,6 +12,12 @@ import {
   readListing,
   writeTestCells,
 } from './cells.js';
+import { latestRunnerFileTimes } from './budget-rows.js';
+import { TEST_MANIFEST_FILE } from './manifest.js';
+import { formatTestManifest } from './manifest.js';
+import { generateTestManifest } from './manifest.js';
+import { settleTimes } from '../../logic/test/manifest.js';
+import { readFileTimes } from './value/timing.js';
 import {
   TEST_TIERS_FILE,
   formatTestTiers,
@@ -88,6 +94,16 @@ export function deriveTestRegistries(root, { renamed = new Map(), touched = [] }
     if (wanted.size) for (const row of generateTestTiers(root).files) if (wanted.has(row.file)) rows.set(row.file, row);
     manifest.files = [...rows.values()].filter(row => exists(row.file)).sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
     if (writeIfChanged(root, TEST_TIERS_FILE, formatTestTiers(manifest))) changed.push(TEST_TIERS_FILE);
+  }
+  const manifestPath = join(root, TEST_MANIFEST_FILE);
+  if (existsSync(manifestPath)) {
+    const recorded = {};
+    for (const row of JSON.parse(readFileSync(manifestPath, 'utf8')).files) {
+      const file = renamed.get(row.file) ?? row.file;
+      if (exists(file) && Number.isFinite(row.cost?.ms)) recorded[file] = row.cost.ms;
+    }
+    const times = settleTimes(recorded, { ...readFileTimes(root), ...latestRunnerFileTimes(root) });
+    if (writeIfChanged(root, TEST_MANIFEST_FILE, formatTestManifest(generateTestManifest(root, { times })))) changed.push(TEST_MANIFEST_FILE);
   }
   return changed;
 }

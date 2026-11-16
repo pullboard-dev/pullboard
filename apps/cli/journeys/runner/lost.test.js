@@ -13,15 +13,17 @@ import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { HOST } from '../../tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../tests/fixtures/runner/ssh.js';
+import { privateFixtureFiles } from '../../tests/fixtures/child.js';
+import { preparedRunner } from '../../../../packages/runners/tests/fixtures/prepared.js';
 import { initializeRunnerRecovery } from '../../../../packages/resources/index.js';
 
 /** Build a real private project and a private SSH executable; no configured machine host is contacted. */
 function fixture(t, { dropFirst = true } = {}) {
   const e2e = createE2eHelpers(); t.after(e2e.cleanup);
   const box = e2e.project('true');
-  const bin = join(box.dir, 'transport-bin'), worker = join(box.dir, 'worker');
-  const home = join(box.dir, 'worker-home'), machineHome = join(home, '.pullboard');
-  for (const folder of [bin, worker, home, machineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(folder, { recursive: true });
+  const bin = join(box.dir, 'transport-bin');
+  const { worker, home, machineHome } = preparedRunner(() => privateFixtureFiles('pullboard-prepared-runner-').root);
+  for (const folder of [bin, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(folder, { recursive: true });
   const requests = join(box.dir, 'requests.jsonl'), starts = join(box.dir, 'starts.jsonl');
   installSshStandIn({ bin, worker, home, machineHome, requests, starts, dropFirst, nodeCommand: process.execPath });
   const ssh = join(bin, 'ssh');
@@ -61,19 +63,17 @@ function queue(t) {
 const only = process.env.PULLBOARD_LOST_CASES ?? 'ssh';
 const caseTest = (group, ...args) => (!only || only === group || group.startsWith(`${only}:`) ? test(...args) : undefined);
 
-caseTest('ssh', 'a failed SSH call preserves its command exit and stderr through the synchronous bridge [C7]', t => {
+// The SSH controller serves only pull modes since #9054, so a synchronous call ends in its refusal, not in the stand-in's 255.
+caseTest('ssh', 'a synchronous runner call is refused by the retired SSH controller and keeps its exit and stderr [C7]', t => {
   const box = fixture(t);
   const url = pathToFileURL(join(import.meta.dirname, '../../../../packages/runners/index.js')).href;
   const result = child(box, `import {runOnRunner} from ${JSON.stringify(url)};
     try {runOnRunner(process.cwd(),'true',{runner:${JSON.stringify(box.runner)}});process.exitCode=1;}
     catch(error){console.log(JSON.stringify({name:error.name,diagnostic:error.diagnostic}));}`);
   assert.equal(result.name, 'RunnerDropped');
-  assert.equal(result.diagnostic.exitCode, 255);
-  assert.equal(result.diagnostic.command[0], 'ssh');
-  assert.ok(result.diagnostic.command.includes(box.runner.host));
-  assert.equal(result.diagnostic.reason, 'receipt-count');
-  assert.match(result.diagnostic.stderr, /controlled transport disconnection/u);
-  assert.match(result.diagnostic.source, /^[0-9a-f]{40}$/u);
+  assert.equal(result.diagnostic.exitCode, 1);
+  assert.equal(result.diagnostic.reason, 'bridge-json');
+  assert.match(result.diagnostic.stderr, /SSH runner controller is retired/u);
 });
 
 // Test-only boot budget: gate.runnerWaitMs runs from the request, so under load a 1000 ms deadline can expire before
@@ -106,7 +106,7 @@ ${executionServicesSource(gate)}
     const run=await withGateSlot(process.cwd(),lease=>{
       attempts.push(lease.runner.host);
       return runProfiledShellAsync(process.cwd(),'node -e "console.log(\\'READY_FAILOVER_EXECUTED\\')"',{gateLease:lease});
-    },{executionServices,remote:true,runnerOnly:true,onWait:state=>{
+    },{executionServices,remote:true,runnerOnly:true,item:'fixture',kind:'remote-command',onWait:state=>{
       if(state.runnerUnavailable)notices.push(state.runnerUnavailable);
       else if(!state.admitted)waits.push(state);
     }});
@@ -144,7 +144,7 @@ ${executionServicesSource(gate)}
     const run=await withGateSlot(process.cwd(),lease=>{
       attempts.push(lease.runner.host);
       return runProfiledShellAsync(process.cwd(),'node -e "console.log(\\'RETRY_EXECUTED\\')"',{gateLease:lease});
-    },{executionServices,remote:true,runnerOnly:true,onWait(){}});
+    },{executionServices,remote:true,runnerOnly:true,item:'fixture',kind:'remote-command',onWait(){}});
     const db=new DatabaseSync(process.env.PULLBOARD_MACHINE_HOME+'/resources.sqlite',{readOnly:true});
     const held=db.prepare('SELECT host,detail FROM runner_unavailable').all();
     const leases=db.prepare('SELECT (SELECT COUNT(*) FROM holder)+(SELECT COUNT(*) FROM waiter) n').get().n;db.close();

@@ -30,8 +30,10 @@ import {
   SSH_SHELL_MARKERS,
 } from "../../../../packages/kernel/index.js";
 import { assertSpecCorrectionRefreezesCitations } from "../../tests/fixtures/refreeze.js";
-import { settlePulledJobs } from '../../tests/fixtures/e2e.js';
-import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
+import {
+  recordFixtureAcceptance,
+  recordFixtureSubmission,
+} from '../../tests/fixtures/board/lifecycle.js';
 import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
 import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 
@@ -91,7 +93,6 @@ async function project(t) {
   /** Run the real Pullboard CLI in one fixture checkout; the test runner owns the hang bound. */
   async function pullboard(cwd, ...args) {
     const result = await runCliInProcess(args, { cwd, env });
-    settlePulledJobs(cwd, args, env); // a pull gate is a job the loopback runner finishes after the command returns
     return result;
   }
   /** Run real Git with isolated identity while preserving hook-provided index variables. */
@@ -169,21 +170,13 @@ async function submit(box, id, name) {
   const committed = runFixtureChild('git', ['commit', '-m', `feat(web): build ${name} [G1]`], { cwd: folder, env: box.env, encoding: 'utf8' });
   assert.equal(committed.status, 0, `${committed.stdout}${committed.context}`);
   const head = box.git(folder, 'rev-parse', 'HEAD');
-  await succeeds(box, folder, 'submit', String(id), '--no-next');
-  // The board marks the gate job done before it applies the receipt that moves the item off claimed; a next claim
-  // that races the receipt still counts this item as held (ONE_CLAIM), so wait for the applied receipt [C7,#7283].
-  await settledGateJob({ repo: box.root, env: box.env, run: async (cwd, ...args) => {
-    const shown = await box.pullboard(cwd, ...args);
-    return { code: shown.status, out: shown.stdout, err: shown.stderr ?? '' };
-  } }, id);
+  recordFixtureSubmission(box, id, { commit: head, tree: box.git(folder, 'rev-parse', 'HEAD^{tree}') });
   return head;
 }
 
-/** Verify a submitted private fixture commit as the coordinator without touching any real board. */
+/** Accept a submitted private fixture commit as the coordinator through the real verdict move. */
 async function accept(box, id, commit) {
-  box.git(box.root, 'switch', '--detach', commit);
-  await succeeds(box, box.root, 'verify', String(id), 'accept', '--no-next', '--as', 'coordinator', '--note', 'checked the private fixture commit');
-  box.git(box.root, 'switch', 'main');
+  recordFixtureAcceptance(box, id, commit, 'checked the private fixture commit');
 }
 
 /** Read item and verdict receipts without opening or migrating the board. */
@@ -255,6 +248,8 @@ test('[S19,V3] doctor and resume list stale frozen items in every lifecycle stat
     [ids.open, 'open'], [ids.claimed, 'claimed'], [ids.submitted, 'submitted'],
     [ids.verified, 'verified'], [ids.merged, 'verified'], [ids.withdrawn, 'withdrawn'],
   ]);
+  // The loopback runner a submit started may still checkpoint the board; stop it so only doctor can change these bytes [C7].
+  stopFixtureLocalRunner(box.env.PULLBOARD_MACHINE_HOME);
   const before = receiptSnapshot(box);
   const bytesBeforeDoctor = boardBytes(box);
 

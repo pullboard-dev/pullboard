@@ -124,6 +124,25 @@ export function writeStep(db, job, name, payload = {}, { seq = 0, now = Date.now
 }
 
 /**
+ * Write a gate job's lease note: a `note:` step that readers of the current step skip, so the lease trail shows in the trace
+ * without ever reading as progress. One row per name and attempt; a repeat (a renewal) replaces it with the newest time.
+ * Why: a gate that lost its runner left no record of who held the lease, for how long, or why the job ended [C7].
+ * A job of another kind writes nothing, and a missing job writes nothing, so the note never changes a caller's result.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {string} what - `lease.grant`, `lease.renew`, `lease.release` or `end.<reason>`.
+ * @param {Record<string, unknown>} payload
+ * @param {number} now
+ */
+export function noteLease(db, job, what, payload, now) {
+  db.prepare(`INSERT INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at)
+    SELECT job_id, ?, job_attempt, ?, ? FROM job WHERE job_id = ? AND job_kind = 'gate'
+    ON CONFLICT (job_step_job, job_step_name, job_step_seq) DO UPDATE SET job_step_payload = excluded.job_step_payload, job_step_at = excluded.job_step_at`)
+    .run(`note:${what}`, JSON.stringify(payload), now, job);
+}
+
+/**
  * Record a runner's progress for one attempt: the first post inserts the step, a later post for the same attempt replaces it.
  *
  * Why: progress is a live reading, so the newest post wins; this lives here because the jobs store owns job_step.
@@ -138,6 +157,45 @@ export function writeStep(db, job, name, payload = {}, { seq = 0, now = Date.now
 export function upsertProgressStep(db, job, attempt, text, now) {
   db.prepare(`INSERT INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, 'progress', ?, ?, ?)
     ON CONFLICT (job_step_job, job_step_name, job_step_seq) DO UPDATE SET job_step_payload = excluded.job_step_payload, job_step_at = excluded.job_step_at`).run(job, attempt, text, now);
+}
+
+/**
+ * Keep one named run artifact (a log, a report) for an attempt on the board: the first post inserts the row, a later post
+ * of the same name replaces it. The job's own step is left as it is, so a job stays claimable and its state never moves.
+ *
+ * Why: a log left only on a runner's disk is lost with its folder; the body rides in the job store, and the blob store
+ * past the inline threshold, so the board can read it back on its own [P7].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {number} attempt
+ * @param {string} name - The artifact's file name.
+ * @param {{ name: string, encoding: 'utf8'|'base64', body: string }} artifact
+ * @param {number} now
+ * @returns {void}
+ */
+export function upsertArtifactStep(db, job, attempt, name, artifact, now) {
+  const kept = storableText(db, JSON.stringify(artifact), artifact);
+  db.prepare(`INSERT INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT (job_step_job, job_step_name, job_step_seq) DO UPDATE SET job_step_payload = excluded.job_step_payload, job_step_at = excluded.job_step_at`).run(job, `artifact:${name}`, attempt, kept, now);
+}
+
+/**
+ * The artifacts of a job's newest attempt that has any, by name, each with its body decoded to bytes.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @returns {Map<string, Buffer>}
+ */
+export function readArtifactSteps(db, job) {
+  const rows = db.prepare("SELECT job_step_name AS name, job_step_payload AS payload FROM job_step WHERE job_step_job = ? AND job_step_name LIKE 'artifact:%' ORDER BY job_step_seq").all(job);
+  const found = new Map();
+  for (const row of rows) {
+    const artifact = readPayload(db, row.payload);
+    if (artifact.pruned) continue;
+    found.set(row.name.slice('artifact:'.length), Buffer.from(artifact.body, artifact.encoding === 'base64' ? 'base64' : 'utf8'));
+  }
+  return found;
 }
 
 /**

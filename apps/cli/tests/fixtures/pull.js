@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { spawn } from 'node:child_process';
+import { appendFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -12,9 +13,11 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { createE2eHelpers } from './e2e.js';
+import { JOURNEY_MODE } from './e2e.js';
+import { parityRecord } from './e2e.js';
 import { fixtureAdd } from './testkit.js';
 import { fixtureMachineSettings } from './testkit.js';
-import { openKitBoard } from './testkit.js';
+import { openKitBoard } from './board.js';
 import { privateFixtureFiles } from './child.js';
 import { fetchFresh } from './http.js';
 import { closeBoard } from '../../../lib/index.js';
@@ -93,7 +96,7 @@ export async function pullProject(t, count, { check = () => 'true', gate = { run
   box.git(box.repo, 'commit', '-q', '-m', 'chore: stand-in trusted tooling [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   /** Add item n; every item after the first names the first as no duplicate. */
-  const add = (n, first) => fixtureAdd(box.runAsync, box.repo, 'web', `Pulled gate ${n}`, '--specs', 'G1', '--criterion', `Gate ${n} runs on a runner.`, '--check', check(n), '--accept-green', 'stand-in check keeps passing', '--wait', '--json', ...(first ? ['--not-duplicate-of', `${first} numbered fixture item`] : []));
+  const add = (n, first) => fixtureAdd(box.runIn, box.repo, 'web', `Pulled gate ${n}`, '--specs', 'G1', '--criterion', `Gate ${n} runs on a runner.`, '--check', check(n), '--accept-green', 'stand-in check keeps passing', '--wait', '--json', ...(first ? ['--not-duplicate-of', `${first} numbered fixture item`] : []));
   const ids = [];
   const head = await add(1);
   assert.equal(head.code, 0, head.err);
@@ -111,16 +114,28 @@ export async function pullProject(t, count, { check = () => 'true', gate = { run
 }
 
 /**
+ * A quick board move (claim, bar) answered by the box's warm worker thread, or by a real process under PULLBOARD_JOURNEY_MODE=process,
+ * with a parity record per call when PULLBOARD_PARITY_RECORD is set. Why: a sync helper cannot await runIn, and a claim costs a Node start-up [C7,U149].
+ * Submit stays a real process: it hands the gate job on and can outlast runSync's wait.
+ */
+function quick(box, cwd, ...args) {
+  const result = JOURNEY_MODE === 'process' ? box.run(cwd, ...args) : box.runSync(cwd, ...args);
+  if (process.env.PULLBOARD_PARITY_RECORD) appendFileSync(process.env.PULLBOARD_PARITY_RECORD, `${JSON.stringify(parityRecord({ dir: box.dir, env: box.env, cwd, args, result: { ...result, status: result.code, stdout: result.out, stderr: result.err } }))}\n`);
+  return result;
+}
+
+/**
  * Claim, commit and submit one item from its own folder; the submit must return green at once.
  * `change` names the one file the item commits; by default a fresh web/<id>.txt. `compose` turns bar readiness on after the
  * claim (a bar frozen before activation stays claimable), so the gate composes the change with main on the runner [C7].
  */
 export function submitOne(box, id, change = { path: `web/${id}.txt`, body: `gate ${id}\n`, subject: `feat(web): pulled gate ${id} [G1]` }, { compose = false } = {}) {
-  const claimed = box.run(box.web, 'claim', String(id), '--json');
+  const claimed = quick(box, box.web, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, claimed.err);
-  if (compose) assert.equal(box.run(box.repo, 'bar', 'ready', 'on').code, 0);
+  if (compose) assert.equal(quick(box, box.repo, 'bar', 'ready', 'on').code, 0);
   const folder = JSON.parse(claimed.out).itemFolder ?? box.web;
   assert.equal(box.helpers.commitFile(box, folder, change.path, change.body, change.subject).status, 0);
+  // Real process: submit hands the gate job on and can outlast the worker's wait.
   const submitted = box.run(folder, 'submit', String(id), '--json');
   assert.equal(submitted.code, 0, `${submitted.err}\n${submitted.out}`);
   return { folder, commit: box.git(folder, 'rev-parse', 'HEAD'), document: JSON.parse(submitted.out) };
@@ -136,10 +151,11 @@ export function submitOne(box, id, change = { path: `web/${id}.txt`, body: `gate
  */
 export function submitAll(box, ids) {
   return Promise.all(ids.map(async id => {
-    const claimed = await box.runAsync(box.web, 'claim', String(id), '--json');
+    const claimed = await box.runIn(box.web, 'claim', String(id), '--json');
     assert.equal(claimed.code, 0, claimed.err);
     const folder = JSON.parse(claimed.out).itemFolder ?? box.web;
     assert.equal(box.helpers.commitFile(box, folder, `web/${id}.txt`, `gate ${id}\n`, `feat(web): pulled gate ${id} [G1]`).status, 0);
+    // Real process: submit hands the gate job on and can outlast the worker's wait.
     const submitted = await box.runAsync(folder, 'submit', String(id), '--json');
     assert.equal(submitted.code, 0, `${submitted.err}\n${submitted.out}`);
     return { folder, commit: box.git(folder, 'rev-parse', 'HEAD'), document: JSON.parse(submitted.out) };

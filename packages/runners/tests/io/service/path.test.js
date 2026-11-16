@@ -6,7 +6,7 @@ import { chmodSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runnerServiceInstaller } from '../../../src/io/service.js';

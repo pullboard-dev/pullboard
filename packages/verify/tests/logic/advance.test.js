@@ -42,7 +42,7 @@ clearInterval(A.heartbeatTimer);
 console.log('REPORT ' + JSON.stringify(report));
 `;
 
-test('a second copy of the worker front door keeps its own process state, not the first copy\'s [C7]', t => {
+test('verify.advance.copy-state: a second copy of the worker front door keeps its own process state, not the first copy\'s [C7]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-worker-state-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const probe = join(directory, 'probe.mjs');
@@ -55,7 +55,7 @@ test('a second copy of the worker front door keeps its own process state, not th
 });
 
 /** Existing review authority follows every moved runner body [C7]. */
-test('runner move preserves strict review for every strict planned source [C7]', () => {
+test('verify.advance.strict-review: runner move preserves strict review for every strict planned source [C7]', () => {
   const plan = JSON.parse(readFileSync(new URL('../../../codemap/data/plan/48-app-runner.json', import.meta.url), 'utf8'));
   const strict = plan.paths.filter(([old]) => gateJudgmentPath(old));
   assert.ok(strict.length > 0, 'the plan includes existing strict paths');

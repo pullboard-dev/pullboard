@@ -5,7 +5,7 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { takeResource } from '../../../index.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 
 /** Isolate the machine resource SQLite database. */
 function fixture(t) {
@@ -36,8 +36,8 @@ test('#6875 clause 2: a GUI run with no GUI runner is refused on its first poll,
 
 test('#6875 clause 1: a GUI run still waits in line when a GUI runner is registered but full [C7]', async t => {
   const root = fixture(t);
-  const runners = [{ host: 'mini-a', slots: 1, browser: 1 }, { host: 'vanilla', slots: 1, browser: 1, gui: true }];
-  const held = await takeResource({ ...pool(root, runners), gui: false, agent: 'holder', requiredExecutor: { kind: 'ssh', host: 'vanilla', hosts: ['vanilla'] } });
+  const runners = [{ host: 'mini-a', slots: 1, browser: 1 }, { host: 'studio-host', slots: 1, browser: 1, gui: true }];
+  const held = await takeResource({ ...pool(root, runners), gui: false, agent: 'holder', requiredExecutor: { kind: 'ssh', host: 'studio-host', hosts: ['studio-host'] } });
   const left = new Error('left');
   const waited = await takeResource({ ...pool(root, runners), agent: 'gui-run', onWait: async () => { throw left; } }).then(() => 'admitted', error => error);
   assert.equal(waited, left);

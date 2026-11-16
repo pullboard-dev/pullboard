@@ -5,7 +5,7 @@ import {
   after,
   test,
 } from 'node:test';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../fixtures/child.js';
 import { cellsEdgeReport } from '../../../src/io/edges.js';
 
 const made = [];

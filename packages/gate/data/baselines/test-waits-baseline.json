@@ -48,34 +48,13 @@
     "sleep": 1,
     "poll": 1
   },
-  "apps/cli/journeys/export/addresses.test.js": {
-    "sleep": 1
-  },
-  "apps/cli/journeys/agents/main.test.js": {
-    "sleep": 1
-  },
-  "apps/cli/journeys/hold/demo.test.js": {
-    "sleep": 0
-  },
-  "apps/cli/journeys/merged/dashboard.test.js": {
-    "sleep": 1
-  },
   "apps/cli/tests/fixtures/cockpit/harness.js": {
     "sleep": 1
   },
   "apps/cli/journeys/shout/fixture.test.js": {
     "sleep": 1
   },
-  "apps/cli/journeys/withdraw/items/toolbar-open.test.js": {
-    "sleep": 1
-  },
   "apps/cli/tests/fixtures/cockpit/journey/routes.js": {
-    "sleep": 1
-  },
-  "apps/cli/journeys/init/origin/paint.test.js": {
-    "sleep": 1
-  },
-  "apps/cli/journeys/init/origin/reads.test.js": {
     "sleep": 1
   },
   "apps/cli/tests/fixtures/cockpit/perf/run.mjs": {
@@ -84,16 +63,10 @@
   "apps/cli/tests/fixtures/cockpit/perf/speed.mjs": {
     "sleep": 1
   },
-  "apps/cli/journeys/relay/signin.test.js": {
-    "sleep": 1
-  },
-  "apps/cli/journeys/roadmap/cockpit/detail.test.js": {
-    "sleep": 1
-  },
   "apps/cli/journeys/shout/shouts.test.js": {
     "sleep": 1
   },
-  "apps/cli/journeys/spec/cockpit.test.js": {
+  "apps/cli/journeys/spec/cockpit/pointer.test.js": {
     "sleep": 1
   },
   "apps/cli/tests/fixtures/cockpit/stable.js": {
@@ -155,8 +128,10 @@
   "apps/cli/tests/fixtures/relay/client.js": {
     "poll": 1
   },
-  "apps/cli/journeys/relay/local/first.test.js": {
-    "sleep": 2,
+  "apps/cli/tests/fixtures/relay/local-first.js": {
+    "sleep": 2
+  },
+  "apps/cli/journeys/relay/local/sender.test.js": {
     "poll": 1
   },
   "apps/cli/journeys/relay/setup.test.js": {

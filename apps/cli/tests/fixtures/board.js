@@ -1,16 +1,11 @@
 import { fileURLToPath } from 'node:url';
 /** SQLite fixture boards default to memory; disk is an explicit boundary contract [C7]. */
-import {
-  rmSync,
-} from 'node:fs';
-import { join } from 'node:path';
 // The board composition root by its module, not the library front door: that door also exports the CLI's main (#3852).
 import { openBoard } from '../../../lib/index.js';
 import { nativeBoardPorts } from '../../../lib/index.js';
 import { openBoardForRead } from '../../../lib/index.js';
-import { closeBoard } from '../../../lib/index.js';
-import { Refused } from '../../../../packages/kernel/light.js';
 import { moveArgs } from '../../../../packages/person/index.js';
+import { receiveCommits } from '../../../../packages/pin/index.js';
 import {
   flushOutbox,
   queueMove,
@@ -36,41 +31,9 @@ import {
 import { checkpointPublisher } from '../../../../packages/outbox/index.js';
 import { relayOrdering } from '../../../../packages/outbox/index.js';
 
-export { temporaryDirectory };
-const FILE_PURPOSES = new Set(['persistence', 'locking', 'migration']);
-
-import { temporaryDirectory } from '../../../../packages/store/tests/fixtures/tmp.js';
-
-/**
- * Open the production schema and moves in memory, with cleanup owned by the test.
- * A file requires a named database boundary; an unsupported mode never silently falls back.
- */
-export function fixtureBoard(t, { clock, storage = 'memory', purpose, file: existing } = {}) {
-  if (storage !== 'memory' && storage !== 'file') {
-    throw new Refused('TEST_BOARD_STORAGE', 'choose memory, or file with a persistence, locking or migration purpose');
-  }
-  if ((storage === 'file' && !FILE_PURPOSES.has(purpose)) || (storage === 'memory' && purpose !== undefined)) {
-    throw new Refused('TEST_BOARD_STORAGE', 'use memory for logic; file boards require a persistence, locking or migration purpose');
-  }
-  let file = ':memory:';
-  let directory;
-  if (storage === 'file' && existing) file = existing; // the caller owns this file and its folder
-  else if (storage === 'file') {
-    directory = temporaryDirectory('pullboard-board-contract-');
-    file = join(directory, 'board.sqlite');
-  }
-  try {
-    const board = openBoard(file, clock);
-    t.after(() => {
-      try { closeBoard(board); }
-      finally { if (directory) rmSync(directory, { recursive: true, force: true }); }
-    });
-    return board;
-  } catch (error) {
-    if (directory) rmSync(directory, { recursive: true, force: true });
-    throw error;
-  }
-}
+/** The fixture board lives in packages/board/tests/fixtures; the app keeps it reachable by its old path, through the lib app's door [C7]. */
+export { fixtureBoard, fixtureOpenBoard, openKitBoard, withFixtureBoard } from '../../../lib/tests/fixtures/board.js';
+export { temporaryDirectory } from '../../../../packages/store/tests/fixtures/tmp.js';
 
 /** Bind the actual native openers at API fixture roots, never inside API projection code. */
-export const apiBoardOpeners = Object.freeze({ moveArgs, openBoard, openBoardForRead, nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem });
+export const apiBoardOpeners = Object.freeze({ moveArgs, receiveCommits, openBoard, openBoardForRead, nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem });

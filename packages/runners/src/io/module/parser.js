@@ -16,6 +16,7 @@ import { scratchRoot } from '../../../../config/index.js';
 import { loadKeyedResult } from '../keyed.js';
 import { saveKeyedResult } from '../keyed.js';
 import { sweepKeyedFolders } from '../keyed.js';
+import { sharedCacheFolder } from '../keyed.js';
 
 const MAX_BYTES = 2 ** 26;
 const TIMEOUT_MS = 10_000;
@@ -49,6 +50,9 @@ function resultStore() {
   if (!storeWanted) return null;
   if (storeFolder === null) {
     storeFolder = false;
+    // A runner job's shared cache first: its own TMPDIR is new each job (#8233).
+    const shared = sharedCacheFolder('runner-parse-cache');
+    if (shared) return (storeFolder = shared);
     try {
       const folder = join(scratchRoot(), 'pullboard-runner-parse-cache');
       mkdirSync(folder, { recursive: true, mode: 0o700 });

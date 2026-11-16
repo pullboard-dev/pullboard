@@ -1,8 +1,9 @@
-import { itemFolderIdentity } from './item/folder/identity.js';
+/** @pullboard-module-loads packages/doctrine/light.js apps/cli/src/io/item/folder/identity.js */
 import { seatFamily } from '../../../../packages/items/light.js';
 import {
   dependencyReferences,
   dependencyLabel,
+  dependencyValues,
 } from '../../../../packages/items/light.js';
 /**
  * What every command shares and a read needs: the checkout's context, the board opened around one piece of work,
@@ -17,14 +18,14 @@ import {
   relative,
   resolve,
 } from 'node:path';
-import { displayAgentName } from '../../../../packages/seats/light.js';
+import { displayAgentName } from '../../../../packages/seats/browser.js';
 import * as store from '../../../../packages/store/light.js';
 import {
   CONFIG_FILE,
   COORDINATOR,
   loadConfig,
 } from '../../../../packages/config/light.js';
-import { loadDoctrine } from '../../../../packages/doctrine/light.js';
+import { createRequire } from 'node:module';
 import {
   codeIsFromMain,
   differFromHead,
@@ -43,7 +44,11 @@ import {
   trunkRef,
 } from '../../../../packages/sandbox/light.js';
 import { familyIndex } from '../../../../packages/verify/read.js';
+import { verdictProjector } from '../../../../packages/verify/read.js';
 import { MAIN_MERGE_LABEL } from '../../../../packages/merge/light.js';
+import { mainMergeFor } from '../../../../packages/merge/light.js';
+/** The two reads the thin list door shares with this module, so the door adds no cell edge of its own [C7,#9091]. */
+export { verdictProjector, mainMergeFor };
 import { sessionRoute } from './route.js';
 
 /**
@@ -100,6 +105,12 @@ export function sayBrief(io, brief) {
   brief.split('\n').forEach((line) => io.say(`  ${line}`.trimEnd()));
 }
 
+const requireModule = createRequire(import.meta.url);
+/** The doctrine reader, loaded at the first ctx.doctrine read: a list or show never reads doctrine and never pays for it [C7,#7081]. */
+const doctrineLoader = () => requireModule('../../../../packages/doctrine/light.js').loadDoctrine;
+/** The item-folder identity reader, loaded only when no seat is registered at this checkout [C7,#7081]. */
+const folderIdentity = () => requireModule('./item/folder/identity.js').itemFolderIdentity;
+
 /**
  * Everything a command needs: the repo, its config, the board's file, and where output goes.
  *
@@ -117,7 +128,7 @@ export function context(io) {
   let allowSchemaUpgrade;
   let doctrine;
   const ctx = { info, config, file, nativeBoard: io.nativeBoard, get allowSchemaUpgrade() { return allowSchemaUpgrade ??= codeIsFromMain(); },
-    get doctrine() { return doctrine ??= loadDoctrine(info.root, config); }, io, clock: io.clock ?? store.systemClock };
+    get doctrine() { return doctrine ??= doctrineLoader()(info.root, config); }, io, clock: io.clock ?? store.systemClock };
   if (config.worktreeMaintenance?.enabled === true) io.worktreeMaintenanceContext = ctx;
   if (config.toolBuild?.autoGate === true) io.toolBuildGateContext = ctx;
   return ctx;
@@ -323,6 +334,12 @@ function installWritePolicy(ctx, board) {
   }
   /** A main-independent write pins no accepted-main snapshot, so main moving never refuses or retries it [#6036]. */
   function unpinned() {
+    // Read both inputs now, before BEGIN: left lazy they ran under the writer lock, where a policy read may start Git and
+    // a loaded machine held a release for 7.0 s (#8770). A read that fails stays lazy, keeping its original refusal.
+    try {
+      quarantine ??= mainPolicy(ctx.info.root).config.flakes?.quarantine === true;
+      aliases ??= familyIndex(declaredFamilies(ctx.info.root));
+    } catch { /* The consuming guard reads it again and refuses as before. */ }
     const frame = {
       /** Nothing was pinned, so nothing can go stale. */
       current() { return true; },
@@ -447,11 +464,41 @@ export function identifyCaller(ctx, board, { environmentAgent, relayLinked }, re
     const agent = registered ?? readers.agentAt(board, ctx.info.root);
     return { id, lane: COORDINATOR, family: agent ? seatFamily(board, agent.agent_id) : null, model: agent?.agent_model ?? 'unknown', displayName: displayAgentName(agent ?? { agent_id: id }, ctx.config.agents.names) };
   }
-  const agent = readers.agentAt(board, ctx.info.root) ?? itemFolderIdentity(board, ctx.info.root)?.agent;
+  const agent = readers.agentAt(board, ctx.info.root) ?? folderIdentity()(board, ctx.info.root)?.agent;
   if (!agent) {
     throw new Refused('NOT_JOINED', 'this worktree has not joined a lane: pullboard join <lane> --model "<model name>" (see: pullboard lanes)');
   }
   ctx.io.caller?.('seat', ctx.info.root);
   // The route follows the model this session declares, not only the one the seat joined with (#3678).
   return { id: agent.agent_id, lane: agent.agent_lane, route: sessionRoute(agent.agent_route, agent.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers), family: seatFamily(board, agent.agent_id), model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, ctx.config.agents.names) };
+}
+
+/** Parse an edit's dependency replacement, with the explicit word `none` meaning clear all. */
+export function editAfter(text) {
+  if (text === undefined) return undefined;
+  if (text.trim() === 'none') return [];
+  const parts = text.split(',').map((part) => part.trim());
+  if (!text.trim() || parts.some((part) => !part || part === 'none')) {
+    throw new Refused('USAGE', 'use --after <id>[,<id>...] or --after none');
+  }
+  return dependencyValues(parts);
+}
+/**
+ * Text a command was given as --<name> "..." or as --<name>-file <file>, or undefined when neither.
+ * A file carries text past the shell exactly: backticks, dollar signs and quotes included.
+ *
+ * @param {any} io
+ * @param {any} values
+ * @param {string} name
+ * @returns {string | undefined}
+ */
+export function textArg(io, values, name) {
+  const path = values[`${name}-file`];
+  if (values[name] !== undefined && path !== undefined) {
+    throw new Refused('USAGE', `give the ${name} once: --${name} "..." or --${name}-file <file>`);
+  }
+  if (path === undefined) return values[name];
+  const file = resolve(io.cwd, path);
+  if (!existsSync(file)) throw new Refused('NO_FILE', `no file ${path}`);
+  return readFileSync(file, 'utf8');
 }

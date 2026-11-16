@@ -16,7 +16,7 @@ import { rootAllowed } from '../../codemap/light.js';
 import { strayNextStep } from '../../codemap/light.js';
 import { commonJsIn } from '../index.js';
 import { importsIn } from '../index.js';
-import { runFixtureGit } from '../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from './fixtures/child.js';
 
 /** A private repository with one app, one package and today's kinds of root strays. */
 function fixture(t) {

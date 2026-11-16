@@ -9,7 +9,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../../gate/tests/fixtures/child.js';
 import { cleanGitEnvironment } from '../../../../../git/index.js';
 import { requireLandingPlanCheck } from '../../../../index.js';
 

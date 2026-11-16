@@ -19,13 +19,17 @@ import { probeRunnerTransport } from '../../../../../packages/runners/index.js';
 import { readPulledCapacity } from '../../../../../packages/runners/index.js';
 import { lastRecordedLimit } from './stats/limits.js';
 import { recordLimitChange } from './stats/limits.js';
+import { boardRunsReader } from '../../../../../packages/store/index.js';
 import { openBoardReadOnly } from '../../../../../packages/store/index.js';
 import { atomic } from '../../../../../packages/store/index.js';
 import { logEvent } from '../../../../../packages/store/index.js';
 import { context } from '../read.js';
 import { withBoard } from '../context.js';
+import { withBoardRead } from '../context.js';
 import { createHostedItemFolder } from '../../../../../packages/runners/index.js';
 import { serveRunner } from '../../../../../packages/drive/index.js';
+import { runnerSettingOn } from '../../../../../packages/drive/index.js';
+import { machineSettingsFile } from '../../../../../packages/resources/index.js';
 import { localRunnerStatus } from '../../../../../packages/drive/index.js';
 import { localRunnerFolder } from '../runner/local.js';
 import { pullGit } from '../runner/git.js';
@@ -34,11 +38,22 @@ import { serviceBoard } from '../../../../../packages/runners/index.js';
 import { boardKey } from '../../../../../packages/config/index.js';
 import { boardKeyFile } from '../../../../../packages/config/index.js';
 import { existsSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { issueRunnerKey } from '../../../../../packages/runners/index.js';
+import { revokeRunnerKey } from '../../../../../packages/runners/index.js';
 import {
   computeRunnerSlots,
   effectiveRunner,
 } from '../../../../../packages/runners/index.js';
+
+/** The runners the board sees live (serves that claimed within minutes), or undefined when it sees none or cannot be read. Why here: it is the board's one reader of pulled capacity [U151]. */
+export function liveRunnerCount(ctx) {
+  try {
+    const { totals } = withBoardRead(ctx, board => readPulledCapacity(board.db, { runs: boardRunsReader(board, ctx.file) }));
+    return totals.serves > 0 ? totals.serves : undefined;
+  } catch { return undefined; }
+}
 
 /** Describe one runner's measured size and the slots the gate offers from it. */
 function sizeLine(runner, settings) {
@@ -81,10 +96,29 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     if (!existsSync(ctx.file)) throw new Refused('NO_BOARD', 'there is no board here', 'run pullboard runner status inside a board repository');
     const db = openBoardReadOnly(ctx.file);
     let capacity;
-    try { capacity = readPulledCapacity(db); } finally { db.close(); }
+    try { capacity = readPulledCapacity(db, { runs: boardRunsReader({ db }, ctx.file) }); } finally { db.close(); }
     io.result?.(capacity);
     io.say(capacity.serves.length ? [...capacity.serves.map(entry => `${entry.runner}: ${entry.claimed} of ${entry.jobs ?? 'unknown'} jobs`),
       `fleet: ${capacity.totals.claimed} of ${capacity.totals.jobs} jobs`].join('\n') : 'no serves have claimed pulled jobs');
+    return 0;
+  }
+  if (first === 'key') {
+    // The board's runner key book: issue a key to a named runner, or revoke it, kept in the board folder [C7].
+    const usage = 'pullboard runner key issue <runner> | pullboard runner key revoke <runner>';
+    if (!['issue', 'revoke'].includes(second) || rest.length !== 1 || Object.keys(values).some(key => key !== 'json')) throw new Refused('USAGE', usage);
+    const ctx = context(io);
+    const folder = dirname(ctx.file);
+    /** The book's plain errors carry a rule code and next step: wear them as refusals. */
+    const wear = work => { try { return work(); } catch (error) { throw error?.code && !(error instanceof Refused) ? new Refused(error.code, error.message, error.next) : error; } };
+    if (second === 'revoke') {
+      const { revoked } = wear(() => revokeRunnerKey(folder, rest[0]));
+      io.result?.({ runner: rest[0], revoked });
+      io.say(`revoked runner ${rest[0]}'s key; its pulls are refused, also after a board restart`);
+      return 0;
+    }
+    const issued = wear(() => issueRunnerKey(folder, rest[0]));
+    io.result?.(issued);
+    io.say(`issued a key to runner ${issued.runner}; the board trusts public key ${issued.publicKey}\nprivate key (shown once, keep it on the runner): ${issued.privateKey}`);
     return 0;
   }
   if (first === 'serve') {
@@ -98,7 +132,10 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     const stop = new AbortController();
     for (const name of ['SIGINT', 'SIGTERM']) process.once(name, () => stop.abort());
     const served = await serveRunner({ board: second, key: values.key ?? process.env.PULLBOARD_BOARD_KEY, runner: values.as,
-      ...(values.directory ? { cache: values.directory } : {}), ...(values.jobs !== undefined ? { jobs: values.jobs } : {}), once: values.once === true, handlers: { land: landJobHandler }, git: pullGit, signal: stop.signal, say: line => io.say(line) })
+      ...(values.directory ? { cache: values.directory } : {}), ...(values.jobs !== undefined ? { jobs: values.jobs } : {}), once: values.once === true, handlers: { land: landJobHandler }, git: pullGit, signal: stop.signal, say: line => io.say(line),
+      fetchFailFast: runnerSettingOn(machineSettingsFile(), 'runners.fetchFailFast'), drainOnFetchFailure: runnerSettingOn(machineSettingsFile(), 'runners.drainOnFetchFailure'),
+      pruneYields: runnerSettingOn(machineSettingsFile(), 'runners.yieldWhilePruning'),
+      postedLineNamesCase: runnerSettingOn(machineSettingsFile(), 'runners.postedLineNamesCase') })
       .catch(error => { throw error?.code && !(error instanceof Refused) ? new Refused(error.code, error.message) : error; });
     io.result?.(served);
     return 0;

@@ -1,3 +1,4 @@
+import { itemLanded } from "../../logic/counts.js";
 import { itemStageKey } from "../../logic/pipeline/model.js";
 import { itemStagePresentation } from "../../logic/pipeline/model.js";
 
@@ -17,9 +18,10 @@ export function dashboardModel(project, history, { now, complete = true, working
   const stageCounts = Object.fromEntries(['blocked','ready','building','in-review','verified','landing','merged'].map(key => [key, 0]));
   // The same stage words and keys the Items Pipeline groups by, so the strip and the pipeline agree.
   for (const item of items) {
-    if (item.status === 'withdrawn') continue;
+    if (item.status === 'withdrawn' && !itemLanded(item)) continue;
     const key = itemStageKey(itemStagePresentation(item, { gated: Boolean(item.blockedBy?.length || item.heldReason || item.laneHoldReason), landingBatchAt: item.landingBatchAt }).stage);
-    if (key in stageCounts) stageCounts[key]++;
+    if (itemLanded(item)) stageCounts.merged++;
+    else if (key in stageCounts) stageCounts[key]++;
   }
   // Every landed item is known from its own row; only the last day's landings list their commit, to match merge events (#6666).
   const merged = new Map(items.filter(item => item.merged || item.stage === 'merged').map(item => [item.id, { id: item.id, commit: null }]));
@@ -124,7 +126,7 @@ export function dashboardModel(project, history, { now, complete = true, working
   };
   for (const agent of project.agents ?? []) {
     const entry = row(agent.agent_id);
-    if (entry) { entry.name = agent.agent_id; entry.model = agent.model || agent.agent_model || '';  entry.last = Date.parse(agent.lastMoveAt) || 0; entry.start = Math.max(start, Date.parse(agent.agent_created_at) || start); }
+    if (entry) { entry.name = agent.agent_id; entry.model = agent.model || agent.agent_model || ''; entry.lane = agent.agent_lane ?? agent.lane ?? null; entry.presence = agent.presence ?? null; entry.last = Date.parse(agent.lastMoveAt) || 0; entry.start = Math.max(start, Date.parse(agent.agent_created_at) || start); }
   }
   // Seats appear in the order their first event came, after those the API lists.
   for (const [by, at] of state.lastBy) { const entry = row(by); if (entry) entry.last = Math.max(entry.last, at); }
@@ -182,8 +184,8 @@ export function dashboardModel(project, history, { now, complete = true, working
     }
     return peak;
   };
-  const claims = items.filter(item => item.status === 'claimed' && item.owner && Date.parse(item.claim?.until) > now);
-  const reviewing = items.filter(item => item.status === 'submitted');
+  const claims = items.filter(item => item.status === 'claimed' && !itemLanded(item) && item.owner && Date.parse(item.claim?.until) > now);
+  const reviewing = items.filter(item => item.status === 'submitted' && !itemLanded(item));
   // A live hold keeps its own unclipped start, apart from the per-minute union below, so a seat holding a review and
   // a build at once still reports each one's age; null means the history holds no open stay for this holder.
   /** When this holder's still-open stay on the item began, or null. */
@@ -259,14 +261,17 @@ export function dashboardModel(project, history, { now, complete = true, working
   const held = item => heldItems.has(item.id) || heldLanes.has(item.lane);
   const open = items.filter(item => item.status === 'open');
   const backItems = items.filter(item => ['open', 'claimed'].includes(item.status) && item.verdict?.decision === 'REJECT');
-  const stages = { ready: Number.isInteger(shared?.ready) ? shared.ready : next.length, waiting: Number.isInteger(shared?.blocked) ? shared.blocked : open.filter(item => blocked(item) && !held(item)).length, building: claims.length,
+  // A claim the board read marks stalled or waiting is held, not built, so it never counts as building [C7,#6477].
+  const idleClaim = item => ['stalled', 'waiting'].includes(item.claimHealth?.state);
+  const stages = { ready: Number.isInteger(shared?.ready) ? shared.ready : next.length, waiting: Number.isInteger(shared?.blocked) ? shared.blocked : open.filter(item => blocked(item) && !held(item)).length, building: claims.filter(item => !idleClaim(item)).length,
+    stalled: claims.filter(item => item.claimHealth?.state === 'stalled').length, waitingClaims: claims.filter(item => item.claimHealth?.state === 'waiting').length,
     gate: inGate.length, review: checked.length, toLand: landing.length, sentBack: backItems.length, held: open.filter(held).length,
     active: items.filter(item => !['withdrawn', 'verified'].includes(item.status)).length };
   // Each lane's work now and its last four hours; the board's own lane list first, then any lane an item names.
   const sentBackItems = new Set(state.tail.filter(entry => ['reject', 'reopen'].includes(entry.kind)).map(entry => entry.item));
   const laneNames = [...new Set([...(project.lanes ?? []), ...items.filter(item => item.status !== 'withdrawn').map(item => item.lane)])].filter(lane => lane && lane !== 'coordinator');
   const lanes = laneNames.map(lane => ({ lane,
-    building: claims.filter(item => item.lane === lane).length, review: reviewing.filter(item => item.lane === lane).length,
+    building: claims.filter(item => item.lane === lane && !idleClaim(item)).length, review: reviewing.filter(item => item.lane === lane).length,
     ready: next.filter(item => item.lane === lane).length,
     landed: complete ? landedRecent.filter(([id]) => byId.get(id)?.lane === lane).length : null,
     sentBack: complete ? [...sentBackItems].filter(id => byId.get(id)?.lane === lane).length : null }))

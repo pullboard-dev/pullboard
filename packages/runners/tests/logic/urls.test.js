@@ -9,8 +9,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { remoteWorkerLaunch } from '../../src/io/tooling/remote.js';
 import { runtimeReference } from '../../src/io/request.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../gate/tests/fixtures/child.js';
 
 const ENTRY = 'apps/runner/src/io/scripts/worker.js';
 const SPEC_FRAME_LIMIT = 1024 ** 2;

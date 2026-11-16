@@ -5,5 +5,7 @@
   "list": 419,
   "next": 1603,
   "test --status x": 1143,
-  "hook commit-msg": 247
+  "hook commit-msg": 247,
+  "claim 1": 1312,
+  "release 1 --reason OTHER --note x": 1312
 }

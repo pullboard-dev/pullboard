@@ -15,23 +15,25 @@ import { itemFileCollisions } from '../../../../../packages/items/index.js';
 import { outsideBuildProblem } from '../../../../../packages/items/index.js';
 import { sayMapSlice } from '../../../../../packages/codemap/index.js';
 import { primaryCheckoutRoot } from '../worktree.js';
-import { requireNoCoordinatorPath } from './add.js';
 import { onTrunk } from '../item/bar.js';
 import { refuseClaimMissingPaths } from '../item/bar.js';
+import { requireNoCoordinatorPath } from '../item/bar.js';
 import { cleanItemFolders } from '../item/folder.js';
 import { claimFolderRefusal } from '../item/folder.js';
 import { claimedFolderProblem } from '../item/folder.js';
 import { openItemFolder } from '../item/folder.js';
+import { trunkBranch } from '../item/folder.js';
+import { offMainHeadRefusal } from '../../../../../packages/moves/index.js';
+import { actOn } from '../board/access.js';
 import {
   MainSpecMerged,
-  actOn,
   claimFreezer,
   claimOrdered,
-  idArg,
   ordered,
-  whoAmI,
   wrongLaneGuidance,
-} from '../entry.js';
+} from '../claim.js';
+import { idArg } from '../context.js';
+import { whoAmI } from '../join.js';
 
 /** Run `pullboard claim` and return its exit code. */
 export async function run(io, { first }) {
@@ -52,6 +54,9 @@ export async function run(io, { first }) {
     const folder = await claimFolderRefusal(ctx, board, me, id, { renewing: filed.item_owner === me.id && isHeld(board, filed) });
     if (folder) throw folder;
   }
+  // With claim.refuseOffMainHead on, a new claim in a folder whose HEAD is not on main refuses before the move [C7,#9104].
+  const offMain = filed && !(filed.item_owner === me.id && isHeld(board, filed)) ? offMainHeadRefusal(ctx.info.root, { trunk: trunkBranch(ctx.info.root) }) : null;
+  if (offMain) throw offMain;
   let result;
   for (;;) {
     try {

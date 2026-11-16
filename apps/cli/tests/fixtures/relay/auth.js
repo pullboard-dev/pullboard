@@ -73,7 +73,7 @@ export const relayDeviceKeysURL = new URL('../../../../../packages/keys/index.js
 
 /** Call the shared setup flow with a private caller signal and credential-free output streams. */
 export async function runRelayOnAll(box, signalMode) {
-  return box.script(`
+  return box.scriptLocal(`
     import { relayOnAll } from ${JSON.stringify(relaySetupURL)};
     import { readRelayMachine } from ${JSON.stringify(relayMachineURL)};
     import { createDeviceKeys, signDeviceEnrollment } from ${JSON.stringify(relayDeviceKeysURL)}; import { nativeRelayPorts } from ${JSON.stringify(new URL('../native.js', import.meta.url).href)};

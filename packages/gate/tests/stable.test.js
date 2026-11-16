@@ -2,10 +2,7 @@
 /** @pullboard-test-gui */
 /** A test Chrome never outlives the test that started it: every launcher ties Chrome to its owner [C7]. */
 import assert from 'node:assert/strict';
-import {
-  execFileSync,
-  spawn,
-} from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import {
   existsSync,
   mkdtempSync,
@@ -15,6 +12,8 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { after } from 'node:test';
+import { before } from 'node:test';
 import { describe } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
@@ -22,9 +21,14 @@ import {
   findChromeExecutable,
   findRunnerAncestor,
 } from '../../../apps/cli/tests/fixtures/chrome.js';
+import { withNestedGroup } from '../index.js';
+import { runFixtureChildAsync } from './fixtures/child.js';
+import { runUnderStandIn } from './fixtures/runner-standin.js';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const PROBE = join(ROOT, 'packages/gate/tests/fixtures/cockpit/probe.mjs');
+/** The CLI fixtures folder the probe loads its launchers from; the package fixture names no app itself. */
+const PROBE_KIT = fileURLToPath(new URL('../../../apps/cli/tests/fixtures/', import.meta.url));
 const DEATH_BUDGET_MS = 10_000; // budget: the item's declared bound for Chrome to exit after its owner dies.
 const READY_BUDGET_MS = 600_000; // budget: hang ceiling for one real Chrome launch, including a wait for a gate browser slot.
 
@@ -82,17 +86,25 @@ test('a test finds its runner by the pid the runner gave it, never by its comman
   assert.equal(findRunnerAncestor({ env: { [RUNNER_PID_ENV]: '1' }, parentOf }), null, 'init is never a runner');
 });
 
-/** How each killed process starts the probe: the owner directly, or the runner, with and without its own options. */
+/**
+ * How each killed process starts the probe: the owner directly, or a runner stand-in, which names itself as the runner and starts the probe.
+ * The real runner queues for a browser slot behind every other Chrome, which took minutes per case; the spellings of how a real runner
+ * is started no longer matter, since a test finds its runner by pid and never by command line (pid.test.js proves the runner names itself).
+ */
 const VICTIMS = {
-  owner: [],
-  runner: ['packages/gate/src/io/run/tests.js'],
-  'runner started with --test-concurrency=1': ['packages/gate/src/io/run/tests.js', '--test-concurrency=1'],
+  owner: (env) => runFixtureChildAsync(process.execPath, [PROBE], { cwd: ROOT, env }),
+  runner: (env) => runUnderStandIn(PROBE, [], env),
+  'runner started with --test-concurrency=1': (env) => runUnderStandIn(PROBE, [], env),
   // A data: import before the runner, which no reading of ps text tells from a worker (#896).
-  'runner started after a data: import': ['--import', 'data:text/javascript,globalThis.__probe=1', 'packages/gate/src/io/run/tests.js'],
+  'runner started after a data: import': (env) => runFixtureChildAsync(process.execPath, ['--import', 'data:text/javascript,globalThis.__probe=1', join(ROOT, 'packages/gate/tests/fixtures/cockpit/runner-standin.mjs'), PROBE], { cwd: ROOT, env }),
 };
 
 // The twelve cases share nothing (each owns its profile, owner and Chrome), so they run together: 93 s serial becomes the slowest one [C7].
 describe('a test Chrome never outlives its owner [C7]', { concurrency: true }, () => {
+  let addVictim, endGroup, group;
+  // One nested group lends this file's place for the whole marker phase of every runner victim, and drains all of them before it returns (#1152).
+  before(() => { group = withNestedGroup(async (add) => { addVictim = add; await new Promise((resolve) => { endGroup = resolve; }); }); });
+  after(async () => { endGroup(); await group; });
   for (const [launcher, name] of Object.entries(LAUNCHERS)) {
     for (const killed of Object.keys(VICTIMS)) {
       test(`Chrome from ${name} exits within 10 s of its ${killed} dying by SIGKILL [C7]`, {
@@ -104,20 +116,26 @@ describe('a test Chrome never outlives its owner [C7]', { concurrency: true }, (
         const readyFile = join(directory, 'ready');
         const recorded = [];
         t.after(() => { stopRecorded(profile, recorded); rmSync(directory, { recursive: true, force: true }); });
-        const env = { ...process.env, PROBE_LAUNCHER: launcher, PROBE_PROFILE: profile, PROBE_READY: readyFile };
-        // The runner case starts the probe the way the gate does, as a test file under packages/gate/src/io/run/tests.js.
-        const victim = killed === 'owner'
-          ? spawn(process.execPath, [PROBE], { cwd: ROOT, env, stdio: 'ignore' })
-          : spawn(process.execPath, [...VICTIMS[killed], 'packages/gate/tests/fixtures/cockpit/probe.mjs'], { cwd: ROOT, env, stdio: 'ignore' });
+        const env = { ...process.env, PROBE_KIT, PROBE_LAUNCHER: launcher, PROBE_PROFILE: profile, PROBE_READY: readyFile };
+        const run = VICTIMS[killed](env);
+        const victim = run.child;
+        run.catch(() => {}); // a SIGKILLed victim settles with an error the test reads from the exit signal instead.
         recorded.push(victim.pid);
-        recorded.push(await waitForReady(readyFile, victim, READY_BUDGET_MS)); // budget: hang ceiling for Chrome to start, including a gate browser-slot wait; no speed claim.
-        const before = chromeProcesses(profile);
-        assert.ok(before.length > 0, 'the owner holds a live Chrome before it is killed');
-        const ended = new Promise((resolve) => victim.once('exit', (code, signal) => resolve(signal)));
-        process.kill(victim.pid, 'SIGKILL');
-        assert.equal(await ended, 'SIGKILL', `the ${killed} died by SIGKILL`);
+        let alive;
+        /** Wait for Chrome to be ready, then kill exactly this victim. */
+        const killVictim = async () => {
+          recorded.push(await waitForReady(readyFile, victim, READY_BUDGET_MS)); // budget: hang ceiling for Chrome to start, including a gate browser-slot wait; no speed claim.
+          alive = chromeProcesses(profile);
+          assert.ok(alive.length > 0, 'the owner holds a live Chrome before it is killed');
+          const ended = new Promise((resolve) => victim.once('exit', (code, signal) => resolve(signal)));
+          process.kill(victim.pid, 'SIGKILL');
+          assert.equal(await ended, 'SIGKILL', `the ${killed} died by SIGKILL`);
+        };
+        // A runner victim joins the file's one nested group, so every case lends the same shared place while it waits; the owner case keeps its own semantics.
+        if (killed !== 'owner') addVictim(run);
+        await killVictim();
         const gone = await waitForChromeGone(profile, DEATH_BUDGET_MS); // budget: the item's declared bound on Chrome outliving its dead owner.
-        assert.notEqual(gone, null, `Chrome (${before.length} processes, pids ${before.map(row => row.pid).join(',')}) survived its ${killed} for ${DEATH_BUDGET_MS}ms`); // budget: the item's declared 10 s bound.
+        assert.notEqual(gone, null, `Chrome (${alive.length} processes, pids ${alive.map(row => row.pid).join(',')}) survived its ${killed} for ${DEATH_BUDGET_MS}ms`); // budget: the item's declared 10 s bound.
       });
     }
   }

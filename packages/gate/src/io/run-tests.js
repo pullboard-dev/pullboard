@@ -1365,12 +1365,12 @@ async function main(args) {
       if (runnerOnly && !canShipRunner) throw new Error('Runner-only tests require a committed runner inside the checkout; no local fallback is allowed');
       await withGateSlot(process.cwd(), async (lease) => {
         if (!lease.runner) return run(gateSlotEnvironment(lease));
-        const { runOnRunner } = await services.runners();
+        const { runOnRunnerAsync } = await services.runners();
         /** Quote the unchanged runner arguments for the remote command shell. */
         const word = value => `'${String(value).replaceAll("'", "'\\''")}'`;
         const command = ['node', `./${runnerPath}`, ...actions.args].map(word).join(' ');
         timing.forward(); clock.mark('admission');
-        const result = runOnRunner(process.cwd(), command, { runner: lease.runner, source: lease.source,
+        const result = await runOnRunnerAsync(process.cwd(), command, { runner: lease.runner, source: lease.source,
           browser, metadata: lease.runMetadata }); clock.mark('runner');
         process.stdout.write(result.output);
         process.exitCode = result.exitCode;
@@ -1431,9 +1431,9 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
   if (fileTimes && process.env.NODE_TEST_CONTEXT === 'child-v8') {
     // One line per test file process: its wall time from start to exit, for the next shard plan.
     const timedFile = relative(process.cwd(), resolve(process.argv[1]));
-    process.once('exit', () => {
-      // The file's own time, not its wait for a token: the next shard plan weighs work, not this run's queue (#1046).
-      try { appendFileSync(fileTimes, `${JSON.stringify({ file: timedFile, ms: Math.round(process.uptime() * 1000 - tokenWaitMs) })}\n`); }
+    process.once('exit', (code) => {
+      // The file's own time, not its wait for a token (#1046), and its exit code, the file's own verdict (#8303).
+      try { appendFileSync(fileTimes, `${JSON.stringify({ file: timedFile, ms: Math.round(process.uptime() * 1000 - tokenWaitMs), code })}\n`); }
       catch { /* A missing time only weakens the next shard plan. */ }
     });
   }

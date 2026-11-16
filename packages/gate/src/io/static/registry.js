@@ -22,7 +22,10 @@ import { loadConfig } from '../../../../config/index.js';
 import { testWaitReport } from '../test/waits.js';
 import { cliLaunchReport } from '../test/launches.js';
 import { cliLaunchGrowth } from '../test/launches.js';
+import { cliChildImportProblems } from '../test/child-fixture.js';
 import { operationEntryProblems } from './operations.js';
+import { workerImportProblems } from './worker-imports.js';
+import { WORKER_IMPORTS_FILE } from './worker-imports.js';
 import { layoutProblems } from './layout.js';
 import { testWaitGrowth } from '../test/waits.js';
 import { boardWriteIoProblems } from '../board/write.js';
@@ -61,7 +64,7 @@ const TEST = path => SOURCE(path) && (path.split('/').slice(0, -1).some(part => 
 const noApps = name => [`${name}: the caller passed no app paths; hand them in as the apps option of runStaticTreeRegistry`];
 
 /** The context a check gets when called on its own: caches that live and die inside the call. */
-const MEMORY = Object.freeze({ cache: (name, version) => fileCache({ name, version, tooling: '', home: null }) });
+const MEMORY = Object.freeze({ cache: (name, version) => fileCache({ name, version, tooling: '', home: null }), report: line => process.stderr.write(`${line}\n`) });
 
 /** Import-style violations, one source at a time: each file's rows depend on that file alone, so they are kept by blob [5564]. */
 function importStyleRows(sources, cache) {
@@ -115,24 +118,27 @@ process.stdout.write(JSON.stringify({ declared: [...declaredProseCommands(HELP)]
 const WORKER_BUNDLE_TIMEOUT_MS = 60_000;
 
 /**
- * Measure the runner worker bundle in a child process and compare it with its recorded ceiling.
+ * Measure the runner worker bundle in a child process and describe its size against the recorded number.
+ *
+ * Why: bytes are reported, never enforced; the trust and speed guards are the reviewed import list and the per-trip budget. Only a
+ * measurement that cannot run is a failure, because a size nobody can read is no report.
  *
  * @param {string} root - Checkout root.
- * @returns {string[]} The failure, or nothing.
+ * @returns {{rows: string[], line: string}} The failure (if any) and the report line.
  */
-function workerBundleRows(root) {
-  // The runner worker bundle's raw size may only fall; growth fails here, never silently at a runner (#4140).
+function workerBundleReport(root) {
   const recorded = JSON.parse(readFileSync(join(root, 'packages/gate/data/ceilings/worker-bundle.json'), 'utf8')).bytes;
   // Each phase is written to stderr as it starts, so a measurement past its deadline names the step that hung [5642].
   const program = `const { workerBundleBytes } = await import(${JSON.stringify(pathToFileURL(join(root, 'packages/runners/index.js')).href)});\nprocess.stdout.write(String(workerBundleBytes(${JSON.stringify(root)}, undefined, step => process.stderr.write('step: ' + step + '\\n'))));`;
   const child = spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', '--input-type=module', '-e', program], { cwd: root, encoding: 'utf8', timeout: WORKER_BUNDLE_TIMEOUT_MS, killSignal: 'SIGKILL' });
   const lines = (child.stderr ?? '').trim().split('\n');
   const step = lines.filter(line => line.startsWith('step: ')).at(-1)?.slice(6) ?? 'start the measuring process';
-  if (child.error?.code === 'ETIMEDOUT') return [`packages/gate/data/ceilings/worker-bundle.json:1: the runner worker bundle measurement passed ${WORKER_BUNDLE_TIMEOUT_MS / 1000} s at the step: ${step}`];
+  if (child.error?.code === 'ETIMEDOUT') return { rows: [`packages/gate/data/ceilings/worker-bundle.json:1: the runner worker bundle measurement passed ${WORKER_BUNDLE_TIMEOUT_MS / 1000} s at the step: ${step}`], line: '' };
   const error = lines.find(line => /^\w*(Error|Refused)\b/u.test(line)) ?? lines.filter(line => !line.startsWith('step: ')).at(-1);
-  if (child.status !== 0) return [`packages/gate/data/ceilings/worker-bundle.json:1: the runner worker bundle could not be measured at the step: ${step}: ${error}`];
+  if (child.status !== 0) return { rows: [`packages/gate/data/ceilings/worker-bundle.json:1: the runner worker bundle could not be measured at the step: ${step}: ${error}`], line: '' };
   const bytes = Number(child.stdout);
-  return bytes > recorded ? [`packages/gate/data/ceilings/worker-bundle.json:1: the runner worker bundle is ${bytes} raw bytes, over its recorded ${recorded}; cut what the worker imports, or record a lower size when it falls`] : [];
+  const change = bytes - recorded;
+  return { rows: [], line: `runner worker bundle: ${bytes} raw bytes, ${change === 0 ? 'unchanged from' : `${change > 0 ? '+' : ''}${change} against`} the recorded ${recorded} (reported, not enforced)` };
 }
 
 /**
@@ -144,6 +150,9 @@ export const STATIC_TREE_CHECKS = Object.freeze([
   { name: 'test-waits', reads: TEST, run: (root, sources, context = MEMORY) => testWaitGrowth(testWaitReport(root, { cache: context.cache('test-waits', 1), only: context.changed }), JSON.parse(readFileSync(join(root, 'packages/gate/data/baselines/test-waits-baseline.json'), 'utf8')))
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
   { name: 'cli-launches', reads: TEST, run: (root, sources, context = MEMORY) => cliLaunchGrowth(cliLaunchReport(root, { cache: context.cache('cli-launches', 1), only: context.changed }), JSON.parse(readFileSync(join(root, CLI_LAUNCHES_FILE), 'utf8')))
+    .map(row => `${row.path}:${row.line}: ${row.text}`) },
+  // A new package test may not import the CLI app's child fixture outside the named exceptions; judged against where the branch met main [#8435].
+  { name: 'cli-child-import', reads: TEST, run: (root, sources, context = MEMORY) => cliChildImportProblems(root, { only: context.changed })
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
   // A second entry point for an operation the registry names once, and a baseline that grows past main's (#5846).
   { name: 'operation-entries', reads: SOURCE, run: root => operationEntryProblems(root) },
@@ -199,7 +208,14 @@ export const STATIC_TREE_CHECKS = Object.freeze([
   { name: 'worker-bundle', reads: SOURCE, run: (root, sources, context = MEMORY) => {
     // Cell-scoped: the bundle is the import closure of the runners cell, so a tree that changed no file in runners or the cells it imports keeps the answer [5564].
     const scope = cellScopedKey(treeSources(root, sources), ['runners'], { edgeCache: edgeCacheOf(context), extra: ['package.json', 'packages/gate/data/ceilings/worker-bundle.json'], read: file => readFileSync(join(root, file), 'utf8') });
-    return context.cache('worker-bundle', 1).get('worker-bundle', scope, () => workerBundleRows(root));
+    const { rows, line } = context.cache('worker-bundle', 2).get('worker-bundle', scope, () => workerBundleReport(root));
+    if (line) (context.report ?? MEMORY.report)(line);
+    return rows;
+  } },
+  // The worker may import only from a reviewed list of units; cell-scoped like the bundle, since the closure is the runners cell's [#8461].
+  { name: 'worker-imports', reads: SOURCE, run: (root, sources, context = MEMORY) => {
+    const scope = cellScopedKey(treeSources(root, sources), ['runners'], { edgeCache: edgeCacheOf(context), extra: ['package.json', WORKER_IMPORTS_FILE], read: file => readFileSync(join(root, file), 'utf8') });
+    return context.cache('worker-imports', 1).get('worker-imports', scope, () => workerImportProblems(root));
   } },
   { name: 'prose-commands', reads: (path, apps) => Boolean(apps?.cliCell) && path.startsWith(`${apps.cliCell}/`), run: (root, sources, context = MEMORY) => {
     if (!context.apps?.cliHelp) return noApps('prose-commands');
@@ -230,7 +246,7 @@ export function runStaticTreeRegistry(root, { changed = null, apps = null } = {}
   const sources = styleSources(root);
   const tooling = toolingKey(sources);
   const caches = [];
-  const context = { changed, apps, cache: (name, version) => { const made = fileCache({ name, version, tooling }); caches.push(made); return made; } };
+  const context = { changed, apps, report: MEMORY.report, cache: (name, version) => { const made = fileCache({ name, version, tooling }); caches.push(made); return made; } };
   const rows = STATIC_TREE_CHECKS.filter(check => !changed || changed.some(path => check.reads(path, apps))).flatMap(check => check.run(root, sources, context));
   for (const made of caches) made.save();
   return rows;

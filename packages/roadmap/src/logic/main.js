@@ -6,12 +6,26 @@ import {
 } from 'node:path';
 import {
   codeIsFromMain,
+  mainLandedReader,
   repoInfo,
   withProjectGitTimeout,
 } from "../../../git/index.js";
 import { workProgress } from './progress.js';
 import { itemProgress } from './progress.js';
+import { isLanded } from './progress.js';
 import { milestoneReferencesToRemove } from "./milestones.js";
+
+/**
+ * The landed-fact reader for this repository: git main when landing.landedFromMain is on, else null (the recorded merge).
+ *
+ * @param {string} root
+ * @param {{ landing?: { landedFromMain?: boolean } }} [config]
+ * @param {{ reader?: (root: string) => ((commit: string) => boolean) | null }} [ports] - the git reader, replaceable in a test.
+ * @returns {((commit: string) => boolean) | null}
+ */
+export function landedOnMain(root, config, { reader = mainLandedReader } = {}) {
+  return config?.landing?.landedFromMain === true ? reader(root) : null;
+}
 
 /** Require explicit board readers before resolving local or foreign roadmap state. */
 function roadmapPorts(ports, names) {
@@ -62,7 +76,7 @@ export async function withdrawWithMilestones(ctx, board, me, id, reason, ordered
 /** Resolve a repo-qualified milestone item against registered boards, optionally within an API scope.
  * @param {string} root
  * @param {any} board
- * @param {{ projects?: () => any[], hideOutOfScope?: boolean }} [options]
+ * @param {{ projects?: () => any[], hideOutOfScope?: boolean, landedFromMain?: boolean }} [options] - landedFromMain: landing.landedFromMain, read the landed fact from git main.
  * @returns {any[]}
  */
 export function milestoneRoadmap(root, board, options = {}) {
@@ -87,7 +101,7 @@ export function milestoneRoadmap(root, board, options = {}) {
           const item = getItem(other, Number(number));
           externalItems.set(reference, { item, progress: itemProgress(other, item.item_id), held: Boolean(item.item_hold_reason)
             || laneHolds(other).some(hold => hold.hold_lane === item.item_lane) });
-          return { id: reference, title: item.item_title, status: item.item_status, landed: Boolean(item.item_merged_commit) };
+          return { id: reference, title: item.item_title, status: item.item_status, landed: isLanded(item) };
         } finally {
           if (other !== board) closeBoard(other);
         }
@@ -96,8 +110,10 @@ export function milestoneRoadmap(root, board, options = {}) {
       return options.hideOutOfScope ? hidden() : { id: reference, title: `#${number} (${repo})`, status: 'unavailable' };
     }
   };
-  const milestones = roadmap(board, resolveExternal);
-  const progressById = workProgress(board);
+  // One landed fact [C7]: a main reader in the ports makes milestone entries and item progress read the commit on main.
+  const onMain = typeof ports.onMain === 'function' ? ports.onMain : options.landedFromMain === true ? mainLandedReader(root) : null;
+  const milestones = roadmap(board, resolveExternal, onMain);
+  const progressById = workProgress(board, { onMain });
   const items = new Map(listItems(board, { all: true }).map(item => [item.item_id, item]));
   const holds = new Set(laneHolds(board).map(hold => hold.hold_lane));
   const now = board.clock.now().getTime();
@@ -106,7 +122,7 @@ export function milestoneRoadmap(root, board, options = {}) {
   const placed = queuePositions(board, ports);
   const landedAt = firstLandings(board, items, ports);
   return milestones.map(milestone => {
-    const active = milestone.items.filter(entry => entry.status !== 'withdrawn');
+    const active = milestone.items.filter(entry => entry.status !== 'withdrawn' || entry.state === 'landed');
     const summary = { total: active.length, left: active.length - milestone.landed,
       landed: 0, landing: 0, review: 0, building: 0, held: 0, waiting: 0,
       needsYou: active.filter(entry => typeof entry.id === 'number' && needsYou.has(entry.id)).map(entry => entry.id),

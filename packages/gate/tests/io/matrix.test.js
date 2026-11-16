@@ -80,7 +80,7 @@ test('the runner reads harness rows into PASS, FAIL and NONE, fails a leak, and 
   assert.equal(rows['live-driver'].status, 'FAIL', 'a hop its harness never reported fails with the harness\'s error');
   assert.match(rows['live-driver'].cause, /Cannot find module/u);
   assert.equal(rows['analysis-on-runner'].status, 'PASS', 'a hop with a mapped harness reports what the harness printed');
-  assert.equal(rows['stale-dispatcher'].status, 'SKIPPED', 'a harness left out with --only is not a pass');
+  assert.equal(rows['runner-spec'].status, 'SKIPPED', 'a harness left out with --only is not a pass');
   // Every hop has a harness now, so the NONE rendering is checked on a row emptied of its result.
   const noHarness = Object.values(rows).map(row => (row.id === 'analysis-on-runner' ? { ...row, status: 'NONE', ms: null, measured: '', cause: '', current: false } : row));
   const text = renderMatrix(noHarness, { at: 'now', against: null, live: true });

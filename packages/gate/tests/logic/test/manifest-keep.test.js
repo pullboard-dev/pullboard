@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { KEEP_PER_PATH } from '../../../src/logic/test/manifest.js';
+import { manifestRows } from '../../../src/logic/test/manifest.js';
 import { tagJourneys } from '../../../src/logic/test/manifest.js';
 
 const journey = (file, specs, ms = null) => ({ file, kind: 'journey', specs, cost: { ms } });
@@ -59,4 +60,12 @@ test('relay pair and view open count as paths and every path holds two at most, 
   const files = [...PATHS.map(path => `apps/cli/journeys/${path}`), 'apps/cli/journeys/relay/pair', 'apps/cli/journeys/view/open'];
   const rows = tagJourneys(files.flatMap(base => [1, 2, 3].map(n => journey(`${base}/j${n}.test.js`, [`K${n}`]))));
   assert.equal(rows.filter(row => row.tag === 'keep').length, 20);
+});
+
+test('a file the golden registry names stays harness and untagged when the manifest is regenerated [C7]', () => {
+  const spawns = { direct: new Set(['process']), via: new Map() };
+  const rows = manifestRows([{ file: 'apps/cli/journeys/add/brief.test.js', ms: null, specs: ['C7'], ...spawns }, { file: 'apps/cli/journeys/add/other.test.js', ms: null, specs: ['C7'], ...spawns }], new Set(['apps/cli/journeys/add/brief.test.js']));
+  assert.equal(rows[0].kind, 'harness');
+  assert.equal(rows[0].tag, undefined);
+  assert.equal(rows[1].kind, 'journey');
 });

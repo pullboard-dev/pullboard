@@ -58,7 +58,7 @@ function invokeRunner(root, env, runnerModule) {
   const moduleUrl = pathToFileURL(runnerModule).href;
   const script = `import { runOnRunnerAsync } from ${JSON.stringify(moduleUrl)};
 try {
-  await runOnRunnerAsync(process.argv[1], 'true', { runner: { host: 'fixture.invalid', slots: 1, browser: 0 } });
+  await runOnRunnerAsync(process.argv[1], 'true', { runner: { host: 'fixture.invalid', slots: 1, browser: 0 }, metadata: { item: 'fixture', kind: 'remote-command' } });
   process.stdout.write(JSON.stringify({ code: 'NO_REFUSAL' }));
 } catch (error) {
   process.stdout.write(JSON.stringify({ code: error.code ?? error.name }));

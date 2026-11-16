@@ -9,13 +9,13 @@ import { now } from './fixture.js';
 test('clauses 1-3 of #8060: one row per registered runner by name, load or offline, and a count that equals the rows [C7]', () => {
   const { project, events } = board();
   project.dashboardRunners = { runners: [
-    { runner: 1, name: '192.168.1.51', offline: false, busy: true, cpu: 40, ram: 50, jobs: [{ kind: 'gate', item: 6 }] },
-    { runner: 2, name: '192.168.1.52', offline: true, busy: false, cpu: null, ram: null, jobs: [] },
-    { runner: 3, name: '192.168.1.53', offline: false, busy: false, cpu: 5, ram: 20, jobs: [] }], runs: [] };
+    { runner: 1, name: '203.0.113.51', offline: false, busy: true, cpu: 40, ram: 50, jobs: [{ kind: 'gate', item: 6 }] },
+    { runner: 2, name: '203.0.113.52', offline: true, busy: false, cpu: null, ram: null, jobs: [] },
+    { runner: 3, name: '203.0.113.53', offline: false, busy: false, cpu: 5, ram: 20, jobs: [] }], runs: [] };
   const html = dashboardHtml(dashboardModel(project, events, { now, complete: true }));
   const card = html.slice(html.indexOf('aria-label="Runners"'));
   const rows = [...card.matchAll(/<tr class="[^"]*"><td class="mono">([^<]+)<\/td>[\s\S]*?<\/tr>/gu)];
-  assert.deepEqual(rows.map(([, name]) => name), ['192.168.1.51', '192.168.1.52', '192.168.1.53']);
+  assert.deepEqual(rows.map(([, name]) => name), ['203.0.113.51', '203.0.113.52', '203.0.113.53']);
   assert.doesNotMatch(card, /Runner [0-9]/u, 'no placeholder name');
   assert.match(rows[1][0], /offline[\s\S]*offline/u, 'a runner with no heartbeat reads offline');
   assert.doesNotMatch(rows[1][0], /—/u, 'never a bare dash');

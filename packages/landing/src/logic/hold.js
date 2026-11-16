@@ -1,11 +1,9 @@
 /** A batch refused RUNNER_SOURCE retries a few times, then its items wait for a new head or main [C7]. */
-import { LANDING_FAULT_CODES } from './retry.js';
+import { LANDING_FAULT_CODES } from '../../../store/index.js';
+import { REPEATED_LANDING_HOLD } from '../../../store/index.js';
+import { RUNNER_SOURCE_RETRIES } from '../../../store/index.js';
 
-/** Automatic landing retries a RUNNER_SOURCE refusal at most this many times before holding the item. */
-export const RUNNER_SOURCE_RETRIES = 3;
-
-/** Prefix for automatic holds created after the same landing cause blocks two batches. */
-export const REPEATED_LANDING_HOLD = 'landing-repeat-v1:';
+export { REPEATED_LANDING_HOLD, RUNNER_SOURCE_RETRIES };
 
 /** Landing faults never count as a repeated cause: the machinery failed, not the item [C7,#3693]. */
 const FAULTS = new Set(LANDING_FAULT_CODES);

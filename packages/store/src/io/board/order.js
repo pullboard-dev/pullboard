@@ -24,7 +24,14 @@ export function buildOrder(board, { warm = [], agentId, readiness = (found, item
   const items = listItems(board, { all: true });
   const rank = milestoneRanks(board, milestonePriority, { milestones });
   const recent = new Set(warm);
-  const shared = entry => itemFiles(entry).filter(path => recent.has(path)).length;
+  // A sort calls this per comparison: with no warm files it is always 0, and otherwise each item's count is read once (#8432).
+  const sharedCounts = new Map();
+  const shared = entry => {
+    if (!recent.size) return 0;
+    let count = sharedCounts.get(entry.item_id);
+    if (count === undefined) sharedCounts.set(entry.item_id, count = itemFiles(entry).filter(path => recent.has(path)).length);
+    return count;
+  };
   const focus = milestoneFocus(board, { milestones });
   const group = item => focus?.ids.has(item.item_id) ? -1 : milestonePriority(item);
   const paths = criticalPathEnabled(board) ? remainingPaths(items, group) : new Map();

@@ -10,6 +10,7 @@ import { RUN_SCHEMA_SQL } from "./jobs.js";
 import { missingJobTables } from "./jobs.js";
 import { LEDGER_SCHEMA_SQL } from "./ledger.js";
 import { missingLedgerTable } from "./ledger.js";
+import { GATE_HOP_SCHEMA_SQL } from "./hop.js";
 
 /**
  * The indexes and bounded reads behind the board's hot queries [C7]. Status, list, show, next, resume,
@@ -74,10 +75,13 @@ export function ensureAdditiveIndexes(db) {
 export function missingAdditiveSchema(db) {
   const installed = name => db.prepare("SELECT 1 FROM sqlite_master WHERE name = ?").get(name);
   return HOT_INDEXES.some(sql => !installed(sql.match(/EXISTS (\w+)/u)[1])) || missingFactIdentityIndexes(db).length > 0
-    || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || !['job', 'job_step', ...JOB_INDEX_NAMES, ...RUN_OBJECT_NAMES, 'test_result', 'test_result_key'].every(installed);
+    || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || !['job', 'job_step', ...JOB_INDEX_NAMES, ...RUN_OBJECT_NAMES, 'test_result', 'test_result_key', 'gate_hop'].every(installed);
 }
 
-/** Create the hot and additive indexes and the job tables, each IF NOT EXISTS, moving and deleting no row [A5]. */
+/**
+ * Create the hot and additive indexes, the job tables and the gate hop table, each IF NOT EXISTS, moving and deleting no row [A5].
+ * Why the hop table: the fenced hop creates it on a live board, so a drifted board that has it must still match this declaration [C7,#8465].
+ */
 export function ensureAdditiveSchema(db) {
   for (const sql of HOT_INDEXES) db.exec(sql);
   ensureFactIdentityIndexes(db);
@@ -86,6 +90,7 @@ export function ensureAdditiveSchema(db) {
   db.exec(JOB_SCHEMA_SQL);
   db.exec(RUN_SCHEMA_SQL);
   db.exec(LEDGER_SCHEMA_SQL);
+  db.exec(GATE_HOP_SCHEMA_SQL);
 }
 
 /**

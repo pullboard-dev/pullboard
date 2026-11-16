@@ -6,7 +6,7 @@ import { utimesSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { FIXTURE_MODEL } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+import { FIXTURE_MODEL } from '../../../../gate/tests/fixtures/testkit.js';
 import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { usageCheckpoint } from '../../../src/io/cost/ledger.js';
 import { sessionSource } from '../../../src/io/cost/session.js';

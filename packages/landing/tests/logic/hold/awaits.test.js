@@ -16,7 +16,7 @@ test('clause 1: no landing step runs a test synchronously, which blocked the lea
     assert.doesNotMatch(text, /\bfullGateRun\(/u, `${file} runs a full gate synchronously`);
   }
   const execution = read('packages/gate/src/io/execution.js');
-  assert.match(execution, /landing \? await fullGateRunAsync\(root, config, trustStamp, options\)/u, 'runGate awaits a landing gate');
+  assert.match(execution, /: await fullGateRunAsync\(root, config, trustStamp, options\)/u, 'runGate awaits every gate run, landing or not');
   const comparison = /export async function runMainComparison[\s\S]*?\n\}/u.exec(execution)[0];
   assert.doesNotMatch(comparison, /[^c]\brunProfiledShell\(/u, 'a main comparison, which landing diagnostics run, is awaited');
 });

@@ -64,10 +64,10 @@ export function hookedProject(copyPackageFiles) {
   mkdirSync(join(box.repo, 'apps/cli/journeys/fact'), { recursive: true });
   copyFileSync(join(REPO, 'packages/gate/data/baselines/test-waits-baseline.json'), join(box.repo, 'packages/gate/data/baselines/test-waits-baseline.json'));
   writeFileSync(join(box.repo, 'packages/gate/data/tests/test-fixtures.json'), '{}\n');
-  // The layout ratchet judges the box's own baseline: the real counts, with the root entries init writes (.claude, .codex, .mcp.json) accepted.
+  // The layout ratchet judges the box's own baseline: the real counts, with the root entries init writes (.agents, .claude, .codex, .mcp.json) accepted.
   mkdirSync(join(box.repo, 'packages/codemap/data/baselines'), { recursive: true });
   const layout = JSON.parse(readFileSync(join(REPO, 'packages/codemap/data/baselines/layout.json'), 'utf8'));
-  layout.rules['root-entry'] = 3;
+  layout.rules['root-entry'] = 4;
   writeFileSync(join(box.repo, 'packages/codemap/data/baselines/layout.json'), `${JSON.stringify(layout, null, 2)}\n`);
   writeFileSync(join(box.repo, SCRIPTS, 'static.js'), [
     `import { stagedHookFailures } from ${JSON.stringify(pathToFileURL(join(CHECKS, 'static.js')).href)};`,

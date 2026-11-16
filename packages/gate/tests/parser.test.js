@@ -19,8 +19,8 @@ import { withCellLintParser } from '../../codemap/index.js';
 import { commonJsIn } from '../index.js';
 import { importsIn } from '../index.js';
 import { fixture } from '../../landing/tests/fixtures/plan.js';
-import { privateFixtureFiles } from '../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild } from '../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from './fixtures/child.js';
+import { runFixtureChild } from './fixtures/child.js';
 
 test('one owned parser controller serves import and multiple binding batches, then exits [C7,P3]', async t => {
   const sources = ["import value from './leaf.js'; export default value;", "import('./dynamic.js');",

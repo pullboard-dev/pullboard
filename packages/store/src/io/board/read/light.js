@@ -113,6 +113,16 @@ export function listItems(board, { lane, all = false } = {}) {
   if (remembered && remembered.version === version && remembered.at <= at && !(remembered.expires <= at)) {
     return remembered.items.map(item => ({ ...item }));
   }
+  // The open list is the all-items list without its closed items: read from a fresh remembered all-items list, not the tables again (#8432).
+  if (!all) {
+    const everything = LISTED.get(board.db)?.get(`${hasLane ? lane : ''}\0true\0${board.executionEngineVersion ?? ENGINE_VERSION}`);
+    if (everything && everything.version === version && everything.at <= at && !(everything.expires <= at)) {
+      const open = everything.items.filter(item => item.item_status !== 'verified' && item.item_status !== 'withdrawn');
+      if (!LISTED.has(board.db)) LISTED.set(board.db, new Map());
+      LISTED.get(board.db).set(key, { at, version, expires: everything.expires, items: open.map(item => ({ ...item })) });
+      return open.map(item => ({ ...item }));
+    }
+  }
   const rows = board.db.prepare(listItemsSql({ all, hasLane })).all(...(hasLane ? [lane] : []));
   // One copy per row, as current() would make it: a thousand-item board lists its items many times per command.
   const expectedBuilds = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE;

@@ -21,7 +21,7 @@ import {
 } from '../../../../../packages/resources/index.js';
 import { fixtureMachineSettings } from '../testkit.js';
 import { fixtureCommittedPolicy } from '../testkit.js';
-import { fixtureOpenBoard } from '../testkit.js';
+import { fixtureOpenBoard } from '../board.js';
 
 /**
  * Bind the deferral fixtures to one journey file's e2e helpers, so each file cleans up its own sandboxes.

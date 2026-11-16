@@ -17,7 +17,7 @@ import { workerBundleBytes } from '../../../src/io/package.js';
 import { captureRunnerTooling } from '../../../src/io/tooling/snapshot.js';
 import { currentRunnerTooling } from '../../../src/io/tooling/snapshot.js';
 import { installRunnerPackage } from '../../../src/io/package/install.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../gate/tests/fixtures/child.js';
 import { cellSandbox } from '../../../../store/tests/fixtures/cell.js';
 import { pathToFileURL } from 'node:url';
 import { dirname } from 'node:path';

@@ -181,6 +181,10 @@ export function registerMaintenanceEngineTests() {
     const finished = fx.addTree('finished-seat', { seat: true });
     const incoming = fx.addTree('finished-incoming', { seat: true });
     const orphan = fx.addTree('orphan-tree');
+    // A hand-made tree at a withdrawn item's commit counts as finished (#5733); this one holds work of its own, so it stays an orphan.
+    // Plumbing, not `git commit`: the fixture repository's pre-commit hook refuses commits from a seat folder.
+    fx.box.git(orphan.path, 'update-ref', 'HEAD', fx.box.git(orphan.path, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+      'commit-tree', 'HEAD^{tree}', '-p', 'HEAD', '-m', 'orphan work').trim());
     const scratch = fx.addTree('scratch-tree', { inside: false });
     const item = claimItem(fx, finished.agent, 'Closed work attached to finished seat');
     const head = fx.box.git(finished.path, 'rev-parse', 'HEAD').trim();
@@ -486,5 +490,40 @@ export function registerMaintenanceProtectionTests() {
     assert.equal(report.pruned, 0);
     assert.equal(report.archived, 0);
     for (const tree of [sibling, smoke]) assert.equal(report.entries.find(row => row.path === tree.path).reason, 'outside-maintenance-scratch');
+  });
+}
+
+/** Register the #8199 sweep cases: an idle joined seat with nothing outstanding is retired and pruned, any other keeps its tree [C7]. */
+export function registerMaintenanceIdleSeatTests() {
+  test('clauses 1 and 2 [test]: a joined seat idle past the takeover window is pruned only when it has no claim, no dirt and no unmerged commit [C7,#8199]', async t => {
+    const fx = project(t, { born: BORN, grace: '1d' });
+    const idle = fx.addTree('idle-seat', { seat: true });
+    const claimed = fx.addTree('claimed-seat', { seat: true });
+    const dirty = fx.addTree('dirty-seat', { seat: true });
+    const ahead = fx.addTree('ahead-seat', { seat: true });
+    const recent = fx.addTree('recent-seat', { seat: true });
+    fs.writeFileSync(join(dirty.path, 'unsaved.txt'), 'unfinished\n');
+    // Plumbing, not `git commit`: the fixture repository's pre-commit hook refuses commits from a seat folder.
+    const unmerged = fx.box.git(ahead.path, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+      'commit-tree', 'HEAD^{tree}', '-p', 'HEAD', '-m', 'unmerged work').trim();
+    fx.box.git(ahead.path, 'update-ref', 'HEAD', unmerged);
+    fx.setNow(BORN + 3 * DAY);
+    heartbeatSeat(fx.board, recent.agent);
+    const claim = claimItem(fx, claimed.agent, 'Claim keeps an idle seat checkout');
+    const all = [idle, claimed, dirty, ahead, recent];
+    seedOldTrees(fx, all.map(tree => tree.path));
+    const ports = { ...fx.ports, readSnapshot: async () => ({ ...await fx.readSnapshot(), takeoverMs: 30 * 60_000 }) };
+
+    const report = await runWorktreeMaintenance(fx.box.repo, fx.config, ports, { now: fx.now() });
+    const row = tree => report.entries.find(entry => entry.path === tree.path);
+    assert.equal(fs.existsSync(idle.path), false, `the idle seat's clean, merged tree is pruned: ${row(idle).reason}`);
+    assert.equal(row(idle).action, 'pruned');
+    assert.equal(report.pruned, 1);
+    for (const [tree, reason] of [[claimed, 'claim'], [dirty, /uncommitted changes/u], [ahead, /unmerged commits/u], [recent, 'seat-live']]) {
+      assert.equal(fs.existsSync(tree.path), true, `${tree.path} is kept`);
+      assert.match(row(tree).reason, typeof reason === 'string' ? new RegExp(`^${reason}$`, 'u') : reason);
+    }
+    assert.equal(fs.existsSync(join(dirty.path, 'unsaved.txt')), true, 'uncommitted work is untouched');
+    assert.equal(store.getItem(fx.board, claim).item_status, 'claimed');
   });
 }

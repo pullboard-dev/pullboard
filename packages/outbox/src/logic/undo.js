@@ -181,9 +181,10 @@ function legacyRowConflict(db, bytes) {
  * @param {{ atomic: (board: any, work: () => void) => any, suspendStoreGuards: (board: any) => () => void }} ports
  * @param {any} board
  * @param {{ changes?: string[], sequences?: { name: string, seq: number }[] }[]} entries - Oldest first.
+ * @param {((board: any) => void) | undefined} within - Runs in the same transaction once every move is back, so a journal entry commits with the undo.
  * @returns {string | null}
  */
-export function undoQueuedWith({ atomic, suspendStoreGuards }, board, entries) {
+export function undoQueuedWith({ atomic, suspendStoreGuards }, board, entries, within) {
   const db = board.db;
   let conflict = null;
   const callbacks = callbackConflicts(db);
@@ -224,6 +225,7 @@ export function undoQueuedWith({ atomic, suspendStoreGuards }, board, entries) {
       }
       db.exec('DELETE FROM temp.moving');
       restoreGuards();
+      within?.(board);
     });
   } catch (error) {
     if (conflict) return conflict;

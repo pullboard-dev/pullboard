@@ -17,9 +17,9 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChildAsync } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { safeFixtureDiagnostic } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../fixtures/child.js';
+import { runFixtureChildAsync } from '../../fixtures/child.js';
+import { safeFixtureDiagnostic } from '../../fixtures/child.js';
 import { occupiedPlaces } from '../../../index.js';
 
 const runner = fileURLToPath(new URL('../../../../../apps/cli/src/io/run/tests.js', import.meta.url));

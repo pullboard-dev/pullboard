@@ -15,7 +15,9 @@ import {
   test,
 } from 'node:test';
 import { parseSpec } from '../../../../packages/spec/index.js';
+import { captureCommandInProcess } from '../../tests/fixtures/process.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { main as viewMain } from '../../tests/fixtures/native.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
@@ -23,7 +25,24 @@ import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-const { sandbox, CONFIG, SPEC, project, commitFile, startView } = e2e;
+const { sandbox, CONFIG, SPEC, project, commitFile } = e2e;
+
+/**
+ * Run the CLI's own `view` command in this process until the listener is bound and its setup receipt is written, then stop it.
+ * Why: the setup step reads the receipt, not the page, so a stand-in listener replaces a server child that cost seconds [C7].
+ */
+async function bindView(box, cwd) {
+  let announce;
+  const announced = new Promise((resolveAnnounced) => { announce = resolveAnnounced; });
+  const standIn = async () => ({ url: 'http://127.0.0.1:49991/?k=fixture-key', port: 49991, close: async () => {} });
+  const running = captureCommandInProcess((args, io) => viewMain(args, { ...io, serveView: standIn,
+    stdout: { ...io.stdout, write(text) { const done = io.stdout.write(text); announce(); return done; } } }),
+  ['view', '--no-open', '--port', '0'], { cwd, env: box.env });
+  await Promise.race([announced, running]);
+  process.emit('SIGTERM');
+  const result = await running;
+  assert.equal(result.status, 0, result.stderr);
+}
 
 /** Use the fixture's exact environment and production command function without spawning Node. */
 async function command(box, cwd, ...argv) {
@@ -120,29 +139,27 @@ test("the coordinator's resume names its next step from the spec and the board, 
   fresh.git(repo, 'init', '-q', '-b', 'main');
   fresh.git(repo, 'config', 'user.name', 'Test Agent');
   fresh.git(repo, 'config', 'user.email', 'agent@example.com');
-  const initialized = fresh.run(repo, 'init', '--verbose', '--yes');
-  assert.match(initialized.out, /^wrote Claude Code skills: pullboard-decompose, pullboard-plan, pullboard-signoff, pullboard-spec-review, pullboard-verify, pullboard-run, pullboard-triage$/m, 'init installs the Claude Code skills');
-  const joined = joinFixtureSeat(fresh, repo, 'coordinator');
+  const initialized = await fresh.runLocal(repo, 'init', '--verbose', '--yes');
+  assert.match(initialized.out, /^wrote Claude Code skills: pullboard-decompose, pullboard-plan, pullboard-signoff, pullboard-spec-review, pullboard-verify, pullboard-run, pullboard-triage, pullboard-worker$/m, 'init installs the Claude Code skills');
+  const joined = await joinFixtureSeat(fresh, repo, 'coordinator', { run: fresh.runLocal });
   assert.equal(joined.code, 0, joined.out);
-  const firstSetup = JSON.parse(fresh.run(repo, 'resume', '--diagnostics', '--json').out).setup;
+  const firstSetup = JSON.parse((await fresh.runLocal(repo, 'resume', '--diagnostics', '--json')).out).setup;
   assert.equal(firstSetup?.step, 1, 'a new board starts by asking what the person wants');
   assert.equal((await next(fresh, repo)), firstSetup.command);
-  assert.equal(fixtureAdd(fresh.run, repo, 'coordinator', 'Tidy the readme').code, 0);
-  assert.equal(fresh.run(repo, 'claim', '1').code, 0);
-  assert.equal(JSON.parse(fresh.run(repo, 'resume', '--diagnostics', '--json').out).setup.step, 2, 'a working board with an item and no spec rows treats the spec as optional (#866)');
+  assert.equal((await fixtureAdd(fresh.runLocal, repo, 'coordinator', 'Tidy the readme')).code, 0);
+  assert.equal((await fresh.runLocal(repo, 'claim', '1')).code, 0);
+  assert.equal(JSON.parse((await fresh.runLocal(repo, 'resume', '--diagnostics', '--json')).out).setup.step, 2, 'a working board with an item and no spec rows treats the spec as optional (#866)');
   writeFileSync(join(repo, 'SPEC.md'), '# Fresh\n\n## G · Goals\n- G1 [draft, must] It works. | gate: test\n');
-  assert.equal(JSON.parse(fresh.run(repo, 'resume', '--diagnostics', '--json').out).setup.step, 1, 'nor the approval');
+  assert.equal(JSON.parse((await fresh.runLocal(repo, 'resume', '--diagnostics', '--json')).out).setup.step, 1, 'nor the approval');
   writeFileSync(join(repo, 'SPEC.md'), '# Fresh\n\n## G · Goals\n- G1 [approved, must] It works. | gate: test\n');
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify(CONFIG));
   fresh.env.PULLBOARD_VIEW_FOREGROUND = '1';
-  const freshView = await startView(fresh, repo);
-  await freshView.stop();
+  await bindView(fresh, repo);
   assert.match((await next(fresh, repo)), /^commit the applied row file first: .*git add -- SPEC\.md && git commit .*; then build #1, commit, then pullboard submit 1/u, 'after setup the applied row is committed before the coordinator’s first build');
 
   const box = project();
   box.env.PULLBOARD_VIEW_FOREGROUND = '1';
-  const view = await startView(box, box.repo);
-  await view.stop();
+  await bindView(box, box.repo);
   const firstItem = JSON.parse((await box.runLocal(box.repo, 'resume', '--diagnostics', '--json')).out).setup;
   assert.equal(firstItem?.step, 4, 'setup asks for the first small piece before planning the remaining rows');
   assert.equal((await next(box, box.repo)), firstItem.command);

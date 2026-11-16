@@ -1,10 +1,11 @@
 /** Shared wire-proof validation for preparation and ordered replay [C7,V4,H16]. */
+import { engineNumber } from '../engine/number.js';
 import { Refused } from '../../../../kernel/browser.js';
-import { MAIN_RED_FAILURE_LINES_ENGINE } from '../engines/main-red-failure-lines-engine.js';
-import { KNOWN_MAIN_FAILURES_ENGINE } from '../engines/known-main-failures-engine.js';
-import { KNOWN_MAIN_REWORKS_ENGINE } from '../engines/known-main-reworks-engine.js';
-import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from '../engines/known-main-running-file-engine.js';
-import { KNOWN_MAIN_RECEIPT_ENGINE } from '../engines/known-main-receipt-engine.js';
+const MAIN_RED_FAILURE_LINES_ENGINE = engineNumber('MAIN_RED_FAILURE_LINES_ENGINE');
+const KNOWN_MAIN_FAILURES_ENGINE = engineNumber('KNOWN_MAIN_FAILURES_ENGINE');
+const KNOWN_MAIN_REWORKS_ENGINE = engineNumber('KNOWN_MAIN_REWORKS_ENGINE');
+const KNOWN_MAIN_RUNNING_FILE_ENGINE = engineNumber('KNOWN_MAIN_RUNNING_FILE_ENGINE');
+const KNOWN_MAIN_RECEIPT_ENGINE = engineNumber('KNOWN_MAIN_RECEIPT_ENGINE');
 
 const COMMIT = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 
