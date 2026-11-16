@@ -3,8 +3,15 @@ import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { cli } from '../../tests/fixtures/next/take.js';
+import { main } from '../../tests/fixtures/native.js';
 import { fixture } from '../../tests/fixtures/next/take.js';
+
+/** Run the real command parser in plain text mode, since the lag line is a text line that --json mode does not print. */
+async function cli(box, cwd, args) {
+  let out = '', err = '';
+  const code = await main(args, { cwd, clock: box.clock, stdout: { isTTY: false, write: part => { out += part; } }, stderr: { write: part => { err += part; } } });
+  return { code, out, err };
+}
 
 /** Land `count` commits on the fixture's main, so a seat checkout cut earlier falls behind. */
 function landOnMain(box, count) {
