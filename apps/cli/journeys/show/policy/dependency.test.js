@@ -43,6 +43,7 @@ test("a dependency's own verified dependency admits its files [N16,V4]", async (
   const design = join(box.dir, 'design-1');
   box.git(box.repo, 'worktree', 'add', '-q', api, '-b', 'api/one');
   box.git(box.repo, 'worktree', 'add', '-q', design, '-b', 'design/one');
+  // Stays real (#6003, above): a join as another identity runs the lapsed-claim sweep.
   assert.equal(fixtureJoin(box.run, api, 'api').code, 0);
   assert.equal(fixtureJoin(box.run, design, 'design').code, 0);
 
@@ -51,12 +52,14 @@ test("a dependency's own verified dependency admits its files [N16,V4]", async (
   const add = async (lane, title, after = null) => {
     const args = ['add', lane, title];
     if (after !== null) args.push('--after', String(after));
+    // Stays real (#6003, above): an add by the coordinator is a write that triggers the sweep.
     const result = box.run(box.repo, ...args);
     assert.equal(result.code, 0, result.err || result.out);
     return nextId++;
   };
   /** Claim, commit, and submit one fixture item through the real CLI lifecycle. */
   const buildAndSubmit = (cwd, lane, id, path, content) => {
+    // Stays real (#6003, above): claim and submit are writes by one identity between another's writes.
     assert.equal(box.run(cwd, 'claim', String(id)).code, 0, `claim #${id}`);
     const spec = lane === 'api' ? 'G2' : 'G1';
     const commit = commitFile(box, cwd, path, content, `feat(${lane}): fixture item [${spec}]`);
@@ -67,6 +70,7 @@ test("a dependency's own verified dependency admits its files [N16,V4]", async (
   };
   /** Record a real accepted verdict from the other lane's worktree. */
   const accept = (cwd, id, note) => {
+    // Stays real (#6003, above): a verdict is a write by another identity.
     const result = box.run(cwd, 'verify', String(id), 'accept', '--note', note, '--json');
     assert.equal(result.code, 0, `${result.err}\n${result.out}`);
   };
