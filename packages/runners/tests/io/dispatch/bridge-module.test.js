@@ -21,3 +21,10 @@ test('clause 1: the pull-path helpers live in bridge.js and delegate.js and serv
     assert.match(read(file), /from '\.\.\/bridge\.js'/u, `${file} imports from bridge.js`);
   }
 });
+
+test('clause 2: the moved helpers behave the same through bridge.js and the runners tests that import them pass [C7]', () => {
+  assert.equal(bridge.startupDeadline({ runnerWaitDeadline: 5 }, 0), 5, 'a lease deadline with no startup budget is kept');
+  assert.equal(bridge.runCeilingMs({ kind: 'main-red' }, {}), null, 'a main comparison keeps no ceiling');
+  assert.equal(bridge.runCeilingMs({ kind: 'submit' }, {}), bridge.RUN_CEILING_MS, 'a submit run is bounded');
+  assert.equal(bridge.MAX_OUTPUT_BYTES, 64 * 1024 ** 2, 'the output cap is unchanged');
+});
