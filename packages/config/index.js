@@ -71,6 +71,7 @@ export {
   mainComparisonMode,
   submitAuthorizationMode,
   refuseMissingCheckFile,
+  holdsRequireOwner,
   refuseTempWorktree,
   viewBackgroundEnabled,
   healthSentinelEnabled,

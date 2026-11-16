@@ -2,6 +2,9 @@
 import { Refused } from "../../../../kernel/light.js";
 import { STALE_STATE_ENGINE } from "../../../../state/light.js";
 import { ENGINE_VERSION } from "../../../../state/index.js";
+import { writeBoardMeta } from "../../io/board/meta.js";
+import { readBoardMeta } from "../../io/board/meta.js";
+import { deleteBoardMeta } from "../../io/board/meta.js";
 import { staleInstant } from "./stale/state/policy.js";
 
 const ALIASES = Object.freeze({ verified: 'accept', landed: 'merged' });
@@ -25,9 +28,22 @@ export function rememberHoldCondition(board, id, condition) {
     .run(key, JSON.stringify(condition));
 }
 
+/** Record who answers for a hold and when it lapses, one current record per hold [C7,#8539]. */
+export function rememberHoldOwner(board, id, record) {
+  writeBoardMeta(board.db, `hold_owner:${id}`, JSON.stringify(record));
+}
+
+/** The owner and deadline recorded for a hold, or null when it was held without them [C7,#8539]. */
+export function itemHoldOwner(board, id) {
+  const value = readBoardMeta(board.db, `hold_owner:${id}`);
+  if (value === null || value === undefined) return null;
+  try { return JSON.parse(value); } catch { return null; }
+}
+
 /** Clear bounded per-hold maintenance metadata whenever its native hold is lifted. */
 export function forgetHoldMaintenance(board, id) {
   rememberHoldCondition(board, id, null);
+  deleteBoardMeta(board.db, `hold_owner:${id}`);
   board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run(`stale_hold_warning:${id}`);
 }
 
