@@ -107,7 +107,7 @@ export async function planReleaseShards(files, executors, times = {}, needsBrows
 const GATE_MARKERS = [GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV];
 
 /** Keep the newest wall time for every file this landing measured, beside the older ones. */
-function writeFileTimes(root, measured) {
+export function writeFileTimes(root, measured) {
   const path = fileTimesPath(root);
   const files = { ...readFileTimes(root), ...measured };
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
