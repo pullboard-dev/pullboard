@@ -59,7 +59,7 @@ export { queueDiffers } from './src/io/submit/handoff/shadow.js';
 export { submissionItemValues, recordSubmissionEvent, submissionChildrenProblem } from './src/io/submission.js';
 export { TYPED_REQUEST_CAUSES, TYPED_REQUEST_VERBS } from './src/io/requests.js';
 export { boardEnginePorts } from './src/io/board/ports.js';
-export { addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, shipMilestone, roadmap } from './src/io/board/milestones.js';
+export { addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, shipMilestone, roadmap, provideCoordinatorMilestoneRelease } from './src/io/board/milestones.js';
 export { requireRuntimePorts, openBoardStore, boardFilePath, RUNS_FILE, RUNS_SCHEMA, RUNS_STORE_KEY, runsFilePath, runsStoreOn, openRunsStore, boardRunsPort } from './src/io/board/sqlite.js';
 export { RUNS_PORT_CALLS, PENDING_STEP, runsPort } from './src/io/board/runs.js';
 export { INTENT_GRACE_MS, boardRun, recordQueuedRun, queueRun, reconcileQueued, applyRunReceipt, applyReceipts, settleRunWithoutReceipt } from './src/io/board/run.js';

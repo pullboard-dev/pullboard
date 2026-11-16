@@ -43,7 +43,7 @@ export const TAB_TARGETS = Object.freeze([
   ['shouts', '#feed .sx-th, #feed .sx-dayrule'],
   ['spec', '#spec-list .row'],
   ['doctrine', '#doctrine-list .row'],
-  ['activity', '#activity > *'],
+  ['activity', '#activity .act-cols'],
   ['roadmap', '#roadmap-list > [data-key] .milestone-head'],
   ['dashboard', '#dashboard > *'],
   ['items', '#chain .row'],
