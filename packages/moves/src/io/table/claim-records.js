@@ -1,5 +1,6 @@
 /** Rebuild every recorded claim and renewal from a board, read-only, as replay records for the claim table [C7,#8241]. */
 import { openBoardReadOnly } from '../../../../store/index.js';
+import { parseDiagnosis } from '../../../../items/index.js';
 
 /** The board's lease length: every recorded claim's lease ends this long after its write. */
 const LEASE_MS = 7_200_000;
@@ -15,6 +16,11 @@ function detailOf(text) {
     const parsed = JSON.parse(text || '{}');
     return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
   } catch { return {}; }
+}
+
+/** Whether a brief is already in Files, Change and Test form, which the board counts as its own diagnosis when no diagnosis fact exists. */
+function briefDiagnosed(brief) {
+  try { return Boolean(brief) && Boolean(parseDiagnosis(brief)); } catch { return false; }
 }
 
 /** As the board stores it, without the actor's model, which the event writer stamps on every event and no move decides. */
@@ -46,6 +52,7 @@ export function readClaimRecords(board, { since, only, leaseMs = LEASE_MS }) {
 function rebuild(db, since, only, leaseMs) {
   const agents = Object.fromEntries(db.prepare('SELECT agent_id, agent_lane, agent_route FROM agent').all().map(a => [a.agent_id, { lane: a.agent_lane, route: a.agent_route }]));
   const parents = Object.fromEntries(db.prepare('SELECT item_id, item_parent_id FROM item').all().map(r => [r.item_id, r.item_parent_id]));
+  const briefs = Object.fromEntries(db.prepare('SELECT item_id, item_brief FROM item').all().map(r => [r.item_id, r.item_brief]));
   const outside = new Set(db.prepare("SELECT meta_key, meta_value FROM board_meta WHERE meta_key LIKE 'outside_source:%'").all()
     .filter(r => r.meta_value.includes('pull-request')).map(r => Number(r.meta_key.split(':')[1])));
   const items = new Map();
@@ -70,7 +77,7 @@ function rebuild(db, since, only, leaseMs) {
     if (e.kind === 'add') {
       items.set(e.item, { id: e.item, status: 'open', owner: null, leaseUntil: null, lane: d.lane, route: d.route, after: (d.after ?? []).filter(Number.isInteger),
         parentId: parents[e.item] ?? null, holdReason: null, frozenDigest: null, expectedMinutes: d.expectedBuildMinutes ?? null, builtBy: null, verdict: null,
-        merged: false, handoff: null, gateOffered: false, diagnosed: false, history: [], claimWaiting: [] });
+        merged: false, handoff: null, gateOffered: false, diagnosed: briefDiagnosed(briefs[e.item]), hasFact: false, history: [], claimWaiting: [] });
     }
     const it = items.get(e.item);
     if (!it) return;
@@ -83,7 +90,7 @@ function rebuild(db, since, only, leaseMs) {
         if (!d.review) free(it);
         if (d.idleClaim?.waitingOn?.length) it.claimWaiting = d.idleClaim.waitingOn;
         if (Array.isArray(d.blockedOn) && d.blockedOn.length) { it.after = [...new Set([...it.after, ...d.blockedOn.filter(Number.isInteger)])]; it.claimWaiting = d.blockedOn.filter(Number.isInteger); }
-        if (d.reasonCode === 'DIAGNOSIS_WRONG') { it.route = 'mid'; it.diagnosed = false; }
+        if (d.reasonCode === 'DIAGNOSIS_WRONG') { it.route = 'mid'; it.hasFact = false; it.diagnosed = briefDiagnosed(briefs[e.item]); }
         break;
       case 'submit': it.status = 'submitted'; it.builtBy = e.by; break;
       case 'accept': it.status = 'verified'; it.verdict = 'ACCEPT'; break;
@@ -94,7 +101,7 @@ function rebuild(db, since, only, leaseMs) {
       case 'escalate': if (d.to) it.route = d.to; break;
       // A diagnosis fact moves the item to light; a pulled gate's offer note means the item waits on that gate.
       case 'fact':
-        if (d.kind === 'diagnosis') { it.route = 'light'; it.diagnosed = true; }
+        if (d.kind === 'diagnosis') { it.route = 'light'; it.hasFact = true; it.diagnosed = true; }
         if (typeof d.text === 'string' && d.text.startsWith(`Gate job gate:${e.item}:`) && it.status === 'claimed') it.gateOffered = true;
         break;
       case 'hold_item': it.holdReason = d.reason ?? 'held'; break;
@@ -107,7 +114,7 @@ function rebuild(db, since, only, leaseMs) {
       case 'edit':
         if (typeof d.route === 'string') it.route = d.route;
         // A diagnosis holds only for the criterion, check and brief it was recorded against.
-        if ('criterion' in d || 'check' in d || 'brief' in d) it.diagnosed = false;
+        if ('criterion' in d || 'check' in d || 'brief' in d) it.diagnosed = !it.hasFact && briefDiagnosed(briefs[e.item]);
         if (Array.isArray(d.after)) { it.after = d.after.filter(Number.isInteger); it.claimWaiting = it.claimWaiting.filter(x => d.after.includes(x)); }
         if ('expectedBuildMinutes' in d) it.expectedMinutes = d.expectedBuildMinutes;
         if (d.correctedFrozen) it.frozenDigest = d.correctedFrozen;
