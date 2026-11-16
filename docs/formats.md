@@ -449,6 +449,7 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `job_step_lease` | `job` | `job_step`, `job_lease_until` | no |
 | `job_step_name_at` | `job_step` | `job_step_name`, `job_step_at` | no |
 | `job_step_name_seq` | `job_step` | `job_step_name`, `job_step_seq` | no |
+| `job_step_updated` | `job` | `job_step`, `job_updated`, `job_kind` | no |
 | `run_item_kind` | `run` | `run_item`, `run_kind` | no |
 | `run_open` | `run` | `run_state` | no |
 | `shout_answers` | `shout` | `shout_answers` | no |

@@ -90,6 +90,11 @@ export function endStaleJobsEnabled() {
   return loadMachineSettings().gate?.endStaleJobs === true;
 }
 
+/** Offer a gate job once more after an infrastructure end only when this machine opted in [C7,#9633]. */
+export function reofferInfraEndEnabled() {
+  return loadMachineSettings().gate?.reofferInfraEnd === true;
+}
+
 /** Settle a sharded item gate left unknown on a missing main receipt when that receipt records, only when this machine opted in [C7,#9057]. */
 export function settleOnMainReceiptEnabled() {
   return loadMachineSettings().gate?.settleOnMainReceipt === true;
@@ -103,6 +108,11 @@ export function redFactLocationEnabled() {
 /** Fail the registry check on an unregistered test only when this machine opted in; off, it reports [C7,#8374]. */
 export function registryStrictEnabled() {
   return loadMachineSettings().tests?.registryStrict === true;
+}
+
+/** Whether verdict freshness compares the submit's own hunks: off by default; only an exact `true` turns it on [C7,#9438]. */
+export function hunkFreshnessEnabled() {
+  return loadMachineSettings().verify?.hunkFreshness === true;
 }
 
 /** Whether the static check refuses a change that adds an unregistered test: off by default; only an exact `true` turns it on [C7,#9402]. */
@@ -166,9 +176,21 @@ export function censusJobMinutes() {
   return typeof minutes === 'number' && Number.isFinite(minutes) && minutes > 0 ? minutes : null;
 }
 
+/** Seconds over which a file recorded in an earlier census plans as a census job to itself; null (the default) plans as before [C7,#9499]. */
+export function censusSoloFileSeconds() {
+  const secs = loadMachineSettings().census?.soloFileSeconds;
+  return Number.isSafeInteger(secs) && secs >= 1 ? secs : null;
+}
+
 /** Census test jobs one runner may hold at once; null (the default) leaves census jobs uncapped beyond runner slots [C7,#9136]. */
 export function censusJobsPerRunner() {
   const jobs = loadMachineSettings().census?.jobsPerRunner;
+  return Number.isSafeInteger(jobs) && jobs >= 1 ? jobs : null;
+}
+
+/** Census test jobs a runner holding no other kind of job may hold at once, above census.jobsPerRunner; null (the default) keeps the one cap for every runner [C7,#9500]. */
+export function censusJobsPerRunnerQuiet() {
+  const jobs = loadMachineSettings().census?.jobsPerRunnerQuiet;
   return Number.isSafeInteger(jobs) && jobs >= 1 ? jobs : null;
 }
 
@@ -339,6 +361,11 @@ export function refuseEmptyBar() {
   return loadMachineSettings().freeze?.refuseEmptyBar === true;
 }
 
+/** Whether a landed reject's follow-up keeps its parent's check (#9637): off by default; only an exact `true` turns it on. */
+export function rejectKeepsCheck() {
+  return loadMachineSettings().verify?.rejectKeepsCheck === true;
+}
+
 /** Whether a review release must name why it was dropped (#8920): off by default; only an exact `true` turns it on. */
 export function reviewReleaseReasonsRequired() {
   return loadMachineSettings().review?.releaseReasons === true;
@@ -441,6 +468,14 @@ export function nextCapBuilders() {
  */
 export function nextReadinessCheck() {
   return loadMachineSettings().next?.readinessCheck === true;
+}
+
+/**
+ * Whether next keeps each readiness result for the main commit it ran on (#8794): off by default, so next reruns the
+ * command on every call; only an exact `true` turns it on.
+ */
+export function nextReadinessCache() {
+  return loadMachineSettings().next?.readinessCache === true;
 }
 
 /**
