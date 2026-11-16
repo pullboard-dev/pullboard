@@ -16,12 +16,8 @@ import { joinFixtureSeat } from "../../tests/fixtures/testkit.js";
 import { submitFixture } from "../../tests/fixtures/board/submit.js";
 import { createE2eHelpers } from "../../tests/fixtures/e2e.js";
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
-
-/** Read a successful JSON CLI response; setup failures must not masquerade as eligibility failures. */
-function document(result) {
-  assert.equal(result.code, 0, result.err || result.out);
-  return JSON.parse(result.out);
-}
+import { document } from '../../tests/fixtures/verify/unsealed.js';
+import { submitUnsealed } from '../../tests/fixtures/verify/unsealed.js';
 
 /** A refusal leaves the submitted item and event stream untouched. */
 async function refused(box, board, cwd, args, expected) {
@@ -87,22 +83,6 @@ describe('verify journeys [V4,C7]', { concurrency: true }, () => {
     assert.equal(offered.item.item_id, id, 'an unrelated session is offered the submitted work');
     assert.notEqual(store.getItem(board, id).item_review_by, first);
   });
-
-  /**
-   * Record the builder's submit as a board move with no sealed gate proof. verify then has no submit proof to reuse and runs
-   * the armed frozen check itself; the cases below observe that run [C7,V4].
-   */
-  async function submitUnsealed(box) {
-    // @pullboard-board-file journey: share the board file the real verify command reads
-    const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
-    try {
-      submitFixture(board, 1, { agentId: document(await box.runIn(box.web, 'whoami', '--json')).id,
-        commit: box.git(box.web, 'rev-parse', 'HEAD'), tree: box.git(box.web, 'rev-parse', 'HEAD^{tree}'),
-        policyCommit: box.git(box.repo, 'rev-parse', 'main') });
-    } finally {
-      store.closeBoard(board);
-    }
-  }
 
   /**
    * Move only a private fixture's main during a real frozen check, then inspect the exact checked source. Since #2501
@@ -203,62 +183,5 @@ describe('verify journeys [V4,C7]', { concurrency: true }, () => {
     assert.equal(runs.length, 2, 'there is no third frozen check');
     assert.equal(after.item_status, 'submitted');
     assert.deepEqual(after.verdicts, []);
-  });
-
-  /**
-   * Submit and verify one frozen check whose duration the test sets. The check passes instantly during submit (unarmed),
-   * then sleeps delayMs when verify runs it (armed); delayMs of -1 hangs until its ceiling stops it.
-   */
-  async function frozenCheckCeiling(t, { checkTimeout, landingTimeout, delayMs }) {
-    const helpers = createE2eHelpers();
-    t.after(helpers.cleanup);
-    const box = helpers.project('true');
-    const armed = join(box.dir, 'check-armed');
-    const script = join(box.dir, 'slow-check.cjs');
-    writeFileSync(script, `const fs = require('node:fs');
-  const cell = new Int32Array(new SharedArrayBuffer(4));
-  if (fs.existsSync(${JSON.stringify(armed)})) {
-    const delay = ${delayMs};
-    if (delay < 0) for (;;) Atomics.wait(cell, 0, 0, 1000);
-    Atomics.wait(cell, 0, 0, delay);
-  }
-  console.log('TAP version 13\\nok 1 - slow frozen check\\n1..1\\n# tests 1\\n# pass 1\\n# fail 0');
-  `);
-    const configFile = join(box.repo, 'pullboard.json');
-    const config = JSON.parse(readFileSync(configFile, 'utf8'));
-    config.check = { install: '', timeout: checkTimeout };
-    config.landing = { timeout: landingTimeout };
-    writeFileSync(configFile, JSON.stringify(config, null, 2));
-    box.git(box.repo, 'add', 'pullboard.json');
-    box.git(box.repo, 'commit', '-q', '-m', 'chore: configure frozen check ceiling');
-    box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-    document(await fixtureAdd(box.runIn, box.repo, 'web', 'Verify a slow frozen check', '--criterion', 'the feature builds', '--specs', 'G1', '--check', `node '${script}'`, '--json'));
-    document(await box.runIn(box.web, 'claim', '1', '--json'));
-    assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', 'built\n', 'feat(web): build feature [G1]').status, 0);
-    await submitUnsealed(box);
-    const submitted = document(await box.runIn(box.repo, 'show', '1', '--json'));
-    const reviewer = join(box.dir, 'reviewer');
-    box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, submitted.item_commit);
-    document(joinFixtureSeat(box, reviewer, 'api'));
-    writeFileSync(armed, 'armed');
-    const result = await box.runIn(reviewer, 'verify', '1', 'accept', '--note', 'Observed the frozen check against its configured ceiling.', '--json');
-    return { box, result };
-  }
-
-  test('verify runs a frozen check past the check timeout up to the configured landing.timeout [C7,V18]', async t => {
-    // A 300ms check.timeout stands in for the default 5m; the 1s check runs past it and inside landing.timeout.
-    const { box, result } = await frozenCheckCeiling(t, { checkTimeout: '300ms', landingTimeout: '20s', delayMs: 1000 });
-    assert.equal(result.code, 0, result.err || result.out);
-    assert.equal(document(await box.runIn(box.repo, 'show', '1', '--json')).item_status, 'verified');
-  });
-
-  test('a frozen check that hangs stops at the configured ceiling and names the check and elapsed time [C7,V18]', async t => {
-    const { result } = await frozenCheckCeiling(t, { checkTimeout: '300ms', landingTimeout: '1s', delayMs: -1 });
-    assert.equal(result.code, 1, result.out);
-    const error = JSON.parse(result.out).error;
-    assert.equal(error.code, 'CHECK_UNVERIFIED');
-    assert.match(error.message, /check timed out after \d+\.\d seconds against its 1\.0 second ceiling/);
-    assert.match(error.message, /slow-check\.cjs/);
-    assert.match(error.message, /check timed out after [0-9]+\.[0-9] seconds/);
   });
 });
