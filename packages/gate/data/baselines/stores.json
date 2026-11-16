@@ -479,6 +479,7 @@
     "adapter-lint-clock.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/clock.js"
+    },
     "adapter-lint-env.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/env.js"
