@@ -19,6 +19,7 @@ import { realpathSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { symlinkSync } from 'node:fs';
+import { watch } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
@@ -176,6 +177,52 @@ export function settlePulledJobs(cwd, args, env) {
   }
 }
 
+/**
+ * Resolve when the loopback local runner's folder changes (a log line per claim and receipt, a heartbeat every 5 s), or after
+ * 1 s as a backstop; the board is then read again. Why events: a fixed sleep blocked nothing here but waited blind [C7].
+ *
+ * @param {object} env - The fixture environment.
+ * @returns {Promise<void>} Resolves on the next change.
+ */
+function runnerFolderChange(env) {
+  return new Promise(resolve => {
+    let watcher = null;
+    const finish = () => { watcher?.close(); clearTimeout(backstop); resolve(); };
+    const backstop = setTimeout(finish, 1_000);
+    try { watcher = watch(join(env.PULLBOARD_MACHINE_HOME ?? '', 'local-runner'), finish); } catch { /* no runner folder: the backstop reads again */ }
+  });
+}
+
+/**
+ * The same wait as settlePulledJobs without blocking this process: concurrent cases of one journey file overlap their gate waits
+ * instead of each holding the whole event loop while its loopback runner works [C7].
+ *
+ * @param {string} cwd - Where the command ran.
+ * @param {string[]} args - The command's arguments.
+ * @param {object} env - The fixture environment.
+ */
+export async function settlePulledJobsAsync(cwd, args, env) {
+  // A status or cancel read offers no job and must not hold the command; a journey serving its own runner returns at once (#6660).
+  // A controller-dispatch fixture drives its gate in the command's own detached workers, whose rows (the hand-off gate, its
+  // drive job, the dispatcher lease) stay open while the journey still holds its gate, so waiting here deadlocked it.
+  if (env.PULLBOARD_FIXTURE_UNSETTLED === '1' || !JOB_OFFERING.has(args[0]) || args.includes('--help') || args.includes('--status') || args.includes('--cancel')) return;
+  const common = runFixtureChild('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd, env, encoding: 'utf8' });
+  if (common.status !== 0) return;
+  const file = join(common.stdout.trim(), 'pullboard', 'board.sqlite');
+  if (!existsSync(file)) return;
+  const deadline = Date.now() + SETTLE_MS;
+  for (;;) {
+    let open = false;
+    // @pullboard-board-file journey: a read-only look at the queue the real CLI wrote rows to.
+    try {
+      const db = new DatabaseSync(file, { readOnly: true });
+      try { open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_step <> 'done' LIMIT 1").get()); } finally { db.close(); }
+    } catch (error) { if (!/database is locked/u.test(String(error?.message))) return; open = true; }
+    if (!open || Date.now() >= deadline) return; reviveFixtureLocalRunner(cwd, env); // A gate switch stopped it (runnerSwitchedEnv).
+    await runnerFolderChange(env);
+  }
+}
+
 /** The pids of the background views a sandbox's commands started, from the session files in its private Pullboard home. */
 function sandboxViewPids(dir) {
   const home = join(dir, 'pullboard-home');
@@ -293,14 +340,14 @@ function sandbox({ declareFamilies = false } = {}) {
   const runAsync = async (cwd, ...args) => {
     prepare(cwd, args);
     const result = await runFixtureChildAsync(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
-    if (result.status === 0) settlePulledJobs(cwd, args, env);
+    if (result.status === 0) await settlePulledJobsAsync(cwd, args, env);
     return { code: result.status, out: result.stdout, err: result.failure ?? result.stderr, failure: result.failure, rawStderr: result.stderr };
   };
   /** The same call as run, answered by the production dispatcher in this process; no node start-up (about 1 s saved). */
   const inProcess = async (cwd, ...args) => {
     prepare(cwd, args);
     const result = await runCliInProcess(args, { cwd, env });
-    if (result.status === 0) settlePulledJobs(cwd, args, env);
+    if (result.status === 0) await settlePulledJobsAsync(cwd, args, env);
     return { code: result.status, out: result.stdout, err: result.stderr, failure: null, status: result.status, stdout: result.stdout, stderr: result.stderr };
   };
   /** The same call as inProcess, answered synchronously by a warm worker thread, for synchronous setup such as project() [C7]. */
