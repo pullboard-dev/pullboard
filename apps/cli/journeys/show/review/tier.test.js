@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import * as store from '../../../../../packages/store/index.js';
+import { heartbeatSeat } from '../../../../../packages/store/index.js';
 import { submitFixture } from '../../../tests/fixtures/board/submit.js';
 import { cli } from '../../../tests/fixtures/next/take.js';
 import { fixture } from '../../../tests/fixtures/next/take.js';
@@ -44,4 +45,37 @@ test('clause 1: with verify.family require and no live eligible seat for 20 minu
     head: item.item_commit, digest: item.item_frozen_digest, policy: 'any', familyPolicy: 'require' });
   const verdict = box.board.db.prepare('SELECT verdict_note FROM verdict WHERE item_id=?').get(offered);
   assert.match(verdict.verdict_note, /review family relaxed at reservation: 2 waiting, threshold 2/u);
+});
+
+test('clause 2: an eligible reviewer that is joined, live and busy holding another review keeps the item unwidened under the real next --verify [V1,H16]', async t => {
+  const box = await fixture(t, { family: 'require' });
+  const held = submitted(box, 'The live reviewer holds this review');
+  const waiting = [submitted(box, 'Waits behind a busy reviewer'), submitted(box, 'A second review waits too')];
+  const busy = box.seats.outside;
+  const taken = await cli(box, busy.path, ['next', '--verify']);
+  assert.equal(taken.code, 0, taken.out + taken.err);
+  assert.equal(taken.document.item.item_id, held, 'the other-family reviewer takes the first review');
+
+  box.advance(20 * 60_000);
+  heartbeatSeat(box.board, busy.id);
+  const reviewer = box.seats.sameFamily;
+  const late = await cli(box, reviewer.path, ['next', '--verify']);
+  assert.equal(late.code, 1, `the busy live reviewer is still eligible, so the rule holds: ${late.out}${late.err}`);
+  assert.equal(late.document.error.code, 'NOTHING_FREE');
+  for (const id of waiting) assert.equal(store.getItem(box.board, id).item_review_by, null, `#${id} stays unreserved`);
+});
+
+test('clause 2: an eligible reviewer that is joined, live and idle for over 15 minutes keeps the item unwidened [V1,H16]', async t => {
+  const box = await fixture(t, { family: 'require' });
+  const first = submitted(box, 'Waits for a live idle reviewer');
+  const second = submitted(box, 'A second review waits too');
+  const idle = box.seats.outside;
+
+  box.advance(20 * 60_000);
+  heartbeatSeat(box.board, idle.id);
+  const reviewer = box.seats.sameFamily;
+  const late = await cli(box, reviewer.path, ['next', '--verify']);
+  assert.equal(late.code, 1, `the idle reviewer has a live heartbeat, so the rule holds: ${late.out}${late.err}`);
+  assert.equal(late.document.error.code, 'NOTHING_FREE');
+  for (const id of [first, second]) assert.equal(store.getItem(box.board, id).item_review_by, null, `#${id} stays unreserved`);
 });
