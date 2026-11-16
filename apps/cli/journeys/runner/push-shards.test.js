@@ -37,7 +37,7 @@ test('clause 1: the full gate suite is offered as one pull shard job per runner,
   assert.equal(plan.shards.length, RUNNERS, 'one shard for each available runner');
   assert.deepEqual(plan.shards.flatMap(shard => shard.files).sort(), NAMES.map(name => `./test/${name}.test.js`).sort(), 'every tracked test file runs in exactly one shard');
   assert.ok(plan.shards[0].files.includes(HEAVY), 'the heaviest file leads the first shard');
-  assert.ok(plan.shards.every(shard => shard.command.includes('node --test') && shard.files.every(file => shard.command.includes(file.slice(2)))), 'each shard is the whole gate command over its own files');
+  assert.ok(plan.shards.every(shard => shard.command.includes("'--test'") && shard.files.every(file => shard.command.includes(file.slice(2)))), 'each shard is the whole gate command over its own files');
 
   const { jobs, ref } = await offerPushShards(box.ctx, plan);
   assert.equal(jobs.length, RUNNERS);
