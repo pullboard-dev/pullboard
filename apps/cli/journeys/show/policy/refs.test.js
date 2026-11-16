@@ -19,7 +19,7 @@ import { submitFixture } from '../../../tests/fixtures/board/submit.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
-import { openKitBoard } from '../../../tests/fixtures/testkit.js';
+import { openKitBoard } from '../../../tests/fixtures/board.js';
 import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 
 const e2e = createE2eHelpers();
