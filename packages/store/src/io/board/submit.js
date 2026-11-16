@@ -45,6 +45,9 @@ import { mergeOnlyProblem } from "../../../../merge/index.js";
 import { prepareMergeOnlySubmit } from "../../../../merge/index.js";
 import { MERGE_ONLY_VERDICT_ENGINE } from "../../../../state/light.js";
 import { atomic } from "./event/log.js";
+import { insertItem } from "./add.js";
+import { validateItemAddition } from "./add.js";
+import { appendFact } from "./fact.js";
 import { movesLiveEnabled } from "../../../../config/index.js";
 import { movesShadowEnabled } from "../../../../config/index.js";
 
@@ -267,6 +270,32 @@ export function submit(board, id, options) {
 function greenProofFiles(board, id, commit) {
   return new Set(proofReceipts(board, id).filter(receipt => receipt.green === true && receipt.commit === commit)
     .flatMap(receipt => (receipt.testRuntimes ?? []).map(row => row?.file).filter(Boolean)));
+}
+
+const EDGE_FILED = /^Edge follow-up filed as #\d+/u;
+
+/**
+ * File the one follow-up item for the import edges a settled submission adds, under the submitted item, and note it there.
+ * Nothing is filed for no edge or when an earlier settle already filed one. Why here: the submitter holds a claim and may change
+ * only that item, so the board host files it at settle, as it files main-red repairs; one per item, not one per resubmit (#8874) [C7].
+ *
+ * @param {any} board
+ * @param {number} id - The submitted item.
+ * @param {{ agentId: string, edges: { from: string, to: string }[] }} filing
+ * @returns {number | null} The follow-up's id, or null when none was filed.
+ */
+export function fileEdgeFollowUp(board, id, { agentId, edges }) {
+  if (!edges.length || itemThread(board, id).some(entry => entry.type === 'fact' && EDGE_FILED.test(String(entry.text)))) return null;
+  const listed = edges.slice(0, 12).map(edge => `${edge.from} -> ${edge.to}`).join('\n');
+  const plural = edges.length === 1 ? '' : 's';
+  const item = { by: agentId, lane: getItem(board, id).item_lane, title: `Review the ${edges.length} import edge${plural} added by #${id}`, route: 'strong', specIds: [], parentId: id, after: [],
+    criterion: '1. Each import edge listed in the brief is kept or removed, with the reason given [reasoning].',
+    brief: `Filed when the gate settled #${id}, whose diff adds ${edges.length} import edge${plural}:\n${listed}${edges.length > 12 ? `\n... and ${edges.length - 12} more` : ''}` };
+  return atomic(board, () => {
+    const filed = insertItem(board, item, validateItemAddition(board, item));
+    appendFact(board, id, { agentId, kind: 'note', text: `Edge follow-up filed as #${filed}: ${edges.length} new import edge${plural} (submit.edgeFollowUps).` });
+    return filed;
+  });
 }
 
 /** The case titles the proof's test files declare at the submitted commit, for verify.titleTicks (#8880) [C7]. */
