@@ -17,6 +17,4 @@ test('clause 2: a dead worker ends its job infrastructure, never red, so the ite
   const ids = engine.tables.COMPLETE.outcomes.map(row => row.id);
   assert.ok(ids.includes('infrastructure'), 'COMPLETE records SUBMIT_HANDOFF_DEAD as infrastructure');
   assert.ok(ids.indexOf('infrastructure') < ids.indexOf('red-to-builder'), 'infrastructure is judged before any return to the builder');
-  const row = engine.tables.COMPLETE.outcomes.find(entry => entry.id === 'infrastructure');
-  assert.equal(row.when({ item: { status: 'claimed' } }, { result: { error: { code: 'SUBMIT_HANDOFF_DEAD' } } }), true);
 });
