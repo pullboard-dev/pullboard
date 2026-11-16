@@ -11,7 +11,7 @@ const act = SOURCE.slice(SOURCE.indexOf('async function act('), SOURCE.indexOf('
 /** The page's own dismissResult, run against a stand-in panel so the test runs what the page runs. */
 function dismissWith(panel) {
   const source = /function dismissResult\(\) \{.*\}$/mu.exec(SOURCE)[0];
-  return new Function('$', `${source}; return dismissResult;`)(() => panel)();
+  return new Function('$', `${source}; return dismissResult;`)(() => panel);
 }
 
 test('clause 1: no timer hides the result panel after a decision [H12,#9529]', () => {
