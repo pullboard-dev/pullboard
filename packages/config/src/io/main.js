@@ -88,6 +88,8 @@ export function defaults() {
     inbox: { tokenBudget: 8192 },
     check: { install: '', timeout: '5m' },
     claim: { reopenFirstRefusalMinutes: 0, returnToBoard: false, barTestFiles: ['**/*.test.js', '**/*.test.mjs', '**/*.test.cjs', '**/*.spec.js', '**/*.spec.mjs', '**/*.spec.cjs'] },
+    // On by default: laneMode off is the switch slices 2 and 3 of #2830 read; the "lanes" key stays the lane map [C7].
+    laneMode: 'on',
     lanes: {},
     trunk: { remote: '' },
     products: {},
@@ -453,6 +455,9 @@ export function configProblems(config) {
   }
   if (config.resume?.adoptOrphans !== undefined && typeof config.resume.adoptOrphans !== 'boolean') {
     problems.push('"resume.adoptOrphans" is true or false; true makes pullboard resume in a fresh worktree adopt an orphaned seat claim from its pinned ref');
+  }
+  if (!['on', 'off'].includes(config.laneMode)) {
+    problems.push('"laneMode" is "on" or "off"; "lanes" stays the lane map');
   }
   if (config.map?.slice !== undefined && typeof config.map.slice !== 'boolean') {
     problems.push('"map.slice" is true or false');
