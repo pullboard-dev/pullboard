@@ -43,6 +43,6 @@ export async function queueAccept(ctx, board, { item, me, commit, main, check, d
   }
   renewReview(board.db, item, me.id, { now, leaseMs: RESERVE_MS });
   const offered = await offerAcceptCheck(ctx, board, { item, commit, main, command: check });
-  writeStep(board.db, reviewJobId(item), ACCEPT_QUEUED, { checkJob: offered.job, ref: offered.ref, commit, main, digest, reviewer: me.id }, { seq: now, now });
+  writeStep(board.db, reviewJobId(item), ACCEPT_QUEUED, { checkJob: offered.job, ref: offered.ref, commit, main, digest, reviewer: me.id, policy: ctx.config?.verify?.policy, family: ctx.config?.verify?.family }, { seq: now, now });
   return { item, decision: 'QUEUED', queued: true, checkJob: offered.job, reservedTo: me.id, commit, until: now + RESERVE_MS };
 }

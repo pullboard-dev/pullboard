@@ -179,7 +179,7 @@ export {
 export {
   originRepository,
 } from './src/logic/github/origin.js';
-export { MODEL_TIERS, modelTier } from './src/logic/tier.js';
+export { ESCALATE_AFTER_BOUNCES, MODEL_TIERS, modelTier, routeByTier } from './src/logic/tier.js';
 export {
   WATCHDOG_GRACE_MS,
   planClaimWatchdog,
@@ -188,3 +188,5 @@ export {
 export { claimWorktreeSnapshot } from './src/io/untouched.js';
 export { readSeatTiming, seatLedger, seatLines, worktreeActivity } from './src/io/ledger.js';
 export { CHECKPOINT_MOMENTS, CHECKPOINT_PARTS, buildCheckpoint, checkpointText, readCheckpoint } from './src/logic/checkpoint.js';
+export { runtimeProfile } from './src/io/runtime-profile.js';
+export { seatLaunchConfig } from './src/io/launch.js';

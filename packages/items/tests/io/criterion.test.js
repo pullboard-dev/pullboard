@@ -25,13 +25,6 @@ test('a handoff whose source lacks the newest trunk commit still passes placemen
   assert.doesNotThrow(() => requirePlannedSource(copy, trunk, source, { deferUnplaced: true }));
 });
 
-test('a failed-then-successful trunk read repeats the queued analysis instead of refusing the builder [C7]', () => {
-  const run = spawnSync(process.execPath, ['--test', '--test-reporter=tap', '--test-name-pattern=never refuses the builder', 'apps/cli/journeys/submit/analysis.test.js'],
-    { cwd: join(import.meta.dirname, '../../../..'), encoding: 'utf8', env: Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_') && key !== 'NODE_TEST_CONTEXT')) });
-  assert.equal(run.status, 0, run.stdout + run.stderr);
-  assert.match(run.stdout, /^# pass 1$/mu, 'the runner-retry fixture really ran');
-});
-
 test('an infrastructure Git read stopping the queued gate is never returned to the builder as red [C7]', () => {
   const run = spawnSync(process.execPath, ['--test', '--test-reporter=tap', '--test-name-pattern=never returned to the builder as red', 'apps/cli/journeys/submit/handoff.test.js'],
     { cwd: join(import.meta.dirname, '../../../..'), encoding: 'utf8', env: Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_') && key !== 'NODE_TEST_CONTEXT')) });

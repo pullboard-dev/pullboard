@@ -378,7 +378,7 @@ function sameDirectory(first, second) {
  */
 function advanceToMain(path, root) {
   const trunk = trunkBranch(root);
-  // A folder sitting at the trunk's own commit already holds it, read from Git's files with no process [C7,#8574].
+  // A folder already at the trunk's tip is current, read from Git's files: a warm next reopened it with a Git process each time (#8691).
   const head = checkoutHead(path);
   if (head !== undefined && head === checkoutRefCommit(path, `refs/heads/${trunk}`)) return [];
   if (tryGit(path, ['merge-base', '--is-ancestor', trunk, 'HEAD']).status === 0) return [];

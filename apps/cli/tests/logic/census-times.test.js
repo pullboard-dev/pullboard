@@ -24,3 +24,12 @@ test('clause 1: a shard that sent no times gives no secs, never a made-up one [C
   assert.equal(pulledTimeLines(undefined, PREFIX), '');
   assert.equal(pulledTimeLines(null, PREFIX), '');
 });
+
+test('clause 2: overlapping files in a shard never sum past the shard tests phase, so overlap is not counted twice [C7,#8890]', () => {
+  // Three files ran side by side: 20 s, 20 s and 20 s of wall each inside a 30 s tests phase.
+  const times = { 'a/one.test.js': 20000, 'a/two.test.js': 20000, 'a/three.test.js': 20000 };
+  const rows = shardRows({ files: FILES, status: 'green', host: 'h', label: '1/1', output: TAIL, outcomes, times }, 'sha');
+  const sum = rows.reduce((total, row) => total + row.secs, 0);
+  assert.ok(sum <= 30 && sum > 29, `sum ${sum}`);
+  assert.deepEqual(rows.map(row => row.secs), [10, 10, 10]);
+});

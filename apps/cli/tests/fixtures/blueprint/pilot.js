@@ -3,13 +3,13 @@
  * The in-process journey pilot's measuring tools (#8058): run one journey file as real processes and in-process, time each,
  * seed one fault at a time through module hooks, and count which version fails on which fault [C7].
  */
-import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { privateFixtureFiles } from '../child.js';
+import { runChildTests } from '../../../../../packages/gate/tests/fixtures/child-tests.js';
 
 export const REPOSITORY = resolve(import.meta.dirname, '../../../../..');
 const REGISTER = pathToFileURL(resolve(import.meta.dirname, 'pilot-register.js')).href;
@@ -37,12 +37,14 @@ export function runLeg(leg, { fault = null, timeoutMs = 420_000 } = {}) {
   delete env.NODE_TEST_CONTEXT;
   if (fault) env.PULLBOARD_PILOT_FAULT = JSON.stringify(fault); else delete env.PULLBOARD_PILOT_FAULT;
   const started = performance.now();
-  const result = spawnSync(process.execPath, ['--test', LEGS[leg].file], { cwd: REPOSITORY, env, encoding: 'utf8', timeout: timeoutMs, killSignal: 'SIGKILL', stdio: 'pipe' });
+  let status = null;
+  // The helper throws when a killed child reported no tests; that run did not pass.
+  try { status = runChildTests([LEGS[leg].file], { cwd: REPOSITORY, env, timeout: timeoutMs }).status; } catch { /* a run with no tests did not pass */ }
   const ms = Math.round(performance.now() - started);
   let logged = '';
   try { logged = readFileSync(log, 'utf8'); } catch { /* no module hook ran, or none wrote */ }
   rmSync(scratch, { recursive: true, force: true });
-  return { passed: result.status === 0, timedOut: result.error?.code === 'ETIMEDOUT', ms, applied: logged.split('\n').includes('applied') };
+  return { passed: status === 0, timedOut: status === null && ms >= timeoutMs, ms, applied: logged.split('\n').includes('applied') };
 }
 
 /** The middle value of a list of numbers. */

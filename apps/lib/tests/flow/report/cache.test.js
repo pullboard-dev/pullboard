@@ -18,11 +18,21 @@ import { orderMilestoneItems } from '../../../../../packages/store/index.js';
 import { proofStats } from '../../../../../packages/stats/index.js';
 import { flowStats } from '../../../../../packages/stats/index.js';
 import { FLOW_REPORT_VERSION } from '../../../../../packages/stats/index.js';
+import { DERIVED_SETTING } from '../../../../../packages/verify/index.js';
+import { derivedProofCounter } from '../../../../../packages/verify/index.js';
 import { ensureProofCounters } from '../../../../../packages/verify/index.js';
 import { runFixtureGit } from '../../../../cli/tests/fixtures/child.js';
 import { submitFixture } from '../../../../cli/tests/fixtures/board/submit.js';
 import { repositoryBoardFile } from '../../../../cli/tests/fixtures/board/submit.js';
 import { MILESTONE_PLACEMENT_ENGINE } from '../../../../../packages/state/light.js';
+
+// The report counters are read from the derived database, which the dual write fills while this setting is on (#8910, #8961).
+process.env[DERIVED_SETTING] = '1';
+
+/** This code's flow report folder: each report version keeps its shards and cursor under its own name (#2288). */
+const REPORT = `local:proof-stats:v2:report-v${FLOW_REPORT_VERSION}:`;
+/** An older writer's report keys, which this code must leave exactly as stored. */
+const LEGACY_REPORT = 'local:proof-stats:v2:report-summary';
 
 /** Native read operations explicitly supplied to the statistics under test. */
 const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };
@@ -50,12 +60,13 @@ test('an empty indexed board has a measured empty report rather than a missing c
   assert.equal(report.overall.submissionsPerLanded, null);
 });
 
-test('flow report indexed projection matches canonical replay without hot raw history reads [R1,R2]', t => {
+test('clause 2: flow report indexed projection matches canonical replay without hot raw history reads [R1,R2]', t => {
   const board = fixture(t);
   const now = Date.now() + 60_000;
   const history = store.events(board);
   const stats = proofStats(board, { now }, statsReadPorts);
   assert.deepEqual(stats.flow.report, flowStats(history, null, now, stats).report);
+  assert.equal(derivedProofCounter(board, 'report-summary').last, history.at(-1).event_id, 'the derived database holds the report cursor at the latest event');
   const prepare = board.db.prepare.bind(board.db);
   const reads = [];
   board.db.prepare = sql => { reads.push(sql); return prepare(sql); };
@@ -67,7 +78,7 @@ test('flow report indexed projection matches canonical replay without hot raw hi
 
 test('old v2 counters retain fast metrics and explicitly unavailable reports until a writer rebuilds [R1,R2]', t => {
   const board = fixture(t);
-  board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run('local:proof-stats:v2:report-summary');
+  board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run(`${REPORT}summary`);
   const prepare = board.db.prepare.bind(board.db);
   const reads = [];
   board.db.prepare = sql => { reads.push(sql); return prepare(sql); };
@@ -233,7 +244,7 @@ test('automatic placement overrides agree in cached and replayed flow after ship
   observe(['B']);
   shipMilestone(board, 'A', { ...who, commit: 'a'.repeat(40), next: 'C' });
   observe(['B']);
-  board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run('local:proof-stats:v2:report-summary');
+  board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run(`${REPORT}summary`);
   ensureProofCounters(board);
   observe(['B']);
 });
@@ -266,31 +277,41 @@ test('repeated native landing receipts preserve the first measured landing inter
   assert.deepEqual(repeated, flowStats(store.events(board), null, base + minute * 60_000, { submissions: 1, rejections: 0, rejectionShare: 0 }).report);
 });
 
-test('writers alternating between an older and a newer report version rebuild the report once in total [R1,R2]', t => {
+test('clause 3: writers alternating between a v2-shaped and the current report version keep legacy keys, replay only the missed tail, and never write over 1 s [R1,R2]', t => {
   const board = fixture(t);
-  const key = 'local:proof-stats:v2:report-summary';
-  const stored = () => JSON.parse(board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(key).meta_value);
-  const stamp = version => board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key=?')
-    .run(JSON.stringify({ ...stored(), data: { ...stored().data, version } }), key);
+  const key = `${REPORT}summary`;
+  const legacy = JSON.stringify({ data: { version: FLOW_REPORT_VERSION - 1, last: 1, invalid: false }, numbers: [] });
+  board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?)').run(LEGACY_REPORT, legacy);
+  board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?)').run('local:proof-stats:v2:report-item:1', '{"data":{"id":1},"numbers":[]}');
+  const legacyRows = () => board.db.prepare("SELECT meta_key,meta_value FROM board_meta WHERE meta_key GLOB 'local:proof-stats:v2:report-[^v]*' ORDER BY meta_key").all();
+  const before = legacyRows();
+  assert.equal(before.length, 2, 'the v2-shaped writer left its two legacy keys');
   board.db.exec(`CREATE TABLE temp.report_resets(id INTEGER PRIMARY KEY, why TEXT);
-    CREATE TEMP TRIGGER report_deleted AFTER DELETE ON main.board_meta WHEN OLD.meta_key='${key}' BEGIN INSERT INTO report_resets(why) VALUES ('deleted'); END;
     CREATE TEMP TRIGGER report_zeroed AFTER UPDATE ON main.board_meta WHEN NEW.meta_key='${key}' AND json_extract(NEW.meta_value,'$.data.last')=0 BEGIN INSERT INTO report_resets(why) VALUES ('zeroed'); END;
-    CREATE TEMP TRIGGER report_created AFTER INSERT ON main.board_meta WHEN NEW.meta_key='${key}' BEGIN INSERT INTO report_resets(why) VALUES ('created'); END;`);
+    CREATE TEMP TRIGGER report_reborn AFTER INSERT ON main.board_meta WHEN NEW.meta_key='${key}' AND json_extract(NEW.meta_value,'$.data.last')=0 BEGIN INSERT INTO report_resets(why) VALUES ('reborn'); END;`);
   const resets = () => board.db.prepare('SELECT COUNT(*) AS n FROM temp.report_resets').get().n;
-  // The older writer sees a stored report from older code and upgrades it: the one rebuild.
-  stamp(FLOW_REPORT_VERSION - 1);
-  store.addItem(board, { by: 'coordinator', lane: 'core', title: 'The older report upgrades once' });
-  assert.equal(stored().data.version, FLOW_REPORT_VERSION);
-  const upgrade = resets();
-  assert.ok(upgrade > 0, 'the upgrade reset the report');
-  // Then a newer writer stamps its version, and sometimes drops the proof summary so this code takes the full rebuild path.
-  for (let round = 1; round <= 12; round += 1) {
-    stamp(FLOW_REPORT_VERSION + 1);
-    if (round % 2) board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run('local:proof-stats:v2:summary');
-    const newer = stored();
-    store.addItem(board, { by: 'coordinator', lane: 'core', title: `Alternating writer ${round}` });
+  const folder = () => board.db.prepare('SELECT meta_key,meta_value FROM board_meta WHERE meta_key GLOB ?').all(`${REPORT}*`);
+  for (let round = 1; round <= 6; round += 1) {
+    const kept = folder(), seen = store.events(board).length;
+    const started = performance.now();
+    store.addItem(board, { by: 'coordinator', lane: 'core', title: `Current writer ${round}` });
+    assert.ok(performance.now() - started < 1000, `round ${round}: a current write takes under 1 s`); // budget: declared by the item bar, one second
+    // Emulate the v2-shaped writer: it advances ordinary counters and its own legacy keys, but not this folder.
+    store.addItem(board, { by: 'coordinator', lane: 'core', title: `Older writer ${round}` });
+    board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ?').run(`${REPORT}*`);
+    for (const row of kept) board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?)').run(row.meta_key, row.meta_value);
+    const missed = store.events(board).slice(seen + 0).map(event => event.event_id);
+    const reportEvents = [], proofEvents = [];
+    board.onFlowReportEvent = event => reportEvents.push(event.event_id);
+    board.onProofStatsEvent = event => proofEvents.push(event.event_id);
+    const caught = performance.now();
     ensureProofCounters(board);
-    assert.deepEqual(stored(), newer, `round ${round}: the older code leaves the newer report exactly as stored`);
+    assert.ok(performance.now() - caught < 1000, `round ${round}: catching up the missed tail takes under 1 s`); // budget: declared by the item bar, one second
+    assert.ok(reportEvents.length > 0 && reportEvents.length <= missed.length && reportEvents.every(id => missed.includes(id)),
+      `round ${round}: only the missed tail is replayed into the report`);
+    assert.deepEqual(proofEvents, [], `round ${round}: ordinary proof statistics are not recounted`);
+    assert.deepEqual(legacyRows(), before, `round ${round}: the legacy report keys are exactly as the older writer stored them`);
   }
-  assert.equal(resets(), upgrade, 'after the one upgrade no write resets, deletes or rebuilds the report');
+  assert.equal(derivedProofCounter(board, 'report-summary').last, store.events(board).at(-1).event_id, 'the derived report cursor ends at the latest event');
+  assert.equal(resets(), 0, 'no write or catch-up zeroed or restarted this version\'s report cursor');
 });

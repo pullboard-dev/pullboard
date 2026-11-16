@@ -40,10 +40,13 @@ test('known settings still reject wrong types and invalid values beside future s
 test('unknown keys never inherit schema authority and warnings contain no setting values [N26]', () => {
   const source = `import {configFromSource} from ${JSON.stringify(new URL('../../src/io/main.js', import.meta.url).href)};
 const raw=JSON.parse('{"submit":{"constructor":"private-value","__proto__":{"autoFileMainReds":true},"line\\\\nkey":"private-value"}}');
-console.log(JSON.stringify(configFromSource(JSON.stringify(raw)).submit));`;
+console.log(JSON.stringify({ got: configFromSource(JSON.stringify(raw)).submit, defaults: configFromSource('{}').submit }));`;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.failure || result.stderr);
-  assert.deepEqual(JSON.parse(result.stdout), { requireInfraNote: false, autoFileMainReds: false });
+  const { got, defaults } = JSON.parse(result.stdout);
+  assert.deepEqual(got, defaults, 'unknown keys leave every submit setting at its default, whatever settings it gains');
+  assert.equal(got.autoFileMainReds, false);
+  assert.equal(got.requireInfraNote, false);
   assert.doesNotMatch(result.stderr, /private-value/u);
   assert.equal(result.stderr.split('\n').filter(line => line.startsWith('pullboard: ignoring unknown setting')).length, 3);
 });
