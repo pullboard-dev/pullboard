@@ -5,6 +5,7 @@ import { shimLifecycle } from '../../../codemap/index.js';
 import { rankInversionHistory } from './inversion.js';
 import { readWorkFreeReleases } from '../../../stats/index.js';
 import { landingFailureFindings } from './landing.js';
+import { noReviewerSupplyFindings } from './supply.js';
 import { capacityWorsenedFindings } from './capacity.js';
 import { firstRefusal } from '../../../store/index.js';
 import { compositionFamilyFallback } from '../../../verify/index.js';
@@ -13,6 +14,9 @@ import { eligibilityProblem } from '../../../verify/index.js';
 import { lineSettings } from '../../../state/light.js';
 import { familyIndex } from '../../../verify/index.js';
 import { unreviewableStrict } from '../../../verify/index.js';
+import { declaredLimitProblem } from '../../../verify/index.js';
+import { builderFamilyOf } from '../../../verify/index.js';
+import { canonicalFamily } from '../../../verify/index.js';
 import { withLocalSeatPresence } from '../../../store/index.js';
 import { mechanicalConflictFiles } from '../../../merge/index.js';
 import { localDependencyIds } from '../../../items/index.js';
@@ -196,6 +200,7 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
     }));
   }
 
+  report.stuck.push(...noReviewerSupplyFindings(board, items, listAgents(board), at, finding, item => item.item_updated_at, { limitProblem: declaredLimitProblem, familyOf: (b, item) => canonicalFamily(b, builderFamilyOf(b, item)) }));
   const history = itemHistory(db, items.map((item) => item.item_id));
   const trunk = trunkTip(root);
   const releases = roadmap(board);
