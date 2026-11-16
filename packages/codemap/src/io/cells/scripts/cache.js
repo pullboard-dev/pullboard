@@ -31,19 +31,26 @@ function unchanged(checkout, commit) {
 /** How far back along main's first parents a missing base looks for a cached inventory to update. */
 const ANCESTORS = 200;
 
+/** The project root the default inventory code is named inside. */
+const TOOL_ROOT = fileURLToPath(new URL('../../../../../..', import.meta.url));
+
 /** The modules whose code decides an inventory's content: the census, its incremental update and the import parsers. */
 const INVENTORY_CODE = ['../../cell/lint/inventory.js', '../../module/imports.js', './cache.js']
   .map(path => fileURLToPath(new URL(path, import.meta.url)));
 let inventoryCode;
 
 /**
- * The digest of the inventory code's bytes, by path inside this tool. Why not the submit check's own key: that key
+ * The digest of the inventory code's bytes, by path inside `root`. Why not the submit check's own key: that key
  * also covers unrelated checker files and names files by absolute path, and a runner runs main's tools from a fresh
  * temporary folder per job, so it changed every job and no inventory was ever found again (#2601).
+ * The caller names the files, so the digest keeps working when the code moves out of this package; without a list it
+ * covers today's three modules.
  */
-function inventoryCodeDigest() {
-  inventoryCode ??= receiptDigest({ node: process.version,
-    files: checkCommandDefinition(fileURLToPath(new URL('../../../../../..', import.meta.url)), [], INVENTORY_CODE).map(file => [file.path, file.mode, file.digest]) });
+export function inventoryCodeDigest(files = INVENTORY_CODE, root = TOOL_ROOT) {
+  const digest = () => receiptDigest({ node: process.version,
+    files: checkCommandDefinition(root, [], files).map(file => [file.path, file.mode, file.digest]) });
+  if (files !== INVENTORY_CODE || root !== TOOL_ROOT) return digest();
+  inventoryCode ??= digest();
   return inventoryCode;
 }
 
