@@ -63,8 +63,31 @@ export function ownedTransportCompletion(child, { termMs = 1_000, drainMs = 1_00
   };
 }
 
+// Budget: after a check's own ceiling and its startup window, the synchronous bridge gets this much more to report before it is killed.
+const BRIDGE_GRACE_MS = 120_000;
+
+/**
+ * The longest a synchronous bridge may block its caller: the run's startup window plus its own timeout plus a grace,
+ * or null when the request names no timeout (a landing or main comparison keeps its own bound).
+ * Why: the verify path's private check on a runner blocks in spawnSync, which froze the slot heartbeat and held
+ * runner .52 for 29 minutes with no test process (#6435, #8557); a hang now ends as RUNNER_BRIDGE_DEADLINE [C7].
+ *
+ * @param {{ runnerWaitDeadline?: number, runnerStartupMs?: number, timeoutMs?: number, privateCheck?: { timeoutMs?: number } }} options
+ * @param {number} [now]
+ * @returns {number | null}
+ */
+export function bridgeDeadlineMs(options, now = Date.now()) {
+  const timeout = options.privateCheck?.timeoutMs ?? options.timeoutMs;
+  if (!Number.isSafeInteger(timeout) || timeout <= 0) return null;
+  const startup = startupDeadline(options, now);
+  return Math.max(0, (startup ?? now) - now) + timeout + BRIDGE_GRACE_MS;
+}
+
 /** Reconstruct the native transport outcome across a fresh controller process. */
 export function bridgeResult(request, result, phase) {
+  if (result.error?.code === 'ETIMEDOUT') {
+    throw new Refused('RUNNER_BRIDGE_DEADLINE', `the runner bridge to ${request.options.runner?.host ?? 'the runner'} ran past its deadline with no result and was ended; its gate slot is released. Rerun the verdict; if it repeats, shout the coordinator with this line`);
+  }
   let reply;
   try { reply = JSON.parse(result.stdout); }
   catch { throw runnerFailure({ runner: request.options.runner, args: [], phase }, result, 'bridge-json'); }
@@ -89,6 +112,7 @@ export function runOnRunner(root, command, options) {
   const child = spawnSync(process.execPath, [installation?.entry ?? runnerControllerEntry(fileURLToPath(new URL('../../../../', import.meta.url))), '--pullboard-runner-controller'], {
     cwd: root, env: { ...process.env }, input: JSON.stringify(request), encoding: 'utf8', maxBuffer: MAX_OUTPUT_BYTES * 6 + 1024 ** 2,
     stdio: ['pipe', 'pipe', 'pipe', 'pipe'],
+    ...(bridgeDeadlineMs(options) ? { timeout: bridgeDeadlineMs(options), killSignal: 'SIGKILL' } : {}),
   });
   return bridgeResult(request, child, 'sync-bridge');
   } finally { installation?.cleanup(); }
