@@ -29,6 +29,8 @@ import { signOff } from '../../../../packages/spec/index.js';
 import { standings } from '../../../../packages/spec/index.js';
 import { unmetRows } from '../../../../packages/spec/index.js';
 import { SPEC } from '../../tests/fixtures/spec/box.js';
+import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
+import { fixtureProjectPolicy } from '../../tests/fixtures/testkit.js';
 import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { specBox } from '../../tests/fixtures/spec/box.js';
@@ -337,4 +339,35 @@ test('the check command is part of the frozen bar; items without one keep their 
   const before = frozenCriterion(parseSpec(SPEC), item).digest;
   assert.equal(frozenCriterion(parseSpec(SPEC), { ...item, item_check: '' }).digest, before);
   assert.notEqual(frozenCriterion(parseSpec(SPEC), { ...item, item_check: 'npm test' }).digest, before);
+});
+
+test('an approved revision applies while an unrelated held item cites a drifted row [S18,C7]', async (t) => {
+  const box = specBox(t);
+  const gitAt = (cwd, ...args) => runFixtureGit(args, { cwd, env: box.env, encoding: 'utf8', stdio: 'pipe' });
+  const runAt = (cwd, ...args) => runCliInProcess(args, { cwd, env: box.env });
+  const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
+  config.lanes.web = { owns: ['web/'] };
+  fixtureProjectPolicy(box.root, { config });
+  gitAt(box.root, 'add', 'pullboard.json');
+  gitAt(box.root, 'commit', '-q', '-m', 'chore: add the web lane');
+  const builder = join(box.root, 'builder');
+  gitAt(box.root, 'worktree', 'add', '-q', builder, '-b', 'builder');
+  assert.equal((await joinFixtureSeat(box, builder, 'web', { run: runAt })).code, 0);
+  // A held item freezes K1, then K1 drifts in Git: the item now cites a row that moved.
+  const { item } = await fileFixtureItem(box, box.root, { lane: 'web', title: 'Held on K1', criterion: 'K1 holds.', args: ['--specs', 'K1'], run: runAt });
+  const id = item.item_id;
+  assert.equal((await runAt(builder, 'claim', String(id))).status, 0);
+  assert.equal((await runAt(builder, 'release', String(id), '--reason', 'BLOCKED', '--no-next')).status, 0);
+  const drifted = readFileSync(join(box.root, 'SPEC.md'), 'utf8').replace('Runs offline.', 'Runs offline and online.');
+  fixtureProjectPolicy(box.root, { config, spec: drifted });
+  gitAt(box.root, 'add', 'SPEC.md');
+  gitAt(box.root, 'commit', '-q', '-m', 'docs: drift K1');
+  // The person approves a revision of the unrelated G1; apply must succeed.
+  const text = 'Same file twice changes nothing.';
+  const approved = await box.spec('approve', 'G1', '--text', text, '--json');
+  assert.equal(approved.status, 0, `${approved.stdout}${approved.stderr}`);
+  const applied = await box.spec('apply', '--json');
+  assert.equal(applied.status, 0, `${applied.stdout}${applied.stderr}`);
+  assert.ok(readFileSync(join(box.root, 'SPEC.md'), 'utf8').includes(text), 'the approved revision is written');
+  console.log(applied.stdout, applied.stderr);
 });
