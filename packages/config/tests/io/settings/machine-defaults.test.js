@@ -94,6 +94,7 @@ const BEFORE = {
   'landing.squash': false,
   'landing.strictFullSuite': false,
   'list.thinRead': false,
+  'machine.loadCeiling': null,
   'maintenance.retireIdleHours': 3,
   'maintenance.retireIdleSeats': false,
   'moves.live.claim': false,
