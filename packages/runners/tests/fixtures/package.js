@@ -2,8 +2,8 @@
 import { copyPackageFiles } from '../../index.js';
 import { packageFiles } from '../../index.js';
 
-/** Folders no fixture worker reads (the gate baselines stay: the worker closure reaches it through gate/src/io/stores.js): docs, skills, the two apps the runner never loads, and the archived board history. */
-const NOT_NEEDED = /^(?:docs|skills|apps\/view|apps\/relay|packages\/state\/data|packages\/codemap\/data|packages\/gate\/data(?!\/baselines\/))\//u;
+/** Folders no fixture worker reads (gate/data stays: the worker closure reads its baselines and listings, and a later one would leave the copy): docs, skills, the two apps the runner never loads, and the archived board history. */
+const NOT_NEEDED = /^(?:docs|skills|apps\/view|apps\/relay|packages\/state\/data|packages\/codemap\/data)\//u;
 
 /**
  * Copy the shipped package into a private directory, minus the folders a fixture never reads.
