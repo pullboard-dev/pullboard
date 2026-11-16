@@ -16,6 +16,7 @@ import {
 import * as maintenanceSettings from '../logic/maintenance.js';
 import { knownConfigKeys } from './compat.js';
 import { trunkProblems } from '../logic/trunk.js';
+import { generatedProblems } from '../logic/generated.js';
 
 import { CONFIG_FILE } from '../../../kernel/browser.js';
 export { CONFIG_FILE };
@@ -76,6 +77,8 @@ export function defaults() {
     modelTiers: JSON.parse(readFileSync(new URL('../../data/ceilings/model-tiers.json', import.meta.url), 'utf8')),
     // Off by default: map.slice prints a code map slice in next and claim [1203].
     map: { slice: false },
+    // Off by default: slices.enforcePaths makes submit refuse a slice that changes a path outside its declared set [C7].
+    slices: { enforcePaths: false },
     // Off by default: cells checks replay a saved answer for an unchanged tree [#2076].
     cells: { cache: false, shimMaxAgeDays: 7 },
     agents: { names: 'suffix' },
@@ -249,6 +252,7 @@ export function configProblems(config) {
       problems.push('"name" cannot contain "#" or ","');
     }
   }
+  problems.push(...generatedProblems(config.generated));
   if (typeof config.spec !== 'string' || !config.spec) problems.push('"spec" names a file');
   if (config.specAgentApproval !== undefined && !['flag', 'allow', 'refuse'].includes(config.specAgentApproval)) problems.push('"spec.agentApproval" is flag, allow or refuse');
   if (typeof config.practice !== 'string' || !config.practice) problems.push('"practice" names the doctrine file');
@@ -435,11 +439,20 @@ export function configProblems(config) {
   if (config.verify?.landedReviews !== undefined && typeof config.verify.landedReviews !== 'boolean') {
     problems.push('"verify.landedReviews" is true or false; true makes next --verify offer forced-landed items that have no verdict');
   }
+  if (config.verify?.queueAccept !== undefined && typeof config.verify.queueAccept !== 'boolean') {
+    problems.push('"verify.queueAccept" is true or false; true makes verify accept queue its frozen check as a runner job and return');
+  }
+  if (config.verify?.requireRowRewrite !== undefined && typeof config.verify.requireRowRewrite !== 'boolean') {
+    problems.push('"verify.requireRowRewrite" is true or false; true makes a restructure move refuse while an open item cites a spec row whose text changed with no rewrite edit');
+  }
   if (config.resume?.adoptOrphans !== undefined && typeof config.resume.adoptOrphans !== 'boolean') {
     problems.push('"resume.adoptOrphans" is true or false; true makes pullboard resume in a fresh worktree adopt an orphaned seat claim from its pinned ref');
   }
   if (config.map?.slice !== undefined && typeof config.map.slice !== 'boolean') {
     problems.push('"map.slice" is true or false');
+  }
+  if (config.slices?.enforcePaths !== undefined && typeof config.slices.enforcePaths !== 'boolean') {
+    problems.push('"slices.enforcePaths" is true or false');
   }
   if (notPlain(config.review)
     || Object.keys(config.review).some(key => !['starveMinutes', 'independence', 'excludeEarlierHolders'].includes(key))

@@ -5,7 +5,7 @@
  * and fit the size budgets so they stay useful in the README and the site.
  */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join, posix } from 'node:path';
@@ -42,7 +42,7 @@ function linkedInSection(section, file, phrases) {
 }
 
 test('the README links the desktop board and timed tour with descriptive alt text [I11,I13]', () => {
-  linkedInSection('Pullboard View', 'desktop-light.png', ['open', 'claimed', 'submitted', 'accepted']);
+  linkedInSection('Pullboard View', 'desktop-light.png', ['one line each', 'who holds them', 'review that passed it', 'bar proven', 'sent back']);
   linkedInSection('Installation', 'tour.svg', ['submitted', 'rejected', 'fixed', 'accepted']);
 });
 
@@ -59,8 +59,8 @@ test('the README board shots show the stats line [I11,I13]', () => {
   assert.match(exported, /proof-stats-summary-text/, 'the exported demo renders a compact summary');
   assert.match(exported, /stats\.merged \+ ' merged · ' \+ percentage \+ ' sent back'/, 'the summary is derived from exported stats');
   assert.match(exported, /Bottleneck: ' \+ \(stage \|\| bottleneck\.message\)/, 'the summary includes the measured bottleneck');
-  linkedInSection('Pullboard View', 'desktop-light.png', ['stats line', 'merged work', 'sent-back share', 'bottleneck recommendation']);
-  linkedInSection('Pullboard View', 'phone-light.png', ['stats line', 'merged work', 'sent-back share', 'bottleneck recommendation']);
+  linkedInSection('Pullboard View', 'desktop-light.png', ['one line each', 'who holds them', 'review that passed it', 'bar proven', 'sent back']);
+  linkedInSection('Pullboard View', 'phone-light.png', ['item list', 'opened item', 'passing review', 'proven bar']);
 });
 
 test('the demo board stages a Shouts conversation [I11,I13]', () => {
@@ -82,35 +82,39 @@ test('the demo board stages a Shouts conversation [I11,I13]', () => {
   assert.match(accept.note, /edge passes/, 'the recorded verdict note proves the outcome');
 });
 
-test('the demo board declares every agent\'s model [I11,I13]', () => {
-  const fixture = mkdtempSync(join(tmpdir(), 'pullboard-demo-model-'));
-  try {
-    const source = fileURLToPath(ROOT);
-    const root = join(fixture, 'repo');
-    mkdirSync(root);
-    for (const directory of ['apps', 'packages', 'docs/shots', 'docs/img', 'skills']) cpSync(join(source, directory), join(root, directory), { recursive: true });
-    for (const file of ['apps/cli/tests/fixtures/chrome.js', 'apps/cli/tests/fixtures/chrome/shutdown.js', 'apps/cli/tests/fixtures/chrome/args.js', 'apps/cli/tests/fixtures/child.js', 'package.json', 'CHANGELOG.md']) cpSync(join(source, file), join(root, file));
-    const shims = join(fixture, 'bin');
-    mkdirSync(shims);
-    const pullboard = join(shims, 'pullboard');
-    writeFileSync(pullboard, `#!/bin/sh\nexec "${process.execPath}" "${join(root, 'apps/cli/pullboard.js')}" "$@"\n`);
-    chmodSync(pullboard, 0o755);
-    const env = { ...process.env, PATH: [shims, process.env.PATH].filter(Boolean).join(delimiter) };
-    delete env.PULLBOARD_MODEL;
-    const result = spawnSync(process.execPath, [join(root, 'docs/shots/demo.mjs'), '--board-only'], { cwd: root, env, encoding: 'utf8' });
-    assert.equal(result.status, 0, `the isolated real demo board rebuild succeeds: ${result.stderr}\n${result.stdout}`);
-    const state = JSON.parse(readFileSync(join(root, 'docs/demo/api/v1/boards/demo-board/state.json'), 'utf8')).state;
-    const models = new Map(state.agents.map((agent) => [agent.agent_id, agent.agent_model]));
-    const events = JSON.parse(readFileSync(join(root, 'docs/demo/api/v1/boards/demo-board/events.json'), 'utf8')).events;
-    assert.ok(events.some((event) => event.event_kind === 'join' && event.event_by === 'coordinator'), 'the first coordinator registration is in the full event log');
-    for (const event of events.filter((move) => move.event_by !== 'person')) {
-      const detail = JSON.parse(event.event_detail);
-      assert.ok(typeof detail.model === 'string' && detail.model.trim() && detail.model !== 'unknown', `${event.event_by} ${event.event_kind} declares its model`);
-    }
-    assert.deepEqual([...models].sort(), [['app-1', 'Demo builder'], ['coordinator', 'Demo coordinator'], ['review-1', 'Demo reviewer']]);
-  } finally {
-    rmSync(fixture, { recursive: true, force: true });
+/**
+ * Run a command to completion without blocking the event loop, so the capture's demo rebuild runs while the file's other cases run.
+ * Why: the rebuild is a long chain of real pullboard commands that mostly waits on child processes.
+ *
+ * @param {string} file the program to run
+ * @param {string[]} args its arguments
+ * @param {{cwd: string, env: NodeJS.ProcessEnv, timeout?: number}} options where and how to run it
+ * @returns {Promise<{status: number|null, signal: string|null, stdout: string, stderr: string}>} the finished run
+ */
+function runAsync(file, args, options) {
+  return new Promise((resolveRun) => {
+    const child = spawn(file, args, { cwd: options.cwd, env: options.env, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => { stdout += chunk; });
+    child.stderr.on('data', (chunk) => { stderr += chunk; });
+    const timer = options.timeout ? setTimeout(() => child.kill('SIGTERM'), options.timeout) : null;
+    child.on('close', (status, signal) => { clearTimeout(timer); resolveRun({ status, signal, stdout, stderr }); });
+  });
+}
+
+/** The model case reads the board the README capture's own isolated rebuild exported, so the demo is built once. */
+test('the demo board declares every agent\'s model [I11,I13]', { timeout: 240_000 }, async () => {
+  const { state, events } = await readmeCapture;
+  const models = new Map(state.agents.map((agent) => [agent.agent_id, agent.agent_model]));
+  assert.ok(events.some((event) => event.event_kind === 'join' && event.event_by === 'coordinator'), 'the first coordinator registration is in the full event log');
+  for (const event of events.filter((move) => move.event_by !== 'person')) {
+    const detail = JSON.parse(event.event_detail);
+    assert.ok(typeof detail.model === 'string' && detail.model.trim() && detail.model !== 'unknown', `${event.event_by} ${event.event_kind} declares its model`);
   }
+  assert.deepEqual([...models].sort(), [['app-1', 'Demo builder'], ['coordinator', 'Demo coordinator'], ['review-1', 'Demo reviewer']]);
 });
 
 /** Keep the capture's fixture directory independent of its descriptive evidence arm. */
@@ -138,7 +142,13 @@ test("the README capture's Chrome socket path fits the Linux limit [I11,C7]", ()
   }
 });
 
-test('the README capture leaves no view running [I11,I13]', { timeout: 240_000 }, () => {
+/**
+ * Capture the README screenshots in an isolated copy, check what the capture leaves behind, and return the board it exported.
+ * Why: it starts at load and the tests below await it, so the one real demo rebuild serves both the capture and the model case; PULLBOARD_MODEL is unset so the rebuilt board must declare its own models.
+ *
+ * @returns {Promise<{state: any, events: any[]}>} the exported demo board's state and full event log
+ */
+async function captureReadme() {
   const source = fileURLToPath(ROOT);
   const images = ['desktop-light.png', 'desktop-dark.png', 'phone-light.png', 'phone-dark.png', 'shouts-light.png', 'shouts-dark.png'];
   const chrome = process.env.PULLBOARD_CHROME || [
@@ -181,13 +191,9 @@ test('the README capture leaves no view running [I11,I13]', { timeout: 240_000 }
       PULLBOARD_MACHINE_HOME: join(fixture, 'home'),
     };
     delete env.PULLBOARD_VIEW_FOREGROUND;
+    delete env.PULLBOARD_MODEL;
     if (!foregroundControl) delete env.PULLBOARD_README_CAPTURE_FOREGROUND;
-    const result = spawnSync(process.execPath, [join(root, 'docs/shots/demo.mjs'), '--screenshots-only'], {
-      cwd: root,
-      env,
-      encoding: 'utf8',
-      timeout: 210_000,
-    });
+    const result = await runAsync(process.execPath, [join(root, 'docs/shots/demo.mjs'), '--screenshots-only'], { cwd: root, env, timeout: 210_000 });
     const observation = existsSync(observationPath) ? JSON.parse(readFileSync(observationPath, 'utf8')) : null;
     const outcome = {
       arm,
@@ -219,15 +225,24 @@ test('the README capture leaves no view running [I11,I13]', { timeout: 240_000 }
     assert.equal(observation.testCleanup.exited, true, `${arm}: the test-only exact-PID cleanup completed`);
     assert.deepEqual(observation.fixtureProcessesAfterTestCleanup, [], `${arm}: test cleanup leaves no fixture process behind`);
     assert.deepEqual(observation.teardownErrors, [], `${arm}: capture teardown completed without errors`);
+    const exported = (name) => JSON.parse(readFileSync(join(root, 'docs/demo/api/v1/boards/demo-board', name), 'utf8'));
+    return { state: exported('state.json').state, events: exported('events.json').events };
   } finally {
     rmSync(fixture, { recursive: true, force: true });
   }
+}
+
+const readmeCapture = captureReadme();
+readmeCapture.catch(() => {});
+
+test('the README capture leaves no view running [I11,I13]', { timeout: 240_000 }, async () => {
+  await readmeCapture;
 });
 
 test('the README shows the Shouts capture [I11,I13]', () => {
-  linkedInSection('Pullboard View', 'shouts-light.png', ['shouts', 'answered', 'heard', 'receipt', 'code reference']);
-  linkedInSection('Pullboard View', 'desktop-light.png', ['needs you', 'search', 'status bar']);
-  linkedInSection('Pullboard View', 'phone-light.png', ['phone', 'active work', 'needs you', 'search']);
+  linkedInSection('Pullboard View', 'shouts-light.png', ['shouts', 'by item', 'answer', 'stale claim', 'coordinator']);
+  linkedInSection('Pullboard View', 'desktop-light.png', ['desktop board', 'one line each', 'stage']);
+  linkedInSection('Pullboard View', 'phone-light.png', ['phone board', 'item list', 'opened item']);
   const section = README.slice(README.indexOf('## Pullboard View'), README.indexOf('## Get started'));
   assert.match(section, /desktop-light\.png"[^]*shouts-light\.png"/, 'desktop and Shouts captures are together');
   const png = readFileSync(shots('shouts-light.png'));

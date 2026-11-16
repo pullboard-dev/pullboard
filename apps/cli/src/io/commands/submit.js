@@ -15,6 +15,7 @@ import { checkoutBranch } from '../../../../../packages/git/index.js';
 import { heartbeatCommand } from '../presence.js';
 import { mergeSubmissionMain } from '../../../../../packages/merge/index.js';
 import { requireNonEmptySubmit } from '../empty.js';
+import { criterionClauses } from '../../../../../packages/state/index.js';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
 import { clauseReceiptProblem } from '../../../../../packages/state/index.js';
 import { staleHeadLines } from '../../../../../packages/state/index.js';
@@ -52,6 +53,9 @@ import {
   barReadyProblem,
 } from '../../../../../packages/verify/index.js';
 import { barCheckWarning } from '../../../../../packages/verify/index.js';
+import { barCheckState } from '../../../../../packages/verify/index.js';
+import { dryRunReviewChecklist } from '../../../../../packages/verify/index.js';
+import { dryRunReviewEnabled } from '../../../../../packages/verify/index.js';
 /** The pullboard submit command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
@@ -134,6 +138,7 @@ import { waitForSubmitGate } from '../submit/wait.js';
 import { runStaticPreflight } from '../submit/preflight.js';
 import { requireStaticPreflight } from '../submit/preflight.js';
 import { changedSince } from '../submit/preflight.js';
+import { requireSlicePaths } from '../submit/slice-paths.js';
 import { recordGateSpan } from '../../../../../packages/resources/index.js';
 import { reportPreflight } from '../submit/preflight.js';
 
@@ -320,6 +325,11 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     if (!isSubmitHandoffWorker(ctx) && !folder) refuseHeldElsewhere(ctx.info, store.listAgents(board), item, 'submit', agentSessionDigest);
     if (item.item_status !== 'claimed' || item.item_owner !== me.id) throw new Refused('NOT_YOURS', 'claim this item before submitting it');
     if (!isSubmitHandoffWorker(ctx)) heartbeatCommand(ctx.io, { ctx, board });
+    if (ctx.dryRunReview && dryRunReviewEnabled(board)) {
+      // Advisory only: print the verifier checklist before any clause refusal and record that it ran; off prints and records nothing [C7].
+      for (const line of dryRunReviewChecklist({ id, clauses: criterionClauses(item.item_criterion), criterion: item.item_criterion, barNote: barCheckState(board, item).note })) ctx.io.say(line);
+      await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text: 'dry-run review ran: checklist printed to the builder before submit; advisory, not a verdict' }]);
+    }
     const readiness = barReadyProblem(board, item);
     if (readiness) throw readiness;
     const clauseProblem = inspectClauses ? authorizationStep('clause-inspection', () => clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateTestFiles(root, item), head: headCommit(root) })) : null;
@@ -501,6 +511,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   });
   reportSubmitStage(ctx, 'authorization and source', preflightStart);
   withBoard(ctx, (board) => refuseUnsubmittableStack(root, board, held, commit, trunk));
+  withBoard(ctx, board => requireSlicePaths(board, held, changedSince(root, acceptedMain.commit, commit), acceptedMain.config.slices?.enforcePaths));
   machineNameProblems(root, `${acceptedMain.commit}..${commit}`, { refuse: acceptedMain.config.commits.noHostName === true, say: (line) => ctx.io.say(line) });
   const infraRecord = infraNotes.infraNote({ root, claimHead, commit, files: filesSince(root, id, claimHead, commit), gates: [ctx.config.gate, acceptedMain.config.gate], infra, requireInfraNote: acceptedMain.config.submit.requireInfraNote });
   const regeneratedFrom = toolRegenerationSource(root, commit);
@@ -609,7 +620,7 @@ async function handOffHostedSubmit(ctx, id, runner) {
 
 export async function run(io, { first, values }) {
   const submissionResult = {};
-  let ctx = { ...context(io), submissionResult, precheck: values.precheck === true, json: values.json === true };
+  let ctx = { ...context(io), submissionResult, precheck: values.precheck === true, dryRunReview: values['dry-run-review'] === true, json: values.json === true };
   const id = idArg(first);
   if (values.preflight) return preflightHere(ctx);
   const companionInput = values.companion === undefined ? null : { file: values.companion, key: values.key, author: values.author };
@@ -619,7 +630,7 @@ export async function run(io, { first, values }) {
   const hostRunner = hostedSubmitRunner();
   if (hostRunner) {
     io.cwd = await handOffHostedSubmit(ctx, id, hostRunner);
-    ctx = { ...context(io), submissionResult, precheck: ctx.precheck, json: ctx.json };
+    ctx = { ...context(io), submissionResult, precheck: ctx.precheck, dryRunReview: ctx.dryRunReview, json: ctx.json };
   }
   /** Dispatch before optional verdict waiting, retaining this exact submission document; a pulled one marks the submit queued for --wait [P7]. */
   ctx.afterSubmission = submission => { if (submission?.queued) Object.assign(submissionResult, { queued: true, value: submission }); return completeMoveHandoff(ctx, id, values, submission, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest, topUp: target => topUpClaims(target, {}, { most: 1 }) }); };

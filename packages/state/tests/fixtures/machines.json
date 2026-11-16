@@ -119,14 +119,16 @@
       "id": "review:<item>",
       "created": "packages/jobs/src/io/review.js:reserveReview",
       "serves": "item submitted at the reserved commit and digest, reserved by this reviewer",
-      "states": ["reserved", "lapsed", "released"],
+      "states": ["reserved", "lapsed", "released", "accept-queued", "accept-settled"],
       "terminal": [],
       "lease": "LEASE_MS 120 s on the job; item_review_until follows the reviewLease setting (30 m); renewed only when the same reviewer reserves again; extended by a sweep while the reviewer heartbeats",
       "transitions": [
         { "from": "(none)", "to": "reserved", "trigger": "next --verify reserves", "at": "packages/jobs/src/io/review.js:reserveReview" },
         { "from": "reserved", "to": "reserved", "trigger": "the same reviewer reserves again", "at": "packages/jobs/src/io/review.js:renewReview" },
         { "from": "reserved", "to": "lapsed", "trigger": "a sweep finds the lease lapsed and the reviewer silent", "at": "packages/jobs/src/io/review.js:reclaimLapsedReviews" },
-        { "from": "reserved", "to": "released", "trigger": "another reviewer takes it over", "at": "packages/jobs/src/io/review.js:releaseReview" }
+        { "from": "reserved", "to": "released", "trigger": "another reviewer takes it over", "at": "packages/jobs/src/io/review.js:releaseReview" },
+        { "from": "reserved", "to": "accept-queued", "trigger": "verify accept queues the frozen check as a runner job and names it on the review job (ae1fb799be, #8636)", "at": "apps/cli/src/io/test/accept.js:ACCEPT_QUEUED" },
+        { "from": "accept-queued", "to": "accept-settled", "trigger": "the check job's receipt records the reviewer's accept or reject once (ae1fb799be, #8636)", "at": "packages/api/src/io/test/accept.js:settleQueuedAccept" }
       ],
       "servingCheck": { "status": "violated", "gap": "SM5", "at": "packages/store/src/io/board/review/lease.js:sweepLapsedReviews", "note": "no verdict, withdraw or reopen releases the job; reclaimLapsedReviews extends the lease while the reviewer heartbeats whatever the item's state" },
       "harness": "packages/moves/tests/logic/moves/reserveNextReview/durable.test.js"
@@ -592,7 +594,6 @@
     { "case": "gate driver killed", "current": "the gate is requeued on the same candidate within seconds, with no builder red", "intended": "same", "harness": "packages/gate/tests/fixtures/pipeline/requeue.js" },
     { "case": "live driver mistaken for dead", "current": "a sweep never declares a live, same-incarnation driver dead for a lapsed lease alone", "intended": "same", "harness": "packages/gate/tests/fixtures/pipeline/driver.js" },
     { "case": "runner lost mid-shard", "current": "the idle probe stops the orphan worker; the gate requeues with attempt + 1; three infrastructure stops end it", "intended": "same", "harness": "packages/gate/tests/fixtures/pipeline/worker.js" },
-    { "case": "dispatcher on stale tools", "current": "it stops launching and hands over to one on current tooling within 45 s", "intended": "same", "harness": "packages/gate/tests/fixtures/pipeline/dispatcher.js" },
     { "case": "seat runs a stale CLI", "current": "a worktree runs the main checkout's current CLI", "intended": "same", "harness": "apps/cli/journeys/worktree/current.test.js" },
     { "case": "landing crash", "current": "killing the lander at any stage lets the next accept land both items without manual recovery", "intended": "same", "harness": "apps/cli/journeys/land/main.test.js" },
     { "case": "two landers", "current": "the board landing lease admits one; a stalled relay cannot block the holder's heartbeat", "intended": "same", "harness": "apps/lib/tests/landing/lease.test.js" },

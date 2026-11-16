@@ -64,7 +64,11 @@ test('cached committed graphs retain unknowns and give each consumer fresh conta
      console.log(graph.unknown.get('src/unknown.js'));`], { encoding: 'utf8' });
   assert.equal(child.status, 0, child.stderr);
   assert.match(child.stdout, /dynamic import/u);
-  assert.equal(selectAffectedTests(box.root, { base: commit, commit, changed: ['src/unknown.js'] }).full, true);
+  // clause 1: a change reaching an unknown file selects its importers and the unknown roots, not the whole suite.
+  const reached = selectAffectedTests(box.root, { base: commit, commit, changed: ['src/unknown.js'] });
+  assert.equal(reached.full, false);
+  assert.ok(reached.files.includes('test/unknown.test.js'), 'clause 2: the test reaching the unknown file is still selected');
+  assert.ok(!reached.files.includes('test/value.test.js'), 'a test that never reaches the unknown file stays out');
 });
 
 test('documentation overlays and new commits cannot contaminate an immutable cached base [C7,V4]', t => {

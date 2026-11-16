@@ -41,7 +41,7 @@ export { testsNeedGui, projectNeedsGui, checkNeedsGui } from "./src/io/gui/admis
 export { guiSession } from "./src/io/gui/session.js";
 export { mainMovedSinceAudit, nudgeMainAudit } from "./src/io/main/audit/nudge.js";
 export { scheduleMainAudit, waitMainAudit } from "./src/io/main/audit/scheduler.js";
-export { mainAuditDirectory, activateMainAudits, mainAuditKey, readMainAudit, saveMainAudit } from "./src/io/main/audit/state.js";
+export { mainAuditDirectory, activateMainAudits, mainAuditKey, readMainAudit, saveMainAudit, SETTLED_FILE } from "./src/io/main/audit/state.js";
 export { runMainAudits, mainAuditJobs, routeAuditFailures, closeAuditedMainReds, withAuditedMain } from "./src/io/main/audit/worker.js";
 export { attributeAuditFailures, fileAuditRegressions, auditRegressionTitle, auditRegressionNote } from "./src/io/main/audit/attribution.js";
 export { withImportParseCache } from "./src/io/imports.js";
@@ -93,7 +93,7 @@ export { testTimeBudget, testTimeBudgetLines } from './src/logic/test/budget/tim
 
 export { runGateStages } from "./src/logic/stages.js";
 export { GATE_PROGRESS_MS, withGateProgress, reportGateProgress, progressingWait, whileGateRuns } from "./src/io/progress.js";
-export { packageHashesAt, unsealedPackages, sealStoreFile, recordSeal, sealOf, sealStatus, checkSkippedSeals } from './src/io/seals.js';
+export { packageHashesAt, unsealedPackages, sealStoreFile, recordSeal, sealOf, sealStatus, sealedCells, checkSkippedSeals } from './src/io/seals.js';
 
 export { privateCheckAdmission } from './src/io/admission/private/check.js';
 export {
@@ -103,7 +103,7 @@ export {
   activeHandleSummary,
   installTestChildDrain,
 } from './src/io/test/drain.js';
-export { gateMachineHome, gateRuntimeCaptureSource } from './src/logic/preload.js';
+export { gateMachineHome, gateRuntimeCaptureSource } from './src/io/preload.js';
 export { STATIC_SCOPE_ENV, analysisChange, analysisKey, analysisScope, readAnalysisMemo, staticScopeFromEnv, writeAnalysisMemo } from './src/io/static/scope.js';
 export { fixedWallMargins, wallClockViolations } from './src/io/budgets.js';
 export { LOAD_BEARING_CEILINGS, LOAD_BEARING_CELLS, loadBearingJudged, loadBearingSites, loadBearingCounts, loadBearingGrowth, loadBearingRaised, loadBearingFailures } from "./src/logic/load/bearing.js";

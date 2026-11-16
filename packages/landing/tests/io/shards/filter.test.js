@@ -22,6 +22,9 @@ const SOURCE = resolve(import.meta.dirname, '../../../../..');
 /** Two files, two shards: the fan-out is under test, not its volume, and every shard is a whole node process. */
 const NAMES = ['a', 'b'];
 
+/** What a gate child never loads: the apps and packages its entry's import graph does not reach, and every package's own tests and journeys (unreached by any source file). A smaller tree is a faster copy, add, commit, pack and per-shard checkout [C7]. */
+const UNUSED = /^(?:apps\/(?:view|relay|runner)\/|packages\/(?:api|blueprints|board|flakes|github|health|land|mcp|moves|rigor|search|sentinels|shouts|sync)\/|(?:apps|packages)\/[^/]+\/(?:tests|journeys)\/)/u;
+
 let template = null;
 const T0 = Date.now();
 /** A phase mark on stderr, in seconds since the file loaded: it shows where the wait is. */
@@ -59,7 +62,7 @@ function projectTemplate() {
   // The gate under test runs from source, never from the shipped test files: leaving them out shrinks the copy, the commit, and every shard's checkout and cleanup.
   // The fixture has no cell plan: with one, every shard's gate also builds the accepted inventory of the whole source tree, work a name filter never exercises [C7].
   // Docs and the archived board history (22 MB of the 41 MB) are never read by a gate child, and every case and shard copies the project.
-  copyPackageFiles(SOURCE, repo, { files: packageFiles(SOURCE).filter(file => !/\.test\.js$/u.test(file) && file !== 'packages/codemap/data/plan/cells.json' && !/^(?:docs|packages\/state\/data)\//u.test(file)) });
+  copyPackageFiles(SOURCE, repo, { files: packageFiles(SOURCE).filter(file => !/\.test\.js$/u.test(file) && file !== 'packages/codemap/data/plan/cells.json' && !/^(?:docs|packages\/state\/data)\//u.test(file) && !UNUSED.test(file)) });
   for (const name of NAMES) writeFileSync(join(repo, `test/${name}.test.js`), fixtureTest(name));
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node apps/cli/src/io/run/tests.js', landingShards: 2 }));
   const env = projectEnv(dir);

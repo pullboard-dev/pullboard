@@ -40,6 +40,7 @@ import { routePulledOwnership } from './owner.js';
 import { compareFilesWithMain } from './gate/files.js';
 import { fileMainLines } from './gate/files.js';
 import { applyTestReceipt } from './test/receipt.js';
+import { settleQueuedAccept } from './test/accept.js';
 import { caseReworkLines } from './gate/files.js';
 import { ledgerInputKeys } from './gate/files.js';
 import { companionInherits } from './gate/companion.js';
@@ -596,7 +597,13 @@ function submitOvertaken(board, id, options) {
  * @param {{ compareWithMain?: Parameters<typeof compareGateWithMain>[3] }} [ports] - the main-receipt lookup; absent, a red is not compared.
  * @returns {{ applied: boolean, outcome: 'review' | 'red' | 'stale' | 'not-gate', reason?: string, cases?: object[] }}
  */
-export function applyGateReceipt(board, { job, receipt }, { compareWithMain = null } = {}) {
+export function applyGateReceipt(board, posted, ports = {}) {
+  // Every policy read in the application, not only the submit, meets a detached primary: the receipt often applies while the coordinator verifies [C7,#8011].
+  return withRetainedTrunkPolicy(board, () => applyGateReceiptReads(board, posted, ports));
+}
+
+/** applyGateReceipt's body; its mainPolicy reads fall back to the retained trunk tip while the primary is detached. */
+function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null } = {}) {
   const offered = offeredGate(board.db, job);
   if (!offered || offered.kind !== 'gate' || !Number.isSafeInteger(offered.item)) return { applied: false, outcome: 'not-gate' };
   const { item: id, candidate, main, submit } = offered;
@@ -921,7 +928,10 @@ export function applyJobReceipt(board, posted, ports = {}) {
   if (kind === SHARD_JOB_KIND) return applyShardReceipt(board, posted, ports);
   if (kind === LANDING_JOB_KIND) return applyLandingReceipt(board, posted);
   if (kind === CHECK_BASELINE_KIND) return applyCheckBaselineReceipt(board, posted);
-  if (kind === 'test') return applyTestReceipt(board, posted);
+  if (kind === 'test') {
+    const accept = settleQueuedAccept(board, posted);
+    return accept.applied ? accept : applyTestReceipt(board, posted);
+  }
   if (kind === MAIN_TEST_KIND) {
     const applied = applyMainTestReceipt(board, posted);
     if (applied.applied) settleWaitingGates(board, posted.job, ports);
