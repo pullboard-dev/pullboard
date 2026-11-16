@@ -88,3 +88,27 @@ test('clause 1: writeDerived prepares its upsert once per board connection, not 
   assert.equal(upserts.length, 1, 'fifty calls prepared the upsert once');
   assert.equal(derivedRows(board).filter(row => /^[kj]:/.test(row.meta_key)).length, 100, 'every pair was written');
 });
+
+test('clause 1: a replay commits once per batch of events, not once per write [C7,#9020]', t => {
+  const { board } = recorded(t);
+  const statements = [];
+  const real = board.db.exec.bind(board.db);
+  board.db.exec = sql => { if (/^(BEGIN|COMMIT|ROLLBACK)/.test(sql)) statements.push(sql); return real(sql); };
+  rebuildProofCounters(board, { refresh: false });
+  const commits = statements.filter(sql => sql === 'COMMIT').length;
+  assert.ok(commits >= 1 && commits <= 2, `30 events replay in at most two transactions, saw ${commits}`);
+  assert.equal(statements.filter(sql => sql === 'BEGIN').length, commits, 'every transaction began once and committed once');
+  assert.equal(statements.includes('ROLLBACK'), false);
+});
+
+test('clause 2: derived counters equal board_meta counters after a replay of several batches [C7,#9020]', t => {
+  const { board } = recorded(t);
+  const insert = board.db.prepare('INSERT INTO event(event_at,event_by,event_kind,item_id,event_detail) VALUES (?,?,?,?,?)');
+  board.db.exec('BEGIN');
+  for (let n = 0; n < 600; n++) insert.run(new Date(Date.parse('2026-11-01T00:00:00Z') + n * 1000).toISOString(), `agent-${n % 7}`, 'submit', 100 + n % 50, JSON.stringify({ commit: String(n).padStart(40, '0') }));
+  board.db.exec('COMMIT');
+  rebuildProofCounters(board, { refresh: false });
+  const meta = board.db.prepare('SELECT meta_key, meta_value FROM board_meta WHERE meta_key GLOB ? ORDER BY meta_key').all(`${PROOF_COUNTER_PREFIX}v2:*`);
+  assert.deepEqual(derivedRows(board), meta, 'every row is byte-equal after three batches');
+  assert.equal(proofCounter(board, 'summary').last, 630);
+});
