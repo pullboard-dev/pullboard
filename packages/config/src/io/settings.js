@@ -110,6 +110,16 @@ export function requireRegisteredEnabled() {
   return loadMachineSettings().tests?.requireRegistered === true;
 }
 
+/** Whether the static check refuses an added journey that names no golden user path: off by default; only an exact `true` turns it on [C7,#9403]. */
+export function requireJourneyPathEnabled() {
+  return loadMachineSettings().tests?.requireJourneyPath === true;
+}
+
+/** Whether the static check refuses new direct clock reads outside the kernel: off by default; only an exact `true` turns it on [C7,#9447]. */
+export function adapterLintClockEnabled() {
+  return loadMachineSettings().gate?.adapterLintClock === true;
+}
+
 /** Whether the static check refuses new direct node:fs imports outside the kernel: off by default; only an exact `true` turns it on [C7,#9449]. */
 export function adapterLintFsEnabled() {
   return loadMachineSettings().gate?.adapterLintFs === true;
