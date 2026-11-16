@@ -78,6 +78,7 @@ export {
   refuseTempWorktree,
   viewBackgroundEnabled,
   healthSentinelEnabled,
+  lapsedSweepEnabled,
   memoryFloorMB,
   relayOfferEnabled,
   setRelayCanary,
