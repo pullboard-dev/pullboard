@@ -731,6 +731,11 @@ export function boardKey() {
   return key;
 }
 
+/** Whether landing.reuseContractResults is on (#9301): off by default; only an exact `true` turns it on. */
+export function reuseContractResultsEnabled() {
+  return loadMachineSettings().landing?.reuseContractResults === true;
+}
+
 /** Whether landing.reuseGateReceipts is on (#9243): off by default; only an exact `true` turns it on. */
 export function reuseGateReceiptsEnabled() {
   return loadMachineSettings().landing?.reuseGateReceipts === true;
