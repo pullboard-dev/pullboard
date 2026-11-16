@@ -25,6 +25,30 @@ function recordOf(payload) {
   try { return JSON.parse(payload).record ?? undefined; } catch { return undefined; }
 }
 
+/** True while the board keeps run records on its run rows (board_meta runs_store). */
+function runsStoreOn(db) {
+  return db.prepare("SELECT meta_value FROM board_meta WHERE meta_key = 'runs_store'").get()?.meta_value === '1';
+}
+
+/**
+ * The hand-off records the board's run rows hold, newest first, as {item, record}: one item's, or every item's.
+ * Why: with runs_store on a gate job's record is its run row's run_record, written in the move that saved it [B2,M3].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {number | null} item - Read this one item, or every item when null.
+ * @param {boolean} [live] - Only items not yet verified or withdrawn.
+ * @returns {Generator<{ item: number, record: Record<string, any> }>}
+ */
+function* runRecordRows(db, item, live = false) {
+  if (db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name = 'run'").get().n !== 1) return;
+  const rows = db.prepare(`SELECT run_item AS item, run_record AS record FROM run WHERE run_kind = 'gate' AND run_record IS NOT NULL
+    ${item === null ? 'AND run_item IS NOT NULL' : 'AND run_item = ?'}${live ? " AND run_item IN (SELECT item_id FROM item WHERE item_status NOT IN ('verified', 'withdrawn'))" : ''}
+    ORDER BY run_updated DESC, rowid DESC`).iterate(...(item === null ? [] : [item]));
+  for (const row of rows) {
+    try { yield { item: row.item, record: JSON.parse(row.record) }; } catch { /* an unreadable record is no record */ }
+  }
+}
+
 /**
  * The item's current submit hand-off record: the record on the newest step of its gate jobs, read from the job
  * tables the jobs cell writes. Undefined when no gate job step carries one.
@@ -37,6 +61,7 @@ function recordOf(payload) {
  * @returns {Record<string, any> | undefined}
  */
 export function handoffRecord(db, item) {
+  if (runsStoreOn(db)) return runRecordRows(db, item).next().value?.record;
   if (!hasJobTables(db)) return undefined;
   const rows = db.prepare(`SELECT s.job_step_payload AS payload FROM job j JOIN job_step s ON s.job_step_job = j.job_id
     WHERE j.job_kind = 'gate' AND j.job_item = ? ORDER BY s.job_step_id DESC`).iterate(item);
@@ -63,6 +88,10 @@ export function handoffRecord(db, item) {
  */
 export function handoffRecords(db, { live = false } = {}) {
   const records = new Map();
+  if (runsStoreOn(db)) {
+    for (const row of runRecordRows(db, null, live)) if (!records.has(row.item)) records.set(row.item, row.record);
+    return records;
+  }
   if (!hasJobTables(db)) return records;
   const rows = db.prepare(`SELECT j.job_item AS item, s.job_step_payload AS payload FROM job j
     JOIN job_step s ON s.job_step_id = (SELECT MAX(job_step_id) FROM job_step WHERE job_step_job = j.job_id AND job_step_name NOT LIKE 'note:%')
