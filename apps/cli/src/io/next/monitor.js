@@ -35,7 +35,6 @@ function observePhases() {
     }
     timer = setTimeout(report, Math.max(0, workerData.phaseMs - (monotonicMs() - started)));
   });
-  parentPort.postMessage('ready');
 }
 
 if (!isMainThread && workerData?.kind === 'next-progress') observePhases();
@@ -51,8 +50,11 @@ function monitorExecArgv() {
   return args;
 }
 
-/** Start one acknowledged diagnostic worker before native routing; callers await close only after ordered work settles. */
-export async function startNextProgressMonitor(io, { phaseMs = 10_000 } = {}) {
+/**
+ * Start one diagnostic worker before native routing and return at once; the worker reads the phases queued while it boots.
+ * Why: awaiting its readiness, and its termination at close, left a cold next idle on its own thread's start-up [C7,#8574].
+ */
+export function startNextProgressMonitor(io, { phaseMs = 10_000 } = {}) {
   // Only the actual CLI stream permits descriptor writes; an adapter can expose fd 2 while capturing write().
   if (io.stderr !== process.stderr) return null;
   const fd = io.stderr.fd;
@@ -62,13 +64,7 @@ export async function startNextProgressMonitor(io, { phaseMs = 10_000 } = {}) {
     { execArgv: monitorExecArgv(), workerData: { kind: 'next-progress', state: shared, fd, phaseMs } });
   let failure = null, generation = 0, current = null;
   worker.on('error', error => { failure = error; });
-  try {
-    await new Promise((resolve, reject) => {
-      worker.once('error', reject);
-      worker.once('exit', code => reject(new Error(`next progress worker exited before readiness (${code})`)));
-      worker.once('message', value => value === 'ready' ? resolve() : reject(new Error('next progress worker did not acknowledge readiness')));
-    });
-  } catch (error) { await worker.terminate(); throw error; }
+  // A phase message posted before the worker listens waits in its port; each carries its own start, so no threshold moves.
   worker.unref();
   /** Publish the real phase before its synchronous work; a new generation invalidates every older pending timer. */
   function enter(phase, item) {
@@ -90,7 +86,7 @@ export async function startNextProgressMonitor(io, { phaseMs = 10_000 } = {}) {
     current = null;
     worker.postMessage({ kind: 'stop' });
   }
-  /** Join only this owned diagnostic thread; never race or replay native mutations. */
-  async function close() { stop(); await worker.terminate(); }
+  /** Stop this owned diagnostic thread without waiting for it; the stopped generation already silences any pending line. */
+  async function close() { stop(); worker.terminate().catch(() => { /* the thread has already ended */ }); }
   return { enter, warn, stop, close };
 }

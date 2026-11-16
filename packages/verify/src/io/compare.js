@@ -122,7 +122,7 @@ export async function compareVerification(root, item, { main, selectTests, runTe
     const files = [...new Set([...selected.files, ...additional])].filter(file => headFiles.has(file)).sort();
     // A diagnostic cannot acquire a runner from an empty configured pool; retain unavailable instead of queueing.
     if (files.length && !runnerAvailable()) {
-      throw new Refused('COMPARE_RUNNER_REQUIRED', 'comparison unavailable: no configured runner; register a runner and retry pullboard verify --compare');
+      throw new Refused('COMPARE_RUNNER_REQUIRED', 'comparison unavailable: no configured runner; the gate receipts of the item stand for the review');
     }
     const baseSelected = files.filter(file => baseFiles.has(file));
     const settled = await Promise.allSettled([runAt(head, files), runAt(base, baseSelected)]);
@@ -153,7 +153,7 @@ export async function compareVerification(root, item, { main, selectTests, runTe
 /** Show only changed red cases and fixed cases, retaining the two execution identities. */
 export function renderVerificationComparison(result) {
   if (result.status === 'pending') return `comparison pending for #${result.item}`;
-  if (result.status === 'unavailable') return `comparison unavailable: ${result.error}; rerun pullboard verify ${result.item} --compare`;
+  if (result.status === 'unavailable') return `comparison unavailable: ${result.error}; review on the item's gate receipts`;
   const lines = [`comparison #${result.item}${result.fallback ? ' (main fallback)' : ''}`,
     `head ${result.headCommit}: ${result.head.id ? `run ${result.head.id}` : 'no tests at head'}`,
     `base ${result.baseCommit}: ${result.base.id ? `run ${result.base.id}` : 'no tests at base'}`];
