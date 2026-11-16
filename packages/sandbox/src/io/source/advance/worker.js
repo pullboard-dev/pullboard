@@ -253,6 +253,7 @@ export async function runSourceAdvances(root, token, services) {
   if (typeof services?.openBoardForRead !== 'function') throw new TypeError('source advance requires its actual native read opener');
   if (typeof services?.selectors?.selectAffectedTests !== 'function' || typeof services?.selectors?.selectTestTreeGuards !== 'function') throw new TypeError('source advance worker needs explicit test selector operations');
   const selectors = Object.freeze({ selectAffectedTests: services.selectors.selectAffectedTests, selectTestTreeGuards: services.selectors.selectTestTreeGuards });
+  if (typeof services?.settledFile !== 'string') throw new TypeError('source advance worker needs its settle file name from the gate');
   services = { ...services, selectors };
   const { withFileLock, readMainAudit, saveMainAudit } = services;
   // A wake with no source obligations must be observationally inert. A successful CLI
@@ -287,7 +288,7 @@ export async function runSourceAdvances(root, token, services) {
         if (owner?.pid !== process.pid || owner.token !== token) throw new Error('source-advance ownership changed');
         if (!Number.isSafeInteger(wake?.generation) || wake.generation < generation) throw new Error('invalid source-advance wake');
         if (wake.generation !== generation) return wake.generation;
-        saveMainAudit(join(directory,'settled.json'), { generation, token });
+        saveMainAudit(join(directory,services.settledFile), { generation, token });
         rmSync(ownerFile); return null;
       });
       if (next === null) return;

@@ -169,7 +169,6 @@ Agents think; Pullboard does everything deterministic.
 | Pullboard | Runs gates, routes verifies, lands accepted work. |
 
 ${SEAT_LOOP}
-
 ## Troubleshoot
 
 - **A refusal:** do what its \`next:\` line says.

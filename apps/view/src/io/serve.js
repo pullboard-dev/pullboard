@@ -318,7 +318,24 @@ export function publicLiveSnapshot(root, { now = Date.now(), registeredOnly = fa
   try { privateBoard = Boolean(board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key = ?').get('private_repo_board_id')); } finally { store.closeBoard(board); }
   // The machine's runner leases sit beside its settings file, in the machine home.
   return publicLiveRunners(commonDir, { resources: machineResourcesFile(), configured: loadMachineSettings().runners ?? [],
-    openBoardReadOnly: store.openBoardReadOnly, now, privateBoard, registeredOnly });
+    openBoardReadOnly: store.openBoardReadOnly, now, privateBoard, registeredOnly, jobsFor: runsJobs });
+}
+
+/**
+ * The handle that holds a board's job rows for a read: a read-only runs handle when the board's runs_store flag is on and its
+ * runs file exists, else the board itself [B2,P7]. Why: with the split on, runner traffic no longer writes the board's job table (#9016).
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - A board, read-only.
+ * @param {string} boardFile
+ * @returns {{ jobs: import('node:sqlite').DatabaseSync, close: () => void }}
+ */
+export function runsJobs(db, boardFile) {
+  let on = false;
+  try { on = store.runsStoreOn(db); } catch { /* A board with no board_meta reads off. */ }
+  const file = store.runsFilePath(boardFile);
+  if (!on || !existsSync(file)) return { jobs: db, close() {} };
+  const runs = store.openBoardReadOnly(file);
+  return { jobs: runs, close() { try { runs.close(); } catch { /* Already closed. */ } } };
 }
 
 /**
@@ -336,7 +353,11 @@ export function finishedRuns(commonDir, now) {
   try {
     if (!existsSync(file)) return count;
     db = store.openBoardReadOnly(file);
-    const rows = db.prepare("SELECT job_kind AS kind, COUNT(*) AS n FROM job WHERE job_step = 'done' AND job_updated > ? GROUP BY job_kind").all(now - 4 * 3_600_000);
+    // With runs_store on, outcomes are the board's run rows; the job tables are in the runs file (#9016).
+    const split = (() => { try { return store.runsStoreOn(db); } catch { return false; } })();
+    const rows = split
+      ? db.prepare("SELECT run_kind AS kind, COUNT(*) AS n FROM run WHERE run_state = 'done' AND run_updated > ? GROUP BY run_kind").all(now - 4 * 3_600_000)
+      : db.prepare("SELECT job_kind AS kind, COUNT(*) AS n FROM job WHERE job_step = 'done' AND job_updated > ? GROUP BY job_kind").all(now - 4 * 3_600_000);
     for (const { kind, n } of rows) {
       const key = { gate: 'gate', 'gate-shard': 'gate', land: 'landing', landing: 'landing', test: 'test', 'main-test': 'test' }[kind];
       if (key) count[key] += Number(n);
@@ -485,6 +506,7 @@ function computeRowAges(root, file, head, kind) {
 /**
  * Compute the ages in a worker thread running this module, so the walk never blocks the view's requests.
  * A failed worker resolves to null and the caller keeps what it had.
+ * Why execArgv is empty: a worker inherits the parent's flags, and under `node --input-type=module -e` those cannot start a file worker.
  *
  * @param {string} root
  * @param {string} file
@@ -495,7 +517,7 @@ function computeRowAges(root, file, head, kind) {
 function rowAgesInWorker(root, file, head, kind) {
   return new Promise(done => {
     let worker;
-    try { worker = new Worker(new URL(import.meta.url), { workerData: { rowAges: { root, file, head, kind } } }); }
+    try { worker = new Worker(new URL(import.meta.url), { execArgv: [], workerData: { rowAges: { root, file, head, kind } } }); }
     catch { done(null); return; }
     worker.once('message', rows => done(new Map(rows)));
     worker.once('error', () => done(null));
@@ -724,7 +746,7 @@ const derivedKept = new Map();
  * @param {object} [options]
  * @returns {any}
  */
-function liveProjectState(root, options = {}) {
+export function liveProjectState(root, options = {}) {
   return projectState(root, { ...options, rowAgesLater: true });
 }
 

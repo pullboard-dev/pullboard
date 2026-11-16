@@ -2475,6 +2475,7 @@
     "keys->store",
     "landing->gate",
     "landing->git",
+    "landing->jobs",
     "landing->kernel",
     "landing->pin",
     "landing->store",

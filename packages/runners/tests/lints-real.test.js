@@ -37,8 +37,24 @@ function fixture(t) {
   return { root, put, remove, git, report: () => { git('add', '-A'); return cellLintReport(root, { importsIn, commonJsIn }); } };
 }
 
+let realRepository = null;
+/** This repository's cell lint report and committed baseline, built once: the report is the slow part, and both real-repository cases below read the same one. */
+function realReport() {
+  const root = fileURLToPath(new URL('../../../', import.meta.url));
+  realRepository ??= { root, report: cellLintReport(root, { importsIn, commonJsIn }), baseline: readCellLintBaseline(root) };
+  return realRepository;
+}
+
+test('clause 2: a report over the real repository succeeds and prints with the growth against the committed index.json, as --report does [C7,CD64]', () => {
+  // lints.js --report is cellLintReport, then cellLintGrowth against the stored baseline, printed as JSON: the same calls, over the same tree, without a second multi-minute report.
+  const { report, baseline } = realReport();
+  const growth = cellLintGrowth(report, baseline);
+  assert.ok(Array.isArray(growth), 'the real index.json binds boundaries-012 and strays-001, so the growth is computed');
+  assert.doesNotThrow(() => JSON.stringify({ ...report, growth }, null, 2), 'the report prints');
+});
+
 test('the actual repository gate enforces strict cell debt and reports temporary named transition rises [C7,CD64]', () => {
-  const root = fileURLToPath(new URL('../../../', import.meta.url)), report = cellLintReport(root, { importsIn, commonJsIn }), baseline = readCellLintBaseline(root);
+  const { report, baseline } = realReport();
   const growth = cellLintGrowth(report, baseline);
   for (const row of growth.filter(row => row.advisory)) console.log(`advisory item #${row.item} until #${row.until}: ${row.metric}:${row.key}: ${row.actual} exceeds ${row.allowed}`);
   assert.deepEqual(cellLintGrowth(report, baseline, { enforcedOnly: true }), [], 'normal npm test keeps all non-transition debt strict without updating the baseline');

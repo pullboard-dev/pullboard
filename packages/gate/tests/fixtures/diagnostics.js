@@ -12,6 +12,14 @@ import {
 } from 'node:path';
 
 const FILE_OWNER_TIMEOUT_MS = 8_000;
+// Budget: about 6 s in all for a concurrent writer to finish before the removal is reported as failed, as in the gate's own sandbox cleanup.
+const REMOVE_BACKOFF_MS = [50, 100, 200, 400, 800, 1600, 3000];
+const RETRYABLE_REMOVAL = new Set(['ENOTEMPTY', 'EBUSY']);
+
+/** Block for a moment; the test body has finished, so nothing else waits on this cleanup. */
+function pauseSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
 
 /** List the newest filesystem entries below a failed cleanup path. */
 function newestEntries(directory) {
@@ -75,10 +83,14 @@ export function cleanupFailureReport(error, directory) {
  * @param {string} directory
  * @param {{ remove?: () => void, emit?: (message: string) => void }} [options] - Real filesystem operation and evidence sink, overridable for a deterministic control.
  */
-export function removeFixtureDirectory(directory, { remove = () => rmSync(directory, { recursive: true, force: true }), emit = message => process.stderr.write(message) } = {}) {
-  try { remove(); }
-  catch (error) {
-    if (error.code === 'ENOTEMPTY') emit(`${cleanupFailureReport(error, error.path ?? directory)}\n`);
-    throw error;
+export function removeFixtureDirectory(directory, { remove = () => rmSync(directory, { recursive: true, force: true }), emit = message => process.stderr.write(message), backoff = REMOVE_BACKOFF_MS } = {}) {
+  for (let attempt = 0; ; attempt++) {
+    try { remove(); return; }
+    catch (error) {
+      // A writer that is still finishing adds an entry mid-removal (ENOTEMPTY, EBUSY): wait a bounded time, never skip the removal.
+      if (RETRYABLE_REMOVAL.has(error.code) && attempt < backoff.length) { pauseSync(backoff[attempt]); continue; }
+      if (error.code === 'ENOTEMPTY') emit(`${cleanupFailureReport(error, error.path ?? directory)}\n`);
+      throw error;
+    }
   }
 }

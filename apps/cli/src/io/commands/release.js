@@ -4,6 +4,7 @@ import { relayRecovered } from '../../../../../packages/link/index.js';
 import { staleReleaseNote } from '../../../../../packages/store/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { releaseReasonProblem } from '../../../../../packages/store/index.js';
+import { reviewReleaseReasonsRequired } from '../../../../../packages/config/index.js';
 import { cleanItemFolders } from '../item/folder.js';
 /** The pullboard release command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
@@ -67,6 +68,14 @@ export async function run(io, args) {
     args.push({ leaseLapse: true, staleClaim: observed, observedAt: snapshot.observedAt, observedRevision: snapshot.observedRevision, health: ctx.config.health ?? {} }, reasonCode);
   } else {
     refuseHeldElsewhere(ctx.info, store.listAgents(board), store.getItem(board, args[0]), 'release', agentSessionDigest);
+    const item = store.getItem(board, args[0]);
+    const isReview = item.item_status === 'submitted' && store.reviewHolder(board, item) === me.id;
+    // A review's reason may be typed as `too large` or `too-large`; the recorded code is the upper-case form [C7,#8920].
+    const typed = typeof values.reason === 'string' ? values.reason.trim().toUpperCase().replace(/[\s-]+/gu, '_') : values.reason;
+    if (isReview && store.REVIEW_RELEASE_REASONS.includes(typed)) values.reason = typed;
+    if (isReview && reviewReleaseReasonsRequired() && !store.REVIEW_RELEASE_REASONS.includes(values.reason)) {
+      throw new Refused('REVIEW_RELEASE_REASON', `a review release names why it was dropped: --reason ${store.REVIEW_RELEASE_REASONS.join('|')} (--note still gives the one-line reason)`, 'run pullboard release <id> --reason BAR|FAMILY|INFRA|TOO_LARGE --note "why"');
+    }
     const missing = releaseReasonProblem(values.reason, args[2]);
     if (missing) throw missing;
     args.push({ ...(blockedOn ? { blockedOn } : {}), worktreeSnapshot: claimWorktreeSnapshot(ctx.info.root) }, values.reason);

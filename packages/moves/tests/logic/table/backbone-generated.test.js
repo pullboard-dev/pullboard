@@ -4,7 +4,12 @@ import { test } from 'node:test';
 import { BACKBONE_RULES } from '../../../index.js';
 import { BACKBONE_STATES } from '../../../index.js';
 import { BACKBONE_TABLE } from '../../../index.js';
+import { CREATED_JOB_KINDS } from '../../../index.js';
 import { JOB_KINDS } from '../../../index.js';
+import { LEGAL_LANDING } from '../../../index.js';
+import { landingEngine } from '../../../index.js';
+import { landingOf } from '../../../index.js';
+import { legalLanding } from '../../../index.js';
 import { deriveFact } from '../../../index.js';
 import { runTable } from '../../../index.js';
 import { seeded } from '../../../index.js';
@@ -31,6 +36,8 @@ const NEEDS = {
   'gate-shard': (s) => s.item?.status === 'submitted' && pinned(s),
   test: (s) => typeof s.job.seat === 'string',
   'check-baseline': (s) => s.item?.check !== undefined && s.item.check !== null,
+  screen: (s) => s.item?.status === 'submitted' && s.item.pace === 'sprint' && s.item.commit === s.job.commit && Boolean(s.base) && s.job.base === s.base,
+  'pull-out': (s) => Boolean(s.item) && landingOf(s.item, s.history) === 'pulling',
 };
 
 /** A seeded item, item list and job whose fields mostly agree, so every kind is served on some cases and unserved on others. */
@@ -43,7 +50,12 @@ function scenario(seed) {
     reservedBy: g.pick(['r1', 'r2']), ...(g.int(2) === 0 ? { check: g.pick([null, 'node x']) } : {}) };
   const job = { kind, seat: g.pick(['s1', 's2', 7]), status: g.pick(['queued', 'running', 'done']), reviewer: g.pick(['r1', 'r2']), commit, digest: g.pick(['d1', 'd1', 'd2']), trunk: 't1',
     commits: Object.fromEntries((items ?? []).map(i => [i.id, g.pick(['c1', 'c1', 'c2'])])), ...(g.int(2) === 0 ? { verdict: 'green' } : {}) };
-  return { s: { item, items, job } };
+  // Drawn last, so every earlier kind's seeded states stay exactly as they were before the screen and pull-out kinds.
+  const base = g.pick(['b1', 'b1', 'b2']);
+  if (item) item.pace = g.pick(['sprint', 'sprint', 'steady']);
+  job.base = g.pick(['b1', 'b1', 'b2']);
+  const history = g.pick([[], [{ kind: 'merged' }], [{ kind: 'merged' }, { kind: 'pull_out' }], [{ kind: 'merged' }, { kind: 'pull_out' }], [{ kind: 'pull_out' }, { kind: 'pulled' }]]);
+  return { s: { item, items, job, base, history } };
 }
 
 const CASES = 20_000;
@@ -101,6 +113,8 @@ test('moves.backbone.moved-job-unserved: metamorphic: move the item off the job 
     'gate-shard': [s => ({ ...s, item: { ...s.item, status: 'verified' } })],
     test: [s => ({ ...s, job: { ...s.job, seat: undefined } })],
     'check-baseline': [s => ({ ...s, item: { ...s.item, check: null } }), s => ({ ...s, item: undefined })],
+    screen: [s => ({ ...s, item: { ...s.item, pace: 'steady' } }), s => ({ ...s, job: { ...s.job, base: 'other' } }), s => ({ ...s, item: { ...s.item, commit: 'other' } }), s => ({ ...s, item: { ...s.item, status: 'verified' } })],
+    'pull-out': [s => ({ ...s, history: [...s.history, { kind: 'pulled' }] }), s => ({ ...s, item: undefined })],
   };
   const pins = [s => ({ ...s, item: { ...s.item, commit: 'other' } }), s => ({ ...s, item: { ...s.item, digest: 'other' } })];
   for (const kind of KINDS) {
@@ -168,4 +182,45 @@ test('moves.backbone.rows-fire: generated: every guard and outcome row of the ba
   assert.equal(unknown.refused.code, 'UNKNOWN_MOVE');
   for (const c of rowResults) assert.equal(c.result.refused?.row, c.wrecked, `seed ${c.seed}: ${c.row.key} broke ${c.wrecked}`);
   assert.ok(rowResults.filter(c => !c.result.refused).length > GENERATED / 10);
+});
+
+/** The limits, fault codes and hold prefix the landing cell would hand in, restated here. */
+const LANDING = landingEngine({ limits: { redLimit: 3, runnerSourceRetries: 2, staleProbes: 8 }, faultCodes: ['BOARD_BUSY', 'LAND_RUNNER_FAULT'], repeatHold: 'landing-repeat-test:' });
+/** The start pairs today's board holds: every status unlanded, and verified or withdrawn work with a merged commit. */
+const derivable = (status) => LEGAL_LANDING[status].filter(landing => landing === 'none' || (landing === 'landed' && ['verified', 'withdrawn'].includes(status)));
+/** The pair an accepted move leaves: its patched status, landed once a merged commit or a merged event for this item is written. */
+const pairAfter = (item, result) => {
+  const merged = result.events.some(event => event.kind === 'merged' && (event.item ?? item.id) === item.id);
+  const after = { ...item, ...result.patch, ...(merged ? { mergedCommit: 'm1' } : {}) };
+  return [after.status, landingOf(after)];
+};
+
+test('moves.backbone.legal-landing-pair: clause 3: every outcome of every move table over generated snapshots writes only a legal status and landing pair [M1,M4]', () => {
+  const writes = [];
+  // Every declared item move, from every legal start pair it can meet.
+  for (let seed = 1; seed <= GENERATED; seed++) {
+    const g = seeded(seed);
+    const { row, snapshot, move } = accepted(g.pick(BACKBONE_TABLE.items), g);
+    const landing = g.pick(derivable(snapshot.item.status));
+    const item = { ...snapshot.item, id: 1, merged: landing === 'landed', mergedCommit: landing === 'landed' ? 'm0' : null };
+    const result = run({ ...snapshot, item }, move);
+    if (result.refused) continue;
+    writes.push({ from: [item.status, landing], to: pairAfter(item, result), via: `${row.key} ${result.via.join(',')}` });
+  }
+  // The landing merged table: plain and forced merges of every status at every legal start pair.
+  for (const status of Object.keys(LEGAL_LANDING)) for (const landing of derivable(status)) for (const forced of [undefined, 'landed by hand']) {
+    const item = { id: 1, status, mergedCommit: landing === 'landed' ? 'm0' : null };
+    const result = runTable(LANDING.tables.merged, LANDING.rules, { item }, { actor: 'coordinator', commit: 'm1', ...(forced ? { forced } : {}) });
+    if (!result.refused) writes.push({ from: [status, landing], to: pairAfter(item, result), via: `merged ${result.via.join(',')}` });
+  }
+  assert.ok(writes.length > GENERATED / 10, `only ${writes.length} accepted writes`);
+  assert.ok(writes.some(w => w.from[1] === 'landed') && writes.some(w => w.to[1] === 'landed' && w.from[1] === 'none'), 'landed items are met, and some move lands one');
+  assert.ok(writes.some(w => w.to[0] === 'withdrawn' && w.to[1] === 'landed'), 'a forced hand landing of unfinished work writes withdrawn with landed');
+  const illegal = writes.filter(w => !legalLanding(...w.to));
+  assert.deepEqual(illegal.slice(0, 5), [], `${illegal.length} writes left an illegal pair`);
+});
+
+test('clause 2: every declared job kind is created by code, pull-out by the lander, so none waits for a runner [M2,R3,#9100]', () => {
+  assert.deepEqual(CREATED_JOB_KINDS, KINDS);
+  assert.equal(JOB_KINDS.some(job => job.created === false), false);
 });

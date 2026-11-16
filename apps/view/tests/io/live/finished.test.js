@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { dashboardModel } from '../../../src/io/dashboard/model.js';
 import { dashboardHtml } from '../../../src/logic/render/dashboard.js';
 import { projectState } from '../../../src/io/serve.js';
+import { boardCounts } from '../../../src/logic/counts.js';
 import { finishedRuns } from '../../../src/io/serve.js';
 import { claimJob } from '../../../../../packages/api/index.js';
 import { offerJob } from '../../../../../packages/api/index.js';
@@ -44,4 +45,20 @@ test('clause 1: a runner that ran nothing still reads No runs [C7]', t => {
   const project = cellProject(t), board = cellBoard(t, project.boardFile);
   const state = { ...projectState(project.repo, { board }), dashboardRunners: { runners: [{ runner: 1, state: 'idle', busy: false, cpu: null, ram: null, jobs: [] }], runs: [], finished: { gate: 0, landing: 0, test: 0 } } };
   assert.match(dashboardHtml(dashboardModel(state, [], { now: Date.now(), complete: false })), /No runs\./u);
+});
+
+test('clause 1: the landed count agrees across the top bar counts and the Dashboard landed panel once the finished items are read [C7]', () => {
+  const now = Date.parse('2026-11-15T18:00:00Z');
+  const entries = [1, 2, 3].map(id => ({ id, commit: String(id).repeat(40), at: now - id * 600_000 }));
+  const items = entries.map(entry => ({ id: entry.id, title: 't' + entry.id, lane: 'view', specs: [], status: 'withdrawn', merged: entry.commit }));
+  const openFirst = { items: [], itemsOmitted: 'finished', dashboardLanded: entries };
+  assert.equal(boardCounts(openFirst, now).landed.last4h, 3, 'the top bar counts the recent landings even while their items are omitted');
+  assert.equal(dashboardModel(openFirst, [], { now, complete: true }).lists.landed.length, 0, 'the panel cannot name items the open-first state left out, which is why the refresh reads them');
+  const full = { items, dashboardLanded: entries };
+  const counted = boardCounts(full, now).landed;
+  assert.deepEqual([counted.total, counted.last4h], [3, 3], 'with the items read the top bar still counts 3');
+  const model = dashboardModel(full, [], { now, complete: true });
+  assert.equal(model.lists.landed.length, counted.last4h, 'the Dashboard landed panel lists the same number the top bar counts');
+  assert.match(dashboardHtml(model), /Nothing landed in the last 4 hours|Landed · 4 h/u);
+  assert.doesNotMatch(dashboardHtml(model), /Nothing landed in the last 4 hours/u, 'and it does not claim none landed');
 });
