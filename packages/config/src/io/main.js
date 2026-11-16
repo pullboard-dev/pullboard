@@ -406,6 +406,7 @@ export function configProblems(config) {
     problems.push('claims.releaseGone is a boolean, false by default; claims.releaseCooldownMinutes is zero or more minutes, 30 by default');
   }
   if (config.claims?.fileLease !== undefined && typeof config.claims.fileLease !== 'boolean') problems.push('"claims.fileLease" is a boolean, off by default; true refuses a claim whose predicted files a live claim already leases');
+  if (config.seat !== undefined && (notPlain(config.seat) || Object.keys(config.seat).some(key => key !== 'checkpoints') || (config.seat.checkpoints !== undefined && typeof config.seat.checkpoints !== 'boolean'))) problems.push('"seat.checkpoints" is a boolean, off by default; true records a checkpoint fact at claim, submit, an exit-rule stop and handoff');
   if (config.claims?.fileLeaseHubs !== undefined && (!Array.isArray(config.claims.fileLeaseHubs) || !config.claims.fileLeaseHubs.every(file => typeof file === 'string'))) problems.push('"claims.fileLeaseHubs" is a list of file paths that many items share and no claim leases');
   if (config.claims?.perSeat != null && (!Number.isSafeInteger(config.claims.perSeat) || config.claims.perSeat < 1)) problems.push('claims.perSeat is a whole number of live build claims, 1 or more; blank lets the board size it');
   if (notPlain(config.claim)
