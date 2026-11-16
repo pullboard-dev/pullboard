@@ -1,6 +1,6 @@
 /** Relay app front door: the relay modules other code imports [C7,H5]. */
 export { createAuthHandler } from './src/io/auth/http.js';
-export { ACCESS_WINDOW_MS, createRelayAuth } from './src/io/auth.js';
+export { ACCESS_WINDOW_MS, AUTH_DATABASE_FILE, createRelayAuth } from './src/io/auth.js';
 export { BROWSER_IO_TIMEOUT_MS, browserJSON, withBrowserDeadline } from './src/logic/browser/deadline.js';
 export { createPhoneHistory } from './src/io/browser/history.js';
 export { registerApp, requestPairingPersistence } from './src/logic/browser/install.js';
