@@ -15,13 +15,13 @@ import { runFixtureGit } from '../../../apps/cli/tests/fixtures/child.js';
  * @param {import('node:test').TestContext} t - Test context that removes the fixture.
  * @returns {object} Helpers: move main, set the item head, warn, and read the shouts.
  */
-function fixture(t) {
+function fixture(t, extra = []) {
   const tree = privateFixtureFiles('pb-main-warn-');
   t.after(() => rmSync(tree.root, { recursive: true, force: true }));
   const root = join(tree.root, 'repo');
   /** Run git in the fixture with a fixed identity. */
   const git = (...args) => runFixtureGit(['-c', 'user.name=t', '-c', 'user.email=t@example.test', ...args], { cwd: root });
-  for (const file of ['a.txt', 'b.txt']) tree.write(`repo/${file}`, 'base\n');
+  for (const file of ['a.txt', 'b.txt', ...extra]) tree.write(`repo/${file}`, 'base\n');
   git('-c', 'init.defaultBranch=main', 'init', '-q');
   git('add', '-A');
   git('commit', '-q', '-m', 'base');
@@ -79,4 +79,27 @@ test('clause 2: a new item head, or a newly conflicting file, writes a new shout
   box.state.head = box.branch('item-two', ['a.txt'], 'item two');
   await box.warn(box.moveMain(['a.txt'], 'third'));
   assert.equal(box.shouts().length, 3, 'a new item head is told');
+});
+
+/** A path of exactly `length` characters in slash-separated segments, letters at both ends so pieces join without doubled slashes. */
+function longName(length, letter) {
+  const chars = Array.from({ length }, (_, index) => (index % 50 === 49 && index !== length - 1 ? '/' : letter));
+  return chars.join('');
+}
+
+test('clause 1: two long paths that share a piece are told apart, so a newly conflicting long path is never silent [C7]', async (t) => {
+  const W = 400 - '#7 main moved to 123456789abc; 123456789abc conflicts in '.length - '; git merge main in your worktree, resolve, commit and resubmit'.length - 30;
+  const head = longName(W - 1, 'p');
+  const tail = longName(W - 1, 't');
+  // A and C each use one of B's two pieces; B reuses the first piece of A and the second piece of C.
+  const A = `${head}${longName(W - 1, 'a')}`, C = `${longName(W - 1, 'c')}${tail}`, B = `${head}${tail}`;
+  const box = fixture(t, [A, B, C]);
+  box.state.head = box.branch('item', [A, B, C], 'item');
+  await box.warn(box.moveMain([A, C], 'first'));
+  const told = box.shouts().length;
+  assert.ok(told >= 4, 'each long path is told in more than one piece');
+  await box.warn(box.moveMain([B], 'second'));
+  assert.ok(box.shouts().length > told, 'a path built from pieces already told is still a new warning');
+  await box.warn(box.moveMain([B], 'third'));
+  assert.equal(box.shouts().length, told + 2, 'the same long path is not told again');
 });
