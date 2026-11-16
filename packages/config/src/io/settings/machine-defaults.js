@@ -80,6 +80,7 @@ export const MACHINE_DEFAULTS = {
   'moves.shadow': false,
   'next.itemNotices': false,
   'next.readinessCheck': false,
+  'push.recordTiming': false,
   'push.rerunFailedShardOnce': false,
   'relay.offerAtInit': true,
   'relay.pruneReceipts': false,
