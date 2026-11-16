@@ -85,6 +85,16 @@ export function endStaleJobsEnabled() {
   return loadMachineSettings().gate?.endStaleJobs === true;
 }
 
+/** Settle a sharded item gate left unknown on a missing main receipt when that receipt records, only when this machine opted in [C7,#9057]. */
+export function settleOnMainReceiptEnabled() {
+  return loadMachineSettings().gate?.settleOnMainReceipt === true;
+}
+
+/** Name the file:line a static check reported in a pulled gate's red fact only when this machine opted in; off, the fact is unchanged [C7,#9083]. */
+export function redFactLocationEnabled() {
+  return loadMachineSettings().gate?.redFactLocation === true;
+}
+
 /** Fail the registry check on an unregistered test only when this machine opted in; off, it reports [C7,#8374]. */
 export function registryStrictEnabled() {
   return loadMachineSettings().tests?.registryStrict === true;
@@ -103,6 +113,17 @@ export function movesLiveEnabled(table) {
 /** Write each pulled census's per-file times back for the next census plan only when this machine opted in; off, the census writes none [C7]. */
 export function censusRecordFileTimesEnabled() {
   return loadMachineSettings().census?.recordFileTimes === true;
+}
+
+/** Cut pulled census jobs by measured time, heaviest first, only when this machine opted in; off, they are cut by file count [C7]. */
+export function censusBalanceByTimeEnabled() {
+  return loadMachineSettings().census?.balanceByTime === true;
+}
+
+/** Minutes of measured time one pulled census job may hold; null (the default) keeps jobs cut by file count [C7]. */
+export function censusJobMinutes() {
+  const minutes = loadMachineSettings().census?.jobMinutes;
+  return typeof minutes === 'number' && Number.isFinite(minutes) && minutes > 0 ? minutes : null;
 }
 
 /** Run the full suite after each landed train batch only when this machine opted in. */
@@ -250,6 +271,11 @@ export function reviewReleaseReasonsRequired() {
 /** Whether health.derivedState is on (#8974): off by default; nothing reads it yet, and only an exact `true` turns it on. */
 export function derivedStateEnabled() {
   return loadMachineSettings().health?.derivedState === true;
+}
+
+/** Whether landing.adaptiveBatch is on (#9017): off by default; only an exact `true` turns it on. */
+export function adaptiveBatchEnabled() {
+  return loadMachineSettings().landing?.adaptiveBatch === true;
 }
 
 /** Whether the sentinel expires lapsed claims every minute (#8923): off by default; only an exact `true` turns it on. */
