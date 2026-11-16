@@ -1339,7 +1339,7 @@ catalogCase('[A1,C7,#8378] moves reports each move table state through real CLI 
   const box = await project();
   const { tables } = await uncataloguedRootJSON(box, box.repo, 'moves');
   assert.ok(Array.isArray(tables) && tables.length > 0, 'moves lists every move table');
-  for (const row of tables) assert.ok(['live', 'shadow', 'none'].includes(row.state), `table ${row.table} has a known state`);
+  for (const row of tables) assert.ok(['live', 'shadow', 'map', 'none'].includes(row.state), `table ${row.table} has a known state`);
   assert.deepEqual(tables.map((row) => row.table), tables.map((row) => row.table).sort(), 'tables come in name order');
 });
 

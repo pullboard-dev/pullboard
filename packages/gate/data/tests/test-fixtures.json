@@ -402,10 +402,6 @@
     "tempdir": 1,
     "hand-policy": 1
   },
-  "apps/cli/journeys/fact/family.test.js": {
-    "raw-board": 5,
-    "model": 3
-  },
   "apps/cli/journeys/publish/catalog.test.js": {
     "tempdir": 2,
     "env-spread": 1,
@@ -691,7 +687,10 @@
   },
   "apps/cli/journeys/spec/cockpit.test.js": {
     "repo-read": 2,
-    "tempdir": 7,
+    "tempdir": 6
+  },
+  "apps/cli/journeys/spec/cockpit/shared.test.js": {
+    "tempdir": 1,
     "raw-cli": 1
   },
   "apps/cli/journeys/spec/cockpit/rows.test.js": {
@@ -712,9 +711,6 @@
   "apps/view/tests/logic/main.test.js": {
     "model": 1
   },
-  "apps/cli/journeys/fact/msg.test.js": {
-    "hand-policy": 2
-  },
   "packages/items/tests/way.test.js": {
     "tempdir": 8
   },
@@ -722,13 +718,12 @@
     "tempdir": 1
   },
   "apps/cli/journeys/stats/cost.test.js": {
-    "raw-board": 18,
-    "model": 16
+    "raw-board": 8,
+    "model": 9
   },
-  "apps/cli/journeys/imports/cross-lane-edits.test.js": {
-    "tempdir": 2,
-    "hand-policy": 2,
-    "model": 1
+  "apps/cli/journeys/stats/cost-sessions.test.js": {
+    "raw-board": 10,
+    "model": 7
   },
   "apps/cli/tests/fixtures/regression.js": {
     "tempdir": 2,
@@ -751,12 +746,6 @@
   "apps/cli/tests/fixtures/doctrine-name.js": {
     "tempdir": 1,
     "hand-policy": 2
-  },
-  "apps/cli/journeys/doctrine/name.verify.test.js": {
-    "hand-policy": 1
-  },
-  "apps/cli/journeys/doctrine/rulings.test.js": {
-    "model": 1
   },
   "apps/view/tests/doctrine.test.js": {
     "tempdir": 1,
@@ -828,6 +817,9 @@
     "hand-policy": 1
   },
   "apps/cli/journeys/verify/checks-output.test.js": {
+    "raw-board": 1
+  },
+  "apps/cli/journeys/verify/checks-output-digest.test.js": {
     "raw-board": 1
   },
   "apps/cli/journeys/verify/checks-large-output.test.js": {
@@ -929,9 +921,13 @@
     "repo-read": 1
   },
   "apps/cli/journeys/gate/main.test.js": {
-    "tempdir": 7,
-    "env-spread": 5,
-    "repo-read": 2,
+    "tempdir": 1,
+    "env-spread": 3,
+    "repo-read": 2
+  },
+  "apps/cli/journeys/gate/main-refusals.test.js": {
+    "tempdir": 6,
+    "env-spread": 2,
     "model": 1
   },
   "apps/cli/journeys/gate/main-flakes.test.js": {
@@ -1349,9 +1345,6 @@
     "tempdir": 3,
     "env-spread": 1
   },
-  "apps/cli/journeys/inbox/budget.test.js": {
-    "raw-board": 1
-  },
   "apps/cli/tests/fixtures/budget-measure.js": {
     "raw-board": 2
   },
@@ -1470,9 +1463,6 @@
     "tempdir": 1,
     "repo-read": 1
   },
-  "apps/cli/journeys/inbox/filters.test.js": {
-    "raw-board": 1
-  },
   "apps/cli/journeys/doctrine/readme.test.js": {
     "repo-read": 17
   },
@@ -1558,8 +1548,11 @@
     "model": 5,
     "tempdir": 2
   },
-  "apps/cli/journeys/relay/outbox.test.js": {
+  "apps/cli/journeys/relay/outbox-offline.test.js": {
     "model": 2
+  },
+  "apps/cli/journeys/relay/outbox.test.js": {
+    "model": 1
   },
   "apps/relay/tests/io/store/page.test.js": {
     "tempdir": 1

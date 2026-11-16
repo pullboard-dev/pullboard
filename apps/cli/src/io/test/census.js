@@ -1,5 +1,8 @@
 /** `pullboard test --census`: every tracked test file in a few shards per runner, one JSONL row per file, one process [C7]. */
 import { appendFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
@@ -34,6 +37,7 @@ import { censusRerunNonGreenEnabled } from '../../../../../packages/config/index
 import { censusRerunOnSettleEnabled } from '../../../../../packages/config/index.js';
 import { censusBalanceByTimeEnabled } from '../../../../../packages/config/index.js';
 import { censusJobMinutes } from '../../../../../packages/config/index.js';
+import { censusSelfTuneEnabled } from '../../../../../packages/config/index.js';
 import { censusJobsPerRunner } from '../../../../../packages/config/index.js';
 import { censusShardCount } from '../../logic/census.js';
 import { pulledShardCount } from '../../logic/census.js';
@@ -47,6 +51,8 @@ import { rowFileTimes } from '../../logic/census.js';
 import { rerunRow } from '../../logic/census.js';
 import { rerunnable } from '../../logic/census.js';
 import { censusPlan } from '../../logic/census.js';
+import { previousShardMs } from '../../logic/census.js';
+import { selfTunedJobMinutes } from '../../logic/census-tune.js';
 import { storeName } from '../store-names.js';
 import { runPulledComparison } from './pull.js';
 import { fileBudgetField } from './file-limit.js';
@@ -66,7 +72,33 @@ function cleanHead(root) {
 }
 
 /** The census plan, cut by measured time behind census.balanceByTime and by the landing planner otherwise; the dispatcher and the row writer both cut it here so a label names the same files [C7]. */
-const cutPlan = (root, files, count, timed = true) => { const times = readFileTimes(root); return censusPlan(files, count, times, censusBalanceByTimeEnabled(), () => planLandingShards(files, count, times, root), timed ? censusJobMinutes() : null); };
+const cutPlan = (root, files, count, timed = true) => { const times = readFileTimes(root); return censusPlan(files, count, times, censusBalanceByTimeEnabled(), () => planLandingShards(files, count, times, root), timed ? jobMinutesFor(root) : null); };
+
+/** The job length a self-tuning census chose for each checkout, so the dispatcher and the row writer cut the same plan [C7,U151]. */
+const TUNED = new Map();
+const jobMinutesFor = root => censusJobMinutes() ?? TUNED.get(root) ?? null;
+
+/**
+ * The job length, in minutes, a pulled census cuts by: the typed census.jobMinutes when set, else with census.selfTune on the
+ * self-tuned length of the newest earlier census in `dir` (never `out`), else null for today's cut by file count.
+ * Why: a typed number is the person's word, and a census with no earlier record has nothing to learn from [C7,U151].
+ *
+ * @param {string} dir - The folder holding census JSONL files.
+ * @param {string} out - This census's own file, never read as the earlier one.
+ * @param {{ selfTune?: boolean, typed?: number | null }} [settings]
+ * @returns {number | null}
+ */
+export function censusJobMinutesFrom(dir, out, { selfTune = censusSelfTuneEnabled(), typed = censusJobMinutes() } = {}) {
+  if (typed) return typed;
+  if (!selfTune) return null;
+  let names;
+  try { names = readdirSync(dir).filter(name => name.endsWith('.jsonl')).map(name => join(dir, name)).filter(path => resolve(path) !== resolve(out)); } catch { return null; }
+  const newest = names.map(path => { try { return { path, at: statSync(path).mtimeMs }; } catch { return null; } }).filter(Boolean).sort((a, b) => b.at - a.at)[0];
+  if (!newest) return null;
+  const rows = [];
+  try { for (const line of readFileSync(newest.path, 'utf8').split('\n')) { if (line) { try { rows.push(JSON.parse(line)); } catch { /* a torn line is skipped */ } } } } catch { return null; }
+  return selfTunedJobMinutes(previousShardMs(rows));
+}
 
 /**
  * Rerun each non-green census row's file once, alone, through the census's own dispatcher, and replace its row with
@@ -79,6 +111,9 @@ async function rerunNonGreen({ rows, out, sha, run, base, pulled }) {
   else for (const first of firsts) await rerunOne({ rows, sha, run, base, first });
   writeFileSync(out, [...rows.values()].map(row => `${JSON.stringify(row)}\n`).join(''));
 }
+
+/** A write that is only a pulled job's `# census-times` line. */
+const CENSUS_TIMES_WRITE = /^# census-times \{.*\}\n?$/u;
 
 /**
  * The job times a shard's log carries (a pulled job writes them as a `# census-times` line), else the local ones: the
@@ -106,11 +141,14 @@ function jobTimes(output, fallbackStart, fallbackLoad) {
  * for ten minutes again [C7,#9283].
  */
 async function rerunOne({ rows, sha, run, base, first, fileLimit }) {
-  let pending = null, again = null;
+  let pending = null, again = null, told = '';
   const began = new Date(), beganLoad = loadavg()[0];
-  const write = (text) => {
-    const header = parseShardHeader(text);
-    if (header) { pending = header; return; }
+  const write = (full) => {
+    const header = parseShardHeader(full);
+    if (header) { pending = header; told = ''; return; }
+    // A pulled job's `# census-times` line arrives as its own write before the body; keep it for the body's rows [C7,#9404].
+    if (pending && CENSUS_TIMES_WRITE.test(full)) { told = full; return; }
+    const text = told + full;
     if (!pending || /^# landing (?:shards?|timing|floor|file|result)\b/u.test(text) || !finalStatus(pending.status)) return;
     [again] = shardRows({ ...pending, output: text, files: [first.file], outcomes: allTestOutcomes(text), times: shardFileTimes(text) }, sha);
     if (again) again = { ...again, ...jobTimes(text, began, beganLoad) };
@@ -178,6 +216,9 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run } 
   if (!files.length) throw new Refused('NO_TEST_FILE', 'no tracked test files match this census', 'run the census from a repository checkout, with path prefixes that name tracked test files');
   const out = resolve(root, values.out ?? join(checkoutCommonDir(root) ?? join(root, '.git'), 'pullboard', 'census', `${storeName(sha.slice(0, 10), '.jsonl')}`));
   mkdirSync(dirname(out), { recursive: true });
+  // Read the earlier census before this run empties its own file.
+  const tuned = censusJobMinutesFrom(join(checkoutCommonDir(root) ?? join(root, '.git'), 'pullboard', 'census'), out);
+  if (tuned) TUNED.set(root, tuned); else TUNED.delete(root);
   writeFileSync(out, '');
   // A pull board offers each shard as a job; the landing path's in-process controller custody is never taken (#7602).
   const pulled = !run && runnerDispatchMode() === 'pull';
@@ -187,7 +228,7 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run } 
   run = (...args) => (args[0]?.fileLimit === false ? dispatch(...args) : withFileLimit(values, () => dispatch(...args)));
   const runners = censusShardCount(loadMachineSettings().runners);
   // census.jobMinutes, when set, sizes a pulled census by measured time: the job count is whatever the plan needs (cutPlan ignores `count`).
-  const timed = pulled && censusJobMinutes() ? cutPlan(root, files, 1).length : null;
+  const timed = pulled && jobMinutesFor(root) ? cutPlan(root, files, 1).length : null;
   const count = Math.min(timed ?? shards ?? (pulled ? pulledShardCount(files.length, runners) : runners), files.length);
   // The same plan runLandingShards cuts, so a shard's label names the files it held.
   const plan = cutPlan(root, files, count, pulled);
@@ -205,10 +246,13 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run } 
       if (settleReruns && rerunnable(row) && row.status !== 'hung') settled.push(rerunOne({ rows, sha, run, base, first: row, fileLimit: false }));
     }
   };
-  let pending = null;
-  const write = (text) => {
-    const header = parseShardHeader(text);
-    if (header) { pending = header; return; }
+  let pending = null, told = '';
+  const write = (full) => {
+    const header = parseShardHeader(full);
+    if (header) { pending = header; told = ''; return; }
+    // A pulled job's `# census-times` line arrives as its own write before the body; keep it for the body's rows [C7,#9404].
+    if (pending && CENSUS_TIMES_WRITE.test(full)) { told = full; return; }
+    const text = told + full;
     if (!pending || /^# landing (?:shards?|timing|floor|file|result)\b/u.test(text)) return;
     const shard = plan[Number(pending.label.split('/')[0]) - 1];
     last.set(pending.label, { ...pending, output: text });
