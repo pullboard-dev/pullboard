@@ -103,6 +103,7 @@ export {
   nextIdleBlockers,
   nextItemNotices,
   statsRecordCoordinatorUsage,
+  reviewStarveShout,
   nextCapBuilders,
   nextReadinessCheck,
   nextReadinessCache,

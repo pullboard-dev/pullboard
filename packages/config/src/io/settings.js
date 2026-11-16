@@ -381,6 +381,11 @@ export function statsRecordCoordinatorUsage() {
   return loadMachineSettings().stats?.recordCoordinatorUsage === true;
 }
 
+/** Whether a starved green review shouts the coordinator (#9682): off by default; only an exact `true` turns it on. */
+export function reviewStarveShout() {
+  return loadMachineSettings().review?.starveShout === true;
+}
+
 /** Whether a review release must name why it was dropped (#8920): off by default; only an exact `true` turns it on. */
 export function reviewReleaseReasonsRequired() {
   return loadMachineSettings().review?.releaseReasons === true;
