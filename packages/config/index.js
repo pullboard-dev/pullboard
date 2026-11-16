@@ -108,6 +108,7 @@ export {
   statsRecordCoordinatorUsage,
   reviewStarveShout,
   nextCapBuilders,
+  nextHoldAboveLoad,
   nextReadinessCheck,
   nextReadinessCache,
   refuseTempWorktree,

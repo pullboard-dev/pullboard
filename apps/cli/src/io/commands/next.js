@@ -61,6 +61,7 @@ import { ordered } from '../claim.js';
 import { checkMainVerifier } from '../verify.js';
 import { displayedWait } from '../next.js';
 import { nextOnce } from '../next.js';
+import { loadHold } from '../next.js';
 import { seatClaims } from '../next.js';
 import { topUpClaims } from '../next.js';
 import { whoAmI } from '../join.js';
@@ -247,7 +248,7 @@ async function nextWithProgress(io, values, progress) {
     // Every route closes Main red items main already proves green before it selects, so no builder is sent to them (#3382).
     await closePassingMainReds(ctx, takeServices);
     const takeMainRed = await progress.run('main-red routing', null, () => !selectionValues.take && !selectionValues.build && !selectionValues.verify && selectionValues.verifyId === undefined && mainRedBuildOffer(ctx, selectionValues, takeServices));
-    const found = await progress.run('selection', selectionValues.verifyId === undefined ? null : Number(selectionValues.verifyId), () => selectionValues.take || takeMainRed ? nextTake(ctx, selectionValues, takeServices) : nextOnce(ctx, selectionValues));
+    const found = await progress.run('selection', selectionValues.verifyId === undefined ? null : Number(selectionValues.verifyId), () => loadHold(ctx, selectionValues) ?? (selectionValues.take || takeMainRed ? nextTake(ctx, selectionValues, takeServices) : nextOnce(ctx, selectionValues)));
     if (found.ownershipWaiting?.length) {
       io.result?.({ action: 'ownership', ownershipWaiting: found.ownershipWaiting });
       for (const waiting of found.ownershipWaiting) {

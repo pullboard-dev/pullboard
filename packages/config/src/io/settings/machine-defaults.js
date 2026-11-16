@@ -100,6 +100,7 @@ export const MACHINE_DEFAULTS = {
   'moves.shadow': false,
   'next.adoptPreserved': false,
   'next.capBuilders': 0,
+  'next.holdAboveLoad': false,
   'next.idleBlockers': false,
   'next.itemNotices': false,
   'next.readinessCache': false,
