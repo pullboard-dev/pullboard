@@ -88,16 +88,19 @@ export {
   staticCheckSlots,
   staticMemoOn,
   serveListen,
+  servePullRoute,
   mainComparisonMode,
   submitAuthorizationMode,
   refuseMissingCheckFile,
   addWarnUnnamedTest,
   holdsRequireOwner,
   nextItemNotices,
+  nextCapBuilders,
   nextReadinessCheck,
   refuseTempWorktree,
   claimKeepWhileRunning,
   refuseOffMainHead,
+  statusShowUsefulBuilders,
   refuseEmptyBar,
   viewBackgroundEnabled,
   healthSentinelEnabled,
@@ -213,4 +216,5 @@ export { healthDiskFloorGb } from './src/logic/settings.js';
 export { boardKey, boardKeyFile } from './src/io/settings.js';
 export { boardRemote, setBoardRemote } from './src/io/settings.js';
 export { setPersonSetting } from './src/io/settings.js';
+export { MACHINE_DEFAULTS } from './src/io/settings/machine-defaults.js';
 export { costPerMinute } from './src/logic/runner-rates.js';
