@@ -1,4 +1,4 @@
-/** The screen job: merge a sprint item's commit onto its base in a scratch tree, run the static checks and the trusted re-check, and record one receipt [V16,M1]. */
+/** The screen job: merge a sprint item's commit onto its base without a checkout, run the static checks and the trusted re-check, and record one receipt [V16,M1]. */
 import { spawn } from 'node:child_process';
 import { mkdtemp } from 'node:fs/promises';
 import { rm } from 'node:fs/promises';
@@ -49,24 +49,37 @@ async function changedFiles(repo, base, commit) {
 }
 
 /**
- * The gate's static checks in the merged scratch tree, told which files changed. No configured command is green, as at the gate.
+ * The gate's static checks over the merged tree, written out to a scratch folder through a private index, told which
+ * files changed. No configured command is green, as at the gate.
+ * Why a private index: the screening checkout's own index and folders stay untouched, and no worktree is made.
  *
- * @param {string} tree
+ * @param {string} repo
+ * @param {string} tree - The merged tree id.
  * @param {string | null | undefined} command - The board's `staticChecks` setting, captured when the screen was queued.
  * @param {string[]} files
  * @returns {Promise<{ status: 'green' | 'red' | 'skipped', problem?: string }>}
  */
-async function runStatic(tree, command, files) {
+async function runStatic(repo, tree, command, files) {
   if (!command?.trim()) return { status: 'skipped' };
-  const ran = await runChild(command, [], { cwd: tree, shell: true, env: { ...process.env, PULLBOARD_CHANGED_FILES: files.join('\n') } });
-  if (ran.status === 0) return { status: 'green' };
-  const last = `${ran.stdout ?? ''}${ran.stderr ?? ''}`.trim().split('\n').filter(Boolean).at(-1) ?? `exit ${ran.status}`;
-  return { status: 'red', problem: last.slice(0, 300) };
+  const scratch = await mkdtemp(join(tmpdir(), 'pullboard-screen-'));
+  try {
+    const env = { ...process.env, GIT_INDEX_FILE: join(scratch, 'index') };
+    for (const name of HOOK_GIT_ENV.filter(name => name !== 'GIT_INDEX_FILE')) delete env[name];
+    const read = await runChild('git', ['read-tree', tree], { cwd: repo, env });
+    const out = read.status === 0 ? await runChild('git', ['checkout-index', '--all', `--prefix=${join(scratch, 'tree')}/`], { cwd: repo, env }) : read;
+    if (out.status !== 0) return { status: 'red', problem: `the merged tree could not be written out: ${out.stderr.split('\n')[0]}` };
+    const ran = await runChild(command, [], { cwd: join(scratch, 'tree'), shell: true, env: { ...process.env, PULLBOARD_CHANGED_FILES: files.join('\n') } });
+    if (ran.status === 0) return { status: 'green' };
+    const last = `${ran.stdout}\n${ran.stderr}`.trim().split('\n').filter(Boolean).at(-1) ?? `exit ${ran.status}`;
+    return { status: 'red', problem: last.slice(0, 300) };
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
 }
 
 /**
- * Screen one commit on a base: merge it in a scratch worktree, then run the static checks and the trusted re-check
- * over base..commit. A conflict stops the screen there and names the files. The scratch tree is removed whatever happens.
+ * Screen one commit on a base: merge it with `git merge-tree` (no checkout, no worktree), then run the static checks
+ * and the trusted re-check over base..commit. A conflict stops the screen there and names the files.
  *
  * @param {string} repo - A checkout the trusted caller owns, holding both commits.
  * @param {{ commit: string, base: string, staticCommand?: string | null }} at
@@ -75,24 +88,14 @@ async function runStatic(tree, command, files) {
  * @returns {Promise<{ conflicts: string[] | null, staticRun: { status: string, problem?: string } | null, rechecked: object[] | null }>}
  */
 export async function screenCommit(repo, { commit, base, staticCommand = null }, { recheck }) {
-  const scratch = await mkdtemp(join(tmpdir(), 'pullboard-screen-'));
-  const tree = join(scratch, 'tree');
-  try {
-    const added = await runGit(repo, ['worktree', 'add', '--detach', '--quiet', tree, base]);
-    if (added.status !== 0) throw new Refused('SCREEN_BASE_UNREADABLE', `cannot open ${base} in a scratch tree: ${added.stderr}`, 'fetch the base into the screening checkout, then screen again');
-    const merged = await runGit(tree, ['-c', 'core.hooksPath=/dev/null', '-c', 'user.name=Pullboard screen', '-c', 'user.email=screen@pullboard.invalid', 'merge', '--no-ff', '--no-edit', '--quiet', commit]);
-    if (merged.status !== 0) {
-      const unmerged = await runGit(tree, ['diff', '--name-only', '--diff-filter=U']);
-      const conflicts = unmerged.status === 0 ? unmerged.stdout.split('\n').filter(Boolean) : [];
-      return { conflicts, staticRun: null, rechecked: null };
-    }
-    const staticRun = await runStatic(tree, staticCommand, await changedFiles(repo, base, commit));
-    return { conflicts: null, staticRun, rechecked: recheck(repo, base, commit) };
-  } finally {
-    await runGit(repo, ['worktree', 'remove', '--force', tree]);
-    await rm(scratch, { recursive: true, force: true });
-    await runGit(repo, ['worktree', 'prune']);
-  }
+  const merged = await runGit(repo, ['merge-tree', '--write-tree', '--name-only', base, commit]);
+  const [tree, ...rest] = merged.stdout.split('\n');
+  // With --name-only a conflict prints the tree, the conflicted paths, a blank line, then git's messages.
+  const named = rest.indexOf('') < 0 ? rest : rest.slice(0, rest.indexOf(''));
+  if (merged.status === 1) return { conflicts: named.filter(Boolean), staticRun: null, rechecked: null };
+  if (merged.status !== 0 || !tree) throw new Refused('SCREEN_MERGE_UNREADABLE', `cannot merge ${commit} onto ${base}: ${merged.stderr}`, 'fetch both commits into the screening checkout, then screen again');
+  const staticRun = await runStatic(repo, tree, staticCommand, await changedFiles(repo, base, commit));
+  return { conflicts: null, staticRun, rechecked: recheck(repo, base, commit) };
 }
 
 /**

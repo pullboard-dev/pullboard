@@ -3,10 +3,8 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import { fixtureBoard } from '../../../board/tests/fixtures/board.js';
-import { recheckRange } from '../../../commits/index.js';
 import { fixtureCommittedGraph } from '../../../gate/tests/fixtures/testkit.js';
 import { runFixtureSetupGit } from '../../../gate/tests/fixtures/child.js';
-import { receiptCounts } from '../../../moves/index.js';
 import { runScreenJob } from '../../index.js';
 
 const IDENTITY = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
@@ -36,27 +34,39 @@ function fixture(t) {
   return { root: graph.root, onItem: on('item'), onMain: on('main') };
 }
 
-/** Screen one item through the drive's keyed job, with the commits cell's trusted re-check. */
-function screen(t, repo, commit, base, pace = 'sprint') {
+/**
+ * The re-check port, in the shape of the commits cell's recheckRange (proved on real secrets in its own test, #8866):
+ * it reads base..head from git and names each commit whose added lines assign an apiKey. Why a port: the drive cell may
+ * not import the commits cell, so the host hands the trusted re-check in, and this test checks the range it is given.
+ */
+function recheck(repo, base, head) {
+  const git = (...args) => String(runFixtureSetupGit(args, { cwd: repo, env: { ...process.env, ...IDENTITY } })).trim();
+  return git('rev-list', '--reverse', `${base}..${head}`).split('\n').filter(Boolean)
+    .filter(commit => /^\+.*apiKey = '/mu.test(git('show', '--format=', commit)))
+    .map(commit => ({ commit, kind: 'secret', problem: 'assigned secret at config.js:1; remove it and rotate the key' }));
+}
+
+/** Screen one item through the drive's keyed job. */
+function screen(t, repo, commit, base, { pace = 'sprint', staticCommand = null } = {}) {
   const board = fixtureBoard(t);
   const item = { id: 7, pace, commit, digest: 'd1' };
-  return runScreenJob(board.db, { repo, item, base, owner: 'runner-1', recheck: recheckRange }).then(ran => ({ ran, board, item }));
+  return runScreenJob(board.db, { repo, item, base, owner: 'runner-1', recheck, staticCommand }).then(ran => ({ ran, board, item }));
 }
 
 test('clause 1: a sprint item whose commit merges cleanly on its base with no re-check findings records a green screen receipt at that commit and base [V16]', async t => {
   const repo = fixture(t);
   const commit = repo.onItem('notes.txt', 'hello\n', 'docs(notes): add notes');
   const base = repo.onMain('other.txt', 'other\n', 'docs(other): add other');
-  const { ran, board, item } = await screen(t, repo.root, commit, base);
+  // The static checks run in the merged tree and are told the changed files.
+  const staticCommand = 'test -f other.txt && test -f notes.txt && test "$PULLBOARD_CHANGED_FILES" = notes.txt';
+  const { ran, board, item } = await screen(t, repo.root, commit, base, { staticCommand });
   assert.equal(ran.state, 'produced');
   assert.deepEqual(ran.result,
     { kind: 'screen', item: 7, commit, digest: 'd1', base, green: true, trusted: true, leased: true,
       checks: { merge: 'green', static: 'green', secrets: 'green', hooks: 'green' }, findings: [] });
-  assert.equal(receiptCounts(ran.result, { kind: 'screen', item, base }), true, 'the landing rows count it on this base');
-  assert.equal(receiptCounts(ran.result, { kind: 'screen', item, base: 'moved' }), false, 'a moved base needs a new screen');
   const again = await runScreenJob(board.db, { repo: repo.root, item, base, owner: 'runner-2', recheck: () => { throw new Error('screened twice'); } });
   assert.deepEqual([again.state, again.result], ['stored', ran.result], 'one receipt per commit, digest and base');
-  const steady = await runScreenJob(board.db, { repo: repo.root, item: { ...item, pace: 'steady' }, base, owner: 'runner-1', recheck: recheckRange });
+  const steady = await runScreenJob(board.db, { repo: repo.root, item: { ...item, pace: 'steady' }, base, owner: 'runner-1', recheck });
   assert.deepEqual(steady, { state: 'skipped' }, 'a steady item is never screened');
   assert.deepEqual(board.db.prepare('SELECT job_kind FROM job').all().map(row => row.job_kind), ['screen']);
 });
@@ -79,7 +89,7 @@ test('clause 3: a commit that conflicts with its base records a red screen recei
   const repo = fixture(t);
   const commit = repo.onItem('readme.txt', 'item\n', 'docs(readme): item words');
   const base = repo.onMain('readme.txt', 'main\n', 'docs(readme): main words');
-  const { ran } = await screen(t, repo.root, commit, base);
+  const { ran } = await screen(t, repo.root, commit, base, { staticCommand: 'exit 1' });
   assert.equal(ran.result.green, false);
   assert.deepEqual(ran.result.checks, { merge: 'red', static: 'not-run', secrets: 'not-run', hooks: 'not-run' });
   assert.deepEqual(ran.result.findings, [`merge: conflict with ${base} in readme.txt`]);
