@@ -10,12 +10,24 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { createCheckedHelpers } from '../../tests/fixtures/doctrine-checked.js';
+import {
+  checkedProject as checkedProjectOf,
+  commitWeb,
+} from '../../tests/fixtures/doctrine/checked-project.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { project } = e2e;
-const { checkedProject, commitWeb, settled } = createCheckedHelpers(project);
+
+const checkedProject = (fields, extraRows) => checkedProjectOf(project, fields, extraRows);
+
+/** Submit from a worktree and wait for the pulled gate's receipt; the refusals and notes a red or green gate reports are under gate.analysis [P7,C7]. */
+async function settled(t, box, web, id) {
+  const sent = await box.inProcess(web, 'submit', String(id), '--json');
+  assert.equal(sent.code, 0, sent.err + sent.out);
+  return settleSubmit(t, box, JSON.parse(sent.out));
+}
 
 /** Preserve exact doctrine rows while accounting only for the CLI's navigation footer. */
 function assertDoctrineReport(output, expected) {
