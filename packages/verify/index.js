@@ -36,6 +36,7 @@ export { composeReview, composesAtAdmission } from './src/io/verdict/admission.j
 export { recordVerdict, reviewAssurance, verdictAssurance } from './src/logic/verdict/assurance.js';
 export { cachedVerdictStates, captureVerdictReview, composesUnchanged, staleVerdictRefusal, verdictProjector, verdictTrunk } from './src/io/verdict/freshness.js';
 export { retryReviewCommit } from './src/logic/verdict/retry.js';
+export { ownPatchChanges } from './src/logic/verdict/own-patch.js';
 export { acceptedVerdict, checkedLandingCommit, verdictReviewProblem, verdictReads, verdictsFor } from './src/logic/verdict/reviews.js';
 export { judgeTrunkMove } from './src/io/verdict/trunk.js';
 export { itemTrunkMove } from './src/io/verdict/trunk.js';

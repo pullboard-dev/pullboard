@@ -5,7 +5,7 @@ export { boardNotWritable, requireBoardWriteAccess, boardBusyError } from './src
 export { boardBusyError as board_busy_boardBusyError, boardWriteBusyError, beginImmediateQueued } from './src/io/board/busy.js';
 export { captureBoardChanges, beginCapture } from './src/io/board/capture.js';
 export { recordCapacityWeek, capacityWeeks } from './src/io/board/capacity-week.js';
-export { writeBoardMeta, readBoardMeta, deleteBoardMeta, deleteBoardMetaWithPrefix } from './src/io/board/meta.js';
+export { writeBoardMeta, readBoardMeta, deleteBoardMeta, deleteBoardMetaWithPrefix, listBoardMetaWithPrefix } from './src/io/board/meta.js';
 export { migrateEventLogVersion } from './src/io/board/event/log/migrate.js';
 export { atomic, logEvent, writeOrigin } from './src/io/board/event/log.js';
 export { applyHealthFindings } from './src/io/board/health.js';
