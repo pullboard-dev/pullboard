@@ -137,7 +137,7 @@ export async function nextOnce(ctx, values, ports) {
     if (current.item_status === 'open') return { ...looked, item: current, review: false, waitingOffer: true };
   }
   // next.readinessCheck (off by default): an item whose readiness command exits non-zero is passed over and named [C7,#8793].
-  const notReady = !held && nextReadinessCheck() ? readinessFailure(ctx, looked.item) : null;
+  const notReady = !held && nextReadinessCheck() ? readinessFailure(ctx, withBoardRead(ctx, board => store.getItem(board, looked.item.item_id))) : null;
   if (notReady) return { retry: true, skipItem: item.item_id, retryDetail: { phase: 'readiness', item: item.item_id, code: 'NOT_READY', message: notReady } };
   return await withBoard(ctx, async (board) => {
     // Claims belong to the seat that ran next, in its own item folder; next never routes a claim to another seat or opens one.
