@@ -24,9 +24,11 @@ import { runLandingShards } from '../../../../../packages/landing/index.js';
 import { FILE_TIME_LINE } from '../../../../../packages/landing/index.js';
 import { shardFileTimes } from '../../../../../packages/landing/index.js';
 import { readFileTimes } from '../../../../../packages/gate/index.js';
+import { writeFileTimes } from '../../../../../packages/gate/index.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { gateRunnerAdmission } from '../../../../../packages/config/index.js';
+import { censusRecordFileTimesEnabled } from '../../../../../packages/config/index.js';
 import { censusBalanceByTimeEnabled } from '../../../../../packages/config/index.js';
 import { censusJobMinutes } from '../../../../../packages/config/index.js';
 import { censusShardCount } from '../../logic/census.js';
@@ -37,6 +39,7 @@ import { shardRows } from '../../logic/census.js';
 import { FILE_CASE_LINE } from '../../logic/census.js';
 import { verdictOutcomes } from '../../logic/census.js';
 import { pulledTimeLines } from '../../logic/census.js';
+import { rowFileTimes } from '../../logic/census.js';
 import { censusPlan } from '../../logic/census.js';
 import { storeName } from '../store-names.js';
 import { runPulledComparison } from './pull.js';
@@ -163,6 +166,8 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run } 
       emit(entry, { label, host: last.get(label)?.host ?? 'none', status: 'unrun', output: '' });
     }
   }
+  // Opt-in: the same record steers landing shard plans, so a census writes it only when this machine asked [C7].
+  if (censusRecordFileTimesEnabled()) { const measured = rowFileTimes(rows.values()); if (Object.keys(measured).length) writeFileTimes(root, measured); }
   const counts = {};
   for (const row of rows.values()) counts[row.status] = (counts[row.status] ?? 0) + 1;
   const seconds = Math.round((Date.now() - started) / 1000);

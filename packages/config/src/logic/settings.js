@@ -169,7 +169,7 @@ export function loadMachineSettings() {
   if (value.gate?.endStaleJobs !== undefined && typeof value.gate.endStaleJobs !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.endStaleJobs in ${file} must be true or false`);
   }
-  for (const key of ['runners.fetchFailFast', 'runners.drainOnFetchFailure']) {
+  for (const key of ['runners.fetchFailFast', 'runners.drainOnFetchFailure', 'runners.postedLineNamesCase']) {
     if (value[key] !== undefined && typeof value[key] !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `${key} in ${file} must be true or false`);
   }
   if (value.gate?.settleOnMainReceipt !== undefined && typeof value.gate.settleOnMainReceipt !== 'boolean') {
@@ -180,6 +180,9 @@ export function loadMachineSettings() {
   }
   if (value.tests?.registryStrict !== undefined && typeof value.tests.registryStrict !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `tests.registryStrict in ${file} must be true or false`);
+  }
+  if (value.census?.recordFileTimes !== undefined && typeof value.census.recordFileTimes !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `census.recordFileTimes in ${file} must be true or false`);
   }
   if (value['runners.yieldWhilePruning'] !== undefined && typeof value['runners.yieldWhilePruning'] !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `runners.yieldWhilePruning in ${file} must be true or false`);
