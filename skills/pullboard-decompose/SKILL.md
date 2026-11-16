@@ -56,9 +56,9 @@ description: Turn a client's ask into SPEC.md rows together with the person, one
    - "A task due before today's local date shows the word overdue."
 6. **Show the person** one track at a time.
    - Pending questions one at a time, most at stake first, each with your recommended answer.
-7. **After each answer,** keep the id and update the row:
-   - pending becomes approved, the answer as its text;
-   - draft becomes approved;
+7. **After each answer,** show the person the answer in `pullboard view`:
+   - they see the row with the answer as its text, and approve it there;
+   - never edit SPEC.md for them, and never run `pullboard spec answer` (a person command, refused in an agent shell);
    - a must-row gets its gate now.
    - `pullboard spec check`
 
