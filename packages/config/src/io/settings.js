@@ -340,6 +340,11 @@ export function lapsedSweepEnabled() {
   return loadMachineSettings().health?.lapsedSweep === true;
 }
 
+/** Whether add.warnUnnamedTest is on (#9303): off by default; only an exact `true` turns it on. */
+export function addWarnUnnamedTest() {
+  return loadMachineSettings().add?.warnUnnamedTest === true;
+}
+
 /**
  * Whether an item hold must name an owner and records a deadline (#8539): off by default, so holds are unchanged; only an
  * exact `true` turns it on.
@@ -354,6 +359,14 @@ export function holdsRequireOwner() {
  */
 export function nextItemNotices() {
   return loadMachineSettings().next?.itemNotices === true;
+}
+
+/**
+ * Whether next passes over an item whose readiness command exits non-zero (#8793): off by default, so next offers items as
+ * before; only an exact `true` turns it on.
+ */
+export function nextReadinessCheck() {
+  return loadMachineSettings().next?.readinessCheck === true;
 }
 
 /**
