@@ -87,6 +87,19 @@ export async function measureNext(box, command) {
   return samples;
 }
 
+/** Measure next as a user runs it: each round is one cold spawned CLI process, node start-up included; one warm-up round is untimed [C7]. */
+export async function measureColdNext(box) {
+  const dir = seatOnRealSizeBoard(box);
+  const samples = { 'cold next': [] };
+  for (let round = -1; round < ROUNDS; round++) {
+    await file(box, `Cold work ${round}.0`);
+    await file(box, `Cold work ${round}.1`);
+    const run = timed(box, dir, 'next');
+    if (round >= 0) samples['cold next'].push(run.ms);
+  }
+  return samples;
+}
+
 /** Measure claim and release of one filed item per round, in this process like next, so a loaded runner's node start-up is not billed to the command [#6998,C7]. */
 export async function measureClaimRelease(box) {
   const dir = seatOnRealSizeBoard(box);
