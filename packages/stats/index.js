@@ -143,6 +143,7 @@ export {
   recordUsage,
   recordCoordinatorUsage,
   costTotals,
+  coordinatorUsage,
   budgetState,
   budgetClaimRefusal,
   machineBudgetState,
