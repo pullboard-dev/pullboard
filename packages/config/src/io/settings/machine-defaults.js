@@ -85,6 +85,7 @@ export const MACHINE_DEFAULTS = {
   'relay.offerAtInit': true,
   'relay.pruneReceipts': false,
   'review.releaseReasons': false,
+  'runner.packCache': false,
   runnerRates: {},
   runners: [],
   'runners.drainOnFetchFailure': false,
