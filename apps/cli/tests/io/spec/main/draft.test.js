@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import { standardDoctrine } from '../../../../../../packages/doctrine/index.js';
 import { parseSpec } from '../../../../../../packages/spec/index.js';
 import { SPEC } from '../../../fixtures/spec/box.js';
-import { specBox } from '../../../fixtures/spec/box.js';
+import { specBoxInProcess } from '../../../fixtures/spec/box.js';
 
 test('spec draft files a row in the named section [S1,C7]', async (t) => {
   const specSource = `# Demo
@@ -24,7 +24,7 @@ test('spec draft files a row in the named section [S1,C7]', async (t) => {
 ## Q · Questions
 - Q4 [pending, aim] A question. | gate: review
 `;
-  const box = specBox(t, { specSource });
+  const box = await specBoxInProcess(t, { specSource });
   const rows = () => parseSpec(readFileSync(join(box.root, box.specName), 'utf8')).rows;
   const constraint = await box.spec('draft', 'Uses the local disk', '--section', 'K');
   assert.equal(constraint.status, 0, constraint.stderr);
@@ -56,7 +56,7 @@ test('spec draft files a row in the named section [S1,C7]', async (t) => {
 });
 
 test('spec draft with an inline gate names the flag to use [S1,P4]', async (t) => {
-  const box = specBox(t, { freshInit: true });
+  const box = await specBoxInProcess(t, { freshInit: true });
   const result = await box.spec('draft', 'A requirement | gate: node --test test/example.test.js');
   assert.equal(result.status, 1);
   assert.match(result.stderr, /INLINE_GATE/u);
@@ -65,18 +65,18 @@ test('spec draft with an inline gate names the flag to use [S1,P4]', async (t) =
 });
 
 /** Exercise fresh-init examples, cross-file ID reservation, and fail-closed malformed rows. */
-test('spec draft never reuses an existing id [S1,C7]', (t) => {
-  const fresh = specBox(t, { freshInit: true });
+test('spec draft never reuses an existing id [S1,C7]', async (t) => {
+  const fresh = await specBoxInProcess(t, { freshInit: true });
   const freshSpec = join(fresh.root, fresh.specName);
   assert.equal(parseSpec(readFileSync(freshSpec, 'utf8')).rows.length, 0, 'the fenced examples are not real rows');
-  const first = fresh.run('draft', 'The first real requirement');
+  const first = await fresh.spec('draft', 'The first real requirement');
   assert.equal(first.status, 0, first.stderr);
   assert.equal(first.stdout.trim().split('\n')[0], 'G1', 'the first real requirement receives the first available id');
   assert.deepEqual(parseSpec(readFileSync(freshSpec, 'utf8')).rows.map(({ id, status }) => [id, status]), [['G1', 'draft']]);
 
   const doctrine = '# Doctrine\n\n## G · Goals\n- G3 [draft] A repo doctrine id occupies this number.\n';
-  const crossFile = specBox(t, { practiceName: 'DOCTRINE.md', practice: doctrine });
-  const next = crossFile.run('draft', 'The next requirement');
+  const crossFile = await specBoxInProcess(t, { practiceName: 'DOCTRINE.md', practice: doctrine });
+  const next = await crossFile.spec('draft', 'The next requirement');
   assert.equal(next.status, 0, next.stderr);
   assert.equal(next.stdout.trim().split('\n')[0], 'G4', 'the allocator reserves ids present in DOCTRINE.md as well as SPEC.md');
   const specRows = parseSpec(readFileSync(join(crossFile.root, crossFile.specName), 'utf8')).rows;
@@ -85,13 +85,13 @@ test('spec draft never reuses an existing id [S1,C7]', (t) => {
   assert.ok(doctrineRows.some((row) => row.id === 'G3'));
 
   for (const source of ['spec', 'doctrine']) {
-    const malformed = specBox(t, {
+    const malformed = await specBoxInProcess(t, {
       ...(source === 'doctrine' ? { practiceName: 'DOCTRINE.md', practice: '# Doctrine\n\n## G · Goals\n- G3 [draft, must\n' } : {}),
       ...(source === 'spec' ? { specSource: SPEC + '\n- G3 [draft, must\n' } : {}),
     });
     const target = join(malformed.root, source === 'spec' ? malformed.specName : malformed.practiceName);
     const before = readFileSync(target);
-    const refused = malformed.run('draft', 'Cannot choose safely');
+    const refused = await malformed.spec('draft', 'Cannot choose safely');
     assert.notEqual(refused.status, 0, `${source} with an unparsed row-like entry refuses a draft`);
     assert.match(refused.stderr, /SPEC_INVALID.*unparsed row/u);
     assert.deepEqual(readFileSync(target), before, 'refusal leaves the source bytes unchanged');
@@ -103,7 +103,7 @@ test('a drafted row reads as draft [S1,C7]', async (t) => {
     '- G2 [retired] Old idea.',
     '- G2 [retired] Old idea.\n- G3 [pending, must] Still a question. | gate: review',
   );
-  const box = specBox(t, { specSource });
+  const box = await specBoxInProcess(t, { specSource });
 
   const drafted = await box.spec('draft', 'A proposed requirement');
   assert.equal(drafted.status, 0, drafted.stderr);
@@ -125,7 +125,7 @@ test('a drafted row reads as draft [S1,C7]', async (t) => {
 });
 
 test('spec --json emits one versioned document with every field, including empty fields [S13]', async (t) => {
-  const box = specBox(t);
+  const box = await specBoxInProcess(t);
   const shown = await box.spec('--json');
   assert.equal(shown.status, 0, shown.stderr);
   const data = JSON.parse(shown.stdout);
@@ -146,7 +146,7 @@ test('spec --json emits one versioned document with every field, including empty
 
 test('spec --json combines both configured files and keeps every row status [S13]', async (t) => {
   const practice = '# Practice\n\n## P · Practice\n- P1 [fact] A fact.\n- P2 [pending, must] A question.\n- P3 [wont] An old plan.\n';
-  const box = specBox(t, { specName: 'requirements.md', practiceName: 'ways.md', practice });
+  const box = await specBoxInProcess(t, { specName: 'requirements.md', practiceName: 'ways.md', practice });
   const shown = await box.spec('--json');
   assert.equal(shown.status, 0, shown.stderr);
   const data = JSON.parse(shown.stdout);
@@ -162,7 +162,7 @@ test('spec --json combines both configured files and keeps every row status [S13
 });
 
 test('spec --json refuses errors in either file with versioned spec-check diagnostics [S13, S4, A1]', async (t) => {
-  const box = specBox(t, { practice: '# Practice\n\n## P\n- P1 [approved, must] No gate.\n' });
+  const box = await specBoxInProcess(t, { practice: '# Practice\n\n## P\n- P1 [approved, must] No gate.\n' });
   writeFileSync(join(box.root, box.specName), `${SPEC}\n- K2 [maybe, must] Bad status. | serves: K9\n`);
   const check = await box.spec('check');
   const shown = await box.spec('--json');
@@ -180,7 +180,7 @@ test('spec --json refuses errors in either file with versioned spec-check diagno
 });
 
 test('spec --json also refuses a committed row removed from practice [S13, S8]', async (t) => {
-  const box = specBox(t, { practice: '# Practice\n\n## P\n- P1 [fact] Kept forever.\n' });
+  const box = await specBoxInProcess(t, { practice: '# Practice\n\n## P\n- P1 [fact] Kept forever.\n' });
   writeFileSync(join(box.root, box.practiceName), '# Practice\n\n## P\n');
   const check = await box.spec('check');
   const shown = await box.spec('--json');
@@ -194,7 +194,7 @@ test('spec --json also refuses a committed row removed from practice [S13, S8]',
 });
 
 test('warning-only specs keep spec-check success while JSON stays a single document [S13]', async (t) => {
-  const box = specBox(t);
+  const box = await specBoxInProcess(t);
   writeFileSync(join(box.root, box.specName), `${SPEC}\n- K2 [draft] ${'word '.repeat(25)}\n`);
   const check = await box.spec('check');
   assert.equal(check.status, 0, check.stderr);
