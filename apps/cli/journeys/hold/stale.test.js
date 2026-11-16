@@ -34,7 +34,7 @@ const reasonOf = f => store.getItem(f.box.board, f.id).item_hold_reason;
 test('clause 1: holds.liftSettled is a described setting that defaults off, and with it off a settled hold stays after main moves [C7,#2962]', async t => {
   assert.equal(describeSetting('holds.liftSettled').unit, 'on/off');
   const f = await held(t, { lift: false });
-  const withdrawn = await cli(f.box, f.box.root, ['withdraw', String(f.blocker), '--reason', 'no longer needed']);
+  const withdrawn = await cli(f.box, f.box.root, ['withdraw', String(f.blocker), '--note', 'no longer needed']);
   assert.equal(withdrawn.code, 0, withdrawn.out + withdrawn.err);
   moveMain(f.box);
   assert.match(reasonOf(f), /waiting on #/u, 'the settled hold stays');
@@ -45,7 +45,7 @@ test('clause 2: with holds.liftSettled on, a hold whose reason names only a with
   assert.match(reasonOf(f), /waiting on #/u, 'an open blocker keeps the hold');
   moveMain(f.box);
   assert.match(reasonOf(f), /waiting on #/u, 'main moving alone does not settle an open blocker');
-  const withdrawn = await cli(f.box, f.box.root, ['withdraw', String(f.blocker), '--reason', 'no longer needed']);
+  const withdrawn = await cli(f.box, f.box.root, ['withdraw', String(f.blocker), '--note', 'no longer needed']);
   assert.equal(withdrawn.code, 0, withdrawn.out + withdrawn.err);
   assert.equal(reasonOf(f), null, 'the withdrawn blocker settled the hold');
   assert.ok(f.box.board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_kind='unhold_item' AND event_detail LIKE '%settled%'").get(f.id));
@@ -59,7 +59,7 @@ test('clause 3: with holds.liftSettled on, a parent hold lifts when every child 
   store.holdItem(board, f.id, { agentId: 'coordinator', reason: 'parent waits for its children' });
   moveMain(f.box);
   assert.match(reasonOf(f), /children/u, 'an open child keeps the parent held');
-  const withdrawn = await cli(f.box, f.box.root, ['withdraw', String(child), '--reason', 'no longer needed']);
+  const withdrawn = await cli(f.box, f.box.root, ['withdraw', String(child), '--note', 'no longer needed']);
   assert.equal(withdrawn.code, 0, withdrawn.out + withdrawn.err);
   assert.equal(reasonOf(f), null, 'the done child settled the parent hold');
 });
