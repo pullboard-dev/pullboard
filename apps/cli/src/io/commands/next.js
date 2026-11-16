@@ -98,7 +98,7 @@ function nextChangeInputs(ctx) {
 export async function nextHere(io, values) {
   const defaultLoop = !values.take && !values.build && !values.verify && values.verifyId === undefined && values.wait === undefined;
   values = { ...values, defaultLoop };
-  const monitor = await startNextProgressMonitor(io);
+  const monitor = startNextProgressMonitor(io);
   const previousDefaultLoop = io.defaultLoop;
   // A successful default next can claim through the shared native move pipeline; keep presence diagnostics inside its 2 KB output contract.
   if (defaultLoop) io.defaultLoop = true;
