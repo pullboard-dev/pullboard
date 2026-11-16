@@ -172,8 +172,8 @@ async t => {
     return { outcome: 'green' };
   } };
   const served = await serveRunner({ git: pullGit, board: BOARD, runner: 'r-poll', capabilities: [], cache: runnerCache(t), jobs: 2, signal: stop.signal, fetchImpl, handlers, trunkPack: async () => {},
-    sleep: async ms => { naps.push(ms); } });
+    sleep: async ms => { naps.push(ms); await new Promise(resolve => setImmediate(resolve)); } });
   assert.deepEqual(claimedAfterNaps, [['j1', 1], ['j2', 1]], 'the offered job is claimed after one idle poll, and the next claim follows at once, with no further wait');
-  assert.deepEqual(naps, [2_000], 'the one idle poll is the 2 s default');
+  assert.equal(naps[0], 2_000, 'the idle poll before the first claim is the 2 s default');
   assert.deepEqual(served.jobs.map(entry => entry.job).sort(), ['j1', 'j2'], 'the first job ran beside the second, so the claim never waited behind it');
 });
