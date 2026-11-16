@@ -13,7 +13,7 @@ import { privateFixtureFiles } from '../../gate/tests/fixtures/child.js';
 import { runFixtureChild } from '../../gate/tests/fixtures/child.js';
 import { copyPackageFiles } from '../index.js';
 
-test('the static checks read every source file for one import binding per line [C7]', t => {
+test('clause 1: the static checks read every source file for one import binding per line [C7]', t => {
   const root = privateFixtureFiles('pullboard-static-style-recursive-').root;
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const repository = resolve(import.meta.dirname, '../../..');

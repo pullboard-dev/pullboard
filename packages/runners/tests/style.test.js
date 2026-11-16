@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureChild } from '../../gate/tests/fixtures/child.js';
 
-test('the repository static style command enforces its source rules [C7]', () => {
+test('clause 1: the repository static style command enforces its source rules [C7]', () => {
   const before = performance.now();
   const child = runFixtureChild(process.execPath,
     ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', 'apps/cli/src/io/static/checks.js'],
