@@ -6,6 +6,7 @@ import {
 } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from '../../../../packages/moves/index.js';
@@ -20,7 +21,10 @@ import { runFixtureGit } from '../../tests/fixtures/child.js';
 import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
 import { relayFixtureChild } from '../../tests/fixtures/relay/client.js';
 import { Refused } from '../../../../packages/kernel/light.js';
-import { outboxQueueable } from '../../../../packages/outbox/index.js';
+import {
+  outboxQueueable,
+  watchRebuild,
+} from '../../../../packages/outbox/index.js';
 
 const CLI = fileURLToPath(new URL('../../pullboard.js', import.meta.url));
 
@@ -368,4 +372,65 @@ test('selector gap binds only a newly filed repair item [B26,H16]', () => {
   const refs = bindRefs(outbox, move);
   assert.equal(refs.length, 1, 'only the newly filed item receives a binding');
   assert.deepEqual(resolveMove({ move, refs }, outbox).move.args, [{ parentId: 12, after: [9] }]);
+});
+
+/** Run `status` (which flushes the outbox) with the rebuild set to stop after `step` the first time it gets there; says whether it stopped. */
+async function stopAfter(box, step) {
+  let stopped = false;
+  watchRebuild((reached) => { if (reached === step && !stopped) { stopped = true; throw new Error('stopped after ' + step); } });
+  try { await box.cliLocal('status'); } finally { watchRebuild(null); }
+  return stopped;
+}
+
+/** Offline moves queued behind a relay that then has another machine's work to replay first. */
+async function queuedBehindRemoteWork(t) {
+  const { box, other } = await twoMachines(t, 'Added before the outage');
+  await box.stopRelay();
+  await box.cliLocal('add', box.lane, 'First item added here offline');
+  await box.cliLocal('add', box.lane, 'Second item added here offline');
+  await box.restartRelay();
+  const agent = await otherAgent(box, other);
+  await agent('add', box.lane, 'Remote item ordered first');
+  return { box, other };
+}
+
+/** Item titles on a machine, in item order. */
+async function titles(machine) {
+  return (await machine.cli('export')).document.tables.item.map((row) => row.item_title);
+}
+
+test('clause 1: the outbox rebuild resumes from its last step after a stop at each step [B26,H16,H17]', { timeout: 280_000 }, async (t) => {
+  const { box, other } = await queuedBehindRemoteWork(t);
+  for (const step of ['undo', 'apply', 'settle', 'reapply', 'write']) {
+    assert.equal(await stopAfter(box, step), true, `the rebuild reached ${step}`);
+    const shown = await titles(box);
+    // However far it got, this machine keeps showing its own queued moves once, never twice and never lost.
+    assert.equal(shown.filter((title) => title === 'First item added here offline').length <= 1, true, `no row is undone twice after ${step}`);
+  }
+  const finished = await box.cliLocal('status');
+  assert.equal(finished.code, 0, finished.failure);
+  assert.equal(finished.document.relay.outbox, undefined, 'a restart finishes the rebuild and sends the tail');
+  for (const machine of [box, other]) {
+    const shown = await titles(machine);
+    assert.deepEqual(shown.filter((title) => /offline|Remote item/.test(title)),
+      ['Remote item ordered first', 'First item added here offline', 'Second item added here offline'],
+      'acknowledged moves are applied once and the unsent tail keeps its order');
+  }
+});
+
+test('clause 2: an outbox whose base is behind its own receipts is reconciled, not refused [B26,H16,H17]', { timeout: 280_000 }, async (t) => {
+  const { box, other } = await queuedBehindRemoteWork(t);
+  // Stop after the ordered records apply, then lose the rebuild's marker as a rebuild by an older version never wrote one.
+  assert.equal(await stopAfter(box, 'apply'), true);
+  const board = new DatabaseSync(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+  board.prepare("DELETE FROM board_meta WHERE meta_key LIKE 'relay\\_outbox\\_rebuild' ESCAPE '\\'").run();
+  board.close();
+  const finished = await box.cliLocal('status');
+  assert.equal(finished.code, 0, finished.failure);
+  assert.equal(finished.document.relay.outbox, undefined, 'the outbox is reconciled and its moves are sent');
+  for (const machine of [box, other]) {
+    const shown = await titles(machine);
+    assert.deepEqual(shown.filter((title) => /offline|Remote item/.test(title)),
+      ['Remote item ordered first', 'First item added here offline', 'Second item added here offline']);
+  }
 });
