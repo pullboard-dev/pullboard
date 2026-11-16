@@ -29,6 +29,7 @@ import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { gateRunnerAdmission } from '../../../../../packages/config/index.js';
 import { censusRecordFileTimesEnabled } from '../../../../../packages/config/index.js';
+import { censusRerunNonGreenEnabled } from '../../../../../packages/config/index.js';
 import { censusBalanceByTimeEnabled } from '../../../../../packages/config/index.js';
 import { censusJobMinutes } from '../../../../../packages/config/index.js';
 import { censusJobsPerRunner } from '../../../../../packages/config/index.js';
@@ -41,6 +42,8 @@ import { FILE_CASE_LINE } from '../../logic/census.js';
 import { verdictOutcomes } from '../../logic/census.js';
 import { pulledTimeLines } from '../../logic/census.js';
 import { rowFileTimes } from '../../logic/census.js';
+import { rerunRow } from '../../logic/census.js';
+import { rerunnable } from '../../logic/census.js';
 import { censusPlan } from '../../logic/census.js';
 import { storeName } from '../store-names.js';
 import { runPulledComparison } from './pull.js';
@@ -62,6 +65,30 @@ function cleanHead(root) {
 
 /** The census plan, cut by measured time behind census.balanceByTime and by the landing planner otherwise; the dispatcher and the row writer both cut it here so a label names the same files [C7]. */
 const cutPlan = (root, files, count, timed = true) => { const times = readFileTimes(root); return censusPlan(files, count, times, censusBalanceByTimeEnabled(), () => planLandingShards(files, count, times, root), timed ? censusJobMinutes() : null); };
+
+/**
+ * Rerun each non-green census row's file once, alone, through the census's own dispatcher, and replace its row with
+ * rerunRow's answer; the JSONL is rewritten once with one row per file. A pulled census offers the reruns together as
+ * one-file jobs; any other dispatcher runs them one at a time [C7,#9138].
+ */
+async function rerunNonGreen({ rows, out, sha, run, base, pulled }) {
+  const rerun = async (first) => {
+    let pending = null, again = null;
+    const write = (text) => {
+      const header = parseShardHeader(text);
+      if (header) { pending = header; return; }
+      if (!pending || /^# landing (?:shards?|timing|floor|file|result)\b/u.test(text) || !finalStatus(pending.status)) return;
+      [again] = shardRows({ ...pending, output: text, files: [first.file], outcomes: allTestOutcomes(text), times: shardFileTimes(text) }, sha);
+      pending = null;
+    };
+    try { await run({ ...base, files: [first.file], count: 1, write }); } catch { /* a rerun with no answer leaves the file unrun */ }
+    rows.set(first.file, rerunRow(first, again ?? { file: first.file, status: 'unrun', cases: [], setupSecs: null, secs: null, sha, shard: '1/1', host: 'none' }));
+  };
+  const firsts = [...rows.values()].filter(rerunnable);
+  if (pulled) await Promise.all(firsts.map(rerun));
+  else for (const first of firsts) await rerun(first);
+  writeFileSync(out, [...rows.values()].map(row => `${JSON.stringify(row)}\n`).join(''));
+}
 
 /** Quote one shell word for a pulled job's command. */
 const word = value => `'${String(value).replaceAll("'", "'\\''")}'`;
@@ -152,21 +179,27 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run } 
   process.env[COLLECTION_ID_ENV] = env.id;
   io.err(`pullboard test --census: ${files.length} files at ${sha.slice(0, 10)} in ${plan.length} shards; rows go to ${out}`);
   const started = Date.now();
+  const bound = browserBoundFiles(root, files).then(list => new Set(list));
+  const base = { root, runner: resolve(root, 'apps/cli/src/io/run/tests.js'), fullScope: true, parseProcessCensus,
+    runnerAdmission: gateRunnerAdmission(), needsGui: shardFiles => testsNeedGui(root, shardFiles),
+    needsBrowser: async shardFiles => { const set = await bound; return shardFiles.some(file => set.has(file)); } };
   try {
-    const bound = browserBoundFiles(root, files).then(list => new Set(list));
-    await run({ root, runner: resolve(root, 'apps/cli/src/io/run/tests.js'), files, count: plan.length, fullScope: true, parseProcessCensus, write,
-      runnerAdmission: gateRunnerAdmission(), needsGui: shardFiles => testsNeedGui(root, shardFiles),
-      needsBrowser: async shardFiles => { const set = await bound; return shardFiles.some(file => set.has(file)); } });
+    try {
+      await run({ ...base, files, count: plan.length, write });
+    } finally {
+      // A shard that never reached a last word still owes its files a row.
+      for (const shard of plan.entries()) {
+        const [index, entry] = shard;
+        const label = `${index + 1}/${plan.length}`;
+        if (entry.files.every(file => rows.has(fileKey(file)))) continue;
+        emit(entry, { label, host: last.get(label)?.host ?? 'none', status: 'unrun', output: '' });
+      }
+    }
+    // Opt-in: each non-green file runs once more, alone, before the census calls it red; this replaces a separate pass 2 [C7,#9138].
+    if (censusRerunNonGreenEnabled()) await rerunNonGreen({ rows, out, sha, run, base, pulled });
   } finally {
     if (env.collect === undefined) delete process.env[LANDING_COLLECT_ALL_ENV]; else process.env[LANDING_COLLECT_ALL_ENV] = env.collect;
     if (env.collection === undefined) delete process.env[COLLECTION_ID_ENV]; else process.env[COLLECTION_ID_ENV] = env.collection;
-    // A shard that never reached a last word still owes its files a row.
-    for (const shard of plan.entries()) {
-      const [index, entry] = shard;
-      const label = `${index + 1}/${plan.length}`;
-      if (entry.files.every(file => rows.has(fileKey(file)))) continue;
-      emit(entry, { label, host: last.get(label)?.host ?? 'none', status: 'unrun', output: '' });
-    }
   }
   // Opt-in: the same record steers landing shard plans, so a census writes it only when this machine asked; files no longer tracked drop [C7].
   if (censusRecordFileTimesEnabled()) { const measured = rowFileTimes(rows.values()); if (Object.keys(measured).length) writeFileTimes(root, measured, { keep: tracked }); }
