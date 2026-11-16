@@ -40,6 +40,7 @@ import { deliverSubmitActivity } from '../submit.js';
 import { ANALYSIS_ENTRY } from './gate.js';
 import { BOOTSTRAP } from './gate.js';
 import { submitTableReplay } from './gate.js';
+import { pushPinToolingEnabled } from '../../../../../packages/config/index.js';
 import { tableReplayEnabled } from '../../../../../packages/config/index.js';
 import { DOCTRINE_ENTRY } from './gate.js';
 import { inventoryCommits } from './remote.js';
@@ -57,7 +58,7 @@ import { usageCheckpointWorkerEntrypoint } from '../checkpoint.js';
  * The tooling tree that judges this submit (RFC 0007 SC7), for the board to record with the submit it applies, so review
  * reuses the pulled gate's receipts only under the same tooling; an unreadable pin records none and nothing is reused [C7].
  */
-function pulledTooling(root, commit) {
+export function pulledTooling(root, commit) {
   try { return { tooling: toolingFor(root, commit).tooling }; } catch { return {}; }
 }
 
@@ -467,10 +468,23 @@ export function landingShardGate() {
  * A gate-shard job's request with no gate job behind it: main's trusted gate entry run on one shard of files, the
  * request offerProofShards gives a submit proof's shard. Why: the pre-push full gate offers its files the same way [P7,#7743].
  *
- * @param {{ main: string, source: string, shard: { index: number, of: number, files: string[], command: string } }} fields
+ * @param {{ main: string, source: string, shard: { index: number, of: number, files: string[], command: string }, tooling?: string }} fields - tooling: the pinned tooling tree, when push.pinTooling sends it.
  */
-export function gateShardRequest({ main, source, shard }) {
-  return { run: gateJobRun(), input: { main, entry: GATE_JOB_ENTRY, data: { main, source, shard } }, commits: [main] };
+export function gateShardRequest({ main, source, shard, tooling }) {
+  return { run: gateJobRun(), input: { main, entry: GATE_JOB_ENTRY, data: { main, source, shard } }, commits: [main], ...(tooling ? { tooling } : {}) };
+}
+
+/**
+ * The tooling field a pre-push shard request carries: with push.pinTooling on, the same tooling tree the item gate records
+ * for this commit (pulledTooling), so a shard receipt keys the way a gate receipt does; off or unreadable, none [C7,#9373].
+ *
+ * @param {string} root
+ * @param {string} commit
+ * @param {boolean} [enabled]
+ * @returns {{ tooling?: string }}
+ */
+export function pushShardTooling(root, commit, enabled = pushPinToolingEnabled()) {
+  return enabled ? pulledTooling(root, commit) : {};
 }
 
 /**

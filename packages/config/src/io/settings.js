@@ -152,6 +152,11 @@ export function jobsAvoidRunnersEnabled() {
   return loadMachineSettings().jobs?.avoidRunners === true;
 }
 
+/** Whether push.pinTooling is on: off by default; only an exact `true` makes a pre-push shard job carry the item gate's tooling pin [C7,#9373]. */
+export function pushPinToolingEnabled() {
+  return loadMachineSettings().push?.pinTooling === true;
+}
+
 /** Whether push.rerunFailedShardOnce is on: off by default; only an exact `true` lets the pre-push gate re-offer a failed shard once [C7,#9274]. */
 export function pushRerunFailedShardOnceEnabled() {
   return loadMachineSettings().push?.rerunFailedShardOnce === true;
