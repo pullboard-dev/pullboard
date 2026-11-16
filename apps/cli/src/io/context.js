@@ -115,6 +115,8 @@ function openAndRun(ctx, work, opened) {
   board.itemsInGate = ctx.config.claims?.itemsInGate === true ? (Number.isSafeInteger(ctx.config.claims.itemsInGateMax) ? ctx.config.claims.itemsInGateMax : 3) : 0;
   // claims.fileLease (off by default): live claims lease their predicted files, hub files excepted [C7,#8521].
   board.fileLease = ctx.config.claims?.fileLease === true ? { hubs: ctx.config.claims.fileLeaseHubs ?? [] } : null;
+  // inbox.keepUntilActed (off by default): shouts record their kind and stay listed until an allowed action is recorded [C7,#8519].
+  board.inboxKeep = ctx.config.inbox?.keepUntilActed === true;
   return withOpenedBoard(ctx, work, board);
 }
 
