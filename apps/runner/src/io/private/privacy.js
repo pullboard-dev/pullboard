@@ -1,6 +1,7 @@
 import { runnerPolicyRecord } from '../../../../../packages/sandbox/index.js';
 import { RUNNER_POLICY_FILE } from '../../../../../packages/sandbox/index.js';
 import { TIMING_RUN_ID_ENV } from '../../../../../packages/gate/index.js';
+import { followRenames } from '../../../../../packages/gate/index.js';
 /** Controller-owned private checks: immutable clone, runner protocol and retained sanitized evidence [C7,V4]. */
 import {
   createHash,
@@ -162,7 +163,7 @@ export function checkAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, ga
   let command;
   let policy;
   let config;
-  try { policy = itemPolicy(root, item); config = policy.config; command = frozenCommand ? mappedCheck(root, frozenCommand, { commit: item.item_commit }) : '';
+  try { policy = itemPolicy(root, item); config = policy.config; command = frozenCommand ? followRenames(root, mappedCheck(root, frozenCommand, { commit: item.item_commit }), { base: item.item_claim_head, commit: item.item_commit }).command : '';
     if (supplement) command = [command, supplement].filter(Boolean).map(part => `(\n${part}\n)`).join(' && '); }
   catch { return checkResult('unverified', 'policy', '', '', { root, item }); }
   if (gateLease?.runner) {
