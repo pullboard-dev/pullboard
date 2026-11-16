@@ -6,15 +6,30 @@ import { readRelayMachine } from './machine.js';
 import { updateRelayMachine } from './machine.js';
 import { requirePersonChannel } from '../../../../person/index.js';
 
-/** Read an exclusion without inferring a missing historical actor or timestamp. */
+/**
+ * Read an exclusion without inferring a missing historical actor or timestamp [H5,H17].
+ * A legacy entry has no recorded provenance, so its first observation is stored once and shown as first-seen, never as the exclusion time.
+ */
 export function relayExclusion(root) {
   const project = repoInfo(root).root;
   const state = readRelayMachine();
   if (!state.excluded.includes(project)) return null;
   const detail = state.exclusionDetails?.[project];
+  let firstSeenAt = detail?.firstSeenAt ?? null;
+  if (!detail?.reason && !firstSeenAt) {
+    firstSeenAt = new Date().toISOString();
+    try {
+      updateRelayMachine(next => {
+        next.exclusionDetails ??= {};
+        next.exclusionDetails[project] ??= {};
+        next.exclusionDetails[project].firstSeenAt ??= firstSeenAt;
+        firstSeenAt = next.exclusionDetails[project].firstSeenAt;
+      });
+    } catch { /* A read-only machine home still names the exclusion; the first-seen time is then not retained. */ }
+  }
   return { reason: detail?.reason ?? 'unknown historical exclusion', at: detail?.at ?? null,
     by: detail?.by ?? null, path: detail?.path ?? null, eventId: detail?.eventId ?? null,
-    next: 'pullboard relay on' };
+    ...(detail?.reason ? {} : { firstSeenAt }), next: 'pullboard relay on' };
 }
 
 /** Successful local unlink remains available to agents; only a person can persist an opt-out. */
