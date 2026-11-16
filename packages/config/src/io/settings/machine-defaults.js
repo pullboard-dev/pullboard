@@ -82,6 +82,7 @@ export const MACHINE_DEFAULTS = {
   'push.rerunFailedShardOnce': false,
   'relay.excludeByBoard': false,
   'relay.offerAtInit': true,
+  'relay.pruneReceipts': false,
   'review.releaseReasons': false,
   runnerRates: {},
   runners: [],
