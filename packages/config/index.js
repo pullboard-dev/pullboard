@@ -121,7 +121,6 @@ export {
   readGitSyncMarker,
   gitSyncMarkerLinked,
   gitSyncRecoveryNeeded,
-  readGitSyncRepairs,
 } from './src/io/git/sync.js';
 export {
   SETTING_DESCRIPTIONS,

@@ -22,7 +22,7 @@ import { HEALTH_SENTINEL_ENGINE } from '../../../../../packages/store/index.js';
 import { readBlocks } from '../../../../../packages/items/index.js';
 import { rigorReport } from '../../../../../packages/store/index.js';
 import { dispatchHealth } from '../../../../../packages/sentinels/index.js';
-import { readGitSyncRepairs } from '../../../../../packages/config/index.js';
+import { readGitSyncRepairs } from '../../../../../packages/sync/index.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { runnerLeaseHealth } from '../../../../../packages/resources/index.js';
 

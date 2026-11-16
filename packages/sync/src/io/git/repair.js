@@ -1,6 +1,8 @@
 /** Recover conflicting local Git-sharing artifacts without rewriting board history [H11,C7]. */
 import { randomUUID } from 'node:crypto';
 import { lstatSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -70,4 +72,20 @@ export async function repairGitSync(root, board, io = {}) {
   await withGitSyncLock(stale ? marker : marker + '.repair', recoverMarker, recoveryIo);
   for (const summary of summaries) io.err?.('pullboard health: Git sync recovery ' + JSON.stringify(summary));
   return summaries;
+}
+
+/** Read bounded recovery summaries, never quarantined marker contents or pending user moves. */
+export function readGitSyncRepairs(root) {
+  const { quarantine } = gitSyncFiles(root);
+  let names;
+  try { names = readdirSync(quarantine).filter(name => /^git-sync-[A-Za-z0-9-]+$/u.test(name)).sort().slice(-100); }
+  catch (error) { if (error.code === 'ENOENT') return []; throw error; }
+  return names.flatMap(name => {
+    try {
+      const path = join(quarantine, name, 'recovery.json'), stat = lstatSync(path);
+      if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 16384) return [];
+      const row = JSON.parse(readFileSync(path, 'utf8'));
+      return row?.version === 1 && typeof row.at === 'string' && Array.isArray(row.artifacts) ? [row] : [];
+    } catch { return []; /* Interrupted evidence publication cannot stop the health reader. */ }
+  });
 }
