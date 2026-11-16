@@ -207,6 +207,7 @@ export const FLAG_MEANINGS = Object.freeze({
   '--before': ['--before <other>', 'the milestone this one goes before'],
   '--target': ['--target <date and time>', 'the shipping target, or none'],
   'milestone edit --limit': ['--limit <n>', 'the most items the milestone takes, or none'],
+  'milestone edit --mode': ['--mode rollover|explicit', 'whether a full milestone passes new items on (rollover, the default) or leaves them to be placed explicitly'],
   'stats moves --limit': ['--limit <n>', 'covers the last n landed items'],
   'stats pipeline --limit': ['--limit <n>', 'covers the last n landed items'],
   'rules --limit': ['--limit <N>', 'prints only the first N disagreements'],
