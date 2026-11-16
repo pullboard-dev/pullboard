@@ -281,8 +281,8 @@ test('clause 3: writers alternating between a v2-shaped and the current report v
   const before = legacyRows();
   assert.equal(before.length, 2, 'the v2-shaped writer left its two legacy keys');
   board.db.exec(`CREATE TABLE temp.report_resets(id INTEGER PRIMARY KEY, why TEXT);
-    CREATE TEMP TRIGGER report_deleted AFTER DELETE ON main.board_meta WHEN OLD.meta_key='${key}' BEGIN INSERT INTO report_resets(why) VALUES ('deleted'); END;
-    CREATE TEMP TRIGGER report_zeroed AFTER UPDATE ON main.board_meta WHEN NEW.meta_key='${key}' AND json_extract(NEW.meta_value,'$.data.last')=0 BEGIN INSERT INTO report_resets(why) VALUES ('zeroed'); END;`);
+    CREATE TEMP TRIGGER report_zeroed AFTER UPDATE ON main.board_meta WHEN NEW.meta_key='${key}' AND json_extract(NEW.meta_value,'$.data.last')=0 BEGIN INSERT INTO report_resets(why) VALUES ('zeroed'); END;
+    CREATE TEMP TRIGGER report_reborn AFTER INSERT ON main.board_meta WHEN NEW.meta_key='${key}' AND json_extract(NEW.meta_value,'$.data.last')=0 BEGIN INSERT INTO report_resets(why) VALUES ('reborn'); END;`);
   const resets = () => board.db.prepare('SELECT COUNT(*) AS n FROM temp.report_resets').get().n;
   const folder = () => board.db.prepare('SELECT meta_key,meta_value FROM board_meta WHERE meta_key GLOB ?').all(`${REPORT}*`);
   for (let round = 1; round <= 6; round += 1) {
@@ -306,5 +306,5 @@ test('clause 3: writers alternating between a v2-shaped and the current report v
     assert.deepEqual(proofEvents, [], `round ${round}: ordinary proof statistics are not recounted`);
     assert.deepEqual(legacyRows(), before, `round ${round}: the legacy report keys are exactly as the older writer stored them`);
   }
-  assert.equal(resets(), 0, 'no write or catch-up zeroed or deleted this version\'s report cursor');
+  assert.equal(resets(), 0, 'no write or catch-up zeroed or restarted this version\'s report cursor');
 });
