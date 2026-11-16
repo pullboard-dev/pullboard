@@ -383,11 +383,15 @@ function runnerHeldGate(m, now) {
   m.board.db.prepare('INSERT INTO job_step (job_step_job, job_step_name, job_step_at) VALUES (?, ?, ?)').run('gate:6121:ae14aa8fd0f8:x', 'claimed', now - 6 * MINUTE);
 }
 
-test('clause 1: a runner-held gate that renews its lease through a six-minute claim is not over its progress budget [C7]', async t => {
+test('clause 1: the audit files no stall item for a runner-held gate whose lease renews through a six-minute claim [C7]', async t => {
   const m = machine(t);
   runnerHeldGate(m, Date.now());
-  const [gate] = (await m.snapshot()).rows.filter(entry => entry.surface === 'gate');
+  const snapshot = await m.snapshot();
+  const [gate] = snapshot.rows.filter(entry => entry.surface === 'gate');
   assert.equal(gate.breach, false, `a live lease is progress: ${gate.ageMs} ms old`);
+  const recorded = await recordWaits(snapshot, m.ports());
+  assert.deepEqual(recorded.filed, [], 'no item is filed for a hold that is still renewing its lease');
+  assert.deepEqual(m.items(), [], 'the board holds no waits: item for it');
 });
 
 test('clause 2: the hold read from #6121\'s job ends within budget: its age counts from the last lease renewal [C7]', async t => {

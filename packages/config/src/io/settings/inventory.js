@@ -25,20 +25,14 @@ import {
 } from '../settings.js';
 import { Refused } from '../../../../kernel/index.js';
 import { describeSetting } from './descriptions.js';
+import { MACHINE_DEFAULTS } from './machine-defaults.js';
 import { environmentProblem } from '../main.js';
 
-const MACHINE_DEFAULTS = {
-  gateSlots: 2, browserSlots: 1, 'gate.shortSlots': 0, 'gate.runnerWaitMs': 300_000, 'gate.tripOverheadBudgetMs': 10_000,
-  'gate.queue.reviewsFirst': false, 'gate.queue.currentReleaseFirst': false, 'gate.queue.agingMinutes': 30,
-  'gate.memoryFloorMB': null, 'gate.diskFloorMB': 10_240, 'gate.browserFreeChecks': false, 'gate.browserByLaunch': false, 'gate.runnersFirst': false, 'gate.runnersOnly': false, 'gate.refuseMissingCheckFile': false, 'gate.refuseTempWorktree': false, 'gate.runnerDispatch': 'pull', 'gate.requireRunnerAttribution': false, 'gate.jobReserve': null, 'gate.localRunner': true, 'gate.localLoadShare': 1, 'gate.staticSlots': 2, 'gate.mainComparison': 'on-red', 'gate.submitAuthorization': 'runner', 'gate.handoffWorkers': null, 'budget.dailyUsd': null, 'budget.totalUsd': null, 'gate.measuredSlots': false, 'gate.loadAwareDispatch': true, 'gate.runnerBusyCeiling': 90, 'gate.timingRunner': 'auto', 'gate.postLandSuite': false, 'gate.tableReplay': false, 'gate.fencedHop': true, 'gate.testNice': false, 'inspection.clauses': false, 'holds.requireOwner': false,
-  'health.sentinel': true, 'view.background': true, 'relay.offerAtInit': true, runners: [], runnerRates: {}, 'landing.pools': [],
-  'serve.address': '127.0.0.1', 'serve.port': 0, scratch: null, 'moves.shadow': false, 'tests.registryStrict': false, 'moves.live.claim': false, 'moves.live.outbox': false, 'moves.live.handoff': false, 'moves.live.submit': false, 'moves.live.outcome': false, 'moves.live.job': false, 'moves.live.reopen': false,
-};
 const OPTIONAL_REPO_DEFAULTS = {
   'submit.handoff': false, 'withdraw.review': false, 'withdraw.refuseLanded': false,
-  project: null, name: null, generated: null, 'checks.provesNothing': 'warn', 'verify.unrelatedTrunkMoves': false, 'verify.landedReviews': false, 'verify.queueAccept': false, 'verify.requireRowRewrite': false, 'resume.adoptOrphans': false, 'verify.composeAtAdmission': false, 'verify.familyRelaxAt': null,
+  project: null, name: null, generated: null, tiers: null, laneMode: 'on', 'checks.provesNothing': 'warn', 'verify.unrelatedTrunkMoves': false, 'verify.landedReviews': false, 'verify.queueAccept': false, 'verify.requireRowRewrite': false, 'resume.adoptOrphans': false, 'verify.composeAtAdmission': false, 'verify.familyRelaxAt': null,
   'flakes.rerun': false, 'flakes.quarantine': false, 'rigor.budget': 400, 'rigor.autoDraft': true, 'cells.cache': false, 'cells.shimMaxAgeDays': 7, 'relay.outbox': true, 'relay.board': null,
-  submitGate: null, submitDeferAbove: null, landingShards: 1, 'landing.publish': null, 'landing.pauseOnRed': false, 'landing.manualOverride': false, 'landing.perItem': true, 'landing.shardProof': false, 'landing.landedFromMain': false, 'landing.ledgerMainReds': false, 'landing.first': null, 'landing.auditOnly': null, 'landing.environment': null, 'landing.trunkRemote': null, positiveControl: null, affectedTests: null, affectedSuites: null,
+  submitGate: null, submitDeferAbove: null, landingShards: 1, 'landing.publish': null, 'landing.pauseOnRed': false, 'landing.manualOverride': false, 'landing.perItem': true, 'landing.shardProof': false, 'landing.pipeline': false, 'landing.landedFromMain': false, 'landing.ledgerMainReds': false, 'landing.adaptiveBatch': false, 'landing.first': null, 'landing.auditOnly': null, 'landing.environment': null, 'landing.trunkRemote': null, positiveControl: null, affectedTests: null, affectedSuites: null,
   'inbox.keepUntilActed': false, 'inbox.escalateAfterMinutes': null, 'queue.contention': false, 'queue.contentionThreshold': 1,
   'health.sentinel': true, 'testConcurrency.browser': 2, approvers: null, 'claims.perSeat': null, 'claims.itemsInGate': false, 'claims.itemsInGateMax': 3, 'claims.fileLease': false, 'claims.fileLeaseHubs': [], 'seat.checkpoints': false,
 };
@@ -55,6 +49,8 @@ function readObject(file) {
 
 /** Resolve a supported dotted key without inheriting unrelated object members. */
 function at(value, key) {
+  // A key under `runners` is stored flat, since `runners` is the list of registered runners and cannot hold fields [C7,#9024].
+  if (value && typeof value === 'object' && Object.hasOwn(value, key)) return value[key];
   return key.split('.').reduce((part, name) => part && Object.hasOwn(part, name) ? part[name] : undefined, value);
 }
 

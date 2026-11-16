@@ -5,7 +5,6 @@
     "packages/gate/src/logic/wait.js",
     "packages/landing/src/logic/batch/history.js",
     "packages/merge/src/io/train.js",
-    "packages/person/src/io/pairing/limit.js",
-    "packages/state/src/logic/engine/metadata.js"
+    "packages/person/src/io/pairing/limit.js"
   ]
 }

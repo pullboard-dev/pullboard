@@ -52,7 +52,7 @@ for (const [name, command] of ${JSON.stringify(commands)}) {
   const fallbacks = [];
   const browser = await checkNeedsBrowser(process.cwd(), command, { onFallback: value => fallbacks.push(value) });
   const actual = await withGateSlot(process.cwd(), lease => {
-    if (lease.executionServices.runners.runOnRunner !== executionServices.runners.runOnRunner
+    if (lease.executionServices.runners.runOnRunnerAsync !== executionServices.runners.runOnRunnerAsync
       || !Object.isFrozen(lease.executionServices.runners)
       || !Object.isFrozen(lease.executionServices.landing)
       || Object.keys(lease).includes('executionServices')

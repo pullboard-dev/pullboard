@@ -16,7 +16,8 @@ export { completeMoveHandoff } from './src/logic/post/move.js';
 export { recordNativeProof } from './src/logic/proof/native.js';
 export { counterCaught, counterProofStats } from './src/io/proof/caught.js';
 export { PROOF_COUNTER_PREFIX, appendProofCounter, clearProofCounters, currentProofCounters, ensureProofCounters, proofCounter, proofCounterRows, rebuildProofCounters } from './src/io/proof/counters.js';
-export { refreshCapacityOutsideWrite } from './src/io/proof/counters.js';
+export { derivedProofCounter, refreshCapacityOutsideWrite } from './src/io/proof/counters.js';
+export { DERIVED_SETTING, deleteDerived, derivedRows } from './src/io/proof/derived.js';
 export { registryFindings, registryOutcome } from './src/logic/registry.js';
 export { registryStrictEnabled as registryStrict } from '../config/index.js';
 export { tier1Shadow, tier1ShadowFields } from './src/logic/shadow.js';
@@ -35,7 +36,7 @@ export { composeReview, composesAtAdmission } from './src/io/verdict/admission.j
 export { recordVerdict, reviewAssurance, verdictAssurance } from './src/logic/verdict/assurance.js';
 export { cachedVerdictStates, captureVerdictReview, composesUnchanged, staleVerdictRefusal, verdictProjector, verdictTrunk } from './src/io/verdict/freshness.js';
 export { retryReviewCommit } from './src/logic/verdict/retry.js';
-export { acceptedVerdict, checkedLandingCommit, verdictReviewProblem, verdictsFor } from './src/logic/verdict/reviews.js';
+export { acceptedVerdict, checkedLandingCommit, verdictReviewProblem, verdictReads, verdictsFor } from './src/logic/verdict/reviews.js';
 export { judgeTrunkMove } from './src/io/verdict/trunk.js';
 export { itemTrunkMove } from './src/io/verdict/trunk.js';
 export { checkOptions, verdictWithdrawalTarget, verdictWithdrawals } from './src/io/verdict/withdrawal.js';

@@ -17,6 +17,27 @@ export function inboxReasons(board, me) {
 }
 
 /**
+ * The shouts and rulings that name an item, oldest first, one line each (#8787): an item message sent to it, a decision
+ * asked about it, and a decision fact recorded on it. Superseded facts are left out.
+ * Why: next hands out one instruction, so the seat gets what was said about the item without reading the inbox.
+ *
+ * @param {any} board
+ * @param {number} id the item number
+ * @returns {string[]}
+ */
+export function itemNoticeLines(board, id) {
+  const thread = store.itemThread(board, id);
+  const replaced = new Set(thread.map(entry => entry.supersedes).filter(Boolean));
+  const lines = [];
+  for (const entry of thread) {
+    if (entry.type === 'move' && ['shout', 'pass', 'answer'].includes(entry.kind) && typeof entry.detail?.text === 'string') {
+      lines.push(`${entry.kind === 'answer' ? 'answer' : 'shout'} from ${entry.by}: ${entry.detail.text}`);
+    } else if (entry.type === 'fact' && entry.kind === 'decision' && !replaced.has(entry.id)) lines.push(`ruling by ${entry.by}: ${entry.text}`);
+  }
+  return lines;
+}
+
+/**
  * Name this seat's own items that are submitted or in their gate, so the seat knows why next offered other work.
  * Why: next skips them and a seat that saw nothing about them stopped after re-checking, with work still open [C7,#3532].
  *

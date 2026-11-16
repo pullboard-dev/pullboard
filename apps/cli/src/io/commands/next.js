@@ -1,5 +1,6 @@
 /** @pullboard-module-loads packages/moves/src/logic/reasons.js packages/health/index.js */
 import { holdsRequireOwner } from '../../../../../packages/config/index.js';
+import { nextItemNotices } from '../../../../../packages/config/index.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setImmediate as yieldEventLoop } from 'node:timers/promises';
@@ -295,7 +296,9 @@ async function nextWithProgress(io, values, progress) {
       // The default loop tops this seat up to N build claims whose files are disjoint, each in its own folder [C7,#6263,#7461].
       const own = !found.held || !found.seat || found.seat.path === origin;
       const more = !review && own && !found.waitingOffer && found.itemFolder && values.defaultLoop ? await topUpClaims(ctx, values) : [];
-      io.result?.({ item, review, ...(returned ? { returned } : {}), ...(comparison ? { comparison } : {}), held: Boolean(found.held), ...(found.waitingOffer ? { waitingOffer: true } : {}), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.itemFolder ? { itemFolder: found.itemFolder, holder: found.holder } : {}), ...(found.companions ? { companions: found.companions } : {}), ...(more.length ? { more: more.map(next => ({ item: next.item, itemFolder: next.itemFolder })) } : {}) });
+      // next.itemNotices (off by default): the shouts and rulings that name this item ride on the build instruction [C7,#8787].
+      const notices = !review && !found.waitingOffer && nextItemNotices() ? withBoardRead(ctx, board => reasons().itemNoticeLines(board, item.item_id)) : [];
+      io.result?.({ item, review, ...(notices.length ? { notices } : {}), ...(returned ? { returned } : {}), ...(comparison ? { comparison } : {}), held: Boolean(found.held), ...(found.waitingOffer ? { waitingOffer: true } : {}), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.itemFolder ? { itemFolder: found.itemFolder, holder: found.holder } : {}), ...(found.companions ? { companions: found.companions } : {}), ...(more.length ? { more: more.map(next => ({ item: next.item, itemFolder: next.itemFolder })) } : {}) });
       const here = cdTo(!review && found.itemFolder ? found.itemFolder : ctx.info.root);
       const as = ctx.info.isMain ? ' --as coordinator' : '';
       if (found.landed) {
@@ -348,6 +351,7 @@ async function nextWithProgress(io, values, progress) {
         if (item.item_check) io.say(`check: ${item.item_check}   (run it before you submit)`);
         for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${store.readableRigorText(row.text)}`);
         sayBrief(io, item.item_brief);
+        for (const line of notices) io.say(`  ${line}`);
         await progress.run('code map', item.item_id, () => sayMapSlice(io, ctx, item, primaryCheckoutRoot));
         io.say(`when it is built and committed: ${here} pullboard submit ${item.item_id}`);
         for (const next of more) {
@@ -405,7 +409,7 @@ async function nextWithProgress(io, values, progress) {
       return refuseNextIdle(io, waits, reasons().foldedReasons(waits.map((reason) => displayedWait(reason, agents, ctx.config)), `pullboard list ${seat.lane}`), { minutes, verify: values.verify, laneWork: found.laneWork, lane: seat.lane, route: seat.route });
     }
     // An item whose folder another live session holds stays out of this next's selection (#3688).
-    if (found.skipItem && ['ITEM_FOLDER_UNFINISHED', 'ITEM_FOLDER_PROTECTED', 'NO_POLICY'].includes(found.retryDetail?.code)) io.say(`skipped #${found.skipItem}: ${found.retryDetail.message}`);
+    if (found.skipItem && ['ITEM_FOLDER_UNFINISHED', 'ITEM_FOLDER_PROTECTED', 'NO_POLICY', 'NOT_READY'].includes(found.retryDetail?.code)) io.say(`skipped #${found.skipItem}: ${found.retryDetail.message}`);
     if (found.skipItem) values = { ...values, omitIds: [...new Set([...(values.omitIds ?? []), found.skipItem])] };
     if (found.retry) await progress.retry(found, { until: deadline });
     else {
