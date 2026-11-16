@@ -38,6 +38,7 @@ const OPTIONS = {
   slots: { type: 'string' },
   browser: { type: 'string' },
   'new-browser': { type: 'boolean' },
+  only: { type: 'string' },
   node: { type: 'string' },
   root: { type: 'string' },
   toolchain: { type: 'string' },
