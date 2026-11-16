@@ -7,6 +7,7 @@ import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
 import { evidenceLine } from '../shout.js';
 import { whoAmI } from '../join.js';
+import { sayLag } from '../lag.js';
 import { COORDINATOR } from '../../../../../packages/config/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { entryLines } from '../../../../../packages/store/index.js';
@@ -31,6 +32,7 @@ export async function run(io, { values = {} } = {}) {
   const actedIds = (values['acted-on'] ?? '').split(',').filter(Boolean);
   const ports = { agentDisplayName, evidenceLine, ordered, whoAmI, withBoard, withBoardRead };
   withBoardRead(ctx, board => sayQueuedReds(io, board, () => whoAmI(ctx, board)));
+  sayLag(io, ctx);
   const result = await deliverActivity(ctx, { actedIds }, ports);
   const { agents, ...document } = result;
   io.result?.(document);
