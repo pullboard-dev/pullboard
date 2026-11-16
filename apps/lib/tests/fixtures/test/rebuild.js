@@ -59,14 +59,14 @@ const PRODUCER_ENTRY = 'apps/cli/src/io/landing/audit.js';
 let runnableCache = null;
 
 /**
- * Code and data a producer needs to run: the producer entry's import closure plus the checker folders.
+ * Code and data a producer needs to run: the producer entry's import closure, every data file (a loader may list a folder) and the checker folders.
  * Why not every tracked file: the producer checks the tree out twice and its census parses every file in it, so the
  * time scales with the file count; the closure is what the entry can load, and the pinned fingerprint covers only the checker folders [C7,#8125].
  */
 export function runnableFiles() {
   if (runnableCache) return runnableCache;
   const tracked = new Set(trackedFiles('packages', 'apps', 'package.json').filter(file => !(file.includes('/tests/') && file.endsWith('.js'))));
-  const keep = new Set(['package.json', ...trackedFiles(...CHECKER_PATHS)]), queue = [PRODUCER_ENTRY, ...keep];
+  const keep = new Set(['package.json', ...trackedFiles(...CHECKER_PATHS), ...[...tracked].filter(file => !/\.(?:js|mjs|cjs)$/u.test(file))]), queue = [PRODUCER_ENTRY, ...keep];
   while (queue.length) {
     const file = queue.pop();
     keep.add(file);
