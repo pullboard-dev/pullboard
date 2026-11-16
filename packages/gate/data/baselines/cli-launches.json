@@ -621,7 +621,10 @@
     "launch": 5
   },
   "apps/cli/journeys/init/calls.test.js": {
-    "launch": 6
+    "launch": 5
+  },
+  "apps/cli/journeys/init/calls-head.test.js": {
+    "launch": 1
   },
   "apps/cli/journeys/merged/idempotent.test.js": {
     "launch": 2
