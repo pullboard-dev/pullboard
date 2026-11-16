@@ -112,6 +112,7 @@ const ROWS = [
   ['relay.excluded', 'Boards kept out of sharing', 'Repositories that automatic linking skips.', 'Relay', 'list'],
   ['relay.key', 'Board encryption key', 'Whether this board has the key that encrypts what it shares; the key is never shown.', 'Relay', 'set/not set'],
   ['relay.keyStorage', 'Key storage', 'Where this board keeps its encryption key, such as the system keychain.', 'Relay', 'text'],
+  ['relay.excludeByBoard', 'Relay opt-out covers every worktree', 'When enabled, relay off for one worktree excludes every worktree of the same board, and an older opt-out made from any of its worktrees counts as the board\'s; off (default), an opt-out covers only the checkout it was made in.', 'Relay', 'on/off'],
   ['relay.offerAtInit', 'Offer phone sharing at setup', 'Init asks once whether to share your boards with your phone.', 'Relay', 'on/off'],
   ['relay.outbox', 'Send updates through the outbox', 'Board updates go out through a durable outbox; false turns that off.', 'Relay', 'on/off'],
   ['relay.owner.account', 'Sharing account', 'The account that owns this computer\'s device sharing.', 'Relay', 'text'],

@@ -89,6 +89,7 @@ const BEFORE = {
   'next.itemNotices': false,
   'next.readinessCheck': false,
   'push.rerunFailedShardOnce': false,
+  'relay.excludeByBoard': false,
   'relay.offerAtInit': true,
   'review.releaseReasons': false,
   'runnerRates': {},

@@ -363,6 +363,9 @@ export function loadMachineSettings() {
   if (value.relay?.offerAtInit !== undefined && typeof value.relay.offerAtInit !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `relay.offerAtInit in ${file} must be true or false`);
   }
+  if (value.relay?.excludeByBoard !== undefined && typeof value.relay.excludeByBoard !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `relay.excludeByBoard in ${file} must be true or false`);
+  }
   const canaryProblem = relayCanaryProblem(value.relay?.canary);
   if (canaryProblem) throw new Refused('BAD_MACHINE_SETTINGS', `relay.canary in ${file} is invalid: ${canaryProblem}`);
   const workerBudget = value.workers?.budget;

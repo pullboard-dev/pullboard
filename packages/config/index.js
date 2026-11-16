@@ -98,6 +98,7 @@ export {
   derivedStateEnabled,
   testStatusOutcomesEnabled,
   typedFieldsEnabled,
+  excludeByBoardEnabled,
   recordWriteHolderEnabled,
   adaptiveBatchEnabled,
   landingSquashEnabled,
