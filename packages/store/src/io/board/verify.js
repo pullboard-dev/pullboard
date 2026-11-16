@@ -57,6 +57,25 @@ import { ROUTE_CALIBRATION_ENGINE } from "../../../../state/light.js";
 import { listAgents } from './query.js';
 import { measureBoardWritePhase } from './write/lock.js';
 import { endReviewLease } from './review/lease.js';
+import { applyVerdict } from './verify-table.js';
+import { verifyDecision } from './verify-table.js';
+import { pipelineCause } from "../../../../kernel/index.js";
+import { frozenBar } from "../../../../verify/index.js";
+import { namedClause } from "../../../../verify/index.js";
+import { wording } from "../../../../verify/index.js";
+import { AUTO_ESCALATE_ENGINE } from "../../../../state/light.js";
+import { NATIVE_FLAKE_ENGINE } from "../../../../state/light.js";
+import { REJECT_CLAUSE_ENGINE } from "../../../../state/light.js";
+import { REOPEN_FIRST_REFUSAL_ENGINE } from "../../../../state/light.js";
+import { REVIEW_REQUEST_ENGINE } from "../../../../state/light.js";
+import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
+import { SPEC_APPROVAL_ENGINE } from "../../../../state/light.js";
+import { STRONG_REJECTION_NOTICE_ENGINE } from "../../../../state/light.js";
+
+/** What the verify table needs from the cells the writer already reads; the table decides a verdict only from the engine where every rule it holds was in force. */
+const VERIFY_TABLE_DEPS = Object.freeze({ pipelineCause, frozenBar, namedClause, wording, seatFamily, nativeFlakeEngine: NATIVE_FLAKE_ENGINE, strongNoticeEngine: STRONG_REJECTION_NOTICE_ENGINE,
+  from: Math.max(VERDICT_REVIEW_ENGINE, REVIEW_REQUEST_ENGINE, REJECT_CLAUSE_ENGINE, REJECT_OPEN_ENGINE, REOPEN_FIRST_REFUSAL_ENGINE, RIGOR_AUTO_ENGINE, SPEC_APPROVAL_ENGINE,
+    AUTO_ESCALATE_ENGINE, STRONG_REJECTION_NOTICE_ENGINE, ROUTE_CALIBRATION_ENGINE, NATIVE_FLAKE_ENGINE) });
 
 /**
  * The item with its builder family read from its claim events when it never recorded a builder or a family.
@@ -136,16 +155,21 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
   const transition = newReview ? declaration : { ...declaration, from: ['submitted'],
     guards: declaration.guards.filter(guard => !['notMerged', 'verdictReviewRecorded', 'reviewTreeCurrent'].includes(guard)) };
   const suppliedNote = note.trim();
+  const givenNote = note;
   const reviewHeartbeats = new Map(listAgents(board).map(({ agent_id, heartbeatAt }) => [agent_id, heartbeatAt]));
   return atomic(board, () => {
     const relaxedItem = engine >= REVIEW_FAMILY_RELAX_ENGINE ? getItem(board, id) : null;
     const relaxation = measureBoardWritePhase(board.db, 'verify-relaxation', () => relaxedItem && itemReviewPolicy(board, id).tier === 'standard' ? reservedRelaxation(board, relaxedItem, agentId) : null);
-    if (relaxation) note += `\nreview family relaxed at reservation: ${relaxation.queueLength} waiting, threshold ${relaxation.threshold}; active seats: ${relaxation.activeSeats.join(', ') || 'none'}`;
+    const relaxationLine = relaxation ? `review family relaxed at reservation: ${relaxation.queueLength} waiting, threshold ${relaxation.threshold}; active seats: ${relaxation.activeSeats.join(', ') || 'none'}` : null;
+    if (relaxation) note += `\n${relaxationLine}`;
     const proofKnown = verdictEvidence(board, id, { agentId, isAccept, engine, review, knownMainFailures, quarantineProofId, enforce: !prechecked });
     // A verdict with no gate receipt would be recorded as INSUFFICIENT_EVIDENCE and count toward the send-back hold (#3737).
     const pendingGate = engine >= REVIEW_GATE_RECEIPT_ENGINE ? measureBoardWritePhase(board.db, 'verify-gate-receipt', () => gateReceiptProblem(board, getItem(board, id) ?? {})) : null;
     if (pendingGate) throw pendingGate;
     if (engine >= SOURCE_ADVANCE_ENGINE) requireSourceAdvanceReview(board, getItem(board, id), sourceAdvanceHead);
+    // The verify table decides the verdict event and its follow-ups from the board before the move; where it does not model the call, the original rules below run.
+    const decided = newReview ? verifyDecision(board, getItem(board, id), { agentId, decision, reason, note: givenNote, relaxation: relaxation ? relaxationLine : null, cause, clause, head, digest, review,
+      companionDigest, implies, environment, sandbox, sourceAdvanceHead, quarantineProofId, check, knownMainFailures: proofKnown }, VERIFY_TABLE_DEPS) : null;
     const item = moveItem(board, id, verb, {
       transition,
       checks: {
@@ -189,7 +213,11 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
       if (engine >= REJECT_OPEN_ENGINE) reopenFirstRefusalMinutes = 0;
       else if (reopenFirstRefusalMinutes === undefined && rejectionReturnEnabled(board)) reopenFirstRefusalMinutes = 30;
     }
-    const trigger = measureBoardWritePhase(board.db, 'verify-finish', () => finishVerdict(board, item, { id, isAccept, engine, reopenFirstRefusalMinutes,
+    const trigger = decided ? measureBoardWritePhase(board.db, 'verify-finish', () => {
+      const logged = applyVerdict(board, id, decided.events, { logEvent, holdItem, shout, escalate });
+      tellVerdictImplications(board, (by, itemId, fact) => logEvent(board, by, 'fact', itemId, fact), id, { seed: impliesId, implies });
+      return logged;
+    }) : measureBoardWritePhase(board.db, 'verify-finish', () => finishVerdict(board, item, { id, isAccept, engine, reopenFirstRefusalMinutes,
       agentId, code, cause, clauseDetail, companionDigest, note, check, quarantineProofId, environment, sandbox, newReview,
       review, implies, impliesId, decision, verb, knownMainFailures: proofKnown }, { firstRefusalDetail, deriveRigorCause: board.nativePorts.deriveRigorCause, logEvent, holdItem,
       shout, tellFirstRefusal, persistShout,
