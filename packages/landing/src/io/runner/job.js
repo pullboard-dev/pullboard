@@ -373,12 +373,16 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
   const done = (outcome, fields = {}) => Object.assign(receipt, { outcome }, fields);
   // guard: the static guard row a red came from; the board returns that item to its builder even under separate publish [#7492].
   const giveBack = (id, reason, detail, guard = null) => { receipt.returned.push({ id, reason, detail, ...(guard ? { guard } : {}) }); receipt.detail ??= detail; };
+  // Renew before each synchronous fetch: git blocks this process's event loop, so the runner's background renewal cannot fire
+  // while one runs, and a fetch pair longer than the 2-minute lease let five runners in a row claim #9180's job and drop it [C7,#9250].
   for (const entry of items) {
+    if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner while it fetched the accepted items' });
     const fetched = fetchItem(root, remote, entry);
     if (fetched.moved) return done('item-moved', { detail: `#${entry.id}: ${fetched.moved}` });
   }
   for (let attempt = 1; attempt <= attempts; attempt++) {
     receipt.attempts = attempt;
+    if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner before it fetched trunk' });
     const base = fetchTrunk(root, remote, trunk);
     if (base !== (receipt.base ?? expect)) receipt.moved.push(base);
     receipt.base = base;
