@@ -31,6 +31,7 @@ export const MOVES = [
       { code: 'SEAL_STORE', rule: 'native test seals are read from the repository common directory', next: 'restore the repository Git metadata and seal storage' },
       { code: 'LANE_CHECK_FOREIGN', rule: 'a lane seat\'s frozen check names only test files its own lane owns', next: 'shout the owning lane or the coordinator to set a check that names the file' },
       { code: 'WRONG_BRANCH', rule: 'the new commits at the head name this item, not another', next: 'submit the other item from here, or switch to the branch built for this item' },
+      { code: 'BAR_EMPTY', rule: 'a criterion with no text freezes only while freeze.refuseEmptyBar is off', next: 'ask the coordinator to give the item numbered clauses: pullboard edit <id> --criterion "1. ... [test]" --reason "..."' },
       { code: 'UNKNOWN_SPEC', rule: 'the submitted criterion cites governing approved rows', next: 'restore the governing spec rows or ask the coordinator to correct the item' },
       { code: 'TEST_SELECTION_SOURCE', rule: 'the immutable test-selection source is readable from Git', next: 'restore Git history and retry the selected test run' },
       { code: 'TEST_TIER_MANIFEST', rule: 'a tier-enabled project retains a valid generated test manifest', next: 'regenerate and commit the testing tier manifest' },
