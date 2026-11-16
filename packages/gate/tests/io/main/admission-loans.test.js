@@ -104,8 +104,13 @@ test('an explicit async loan refuses duplicate and concurrent waits and preserve
   writeFileSync(join(root, 'inner.test.js'), timedFile('inner.test.js', 0));
   writeFileSync(join(root, 'parent.test.js'), `import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { awaitNestedRun } from ${JSON.stringify(poolModule)};
+// A test file runs on a machine home of its own, so the fixture's gateSlots never reach the runs it starts: write the
+// slots to the home these nested runs inherit, or two seat tests share two slots and one waits 30 s for the reserve [C7].
+mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+writeFileSync(process.env.PULLBOARD_MACHINE_HOME + '/settings.json', JSON.stringify({ gateSlots: 4, browserSlots: 1 }));
 test('explicit wait contracts', { timeout: 10_000 }, async (t) => {
   const start = () => {
     const child = spawn(process.execPath, [${JSON.stringify(runner)}, 'inner.test.js'], { cwd: ${JSON.stringify(root)}, stdio: ['ignore', 'pipe', 'pipe'] });
