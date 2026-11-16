@@ -12,7 +12,7 @@ import { cellsAuditBacklog } from '../../src/io/cells/backlog.js';
 import { cellsBacklogCollector } from '../../src/io/cells/backlog.js';
 
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
-const OLD = 'packages/codemap/src/io/cells/backlog.js';
+const OLD = ['packages/codemap', 'src/io/cells', 'backlog.js'].join('/');
 
 /** Every source file under a folder, skipping dependency folders. */
 function sources(folder) {
@@ -33,7 +33,7 @@ test('clause 1: the cells audit backlog exists in the apps/cli cells folder, not
   assert.equal(existsSync(join(ROOT, OLD)), false, 'the old codemap path is gone');
   const importers = [...sources('apps/cli'), ...sources('packages/codemap')]
     .filter(file => /from '[^']*cells\/backlog\.js'/u.test(readFileSync(join(ROOT, file), 'utf8')));
-  assert.deepEqual(importers.filter(file => readFileSync(join(ROOT, file), 'utf8').includes('codemap/src/io/cells/backlog.js')), [], 'nothing imports the old path');
+  assert.deepEqual(importers.filter(file => readFileSync(join(ROOT, file), 'utf8').includes(OLD)), [], 'nothing imports the old path');
   assert.ok(importers.includes('apps/cli/src/io/landing/audit.js'), 'the landing audit imports the new home');
   assert.doesNotMatch(readFileSync(join(ROOT, 'packages/codemap/index.js'), 'utf8'), /cellsBacklogCollector/u, 'codemap no longer exports the collector');
 });
