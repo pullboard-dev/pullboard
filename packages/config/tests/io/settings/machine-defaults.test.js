@@ -94,6 +94,7 @@ const BEFORE = {
   'relay.excludeByBoard': false,
   'relay.offerAtInit': true,
   'relay.pruneReceipts': false,
+  'relay.push': false,
   'review.releaseReasons': false,
   'runner.packCache': false,
   'runnerRates': {},
