@@ -13,8 +13,10 @@ const FILES = [
 ];
 
 test('clause 1: cellsEdgeReport(repo).packageApps has no row for pipeline/spec.js [C7]', () => {
-  const live = cellsEdgeReport(REPO, { files: FILES }).packageApps;
-  for (const file of FILES) assert.equal(live[file], undefined, `${file} still reaches an app: ${JSON.stringify(live[file])}`);
+  const moved = APP_HARNESSES['runner-spec'];
+  const live = cellsEdgeReport(REPO, { files: [moved] }).packageApps;
+  for (const file of FILES) assert.equal(existsSync(join(REPO, file)), false, `${file} still exists in the gate package`);
+  for (const file of [...FILES, moved]) assert.equal(live[file], undefined, `${file} still reaches an app: ${JSON.stringify(live[file])}`);
 });
 
 test('clause 2: the committed cells-edges.json ceiling packageApps has no row for pipeline/spec.js [C7]', () => {
