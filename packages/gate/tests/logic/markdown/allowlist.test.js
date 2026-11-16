@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { changedStaticFailures } from '../../../heavy.js';
 import { MARKDOWN_ALLOWLIST } from '../../../src/logic/markdown/allowlist.js';
 import { markdownProblems } from '../../../src/logic/markdown/allowlist.js';
-import { fixtureCommittedGraph } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureCommittedGraph } from '../../fixtures/testkit.js';
 import { runFixtureGit } from '../../fixtures/child.js';
 
 const ROOT = fileURLToPath(new URL('../../../../..', import.meta.url));

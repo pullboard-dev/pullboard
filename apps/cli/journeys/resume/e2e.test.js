@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict';
 import {
-  runFixtureChild as spawnSync,
+  runFixtureChildAsync as spawnChild,
 } from '../../tests/fixtures/child.js';
 import {
   chmodSync,
@@ -92,7 +92,7 @@ test('init adds a Claude Code session hook that runs resume, and keeps every oth
   const card = await runCliInProcess(['hook', 'SessionStart'], { cwd: repo, env: box.env });
   assert.equal(card.status, 0, card.stderr);
   assert.match(JSON.parse(card.stdout).hookSpecificOutput.additionalContext, /^resume: coordinator/);
-  const bare = spawnSync('sh', ['-c', command], { cwd: repo, env: { ...box.env, PATH: '/usr/bin:/bin' }, encoding: 'utf8' });
+  const bare = await spawnChild('sh', ['-c', command], { cwd: repo, env: { ...box.env, PATH: '/usr/bin:/bin' }, encoding: 'utf8' });
   assert.equal(bare.status, 0, 'without pullboard installed, the session still starts');
   assert.equal(bare.stdout, '');
 });
@@ -126,25 +126,26 @@ test('the run pack names verified items that touched the same files, so a cold a
 test('a fresh worktree with no install of its own runs pullboard from the main checkout, for git hooks and the session hook [I6]', async () => {
   const box = project();
   const bare = { ...box.env, PATH: '/usr/bin:/bin' };
-  const commit = () => spawnSync('git', ['commit', '-q', '-m', 'feat(web): page [G1]'], { cwd: box.web, env: bare, encoding: 'utf8' });
+  const commit = () => spawnChild('git', ['commit', '-q', '-m', 'feat(web): page [G1]'], { cwd: box.web, env: bare, encoding: 'utf8' });
   const { command } = JSON.parse(readFileSync(join(box.web, '.claude', 'settings.json'), 'utf8')).hooks.SessionStart[0].hooks[0];
-  const resume = () => spawnSync('sh', ['-c', command], { cwd: box.web, env: bare, encoding: 'utf8' });
+  const resume = () => spawnChild('sh', ['-c', command], { cwd: box.web, env: bare, encoding: 'utf8' });
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web', 'page.html'), '<h1>Hi</h1>');
   box.git(box.web, 'add', '-A');
-  const refused = commit();
+  const refused = await commit();
   assert.notEqual(refused.status, 0);
   assert.match(refused.stderr, /pullboard is not installed/);
-  assert.deepEqual([resume().status, resume().stdout], [0, ''], 'no install anywhere: the session still starts, silently');
+  const [quiet1, quiet2] = await Promise.all([resume(), resume()]);
+  assert.deepEqual([quiet1.status, quiet2.stdout], [0, ''], 'no install anywhere: the session still starts, silently');
   const bin = join(box.repo, 'node_modules', '.bin');
   mkdirSync(bin, { recursive: true });
   // The shell stub notes who the session hook reached; the card itself runs in this process, because the hook's 2 s worker budget is the product's and a loaded runner cannot start two fresh nodes inside it [I6].
   const reached = join(box.repo, 'session-hook-reached');
   writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nif [ "$1" = hook ] && [ "$2" = SessionStart ]; then echo "$0" > "${reached}"; exit 0; fi\nexec "${process.execPath}" "${BIN}" "$@"\n`);
   chmodSync(join(bin, 'pullboard'), 0o755);
-  const committed = commit();
+  const committed = await commit();
   assert.equal(committed.status, 0, committed.stderr);
-  assert.equal(resume().status, 0);
+  assert.equal((await resume()).status, 0);
   assert.equal(realpathSync(readFileSync(reached, 'utf8').trim()), realpathSync(join(bin, 'pullboard')), 'the session hook found the main checkout install');
   const card = await runCliInProcess(['hook', 'SessionStart'], { cwd: box.web, env: bare });
   assert.match(JSON.parse(card.stdout).hookSpecificOutput.additionalContext, /^resume: web-1 \(fixture-model\), web lane/);

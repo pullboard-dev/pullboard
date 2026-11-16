@@ -591,11 +591,27 @@ export async function runGate(root, config, { trustStamp = true, onWait, landing
 }
 
 /**
+ * The focused command of a main comparison. A case list adds an exact, anchored `--test-name-pattern`, so only those
+ * cases run; the pattern is part of the command, so the receipt, the signature and the runner's stored result of a
+ * filtered run are never those of a whole-file run [C7,#3066].
+ *
+ * @param {string} affectedTests - The accepted focused test command.
+ * @param {string} path - The repository-relative test file.
+ * @param {string[]} [cases] - Case names to run; omitted runs the whole file.
+ * @returns {string}
+ */
+export function mainComparisonCommand(affectedTests, path, cases) {
+  const quote = text => "'" + text.replaceAll("'", "'\\''") + "'";
+  const pattern = cases ? ` --test-name-pattern ${quote('^(?:' + cases.map(name => name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('|') + ')$')}` : '';
+  return `PULLBOARD_TEST_REUSE=record ${affectedTests.trimEnd()}${pattern} ${quote('./' + path)}`;
+}
+
+/**
  * Run the accepted exact-file main comparison and seal only its own observed execution duration. A `source` of
  * `{head, tree}` runs that exact commit on the admitted runner from this repository's objects, so `root` may be any
  * checkout of the repository and its HEAD is never read [C7,#3323].
  */
-export async function runMainComparison(root, path, { detailed = false, gateLease, waitMs = 0, signatureCapture, source } = {}) {
+export async function runMainComparison(root, path, { detailed = false, gateLease, waitMs = 0, signatureCapture, source, cases } = {}) {
   if (gateLease && signatureCapture) gateLease.signatureCapture = signatureCapture;
   // A pinned source is main's exact commit, sent to a runner from the object store; only a runner can run it [C7,#3323].
   if (source && (!gateLease?.runner || gateLease.source?.pinned !== true || gateLease.source.commit !== source.head || gateLease.source.tree !== source.tree)) {
@@ -608,8 +624,10 @@ export async function runMainComparison(root, path, { detailed = false, gateLeas
     || typeof path !== 'string' || !path || path.startsWith('/') || path.split('/').includes('..')) {
     throw new Refused('NO_POLICY', 'an exact main comparison needs clean source and its accepted focused test command');
   }
-  const word = "'" + ('./' + path).replaceAll("'", "'\\''") + "'";
-  const command = `PULLBOARD_TEST_REUSE=record ${policy.config.affectedTests.trimEnd()} ${word}`;
+  if (cases !== undefined && (!Array.isArray(cases) || !cases.length || cases.some(name => typeof name !== 'string' || !name))) {
+    throw new Refused('USAGE', 'a filtered main comparison needs one or more case names; name the failing cases or run the whole file');
+  }
+  const command = mainComparisonCommand(policy.config.affectedTests, path, cases);
   const started = performance.now();
   // Always awaited: a landing's failure diagnostics run this, and a blocking run stopped the landing lease's heartbeat [C7].
   const run = detailed ? await runProfiledShellAsync(root, command, { gateLease, waitMs, stages: true, pinnedSource })
@@ -618,7 +636,7 @@ export async function runMainComparison(root, path, { detailed = false, gateLeas
   const after = pinnedSource ?? timingSourceForReceipt(root);
   const receiptId = sameTimingSource(before, after) && !run.sandboxBlocked
     ? leaveRunReceipt(root, { gate: command }, run, { before: before.tree, kind: 'main-red',
-      comparison: { path, source: before, compareMs, pinned: Boolean(pinnedSource) }, gateLease, receiptAt: new Date().toISOString() }) : null;
+      comparison: { path, source: before, compareMs, pinned: Boolean(pinnedSource), ...(cases ? { cases } : {}) }, gateLease, receiptAt: new Date().toISOString() }) : null;
   return { ...run, ...(receiptId ? { receiptId } : {}) };
 }
 
@@ -647,8 +665,7 @@ function leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditF
     const policy = kind === 'main-red' ? policyAt(root, head)
       : auditBatchId === undefined && !releaseRequest ? mainPolicy(root) : policyAt(root, head);
     const store = receiptStore(root);
-    const focusedWord = comparison && "'" + ('./' + comparison.path).replaceAll("'", "'\\''") + "'";
-    const expected = kind === 'main-red' ? comparison && `PULLBOARD_TEST_REUSE=record ${policy.config.affectedTests.trimEnd()} ${focusedWord}`
+    const expected = kind === 'main-red' ? comparison && mainComparisonCommand(policy.config.affectedTests, comparison.path, comparison.cases)
       : kind === 'suite' ? 'node apps/cli/src/io/run/tests.js --all'
       : auditFiles === undefined ? policy.config.gate : valueGateCommand(root, policy.config.gate, [...new Set(auditFiles)].sort());
     if (expected !== config.gate || !head || !store
