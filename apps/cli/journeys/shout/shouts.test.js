@@ -64,7 +64,9 @@ test('the shouts tab counts shouts you have not seen [N26]', async () => {
     await page.click({ tab: 'shouts' });
     assert.equal(count(page), '', 'opening Shouts sees it');
     box.run(alpha.web, 'shout', 'all', 'and done');
-    await page.run('refresh()');
+    // The mark moves to the newest shout the open Shouts tab shows, so read until the feed shows this one [C7].
+    await catchUp(page, () => page.show('feed').includes('and done'));
+    assert.ok(page.show('feed').includes('and done'), 'the open Shouts tab shows the shout that just arrived');
     assert.equal(count(page), '', 'a shout that arrives while Shouts is open is seen');
     await page.click({ tab: 'items' });
 
@@ -130,7 +132,7 @@ test('an empty feed says so on one line [N26]', async () => {
     await view.stop();
   }
 });
-test('a shout shows the evidence it carries [B22]', async () => {
+test('clause 2: a shout shows the evidence it carries [B22]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
   box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');

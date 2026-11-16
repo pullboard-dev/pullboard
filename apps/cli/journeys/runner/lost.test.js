@@ -63,19 +63,17 @@ function queue(t) {
 const only = process.env.PULLBOARD_LOST_CASES ?? 'ssh';
 const caseTest = (group, ...args) => (!only || only === group || group.startsWith(`${only}:`) ? test(...args) : undefined);
 
-caseTest('ssh', 'a failed SSH call preserves its command exit and stderr through the synchronous bridge [C7]', t => {
+// The SSH controller serves only pull modes since #9054, so a synchronous call ends in its refusal, not in the stand-in's 255.
+caseTest('ssh', 'a synchronous runner call is refused by the retired SSH controller and keeps its exit and stderr [C7]', t => {
   const box = fixture(t);
   const url = pathToFileURL(join(import.meta.dirname, '../../../../packages/runners/index.js')).href;
   const result = child(box, `import {runOnRunner} from ${JSON.stringify(url)};
     try {runOnRunner(process.cwd(),'true',{runner:${JSON.stringify(box.runner)}});process.exitCode=1;}
     catch(error){console.log(JSON.stringify({name:error.name,diagnostic:error.diagnostic}));}`);
   assert.equal(result.name, 'RunnerDropped');
-  assert.equal(result.diagnostic.exitCode, 255);
-  assert.equal(result.diagnostic.command[0], 'ssh');
-  assert.ok(result.diagnostic.command.includes(box.runner.host));
-  assert.equal(result.diagnostic.reason, 'receipt-count');
-  assert.match(result.diagnostic.stderr, /controlled transport disconnection/u);
-  assert.match(result.diagnostic.source, /^[0-9a-f]{40}$/u);
+  assert.equal(result.diagnostic.exitCode, 1);
+  assert.equal(result.diagnostic.reason, 'bridge-json');
+  assert.match(result.diagnostic.stderr, /SSH runner controller is retired/u);
 });
 
 // Test-only boot budget: gate.runnerWaitMs runs from the request, so under load a 1000 ms deadline can expire before

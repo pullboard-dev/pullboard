@@ -1,9 +1,15 @@
 /** The pullboard gate --static mode, in its own module so the gate command stays small [C7,#8318]. */
 import { runShell } from '../../../../../packages/gate/index.js';
+import { analysisChange } from '../../../../../packages/gate/index.js';
+import { analysisKey } from '../../../../../packages/gate/index.js';
+import { readAnalysisMemo } from '../../../../../packages/gate/index.js';
+import { writeAnalysisMemo } from '../../../../../packages/gate/index.js';
+import { tryGit } from '../../../../../packages/git/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { mainPolicy } from '../../../../../packages/sandbox/index.js';
 import { takeResource } from '../../../../../packages/resources/index.js';
 import { staticCheckSlots } from '../../../../../packages/config/index.js';
+import { staticMemoOn } from '../../../../../packages/config/index.js';
 
 /** The rule code the gate reports a red static stage under. */
 export const STATIC_RULE = 'STATIC_RED';
@@ -45,10 +51,18 @@ export const STATIC_POOL = 'static-checks';
  *
  * @param {object} io - The CLI output channel.
  * @param {string} root - The item folder or checkout to judge.
- * @param {{ command?: string, slots?: () => number, run?: Function }} [options] - `slots` replaces the machine setting; `run` replaces the stage.
+ * With gate.staticMemo on, a green run is kept for its exact clean tree and main, and a rerun on that tree answers at once.
+ *
+ * @param {{ command?: string, main?: string, slots?: () => number, run?: Function, memo?: () => boolean }} [options] - `slots` and `memo` replace the machine settings; `run` replaces the stage.
  * @returns {Promise<number>} The stage's exit code.
  */
-export async function runStaticStageAdmitted(io, root, { slots = staticCheckSlots, run = runStaticStage, ...stage } = {}) {
+export async function runStaticStageAdmitted(io, root, { slots = staticCheckSlots, run = runStaticStage, memo = staticMemoOn, ...stage } = {}) {
+  const key = memo() ? keptStaticKey(root, stage) : null;
+  if (key && readAnalysisMemo(key)) {
+    io.result?.({ green: true, findings: [], kept: true });
+    io.say('static stage green: kept from a green run of this exact clean tree and main (gate.staticMemo); the gate will not return STATIC_RED for this tree');
+    return 0;
+  }
   let said = '';
   const capacity = slots();
   const lease = await takeResource({
@@ -63,6 +77,29 @@ export async function runStaticStageAdmitted(io, root, { slots = staticCheckSlot
       said = line;
     },
   });
-  try { return await run(io, root, stage); }
-  finally { lease.release(); }
+  try {
+    const code = await run(io, root, stage);
+    if (code === 0 && key) writeAnalysisMemo(key, { green: true });
+    return code;
+  } finally { lease.release(); }
+}
+
+/**
+ * The key a green local static run is kept under: main's commit, HEAD, their change and the static command, the same parts
+ * the submit gate keeps its static result under. Null when the tree has any uncommitted or untracked change or git cannot
+ * say, so only an exact committed tree is ever answered from memory [C7].
+ *
+ * @param {string} root - The item folder or checkout to judge.
+ * @param {{ command?: string, main?: string }} [stage] - `main` replaces accepted main's commit, for a test with no coordinator checkout.
+ * @returns {string | null}
+ */
+export function keptStaticKey(root, { command, main } = {}) {
+  const status = tryGit(root, ['status', '--porcelain', '--untracked-files=normal']);
+  const head = tryGit(root, ['rev-parse', 'HEAD']);
+  if (status.status !== 0 || status.stdout || head.status !== 0) return null;
+  let policy = null;
+  if (!main || !command) { try { policy = mainPolicy(root); } catch { return null; } }
+  const base = main ?? policy.commit, definition = command ?? policy.config.staticChecks?.trim();
+  const change = definition ? analysisChange(root, base, head.stdout) : null;
+  return change ? analysisKey(root, { kind: 'local-static', main: base, source: head.stdout, raw: change.raw, definition }) : null;
 }

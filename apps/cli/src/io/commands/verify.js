@@ -25,7 +25,7 @@ import { comparisonCommand } from '../../../../../packages/verify/index.js';
 import { renderVerificationComparison } from '../../../../../packages/verify/index.js';
 import { VERIFICATION_COMPARISON_PREFIX } from '../../../../../packages/verify/index.js';
 import { mainRunnerSource } from '../../../../../packages/landing/index.js';
-import { mainPolicy } from '../../../../../packages/sandbox/index.js';
+import { reviewMainPolicy } from '../../../../../packages/sandbox/index.js';
 import { testTierProofFiles } from '../../../../../packages/gate/index.js';
 import { testTierCommand } from '../../../../../packages/gate/index.js';
 import { testTierReport } from '../../../../../packages/gate/index.js';
@@ -352,8 +352,8 @@ export async function verifyHere(ctx, id, { second, values }) {
     } else if (decision === 'ACCEPT') {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', VERIFY_WORDS.criteriaMoved);
       // verify.queueAccept (off by default): the frozen check becomes a runner job and the accept returns; its receipt settles the verdict [C7,V4,#3161].
-      if (!reReview && !companionDigest && !item.item_effective_head && queuesAccept(mainPolicy(root).config, frozenCheck(item))) {
-        return await queueAccept(ctx, board, { item: id, me, commit, main: mainPolicy(root).commit, check: frozenCheck(item), digest });
+      if (!reReview && !companionDigest && !item.item_effective_head && queuesAccept(reviewMainPolicy(root).config, frozenCheck(item))) {
+        return await queueAccept(ctx, board, { item: id, me, commit, main: reviewMainPolicy(root).commit, check: frozenCheck(item), digest });
       }
       // Patch inputs must be composed before browser/GUI classification reads their exact source.
       let checkedCommit = companionDigest || item.item_effective_head ? prepareItemPatchReview(root, board, item, { effectiveItemHead, itemPolicy, requireTrunkMerge, retryReviewCommit, getItem: store.getItem }).commit : reReview ? head : commit;
@@ -617,7 +617,7 @@ export async function run(io, args) {
   if (values.compare) {
     if (args.second) throw new Refused('USAGE', 'use pullboard verify <id> --compare without an accept or reject verdict');
     const item = withBoardRead(ctx, board => store.getItem(board, id));
-    const policy = mainPolicy(ctx.info.root);
+    const policy = reviewMainPolicy(ctx.info.root);
     const executionServices = { runners: runnerExecutionServices(), landing: landingExecutionServices() };
     if (process.env.PULLBOARD_COMPARE_SOURCE && (process.env.PULLBOARD_COMPARE_SOURCE !== item.item_commit
       || process.env.PULLBOARD_COMPARE_DIGEST !== item.item_frozen_digest)) {

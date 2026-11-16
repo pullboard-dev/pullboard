@@ -3,6 +3,8 @@ import { nativeBoardOpeners } from '../context.js';
 import { moveArgs } from '../../../../../packages/person/index.js';
 import { receiveCommits } from '../../../../../packages/pin/index.js';
 import { withBoardRead } from '../context.js';
+import { withBoard } from '../context.js';
+import { serveReconciler } from '../reconcile.js';
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { openBoardForRead } from '../../../../lib/index.js';
@@ -144,6 +146,8 @@ export async function serveHere(io, values) {
   if (networked) io.say(`Any computer that can reach ${address} and holds the board key can use this board. Ctrl-C stops it.`);
   io.flush?.(0);
   traceServeStartup('serve-ready-written');
+  // With the board's runs_store flag on, the loop settles board-and-runs disagreements at most once every 5 s; off, it opens no runs file [B2,P7].
+  const reconciler = serveReconciler({ withBoard: work => withBoard(ctx, work), boardFile: ctx.file, onError: error => process.stderr.write(`reconciler tick failed: ${error.message}\n`) });
   // A landing that moves this checkout restarts the API on the new code and the same port (#6157).
   // Where the socket can be handed on, the new process listens before this one stops accepting, so no request is refused (#6723).
   const log = join(pullboardHome(), 'serve.log');
@@ -159,6 +163,7 @@ export async function serveHere(io, values) {
     fresh.restarted.then(() => stopped(true));
   });
   fresh.stop();
+  reconciler.stop();
   if (!restarted) await api.close();
   return 0;
 }

@@ -127,7 +127,7 @@ export function nextFor(board, options) {
     runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds: skippedIds = [], sessionIds = [], omitIds = [],
     afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(),
     focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null, routeFloor = null,
-    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null, routeCap = null, contention = null } = options;
+    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null, routeCap = null, contention = null, wholeItemsFirst = false } = options;
   // `sessionIds` are the items this seat's own session authored: skipped like `skipIds`, and the only ones REVIEWER_SAME_SESSION names.
   const skipIds = [...new Set([...skippedIds, ...sessionIds])];
   const idleSkips = [];
@@ -138,7 +138,16 @@ export function nextFor(board, options) {
   const focusCompare = focusOrder(board, () => 0, { milestones });
   const focus = (board.executionEngineVersion ?? ENGINE_VERSION) >= FOCUS_BOUNDARY_ENGINE ? milestoneFocus(board, { milestones }) : null;
   const overflow = focus?.overflow === true;
-  const focusIdle = () => empty('focus', { item: null, reasons: [`${focus.name} is in focus; nothing is free for you; overflow is off.`] });
+  /**
+   * The idle answer under a focus with overflow off. A seat whose route sits below some submitted focus items names them and says
+   * a stronger seat reviews them, instead of "nothing is free" (#3102); it never reserves them, since `items` already leaves them out.
+   */
+  const focusIdle = () => {
+    const above = !verify ? [] : listItems(board).filter(entry => entry.item_status === 'submitted' && focus.ids.has(entry.item_id)
+      && entry.item_built_by !== agentId && !omitIds.includes(entry.item_id) && !canTake(route, entry.item_route));
+    const waiting = above.length ? `${above.map(entry => `#${entry.item_id}`).join(', ')} wait${above.length === 1 ? 's' : ''} for a ${[...new Set(above.map(entry => entry.item_route))].join(' or ')} seat to review; ` : '';
+    return empty('focus', { item: null, reasons: [`${focus.name} is in focus; ${waiting}nothing is free for you; overflow is off.`] });
+  };
   const restrictFocus = focus && (!overflow || focusOnly);
   const otherFocusedWork = () => {
     if (!focus || !overflow || focusOnly) return false;
@@ -315,6 +324,12 @@ export function nextFor(board, options) {
     mine.sort((a, b) => back.get(b.entry.item_id) - back.get(a.entry.item_id));
   }
   if (focus) mine.sort((a, b) => focusCompare(a.entry, b.entry));
+  // next.wholeItemsFirst (off unless a project turns it on): a whole item of the focused release leads every open slice [C7,#8811].
+  if (focus && wholeItemsFirst) {
+    const slice = ({ entry }) => board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`item-slice:${entry.item_id}`) ? 1 : 0;
+    const wholeFocused = ({ entry }) => focus.ids.has(entry.item_id) && !slice({ entry });
+    mine.sort((a, b) => Number(wholeFocused(b)) - Number(wholeFocused(a)));
+  }
   // Work this seat parked while it waited comes back to it before other open items once the wait ends (#3723).
   const parked = parkedClaims(board, agentId);
   if (parked.size) mine.sort((a, b) => Number(parked.has(b.entry.item_id)) - Number(parked.has(a.entry.item_id)));

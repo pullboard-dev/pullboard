@@ -2,7 +2,7 @@
 export { criterionSize, defaultItemRoute, shapeRoute } from './src/logic/size.js';
 export { itemCollisionPlan } from './src/io/planning.js';
 export { criterionCells } from './src/io/criterion.js';
-export { BLOCKS_FILE, recordBlock, readBlocks, blockMoveKey, blockMoveKeys, blockOwner, clearCompletedBlocks, personBlockWords, budgetWords } from './src/io/blocks.js';
+export { BLOCKS_FILE, recordBlock, readBlocks, readLedgerBytes, blockMoveKey, blockMoveKeys, blockOwner, clearCompletedBlocks, personBlockWords, budgetWords } from './src/io/blocks.js';
 export { briefFiles } from './src/logic/brief.js';
 export { CAUGHT_KINDS, caughtFrom, caughtLines } from './src/logic/caught.js';
 export { firstRefusalProblem, firstRefusalReason, firstRefusalDetail, tellFirstRefusal, firstRefusalArgs, manualLandingFailure } from './src/logic/claims.js';

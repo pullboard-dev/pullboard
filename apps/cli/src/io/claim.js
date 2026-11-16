@@ -30,6 +30,7 @@ async function gitSyncOn(ctx, board) {
 }
 import { randomUUID } from 'node:crypto';
 import { recordCheckpoint } from './seat-checkpoint.js';
+import { sealExitCheckpoints } from './exit/checkpoint.js';
 import * as itemSessions from '../../../../packages/items/index.js';
 import * as store from '../../../../packages/store/index.js';
 import { cdTo } from './context.js';
@@ -254,19 +255,25 @@ export async function claimOrdered(ctx, board, args) {
     const refusal = (await (await import('./exit/rules.js')).loadExitRules()).contextCeilingRefusal(exitRules);
     if (refusal) throw refusal;
   }
+  // A budget at its stop line refuses a new claim only; a claim the seat already holds renews, so nothing stops mid-item [N2].
+  if (!(held.item_status === 'claimed' && held.item_owner === args[1].agentId)) {
+    const { budgetClaimRefusal, machineBudgetState } = await import('../../../../packages/stats/light.js');
+    const refusal = budgetClaimRefusal(machineBudgetState(board, Date.now()));
+    if (refusal) throw refusal;
+  }
   const estimate = held.item_expected_build_minutes;
   const autoNextSnapshot = args[1].autoNext ? claimWorktreeSnapshot(ctx.info.root) : null;
   // The claiming session's declared model caps its seat's route, so a light-route session in a strong seat cannot claim strong work (#3678).
   const seat = store.agentById(board, args[1].agentId);
   const sessionCap = seat && seat.agent_lane !== COORDINATOR ? sessionRoute(seat.agent_route, seat.agent_model, process.env.PULLBOARD_MODEL, ctx.config.modelTiers) : null;
   const routeCap = sessionCap && sessionCap !== seat.agent_route ? sessionCap : null;
-  const result = await ordered(ctx, board, 'claim', [args[0], { ...args[1], ...(estimate == null ? {} : { buildBudgetMinutes: accepted.itemBuildBudgetMinutes ?? 30 }), ...(autoNextSnapshot ? { autoNextSnapshot } : {}), ...(exitRules?.enabled ? { exitRules, exitClaimKey: randomUUID() } : {}),
+  const result = await ordered(ctx, board, 'claim', [args[0], { ...args[1], ...(estimate == null ? {} : { buildBudgetMinutes: accepted.itemBuildBudgetMinutes ?? 30 }), ...(autoNextSnapshot ? { autoNextSnapshot } : {}), ...(exitRules?.enabled ? { exitRules: sealExitCheckpoints(ctx.config, exitRules), exitClaimKey: randomUUID() } : {}),
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     ...(refreshPolicy && !adoptCorrection ? { refreshPolicy: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     ...(routingPolicy ? { reworkRoutingPolicy: routingPolicy } : {}),
     ...(routeCap ? { routeCap } : {}), ...(Number.isSafeInteger(ctx.config.claims?.perSeat) ? { perSeat: ctx.config.claims.perSeat } : {}),
     // The gate waits and N this computer reads travel in the move, so a replay after an outage decides alike (#7775).
-    ...store.claimAdmission(board, args[0], args[1].agentId, Number.isSafeInteger(ctx.config.claims?.perSeat) ? ctx.config.claims.perSeat : null),
+    ...store.claimAdmission(board, args[0], args[1].agentId, Number.isSafeInteger(ctx.config.claims?.perSeat) ? ctx.config.claims.perSeat : null, { runs: store.boardRunsReader(board, ctx.file) }),
     reviewPolicy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }]);
   if (!result.renewed && exitRules?.enabled) (await (await import('./exit/rules.js')).loadExitRules()).captureExitAnchor(ctx, board, args[0], args[1].agentId);
   // seat.checkpoints (off by default): a fresh claim records what is left to build; a renewal or a correction re-claim records nothing [C7,#8549].

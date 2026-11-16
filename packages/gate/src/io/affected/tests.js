@@ -11,6 +11,7 @@ import { changedModules } from './graph/delta.js';
 import { forkWithout } from './graph/delta.js';
 import { documentationInputs } from './inputs.js';
 import { unknownRootTests } from './roots.js';
+import { namedReach } from './names.js';
 import { join } from 'node:path';
 import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -674,10 +675,10 @@ export function selectDeclaredSuites(changed, suites) {
  * mention the Pullboard CLI entry (`apps/cli/pullboard.js`), whose imported modules they exercise as subprocesses.
  *
  * @param {string} root
- * @param {{base:string|null, trunk?:string, commit?:string, changed?:string[]}} options
+ * @param {{base:string|null, trunk?:string, commit?:string, changed?:string[], namedImports?:boolean}} options - namedImports defaults to gate.namedImportSelection.
  * @returns {{full:boolean, reason:string, files:string[]}}
  */
-export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', changed, probe = null, suites = null }) {
+export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', changed, probe = null, suites = null, namedImports }) {
   let files = [];
   try {
     if (!base) return { full: true, reason: 'no claim head recorded; the change cannot be selected', files };
@@ -705,10 +706,9 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
     const unsupported = changed.find(path => !MODULE.test(path) && !DOC.test(path)
       && !before.reverse.has(path) && !after.reverse.has(path));
     if (unsupported) return { full: true, reason: `import selection cannot compute the effect of ${unsupported}`, files };
-    // A test whose computed import cannot be read is an unknown root: it and every test importing it always run, and the
-    // rest stay focused, so one unreadable file never forces the whole suite (it planned 1,044 files per landing) [C7].
+    // An unreadable computed import is an unknown root: it and its importers always run, the rest stay focused (it once planned 1,044 files) [C7].
     const reached = new Set(changed);
-    const queue = [...changed];
+    const queue = [...changed], narrow = namedReach(namedImports, reached);
     // Why each path joined: the path that reached it, so a selected test can name its changed file and import chain.
     const via = new Map();
     for (const doc of changed.filter(path => DOC.test(path))) {
@@ -725,8 +725,10 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
     for (let at = 0; at < queue.length; at += 1) {
       const path = queue[at];
       for (const graph of [before, after]) {
+        // A malformed, unmatched or escaping declared test input has no complete reader custody: stay conservative.
+        if (/\bdeclared test input|\bdeclared input\b/u.test(graph.unknown.get(path) ?? '')) return { full: true, reason: `${graph.unknown.get(path)} in reached file ${path}`, files };
         for (const importer of graph.reverse.get(path) ?? []) {
-          if (!reached.has(importer)) { reached.add(importer); via.set(importer, path); queue.push(importer); }
+          if (narrow.reach(graph, path, importer)) { if (!reached.has(importer)) { reached.add(importer); via.set(importer, path); } queue.push(importer); }
         }
       }
     }

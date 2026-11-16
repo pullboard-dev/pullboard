@@ -171,6 +171,19 @@ function allCellsReason(files, plans) {
   return policyScope(files, plans).all;
 }
 
+/**
+ * Whether the cell owns a path the move maps carry, found from the target's folder, never from the plan's path rows [C7,#8742].
+ *
+ * Why: the plan rows are being retired, and a folder already names the cell.
+ *
+ * @param {string} name cell name
+ * @param {Array<Map<string, string>>} maps path maps (from to target), one per side
+ * @returns {boolean}
+ */
+export function cellHasMovedPaths(name, maps) {
+  return maps.some(map => [...map.values()].some(to => cellOfFolder(to) === name));
+}
+
 /** Attribute changed cells and their direct importers against both immutable graphs. */
 export function touchedCells(files, before, after, inventories) {
   const plans = [before, after];
@@ -306,7 +319,13 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   const fallback = allCellsReason(changed, [before, after]);
   if (fallback) onAllCells(fallback);
   const direct = touchedCells(changed, before, after, []);
-  if (!direct.length) return { cells: [], problems: policy, warnings, reorg, ...(collectMachinery ? { machinery } : {}) };
+  // A file that newly only forwards is a shim even outside any planned cell's folder, so the shim count still runs for it [C7].
+  const addsShim = changed.some(file => {
+    const text = shimSnapshotFile(candidateRoot, file);
+    const was = shimSnapshotFile(mainRoot, file);
+    return text !== undefined && onlyForwards(text, false) && !(was !== undefined && onlyForwards(was, false));
+  });
+  if (!direct.length && !addsShim) return { cells: [], problems: policy, warnings, reorg, ...(collectMachinery ? { machinery } : {}) };
   const oldReport = inventories?.report?.(mainRoot, acceptedMain) ?? cellLintReport(mainRoot, parsers, { inventory: oldInventory });
   const newReport = cellLintReport(candidateRoot, parsers, { inventory: newInventory });
   // Advisory transition authority comes only from the immutable accepted snapshot.
@@ -319,8 +338,7 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   problems.push(...shimCountProblems({ before: oldReport, after: newReport, beforeInventory: oldInventory, afterInventory: newInventory }));
   for (const name of cells) {
     const previous = before.cells.some(cell => cell.name === name);
-    const moved = [before, after].some((plan, index) => plan.cells.find(cell => cell.name === name)?.paths
-      .some(([from, to]) => [mainMap, candidateMap][index].get(from) === to));
+    const moved = cellHasMovedPaths(name, [mainMap, candidateMap]);
     if (!moved) continue;
     const oldMoved = previous ? checkMoved(mainRoot, before, name, { acceptedBase: acceptedMain, lintReport: oldReport, lintBaseline: baseline, inventory: oldInventory }) : [];
     const newMoved = checkMoved(candidateRoot, after, name, { acceptedBase: acceptedMain, lintReport: newReport, lintBaseline: baseline, inventory: newInventory });

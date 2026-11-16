@@ -5,6 +5,7 @@
  * in as one ports object, so this cell never loads it.
  */
 import { createRequire } from 'node:module';
+import { spawnSync } from 'node:child_process';
 import { mainPolicy } from '../../../sandbox/index.js';
 import { trunkMerge } from '../../../sandbox/index.js';
 import { UNBUILDABLE } from '../../../sandbox/index.js';
@@ -26,6 +27,7 @@ import { focusReasons } from '../../../roadmap/index.js';
 import { milestoneFocus } from '../../../roadmap/index.js';
 import { laneNames } from '../../../seats/index.js';
 import { COORDINATOR } from '../../../config/index.js';
+import { nextReadinessCheck } from '../../../config/index.js';
 import { headCommit } from '../../../git/index.js';
 import { commandObservation } from '../../../git/index.js';
 import { statusPaths } from '../../../git/index.js';
@@ -134,6 +136,9 @@ export async function nextOnce(ctx, values, ports) {
     const current = withBoardRead(ctx, board => store.getItem(board, looked.item.item_id));
     if (current.item_status === 'open') return { ...looked, item: current, review: false, waitingOffer: true };
   }
+  // next.readinessCheck (off by default): an item whose readiness command exits non-zero is passed over and named [C7,#8793].
+  const notReady = !held && nextReadinessCheck() ? readinessFailure(ctx, withBoardRead(ctx, board => store.getItem(board, looked.item.item_id))) : null;
+  if (notReady) return { retry: true, skipItem: item.item_id, retryDetail: { phase: 'readiness', item: item.item_id, code: 'NOT_READY', message: notReady } };
   return await withBoard(ctx, async (board) => {
     // Claims belong to the seat that ran next, in its own item folder; next never routes a claim to another seat or opens one.
     const target = ctx;
@@ -191,6 +196,19 @@ export async function nextOnce(ctx, values, ports) {
     return { item: store.getItem(board, item.item_id), shared, held, reviewSkipped, reasons,
       ...(lightReserved ? { lightReserved } : {}), ...(itemFolder ? { itemFolder, holder: holder.id } : {}) };
   });
+}
+
+/**
+ * Run an item's readiness command in this seat's checkout; the failure line (command, exit code, output) or null when it
+ * passes or the item has none. An unrunnable or hung command counts as failing, so next never offers an item that says it is not ready [C7,#8793].
+ */
+function readinessFailure(ctx, item) {
+  const command = typeof item.item_readiness_command === 'string' ? item.item_readiness_command.trim() : '';
+  if (!command) return null;
+  const run = spawnSync(command, { shell: true, cwd: ctx.info.root, encoding: 'utf8', timeout: 30_000 });
+  if (run.status === 0) return null;
+  const output = `${run.stdout ?? ''}${run.stderr ?? ''}`.trim().slice(0, 300);
+  return `readiness command \`${command}\` exited ${run.status ?? run.signal ?? run.error?.code}${output ? `: ${output}` : ''}`;
 }
 
 /** The claim refusals that name one item's frozen policy as stale; any other NO_POLICY still stops next. */
@@ -339,7 +357,7 @@ function nextPick(ctx, board, values, ports) {
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
     priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle,
-    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles, ...(contention ? { contention } : {}) };
+    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles, ...(contention ? { contention } : {}), ...(ctx.config.next?.wholeItemsFirst === true ? { wholeItemsFirst: true } : {}) };
   const own = store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
   // Other lanes are only named, never claimed (otherLaneWork), so the session this seat shares never decides what next serves (GH #27).
   // An empty look at other lanes never replaces this lane's own answer: its holds and skips are what the seat must read.

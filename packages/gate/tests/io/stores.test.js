@@ -251,7 +251,7 @@ test('#6742 clause 1: every store owner in the registry holds a write call, is r
   const read = file => { try { return readFileSync(new URL(`../../../../${file}`, import.meta.url), 'utf8'); } catch { return undefined; } };
   assert.deepEqual(storeWriteProblems(registry, read), []);
   assert.ok(Object.values(registry.stores).filter(row => row.kind === 'repo-data').length >= 19, 'read-only data files are marked repo-data');
-  assert.ok(registry.writeOwnerDebt.length <= 7, 'the debt list only shrinks');
+  assert.ok(registry.writeOwnerDebt.length <= 4, 'the debt list only shrinks');
 });
 
 test('#6742 clause 1: a new store whose owner writes nothing is refused, and a repaired debt row must leave the list [CD2]', () => {
@@ -299,6 +299,23 @@ test('#8622 clause 1: pullboard-item.json, pullboard-runner-policy.json, recover
   assert.equal(registry.stores['pullboard-item.json'].owner, 'packages/items/src/io/claim.js');
   assert.equal(registry.stores['recovery.json'].owner, 'packages/sync/src/io/git/repair.js');
   assert.equal(registry.stores['relay-health.sqlite'].owner, 'packages/link/src/io/relay/canary/health.js');
+});
+
+test('#8752 clause 1: publish.json is off writeOwnerDebt, owned by the landing pause module that writes it, and publish writes through that owner, with no store-homes ceiling raised [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const read = file => { try { return readFileSync(new URL(`../../../../${file}`, import.meta.url), 'utf8'); } catch { return undefined; } };
+  assert.equal(registry.writeOwnerDebt.includes('publish.json'), false);
+  assert.deepEqual(storeWriteProblems(registry, read), []);
+  assert.equal(registry.stores['publish.json'].owner, 'packages/landing/src/io/pause.js');
+  assert.match(read('packages/github/src/io/publish.js'), /writePublishState\(root/u, 'publish writes through the owner');
+});
+
+test('#8754 clause 1: settled.json is off writeOwnerDebt, owned by the audit state module that holds saveMainAudit, with no store-homes ceiling raised [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const read = file => { try { return readFileSync(new URL(`../../../../${file}`, import.meta.url), 'utf8'); } catch { return undefined; } };
+  assert.equal(registry.writeOwnerDebt.includes('settled.json'), false);
+  assert.deepEqual(storeWriteProblems(registry, read), []);
+  assert.equal(registry.stores['settled.json'].owner, 'packages/gate/src/io/main/audit/state.js');
 });
 
 /** The stemless templated store names under one package: every one must come from the cell's registry const [CD2]. */

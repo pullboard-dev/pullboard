@@ -23,7 +23,7 @@ export { coordinatorMilestoneRelease } from './src/io/actions.js';
 export { pipelineStats } from './src/logic/pipeline.js';
 export { proofStats, proofAgentIds } from './src/io/main.js';
 export { readCapacity } from './src/io/capacity.js';
-export { budgetState, recordCoordinatorUsage, recordUsage } from './src/io/cost.js';
+export { budgetClaimRefusal, budgetState, machineBudgetState, recordCoordinatorUsage, recordUsage } from './src/io/cost.js';
 export { recordUsageBatch } from './src/io/cost/batch.js';
 export { recordSharedUsage } from './src/io/cost/shared.js';
 export { exitRulesDecision, exitContextDecision } from './src/logic/exit/rules/policy.js';

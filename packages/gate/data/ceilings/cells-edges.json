@@ -6052,6 +6052,7 @@
     "packages/seats/light.js": 27,
     "packages/runners/light.js": 40,
     "packages/git/light.js": 12,
+    "packages/health/light.js": 2,
     "packages/resources/light.js": 27,
     "packages/kernel/light.js": 7,
     "packages/jobs/light.js": 6,

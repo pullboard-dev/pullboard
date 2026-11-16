@@ -4,6 +4,7 @@ import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { cellHasMovedPaths } from '../../../src/io/cells-submit-checks.js';
 import { touchedCells } from '../../../src/io/cells-submit-checks.js';
 
 const PLAN = join(import.meta.dirname, '../../../../../packages/codemap/data/plan');
@@ -28,4 +29,17 @@ test('clause 1: [C7] touchedCells returns the same cells from folders as from th
   }
   assert.deepEqual(touchedCells(files, bare, bare, []), touchedCells(files, plan, plan, []), 'all files together');
   assert.deepEqual(touchedCells(['README.md', 'packages/nonexistent/index.js'], bare, bare, []), [], 'a path in no planned cell names none');
+});
+
+test('clause 2: [C7] checkMoved is chosen from folders: cellHasMovedPaths names the same cells with the plan rows removed', () => {
+  const maps = [new Map(), new Map()];
+  let rows = 0;
+  for (const cell of cells) for (const [from, to] of cell.paths) { maps[rows % 2].set(from, to); rows += 1; }
+  assert.ok(rows > 1000, 'the plan on main has rows to attribute');
+  for (const cell of bare.cells) {
+    const expected = cells.find(row => row.name === cell.name).paths.some(([from, to]) => maps.some(map => map.get(from) === to));
+    assert.equal(cellHasMovedPaths(cell.name, maps), expected, `${cell.name} with the plan rows removed`);
+  }
+  assert.equal(cellHasMovedPaths('kernel', [new Map([['old.js', 'packages/kernel/index.js']]), new Map()]), true, 'a target in the cell folder is a move');
+  assert.equal(cellHasMovedPaths('kernel', [new Map([['old.js', 'README.md']]), new Map()]), false, 'a target outside every cell is no move');
 });

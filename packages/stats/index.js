@@ -142,6 +142,8 @@ export {
   recordCoordinatorUsage,
   costTotals,
   budgetState,
+  budgetClaimRefusal,
+  machineBudgetState,
   storedSeatUsage,
 } from './src/io/cost.js';
 export {
@@ -208,3 +210,4 @@ export { readDemandSpans, readDemandEvents } from './src/io/runners/demand.js';
 export { AGENT_FLOW_KINDS, COMMAND_SPAN_MS, agentFlow, agentFlowLines, seatWaits } from './src/logic/agents.js';
 export { readAgentFlowEvents, readSeatActions } from './src/io/agents.js';
 export { reviewRows, reviewRowLines } from './src/logic/review/rows.js';
+export { itemRunnerCost } from './src/io/cost/runner.js';
