@@ -142,7 +142,8 @@
     "unrelatedTrunkMoves": true,
     "composeAtAdmission": true,
     "family": "prefer",
-    "familyRelaxAt": 5
+    "familyRelaxAt": 5,
+    "folderTicks": true
   },
   "check": {
     "timeout": "60m"
