@@ -1,3 +1,4 @@
+/** @pullboard-module-loads packages/health/src/io/stale/state/capture.js packages/moves/index.js */
 import { seatAt } from './item/folder/identity.js';
 import { claimWorktreeSnapshot } from '../../../../packages/seats/index.js';
 import {
@@ -56,7 +57,7 @@ import { isReturnedRework } from '../../../../packages/store/index.js';
 import { sealReworkRoutingPolicy } from '../../../../packages/store/index.js';
 import { SEAT_LIVE_WINDOW_MS } from '../../../../packages/store/index.js';
 import { maintenanceDurations } from '../../../../packages/config/index.js';
-import { criterionFreezer } from '../../../../packages/moves/light.js';
+import { createRequire } from 'node:module';
 import { sessionRoute } from './route.js';
 
 /** Capture accepted coordinator retirement grace beside the native line takeover window. */
@@ -77,6 +78,9 @@ async function withItemSession(info, operation, args, move) { const noted = oper
 export { relayOutboxSetting } from './relay-outbox.js';
 import { relayOutboxSetting } from './relay-outbox.js';
 
+/** The lapsed-claim capture and the criterion freezer load at the claim that runs them, never with the command [C7,#7081]. */
+const requireModule = createRequire(import.meta.url);
+
 const LAPSE_MAINTENANCE = new WeakSet();
 
 /**
@@ -90,7 +94,7 @@ async function maintainLapsedBeforeWrite(ctx, board, operation, args, actor) {
   if (relayRecovered(ctx.info.root, { includePending: true }, ctx.io)) return;
   LAPSE_MAINTENANCE.add(board);
   try {
-    const { captureLapsedClaims } = await import('../../../../packages/health/light.js');
+    const { captureLapsedClaims } = requireModule('../../../../packages/health/src/io/stale/state/capture.js');
     const snapshot = captureLapsedClaims(ctx, board, actor, { lapsedOnly: true });
     if (!snapshot) return;
     const io = { ...ctx.io, personRequest: undefined, personRequestMoveId: undefined, relayCommand: undefined, requestedCommand: undefined };
@@ -275,7 +279,7 @@ export async function claimOrdered(ctx, board, args) {
  * @returns {(item: any) => { text: string, digest: string }}
  */
 export function freezer(ctx, options = {}) {
-  return criterionFreezer({ root: ctx.info.root, isMain: ctx.info.isMain, config: ctx.config }, options);
+  return requireModule('../../../../packages/moves/index.js').criterionFreezer({ root: ctx.info.root, isMain: ctx.info.isMain, config: ctx.config }, options);
 }
 
 /** Carry a safe main fast-forward out of the board transaction so claim can retry at the new HEAD. */

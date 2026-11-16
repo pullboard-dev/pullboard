@@ -26,7 +26,7 @@ async function releaseOnSessionEnd(io) {
     const held = store.itemsInStatus(board, 'claimed', me.id).filter(item => item.item_parent_id === null);
     const released = [];
     for (const item of held) {
-      const { pinClaimHandoff } = await import('../../../../../packages/health/light.js');
+      const { pinClaimHandoff } = await import('../../../../../packages/health/index.js');
       const handoff = pinClaimHandoff(board, { id: item.item_id, actor: me.id }, item);
       const shown = handoff.changedFiles.slice(0, 8);
       const more = handoff.changedCount - shown.length;
