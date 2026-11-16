@@ -49,7 +49,7 @@ test('clause 1: a board from the previous schema gains event_archive on open and
   const file = boardFile(t);
   const before = eventRows(file);
   const old = new DatabaseSync(file);
-  try { old.exec('DROP TABLE event_archive'); } finally { old.close(); }
+  try { old.exec('DROP TABLE event_archive; PRAGMA user_version = 1'); } finally { old.close(); }
   assert.deepEqual(columns(file, 'event_archive'), []);
   closeBoard(openKitBoard(file));
   assert.deepEqual(columns(file, 'event_archive'), [...EVENT_COLUMNS, 'event_archived_at']);
