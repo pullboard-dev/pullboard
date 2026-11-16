@@ -105,6 +105,11 @@ export function registryStrictEnabled() {
   return loadMachineSettings().tests?.registryStrict === true;
 }
 
+/** Whether the static check refuses a change that adds an unregistered test: off by default; only an exact `true` turns it on [C7,#9402]. */
+export function requireRegisteredEnabled() {
+  return loadMachineSettings().tests?.requireRegistered === true;
+}
+
 /** Record each move table shadow compare on the board only when this machine opted in [C7,#8376]. */
 export function movesShadowEnabled() {
   return loadMachineSettings().moves?.shadow === true;
@@ -135,6 +140,11 @@ export function censusBalanceByTimeEnabled() {
   return loadMachineSettings().census?.balanceByTime === true;
 }
 
+/** Whether census.selfTune is on: off by default; only an exact `true` lets a pulled census size its jobs from the previous census's shard times [C7,U151]. */
+export function censusSelfTuneEnabled() {
+  return loadMachineSettings().census?.selfTune === true;
+}
+
 /** Minutes of measured time one pulled census job may hold; null (the default) keeps jobs cut by file count [C7]. */
 export function censusJobMinutes() {
   const minutes = loadMachineSettings().census?.jobMinutes;
@@ -150,6 +160,11 @@ export function censusJobsPerRunner() {
 /** Whether jobs.avoidRunners is on: off by default; only an exact `true` makes claimJob skip the runners a job's offer names [C7,#9273]. */
 export function jobsAvoidRunnersEnabled() {
   return loadMachineSettings().jobs?.avoidRunners === true;
+}
+
+/** Whether push.recordTiming is on: off by default; only an exact `true` makes a finished pre-push gate record its wall clock and per-shard times on the board [C7,U151,#9371]. */
+export function pushRecordTimingEnabled() {
+  return loadMachineSettings().push?.recordTiming === true;
 }
 
 /** Whether push.rerunFailedShardOnce is on: off by default; only an exact `true` lets the pre-push gate re-offer a failed shard once [C7,#9274]. */
@@ -299,6 +314,11 @@ export function refuseOffMainHead() {
   return loadMachineSettings().claim?.refuseOffMainHead === true;
 }
 
+/** Whether freezing a bar refuses an empty criterion (#9443): off by default; only an exact `true` turns it on. */
+export function refuseEmptyBar() {
+  return loadMachineSettings().freeze?.refuseEmptyBar === true;
+}
+
 /** Whether a review release must name why it was dropped (#8920): off by default; only an exact `true` turns it on. */
 export function reviewReleaseReasonsRequired() {
   return loadMachineSettings().review?.releaseReasons === true;
@@ -308,6 +328,11 @@ export function reviewReleaseReasonsRequired() {
 export function testStatusOutcomesEnabled() {
   const group = loadMachineSettings().test;
   return group?.statusOutcomes === true;
+}
+
+/** Whether spec.cascadeReject is on (#9341): off by default; only an exact `true` turns it on. */
+export function cascadeRejectEnabled() {
+  return loadMachineSettings().spec?.cascadeReject === true;
 }
 
 /** Whether items.typedFields is on (#9350): off by default; only an exact `true` turns it on. */
