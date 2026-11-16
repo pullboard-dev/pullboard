@@ -144,6 +144,15 @@ const PERSON_MOVE = /approv|declin|answer|sign_?off|decide|decision|check_?accep
   },
 ]);
 
+/**
+ * Creating a cloud board over MCP stays refused until spec row H29, the one exception to H15 (the relay can't read boards), is approved [H15,H29].
+ * The name is matched, not listed, so tools/list shows nothing this server cannot do.
+ */
+function refuseCloudBoard(name) {
+  if (!/(?:^|_)(?:cloud_board|(?:create|start|new)_board)$/u.test(normalizedToolName(name))) return;
+  throw new Refused('CLOUD_BOARD_UNAPPROVED', 'a cloud board would let Pullboard\'s server read the board, which H15 forbids until spec row H29 (the cloud-board exception) is approved; start the board in a git repository with pullboard init instead');
+}
+
 /** The prefix that marks a captured idea in its shout, until ideas become their own kind of item. */
  const IDEA_PREFIX = 'idea: ';
 
@@ -243,6 +252,7 @@ function toolResult(document, isError) {
  */
 async function callTool(runCommand, cwd, name, args, readCodeMap, readPersonNeeds) {
   refusePersonMove(name);
+  refuseCloudBoard(name);
   const tool = MCP_TOOLS.find((entry) => entry.name === name);
   if (!tool) return null;
   const input = validateArguments(tool, args);

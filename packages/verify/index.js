@@ -10,7 +10,7 @@ export { PROVES_NOTHING_HOLD, PROVES_NOTHING_HOLD_REASON, acceptCheck, checkAcce
 export { citedTestFiles, rowEvidence, rowStage } from './src/io/evidence.js';
 export { barTestFiles, frozenBar, frozenRowGates, namedClause, wording } from './src/logic/frozen.js';
 export { changedTestFiles, contentHash, frozenTestHashes, frozenTestsProblem, namedTestHashes, testHashProblem, testHashRulings, testAuthors, testAuthorNotes, authorSplitProblem } from './src/logic/testHashes.js';
-export { nextReview, ownSessionReviews, returnUnmergeable } from './src/logic/next.js';
+export { nextReview, forcedLandedUnreviewed, ownSessionReviews, returnUnmergeable } from './src/logic/next.js';
 export { completeMoveHandoff } from './src/logic/post/move.js';
 export { recordNativeProof } from './src/logic/proof/native.js';
 export { counterCaught, counterProofStats } from './src/io/proof/caught.js';

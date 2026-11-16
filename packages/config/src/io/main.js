@@ -330,6 +330,12 @@ export function configProblems(config) {
   if (config.affectedTests !== undefined && (typeof config.affectedTests !== 'string' || !config.affectedTests.trim())) {
     problems.push('"affectedTests" is a nonempty command prefix used to run selected test files');
   }
+  if (config.affectedSuites !== undefined && (!config.affectedSuites || typeof config.affectedSuites !== 'object' || Array.isArray(config.affectedSuites)
+    || Object.entries(config.affectedSuites).some(([glob, suite]) => !glob.trim() || typeof suite !== 'string' || !suite.trim()))) {
+    problems.push('"affectedSuites" maps folder globs to suite paths, like {"api/**": "api/tests"}');
+  } else if (config.affectedSuites && Object.keys(config.affectedSuites).length && (typeof config.affectedTests !== 'string' || !config.affectedTests.trim())) {
+    problems.push('"affectedSuites" requires the project "affectedTests" runner');
+  }
   const registryProblem = registryGuardsProblem(config.registryGuards);
   if (registryProblem) problems.push(registryProblem);
   else if (config.registryGuards.length && (typeof config.affectedTests !== 'string' || !config.affectedTests.trim())) problems.push('"registryGuards" requires the project "affectedTests" runner');
@@ -416,6 +422,9 @@ export function configProblems(config) {
   }
   if (config.verify?.unrelatedTrunkMoves !== undefined && typeof config.verify.unrelatedTrunkMoves !== 'boolean') {
     problems.push('"verify.unrelatedTrunkMoves" is true or false');
+  }
+  if (config.verify?.landedReviews !== undefined && typeof config.verify.landedReviews !== 'boolean') {
+    problems.push('"verify.landedReviews" is true or false; true makes next --verify offer forced-landed items that have no verdict');
   }
   if (config.map?.slice !== undefined && typeof config.map.slice !== 'boolean') {
     problems.push('"map.slice" is true or false');
