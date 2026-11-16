@@ -40,6 +40,7 @@ import {
 import { seatLeadLine } from '../../../../../packages/seats/index.js';
 import { wakeRoutedSeat } from '../../../../../packages/seats/index.js';
 import { cleanItemFolders } from '../item/folder.js';
+import { sayLag } from '../lag.js';
 import { fallbackReclaim } from '../reclaim.js';
 import { restartDeadRunner } from '../runner/restart.js';
 import { agentDisplayName } from '../context.js';
@@ -98,7 +99,7 @@ function nextChangeInputs(ctx) {
 export async function nextHere(io, values) {
   const defaultLoop = !values.take && !values.build && !values.verify && values.verifyId === undefined && values.wait === undefined;
   values = { ...values, defaultLoop };
-  const monitor = await startNextProgressMonitor(io);
+  const monitor = startNextProgressMonitor(io);
   const previousDefaultLoop = io.defaultLoop;
   // A successful default next can claim through the shared native move pipeline; keep presence diagnostics inside its 2 KB output contract.
   if (defaultLoop) io.defaultLoop = true;
@@ -179,6 +180,7 @@ async function nextWithProgress(io, values, progress) {
       for (const line of lines) io.say(line);
     }
   });
+  sayLag(io, ctx);
   // A seat's queued test runs come back first, like a red gate: green or red, failing tests, log [C7].
   const testRuns = deliverOwnTestRuns(io, ctx, { withBoard, withBoardRead, whoAmI });
   withBoardRead(ctx, board => cleanItemFolders(ctx, board, whoAmI(ctx, board), { spare: !values.verify }));
@@ -407,7 +409,7 @@ async function nextWithProgress(io, values, progress) {
       return refuseNextIdle(io, waits, reasons().foldedReasons(waits.map((reason) => displayedWait(reason, agents, ctx.config)), `pullboard list ${seat.lane}`), { minutes, verify: values.verify, laneWork: found.laneWork, lane: seat.lane, route: seat.route });
     }
     // An item whose folder another live session holds stays out of this next's selection (#3688).
-    if (found.skipItem && ['ITEM_FOLDER_UNFINISHED', 'ITEM_FOLDER_PROTECTED', 'NO_POLICY'].includes(found.retryDetail?.code)) io.say(`skipped #${found.skipItem}: ${found.retryDetail.message}`);
+    if (found.skipItem && ['ITEM_FOLDER_UNFINISHED', 'ITEM_FOLDER_PROTECTED', 'NO_POLICY', 'NOT_READY'].includes(found.retryDetail?.code)) io.say(`skipped #${found.skipItem}: ${found.retryDetail.message}`);
     if (found.skipItem) values = { ...values, omitIds: [...new Set([...(values.omitIds ?? []), found.skipItem])] };
     if (found.retry) await progress.retry(found, { until: deadline });
     else {
