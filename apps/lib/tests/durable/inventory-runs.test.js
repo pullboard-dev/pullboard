@@ -36,7 +36,7 @@ function ports() {
   const published = new Set();
   const read = (root, commit) => published.has(treeOf(root, commit)) ? { available: true, descriptor: { digest: treeOf(root, commit) }, bytes: 1 } : { available: false, cause: 'missing-artifact' };
   const produce = async (root, commit) => { published.add(treeOf(root, commit)); };
-  return { read, produce };
+  return { read, produce, published };
 }
 
 /** Run the body on a real board file and a runs holder over an in-memory runs store. */
@@ -49,14 +49,17 @@ const jobId = () => keyedJobId(CELLS_INVENTORY_KIND, treeOf(fixture.root, fixtur
 
 test('clause 1: with runs_store on, the cells inventory job row is in the runs file and not on the board [P7,#9112]', async () => {
   await withStores('clause-1-on', async (db, runs) => {
-    const found = await acceptedCellsFromJob(db, fixture.root, fixture.commit, { owner: 'gate-on', runs, ...ports() });
+    const given = ports();
+    const found = await acceptedCellsFromJob(db, fixture.root, fixture.commit, { owner: 'gate-on', runs, ...given });
     assert.equal(found.available, true);
     const held = jobView(runs.db, jobId());
     assert.equal(held?.kind, 'cells-inventory');
     assert.equal(held.steps.find(step => step.name === 'result')?.payload.owner, 'gate-on', 'the result step is on the runs file');
     assert.equal(jobView(db, jobId()), null, 'the board holds no inventory job row');
-    const again = await acceptedCellsFromJob(db, fixture.root, fixture.commit, { owner: 'gate-on-2', runs, read: () => ({ available: false, cause: 'missing-artifact' }), produce: ports().produce });
+    given.published.clear();
+    const again = await acceptedCellsFromJob(db, fixture.root, fixture.commit, { owner: 'gate-on-2', runs, ...given });
     assert.equal(again.job, jobId(), 'a second driver finds the stored result through the runs file');
+    assert.equal(again.state, 'rebuilt');
   });
 });
 
