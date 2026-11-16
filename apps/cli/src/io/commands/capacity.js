@@ -2,12 +2,16 @@ import { readCarryingCapacity } from '../../../../../packages/stats/index.js';
 import { flowWindowMinutes } from '../../../../../packages/stats/index.js';
 import { buildCalibration } from '../../../../../packages/stats/index.js';
 import { events } from '../../../../../packages/store/index.js';
+import { capacityWeekRow } from '../../../../../packages/stats/index.js';
+import { capacityWeeks } from '../../../../../packages/store/index.js';
+import { recordCapacityWeek } from '../../../../../packages/store/index.js';
 import { listItems } from '../../../../../packages/store/index.js';
 import { gateRuns } from '../../../../../packages/flakes/index.js';
 import { flakeLedger } from '../../../../../packages/flakes/index.js';
 import { eventCauses } from '../../../../../packages/store/index.js';
 /** Observed test-work cost and explicit boundary inventory, without changing admission [C7]. */
 import { context } from '../entry.js';
+import { withBoard } from '../entry.js';
 import { withBoardRead } from '../entry.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { testCapacityReport } from '../../../../../packages/gate/index.js';
@@ -16,7 +20,7 @@ import { testCapacityReport } from '../../../../../packages/gate/index.js';
 function minutes(value) { return value === null ? 'unknown' : `${value.toFixed(3)} min`; }
 
 /** Print measurements and conversion proposals; removal always needs the person's approval. */
-export function run(io, { first, second, rest, values }) {
+export async function run(io, { first, second, rest, values }) {
   if (first || second || rest.length || Object.keys(values).some(key => !['json', 'window', 'detail'].includes(key))) {
     throw new Refused('USAGE', 'use pullboard capacity [--window 14d] [--json] to read carrying capacity and test execution work');
   }
@@ -31,7 +35,11 @@ export function run(io, { first, second, rest, values }) {
         carryingCapacity: readCarryingCapacity(ctx.info.root, history, { from, to }) }; }
     finally { board.db.exec('RELEASE capacity_read'); }
   });
-  io.result?.({ report });
+  // One row per ISO week: a reading over the week to date, written over the week's earlier row, never beside it.
+  const weekFrom = new Date(Date.parse(to) - 7 * 86_400_000).toISOString();
+  const weekly = weekFrom === from ? report.carryingCapacity : withBoardRead(ctx, board => readCarryingCapacity(ctx.info.root, events(board), { from: weekFrom, to }));
+  const weeks = await withBoard(ctx, async board => { recordCapacityWeek(board, capacityWeekRow(weekly, to)); return capacityWeeks(board); });
+  io.result?.({ report, weeks });
   const carrying = report.carryingCapacity;
   if (!values.detail) {
     io.say(`carrying capacity ${from} to ${to}: ${carrying.landings} landings, ${carrying.conflicts} conflicts`);
