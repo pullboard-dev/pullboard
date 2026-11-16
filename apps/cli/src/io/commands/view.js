@@ -1,4 +1,5 @@
 /** The pullboard view command, in its own module so an item adding another command never edits these lines. */
+import { fileURLToPath } from 'node:url';
 import {
   launchBackgroundView,
   reportView,
@@ -141,7 +142,7 @@ export async function viewHere(io, values) {
   try {
     // The adapter override is carried only by the in-process command streams, for private CLI fixtures.
     view = await (io.serveView ?? serveView)({ port, runCommand: io.runCommand, boardOpeners: nativeBoardOpeners(io), refusalDocument, isMain: codeIsFromMain(), ...(lan ? { lan: true } : {}), ...(projectRoot ? { projectRoot } : {}) });
-    const sentinel = startServeSentinel({ projectRoot, recover: async root => (await import('../../../../../packages/landing/index.js')).recoverAutomaticLanding(root, new URL('../landing/automatic.js', import.meta.url)) });
+    const sentinel = startServeSentinel({ projectRoot, cli: fileURLToPath(new URL('../../../pullboard.js', import.meta.url)) });
     const boundAt = new Date().toISOString();
     const closeServer = view.close;
     view = {

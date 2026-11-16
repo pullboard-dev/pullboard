@@ -7,6 +7,7 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { gitSpawn } from '../../../git/light.js';
 import { shellWord } from './tooling/remote.js';
 import { sshEnvironment } from './tooling/remote.js';
 
@@ -179,7 +180,7 @@ const COMMIT = /^[0-9a-f]{40,64}$/u;
  */
 function packObjects(repo, commit, file) {
   return new Promise((resolve, reject) => {
-    const child = spawn('git', ['-C', repo, 'pack-objects', '--revs', '--stdout', '--quiet'], { stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = gitSpawn(['-C', repo, 'pack-objects', '--revs', '--stdout', '--quiet'], { stdio: ['pipe', 'pipe', 'pipe'] });
     const chunks = [];
     let stderr = '';
     child.stdout.on('data', part => chunks.push(part));
@@ -236,7 +237,7 @@ export async function servedTrunkPack(repo, commit, { dir } = {}) {
 /** Run one short git command in a repository without blocking the board's event loop. */
 function gitStatus(repo, args) {
   return new Promise(resolve => {
-    const child = spawn('git', ['-C', repo, ...args], { stdio: ['ignore', 'pipe', 'ignore'] });
+    const child = gitSpawn(['-C', repo, ...args], { stdio: ['ignore', 'pipe', 'ignore'] });
     let stdout = '';
     child.stdout.setEncoding('utf8').on('data', part => { stdout += part; });
     child.once('error', () => resolve({ status: 1, stdout: '' }));

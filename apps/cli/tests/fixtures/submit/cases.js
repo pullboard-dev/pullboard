@@ -70,9 +70,9 @@ function fixture() {
   return { ...box, id };
 }
 
-/** Install only through the frozen affected-tests wrapper; this helper is not another test root. */
-export function installSubmitTestTreeCases() {
-  for (const mode of ['large selection', 'full fallback']) {
+/** Install only through the affected-tests wrappers, one mode per file (#4939); this helper is not another test root. */
+export function installSubmitTestTreeCases(modes = ['large selection', 'full fallback']) {
+  for (const mode of modes) {
     test(`submit names the new board-open file and line before ${mode} defers [C7]`, () => {
       const box = fixture();
       const source = ["import {test} from 'node:test';", "import {DatabaseSync as openBoard} from 'node:sqlite';",

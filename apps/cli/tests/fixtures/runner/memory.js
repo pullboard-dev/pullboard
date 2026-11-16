@@ -36,6 +36,7 @@ export async function assertRunnerMemoryAdmission() {
     // The existing floor is file-configured; its CLI setter is not part of this item.
     const settingsPath = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
     const settings = JSON.parse(readFileSync(settingsPath, 'utf8'));
+    // Pull dispatch is the default; this probe drives the gate slot and runner worker directly.
     writeFileSync(settingsPath, JSON.stringify({ ...settings, gate: { ...settings.gate, memoryFloorMB: 512 } }));
     writeFileSync(join(box.repo, 'memory-probe.cjs'), "console.log('REAL_RUNNER_MEMORY_PROBE');\n");
     box.git(box.repo, 'add', '-A');
@@ -52,7 +53,7 @@ ${executionServicesSource(gate)}`,
       "import {readdirSync,readFileSync} from 'node:fs';",
       'const root=process.cwd(); const output={};',
       `const runner=${JSON.stringify(settings.runners[0])};`,
-      'const completed=await runOnRunnerAsync(root,"true",{runner});if(!completed.isGreen)throw new Error("preparatory worker did not complete");',
+      'const completed=await runOnRunnerAsync(root,"true",{runner,metadata:{item:"fixture",kind:"remote-command"}});if(!completed.isGreen)throw new Error("preparatory worker did not complete");',
       `const recoveryDirectory=${JSON.stringify(join(home, '.pullboard-runner', 'recovery'))};`,
       'const completion=JSON.parse(readFileSync(recoveryDirectory+"/"+readdirSync(recoveryDirectory)[0],"utf8"));',
       'listResources();const recoveredQueue=new DatabaseSync(process.env.PULLBOARD_MACHINE_HOME+"/resources.sqlite");',

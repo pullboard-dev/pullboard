@@ -3,6 +3,7 @@ import { context } from '../entry.js';
 import { refusal } from '../entry.js';
 import { withBoard } from '../entry.js';
 import { readTraceLines } from '../trace.js';
+import { readJobSteps } from '../trace.js';
 import { sinceCutoff } from '../trace.js';
 import { traceLine } from '../trace.js';
 import { traceTimeline } from '../trace.js';
@@ -19,8 +20,9 @@ export function run(io, { first, second, rest, values }) {
   if (values.since !== undefined && since === null) throw refusal('USAGE', `--since takes a number and s, m, h or d, like 2h; ${USAGE}`);
   const ctx = context(io);
   const events = withBoard(ctx, board => board.db.prepare('SELECT event_id, event_at, event_by, event_kind, item_id, event_detail FROM event ORDER BY event_id').all());
+  const jobs = withBoard(ctx, board => readJobSteps(board.db));
   const subject = String(first);
-  const entries = traceTimeline({ lines: readTraceLines(ctx.info.commonDir), events, subject, since });
+  const entries = traceTimeline({ lines: readTraceLines(ctx.info.commonDir), events, subject, since, jobs });
   io.result?.({ version: TRACE_VERSION, subject, since: values.since ?? null, entries });
   for (const entry of entries) io.say(traceLine(entry));
   if (!entries.length) io.say(`no calls or events for ${subject}; check the agent id or item number`);

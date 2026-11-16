@@ -8,6 +8,8 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { fixtureSettledMachine } from '../testkit.js';
+import { reviveFixtureLocalRunner } from '../runner/local-start.js';
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import {
@@ -54,6 +56,8 @@ function commit(box, root, message) {
 /** A real Node test passes for either item alone and fails when their changes meet. */
 function fixture(helpers) {
   const box = helpers.project('node --test --test-reporter=tap web/landing.test.js');
+  // The gates settle on the loopback local runner, as every submit does (#6832); no controller pin remains.
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME);
   // This is an independent Node runner; an inherited worker context makes Node skip recursive runs.
   delete box.env.NODE_TEST_CONTEXT;
   mkdirSync(join(box.repo, 'web'), { recursive: true });
@@ -86,6 +90,25 @@ function landingEvidence(result) {
   return JSON.stringify({ result, gates });
 }
 
+/** Budget: hang ceiling for the loopback local runner to take and apply one fixture gate. */
+const GATE_SETTLE_MS = 180_000;
+
+/**
+ * Wait until the item's pulled gate receipt has moved it to submitted, reviving the local runner a gate switch stopped.
+ * Why: every submit offers its gate as a pull job (#6832), so the verify after a submit would race the receipt.
+ */
+function submittedAfterGate(box, cwd, id) {
+  const deadline = Date.now() + GATE_SETTLE_MS;
+  for (;;) {
+    const shown = command(box, cwd, 'show', String(id), '--no-next');
+    const status = shown.document?.item_status;
+    if (status && status !== 'claimed') { assert.equal(status, 'submitted', `#${id} gate: ${shown.out}`); return; }
+    assert.ok(Date.now() < deadline, `#${id} gate did not settle in ${GATE_SETTLE_MS} ms: ${shown.out}${shown.err}`);
+    reviveFixtureLocalRunner(cwd, box.env);
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
+  }
+}
+
 /** Build and independently verify a fixture item at its actual committed head. */
 function verified(box, name, { touchTest = false } = {}) {
   const path = join(box.dir, name);
@@ -101,6 +124,7 @@ function verified(box, name, { touchTest = false } = {}) {
   if (touchTest) writeFileSync(join(path, 'web/landing.test.js'), readFileSync(join(path, 'web/landing.test.js'), 'utf8') + '// Candidate-only test edit.\n');
   const head = commit(box, path, 'feat(web): build the landing fixture [G1]');
   success(box, path, 'submit', String(id));
+  submittedAfterGate(box, path, id);
   box.git(box.repo, 'switch', '-q', '--detach', head);
   try {
     success(box, box.repo, 'verify', String(id), 'accept', '--as', 'coordinator',
@@ -122,16 +146,7 @@ function rechecked(box, entry) {
   return boardRead(box, board => JSON.parse(store.events(board, { itemId: entry.id }).findLast(event => event.event_kind === 'accept').event_detail));
 }
 
-/** Save a project policy normally, without changing another machine's settings. */
-function policy(box, landing) {
-  const file = join(box.repo, 'pullboard.json');
-  const config = JSON.parse(readFileSync(file, 'utf8'));
-  config.landing = { ...landing, manualOverride: true };
-  writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
-  commit(box, box.repo, 'chore: declare the landing host policy');
-}
-
-/** S7d: a real check records its host; only an opted-in matching host may land. */
+/** S7d: a real check and gate record the host that ran them, and the receipt binds it. */
 export function assertMatchingLandingHost(helpers) {
   const box = fixture(helpers);
   const entry = verified(box, 'a');
@@ -171,36 +186,9 @@ export function assertMatchingLandingHost(helpers) {
       'recorded legacy verdict moves replay without acquiring new metadata');
   });
 
-  const mismatch = { ...environment, platform: process.platform === 'linux' ? 'darwin' : 'linux' };
-  policy(box, { environment: mismatch });
-  const base = box.git(box.repo, 'rev-parse', 'HEAD');
-  success(box, box.repo, 'settings', 'landing.pool', 'on');
-  const refused = command(box, box.repo, 'land');
-  assert.equal(refused.document?.error?.code, 'LAND_ENVIRONMENT', JSON.stringify(refused));
-  assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), base, 'a mismatched host never moves the trunk');
-  assert.equal(boardRead(box, board => store.landingBatches(board).length), 0,
-    'host mismatch is refused before a batch or its gate starts');
-
-  policy(box, { environment });
-  success(box, box.repo, 'settings', 'landing.pool', 'off');
-  assert.equal(command(box, box.repo, 'land').document?.error?.code, 'LAND_HOST_NOT_JOINED');
-  success(box, box.repo, 'settings', 'landing.pool', 'on');
-  const current = rechecked(box, entry);
-  // Model a sealed peer verdict reporting a different host; this is fixture data, not a measured second runtime.
-  const peerEnvironment = { ...environment, node: '0.0.1' };
-  boardRead(box, board => {
-    const item = store.getItem(board, entry.id);
-    store.verify(board, entry.id, { agentId: 'coordinator', decision: 'ACCEPT',
-      note: 'Stand-in peer records its different execution environment.', head: current.review.head,
-      digest: item.item_frozen_digest, policy: 'any', check: 'green',
-      review: current.review, environment: peerEnvironment });
-  });
-  const landed = success(box, box.repo, 'land');
-  assert.deepEqual(landed.landed, [entry.id]);
-  assert.deepEqual(landed.batch.environment, environment);
-  assert.ok(landed.batch.environmentWarnings.some(warning => warning.item === entry.id
-    && warning.recorded.node === peerEnvironment.node && warning.landing.node === environment.node),
-  'landing flags the stand-in verdict from another environment');
+  // The host-policy refusals and the peer-environment warning rode the host landing batch, which land no longer runs: it only offers
+  // the runner land job (9069644c61, 1a432cf0c2, 1e1a9586af), so `land` here offers the land job to the local runner [C7].
+  // The runner's land gate validates the host through constrainedLandingHost (packages/gate/src/io/execution.js).
 }
 
 /** S7e: an interaction with no item culprit files a test defect; a recorded defect never refuses a landing, which retries the gate and lands nothing until the red is corrected or waived [C7,#5862]. */
@@ -233,7 +221,10 @@ export function assertNoCulpritTrunkHold(helpers) {
   assert.deepEqual(waived.landed, entries.map(entry => entry.id));
   assert.equal(waived.batch.proof.tree, box.git(waived.batch.root, 'rev-parse', 'HEAD^{tree}'));
   assert.ok(waived.batch.proof.failures.every(failure => failure.waiver), 'the red tree stays explicitly waived');
+}
 
+/** S7e: a committed correction to the held test releases the trunk without a waiver; an uncommitted edit does not [C7,#5862]. */
+export function assertTrunkHoldCorrection(helpers) {
   const fixed = fixture(helpers);
   const fixedEntries = [verified(fixed, 'a'), verified(fixed, 'b')];
   assert.deepEqual(success(fixed, fixed.repo, 'land').landed, []);

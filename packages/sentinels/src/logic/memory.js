@@ -2,7 +2,7 @@
  * The scratch-memory warning: the file-event daemon (fseventsd) past 4 GB, or swap past 75 percent, is a finding that
  * names the process and its size. Pure: the shell reads the process list and swap, this decides [C7].
  *
- * Why: on 25 Oct the MacBook's fseventsd reached 30 GB and swap 37 of 39 GB under test churn, and nothing said so.
+ * Why: on 25 Oct a laptop's fseventsd reached 30 GB and swap 37 of 39 GB under test churn, and nothing said so.
  */
 
 export const FSEVENTSD_LIMIT_BYTES = 4 * 1024 ** 3;

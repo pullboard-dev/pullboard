@@ -4,16 +4,12 @@ import {
 } from '../../../config/light.js';
 import {
   lstatSync,
-  mkdtempSync,
   readFileSync,
   readdirSync,
   realpathSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import {
-  tmpdir,
-} from 'node:os';
 import {
   basename,
   dirname,
@@ -24,6 +20,8 @@ import {
   fileURLToPath,
   pathToFileURL,
 } from 'node:url';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 
 /** Exact executor identity for gate receipts and landing policy [E27,E28]. */
 
@@ -146,7 +144,7 @@ export function bindTestRuntime(pid, file) {
 
 /** Capture actual Node children in a private run directory without changing test output or the machine pool. */
 export function captureTestRuntimes(env) {
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-test-runtimes-'));
+  const directory = mkdtempSync(join(process.env.PULLBOARD_SCRATCH || tmpdir(), 'pullboard-test-runtimes-'));
   const preload = join(directory, 'test-runtime-preload.cjs');
   writeFileSync(preload, runtimeCaptureSource(directory), { flag: 'wx', mode: 0o600 });
   let finished = false;

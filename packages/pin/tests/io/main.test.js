@@ -4,7 +4,9 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { statSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fixtureProjectPolicy } from '../../../gate/tests/fixtures/testkit.js';
 import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureExecFile } from '../../../../apps/cli/tests/fixtures/child.js';
@@ -155,4 +157,41 @@ test('clause 1: a sweep never breaks a queued job, it keeps named trees and the 
   assert.equal(existsSync(path), false);
   assert.equal(cacheFor(repo, tree, where).rebuilt, true, 'the queued job still gets its tree');
   assert.throws(() => cachePath(where.cacheRoot, '../x'), { code: 'PIN_TREE_INVALID' });
+});
+
+test('clause 2: [C7] an edited or unsigned tooling pin file is refused before any run uses it', () => {
+  const { repo, old, landed } = repoWithOldAndNew();
+  writeToolingPin(repo, landed);
+  const file = join(repo, '.git', 'pullboard', 'tooling-pin.json');
+  const pin = JSON.parse(readFileSync(file, 'utf8'));
+  writeFileSync(file, `${JSON.stringify({ ...pin, tree: treeOf(repo, old) })}\n`);
+  assert.equal(toolingPin(repo).tree, treeOf(repo, old), 'pin.signed is off by default, so the pin file is read as written');
+  writeFileSync(file, `${JSON.stringify(pin)}\n`);
+  fixtureProjectPolicy(repo, { config: { pin: { signed: true } } });
+  writeFileSync(file, `${JSON.stringify({ ...pin, tree: treeOf(repo, old) })}\n`);
+  assert.throws(() => toolingPin(repo), { code: 'PIN_TOOLING_UNSIGNED' });
+  assert.throws(() => toolingFor(repo, old), { code: 'PIN_TOOLING_UNSIGNED' });
+  writeFileSync(file, `${JSON.stringify({ tree: pin.tree, commit: pin.commit })}\n`);
+  assert.throws(() => toolingPin(repo), { code: 'PIN_TOOLING_UNSIGNED' });
+  assert.deepEqual(writeToolingPin(repo, landed), { tree: pin.tree, commit: pin.commit });
+  assert.deepEqual(toolingPin(repo), { tree: pin.tree, commit: pin.commit }, 'the landing rewrites it signed');
+});
+
+test('clause 1: [C7] the first gate after an upgrade signs a pin file written before signing existed, once', () => {
+  const { repo, landed } = repoWithOldAndNew();
+  writeToolingPin(repo, landed);
+  const file = join(repo, '.git', 'pullboard', 'tooling-pin.json');
+  const pin = JSON.parse(readFileSync(file, 'utf8'));
+  writeFileSync(file, `${JSON.stringify({ tree: pin.tree, commit: pin.commit })}\n`);
+  rmSync(`${file}.key`);
+  fixtureProjectPolicy(repo, { config: { pin: { signed: true } } });
+  assert.deepEqual(toolingPin(repo), { tree: pin.tree, commit: pin.commit }, 'the first read signs the legacy pin and runs');
+  assert.equal(typeof JSON.parse(readFileSync(file, 'utf8')).signature, 'string', 'the file on disk is now signed');
+  const signed = readFileSync(file, 'utf8');
+  assert.deepEqual(toolingPin(repo), { tree: pin.tree, commit: pin.commit });
+  assert.equal(readFileSync(file, 'utf8'), signed, 'the second read changes nothing');
+  writeFileSync(file, `${JSON.stringify({ ...JSON.parse(signed), tree: '0'.repeat(40) })}\n`);
+  assert.throws(() => toolingPin(repo), { code: 'PIN_TOOLING_UNSIGNED' }, 'edited after signing is still refused');
+  writeFileSync(file, `${JSON.stringify({ tree: pin.tree, commit: pin.commit })}\n`);
+  assert.throws(() => toolingPin(repo), { code: 'PIN_TOOLING_UNSIGNED' }, 'an unsigned file beside a key is not an upgrade');
 });

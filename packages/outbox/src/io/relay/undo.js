@@ -8,8 +8,9 @@ import { undoQueuedWith } from '../../logic/undo.js';
  *
  * @param {any} board
  * @param {{ changes?: string[], sequences?: { name: string, seq: number }[] }[]} entries - Oldest first.
+ * @param {((board: any) => void) | undefined} within - Runs in the undo's own transaction.
  * @returns {string | null}
  */
-export function undoQueued(board, entries) {
-  return undoQueuedWith({ atomic, suspendStoreGuards }, board, entries);
+export function undoQueued(board, entries, within) {
+  return undoQueuedWith({ atomic, suspendStoreGuards }, board, entries, within);
 }

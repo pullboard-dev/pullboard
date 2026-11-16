@@ -8,6 +8,7 @@
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { hopCheck } from './kit.js';
 import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
 import { lapsedGateJobs } from '../../../../drive/index.js';
 import { reclaimPass } from '../../../../drive/index.js';
@@ -22,28 +23,31 @@ import { writeStep } from '../../../../jobs/index.js';
 const SLEPT = 10 * 60_000;
 
 test('after a sleep past every lease the fallback ends the job whose item moved on and drives only the live one [C7]', async t => {
-  const { db } = cellBoard(t, ':memory:');
-  const start = 1_000_000;
-  for (const [id, item] of [['gate:live', 1], ['gate:moved-on', 2], ['gate:other-live', 3]]) {
-    // Each lease is taken a second after the last, so "oldest lapse first" names one job.
-    const at = start + item * 1000;
-    createJob(db, { id, kind: 'gate', item, candidate: `c${item}`, now: at });
-    writeStep(db, id, 'shard.started', {}, { now: at });
-    assert.equal(takeJob(db, id, 'dead-driver', { now: at }).taken, true);
-  }
-  const now = start + SLEPT;
-  assert.equal(reclaimLapsed(db, { now }).length, 3, 'every lease lapsed at once');
-  const driven = [];
-  const lapsed = lapsedGateJobs(db, { now });
-  const pass = await reclaimPass(db, { owner: 'next-command', now: () => now, lapsed, active: view => view.item !== 2,
-    drive: async (_db, job) => { driven.push(job); return { transition: 'shard.collected', phase: 'running' }; } });
-  const moved = jobView(db, 'gate:moved-on');
-  assert.equal(moved.step, 'done', 'the job whose item moved on is ended, not retaken');
-  assert.equal(moved.steps.find(step => step.name === 'withdrawn').payload.stale, true);
-  assert.equal(moved.leaseOwner, null);
-  assert.deepEqual(driven, ['gate:live'], 'one live job is driven by one transition, oldest lapse first, and never the moved-on one');
-  assert.equal(pass.lapsed, 2);
-  assert.ok(!driven.includes('gate:moved-on'), 'no job is driven for an item that moved on');
-  assert.deepEqual(lapsedGateJobs(db, { now }).map(job => job.id).includes('gate:moved-on'), false, 'it is never listed again');
-  assert.ok(LEASE_MS > 0);
+  await hopCheck('sleep-past-leases', async () => {
+    const { db } = cellBoard(t, ':memory:');
+    const start = 1_000_000;
+    for (const [id, item] of [['gate:live', 1], ['gate:moved-on', 2], ['gate:other-live', 3]]) {
+      // Each lease is taken a second after the last, so "oldest lapse first" names one job.
+      const at = start + item * 1000;
+      createJob(db, { id, kind: 'gate', item, candidate: `c${item}`, now: at });
+      writeStep(db, id, 'shard.started', {}, { now: at });
+      assert.equal(takeJob(db, id, 'dead-driver', { now: at }).taken, true);
+    }
+    const now = start + SLEPT;
+    assert.equal(reclaimLapsed(db, { now }).length, 3, 'every lease lapsed at once');
+    const driven = [];
+    const lapsed = lapsedGateJobs(db, { now });
+    const pass = await reclaimPass(db, { owner: 'next-command', now: () => now, lapsed, active: view => view.item !== 2,
+      drive: async (_db, job) => { driven.push(job); return { transition: 'shard.collected', phase: 'running' }; } });
+    const moved = jobView(db, 'gate:moved-on');
+    assert.equal(moved.step, 'done', 'the job whose item moved on is ended, not retaken');
+    assert.equal(moved.steps.find(step => step.name === 'withdrawn').payload.stale, true);
+    assert.equal(moved.leaseOwner, null);
+    assert.deepEqual(driven, ['gate:live'], 'one live job is driven by one transition, oldest lapse first, and never the moved-on one');
+    assert.equal(pass.lapsed, 2);
+    assert.ok(!driven.includes('gate:moved-on'), 'no job is driven for an item that moved on');
+    assert.deepEqual(lapsedGateJobs(db, { now }).map(job => job.id).includes('gate:moved-on'), false, 'it is never listed again');
+    assert.ok(LEASE_MS > 0);
+    return { measured: 'three leases lapsed at once; one live job driven, the moved-on job ended' };
+  });
 });

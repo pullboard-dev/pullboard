@@ -140,6 +140,7 @@ import {
 import {
   assertMatchingLandingHost,
   assertNoCulpritTrunkHold,
+  assertTrunkHoldCorrection,
 } from '../landing/environment.js';
 import {
   landingQueueCase,
@@ -435,6 +436,7 @@ export {
   assert,
   assertMatchingLandingHost,
   assertNoCulpritTrunkHold,
+  assertTrunkHoldCorrection,
   childProcess,
   consent,
   existsSync,

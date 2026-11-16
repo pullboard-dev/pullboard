@@ -1,10 +1,12 @@
-/** A finished test run reports its verdict through --status, and a run no worker took reports a typed refusal [C7]. */
+/** @pullboard-test-input packages/drive/src/io/queue.js packages/gate/data/ceilings/cells-edges.json */
+/** @pullboard-world-pin: the apps-free clause reads the queue source and the committed ceiling. A finished test run reports its verdict through --status, and a run no worker took reports a typed refusal [C7]. */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { fixtureBoard } from '../../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../../board/tests/fixtures/board.js';
 import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 import { takeJob } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
@@ -80,4 +82,19 @@ test('a run with a live lease or a recorded result is never marked lost [C7]', a
   const done = queued(t, Date.now());
   await workTestRun(work => work(done.board), done.run.id, async () => ({ green: true, files: [] }));
   assert.deepEqual(endLostTestRuns(done.board.db, { now: Date.now() + 3_600_000, alive: () => false }), []);
+});
+
+test('clause 1: the queue names no apps/ path, so its package-to-app ceiling row is gone [C7]', () => {
+  const source = readFileSync(new URL('../../src/io/queue.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /apps\//u);
+  const ceilings = JSON.parse(readFileSync(new URL('../../../gate/data/ceilings/cells-edges.json', import.meta.url), 'utf8'));
+  assert.equal(ceilings.packageApps['packages/drive/src/io/queue.js'], undefined);
+});
+
+test('clause 1: the worker runs the CLI entry its caller names [C7]', (t) => {
+  const board = fixtureBoard(t);
+  const seen = [];
+  queueTestRun({ info: { commonDir: root, root } }, work => work(board), { agent: 'seat', files: ['a.test.js'] },
+    { launch: (_node, args) => { seen.push(args[0]); return { unref() {} }; }, bin: '/some/cli.js' });
+  assert.deepEqual(seen, ['/some/cli.js']);
 });

@@ -25,7 +25,7 @@ test('the dashboard counts three live builders and one reviewer from public leas
   assert.equal(model.agents.filter(agent => agent.group === 'building').length, 3);
   assert.equal(model.agents.filter(agent => agent.group === 'reviewing').length, 1, 'the active reservation counts its reviewer');
   const html = dashboardHtml(model);
-  assert.match(html, /data-dashboard-stat="building" data-value="3">3 building/);
-  assert.match(html, /dash-agent-group label">BUILDING · 3/);
-  assert.match(html, /dash-agent-group label">REVIEWING · 1/);
+  assert.match(html, /<i class="dash-dot building"><\/i><b>3<\/b>building<\/button>/u, 'the Now line counts the three live builders');
+  assert.match(html, /<tr class="grp"><td colspan="7">Building · <button type="button" class="dash-n " data-dashboard-list="building">3<\/button>/u);
+  assert.match(html, /<tr class="grp"><td colspan="7">Reviewing · <button type="button" class="dash-n " data-dashboard-list="review">1<\/button>/u);
 });

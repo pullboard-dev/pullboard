@@ -6,7 +6,7 @@
  * on 8 Nov a test dispatcher outlived its test and relaunched real gates into a deleted home (#3850). One leak check,
  * shared, means no harness can forget it.
  */
-/** @pullboard-module-loads apps/cli/src/io/landing/budget.js apps/cli/tests/fixtures/child.js apps/cli/tests/fixtures/e2e.js apps/cli/tests/fixtures/gate/execution.js apps/cli/tests/fixtures/runner/ssh.js apps/cli/tests/fixtures/testkit.js packages/drive/index.js packages/gate/index.js packages/gate/src/io/shards/proof.js packages/jobs/index.js */
+/** @pullboard-module-loads apps/cli/src/io/landing/budget.js apps/cli/tests/fixtures/e2e.js apps/cli/tests/fixtures/gate/execution.js apps/cli/tests/fixtures/runner/ssh.js packages/board/tests/fixtures/board.js packages/gate/tests/fixtures/testkit.js packages/gate/tests/fixtures/child.js packages/drive/index.js packages/gate/index.js packages/gate/src/io/shards/proof.js packages/jobs/index.js */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import {
@@ -73,7 +73,7 @@ const CHECKOUT = resolve(import.meta.dirname, '../../../../..');
  * @returns {Promise<string>} The older tree's folder.
  */
 async function olderTree(commit) {
-  const { privateFixtureFiles } = await import(pathToFileURL(join(CHECKOUT, 'apps/cli/tests/fixtures/child.js')).href);
+  const { privateFixtureFiles } = await import(pathToFileURL(join(CHECKOUT, 'packages/gate/tests/fixtures/child.js')).href);
   const dir = privateFixtureFiles('pullboard-hop-against-').root;
   folders.add(dir);
   return committedCopy(CHECKOUT, join(dir, 'pullboard'), commit);
@@ -105,7 +105,7 @@ export function from(path) {
  * @returns {Promise<string>} The folder's real path.
  */
 export async function scratch(name) {
-  const { privateFixtureFiles } = await from('apps/cli/tests/fixtures/child.js');
+  const { privateFixtureFiles } = await from('packages/gate/tests/fixtures/child.js');
   const dir = privateFixtureFiles(`pullboard-hop-${name}-`).root;
   folders.add(dir);
   return dir;

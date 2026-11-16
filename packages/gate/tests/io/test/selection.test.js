@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { selectAffectedTests } from '../../../index.js';
 import { testClosures } from '../../../index.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../fixtures/child.js';
 
 /** Build actual immutable Git trees; no fixture module is imported or executed by selection. */
 function graph(t) {

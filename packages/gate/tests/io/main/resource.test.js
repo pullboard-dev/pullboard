@@ -2,9 +2,9 @@
 /** Real gates and item checks share the machine queue; landing priority and lease behavior stay intact [Q1,Q2,Q4,O5,O6,V18]. */
 import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
 import assert from 'node:assert/strict';
-import { startFixtureChild as spawn } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild as spawnSync } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { startFixtureChild as spawn } from '../../fixtures/child.js';
+import { runFixtureChild as spawnSync } from '../../fixtures/child.js';
+import { runFixtureChild } from '../../fixtures/child.js';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { renameSync } from 'node:fs';
@@ -310,7 +310,7 @@ test('a raw full-suite run takes a machine gate slot [Q4]', async () => {
       let followingGate;
       try {
         await waitFor(() => events(box).includes('full-suite-holder start'), 'the fixture gate to hold its only machine slot');
-        fullRun = add(launchTestRunner(box, suiteRoot, args, marker, releaseProbe));
+        fullRun = add(launchTestRunner(box, suiteRoot, args, marker, releaseProbe, { PULLBOARD_LANDING_RUN: '1' }));
         const outcome = await waitFor(() => { // budget: hang ceiling for the raw runner to announce its actual queue state; no throughput claim.
           if (fullRun.stderrText.includes('waiting for a gate slot:')) return 'waiting';
           if (existsSync(marker)) return 'ran';

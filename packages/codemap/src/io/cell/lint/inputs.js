@@ -8,6 +8,7 @@ import { bindingReadsForModules } from '../uses.js';
 
 const DISCOVERY = readFileSync(new URL('../../../../../kernel/src/logic/discovery.js', import.meta.url), 'utf8');
 const KERNEL_FRONT_DOOR = readFileSync(new URL('../../../../../kernel/index.js', import.meta.url), 'utf8');
+const KERNEL_LIGHT_DOOR = readFileSync(new URL('../../../../../kernel/light.js', import.meta.url), 'utf8');
 
 /** Resolve one literal module-relative input, excluding external URLs and parent escapes. */
 function relativeInput(file, literal) {
@@ -41,8 +42,8 @@ function commandInputs(file, info, names, files) {
     || names.get('readdirSync') !== 'node:fs') return [];
   const provider = relativeInput(file, specifier);
   const legacy = specifier === '../discovery.js' && files.get(provider)?.toString('utf8') === DISCOVERY;
-  const kernel = provider === 'packages/kernel/index.js'
-    && files.get(provider)?.toString('utf8') === KERNEL_FRONT_DOOR
+  const kernel = (provider === 'packages/kernel/index.js' && files.get(provider)?.toString('utf8') === KERNEL_FRONT_DOOR
+    || provider === 'packages/kernel/light.js' && files.get(provider)?.toString('utf8') === KERNEL_LIGHT_DOOR)
     && files.get('packages/kernel/src/logic/discovery.js')?.toString('utf8') === DISCOVERY;
   if (!legacy && !kernel) return [];
   const folder = /\bconst\s+(\w+)\s*=\s*new\s+URL\(\s*(['"])[^'"]*\2\s*,\s*import\.meta\.url\s*\)/u.exec(info.code);

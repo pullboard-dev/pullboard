@@ -157,6 +157,7 @@ import {
 import {
   sandboxBlockedOperation,
 } from '../../../sandbox/index.js';
+import { storeName } from './store-names.js';
 const STAMP = 'pullboard-gate-green';
 const LOG = 'pullboard-gate.log';
 const LANDING_RUN_ENV = 'PULLBOARD_LANDING_RUN';
@@ -224,9 +225,9 @@ export function safeLog(output) {
 /** Run the unchanged caller command and profile only timings already present in its output.
  * @param {string} root
  * @param {string} command
- * @param {{ readOnlyGit?: boolean, waitMs?: number, artifactDirectory?: string, artifactPrefix?: string, persistLog?: boolean, profileFile?: string, pipefail?: boolean, gateSlotHeld?: boolean, gateLease?: object, landing?: boolean, collectAll?: boolean, stages?: boolean, timeoutMs?: number, waivers?: Array<{ kind: string, test: string }>, pinnedSource?: { head: string, tree: string } }} [options] - pinnedSource is the exact commit a runner runs in place of this checkout's HEAD.
+ * @param {{ readOnlyGit?: boolean, waitMs?: number, artifactDirectory?: string, artifactPrefix?: string, persistLog?: boolean, profileFile?: string, pipefail?: boolean, gateSlotHeld?: boolean, gateLease?: object, landing?: boolean, collectAll?: boolean, stages?: boolean, timeoutMs?: number, timedShell?: string, waivers?: Array<{ kind: string, test: string }>, pinnedSource?: { head: string, tree: string } }} [options] - pinnedSource is the exact commit a runner runs in place of this checkout's HEAD.
  */
-function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, artifactPrefix = 'pullboard-gate', persistLog = false, profileFile, pipefail = false, gateSlotHeld = false, gateLease, landing = false, collectAll = false, releaseRequest, stages = false, waivers = [], timeoutMs, auditCoverage = false, signal, pinnedSource, readOnlyGit = false } = {}) {
+function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, artifactPrefix = 'pullboard-gate', persistLog = false, profileFile, pipefail = false, gateSlotHeld = false, gateLease, landing = false, collectAll = false, releaseRequest, stages = false, waivers = [], timeoutMs, timedShell, auditCoverage = false, signal, pinnedSource, readOnlyGit = false } = {}) {
   const proofSource = gateLease?.proof || gateLease?.quarantines?.length ? proofSourceAt(root, null, committedTree) : null;
   // A pinned runner source is the exact commit the runner received, never this checkout's HEAD [C7,#3323].
   const timingSourceBefore = stages ? pinnedSource ?? timingSourceForReceipt(root) : null;
@@ -262,7 +263,7 @@ function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, arti
     remoteOptions: gateLease?.runner ? { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline, runnerStartupMs: gateLease.runnerStartupMs, signal,
     browser: gateLease.browser, byLaunch: gateLease.browserByLaunch, pipefail, stages, waivers: landing ? continuation : [], metadata: { ...(gateLease.runMetadata ?? {}), landing, auditCoverage,
       testStage: inherited.PULLBOARD_TEST_STAGE, timingRunId: id, ...(timeoutMs ? { timeoutMs } : {}) } } : null,
-    localOptions: { pipefail, env: inherited, stages, timeoutMs, captureRuntimes: Boolean(gateLease), signal } };
+    localOptions: { pipefail, env: inherited, stages, timeoutMs, ...(timedShell ? { timedShell } : {}), captureRuntimes: Boolean(gateLease), signal } };
   gateLease?.tracker?.mark('ranAt');
   if (gateLease) {
     gateLease.environment = run.environment ?? null;
@@ -371,7 +372,7 @@ function leaveProofReceipt(root, command, run, before, context, lease, observedC
         ...(Array.isArray(run.shards) ? { shards: run.shards } : {}) } });
     if (!receipt) return null;
     mkdirSync(store, { recursive: true, mode: 0o700 });
-    writeFileSync(join(store, `${receipt.id}.json`), receiptBody(receipt), { flag: 'wx', mode: 0o600 });
+    writeFileSync(join(store, storeName(receipt.id)), receiptBody(receipt), { flag: 'wx', mode: 0o600 });
     retainTestValueTimings(store, receipt.id, testValueProfile(root, run));
     if (lease) {
       lease.proofReceiptIds ??= [];
@@ -417,11 +418,9 @@ export function runProfiledShell(root, command, options) {
     // The blocked loop cannot fire the lease's heartbeat timer; a helper keeps it until the run's own timeout (#3130).
     const stopHeartbeat = keepHeartbeatWhileBlocked(gateLease, { timeoutMs: plan.localOptions?.timeoutMs });
     let run;
-    try {
-      run = gateLease?.runner
-        ? gateLease.executionServices.runners.runOnRunner(root, plan.remoteCommand, plan.remoteOptions)
-        : runShell(root, command, plan.localOptions);
-    } finally { stopHeartbeat(); }
+    // A runner run is a pulled job the caller awaits (#8503): the synchronous bridge is gone from this path.
+    if (gateLease?.runner) throw new Refused('RUNNER_RUN_SYNC', 'a run on a runner is awaited; call runProfiledShellAsync');
+    try { run = runShell(root, command, plan.localOptions); } finally { stopHeartbeat(); }
     return execution.next(run).value;
   } finally { execution.return(); }
 }
@@ -583,7 +582,7 @@ export async function runGate(root, config, { trustStamp = true, onWait, landing
       ? await fullGateRunWith(root, config, trustStamp, options, plan => landingShardExecution(root, shard, slotOptions, { say: shard.say, settings: loadMachineSettings })(plan))
       // A landing awaits its run: a synchronous runner call blocked the lander's event loop, its landing lease heartbeat
       // stopped, and a 1-file rerun of 333 s lost the lease and ended in LAND_LEASE_LOST (9 Nov) [C7].
-      : landing ? await fullGateRunAsync(root, config, trustStamp, options) : fullGateRun(root, config, trustStamp, options);
+      : await fullGateRunAsync(root, config, trustStamp, options);
     if (!run.isGreen && !run.timedOut && onFailure) await onFailure(run, { root, command: config.gate, lease });
     await recordRun(onFailure, run);
     return run;
@@ -683,21 +682,26 @@ function leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditF
       ...(releaseRequest ? { participationDigest: releaseParticipationDigest(run.releaseParticipation) } : {}) });
     if (!receipt) return null;
     mkdirSync(store, { recursive: true, mode: 0o700 });
-    writeFileSync(join(store, `${receipt.id}.json`), receiptBody(receipt), { flag: 'wx', mode: 0o600 });
+    writeFileSync(join(store, storeName(receipt.id)), receiptBody(receipt), { flag: 'wx', mode: 0o600 });
     if (!run.proofReceiptId) retainTestValueTimings(store, receipt.id, testValueProfile(root, run));
     return receipt.id;
   } catch { return null; }
 }
 
 /** Run a full gate while its caller owns the queue lease; only a full run may stamp its tree. */
-function* fullGateExecution(root, config, trustStamp = false, { waitMs = 0, log = gitPath(root, LOG), gateLease, landing = false, collectAll = false, auditBatchId, auditFiles, auditCoverage = false, releaseRequest, releaseStartedAt, stages = false, waivers = [], kind = 'gate', signal } = {}) {
+function* fullGateExecution(root, config, trustStamp = false, { waitMs = 0, log = gitPath(root, LOG), gateLease, landing = false, collectAll = false, auditBatchId, auditFiles, auditCoverage = false, releaseRequest, releaseStartedAt, stages = false, waivers = [], kind = 'gate', signal, timedShell } = {}) {
   if (trustStamp && !config[VALUE_GATE] && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
   const before = committedTree(root);
-  const run = yield [root, config.gate, { waitMs, pipefail: true, profileFile: `${log}.profile.json`, gateLease, landing, collectAll, releaseRequest, stages, waivers, auditCoverage, timeoutMs: landing ? config.landing?.timeoutMs : undefined, signal }];
+  const run = yield [root, config.gate, { waitMs, pipefail: true, profileFile: `${log}.profile.json`, gateLease, landing, collectAll, releaseRequest, stages, waivers, auditCoverage, timeoutMs: landing ? config.landing?.timeoutMs : undefined, timedShell, signal }];
   const { isGreen, output, seconds, profile, profilePath } = run;
   writeFileSync(log, output);
   // The environment refusing a run says nothing about the gate, so only a real result is recorded (U41).
-  if (!run.sandboxBlocked && kind !== 'suite') recordGateRun(root, gateRunRecord(root, config, rawRunGreen(run), gateLease));
+  if (!run.sandboxBlocked && kind !== 'suite') {
+    // The positive control is a second run the caller executes the way it ran the gate, so it is awaited on a runner too.
+    const positiveControl = config.positiveControl?.trim() ? config.positiveControl : null;
+    const control = positiveControl ? yield [root, positiveControl, { gateLease, artifactPrefix: 'pullboard-gate-control', persistLog: true }] : null;
+    recordGateRun(root, gateRunRecord(config, rawRunGreen(run), gateLease, control));
+  }
   const receiptAt = new Date().toISOString();
   if (releaseRequest) run.releaseParticipation = releaseParticipationFields({ ...run.releaseParticipation,
     command: createHash('sha256').update(config.gate).digest('hex'), startedAt: releaseStartedAt, finishedAt: receiptAt });
@@ -720,8 +724,9 @@ function* fullGateExecution(root, config, trustStamp = false, { waitMs = 0, log 
 export function fullGateRun(root, config, trustStamp = false, options) {
   const execution = fullGateExecution(root, config, trustStamp, options);
   try {
-    const step = execution.next();
-    return step.done ? step.value : execution.next(runProfiledShell(...step.value)).value;
+    let step = execution.next();
+    while (!step.done) step = execution.next(runProfiledShell(...step.value));
+    return step.value;
   } finally { execution.return(); }
 }
 
@@ -734,8 +739,11 @@ export function fullGateRun(root, config, trustStamp = false, options) {
 export async function fullGateRunWith(root, config, trustStamp, options, execute) {
   const execution = fullGateExecution(root, config, trustStamp, options);
   try {
-    const step = execution.next();
-    return step.done ? step.value : execution.next(await runProfiledShardsAsync(...step.value, execute)).value;
+    let step = execution.next();
+    // Only the gate command itself fans out; its positive control, if any, is one plain awaited run.
+    let first = true;
+    while (!step.done) { step = execution.next(first ? await runProfiledShardsAsync(...step.value, execute) : await runProfiledShellAsync(...step.value)); first = false; }
+    return step.value;
   } finally { execution.return(); }
 }
 
@@ -743,8 +751,9 @@ export async function fullGateRunWith(root, config, trustStamp, options, execute
 export async function fullGateRunAsync(root, config, trustStamp = false, options) {
   const execution = fullGateExecution(root, config, trustStamp, options);
   try {
-    const step = execution.next();
-    return step.done ? step.value : execution.next(await runProfiledShellAsync(...step.value)).value;
+    let step = execution.next();
+    while (!step.done) step = execution.next(await runProfiledShellAsync(...step.value));
+    return step.value;
   } finally { execution.return(); }
 }
 
@@ -760,12 +769,11 @@ export async function fullGateRunAsync(root, config, trustStamp = false, options
  * @param {object} [gateLease] the lease the gate runs under
  * @returns {{ at: string, green: boolean, control: boolean | null, gate: string, positiveControl: string | null, controlLog?: string, controlProfile?: string }}
  */
-function gateRunRecord(root, config, isGreen, gateLease) {
+function gateRunRecord(config, isGreen, gateLease, control) {
   const at = new Date().toISOString();
   const environment = gateLease?.environment ?? null;
   const positiveControl = config.positiveControl?.trim() ? config.positiveControl : null;
   if (!positiveControl) return { at, green: isGreen, control: null, gate: config.gate, positiveControl, environment };
-  const control = runProfiledShell(root, positiveControl, { gateLease, artifactPrefix: 'pullboard-gate-control', persistLog: true });
   // A control the environment refused says nothing about the gate, the same rule that keeps a refused gate run out of the record.
   const result = control.sandboxBlocked ? null : control.isGreen;
   return { at, green: isGreen, control: result, gate: config.gate, positiveControl, environment, controlLog: control.logPath, controlProfile: control.profilePath };

@@ -39,8 +39,8 @@ import { ruleProofCounts } from '../../../../../packages/verify/index.js';
 import { bindProofRunner } from '../../../../../packages/verify/index.js';
 import { fileURLToPath } from 'node:url';
 import { memoryHeldRuns } from '../../../../../packages/store/index.js';
+import { retainedReceipts } from '../../../../../packages/gate/index.js';
 import { readRunnerUtilization } from '../../../../../packages/runners/index.js';
-import { handoffCapLine } from '../../../../../packages/resources/index.js';
 import { longestRecentHolds } from '../../../../../packages/store/index.js';
 import { runnerDeadlineLine } from '../../../../../packages/resources/index.js';
 import { runnerDeadlineRuns } from '../../../../../packages/runners/index.js';
@@ -108,7 +108,7 @@ export async function run(io, { values }) {
     const person = board.db.prepare("SELECT 1 FROM event WHERE event_kind='person_signing' LIMIT 1").get()
       ? { signed: (await import('../../../../../packages/person/index.js')).personSigning(board).signed } : { signed: false };
     landing = landWhy(board, ctx.clock.now());
-    return { stalledGates: stalledGates(board.db, { workerAlive: view => { const job = view.item == null ? null : submitHandoff(board, view.item); return job?.id === view.id && handoffWorkerAlive(board, job); } }), needsRescope, me, mine, claimHealth: Object.fromEntries(claimHealthProjection(observedStaleState)), person, agents, presenceCounts, capacity: routingCapacity(board, agents, statusForeignBlockers, { ...readers, localDependencyIds, dependencyLabel, itemFileCollisions, withLocalSeatPresence, lineSettings }), capacityForecast: readCapacity(board, undefined, { currentProofCounters, proofCounter }), staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root, io) : unlinkedRelayStatus(),
+    return { noRunnerGates: store.listItems(board).filter(item => item.item_gate_runner === 'none').map(item => item.item_id), stalledGates: stalledGates(board.db, { workerAlive: view => { const job = view.item == null ? null : submitHandoff(board, view.item); return job?.id === view.id && handoffWorkerAlive(board, job); } }), needsRescope, me, mine, claimHealth: Object.fromEntries(claimHealthProjection(observedStaleState)), person, agents, presenceCounts, capacity: routingCapacity(board, agents, statusForeignBlockers, { ...store, localDependencyIds, dependencyLabel, itemFileCollisions, withLocalSeatPresence, lineSettings }), capacityForecast: readCapacity(board, undefined, { currentProofCounters, proofCounter }), staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root, io) : unlinkedRelayStatus(),
       submitInvariantProposals: submitInvariantProposals(store.submitInvariantEvents(board, ctx.config), ctx.config) };
   });
   if (!summary.relay.linked && existsSync(relayMachineDirectory())) {
@@ -118,7 +118,7 @@ export async function run(io, { values }) {
   summary.reclaim = reclaim;
   summary.memoryHeld = memoryHeldRuns();
   summary.runnerDeadlines = runnerDeadlineRuns();
-  summary.runnerUtilization = readRunnerUtilization(ctx.info.root);
+  summary.runnerUtilization = readRunnerUtilization(ctx.info.root, retainedReceipts);
   summary.longestHolds = longestRecentHolds();
   summary.disk = refusingBadPolicy(() => cachedDiskUse(join(ctx.info.commonDir, 'pullboard'), { now: ctx.clock.now().getTime(), maxAgeMs: 10 * 60_000 }), Refused);
   if (values.json) {
@@ -128,6 +128,7 @@ export async function run(io, { values }) {
   if (hasRelayState || summary.relay.excluded) for (const line of (await import('../../../../../packages/link/index.js')).briefLines(summary.relay, (({ describeMove, refusalLine }) => ({ describeMove, refusalLine }))(await import('../../../../../packages/outbox/index.js')))) io.say(line);
   const { stages, accepted, rejected } = summary.stats;
   io.say(`${summary.me.displayName}: ${summary.unread} unread shouts; holding ${summary.mine.map((item) => `#${item.item_id}`).join(', ') || 'nothing'}`);
+  for (const id of summary.noRunnerGates) io.say(`top blocker: #${id} (in the gate, no runner); next: pullboard runner local, or pullboard submit ${id} again`);
   io.say(`board: ${Object.entries(stages).map(([stage, total]) => `${total} ${stage}`).join(', ')}`);
   io.say(`verdicts: ${accepted} accepted, ${rejected} rejected`);
   if (summary.specApprovalBaseline?.pending) io.say('approval baseline pending: the next coordinator or person command in the main checkout records the existing approved rows; lane work may continue and none are flagged until then');
@@ -157,8 +158,6 @@ export async function run(io, { values }) {
   else for (const run of summary.runnerDeadlines) io.say(`${run.agent}${run.item ? ` #${run.item}` : ''}${run.repo ? ` in ${run.repo}` : ''}: ${runnerDeadlineLine(run)}`);
   for (const hold of summary.longestHolds ?? []) io.say(`board hold ${hold.at}: ${hold.heldMs} ms in ${hold.move ?? 'unknown move'}${hold.step ? `, slowest step ${hold.step} ${hold.stepMs ?? '?'} ms` : ''}`);
   for (const line of diskLines(summary.disk)) io.say(line);
-  const handoffCap = handoffCapLine();
-  if (handoffCap) io.say(handoffCap);
   for (const proposal of summary.submitInvariantProposals) io.say(submitInvariantLine(proposal));
   for (const need of summary.needs.filter(need => need.kind === 'agent-approved')) io.say(`${need.text}; ${need.what}`);
   if (!summary.relay.linked && !originRepository(ctx.info.root, { optional: true })) {

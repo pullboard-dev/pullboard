@@ -74,10 +74,10 @@ async function project(t, ratio = 3) {
     lanes: { web: { owns: ['web/'], specs: ['G1'] }, review: { owns: [], specs: ['G1'] } }, shared: [] }));
   writeFileSync(join(root, 'SPEC.md'), '# Review fixture\n## G\n- G1 [approved, must] Every move keeps its evidence. | gate: true\n');
   writeFileSync(join(root, loadConfig(root).practice), '');
-  git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'chore: initialize review fixture');
+  git(root, 'add', '-A'); git(root, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'chore: initialize review fixture'); // setup only: no hook starts a node child
   box.builder = join(dir, 'builder'); box.peer = join(dir, 'peer'); box.reviewer = join(dir, 'reviewer'); box.reviewer2 = join(dir, 'reviewer-two');
   for (const [path, branch] of [[box.builder, 'web/one'], [box.peer, 'web/two'], [box.reviewer, 'review/one'], [box.reviewer2, 'review/two']]) {
-    git(root, 'worktree', 'add', '-q', path, '-b', branch);
+    git(root, '-c', 'core.hooksPath=/dev/null', 'worktree', 'add', '-q', path, '-b', branch);
   }
   box.board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
   t.after(() => store.closeBoard(box.board));
@@ -294,7 +294,8 @@ test('[Q1,V15,N14] the unattended runner keeps building and records its review b
   t.after(() => { process.env.PATH = path; });
   const ran = await run(box, box.builder, ['run', '--agent', COMMITTING_AGENT, '--items', '1', '--attempts', '1', '--minutes', '1']);
   assert.equal(ran.code, 0, ran.stderr);
-  assert.equal(store.getItem(box.board, id).item_status, 'submitted', ran.stdout);
+  // Pull dispatch settles the gate on a runner after this command returns, so the item is submitted or already queued in its gate.
+  assert.ok(store.getItem(box.board, id).item_status === 'submitted' || /#\d+ is in the gate as job /u.test(ran.stdout), ran.stdout);
   assert.match(ran.stdout, /runner done: 1 submitted, 0 escalated/u);
   assert.equal(ran.stdout.match(/review backlog:/gu)?.length, 1, 'one iteration prints one backlog notice');
   assert.match(ran.stdout, /review backlog: 3 awaiting, 0 agents reviewing/u);

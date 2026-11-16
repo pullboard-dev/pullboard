@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../../../../index.js';
-import { fixtureBoard } from '../../../../../../apps/cli/tests/fixtures/board.js';
-import { submitFixture } from '../../../../../../apps/cli/tests/fixtures/board/submit.js';
+import { fixtureBoard } from '../../../../../board/tests/fixtures/board.js';
+import { submitFixture } from '../../../fixtures/submit.js';
 import { reviewFamilyRelaxation } from '../../../../src/io/board/review/family.js';
 import { confirmRelaxation } from '../../../../src/io/relaxation.js';
 import { itemReviewPolicy } from '../../../../../verify/index.js';

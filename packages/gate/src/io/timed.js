@@ -1,13 +1,12 @@
 /** Run a bounded shell under identity-checked process custody before returning its result [E27]. */
 import { spawn } from 'node:child_process';
+import { scratchFolder } from '../../../config/index.js';
 import {
   appendFileSync,
-  mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import {
   dirname,
   join,
@@ -22,7 +21,7 @@ export async function runTimedShell(services) {
   if (!Number.isSafeInteger(request.timeoutMs) || request.timeoutMs < 1 || request.timeoutMs > 2_147_483_647) throw new Error('invalid shell timeout');
   // A spool that cannot be created must refuse before there is any command to stop.
   writeFileSync(request.outputFile, '', { mode: 0o600, flag: 'wx' });
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-timed-shell-'));
+  const directory = scratchFolder('pullboard-timed-shell-');
   let tracker;
   let phase = 'starting';
   let lastState = 0;

@@ -9,7 +9,7 @@
  */
 import { posix } from 'node:path';
 import { createHash } from 'node:crypto';
-import { gitSpawnSync } from '../../../git/index.js';
+import { gitSpawnSync } from '../../../git/light.js';
 import {
   appendFileSync,
   existsSync,
@@ -24,9 +24,12 @@ import {
 import {
   DOCTRINE_FILE,
   LEGACY_DOCTRINE_FILE,
-} from '../../../config/index.js';
-import { cleanGitEnvironment } from '../../../git/index.js';
-import { Refused } from '../../../kernel/index.js';
+} from '../../../config/light.js';
+import { cleanGitEnvironment } from '../../../git/light.js';
+import { loadSpecBoards } from './boards.js';
+import { qualifiedId } from './boards.js';
+import { qualifiedIdProblems } from './boards.js';
+import { Refused } from '../../../kernel/light.js';
 import {
   CHECK_FIELDS,
   FIELD_NAMES,
@@ -73,8 +76,9 @@ export function replaceRowGate(source, gate) {
 export function loadSpec(root, config) {
   const file = join(root, config.spec);
   const name = config.spec;
-  if (!existsSync(file)) return { ...parseSpec(''), file, name, exists: false };
-  return { ...parseSpec(readFileSync(file, 'utf8')), file, name, exists: true };
+  const boards = loadSpecBoards(root, config.specBoards);
+  if (!existsSync(file)) return { ...parseSpec(''), file, name, exists: false, boards };
+  return { ...parseSpec(readFileSync(file, 'utf8')), file, name, exists: true, boards };
 }
 
 /**
@@ -374,7 +378,7 @@ export function idProblems(spec, ids, doctrine = null) {
     const prefix = 'doctrine:';
     const namespaced = id.startsWith(prefix);
     const rawId = namespaced ? id.slice(prefix.length) : id;
-    if (id.includes(':') && !namespaced) return [`${id} uses an unknown namespace; use doctrine:<id> for a doctrine row`];
+    if (id.includes(':') && !namespaced) return qualifiedIdProblems(spec, id);
     const row = namespaced
       ? doctrine?.rows.find((entry) => entry.id === rawId)
       : byId.get(rawId);
@@ -529,6 +533,8 @@ export function permanenceProblems(spec, { committed, cited }) {
   for (const [id, where] of cited) {
     // A doctrine:<id> citation names a DOCTRINE.md row, which idProblems checks; it is not a spec id.
     if (id.startsWith('doctrine:')) continue;
+    // Another board's row resolves on that board's spec, never this one [C2,S8].
+    if (qualifiedId(id)) { problems.push(...qualifiedIdProblems(spec, id).map((message) => ({ id, message: `${where} cites it: ${message}` }))); continue; }
     if (!present.has(id) && !committed.has(id)) {
       problems.push({ id, message: `${where} cites it, but it was never committed to the spec; add it as a retired row saying what it meant` });
     }

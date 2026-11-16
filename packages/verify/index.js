@@ -1,5 +1,6 @@
 /** Canonical entry points for the verify cell; every moved body is exported here once [C7]. */
 export * from './light.js';
+export { laneCheckFiles, requireOwnLaneCheck, coordinatorCheck } from './src/io/check/widen.js';
 export { normalizeReviewDefaults } from './src/io/review/default.js';
 export { barActorForCommand, nativeBarActor, nativeBarActorForSeat, normalizeBarActor } from './src/io/bar/actor.js';
 export { barCheckEnabled, barCheckFactFields, barCheckState, barCheckWarning } from './src/logic/bar/check.js';
@@ -8,12 +9,15 @@ export { barDigest, barNotes, barReadiness, barReadinessRequired, barReadyProble
 export { PROVES_NOTHING_HOLD, PROVES_NOTHING_HOLD_REASON, acceptCheck, checkAcceptCommand, checkAcceptance, checkDigest, provingCheck, refuseClaimProvesNothing, refuseProvesNothing } from './src/io/check/accept.js';
 export { citedTestFiles, rowEvidence, rowStage } from './src/io/evidence.js';
 export { barTestFiles, frozenBar, frozenRowGates, namedClause, wording } from './src/logic/frozen.js';
-export { nextReview, ownSessionReviews, returnUnmergeable } from './src/logic/next.js';
+export { changedTestFiles, contentHash, frozenTestHashes, frozenTestsProblem, namedTestHashes, testHashProblem, testHashRulings, testAuthors, testAuthorNotes, authorSplitProblem } from './src/logic/testHashes.js';
+export { nextReview, forcedLandedUnreviewed, ownSessionReviews, returnUnmergeable } from './src/logic/next.js';
 export { completeMoveHandoff } from './src/logic/post/move.js';
 export { recordNativeProof } from './src/logic/proof/native.js';
 export { counterCaught, counterProofStats } from './src/io/proof/caught.js';
 export { PROOF_COUNTER_PREFIX, appendProofCounter, clearProofCounters, currentProofCounters, ensureProofCounters, proofCounter, proofCounterRows, rebuildProofCounters } from './src/io/proof/counters.js';
 export { refreshCapacityOutsideWrite } from './src/io/proof/counters.js';
+export { registryFindings, registryOutcome } from './src/logic/registry.js';
+export { registryStrictEnabled as registryStrict } from '../config/index.js';
 export { tier1Shadow, tier1ShadowFields } from './src/logic/shadow.js';
 export { observedFailureSignatures, proofCounts, proofFields, receiptFields, runTimingFields, sameEnvironment, testRuntimeEnvironment, testRuntimeRows } from './src/logic/proof/provenance.js';
 export { anyRequiredReviewFamilyEngine, projectReviewFamily, requiredReviewFamily, requiredReviewFamilyEngine, requiredReviewFamilyProblem, saveReviewFamily, validateReviewFamily } from './src/logic/required.js';

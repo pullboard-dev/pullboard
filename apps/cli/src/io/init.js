@@ -43,6 +43,7 @@ import {
 } from '../../../../packages/seats/index.js';
 import {
   detectGate,
+  detectTestGlobs,
   settingCommand,
 } from '../../../../packages/gate/index.js';
 export { detectGate } from '../../../../packages/gate/index.js';
@@ -55,6 +56,7 @@ import { Refused } from '../../../../packages/kernel/index.js';
 import { reviewerStartup } from './next/steps.js';
 import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { remoteShell } from '../../../../packages/person/index.js';
+import { declaredAgentTools } from './skills.js';
 import { installSkills } from './skills.js';
 import {
   AGENTS_END,
@@ -64,11 +66,13 @@ import {
   claudeLoopRules,
   codexLoopRules,
   configTemplate,
+  defaults,
   plainGateWords,
   practiceTemplate,
+  renderAgentsBlock,
   specTemplate,
 } from '../../../../packages/config/index.js';
-import { agentsBlock } from '../../../../packages/doctrine/index.js';
+import { doctrineText } from '../../../../packages/doctrine/index.js';
 
 /** Resolve a directory through symlinks, retaining a missing suffix for a not-yet-created private home. */
 function canonicalDirectoryPath(candidate) {
@@ -377,7 +381,8 @@ function ignoreAgentWorktrees(root, onWrite) {
 function writeAgentDocs(root, onWrite) {
   const notes = [];
   const agents = join(root, 'AGENTS.md');
-  const block = agentsBlock(loadDoctrine(root, loadConfig(root)));
+  const doctrine = loadDoctrine(root, loadConfig(root));
+  const block = renderAgentsBlock(doctrine, doctrineText(doctrine));
   if (!existsSync(agents)) {
     writeFileSync(agents, `# AGENTS.md\n\n${block}`);
     onWrite('AGENTS.md');
@@ -810,11 +815,16 @@ export function initRepo({ info, openBoardHere, register, closeBoard, model, per
     throw new Refused('NOT_MAIN', 'run init in the main checkout; worktrees join a lane instead');
   }
   const { root } = info;
+  // Read before any write: setup's own CLAUDE.md and .claude files must not count as the project's declaration.
+  const agentTools = declaredAgentTools(root);
   const worktreeMode = existsSync(join(root, CONFIG_FILE)) ? loadConfig(root).worktrees : 'inside';
   const doctrine = existsSync(join(root, CONFIG_FILE)) ? loadConfig(root).practice : doctrineFile(root);
   const gate = detectGate(root);
   const configured = configuredGate(root);
   const config = JSON.parse(configTemplate(gate, detectFixers(root)));
+  // A repo's own test files are protected as bar files for every detected language, not only Node's [#3707].
+  const testGlobs = detectTestGlobs(root);
+  if (testGlobs.length) config.claim = { barTestFiles: [...defaults().claim.barTestFiles, ...testGlobs] };
   if (!tryGit(root, ['remote']).stdout) config.landing = { publish: 'separate' };
   const written = [];
   /** Record only paths setup actually writes; unrelated files never enter its staging command. */
@@ -829,7 +839,7 @@ export function initRepo({ info, openBoardHere, register, closeBoard, model, per
       : 'new agent worktrees go beside this repository as <repo>-<lane>-N; set "worktrees": "inside" in pullboard.json to nest them under .claude/worktrees (dot-scanner tools such as eslint . should ignore that path)',
     ...writeAgentDocs(root, onWrite),
     ...installHooks(root, onWrite),
-    ...installSkills(root, onWrite),
+    ...installSkills(root, onWrite, agentTools),
     ...(agentHooks ? configureAgentHooks(root, { legacyResume: RESUME_HOOK, onWrite }) : ['skipped agent nudges (--no-hooks)']),
     ...writeMcpConfig(root, onWrite),
   ];
@@ -854,7 +864,7 @@ export function initRepo({ info, openBoardHere, register, closeBoard, model, per
   if (!configuredGate(root)) {
     notes.push(gate
       ? `no gate yet: record the command that proves the build with ${settingCommand(root, gate)}`
-      : `no test command detected; ask the person which command tests this project, then record it with pullboard gate set "<command>"; if this board has no build, use ${settingCommand(root)} to check its spec and practice files; a second agent review checks the actual work`);
+      : `no test command detected; ask the person which command tests this project, then record it with pullboard gate set '<command>'; if this board has no build, use ${settingCommand(root)} to check its spec and practice files; a second agent review checks the actual work`);
   }
   if (written.length) notes.push(`git add -f -- ${written.map((path) => `'${path.replaceAll("'", "'\\''")}'`).join(' ')}`);
   return notes;

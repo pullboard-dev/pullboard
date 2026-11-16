@@ -13,7 +13,7 @@ import {
   exitedSessionIdentity,
 } from "./continuation.js";
 export { exitedSession, exitContinuationSummary } from "./continuation.js";
-import { exitRulesDecision } from "../../../../../stats/index.js";
+import { exitRulesDecision } from "../../../../../stats/light.js";
 import { exitRulesConfigProblems } from "../../../../../config/index.js";
 import { EXIT_RULES_ENGINE } from "../../../../../state/index.js";
 import { ENGINE_VERSION } from "../../../../../state/index.js";

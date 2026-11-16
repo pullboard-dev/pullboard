@@ -34,10 +34,10 @@ export function counted(t, seam, after = {}) {
  * through the claim move. `box.as(name)` makes another seat the one that runs next.
  */
 export function fixture(t) {
-  const project = cellProject(t);
+  const project = cellProject(t, { real: true });
   let at = Date.parse('2026-10-25T10:00:00.000Z');
   const clock = { now: () => new Date(at) };
-  const board = cellBoard(t, project.boardFile, clock, { gitRoot: project.repo });
+  const board = cellBoard(t, project.boardFile, clock, { real: true, gitRoot: project.repo });
   const seats = {};
   for (const name of ['actor', 'builder']) {
     const path = join(project.dir, name);

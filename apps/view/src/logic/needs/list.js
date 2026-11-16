@@ -1,4 +1,4 @@
-/** Adapt the shared Needs-you calls to the cockpit's legacy row shape without changing ownership. */
+/** Adapt the shared Rulings calls to the cockpit's legacy row shape without changing ownership. */
 
 /** What the person reads when a call's own words carry a code, command, token or relay term [C6,N26]. */
 export const PLAIN_FALLBACK = Object.freeze({
@@ -17,7 +17,7 @@ export const LEAKS = [
 /**
  * Give a call that is only the person's to read plain words: a leaking field is swapped for its fallback.
  * Why: the person never knows how Pullboard works (H23); agent-facing output keeps its codes elsewhere.
- * @param {object} row - One shared Needs-you call.
+ * @param {object} row - One shared Rulings call.
  * @returns {object} The same call, or a copy with plain text and step.
  */
 export function plainNeedWords(row) {
@@ -45,10 +45,10 @@ export function needsEntries(personalNeeds, holds) {
 }
 
 /**
- * Render each adapted Needs-you row with its established action, except a local relay alert is inspection-only.
- * @param {Function} needRow - The page's escaped standard Needs-you renderer.
+ * Render each adapted Rulings row with its established action, except a local relay alert is inspection-only.
+ * @param {Function} needRow - The page's escaped standard Rulings renderer.
  * @param {Function} specRevisionRow - The page's spec revision renderer.
- * @param {object|Array<unknown>} entry - One adapted Needs-you row.
+ * @param {object|Array<unknown>} entry - One adapted Rulings row.
  * @returns {string}
  */
 export function renderNeedsRow(needRow, specRevisionRow, entry) {

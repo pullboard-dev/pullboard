@@ -11,12 +11,13 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { packTestResults } from '../../../../index.js';
-import { temporaryDirectory } from '../../../../../../apps/cli/tests/fixtures/board.js';
+import { temporaryDirectory } from '../../../../../board/tests/fixtures/board.js';
 import {
   firstChangedInput,
   recordInputParts,
 } from '../../../../index.js';
 import {
+  enforcePartsCap,
   maintainPartsStore,
   prunePartsStore,
 } from '../../../../index.js';
@@ -123,4 +124,21 @@ test('clause 2: an unnamed part or list older than the age cap is removed even u
   const later = populated();
   maintainPartsStore(later, { PULLBOARD_TEST_PARTS_MAX_AGE_MS: String(2.5 * DAY) });
   assert.deepEqual(left(later), ['1', '2', 'e', 'f'], 'maintenance reads the configured age cap');
+});
+
+test('clause 1: the test-actions lists folder stays under its cap under continuous writes, pruned on write and oldest first [C7]', () => {
+  const store = temporaryDirectory('parts-cap-');
+  const cap = 200_000;
+  let now = Date.now();
+  let peak = 0;
+  for (let round = 0; round < 60; round += 1) {
+    const list = Array.from({ length: 300 }, (_, index) => [`src/r${round}-${index}.js`, 'a'.repeat(40)]);
+    recordInputParts(store, round.toString(16).padStart(64, '0'), { test: `t${round}.js`, files: list, runner: [], inputs: [], tracked: null, options: [] });
+    now += 11 * 60_000;
+    enforcePartsCap(store, { PULLBOARD_TEST_PARTS_CAP_BYTES: String(cap) }, now);
+    const after = readdirSync(join(store, 'lists')).map(name => statSync(join(store, 'lists', name)).size).reduce((sum, bytes) => sum + bytes, 0);
+    peak = Math.max(peak, after);
+  }
+  assert.ok(peak <= cap, `the lists folder never stays over the cap after a write (peak ${peak})`);
+  assert.ok(readdirSync(join(store, 'lists')).length > 1, 'the newest lists stay; only the oldest went');
 });

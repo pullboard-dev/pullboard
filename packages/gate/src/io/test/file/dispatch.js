@@ -16,6 +16,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { availableParallelism } from 'node:os';
+import { loadavg } from 'node:os';
 import { resolve } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { run } from 'node:test';
@@ -29,6 +30,7 @@ import { testOutcomeCollector } from '../outcomes.js';
 import { readTestFileBudgets } from './policy.js';
 import { testFileRelative } from './policy.js';
 import { testFileBudgetFailure } from '../../../logic/test/budget/file.js';
+import { testFileLoadScale } from '../../../logic/test/budget/file.js';
 import { fileRuntimeCapRefusal } from '../../file/cap.js';
 import { rootReceiptRuntimes } from '../../file/cap.js';
 import { readFileTimes } from '../value/timing.js';
@@ -38,6 +40,19 @@ import {
   bindTestRuntime,
   testRuntimeImport,
 } from '../../../../../sandbox/light.js';
+
+/** The hard stop for an audit file, which runs outside the interactive budget but never without a bound. */
+export const AUDIT_FILE_KILL_MS = 600_000;
+/** Set by `pullboard test --no-file-limit` on its own job: every file in the run is judged as an audit file, with the same hard stop. */
+const NO_FILE_LIMIT_ENV = 'PULLBOARD_TEST_NO_FILE_LIMIT';
+
+/**
+ * The per-file kill a budget row asks the watchdog for: an audit row (or --no-file-limit) lifts it to the hard stop, any other row sets its own ms.
+ * Pulled out of fileRun so the lift can be tested without launching a file.
+ */
+export function rowFileKillMs(row, env = {}) {
+  return row?.audit || env[NO_FILE_LIMIT_ENV] === '1' ? AUDIT_FILE_KILL_MS : row?.ms;
+}
 
 /** One parent FIFO reservation at a time; transferred actual workers may remain live concurrently. */
 function acquisitionQueue() {
@@ -51,14 +66,15 @@ function acquisitionQueue() {
   };
 }
 
-/** Set only this actual worker's legitimately reserved admission before its ordinary runner preload. */
-function admissionImport(value, browser, runner, outputMarker) {
+/** Set only this actual worker's legitimately reserved admission, and its budget row's ms, before its ordinary runner preload. */
+function admissionImport(value, browser, runner, outputMarker, budgetMs) {
   const recorder = testRuntimeImport();
   const source = (recorder ? `await import(${JSON.stringify(recorder)});` : '') + `process.env[${JSON.stringify(TEST_FILE_POOL_ENV)}]=${JSON.stringify(value)};`
     + (browser ? `process.env.PULLBOARD_TEST_BROWSER_OWNER_PID=${JSON.stringify(String(process.pid))};`
       + "process.env.PULLBOARD_TEST_BROWSER_SLOT='held';"
       + 'delete process.env.PULLBOARD_TEST_BROWSER_BY_LAUNCH;' : '')
     + `process.env.PULLBOARD_TEST_WATCHDOG_OUTPUT=${JSON.stringify(outputMarker)};`
+    + (budgetMs ? `process.env.PULLBOARD_TEST_FILE_ROW_BUDGET_MS=${JSON.stringify(String(budgetMs))};` : '')
     + `await import(${JSON.stringify(pathToFileURL(runner).href)});`;
   return `data:text/javascript,${encodeURIComponent(source)}`;
 }
@@ -108,6 +124,8 @@ export function dispatchTestFiles(options, env) {
   const lastRuntimes = { ...readFileTimes(budgetRoot), ...rootReceiptRuntimes(budgetRoot) };
   // PULLBOARD_FILE_RUNTIME_CAP_MS replaces the two-minute cap for a run; a fixture uses it to cross the cap in milliseconds.
   const runtimeCap = Number(env.PULLBOARD_FILE_RUNTIME_CAP_MS) > 0 ? Number(env.PULLBOARD_FILE_RUNTIME_CAP_MS) : undefined;
+  // PULLBOARD_TEST_LOAD pins the measured one-minute load, so a fixture's timing does not depend on its runner's load.
+  const sampleLoad = env.PULLBOARD_TEST_LOAD === undefined ? () => loadavg()[0] : () => Number(env.PULLBOARD_TEST_LOAD);
   const limit = options.concurrency === false ? 1 : options.concurrency === true
     ? Math.max(1, availableParallelism() - 1) : options.concurrency ?? 1;
   const acquire = acquisitionQueue();
@@ -162,17 +180,23 @@ export function dispatchTestFiles(options, env) {
       const execArgv = [...options.execArgv];
       const preload = execArgv.indexOf('--import');
       if (preload < 0 || !execArgv[preload + 1]) throw new Error('test-file dispatch requires its ordinary runner preload');
-      execArgv[preload + 1] = admissionImport(token.value, browser, execArgv[preload + 1], outputMarker);
+      // An audit row lifts the watchdog's 180 s kill (the wall and idle limits still bound a stuck file); any other row sets it.
+      const row = budgets.get(testFileRelative(budgetRoot, resolve(cwd, file)));
+      const rowBudget = rowFileKillMs(row, env);
+      execArgv[preload + 1] = admissionImport(token.value, browser, execArgv[preload + 1], outputMarker, rowBudget);
       fileExited = fileExitObserver(execArgv[preload + 1], file);
       const source = run({ ...options, files: [file], shard: undefined, concurrency: 1, signal,
         setup: undefined, execArgv });
       source.once('error', error => controller.abort(error));
       const events = [];
+      const loads = [sampleLoad()];
+      let sampledAt = Date.now();
       let summary;
       let afterPlan = false;
       drained = (async () => {
         for await (const event of source) {
           if ((event.type === 'test:stdout' || event.type === 'test:stderr') && event.data.message?.length) writeFileSync(outputMarker, String(Date.now()));
+          if (Date.now() - sampledAt >= 1000) { loads.push(sampleLoad()); sampledAt = Date.now(); }
           if (event.type === 'test:plan' && event.data.nesting === 0) { afterPlan = true; continue; }
           if (event.type === 'test:summary' && !event.data.file) { summary = event.data; continue; }
           if (trailer(event, afterPlan)) continue;
@@ -184,9 +208,11 @@ export function dispatchTestFiles(options, env) {
         const actualWorkers = await fileExited();
         if (summary.success && actualWorkers !== 1) throw new Error(`test file has no actual worker exit receipt: ${file}`);
         const portableFile = testFileRelative(budgetRoot, resolve(cwd, file));
-        const budget = budgets.get(portableFile);
-        const over = testFileBudgetFailure(portableFile, summary.duration_ms, budget.ms, budget.audit)
-          ?? (budget.audit ? null : fileRuntimeCapRefusal(portableFile, summary.duration_ms, lastRuntimes, events, runtimeCap));
+        const budget = env[NO_FILE_LIMIT_ENV] === '1' ? { ...budgets.get(portableFile), audit: true } : budgets.get(portableFile);
+        // Both limits charge the file for its own work: wall time divided by the runner's measured load per core (#4944).
+        const scale = testFileLoadScale([...loads, sampleLoad()], availableParallelism());
+        const over = testFileBudgetFailure(portableFile, summary.duration_ms, budget.ms, budget.audit, scale)
+          ?? (budget.audit ? null : fileRuntimeCapRefusal(portableFile, summary.duration_ms / scale, lastRuntimes, events, runtimeCap));
         if (over) {
           process.stderr.write(`test file budget: ${over}\n`);
           events.push({ type: 'test:diagnostic', data: { nesting: 0, message: over } });

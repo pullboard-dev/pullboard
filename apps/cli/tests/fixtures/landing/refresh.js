@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/pullboard.js apps/cli/src/io/command-docs/heartbeat.json docs/tools/update-docs.js packages/codemap/data/plan/cells.json packages/gate/data/tests/tiers.json packages/landing/src/io/step/merge.js */
+/** @pullboard-test-input apps/cli/pullboard.js apps/cli/src/io/command-docs/heartbeat.json docs/tools/update-docs.js packages/codemap/data/plan/cells.json packages/gate/data/tests/tiers.json packages/landing/src/io/derive.js */
 /** @pullboard-test-input docs-tree */
 /** Clean landing merges regenerate shared documentation before the real gate [B3,C7,V4]. */
 import assert from 'node:assert/strict';
@@ -12,7 +12,11 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { createE2eHelpers } from '../e2e.js';
+import { settlePulledJobs } from '../e2e.js';
 import { runFixtureChild } from '../child.js';
+import { landJobs } from '../land/board.js';
+import { settleLand } from '../land/settle.js';
+import { waitForCondition } from '../runner/holders.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -28,10 +32,16 @@ function command(box, cwd, ...args) {
 function success(box, cwd, ...args) {
   const result = command(box, cwd, ...args);
   assert.equal(result.status, 0, result.text);
+  // A pulled gate is a job the loopback runner finishes after the command returns; wait for it like every fixture command [P7,C7].
+  settlePulledJobs(cwd, args, box.env);
   return JSON.parse(result.stdout);
 }
 
-/** Import the full fixture in bounded normal commits, keeping every installed hook enabled. */
+const IMPORT_CHUNK_BYTES = 6 * 1024 * 1024;
+
+/** Import the full fixture in bounded normal commits, keeping every installed hook enabled.
+ * Why 6 MB: each chunk's staged diff stays under the hook's 8 MB secret-scan limit, and a few large commits
+ * replace forty 1 MB ones whose hook runs alone took two minutes on a loaded runner (#6235). */
 function commitFixture(box) {
   const files = [...new Set(box.git(box.repo, 'ls-files', '--modified', '--others', '--exclude-standard', '-z').split('\0').filter(Boolean))].sort();
   let chunk = [], bytes = 0, number = 0;
@@ -45,7 +55,7 @@ function commitFixture(box) {
   for (const file of files) {
     const size = readFileSync(join(box.repo, file)).length;
     assert.ok(size <= 1024 * 1024, `single fixture file needs a different normal setup: ${file}`);
-    if (bytes + size > 1024 * 1024 || chunk.length === 100) flush();
+    if (bytes + size > IMPORT_CHUNK_BYTES || chunk.length === 1000) flush();
     chunk.push(file); bytes += size;
   }
   flush();
@@ -88,7 +98,7 @@ function project(disableRefresh) {
     `test('merged shared documentation is current [B3,C7,V4]', () => { if (existsSync(${JSON.stringify(armed)})) assert.deepEqual(generatedDocDrift(process.cwd(), undefined, { openBoard }), [], 'stale generated files: ' + generatedDocDrift(process.cwd(), undefined, { openBoard }).join(', ')); });`,
   ].join('\n') + '\n');
   if (disableRefresh) {
-    const file = join(box.repo, 'packages/landing/src/io/step/merge.js');
+    const file = join(box.repo, 'packages/landing/src/io/derive.js');
     const source = readFileSync(file, 'utf8');
     const call = 'refreshLandingDocs(root);';
     assert.equal(source.split(call).length, 2, 'the private mutation removes exactly the actual landing refresh call');
@@ -131,7 +141,7 @@ function evidence(report) {
 }
 
 /** Exercise one real landing outcome without changing its assertions. */
-export function runLandingDocsRefresh(disabled) {
+export async function runLandingDocsRefresh(disabled) {
     const box = project(disabled);
     const entry = verifiedDeclaration(box);
     const before = box.git(box.repo, 'rev-parse', 'main');
@@ -143,23 +153,30 @@ export function runLandingDocsRefresh(disabled) {
     const output = outcome.text + '\n' + evidence(report);
     assert.deepEqual(report.conflicts ?? [], [], 'the declaration merges without any textual conflict');
     if (disabled) {
-      assert.deepEqual(report.landed ?? [], [], output);
-      assert.match(output, /apps\/cli\/src\/logic\/help\/additions\.js/u, 'the actual failed landing names the stale shared file');
+      // Under pull the landing is a runner land job; its receipt names what it returned and why [P7,C7].
+      await waitForCondition(() => landJobs(box).some(job => job.receipt), 'the runner land job settles', {
+        signal: AbortSignal.timeout(150_000), state: () => landJobs(box) });
+      const receipt = landJobs(box).find(job => job.receipt).receipt;
+      assert.deepEqual(receipt.landed ?? [], [], JSON.stringify(receipt));
+      assert.match(JSON.stringify(receipt), /apps\/cli\/src\/logic\/help\/additions\.js/u, 'the actual failed landing names the stale shared file');
       assert.equal(box.git(box.repo, 'rev-parse', 'main'), before, 'stale documentation never advances trunk');
       assert.equal(success(box, box.repo, 'show', String(entry.item)).item_merged_commit, null);
     } else {
       assert.equal(outcome.status, 0, output);
-      assert.deepEqual(report.landed, [entry.item], output);
-      assert.equal(report.batch.state, 'landed');
+      const settled = await settleLand(box, report);
+      assert.deepEqual(settled.landed, [entry.item], output + JSON.stringify(settled.landJob ?? {}));
+      assert.equal(settled.batch.state, 'landed');
       const tip = box.git(box.repo, 'rev-parse', 'main');
       assert.notEqual(tip, before);
       const regenerated = box.git(box.repo, 'show', `${tip}:apps/cli/src/logic/help/additions.js`);
       assert.notEqual(regenerated, oldDocs, 'landing commits actual regenerated bytes');
       assert.match(regenerated, /Clean landing documentation fixture/u);
-      assert.equal(success(box, box.repo, 'show', String(entry.item)).item_merged_commit, tip);
+      // The board records the merge when the land job's receipt is applied, which can follow the settled command [P7,C7].
+      await waitForCondition(() => success(box, box.repo, 'show', String(entry.item)).item_merged_commit === tip, `the board records #${entry.item} merged at ${tip}`, {
+        signal: AbortSignal.timeout(60_000), state: () => { const row = success(box, box.repo, 'show', String(entry.item)); return { status: row.item_status, merged: row.item_merged_commit, main: box.git(box.repo, 'rev-parse', 'main'), receipt: landJobs(box).at(-1)?.receipt?.trunk ?? null }; } });
       const checked = runFixtureChild(process.execPath, ['docs/tools/update-docs.js', '--check'], { cwd: box.repo, env: box.env, encoding: 'utf8' });
       assert.equal(checked.status, 0, checked.context);
-      assert.equal(box.git(box.repo, 'rev-list', '--parents', '-n', '1', report.batch.items[0].merge).split(' ').length, 3,
+      assert.equal(box.git(box.repo, 'rev-list', '--parents', '-n', '1', tip).split(' ').length, 3,
         'the refreshed item remains an actual two-parent merge');
     }
 }

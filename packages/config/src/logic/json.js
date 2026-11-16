@@ -78,6 +78,7 @@ export const JSON_SHAPES = {
     fact: shape({ item: 'number', fact: 'object' }),
     why: shape({ id: 'number', decisions: 'array' }),
     'why file': shape({ file: 'string', line: 'number|null', items: 'array', rows: 'array', decisions: 'array' }),
+    'why release': shape({ release: 'string|null', asOf: 'string', items: 'array', idle: 'array', landings: 'object' }),
     escalate: shape({ id: 'number', from: 'string', to: 'string' }),
     run: shape({ messages: 'array' }),
     sweep: shape({ messages: 'array' }),

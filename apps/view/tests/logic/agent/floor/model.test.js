@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { agentFloorHtml } from '../../../../src/logic/agent/floor/render.js';
 import { agentFloorModel } from '../../../../src/logic/agent/floor/model.js';
-import { dashboardHtml } from '../../../../src/logic/render/dashboard.js';
 import { dashboardModel } from '../../../../src/io/dashboard/model.js';
 import { agentFloorData } from '../../../fixtures/cockpit/floor.js';
 
@@ -67,7 +66,7 @@ test('the floor\'s full row of numbers names every count the person asked for [N
   assert.deepEqual(shown.map(([, , label]) => label), labels);
   for (const [key, value] of shown) assert.equal(value, String(expected[key]), `${key} reads the seeded board`);
   assert.match(band, /4 seen in 4 h/u, 'every seat seen in the window, quiet ones included');
-  assert.match(band, /1 waiting for a reviewer/u);
+  assert.match(band, /1 pending review/u);
   assert.equal(floor.numbers.unreviewed, 1);
 });
 
@@ -95,7 +94,7 @@ test('every agent has a four-hour line with what it holds, its times and shouts,
   const { floor, html } = floorAt(seeded.now);
   const agents = section(html, 'Agents');
   assert.doesNotMatch(agents, /<details/u, 'no agent is folded away');
-  for (const [group, count] of [['Building', 1], ['Reviewing', 1], ['Between items', 1], ['Quiet for 20 min or more', 1]]) {
+  for (const [group, count] of [['Building', 1], ['Reviewing', 1], ['Idle', 1], ['Quiet for 20 min or more', 1]]) {
     assert.match(agents, new RegExp(`<h3 class="floor-group">${group} · ${count}</h3>`, 'u'));
   }
   const line = id => agents.match(new RegExp(`data-floor-agent="${id}"[\\s\\S]*?</span></div>`, 'u'))?.[0] ?? '';
@@ -188,13 +187,31 @@ test('a ready item\'s age counts from the moment it came free, lapsed leases inc
   assert.deepEqual(ready, [[1, 60], [2, 30], [3, 45]], 'free since the lease ran out, the renewed lease ran out, or the release');
 });
 
-test('the Dashboard\'s Agents card ends with the link to the floor at its own address [N26,N38]', () => {
-  const model = dashboardModel(seeded.input.project, seeded.input.events, { now: seeded.now, complete: true });
-  const agents = section(dashboardHtml(model, { floorHref: '/dashboard/floor' }), 'Agents');
-  assert.match(agents, /<a class="link dash-floor-link" href="\/dashboard\/floor" data-tab="dashboard" data-detail="floor">Open the agent floor →<\/a>$/u);
+test('the floor keeps its own address and its way back to the Dashboard [N26,N38]', () => {
+  // The /live-style Dashboard (#6847) draws its own Agents table, which the Agents notch opens; the floor stays at /dashboard/floor.
   assert.match(agentFloorHtml(floorAt(seeded.now).floor, { back: '/dashboard' }), /<a class="link" href="\/dashboard" data-tab="dashboard">← Dashboard<\/a>/u);
   // The page embeds these two functions' text; neither can reach a board by itself, so the floor reads what the Dashboard read.
   for (const embedded of [agentFloorModel, agentFloorHtml]) {
     assert.doesNotMatch(embedded.toString(), /\bssh\b|child_process|fetch\(|\bapi\(|import\(/u, `${embedded.name} reads only the Dashboard's model and history`);
   }
+});
+
+test('the floor\'s idle count leaves out a gone seat and an advisor and still counts a live idle builder [C7]', () => {
+  const project = structuredClone(seeded.input.project), events = structuredClone(seeded.input.events);
+  const at = minutes => new Date(seeded.clockBase + minutes * MINUTE).toISOString();
+  for (const [id, lane, presence] of [['gone-1', 'web', 'gone'], ['advisor-1', 'advisor', 'live']]) {
+    events.push({ event_id: events.length + 1, event_kind: 'join', item_id: null, event_by: id, event_at: at(0), event_detail: JSON.stringify({ lane }) },
+      { event_id: events.length + 2, event_kind: 'shout', item_id: null, event_by: id, event_at: at(10), event_detail: JSON.stringify({ to: 'all', text: 'Quiet since.' }) });
+    project.agents.push({ agent_id: id, agent_lane: lane, presence, agent_created_at: at(0) });
+  }
+  project.sequence = events.length;
+  const withSeats = agentFloorModel(dashboardModel(project, events, { now: seeded.now, complete: true }), events);
+  const plain = floorAt(seeded.now).floor;
+  const group = key => withSeats.groups.find(entry => entry.key === key).agents.map(agent => agent.id);
+  assert.deepEqual(group('between items'), ['quiet-1'], 'a live idle builder is still counted as idle');
+  assert.deepEqual(group('apart'), ['advisor-1', 'gone-1'], 'the gone seat and the advisor sit apart');
+  assert.equal(withSeats.numbers.between, plain.numbers.between, 'neither adds to the idle count');
+  assert.equal(withSeats.numbers.live, plain.numbers.live, 'neither is a live seat at work');
+  assert.equal(withSeats.time.idle, plain.time.idle, 'neither adds holding-nothing time');
+  assert.match(agentFloorHtml(withSeats, { back: '/dashboard' }), /Gone or advising · 2/u);
 });

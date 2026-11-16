@@ -1,10 +1,10 @@
 /** A file moved in the same change keeps its load-bearing ceiling; a raise is only a number above the old path's [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fixtureCommittedGraph } from '../../../../../apps/cli/tests/fixtures/testkit.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { fixtureCommittedGraph } from '../../fixtures/testkit.js';
+import { runFixtureGit } from '../../fixtures/child.js';
 import { LOAD_BEARING_CEILINGS } from '../../../index.js';
-import { changedStaticFailures } from '../../../index.js';
+import { changedStaticFailures } from '../../../heavy.js';
 import { loadBearingRaised } from '../../../index.js';
 
 const OLD = 'apps/lib/src/shell/sender.js';

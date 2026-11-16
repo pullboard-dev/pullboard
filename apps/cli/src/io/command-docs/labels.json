@@ -1,0 +1,8 @@
+{
+  "name": "labels",
+  "help": "  pullboard labels [--json]            each label with its min, max, holders and unmet minimum; read-only\n",
+  "required": {
+    "labels": "array",
+    "unmet": "array"
+  }
+}

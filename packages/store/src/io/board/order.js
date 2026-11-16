@@ -10,7 +10,7 @@ import { milestones } from "./read/shouts.js";
 import { milestonePriorities } from "./read/shouts.js";
 import { lineOrderEnabled } from "../../../../seats/index.js";
 import { lineBuildOrder } from "../../../../seats/index.js";
-import { barReadyForOrder } from "../../../../seats/index.js";
+import { barReadyProblem } from "../../../../verify/index.js";
 import { listItems } from "./query.js";
 import { itemFiles } from "../../../../items/index.js";
 import { ROUTES } from "../../../../seats/index.js";
@@ -19,12 +19,19 @@ import { workOrderCompare } from "../../../../items/index.js";
 import { foreignBlockers } from "../board.js";
 
 /** Share milestone policy, primary computed order and equal-score path ties across queue and health. */
-export function buildOrder(board, { warm = [], agentId, readiness = barReadyForOrder, releasedClaims = [], tierFirst = false, priority } = {}) {
+export function buildOrder(board, { warm = [], agentId, readiness = (found, item) => barReadyProblem(found, item) === null, releasedClaims = [], tierFirst = false, priority } = {}) {
   const milestonePriority = priority ?? milestonePriorities(board);
   const items = listItems(board, { all: true });
   const rank = milestoneRanks(board, milestonePriority, { milestones });
   const recent = new Set(warm);
-  const shared = entry => itemFiles(entry).filter(path => recent.has(path)).length;
+  // A sort calls this per comparison: with no warm files it is always 0, and otherwise each item's count is read once (#8432).
+  const sharedCounts = new Map();
+  const shared = entry => {
+    if (!recent.size) return 0;
+    let count = sharedCounts.get(entry.item_id);
+    if (count === undefined) sharedCounts.set(entry.item_id, count = itemFiles(entry).filter(path => recent.has(path)).length);
+    return count;
+  };
   const focus = milestoneFocus(board, { milestones });
   const group = item => focus?.ids.has(item.item_id) ? -1 : milestonePriority(item);
   const paths = criticalPathEnabled(board) ? remainingPaths(items, group) : new Map();

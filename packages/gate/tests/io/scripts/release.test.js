@@ -4,10 +4,11 @@
  * command, and every git hook, runs the installed pullboard, never this repo's bin.
  */
 import assert from 'node:assert/strict';
-import { runFixtureExecFile as execFileSync } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild as spawnSync } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureExecFile as execFileSync } from '../../fixtures/child.js';
+import { runFixtureChild as spawnSync } from '../../fixtures/child.js';
+import { runFixtureChild } from '../../fixtures/child.js';
+import { runFixtureGit } from '../../fixtures/child.js';
+import { runFixtureSetupGit } from '../../fixtures/child.js';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -28,7 +29,7 @@ after(() => {
   for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
 });
 
-test('a packed release installs with no network and runs the whole loop from a fresh repo [P2, I1]', { skip: process.platform === 'win32' && 'the installed bin layout differs on Windows' }, () => {
+test('a packed release installs with no network and runs the whole loop from a fresh repo [P2, I1]', { skip: process.platform === 'win32' && 'the installed bin layout differs on Windows' }, async () => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-release-')));
   dirs.push(dir);
   const npmEnv = { ...process.env, npm_config_cache: join(dir, 'npm-cache'), npm_config_update_notifier: 'false', npm_config_loglevel: 'error' };
@@ -78,7 +79,8 @@ test('a packed release installs with no network and runs the whole loop from a f
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'test -f web/greet.txt', lanes: { web: { owns: ['web/'], specs: ['G1'] } } }, null, 2));
   writeFileSync(join(repo, 'SPEC.md'), '# Greeter\n\n## G · Goals\n- G1 [approved, must] It greets. | gate: test\n');
   git(repo, 'add', '-A');
-  git(repo, 'commit', '-q', '-m', 'chore: set up pullboard');
+  // The set-up commit is not the claim, so it skips hooks (one Node launch saved); the builder's commit below runs the installed hooks.
+  runFixtureSetupGit(['commit', '-q', '-m', 'chore: set up pullboard'], { cwd: repo, env });
   assert.equal(pullboard(repo, 'add', 'web', 'Greet', '--specs', 'G1').split('\n')[0].trim(), '#1');
 
   assert.match(pullboard(repo, 'worktree', 'web'), /joined as web-1/);
@@ -89,17 +91,29 @@ test('a packed release installs with no network and runs the whole loop from a f
   git(builder, 'add', '-A');
   git(builder, 'commit', '-q', '-m', 'feat(web): greet [G1]');
   const commit = git(builder, 'rev-parse', 'HEAD');
-  assert.match(pullboard(builder, 'submit', '1'), new RegExp(`submitted #1 at ${commit.slice(0, 12)}; no item check; full gate: affected-test selection is not enabled for this project`));
-
+  const submitted = pullboard(builder, 'submit', '1');
+  assert.match(submitted, new RegExp(`#1 is in the gate as job gate:1:${commit.slice(0, 12)}:[a-z0-9]+: a runner pulls the whole gate and posts one receipt`));
+  // The verifier's worktree is made while the pulled gate settles, so its Node launches overlap the runner's wait.
   assert.match(pullboard(repo, 'worktree', 'web'), /joined as web-2/);
   const verifier = join(dir, 'repo-web-2');
   git(verifier, 'switch', '-q', '--detach', commit);
+  // The pulled gate settles on the machine's local runner; verify needs its receipt applied (#6249, #7283, #7867): read the
+  // item through the installed bin until the receipt has moved it off claimed.
+  const deadline = Date.now() + 180_000;
+  while (!/#1 {2}submitted/.test(pullboard(builder, 'show', '1'))) {
+    assert.ok(Date.now() < deadline, 'the pulled gate settled within 180 s');
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
+  }
+
   assert.match(pullboard(verifier, 'verify', '1', 'accept', '--note', 'checked out the commit; web/greet.txt says hello'), /verified #1/);
 
   git(repo, 'merge', '-q', '--no-edit', commit);
   const merge = git(repo, 'rev-parse', 'HEAD');
-  assert.equal(pullboard(repo, 'merged', '1', merge).replace(/\nnext: .*\s*$/u, '').trim(),
-    `#1 merged as ${merge.slice(0, 12)}\nchecks run after the record; see merged-checks.log in the machine's pullboard home\ncode map refreshed for main ${merge.slice(0, 12)}`, 'merged records first, defers its checks, and also refreshes the main-stamped code map');
+  // Accepted work lands into the checked-out trunk on its own (b76853abf0, #7951), so the board may already hold the merge when
+  // the hand command runs; the deferred-checks wording is proved in apps/cli/journeys/merged/fast.test.js. Here the commit
+  // is recorded exactly once either way, and the replay names it.
+  const merged = pullboard(repo, 'merged', '1', merge);
+  assert.match(merged, new RegExp(`#1 (merged as|is already merged as) ${merge.slice(0, 12)}`), 'merged records the commit or names the landing that already did');
   const shown = pullboard(repo, 'show', '1');
   assert.match(shown, /#1 {2}verified/);
   assert.match(shown, /merged as [0-9a-f]{12}/);

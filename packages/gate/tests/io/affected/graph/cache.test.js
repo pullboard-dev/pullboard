@@ -8,11 +8,11 @@ import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../fixtures/child.js';
 import { codeMapGraph } from '../../../../index.js';
 import { selectAffectedTests } from '../../../../index.js';
 import { cachedAffectedGraph } from '../../../../index.js';
-import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../fixtures/child.js';
 
 /** A real immutable Git graph with a supported reader and an unresolved computed loader. */
 function repository(t) {

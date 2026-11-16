@@ -10,7 +10,7 @@ import { testConcurrency } from '../../../src/io/test/concurrency.js';
 import { isolateTestMachine } from '../../../src/io/test/isolation.js';
 import { JOB_WORKERS_ENV } from '../../../../drive/light.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
-import { fixtureProjectPolicy } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureProjectPolicy } from '../../fixtures/testkit.js';
 
 /** A project folder with an optional pullboard.json, removed after the test. */
 function project(t, config) {
@@ -50,4 +50,17 @@ test('#5919 clause 1: a pulled job whose serve set its worker share spreads its 
   assert.equal(executionCores({ [JOB_WORKERS_ENV]: '3' }), performanceCores(), 'the share applies only inside a pulled job');
   assert.equal(testConcurrency(project(t), executionCores({ [PULLED_JOB_ENV]: '1', [JOB_WORKERS_ENV]: '3' })).files, 3);
   assert.equal(isolateTestMachine({ [JOB_WORKERS_ENV]: '3' }, project(t))[JOB_WORKERS_ENV], undefined, 'a test process never inherits the share');
+});
+
+test('#6753 clause 1: reading the settings twice spawns sysctl at most once per process [C7]', async t => {
+  const root = project(t);
+  const fresh = await import(`../../../src/io/test/concurrency.js?fresh=${process.pid}`);
+  let spawns = 0;
+  const spawn = () => { spawns += 1; return { status: 0, stdout: '4\n' }; };
+  const first = fresh.performanceCores(spawn);
+  const second = fresh.performanceCores(spawn);
+  assert.equal(first, second);
+  assert.equal(spawns, process.platform === 'darwin' ? 1 : 0);
+  assert.equal(fresh.testConcurrency(root).files, first);
+  assert.equal(spawns, process.platform === 'darwin' ? 1 : 0);
 });

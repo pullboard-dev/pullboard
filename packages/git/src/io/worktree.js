@@ -5,6 +5,7 @@ import {
 import { join } from 'node:path';
 import {
   cleanGitEnvironment,
+  git,
   tryGit,
 } from "./main.js";
 
@@ -62,4 +63,17 @@ export function installStep(root) {
   const lockfile = committedLockfile(root);
   if (lockfile) return { command: 'npm ci', note: `its own install from the committed ${lockfile}, so its tests run its own code` };
   return { command: 'npm install', note: 'its own install; it writes package-lock.json, so commit that file or the first submit is refused UNTRACKED' };
+}
+
+/**
+ * Create a worktree with `git worktree add`, the one entry point that makes a checkout folder [C7,#6750].
+ * Why: every folder creation reaches git through here, so a second `worktree add` elsewhere fails the operation registry.
+ *
+ * @param {string} cwd - A checkout of the repository.
+ * @param {string[]} args - What follows `worktree add`: flags, the folder, and the commit or branch.
+ * @param {{ maxBuffer?: number, env?: NodeJS.ProcessEnv }} [options] - Passed to git.
+ * @returns {string} Git's trimmed output.
+ */
+export function addWorktree(cwd, args, options) {
+  return git(cwd, ['worktree', 'add', ...args], options);
 }

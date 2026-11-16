@@ -53,7 +53,6 @@ function expireClaim(item, at) {
     observeFlowStage(item, null, item.leaseUntil, 'clock');
     item.state = 'open';
     item.openAt = item.leaseUntil;
-    if (item.report) item.report.returned = true;
   }
 }
 

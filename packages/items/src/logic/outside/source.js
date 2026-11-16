@@ -1,5 +1,5 @@
 /** Public outside-source facts; never credentials, native actors or executable provider settings. */
-import { Refused } from "../../../../kernel/index.js";
+import { Refused } from "../../../../kernel/browser.js";
 
 /** Read replayable metadata for one item without inferring native lineage for its outside author. */
 export function outsideSource(board, id) {

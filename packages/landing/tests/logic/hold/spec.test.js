@@ -20,7 +20,8 @@ import {
   startFixtureChild,
   runFixtureChildAsync,
   runFixtureGit,
-} from '../../../../../apps/cli/tests/fixtures/child.js';
+} from '../../../../gate/tests/fixtures/child.js';
+import { fixtureSettledMachine } from '../../../../gate/tests/fixtures/testkit.js';
 import {
   HOST,
   installSshStandIn,
@@ -93,7 +94,7 @@ async function controllerCase(t, { invalidSpec, browser }) {
   writeFileSync(join(f.repo, 'tracked.txt'), 'private source\n');
   runFixtureGit(['add', '-A'], { cwd: f.repo, env: f.env });
   runFixtureGit(['commit', '-qm', 'test: private runner source'], { cwd: f.repo, env: f.env });
-  writeFileSync(join(f.machine, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1 }));
+  fixtureSettledMachine(f.machine, { gateSlots: 1, browserSlots: 1 }); // the runner call below uses the controller dispatch entry directly, as a pulled dispatch frames no spec here
   const requests = join(f.directory, 'requests.jsonl');
   installSshStandIn({ bin: f.bin, worker: f.worker, home: f.remoteHome, machineHome: f.remoteMachine,
     requests, invalidSpec });
@@ -103,7 +104,7 @@ async function controllerCase(t, { invalidSpec, browser }) {
     import assert from 'node:assert/strict';
     import { withGateSlot } from ${JSON.stringify(moduleURL('gate.js'))};
 ${executionServicesSource(moduleURL('gate.js'))}
-    import { runOnRunnerAsync } from ${JSON.stringify(moduleURL('runners.js'))};
+    import { dispatchRunOnRunnerAsync as runOnRunnerAsync } from ${JSON.stringify(moduleURL('runners.js'))}; // The controller path itself: the default pull dispatch never frames a work spec over this stand-in.
     import { listResources, takeResource } from ${JSON.stringify(moduleURL('resources.js'))};
     const root = ${JSON.stringify(f.repo)};
     let refusal;
@@ -111,7 +112,7 @@ ${executionServicesSource(moduleURL('gate.js'))}
       await withGateSlot(root, async () => {
         const held = listResources({ root }).find(row => row.name === 'gate');
         assert.equal(held.holders.length, 1, 'the controller actually holds a private gate slot');
-        await runOnRunnerAsync(root, 'printf must-not-run', { browser: ${browser}, runner: { host: ${JSON.stringify(HOST)}, slots: 1, browser: 0 } });
+        await runOnRunnerAsync(root, 'printf must-not-run', { browser: ${browser}, runner: { host: ${JSON.stringify(HOST)}, slots: 1, browser: 0 }, metadata: { item: 'fixture', kind: 'remote-command' } });
       }, { executionServices, remote: false, browser: false, gui: false, diagnostic: true, shortEligible: false,
         agent: 'private-invalid-spec-controller', kind: 'test' });
     } catch (error) { refusal = error; }
@@ -136,8 +137,8 @@ ${executionServicesSource(moduleURL('gate.js'))}
   // The identical production transport still accepts a valid spec and returns its ordinary receipt.
   installSshStandIn({ bin: f.bin, worker: f.worker, home: f.remoteHome, machineHome: f.remoteMachine, requests });
   const valid = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', `
-    import { runOnRunnerAsync } from ${JSON.stringify(moduleURL('runners.js'))};
-    const result = await runOnRunnerAsync(${JSON.stringify(f.repo)}, 'printf valid-work', { runner: { host: ${JSON.stringify(HOST)}, slots: 1, browser: 0 } });
+    import { dispatchRunOnRunnerAsync as runOnRunnerAsync } from ${JSON.stringify(moduleURL('runners.js'))}; // The controller path itself: the default pull dispatch never frames a work spec over this stand-in.
+    const result = await runOnRunnerAsync(${JSON.stringify(f.repo)}, 'printf valid-work', { runner: { host: ${JSON.stringify(HOST)}, slots: 1, browser: 0 }, metadata: { item: 'fixture', kind: 'remote-command' } });
     process.stdout.write(JSON.stringify({ code: result.exitCode, output: result.output }));
   `], { cwd: f.repo, env: f.env, encoding: 'utf8', timeout: 20000 }); // budget: unchanged small real source setup and one trivial valid command.
   assert.equal(valid.status, 0, valid.stderr || valid.failure);

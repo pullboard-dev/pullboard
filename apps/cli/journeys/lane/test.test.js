@@ -158,3 +158,19 @@ test('clause 1: the composition base is the second parent of a merge and nothing
   assert.notEqual(base, trunk);
   assert.deepEqual(fixtureProblems(fixture.root, join(fixture.root, 'ceilings.json')), [], 'the default base is the composition base, so inherited rows are green');
 });
+
+test('clause 1: a branch that merged main, then committed elsewhere, gets no finding for a file it never touched [C7,#8368]', () => {
+  const { fixture, run, rows } = ratchetFixture();
+  run('checkout', '-q', '-b', 'item');
+  run('checkout', '-q', 'main'); fixture.write('test/f.test.js', rows(3)); run('commit', '-qam', 'trunk carries a third row');
+  run('checkout', '-q', 'item'); run('merge', '-q', '--no-ff', '-m', 'compose', 'main');
+  fixture.write('test/h.test.js', 'export const item = true;\n'); run('add', '.'); run('commit', '-qm', 'item work after the merge');
+  assert.equal(runFixtureChild('git', ['rev-parse', '--verify', '--quiet', 'HEAD^2'], { cwd: fixture.root, encoding: 'utf8' }).status, 1, 'HEAD is a plain commit');
+  assert.deepEqual(fixtureProblems(fixture.root, join(fixture.root, 'ceilings.json')), [], 'the three rows main already holds are not the branch\'s');
+});
+
+test('clause 2: a branch that adds a row to a file past what main holds still gets that row [C7,#8368]', () => {
+  const { fixture, run, rows } = ratchetFixture();
+  run('checkout', '-q', '-b', 'item'); fixture.write('test/f.test.js', rows(3)); run('commit', '-qam', 'item adds a row');
+  assert.deepEqual(fixtureProblems(fixture.root, join(fixture.root, 'ceilings.json')).map(row => `${row.path}:${row.line}`), ['test/f.test.js:3']);
+});

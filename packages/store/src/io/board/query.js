@@ -1,12 +1,12 @@
-import { ENGINE_VERSION } from '../../../../state/index.js';
+import { ENGINE_VERSION } from '../../../../state/light.js';
 import { withDerivedFamily } from "../../../../items/light.js";
 import { withDerivedFamilies } from "../../../../items/light.js";
-import { effectiveItemHead } from "../../../../verify/index.js";
-import { agentParent } from "../../../../seats/index.js";
-export { agentParent } from "../../../../seats/index.js";
-import { projectReviewFamily } from "../../../../verify/index.js";
+import { effectiveItemHead } from "../../../../verify/read.js";
+import { agentParent } from "../../../../seats/light.js";
+export { agentParent } from "../../../../seats/light.js";
+import { projectReviewFamily } from "../../../../verify/read.js";
 import { withSeatPresence } from "../presence.js";
-import { projectItemDecisions } from "../../../../items/index.js";
+import { projectItemDecisions } from "../../../../items/light.js";
 import { itemById } from "../../logic/board/item/lookup.js";
 import { itemWorkInFlight } from "../../logic/red/return.js";
 import { itemStage } from "../../logic/item/stage.js";
@@ -20,28 +20,28 @@ import {
   projectAgentActivity,
 } from "../../logic/board/activity/feed.js";
 export { itemById };
-import { outsideSource } from "../../../../items/index.js";
+import { outsideSource } from "../../../../items/light.js";
 import {
   COORDINATION_SHOUT,
   itemShoutReader,
   UNREAD_SHOUT_SQL,
 } from "../../logic/board/audience.js";
-import { shoutItemId } from "../../../../kernel/index.js";
+import { shoutItemId } from "../../../../kernel/light.js";
 import { workerInboxQuery } from "../../logic/board/worker.js";
 /** Canonical board queries shared by reads and the synchronous write store [C7]. */
-import { verdictWithdrawals } from "../../../../verify/index.js";
-import { reopenCauseCorrection } from "../../../../items/index.js";
-import { COORDINATOR } from "../../../../config/index.js";
-import { itemFiles } from "../../../../items/index.js";
-import { parseSpec } from "../../../../spec/index.js";
+import { verdictWithdrawals } from "../../../../verify/read.js";
+import { reopenCauseCorrection } from "../../../../items/light.js";
+import { COORDINATOR } from "../../../../config/light.js";
+import { itemFiles } from "../../../../items/light.js";
+import { parseSpec } from "../../../../spec/light.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
-import { Refused } from "../../../../kernel/index.js";
-import { boardDataVersion } from "./version.js";
+import { Refused } from "../../../../kernel/light.js";
+import { boardDataVersion } from "./read/light.js";
 export { closeBoard, holdReadConnections, openBoardForRead, openBoardReadOnly, readEventLogVersion, systemClock } from "./read/snapshot.js";
 export { schemaMissing, writeRefused } from "./migrate.js";
 export { stats } from "../../logic/board/stats.js";
 export { submitInvariantEvents } from "./indexes.js";
-export { acceptedVerdict, verdictReviewProblem, verdictsFor } from "../../../../verify/index.js";
+export { acceptedVerdict, verdictReviewProblem, verdictsFor } from "../../../../verify/read.js";
 
 export const PERSON = 'person';
 
@@ -116,8 +116,10 @@ export function getItem(board, id) {
     throw new Refused('ITEM_MOVED', `item #${id} moved to ${target.destinationHandle ?? target.destinationBoardId}#${target.destinationItemId}`);
   }
   const stored = itemById(board, id);
-  const item = { ...current(board, stored), item_stage: itemStage(stored, pulledGateRecords(board.db, id).get(id) ?? handoffRecord(board.db, id) ?? null,
+  const pulled = pulledGateRecords(board.db, id, Date.parse(now(board))).get(id);
+  const item = { ...current(board, stored), item_stage: itemStage(stored, pulled ?? handoffRecord(board.db, id) ?? null,
     Boolean(board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_kind='merged' LIMIT 1").get(id)), now(board)) };
+  if (item.item_stage === 'in the gate' && pulled?.noRunner) item.item_gate_runner = 'none';
   const effectiveHead = effectiveItemHead(board, item);
   const baseline = itemCheckBaseline(board, item);
   const source = outsideSource(board, id);
@@ -283,7 +285,7 @@ export function laneHolds(board) {
   return board.db.prepare('SELECT * FROM hold ORDER BY hold_lane').all();
 }
 
-export { rowDecisions } from "../../../../spec/index.js";
+export { rowDecisions } from "../../../../spec/light.js";
 
 import { agentAt } from './read/light.js';
 import { rowDrafts } from './read/light.js';
@@ -469,7 +471,10 @@ export function proofReceipts(board, itemId) {
 }
 
 
-/** Read the adjacent batch receipt, never a per-item scan of all landing history. */
+/**
+ * Read the adjacent batch receipt, never a per-item scan of all landing history. A pulled landing writes no batch
+ * receipt, only a main-moved event naming its land job, so its base is that job's recorded main [#7751].
+ */
 function activityBatchBase(board, event) {
   const detail = activityEventDetail(event);
   if (!detail) return null;
@@ -478,7 +483,11 @@ function activityBatchBase(board, event) {
       json_extract(CASE WHEN json_valid(event_detail) THEN event_detail ELSE '{}' END,'$.batch.base') AS base,
       json_extract(CASE WHEN json_valid(event_detail) THEN event_detail ELSE '{}' END,'$.batch.tip') AS tip
       FROM event WHERE event_kind='landing_batch' AND event_id${operator}? ORDER BY event_id ${order} LIMIT 1`).get(event.event_id);
-    if (batch?.id === detail.batch && batch.tip === detail.sha && /^[a-f0-9]{40}$/u.test(batch.base ?? '')) return batch.base;
+    if (batch && batch.id === detail.batch && batch.tip === detail.sha && /^[a-f0-9]{40}$/u.test(batch.base ?? '')) return batch.base;
+  }
+  if (typeof detail.job === 'string' && !detail.batch) {
+    const base = board.db.prepare('SELECT job_base FROM job WHERE job_id = ?').get(detail.job)?.job_base;
+    if (/^[a-f0-9]{40}$/u.test(base ?? '')) return base;
   }
   return null;
 }
@@ -498,7 +507,13 @@ export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workin
     (SELECT COALESCE(MAX(event_id),0) FROM event) AS cursor,
     (SELECT COALESCE(MAX(shout_id),0) FROM shout) AS shoutCursor`).get();
   // A first read starts at the head: nothing before it is owed, and reading it all is the cost (#6152).
-  if (fromHead) { after = cursor; newsAfter = cursor; }
+  // Board-wide news is the session-start digest's own stream, so a fresh seat still owes itself the latest twenty; reading them
+  // once through the kind index keeps the first read cheap and keeps a news shout from arriving a second time as an ordinary message.
+  if (fromHead) {
+    after = cursor;
+    const oldest = board.db.prepare("SELECT event_id FROM event WHERE event_kind='shout_news' AND event_id<=? ORDER BY event_id DESC LIMIT 1 OFFSET 19").get(cursor);
+    newsAfter = oldest ? oldest.event_id - 1 : 0;
+  }
   const items = listItems(board, { all: true });
   const builds = items.filter(item => item.item_status === 'claimed' && item.item_owner === agentId);
   const observed = typeof workingFiles === 'function' ? workingFiles(builds) : workingFiles;
@@ -516,7 +531,28 @@ export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workin
     json_type(CASE WHEN json_valid(event_detail) THEN event_detail ELSE 'null' END) != 'object' OR
     json_extract(CASE WHEN json_valid(event_detail) THEN event_detail ELSE '{}' END, '$.shout') IN (SELECT value FROM json_each(?)))`;
   const messageIds = JSON.stringify(messages.map(message => message.shout_id));
+  // A fresh seat's unread messages still owe it their answers and passes, which sit before the head it starts at (#6152).
+  if (fromHead && messages.length) {
+    const first = board.db.prepare(`SELECT MIN(event_id) AS id FROM event WHERE event_kind IN ('shout','pass','answer') AND event_id<=?
+      AND json_extract(CASE WHEN json_valid(event_detail) THEN event_detail ELSE '{}' END, '$.shout') IN (SELECT value FROM json_each(?))`).get(cursor, messageIds).id;
+    if (first !== null) after = Math.min(after, first - 1);
+  }
+  // A fresh seat still owes itself the typed requests filed to it and answered to it before its first read: they are open
+  // obligations, not history, so the head start must not drop them (the coordinator's queue, a requester's answers) [B3,N26,C7].
+  let owedFrom = Infinity;
+  const owedTyped = [];
+  if (fromHead) {
+    const answered = new Set();
+    const typed = board.db.prepare("SELECT * FROM event WHERE event_kind IN ('typed-request','typed-request-answer') AND event_id<=? ORDER BY event_id").all(cursor);
+    for (const event of typed) if (event.event_kind === 'typed-request-answer') answered.add(activityEventDetail(event)?.requestId);
+    for (const event of typed) {
+      const detail = activityEventDetail(event);
+      if (event.event_kind === 'typed-request' ? agentId === 'coordinator' && !answered.has(event.event_id) : detail?.requester === agentId) owedTyped.push(event);
+    }
+    if (owedTyped.length) owedFrom = owedTyped[0].event_id - 1;
+  }
   const rows = new Map();
+  for (const event of owedTyped) rows.set(event.event_id, event);
   // Read the new events once by id range and keep the wanted items' ones: an advanced cursor leaves a handful of rows,
   // where probing the item index once per wanted item cost tens of milliseconds on a board of a thousand items.
   const wantedIds = new Set(wanted);
@@ -557,7 +593,7 @@ export function agentActivity(board, agentId, { after = 0, newsAfter = 0, workin
     }
   }
   return { ...projectAgentActivity({ agent, interests, events: [...rows.values()].toSorted((a, b) => a.event_id - b.event_id),
-    shouts: messages, changesForMain, sessionStart, after, newsAfter, cursor }), shoutCursor, newsShouts: newsIds };
+    shouts: messages, changesForMain, sessionStart, after: Math.min(after, owedFrom), newsAfter, cursor }), shoutCursor, newsShouts: newsIds };
 }
 
 /**

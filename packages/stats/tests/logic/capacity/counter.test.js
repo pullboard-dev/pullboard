@@ -202,7 +202,7 @@ test('landing outcomes match accepted source episodes and deduplicate returns an
 });
 
 
-test('unclassified accepted exits censor landing outcome coverage instead of manufacturing zero risk [R1,R2]', () => {
+test('unclassified accepted exits are right-censored: kept as unknown coverage and dropped from the rate [R1,R2]', () => {
   for (const kind of ['reopen', 'refreeze', 'escalate', 'withdraw']) {
     const box = observer();
     claimed(box);
@@ -211,8 +211,15 @@ test('unclassified accepted exits censor landing outcome coverage instead of man
     box.send(kind, 4, 1, { commit: A }, 'coordinator');
     assert.deepEqual(box.samples('landingOutcome').map(row => row.failed), [null], kind);
     const fitted = fitCapacity([...box.samples(), ...successfulOutcome()], { from: at(0), to: at(24) });
-    assert.equal(fitted.routes[0].landingRisk.probability, null, 'known successes cannot erase censored exits');
+    assert.equal(fitted.routes[0].landingRisk.unknown, 1, 'the censored exit stays visible as unknown coverage');
+    assert.equal(fitted.routes[0].landingRisk.probability, 0, 'the rate counts only classified outcomes');
   }
+  const stale = observer();
+  claimed(stale);
+  stale.send('submit', 2, 1, submitted(A, 100));
+  stale.send('accept', 3, 1, { commit: A }, 'reviewer');
+  stale.send('reopen', 4, 1, { commit: A, cause: 'refusal:REOPENED', causeDerivation: { kind: 'reopen-category', coarse: true } }, 'coordinator');
+  assert.deepEqual(stale.samples('landingOutcome').map(row => [row.failed, row.cause]), [[true, 'stale']], 'a categorised coordinator reopen is a typed stale return');
   const pending = observer();
   claimed(pending);
   pending.send('submit', 2, 1, submitted(A, 100));

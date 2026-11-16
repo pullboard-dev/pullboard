@@ -33,7 +33,8 @@ export async function assertShortInit(t, sandbox) {
         box.env.PULLBOARD_VIEW_PORT = 'not-a-port';
       }
       const args = ['init', ...(mode === 'blueprint' ? ['--blueprint', 'web-app'] : []), ...(verbose ? ['--verbose'] : [])];
-      const result = box.run(repo, ...args);
+      // In-process production dispatch proves the same output; a node start-up per init cost seconds on a loaded runner [C7].
+      const result = await box.runLocal(repo, ...args);
       assert.equal(result.code, 0, result.err || result.out);
       const visible = result.out + result.err;
       const lines = visible.split(/\r?\n/u).filter(line => line.trim());

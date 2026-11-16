@@ -16,17 +16,17 @@ import { rootAllowed } from '../../codemap/light.js';
 import { strayNextStep } from '../../codemap/light.js';
 import { commonJsIn } from '../index.js';
 import { importsIn } from '../index.js';
-import { runFixtureGit } from '../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from './fixtures/child.js';
 
 /** A private repository with one app, one package and today's kinds of root strays. */
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-root-allowlist-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root });
-  /** Write one private file beneath this fixture. */
-  const put = (file, source) => { mkdirSync(dirname(join(root, file)), { recursive: true }); writeFileSync(join(root, file), source); };
+  /** Write one private file beneath this fixture and stage it: the cell lint inventory lists staged files only. */
+  const put = (file, source) => { mkdirSync(dirname(join(root, file)), { recursive: true }); writeFileSync(join(root, file), source); runFixtureGit(['add', '--', file], { cwd: root }); };
   /** Remove one private file. */
-  const remove = file => rmSync(join(root, file), { force: true });
+  const remove = file => { rmSync(join(root, file), { force: true }); runFixtureGit(['rm', '-q', '--cached', '--ignore-unmatch', '--', file], { cwd: root }); };
   put('package.json', JSON.stringify({ type: 'module', imports: { '#*': './packages/*/index.js' } }));
   put('apps/demo/index.js', "import { value } from '#sample'; console.log(value);\n");
   put('packages/sample/index.js', 'export const value = 1;\n');

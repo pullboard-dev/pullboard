@@ -8,12 +8,14 @@ import { join } from 'node:path';
 import { ROLES } from '../../../../index.js';
 
 const INITIALIZED_REPO_FILES = [
+  ...Object.values(ROLES).map(name => `.agents/skills/${name}/SKILL.md`),
   '.claude/settings.json',
   ...Object.values(ROLES).map(name => `.claude/skills/${name}/SKILL.md`),
   '.codex/config.toml',
   '.codex/hooks.json',
   '.codex/rules/pullboard.rules',
   '.githooks/commit-msg',
+  '.githooks/post-commit',
   '.githooks/pre-commit',
   '.githooks/pre-merge-commit',
   '.githooks/pre-push',
@@ -21,6 +23,7 @@ const INITIALIZED_REPO_FILES = [
   '.mcp.json',
   'AGENTS.md',
   'CLAUDE.md',
+  'COORDINATOR.md',
 ];
 
 /** Commit only the exact setup files `init` created, through the fixture's installed hooks. */

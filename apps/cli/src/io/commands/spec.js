@@ -124,6 +124,7 @@ import {
   pathToFileURL,
 } from 'node:url';
 import {
+  citationBoardFindings,
   citations,
   coordinatorFile,
   idList,
@@ -288,6 +289,12 @@ export async function specCommand(io, { first, second, rest, values }) {
         revisionIds.forEach(id => io.say(`${id}: ${first === 'approve' ? 'approved, pending apply' : 'declined; approved row unchanged'}`));
         return 0;
       }
+      // A gate file that was committed and then removed is a lost test: approving its row would turn spec check red for every agent [S4].
+      if (first === 'approve') {
+        const asked = { rows: spec.rows.filter((row) => ids.includes(row.id)).map((row) => ({ ...row, status: 'approved', tier: 'must' })) };
+        const lost = missingGateFindings(asked, ctx.info.root).find((finding) => finding.level === 'error');
+        if (lost) throw new Refused('GATE_FILE_MISSING', `${lost.id}: ${lost.message}`, 'restore the gate file or revise the row to name its new home, then approve again');
+      }
       // An approve keeps a pending answer: plain, it approves the answered text; --text says what it replaces.
       const signedDecision = personSigning(board).signed;
       const kept = first === 'approve' ? pendingAnswers(ctx.info.root, ctx.config, ids, store.rowDecisions(board)) : new Map();
@@ -362,7 +369,9 @@ export async function specCommand(io, { first, second, rest, values }) {
       if (!ctx.info.isMain || me.id !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'only the coordinator applies row decisions; ask your coordinator to run pullboard spec apply');
       // Every automatic proposal is preflighted before any draft or decision changes a file.
       const passkeyDecision = record => verifiedPasskeyRowDecision(board, record);
-      planRowApply(ctx.info.root, ctx.config, store.rowDecisions(board), { passkeyDecision }, { loadDoctrine });
+      const first = planRowApply(ctx.info.root, ctx.config, store.rowDecisions(board), { passkeyDecision, holdStale: true }, { loadDoctrine });
+      // Stale decisions are held and named; the command fails only when nothing at all could apply [B2].
+      if (first.held.length && !first.records.length) throw new Refused('STALE_ROW_DECISION', first.held.map(held => `${held.why}`).join('; '), first.held.map(held => held.next).join('; '));
       assertNoCitedSpecDecline(store.rowDecisions(board), store.listItems(board, { all: true }));
       const automatic = planAutomaticRigorApply(ctx.info.root, ctx.config, store.rowDrafts(board), store.rowDecisions(board));
       writeRowApply(ctx.info.root, automatic);
@@ -371,11 +380,11 @@ export async function specCommand(io, { first, second, rest, values }) {
       const drafted = pendingRowDrafts(loadSpec(ctx.info.root, ctx.config), store.rowDrafts(board)).map((draft) => draftRow(ctx.info.root, ctx.config, { target: 'spec', text: draft.text, gate: draft.gate, tier: draft.tier, section: /^(.*?)\d+$/u.exec(draft.id)[1], id: draft.id }, { loadDoctrine }));
       drafted.forEach((row) => io.say(`${row.file}: ${row.id} drafted from a lane, for the person to approve`));
       clashingRowDrafts(loadSpec(ctx.info.root, ctx.config), store.rowDrafts(board)).forEach((draft) => io.say(`${ctx.config.spec}: ${draft.id} holds other text, so the draft by ${draft.by} was not written; shout ${draft.by} to run pullboard spec draft again and cite the new id`));
-      const preflight = planRowApply(ctx.info.root, ctx.config, store.rowDecisions(board), { passkeyDecision }, { loadDoctrine });
+      const preflight = planRowApply(ctx.info.root, ctx.config, store.rowDecisions(board), { passkeyDecision, holdStale: true }, { loadDoctrine });
       let preparedApply;
       const applied = await ordered(ctx, board, 'applyRowDecisions', [{ agentId: me.id, events: preflight.records.map(record => record.event) }], {
         prepareInWriter(currentBoard) {
-          const plan = planRowApply(ctx.info.root, ctx.config, store.rowDecisions(currentBoard), { passkeyDecision }, { loadDoctrine });
+          const plan = planRowApply(ctx.info.root, ctx.config, store.rowDecisions(currentBoard), { passkeyDecision, holdStale: true }, { loadDoctrine });
           try {
             writeRowApply(ctx.info.root, plan);
             const args = { agentId: me.id, events: plan.records.map(record => record.event) };
@@ -394,7 +403,8 @@ export async function specCommand(io, { first, second, rest, values }) {
       const verifications = planRowVerificationApply(ctx.info.root, ctx.config, store.rowVerifications(board), store.rowDecisions(board));
       writeRowApply(ctx.info.root, verifications);
       verifications.applied.forEach(id => io.say(`${ctx.config.spec}: ${id} verifier verdict applied`));
-      io.result?.({ applied, verifications: verifications.applied, files: [...plan.files, ...verifications.files].map((file) => file.file) });
+      first.held.forEach(held => io.say(`${held.id} held: ${held.why}; next: ${held.next}`));
+      io.result?.({ held: first.held.map(({ id, why, next }) => ({ id, why, next })), applied, verifications: verifications.applied, files: [...plan.files, ...verifications.files].map((file) => file.file) });
       applied.forEach((record) => io.say(`${record.file}: ${record.id} ${record.decision === 'approve' ? 'approved' : 'wont'}${record.reason ? `: ${record.reason}` : ''}`));
       if (!applied.length && !drafted.length && !verifications.applied.length) io.say('no pending row decisions');
       else io.say('stage and commit the changed row files and any .pullboard/signoffs.jsonl receipts');
@@ -476,6 +486,7 @@ export async function specCommand(io, { first, second, rest, values }) {
       errors += fileErrors;
       messages.push(`${name}: ${parsed.rows.length} rows, ${fileErrors} errors, ${findings.length + lost.length - fileErrors} warnings`);
     }
+    errors += citationBoardFindings(ctx.info.root, spec).reduce((count, finding) => (io.say(finding.message), count + (finding.level === 'error' ? 1 : 0)), 0);
     const unnamed = productProblems(ctx.config, spec);
     unnamed.forEach((problem) => messages.push(`${ctx.config.spec}: error: ${problem}`));
     errors += unnamed.length;

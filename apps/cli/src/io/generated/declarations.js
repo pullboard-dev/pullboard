@@ -8,13 +8,14 @@ import { ID_RE } from '../../../../../packages/spec/index.js';
 import { STATUSES } from '../../../../../packages/spec/index.js';
 import { TIERS } from '../../../../../packages/spec/index.js';
 import { parseSpec } from '../../../../../packages/spec/index.js';
+import { storeName } from '../store-names.js';
 
 /** The declaration files whose names the layout move shortened; the table names stay as the guides cite them. */
 const DECLARATION_FILES = { 'parser-fields': 'fields', 'upgrade-rules': 'rules', 'snapshot-files': 'snapshot' };
 
 /** Read data-only source declarations, never Markdown output as generator input. */
 function declaration(root, name) {
-  const path = join(root, `apps/cli/src/io/documentation/${DECLARATION_FILES[name] ?? name}.json`);
+  const path = join(root, `apps/cli/src/io/documentation/${storeName(DECLARATION_FILES[name] ?? name)}`);
   if (!lstatSync(path).isFile()) throw new Error(`${name} documentation must be a regular source declaration`);
   return JSON.parse(readFileSync(path, 'utf8'));
 }
@@ -62,8 +63,8 @@ function eventTable(root) {
     const row = JSON.parse(readFileSync(join(directory, file), 'utf8'));
     const kind = row?.kind;
     if (typeof kind !== 'string' || !/^[a-z][a-z0-9_-]*$/u.test(kind)) throw new Error(`invalid event identity ${file}`);
-    const oldPath = `${LEGACY_EVENT_DIRECTORY}/${kind}.json`;
-    const expected = Object.hasOwn(map, oldPath) ? map[oldPath] : `${EVENT_DIRECTORY}/${kind}.json`;
+    const oldPath = `${LEGACY_EVENT_DIRECTORY}/${storeName(kind)}`;
+    const expected = Object.hasOwn(map, oldPath) ? map[oldPath] : `${EVENT_DIRECTORY}/${storeName(kind)}`;
     const actual = `${EVENT_DIRECTORY}/${file}`;
     if (typeof expected !== 'string' || !expected.startsWith(`${EVENT_DIRECTORY}/`) || expected.split('/').some(part => !part || part === '.' || part === '..')
       || actual !== expected || kinds.has(kind) || !Array.isArray(row.entries) || !row.entries.length) throw new Error(`invalid event identity ${file}`);

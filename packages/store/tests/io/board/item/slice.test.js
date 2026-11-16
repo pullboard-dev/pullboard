@@ -11,13 +11,13 @@ import { cellClaim } from '../../../fixtures/cell.js';
 import { cellItem } from '../../../fixtures/cell.js';
 import { cellProject } from '../../../fixtures/cell.js';
 import { cellSeat } from '../../../fixtures/cell.js';
-import { FIXTURE_MODEL_EARLIER } from '../../../../../../apps/cli/tests/fixtures/testkit.js';
+import { FIXTURE_MODEL_EARLIER } from '../../../fixtures/cell.js';
 
 test('holder and coordinator create slices, others are refused, and old engines cannot replay them [C7,B26,H16]', t => {
-  const project = cellProject(t);
+  const project = cellProject(t, { real: true });
   const web = join(project.dir, 'web');
   project.git(project.repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
-  const board = cellBoard(t, project.boardFile, undefined, { gitRoot: project.repo });
+  const board = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: project.repo });
   cellSeat(board, { lane: 'coordinator', path: project.repo });
   const holderSeat = cellSeat(board, { lane: 'web', path: web });
   const parent = cellItem(board, { lane: 'web', title: 'Parent', criterion: 'The whole feature works', check: 'true', route: 'strong' }).item_id;

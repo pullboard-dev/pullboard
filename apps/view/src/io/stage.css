@@ -11,9 +11,10 @@
 /* One map from stage word to token: Verified and Landing share the done green, Merged is solid. */
 .item-stage[data-stage=merged], .item-stage[data-stage=verified], .item-stage[data-stage=landing] { --stage: var(--stage-merged); }
 .item-stage[data-stage=in-review] { --stage: var(--stage-review); } .item-stage[data-stage=building] { --stage: var(--stage-building); }
-.item-stage[data-stage=ready] { --stage: var(--stage-ready); } .item-stage[data-stage=gated] { --stage: var(--stage-gated); }
-.item-stage[data-stage] > .stage-line > .stage-word, .item-stage[data-stage] .chip.item-status { display: inline-flex; justify-content: center; min-width: 84px; padding: 1px var(--space-3); border-radius: var(--radius-pill); background: color-mix(in oklab, var(--stage) 16%, var(--surface)); color: color-mix(in oklab, var(--stage) 60%, var(--ink)); font: 600 var(--text-xs)/1.4 var(--sans); letter-spacing: normal; white-space: nowrap; }
-.item-stage[data-stage] .chip.item-status .stage-word { color: inherit; font: inherit; }
+.item-stage[data-stage=ready] { --stage: var(--stage-ready); } .item-stage[data-stage=blocked] { --stage: var(--stage-gated); }
+/* The word paints the chip wherever it sits, so a row's chip and the detail's read the same; the compact row's wrapper only holds it [N26]. */
+.item-stage[data-stage] > .stage-line > .stage-word, .item-stage[data-stage] .chip.item-status .stage-word { display: inline-flex; justify-content: center; min-width: 0; padding: 0 var(--space-2); border-radius: var(--radius-chip); background: color-mix(in oklab, var(--stage) 16%, var(--surface)); color: color-mix(in oklab, var(--stage) 60%, var(--ink)); font: 500 var(--text-2xs)/18px var(--sans); letter-spacing: normal; white-space: nowrap; }
+.item-stage[data-stage] .chip.item-status { display: inline-flex; padding: 0; background: none; color: inherit; }
 /* The Roadmap reads its row like the mockup: what is happening, any mark, then the stage chip. */
 .roadmap-status .item-stage { flex-direction: row-reverse; align-items: center; gap: var(--space-3); }
 .roadmap-status .stage-line { flex-wrap: nowrap; flex-direction: row-reverse; }
@@ -34,27 +35,34 @@
 /* A shared chip track keeps every Items row the same height, with or without marks. */
 #chain .item-stage { height: var(--space-6); justify-content: center; }
 /* Marks precede the compact chip so the seat and its age retain their shared right edge. */
-#chain .row-side .item-stage { grid-area: auto; align-items: flex-end; }
+#chain .row-side .item-stage { grid-area: auto; align-items: flex-end; max-width: none; overflow: visible; }
 #chain .row-side .stage-line { flex-direction: row-reverse; justify-content: flex-start; }
 .claim-overlap { display: block; color: var(--warn); font: 600 var(--text-2xs)/var(--leading-snug) var(--sans); }
 
 /* Roadmap and Activity match their approved mockups (#2080); stage hues come from the shared --stage-* tokens. */
 .roadmap-panel h2 { margin: 0 0 var(--space-3); font: 600 var(--text-xs) var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
-.roadmap-last-shipped > span { font: 600 var(--text-xs) var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
-.roadmap-release-progress { background: var(--line); }
 .roadmap-has-summary .roadmap-summary-row { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
 /* One line per row: who or why, the sent-back mark, then a plain sans stage chip. */
 .milestone-item { grid-template-columns: 22px 20px minmax(0, 1fr) auto 86px; }
 .milestone-item .roadmap-status, .milestone-item .item-stage, .milestone-item .stage-line { display: contents; }
-.milestone-item .stage-word { grid-column: 5; grid-row: 1; justify-self: stretch; text-align: center; padding: 1px 9px; border-radius: var(--radius-pill); font: 600 12px var(--sans); white-space: nowrap; color: color-mix(in oklab, var(--c) 72%, var(--ink)); background: color-mix(in oklab, var(--c) 16%, var(--surface)); }
-.milestone-item .item-stage[data-stage="gated"] .stage-word { background: none; border: 1px dashed var(--line); color: var(--ink-muted); }
+.milestone-item .stage-word { grid-column: 5; grid-row: 1; justify-self: end; text-align: center; padding: 0 var(--space-2); border-radius: var(--radius-chip); font: 500 var(--text-2xs)/18px var(--sans); white-space: nowrap; color: color-mix(in oklab, var(--c) 72%, var(--ink)); background: color-mix(in oklab, var(--c) 16%, var(--surface)); }
+/* Sheet marks: Blocked is the grey chip, Held is dashed with its pause, Sent back is the red soft mark with its return arrow, all 4 px. */
+.milestone-item .item-stage[data-stage="blocked"] .stage-word { background: var(--stage-blocked-soft); color: var(--stage-blocked-ink); }
 .milestone-item .stage-marks { grid-column: 4; grid-row: 1; display: inline-flex; gap: var(--space-1); }
-.milestone-item .stage-mark { font: 600 11.5px var(--sans); padding: 0 7px; border-radius: var(--radius-pill); background: color-mix(in oklab, var(--mark-back) 16%, var(--surface)); color: color-mix(in oklab, var(--mark-back) 72%, var(--ink)); }
-.milestone-item .stage-mark.gate { background: none; border: 1px dashed var(--line); color: var(--ink-muted); }
+.milestone-item .stage-mark { display: inline-flex; align-items: center; gap: 3px; font: 500 var(--text-2xs)/18px var(--sans); padding: 0 var(--space-2); border-radius: var(--radius-chip); background: var(--mark-back-soft); color: var(--mark-back); white-space: nowrap; }
+.milestone-item .stage-mark.gate { background: none; outline: 0; border: var(--border-dashed-strong); line-height: 16px; color: var(--ink-muted); }
+.milestone-item .stage-mark.gate::before { content: ''; width: 11px; height: 11px; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 4v8M10 4v8'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 4v8M10 4v8'/%3E%3C/svg%3E") center / contain no-repeat; }
+/* Blocked-by #n is plain context text beside the chip, never a boxed pill; a long path in a title stays on the row and ends in an ellipsis. */
+.milestone-item .roadmap-after { gap: var(--space-1); padding: 0; border: 0; background: none; }
+.milestone-title code.inline.long, .milestone-title code { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; word-break: normal; vertical-align: bottom; }
 .milestone-item .roadmap-stage-chip { grid-column: 5; font-family: var(--sans); letter-spacing: normal; }
 @media (max-width: 760px) { .milestone-item { grid-template-columns: 22px 20px minmax(0, 1fr) 86px; } .milestone-item .stage-marks { display: none; } .milestone-item .stage-word, .milestone-item .roadmap-stage-chip { grid-column: 4; } }
+/* A release's landed items come one page of 50 at a time, with a quiet one-line page control (#6841). */
+.roadmap-pager { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-top: var(--border-row); color: var(--ink-muted); font: var(--text-xs) var(--mono); white-space: nowrap; }
+.roadmap-pager .roadmap-page-of { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.roadmap-page-step { padding: 0 var(--space-3); border: var(--border); border-radius: var(--radius-xs); background: var(--surface); color: var(--ink); font: 500 var(--text-xs)/22px var(--sans); cursor: pointer; }
+.roadmap-page-step:disabled { color: var(--ink-faint); cursor: default; }
 /* The release header reads title, rate line, full-width bar, one legend line; its note is plain text, never a tinted bar. */
-.roadmap-has-summary .roadmap-forecast { margin-bottom: var(--space-4); font-size: var(--text-sm); }
 .roadmap-has-summary .roadmap-summary-legend { gap: var(--space-2) var(--space-6); }
 .roadmap-has-summary .milestone-note { padding: 0; background: none; }
 /* Activity rows (#2080): overrides of main.css rules, kept here because main.css is not edited. */
@@ -62,3 +70,28 @@
 #activity .activity-who[title] { text-decoration: none; }
 #activity .activity-say a.activity-landed.ref[data-go] { font-weight: 600; }
 #activity a.activity-about.ref[data-go] { font: 500 var(--text-xs) var(--sans); }
+/* After chips share one group that ends in an ellipsis inside the row; Rulings are one line each, never a stray comma (#7303, #7311). */
+.milestone-item .roadmap-afters { display: block; flex: 0 1 auto; min-width: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.milestone-item .roadmap-afters .roadmap-after { display: inline; margin-right: var(--space-2); }
+/* Inline, not inline-flex: only inline text can end in the ellipsis, so a chip cut at the row edge never shows a bare "aft" (#7400). */
+.milestone-item .roadmap-afters .roadmap-after svg { display: inline-block; vertical-align: -2px; margin-right: var(--space-1); }
+.roadmap-page-sizes { display: inline-flex; flex: none; gap: var(--space-1); }
+.roadmap-page-size { padding: 0 var(--space-2); border: var(--border); border-radius: var(--radius-chip); background: var(--surface); color: var(--ink-muted); font: 500 var(--text-xs)/22px var(--sans); cursor: pointer; }
+.roadmap-page-size[aria-pressed="true"] { color: var(--ink); background: var(--surface-2); font-weight: 600; }
+/* Roadmap release header (#7547): the Dashboard release card's header, on the ground above its card, no chevron. */
+.milestone.roadmap-has-summary { background: none; border: 0; padding: 0; margin-top: var(--space-4); }
+.milestone.roadmap-has-summary:first-child { margin-top: 0; }
+.roadmap-has-summary > .release-header { margin: 0 0 var(--space-3); padding: 0 var(--space-1); }
+.roadmap-has-summary .release-header-top { grid-template-rows: auto; align-items: end; margin-bottom: 10px; }
+.roadmap-has-summary .release-header-top .release-name { font: 700 17px/1.3 var(--sans); color: var(--ink); }
+.roadmap-has-summary .release-name .dash-ver { color: var(--ink-faint); font-weight: 600; margin-right: var(--space-3); }
+.roadmap-has-summary .release-header-top > .roadmap-left { grid-column: 2; grid-row: 1; display: block; text-align: right; }
+.roadmap-has-summary .roadmap-left > b { display: block; font: 700 17px/1.3 var(--sans); font-variant-numeric: tabular-nums; }
+.roadmap-has-summary .roadmap-left > span { font: var(--text-xs) var(--sans); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.roadmap-has-summary .roadmap-summary-row { margin: 0; }
+.roadmap-has-summary .roadmap-summary-bar { height: 10px; margin: 0; }
+.roadmap-has-summary .roadmap-summary-legend { margin: 10px 0 0; gap: var(--space-2) var(--space-5); font-size: 12.5px; }
+.roadmap-has-summary .roadmap-summary-swatch { width: 10px; height: 10px; border-radius: var(--radius-bar); }
+.roadmap-has-summary .roadmap-summary-legend > [data-summary-state] { gap: 7px; font-size: 12.5px; }
+.roadmap-has-summary > .milestone-body { background: var(--surface); border: var(--border); border-radius: var(--radius-card); padding: var(--space-4) var(--space-5) var(--space-3); min-width: 0; }
+.roadmap-has-summary > .milestone-body[hidden] { display: none; }

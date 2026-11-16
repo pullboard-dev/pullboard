@@ -1,5 +1,5 @@
 /* Shared Doctrine redesign details for authenticated and exported views. */
-.rule-source-chip { display: inline-flex; align-items: center; width: fit-content; max-width: 100%; padding: 0 var(--space-2); border-radius: var(--radius-pill); font-size: var(--text-2xs); line-height: var(--leading-body); }
+.rule-source-chip { display: inline-flex; align-items: center; width: fit-content; max-width: 100%; padding: 0 var(--space-2); border-radius: var(--radius-chip); font-size: var(--text-2xs); line-height: var(--leading-body); }
 .rule-source-chip.standard { background: var(--blue-soft); color: var(--blue); }
 .rule-source-chip.repo { background: var(--surface-2); color: var(--ink-muted); }
 .doctrine-check { color: var(--ink-muted); font-size: var(--text-xs); }
@@ -9,6 +9,5 @@
 .doctrine-section-head { align-items: center; }
 .doctrine-review-count { color: var(--ink-muted); font-size: var(--text-xs); white-space: nowrap; }
 .doctrine-standard-note { margin: 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); background: var(--surface-2); color: var(--ink-muted); font-size: var(--text-xs); }
-#doctrine-detail h2 { margin: 0; font-size: var(--text-spec-title); line-height: 1.5; }
 #doctrine-detail .tier-must, #doctrine-detail .tier-aim { background: none; color: var(--ink-muted); }
-#doctrine-detail .tier-must { border: 1px solid var(--line-strong); }
+#doctrine-detail .tier-must { border: var(--border-strong); }

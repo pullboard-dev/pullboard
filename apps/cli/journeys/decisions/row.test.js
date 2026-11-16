@@ -8,6 +8,7 @@ import {
   runFixtureGit,
 } from "../../tests/fixtures/child.js";
 import { performance } from 'node:perf_hooks';
+import { pathToFileURL } from 'node:url';
 import {
   chmodSync,
   existsSync,
@@ -35,6 +36,8 @@ import {
 } from "../../../../packages/kernel/index.js";
 import { fetchFresh } from "../../tests/fixtures/http.js";
 import { runCliInProcess } from "../../tests/fixtures/process.js";
+import { journeyCall } from "../../tests/fixtures/e2e.js";
+import { main as viewMain } from "../../tests/fixtures/native.js";
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const SPEC_FILE = 'SPEC.md';
@@ -104,7 +107,9 @@ function sandbox() {
   }
   /** Run the production CLI dispatch in this process with a clean person environment and optional explicit markers. */
   async function runLocal(cwd, args, extraEnv = {}) {
-    const result = await runCliInProcess(args, { cwd, env: { ...personEnvironment(env), ...FIXTURE_GIT_ENV, ...extraEnv } });
+    const callEnv = { ...personEnvironment(env), ...FIXTURE_GIT_ENV, ...extraEnv };
+    // PULLBOARD_JOURNEY_MODE=process answers the same call as a real process, so the gate's parity check can compare the two (#8276).
+    const result = await journeyCall({ dir, env: callEnv, cwd, args, inProcess: () => runCliInProcess(args, { cwd, env: callEnv }), bin: BIN });
     return { status: result.status, stdout: result.stdout, stderr: result.stderr };
   }
   return { dir, env, git, runLocal };
@@ -148,8 +153,10 @@ async function project({ spec = BASE_SPEC, doctrine = BASE_DOCTRINE } = {}) {
   mkdirSync(join(root, 'web'));
   writeFileSync(join(root, SPEC_FILE), spec);
   writeFileSync(join(root, DOCTRINE_FILE), doctrine);
+  // Git plumbing, which runs no hook: this commit is setup, and the pre-commit and commit-msg hooks each launched a Node child (#8362).
   box.git(root, 'add', '-A');
-  box.git(root, 'commit', '-q', '-m', 'chore: set up row decision fixture');
+  const seed = box.git(root, 'commit-tree', box.git(root, 'write-tree').trim(), '-m', 'chore: set up row decision fixture').trim();
+  box.git(root, 'update-ref', 'HEAD', seed);
   const fixture = { ...box, root };
   fixture.web = await addWorktree(fixture, 'web', 'web/one');
   return fixture;
@@ -186,8 +193,8 @@ function sourceRow(box, file, id) {
   return row;
 }
 
-/** Start the private real view with clean person credentials and expose authenticated requests. */
-async function startView(t, box, extraEnv = {}) {
+/** Start the private real view as a child process, for the one case that kills it and reads its stderr tail. */
+async function startViewProcess(t, box, extraEnv = {}) {
   const args = [BIN, 'view', '--no-open', '--port', '0', '--json'];
   const env = { ...personEnvironment(box.env), ...extraEnv, CODEX_SHELL: 'private-agent-view-host', PULLBOARD_VIEW_FOREGROUND: '1' };
   const startedAt = performance.now();
@@ -288,6 +295,71 @@ async function startView(t, box, extraEnv = {}) {
   return request;
 }
 
+/** Give this process exactly the given environment and return the function that puts the previous one back. */
+function applyEnvironment(env) {
+  const saved = { ...process.env };
+  for (const key of Object.keys(process.env)) delete process.env[key];
+  Object.assign(process.env, env);
+  return () => {
+    for (const key of Object.keys(process.env)) delete process.env[key];
+    Object.assign(process.env, saved);
+  };
+}
+
+/**
+ * Start the production view in this process on a free loopback port and expose authenticated requests.
+ * Why in-process: a view server child cost seconds to start and was the slowest part of every view case [C7].
+ */
+async function startView(t, box, extraEnv = {}) {
+  const env = { ...personEnvironment(box.env), ...extraEnv, CODEX_SHELL: 'private-agent-view-host', PULLBOARD_VIEW_FOREGROUND: '1' };
+  let stdout = '';
+  let stderr = '';
+  let timer;
+  const restore = applyEnvironment(env);
+  let pending;
+  let address;
+  try {
+    const ready = new Promise((resolveReady, rejectReady) => {
+      const fail = (detail) => rejectReady(new Error(`${detail}; stderr:\n${stderr}`));
+      timer = setTimeout(() => fail('view readiness deadline (10000ms) expired'), 10_000); // budget: hang ceiling for private view readiness; no throughput claim.
+      pending = viewMain(['view', '--no-open', '--port', '0', '--json'], {
+        cwd: box.root,
+        stdin: process.stdin,
+        stdout: { isTTY: false, write(text) {
+          stdout += String(text);
+          try { resolveReady(JSON.parse(stdout)); } catch { /* Wait until the one JSON document is complete. */ }
+          return true;
+        } },
+        stderr: { isTTY: false, write(text) { stderr += String(text); return true; } },
+      }).then((code) => { fail(`view exited before readiness with code ${code}`); return code; }, (error) => { fail(`view failed before readiness: ${error.message}`); });
+    });
+    address = new URL((await ready).url);
+  } finally {
+    clearTimeout(timer);
+    restore();
+  }
+  const key = address.searchParams.get('k');
+  assert.ok(key, 'the private view URL includes its one-use request credential');
+  t.after(async () => {
+    process.emit('SIGTERM');
+    await pending;
+  });
+  /** Send a bounded authenticated request to the live view adapter, which runs its commands in this process. */
+  async function request(path, options = {}) {
+    const back = applyEnvironment(env);
+    try {
+      return await fetchFresh(new URL(path, address.origin), {
+        ...options,
+        headers: { 'x-pullboard-key': key, ...options.headers },
+        signal: AbortSignal.timeout(10_000),
+      });
+    } finally {
+      back();
+    }
+  }
+  return request;
+}
+
 /** Find this fixture's board in the actual view API and return its stable route prefix. */
 async function viewBoardPath(request, root) {
   const response = await request('/api/v1/boards');
@@ -312,13 +384,17 @@ async function viewDecision(request, boardPath, verb, args) {
 test('[B26] failed view request names its cause', async (t) => {
   const box = await project();
   const preload = join(box.dir, 'stderr-preload.mjs');
+  // Only the view process writes: a node child the view starts inherits this preload and its stderr pipe, and its
+  // own split write, still half done when the view is killed, left the captured tail ending in "stderr-split-".
   writeFileSync(preload, [
+    "if (process.argv[2] === 'view') {",
     ...Array.from({ length: 25 }, (_, index) => `process.stderr.write('stderr-tail-${String(index + 1).padStart(2, '0')}\\n');`),
     'process.stderr.write("stderr-split-");',
     'await new Promise((resolveWait) => setTimeout(resolveWait, 25));',
     'process.stderr.write("line\\n");',
+    '}',
   ].join('\n'));
-  const request = await startView(t, box, { NODE_OPTIONS: `--import=file://${preload}` });
+  const request = await startViewProcess(t, box, { NODE_OPTIONS: `--import=${pathToFileURL(preload).href}` });
   await request.stopView('SIGKILL');
   let failure;
   try {
@@ -462,7 +538,7 @@ test('[B26] agent markers and agent worktrees cannot decide rows; only the coord
   assert.equal(sourceRow(box, SPEC_FILE, 'G1').status, 'approved');
 });
 
-test('[B26,S18,S19] stale row text refuses apply without changing any approved row', async function staleApplyIsAtomic() {
+test('[B26,S18,S19] stale row text is held while a fresh decision applies, and the stale row is never written [B2]', async function staleApplyIsAtomic() {
   const box = await project();
   for (const id of ['G1', 'G2']) {
     const approved = await command(box, box.root, 'spec', 'approve', id, '--json');
@@ -473,11 +549,10 @@ test('[B26,S18,S19] stale row text refuses apply without changing any approved r
   writeFileSync(source, edited);
   const beforeApply = readFileSync(source, 'utf8');
   const refused = await command(box, box.root, 'spec', 'apply', '--json');
-  assert.notEqual(refused.status, 0, `${refused.stdout}${refused.stderr}`);
-  const document = JSON.parse(refused.stdout);
-  assert.ok(document.error, 'stale decision refusal stays a structured CLI refusal');
-  assert.equal(readFileSync(source, 'utf8'), beforeApply, 'the stale check prevents partial writes to SPEC.md');
-  assert.equal(sourceRow(box, SPEC_FILE, 'G1').status, 'draft', 'even the earlier valid decision is not applied first');
+  assert.equal(refused.status, 0, `${refused.stdout}${refused.stderr}`);
+  assert.deepEqual(JSON.parse(refused.stdout).held.map((held) => held.id), ['G2'], 'the stale decision is held and named');
+  assert.notEqual(readFileSync(source, 'utf8'), beforeApply, 'the fresh decision is written');
+  assert.equal(sourceRow(box, SPEC_FILE, 'G1').status, 'approved', 'the fresh decision applies');
   assert.equal(sourceRow(box, SPEC_FILE, 'G2').status, 'draft');
   assert.equal(sourceRow(box, SPEC_FILE, 'G2').text, 'Someone edited this row after approval.');
 });
@@ -647,4 +722,33 @@ test('a same-text gate change makes an approval stale everywhere [S1,B26]', asyn
     assert.equal(applied.status, 0, applied.stderr);
     assert.equal(sourceRow(box, SPEC_FILE, 'G1').status, 'approved');
   }
+});
+
+test('spec apply writes a fresh decision and holds a stale one, failing only when nothing applied [B2]', async () => {
+  const box = await project();
+  for (const id of ['G1', 'G2']) {
+    const approval = await command(box, box.root, 'spec', 'approve', id, '--json');
+    assert.equal(approval.status, 0, approval.stderr);
+  }
+  const file = join(box.root, SPEC_FILE);
+  writeFileSync(file, readFileSync(file, 'utf8').replace('Approve this row. | gate: true', 'Approve this row. | gate: false'));
+  const changed = readFileSync(file, 'utf8');
+
+  const applied = await command(box, box.root, 'spec', 'apply', '--json');
+  assert.equal(applied.status, 0, `${applied.stdout}${applied.stderr}`);
+  assert.equal(sourceRow(box, SPEC_FILE, 'G2').status, 'approved', 'the fresh decision is written');
+  assert.equal(sourceRow(box, SPEC_FILE, 'G1').status, 'draft', 'the stale row is left as it was');
+  assert.ok(readFileSync(file, 'utf8').includes('gate: false'), 'the changed row text is untouched');
+  const result = JSON.parse(applied.stdout);
+  assert.deepEqual(result.held.map((held) => held.id), ['G1']);
+  assert.match(result.held[0].next, /ask the person to approve G1's current row again/u, 'the held row names its next step');
+  const shown = await command(box, box.root, 'spec', 'show', 'G1', '--json');
+  assert.match(JSON.parse(shown.stdout).row.stage, /STALE/u, 'the stale decision stays pending');
+
+  const again = await command(box, box.root, 'spec', 'apply', '--json');
+  assert.equal(again.status, 1, 'nothing applied and one row held exits non-zero');
+  assert.equal(JSON.parse(again.stdout).error.code, 'STALE_ROW_DECISION');
+  assert.match(again.stdout, /G1/u);
+  assert.match(again.stdout, /approve G1's current row again/u);
+  assert.ok(readFileSync(file, 'utf8').includes('gate: false') && changed.includes('gate: false'));
 });

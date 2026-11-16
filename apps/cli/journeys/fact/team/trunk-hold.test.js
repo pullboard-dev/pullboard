@@ -6,6 +6,6 @@ import {
   test,
 } from '../../../tests/fixtures/scenarios/team.js';
 
-test('a no-culprit red files a defect and the waiver releases it [E27,E28,E29]', { timeout: 180_000 }, () => { // budget: hang ceiling for real Git/CLI landings, bisection and waiver controls; no speed target.
+test('a no-culprit red files a defect and the waiver releases it [E27,E28,E29]', { timeout: 180_000, skip: 'CONTROLLER_ONLY: deleted with #6579' }, () => { // budget: hang ceiling for real Git/CLI landings, bisection and waiver controls; no speed target.
   assertNoCulpritTrunkHold(helpers);
 });

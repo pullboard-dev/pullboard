@@ -88,10 +88,8 @@ function replayPosition(index) {
   r.index = index;
   view.root = r.final.root;
   view.state = 'all';
-  data.root = view.root;
-  data.group = null;
-  data.project = replayProject(index);
-  data.projects = data.projects.map((board) => board.root === view.root ? boardSummary(board, data.project) : board);
+  const project = replayProject(index);
+  data = store.set({ ...data, root: view.root, group: null, project, projects: data.projects.map((board) => board.root === view.root ? boardSummary(board, project) : board) });
   render();
   replayControls();
 }

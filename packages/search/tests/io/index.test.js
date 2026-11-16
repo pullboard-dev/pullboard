@@ -10,14 +10,15 @@ import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { addItem } from '../../../store/index.js';
-import { fixtureBoard } from '../../../../apps/cli/tests/fixtures/board.js';
-import { temporaryDirectory } from '../../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../../board/tests/fixtures/board.js';
+import { temporaryDirectory } from '../../../board/tests/fixtures/board.js';
 import { buildSearchIndex } from '../../index.js';
 import { readSearchIndex } from '../../index.js';
 import { searchItems } from '../../index.js';
 
 /** The two command files that may use the search cell: search prints matches, add prints advice. */
-const COMMANDS = ['apps/cli/src/io/commands/search.js', 'apps/cli/src/io/commands/add.js'];
+// duplicate.js is the add command's likely-duplicate guard (nearest open items, cbfae54ddb), so it reads the search cell for add.
+const COMMANDS = ['apps/cli/src/io/commands/search.js', 'apps/cli/src/io/commands/add.js', 'apps/cli/src/io/item/duplicate.js'];
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 
 /** A board with items whose words sit in different fields, plus a temporary sidecar path. */

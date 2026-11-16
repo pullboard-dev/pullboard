@@ -68,7 +68,7 @@ export async function runnerUsesRegisteredCapacity(t, { cli, git, observe, start
   for (const folder of [repo, worker, bin, home, machineHome, remoteHome, remoteMachineHome, markers]) mkdirSync(folder, { recursive: true });
   writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1 }));
   const env = {
-    ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
+    ...process.env, HOME: home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
     PATH: `${bin}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Runner Fixture', GIT_AUTHOR_EMAIL: 'runner-fixture@example.invalid',
     GIT_COMMITTER_NAME: 'Runner Fixture', GIT_COMMITTER_EMAIL: 'runner-fixture@example.invalid',
@@ -162,7 +162,7 @@ export async function runnerTimingReceipt(t, { cli, git, runThroughGate, gateRes
   const requests = join(dir, 'requests.jsonl');
   for (const folder of [home, machineHome, remoteHome, remoteMachineHome, repo, worker, bin]) mkdirSync(folder, { recursive: true });
   writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1 }));
-  const env = { ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
+  const env = { ...process.env, HOME: home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
     PATH: `${bin}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Timing Fixture', GIT_AUTHOR_EMAIL: 'timing@example.invalid',
     GIT_COMMITTER_NAME: 'Timing Fixture', GIT_COMMITTER_EMAIL: 'timing@example.invalid' };

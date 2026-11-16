@@ -19,6 +19,7 @@ import {
   configFromSource,
 } from '../../../config/index.js';
 import { Refused } from '../../../kernel/index.js';
+import { storeName } from './store-names.js';
 
 /**
  * The kinds a board takes one of, by the slot each fills. Why infrastructure is here: #719 renamed
@@ -78,7 +79,7 @@ export function installedBlueprints(root) {
  */
 function legacySlot(name, root) {
   if (bundledBlueprints().includes(name)) return blueprintSlot(readBlueprint(name, root));
-  for (const candidate of [`${name}.json`, `${name}.blueprint.json`]) {
+  for (const candidate of [`${storeName(name)}`, `${name}.blueprint.json`]) {
     if (!existsSync(join(root, candidate))) continue;
     try {
       const blueprint = readBlueprint(join(root, candidate), root);

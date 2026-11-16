@@ -1,3 +1,4 @@
+import { readdirSync } from 'node:fs';
 import { boardWriteSnapshot } from './write/preparation.js';
 import { builderFamilyProblem } from '../builder/family.js';
 import { BUILDER_FAMILY_REQUIRED_ENGINE } from '../../../../state/light.js';
@@ -12,6 +13,9 @@ import { receiptFields } from '../../../../verify/index.js';
 import { MACHINE_VERDICT_ENGINE } from '../../../../state/light.js';
 import { CLAUSE_INSPECTION_ENGINE } from '../../../../state/light.js';
 import { clauseInspectionProblem } from '../../../../state/index.js';
+import { clauseInspectionSummary } from '../../../../state/index.js';
+import { clauseReceiptNotes } from '../../../../state/index.js';
+import { gateClauseTickNotes } from '../../../../state/index.js';
 import { itemThread } from './query.js';
 import { proofReceipts } from './query.js';
 import { reviewPatchAuthors } from "../../../../verify/index.js";
@@ -39,6 +43,15 @@ import { mergeOnlyProblem } from "../../../../merge/index.js";
 import { prepareMergeOnlySubmit } from "../../../../merge/index.js";
 import { MERGE_ONLY_VERDICT_ENGINE } from "../../../../state/light.js";
 import { atomic } from "./event/log.js";
+import { movesLiveEnabled } from "../../../../config/index.js";
+import { movesShadowEnabled } from "../../../../config/index.js";
+
+/** A moves.live machine setting, a file read: call it before a board write opens, never inside one [C7,#8385]. */
+export const liveSetting = table => movesLiveEnabled(table);
+
+/** The moves.shadow machine setting, a file read: call it before a board write opens, never inside one [C7,#8379]. */
+export const shadowSetting = () => movesShadowEnabled();
+
 import { logEvent } from "./event/log.js";
 import { acceptedVerdict } from "../../../../verify/index.js";
 import { ENGINE_VERSION } from "../../../../state/index.js";
@@ -119,7 +132,7 @@ export function prepareSubmit(board, id, options) {
 export function submit(board, id, options) {
   options = prepareSubmit(board, id, options);
   requireBoardWriteSnapshot(board, PREPARED_SUBMITS.get(options).snapshot, 'submit');
-  const { strictRenames, agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, inspectClauses, clausePolicyCommit, infra = null, gateGreen, companion, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry, tooling = null } = options;
+  const { strictRenames, agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, inspectClauses, clausePolicyCommit, infra = null, gateGreen, companion, pulledPlan = null, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry, tooling = null } = options;
   const familyPolicyCommit = policyCommit ?? clausePolicyCommit;
   const familyPolicy = (board.executionEngineVersion ?? ENGINE_VERSION) >= BUILDER_FAMILY_REQUIRED_ENGINE && board.gitRoot && familyPolicyCommit
     ? board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, familyPolicyCommit).config.verify.family : 'off';
@@ -137,13 +150,18 @@ export function submit(board, id, options) {
   let recordedSize;
   let mainRedRepairs;
   if (companion) {
-    const options = { agentId, commit, tree, gateGreen, policyCommit, submissionProof: proof, companion };
+    // pulledPlan: a pulled gate's own plan, which the board host read from the runner's receipt [P7].
+    const options = { agentId, commit, tree, gateGreen, policyCommit, submissionProof: proof, companion, pulledPlan };
     if (board.executionEngineVersion === undefined) sealItemPatchSubmit(board, id, options);
     else checkItemPatchSubmit(board, id, options);
   }
   if (note !== undefined && (typeof note !== 'string' || !note.trim() || /[\r\n\u2028\u2029]/u.test(note))) {
     throw new Refused('USAGE', 'a submission note, when present, is one nonempty line');
   }
+  // The moves.shadow setting is a file read, so it is read here, before the write opens, and the commit compare is recorded under it [C7,#8379].
+  const shadow = board.movesShadow ?? shadowSetting();
+  // The moves.live.submit setting is read here too: with it on, the COMMIT table's event is the one logged [C7,#8384].
+  const live = (board.movesLive?.submit ?? movesLiveEnabled('submit')) === true;
   atomic(board, () => {
     requireBoardWriteSnapshot(board, PREPARED_SUBMITS.get(options).snapshot, 'submit');
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= STRICT_RENAME_ENGINE && strictRenames !== undefined) {
@@ -182,7 +200,6 @@ export function submit(board, id, options) {
         hasCommit: null,
         withinLane: null,
         trunkMergeClean: null,
-        sourcePlaced: null, // The CLI checks exact committed placement before any proof or ordered submit.
         trunkInCandidate: null,
         noUnverifiedStack: null,
         infraExplained: null, // The CLI checks the claimed Git diff before this transition.
@@ -190,7 +207,6 @@ export function submit(board, id, options) {
         gateConfigured: null, queuedItemLease: null,
         gateGreen: null,
         proofRecorded: null, // The CLI records and validates native receipts before sealing submit; replay needs no origin files.
-        treeStillDuringGate: null,
         ...(carry ? {
           mergeOnlyRecorded: carriedProblem,
           atSubmittedCommit: null, // The same post-gate HEAD check binds both submission paths.
@@ -228,7 +244,7 @@ export function submit(board, id, options) {
       set: found => submissionItemValues(board, found, { agentId, commit, tree, files, carry, basis }),
     });
     recordSubmissionEvent(board, id, { agentId, commit, tree, policyCommit, note, recordedProof, infra, tooling,
-      modern, gateGreen, companion, quarantineProofIds, carry, mergeOnly, recordedSize, engineVersion: board.executionEngineVersion ?? ENGINE_VERSION });
+      modern, gateGreen, companion, quarantineProofIds, carry, mergeOnly, recordedSize, engineVersion: board.executionEngineVersion ?? ENGINE_VERSION, shadow, live });
     startItemPatchObjectionWindow(board, id, { agentId, commit }, { logEvent });
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= MACHINE_VERDICT_ENGINE
       && options.machineReceipts !== undefined && machineVerificationEligible(board, getItem(board, id), files)) {
@@ -244,4 +260,44 @@ export function submit(board, id, options) {
 function greenProofFiles(board, id, commit) {
   return new Set(proofReceipts(board, id).filter(receipt => receipt.green === true && receipt.commit === commit)
     .flatMap(receipt => (receipt.testRuntimes ?? []).map(row => row?.file).filter(Boolean)));
+}
+
+/**
+ * The clause checklist notes a settled submission earns, as the inline submit appended them: a green gate's tick note
+ * for each [test] clause naming a file it ran green, then the "inspection, clause by clause:" summary. Why here: the
+ * pulled settle runs on the board host and reaches the clause readers only through this cell [C7,V4].
+ *
+ * @param {object} board - The open board.
+ * @param {number} id - The submitted item.
+ * @param {{ gateFiles: Set<string>, outcomes: object[], head: string, green: boolean }} run - Files the gate ran, their per-case outcomes, the head proved and whether the gate was green.
+ * @param {(text: string) => void} append - Appends one note, so each tick is on the thread before the summary reads it.
+ */
+export function clauseInspectionNotes(board, id, { gateFiles, outcomes, head, green }, append) {
+  if (green) for (const text of gateClauseTickNotes(getItem(board, id), itemThread(board, id), { gateFiles, outcomes, head })) append(text);
+  // The fail-before, pass-after receipt, stored once: the gate's green head rows against the recorded runs of the base commit [C7].
+  const base = getItem(board, id).item_claim_head;
+  if (green) for (const text of clauseReceiptNotes(getItem(board, id), itemThread(board, id), { gateFiles, baseRows: recordedBaseRows(board, base), outcomes, head, baseCommit: base })) append(text);
+  const summary = clauseInspectionSummary(getItem(board, id), itemThread(board, id), { gateFiles, head });
+  if (summary) append(summary);
+}
+
+/**
+ * The outcome rows of every recorded main comparison of the item's base commit: the base half of a clause's
+ * fail-before receipt. Why: the gate's receipt store already holds each case's outcome and failure kind (#8049), so the
+ * judge reads what ran and nothing reruns at submit [C7].
+ *
+ * @param {object} board - The open board, whose native ports find its receipt store.
+ * @param {string | null | undefined} base - The item's base commit (claim head).
+ * @returns {{ file: string, name: string, passed: boolean, skipped: boolean, failure?: string }[]} Empty when none was recorded.
+ */
+export function recordedBaseRows(board, base) {
+  const { boardReceiptStore, readGateReceipt } = board.nativePorts?.patchProof ?? {};
+  if (!/^[a-f0-9]{40}$/u.test(base ?? '') || !boardReceiptStore) return [];
+  const store = boardReceiptStore(board);
+  let names = [];
+  try { names = store ? readdirSync(store) : []; } catch { return []; }
+  return names.filter(name => /^[a-f0-9-]{36}\.json$/u.test(name)).flatMap(name => {
+    const receipt = readGateReceipt(store, name.slice(0, -5));
+    return receipt?.kind === 'main-red' && receipt.head === base && Array.isArray(receipt.testOutcomes) ? receipt.testOutcomes : [];
+  });
 }

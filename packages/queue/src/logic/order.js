@@ -47,10 +47,8 @@ export function classOrderInEffect(waiters, order) {
  * The compatibility marker understood by class-only clients. Release-aware clients write 0
  * while release ordering is enabled: older clients must fall back to arrival until they leave.
  * New clients may then use class and release order together only when all waiters are aware.
- * Why not always 1: a #651-only process reads classed=1 on every waiter as "everyone admits by
- * class" and ranks by class, while a process with reviewsFirst off ranks by arrival; the two would
- * disagree and a free slot could stay empty. Writing 0 with the setting off makes every process,
- * old or new, fall back to arrival order together.
+ * Why not always 1: a #651-only process would rank by class while one with reviewsFirst off ranks by arrival, and a
+ * free slot could stay empty; writing 0 makes every process fall back to arrival order together.
  *
  * @param {{ reviewsFirst: boolean, currentReleaseFirst?: boolean }} order - This poll's settings.
  * @returns {0|1}
@@ -62,10 +60,8 @@ export function classedMarker(order) {
 /**
  * The admission rank every process in this queue agrees on. Class order (with aging) applies only
  * while the machine opts in to reviews first and every waiter was queued by a process that admits
- * by class; otherwise landings come first and then arrival. Why: an older pullboard admits
- * landings first and then by ticket, and two processes ranking the same line differently each
- * wait for the other while a slot stays empty. With any older waiter queued, everyone falls back
- * to that older order, so mixed versions on one machine never deadlock.
+ * by class; otherwise landings come first and then arrival. Why: two processes ranking one line differently each wait
+ * for the other, so with any older waiter queued everyone falls back to the older order.
  *
  * @param {Array<{ classed?: number }>} waiters - The whole line for one resource.
  * @param {number} now
@@ -122,12 +118,10 @@ function followUp(waiter) {
 }
 
 /**
- * Move each follow-up run ahead of every non-landing waiter that arrived after it, or less than
- * FOLLOW_UP_CREDIT_MS before it; follow-ups keep their own order. Why: a red gate's main comparison waited at
- * place 31 behind new gates for 5.6 minutes (#3910), although its gate had already run its tests. The credit
- * bounds the jump, so a new gate that has waited 10 minutes longer still goes first and none starves.
- * It applies only while every waiter was queued by a client that knows it (followUpAware), so mixed
- * versions on one machine rank the line the same way, as classOrderInEffect does for classes.
+ * Move each follow-up run ahead of every non-landing waiter that arrived after it or less than
+ * FOLLOW_UP_CREDIT_MS before it; follow-ups keep their own order. Why: a red gate's main comparison waited behind new
+ * gates although its tests had run (#3910); the credit bounds the jump so none starves. It applies only while every
+ * waiter was queued by a client that knows it (followUpAware), so mixed versions rank the line alike.
  *
  * @param {object[]} line - The line in its class or arrival order.
  * @param {number} now - The clock reading that stands in for an unreadable arrival time.

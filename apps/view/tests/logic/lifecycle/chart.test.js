@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { lifecycleChart } from '../../../src/logic/lifecycle/chart.js';
 
-test('every lifecycle route has its own count, plain meaning and rare-route disclosure [N26]', () => {
+test('clause 2: every lifecycle route has its own count, plain meaning and rare-route disclosure [N26]', () => {
   const moves = new Map([
     ['open>claimed:claim', 11], ['claimed>submitted:submit', 13], ['submitted>verified:accept', 17],
     ['claimed>open:release', 2], ['claimed>open:lapse', 3], ['claimed>open:escalate', 5], ['claimed>open:refreeze', 7],
@@ -18,7 +18,7 @@ test('every lifecycle route has its own count, plain meaning and rare-route disc
   assert.deepEqual([...html.matchAll(/data-lifecycle-stage="([^"]+)"/gu)].map(match => match[1]), ['open', 'claimed', 'submitted', 'verified']);
   for (const words of ['11 taken', '13 submitted', '17 passed', '17 handed back', '71 sent back by a reviewer', '109 reopened after passing',
     '1 of them sent back', 'one agent each', 'a different agent checks', 'passed review', 'Withdrawn']) assert.ok(html.includes(words), words);
-  for (const [n, words] of [[2, 'let go'], [7, 'check re-frozen'], [3, 'went idle'], [5, 'moved to a stronger agent'], [19, 'rejected'], [23, 'reopened'], [29, 'check re-frozen'],
+  for (const [n, words] of [[2, 'let go'], [7, 'check re-frozen'], [3, 'went idle'], [5, 'moved to a stronger agent'], [19, 'sent back'], [23, 'reopened'], [29, 'check re-frozen'],
     [97, 'updated while building'], [43, 'reviews started'], [47, 'claimed again while building'], [53, 'checks re-frozen while ready'], [89, 'checks re-frozen while building'], [59, 'let go while ready'], [61, 'moved to a stronger agent while ready'], [67, 'passed again']]) {
     assert.match(html, new RegExp('>' + n + '</span> ' + words), n + ' ' + words);
   }

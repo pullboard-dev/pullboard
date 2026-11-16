@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import {
   privateFixtureFiles,
   runFixtureGit,
-} from '../../../apps/cli/tests/fixtures/child.js';
+} from '../../gate/tests/fixtures/child.js';
 import {
   SCAN_UNAVAILABLE,
   scanLanding,

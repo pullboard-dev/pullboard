@@ -8,7 +8,7 @@ import { submitHandoffHookActor } from '../../../../../packages/sandbox/index.js
  * so a fix commit still cites the item while the gate runs [C7,#2882].
  *
  * @param {any[]} claims - This seat's claimed items.
- * @param {(item: any) => unknown} pending - Whether the item's submit handoff is queued or running.
+ * @param {(item: any) => unknown} pending - Whether the item waits on its own queued or running gate, hand-off or pulled.
  * @returns {any[]}
  */
 export function submittedClaimsFallback(claims, pending) {
@@ -19,7 +19,7 @@ export function submittedClaimsFallback(claims, pending) {
 /** The pullboard hook command, in its own module so an item adding another command never edits these lines. */
 import { busyRefusal } from '../../../../../packages/store/light.js';
 import { openBoardReadOnly } from '../../../../../packages/store/light.js';
-import { pendingSubmitHandoff } from '../../../../../packages/store/light.js';
+import { awaitingGateOrReview } from '../../../../../packages/store/light.js';
 import { readBoardSnapshot } from '../../../../../packages/store/light.js';
 import { systemClock } from '../../../../../packages/store/light.js';
 import { rowDecisions } from '../../../../../packages/spec/index.js';
@@ -47,6 +47,7 @@ import { readStdin } from '../hook/stdin.js';
 import { checkedLandingCommit } from '../../../../../packages/verify/index.js';
 import {
   landingBatches,
+  landingBatchesAt,
   headTree,
   headCommit,
   tryGit,
@@ -110,6 +111,24 @@ export function refuseSeatItemWork(root, seat) {
     `move the change to ${folder} (pullboard claim ${match[1]} opens it), commit there, and switch this seat checkout off the item branch`);
 }
 
+/**
+ * Name the item folder for each claim a seat holds when a commit in the seat checkout itself is refused.
+ * Why: a new user following the README commits in the seat; the refusal (a spec row the seat has not merged yet) never said the work belongs in the item folder [C7,#7946].
+ *
+ * @param {any} ctx hook context
+ * @param {string} root the committing checkout
+ * @returns {string[]} one next-step line per claim, or none outside a seat checkout
+ */
+function seatItemFolderHints(ctx, root) {
+  return hookRead(ctx, (board) => {
+    const seat = store.agentAt(board, root);
+    if (!seat?.agent_path) return [];
+    return store.listItems(board, { lane: seat.agent_lane })
+      .filter((item) => item.item_status === 'claimed' && item.item_owner === seat.agent_id && !awaitingGateOrReview(board, item))
+      .map((item) => { const folder = itemFolderPath(seat.agent_path, item.item_id); return `this is the seat checkout; build and commit #${item.item_id} in its item folder ${folder}, then cd ${folder} && pullboard submit ${item.item_id}`; });
+  }) ?? [];
+}
+
 export async function hookCommand(io, { first, second }) {
   const info = repoInfo(io.cwd);
   let ctx;
@@ -130,7 +149,7 @@ export async function hookCommand(io, { first, second }) {
     const isMain = info.isMain && !remoteSeat;
     const agent = remoteSeat ?? (isMain ? null : hookRead(ctx, (board) => (store.agentAt(board, info.root) ?? itemFolderIdentity(board, info.root)?.agent)
       ?? (first === 'pre-merge-commit' ? submitHandoffHookActor(ctx, board) : null)));
-    const landing = hookRead(ctx, (board) => landingBatches(board).some((batch) => landingBatchOwnsRoot(batch, info.root)));
+    const landing = hookRead(ctx, (board) => landingBatchesAt(board, info.root).some((batch) => landingBatchOwnsRoot(batch, info.root)));
     if (first === 'pre-commit' && !landing) refuseSeatItemWork(info.root, hookRead(ctx, (board) => store.agentAt(board, info.root)));
     if (landing) io.caller('coordinator', info.root);
     else if (agent) io.caller('seat', info.root);
@@ -138,7 +157,7 @@ export async function hookCommand(io, { first, second }) {
       const folderItem = itemFolderIdentity(board, info.root)?.item;
       const claims = store.listItems(board).filter(item => item.item_status === 'claimed'
         && item.item_owner === agent.agent_id && (folderItem === undefined || item.item_id === folderItem)
-        && !pendingSubmitHandoff(board, item));
+        && !awaitingGateOrReview(board, item));
       return claims.length === 1 && claims[0].item_frozen ? JSON.parse(claims[0].item_frozen).criterion ?? '' : '';
     }) ?? '' : '';
     const trunk = trunkRef(info.root);
@@ -151,16 +170,19 @@ export async function hookCommand(io, { first, second }) {
     const originalMessage = readFileSync(second ?? '', 'utf8');
     const metadataContext = hookRead(ctx, board => {
       const agent = (store.agentAt(board, info.root) ?? itemFolderIdentity(board, info.root)?.agent);
-      const items = store.listItems(board, { all: true });
       const folderItem = itemFolderIdentity(board, info.root)?.item;
-      const landing = info.isMain || landingBatches(board).some(batch => landingBatchOwnsRoot(batch, info.root));
+      const batches = info.isMain ? [] : landingBatchesAt(board, info.root);
+      const landing = info.isMain || batches.some(batch => landingBatchOwnsRoot(batch, info.root));
+      // The open list holds every claim; the closed items are read only where a landing may merge a verified one.
+      const open = store.listItems(board);
+      const items = landing ? store.listItems(board, { all: true }) : open;
       return {
         migration: landing && existsSync(gitPath(info.root, 'MERGE_HEAD'))
           ? { base: headCommit(info.root), side: tryGit(info.root, ['rev-parse', '--verify', 'MERGE_HEAD']).stdout } : null,
-        claims: submittedClaimsFallback(items.filter(item => item.item_status === 'claimed' && item.item_owner === agent?.agent_id && (folderItem === undefined || item.item_id === folderItem)),
-          item => pendingSubmitHandoff(board, item)),
+        claims: submittedClaimsFallback(open.filter(item => item.item_status === 'claimed' && item.item_owner === agent?.agent_id && (folderItem === undefined || item.item_id === folderItem)),
+          item => awaitingGateOrReview(board, item)),
         landings: info.isMain ? items.filter(item => item.item_status === 'verified' && !item.item_merged_commit)
-          : landingBatchItemsAtRoot(landingBatches(board), info.root, items, item => checkedLandingCommit(board, item)),
+          : landingBatchItemsAtRoot(batches, info.root, items, item => checkedLandingCommit(board, item)),
       };
     }) ?? {};
     const spec = withRowDrafts(loadSpec(info.root, ctx.config), hookRead(ctx, (board) => store.rowDrafts(board)));
@@ -176,17 +198,18 @@ export async function hookCommand(io, { first, second }) {
     const claimedItems = spec.rows.some(row => row.status === 'approved') ? [] : (hookRead(ctx, board => {
       const agent = (store.agentAt(board, info.root) ?? itemFolderIdentity(board, info.root)?.agent);
       return agent ? store.listItems(board, { lane: agent.agent_lane }).filter(item =>
-        item.item_status === 'claimed' && item.item_owner === agent.agent_id && !pendingSubmitHandoff(board, item)).map(item => item.item_id) : [];
+        item.item_status === 'claimed' && item.item_owner === agent.agent_id && !awaitingGateOrReview(board, item)).map(item => item.item_id) : [];
     }) ?? []);
     // Only the main checkout or a landing worktree merges a verified item; elsewhere no trailer exempts a header.
     const rowlessLandings = (metadataContext.landings ?? []).filter(item => !landingRows(item).length).map(item => item.item_id);
     problems = [...prepared.problems, ...commitMsgProblems(message, { rules: ctx.config.commits, spec, doctrine: ctx.doctrine, claimedItems, rowlessLandings })];
+    if (problems.length) problems.push(...seatItemFolderHints(ctx, info.root));
     if (!problems.length && message !== originalMessage) writeFileSync(second, message);
   } else if (first === 'pre-push') {
     const refsText = await readStdin(io.stdin);
     // Only a push runs the gate, so the gate, runner, landing and flake graphs load here and never for a commit hook [C7,#3250].
     const { resourceAgent, withBoard } = await import('../entry.js');
-    const { gateReport, runGate } = await import('../../../../../packages/gate/index.js');
+    const { gateReport, isStampedGreen, runGate } = await import('../../../../../packages/gate/index.js');
     const { runnerExecutionServices } = await import('../../../../../packages/runners/index.js');
     const { landingExecutionServices, waivedLandingProof: nativeWaivedLandingProof } = await import('../../../../../packages/landing/index.js');
     const { quarantineWaivers } = await import('../../../../../packages/flakes/index.js');
@@ -206,9 +229,13 @@ export async function hookCommand(io, { first, second }) {
       else if (knownMain && isClean(info.root) && !untracked(info.root).length) io.say(`pre-push: exact landing tree red only in cases red on main in batch ${knownMain.id}: ${knownMain.proof.knownMain.map((row) => `${row.file} :: ${row.name}`).join('; ')}`);
       else if (recordedException) problems = ['the landing proof has an expired or missing person waiver; ask the person for a new expiring waiver'];
       else {
-        const gate = await runGate(info.root, ctx.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing, agent: resourceAgent(ctx), onWait: io.gateWaitReporter(io) });
-        if (gate.isCached) io.say('pre-push: the gate passed on this exact tree; not running it twice');
-        if (!gate.isGreen) problems = [`the gate is red; fix it before pushing. ${gateReport(gate)}`];
+        // The full gate's files run as pull shard jobs over every free runner, not as one command on one runner [C7,#7743].
+        // A real push of main takes the same path, so every shard runs to its end and a red names every failing file [C7,#8043].
+        const sharded = isStampedGreen(info.root) ? null : await (await import('../hook/push.js')).pushShardGate(ctx, { say: io.say });
+        if (sharded && !sharded.isGreen) problems = [sharded.problem];
+        const gate = sharded ? null : await runGate(info.root, ctx.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing, agent: resourceAgent(ctx), onWait: io.gateWaitReporter(io) });
+        if (gate?.isCached) io.say('pre-push: the gate passed on this exact tree; not running it twice');
+        if (gate && !gate.isGreen) problems = [`the gate is red; fix it before pushing. ${gateReport(gate)}`];
       }
     }
   } else {

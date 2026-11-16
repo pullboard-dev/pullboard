@@ -5,12 +5,19 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { BASELINE_TABLES } from '../../../../commits/light.js';
 import { Refused } from '../../../../kernel/index.js';
 import {
   LISTING as TEST_CELLS_FILE,
   readListing,
   writeTestCells,
 } from './cells.js';
+import { latestRunnerFileTimes } from './budget-rows.js';
+import { TEST_MANIFEST_FILE } from './manifest.js';
+import { formatTestManifest } from './manifest.js';
+import { generateTestManifest } from './manifest.js';
+import { settleTimes } from '../../logic/test/manifest.js';
+import { readFileTimes } from './value/timing.js';
 import {
   TEST_TIERS_FILE,
   formatTestTiers,
@@ -18,6 +25,7 @@ import {
 } from './tiers.js';
 
 export const TEST_JOURNEYS_FILE = 'packages/gate/data/tests/test-journeys.json';
+const TEST_WAITS_BASELINE_FILE = BASELINE_TABLES[1];
 const TEST = /\.(?:test|spec)\.[cm]?js$/u;
 const pretty = value => `${JSON.stringify(value, null, 2)}\n`;
 
@@ -71,6 +79,13 @@ export function deriveTestRegistries(root, { renamed = new Map(), touched = [] }
     journeys.files = followRows(journeys.files, renamed, exists);
     if (writeIfChanged(root, TEST_JOURNEYS_FILE, pretty(journeys))) changed.push(TEST_JOURNEYS_FILE);
   }
+  const waitsPath = join(root, TEST_WAITS_BASELINE_FILE);
+  if (existsSync(waitsPath)) {
+    const waits = JSON.parse(readFileSync(waitsPath, 'utf8'));
+    const followed = followRows(waits, renamed, exists);
+    // Only a real move or removal rewrites the file, so its hand-kept layout is never churned.
+    if (JSON.stringify(followed) !== JSON.stringify(waits) && writeIfChanged(root, TEST_WAITS_BASELINE_FILE, pretty(followed))) changed.push(TEST_WAITS_BASELINE_FILE);
+  }
   const tiersPath = join(root, TEST_TIERS_FILE);
   if (existsSync(tiersPath)) {
     const manifest = JSON.parse(readFileSync(tiersPath, 'utf8'));
@@ -79,6 +94,16 @@ export function deriveTestRegistries(root, { renamed = new Map(), touched = [] }
     if (wanted.size) for (const row of generateTestTiers(root).files) if (wanted.has(row.file)) rows.set(row.file, row);
     manifest.files = [...rows.values()].filter(row => exists(row.file)).sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
     if (writeIfChanged(root, TEST_TIERS_FILE, formatTestTiers(manifest))) changed.push(TEST_TIERS_FILE);
+  }
+  const manifestPath = join(root, TEST_MANIFEST_FILE);
+  if (existsSync(manifestPath)) {
+    const recorded = {};
+    for (const row of JSON.parse(readFileSync(manifestPath, 'utf8')).files) {
+      const file = renamed.get(row.file) ?? row.file;
+      if (exists(file) && Number.isFinite(row.cost?.ms)) recorded[file] = row.cost.ms;
+    }
+    const times = settleTimes(recorded, { ...readFileTimes(root), ...latestRunnerFileTimes(root) });
+    if (writeIfChanged(root, TEST_MANIFEST_FILE, formatTestManifest(generateTestManifest(root, { times })))) changed.push(TEST_MANIFEST_FILE);
   }
   return changed;
 }

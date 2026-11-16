@@ -74,13 +74,17 @@ test('Roadmap cards preserve shipping counters, per-board folds and shipped hist
   assert.match(html, /data-roadmap-key="m:Next &lt;release&gt;"[^>]*aria-expanded="false"/u);
   assert.match(html, /Prepared header/u);
   assert.match(html, /Prepared progress/u);
-  assert.match(html, /data-shipping-stage="landing"><dt><i class="roadmap-stage-swatch landing" aria-hidden="true"><\/i>Accepted, landing<\/dt><dd>1<\/dd>/u);
+  assert.doesNotMatch(html, /data-shipping-stage|roadmap-stage-counts|roadmap-last-shipped/u, 'the rail holds releases only');
   assert.doesNotMatch(html, /class="milestone-limit"/u, 'the prepared shared header replaces the extra total-and-limit line');
   assert.doesNotMatch(html, /limit 4/u, 'a distant capacity limit is not presented beside the item count');
-  assert.match(html, /<li hidden><div[^>]*data-roadmap-key="i:#1"/u);
+  assert.doesNotMatch(html, /data-roadmap-key="i:#1"/u, 'a closed release draws no rows (#7303)');
+  const shown = roadmapCardsHtml([next, shipped], { root: '/local', held: upcoming.name, open: new Map([[JSON.stringify(['/local', 'm:' + upcoming.name]), true]]), headers,
+    rows: new Map(rows.map(row => [row, { root: '/local', titleHtml: row.title }])) });
+  assert.match(shown, /<li hidden><div[^>]*data-roadmap-key="i:#1"/u, 'held shows only held rows in an open release');
   assert.match(html, /data-roadmap-key="shipped"[^>]*aria-expanded="false"/u, 'another board cannot unfold local history');
-  assert.match(html, /class="roadmap-shipped-commit" title="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa">aaaaaaaaaaaa/u);
-  assert.match(html, /First line/u);
+  const local = roadmapCardsHtml([next, shipped], { root: '/local', open: new Map([[JSON.stringify(['/local', 'shipped']), true]]), headers });
+  assert.match(local, /class="roadmap-shipped-commit" title="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa">aaaaaaaaaaaa/u);
+  assert.match(local, /First line/u);
   assert.doesNotMatch(html, /undefined|NaN/u);
   assert.match(roadmapCardsHtml([]), /No milestones yet/u);
 });
@@ -99,14 +103,14 @@ test('Roadmap names a limit only within ten percent and formats the forecast for
   assert.doesNotMatch(capacity(771), /limit 700/u, 'one above the upper threshold keeps the limit hidden');
   assert.match(capacity(0, 0), /0 items · limit 0/u, 'a zero capacity is named only when exactly full');
   const shipped = readMilestoneModel({ name: 'Shipped', items: [], count: 512, limit: 700, shipped: { commit: 'a'.repeat(40) } }, []);
-  assert.match(roadmapCardsHtml([shipped]), /<span class="milestone-limit">512 items<\/span>/u,
+  assert.match(roadmapCardsHtml([shipped], { root: '/local', open: new Map([[JSON.stringify(['/local', 'shipped']), true]]) }), /<span class="milestone-limit">512 items<\/span>/u,
     'a shipped milestone keeps its count even when its limit is distant');
 
   const summary = { total: 512, landed: 0, left: 512, landing: 7, review: 0, building: 0, waiting: 0, held: 12,
     pace: { last6h: 7, last2h: 7 }, estimate: { low: 71, high: 212.5 }, window: '6h', reason: null };
   const header = roadmapSummary({ name: 'Capacity', summary }, { now: Date.parse('2026-10-28T12:00:00Z'), locale: 'en-US', timeZone: 'UTC' });
   assert.match(header.count, /512 to go/u);
-  assert.match(header.top.replace(/<[^>]*>/gu, ''), /1\.2 items an hour · 7 landed in the last 6 h, 7 in the last 2 h · done in about 6 days, Tuesday morning/u);
+  assert.doesNotMatch(header.top, /items an hour|landed in the last|done in about/u, 'no pace line; the notch owns it');
   assert.match(header.detail, /<i class="roadmap-summary-swatch held"[^>]*><\/i><b>12<\/b> <span>held<\/span>/u,
     'held retains the same dot, bold number, whitespace and separate label structure');
 });

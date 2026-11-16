@@ -123,7 +123,7 @@ test('[B29,B30,B31,V4,H16] submit succeeds despite a missing answer, warns once 
   assert.equal(submitted.code, 0, submitted.err);
   assert.match(submitted.out, /^bar\.check warning: bar\.check for claim \d+ has no builder note$/mu);
   assert.equal((submitted.out.match(/^bar\.check warning:/gmu) ?? []).length, 1, 'submit emits one warning line');
-  assert.match(submitted.out, /submitted #1/u, 'the warning does not refuse submit');
+  assert.match(submitted.out, /submitted #1|#1 is in the gate as job/u, 'the warning does not refuse submit: the pulled gate takes the item');
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const warning = store.events(board, { itemId: 1 })

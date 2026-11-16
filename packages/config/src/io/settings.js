@@ -1,6 +1,8 @@
 /** Machine-wide settings shared by every Pullboard checkout on this machine. */
 import {
   chmodSync,
+  existsSync,
+  statSync,
   mkdirSync,
   readFileSync,
   renameSync,
@@ -9,7 +11,6 @@ import {
 } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
-import { createHash } from 'node:crypto';
 import { randomBytes } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import {
@@ -17,10 +18,14 @@ import {
   updateRunnerSettings,
 } from '../../../resources/index.js';
 import { validateRunner } from '../logic/settings.js';
+import { PERSON_SET } from '../logic/settings.js';
+import { parsePersonSet } from '../logic/settings.js';
 import { loadMachineSettings } from '../logic/settings.js';
+import { parseRunnerRate } from '../logic/runner-rates.js';
 import { validateServe } from '../logic/settings.js';
 import { validateBoardRemote } from '../logic/settings.js';
 export { loadMachineSettings };
+export { boardRemote } from '../logic/settings.js';
 import { Refused } from '../../../kernel/index.js';
 import { relayCanaryConfig } from '../logic/settings.js';
 import {
@@ -60,6 +65,36 @@ export function gateRunnersFirstEnabled() {
   return loadMachineSettings().gate?.runnersFirst === true;
 }
 
+/** Run test processes at a lower scheduling priority than board writers only when this machine opted in [C7,#8509]. */
+export function testNiceEnabled() {
+  return loadMachineSettings().gate?.testNice === true;
+}
+
+/** Replay a changed move table in the submit gate only when this machine opted in [C7,#8073]. */
+export function tableReplayEnabled() {
+  return loadMachineSettings().gate?.tableReplay === true;
+}
+
+/** Write gate hops through the fenced, compare-and-set hop row unless this machine turned it off [C7,#8269,#8327]. */
+export function fencedHopEnabled() {
+  return loadMachineSettings().gate?.fencedHop !== false;
+}
+
+/** Fail the registry check on an unregistered test only when this machine opted in; off, it reports [C7,#8374]. */
+export function registryStrictEnabled() {
+  return loadMachineSettings().tests?.registryStrict === true;
+}
+
+/** Record each move table shadow compare on the board only when this machine opted in [C7,#8376]. */
+export function movesShadowEnabled() {
+  return loadMachineSettings().moves?.shadow === true;
+}
+
+/** Let a move writer follow its move table only when this machine opted in for that table [C7,#8383]. */
+export function movesLiveEnabled(table) {
+  return loadMachineSettings().moves?.live?.[table] === true;
+}
+
 /** Run the full suite after each landed train batch only when this machine opted in. */
 export function postLandSuiteEnabled() {
   return loadMachineSettings().gate?.postLandSuite === true;
@@ -84,6 +119,14 @@ export function setGateRunnersOnly(enabled) {
     writeMachineSettings(next);
   } });
   return next;
+}
+
+/**
+ * The most seconds-worth of non-test time one runner trip may take before gate receipts report it, in milliseconds.
+ * Why 10 s: the warm trip measured on 15 Nov costs about 7 s, so the default is that plus about 40% margin for load.
+ */
+export function gateTripOverheadBudgetMs() {
+  try { return loadMachineSettings().gate?.tripOverheadBudgetMs ?? 10_000; } catch { return 10_000; }
 }
 
 /** Capture the runner wait deadline for a new run; later requeues retain that deadline. */
@@ -115,19 +158,10 @@ export function setWorkerBudget(budget) {
   return next;
 }
 
-/**
- * The board this machine's seats read over HTTP, or null for the local board: board.url and board.token [P7].
- * Why: a seat on another host has no board.sqlite; it reaches the board host's pullboard serve instead.
- * @returns {{ url: string, token: string } | null}
- */
-export function boardRemote() {
-  const board = loadMachineSettings().board;
-  return board?.url ? { url: board.url, token: board.token ?? '' } : null;
-}
 
 /**
- * Set board.url or board.token; the value off removes it, so seats use the local board again [P7].
- * @param {'url' | 'token'} key
+ * Set board.url, board.token or board.commits; the value off removes it, so seats use the local board again [P7].
+ * @param {'url' | 'token' | 'commits'} key
  * @param {string} value
  */
 export function setBoardRemote(key, value) {
@@ -151,6 +185,22 @@ export function setGateRunnerWaitMs(milliseconds) {
 }
 
 /**
+ * Store one runner's rate card in machine settings, refusing a card with a missing or invalid field.
+ * Why: a later cost figure is only as honest as its inputs, so only a whole, valid card is stored.
+ *
+ * @param {string} host - The runner host the card belongs to.
+ * @param {unknown} card - { price, months, watts, kwhPrice }.
+ * @returns {object} The settings now stored.
+ */
+export function setRunnerRate(host, card) {
+  const parsed = parseRunnerRate(card, host);
+  const current = loadMachineSettings();
+  const next = { ...current, runnerRates: { ...current.runnerRates, [host]: parsed } };
+  writeMachineSettings(next);
+  return next;
+}
+
+/**
  * Classifying a test file as browser-bound only when it reaches a real Chrome launch is opt-in per
  * machine; off, any path to the Chrome fixture or an unfollowed process starter takes a browser slot.
  */
@@ -167,6 +217,14 @@ export function mainComparisonMode() {
 }
 
 /**
+ * Whether submit refuses at once when the frozen check names a test file the submitted commit lacks (#3095): off by
+ * default, so a submit queues its gate as before; only an exact `true` turns the refusal on.
+ */
+export function refuseMissingCheckFile() {
+  return loadMachineSettings().gate?.refuseMissingCheckFile === true;
+}
+
+/**
  * Where a queued submit's authorization source checks run when a runner is registered: `runner` (default) puts them in
  * the gate's one runner analysis job beside doctrine, cells, static and selection; `local` keeps them on this machine as
  * before #5674. Anything but an exact `local` is the default, so a damaged value never moves work back here [C7].
@@ -176,35 +234,12 @@ export function submitAuthorizationMode() {
 }
 
 /**
- * How a runner job is watched: `pull` (default) offers each job as a row a runner takes and waits on a shared status
- * mirror in the caller; `controller` holds one process per job until its result [C7,P7,#5465]. Why pull by default: a
- * fresh board's gate then runs on the zero-setup loopback runner, so no command holds this machine while it runs.
+ * How a runner job is watched: always `pull`, which offers each job as a row a runner takes and waits on a shared status
+ * mirror in the caller; the controller value is gone from the settings schema [C7,P7,#5465]. Why pull: a fresh board's
+ * gate runs on the zero-setup loopback runner, so no command holds this machine while it runs.
  */
 export function runnerDispatchMode() {
-  return loadMachineSettings().gate?.runnerDispatch === 'controller' ? 'controller' : 'pull';
-}
-
-/**
- * The pull-gate pilot from gate.pullPilot: the items named, and the percentage of other items, whose submits take the
- * pull gate while gate.runnerDispatch stays controller [P7]. Absent or empty, the pilot is off.
- * @returns {{ items: number[], share: number }}
- */
-export function pullPilot() {
-  const pilot = loadMachineSettings().gate?.pullPilot;
-  return { items: pilot?.items ?? [], share: pilot?.share ?? 0 };
-}
-
-/**
- * Whether one item's submit takes the pull gate: always under gate.runnerDispatch pull; under controller only when the
- * pilot names the item or the item falls in the pilot's share [P7]. The share is chosen by a hash of the item number,
- * so every resubmit of one item takes the same path and a queued gate job is never stranded by a coin flip.
- * @param {number} item
- */
-export function pullGateFor(item) {
-  if (runnerDispatchMode() === 'pull') return true;
-  const { items, share } = pullPilot();
-  if (items.includes(Number(item))) return true;
-  return share > 0 && createHash('sha256').update(`pull-pilot:${item}`).digest().readUInt32BE(0) % 10_000 < share * 100;
+  return 'pull';
 }
 
 /**
@@ -225,13 +260,12 @@ export function localLoadShare() {
 }
 
 /**
- * The mode the board's runner job queue serves in: pull under gate.runnerDispatch pull or while a pull pilot is on, so
- * runners can take the pilot's gate jobs; controller otherwise [P7]. Landing and runner runs keep runnerDispatchMode.
+ * How many local `pullboard gate --static` runs this machine admits at once: gate.staticSlots, default 2. Why: each run
+ * is about a minute of full-CPU tree work, and 14 at once drove a Mac to load 104; a waiting run queues instead [C7,#8501].
  */
-export function jobQueueMode() {
-  if (runnerDispatchMode() === 'pull') return 'pull';
-  const { items, share } = pullPilot();
-  return items.length || share > 0 ? 'pull' : 'controller';
+export function staticCheckSlots() {
+  const slots = loadMachineSettings().gate?.staticSlots;
+  return Number.isSafeInteger(slots) && slots > 0 ? slots : 2;
 }
 
 /**
@@ -292,6 +326,29 @@ function writeMachineSettings(settings) {
     writeFileSync(temporary, `${JSON.stringify(settings, null, 2)}\n`, { mode: 0o600 });
     renameSync(temporary, file);
   } finally { rmSync(temporary, { force: true }); }
+}
+
+/**
+ * Set one plain-valued machine setting from what a person typed, or clear it with `off`, keeping every other setting.
+ * A value the loader refuses is rolled back, so a typo never leaves settings.json unreadable [O5,O6,N26].
+ */
+export function setPersonSetting(key, text) {
+  const value = parsePersonSet(key, text);
+  if (PERSON_SET[key] === 'folder' && value !== undefined && !statSync(value, { throwIfNoEntry: false })?.isDirectory()) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `scratch must be an absolute folder that exists, or off; run pullboard settings scratch <folder>|off`);
+  }
+  const settings = structuredClone(loadMachineSettings());
+  const names = key.split('.');
+  const parents = names.slice(0, -1).reduce((node, name) => (node[name] = node[name] && typeof node[name] === 'object' ? node[name] : {}), settings);
+  if (value === undefined) delete parents[names.at(-1)]; else parents[names.at(-1)] = value;
+  const file = machineSettingsFile();
+  const before = existsSync(file) ? readFileSync(file) : null;
+  writeMachineSettings(settings);
+  try { loadMachineSettings(); } catch (error) {
+    if (before) writeFileSync(file, before, { mode: 0o600 }); else rmSync(file, { force: true });
+    throw error;
+  }
+  return settings;
 }
 
 /** Persist an explicitly configured canary without changing any board's credentials or project policy. */
@@ -471,6 +528,14 @@ export function setRunnerDrain(host, drain) {
     writeMachineSettings({ ...current, runners });
     return runner;
   }, { observation: true });
+}
+
+/**
+ * The share of each runner's slots every job class keeps (gate.jobReserve), or null: unset keeps today's claim order,
+ * set makes a claim take the highest class first while each class keeps its reserve [C7].
+ */
+export function jobReserve() {
+  return loadMachineSettings().gate?.jobReserve ?? null;
 }
 
 /** The hosts taken out of rotation with `pullboard runner drain`: a pull runner serving under one of these ids is given no job. */

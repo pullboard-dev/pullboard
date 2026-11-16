@@ -16,6 +16,7 @@ import { laneOf } from '../../../../seats/index.js';
 import { Refused } from '../../../../kernel/index.js';
 import { itemRefusalText } from '../../logic/refusal.js';
 import { entriesTouching } from '../static.js';
+import { blameStaticRows } from '../fixups.js';
 import { quote } from './gate.js';
 import { save } from './merge.js';
 import { mergeGroup } from './merge.js';
@@ -148,7 +149,7 @@ export async function diagnose(state, failures, gate) {
       // Awaited, so the landing lease keeps its heartbeat during the runner run [C7].
       return runProfiledShellAsync(state.batch.root, `${runner} ${quote(file)}`, {
       waitMs: lease.waitMs, artifactDirectory: dirname(state.batch.logPath), artifactPrefix: 'diagnostic', persistLog: true, pipefail: true, gateLease: lease,
-    }); }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing: true, browser: true, agent: 'coordinator', kind: 'land-diagnostic', onWait: state.onWait });
+    }); }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing: true, browser: true, agent: 'coordinator', kind: 'land-diagnostic', item: 'landing batch', onWait: state.onWait });
     if (tiered) requireTestTierAccount(result, [file]);
     if (headCommit(state.batch.root) !== commit || headTree(state.batch.root) !== tree || !isClean(state.batch.root)) {
       throw new Refused('LAND_SOURCE_CHANGED', `the landing source changed during its whole-file diagnostic; inspect ${result.logPath} before adopting`);
@@ -327,6 +328,11 @@ export async function returnRefusedItem(state, error) {
 
 /** The batch entries whose own change touches a file a LAND_MODULE_PARSE or LAND_STATIC_RED refusal named; none for any other refusal. */
 function parseImplicated(state, entries, error) {
+  // A static red names its rows, so the items that wrote those lines are charged; one that names none falls back to the files [C7,#5560].
+  if (error.code === 'LAND_STATIC_RED' && error.rows?.length) {
+    const blamed = blameStaticRows(state.batch.root, state.batch.base, entries, error.rows);
+    if (blamed.size) return entries.filter(entry => blamed.has(entry.id));
+  }
   const files = error.code === 'LAND_MODULE_PARSE' ? error.broken : error.code === 'LAND_STATIC_RED' ? error.files : null;
   return files?.length ? entriesTouching(state.batch.root, state.batch.base, entries, files) : [];
 }

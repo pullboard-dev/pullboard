@@ -1,9 +1,12 @@
 /** A test file's key follows only its import closure and declared inputs across commits, so a green is reused exactly then [C7]. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { testActionKeys } from '../../../../src/io/test/action/cache.js';
-import { fixtureCommittedGraph } from '../../../../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureCommittedGraph } from '../../../fixtures/testkit.js';
 
 const PLAIN = 'packages/demo/tests/plain.test.js';
 const OTHER = 'packages/demo/tests/other.test.js';
@@ -51,5 +54,41 @@ test('clause 2: a source-tree test changes its key on any source change, even ou
     assert.ok(before[WIDE], 'the source-tree test has a key');
     assert.notEqual(after[WIDE], before[WIDE], 'a source change anywhere reruns it');
     assert.equal(after[PLAIN], before[PLAIN], 'a test without the declaration is unaffected by that file');
+  } finally { fx.done(); }
+});
+
+test('an explicit file list keys only those files, each equal to its key from a full build, and the catalog waits for a full build [C7,#6672]', async () => {
+  const fx = fixture();
+  try {
+    const commit = fx.commit();
+    const store = fx.root + '/.store';
+    const env = { ...process.env, PULLBOARD_TEST_RESULT_STORE: store };
+    const one = await testActionKeys(fx.root, { commit, env, maintain: false, files: [PLAIN] });
+    assert.deepEqual([...one.keys()], [PLAIN], 'only the asked file is keyed');
+    const [memo] = readdirSync(join(store, 'keys'));
+    assert.equal(existsSync(join(store, 'keys', memo, 'files.json')), false, 'a one-file build publishes no all-tests catalog');
+    const other = await testActionKeys(fx.root, { commit, env, maintain: false, files: [OTHER] });
+    assert.deepEqual([...other.keys()], [OTHER], 'a later file of the same tree builds its own record');
+    const full = await testActionKeys(fx.root, { commit, env: { ...env, PULLBOARD_TEST_RESULT_STORE: fx.root + '/.full' }, maintain: false });
+    assert.deepEqual(one.get(PLAIN), full.get(PLAIN), 'the one-file key is the full build key');
+    assert.deepEqual(other.get(OTHER), full.get(OTHER), 'so is the later one');
+    const all = await testActionKeys(fx.root, { commit, env, maintain: false });
+    assert.deepEqual(all, full, 'a full request over the partial memo builds every key and the catalog');
+    assert.equal(existsSync(join(store, 'keys', memo, 'files.json')), true);
+  } finally { fx.done(); }
+});
+
+test('a candidate keyed from its base graph gets the same keys as a cold build of its own tree [C7,#6672]', async () => {
+  const fx = fixture();
+  try {
+    const base = fx.commit();
+    fx.put('packages/demo/src/free.js', "import { used } from './used.js';\nexport const free = used;\n");
+    const candidate = fx.commit();
+    const files = [PLAIN, OTHER, WIDE];
+    const cold = await testActionKeys(fx.root, { commit: candidate, env: { ...process.env, PULLBOARD_TEST_PRIOR: '', PULLBOARD_TEST_RESULT_STORE: fx.root + '/.cold' }, maintain: false, files });
+    const forked = await testActionKeys(fx.root, { commit: candidate, env: { ...process.env, PULLBOARD_TEST_PRIOR: base, PULLBOARD_TEST_RESULT_STORE: fx.root + '/.forked' }, maintain: false, files });
+    assert.deepEqual(forked, cold, 'the forked graph keys every file exactly as the cold one');
+    const old = await testActionKeys(fx.root, { commit: base, env: { ...process.env, PULLBOARD_TEST_PRIOR: '', PULLBOARD_TEST_RESULT_STORE: fx.root + '/.base' }, maintain: false, files });
+    assert.notEqual(forked.get(OTHER).inputKey, old.get(OTHER).inputKey, 'the changed closure still changes its key');
   } finally { fx.done(); }
 });

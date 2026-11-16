@@ -15,6 +15,7 @@ import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
 import { createJob } from '../../../../jobs/index.js';
 import { writeStep } from '../../../../jobs/index.js';
 import { from } from './kit.js';
+import { hopCheck } from './kit.js';
 
 // The notice is the store's own; it is not on the store front door, so the harness loads it by path like the other pipeline harnesses.
 const { sayQueuedReds } = await from('packages/store/src/io/queued/red.js');
@@ -44,22 +45,28 @@ function told(fixture, bounded) {
   return lines.join('\n');
 }
 
-test('a red notice for a live claim says it stays claimed until the lease [C7,SM13]', t => {
-  const fixture = redClaim(t);
-  for (const bounded of [false, true]) {
-    const text = told(fixture, bounded);
-    assert.match(text, new RegExp(`#${fixture.id} stays claimed by you until ${fixture.lease}`, 'u'));
-    assert.doesNotMatch(text, /lapsed/u);
-  }
+test('a red notice for a live claim says it stays claimed until the lease [C7,SM13]', async t => {
+  await hopCheck('red-notice-live', async () => {
+    const fixture = redClaim(t);
+    for (const bounded of [false, true]) {
+      const text = told(fixture, bounded);
+      assert.match(text, new RegExp(`#${fixture.id} stays claimed by you until ${fixture.lease}`, 'u'));
+      assert.doesNotMatch(text, /lapsed/u);
+    }
+    return { measured: 'the notice names the lease end, in both forms' };
+  });
 });
 
-test('a red notice read after the lease ran out says the claim lapsed, never that it stays claimed [C7,SM13]', t => {
-  const fixture = redClaim(t);
-  fixture.clock.at = START + 10 * LEASE_MS;
-  for (const bounded of [false, true]) {
-    const text = told(fixture, bounded);
-    assert.match(text, new RegExp(`#${fixture.id} claim lapsed at ${fixture.lease}`, 'u'), 'it says the claim lapsed');
-    assert.match(text, /re-claim/u, 'it names the way back');
-    assert.doesNotMatch(text, /stays claimed/u, 'it never promises a claim that is gone');
-  }
+test('a red notice read after the lease ran out says the claim lapsed, never that it stays claimed [C7,SM13]', async t => {
+  await hopCheck('red-notice-lapsed', async () => {
+    const fixture = redClaim(t);
+    fixture.clock.at = START + 10 * LEASE_MS;
+    for (const bounded of [false, true]) {
+      const text = told(fixture, bounded);
+      assert.match(text, new RegExp(`#${fixture.id} claim lapsed at ${fixture.lease}`, 'u'), 'it says the claim lapsed');
+      assert.match(text, /re-claim/u, 'it names the way back');
+      assert.doesNotMatch(text, /stays claimed/u, 'it never promises a claim that is gone');
+    }
+    return { measured: 'the notice says lapsed and names re-claim, in both forms' };
+  });
 });
