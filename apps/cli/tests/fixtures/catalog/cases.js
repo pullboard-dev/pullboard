@@ -49,6 +49,7 @@ import {
 } from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { JSON_SHAPES } from '../../../../../packages/config/index.js';
+import { FIXTURE_DISTINCT_ENV } from '../../../src/io/item/duplicate.js';
 import { projectState } from '../../../src/io/view.js';
 import { serveView } from '../../../src/io/commands/view.js';
 import { registerProject } from '../../../../../packages/seats/index.js';
@@ -1325,5 +1326,31 @@ catalogCase('[A1,C7] contribute check reports an accepted record through the cat
   assert.deepEqual([report.shape, report.failures], ['Bug', []]);
 });
 
+catalogCase('[A1,C7,#8515] coordinate resumes the coordinator through real CLI JSON and writes nothing', [], async () => {
+  const box = await project();
+  const first = await uncataloguedRootJSON(box, box.repo, 'coordinate');
+  assert.equal(first.version, 1, 'coordinate --json has a version 1 envelope');
+  assert.ok(Array.isArray(first.all), 'coordinate reports the same resume view the coordinator reads');
+  const second = await uncataloguedRootJSON(box, box.repo, 'coordinate');
+  assert.deepEqual([second.all.length, second.agents.length], [first.all.length, first.agents.length], 'running it twice adds no agent or request');
+});
+
+catalogCase('[A1,C7,#8378] moves reports each move table state through real CLI JSON', [], async () => {
+  const box = await project();
+  const { tables } = await uncataloguedRootJSON(box, box.repo, 'moves');
+  assert.ok(Array.isArray(tables) && tables.length > 0, 'moves lists every move table');
+  for (const row of tables) assert.ok(['live', 'shadow', 'none'].includes(row.state), `table ${row.table} has a known state`);
+  assert.deepEqual(tables.map((row) => row.table), tables.map((row) => row.table).sort(), 'tables come in name order');
+});
+
+catalogCase('[A1,C7,#8916] split files one child per numbered clause through real CLI JSON', [], async () => {
+  const box = await project();
+  const parent = (await json(box, box.repo, 'add', ['coordinator', 'Split parent', '--criterion', '1. The first part holds [test] 2. The second part holds [test]', '--check', 'true', '--accept-green', 'catalog fixture'], 'add')).item;
+  // Each child is titled from its parent, so the likely-duplicate guard would refuse it; the fixture variable turns that guard off for this box only.
+  box.env[FIXTURE_DISTINCT_ENV] = '1';
+  const split = await uncataloguedRootJSON(box, box.repo, 'split', [String(parent.item_id)]);
+  assert.equal(split.parent, parent.item_id);
+  assert.equal(split.children.length, 2, 'one child per numbered clause');
+});
 
 export { catalogCases, covered, coveredRoots };
