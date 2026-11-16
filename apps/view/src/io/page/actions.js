@@ -660,7 +660,7 @@ function fitRow(f) {
   return '<div class="fit-row" data-fit="' + esc(f.target) + '"><div class="meta"><b>' + esc(f.target) + '</b><span class="chip">' + esc(f.decision) + '</span><span class="chip">unverified draft, recorded as ' + esc(f.recordedAs) + '</span></div>' + (f.text ? '<div>' + esc(f.text) + '</div>' : '') + (f.reason ? '<div>Reason: ' + esc(f.reason) + '</div>' : '') + '<div class="muted">Blueprint source: ' + esc(f.blueprint.name + ' v' + f.blueprint.version + ' ' + (f.kind === 'item' ? 'starter' : f.kind) + ' ' + f.key + ': ' + f.source) + '</div></div>';
 }
 
-/** Render escaped decision feedback beside the affected Spec row (B26, N26). */
+/** Render escaped decision feedback beside the affected Spec row (B26, N26); it stays until the next pick or decision, never on a timer, so nothing shifts under a pointer. */
 function specFeedback(feedback) {
   return '<div class="spec-feedback ' + feedback.tone + '" role="status">' + esc(feedback.text) + '</div>';
 }
@@ -807,7 +807,7 @@ async function decideRow(kind, command, args, anchor) {
       // Center an offscreen pick: nearest can round a half-pixel edge just outside the viewport.
       if (rect && (rect.top < 0 || rect.bottom > innerHeight)) picked.scrollIntoView({ block: 'center', behavior: 'instant' });
     }
-    if (!requestMode || feedback.status === 'done') setTimeout(() => { if (view.specFeedback === feedback) { view.specFeedback = null; render(); } }, 6000);
+    // The notice stays until the next pick or decision: a timer removing it would shift the page under a pointer.
   }
   return requestMode ? Boolean(feedback.requestId) && feedback.status !== 'refused' : feedback.tone === 'ok';
 }
@@ -1178,7 +1178,7 @@ document.addEventListener('click', (event) => {
   else if (t.dataset.row?.includes(':')) {
     const [kind, id] = t.dataset.row.split(':');
     view.row[kind] = id;
-    view.addressDetail = id;
+    view.addressDetail = id; view.specFeedback = null;
     address();
     render();
     $(kind + '-list').focus({ preventScroll: true });
@@ -1233,7 +1233,7 @@ for (const kind of ['spec', 'doctrine']) $(kind + '-list').addEventListener('key
   if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
     event.preventDefault();
     const next = ids[Math.min(ids.length - 1, Math.max(0, at + (event.key === 'ArrowDown' ? 1 : -1)))];
-    if (next && next !== view.row[kind]) { view.row[kind] = next; view.addressDetail = next; address(); render(); event.currentTarget.querySelector('.srow.on')?.scrollIntoView({ block: 'nearest' }); }
+    if (next && next !== view.row[kind]) { view.row[kind] = next; view.addressDetail = next; view.specFeedback = null; address(); render(); event.currentTarget.querySelector('.srow.on')?.scrollIntoView({ block: 'nearest' }); }
   } else if (event.key === 'Enter' && view.row[kind]) {
     event.preventDefault();
     $(kind + '-detail').scrollIntoView({ block: 'start', behavior: 'instant' });

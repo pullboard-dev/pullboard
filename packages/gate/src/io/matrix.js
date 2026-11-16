@@ -41,7 +41,7 @@ export const HARNESS_FILES = Object.freeze({
   'analysis-on-runner': 'analysis-on-runner', 'board-commands': 'board/commands', 'board-write': 'board/write', 'dead-worker-requeue': 'requeue', e2e: 'e2e',
   'landing-reopen': 'a-reject-or-reopen-during-landing', 'import-undeclared': 'board-restored-from-an-export-with-an-un', 'live-driver': 'driver', 'merged-twice': 'pullboard-merged-run-twice', 'orphan-worker': 'worker', 'proof-lanes': 'lanes', 'shout-scope': 'a-shout-names-an-item-this-seat-cannot-a', 'next-claim-fresh': 'next-resumes-a-claim-that-changed-in-the',
   'red-at-claim': 'a-red-from-an-older-head-shown-at-claim', 'landing-run': 'landing-run-fails-or-its-proof-is-not-gr', 'sleep-past-leases': 'machine-sleeps-past-every-lease', 'main-test': 'queued-main-test-job-never-driven', 'red-notice': 'red-notice-after-the-claim-lapsed', 'review-held': 'review-held-on-an-item-that-was-withdraw',
-  'ready-budget': 'budget', 'runner-spec': 'spec',
+  'ready-budget': 'budget', 
 });
 
 /** Board command latency target per command, from the 2 Nov speed rule. */
@@ -193,6 +193,14 @@ export function parseArgs(argv) {
 /** The prefix of the machine-readable row a harness prints for each hop it measured. */
 const ROW_MARK = '# hop-row ';
 
+/** Harnesses the owning app holds, by hop harness name: repository-relative paths kept as data so this package names no app file. */
+export const APP_HARNESSES = Object.freeze(JSON.parse(readFileSync(join(ROOT, 'packages/gate/data/tests/app-harnesses.json'), 'utf8')));
+
+/** The absolute path of one harness file: under the owning app when APP_HARNESSES names it, else under the pipeline folder. */
+export function harnessFile(name) {
+  return APP_HARNESSES[name] ? join(ROOT, APP_HARNESSES[name]) : join(HARNESSES, `${HARNESS_FILES[name] ?? name}.js`);
+}
+
 /**
  * Run one harness file in its own process and collect the hop rows it printed.
  *
@@ -203,7 +211,7 @@ const ROW_MARK = '# hop-row ';
 function runHarness(name, { against }) {
   const started = performance.now();
   const env = { ...process.env, ...(against ? { PULLBOARD_HOP_AGAINST: against } : {}) };
-  const child = spawn(process.execPath, ['--no-warnings', join(HARNESSES, `${HARNESS_FILES[name] ?? name}.js`)], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, ['--no-warnings', harnessFile(name)], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
   const rows = [];
   let output = '', pending = '';
   child.stdout.setEncoding('utf8').on('data', chunk => {
