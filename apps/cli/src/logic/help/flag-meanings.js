@@ -36,6 +36,7 @@ export const FLAG_MEANINGS = Object.freeze({
   'relay on --name': 'names this computer in the list of paired devices',
   'blueprint save --name': 'the name of the saved blueprint',
   'milestone edit --name': 'the milestone\'s new name',
+  'relay on --only': 'with --all, relinks just the one named board and clears its exclusion',
   '--new-browser': 'signs in and pairs one more browser; the browsers already paired stay paired',
   'init --verbose': 'prints every file and detail of setup',
   'relay devices --verbose': 'adds each id and phone key fingerprint',
