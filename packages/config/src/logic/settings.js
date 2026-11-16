@@ -172,6 +172,9 @@ export function loadMachineSettings() {
   if (value.tests?.registryStrict !== undefined && typeof value.tests.registryStrict !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `tests.registryStrict in ${file} must be true or false`);
   }
+  if (value['runners.yieldWhilePruning'] !== undefined && typeof value['runners.yieldWhilePruning'] !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `runners.yieldWhilePruning in ${file} must be true or false`);
+  }
   if (value.moves?.shadow !== undefined && typeof value.moves.shadow !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `moves.shadow in ${file} must be true or false`);
   }
