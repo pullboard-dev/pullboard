@@ -34,7 +34,7 @@ const MACHINE_DEFAULTS = {
   'maintenance.retireIdleSeats': false, 'maintenance.retireIdleHours': 3,
   'health.diskFloorGb': 0,
   'health.sentinel': true, 'view.background': true, 'relay.offerAtInit': true, runners: [], runnerRates: {}, 'landing.pools': [], 'landing.reofferTrunkBusy': false, 'landing.squash': false, 'landing.reuseGateReceipts': false,
-  'runners.fetchFailFast': false, 'runners.drainOnFetchFailure': false,
+  'jobs.handBackUnrunnable': false, 'runners.fetchFailFast': false, 'runners.drainOnFetchFailure': false,
   'submit.proofOnly': false, 'census.rerunNonGreen': false,
   'serve.address': '127.0.0.1', 'serve.port': 0, scratch: null, 'moves.shadow': false, 'tests.registryStrict': false, 'test.statusOutcomes': false, 'census.balanceByTime': false, 'census.recordFileTimes': false, 'moves.live.claim': false, 'moves.live.outbox': false, 'moves.live.handoff': false, 'moves.live.submit': false, 'moves.live.outcome': false, 'moves.live.job': false, 'moves.live.reopen': false,
   'jobs.avoidRunners': false, 'push.rerunFailedShardOnce': false, 'census.jobMinutes': null, 'census.jobsPerRunner': null, 'claim.refuseOffMainHead': false,
