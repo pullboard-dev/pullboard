@@ -32,6 +32,9 @@ function seatBox(flag) {
   fixtureProjectPolicy(box.web, { config: { ...config, affectedTests: 'node -e "setTimeout(() => {}, 60000)"' } });
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, TEST_FILE), "import { test } from 'node:test';\ntest('runs [G1]', () => {});\n");
+  // A pulled run tests committed source only, so the seat's setup is committed before it queues.
+  box.git(box.web, 'add', '-A');
+  box.git(box.web, '-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'test: runs fixture');
   const item = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Runs store wiring', args: ['--specs', 'G1'] });
   assert.equal(box.run(box.web, 'claim', String(item.item_id)).code, 0);
   if (flag) withFixtureBoard(boardFileOf(box), board => board.db.prepare('INSERT OR REPLACE INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(RUNS_STORE_KEY, '1'));
