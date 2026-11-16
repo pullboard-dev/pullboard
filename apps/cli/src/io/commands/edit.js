@@ -72,6 +72,7 @@ export async function run(io, args) {
     brief: brief === undefined ? undefined : briefInLane(ctx, store.getItem(board, id).item_lane, brief),
     reviewFamily: values['review-family'],
     ...(values['review-tier'] === undefined ? {} : { reviewTier: values['review-tier'] }),
+    ...(values.readiness === undefined ? {} : { readinessCommand: values.readiness }),
     ...(values['expected-minutes'] === undefined ? {} : { expectedBuildMinutes: parseExpectedBuildMinutes(values['expected-minutes']) }),
     route: values.route,
     ...(values.sensitive === undefined ? {} : { sensitive: values.sensitive }),
