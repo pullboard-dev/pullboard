@@ -29,10 +29,11 @@ async function handed(t, on) {
 }
 
 test('clause 1: the instruction next returns names the item folder and its frozen bar [C7,#8787]', async t => {
-  const { id, document } = await handed(t, true);
+  const { box, id, document } = await handed(t, true);
   assert.equal(document.item.item_id, id);
   assert.ok(document.itemFolder, 'the instruction names the item folder');
-  assert.ok(JSON.parse(document.item.item_frozen).rows.length > 0 || document.item.item_criterion, 'the instruction carries the frozen bar');
+  assert.equal(document.item.item_criterion, 'The real fixture succeeds.', 'the instruction carries the bar');
+  assert.ok(store.getItem(box.board, id).item_frozen_digest, 'the bar it names is frozen at claim');
 });
 
 test('clause 2: the same instruction lists the shouts and rulings that name the item [C7,#8787]', async t => {
