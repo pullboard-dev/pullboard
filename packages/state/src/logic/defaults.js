@@ -31,6 +31,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   NO_CLI_ENTRY: 'pass the pullboard entry file as cli when starting the serve sentinel',
   RUNNER_RESULT_SIGNATURE: 're-register the runner with pullboard runner add before accepting another result',
   RUNNER_RESULT_SOURCE: 'discard the result and rerun the pinned source on the runner',
+  CHECK_FILE_MISSING: 'commit the test file the frozen check names, or ask the coordinator to correct the check, then submit again',
   RUNNER_UNATTRIBUTED: 'pass metadata.item and metadata.kind naming the work the runner runs for, or turn gate.requireRunnerAttribution off: pullboard settings',
   BOARD_TOO_OLD: 'open this board with pullboard 0.9.3 first, then open it with this version',
   MACHINE_PROOF: 'run each frozen check on the composed tree so every clause has its own native receipt, then submit again',
