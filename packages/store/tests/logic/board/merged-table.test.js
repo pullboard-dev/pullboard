@@ -14,7 +14,8 @@ function boardWith(t, status) {
   const board = cellBoard(t, ':memory:', { now: () => new Date(AT) });
   board.db.prepare(`INSERT INTO item (item_id, item_lane, item_title, item_route, item_status, item_created_by, item_created_at, item_updated_at) VALUES (7, 'core', 'landed', 'strong', 'open', 'coordinator', ?, ?)`).run(STAMP, STAMP);
   board.db.exec('INSERT INTO temp.moving VALUES (1)');
-  board.db.prepare('UPDATE item SET item_status=? WHERE item_id=7').run(status);
+  board.db.prepare(`UPDATE item SET item_status=?, item_commit=?, item_owner=?, item_lease_until='2099-01-01T00:00:00.000Z', item_frozen_digest=?, item_built_by='core-1', item_verified_by=? WHERE item_id=7`)
+    .run(status, status === 'open' ? null : 'a'.repeat(40), status === 'open' ? null : 'core-1', 'd'.repeat(64), status === 'verified' ? 'core-2' : null);
   board.db.exec('DELETE FROM temp.moving');
   return board;
 }
