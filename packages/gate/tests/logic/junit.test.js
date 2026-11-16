@@ -1,8 +1,7 @@
-/** @pullboard-test-input source-cell config gate */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { MACHINE_DEFAULTS } from '../../../config/src/io/settings/machine-defaults.js';
-import { describeSetting } from '../../../config/src/io/settings/descriptions.js';
+import { MACHINE_DEFAULTS } from '../../../config/index.js';
+import { describeSetting } from '../../../config/index.js';
 import { junitCases } from '../../src/logic/junit.js';
 
 const XML = `<?xml version="1.0"?>
