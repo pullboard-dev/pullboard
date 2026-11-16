@@ -20,6 +20,8 @@ test('clause 2: sentinel run --health-only finishes and records a health-scan ev
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   fixtureProjectPolicy(box.repo, { config: { ...config, verify: { policy: 'coordinator' } } });
   box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-qm', 'chore: coordinator-only review policy');
+  box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-qm', 'chore: isolate private health fixture');
   let at = Math.ceil(Date.now() / 1000) * 1000;
   const clock = { now: () => new Date(at) };
