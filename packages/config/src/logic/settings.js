@@ -213,6 +213,9 @@ export function loadMachineSettings() {
   if (value.census?.balanceByTime !== undefined && typeof value.census.balanceByTime !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `census.balanceByTime in ${file} must be true or false`);
   }
+  if (value.census?.selfTune !== undefined && typeof value.census.selfTune !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `census.selfTune in ${file} must be true or false`);
+  }
   if (value.census?.jobMinutes !== undefined && value.census.jobMinutes !== null && !(typeof value.census.jobMinutes === 'number' && Number.isFinite(value.census.jobMinutes) && value.census.jobMinutes > 0)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `census.jobMinutes in ${file} must be a number of minutes above 0, or null`);
   }
@@ -371,6 +374,9 @@ export function loadMachineSettings() {
   }
   if (value.relay?.offerAtInit !== undefined && typeof value.relay.offerAtInit !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `relay.offerAtInit in ${file} must be true or false`);
+  }
+  if (value.relay?.excludeByBoard !== undefined && typeof value.relay.excludeByBoard !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `relay.excludeByBoard in ${file} must be true or false`);
   }
   if (value.relay?.pruneReceipts !== undefined && typeof value.relay.pruneReceipts !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `relay.pruneReceipts in ${file} must be true or false`);
