@@ -17,10 +17,10 @@ test('clause 1: a settled-submit sample gives the same exit codes, JSON results 
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });
 
-test('clause 2: the settle fixture reads show for its gate wait through the box in-process call, whatever run its caller passes [C7]', () => {
+test('clause 2: the settle fixture reads show for its gate wait in this process, whatever run its caller passes [C7]', () => {
   const source = readFileSync(new URL('../../../apps/cli/tests/fixtures/submit/settle.js', import.meta.url), 'utf8');
   const wait = source.slice(source.indexOf('export function settledGateJob'), source.indexOf('export async function settleSubmit'));
   assert.match(wait, /readShown\(box, item\)/u, 'the wait reads show through readShown');
   assert.doesNotMatch(wait, /box\.run\(/u, 'the wait starts no CLI call through the caller run');
-  assert.match(source, /box\.inProcess \?\? box\.run/u, 'readShown answers show with the box in-process call, falling back to the box run');
+  assert.match(source, /box\.run\.read \?\? box\.inProcess \?\? box\.run/u, 'readShown answers show with the in-process read of the caller run, falling back to the box run');
 });

@@ -373,6 +373,8 @@ function sandbox({ declareFamilies = false } = {}) {
     if (process.env.PULLBOARD_PARITY_RECORD) appendFileSync(process.env.PULLBOARD_PARITY_RECORD, `${JSON.stringify(parityRecord({ dir, env, cwd, args: called, result: answer }))}\n`);
     return answer;
   };
+  /** A read of the board that is not the journey's subject, such as the settle wait's poll: in this process, whatever the mode, and recorded nowhere, so the parity call count follows no timing (U149) [C7]. */
+  runIn.read = inProcess;
   return { dir, env, git, tryGit, run, runAsync, inProcess, runLocal: runIn, runIn, runSync, declareFamilies, declareFamily };
 }
 
