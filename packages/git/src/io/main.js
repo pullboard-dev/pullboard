@@ -1168,7 +1168,7 @@ export function localConfigIs(root, section, key, value) {
   return values.length === 1 && values[0] === value;
 }
 
-/** Read an unambiguous plain local config value without a Git process; undefined asks Git to decide. */
+/** Read an unambiguous plain local config value without a Git process; undefined asks Git to decide. Only the wanted key must be plain: an email or URL elsewhere no longer sends the read to Git [C7,#8574]. */
 export function plainLocalConfigValue(root, section, key) {
   const location = fileLocation(root, { clean: true });
   if (!location) return undefined;
@@ -1182,9 +1182,9 @@ export function plainLocalConfigValue(root, section, key) {
     if (/^\s*(?:[#;].*)?$/u.test(line)) continue;
     const header = /^\s*\[([A-Za-z0-9.-]+)(?:\s+"[^"\\]*")?\]\s*$/u.exec(line);
     if (header) { hasSection = true; inSection = header[1].toLowerCase() === section && !line.includes('"'); continue; }
-    const entry = /^\s*([A-Za-z][A-Za-z0-9-]*)\s*=\s*([\w./-]+)\s*$/u.exec(line);
+    const entry = /^\s*([A-Za-z][A-Za-z0-9-]*)\s*(?:=\s*(.*?))?\s*$/u.exec(line);
     if (!entry || !hasSection) return undefined;
-    if (inSection && entry[1].toLowerCase() === key) values.push(entry[2]);
+    if (inSection && entry[1].toLowerCase() === key) { if (!/^[\w./-]+$/u.test(entry[2] ?? '')) return undefined; values.push(entry[2]); }
   }
   return values.length > 1 ? undefined : values[0] ?? null;
 }
