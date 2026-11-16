@@ -1,6 +1,5 @@
 /** A submit and each accept or reject verdict record the model their seat declared, by CLI, API and MCP [C7,#2093]. */
 import assert from 'node:assert/strict';
-import { once } from 'node:events';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -14,7 +13,6 @@ import { FIXTURE_MODEL } from '../../tests/fixtures/testkit.js';
 import { FIXTURE_MODEL_EARLIER } from '../../tests/fixtures/testkit.js';
 import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
-import { startFixtureChild } from '../../tests/fixtures/child.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { startFixtureLocalRunner } from '../../tests/fixtures/runner/local-start.js';
 import { whenRunnerSettles } from '../../tests/fixtures/runner/local-start.js';
@@ -118,60 +116,26 @@ function ok(seats, how) {
   };
 }
 
-/** A minimal stdio MCP client for `pullboard mcp` run as one seat. */
-function mcpAs(seats, seat) {
-  const child = startFixtureChild(process.execPath, [CLI_ENTRY, 'mcp'], { cwd: seat.path,
-    env: { ...seats.box.env, PULLBOARD_AGENT: seat.agent }, stdio: ['pipe', 'pipe', 'pipe'] });
-  const waiting = new Map();
-  let buffer = '', next = 1;
-  child.stdout.setEncoding('utf8');
-  child.stdout.on('data', part => {
-    buffer += part;
-    let at;
-    while ((at = buffer.indexOf('\n')) >= 0) {
-      const line = buffer.slice(0, at);
-      buffer = buffer.slice(at + 1);
-      let message;
-      try { message = JSON.parse(line); } catch { continue; }
-      waiting.get(message.id)?.(message);
-    }
-  });
-  const closed = once(child, 'close');
-  const request = (method, params) => new Promise((done, fail) => {
-    const id = next++;
-    const timer = setTimeout(() => fail(new Error(`no reply to ${method}`)), 30_000); // budget: hang ceiling for one MCP reply; no throughput claim.
-    waiting.set(id, message => { clearTimeout(timer); waiting.delete(id); done(message); });
-    child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`);
-  });
-  return {
-    /** Handshake once, then call a tool and return its structured result, failing on an error result. */
-    async call(name, args) {
-      if (next === 1) {
-        await request('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'fixture-client', version: '1.0.0' } });
-        child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' })}\n`);
-      }
-      const reply = await request('tools/call', { name, arguments: args });
-      assert.ok(reply.result && !reply.result.isError, `${name}: ${JSON.stringify(reply)}`);
-      return reply.result.structuredContent;
-    },
-    async close() { child.stdin.end(); await closed; },
-  };
+/** One MCP tool call as one seat: the server runs in this process over an input of handshake plus the call, and its reply is read back. */
+async function mcpCall(seats, seat, name, args) {
+  const lines = [{ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'fixture-client', version: '1.0.0' } } },
+    { jsonrpc: '2.0', method: 'notifications/initialized' },
+    { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name, arguments: args } }];
+  const ran = await runCliInProcess(['mcp'], { cwd: seat.path, env: { ...seats.box.env, PULLBOARD_AGENT: seat.agent }, input: lines.map(line => JSON.stringify(line)).join('\n') + '\n' });
+  const reply = ran.stdout.split('\n').filter(Boolean).map(line => JSON.parse(line)).find(message => message.id === 2);
+  assert.ok(reply?.result && !reply.result.isError, `${name}: ${ran.stdout}${ran.stderr}`);
+  return reply.result.structuredContent;
 }
 
-/** The tool names for the same moves the CLI makes, as MCP arguments. */
+/** The same moves the CLI makes, as MCP tool calls. */
 function mcpRunner(seats) {
-  const clients = new Map();
-  const run = async (seat, verb, ...args) => {
-    if (!clients.has(seat.agent)) clients.set(seat.agent, mcpAs(seats, seat));
-    const client = clients.get(seat.agent);
+  return async (seat, verb, ...args) => {
     const id = Number(args[0]);
-    if (verb === 'claim' || verb === 'submit') return client.call(verb, { id });
-    if (verb === 'next') return client.call('next', { verify: true });
-    return client.call('verify', { id, decision: args[1], note: 'read the diff',
+    if (verb === 'claim' || verb === 'submit') return mcpCall(seats, seat, verb, { id });
+    if (verb === 'next') return mcpCall(seats, seat, 'next', { verify: true });
+    return mcpCall(seats, seat, 'verify', { id, decision: args[1], note: 'read the diff',
       ...(args[1] === 'reject' ? { reason: 'TEST_FAILURE', clause: CLAUSE } : { reason: 'CRITERION_MET' }) });
   };
-  run.close = async () => { for (const client of clients.values()) await client.close(); };
-  return run;
 }
 
 test('a submit and each verdict record the declaring seat\'s model [C7,#2093]', { timeout: 280_000 }, // budget: hang ceiling for a served board, two runner gates per path and about forty calls, not a throughput claim.
@@ -200,12 +164,10 @@ onSeats(async (seats, t) => {
       assertModels(seats, id, verdict, seats.current);
     }
     const run = mcpRunner(seats);
-    try {
-      for (const verdict of ['accept', 'reject']) {
-        const id = await seats.add(`MCP ${verdict} model`);
-        await drive(seats, run, id, verdict);
-        assertModels(seats, id, verdict, seats.current);
-      }
-    } finally { await run.close(); }
+    for (const verdict of ['accept', 'reject']) {
+      const id = await seats.add(`MCP ${verdict} model`);
+      await drive(seats, run, id, verdict);
+      assertModels(seats, id, verdict, seats.current);
+    }
   });
 }));
