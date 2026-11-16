@@ -29,7 +29,7 @@ export function verdictReviewProblem(review, commit, { checked } = {}) {
  */
 export function verdictReads(board, ids) {
   const grouped = new Map([...ids].map(id => [id, { verdicts: [], receipts: [], reopens: [] }]));
-  for (const row of board.db.prepare('SELECT * FROM verdict ORDER BY verdict_id').all()) grouped.get(row.item_id)?.verdicts.push(row);
+  for (const row of board.db.prepare('SELECT verdict.* FROM verdict JOIN item USING (item_id) ORDER BY verdict_id').all()) grouped.get(row.item_id)?.verdicts.push(row);
   for (const row of board.db.prepare("SELECT event_id, item_id, event_kind, event_detail FROM event WHERE event_kind IN ('accept', 'reject') ORDER BY event_id").all()) grouped.get(row.item_id)?.receipts.push(row);
   for (const row of board.db.prepare("SELECT * FROM event WHERE event_kind = 'reopen' ORDER BY event_id").all()) grouped.get(row.item_id)?.reopens.push(row);
   const pick = key => new Map([...grouped].map(([id, rows]) => [id, rows[key]]));

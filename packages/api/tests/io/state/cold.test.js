@@ -5,8 +5,8 @@ import { test } from 'node:test';
 import { apiHttpFixture } from '../../../../../apps/cli/tests/fixtures/api.js';
 import { coldStateReads } from '../../../../../apps/cli/tests/fixtures/api.js';
 
-/** How many of the build's statements read verdict rows, and how many read reopen events. */
-const verdictReads = statements => statements.filter(sql => /\bFROM verdict\b/.test(sql));
+/** The build's statements that read an item's verdict rows (one item at a time, or every item's at once), and those that read reopen events. Whole-table reads for other purposes are not item verdict reads. */
+const verdictReads = statements => statements.filter(sql => /\bFROM verdict (?:WHERE item_id|JOIN item)/.test(sql));
 const reopenReads = statements => statements.filter(sql => /event_kind = 'reopen'/.test(sql));
 
 test('clause 1: a cold state build over 70 items reads verdict rows once in total, not once per item [C7,#8848]', t => {
