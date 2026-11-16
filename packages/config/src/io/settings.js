@@ -376,6 +376,11 @@ export function rejectKeepsCheck() {
   return loadMachineSettings().verify?.rejectKeepsCheck === true;
 }
 
+/** Whether a coordinator move records its own session usage (#9685): off by default; only an exact `true` turns it on. */
+export function statsRecordCoordinatorUsage() {
+  return loadMachineSettings().stats?.recordCoordinatorUsage === true;
+}
+
 /** Whether a starved green review shouts the coordinator (#9682): off by default; only an exact `true` turns it on. */
 export function reviewStarveShout() {
   return loadMachineSettings().review?.starveShout === true;
