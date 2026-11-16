@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell apps/cli */
 /**
  * Claim-head reads, trunk merge-base reads and branch changes made before the claim: one slice of the submit gate proof, split from gate.test.js to stay under the runner time budget [V4,C7,V16].
  */
