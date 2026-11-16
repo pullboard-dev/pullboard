@@ -18,7 +18,7 @@ const tableName = path => path.slice(path.lastIndexOf('/') + 1).replace(/\.table
  * The machine setting that puts each table's writer live, by the key its compares are recorded under.
  * Why a map: one switch can govern two recorded tables (moves.live.submit: commit and submit; moves.live.handoff: start and complete) [C7,#9188].
  */
-const LIVE_SWITCH = Object.freeze({
+export const LIVE_SWITCH = Object.freeze({
   claim: 'moves.live.claim', commit: 'moves.live.submit', submit: 'moves.live.submit', start: 'moves.live.handoff', complete: 'moves.live.handoff',
   outcome: 'moves.live.outcome', job: 'moves.live.job', reopen: 'moves.live.reopen', outbox: 'moves.live.outbox', hop: 'gate.fencedHop',
 });
