@@ -1,5 +1,6 @@
 /** Machine-wide setting defaults, one key per line in sorted order so parallel items adding settings do not conflict [O5,O6]. */
 export const MACHINE_DEFAULTS = {
+  'add.warnUnnamedTest': false,
   browserSlots: 1,
   'budget.dailyUsd': null,
   'budget.totalUsd': null,
