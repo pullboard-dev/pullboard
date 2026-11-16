@@ -11,6 +11,7 @@ import { ledgerHits } from '../../../store/index.js';
 import { ledgerMainReds } from '../../../store/index.js';
 import { landingWaiverKind } from '../../../store/index.js';
 import { PERSON } from '../../../store/index.js';
+import { runsStoreOn } from '../../../store/index.js';
 import { offerJob } from './jobs.js';
 import { offeredRequest } from './jobs.js';
 import { holdJob } from '../../../jobs/index.js';
@@ -235,6 +236,8 @@ export function landingProof(db, items, runner, main) {
  * @returns {string | null} The open job's id.
  */
 export function openLandingJob(db) {
+  // With runs_store on the job lives in the runs file, and the board holds one queued run row until its receipt applies [B2,P7,#9114].
+  if (runsStoreOn(db)) return db.prepare("SELECT run_job FROM run WHERE run_kind = ? AND run_state IN ('queued', 'awaiting') ORDER BY run_created, rowid LIMIT 1").get(LANDING_JOB_KIND)?.run_job ?? null;
   return db.prepare("SELECT job_id FROM job WHERE job_kind = ? AND job_step <> 'done' ORDER BY job_created LIMIT 1").get(LANDING_JOB_KIND)?.job_id ?? null;
 }
 
