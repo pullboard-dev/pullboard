@@ -13,6 +13,7 @@ import { landingWaiverKind } from '../../../store/index.js';
 import { PERSON } from '../../../store/index.js';
 import { offerJob } from './jobs.js';
 import { offeredRequest } from './jobs.js';
+import { holdJob } from '../../../jobs/index.js';
 
 /** The job kind a runner asks for to take landings; packages/landing's runner side takes this kind. */
 export const LANDING_JOB_KIND = 'land';
@@ -267,10 +268,10 @@ export function keepLandingLog(board, job, receipt) {
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {string} job - The failed land job's id.
- * @param {{ now?: number }} [options]
+ * @param {{ now?: number, holdMs?: number }} [options] - holdMs: no runner may claim the new job for this long, a backoff (#9102).
  * @returns {{ id: string, retry: number } | null} The new job, or null when the job has no offered payload.
  */
-export function reofferLandingJob(db, job, { now = Date.now(), queue = null } = {}) {
+export function reofferLandingJob(db, job, { now = Date.now(), queue = null, holdMs = 0 } = {}) {
   // With runs_store on the failed job's offered row lives in the runs file, not on the board [B2,P7].
   const home = queue ? queue.runs.db : db;
   const row = home.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job);
@@ -280,7 +281,9 @@ export function reofferLandingJob(db, job, { now = Date.now(), queue = null } = 
   const next = Number(retry ?? 0) + 1;
   const id = `${first}~r${next}`;
   offerJob(db, { id, kind: LANDING_JOB_KIND, priority: 'landing', needs: offered.needs ?? [], now, payload: offered.payload ?? null, request: offeredRequest(home, job) }, queue);
-  return { id, retry: next };
+  // A claim takes only a job whose lease_until has passed, so an unowned lease_until in the future is the backoff [C7,#9102].
+  if (holdMs > 0) holdJob(home, id, now + holdMs, { now });
+  return { id, retry: next, ...(holdMs > 0 ? { until: now + holdMs } : {}) };
 }
 
 /** How many times a land job id has been offered again: 0 for the first offer. */
