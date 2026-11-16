@@ -177,6 +177,11 @@ export async function run(io, { first, values }) {
   if (item.item_verdict_state) io.say(staleVerdictRefusal(item, item.item_verdict_state).message);
   io.say(`review tier: ${independence.tier}${independence.requiredFamily ? `; required family ${independence.requiredFamily}` : ''}`);
   io.say(`eligible reviewers: ${independence.ready ? independence.eligible.join(', ') || 'none' : 'not submitted'}`);
+  // One line per builder parent session: the reason a seat under it is not offered the review, with no coordinator fact [V1,B3,C7].
+  for (const { parent, seats } of independence.authorParents ?? []) {
+    io.say(parent === 'unknown' ? `builder parent session: unknown (${seats.join(', ')}); no seat is excluded by parent`
+      : `builder parent session ${parent} (${seats.join(', ')}): seats under this parent are not offered the review`);
+  }
   if (values.detail) io.say(`usage: input ${cost.inputTokens ?? 'unknown'} (fresh ${cost.freshInputTokens ?? 'unknown'}, cached read ${cost.cacheReadInputTokens ?? 'unknown'}, cached write ${cost.cacheWriteInputTokens ?? 'unknown'}), output ${cost.outputTokens ?? 'unknown'}, ${cost.wallMs} ms${cost.shared ? '; shared-session item split unknown' : cost.splitByTime ? '; split by time with a shared session' : ''}; models ${cost.models.join(', ') || 'unknown'}${cost.unknownReasons.length ? '; unknown: ' + cost.unknownReasons.join(', ') : ''}${dollarText(cost)}`);
   else if (cost.inputTokens != null || cost.outputTokens != null) io.say(`usage: input ${cost.inputTokens ?? 'unknown'}, output ${cost.outputTokens ?? 'unknown'}${cost.shared ? '; shared-session item split unknown' : cost.splitByTime ? '; split by time with a shared session' : ''}${dollarText(cost)}; --detail`);
   if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
