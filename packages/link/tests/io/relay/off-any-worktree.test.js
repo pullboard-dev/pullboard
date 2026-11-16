@@ -52,7 +52,7 @@ test('clause 2: relay off in a main checkout bound to another session is not ref
   t.after(() => { for (const [key, value] of Object.entries(marker)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } });
   process.env.CLAUDECODE = '1';
   process.env.CLAUDE_CODE_SESSION_ID = 'other-session';
-  const lease = await bindLocalSession(repoInfo(repo), { agent: 'coordinator', digest: agentSessionDigest() });
+  const lease = await bindLocalSession(repoInfo(repo), { agent: 'coordinator', digest: agentSessionDigest(), keepLease: true });
   lease.release();
   process.env.CLAUDE_CODE_SESSION_ID = 'this-session';
   const io = { cwd: repo };
