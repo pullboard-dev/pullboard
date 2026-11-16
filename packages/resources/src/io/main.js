@@ -392,7 +392,7 @@ function custodyProcessMatches(pid, started) {
 
 /** Run a short database update as this file's single queued writer, so no caller contends for the SQLite lock [C7,#3084]. */
 function update(db, action, sweep = true) {
-  if (sweep && !openWrites) refreshIdentities(livenessPids(db)); // one batched ps before the turn, so the sweep inside it reads only the cache
+  if (sweep && !openWrites) refreshIdentities(livenessPids(db), db); // one batched ps before the turn, and a fresh read of each suspect holder, so the sweep inside it spawns nothing
   const started = Date.now();
   for (let backoff = 50; ; backoff = Math.min(backoff * 2, 400)) {
     // Each attempt waits at most about 2 s; a busy machine gets retries with backoff until the deadline, never minutes.
