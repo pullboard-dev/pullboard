@@ -5,7 +5,7 @@ export { BROWSER_IO_TIMEOUT_MS, browserJSON, withBrowserDeadline } from './src/l
 export { createPhoneHistory } from './src/io/browser/history.js';
 export { registerApp, requestPairingPersistence } from './src/logic/browser/install.js';
 export { presentationState, snapshotState } from './src/io/browser/model.js';
-export { RELAY_FAULT_WORDS, RELAY_SCREEN_WORDS, clearBrowserReadFailure, emptyBoardStep, homeLineDismissed, homeScreenLine, nothingShared, noticeLines, reconcileOwnedRequests, recordBrowserReadFailure, relayFailureText, relayFault, relayScreenMarkup, rememberOwnedRequestId, showRelayScreen, storedOwnedRequestState, uploadSizeLine, wireRelayScreens } from './src/io/browser/notice.js';
+export { RELAY_FAULT_WORDS, RELAY_SCREEN_WORDS, clearBrowserReadFailure, emptyBoardStep, homeLineDismissed, homeScreenLine, nothingShared, noticeLines, reconcileOwnedRequests, recordBrowserReadFailure, relayFailureText, relayFault, relayUnavailableCause, relayScreenMarkup, rememberOwnedRequestId, showRelayScreen, storedOwnedRequestState, uploadSizeLine, wireRelayScreens } from './src/io/browser/notice.js';
 export { MODULE_PREFIX, browserModules, createRelayBrowserHandler } from './src/io/browser/page.js';
 export { enqueueStream, followStream } from './src/logic/browser/stream.js';
 export { createDeviceHandler } from './src/logic/http/device.js';
