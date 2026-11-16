@@ -340,6 +340,11 @@ export function landingSquashEnabled() {
   return loadMachineSettings().landing?.squash === true;
 }
 
+/** Whether spec.commitOnApply is on (#9346): off by default; only an exact `true` turns it on. */
+export function commitOnApplyEnabled() {
+  return loadMachineSettings().spec?.commitOnApply === true;
+}
+
 /** Whether landing.strictFullSuite is on (#9323): off by default; only an exact `true` turns it on. */
 export function strictFullSuiteEnabled() {
   return loadMachineSettings().landing?.strictFullSuite === true;

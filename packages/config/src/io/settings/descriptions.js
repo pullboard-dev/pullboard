@@ -258,6 +258,7 @@ const ROWS = [
   ['protect.allowed', 'Protected-file exceptions', 'File patterns allowed even though they match a protected one.', 'Protection', 'list'],
   ['protect.blocked', 'Protected files', 'File patterns no change may include.', 'Protection', 'list'],
   ['protect.secrets', 'Secret scan', 'Changes are scanned for text that looks like a secret.', 'Protection', 'on/off'],
+  ['spec.commitOnApply', 'Commit applied spec decisions', 'When enabled, applying a decided spec row from the view writes SPEC.md and commits it under the person\'s identity, with only the spec file and signoff receipts, if the checkout is clean; off (default), apply writes the files and commits nothing.', 'Project', 'on/off'],
   // This board: line settings (recorded by the coordinator with a reason)
   ['line.agingMinutes', 'Item waiting bonus', 'A ready item gains one queue position per this many minutes waited; off preserves the existing order.', 'Line', 'minutes'],
   ['line.bar.check', 'Criterion needs a check', 'A criterion must name an executable check.', 'Line', 'on/off'],
