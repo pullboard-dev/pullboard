@@ -1,5 +1,10 @@
 /** Shared real-size board for the command-budget journeys: one seeded board, five commands, one bar [C7,#3019]. */
 import assert from 'node:assert/strict';
+import {
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { DatabaseSync } from 'node:sqlite';
@@ -88,7 +93,7 @@ export async function measureNext(box, command) {
 }
 
 /** Measure next as a user runs it: each round is one cold spawned CLI process, node start-up included; one warm-up round is untimed [C7]. */
-export async function measureColdNext(box) {
+export async function measureColdNext(box, t) {
   const dir = seatOnRealSizeBoard(box);
   const samples = { 'cold next': [] };
   for (let round = -1; round < ROUNDS; round++) {
@@ -97,7 +102,30 @@ export async function measureColdNext(box) {
     const run = timed(box, dir, 'next');
     if (round >= 0) samples['cold next'].push(run.ms);
   }
+  const { floor, top } = coldNextPhases(box, dir);
+  t.diagnostic(`cold next phases: process start and exit alone ${floor.toFixed(0)} ms; next's self time by file: ${top.join('; ')}`);
   return samples;
+}
+
+/** Where one cold next spends its time: a process that only starts and exits (the floor), then the same next profiled, as self time by file, so a miss names its slow phase [C7,#8547]. */
+export function coldNextPhases(box, dir) {
+  const floor = timed(box, dir, '--version').ms;
+  const prof = join(box.dir, 'cold-prof');
+  mkdirSync(prof, { recursive: true });
+  const before = box.env.NODE_OPTIONS;
+  box.env.NODE_OPTIONS = `${before ?? ''} --cpu-prof --cpu-prof-dir=${prof}`.trim();
+  try { timed(box, dir, 'next'); } finally { if (before === undefined) delete box.env.NODE_OPTIONS; else box.env.NODE_OPTIONS = before; }
+  const self = new Map();
+  for (const name of readdirSync(prof).filter(file => file.endsWith('.cpuprofile'))) {
+    const profile = JSON.parse(readFileSync(join(prof, name), 'utf8'));
+    const byId = new Map(profile.nodes.map(node => [node.id, node]));
+    profile.samples.forEach((id, at) => {
+      const url = byId.get(id).callFrame.url.replace(/^.*\/(?=(?:apps|packages)\/)/u, '') || byId.get(id).callFrame.functionName || '(native)';
+      self.set(url, (self.get(url) ?? 0) + (profile.timeDeltas[at] ?? 0) / 1000);
+    });
+  }
+  const top = [...self].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([url, ms]) => `${url} ${ms.toFixed(0)} ms`);
+  return { floor, top };
 }
 
 /** Measure claim and release of one filed item per round, in this process like next, so a loaded runner's node start-up is not billed to the command [#6998,C7]. */

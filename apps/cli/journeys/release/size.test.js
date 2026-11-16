@@ -27,5 +27,5 @@ test('cli.journeys-release-size.the-budget-fails-when-any-command: clause 2: the
 });
 
 test('clause 1: one cold spawned next, node start-up included, has a p50 under 1 s over 5 runs [C7,#8547]', async t => {
-  assert.deepEqual(slowCommands(t, await measureColdNext(helpers.project('true'))), [], 'a cold spawned next has a p50 under 1 s');
+  assert.deepEqual(slowCommands(t, await measureColdNext(helpers.project('true'), t)), [], 'a cold spawned next has a p50 under 1 s');
 });
