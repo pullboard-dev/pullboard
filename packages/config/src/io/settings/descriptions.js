@@ -104,6 +104,7 @@ const ROWS = [
   ['serve.address', 'Board API address', 'The interface address pullboard serve listens on; off loopback every request needs this machine\'s board key, so runners on the network can pull jobs.', 'Runners', 'address'],
   ['serve.port', 'Board API port', 'The port pullboard serve listens on; 0 chooses a free one, so set it when runners keep the board URL.', 'Runners', 'port'],
   ['tests.registryStrict', 'Fail on unregistered tests', 'When enabled, the test registry check fails when a test has no stable ID or registry record; off, it reports the test and passes.', 'Runners', 'on/off'],
+  ['tests.requireJourneyPath', 'Refuse journeys with no user path', 'When enabled, the static check refuses a change that adds a CLI journey no golden user path names (JOURNEY_NO_PATH); off, it prints the finding as a diagnostic line and passes.', 'Runners', 'on/off'],
   ['tests.requireRegistered', 'Refuse unregistered new tests', 'When enabled, the static check refuses a change that adds a test file in a cell with no test registry (TEST_UNREGISTERED); off, it prints the finding as a diagnostic line and passes.', 'Runners', 'on/off'],
   // This machine: Background
   ['health.sentinel', 'Health watch', 'The automatic health observer runs on this computer; a board can turn it off for itself too.', 'Background', 'on/off'],
@@ -208,6 +209,7 @@ const ROWS = [
   ['verify.titleTicks', 'Tick clauses by case title', 'On, a [test] clause that names no test file is ticked by the item\'s changed tests holding a case titled "clause N:" when the gate runs every such case green; off (default) only a clause naming a test file or folder is.', 'Review', 'on/off'],
   ['verify.unrelatedTrunkMoves', 'Keep verdicts through unrelated changes', 'A verdict survives main moving through commits that touch nothing the review read.', 'Review', 'on/off'],
   ['withdraw.refuseLanded', 'Landed work stays landed', 'On, withdraw refuses an item whose commit is on main and names pullboard merged instead; off, withdraw closes it as before.', 'Review', 'on/off'],
+  ['release.liftTwiceHold', 'Lift a released-twice hold', 'On, the hold the release-twice rule places lifts when main moves or when an item a release named as its blocker lands; a hold a person or the coordinator placed stays. Off (default), it stays until someone lifts it.', 'Review', 'on/off'],
   ['withdraw.review', 'Withdrawals need a second seat', 'On, a withdrawal waits as pending until another seat confirms it; off, withdraw closes the item at once.', 'Review', 'on/off'],
   // This repo: Claims
   ['claim.refuseOffMainHead', 'Refuse a claim off main', 'When enabled, claim refuses in a folder whose HEAD is not on main (a commit made before claiming), and names the step that puts the folder back on main; off (default), claim takes the folder as it stands.', 'Claims', 'on/off'],

@@ -19,6 +19,7 @@ import { importStyleViolations } from '../../../index.js';
 import { engineFolderViolations } from '../../../../state/index.js';
 import { doctrineReport } from '../../../../doctrine/index.js';
 import { loadConfig } from '../../../../config/index.js';
+import { requireJourneyPathEnabled } from '../../../../config/index.js';
 import { requireRegisteredEnabled } from '../../../../config/index.js';
 import { adapterLintClockEnabled } from '../../../../config/index.js';
 import { clockLintRows } from '../adapter-lints/clock.js';
@@ -38,6 +39,7 @@ import { relayBoundaryProblems } from '../relay.js';
 import { fixtureProblems } from '../test/fixtures.js';
 import { fixtureSites } from '../test/fixtures.js';
 import { unregisteredTestRows } from '../test/unregistered.js';
+import { journeyPathRows } from '../test/unregistered.js';
 import { cellsEdgeProblems } from '../edges.js';
 import { fileEdges } from '../edges.js';
 import { testCellsProblems } from '../test/cells.js';
@@ -201,6 +203,13 @@ export const STATIC_TREE_CHECKS = Object.freeze([
     const rows = unregisteredTestRows(root, { only: context.changed });
     if (context.requireRegistered ?? requireRegisteredEnabled()) return rows;
     for (const row of rows) (context.report ?? MEMORY.report)(`diagnostic (tests.requireRegistered off): ${row}`);
+    return [];
+  } },
+  // A CLI journey the change adds that golden.json does not name: refused with tests.requireJourneyPath on, else one diagnostic line (#9403).
+  { name: 'journey-path', reads: TEST, run: (root, sources, context = MEMORY) => {
+    const rows = journeyPathRows(root, { only: context.changed });
+    if (context.requireJourneyPath ?? requireJourneyPathEnabled()) return rows;
+    for (const row of rows) (context.report ?? MEMORY.report)(`diagnostic (tests.requireJourneyPath off): ${row}`);
     return [];
   } },
   { name: 'test-cells', reads: SOURCE, run: (root, sources, context = MEMORY) => testCellsProblems(root, { cache: context.cache('test-cells', 1) }).map(row => `${row.path}:${row.line}: ${row.text}`) },

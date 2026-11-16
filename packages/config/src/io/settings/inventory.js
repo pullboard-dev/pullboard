@@ -29,7 +29,7 @@ import { MACHINE_DEFAULTS } from './machine-defaults.js';
 import { environmentProblem } from '../main.js';
 
 const OPTIONAL_REPO_DEFAULTS = {
-  'submit.handoff': false, 'withdraw.review': false, 'withdraw.refuseLanded': false,
+  'submit.handoff': false, 'withdraw.review': false, 'withdraw.refuseLanded': false, 'release.liftTwiceHold': false,
   project: null, name: null, generated: null, tiers: null, laneMode: 'on', 'checks.provesNothing': 'warn', 'verify.unrelatedTrunkMoves': false, 'verify.landedReviews': false, 'verify.queueAccept': false, 'verify.requireRowRewrite': false, 'resume.adoptOrphans': false, 'verify.composeAtAdmission': false, 'verify.familyRelaxAt': null,
   'flakes.rerun': false, 'flakes.quarantine': false, 'rigor.budget': 400, 'rigor.autoDraft': true, 'cells.cache': false, 'cells.shimMaxAgeDays': 7, 'relay.outbox': true, 'relay.board': null,
   submitGate: null, submitDeferAbove: null, landingShards: 1, 'landing.publish': null, 'landing.pauseOnRed': false, 'landing.manualOverride': false, 'landing.perItem': true, 'landing.shardProof': false, 'landing.pipeline': false, 'landing.landedFromMain': false, 'landing.ledgerMainReds': false, 'landing.adaptiveBatch': false, 'landing.first': null, 'landing.auditOnly': null, 'landing.environment': null, 'landing.trunkRemote': null, positiveControl: null, affectedTests: null, affectedSuites: null,
