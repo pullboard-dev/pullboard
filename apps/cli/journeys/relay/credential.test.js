@@ -182,16 +182,22 @@ function credentialCases(box) {
 
 test('every current operation selects its native actor credential without a second authorization policy [H2,H9,H16]', async (t) => {
   const actor = 'coordinator';
-  const boxes = [];
-  for (let index = 0; index < BOARDS; index += 1) boxes.push(await linkedBox(t));
+  const boxes = await Promise.all(Array.from({ length: BOARDS }, () => linkedBox(t)));
   const [first] = boxes;
   assert.equal(first.before.tables.item[0].item_status, 'open', 'the first follow control starts with a genuinely unclaimed row');
   assert.ok(ENGINE_OPERATIONS.indexOf('claim') < ENGINE_OPERATIONS.indexOf('followItemPatches'), 'the later source-fence control follows the actual claim operation');
   // Every board builds the same list; each case runs on exactly one board, so all moves still go through the real transport.
   const cases = credentialCases(first);
-  const loose = cases.map((entry, index) => index).filter(index => !ITEM_BOUND.includes(cases[index].operation));
   const owner = cases.map(entry => ITEM_BOUND.includes(entry.operation) ? 0 : null);
-  loose.forEach((index, position) => { owner[index] = Math.floor(position * BOARDS / loose.length); });
+  // The claimed-row board takes fewer of the rest, so every board holds about the same number of moves.
+  const share = Math.ceil(cases.length / BOARDS);
+  let board = 0, filled = owner.filter(value => value === 0).length;
+  for (const [index, value] of owner.entries()) {
+    if (value !== null) continue;
+    if (filled >= share && board < BOARDS - 1) { board += 1; filled = 0; }
+    owner[index] = board;
+    filled += 1;
+  }
   const results = new Array(cases.length);
   const acknowledgedBy = boxes.map(() => []);
   await Promise.all(boxes.map(async (box, boxIndex) => {
