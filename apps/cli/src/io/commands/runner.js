@@ -27,6 +27,8 @@ import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
 import { createHostedItemFolder } from '../../../../../packages/runners/index.js';
 import { serveRunner } from '../../../../../packages/drive/index.js';
+import { runnerSettingOn } from '../../../../../packages/drive/index.js';
+import { machineSettingsFile } from '../../../../../packages/resources/index.js';
 import { localRunnerStatus } from '../../../../../packages/drive/index.js';
 import { localRunnerFolder } from '../runner/local.js';
 import { pullGit } from '../runner/git.js';
@@ -129,7 +131,8 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     const stop = new AbortController();
     for (const name of ['SIGINT', 'SIGTERM']) process.once(name, () => stop.abort());
     const served = await serveRunner({ board: second, key: values.key ?? process.env.PULLBOARD_BOARD_KEY, runner: values.as,
-      ...(values.directory ? { cache: values.directory } : {}), ...(values.jobs !== undefined ? { jobs: values.jobs } : {}), once: values.once === true, handlers: { land: landJobHandler }, git: pullGit, signal: stop.signal, say: line => io.say(line) })
+      ...(values.directory ? { cache: values.directory } : {}), ...(values.jobs !== undefined ? { jobs: values.jobs } : {}), once: values.once === true, handlers: { land: landJobHandler }, git: pullGit, signal: stop.signal, say: line => io.say(line),
+      pruneYields: runnerSettingOn(machineSettingsFile(), 'runners.yieldWhilePruning') })
       .catch(error => { throw error?.code && !(error instanceof Refused) ? new Refused(error.code, error.message) : error; });
     io.result?.(served);
     return 0;
