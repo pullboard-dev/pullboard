@@ -126,6 +126,12 @@ export function censusJobMinutes() {
   return typeof minutes === 'number' && Number.isFinite(minutes) && minutes > 0 ? minutes : null;
 }
 
+/** Census test jobs one runner may hold at once; null (the default) leaves census jobs uncapped beyond runner slots [C7,#9136]. */
+export function censusJobsPerRunner() {
+  const jobs = loadMachineSettings().census?.jobsPerRunner;
+  return Number.isSafeInteger(jobs) && jobs >= 1 ? jobs : null;
+}
+
 /** Run the full suite after each landed train batch only when this machine opted in. */
 export function postLandSuiteEnabled() {
   return loadMachineSettings().gate?.postLandSuite === true;
