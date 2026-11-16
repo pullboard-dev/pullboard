@@ -111,6 +111,24 @@ function tailCounts(text) {
 }
 
 /**
+ * Write the timing receipt of a pulled gate the runner held exclusively, in the board's gate receipt log where a local
+ * gate slot writes it, so `pullboard stats` and review read one timing record whichever machine ran the gate.
+ * Why only a runner-posted `timing: true` receipt: the runner alone saw its slots, and its exclusive evidence is
+ * what the frozen bar's timing asked for [C7,#8188].
+ */
+function recordTimedSubmitReceipt(board, { job, receipt, runner }) {
+  const recordReceipt = board.runtimePorts?.sourceAdvanceReceipts?.recordReceipt;
+  if (receipt?.timing !== true || !board.gitRoot || typeof recordReceipt !== 'function') return;
+  const admitted = Date.parse(receipt.admittedAt), finished = Date.parse(receipt.finishedAt);
+  if (!Number.isFinite(admitted) || !Number.isFinite(finished) || finished < admitted || receipt.exclusive !== true) return;
+  recordReceipt(board.gitRoot, { at: receipt.finishedAt, kind: 'submit', waitMs: 0, admissionMs: 0, setupMs: 0, runMs: finished - admitted, evidenceMs: 0,
+    slot: { kind: 'runner', reason: `runner ${runner ?? 'unknown'} held every slot for the timed gate` }, environment: receipt.gate?.environment ?? null,
+    runner: { id: runner ?? 'unknown', kind: 'pull' }, admittedAt: receipt.admittedAt, finishedAt: receipt.finishedAt, timing: true, inherited: false,
+    timingOperation: 'submit', occupiedSlots: Number.isSafeInteger(receipt.occupiedSlots) && receipt.occupiedSlots > 0 ? receipt.occupiedSlots : 1, load: null,
+    exclusive: true, unfencedClients: Array.isArray(receipt.unfencedClients) ? receipt.unfencedClients : [], job });
+}
+
+/**
  * Record a green gate job's phases as the item's native proof-run receipts, the evidence today's submit records and
  * pullboard show lists: one version-two submit receipt per phase, stored in the board's gate receipt folder beside
  * its database and then bound to the item by recordProofRun, so the board reads the same bytes it stored.
@@ -589,6 +607,7 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
     : item?.item_status !== 'claimed' || item.item_owner !== submit.agentId ? 'the item is no longer claimed by the seat that submitted it'
     : item.item_frozen_digest !== submit.digest ? 'the item\'s bar was refrozen since the submit' : null;
   if (stale) return { applied: false, outcome: 'stale', reason: stale };
+  recordTimedSubmitReceipt(board, { job, receipt, runner: postedReceipt(board.db, job)?.runner });
   // A gate that left its proof to shards waits for them; the gate result applies when the last shard posts [P7].
   if (receipt?.gate?.proofPlan) {
     const sharded = offerProofShards(board, { job, receipt, offered });
@@ -928,10 +947,10 @@ function returnLandedReds(board, job, named, receipt, separate) {
     if (!item || item.item_merged_commit) continue;
     const first = String(row.detail ?? receipt.detail ?? '').split('\n').map(line => line.trim()).find(Boolean) ?? 'no detail recorded';
     // The note keeps the failing case's lines too, so the builder reads the assertion, not only the case name.
-    store.appendFact(board, row.id, { agentId: 'coordinator', kind: 'note', text: `Land job ${job} ${row.reason === 'conflict' ? 'conflict' : 'red'}: ${String(row.detail ?? receipt.detail ?? first).trim() || first}`.slice(0, 900) });
+    store.appendFact(board, row.id, { agentId: 'coordinator', kind: 'note', text: `Land job ${job} ${row.reason === 'conflict' ? 'conflict' : row.reason === 'hook' ? 'push refused' : 'red'}: ${String(row.detail ?? receipt.detail ?? first).trim() || first}`.slice(0, 900) });
     // Only an accepted item moves; any other unmerged item (a forced landing's, say) keeps the note alone.
     if (item.item_status !== 'verified' || item.item_hold_at) continue;
-    const why = `land job ${job} ${row.reason === 'conflict' ? 'could not merge it' : 'checked the merged tree red'}: ${first}`.slice(0, 400);
+    const why = `land job ${job} ${row.reason === 'conflict' ? 'could not merge it' : row.reason === 'hook' ? 'had its push refused' : 'checked the merged tree red'}: ${first}`.slice(0, 400);
     try {
       // A static guard red is the item's own source, not a held landing: it goes back to its builder as the inline lander did [#7492].
       if (separate && !row.guard) store.holdItem(board, row.id, { agentId: 'coordinator', reason: `${why}; fix it on current main and resubmit, or lift the hold` });

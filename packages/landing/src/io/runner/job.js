@@ -22,9 +22,9 @@ export const LANDING_JOB_KIND = 'land';
 const PUSH_ATTEMPTS = 5;
 /**
  * The newest land payload shape this runner's code understands (packages/api's LAND_PAYLOAD_SHAPE is what the board writes).
- * A job of a newer shape is refused, never pushed without the options this code never learned (#7791).
+ * A job of a newer shape is refused, never pushed without the options this code never learned (#7791). Shape 3: `hops`, each item's gate hop epoch, pushed through its fence ref [C7,#8437].
  */
-export const LANDING_PAYLOAD_SHAPE = 2;
+export const LANDING_PAYLOAD_SHAPE = 3;
 const TRUNK_CACHE = 'refs/pullboard/landing/trunk';
 /** The release tags a trunk fetch also takes, as a runner's gate checkout does: a proof that archives an old release (git archive v0.8.6) needs them (#7816). */
 const RELEASE_TAGS = '+refs/tags/v*:refs/tags/v*';
@@ -35,6 +35,8 @@ const NO_PUSH_OPTIONS = /does not support push options/u;
 // An ssh trunk remote whose login accepts only plain git commands rejects the custom --receive-pack (#7952).
 const CUSTOM_REFUSED = /unrecognized command|command not allowed|not allowed to run|restricted shell/iu;
 const CHECKED_OUT = /refusing to update checked out branch|branch is currently checked out/u;
+// A trunk hook (the remote's pre-receive or update, or a local pre-push) that refused the push: git names it in its refusal line.
+const HOOK_REFUSED = /hook declined|pre-push hook|hook (?:exited|failed)/iu;
 const DIRTY_CHECKOUT = /Working directory has (?:unstaged|staged) changes|Could not update working tree/u;
 
 /**
@@ -45,8 +47,10 @@ const DIRTY_CHECKOUT = /Working directory has (?:unstaged|staged) changes|Could 
  * limited to plain git commands) gets one plain push instead, which lands when the trunk repo sets
  * receive.denyCurrentBranch=updateInstead itself (#7952).
  */
-export function pushTrunk(root, { payload, trunk, base, remote, source = 'HEAD', options = [] }) {
-  const send = (into, extra) => tryGit(root, ['push', '--porcelain', '--quiet', ...(into ? [INTO_CHECKOUT] : []), ...extra, `--force-with-lease=${trunk}:${base}`, remote, `${source}:${trunk}`]);
+export function pushTrunk(root, { payload, trunk, base, remote, source = 'HEAD', options = [], fence = null }) {
+  // fence: the hop fence leases and refspecs (publish.js hopFencePush), so trunk and each item's fence ref move in one atomic push [C7,#8437].
+  const send = (into, extra) => tryGit(root, ['push', '--porcelain', '--quiet', ...(fence ? ['--atomic'] : []), ...(into ? [INTO_CHECKOUT] : []), ...extra,
+    ...(fence?.leases ?? []), `--force-with-lease=${trunk}:${base}`, remote, ...(fence?.refspecs ?? []), `${source}:${trunk}`]);
   const push = into => {
     const pushed = send(into, options.flatMap(option => ['-o', option]));
     return options.length && pushed.status !== 0 && NO_PUSH_OPTIONS.test(pushed.stderr) ? send(into, []) : pushed;
@@ -66,6 +70,17 @@ export function pushFailedDetail(pushed, remote, trunk) {
   const words = (pushed.stderr || pushed.stdout).slice(0, 300);
   if (!DIRTY_CHECKOUT.test(`${pushed.stderr}\n${pushed.stdout}`)) return words;
   return `LAND_HOST_CHECKOUT_DIRTY: the board host checkout at ${remote} has uncommitted changes, so it cannot take ${trunk}; next: commit or stash them in that checkout, then run pullboard land to offer the landing again. git: ${words}`;
+}
+
+/**
+ * Whether a refused push was refused by a trunk hook, and the hook's own words when it was, else null.
+ * Why: a hook's refusal is about the landing, not the host, so the items go back to their builders with the hook's reason instead of a retry loop [C7,P7].
+ */
+export function hookRefusal(pushed) {
+  const said = `${pushed.stderr}\n${pushed.stdout}`;
+  if (!HOOK_REFUSED.test(said)) return null;
+  const lines = said.split('\n').map(line => line.replace(/^remote:\s?/u, '').trim()).filter(Boolean);
+  return lines.join('\n').slice(0, 800);
 }
 
 /**
@@ -336,7 +351,7 @@ function firstMerges(root, base, tip, pending) {
  * `diagnose` (from the runner's handler setup, since packages never import apps) reads a red's failing cases and pairs them: ({ root, base, output, role, flakes, head, tree }) => the receipt's `red` record, or null.
  * @returns {Promise<{ kind: string, outcome: 'landed' | 'conflict' | 'red' | 'item-moved' | 'trunk-busy' | 'lease-lost' | 'push-failed' | 'proof-timeout',
  *   expect: string, base: string | null, trunk: string | null, landed: number[], already: number[], attempts: number, moved: string[], detail: string | null,
- *   returned: { id: number, reason: 'red' | 'conflict', detail: string }[] }>} returned: the items the board sends back to their builders, or parks
+ *   returned: { id: number, reason: 'red' | 'conflict' | 'hook', detail: string }[] }>} returned: the items the board sends back to their builders, or parks
  *   under separate publish (payload.publish), as 0.9.3's landing did; a red outcome lands nothing.
  */
 export async function runLandingJob(payload, { workdir, checks = null, renew = () => true, attempts = PUSH_ATTEMPTS, pushOptions = () => [], env = process.env, diagnose = null, shards = null }) {
@@ -414,11 +429,22 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner before the push' });
     const tip = must(root, ['rev-parse', 'HEAD']);
     const pushStart = Date.now();
-    const pushed = pushTrunk(root, { payload, trunk, base, remote, options: pushOptions() });
+    // With hops on the job (gate.fencedHop), a fence at a later epoch refuses HOP_FENCED here, before trunk is pushed [C7,#8437].
+    const fence = Array.isArray(payload.hops) && payload.hops.length ? (await import('../step/publish.js')).hopFencePush(root, remote, payload.hops) : null;
+    const pushed = pushTrunk(root, { payload, trunk, base, remote, options: pushOptions(), fence });
+    fence?.requireHeld(pushed);
     phases.push({ phase: 'push', ms: Date.now() - pushStart });
     if (pushed.status === 0) return done('landed', { trunk: tip, landed: pending.map(entry => entry.id), merges: firstMerges(root, base, tip, pending), ...publishUpstream(root, { payload, trunk, tip, options: pushOptions() }) });
     // A refused push is a moved trunk only when trunk really moved; anything else is a push failure to report.
-    if (fetchTrunk(root, remote, trunk) === base) return done('push-failed', { detail: pushFailedDetail(pushed, remote, trunk) });
+    if (fetchTrunk(root, remote, trunk) === base) {
+      // A trunk hook's refusal gives every pending item back with the hook's words, as a red does [C7,P7].
+      const hook = hookRefusal(pushed);
+      if (hook) {
+        for (const entry of pending) giveBack(entry.id, 'hook', `the trunk hook refused the push: ${hook}`);
+        return done('red');
+      }
+      return done('push-failed', { detail: pushFailedDetail(pushed, remote, trunk) });
+    }
   }
   return done('trunk-busy', { detail: `trunk moved under each of ${attempts} attempts; offer the landing again` });
 }
@@ -449,7 +475,7 @@ export async function takeLandingJob({ call, runner, capabilities = [], workdir,
   const moved = Array.isArray(claim.payload?.requested) && claim.payload.requested.length ? (await call({ action: 'request', job, runner, token }))?.request?.land : null;
   const landing = moved ? { ...claim.payload, ...moved } : claim.payload;
   // landing.shardProof: the holder offers its proof's files as shard jobs and reads their receipts back, through the board API like its renewals [C7,#7818].
-  const shards = landing.shardProof ? { job, cores: availableParallelism(), offer: ({ merged, plan, gate }) => call({ action: 'shards', job, runner, token, merged, plan, gate }),
+  const shards = landing.shardProof ? { job, cores: availableParallelism(), offer: ({ merged, ref, plan, gate }) => call({ action: 'shards', job, runner, token, merged, ref, plan, gate }),
     receipts: async ids => (await call({ action: 'shardReceipts', job, runner, token, shards: ids })).shards } : null;
   const receipt = await runLandingJob(landing, { workdir, checks, renew, env, diagnose, shards, pushOptions: () => permit ? permitPushOptions(permit) : [] });
   try {

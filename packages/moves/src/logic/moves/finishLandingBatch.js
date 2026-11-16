@@ -13,6 +13,7 @@ import { landingTestDefects } from "../../../../store/browser.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
 import { SUBMISSION_PROOF_ENGINE } from "../../../../state/light.js";
 import { FORCED_MERGE_ENGINE } from "../../../../state/light.js";
+import { LANDING_NEXT } from "../table/next.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function existingEngine(args, board, at) {
@@ -47,7 +48,7 @@ function actor(move) { return move.args[0]?.agentId ?? null; }
 export default Object.freeze({ operation: "finishLandingBatch", order: 46, engine: 8,
   itemIdFirstArgument: false, minimumEngine, actor,
   nextSteps: Object.freeze({
-  "LAND_BATCH": "adopt the recorded batch: pullboard land --adopt",
-  "LAND_ITEM_MOVED": "rebuild the batch from current verified work: pullboard land",
-  "LAND_NOT_PUSHED": "push the batch, then pullboard land --adopt"
+  "LAND_BATCH": LANDING_NEXT.LAND_BATCH,
+  "LAND_ITEM_MOVED": LANDING_NEXT.LAND_ITEM_MOVED,
+  "LAND_NOT_PUSHED": LANDING_NEXT.LAND_NOT_PUSHED
 }) });

@@ -1,4 +1,5 @@
 /** Deterministic release placement from existing spec, lane and prerequisite assignments [N26,B35]. */
+import { isLanded } from './progress.js';
 
 /** Resolve a local reference; foreign board references have no comparable local release index. */
 function localId(value) {
@@ -18,7 +19,7 @@ export function placementFor(entries, { lane, specIds = [], after = [] }, itemOf
   // unlanded work, as work progress and milestone ship read it [C7].
   const live = !liveReleases ? open : open.filter(({ entry }) => entry.items.some(ref => {
     const row = itemOf(localId(ref));
-    return Boolean(row) && row.item_status !== 'withdrawn' && !row.item_merged_commit;
+    return Boolean(row) && row.item_status !== 'withdrawn' && !isLanded(row);
   }));
   /** Find the first unshipped release still holding unlanded work that contains a live item supplying this input. */
   const holding = matches => live.find(({ entry }) => entry.items.some(ref => {

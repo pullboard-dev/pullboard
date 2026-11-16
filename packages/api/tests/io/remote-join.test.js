@@ -10,7 +10,7 @@ import { closeCellBoard } from '../../../store/tests/fixtures/cell.js';
 import { agentById } from '../../../store/index.js';
 import { isRemoteAgentPath } from '../../../store/index.js';
 import { openBoardForRead } from '../../../store/index.js';
-import { FIXTURE_MODEL } from '../../../../apps/cli/tests/fixtures/testkit.js';
+import { FIXTURE_MODEL } from '../../../gate/tests/fixtures/testkit.js';
 import { executeMove } from '../../index.js';
 
 /** The board openers and move mapping the higher composition root hands the API. */

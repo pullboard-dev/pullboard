@@ -94,11 +94,15 @@ export function requireAgentGrant(board, move, at = board.clock.now(), { registr
   if (move.operation === 'objectItemPatch') return;
   if (item?.item_review_by === actor && item.item_status === 'submitted' && item.item_review_until > now
     && move.operation === 'verify') return;
-  const claims = board.db.prepare("SELECT item_id,item_lease_until FROM item WHERE item_owner=? AND item_status='claimed'").all(actor);
+  const held = board.db.prepare("SELECT item_id,item_lease_until FROM item WHERE item_owner=? AND item_status='claimed'").all(actor);
+  // itemsInGate sealed in the move: up to that many gate-waiting claims are not the building claim [C7,#8420].
+  const waiting = held.filter(c => c.item_id !== item?.item_id && ['queued', 'running', 'green'].includes(queuedGateRecord(board.db, c.item_id)?.state)).slice(0, move.itemsInGate > 0 ? move.itemsInGate : 0);
+  const claims = held.filter(claim => !waiting.includes(claim));
   const own = claims.find(claim => claim.item_id === item?.item_id);
   const live = claims.filter(claim => claim.item_lease_until > now);
+  const liveHeld = held.filter(claim => claim.item_lease_until > now);
   const previous = board.db.prepare("SELECT event_id FROM event WHERE event_by=? AND event_kind IN ('claim','renew') ORDER BY event_id DESC LIMIT 1").get(actor);
-  if (((own && !(own.item_lease_until > now)) || (previous && !live.length))
+  if (((own && !(own.item_lease_until > now)) || (previous && !liveHeld.length))
     && !completesAdmittedSubmit(board, move, item, actor) && !startsQueuedSubmit(board, move, item, actor)) {
     throw new Refused('AGENT_GRANT_EXPIRED', `${actor} has no live item claim; claim work before changing an item`,
       'claim the intended item, or shout the coordinator if its claim is unavailable');

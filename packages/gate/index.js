@@ -26,7 +26,7 @@ export { runClauseBaseComparison } from "./src/io/clause-base.js";
 export { digestOf, writeTimingProfile } from "./src/io/output.js";
 export { failureSignature } from "./src/logic/failure/signature.js";
 export { runnerSource, RunnerDropped, validateRunner } from "./src/logic/policy.js";
-export { receiptLog, startReceipt, slotOf, phasesOf, receiptOf, recordReceipt, recentReceipts, retainedReceipts, receiptStats, receiptStatsLines, receiptLine, gateWaitStats } from "./src/io/receipt.js";
+export { receiptLog, startReceipt, slotOf, phasesOf, receiptOf, recordReceipt, recentReceipts, retainedReceipts, receiptStats, receiptStatsLines, receiptLine, gateWaitStats, tripOverheadMs, tripOverheadReport } from "./src/io/receipt.js";
 export { receiptStore, boardReceiptStore, receiptBody, readGateReceipt, receiptBinds, formatCollectionReport, parseCollectionReports, releaseParticipation, landingShardProfile, RECEIPT_FOLDER, COLLECTION_ID_ENV, COLLECTION_REPORT_PREFIX, RELEASE_EXECUTORS_ENV, RELEASE_PARTICIPATION_PREFIX, receiptFields } from "./src/io/run/receipt.js";
 export { requireGateExecutionServices, settleReceipt, withGateSlot, gateRunnerLoadPolicy, withAvoidedRunners, preferOtherRunners } from "./src/io/slot.js";
 export { INFRASTRUCTURE_CODES, INFRA_RETRIES, LOCK_CODES, LOCK_WAIT_LIMIT, INVENTORY_WAITS, infrastructureFailure, submitUntilSettled } from "./src/io/requeue.js";
@@ -110,7 +110,8 @@ export { LOAD_BEARING_CEILINGS, LOAD_BEARING_CELLS, loadBearingJudged, loadBeari
 export { freeRunnerSlots } from "./src/io/shards/proof.js";
 export { keepClaimsAlive } from "./src/io/keepalive.js";
 export { beatSeat } from "./src/io/keepalive.js";
-export { gateHealthLines } from "./src/logic/health.js";
+export { gateHealthLines, gateHealthSummary } from "./src/logic/health.js";
+export { redNow } from "./src/logic/red-now.js";
 export { gateHealthReport, runnerTimeReport } from "./src/io/health.js";
 export { runnerTimeLines, runnerTimeSummary } from "./src/logic/runner-time.js";
 export { enforcePartsCap, maintainPartsStore, prunePartsStore } from './src/io/test/action/prune.js';

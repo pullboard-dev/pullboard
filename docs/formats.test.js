@@ -518,6 +518,9 @@ function recordEventContract() {
   const omissionMove = prepareEngineMove(board, 'applyRowDecisions', [{ agentId: coordinator,
     events: omissionDecisions.map(record => record.event), refreezes: [], skippedDrafts: [omitted] }]);
   assert.equal(applyEngineMove(board, omissionMove, { sequence: appliedSequence(board) + 1, at: board.clock.now().toISOString() }).error, undefined);
+  // One coordinator session's usage goes through its own ordered move, as the live coordinator records it.
+  const usageMove = prepareEngineMove(board, 'recordCoordinatorUsage', [{ agentId: coordinator, session: 'format-session', observedAt: 5, records: usageRecords }]);
+  assert.equal(applyEngineMove(board, usageMove, { sequence: appliedSequence(board) + 1, at: board.clock.now().toISOString() }).error, undefined);
   const rows = events(board).map((row) => ({ ...row, detail: JSON.parse(row.event_detail) }));
   closeBoard(board);
   return { rows, actors: { [coordinator]: 'coordinator', [builder]: 'builder', [returnedBuilder]: 'builder', [widener]: 'builder', [unattendedBuilder]: 'builder', [reviewer]: 'reviewer', [PERSON]: 'person', board: 'board', rigor: 'rigor' } };

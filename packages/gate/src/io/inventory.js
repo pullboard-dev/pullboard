@@ -159,6 +159,31 @@ function save(file, data) {
   finally { rmSync(temporary, { force: true }); }
 }
 
+const LOCKED = /\b(?:database is locked|SQLITE_BUSY)\b/iu;
+/** Reruns of one inventory production after a lock stop; a lock that outlasts them is an infrastructure stop, never a red [C7]. */
+export const INVENTORY_LOCK_RETRIES = 3;
+
+/**
+ * Run `work`, and when it fails only because a SQLite database was locked, run it again up to `retries` more times.
+ * Why: the producer's file lock waits 60 s, and on 15 Nov a runner's inventory ended 'database is locked' because
+ * another gate held the lock for longer; the lock always frees, so the gate waits and runs the production again (#8415).
+ * Any other failure, and the last lock failure, goes up unchanged so a real red is never masked.
+ *
+ * @template T
+ * @param {() => Promise<T>} work
+ * @param {{ retries?: number, pause?: (ms: number) => Promise<unknown>, pauseMs?: number }} [options]
+ * @returns {Promise<T>}
+ */
+export async function retryLockedProduction(work, { retries = INVENTORY_LOCK_RETRIES, pause = ms => new Promise(done => setTimeout(done, ms)), pauseMs = 5_000 } = {}) {
+  for (let attempt = 0; ; attempt += 1) {
+    try { return await work(); }
+    catch (error) {
+      if (attempt >= retries || !LOCKED.test(String(error?.message ?? error))) throw error;
+      await pause(pauseMs * 2 ** attempt);
+    }
+  }
+}
+
 /**
  * Build a verified accepted tree off-path, reusing the nearest compatible completed ancestor where possible.
  * `trunk` is the accepted commit or ref the produced commit must descend into: main's branch on the coordinator, the
@@ -166,9 +191,9 @@ function save(file, data) {
  *
  * @param {string} root - Absolute repository root.
  * @param {string} commit - The accepted commit whose inventory is produced.
- * @param {{ withCheckout: Function, withLock: Function, trunk?: string }} ports
+ * @param {{ withCheckout: Function, withLock: Function, trunk?: string, lockRetry?: object }} ports
  */
-export async function warmAcceptedCells(root, commit, { withCheckout, withLock, trunk = 'refs/heads/main' } = {}) {
+export async function warmAcceptedCells(root, commit, { withCheckout, withLock, trunk = 'refs/heads/main', lockRetry = {} } = {}) {
   if (typeof withCheckout !== 'function' || typeof withLock !== 'function') throw new TypeError('accepted cells warm needs checkout and lock ports');
   git(root, ['merge-base', '--is-ancestor', commit, trunk], { env: gitChildEnv(root) });
   if (!git(root, ['ls-tree', '--name-only', commit, '--', 'packages/codemap/data/plan/cells.json'], { env: gitChildEnv(root) })) return { available: false, cause: 'no-cells-plan' };
@@ -185,9 +210,9 @@ export async function warmAcceptedCells(root, commit, { withCheckout, withLock, 
   }
   let mode = 'cache';
   const originalPreloads = identity.preloads;
-  const result = await withCheckout(root, commit, checkout => warmAcceptedInventory({ ...identity, root: checkout, commit, withLock,
+  const result = await retryLockedProduction(() => withCheckout(root, commit, checkout => warmAcceptedInventory({ ...identity, root: checkout, commit, withLock,
     parsers: { importsIn, commonJsIn }, withImportParseCache, eligible: () => preloadFingerprint() === originalPreloads,
-    prior, onMode: value => { mode = value; } }));
+    prior, onMode: value => { mode = value; } })), lockRetry);
   if (!result?.available) throw new Error(result?.unavailable ?? 'accepted cells inventory checkout failed');
   const file = join(identity.directory, `${key}.inventory.gz`), stat = lstatSync(file);
   save(join(identity.directory, `${key}.ready.json`), { version: 1, tree: identity.tree, checker: identity.checker, preloads: identity.preloads, key, bytes: stat.size, modified: stat.mtimeMs, digest: result.descriptor.digest, mode, ancestor: prior?.commit ?? null });

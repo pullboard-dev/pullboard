@@ -93,9 +93,15 @@
     "hand-policy": 1,
     "model": 1
   },
-  "packages/doctrine/tests/hooks.test.js": {
+  "packages/doctrine/tests/fixtures/hooks.js": {
     "tempdir": 4,
-    "hand-policy": 9
+    "hand-policy": 6
+  },
+  "packages/doctrine/tests/hooks-inherited-main.test.js": {
+    "hand-policy": 2
+  },
+  "packages/doctrine/tests/hooks-main-merge.test.js": {
+    "hand-policy": 1
   },
   "packages/seats/tests/io/lanes.test.js": {
     "tempdir": 3,
@@ -596,7 +602,7 @@
     "raw-board": 12,
     "tempdir": 9
   },
-  "apps/cli/tests/fixtures/board.js": {
+  "packages/board/tests/fixtures/board.js": {
     "raw-board": 1
   },
   "apps/cli/tests/fixtures/board/link.js": {
@@ -1615,9 +1621,12 @@
     "hand-policy": 1,
     "raw-board": 3
   },
-  "apps/cli/journeys/release/model.test.js": {
-    "raw-board": 3,
+  "apps/cli/journeys/release/model-labels.test.js": {
+    "raw-board": 1,
     "model": 10
+  },
+  "apps/cli/journeys/release/model.test.js": {
+    "raw-board": 2
   },
   "apps/cli/journeys/show/policy/dependency.test.js": {
     "hand-policy": 1,

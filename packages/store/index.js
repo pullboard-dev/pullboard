@@ -51,6 +51,9 @@ export { applyOutsideIntake, approveOutside as outside_store_approveOutside } fr
 export { boundProofReceipt, proofRunReceipt, refuseLongShout } from './src/io/receipts.js';
 export { SEAT_LIVE_WINDOW_MS, heartbeatSeat, importSeatObservations, withSeatPresence, withLocalSeatPresence, seatGone } from './src/io/presence.js';
 export { sourceAdvanceReturnProblem } from './src/logic/advance.js';
+export { startDiffers, completeDiffers } from './src/io/submit/handoff/retry.js';
+export { commitDiffers } from './src/io/submission.js';
+export { queueDiffers } from './src/io/submit/handoff/shadow.js';
 export { submissionItemValues, recordSubmissionEvent, submissionChildrenProblem } from './src/io/submission.js';
 export { TYPED_REQUEST_CAUSES, TYPED_REQUEST_VERBS } from './src/io/requests.js';
 export { boardEnginePorts } from './src/io/board/ports.js';
@@ -63,7 +66,8 @@ export { AUTHORITY, AUTHORITY_TRIGGERS, exportedMeta } from './src/logic/board/a
 export { activityDeliveryState as board_activity_delivery_store_activityDeliveryState, activityInterruptWasDelivered as board_activity_delivery_store_activityInterruptWasDelivered, rejectionRecipient, recordActivityDelivery as board_activity_delivery_store_recordActivityDelivery, actOnActivity as board_activity_delivery_store_actOnActivity } from './src/logic/board/activity/delivery.js';
 export { itemActivity, activityEventDetail, activityInterests, isActivityNews, projectAgentActivity } from './src/logic/board/activity/feed.js';
 export { activityNewsFlag } from './src/logic/board/activity/news.js';
-export { LANDING_LEASE_MS, renewLocalLanding, assertLandingLease, requireConfirmedLanding, guardLandingWrite } from './src/logic/board/landing/lease.js';
+export { LANDING_FAULT_CODES, LANDING_RED_LIMIT, REPEATED_LANDING_HOLD, RUNNER_SOURCE_RETRIES } from './src/logic/board/landing/limits.js';
+export { provideMoveTables, LANDING_LEASE_MS, renewLocalLanding, assertLandingLease, requireConfirmedLanding, guardLandingWrite } from './src/logic/board/landing/lease.js';
 export { LANDING_LOCAL_PREFIX, localLandingEntry, rememberLocalLanding, forgetLocalLanding } from './src/logic/board/landing/local.js';
 export { COORDINATION_SHOUT, itemShoutTarget, itemShoutReader, shoutMatchesAudience, UNREAD_SHOUT_SQL, unreadShoutBindings, checkEvidence } from './src/logic/board/audience.js';
 export { workerInboxSeats, workerInboxQuery } from './src/logic/board/worker.js';
@@ -87,7 +91,7 @@ export { writeRowDecisions } from './src/io/board/record/decisions.js';
 export { reserveWithin } from './src/io/board/reserve/review.js';
 export { insertShout, persistShout } from './src/io/board/shout.js';
 export { RELEASE_REASONS, releaseReasonProblem } from './src/logic/reasons.js';
-export { checkedSubmitOutcome } from './src/io/submit/outcome.js';
+export { checkedSubmitOutcome, outcomeDiffers, recordPendingOutcome } from './src/io/submit/outcome.js';
 export { INFRASTRUCTURE_CODES, RERUNNABLE_RUNNER_REFUSALS, INFRASTRUCTURE_RETRY_LIMIT, handoffGateCurrent, handoffServes, requireSubmitHandoffHookProof, submitHandoff, pendingSubmitHandoff, awaitingGateOrReview, submitHandoffFailure } from './src/io/submit/handoff/retry.js';
 export { queuedReds, queuedRedLines, boundedQueuedRedLines, sayQueuedReds } from './src/io/queued/red.js';
 export { redReturnLeaseHolds } from './src/logic/red/return.js';
@@ -126,3 +130,7 @@ export { deferOwnership, ownershipWait, ownershipWaiting, ownershipWaitForJob } 
 export { relandAccepted, acceptedRelandCandidate, relandConflictRecorded } from "./src/logic/board/reland.js";
 export { boardHoldLog, boardHoldPercentiles, boardHoldStats, boardHoldLines, longestRecentHolds } from './src/io/board/hold/log.js';
 export { readBoardHoldBaseline, boardHoldBaselineProblems, committedBoardHoldBaselineProblems } from './src/io/board/hold/ratchet.js';
+export { GATE_HOP_SCHEMA_SQL, ensureGateHopTable, readGateHop, gateHopMove } from './src/io/board/hop.js';
+export { recordShadow, readShadow, shadowHook, claimDiffers, firstDifference } from './src/io/board/shadow-record.js';
+export { reopenDecision, reopenDiffers } from './src/io/board/reopen-table.js';
+export { readShadows } from './src/io/board/shadow-record.js';

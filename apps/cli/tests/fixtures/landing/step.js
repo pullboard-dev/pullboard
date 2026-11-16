@@ -7,10 +7,8 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { landingPorts } from './ports.js';
-import {
-  fileFixtureItem,
-  openKitBoard,
-} from '../testkit.js';
+import { fileFixtureItem } from '../testkit.js';
+import { openKitBoard } from '../board.js';
 import { gateGroup } from '../../../../../packages/landing/index.js';
 import { headCommit } from '../../../../../packages/git/index.js';
 import { headTree } from '../../../../../packages/git/index.js';

@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { addItem } from '../../index.js';
 import { exportBoard } from '../../index.js';
 import { importBoard } from '../../index.js';
-import { fixtureBoard } from '../../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../../board/tests/fixtures/board.js';
 
 test('clause 1: restoreDocument refuses UNDECLARED_STATE for an item_status not in STATES, with nothing inserted [SM15]', (t) => {
   const source = fixtureBoard(t);

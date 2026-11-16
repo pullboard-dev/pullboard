@@ -28,7 +28,7 @@ function trackedFile(root, path, text) {
   assert.equal(staged.status, 0, staged.failure);
 }
 
-test('evidence uses exact citations in tracked visible tests and stage precedence follows sign-offs [S15, S16]', () => {
+test('verify.evidence.citations: evidence uses exact citations in tracked visible tests and stage precedence follows sign-offs [S15, S16]', () => {
   const sandbox = mkdtempSync(join(tmpdir(), 'pullboard-evidence-'));
   const priorHome = process.env.PULLBOARD_HOME;
   process.env.PULLBOARD_HOME = join(sandbox, 'private-home');

@@ -76,11 +76,11 @@ test('clause 1: a seat holding a claim gets submit --wait back at once with no a
   const box = fixture(t);
   box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
   for (const name of AGENT_SHELL_MARKERS) delete box.env[name];
-  const ran = await box.inProcess(box.web, 'submit', String(box.id), '--wait', '--no-next');
+  const ran = await box.inProcess(box.web, 'submit', String(box.id), '--wait', '--no-next', '--json');
   assert.equal(ran.code, 0, `${ran.out}${ran.err}`);
-  assert.match(ran.out, new RegExp(`#${box.id} is in the gate as job `, 'u'), 'submit queued the gate');
-  assert.match(ran.out, /never blocks on its own gate; a red gate comes back through pullboard next/u, 'the reply says the result comes through next');
-  assert.match(ran.out, new RegExp(`pullboard show ${box.id}`, 'u'), 'the reply prints the command that reads the result');
+  const reply = JSON.parse(ran.out);
+  assert.equal(reply.queued, true, 'submit queued the gate and returned');
+  assert.equal(reply.commit, box.commit, 'the queued gate is bound to the submitted commit');
   assert.equal(existsSync(box.release), false, 'submit --wait returned while the gate was still held');
   assert.ok(['offered', 'claimed'].includes(gateJob(box)?.step), 'the gate had not finished when submit returned');
   writeFileSync(box.release, 'release\n');
