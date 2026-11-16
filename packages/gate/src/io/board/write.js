@@ -105,6 +105,21 @@ function functions(source, facts, code) {
 }
 
 /**
+ * The frozen objects a module builds by spreading another binding, such as a store wrapped to record some of its moves: each
+ * name to the bindings it spreads. A member call on the object may reach any of them, so the trace follows each [C7,#7613].
+ */
+function wrappers(code) {
+  const found = new Map();
+  for (const match of code.matchAll(/\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*(?:Object\.freeze\(\s*)?\{/gu)) {
+    const open = match.index + match[0].length - 1, end = closing(code, open);
+    if (end < 0) continue;
+    const spread = [...code.slice(open + 1, end).matchAll(/(?:^|,)\s*\.\.\.\s*([A-Za-z_$][\w$]*)\s*(?=,|$)/gu)].map(row => row[1]);
+    if (spread.length) found.set(match[1], spread);
+  }
+  return found;
+}
+
+/**
  * Index every product source's functions, imports and aliases, and resolve a call name to its provider without running code.
  * @param {{file:string,source:string}[]} sources Runtime source inventory.
  * @param {{barrels?:boolean}} [options] `barrels` also reads each package's top-level index, so cross-package imports resolve.
@@ -127,7 +142,7 @@ export function callGraph(sources, { barrels = false } = {}) {
       .map(name => [name.local, { from: row.from, imported: name.imported }])));
     const aliases = new Map();
     for (const match of code.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\s*;/gu)) aliases.set(match[1], match[2]);
-    modules.set(file, { file, source, code, facts, imports, aliases, functions: functions(source, facts, code) });
+    modules.set(file, { file, source, code, facts, imports, aliases, spreads: wrappers(code), functions: functions(source, facts, code) });
   }
   /** Resolve only repository-relative modules and actual declarations/reexports, without module evaluation. */
   function exported(file, name, seen = new Set()) {
@@ -162,9 +177,12 @@ export function callGraph(sources, { barrels = false } = {}) {
     const binding = model.imports.get(base);
     if (binding && (member || binding.imported !== '*')) {
       const symbol = member ?? binding.imported;
-      return binding.from.startsWith('.')
-        ? exported(posix.normalize(posix.join(posix.dirname(file), binding.from)), symbol)
-        : [{ builtin: binding.from, name: symbol }];
+      if (!binding.from.startsWith('.')) return [{ builtin: binding.from, name: symbol }];
+      const from = posix.normalize(posix.join(posix.dirname(file), binding.from));
+      // A member of an imported wrapper object (`store.submit`) is reached through whatever the wrapper spreads [#7613].
+      const through = member && binding.imported !== '*' ? modules.get(from)?.spreads.get(binding.imported) : null;
+      const wrapped = through?.flatMap(inner => targets(from, inner + '.' + member, seen)) ?? [];
+      return [...exported(from, symbol), ...wrapped];
     }
     if (model.functions.has(name)) return [{ file, name }];
     if (['fetch', 'WebSocket', 'EventSource', 'globalThis.fetch', 'globalThis.WebSocket', 'globalThis.EventSource'].includes(name)) {

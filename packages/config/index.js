@@ -69,6 +69,7 @@ export {
   serveListen,
   mainComparisonMode,
   submitAuthorizationMode,
+  refuseMissingCheckFile,
   viewBackgroundEnabled,
   healthSentinelEnabled,
   memoryFloorMB,
