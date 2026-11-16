@@ -47,7 +47,7 @@ export { ownersOf, linkKnownMainReworks, requireKnownMainReworks, unownedMainRed
 export { BASELINE_RECEIPT, pullboardHome, relayMachineDirectory, relayKeyDirectory, relayLinkFile, gitSyncLinked, relayDeletedFile, relayFiles, relayStateExists, baselineReceiptDirectory, syncMayAct } from './src/io/home.js';
 export { mainRedBuildRouting } from './src/io/routing.js';
 export { memoryHeldRuns } from './src/io/memory.js';
-export { buildLocalBoardState, dependencyIds, stateFileInputs, fileRevision } from './src/io/board/state.js';
+export { buildLocalBoardState, stateProofStats, dependencyIds, stateFileInputs, fileRevision } from './src/io/board/state.js';
 export { nativeStateClockWindow, nativeStateClockMatches } from './src/logic/clock.js';
 export { applyOutsideIntake, approveOutside as outside_store_approveOutside } from './src/io/outside.js';
 export { boundProofReceipt, proofRunReceipt, refuseLongShout } from './src/io/receipts.js';
