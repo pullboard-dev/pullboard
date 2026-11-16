@@ -85,6 +85,11 @@ export function endStaleJobsEnabled() {
   return loadMachineSettings().gate?.endStaleJobs === true;
 }
 
+/** Settle a sharded item gate left unknown on a missing main receipt when that receipt records, only when this machine opted in [C7,#9057]. */
+export function settleOnMainReceiptEnabled() {
+  return loadMachineSettings().gate?.settleOnMainReceipt === true;
+}
+
 /** Fail the registry check on an unregistered test only when this machine opted in; off, it reports [C7,#8374]. */
 export function registryStrictEnabled() {
   return loadMachineSettings().tests?.registryStrict === true;
@@ -98,6 +103,11 @@ export function movesShadowEnabled() {
 /** Let a move writer follow its move table only when this machine opted in for that table [C7,#8383]. */
 export function movesLiveEnabled(table) {
   return loadMachineSettings().moves?.live?.[table] === true;
+}
+
+/** Cut pulled census jobs by measured time, heaviest first, only when this machine opted in; off, they are cut by file count [C7]. */
+export function censusBalanceByTimeEnabled() {
+  return loadMachineSettings().census?.balanceByTime === true;
 }
 
 /** Run the full suite after each landed train batch only when this machine opted in. */
@@ -235,6 +245,26 @@ export function refuseMissingCheckFile() {
  */
 export function refuseTempWorktree() {
   return loadMachineSettings().gate?.refuseTempWorktree === true;
+}
+
+/** Whether a review release must name why it was dropped (#8920): off by default; only an exact `true` turns it on. */
+export function reviewReleaseReasonsRequired() {
+  return loadMachineSettings().review?.releaseReasons === true;
+}
+
+/** Whether health.derivedState is on (#8974): off by default; nothing reads it yet, and only an exact `true` turns it on. */
+export function derivedStateEnabled() {
+  return loadMachineSettings().health?.derivedState === true;
+}
+
+/** Whether landing.adaptiveBatch is on (#9017): off by default; only an exact `true` turns it on. */
+export function adaptiveBatchEnabled() {
+  return loadMachineSettings().landing?.adaptiveBatch === true;
+}
+
+/** Whether the sentinel expires lapsed claims every minute (#8923): off by default; only an exact `true` turns it on. */
+export function lapsedSweepEnabled() {
+  return loadMachineSettings().health?.lapsedSweep === true;
 }
 
 /**

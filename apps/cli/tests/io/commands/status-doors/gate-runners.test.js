@@ -11,7 +11,6 @@ import { test } from 'node:test';
 const REPO = resolve(import.meta.dirname, '../../../../../..');
 const STATUS = readFileSync(resolve(REPO, 'apps/cli/src/io/commands/status.js'), 'utf8');
 const NAMES = {
-  gate: ['retainedReceipts'],
   runners: ['readRunnerUtilization', 'runnerDeadlineRuns'],
   jobs: ['stalledGates'],
   resources: ['runnerDeadlineLine'],

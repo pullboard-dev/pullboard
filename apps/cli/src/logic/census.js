@@ -79,6 +79,40 @@ export function tapFailures(output, files) {
   return failed;
 }
 
+/** The case-time line a pulled shard's log gets per file, so a clipped receipt tail still gives each file's case time. */
+export const FILE_CASE_LINE = '# landing-file-case-ms ';
+
+/**
+ * Milliseconds each file spent inside its top-level test cases, read from TAP: every case at indent 0 carries a
+ * `duration_ms`, and the case's name finds its file in the outcome rows (a name shared by several files is split evenly).
+ * Why: the file's wall time minus this is its setup (imports, fixtures, git, child starts), the part U149 can cut [C7,#9028].
+ *
+ * @param {string} output
+ * @param {Array<{ file: string, name: string }>} outcomes
+ * @returns {Record<string, number>}
+ */
+export function tapCaseMs(output, outcomes) {
+  const owners = new Map();
+  for (const row of outcomes ?? []) owners.set(row.name, [...new Set([...(owners.get(row.name) ?? []), row.file])]);
+  const out = {};
+  const lines = String(output).split('\n');
+  for (let at = 0; at < lines.length; at += 1) {
+    const head = /^(?:not ok|ok)\s+\d+\s+-\s+(.*)$/u.exec(lines[at]);
+    if (!head) continue;
+    let ms = null;
+    for (let next = at + 1; next < lines.length && /^\s/u.test(lines[next]); next += 1) {
+      // Only this case's own block: stop at a nested case's line, whose duration is its own.
+      if (/^\s+(?:not ok|ok)\s+\d+\s+-/u.test(lines[next])) break;
+      const field = /^ {2}duration_ms:\s*([\d.]+)\s*$/u.exec(lines[next]);
+      if (field) { ms = Number(field[1]); break; }
+    }
+    const files = owners.get(head[1].replace(/\s+#\s*(?:SKIP|TODO)\b.*$/iu, '')) ?? owners.get(head[1]);
+    if (ms === null || !files?.length) continue;
+    for (const file of files) out[file] = (out[file] ?? 0) + ms / files.length;
+  }
+  return out;
+}
+
 /**
  * One result row per planned file from its shard's output.
  * red: a case failed (named in `cases`); hung: its watchdog stopped it; no-result: the shard was red without running
@@ -94,7 +128,7 @@ export function tapFailures(output, files) {
  * @param {Array<{ file: string, name: string, passed: boolean, skipped: boolean }>} shard.outcomes
  * @param {Record<string, number>} shard.times - Wall ms per file from the shard's own lines.
  * @param {string} sha
- * @returns {Array<{ file: string, status: string, cases: string[], secs: number|null, sha: string, shard: string, host: string }>}
+ * @returns {Array<{ file: string, status: string, cases: string[], secs: number|null, setupSecs: number|null, sha: string, shard: string, host: string }>}
  */
 export function shardRows({ files, status, host, label, output, outcomes, times }, sha) {
   const failed = tapFailures(output, files);
@@ -116,8 +150,16 @@ export function shardRows({ files, status, host, label, output, outcomes, times 
     const key = path.replace(/^\.\//u, '');
     exits.set(key, Math.max(exits.get(key) ?? 0, Number(code)));
   }
+  // Files overlap inside a shard, so their wall times can sum past the shard's own tests phase; scale them down to it so
+  // overlap is never counted twice and the census total is real runner time [C7,#8890].
+  const phase = [...String(output).matchAll(/^run-tests: phases .*?\btests (\d+(?:\.\d+)?)s/gmu)].at(-1);
+  const total = files.reduce((sum, file) => sum + (Number.isFinite(times[file]) ? times[file] : 0), 0);
+  const scale = phase && total > Number(phase[1]) * 1000 ? (Number(phase[1]) * 1000) / total : 1;
+  // Case time per file: the runner's own record when the receipt tail was clipped, else the shard's TAP [C7,#9028].
+  const caseMs = { ...tapCaseMs(output, outcomes) };
+  for (const [, ms, path] of String(output).matchAll(/^# landing-file-case-ms (\d+(?:\.\d+)?) (.+)$/gmu)) caseMs[path.replace(/^\.\//u, '')] = Number(ms);
   return files.map((file) => {
-    const ms = times[file], exit = exits.get(file);
+    const ms = Number.isFinite(times[file]) ? times[file] * scale : times[file], exit = exits.get(file);
     const verdict = status !== 'green' && status !== 'red' ? 'unrun'
       : isHung(file) ? 'hung'
         : failed.has(file) || exit > 0 ? 'red'
@@ -125,7 +167,9 @@ export function shardRows({ files, status, host, label, output, outcomes, times 
           : !ran || (status === 'red' && !passed.has(file)) ? 'no-result'
           : cut && !Number.isFinite(ms) ? 'unrun' : 'green';
     const cases = failed.get(file) ?? (exit > 0 ? [`its test process exited ${exit} with no failing case named`] : []);
-    return { file, status: verdict, cases, secs: Number.isFinite(ms) ? Math.round(ms / 100) / 10 : null, sha, shard: label, host };
+    const wall = times[file], cased = caseMs[file];
+    const setupSecs = Number.isFinite(wall) && Number.isFinite(cased) ? Math.round(Math.max(0, wall - cased) * scale / 100) / 10 : null;
+    return { file, status: verdict, cases, setupSecs, secs: Number.isFinite(ms) ? (scale < 1 ? Math.floor(ms / 100) : Math.round(ms / 100)) / 10 : null, sha, shard: label, host };
   });
 }
 
@@ -157,4 +201,44 @@ export function verdictOutcomes(verdicts) {
     else if (Array.isArray(verdict)) for (const name of verdict) rows.push({ file, name: String(name), passed: false, skipped: false });
   }
   return rows.length ? rows : null;
+}
+
+/**
+ * Cut a census into `count` jobs of near-equal measured time, heaviest first. Each file, heaviest first, goes to the
+ * lightest job so far, so the heaviest and lightest job differ by at most one file's time; a file with no time weighs the
+ * known average, and with no times at all every file weighs one. The jobs come back heaviest first, so a runner that pulls
+ * early takes the long ones and the short ones fill the end of the run [C7].
+ *
+ * @param {string[]} files - Distinct repository-relative test files.
+ * @param {number} count - Most jobs to cut.
+ * @param {Record<string, number>} [times] - Last measured wall ms by file.
+ * @returns {{ files: string[], weight: number }[]}
+ */
+export function balancedJobs(files, count, times = {}) {
+  const known = files.map(file => times[file]).filter(ms => Number.isFinite(ms) && ms >= 0);
+  const average = known.length ? known.reduce((sum, ms) => sum + ms, 0) / known.length : 1;
+  const weight = file => (known.length ? (Number.isFinite(times[file]) && times[file] >= 0 ? times[file] : average) : 1);
+  const jobs = Array.from({ length: Math.max(1, Math.min(count, files.length)) }, () => ({ files: [], weight: 0 }));
+  for (const file of [...files].sort((a, b) => weight(b) - weight(a) || a.localeCompare(b))) {
+    const lightest = jobs.reduce((best, job) => (job.weight < best.weight || (job.weight === best.weight && job.files.length < best.files.length) ? job : best));
+    lightest.files.push(file);
+    lightest.weight += weight(file);
+  }
+  for (const job of jobs) job.files.sort((a, b) => a.localeCompare(b));
+  return jobs.filter(job => job.files.length).sort((a, b) => b.weight - a.weight || a.files[0].localeCompare(b.files[0]));
+}
+
+/**
+ * The census plan: by measured time, heaviest job first, when `balanceByTime` is on; otherwise exactly what `base` (the
+ * landing planner) cuts, so a machine that has not opted in plans as it always did [C7].
+ *
+ * @param {string[]} files
+ * @param {number} count
+ * @param {Record<string, number>} times
+ * @param {boolean} balanceByTime - The census.balanceByTime setting.
+ * @param {() => { files: string[], weight: number }[]} base - The landing planner, already bound to these files, count and times.
+ * @returns {{ files: string[], weight: number }[]}
+ */
+export function censusPlan(files, count, times, balanceByTime, base) {
+  return balanceByTime ? balancedJobs(files, count, times) : base();
 }

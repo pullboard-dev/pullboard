@@ -46,10 +46,12 @@ export {
   browserFreeChecksEnabled,
   gateRunnersFirstEnabled,
   postLandSuiteEnabled,
+  censusBalanceByTimeEnabled,
   tableReplayEnabled,
   testNiceEnabled,
   fencedHopEnabled,
   endStaleJobsEnabled,
+  settleOnMainReceiptEnabled,
   movesShadowEnabled,
   registryStrictEnabled,
   movesLiveEnabled,
@@ -78,6 +80,10 @@ export {
   refuseTempWorktree,
   viewBackgroundEnabled,
   healthSentinelEnabled,
+  reviewReleaseReasonsRequired,
+  lapsedSweepEnabled,
+  derivedStateEnabled,
+  adaptiveBatchEnabled,
   memoryFloorMB,
   relayOfferEnabled,
   setRelayCanary,
@@ -172,3 +178,4 @@ export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.
 export { boardKey, boardKeyFile } from './src/io/settings.js';
 export { boardRemote, setBoardRemote } from './src/io/settings.js';
 export { setPersonSetting } from './src/io/settings.js';
+export { costPerMinute } from './src/logic/runner-rates.js';
