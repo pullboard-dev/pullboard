@@ -25,9 +25,11 @@ import {
 
 test('a seat registration waits for relay authority while ordinary moves and reads stay local [H21,H5,H16]', async t => {
   const { box, env } = await linkedBoard(t);
+  t.diagnostic('registration: board linked');
   const agentPath = join(dirname(box.root), 'local-first-registration-agent');
   runFixtureGit(['worktree', 'add', '-q', '-b', 'agent/local-first-registration', agentPath], { cwd: box.root, env: box.env });
 
+  t.diagnostic('registration: worktree added');
   let releaseRegistration;
   const registrationResponse = new Promise(resolve => { releaseRegistration = resolve; });
   let registrationReached = false;
@@ -42,6 +44,7 @@ test('a seat registration waits for relay authority while ordinary moves and rea
   try {
     await eventually('the genuine agent registration reaches the relay', () => registrationReached,
       () => `join exit code: ${joining.child.exitCode ?? 'still running'}`);
+    t.diagnostic('registration: join reached the relay');
     assert.equal(joining.child.exitCode, null, 'join stays pending while the relay holds its registration response');
 
     const text = 'An ordinary move while registration waits for authority';
