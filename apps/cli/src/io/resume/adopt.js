@@ -87,3 +87,28 @@ export async function adoptOrphanedClaim(io, ctx) {
   io.say(`adopted #${found.id} from ${found.holder}: head ${found.head.slice(0, 12)} restored from ${found.pin}`);
   return found;
 }
+
+/**
+ * Bring the pinned head of a returned item's earlier work into the folder next --take just claimed, and credit the seat that built it.
+ * Why: a released item kept its commits under refs/pullboard/handoffs but its next claimant started from main (#9689, after #2481).
+ * A merge conflict leaves the folder as claimed and says so.
+ *
+ * @param {any} io
+ * @param {any} ctx
+ * @param {number} itemId
+ * @param {string} folder the item folder the claim just opened
+ * @returns {Promise<{ pin: string, head: string } | null>} what was restored, or null
+ */
+export async function adoptReturnedWork(io, ctx, itemId, folder) {
+  if (!newestPin(ctx.info.root, itemId)) return null;
+  const found = adoptPinnedHead(ctx.info.root, folder, itemId);
+  if (!found) { io.say(`pinned work of #${itemId} conflicts with main: the item folder stays as claimed`); return null; }
+  const holder = await withBoardRead(ctx, board => {
+    const claims = store.events(board, { itemId }).filter(event => event.event_kind === 'claim');
+    return claims.length > 1 ? claims.at(-2).event_by : null;
+  });
+  await (await import('../board/access.js')).actOn(io, (c, board, me) => ordered(c, board, 'appendFact', [itemId, { agentId: me.id, kind: 'note',
+    text: `Adopted the orphaned claim of ${holder ?? 'its earlier seat'} from ${found.pin}; head ${found.head.slice(0, 12)} restored${holder ? `, credit to ${holder}` : ''}.`, ref: null }]));
+  io.say(`restored the pinned work of #${itemId}: head ${found.head.slice(0, 12)} from ${found.pin}`);
+  return found;
+}

@@ -325,6 +325,9 @@ export function loadMachineSettings() {
   if (value.verify?.hunkFreshness !== undefined && typeof value.verify.hunkFreshness !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `verify.hunkFreshness in ${file} must be true or false`);
   }
+  if (value.review?.canonicalFamilies !== undefined && typeof value.review.canonicalFamilies !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `review.canonicalFamilies in ${file} must be true or false`);
+  }
   if (value.review?.starveShout !== undefined && typeof value.review.starveShout !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `review.starveShout in ${file} must be true or false`);
   }
@@ -369,6 +372,9 @@ export function loadMachineSettings() {
   }
   if (value.sentinels?.recordWriteHolder !== undefined && typeof value.sentinels.recordWriteHolder !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `sentinels.recordWriteHolder in ${file} must be true or false`);
+  }
+  if (value.next?.adoptPreserved !== undefined && typeof value.next.adoptPreserved !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `next.adoptPreserved in ${file} must be true or false`);
   }
   if (value.next?.capBuilders !== undefined && !(Number.isInteger(value.next.capBuilders) && value.next.capBuilders >= 0)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `next.capBuilders in ${file} must be a whole number, 0 or more`);
@@ -456,6 +462,9 @@ export function loadMachineSettings() {
     || !['day', 'week'].includes(workerBudget.window) || Object.keys(workerBudget).some(key => !['spend', 'seatHours', 'window'].includes(key))
     || (workerBudget.spend !== undefined && workerBudget.seatHours !== undefined))) {
     throw new Refused('BAD_MACHINE_SETTINGS', `workers.budget in ${file} must be spend per day or week; run pullboard settings workers.budget 40/day`);
+  }
+  if (value.machine?.loadCeiling !== undefined && value.machine.loadCeiling !== null && (!Number.isFinite(value.machine.loadCeiling) || value.machine.loadCeiling <= 0)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `machine.loadCeiling in ${file} must be a 1-minute load above 0; remove it for the default of 1.5 times the logical cores`);
   }
   if (value.gate?.memoryFloorMB !== undefined && (!Number.isSafeInteger(value.gate.memoryFloorMB) || value.gate.memoryFloorMB < 0)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.memoryFloorMB in ${file} must be a whole number of megabytes, 0 or more; fix it before running Pullboard`);
