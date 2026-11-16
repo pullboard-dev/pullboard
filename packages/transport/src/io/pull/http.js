@@ -90,7 +90,8 @@ export function pullServer(adapter) {
         return reply(response, 200, job);
       }
       if (request.method === 'GET' && route === 'bundle') {
-        const path = adapter.bundle(bearer(request), name);
+        const path = await adapter.bundle(bearer(request), name);
+        if (!path) return reply(response, 404, { code: 'PULL_TREE', message: 'the board has no bundle for that tree' });
         response.writeHead(200, { 'content-type': 'application/x-tar' });
         return createReadStream(path).pipe(response);
       }
