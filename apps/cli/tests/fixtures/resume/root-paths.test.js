@@ -27,7 +27,7 @@ export const ROOT_PATH_FILES = Object.freeze([
  * Files init writes that carry no root path, and the contract says so: the git hooks resolve the root and the CLI at run
  * time (`git rev-parse`), and the repo git config holds only the relative `core.hooksPath`. A rewrite slice has nothing to do for them.
  */
-export const ROOT_FREE_FILES = Object.freeze(['repo/.git/config', 'repo/.githooks/commit-msg', 'repo/.githooks/pre-commit', 'repo/.githooks/pre-push']);
+export const ROOT_FREE_FILES = Object.freeze(['repo/.git/config', 'repo/.githooks/commit-msg', 'repo/.githooks/post-commit', 'repo/.githooks/pre-commit', 'repo/.githooks/pre-merge-commit', 'repo/.githooks/pre-push']);
 
 /** Every regular file under `folder`, as paths relative to `base`; symlinks are not followed (`cli` is a shared copy). */
 function filesUnder(folder, base, found = []) {
