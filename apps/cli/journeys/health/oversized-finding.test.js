@@ -18,7 +18,7 @@ test('clause 2: sentinel run --health-only finishes and records a health-scan ev
   t.after(helpers.cleanup);
   const box = helpers.project('true', undefined, { withWorktree: false });
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  fixtureProjectPolicy(box.repo, { config: { ...config, verify: { policy: 'coordinator' }, review: { starveMinutes: 0 } } });
+  fixtureProjectPolicy(box.repo, { config: { ...config, verify: { policy: 'coordinator' }, review: { starveMinutes: 1 } } });
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-qm', 'chore: coordinator-only review policy');
   let at = Math.floor(Date.now() / 1000) * 1000 - 10 * MINUTE;
