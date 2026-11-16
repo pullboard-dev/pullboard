@@ -259,6 +259,9 @@ export function loadMachineSettings() {
   if (value.maintenance?.retireIdleHours !== undefined && !(Number.isFinite(value.maintenance.retireIdleHours) && value.maintenance.retireIdleHours > 0)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `maintenance.retireIdleHours in ${file} must be a positive number of hours`);
   }
+  if (value.health?.diskFloorGb !== undefined && !(Number.isFinite(value.health.diskFloorGb) && value.health.diskFloorGb >= 0)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `health.diskFloorGb in ${file} must be a number of gigabytes, 0 or more`);
+  }
   const reserve = value.gate?.jobReserve;
   if (reserve != null && (typeof reserve !== 'object' || Array.isArray(reserve) || Object.values(reserve).some(share => !Number.isFinite(share) || share < 0 || share > 1)
     || Object.values(reserve).reduce((sum, share) => sum + share, 0) > 1)) {
@@ -334,6 +337,10 @@ export function loadMachineSettings() {
 export function retireIdleSeatHours() {
   const settings = loadMachineSettings().maintenance;
   return settings?.retireIdleSeats === true ? settings.retireIdleHours ?? 3 : null;
+  }
+/** Free gigabytes below which pullboard health warns (#9110); 0, the default, never warns. */
+export function healthDiskFloorGb() {
+  return loadMachineSettings().health?.diskFloorGb ?? 0;
 }
 
 /** Whether pullboard list reads through the thin read door (#9089): off by default; only an exact `true` turns it on. */
