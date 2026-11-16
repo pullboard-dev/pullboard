@@ -88,7 +88,10 @@ async function finish(command, args, { timeout = 0, signal, encoding, ...options
 
 /** Run one test file in the copy; true when it passed. The child has ended before this resolves, so none is left alive. */
 async function passes(dir, file, signal = null) {
-  return (await finish(process.execPath, ['--test', file], { cwd: dir, env: childEnv(), timeout: RUN_TIMEOUT_MS, signal })).status === 0;
+  const ran = await finish(process.execPath, ['--test', file], { cwd: dir, env: childEnv(), timeout: RUN_TIMEOUT_MS, signal });
+  // A stopped run is neither caught nor missed: it ends here instead of counting the killed child as a failing test.
+  if (signal?.aborted) throw new Refused('STOPPED', 'the mutation run was stopped', 'run pullboard mutate again when ready');
+  return ran.status === 0;
 }
 
 /**
@@ -202,7 +205,6 @@ export async function mutateCell(root, cell, { all = false, base = 'main', extra
       try {
         for (const test of list) {
           if (deadline && Date.now() > deadline) return null;
-          if (signal?.aborted) throw new Refused('STOPPED', 'the mutation run was stopped', 'run pullboard mutate again when ready');
           const at = Date.now();
           const ok = await passes(dirOf(test), test, signal);
           tally[test].total += 1;
