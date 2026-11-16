@@ -58,7 +58,6 @@ test('clause 1: with landing.squash on, a land job for two items leaves two sing
     assert.equal(box.rev('rev-list', '--parents', '-n1', sha).split(' ').length, 2, `#${id} has one parent`);
     const message = box.rev('log', '-1', '--format=%B', sha);
     assert.match(message, new RegExp(`Pullboard-Item: #${id}\\nPullboard-Rows: C7$`, 'u'));
-    assert.equal(box.rev('merge-base', '--is-ancestor', box.tips[id], box.ref(`refs/pullboard/items/${id}`)) || 'ok', 'ok');
     assert.equal(box.ref(`refs/pullboard/items/${id}`), box.tips[id], `#${id}'s keep ref names its tip`);
   }
 });

@@ -10,6 +10,7 @@ import { tryGit } from '../../../../git/index.js';
 import { permitPushOptions } from '../../../../git/index.js';
 import { RUNNER_POLICY_FILE } from '../../../../sandbox/light.js';
 import { runnerPolicyRecord } from '../../../../sandbox/light.js';
+import { itemKeepRef } from '../land/squash.js';
 import { squashOnto } from '../land/squash.js';
 import { amendLandingEngines } from '../derive.js';
 import { amendLandingRegistries } from '../derive.js';
@@ -351,9 +352,12 @@ async function isolateReds(root, { base, trunk, pending, check, renew, payload }
  * Each landed item's first-containing merge on the first-parent path from base to tip, by item id. Why: the board
  * records each item at its own merge, as the Mac engine did, not every item at the batch tip [B3,R3,#7506].
  */
-function firstMerges(root, base, tip, pending) {
+function firstMerges(root, base, tip, pending, squash = false) {
   const merges = {};
-  for (const merge of must(root, ['rev-list', '--reverse', '--first-parent', `${base}..${tip}`]).split('\n').filter(Boolean)) {
+  const path = must(root, ['rev-list', '--reverse', '--first-parent', `${base}..${tip}`]).split('\n').filter(Boolean);
+  // A squashed item is not an ancestor of its commit; the commits follow the order the items were squashed in [C7,#9219].
+  if (squash && path.length === pending.length) { pending.forEach((entry, index) => { merges[entry.id] = path[index]; }); return merges; }
+  for (const merge of path) {
     for (const entry of pending) if (!merges[entry.id] && tryGit(root, ['merge-base', '--is-ancestor', entry.commit, merge]).status === 0) merges[entry.id] = merge;
   }
   return merges;
@@ -459,11 +463,14 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     const tip = must(root, ['rev-parse', 'HEAD']);
     const pushStart = Date.now();
     // With hops on the job (gate.fencedHop), a fence at a later epoch refuses HOP_FENCED here, before trunk is pushed [C7,#8437].
-    const fence = Array.isArray(payload.hops) && payload.hops.length ? (await import('../step/publish.js')).hopFencePush(root, remote, payload.hops) : null;
+    const hopFence = Array.isArray(payload.hops) && payload.hops.length ? (await import('../step/publish.js')).hopFencePush(root, remote, payload.hops) : null;
+    // A squash drops the item's commits from trunk's history, so the keep refs ride the same atomic push [C7,#9219].
+    const keeps = squash ? pending.map(entry => `+${itemKeepRef(entry.id)}:${itemKeepRef(entry.id)}`) : [];
+    const fence = keeps.length ? { leases: hopFence?.leases ?? [], refspecs: [...(hopFence?.refspecs ?? []), ...keeps], requireHeld: pushed => hopFence?.requireHeld(pushed) } : hopFence;
     const pushed = pushTrunk(root, { payload, trunk, base, remote, options: pushOptions(), fence });
     fence?.requireHeld(pushed);
     phases.push({ phase: 'push', ms: Date.now() - pushStart });
-    if (pushed.status === 0) return done('landed', { trunk: tip, landed: pending.map(entry => entry.id), merges: firstMerges(root, base, tip, pending), ...publishUpstream(root, { payload, trunk, tip, options: pushOptions() }) });
+    if (pushed.status === 0) return done('landed', { trunk: tip, landed: pending.map(entry => entry.id), merges: firstMerges(root, base, tip, pending, squash), ...publishUpstream(root, { payload, trunk, tip, options: pushOptions() }) });
     // A refused push is a moved trunk only when trunk really moved; anything else is a push failure to report.
     if (fetchTrunk(root, remote, trunk) === base) {
       // A trunk hook's refusal gives every pending item back with the hook's words, as a red does [C7,P7].
