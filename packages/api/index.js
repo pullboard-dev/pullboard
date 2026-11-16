@@ -11,7 +11,7 @@ export { applyInbox } from "./src/io/inbox.js";
 export { withLandingPermit } from "./src/io/permit.js";
 export { endStaleGateJobs } from "./src/io/stale.js";
 export { endGateHop, gateClaimHop, hopTableOver, provideGateHopTable } from "./src/io/hop.js";
-export { applyGateReceipt, applyJobReceipt, combinedReceipt, applyLandingReceipt, applyShardReceipt, boardJobQueueCall, compareGateWithMain, failingParts, gateLedgerHits, provideMainComparison, provideRefusalTrials, provideComparisonStart, provideLandingStart, pulledGateReds, recordPhaseReceipts, reportRunaway } from "./src/io/gate.js";
+export { applyGateReceipt, applyJobReceipt, combinedReceipt, applyLandingReceipt, applyShardReceipt, boardJobQueueCall, compareGateWithMain, failingParts, gateLedgerHits, provideMainComparison, provideRefusalTrials, provideComparisonStart, provideLandingStart, pulledGateReds, latestGateJob, offeredGate, offeredStep, postedReceipt, recordPhaseReceipts, reportRunaway } from "./src/io/gate.js";
 export { provideMainRedNotes } from "./src/io/gate/files.js";
 export { CHECK_BASELINE_KIND, offerCheckBaseline, provideBaselineRecorder } from "./src/io/baseline.js";
 export { provideMainTestRecorder } from "./src/io/recheck.js";
