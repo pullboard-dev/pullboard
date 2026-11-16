@@ -390,7 +390,9 @@ async function nextWithProgress(io, values, progress) {
       if (values.defaultLoop && !found.laneWork) {
         // A named step, such as waiting on another seat's rework, says what to do instead of ending the turn (#7922).
         const step = found.nextStep ?? 'nothing for this seat: end your turn';
-        io.result?.({ item: null, next: step, reasons: found.reasons ?? [] });
+        const lapsed = withBoardRead(ctx, board => reasons().lapsedHoldLines(board, whoAmI(ctx, board), holdsRequireOwner()));
+        io.result?.({ item: null, next: step, reasons: [...(found.reasons ?? []), ...lapsed] });
+        for (const line of lapsed) io.say(line);
         io.say(`next: ${step}`);
         return 0;
       }
