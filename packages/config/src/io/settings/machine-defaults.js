@@ -14,6 +14,7 @@ export const MACHINE_DEFAULTS = {
   'claim.keepWhileRunning': false,
   'claim.refuseOffMainHead': false,
   'freeze.refuseEmptyBar': false,
+  'gate.adapterLintClock': false,
   'gate.browserByLaunch': false,
   'gate.browserFreeChecks': false,
   'gate.diskFloorMB': 10_240,
@@ -105,6 +106,7 @@ export const MACHINE_DEFAULTS = {
   'submit.proofOnly': false,
   'test.statusOutcomes': false,
   'tests.registryStrict': false,
+  'tests.requireJourneyPath': false,
   'tests.requireRegistered': false,
   'view.background': true,
 };

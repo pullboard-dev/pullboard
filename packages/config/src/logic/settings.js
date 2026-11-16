@@ -201,6 +201,9 @@ export function loadMachineSettings() {
   if (value.tests?.requireRegistered !== undefined && typeof value.tests.requireRegistered !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `tests.requireRegistered in ${file} must be true or false`);
   }
+  if (value.tests?.requireJourneyPath !== undefined && typeof value.tests.requireJourneyPath !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `tests.requireJourneyPath in ${file} must be true or false`);
+  }
   if (value.census?.recordFileTimes !== undefined && typeof value.census.recordFileTimes !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `census.recordFileTimes in ${file} must be true or false`);
   }
