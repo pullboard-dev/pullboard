@@ -71,11 +71,18 @@ function subjectOf(root, commit) {
   } catch { return ''; }
 }
 
-/** Read this checkout's recorded main runs and name the open Main red items that run proves already fixed. */
+/**
+ * Read this checkout's recorded main runs and name the open Main red items that run proves already fixed.
+ * Why lineage only on a find: every `next` asks, and almost always nothing passes, so Git runs only when an item closes
+ * (a warm next spent a rev-list on it each time, #8691) [C7,H24].
+ */
 export function passingMainRedItems(root, items) {
   try {
     const main = mainCheckout(root);
-    return main?.commit ? passingMainReds(items, main.commit, readCache(cacheFile(root)).entries, mainLineage(root, main.commit))
-      .map(row => ({ ...row, landing: subjectOf(root, row.turnedGreen) })) : [];
+    if (!main?.commit) return [];
+    const entries = readCache(cacheFile(root)).entries;
+    if (!passingMainReds(items, main.commit, entries).length) return [];
+    return passingMainReds(items, main.commit, entries, mainLineage(root, main.commit))
+      .map(row => ({ ...row, landing: subjectOf(root, row.turnedGreen) }));
   } catch { return []; }
 }

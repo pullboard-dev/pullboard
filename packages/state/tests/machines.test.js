@@ -142,7 +142,8 @@ test('every job kind and step the code writes is in the map and the page, and ev
   const page = section();
   const kinds = new Set();
   for (const source of SOURCES) {
-    for (const match of source.text.matchAll(/\b(?:createJob|keyedResult|offerJob)\([^;]*?\bkind: *(?:'([^']+)'|([A-Z][A-Z0-9_]*))/gu)) kinds.add(match[1] ?? constant(match[2], source));
+    // A job built as a row and offered later (testJobRow in the pulled test run) carries its kind in `row: { ... kind: ... }`, not in the offerJob call [C7].
+    for (const match of source.text.matchAll(/(?:\b(?:createJob|keyedResult|offerJob)\([^;]*?|\brow: \{[^;\n]*?)\bkind: *(?:'([^']+)'|([A-Z][A-Z0-9_]*))/gu)) kinds.add(match[1] ?? constant(match[2], source));
   }
   const mappedKinds = new Set(MAP.jobs.map(job => job.kind));
   assert.deepEqual([...mappedKinds].sort(), [...kinds].sort(), 'the map has one table per job kind the code creates');

@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -34,7 +35,7 @@ function fixture(t, red = []) {
   const refuse = (part, code) => red.includes(part) ? `throw Object.assign(new Error('${part} is red'), { name: 'Refused', code: '${code}' });` : '';
   git(controller, 'config', 'pullboard.trunk', 'refs/heads/main');
   put('package.json', '{"type":"module"}\n');
-  put('packages/items/index.js', `export function requireSubmitComposition() { ${refuse('preflight', 'COMPOSITION_RED')} }\n`);
+  put('packages/items/index.js', `import { writeFileSync } from 'node:fs';\nexport function requireSubmitComposition(root, candidate, trunk, main, parentBase) { writeFileSync('parent-base.txt', String(parentBase)); ${refuse('preflight', 'COMPOSITION_RED')} }\n`);
   put('packages/gate/index.js', `export function importsIn() {} export function commonJsIn() {} export function withImportParseCache() {}
 export function foreignNodeOptions() { return false; }
 export function submitGatePlan(root, config, options) { ${refuse('selection', 'SELECTION_RED')}
@@ -118,4 +119,12 @@ test('clause 2: a red part refuses with its own code and message, unchanged, whi
       } else assert.equal(row.status, 'fulfilled', `${PARTS[index]} stays green beside red ${part}`);
     });
   }
+});
+
+test('clause 1: the preflight passes the request base to requireSubmitComposition as the parent base [C7]', async t => {
+  const box = fixture(t), runner = countingRunner(box);
+  const base = box.main;
+  await remoteSubmitAnalysis(box.controller, { main: box.main, source: box.source, trunk: box.main, base, check: 'x', criterion: 'c',
+    composition: box.source, staticChecks: '', config: { affectedTests: 'node apps/cli/src/io/run/tests.js' }, browserFreeChecks: true, readCutItems: () => [], parts: ['preflight'] }, runner.lease, join(box.dir, 'artifacts'));
+  assert.equal(readFileSync(join(box.runner, 'parent-base.txt'), 'utf8'), base, 'the guard receives the base the submission was claimed at');
 });

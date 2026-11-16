@@ -18,14 +18,15 @@ import { searchSidecarPath } from '../../../../../packages/search/index.js';
 import { requireBarPathsOnMain } from '../item/bar.js';
 import { guardDuplicate } from '../item/duplicate.js';
 import { guardBar } from '../../../../../packages/state/index.js';
+import { addWarnUnnamedTest } from '../../../../../packages/config/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
 import { parseCheckTiming } from '../../../../../packages/items/index.js';
 import { criterionSize } from '../../../../../packages/items/index.js';
-import { criterionCells } from '../../../../../packages/items/index.js';
-import { checkTestFiles } from '../../../../../packages/items/index.js';
-import { defaultItemRoute } from '../../../../../packages/items/index.js';
 import { ENGINE_VERSION } from '../../../../../packages/state/index.js';
 import { TWO_TIER_DIAGNOSIS_ENGINE } from '../../../../../packages/state/index.js';
+import { criterionCells } from '../../../../../packages/items/index.js';
+import { checkTestFiles } from '../../../../../packages/items/index.js';
+import { shapeRoute } from '../../../../../packages/items/index.js';
 import { requirePersonChannel } from '../../../../../packages/person/index.js';
 import { githubPullClient } from '../../../../../packages/github/index.js';
 import {
@@ -76,8 +77,8 @@ import {
 import { anyRunnerLive } from '../runner/local.js';
 
 /**
- * The default route for an add with a check. A diagnosis can only follow the add, so on a board that requires one a
- * light default would refuse DIAGNOSIS_REQUIRED on every plain add; it starts mid, as next already offers it (#3120).
+ * The route an add files for a shape route. A diagnosis can only follow the add, so on a board that requires one a light
+ * route would refuse DIAGNOSIS_REQUIRED on every plain add; it is filed mid, the route next already offers (#3120, #8628).
  */
 function addedRoute(board, route) {
   return route === 'light' && (board.executionEngineVersion ?? ENGINE_VERSION) >= TWO_TIER_DIAGNOSIS_ENGINE ? 'mid' : route;
@@ -125,9 +126,12 @@ export async function run(io, args) {
     after,
     brief: briefInLane(ctx, first, laneBar.brief),
     reviewFamily: values['review-family'],
+    ...(values.readiness === undefined ? {} : { readinessCommand: values.readiness }),
     ...(values['expected-minutes'] === undefined ? {} : { expectedBuildMinutes: parseExpectedBuildMinutes(values['expected-minutes']) }),
-    // Mid needs a brief, which a check naming a test file fills in; with neither, the item is strong (#3178).
-    route: values.route ?? (values.check && (checkTestFiles(values.check).length || briefArg(io, values)) ? addedRoute(board, defaultItemRoute(values.criterion ?? '', criterionCells(ctx.info.root))) : 'strong'),
+    // Light when the shape is small, proven and briefed, otherwise strong; an explicit --route wins [C7,#3081].
+    route: values.route ?? addedRoute(board, shapeRoute({ criterion: values.criterion ?? '', check: values.check,
+      // A check naming a test file fills the brief, so it counts as one.
+      brief: briefArg(io, values) || (values.check && checkTestFiles(values.check).length ? 'filled from the check' : '') })),
     ...(values.sensitive === undefined ? {} : { sensitive: values.sensitive }),
     ...(values['review-family'] === undefined ? {} : { reviewFamily: values['review-family'] }),
     check: laneBar.check,
@@ -141,7 +145,7 @@ export async function run(io, args) {
     briefInLane(ctx, item.lane, item.brief);
   }
   const asPerson = personBarMode(ctx, board, me, values, personMode);
-  const barWarnings = guardBar(item.criterion, { allowLong: Boolean(values['force-size']?.trim()) });
+  const barWarnings = guardBar(item.criterion, { allowLong: Boolean(values['force-size']?.trim()), warnUnnamedTest: addWarnUnnamedTest(), brief: item.brief });
   const size = criterionSize(item.criterion, criterionCells(ctx.info.root));
   const sizeReason = values['force-size']?.trim();
   if (values['force-size'] !== undefined && !sizeReason) throw new Refused('ITEM_SIZE_REASON', '--force-size needs a nonempty reason', 'use --force-size "why this scope must stay together"');

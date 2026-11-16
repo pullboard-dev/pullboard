@@ -34,3 +34,21 @@ export function criterionSize(criterion = '', catalog = []) {
 export function defaultItemRoute() {
   return 'mid';
 }
+
+/** The most tagged clauses and files an item may carry and still route light [C7]. */
+export const LIGHT_SHAPE_LIMIT = 3;
+
+/**
+ * The route an item's shape earns when it is filed without --route: light when it has a check, a brief, at most three
+ * tagged clauses and at most three files, otherwise strong. Why: small, proven, briefed work is what a light seat can
+ * build, and everything else needs a strong one; a pure function keeps `add` and `route --suggest` agreeing [C7,#3081].
+ *
+ * @param {{ criterion?: string, check?: string, brief?: string }} item
+ * @returns {'light'|'strong'}
+ */
+export function shapeRoute({ criterion = '', check = '', brief = '' } = {}) {
+  if (!String(check ?? '').trim() || !String(brief ?? '').trim()) return 'strong';
+  const tagged = String(criterion ?? '').match(/\[(?:test|command|measurement|reasoning|manual|check)\b[^\]]*\]/gu)?.length ?? 0;
+  const size = criterionSize(criterion);
+  return Math.max(tagged, size.clauses) <= LIGHT_SHAPE_LIMIT && size.files.length <= LIGHT_SHAPE_LIMIT ? 'light' : 'strong';
+}

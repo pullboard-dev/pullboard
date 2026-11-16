@@ -4,9 +4,11 @@ import { resolve } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { closeBoard } from '../../index.js';
+import { submitFixture } from './submit.js';
+import { writeBoardMeta } from '../../index.js';
 import { FIXTURE_MODEL } from '../../../../apps/cli/tests/fixtures/child.js';
 // The board composition root through the board package's fixture, which tests already use (#8202).
-import { openKitBoard } from '../../../../apps/cli/tests/fixtures/board.js';
+import { openKitBoard } from '../../../../apps/cli/tests/fixtures/child.js';
 import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureChild } from '../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
@@ -165,6 +167,20 @@ export function openCellBoard(file, clock, options) {
 
 export { closeBoard as closeCellBoard };
 
+/**
+ * Seed weekly capacity rows on a board file, the way `pullboard capacity` records them: one `capacity.week.<week>` record each.
+ * Why: a test of what health says about a worsened week needs weeks whose measures it chooses, which a real run cannot give it.
+ *
+ * @param {string} file - The board file.
+ * @param {{ week: string, at: string }[]} rows - The weekly rows to record.
+ * @returns {void}
+ */
+export function seedCapacityWeeks(file, rows) {
+  const board = openKitBoard(file);
+  try { for (const row of rows) writeBoardMeta(board.db, `capacity.week.${row.week}`, JSON.stringify({ runs: 1, ...row })); }
+  finally { closeBoard(board); }
+}
+
 /** The e2e project's default gate, so a converted test keeps the gate it ran against. */
 const PROJECT_GATE = 'test ! -f RED';
 
@@ -232,11 +248,11 @@ export function cellProject(t, { gate = PROJECT_GATE, config = {}, spec = CELL_S
  * Register a seat the way `pullboard join` does: the same store register move with the same fields.
  *
  * @param {object} board - A cellBoard.
- * @param {{ lane: string, path: string, route?: string, family?: string, model?: string }} seat
+ * @param {{ lane: string, path: string, route?: string, family?: string, model?: string, reviewLimits?: string[] }} seat
  * @returns {object} The agent row, with `id` and `lane` for cellClaim.
  */
-export function cellSeat(board, { lane, path, route = 'strong', family, model = FIXTURE_MODEL }) {
-  const id = register(board, { lane, path, route, family, model });
+export function cellSeat(board, { lane, path, route = 'strong', family, model = FIXTURE_MODEL, reviewLimits }) {
+  const id = register(board, { lane, path, route, family, model, ...(reviewLimits ? { reviewLimits } : {}) });
   return { ...agentById(board, id), id, lane };
 }
 
@@ -266,4 +282,24 @@ export function cellClaim(board, id, seat, { root, leaseMs = 2 * 60 * 60 * 1000,
   const info = repoInfo(root);
   const freeze = criterionFreezer({ root: info.root, isMain: info.isMain, config: loadConfig(info.root) }, { board });
   return claim(board, id, { agentId: seat.id, lane: seat.lane, leaseMs, freeze, head: headCommit(info.root), ...options });
+}
+
+/**
+ * Seed a board file with one submitted item whose builder declared a family, and review seats of that family that declared not-same-family.
+ * Why: a test of what health says about review supply needs seats and a waiting review without running a gate.
+ *
+ * @param {string} file - The board file.
+ * @param {{ lane: string, family: string, reviewers: number }} shape
+ * @returns {number} The submitted item's id.
+ */
+export function seedLimitedReviewQueue(file, { lane, family, reviewers }) {
+  const board = openKitBoard(file);
+  try {
+    const builder = register(board, { lane, path: '/seeded/builder', route: 'strong', family, model: FIXTURE_MODEL });
+    for (let index = 0; index < reviewers; index++) register(board, { lane, path: `/seeded/reviewer-${index}`, route: 'strong', family, model: FIXTURE_MODEL, reviewLimits: ['not-same-family'] });
+    const id = addItem(board, { by: 'coordinator', lane, title: 'Seeded review waits', route: 'strong' });
+    claim(board, id, { agentId: builder, lane, leaseMs: 3_600_000, freeze: row => ({ text: row.item_title, digest: `digest:${row.item_title}` }) });
+    submitFixture(board, id, { agentId: builder, commit: '1'.repeat(40), tree: '1'.repeat(40) });
+    return id;
+  } finally { closeBoard(board); }
 }

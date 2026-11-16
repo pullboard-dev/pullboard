@@ -231,6 +231,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `hook commit-msg` | `version:number`, `messages:array` |
 | `hook pre-push` | `version:number`, `messages:array` |
 | `tool-build` | `version:number`, `build:object\|null` |
+| `cells` | `version:number`, `cells:array`, `unsealed:array` |
 | `compact` | `version:number`, `days:number`, `jobs:number`, `rows:number`, `before:number`, `after:number` |
 | `contribute` | `version:number`, `file:string`, `shape:string`, `ok:boolean`, `failures:array` |
 | `explain` | `version:number`, `table:string`, `guards:array`, `outcomes:array` |
@@ -240,6 +241,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `mutate` | `version:number`, `cell:string`, `all:boolean`, `redBefore:array`, `tests:array`, `faults:array`, `caught:number`, `missed:number` |
 | `red` | `version:number`, `file:string` |
 | `replay` | `version:number`, `table:string`, `days:number`, `agreed:number`, `disagreed:number`, `beforeCut:number`, `disagreements:array` |
+| `route` | `version:number`, `suggest:string`, `items:array` |
 | `rules` | `version:number`, `rulesVersion:number`, `judged:number`, `agreed:number`, `rate:number`, `disagreements:array`, `disagreementCount:number`, `kinds:array`, `final:object`, `readiness:object` |
 | `search` | `version:number`, `query:string`, `matches:array` |
 | `seats` | `version:number`, `seats:array` |

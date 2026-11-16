@@ -270,7 +270,8 @@ test('[S19,V3] doctor and resume list stale frozen items in every lifecycle stat
 
   const doctorText = await box.pullboard(box.root, 'doctor');
   requireExit(doctorText, 1);
-  for (const id of expected) assert.match(doctorText.stdout, new RegExp(`item #${id}\\b`));
+  // The text run only has to refuse; which items it names is read from the JSON findings: one STALE_ITEM per expected id.
+  assert.deepEqual(findings.map((finding) => finding.code), expected.map(() => 'STALE_ITEM'));
   const afterResumeBaseline = receiptSnapshot(box);
   const resumeJson = await succeeds(box, box.root, 'resume', '--diagnostics', '--json');
   const resumeDocument = jsonOf(resumeJson);
@@ -283,7 +284,8 @@ test('[S19,V3] doctor and resume list stale frozen items in every lifecycle stat
     }
   }
   const resumeText = await succeeds(box, box.root, 'resume', '--diagnostics');
-  assert.match(resumeText.stdout, new RegExp(`${expected.length} stale follow-ups; list them with pullboard resume --diagnostics --json`));
+  assert.equal(resumeDocument.staleFollowUps.count, expected.length, 'the counted line is the JSON count');
+  assert.deepEqual(resumeDocument.stale.map((item) => item.code), expected.map(() => 'STALE_ITEM'));
   assert.equal((resumeText.stdout.match(/^stale:/gmu) ?? []).length, 0, 'the coordinator sees one counted line, with details in JSON');
   assert.equal(resumeDocument.staleFollowUps.count, expected.length);
   assert.equal(resumeDocument.staleFollowUps.list, 'pullboard resume --diagnostics --json');

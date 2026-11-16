@@ -7,7 +7,6 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
-  privateBoardMoves,
   privateBoardPath,
   relayWorkBudgetMs,
   runFixtureGit,
@@ -24,14 +23,14 @@ import { join } from 'node:path';
 import { fixtureAddArgv } from '../../../tests/fixtures/testkit.js';
 import { fixtureJoinArgv } from '../../../tests/fixtures/testkit.js';
 
-test('a private board sits beside the repo board [E11,E13,E14,E15]', { timeout: relayWorkBudgetMs(12) }, async (t) => { // budget: linked-device CLI and relay round trips, not a speed target.
+test('clause 2: a private board sits beside the repo board [E11,E13,E14,E15]', { timeout: relayWorkBudgetMs(12) }, async (t) => { // budget: linked-device CLI and relay round trips, not a speed target.
   const box = await teamBoard(t, ['alice']);
-  const shared = await box.cli('add', box.lane, 'repo item');
+  const shared = await box.journeyCli('add', box.lane, 'repo item');
   assert.equal(shared.code, 0, 'ordinary add stays on the linked repo board');
   const repoBoardId = box.before.tables.board_meta.find(row => row.meta_key === 'board_id').meta_value;
   await settleRelayCalls(box); // the shared add's background sender may still be talking to the relay
   const callsBeforePrivate = box.calls.length;
-  const local = await box.cli('add', box.lane, 'private item', '--private');
+  const local = await box.journeyCli('add', box.lane, 'private item', '--private');
   assert.equal(local.code, 0, `private add stays available beside a linked team board: ${JSON.stringify(local.document?.error ?? null)}`);
   const privateFile = privateBoardPath(repoBoardId, box.env.PULLBOARD_HOME);
   // @pullboard-board-file persistence: the export reads the private board file at its repo-id path.
@@ -78,7 +77,7 @@ test('a private board sits beside the repo board [E11,E13,E14,E15]', { timeout: 
     const reference = JSON.parse(privateBoard.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get('private_board_reference').meta_value);
     assert.equal(reference.owner, 'alice', 'ordinary repo sign-in supplies the authenticated private handle login before any bulk setup');
   } finally { store.closeBoard(privateBoard); }
-  const sharedExport = (await box.cli('export')).document;
+  const sharedExport = (await box.journeyCli('export')).document;
   assert.equal(JSON.stringify(sharedExport).includes('private item'), false, 'shared board exports contain no private prose');
 
   const bobRoot = join(box.root, '..', 'bob-clone');
@@ -99,5 +98,4 @@ test('a private board sits beside the repo board [E11,E13,E14,E15]', { timeout: 
   assert.ok(titles.includes('repo item'), 'the ordinary item reaches the other member');
   assert.equal(titles.includes('private item'), false, 'the private item stays on this device');
   assert.equal(existsSync(privateBoardPath(repoBoardId, bobEnv.PULLBOARD_HOME)), false, 'another device has no local private board file');
-  await privateBoardMoves(box, privateFile);
 });

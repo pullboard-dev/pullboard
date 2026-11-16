@@ -5,8 +5,8 @@ import { RIGOR_AUTO_ENGINE } from "../../../state/index.js";
 import { VERIFIED_ITEM_HOLD_ENGINE } from "../../../state/light.js";
 
 /** Hold an open or already claimed item under the existing coordinator authority. */
-export function applyItemHold(board, id, { agentId, reason, until }, dependencies) {
-  const { coordinatorOnly, atomic, getItem, setItem, now, logEvent, postRigorNotices, itemHold, holdUntilKind, forgetHoldMaintenance, rememberHoldCondition, staleStateEngine } = dependencies;
+export function applyItemHold(board, id, { agentId, reason, until, owner, deadline, requireOwner }, dependencies) {
+  const { rememberHoldOwner, coordinatorOnly, atomic, getItem, setItem, now, logEvent, postRigorNotices, itemHold, holdUntilKind, forgetHoldMaintenance, rememberHoldCondition, staleStateEngine } = dependencies;
   coordinatorOnly(agentId, 'holds an item');
   const condition = holdUntilKind(until);
   if (until !== undefined && (board.executionEngineVersion ?? ENGINE_VERSION) < staleStateEngine) {
@@ -14,6 +14,12 @@ export function applyItemHold(board, id, { agentId, reason, until }, dependencie
   }
   const text = String(reason ?? '').trim();
   if (!text) throw new Refused('USAGE', `a hold needs a reason: pullboard hold ${id} "why"`);
+  const named = String(owner ?? '').trim();
+  if (requireOwner === true && !named) throw new Refused('HOLD_OWNER_REQUIRED', `a hold needs an owner while holds.requireOwner is on: pullboard hold ${id} "why" --owner <seat, lane or person>`);
+  if ((named || deadline !== undefined) && (board.executionEngineVersion ?? ENGINE_VERSION) < staleStateEngine) {
+    throw new Refused('ENGINE_VERSION', 'a hold owner and deadline require replay-aware writers; upgrade every linked device');
+  }
+  if (deadline !== undefined && !Number.isFinite(Date.parse(deadline))) throw new Refused('USAGE', `a hold deadline is a date and time, such as 2026-11-20T09:00:00Z, not ${JSON.stringify(deadline)}`);
   return atomic(board, () => {
     const item = getItem(board, id);
     // A verified item can be held out of landing batches from this engine on; it keeps its accept [C7].
@@ -24,7 +30,10 @@ export function applyItemHold(board, id, { agentId, reason, until }, dependencie
     const at = now(board);
     setItem(board, id, { item_hold_reason: text, item_hold_by: agentId, item_hold_at: at });
     forgetHoldMaintenance(board, id);
-    logEvent(board, agentId, 'hold_item', id, { reason: text, ...(condition === null ? {} : { until: condition }) });
+    // An owner means the hold lapses: one day out unless the caller names a deadline; the instant is the board's own clock, so replicas agree [C7,#8539].
+    const record = named ? { owner: named, deadline: deadline === undefined ? new Date(Date.parse(at) + 86_400_000).toISOString() : new Date(Date.parse(deadline)).toISOString() } : null;
+    if (record) rememberHoldOwner(board, id, record);
+    logEvent(board, agentId, 'hold_item', id, { reason: text, ...(condition === null ? {} : { until: condition }), ...(requireOwner === true ? { requireOwner: true } : {}), ...(record ?? {}) });
     if (condition !== null) rememberHoldCondition(board, id, { kind: condition, heldAt: at, holdEventId: board.lastEvent.event_id });
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= RIGOR_AUTO_ENGINE) postRigorNotices(board, board.lastEvent);
     return itemHold(board, id);

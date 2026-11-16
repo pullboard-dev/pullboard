@@ -65,6 +65,11 @@ export function gateRunnersFirstEnabled() {
   return loadMachineSettings().gate?.runnersFirst === true;
 }
 
+/** Run test processes at a lower scheduling priority than board writers only when this machine opted in [C7,#8509]. */
+export function testNiceEnabled() {
+  return loadMachineSettings().gate?.testNice === true;
+}
+
 /** Replay a changed move table in the submit gate only when this machine opted in [C7,#8073]. */
 export function tableReplayEnabled() {
   return loadMachineSettings().gate?.tableReplay === true;
@@ -75,9 +80,64 @@ export function fencedHopEnabled() {
   return loadMachineSettings().gate?.fencedHop !== false;
 }
 
+/** Whether gate.recaptureHandoff is on (#8989): off by default; nothing reads it yet, and only an exact `true` turns it on. */
+export function recaptureHandoffEnabled() {
+  return loadMachineSettings().gate?.recaptureHandoff === true;
+}
+
+/** End an item's older open gate jobs on a new candidate or a landing only when this machine opted in [C7,#8816]. */
+export function endStaleJobsEnabled() {
+  return loadMachineSettings().gate?.endStaleJobs === true;
+}
+
+/** Offer a gate job once more after an infrastructure end only when this machine opted in [C7,#9633]. */
+export function reofferInfraEndEnabled() {
+  return loadMachineSettings().gate?.reofferInfraEnd === true;
+}
+
+/** Settle a sharded item gate left unknown on a missing main receipt when that receipt records, only when this machine opted in [C7,#9057]. */
+export function settleOnMainReceiptEnabled() {
+  return loadMachineSettings().gate?.settleOnMainReceipt === true;
+}
+
+/** Name the file:line a static check reported in a pulled gate's red fact only when this machine opted in; off, the fact is unchanged [C7,#9083]. */
+export function redFactLocationEnabled() {
+  return loadMachineSettings().gate?.redFactLocation === true;
+}
+
 /** Fail the registry check on an unregistered test only when this machine opted in; off, it reports [C7,#8374]. */
 export function registryStrictEnabled() {
   return loadMachineSettings().tests?.registryStrict === true;
+}
+
+/** Whether verdict freshness compares the submit's own hunks: off by default; only an exact `true` turns it on [C7,#9438]. */
+export function hunkFreshnessEnabled() {
+  return loadMachineSettings().verify?.hunkFreshness === true;
+}
+
+/** Whether the static check refuses a change that adds an unregistered test: off by default; only an exact `true` turns it on [C7,#9402]. */
+export function requireRegisteredEnabled() {
+  return loadMachineSettings().tests?.requireRegistered === true;
+}
+
+/** Whether the static check refuses an added journey that names no golden user path: off by default; only an exact `true` turns it on [C7,#9403]. */
+export function requireJourneyPathEnabled() {
+  return loadMachineSettings().tests?.requireJourneyPath === true;
+}
+
+/** Whether the static check refuses new direct clock reads outside the kernel: off by default; only an exact `true` turns it on [C7,#9447]. */
+export function adapterLintClockEnabled() {
+  return loadMachineSettings().gate?.adapterLintClock === true;
+}
+
+/** Whether the static check refuses new direct node:fs imports outside the kernel: off by default; only an exact `true` turns it on [C7,#9449]. */
+export function adapterLintFsEnabled() {
+  return loadMachineSettings().gate?.adapterLintFs === true;
+}
+
+/** Whether the static check refuses a statement shape copied into 3 or more files: off by default; only an exact `true` turns it on [C7,#9521]. */
+export function idiomSpreadEnabled() {
+  return loadMachineSettings().gate?.idiomSpread === true;
 }
 
 /** Record each move table shadow compare on the board only when this machine opted in [C7,#8376]. */
@@ -88,6 +148,70 @@ export function movesShadowEnabled() {
 /** Let a move writer follow its move table only when this machine opted in for that table [C7,#8383]. */
 export function movesLiveEnabled(table) {
   return loadMachineSettings().moves?.live?.[table] === true;
+}
+
+/** Write each pulled census's per-file times back for the next census plan only when this machine opted in; off, the census writes none [C7]. */
+export function censusRecordFileTimesEnabled() {
+  return loadMachineSettings().census?.recordFileTimes === true;
+}
+
+/** Rerun each non-green census file once, alone, before reporting it red, only when this machine opted in; off, rows are the first run's [C7,#9138]. */
+export function censusRerunNonGreenEnabled() {
+  return loadMachineSettings().census?.rerunNonGreen === true;
+}
+
+/** Rerun a non-green census file the moment its job settles, under the 3-minute file kill, only when this machine opted in; off, reruns wait for the whole pass [C7,#9283]. */
+export function censusRerunOnSettleEnabled() {
+  return loadMachineSettings().census?.rerunOnSettle === true;
+}
+
+/** Cut pulled census jobs by measured time, heaviest first, only when this machine opted in; off, they are cut by file count [C7]. */
+export function censusBalanceByTimeEnabled() {
+  return loadMachineSettings().census?.balanceByTime === true;
+}
+
+/** Whether census.selfTune is on: off by default; only an exact `true` lets a pulled census size its jobs from the previous census's shard times [C7,U151]. */
+export function censusSelfTuneEnabled() {
+  return loadMachineSettings().census?.selfTune === true;
+}
+
+/** Minutes of measured time one pulled census job may hold; null (the default) keeps jobs cut by file count [C7]. */
+export function censusJobMinutes() {
+  const minutes = loadMachineSettings().census?.jobMinutes;
+  return typeof minutes === 'number' && Number.isFinite(minutes) && minutes > 0 ? minutes : null;
+}
+
+/** Seconds over which a file recorded in an earlier census plans as a census job to itself; null (the default) plans as before [C7,#9499]. */
+export function censusSoloFileSeconds() {
+  const secs = loadMachineSettings().census?.soloFileSeconds;
+  return Number.isSafeInteger(secs) && secs >= 1 ? secs : null;
+}
+
+/** Census test jobs one runner may hold at once; null (the default) leaves census jobs uncapped beyond runner slots [C7,#9136]. */
+export function censusJobsPerRunner() {
+  const jobs = loadMachineSettings().census?.jobsPerRunner;
+  return Number.isSafeInteger(jobs) && jobs >= 1 ? jobs : null;
+}
+
+/** Census test jobs a runner holding no other kind of job may hold at once, above census.jobsPerRunner; null (the default) keeps the one cap for every runner [C7,#9500]. */
+export function censusJobsPerRunnerQuiet() {
+  const jobs = loadMachineSettings().census?.jobsPerRunnerQuiet;
+  return Number.isSafeInteger(jobs) && jobs >= 1 ? jobs : null;
+}
+
+/** Whether jobs.avoidRunners is on: off by default; only an exact `true` makes claimJob skip the runners a job's offer names [C7,#9273]. */
+export function jobsAvoidRunnersEnabled() {
+  return loadMachineSettings().jobs?.avoidRunners === true;
+}
+
+/** Whether push.recordTiming is on: off by default; only an exact `true` makes a finished pre-push gate record its wall clock and per-shard times on the board [C7,U151,#9371]. */
+export function pushRecordTimingEnabled() {
+  return loadMachineSettings().push?.recordTiming === true;
+}
+
+/** Whether push.rerunFailedShardOnce is on: off by default; only an exact `true` lets the pre-push gate re-offer a failed shard once [C7,#9274]. */
+export function pushRerunFailedShardOnceEnabled() {
+  return loadMachineSettings().push?.rerunFailedShardOnce === true;
 }
 
 /** Run the full suite after each landed train batch only when this machine opted in. */
@@ -220,6 +344,146 @@ export function refuseMissingCheckFile() {
 }
 
 /**
+ * Whether `pullboard worktree` refuses a seat folder under the OS temporary directory (#8513): off by default, so
+ * worktrees are made where they always were; only an exact `true` turns the refusal on.
+ */
+export function refuseTempWorktree() {
+  return loadMachineSettings().gate?.refuseTempWorktree === true;
+}
+
+/** Whether claim.keepWhileRunning is on: off by default; only an exact `true` keeps a claim whose holder has a test run, test or gate job in flight from being released as idle or stalled [C7,#9498]. */
+export function claimKeepWhileRunning() {
+  return loadMachineSettings().claim?.keepWhileRunning === true;
+}
+
+/** Whether claim.refuseOffMainHead is on: off by default; only an exact `true` makes claim refuse a folder whose HEAD is not on main [C7,#9104]. */
+export function refuseOffMainHead() {
+  return loadMachineSettings().claim?.refuseOffMainHead === true;
+}
+
+/** Whether freezing a bar refuses an empty criterion (#9443): off by default; only an exact `true` turns it on. */
+export function refuseEmptyBar() {
+  return loadMachineSettings().freeze?.refuseEmptyBar === true;
+}
+
+/** Whether a landed reject's follow-up keeps its parent's check (#9637): off by default; only an exact `true` turns it on. */
+export function rejectKeepsCheck() {
+  return loadMachineSettings().verify?.rejectKeepsCheck === true;
+}
+
+/** Whether a review release must name why it was dropped (#8920): off by default; only an exact `true` turns it on. */
+export function reviewReleaseReasonsRequired() {
+  return loadMachineSettings().review?.releaseReasons === true;
+}
+
+/** Whether test.statusOutcomes is on (#9085): off by default; only an exact `true` turns it on. */
+export function testStatusOutcomesEnabled() {
+  const group = loadMachineSettings().test;
+  return group?.statusOutcomes === true;
+}
+
+/** Whether spec.cascadeReject is on (#9341): off by default; only an exact `true` turns it on. */
+export function cascadeRejectEnabled() {
+  return loadMachineSettings().spec?.cascadeReject === true;
+}
+
+/** Whether items.typedFields is on (#9350): off by default; only an exact `true` turns it on. */
+export function typedFieldsEnabled() {
+  return loadMachineSettings().items?.typedFields === true;
+}
+
+/** Whether health.derivedState is on (#8974): off by default; nothing reads it yet, and only an exact `true` turns it on. */
+export function derivedStateEnabled() {
+  return loadMachineSettings().health?.derivedState === true;
+}
+
+/** Whether landing.reofferTrunkBusy is on (#9102): off by default; only an exact `true` turns it on. */
+export function reofferTrunkBusyEnabled() {
+  return loadMachineSettings().landing?.reofferTrunkBusy === true;
+}
+
+/** Whether landing.adaptiveBatch is on (#9017): off by default; only an exact `true` turns it on. */
+export function adaptiveBatchEnabled() {
+  return loadMachineSettings().landing?.adaptiveBatch === true;
+}
+
+/** Whether the wait audit records who held a slow board write (#9118): off by default; only an exact `true` turns it on. */
+export function recordWriteHolderEnabled() {
+  return loadMachineSettings().sentinels?.recordWriteHolder === true;
+}
+
+/** Whether landing.squash is on (#9217): off by default; only an exact `true` turns it on. */
+export function landingSquashEnabled() {
+  return loadMachineSettings().landing?.squash === true;
+}
+
+/** Whether status.showUsefulBuilders is on: off by default; only an exact `true` makes status print the max useful builders line [C7,#8544]. */
+export function statusShowUsefulBuilders() {
+  return loadMachineSettings().status?.showUsefulBuilders === true;
+}
+
+/** Whether spec.commitOnApply is on (#9346): off by default; only an exact `true` turns it on. */
+export function commitOnApplyEnabled() {
+  return loadMachineSettings().spec?.commitOnApply === true;
+}
+
+/** Whether landing.strictFullSuite is on (#9323): off by default; only an exact `true` turns it on. */
+export function strictFullSuiteEnabled() {
+  return loadMachineSettings().landing?.strictFullSuite === true;
+}
+
+/** Whether the sentinel expires lapsed claims every minute (#8923): off by default; only an exact `true` turns it on. */
+export function lapsedSweepEnabled() {
+  return loadMachineSettings().health?.lapsedSweep === true;
+}
+
+/** Whether add.warnUnnamedTest is on (#9303): off by default; only an exact `true` turns it on. */
+export function addWarnUnnamedTest() {
+  return loadMachineSettings().add?.warnUnnamedTest === true;
+}
+
+/**
+ * Whether an item hold must name an owner and records a deadline (#8539): off by default, so holds are unchanged; only an
+ * exact `true` turns it on.
+ */
+export function holdsRequireOwner() {
+  return loadMachineSettings().holds?.requireOwner === true;
+}
+
+/**
+ * Whether next lists the shouts and rulings that name the item it hands out (#8787): off by default, so next prints exactly
+ * what it did before; only an exact `true` turns it on.
+ */
+export function nextItemNotices() {
+  return loadMachineSettings().next?.itemNotices === true;
+}
+
+/**
+ * The builder cap behind next.capBuilders (#8545): the most seats that may hold a claim at once before next offers a review
+ * instead of a build; 0 (default) is off, and anything but a positive whole number is off, so a damaged value never starves builds.
+ */
+export function nextCapBuilders() {
+  const cap = loadMachineSettings().next?.capBuilders;
+  return Number.isInteger(cap) && cap > 0 ? cap : 0;
+}
+
+/**
+ * Whether next passes over an item whose readiness command exits non-zero (#8793): off by default, so next offers items as
+ * before; only an exact `true` turns it on.
+ */
+export function nextReadinessCheck() {
+  return loadMachineSettings().next?.readinessCheck === true;
+}
+
+/**
+ * Whether next keeps each readiness result for the main commit it ran on (#8794): off by default, so next reruns the
+ * command on every call; only an exact `true` turns it on.
+ */
+export function nextReadinessCache() {
+  return loadMachineSettings().next?.readinessCache === true;
+}
+
+/**
  * Where a queued submit's authorization source checks run when a runner is registered: `runner` (default) puts them in
  * the gate's one runner analysis job beside doctrine, cells, static and selection; `local` keeps them on this machine as
  * before #5674. Anything but an exact `local` is the default, so a damaged value never moves work back here [C7].
@@ -261,6 +525,19 @@ export function localLoadShare() {
 export function staticCheckSlots() {
   const slots = loadMachineSettings().gate?.staticSlots;
   return Number.isSafeInteger(slots) && slots > 0 ? slots : 2;
+}
+
+/**
+ * Whether a green local `pullboard gate --static` is kept for its exact clean tree and main: gate.staticMemo, default off.
+ * Why: a refused submit is usually resubmitted on the same tree, and its static rerun repeated a green minute of full CPU [C7].
+ */
+export function staticMemoOn() {
+  return loadMachineSettings().gate?.staticMemo === true;
+}
+
+/** Whether `pullboard serve` also answers runner pulls at /pull/ (#8765): off by default; only an exact `true` turns it on. */
+export function servePullRoute() {
+  return loadMachineSettings().serve?.pullRoute === true;
 }
 
 /**
@@ -361,7 +638,7 @@ export function setLandingPool(board, enabled) {
   const settings = loadMachineSettings();
   const pools = new Set(settings.landing?.pools ?? []);
   if (enabled) pools.add(board); else pools.delete(board);
-  const next = { ...settings, landing: { pools: [...pools].sort() } };
+  const next = { ...settings, landing: { ...settings.landing, pools: [...pools].sort() } };
   writeMachineSettings(next);
   return next;
 }
@@ -584,4 +861,19 @@ export function boardKey() {
   chmodSync(file, 0o600);
   if (!/^[A-Za-z0-9_-]{24,128}$/u.test(key)) throw new Refused('BAD_BOARD_KEY', `${file} does not hold a board key; delete it and run pullboard serve again to make a new one`);
   return key;
+}
+
+/** Whether board.archiveEvents is on (#9334): off by default; only an exact `true` turns it on. */
+export function archiveEventsEnabled() {
+  return loadMachineSettings().board?.archiveEvents === true;
+}
+
+/** Whether landing.reuseContractResults is on (#9301): off by default; only an exact `true` turns it on. */
+export function reuseContractResultsEnabled() {
+  return loadMachineSettings().landing?.reuseContractResults === true;
+}
+
+/** Whether landing.reuseGateReceipts is on (#9243): off by default; only an exact `true` turns it on. */
+export function reuseGateReceiptsEnabled() {
+  return loadMachineSettings().landing?.reuseGateReceipts === true;
 }

@@ -26,6 +26,8 @@ import {
 import {
   Refused,
 } from '../../../../../packages/kernel/index.js';
+import { refuseTempWorktree } from '../../../../../packages/config/index.js';
+import { refuseUnderTemp } from '../worktree/temp.js';
 import {
   installStep,
 } from '../../../../../packages/git/index.js';
@@ -78,6 +80,8 @@ export async function worktreeFor(io, lane, route, family = null, model, helper 
   const pathFor = (n) => mainConfig.worktrees === 'inside'
     ? join(mainRoot, '.claude', 'worktrees', `${lane}-${n}`)
     : join(dirname(mainRoot), `${basename(mainRoot)}-${lane}-${n}`);
+  // gate.refuseTempWorktree (default off): a seat folder in the OS temp directory can be cleared with its work in it (#8513).
+  if (refuseTempWorktree()) refuseUnderTemp(pathFor(1), mainConfig);
   const registeredPaths = withBoard(ctx, board => new Set(store.listAgents(board).map(seat => seat.agent_path)));
   const isTaken = (n) => registeredPaths.has(pathFor(n)) || existsSync(pathFor(n)) || tryGit(mainRoot, ['rev-parse', '--verify', '--quiet', `refs/heads/${lane}/${n}`]).status === 0;
   let n = 1;

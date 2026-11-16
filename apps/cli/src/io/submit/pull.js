@@ -5,9 +5,13 @@
  */
 import { gateLedgerHits } from '../../../../../packages/api/index.js';
 import { offerJob } from '../../../../../packages/api/index.js';
+import { queueFor } from '../../../../../packages/api/index.js';
 import { openJob } from '../../../../../packages/api/index.js';
 import { endGateHop } from '../../../../../packages/api/index.js';
+import { endStaleGateJobs } from '../../../../../packages/api/index.js';
+import { endStaleJobsEnabled } from '../../../../../packages/config/index.js';
 import { submitGateHop } from './hop.js';
+import { recordCheckpoint } from '../seat-checkpoint.js';
 import { pulledGateReds } from '../../../../../packages/api/index.js';
 import { mappedCheck } from '../../../../../packages/codemap/index.js';
 import { browserFreeChecksEnabled } from '../../../../../packages/config/index.js';
@@ -475,14 +479,17 @@ export function gateShardRequest({ main, source, shard }) {
  * queues a second run of the same source.
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ item: number, main: string, source: string, request: object, now?: number, hop?: { table: Function } | null }} fields - hop: the submit's hop port, null with gate.fencedHop off.
+ * @param {{ item: number, main: string, source: string, request: object, now?: number, hop?: { table: Function } | null, queue?: object | null }} fields - hop: the submit's hop port, null with gate.fencedHop off.
+ *   queue: the board's queue (queueFor) while runs_store is on, so the offer goes through queueRun and the runs file; null writes the board's job rows as before [B2,P7,#7418].
  */
-export function offerGateJob(db, { item, main, source, request, now = Date.now(), hop = null }) {
+export function offerGateJob(db, { item, main, source, request, now = Date.now(), hop = null, queue = null }) {
   const open = openJob(db, { kind: 'gate', item, candidate: source });
   if (open) return open;
   // With gate.fencedHop on, a resubmit at a new candidate ends the item's open hop, so the old candidate's gate job cannot renew or land [C7,#8353].
   endGateHop(db, hop, { item, candidate: source, now });
-  return offerJob(db, { id: `gate:${item}:${source.slice(0, 12)}:${now.toString(36)}`, kind: 'gate', priority: 'gate', needs: GATE_NEEDS, item, candidate: source, base: main, request, now });
+  // With gate.endStaleJobs on, the item's older open gate jobs end as the new candidate is offered [C7,#8816].
+  endStaleGateJobs(db, { item, keep: source, enabled: endStaleJobsEnabled(), now });
+  return offerJob(db, { id: `gate:${item}:${source.slice(0, 12)}:${now.toString(36)}`, kind: 'gate', priority: 'gate', needs: GATE_NEEDS, item, candidate: source, base: main, request, now }, queue);
 }
 
 /**
@@ -558,12 +565,14 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   git(root, ['update-ref', `refs/pullboard/gate/${id}`, source]);
   // The same pin the controller path writes, so doctor and review find the work whatever the gate's outcome (#7076).
   git(root, ['update-ref', `refs/pullboard/items/${id}/${commit.slice(0, 12)}`, commit]);
-  const job = withBoard(ctx, board => offerGateJob(board.db, { item: id, main: main.commit, source, request, hop: submitGateHop() }));
+  const job = withBoard(ctx, board => offerGateJob(board.db, { item: id, main: main.commit, source, request, hop: submitGateHop(), queue: queueFor(board, me.id, { file: ctx.file }) }));
   noteSubmitSession(ctx.info, id, true);
   // The runner's receipt applies the submit with no agent session, so the usage checkpoint the ordered submit took is taken here, as the gate is offered [N2].
   await withBoard(ctx, board => checkpointAfterMove(ctx, board, { agent: me.id, item: id, operation: 'submit' }, { ordered, worker: usageCheckpointWorkerEntrypoint() }));
   await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
     text: `Gate job ${job.id} offered for ${source.slice(0, 12)}${companion ? ` (companions composed onto ${commit.slice(0, 12)})` : ''} on main ${main.commit.slice(0, 12)}; a runner pulls it and posts its receipt.` }]));
+  // seat.checkpoints (off by default): the submit records what is done and what the gate and review still decide [C7,#8549].
+  await withBoard(ctx, board => recordCheckpoint(ctx, board, { item: id, agent: me.id, moment: 'submit', parts: { done: [`submitted ${commit}`], left: ['gate result and review'], evidence: [`gate job ${job.id}`] } }, ordered));
   // With no registered runners this machine is its own runner: the same pull path, on loopback [P7].
   const host = primaryCheckoutRoot(ctx.info);
   const local = host ? await ensureLocalRunner(host) : { running: false, started: false, pid: null };

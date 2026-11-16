@@ -4,3 +4,5 @@ export { sessionBound } from './src/io/agent/binding.js';
 export { agentParent } from './src/logic/parent.js';
 export { seatAddress } from './src/logic/address.js';
 export { verdictRows } from './src/logic/rows.js';
+/** The GitHub origin lookup a status read uses to word its relay hint [C7,#8648]. */
+export { originRepository } from './src/logic/github/origin.js';

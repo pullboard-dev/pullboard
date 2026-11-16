@@ -6,6 +6,7 @@
  * as a callback, and the claim move is the cell that owns what a claim freezes.
  */
 import { createHash } from 'node:crypto';
+import { refuseEmptyBar } from '../../../config/index.js';
 import { loadDoctrine } from '../../../doctrine/index.js';
 import { agentDoctrine } from '../../../doctrine/index.js';
 import { foreignNodeOptions } from '../../../gate/index.js';
@@ -29,6 +30,7 @@ import { namedTestHashes } from '../../../verify/index.js';
 import { wording } from '../../../verify/index.js';
 import { machineVerification } from '../../../verify/index.js';
 import { liveCriterionSpec } from '../../../doctrine/index.js';
+import { admittedPace } from '../logic/pace.js';
 import { mainCriterionFacts } from '../../../doctrine/index.js';
 
 /**
@@ -57,13 +59,15 @@ export function committedReader(root, commit) {
  * @param {{ captureVerifyPolicy?: boolean, board?: any, applyingDecisions?: any[] }} [options]
  * @returns {(item: any) => { text: string, digest: string }}
  */
-export function criterionFreezer({ root, isMain, config: checkoutConfig }, { captureVerifyPolicy = false, board, applyingDecisions = [] } = {}) {
+export function criterionFreezer({ root, isMain, config: checkoutConfig }, { captureVerifyPolicy = false, board, applyingDecisions = [], refuseEmpty = refuseEmptyBar() } = {}) {
   const cacheEligible = () => !foreignNodeOptions(process.env.NODE_OPTIONS);
   let doctrine;
   // agentDoctrine falls back to this checkout's own doctrine only when no main facts were read.
   const reader = { info: { root, isMain }, get doctrine() { return doctrine ??= loadDoctrine(root, checkoutConfig); } };
   /** Freeze the criterion; captureVerifyPolicy now only means a refreeze, which drops a legacy policy pin. */
   return (item) => {
+    // freeze.refuseEmptyBar: an empty bar can never be verified (a reviewer's clause check has nothing to read) [C7].
+    if (refuseEmpty && !String(item.item_criterion ?? '').trim()) throw new Refused('BAR_EMPTY', `item #${item.item_id} has an empty criterion, so it cannot be frozen`, 'ask the coordinator to give it numbered clauses with pullboard edit <id> --criterion "1. ... [test]" --reason "..."');
     // Derivation starts only inside the actual callback, after prepared claim guards [B2,C7].
     const readsMain = board && !(isMain && !headCommit(root));
     let sourcePolicy = null;
@@ -102,8 +106,10 @@ export function criterionFreezer({ root, isMain, config: checkoutConfig }, { cap
     const fresh = captureVerifyPolicy || !prior || wording(prior.criterion) !== wording(JSON.parse(frozen.text).criterion);
     const testHashes = namedTestHashes({ item_frozen: frozen.text }, fresh ? committedReader(root, sourcePolicy?.commit ?? headCommit(root)) : () => null, fresh ? {} : prior.testHashes ?? {});
     const hashed = Object.keys(testHashes).length > 0;
-    if (!legacy && !machine && !coverage && !hashed) return frozen;
-    const text = JSON.stringify({ ...JSON.parse(frozen.text), ...(hashed ? { testHashes } : {}), ...(machine ? { machineVerification: machine } : {}), ...(coverage ? { sourceCheck: item.item_check, check: barCoverageCommand(item.item_check, coverage), barCoverage: coverage, barRevision: signed.revision } : {}), ...(legacy ? { policy: legacy } : {}) });
+    // The pace is read once, at the first claim, and every later freeze keeps it; steady records nothing [V2].
+    const pace = admittedPace(prior, facts?.config ?? checkoutConfig);
+    if (!legacy && !machine && !coverage && !hashed && !pace) return frozen;
+    const text = JSON.stringify({ ...JSON.parse(frozen.text), ...(pace ? { pace } : {}), ...(hashed ? { testHashes } : {}), ...(machine ? { machineVerification: machine } : {}), ...(coverage ? { sourceCheck: item.item_check, check: barCoverageCommand(item.item_check, coverage), barCoverage: coverage, barRevision: signed.revision } : {}), ...(legacy ? { policy: legacy } : {}) });
     return { text, digest: createHash('sha256').update(text).digest('hex') };
   };
 }

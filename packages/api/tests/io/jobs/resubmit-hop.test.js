@@ -5,7 +5,7 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
-import { temporaryDirectory } from '../../../../../apps/cli/tests/fixtures/board.js';
+import { temporaryDirectory } from '../../../../board/tests/fixtures/board.js';
 import { readGateHop } from '../../../../store/index.js';
 import { claimJob } from '../../../index.js';
 import { endGateHop } from '../../../index.js';

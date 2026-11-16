@@ -9,6 +9,7 @@ import { rejectionClauseDetail } from "../../../../verify/index.js";
 import { rejectionClauseProblem } from "../../../../verify/index.js";
 import { requireSourceAdvanceReview } from "../../../../verify/index.js";
 import { SOURCE_ADVANCE_ENGINE } from "../../../../state/light.js";
+import { checkRouted } from "../../../../items/index.js";
 import { itemPatchReviewProblem } from "../../../../items/index.js";
 import { vendorOfModel } from "../../../../items/index.js";
 import { familyName } from "../../../../verify/index.js";
@@ -139,13 +140,13 @@ export function verdictEvidence(board, id, { agentId, isAccept, engine, review, 
  * @param {{ agentId: string, decision: string, reason?: string, note?: string, cause?: string, clause?: string, head: string, digest: string, policy: string, familyPolicy?: string, check?: 'none' | 'green', review?: {commit: string, head?: string, trunk: string, paths: string[]}, implies?: number[], impliesId?: string }} verdict - implies: items this verdict changes (B29)
  * @returns {{ decision: string, reason: string, check?: 'none' | 'green' }}
  */
-export function verify(board, id, { agentId, decision, reason, note = '', cause, clause, head, digest, policy, familyPolicy = 'off', landed, check, review, companionDigest, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox, sourceAdvanceHead, quarantineProofId, knownMainFailures, prechecked = false }) {
+export function verify(board, id, { agentId, decision, reason, note = '', cause, clause, head, digest, policy, familyPolicy = 'off', landed, keepCheck, check, review, companionDigest, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox, sourceAdvanceHead, quarantineProofId, knownMainFailures, prechecked = false }) {
   const verb = { ACCEPT: 'accept', REJECT: 'reject' }[decision];
   if (!verb) throw new Refused('BAD_DECISION', 'the decision is accept or reject');
   const isAccept = verb === 'accept';
   const code = isAccept ? ACCEPT_REASON : reason;
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
-  if (landed === true) return landedVerdict(board, id, { agentId, isAccept, decision, code, reason, note, policy, familyPolicy, engine });
+  if (landed === true) return landedVerdict(board, id, { agentId, isAccept, decision, code, reason, note, policy, familyPolicy, engine, keepCheck: keepCheck === true });
   if (sourceAdvanceHead !== undefined && engine < SOURCE_ADVANCE_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade before binding a verdict to an automatically advanced source');
   board.nativePorts.landingEnvironment.requireVerdict(board, environment);
   const declaration = MOVES.find(move => move.verb === verb);
@@ -231,6 +232,37 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
 }
 
 /**
+ * The route, criterion, brief and check of the follow-up a landed reject files.
+ * A mid or light parent passes its Files:, Test: and check on, so the follow-up is buildable cold; when the parent lacks any of them
+ * the follow-up is routed strong, which needs no brief, so the verdict always records.
+ * Why: a mid follow-up with only the review note as its brief refused NO_BRIEF and rolled back the whole verdict [#8835].
+ *
+ * @param {any} found - The landed item row.
+ * @returns {{ route: string, criterion: string, brief: string, check?: string }}
+ */
+function landedFollowUpBar(found, id, reason, note, engine) {
+  const criterion = `1. The ${reason} that review found in landed #${id} is fixed on main: ${note} [reasoning]`;
+  const review = `Landed #${id} at ${found.item_merged_commit} was rejected after landing (${reason}). Builder: ${found.item_built_by ?? 'unknown'}. Review note: ${note}`;
+  const route = found.item_route ?? 'strong';
+  const check = found.item_check ?? '';
+  if (route !== 'strong' && check.trim() && String(found.item_brief ?? '').trim()) {
+    const brief = `${review}\n\n${String(found.item_brief).trim()}`;
+    try {
+      checkRouted({ brief, route, criterion, check }, engine);
+      return { route, criterion, brief, check };
+    } catch (error) {
+      if (!(error instanceof Refused)) throw error;
+    }
+  }
+  return { route: 'strong', criterion, brief: review };
+}
+
+/** When the recorded move argument keepCheck is true, the follow-up may carry its parent's exact check; the move reads no machine setting [#9637]. */
+function followUpCheck(found, bar, keepCheck) {
+  return keepCheck && bar.check !== undefined && bar.check === found.item_check ? { ...bar, keptCheckFrom: found.item_check } : bar;
+}
+
+/**
  * Record a verdict on an item a forced merge landed around the gate with no review (V1).
  * An accept is recorded as a verdict and the landing stays: the item keeps its status and merged commit.
  * Why: hand landings had no second look, and verify refused them as not submitted [V1,H16].
@@ -240,7 +272,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
  * @param {{ agentId: string, isAccept: boolean, decision: string, code: string, reason?: string, note: string, policy: string, familyPolicy: string, engine: number }} verdict
  * @returns {{ decision: string, reason: string }}
  */
-function landedVerdict(board, id, { agentId, isAccept, decision, code, reason, note, policy, familyPolicy, engine }) {
+function landedVerdict(board, id, { agentId, isAccept, decision, code, reason, note, policy, familyPolicy, engine, keepCheck = false }) {
   if (engine < LANDED_VERDICT_ENGINE) throw new Refused('ENGINE_VERSION', `a verdict on a forced landing requires engine ${LANDED_VERDICT_ENGINE}; upgrade Pullboard before recording one`);
   if (!isAccept && engine < LANDED_REJECT_ENGINE) throw new Refused('ENGINE_VERSION', `a reject on a landed item requires engine ${LANDED_REJECT_ENGINE}; upgrade Pullboard before recording one`);
   const suppliedNote = note.trim();
@@ -264,10 +296,9 @@ function landedVerdict(board, id, { agentId, isAccept, decision, code, reason, n
     recordVerdict(board, { ...found, item_commit: found.item_commit ?? found.item_merged_commit }, { agentId, decision, reason: code, note, digest: found.item_frozen_digest ?? '', head: found.item_merged_commit });
     setItem(board, id, { item_verdict: decision, item_verified_by: agentId });
     // A landed item cannot move back, so a reject opens a follow-up item in its lane for the builder to fix.
-    const followUp = isAccept ? null : addItem(board, { by: agentId, lane: found.item_lane, title: `Fix after review of #${id}: ${found.item_title}`.slice(0, 120), route: found.item_route ?? 'strong',
-      specIds: [], parentId: null, after: [], criterion: `1. The ${reason} that review found in landed #${id} is fixed on main: ${suppliedNote} [reasoning]`,
-      brief: `Landed #${id} at ${found.item_merged_commit} was rejected after landing (${reason}). Builder: ${found.item_built_by ?? 'unknown'}. Review note: ${suppliedNote}` });
-    logEvent(board, agentId, 'verify', id, { reason: code, commit: found.item_merged_commit, landed: true, note: suppliedNote, ...(followUp ? { followUp } : {}) });
+    const followUp = isAccept ? null : addItem(board, { by: agentId, lane: found.item_lane, title: `Fix after review of #${id}: ${found.item_title}`.slice(0, 120),
+      specIds: [], parentId: null, after: [], ...followUpCheck(found, landedFollowUpBar(found, id, reason, suppliedNote, engine), keepCheck) });
+    logEvent(board, agentId, 'verify', id, { reason: code, commit: found.item_merged_commit, landed: true, note: suppliedNote, ...(followUp ? { followUp } : {}), ...(followUp && keepCheck && found.item_check && getItem(board, followUp)?.item_check === found.item_check ? { keptCheckFrom: found.item_check } : {}) });
     return { decision, reason: code, ...(followUp ? { followUp } : {}) };
   });
 }
