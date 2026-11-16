@@ -12,6 +12,31 @@ function detailOf(text) {
   try { return JSON.parse(text || '{}'); } catch { return {}; }
 }
 
+/** The item row and its landing events, oldest first, as PULLED_TABLE reads them; a missing item has no history. */
+function landingSnapshot(board, id) {
+  const row = board.db.prepare('SELECT item_id, item_status, item_merged_commit FROM item WHERE item_id=?').get(id);
+  const history = row ? board.db.prepare(`SELECT event_kind kind, event_by by, event_detail d FROM event WHERE item_id=? AND event_kind IN (${LANDING_KINDS.map(() => '?').join(',')}) ORDER BY event_id`)
+    .all(id, ...LANDING_KINDS).map(event => ({ kind: event.kind, by: event.by, detail: detailOf(event.d) })) : [];
+  return { item: row ? { id: row.item_id, status: row.item_status, mergedCommit: row.item_merged_commit ?? null } : null, history };
+}
+
+/**
+ * The landed commit of item `id` when its landing is pulling, else null: the newest pull_out, pulled or published event is a pull_out,
+ * as moves' landingOf reads it [M2,R3,#9099].
+ * Why here: the store cannot import the moves cell, and the pull-out job must read the same history PULLED_TABLE will judge before it creates a job.
+ *
+ * @param {any} board
+ * @param {number} id
+ * @returns {{ mergedCommit: string } | null}
+ */
+export function pullingLanding(board, id) {
+  const { item, history } = landingSnapshot(board, id);
+  const last = history.findLast(event => event.kind !== 'merged');
+  if (!item || last?.kind !== 'pull_out') return null;
+  const mergedCommit = item.mergedCommit ?? last.detail.mergedCommit ?? null;
+  return mergedCommit ? { mergedCommit } : null;
+}
+
 /**
  * Record that the revert commit `revert` on main undid item `id`'s landing: one pulled event, so its landing goes from pulling to none.
  * Why the table decides: PULLED_TABLE is the one place that says who may record a revert, which items may take one and what the event
@@ -25,10 +50,7 @@ function detailOf(text) {
  */
 export function recordPulled(board, id, { agentId, revert }) {
   return atomic(board, () => {
-    const row = board.db.prepare('SELECT item_id, item_status, item_merged_commit FROM item WHERE item_id=?').get(id);
-    const history = row ? board.db.prepare(`SELECT event_kind kind, event_by by, event_detail d FROM event WHERE item_id=? AND event_kind IN (${LANDING_KINDS.map(() => '?').join(',')}) ORDER BY event_id`)
-      .all(id, ...LANDING_KINDS).map(event => ({ kind: event.kind, by: event.by, detail: detailOf(event.d) })) : [];
-    const snapshot = { item: row ? { id: row.item_id, status: row.item_status, mergedCommit: row.item_merged_commit ?? null } : null, history };
+    const snapshot = landingSnapshot(board, id);
     const decided = runPulledTable(snapshot, { id, actor: agentId, revert });
     if (decided.refused) throw new Refused(decided.refused.code, decided.refused.message, decided.refused.next);
     let written = null;

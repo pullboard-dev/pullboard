@@ -120,11 +120,10 @@ test('clause 1: doctrine and spec rows share the items row [N26]', { timeout: 30
         assert.equal(g1.titleStyle.lines, 1);
         assert.ok(g1.titleFull.includes(longGoal.slice(0, 40)), `${width}px ${theme}: the full title remains available on the row`);
 
-        const header = JSON.parse(await chrome.stable(`JSON.stringify((() => { const e=document.querySelector('#spec-list .spec-section-head'); return {text:e?.innerText??'', count:e?.querySelector('.section-count')?.textContent.trim()??null, approve:e?.querySelector('[data-section-approve]')?.innerText??null, button:e?.querySelector('[data-section-approve]')?.getBoundingClientRect().height??0}; })())`));
+        const header = JSON.parse(await chrome.stable(`JSON.stringify((() => { const e=document.querySelector('#spec-list .spec-section-head'); return {text:e?.innerText??'', count:e?.querySelector('.section-count')?.textContent.trim()??null, approve:e?.querySelector('[data-section-approve]')?.innerText??null}; })())`));
         assert.match(header.text, /Goals/u);
         assert.equal(header.count, '3', `${width}px ${theme}: the section header shows its three rows`);
         assert.equal(header.approve, null, `${width}px ${theme}: Spec group headers carry no Approve all`);
-        assert.ok(header.button >= tapTarget(width), `${width}px ${theme}: Approve all meets the #371 target size`);
 
         filterTrace = await watchSpecFilter(chrome);
         let assertionError;

@@ -30,8 +30,8 @@ export const JOB_KINDS = Object.freeze([
   { kind: 'check-baseline', serves: "item whose frozen check is measured at main; the receipt is recorded on the item's pending baseline" },
   // Created by runScreenJob in the drive cell, for sprint items only [#8867].
   { kind: 'screen', serves: "a submitted sprint item at its commit on the current base: the merge, static checks on its changed files, and secrets and hook rules re-checked by trusted code" },
-  // Declared before the lander offers it, so the state map does not name it yet [#8870]; the lander's revert is the next slice.
-  { kind: 'pull-out', serves: "an item whose landing is pulling: the lander reverts its landed commit on main and records pulled", created: false },
+  // Created by runPullOutJob in the landing cell, for sprint items only: only a sprint item reaches landing pulling [#8870,#9099].
+  { kind: 'pull-out', serves: "an item whose landing is pulling: the lander reverts its landed commit on main and records pulled" },
 ]);
 
 /** The job kinds some code creates today, the ones the state map lists; a kind declared with `created: false` waits for its runner. */

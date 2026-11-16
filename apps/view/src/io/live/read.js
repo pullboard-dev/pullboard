@@ -158,10 +158,10 @@ export function landingGateRuns(text) {
  * lease or whose candidate holds a runner, matched to the gate its worker's log opened after that record.
  *
  * @param {import('node:sqlite').DatabaseSync} db - A board, read-only.
- * @param {{ now: number, log: string, busyBatches?: Set<string> }} options
+ * @param {{ now: number, log: string, busyBatches?: Set<string>, jobsDb?: import('node:sqlite').DatabaseSync }} options - jobsDb: the read-only runs handle that holds the landing-run leases when runs_store is on; the board when off.
  */
-export function readGatingLandings(db, { now, log, busyBatches = new Set() }) {
-  const owners = new Set(db.prepare("SELECT job_lease_owner FROM job WHERE job_kind = 'landing-run' AND job_lease_until > ?").all(now).map(row => row.job_lease_owner));
+export function readGatingLandings(db, { now, log, busyBatches = new Set(), jobsDb = db }) {
+  const owners = new Set(jobsDb.prepare("SELECT job_lease_owner FROM job WHERE job_kind = 'landing-run' AND job_lease_until > ?").all(now).map(row => row.job_lease_owner));
   const newest = new Map();
   for (const row of db.prepare("SELECT event_detail FROM event WHERE event_kind = 'landing_batch' ORDER BY event_id DESC LIMIT ?").all(LANDING_RECORDS)) {
     const batch = parsed(row.event_detail)?.batch;
@@ -195,14 +195,17 @@ export function readFileTimes(commonDir) {
   } catch { return {}; }
 }
 
+/** The default jobs handle: the board itself holds its job rows, nothing to close. */
+const boardJobs = db => ({ jobs: db, close() {} });
+
 /**
  * Everything the page's model takes, for the given boards.
  *
  * @param {{ roots: { commonDir: string }[], now: number, resources: string, configured?: { host: string }[],
- *   openBoardReadOnly: (file: string) => import('node:sqlite').DatabaseSync, registeredOnly?: boolean }} sources - openBoardReadOnly: the store's read-only board open;
+ *   openBoardReadOnly: (file: string) => import('node:sqlite').DatabaseSync, registeredOnly?: boolean, jobsFor?: (db: import('node:sqlite').DatabaseSync, boardFile: string) => { jobs: import('node:sqlite').DatabaseSync, close: () => void } }} sources - openBoardReadOnly: the store's read-only board open; jobsFor: the handle that holds the board's job rows (the board itself, or the runs file when runs_store is on, #9016);
  *   registeredOnly: list only the configured runners when any are configured, never one a job's lease owner names (#8060).
  */
-export function readLiveRunners({ roots, now, resources, configured = [], openBoardReadOnly, registeredOnly = false }) {
+export function readLiveRunners({ roots, now, resources, configured = [], openBoardReadOnly, registeredOnly = false, jobsFor = boardJobs }) {
   const runners = readPushedRunners(resources, configured, now);
   const busyBatches = new Set(runners.flatMap(runner => runner.holders.map(holder => /\/landings\/([0-9a-f-]{36})\//u.exec(String(holder.repo ?? ''))?.[1]).filter(Boolean)));
   const jobs = [], landings = [];
@@ -210,18 +213,19 @@ export function readLiveRunners({ roots, now, resources, configured = [], openBo
   for (const { commonDir } of roots) {
     const file = join(commonDir, 'pullboard', 'board.sqlite');
     if (!existsSync(file)) continue;
-    let db;
+    let db, handle;
     try {
       db = openBoardReadOnly(file);
-      const hasJobs = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'job'").get();
+      handle = jobsFor(db, file);
+      const hasJobs = handle.jobs.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'job'").get();
       if (hasJobs) {
-        jobs.push(...readPulledJobs(db, now));
-        for (const host of readRecentJobRunners(db, now)) if (!(registeredOnly && configured.length) && !runners.some(runner => runner.host === host)) runners.push({ host, unavailable: false, holders: [] });
+        jobs.push(...readPulledJobs(handle.jobs, now));
+        for (const host of readRecentJobRunners(handle.jobs, now)) if (!(registeredOnly && configured.length) && !runners.some(runner => runner.host === host)) runners.push({ host, unavailable: false, holders: [] });
       }
       const log = readTail(join(commonDir, 'pullboard', 'automatic-landing', 'worker.log'));
-      if (hasJobs) landings.push(...readGatingLandings(db, { now, log, busyBatches }));
+      if (hasJobs) landings.push(...readGatingLandings(db, { now, log, busyBatches, jobsDb: handle.jobs }));
       fileTimes = { ...readFileTimes(commonDir), ...fileTimes };
-    } catch { /* A board that cannot be read now shows on the next read. */ } finally { db?.close(); }
+    } catch { /* A board that cannot be read now shows on the next read. */ } finally { handle?.close(); db?.close(); }
   }
   return { now, runners, configured, jobs, landings, fileTimes, registeredOnly };
 }
@@ -235,7 +239,7 @@ export function readLiveRunners({ roots, now, resources, configured = [], openBo
  *   now?: number, privateBoard?: boolean, registeredOnly?: boolean }} machine - The machine's runner lease database, settings runners and read-only board open.
  * @returns {{ runners: object[], runs: object[] }}
  */
-export function publicLiveRunners(commonDir, { resources, configured = [], openBoardReadOnly, now = Date.now(), privateBoard = false, registeredOnly = false }) {
-  const sources = readLiveRunners({ roots: [{ commonDir }], now, resources, configured, openBoardReadOnly, registeredOnly });
+export function publicLiveRunners(commonDir, { resources, configured = [], openBoardReadOnly, now = Date.now(), privateBoard = false, registeredOnly = false, jobsFor }) {
+  const sources = readLiveRunners({ roots: [{ commonDir }], now, resources, configured, openBoardReadOnly, registeredOnly, jobsFor });
   return publicSnapshot({ live: sources }, { privateBoard }).live;
 }
