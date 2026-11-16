@@ -96,6 +96,7 @@ const BEFORE = {
   'sentinels.recordWriteHolder': false,
   'serve.address': '127.0.0.1',
   'serve.port': 0,
+  'spec.cascadeReject': false,
   'submit.proofOnly': false,
   'test.statusOutcomes': false,
   'tests.registryStrict': false,
