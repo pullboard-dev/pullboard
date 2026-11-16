@@ -23,8 +23,10 @@ const BEFORE = {
   'census.soloFileSeconds': null,
   'claim.refuseOffMainHead': false,
   'freeze.refuseEmptyBar': false,
+  'gate.adapterLintClock': false,
   'gate.browserByLaunch': false,
   'gate.browserFreeChecks': false,
+  'gate.contractWeakening': false,
   'gate.diskFloorMB': 10240,
   'gate.endStaleJobs': false,
   'gate.fencedHop': true,
@@ -113,6 +115,7 @@ const BEFORE = {
   'submit.proofOnly': false,
   'test.statusOutcomes': false,
   'tests.registryStrict': false,
+  'tests.requireJourneyPath': false,
   'tests.requireRegistered': false,
   'view.background': true,
 };
