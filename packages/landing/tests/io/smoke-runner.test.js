@@ -39,5 +39,5 @@ test('clause 1: with runnersOnly on, smokeCommit reaches the smoke only through 
 });
 
 test('clause 1: with runnersOnly on, a candidate that ships no CLI is not smoked locally or on a runner [C7]', async () => {
-  assert.deepEqual(await smokeCandidate(join(import.meta.dirname, 'no-such-candidate'), { admission: { runnerOnly: true } }), { ran: [] });
+  assert.deepEqual(await smokeCandidate(import.meta.dirname, { admission: { runnerOnly: true } }), { ran: [] });
 });
