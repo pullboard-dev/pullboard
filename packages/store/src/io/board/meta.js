@@ -12,3 +12,13 @@ export function writeBoardMeta(db, key, value) {
 export function deleteBoardMeta(db, key) {
   db.prepare('DELETE FROM board_meta WHERE meta_key=?').run(key);
 }
+
+/** A board_meta value, or undefined when the key is absent. */
+export function readBoardMeta(db, key) {
+  return db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(key)?.meta_value;
+}
+
+/** Remove every board_meta key that starts with `prefix` (the prefix holds no LIKE wildcard). */
+export function deleteBoardMetaWithPrefix(db, prefix) {
+  db.prepare("DELETE FROM board_meta WHERE substr(meta_key, 1, length(?)) = ?").run(prefix, prefix);
+}
