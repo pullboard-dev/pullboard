@@ -51,7 +51,7 @@ export { BASELINE_RECEIPT, pullboardHome, relayMachineDirectory, relayKeyDirecto
 export { mainRedBuildRouting } from './src/io/routing.js';
 export { memoryHeldRuns } from './src/io/memory.js';
 export { buildLocalBoardState, stateProofStats, dependencyIds, stateFileInputs, fileRevision } from './src/io/board/state.js';
-export { nativeStateClockWindow, nativeStateClockMatches } from './src/logic/clock.js';
+export { nativeStateClockWindow, nativeStateClockMatches, idleEntry } from './src/logic/clock.js';
 export { applyOutsideIntake, approveOutside as outside_store_approveOutside } from './src/io/outside.js';
 export { boundProofReceipt, proofRunReceipt, refuseLongShout } from './src/io/receipts.js';
 export { SEAT_LIVE_WINDOW_MS, heartbeatSeat, importSeatObservations, withSeatPresence, withLocalSeatPresence, seatGone } from './src/io/presence.js';
