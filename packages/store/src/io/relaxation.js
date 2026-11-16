@@ -17,7 +17,7 @@ export function frozenRelaxAt(item) {
   } catch { return undefined; }
 }
 
-/** The active seats with no live review of their own: the reviewers a witness says could not take the queue; a fresh review heartbeat counts as live even with no recent event [V1,H16]. */
+/** The active seats with no live review of their own: the reviewers a witness says could not take the queue; a fresh review heartbeat counts as live even with no recent event or while busy [V1,H16]. */
 function freeActiveSeats(board, now, reviewHeartbeats = null) {
   const cutoff = new Date(now.getTime() - 15 * 60_000).toISOString();
   const active = board.db.prepare('SELECT DISTINCT event.event_by AS id, agent.agent_lane AS lane FROM event JOIN agent ON agent.agent_id=event.event_by WHERE event.event_at>=? AND event.event_at<=? ORDER BY event.event_by')
@@ -27,7 +27,8 @@ function freeActiveSeats(board, now, reviewHeartbeats = null) {
       && ((board.executionEngineVersion ?? ENGINE_VERSION) < REVIEW_FAMILY_SEAT_ENGINE || !['coordinator', 'person'].includes(row.lane))).map(row => row.id) : [];
   const busy = new Set(board.db.prepare("SELECT item_review_by AS id FROM item WHERE item_status='submitted' AND item_review_by IS NOT NULL AND item_review_until>?")
     .all(now.toISOString()).map(row => row.id));
-  return [...new Set([...active, ...beating])].sort().filter(id => !busy.has(id));
+  const live = new Set(beating);
+  return [...new Set([...active, ...beating])].sort().filter(id => live.has(id) || !busy.has(id));
 }
 
 /** Whether no free seat may review the item: each is cooling down on it or refused by a reviewer check [V1,H16]. */
