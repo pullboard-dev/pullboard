@@ -26,6 +26,7 @@ import { testRunTickNotes } from '../../../../../packages/state/index.js';
 import { recordedToolCommits } from '../../../../../packages/git/index.js';
 import { toolRegenerationSource } from '../../../../../packages/git/index.js';
 import { regenerateToolChange } from '../../../../../packages/sandbox/index.js';
+import { regenerateDeclaredFiles } from '../../../../../packages/gate/index.js';
 import {
   pendingSubmitHandoff,
   submitHandoff,
@@ -410,6 +411,17 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     commit = regenerated.commit;
     trunk = requireTrunkMerge(root, commit, acceptedMain.commit);
     ctx.io.say(`Regenerated recorded board tools on main ${acceptedMain.commit.slice(0, 12)}; new head ${commit.slice(0, 12)} needs fresh full proof and review.`);
+  }
+  // With submit.regenerateDeclared on accepted main, a stale declared generated file is regenerated in the composed tree and committed (#8876) [C7].
+  if (!isSubmitHandoffWorker(ctx) && acceptedMain.config.submit?.regenerateDeclared === true && !regenerated) {
+    let declared;
+    try { declared = regenerateDeclaredFiles(root, acceptedMain.config, { base: held.item_claim_head, item: id }); }
+    catch (error) { throw new Refused('GENERATED_STALE', `${error.message}; next: run the generator yourself, commit, and submit again`); }
+    if (declared) {
+      commit = declared.commit;
+      trunk = requireTrunkMerge(root, commit, acceptedMain.commit);
+      ctx.io.say(`Regenerated ${declared.files.join(', ')} from its declared generator; new head ${commit.slice(0, 12)}.`);
+    }
   }
   const requireComposition = withBoard(ctx, board => barReadySetting(board).enabled);
   ctx = copySubmitHandoffOrigin(ctx, { ...ctx, config: policy.config });
