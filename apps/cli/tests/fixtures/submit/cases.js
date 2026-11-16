@@ -19,9 +19,19 @@ import { testClosures } from '../../../../../packages/gate/index.js';
 import { copyPackageFiles } from '../../../../../packages/runners/index.js';
 import { createE2eHelpers } from '../e2e.js';
 import { fixtureAdd } from '../testkit.js';
+import { whenRunnerSettles } from '../runner/local-start.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
+
+/** The item's shown document once `ready` accepts it, read again on each change to the fixture's local runner folder. */
+function whenShown(box, ready, what) {
+  return whenRunnerSettles(box.env, () => {
+    const shown = box.run(box.web, 'show', String(box.id), '--json', '--no-next');
+    const doc = shown.code === 0 ? JSON.parse(shown.out) : null;
+    return doc && ready(doc) ? doc : null;
+  }, { deadlineMs: 100_000, what }); // budget: hang ceiling for one pulled gate, never a speed assertion.
+}
 
 /** Write only inside this test's disposable repository. */
 function put(root, path, source) {
@@ -73,17 +83,19 @@ function fixture() {
 /** Install only through the affected-tests wrappers, one mode per file (#4939); this helper is not another test root. */
 export function installSubmitTestTreeCases(modes = ['large selection', 'full fallback']) {
   for (const mode of modes) {
-    test(`submit names the new board-open file and line before ${mode} defers [C7]`, () => {
+    test(`submit names the new board-open file and line before ${mode} defers [C7]`, async () => {
       const box = fixture();
       const source = ["import {test} from 'node:test';", "import {DatabaseSync as openBoard} from 'node:sqlite';",
         "test('file-backed board [G1]', () => { const db = new openBoard('board.sqlite'); db.close(); });", ''].join('\n');
       put(box.web, 'test/new-board.test.js', source);
       if (mode === 'full fallback') put(box.web, 'web/opaque.data', 'unknown input requires full fallback\n');
       commit(box, box.web, 'test: add an unclassified board-file open');
+      // A pulled submit returns queued; the gate's red lands on the item as the job's receipt [C7].
       const result = box.run(box.web, 'submit', String(box.id));
-      assert.equal(result.code, 1, result.err + result.out);
-      assert.match(result.err + result.out, /test\/new-board\.test\.js:3:/u, 'native submit names the actual lint location');
-      assert.match(result.err + result.out, /unclassified file board open/u);
+      assert.equal(result.code, 0, result.err + result.out);
+      // The pulled gate's receipt names the failing scanner proof; the file and line sit in the runner's full log [C7].
+      const red = JSON.stringify((await whenShown(box, doc => /Gate job \S+ red at/u.test(JSON.stringify(doc.thread)), 'the pulled gate red')).thread);
+      assert.match(red, /new: proof packages\/gate\/tests\/io\/board\/baseline\/guard\.test\.js \(no growing file-board debt/u, 'the gate names the board-file scanner as the new red');
       const state = box.run(box.web, 'show', String(box.id), '--json');
       assert.equal(state.code, 0, state.err);
       assert.equal(JSON.parse(state.out).item_status, 'claimed', 'no false green submission is recorded');
@@ -91,6 +103,7 @@ export function installSubmitTestTreeCases(modes = ['large selection', 'full fal
       commit(box, box.web, 'test: use a memory-only SQLite fixture');
       const repaired = box.run(box.web, 'submit', String(box.id));
       assert.equal(repaired.code, 0, repaired.err + repaired.out);
+      await whenShown(box, doc => doc.item_status === 'submitted', 'the repaired submit');
       const exported = box.run(box.web, 'export', '--json');
       assert.equal(exported.code, 0, exported.err);
       const event = JSON.parse(exported.out).tables.event.findLast(row => row.event_kind === 'submit');
