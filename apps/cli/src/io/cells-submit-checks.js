@@ -324,7 +324,7 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
     const text = shimSnapshotFile(candidateRoot, file);
     return text !== undefined && shimSnapshotFile(mainRoot, file) === undefined && onlyForwards(text, false);
   });
-  console.log('DBG', JSON.stringify({ changed, direct, addsShim, policy }));
+  console.log('DBG', JSON.stringify({ changed, direct, addsShim, policy, t: changed.map(f => [shimSnapshotFile(candidateRoot, f), shimSnapshotFile(mainRoot, f), onlyForwards(shimSnapshotFile(candidateRoot, f) ?? '', false)]) }));
   if (!direct.length && !addsShim) return { cells: [], problems: policy, warnings, reorg, ...(collectMachinery ? { machinery } : {}) };
   const oldReport = inventories?.report?.(mainRoot, acceptedMain) ?? cellLintReport(mainRoot, parsers, { inventory: oldInventory });
   const newReport = cellLintReport(candidateRoot, parsers, { inventory: newInventory });
