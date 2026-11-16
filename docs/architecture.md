@@ -354,7 +354,7 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 
 - **Id:** `review:<item>`. Created by `reserveReview` in `packages/jobs/src/io/review.js`.
 - **Serves:** item submitted at the reserved commit and digest, reserved by this reviewer.
-- **States:** `reserved`, `lapsed`, `released`. Terminal: none (released, never done).
+- **States:** `reserved`, `lapsed`, `released`, `accept-queued`, `accept-settled`. Terminal: none (released, never done).
 - **Lease:** LEASE_MS 120 s on the job; item_review_until follows the reviewLease setting (30 m); renewed only when the same reviewer reserves again; extended by a sweep while the reviewer heartbeats.
 - **Ends when its item moves on:** violated (gap SM5), at `sweepLapsedReviews` in `packages/store/src/io/board/review/lease.js`: no verdict, withdraw or reopen releases the job; reclaimLapsedReviews extends the lease while the reviewer heartbeats whatever the item's state
 - **Harness:** `packages/moves/tests/logic/moves/reserveNextReview/durable.test.js`.
@@ -365,6 +365,8 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 | `reserved` | `reserved` | the same reviewer reserves again | `renewReview` in `packages/jobs/src/io/review.js` |
 | `reserved` | `lapsed` | a sweep finds the lease lapsed and the reviewer silent | `reclaimLapsedReviews` in `packages/jobs/src/io/review.js` |
 | `reserved` | `released` | another reviewer takes it over | `releaseReview` in `packages/jobs/src/io/review.js` |
+| `reserved` | `accept-queued` | verify accept queues the frozen check as a runner job and names it on the review job (ae1fb799be, #8636) | `ACCEPT_QUEUED` in `apps/cli/src/io/test/accept.js` |
+| `accept-queued` | `accept-settled` | the check job's receipt records the reviewer's accept or reject once (ae1fb799be, #8636) | `settleQueuedAccept` in `packages/api/src/io/test/accept.js` |
 
 #### `landing-run`: landing run
 
