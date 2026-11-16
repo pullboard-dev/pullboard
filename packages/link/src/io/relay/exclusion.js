@@ -5,12 +5,27 @@ import { repoInfo } from '../../../../git/index.js';
 import { readRelayMachine } from './machine.js';
 import { updateRelayMachine } from './machine.js';
 import { requirePersonChannel } from '../../../../person/index.js';
+import { relayExcludeByBoard } from './canary/watch.js';
+
+/**
+ * The key an exclusion is stored under and every entry that counts as this board's exclusion.
+ * Why: with relay.excludeByBoard on, every worktree of one board shares its commonDir key, and an older entry keyed by any
+ * checkout root of that board is read as the board's own; off (default), the key stays the checkout root alone [C7,#9414].
+ */
+function exclusionKeys(root, state) {
+  const info = repoInfo(root);
+  if (!relayExcludeByBoard()) return { key: info.root, matching: [info.root] };
+  const sameBoard = entry => {
+    try { return repoInfo(entry).commonDir === info.commonDir; } catch { return false; }
+  };
+  return { key: info.commonDir, matching: [info.commonDir, ...state.excluded.filter(entry => entry !== info.commonDir && sameBoard(entry))] };
+}
 
 /** Read an exclusion without inferring a missing historical actor or timestamp. */
 export function relayExclusion(root) {
-  const project = repoInfo(root).root;
   const state = readRelayMachine();
-  if (!state.excluded.includes(project)) return null;
+  const project = exclusionKeys(root, state).matching.find(entry => state.excluded.includes(entry));
+  if (project === undefined) return null;
   const detail = state.exclusionDetails?.[project];
   return { reason: detail?.reason ?? 'unknown historical exclusion', at: detail?.at ?? null,
     by: detail?.by ?? null, path: detail?.path ?? null, eventId: detail?.eventId ?? null,
@@ -22,7 +37,7 @@ export function excludeRelayByPerson(root, io, { localRecords }) {
   let channel;
   try { channel = requirePersonChannel(io.personChannel); }
   catch (error) { if (error.code === 'B26_PERSON_CHANNEL') return false; throw error; }
-  const project = repoInfo(root).root;
+  const project = exclusionKeys(root, readRelayMachine()).key;
   // Record the intent first: a storage failure can leave a truthful request, never an unattributed exclusion.
   const receipt = localRecords(root, board => recordRelayExclusionIntent(board, channel));
   updateRelayMachine(state => {
@@ -36,11 +51,11 @@ export function excludeRelayByPerson(root, io, { localRecords }) {
 
 /** Clear only this board's opt-out once a newly authorized link has actually finished. */
 export function clearRelayExclusion(root) {
-  const project = repoInfo(root).root;
   return updateRelayMachine(state => {
-    const existed = state.excluded.includes(project);
-    state.excluded = state.excluded.filter(entry => entry !== project);
-    if (state.exclusionDetails) delete state.exclusionDetails[project];
+    const { matching } = exclusionKeys(root, state);
+    const existed = matching.some(entry => state.excluded.includes(entry));
+    state.excluded = state.excluded.filter(entry => !matching.includes(entry));
+    if (state.exclusionDetails) for (const entry of matching) delete state.exclusionDetails[entry];
     return existed;
   });
 }
