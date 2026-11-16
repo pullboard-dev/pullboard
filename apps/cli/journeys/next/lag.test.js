@@ -24,7 +24,6 @@ test('clause 1: next, claim and inbox print one line naming the commits behind a
   assert.doesNotMatch(level.out + level.err, /behind/u, 'a seat level with main sees no lag line');
 
   landOnMain(box, 3);
-  box.advance(5 * 3_600_000);
   const lag = /this checkout is 3 commits behind main, its base is \d+ (min|h|days) old/u;
   for (const args of [['inbox'], ['next', '--take'], ['claim', String(id)]]) {
     const result = await cli(box, seat, args);
