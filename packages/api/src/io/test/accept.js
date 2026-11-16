@@ -5,6 +5,7 @@
  */
 import { writeStep } from '../../../../jobs/index.js';
 import { captureVerdictReview } from '../../../../verify/index.js';
+import { frozenBar } from '../../../../verify/index.js';
 import * as boardStore from '../../../../store/index.js';
 
 /** The step on the review job that names the check job a queued accept is waiting on (the CLI writes it). */
@@ -19,6 +20,12 @@ function failingReason(receipt) {
   const named = (phase.failures ?? []).map(row => `${row.file}: ${row.name}`).slice(0, 5).join('; ');
   const text = named || String(phase.tail ?? gate.error ?? receipt?.tail ?? '').trim().split('\n').filter(Boolean).slice(-6).join(' | ');
   return (text || `the check exited ${receipt?.status ?? 'non-zero'}`).slice(0, 600);
+}
+
+/** The frozen criterion a red check rejects against: the whole criterion, or its first sentence when that is too long to quote. */
+function failingClause(item) {
+  const { criterion } = frozenBar(item);
+  return criterion.length <= 4096 ? criterion : criterion.split(/(?<=[.!?])\s+/u)[0].slice(0, 4096);
 }
 
 /**
@@ -49,7 +56,7 @@ export function settleQueuedAccept(board, posted) {
   boardStore.verify(board, item, {
     agentId: queued.reviewer,
     decision,
-    ...(green ? {} : { reason: 'TEST_FAILURE' }),
+    ...(green ? {} : { reason: 'TEST_FAILURE', clause: failingClause(found) }),
     note: green ? `the frozen check passed as queued runner job ${posted.job}`
       : `the frozen check failed as queued runner job ${posted.job}: ${failingReason(posted.receipt)}`,
     head: queued.commit,
