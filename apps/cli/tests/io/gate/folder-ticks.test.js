@@ -7,6 +7,7 @@ import { addItem } from '../../../../../packages/store/index.js';
 import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
+import { gateClauseTickNotes } from '../../../../../packages/state/index.js';
 import { configFromSource } from '../../../../../packages/config/src/io/main.js';
 import { defaults } from '../../../../../packages/config/src/io/main.js';
 import { fixtureCommittedGraph } from '../../fixtures/testkit.js';
@@ -70,5 +71,6 @@ test('clause 2: with verify.folderTicks on, a green gate run of the changed test
   const recorded = notes(on, { folderTicks: true });
   assert.match(recorded[0], new RegExp(`^clause 1 \\[test\\]: gate run of ${NEW_TEST} green at ${head.slice(0, 12)}: 1 case passed`, 'u'));
   assert.ok(store.itemThread(on.board, on.id).some(row => String(row.fact_text ?? row.text ?? JSON.stringify(row)).includes(`gate run of ${NEW_TEST} green`)), 'the tick is on the item thread');
-  assert.equal(notes(boardItem(t), {}).filter(text => /^clause 1 \[test\]: gate run/u.test(text)).length, 0, 'off ticks nothing');
+  const off = boardItem(t);
+  assert.deepEqual(gateClauseTickNotes(store.getItem(off.board, off.id), store.itemThread(off.board, off.id), { gateFiles: new Set([NEW_TEST]), outcomes, head }), [], 'off ticks nothing');
 });
