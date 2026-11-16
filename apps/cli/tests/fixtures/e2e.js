@@ -109,6 +109,7 @@ export function parityRecord({ dir, env, cwd, args, result }) {
     : value?.kind === 'fact' && typeof value.count === 'number' ? mask({ ...value, count: '<n>' }) // the digest counts the late comparison fact
     : key === 'steps' && value && typeof value === 'object' && Object.values(value).every(Number.isFinite) ? '<steps>' // gate step timings, in milliseconds
     : typeof value === 'number' && /Ms$/u.test(key ?? '') ? '<ms>' // a measured duration
+    : typeof value === 'number' && key === 'pid' ? '<pid>' // a process id of a gate's test runtime
     : typeof value === 'string' ? parityText(value, dir).replace(/^disk use under \.git\/pullboard: .*$/gmu, 'disk use under .git/pullboard: <measured>')
     // The late comparison fact is itself a background-measured value; it also moves every later event id by one.
     : (key === 'eventId' || key === 'cursor') && typeof value === 'number' ? '<event>' // a cursor counts the late comparison fact too
@@ -375,7 +376,7 @@ function sandbox({ declareFamilies = false } = {}) {
   };
   /** A read of the board that is not the journey's subject, such as the settle wait's poll: in this process, whatever the mode, and recorded nowhere, so the parity call count follows no timing (U149) [C7]. */
   runIn.read = inProcess;
-  return { dir, env, git, tryGit, run, runAsync, inProcess, runLocal: runIn, runIn, runSync, declareFamilies, declareFamily };
+  return { dir, env, git, tryGit, run, runAsync, inProcess, runLocal: runIn, runIn, runSync, parityRecord, declareFamilies, declareFamily };
 }
 
 const CONFIG = {
