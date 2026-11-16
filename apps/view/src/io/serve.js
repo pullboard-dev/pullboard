@@ -485,6 +485,7 @@ function computeRowAges(root, file, head, kind) {
 /**
  * Compute the ages in a worker thread running this module, so the walk never blocks the view's requests.
  * A failed worker resolves to null and the caller keeps what it had.
+ * Why execArgv is empty: a worker inherits the parent's flags, and under `node --input-type=module -e` those cannot start a file worker.
  *
  * @param {string} root
  * @param {string} file
@@ -495,7 +496,7 @@ function computeRowAges(root, file, head, kind) {
 function rowAgesInWorker(root, file, head, kind) {
   return new Promise(done => {
     let worker;
-    try { worker = new Worker(new URL(import.meta.url), { workerData: { rowAges: { root, file, head, kind } } }); }
+    try { worker = new Worker(new URL(import.meta.url), { execArgv: [], workerData: { rowAges: { root, file, head, kind } } }); }
     catch { done(null); return; }
     worker.once('message', rows => done(new Map(rows)));
     worker.once('error', () => done(null));
