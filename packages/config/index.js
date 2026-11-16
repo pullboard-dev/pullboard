@@ -90,6 +90,7 @@ export {
   reviewReleaseReasonsRequired,
   lapsedSweepEnabled,
   derivedStateEnabled,
+  testStatusOutcomesEnabled,
   recordWriteHolderEnabled,
   adaptiveBatchEnabled,
   reofferTrunkBusyEnabled,
