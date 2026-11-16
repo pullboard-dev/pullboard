@@ -22,7 +22,7 @@ function landed(t, item) {
 }
 
 /** Reject the landed item as the reviewer. */
-const reject = ({ board, id, reviewer }) => store.verify(board, id, { agentId: reviewer, decision: 'REJECT', reason: 'CRITERION_FAILED', note: 'the result is wrong',
+const reject = ({ board, id, reviewer }) => store.verify(board, id, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', note: 'the result is wrong',
   head: COMMIT, digest: '', policy: 'any', landed: true });
 
 test('clause 1: a landed mid reject records the verdict and files a follow-up carrying the Files:, Test: and check [C7,#8835]', t => {
