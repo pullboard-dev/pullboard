@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { fixtureSettledMachine } from '../../../../packages/gate/tests/fixtures/testkit.js';
 import { fixtureProjectPolicy } from '../../../../packages/gate/tests/fixtures/testkit.js';
 import { withFixtureBoard } from '../../tests/fixtures/board.js';
 
@@ -12,12 +13,13 @@ const helpers = createE2eHelpers();
 test.after(helpers.cleanup);
 
 /** A real private Git/SQLite project whose board holds the seeded events; returns the printed status. */
-async function statusAfter(seed) {
+async function statusAfter(seed, settings = { status: { showUsefulBuilders: true } }) {
   const box = helpers.sandbox();
   const root = join(box.dir, 'repo');
   mkdirSync(root);
   box.git(root, 'init', '-q', '-b', 'main');
   fixtureProjectPolicy(root, { config: { ...helpers.CONFIG, gate: 'true' }, spec: '# Spec\n\n## B · Board\n- B1 [approved, must] A row. | gate: test\n' });
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, settings);
   assert.equal(box.runSync(root, 'init').code, 0);
   box.git(root, 'add', '-A');
   box.git(root, 'commit', '-q', '-m', 'chore(fixture): initialize');
@@ -44,4 +46,10 @@ test('clause 1: status says unknown, with the observed inputs, when fewer than t
   const status = await statusAfter(() => {});
   assert.equal(status.code, 0, status.err);
   assert.match(status.out, /^Max useful builders: unknown \(needs two observed seat counts; window \S+ to \S+; \d+ observed hours at seat counts [^)]*\)\.$/m);
+});
+
+test('clause 1: status.showUsefulBuilders off, the default, leaves the line out of status [C7,#8544]', async () => {
+  const status = await statusAfter(() => {}, {});
+  assert.equal(status.code, 0, status.err);
+  assert.doesNotMatch(status.out, /Max useful builders/u);
 });

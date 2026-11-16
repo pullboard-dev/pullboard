@@ -44,9 +44,9 @@ import { laneOf } from "../../../../seats/index.js";
  * @param {{ by: string, lane: string, title: string, criterion?: string, specIds?: string[], parentId?: number | null, after?: (number | string)[], brief?: string, route?: string, check?: string, checkTiming?: boolean }} item
  * @returns {number} The new item's id.
  */
-export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null, after = [], brief = '', route = 'strong', check, checkBaseline, barActor, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming, expectedBuildMinutes, readinessCommand }) {
+export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null, after = [], brief = '', route = 'strong', check, keptCheckFrom, checkBaseline, barActor, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming, expectedBuildMinutes, readinessCommand }) {
   return atomic(board, () => {
-    const item = { by, lane, title, criterion, specIds, parentId, after, brief, route, check, checkBaseline, barActor, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming, expectedBuildMinutes, readinessCommand };
+    const item = { by, lane, title, criterion, specIds, parentId, after, brief, route, check, keptCheckFrom, checkBaseline, barActor, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming, expectedBuildMinutes, readinessCommand };
     const id = insertItem(board, item, validateItemAddition(board, item));
     placeNewItem(board, id, item);
     return id;
@@ -80,11 +80,13 @@ export function insertItem(board, item, { command, cleanTitle, brief: normalized
 }
 
 /** Validate an addition before its sender runs a new check, and again when the ordered move applies. */
-export function validateItemAddition(board, { by, lane, title, criterion = '', parentId = null, after = [], brief = '', route = 'strong', check, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming, expectedBuildMinutes, readinessCommand }, { sourceMove = null } = {}) {
+export function validateItemAddition(board, { by, lane, title, criterion = '', parentId = null, after = [], brief = '', route = 'strong', check, keptCheckFrom, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming, expectedBuildMinutes, readinessCommand }, { sourceMove = null } = {}) {
+  // A follow-up may keep its landed parent's check unchanged, never set or edit one [#9637].
+  const kept = typeof keptCheckFrom === 'string' && check === keptCheckFrom;
   const command = sourceMove
     ? validateRehomeCheck(by, check, sourceMove)
-    : editCheck(by, check) ?? '';
-  if (board.gitRoot && by !== COORDINATOR) {
+    : kept ? check.trim() : editCheck(by, check) ?? '';
+  if (board.gitRoot && by !== COORDINATOR && !kept) {
     const actor = board.db.prepare('SELECT agent_lane FROM agent WHERE agent_id = ?').get(by);
     requireOwnLaneCheck(loadConfig(board.gitRoot), { id: by, lane: actor?.agent_lane }, lane, command, laneOf);
   }

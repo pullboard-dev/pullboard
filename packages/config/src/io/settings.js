@@ -90,6 +90,11 @@ export function endStaleJobsEnabled() {
   return loadMachineSettings().gate?.endStaleJobs === true;
 }
 
+/** Offer a gate job once more after an infrastructure end only when this machine opted in [C7,#9633]. */
+export function reofferInfraEndEnabled() {
+  return loadMachineSettings().gate?.reofferInfraEnd === true;
+}
+
 /** Settle a sharded item gate left unknown on a missing main receipt when that receipt records, only when this machine opted in [C7,#9057]. */
 export function settleOnMainReceiptEnabled() {
   return loadMachineSettings().gate?.settleOnMainReceipt === true;
@@ -103,6 +108,11 @@ export function redFactLocationEnabled() {
 /** Fail the registry check on an unregistered test only when this machine opted in; off, it reports [C7,#8374]. */
 export function registryStrictEnabled() {
   return loadMachineSettings().tests?.registryStrict === true;
+}
+
+/** Whether verdict freshness compares the submit's own hunks: off by default; only an exact `true` turns it on [C7,#9438]. */
+export function hunkFreshnessEnabled() {
+  return loadMachineSettings().verify?.hunkFreshness === true;
 }
 
 /** Whether the static check refuses a change that adds an unregistered test: off by default; only an exact `true` turns it on [C7,#9402]. */
@@ -339,6 +349,11 @@ export function refuseEmptyBar() {
   return loadMachineSettings().freeze?.refuseEmptyBar === true;
 }
 
+/** Whether a landed reject's follow-up keeps its parent's check (#9637): off by default; only an exact `true` turns it on. */
+export function rejectKeepsCheck() {
+  return loadMachineSettings().verify?.rejectKeepsCheck === true;
+}
+
 /** Whether a review release must name why it was dropped (#8920): off by default; only an exact `true` turns it on. */
 export function reviewReleaseReasonsRequired() {
   return loadMachineSettings().review?.releaseReasons === true;
@@ -383,6 +398,11 @@ export function recordWriteHolderEnabled() {
 /** Whether landing.squash is on (#9217): off by default; only an exact `true` turns it on. */
 export function landingSquashEnabled() {
   return loadMachineSettings().landing?.squash === true;
+}
+
+/** Whether status.showUsefulBuilders is on: off by default; only an exact `true` makes status print the max useful builders line [C7,#8544]. */
+export function statusShowUsefulBuilders() {
+  return loadMachineSettings().status?.showUsefulBuilders === true;
 }
 
 /** Whether spec.commitOnApply is on (#9346): off by default; only an exact `true` turns it on. */
@@ -439,6 +459,14 @@ export function nextReadinessCheck() {
 }
 
 /**
+ * Whether next keeps each readiness result for the main commit it ran on (#8794): off by default, so next reruns the
+ * command on every call; only an exact `true` turns it on.
+ */
+export function nextReadinessCache() {
+  return loadMachineSettings().next?.readinessCache === true;
+}
+
+/**
  * Where a queued submit's authorization source checks run when a runner is registered: `runner` (default) puts them in
  * the gate's one runner analysis job beside doctrine, cells, static and selection; `local` keeps them on this machine as
  * before #5674. Anything but an exact `local` is the default, so a damaged value never moves work back here [C7].
@@ -488,6 +516,11 @@ export function staticCheckSlots() {
  */
 export function staticMemoOn() {
   return loadMachineSettings().gate?.staticMemo === true;
+}
+
+/** Whether `pullboard serve` also answers runner pulls at /pull/ (#8765): off by default; only an exact `true` turns it on. */
+export function servePullRoute() {
+  return loadMachineSettings().serve?.pullRoute === true;
 }
 
 /**
@@ -811,6 +844,11 @@ export function boardKey() {
   chmodSync(file, 0o600);
   if (!/^[A-Za-z0-9_-]{24,128}$/u.test(key)) throw new Refused('BAD_BOARD_KEY', `${file} does not hold a board key; delete it and run pullboard serve again to make a new one`);
   return key;
+}
+
+/** Whether board.archiveEvents is on (#9334): off by default; only an exact `true` turns it on. */
+export function archiveEventsEnabled() {
+  return loadMachineSettings().board?.archiveEvents === true;
 }
 
 /** Whether landing.reuseContractResults is on (#9301): off by default; only an exact `true` turns it on. */

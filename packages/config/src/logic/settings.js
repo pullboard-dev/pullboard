@@ -100,12 +100,15 @@ function validateBudget(budget, file) {
  */
 export function validateServe(serve, file) {
   if (serve === undefined) return;
-  if (!serve || typeof serve !== 'object' || Array.isArray(serve) || Object.keys(serve).some(key => key !== 'address' && key !== 'port')) {
-    throw new Refused('BAD_MACHINE_SETTINGS', `serve in ${file} holds only address and port; remove it to serve on loopback`);
+  if (!serve || typeof serve !== 'object' || Array.isArray(serve) || Object.keys(serve).some(key => key !== 'address' && key !== 'port' && key !== 'pullRoute')) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `serve in ${file} holds only address, port and pullRoute; remove it to serve on loopback`);
   }
   const octets = typeof serve.address === 'string' ? serve.address.split('.') : [];
   if (serve.address !== undefined && (octets.length !== 4 || octets.some(part => !/^(?:0|[1-9]\d{0,2})$/u.test(part) || Number(part) > 255) || serve.address === '0.0.0.0')) {
     throw new Refused('BAD_MACHINE_SETTINGS', `serve.address in ${file} must be one interface's literal IPv4 address, such as 192.168.7.21; remove it to serve on loopback`);
+  }
+  if (serve.pullRoute !== undefined && typeof serve.pullRoute !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `serve.pullRoute in ${file} must be true or false`);
   }
   if (serve.port !== undefined && (!Number.isSafeInteger(serve.port) || serve.port < 0 || serve.port > 65535)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `serve.port in ${file} must be a port from 0 to 65535; 0 chooses a free one`);
@@ -119,9 +122,10 @@ export function validateServe(serve, file) {
  */
 export function validateBoardRemote(board, file) {
   if (board === undefined) return;
-  if (!board || typeof board !== 'object' || Array.isArray(board) || Object.keys(board).some(key => !['url', 'token', 'commits'].includes(key))) {
-    throw new Refused('BAD_MACHINE_SETTINGS', `board in ${file} holds only url, token and commits; remove it to use the local board`);
+  if (!board || typeof board !== 'object' || Array.isArray(board) || Object.keys(board).some(key => !['url', 'token', 'commits', 'archiveEvents'].includes(key))) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `board in ${file} holds only url, token, commits and archiveEvents; remove it to use the local board`);
   }
+  if (board.archiveEvents !== undefined && typeof board.archiveEvents !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `board.archiveEvents in ${file} must be true or false`);
   // Off by default: with commits set to bundle, a submit by URL carries the clone's commits as one git bundle [P7,C7].
   if (board.commits !== undefined && board.commits !== 'bundle') throw new Refused('BAD_MACHINE_SETTINGS', `board.commits in ${file} must be bundle; run pullboard settings board.commits bundle, or off to remove it`);
   let url = null;
@@ -145,7 +149,7 @@ export function loadMachineSettings() {
   }
   if (value.landing !== undefined && (!value.landing || typeof value.landing !== 'object' || Array.isArray(value.landing)
     // The landing switches sit beside pools, so a machine may set one without a pool [C7,#9102].
-    || Object.keys(value.landing).some(key => !['pools', 'adaptiveBatch', 'reofferTrunkBusy', 'squash', 'strictFullSuite', 'reuseGateReceipts', 'reuseContractResults'].includes(key)) || (value.landing.pools !== undefined && !Array.isArray(value.landing.pools))
+    || Object.keys(value.landing).some(key => !['pools', 'adaptiveBatch', 'reofferTrunkBusy', 'squash', 'strictFullSuite', 'reuseGateReceipts', 'reuseContractResults', 'asyncFetch', 'byHand'].includes(key)) || (value.landing.pools !== undefined && !Array.isArray(value.landing.pools))
     || (value.landing.pools ?? []).some(id => typeof id !== 'string' || !/^[a-f0-9]{32}$/u.test(id)))) {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.pools in ${file} lists the board identifiers this machine may land`);
   }
@@ -167,6 +171,9 @@ export function loadMachineSettings() {
   if (value.gate?.fencedHop !== undefined && typeof value.gate.fencedHop !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.fencedHop in ${file} must be true or false`);
   }
+  if (value.gate?.pulledProfilePaths !== undefined && typeof value.gate.pulledProfilePaths !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.pulledProfilePaths in ${file} must be true or false`);
+  }
   if (value.gate?.recaptureHandoff !== undefined && typeof value.gate.recaptureHandoff !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.recaptureHandoff in ${file} must be true or false`);
   }
@@ -175,6 +182,9 @@ export function loadMachineSettings() {
   }
   if (value.gate?.endStaleJobs !== undefined && typeof value.gate.endStaleJobs !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.endStaleJobs in ${file} must be true or false`);
+  }
+  if (value.gate?.reofferInfraEnd !== undefined && typeof value.gate.reofferInfraEnd !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.reofferInfraEnd in ${file} must be true or false`);
   }
   for (const key of ['jobs.handBackUnrunnable', 'runners.fetchFailFast', 'runners.drainOnFetchFailure', 'runners.postedLineNamesCase']) {
     if (value[key] !== undefined && typeof value[key] !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `${key} in ${file} must be true or false`);
@@ -288,11 +298,17 @@ export function loadMachineSettings() {
   if (value.add?.warnUnnamedTest !== undefined && typeof value.add.warnUnnamedTest !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `add.warnUnnamedTest in ${file} must be true or false`);
   }
+  if (value.verify?.rejectKeepsCheck !== undefined && typeof value.verify.rejectKeepsCheck !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `verify.rejectKeepsCheck in ${file} must be true or false`);
+  }
   if (value.freeze?.refuseEmptyBar !== undefined && typeof value.freeze.refuseEmptyBar !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `freeze.refuseEmptyBar in ${file} must be true or false`);
   }
   if (value.holds?.requireOwner !== undefined && typeof value.holds.requireOwner !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `holds.requireOwner in ${file} must be true or false`);
+  }
+  if (value.verify?.hunkFreshness !== undefined && typeof value.verify.hunkFreshness !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `verify.hunkFreshness in ${file} must be true or false`);
   }
   if (value.review?.releaseReasons !== undefined && typeof value.review.releaseReasons !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `review.releaseReasons in ${file} must be true or false`);
@@ -305,6 +321,12 @@ export function loadMachineSettings() {
   }
   if (value.landing?.reofferTrunkBusy !== undefined && typeof value.landing.reofferTrunkBusy !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.reofferTrunkBusy in ${file} must be true or false`);
+  }
+  if (value.landing?.byHand !== undefined && typeof value.landing.byHand !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `landing.byHand in ${file} must be true or false`);
+  }
+  if (value.landing?.asyncFetch !== undefined && typeof value.landing.asyncFetch !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `landing.asyncFetch in ${file} must be true or false`);
   }
   if (value.landing?.reuseContractResults !== undefined && typeof value.landing.reuseContractResults !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.reuseContractResults in ${file} must be true or false`);
@@ -321,6 +343,9 @@ export function loadMachineSettings() {
   if (value.landing?.strictFullSuite !== undefined && typeof value.landing.strictFullSuite !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.strictFullSuite in ${file} must be true or false`);
   }
+  if (value.status?.showUsefulBuilders !== undefined && typeof value.status.showUsefulBuilders !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `status.showUsefulBuilders in ${file} must be true or false`);
+  }
   if (value.spec?.commitOnApply !== undefined && typeof value.spec.commitOnApply !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `spec.commitOnApply in ${file} must be true or false`);
   }
@@ -330,11 +355,17 @@ export function loadMachineSettings() {
   if (value.next?.capBuilders !== undefined && !(Number.isInteger(value.next.capBuilders) && value.next.capBuilders >= 0)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `next.capBuilders in ${file} must be a whole number, 0 or more`);
   }
+  if (value.next?.idleBlockers !== undefined && typeof value.next.idleBlockers !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `next.idleBlockers in ${file} must be true or false`);
+  }
   if (value.next?.itemNotices !== undefined && typeof value.next.itemNotices !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `next.itemNotices in ${file} must be true or false`);
   }
   if (value.next?.readinessCheck !== undefined && typeof value.next.readinessCheck !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `next.readinessCheck in ${file} must be true or false`);
+  }
+  if (value.next?.readinessCache !== undefined && typeof value.next.readinessCache !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `next.readinessCache in ${file} must be true or false`);
   }
   if (value.submit?.clauseMarks !== undefined && typeof value.submit.clauseMarks !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `submit.clauseMarks in ${file} must be true or false`);
