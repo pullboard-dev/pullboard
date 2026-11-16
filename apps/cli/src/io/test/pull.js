@@ -1,5 +1,5 @@
 /**
- * `pullboard test` by pull: under gate.runnerDispatch pull, or for an item the gate.pullPilot setting picks, a test run
+ * `pullboard test` by pull: a test run
  * is one runner job row. This host pins the committed source as a git ref, offers the job and waits on its row; a
  * runner fetches the commit from the trunk remote and runs the files. Nothing here packs code or opens ssh [P7].
  *
@@ -10,7 +10,6 @@ import { randomBytes } from 'node:crypto';
 import { setTimeout as pause } from 'node:timers/promises';
 import { Refused } from '../../../../../packages/kernel/light.js';
 import { FILE_TIME_LINE } from '../../../../../packages/gate/index.js';
-import { pullGateFor } from '../../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { gateRunnerWaitMs } from '../../../../../packages/config/index.js';
 import { git } from '../../../../../packages/git/index.js';
@@ -143,8 +142,7 @@ process.exitCode = receipt.green ? 0 : 1;
 `;
 
 /**
- * True when this test run is a runner job row: under gate.runnerDispatch pull, or when the seat's claimed item is one
- * the pull pilot picks, as its submit would be. `--affected` and `--diagnose` keep the existing path, since their
+ * True when this test run is a runner job row: always, since every runner job is a row. `--affected` and `--diagnose` keep the existing path, since their
  * selection and full log are read on this machine.
  *
  * @param {number | undefined} item - The seat's sole claimed item.
@@ -152,7 +150,7 @@ process.exitCode = receipt.green ? 0 : 1;
  */
 export function pullTestWanted(item, values) {
   if (values.affected === true || values.diagnose === true) return false;
-  return runnerDispatchMode() === 'pull' || (item !== undefined && pullGateFor(Number(item)));
+  return runnerDispatchMode() === 'pull';
 }
 
 /**
