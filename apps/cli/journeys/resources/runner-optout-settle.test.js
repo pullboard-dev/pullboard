@@ -59,7 +59,7 @@ async function gateJobWithin(box, item) {
 test('clause 1: after runnersOnly turns off, the submit --wait gate job settles, or the failure names its job_step, job_lease_owner and the runner log tail at 30 s [C7,Q1,V4]', async () => {
   const box = helpers.project('true');
   const marker = join(box.dir, 'submit-frozen-body');
-  const command = `printf ran > '${marker.replaceAll("'", "'\\\\''")}'`;
+  const command = `printf ran > '${marker.replaceAll("'", "'\\''")}'`;
   const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Private runner-only opt-out', '--specs', 'G1', '--criterion', 'The native frozen check remains mandatory.', '--check', command, '--wait', '--json');
   assert.equal(added.code, 0, `${added.err}\n${added.out}`);
   const id = JSON.parse(added.out).item.item_id;
