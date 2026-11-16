@@ -256,6 +256,9 @@ export function loadMachineSettings() {
   if (value.list?.thinRead !== undefined && typeof value.list.thinRead !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `list.thinRead in ${file} must be true or false`);
   }
+  if (value.health?.diskFloorGb !== undefined && !(Number.isFinite(value.health.diskFloorGb) && value.health.diskFloorGb >= 0)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `health.diskFloorGb in ${file} must be a number of gigabytes, 0 or more`);
+  }
   const reserve = value.gate?.jobReserve;
   if (reserve != null && (typeof reserve !== 'object' || Array.isArray(reserve) || Object.values(reserve).some(share => !Number.isFinite(share) || share < 0 || share > 1)
     || Object.values(reserve).reduce((sum, share) => sum + share, 0) > 1)) {
@@ -325,6 +328,11 @@ export function loadMachineSettings() {
     throw new Refused('BAD_SHORT_SLOTS', `gate.shortSlots in ${file} must be a whole number, 0 or more; run pullboard settings gate.shortSlots <n>`);
   }
   return { ...value, gateSlots, browserSlots, ...(runners.length ? { runners } : {}) };
+}
+
+/** Free gigabytes below which pullboard health warns (#9110); 0, the default, never warns. */
+export function healthDiskFloorGb() {
+  return loadMachineSettings().health?.diskFloorGb ?? 0;
 }
 
 /** Whether pullboard list reads through the thin read door (#9089): off by default; only an exact `true` turns it on. */

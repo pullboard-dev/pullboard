@@ -179,6 +179,7 @@ export {
 
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';
 export { listThinRead, namedImportSelectionOn } from './src/logic/settings.js';
+export { healthDiskFloorGb } from './src/logic/settings.js';
 export { boardKey, boardKeyFile } from './src/io/settings.js';
 export { boardRemote, setBoardRemote } from './src/io/settings.js';
 export { setPersonSetting } from './src/io/settings.js';
