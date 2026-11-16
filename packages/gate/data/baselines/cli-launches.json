@@ -512,12 +512,6 @@
   "apps/cli/journeys/hold/span.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/doctrine/rulings.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/fact/msg.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/hook/once.test.js": {
     "launch": 1
   },
@@ -1375,9 +1369,6 @@
   },
   "packages/gate/tests/io/browser/admission/resources.test.js": {
     "launch": 4
-  },
-  "apps/cli/journeys/edges/door.test.js": {
-    "launch": 2
   },
   "apps/cli/journeys/next/skips/folder/live.test.js": {
     "launch": 1
