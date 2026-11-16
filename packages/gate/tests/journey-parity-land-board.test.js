@@ -1,8 +1,8 @@
-/** @pullboard-test-input apps/cli/journeys/reopen/evidence.test.js apps/cli/tests/fixtures/land/board.js */
+/** @pullboard-test-input apps/cli/journeys/add/split.test.js apps/cli/tests/fixtures/land/board.js */
 /** @pullboard-world-pin: clause 2 reads the committed land board fixture source to prove its quick calls start no CLI process in-process. */
 /**
  * The parity check for the land board fixture (U149): its json() reads and manual-merged records now go to the box's warm worker thread,
- * except submit, verify, land and test, so a landing journey runs one sampled case twice, once with every journey CLI call a real process
+ * except submit, verify, land and test, so a journey runs one sampled case twice, once with every journey CLI call a real process
  * and once in-process, and the exit codes, JSON results and board state must agree [C7].
  */
 import assert from 'node:assert/strict';
@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { sampleDifferences } from './fixtures/journey-parity.js';
 
-const SAMPLES = [{ journey: 'apps/cli/journeys/reopen/evidence.test.js', cases: ['a landing reopen carries the exact failing assertion [C7,B22]'] }];
+const SAMPLES = [{ journey: 'apps/cli/journeys/add/split.test.js', cases: ['clause 2: split files each child after the previous one and the first after nothing [C7,#8916]'] }];
 
 test('clause 1: a land-board sample gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);
