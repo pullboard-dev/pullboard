@@ -67,6 +67,7 @@ export {
   censusSelfTuneEnabled,
   censusRerunOnSettleEnabled,
   registryStrictEnabled,
+  hunkFreshnessEnabled,
   requireRegisteredEnabled,
   requireJourneyPathEnabled,
   adapterLintClockEnabled,
