@@ -27,6 +27,7 @@ import { CHECK_BASELINE_KIND } from './baseline.js';
 import { MAIN_TEST_KIND } from './recheck.js';
 import { MAIN_CASE_NAME_UNITS } from './recheck.js';
 import { offerMainTests } from './recheck.js';
+import { endStaleGateJobs } from './stale.js';
 import { landingGuardKey } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { plainTrunkRef } from '../../../git/index.js';
@@ -865,16 +866,16 @@ export function provideMainComparison(lookup) {
  *
  * @param {any} board - The open board, gitRoot set to the board host's repository.
  * @param {Record<string, any>} body
- * @param {Parameters<typeof jobQueueCall>[2] & { compareWithMain?: Parameters<typeof compareGateWithMain>[3], landingKey?: () => string | null, ordered?: { operation: string, args: any[] }[] | null }} options - compareWithMain:
+ * @param {Parameters<typeof jobQueueCall>[2] & { compareWithMain?: Parameters<typeof compareGateWithMain>[3], landingKey?: () => string | null, ordered?: { operation: string, args: any[] }[] | null, endStale?: boolean }} options - endStale: gate.endStaleJobs, ends a landed item's open gate jobs (#8816); compareWithMain:
  *   main's receipt lookup for a red gate's cases; the one provided to this process by default. landingKey: the board's
  *   landing key, which signs a land job's permit for the trunk guard (#5848); the board host's key file by default.
  *   ordered: on a relay-linked board, the list a receipt's engine moves go onto instead of this replica's store, for
  *   the caller to order through the relay (#7562); null applies them here, as on a local board.
  */
-export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, ...options }) {
+export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, endStale = false, ...options }) {
   // Queued main-test jobs are offered before each claim, so a free runner takes one in the same call (#6063).
   if (body?.action === 'claim' && options.mode === 'pull') offerMainTests(board, { now: options.now });
-  const answer = jobQueueCall(board.db, body, { onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain, ordered }) });
+  const answer = jobQueueCall(board.db, body, { onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain, ordered, endStale }) });
   return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
 }
 
@@ -932,7 +933,7 @@ export function applyJobReceipt(board, posted, ports = {}) {
   if (kind === 'gate' || kind === SHARD_JOB_KIND) recordReceiptLedger(board, posted, kind === 'gate' ? 'pulled' : 'shard');
   if (kind === 'gate') return applyGateReceipt(board, posted, ports);
   if (kind === SHARD_JOB_KIND) return applyShardReceipt(board, posted, ports);
-  if (kind === LANDING_JOB_KIND) return applyLandingReceipt(board, posted);
+  if (kind === LANDING_JOB_KIND) return applyLandingReceipt(board, posted, ports);
   if (kind === CHECK_BASELINE_KIND) return applyCheckBaselineReceipt(board, posted);
   if (kind === 'test') {
     const accept = settleQueuedAccept(board, posted);
@@ -1073,7 +1074,7 @@ function retryFailedLanding(board, job, named, receipt, { code, what, next }) {
  * @param {{ job: string, receipt: Record<string, any> }} posted
  * @returns {{ applied: boolean, outcome: string, merged?: number[], returned: number[] }}
  */
-export function applyLandingReceipt(board, { job, receipt }) {
+export function applyLandingReceipt(board, { job, receipt }, ports = {}) {
   const offered = JSON.parse(board.db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job)?.job_step_payload ?? '{}');
   const named = new Set((offered.payload?.items ?? []).map(entry => entry.id));
   const returned = receipt ? returnLandedReds(board, job, named, receipt, offered.payload?.publish === 'separate') : [];
@@ -1096,6 +1097,8 @@ export function applyLandingReceipt(board, { job, receipt }) {
     const commit = SHA.test(receipt.merges?.[id] ?? '') ? receipt.merges[id] : receipt.trunk;
     store.merged(board, id, { agentId: 'coordinator', commit, note: `landed by runner job ${job}` });
     merged.push(id);
+    // With gate.endStaleJobs on, the landed item's open gate jobs end, so no runner spends time on them [C7,#8816].
+    endStaleGateJobs(board.db, { item: id, enabled: ports.endStale === true });
     // A landing proof red only in waived tests is recorded on each item it landed, as the controller's waived landing gate was [#655].
     if (waived.length) store.appendFact(board, id, { agentId: 'coordinator', kind: 'measurement', text: `Land job ${job} landing gate waived, not green, at ${receipt.trunk.slice(0, 12)}:\n${waived.join('\n')}`.slice(0, 2000) });
   }
