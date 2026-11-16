@@ -16,3 +16,4 @@ export { spawnReachable, spawnDetachedChild, launchJobPlist, LAUNCH_LABEL_PREFIX
 export { readRunnerTime, runnerTimeFolder } from "./src/io/gate/runner-time.js";
 export { expireQueuedJobs } from "./src/io/expire.js";
 export { QUEUED_EXPIRY_MS, queuedExpired } from "./src/logic/rules.js";
+export { startMarksWorker } from "./src/io/inbox-marks.js";
