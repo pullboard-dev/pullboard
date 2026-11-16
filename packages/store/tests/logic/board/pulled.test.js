@@ -48,7 +48,7 @@ test('clause 2: the table refusals NOT_PULLING and REVERT_COMMIT surface unchang
   const written = landing(landed).history.length;
   assert.throws(() => store.recordPulled(landed, 7, { agentId: 'coordinator', revert: REVERT }), error => {
     assert.equal(error.code, 'NOT_PULLING');
-    assert.equal(error.message, 'item #7 has no pull-out in progress');
+    assert.equal(error.message, '[NOT_PULLING] item #7 has no pull-out in progress');
     assert.equal(error.next, 'pullboard show <id>');
     return true;
   });
@@ -57,7 +57,7 @@ test('clause 2: the table refusals NOT_PULLING and REVERT_COMMIT surface unchang
   for (const revert of [undefined, 'e'.repeat(12), 'not a sha']) {
     assert.throws(() => store.recordPulled(pulling, 7, { agentId: 'coordinator', revert }), error => {
       assert.equal(error.code, 'REVERT_COMMIT');
-      assert.equal(error.message, 'a pulled record names the full revert commit on main');
+      assert.equal(error.message, '[REVERT_COMMIT] a pulled record names the full revert commit on main');
       assert.equal(error.next, 'pass the revert commit the lander pushed');
       return true;
     });
