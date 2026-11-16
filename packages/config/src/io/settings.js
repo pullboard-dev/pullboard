@@ -467,6 +467,11 @@ export function addWarnUnnamedTest() {
   return loadMachineSettings().add?.warnUnnamedTest === true;
 }
 
+/** Whether a settled hold lifts when main moves (#9699): off by default; only an exact `true` turns it on. */
+export function holdsLiftSettled() {
+  return loadMachineSettings().holds?.liftSettled === true;
+}
+
 /**
  * Whether an item hold must name an owner and records a deadline (#8539): off by default, so holds are unchanged; only an
  * exact `true` turns it on.

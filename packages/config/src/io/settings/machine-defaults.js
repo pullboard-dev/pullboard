@@ -72,6 +72,7 @@ export const MACHINE_DEFAULTS = {
   'health.diskFloorGb': 0,
   'health.lapsedSweep': false,
   'health.sentinel': true,
+  'holds.liftSettled': false,
   'holds.requireOwner': false,
   'inspection.clauses': false,
   'items.typedFields': false,

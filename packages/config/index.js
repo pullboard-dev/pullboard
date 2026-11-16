@@ -100,6 +100,7 @@ export {
   refuseMissingCheckFile,
   addWarnUnnamedTest,
   docsRegenerateOnCommit,
+  holdsLiftSettled,
   holdsRequireOwner,
   nextIdleBlockers,
   nextAdoptPreserved,
