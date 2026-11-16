@@ -463,6 +463,9 @@ export function loadMachineSettings() {
     || (workerBudget.spend !== undefined && workerBudget.seatHours !== undefined))) {
     throw new Refused('BAD_MACHINE_SETTINGS', `workers.budget in ${file} must be spend per day or week; run pullboard settings workers.budget 40/day`);
   }
+  if (value.machine?.loadCeiling !== undefined && value.machine.loadCeiling !== null && (!Number.isFinite(value.machine.loadCeiling) || value.machine.loadCeiling <= 0)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `machine.loadCeiling in ${file} must be a 1-minute load above 0; remove it for the default of 1.5 times the logical cores`);
+  }
   if (value.gate?.memoryFloorMB !== undefined && (!Number.isSafeInteger(value.gate.memoryFloorMB) || value.gate.memoryFloorMB < 0)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.memoryFloorMB in ${file} must be a whole number of megabytes, 0 or more; fix it before running Pullboard`);
   }
