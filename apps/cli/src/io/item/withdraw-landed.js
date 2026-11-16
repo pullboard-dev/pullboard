@@ -10,7 +10,7 @@ import { Refused } from '../../../../../packages/kernel/index.js';
  * @param {{ item_id: number, item_merged_commit?: string | null, item_commit?: string | null }} item
  * @param {{ isLanded: Function, landedOnMain: Function }} roadmap - the roadmap cell's landed fact, passed in by the command that already holds that cell.
  */
-export function refuseLandedWithdraw(config, root, item, { isLanded, landedOnMain }) {
+export function refuseLandedWithdraw(config, root, item, { isLanded, landedOnMain } = {}) {
   if (config?.withdraw?.refuseLanded !== true) return;
   // The same fact roadmap and show read (isLanded), always from git main here: this setting is about main, not landing.landedFromMain.
   const onMain = landedOnMain(root, { landing: { landedFromMain: true } });
