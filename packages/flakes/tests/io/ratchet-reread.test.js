@@ -2,7 +2,6 @@
 /** With flakes.rereadRatchet on, recording a landing batch re-reads a stale flake ratchet in its own transaction [C7,#9436]. */
 // fixture-subject: addItem (a store unit test of recordLandingBatch over a seeded board)
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -10,11 +9,11 @@ import { flakesRereadRatchetEnabled } from '../../../config/index.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
 import { FLAKE_RATCHET_ENGINE } from '../../../state/light.js';
+import { NATIVE_FLAKE_ENGINE } from '../../../state/light.js';
 import * as store from '../../../store/index.js';
 import { openCellBoard as openBoard } from '../../../store/tests/fixtures/cell.js';
 import { submitFixture } from '../../../store/tests/fixtures/submit.js';
 import { landingFlakeRatchet } from '../../index.js';
-import { recordFlakeObservation } from '../../index.js';
 
 const BASE = 'a'.repeat(40);
 const COMMIT = 'b'.repeat(40);
@@ -85,11 +84,9 @@ test('clause 2: a fresh ratchet that fails refuses BOARD_BUSY, and a move below 
   const { board, id } = fixture(t);
   const stale = landingFlakeRatchet(board).snapshot;
   record(board, batchOf('first', id, stale));
-  const sha = text => createHash('sha256').update(text).digest('hex');
-  const receipt = green => ({ green, sha256: sha(String(green)), bytes: String(green).length, artifact: `flake-evidence/reread/${green}.log`, profileSha256: null });
-  recordFlakeObservation(board, { agentId: 'web-1', lane: 'web', observation: { id: 'reread-one', file: 'web/test.test.js', name: 'reread target',
-    head: 'a'.repeat(40), tree: 'b'.repeat(40), main: 'a'.repeat(40), kind: 'check', classification: 'flake', reason: 'Synthetic fixture only.',
-    commandSha256: 'c'.repeat(64), at: AT, diagnosticMs: 1, load: { average: [0, 0, 0], cpus: 1, freeMB: 100 }, original: receipt(false), paired: receipt(true), mainReceipt: null } });
+  // A sighting written without the recording operation's repair and quarantine leaves a flake nothing protects.
+  board.nativePorts.logEvent(board, 'web-1', 'flake-observation', null, { engine: NATIVE_FLAKE_ENGINE, observation: { id: 'reread-one', file: 'web/test.test.js',
+    name: 'reread target', head: BASE, tree: COMMIT, main: BASE, kind: 'check', classification: 'flake' } });
   withSettings({ flakes: { rereadRatchet: true } }, () => {
     assert.equal(landingFlakeRatchet(board).allowed, false, 'the new sighting has no quarantine');
     assert.throws(() => record(board, batchOf('second', id, stale)), { code: 'BOARD_BUSY' });
