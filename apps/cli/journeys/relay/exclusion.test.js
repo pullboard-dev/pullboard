@@ -14,19 +14,19 @@ test('a legacy exclusion shows as unknown historical exclusion with a stable fir
   state.excluded = [box.root];
   delete state.exclusionDetails;
   writeFileSync(file, JSON.stringify(state), { mode: 0o600 });
-  const first = (await box.cli('status')).document.relay.exclusion;
+  const first = (await box.cliLocal('status')).document.relay.exclusion;
   assert.equal(first.reason, 'unknown historical exclusion');
   assert.equal(first.at, null, 'a missing historical time is never invented');
   assert.ok(Number.isFinite(Date.parse(first.firstSeenAt)), 'the time it was first observed is named');
-  const second = (await box.cli('status')).document.relay.exclusion;
+  const second = (await box.cliLocal('status')).document.relay.exclusion;
   assert.equal(second.firstSeenAt, first.firstSeenAt, 'the first-seen time does not move on later reads');
 });
 
 test('a person exclusion records who, when and why, and status names each field [H5,H17,B26]', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
-  assert.equal((await box.cli('relay', 'off')).code, 0);
-  const exclusion = (await box.cli('status')).document.relay.exclusion;
+  assert.equal((await box.cliLocal('relay', 'off')).code, 0);
+  const exclusion = (await box.cliLocal('status')).document.relay.exclusion;
   assert.equal(exclusion.reason, 'person relay off');
   assert.equal(exclusion.by, 'person');
   assert.ok(Number.isFinite(Date.parse(exclusion.at)));
