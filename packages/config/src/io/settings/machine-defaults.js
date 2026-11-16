@@ -19,6 +19,7 @@ export const MACHINE_DEFAULTS = {
   'gate.adapterLintFs': false,
   'gate.browserByLaunch': false,
   'gate.browserFreeChecks': false,
+  'gate.contractAudit': false,
   'gate.contractWeakening': false,
   'gate.diskFloorMB': 10_240,
   'gate.endStaleJobs': false,
@@ -33,6 +34,7 @@ export const MACHINE_DEFAULTS = {
   'gate.measuredSlots': false,
   'gate.memoryFloorMB': null,
   'gate.namedImportSelection': false,
+  'gate.overlapStaticProof': false,
   'gate.postLandSuite': false,
   'gate.queue.agingMinutes': 30,
   'gate.queue.currentReleaseFirst': false,
@@ -119,5 +121,6 @@ export const MACHINE_DEFAULTS = {
   'tests.registryStrict': false,
   'tests.requireJourneyPath': false,
   'tests.requireRegistered': false,
+  'verify.rejectKeepsCheck': false,
   'view.background': true,
 };

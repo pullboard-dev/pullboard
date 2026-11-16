@@ -29,6 +29,7 @@ const BEFORE = {
   'gate.adapterLintFs': false,
   'gate.browserByLaunch': false,
   'gate.browserFreeChecks': false,
+  'gate.contractAudit': false,
   'gate.contractWeakening': false,
   'gate.diskFloorMB': 10240,
   'gate.endStaleJobs': false,
@@ -43,6 +44,7 @@ const BEFORE = {
   'gate.measuredSlots': false,
   'gate.memoryFloorMB': null,
   'gate.namedImportSelection': false,
+  'gate.overlapStaticProof': false,
   'gate.postLandSuite': false,
   'gate.queue.agingMinutes': 30,
   'gate.queue.currentReleaseFirst': false,
@@ -128,6 +130,7 @@ const BEFORE = {
   'tests.registryStrict': false,
   'tests.requireJourneyPath': false,
   'tests.requireRegistered': false,
+  'verify.rejectKeepsCheck': false,
   'view.background': true,
 };
 
@@ -192,6 +195,11 @@ test('clause 3: removing a BEFORE key or changing its value fails the check [O6]
 test('clause 1: landing.asyncFetch is a machine setting, false by default, with a description [C7]', () => {
   assert.equal(MACHINE_DEFAULTS['landing.asyncFetch'], false);
   assert.ok(SETTING_DESCRIPTIONS['landing.asyncFetch']);
+});
+
+test('clause 1: gate.overlapStaticProof is a machine setting, false by default, with a description [C7]', () => {
+  assert.equal(MACHINE_DEFAULTS['gate.overlapStaticProof'], false);
+  assert.ok(SETTING_DESCRIPTIONS['gate.overlapStaticProof']);
 });
 
 test('clause 1: review.relaxRequiredFamily is a machine setting, false by default, with a description [V1]', () => {
