@@ -16,11 +16,16 @@ function nextSettings(next) {
   writeFileSync(file, JSON.stringify({ view: { background: false }, relay: { offerAtInit: false }, gate: { localRunner: false }, next }));
 }
 
+/** Give each item a disjoint file so the queue's collision guard never hides the dependency wait. */
+function brief(file) {
+  return `Files: web/${file}.js\nTest: the idle answer names what the item waits on.`;
+}
+
 /** One claimed blocker held by another seat and `count` open items that each wait on it, so the actor seat has nothing free. */
 function waiting(box, count = 4) {
-  const blocker = box.add('Blocker built by another seat');
+  const blocker = box.add('Blocker built by another seat', { brief: brief('blocker') });
   box.claim(blocker);
-  const followers = Array.from({ length: count }, (_, index) => box.add(`Follower ${index + 1}`, { after: [blocker] }));
+  const followers = Array.from({ length: count }, (_, index) => box.add(`Follower ${index + 1}`, { after: [blocker], brief: brief(`follower-${index + 1}`) }));
   return { blocker, followers };
 }
 
