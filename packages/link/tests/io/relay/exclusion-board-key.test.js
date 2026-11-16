@@ -11,10 +11,12 @@ import { readRelayMachine } from '../../../src/io/relay/machine.js';
 import { updateRelayMachine } from '../../../src/io/relay/machine.js';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
+import { openCellBoard } from '../../../../store/tests/fixtures/cell.js';
 import { fixtureMachineSettings } from '../../../../gate/tests/fixtures/testkit.js';
 
 const IO = { personChannel: 'view' };
-const records = () => (root, work) => work({ lastEvent: { event_by: 'person', event_at: '2026-11-16T12:00:00.000Z', event_id: 1 }, db: null }, root);
+/** The person-intent record lands on a real in-memory board, as the relay's own recorder writes it. */
+const records = () => (root, work) => work(openCellBoard(':memory:', { now: () => new Date('2026-11-16T12:00:00.000Z') }));
 
 /** Two worktrees of one board and a second board, under a private machine home with the setting on or off. */
 function boards(t, excludeByBoard) {
