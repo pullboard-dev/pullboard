@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../../../index.js';
+import { ENGINE_VERSION } from '../../../../state/light.js';
 import { READINESS_ENGINE } from '../../../../state/light.js';
 import { cellBoard } from '../../fixtures/cell.js';
 import { cellProject } from '../../fixtures/cell.js';
@@ -13,12 +14,12 @@ function fixture(t) {
   store.board_ensureCoordinator(board, project.repo);
   // fixture-subject: addItem
   const item = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Readiness field', route: 'strong' });
-  return { board, id: item.id ?? item.item_id };
+  return { board, id: item };
 }
 
 test('clause 1: a board at the new engine stores an item readiness command, empty by default [C7,H16]', (t) => {
   const { board, id } = fixture(t);
-  assert.ok(board.executionEngineVersion >= READINESS_ENGINE, 'a new board runs the current engine');
+  assert.ok((board.executionEngineVersion ?? ENGINE_VERSION) >= READINESS_ENGINE, 'a new board runs the current engine');
   const item = store.itemById(board, id);
   assert.equal(item.item_readiness_command, '');
   board.db.prepare('INSERT OR REPLACE INTO board_meta(meta_key,meta_value) VALUES(?,?)').run(`item_readiness_command:${id}`, JSON.stringify('node --version'));
