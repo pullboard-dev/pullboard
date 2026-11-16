@@ -203,10 +203,6 @@
   "packages/keys/tests/io/relay.test.js": {
     "tempdir": 1
   },
-  "apps/cli/journeys/decisions/row.test.js": {
-    "tempdir": 1,
-    "env-spread": 1
-  },
   "apps/cli/journeys/doctor/frozen.test.js": {
     "tempdir": 2,
     "hand-policy": 3
@@ -428,9 +424,6 @@
   },
   "apps/cli/tests/fixtures/badge.js": {
     "model": 2
-  },
-  "apps/cli/journeys/bar/check.test.js": {
-    "raw-board": 7
   },
   "packages/gate/tests/logic/reporter/coverage.test.js": {
     "tempdir": 2
@@ -1463,9 +1456,6 @@
   },
   "packages/resources/tests/io/renewal.test.js": {
     "tempdir": 2
-  },
-  "apps/cli/journeys/cells/against.test.js": {
-    "tempdir": 3
   },
   "packages/doctrine/tests/rename.test.js": {
     "tempdir": 2
