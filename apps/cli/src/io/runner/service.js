@@ -16,7 +16,8 @@ import { pullGit } from './git.js';
 /** A pulled land job, as `pullboard runner serve` runs it: merge, check and push trunk by compare-and-swap in the cache [P7]. */
 async function land(claim, { cache, renew, env }) {
   const { runLandingJob } = await import('../../../../../packages/landing/index.js');
-  return runLandingJob(claim.payload, { workdir: join(cache, 'land'), renew, env });
+  // jobs.handBackUnrunnable: a land job this runner cannot start goes back with the reason, not to a lapsed lease [C7,#9249].
+  return runLandingJob(claim.payload, { workdir: join(cache, 'land'), renew, env, handBackUnrunnable: runnerSettingOn(machineSettingsFile(), 'jobs.handBackUnrunnable') });
 }
 
 const [board, keyFile, cache, hint] = process.argv.slice(2);
