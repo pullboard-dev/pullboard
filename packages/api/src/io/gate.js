@@ -289,8 +289,10 @@ function redShard(part) {
 /**
  * The gate receipt the shards of one proof make together: the gate's own receipt with one proof phase that is green
  * only when every shard is, naming every failing case its red shards name (none when any red shard names none).
+ * With `signatures` (gate.settleOnMainReceipt), the cases keep their shards' diagnostic signatures, so a case main fails
+ * the same way reads main-owned instead of new [C7,#9057].
  */
-export function combinedReceipt(gateReceipt, shards) {
+export function combinedReceipt(gateReceipt, shards, { signatures = false } = {}) {
   const gate = gateReceipt.gate ?? {};
   const parts = shards.map(({ job, posted }) => {
     const shardGate = posted?.receipt?.gate ?? {};
@@ -305,9 +307,10 @@ export function combinedReceipt(gateReceipt, shards) {
   const totals = [['pass', sum('passed')], ['fail', sum('failed')], ['skipped', sum('skipped')]].filter(([, n]) => n !== null).map(([name, n]) => `# ${name} ${n}`);
   const tail = [...reds.map(part => `shard ${part.job}: ${String(part.error ?? (part.phase?.exit || part.phase?.tail) ?? 'no proof phase').slice(-PART_TEXT)}`), ...totals].join('\n');
   const failures = reds.length && reds.every(part => Array.isArray(part.phase?.failures) && part.phase.failures.length) ? reds.flatMap(part => part.phase.failures) : null;
+  const signed = signatures && failures ? reds.flatMap(part => part.phase.failures.map((_, index) => part.phase.failureSignatures?.[index] ?? null)) : null;
   const proof = { role: 'proof', status: reds.length ? (reds.find(part => part.phase?.status)?.phase.status ?? 1) : 0, signal: reds.find(part => part.phase?.signal)?.phase.signal ?? null,
     sha256: createHash('sha256').update(parts.map(part => part.phase?.sha256 ?? '').join('\n')).digest('hex'), bytes: parts.reduce((total, part) => total + (part.phase?.bytes ?? 0), 0), tail,
-    ...(reds.length ? { failures, shardReds: reds.map(redShard), errors: reds.flatMap(part => Array.isArray(part.phase?.errors) ? part.phase.errors : []),
+    ...(reds.length ? { failures, ...(signed ? { failureSignatures: signed } : {}), shardReds: reds.map(redShard), errors: reds.flatMap(part => Array.isArray(part.phase?.errors) ? part.phase.errors : []),
       errorCount: reds.reduce((total, part) => total + (part.phase?.errorCount ?? part.phase?.errors?.length ?? 0), 0) } : {}) };
   const { proofPlan, ...rest } = gate;
   const green = !reds.length;
@@ -329,7 +332,7 @@ export function applyShardReceipt(board, { job }, ports = {}) {
   if (remaining) return { applied: false, outcome: 'waiting', remaining };
   const gateReceipt = postedReceipt(board.db, parent)?.receipt;
   if (!gateReceipt?.gate?.proofPlan) return { applied: false, outcome: 'not-shard' };
-  const combined = combinedReceipt(gateReceipt, shards.map(row => ({ job: row.job_id, posted: postedReceipt(board.db, row.job_id) })));
+  const combined = combinedReceipt(gateReceipt, shards.map(row => ({ job: row.job_id, posted: postedReceipt(board.db, row.job_id) })), { signatures: ports.settleOnMainReceipt === true });
   return applyGateReceipt(board, { job: parent, receipt: combined }, ports);
 }
 
@@ -885,16 +888,17 @@ export function provideMainComparison(lookup) {
  *
  * @param {any} board - The open board, gitRoot set to the board host's repository.
  * @param {Record<string, any>} body
- * @param {Parameters<typeof jobQueueCall>[2] & { compareWithMain?: Parameters<typeof compareGateWithMain>[3], landingKey?: () => string | null, ordered?: { operation: string, args: any[] }[] | null, endStale?: boolean }} options - endStale: gate.endStaleJobs, ends a landed item's open gate jobs (#8816); compareWithMain:
+ * @param {Parameters<typeof jobQueueCall>[2] & { compareWithMain?: Parameters<typeof compareGateWithMain>[3], landingKey?: () => string | null, ordered?: { operation: string, args: any[] }[] | null, endStale?: boolean, settleOnMainReceipt?: boolean }} options - endStale: gate.endStaleJobs, ends a landed item's open gate jobs (#8816);
+ *   settleOnMainReceipt: gate.settleOnMainReceipt, settles sharded gates left unknown when main's receipt records (#9057); compareWithMain:
  *   main's receipt lookup for a red gate's cases; the one provided to this process by default. landingKey: the board's
  *   landing key, which signs a land job's permit for the trunk guard (#5848); the board host's key file by default.
  *   ordered: on a relay-linked board, the list a receipt's engine moves go onto instead of this replica's store, for
  *   the caller to order through the relay (#7562); null applies them here, as on a local board.
  */
-export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, endStale = false, ...options }) {
+export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, endStale = false, settleOnMainReceipt = false, ...options }) {
   // Queued main-test jobs are offered before each claim, so a free runner takes one in the same call (#6063).
   if (body?.action === 'claim' && options.mode === 'pull') offerMainTests(board, { now: options.now });
-  const answer = jobQueueCall(board.db, body, { onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain, ordered, endStale }) });
+  const answer = jobQueueCall(board.db, body, { onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain, ordered, endStale, settleOnMainReceipt }) });
   return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
 }
 
@@ -1009,12 +1013,16 @@ function returnLandedReds(board, job, named, receipt, separate) {
  * Why: each resubmit merges a newer main, so the comparison key moved before the queued job recorded and the red
  * never settled (#6229). Only the gate's own main is read, never another main commit [C7,P7].
  *
+ * With gate.settleOnMainReceipt on (`settleOnMainReceipt`), a gate whose proof ran as shards settles too, from its shards'
+ * combined result, and each settled gate records which main receipt settled it. Why: the posted gate receipt of a
+ * sharded proof still holds its plan, so it was skipped and the builder had to resubmit (#8777, #8987) [C7,#9057].
+ *
  * @param {any} board
  * @param {string} mainTest - The main-test job whose receipt was just recorded.
- * @param {{ compareWithMain?: Parameters<typeof compareGateWithMain>[3] }} ports
+ * @param {{ compareWithMain?: Parameters<typeof compareGateWithMain>[3], settleOnMainReceipt?: boolean }} ports
  * @returns {string[]} the gate jobs re-applied
  */
-export function settleWaitingGates(board, mainTest, { compareWithMain = null } = {}) {
+export function settleWaitingGates(board, mainTest, { compareWithMain = null, settleOnMainReceipt = false } = {}) {
   const { db } = board;
   const main = db.prepare('SELECT job_base FROM job WHERE job_id = ?').get(mainTest)?.job_base;
   // The keyed main receipt is step 0; a runner's own posts sit above it.
@@ -1024,7 +1032,8 @@ export function settleWaitingGates(board, mainTest, { compareWithMain = null } =
   const settled = [];
   // Any base: the lookup finds this receipt for a gate on an earlier main where the file is unchanged, and skips the rest (#6333).
   for (const { job_id: job, job_item: item, job_base } of db.prepare("SELECT job_id, job_item, job_base FROM job WHERE job_kind = 'gate' AND job_item IS NOT NULL ORDER BY job_created DESC, rowid DESC LIMIT 300").all()) {
-    const receipt = postedReceipt(db, job)?.receipt;
+    const posted = postedReceipt(db, job)?.receipt;
+    const receipt = settleOnMainReceipt && posted?.gate?.proofPlan ? shardedResult(db, job, posted) : posted;
     const gate = receipt?.gate;
     if (!gate || gate.proofPlan || (receipt.status === 0 && gate.green === true) || latestGateJob(db, item) !== job) continue;
     if (!(gate.phases ?? []).some(phase => phase.status !== 0 && ((phase.failures ?? []).some(row => row?.file === file) || (phase.failedFiles ?? []).includes(file)))) continue;
@@ -1034,13 +1043,27 @@ export function settleWaitingGates(board, mainTest, { compareWithMain = null } =
     if (compared ? compared.cases.some(row => row.onMain === null) : !byFile || byFile.unavailable || byFile.files.some(row => row.result === null)) continue;
     // The main-test receipt is already recorded, so a throw here would strand the item claimed with no word on its thread:
     // an uncoded error is recorded as this re-apply's refusal instead, and the next waiting gate still settles (#7495).
-    try { if (applyGateReceipt(board, { job, receipt }, { compareWithMain }).applied) settled.push(job); }
+    try {
+      const applied = applyGateReceipt(board, { job, receipt }, { compareWithMain });
+      if (applied.applied) settled.push(job);
+      // The settled result is named on the thread under the submitting seat, as the gate's own result is, so show says no resubmit was needed [C7,#9057].
+      const agentId = offeredGate(db, job)?.submit?.agentId;
+      if (settleOnMainReceipt && agentId && ['review', 'red'].includes(applied.outcome)) store.appendFact(board, item, { agentId, kind: 'measurement',
+        text: `Gate job ${job} settled ${applied.outcome === 'review' ? 'green' : 'red'} when main-test job ${mainTest} recorded main's receipt for ${file}; judged from the item's recorded run, with no new submit.`.slice(0, 2000) });
+    }
     catch (error) {
       const why = error?.code ? `${error.code}: ${error.message}` : `GATE_REAPPLY_FAILED: ${error?.name ?? 'Error'}: ${error?.message ?? String(error)}`;
       store.appendFact(board, item, { agentId: 'coordinator', kind: 'note', text: `Gate job ${job} was not re-applied after main-test job ${mainTest} recorded: ${why}; next: submit again`.slice(0, 2000) });
     }
   }
   return settled;
+}
+
+/** A sharded gate's combined receipt once every shard job is done, as its last shard applied it; null while any is open. */
+function shardedResult(db, job, gateReceipt) {
+  const shards = shardJobs(db, job);
+  if (!shards.length || shards.some(row => row.job_step !== 'done')) return null;
+  return combinedReceipt(gateReceipt, shards.map(row => ({ job: row.job_id, posted: postedReceipt(db, row.job_id) })), { signatures: true });
 }
 
 /** Shout the coordinator once that one job was claimed 3 times within 60 s, naming the job and its runners (#7445). */

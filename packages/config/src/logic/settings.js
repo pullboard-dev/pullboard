@@ -169,11 +169,17 @@ export function loadMachineSettings() {
   if (value.gate?.endStaleJobs !== undefined && typeof value.gate.endStaleJobs !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.endStaleJobs in ${file} must be true or false`);
   }
+  if (value.gate?.settleOnMainReceipt !== undefined && typeof value.gate.settleOnMainReceipt !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.settleOnMainReceipt in ${file} must be true or false`);
+  }
   if (value.tests?.registryStrict !== undefined && typeof value.tests.registryStrict !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `tests.registryStrict in ${file} must be true or false`);
   }
   if (value['runners.yieldWhilePruning'] !== undefined && typeof value['runners.yieldWhilePruning'] !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `runners.yieldWhilePruning in ${file} must be true or false`);
+  }
+  if (value.census?.balanceByTime !== undefined && typeof value.census.balanceByTime !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `census.balanceByTime in ${file} must be true or false`);
   }
   if (value.moves?.shadow !== undefined && typeof value.moves.shadow !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `moves.shadow in ${file} must be true or false`);
