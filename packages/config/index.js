@@ -85,6 +85,7 @@ export {
   mainComparisonMode,
   submitAuthorizationMode,
   refuseMissingCheckFile,
+  addWarnUnnamedTest,
   holdsRequireOwner,
   nextItemNotices,
   refuseTempWorktree,

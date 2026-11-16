@@ -340,6 +340,11 @@ export function lapsedSweepEnabled() {
   return loadMachineSettings().health?.lapsedSweep === true;
 }
 
+/** Whether add.warnUnnamedTest is on (#9303): off by default; only an exact `true` turns it on. */
+export function addWarnUnnamedTest() {
+  return loadMachineSettings().add?.warnUnnamedTest === true;
+}
+
 /**
  * Whether an item hold must name an owner and records a deadline (#8539): off by default, so holds are unchanged; only an
  * exact `true` turns it on.
