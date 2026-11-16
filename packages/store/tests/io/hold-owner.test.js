@@ -31,11 +31,10 @@ function heldBoard(t) {
 
 test('clause 1: holdItem stores an owner and a deadline one day out when holds.requireOwner is on [C7,#8539]', t => {
   const { board, id } = heldBoard(t);
-  const before = Date.parse(store.now(board));
-  store.holdItem(board, id, { agentId: 'coordinator', requireOwner: true, reason: 'wait for the design', owner: 'lane:web' });
+  const held = store.holdItem(board, id, { agentId: 'coordinator', requireOwner: true, reason: 'wait for the design', owner: 'lane:web' });
   const record = store.itemHoldOwner(board, id);
   assert.equal(record.owner, 'lane:web');
-  assert.equal(Date.parse(record.deadline) - before, DAY);
+  assert.equal(Date.parse(record.deadline) - Date.parse(held.item_hold_at), DAY);
   assert.throws(() => store.holdItem(board, id, { agentId: 'coordinator', reason: 'no owner named', requireOwner: true }), error => error.code === 'HOLD_OWNER_REQUIRED');
   store.releaseItemHold(board, id, { agentId: 'coordinator' });
   assert.equal(store.itemHoldOwner(board, id), null, 'lifting the hold forgets its owner');
