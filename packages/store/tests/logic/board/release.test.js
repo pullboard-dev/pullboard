@@ -55,3 +55,19 @@ test('clause 3: two BLOCKED releases with no infrastructure cause still hold the
   f.claim(f.second); store.release(f.board, f.id, f.second, '', 'BLOCKED');
   assert.match(store.getItem(f.board, f.id).item_hold_reason, /Released twice/u);
 });
+
+test('clause 1: two BLOCKED releases naming a structured blockedOn place no released-twice hold [C7]', t => {
+  const f = fixture(t);
+  const other = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'blocker', criterion: 'prove it', route: 'strong' }); // fixture-subject: addItem
+  f.claim(f.first); store.release(f.board, f.id, f.first, '', { blockedOn: [other] }, 'BLOCKED');
+  f.board.db.prepare('UPDATE item SET item_after=NULL WHERE item_id=?').run(f.id);
+  f.claim(f.second); store.release(f.board, f.id, f.second, '', { blockedOn: [other] }, 'BLOCKED');
+  assert.equal(store.getItem(f.board, f.id).item_hold_reason, null);
+});
+
+test('clause 1: two BLOCKED releases whose note carries an infrastructure code place no released-twice hold [C7]', t => {
+  const f = fixture(t);
+  f.claim(f.first); store.release(f.board, f.id, f.first, 'GATE_INFRA_EXHAUSTED on the runner', 'BLOCKED');
+  f.claim(f.second); store.release(f.board, f.id, f.second, 'DATABASE_LOCKED twice', 'BLOCKED');
+  assert.equal(store.getItem(f.board, f.id).item_hold_reason, null);
+});
