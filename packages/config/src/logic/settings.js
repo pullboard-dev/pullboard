@@ -253,6 +253,9 @@ export function loadMachineSettings() {
   if (value.next?.itemNotices !== undefined && typeof value.next.itemNotices !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `next.itemNotices in ${file} must be true or false`);
   }
+  if (value.gate?.namedImportSelection !== undefined && typeof value.gate.namedImportSelection !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.namedImportSelection in ${file} must be true or false`);
+  }
   if (value.list?.thinRead !== undefined && typeof value.list.thinRead !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `list.thinRead in ${file} must be true or false`);
   }
@@ -338,6 +341,14 @@ export function healthDiskFloorGb() {
 /** Whether pullboard list reads through the thin read door (#9089): off by default; only an exact `true` turns it on. */
 export function listThinRead() {
   return loadMachineSettings().list?.thinRead === true;
+}
+
+/**
+ * Whether affected-test selection follows named imports through a re-exporting door: gate.namedImportSelection, default off.
+ * Why: one door re-exporting a changed module selected every test that imports the door, whatever name it took [C7].
+ */
+export function namedImportSelectionOn() {
+  return loadMachineSettings().gate?.namedImportSelection === true;
 }
 
 
