@@ -33,6 +33,7 @@ import { pulledShardCount } from '../../logic/census.js';
 import { finalStatus } from '../../logic/census.js';
 import { parseShardHeader } from '../../logic/census.js';
 import { shardRows } from '../../logic/census.js';
+import { FILE_CASE_LINE } from '../../logic/census.js';
 import { verdictOutcomes } from '../../logic/census.js';
 import { pulledTimeLines } from '../../logic/census.js';
 import { censusPlan } from '../../logic/census.js';
@@ -83,7 +84,7 @@ function pulledCensus(ctx, io, values = {}) {
         const ran = await runPulledComparison(ctx, { commit, main, command: shell, files: shard.files, runId: randomUUID(), ...fileBudgetField(values) });
         write(`# landing shard ${label} attempt 1 on ${ran.runner ?? 'pulled'}: ${ran.green ? 'green' : 'red'} in ${Date.now() - started} ms\n`);
         // The receipt's tail is clipped, so each file's own time line comes from the runner's whole-output record [C7,#8576].
-        const timed = pulledTimeLines(ran.times, FILE_TIME_LINE);
+        const timed = pulledTimeLines(ran.times, FILE_TIME_LINE) + pulledTimeLines(ran.caseMs, FILE_CASE_LINE);
         write(`${formatTestOutcomes(randomUUID(), ran.outcomes ?? verdictOutcomes(ran.verdicts) ?? [])}${timed}${ran.output}\n`);
       } catch (error) {
         io.err(`pullboard test --census: shard ${label} got no answer: ${error?.message ?? error}`);
