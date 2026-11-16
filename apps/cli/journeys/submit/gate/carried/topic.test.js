@@ -4,8 +4,8 @@
  */
 import assert from 'node:assert/strict';
 import {
-  runFixtureChild,
-} from '../../../../tests/fixtures/child.js';
+  pathToFileURL,
+} from 'node:url';
 import {
   appendFileSync,
   readFileSync,
@@ -63,10 +63,8 @@ describe('submit gate cases carried by a topic parent or a merge commit run toge
         commitAll(box, 'feat(core): resolve merged source [G1]');
       } else box.git('merge', '--no-ff', '-q', 'topic', '-m', 'feat(core): merge topic source [G1]');
       assert.equal(box.git('rev-list', '--parents', '-n', '1', 'HEAD').split(' ').length, 3, 'the candidate really has two parents');
-      // Process-level: the unchanged importer runs under its own node --test, not the CLI.
-      const standalone = runFixtureChild(process.execPath, ['--test', 'test/a.test.js'], { cwd: box.root, env: box.env, encoding: 'utf8' });
-      assert.equal(standalone.status, 1, 'the unchanged importer detects the merged source regression');
-      assert.match(standalone.stdout, /ERR_ASSERTION/u);
+      // The unchanged importer runs on its own, outside submit: importing it evaluates its assertion against the merged source.
+      await assert.rejects(import(pathToFileURL(join(box.root, 'test/a.test.js')).href), { code: 'ERR_ASSERTION' }, 'the unchanged importer detects the merged source regression');
       rmSync(marker);
       const refused = await submitSettled(t, box, (...args) => runLocal(box, ...args));
       assert.equal(refused.code, 1, refused.out || refused.err);
