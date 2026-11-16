@@ -119,6 +119,7 @@ const BEFORE = {
   'relay.offerAtInit': true,
   'relay.pruneReceipts': false,
   'relay.push': false,
+  'release.rerouteUntouched': false,
   'review.canonicalFamilies': false,
   'review.relaxRequiredFamily': false,
   'review.releaseReasons': false,
