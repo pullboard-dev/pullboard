@@ -213,7 +213,10 @@
     "launch": 1
   },
   "apps/cli/journeys/hooks/main.test.js": {
-    "launch": 4
+    "launch": 1
+  },
+  "apps/cli/journeys/hooks/drafts.test.js": {
+    "launch": 3
   },
   "apps/cli/journeys/relay/canary/ack.test.js": {
     "launch": 1
