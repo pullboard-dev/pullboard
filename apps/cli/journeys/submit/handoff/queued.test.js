@@ -51,7 +51,6 @@ test('queued submit returns before its gate and remains bound when the builder c
   const secondQueued = document(await box.runLocal(box.web, 'submit', String(box.second), '--no-next', '--json'));
   assert.equal(secondQueued.queued, true, 'the second committed item also submits while the first gate is blocked');
   document(await box.runLocal(box.web, 'claim', String(box.third), '--json'));
-  const fourth = document(await fixtureAdd(box.runLocal, box.repo, 'web', 'Fourth ordinary build', '--specs', 'G1', '--criterion', 'One ordinary build at a time.', '--check', 'true', '--accept-green', 'filler build that only holds a fourth claim', '--wait', '--json')).item.item_id;
   document(await box.runLocal(box.web, 'claim', String(fourth), '--json'));
   assert.equal(state(box, fourth).item.item_owner, state(box, box.third).item.item_owner, 'B5 permits several live claims in their own folders');
   assert.equal(gateJob(box).candidate, queued.composed, 'later commits and claims leave the queued gate on its captured source');
