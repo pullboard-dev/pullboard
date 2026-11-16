@@ -8,6 +8,7 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { store } from './gate/moves.js';
+import { redLocationLine } from './gate/where.js';
 import { orderedReceiptMoves } from './gate/moves.js';
 import { phaseReceiptId } from '../../../jobs/index.js';
 import { jobQueueCall } from './jobs.js';
@@ -625,7 +626,7 @@ export function applyGateReceipt(board, posted, ports = {}) {
 }
 
 /** applyGateReceipt's body; its mainPolicy reads fall back to the retained trunk tip while the primary is detached. */
-function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null } = {}) {
+function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null, redLocation = false } = {}) {
   const offered = offeredGate(board.db, job);
   if (!offered || offered.kind !== 'gate' || !Number.isSafeInteger(offered.item)) return { applied: false, outcome: 'not-gate' };
   const { item: id, candidate, main, submit } = offered;
@@ -746,6 +747,9 @@ function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null
       parts = [`submit ${error.code}: ${error.message}`];
     }
   }
+  // With gate.redFactLocation on, a red names the file:line its static checks reported, last so the shout still leads with the first failing part [C7,#9083].
+  const where = !(green || mainOnly || waived) && redLocation === true ? redLocationLine(receipt) : null;
+  if (where) parts.push(where);
   const word = green || mainOnly || waived ? 'passed but not submitted' : unknown ? 'unknown' : 'red';
   store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} ${word} at ${candidate.slice(0, 12)}${unknown ? ' until main\'s missing receipts record' : ''}; failing parts:\n${parts.join('\n')}` });
   // The shout only wakes the builder; the fact above is the record, so a refused shout leaves the red recorded.
@@ -888,17 +892,17 @@ export function provideMainComparison(lookup) {
  *
  * @param {any} board - The open board, gitRoot set to the board host's repository.
  * @param {Record<string, any>} body
- * @param {Parameters<typeof jobQueueCall>[2] & { compareWithMain?: Parameters<typeof compareGateWithMain>[3], landingKey?: () => string | null, ordered?: { operation: string, args: any[] }[] | null, endStale?: boolean, settleOnMainReceipt?: boolean }} options - endStale: gate.endStaleJobs, ends a landed item's open gate jobs (#8816);
+ * @param {Parameters<typeof jobQueueCall>[2] & { compareWithMain?: Parameters<typeof compareGateWithMain>[3], landingKey?: () => string | null, ordered?: { operation: string, args: any[] }[] | null, endStale?: boolean, redLocation?: boolean, settleOnMainReceipt?: boolean }} options - endStale: gate.endStaleJobs, ends a landed item's open gate jobs (#8816);
  *   settleOnMainReceipt: gate.settleOnMainReceipt, settles sharded gates left unknown when main's receipt records (#9057); compareWithMain:
  *   main's receipt lookup for a red gate's cases; the one provided to this process by default. landingKey: the board's
  *   landing key, which signs a land job's permit for the trunk guard (#5848); the board host's key file by default.
  *   ordered: on a relay-linked board, the list a receipt's engine moves go onto instead of this replica's store, for
  *   the caller to order through the relay (#7562); null applies them here, as on a local board.
  */
-export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, endStale = false, settleOnMainReceipt = false, ...options }) {
+export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, endStale = false, redLocation = false, settleOnMainReceipt = false, ...options }) {
   // Queued main-test jobs are offered before each claim, so a free runner takes one in the same call (#6063).
   if (body?.action === 'claim' && options.mode === 'pull') offerMainTests(board, { now: options.now });
-  const answer = jobQueueCall(board.db, body, { onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain, ordered, endStale, settleOnMainReceipt }) });
+  const answer = jobQueueCall(board.db, body, { onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain, ordered, endStale, redLocation, settleOnMainReceipt }) });
   return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
 }
 
