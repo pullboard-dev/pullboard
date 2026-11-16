@@ -5,6 +5,7 @@ import { JSON_SHAPES } from '../../../../../packages/config/index.js';
 import { resultCommands } from '../../../index.js';
 import { addRoot } from '../../../tests/fixtures/catalog/cases.js';
 import { catalogCases } from '../../../tests/fixtures/catalog/cases.js';
+import { catalogGroups } from '../../../tests/fixtures/catalog/cases.js';
 import { coveredRoots } from '../../../tests/fixtures/catalog/cases.js';
 import { declaredRun } from '../../../tests/fixtures/catalog/cases.js';
 
@@ -38,4 +39,16 @@ test('clause 2: a catalog case fails if it adds a root it did not declare [A1,C7
     await declaredRun(['init'], async () => { addRoot('init'); })();
     await assert.rejects(declaredRun(['init'], async () => { addRoot('init'); addRoot(probe); }), new RegExp(probe, 'u'));
   } finally { coveredRoots.delete(probe); }
+});
+
+test('clause 1: every catalog case appears in exactly one of the four groups exported from cases.js [A1,C7,#9675]', () => {
+  assert.deepEqual(Object.keys(catalogGroups).sort(), ['commands', 'exercises', 'lanes', 'results'], 'four groups, one per run file');
+  const grouped = Object.values(catalogGroups).flat().map(({ name }) => name);
+  assert.deepEqual([...grouped].sort(), catalogCases.map(({ name }) => name).sort(), 'the groups hold every case once and nothing else');
+  assert.equal(new Set(grouped).size, grouped.length, 'no case sits in two groups');
+});
+
+test('clause 1: no catalog case name repeats, so a group lists each case by name unambiguously [A1,C7,#9675]', () => {
+  const names = catalogCases.map(({ name }) => name);
+  assert.equal(new Set(names).size, names.length);
 });
