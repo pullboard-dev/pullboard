@@ -158,11 +158,24 @@ export function openRunsStore(file, { boardId }) {
  * @returns {ReturnType<typeof runsPort> | null}
  */
 export function boardRunsPort(board, boardFile) {
+  const holder = boardRunsHolder(board, boardFile);
+  return holder ? runsPort(holder) : null;
+}
+
+/**
+ * The holder of the board's runs handle, or null while the flag is off: `holder.db` opens the runs file on first use and is
+ * the same handle after. Why: a machine-local driver keeps the board db for item reads and sends its job rows to this handle [P7,#9080].
+ *
+ * @param {{ db: import('node:sqlite').DatabaseSync }} board - An open board.
+ * @param {string} boardFile - The board's file path.
+ * @returns {{ readonly db: import('node:sqlite').DatabaseSync } | null}
+ */
+export function boardRunsHolder(board, boardFile) {
   if (!runsStoreOn(board.db)) return null;
   const boardId = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key = 'board_id'").get()?.meta_value;
   let runs = null;
   const open = () => (runs ??= openRunsStore(runsFilePath(boardFile), { boardId }));
-  return runsPort({ get db() { return open(); } });
+  return { get db() { return open(); } };
 }
 
 /**
