@@ -72,6 +72,7 @@ export {
   submitAuthorizationMode,
   refuseMissingCheckFile,
   holdsRequireOwner,
+  refuseTempWorktree,
   viewBackgroundEnabled,
   healthSentinelEnabled,
   memoryFloorMB,
