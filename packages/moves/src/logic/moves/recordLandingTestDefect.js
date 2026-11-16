@@ -11,7 +11,7 @@ function minimumEngine(args, board, at) {
   if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('conflict:')) return RIGOR_AUTO_ENGINE;
   return LANDING_ENVIRONMENT_ENGINE;
 }
-import { LANDING_NEXT } from "../table/landing.table.js";
+import { LANDING_NEXT } from "../table/next.js";
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */
 function actor(move) { return move.args[0]?.agentId ?? null; }

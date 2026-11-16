@@ -13,7 +13,7 @@ import { firstRefusal } from "../../../../store/browser.js";
 import { REOPEN_FIRST_REFUSAL_ENGINE } from "../../../../state/light.js";
 import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
-import { RELEASE_NEXT } from "../table/release.table.js";
+import { RELEASE_NEXT } from "../table/next.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function existingEngine(args, board, at) {

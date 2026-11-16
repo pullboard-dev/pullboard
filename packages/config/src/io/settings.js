@@ -70,9 +70,9 @@ export function tableReplayEnabled() {
   return loadMachineSettings().gate?.tableReplay === true;
 }
 
-/** Write gate hops through the fenced, compare-and-set hop row only when this machine opted in [C7,#8269]. */
+/** Write gate hops through the fenced, compare-and-set hop row unless this machine turned it off [C7,#8269,#8327]. */
 export function fencedHopEnabled() {
-  return loadMachineSettings().gate?.fencedHop === true;
+  return loadMachineSettings().gate?.fencedHop !== false;
 }
 
 /** Fail the registry check on an unregistered test only when this machine opted in; off, it reports [C7,#8374]. */
@@ -114,6 +114,14 @@ export function setGateRunnersOnly(enabled) {
     writeMachineSettings(next);
   } });
   return next;
+}
+
+/**
+ * The most seconds-worth of non-test time one runner trip may take before gate receipts report it, in milliseconds.
+ * Why 10 s: the warm trip measured on 15 Nov costs about 7 s, so the default is that plus about 40% margin for load.
+ */
+export function gateTripOverheadBudgetMs() {
+  try { return loadMachineSettings().gate?.tripOverheadBudgetMs ?? 10_000; } catch { return 10_000; }
 }
 
 /** Capture the runner wait deadline for a new run; later requeues retain that deadline. */
