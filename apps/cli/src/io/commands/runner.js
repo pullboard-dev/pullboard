@@ -37,8 +37,8 @@ import { boardKeyFile } from '../../../../../packages/config/index.js';
 import { existsSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
-import { issueRunnerKey } from '../../../../../packages/transport/index.js';
-import { revokeRunnerKey } from '../../../../../packages/transport/index.js';
+import { issueRunnerKey } from '../../../../../packages/runners/index.js';
+import { revokeRunnerKey } from '../../../../../packages/runners/index.js';
 import {
   computeRunnerSlots,
   effectiveRunner,
