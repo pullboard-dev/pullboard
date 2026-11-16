@@ -10,6 +10,7 @@ function schema(base) {
   return {
     ...shape(base),
     submit: { ...shape(base.submit), ...fields(['handoff']) },
+    seat: fields(['checkpoints']),
     spec: fields(['file', 'agentApproval']),
     flakes: fields(['rerun', 'quarantine']),
     rigor: fields(['budget', 'autoDraft']),
