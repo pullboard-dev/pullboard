@@ -157,6 +157,8 @@ const ROWS = [
   ['claims.releaseCooldownMinutes', 'Release cooldown', 'After a seat releases an item, next offers it other work for this many minutes unless nothing else is open.', 'Claims', 'minutes'],
   ['claims.itemsInGate', 'Build beside the gate', 'On, a seat keeps claiming and editing while its items wait in the gate.', 'Claims', 'on/off'],
   ['claims.itemsInGateMax', 'Items in the gate', 'Most gate-waiting items per seat.', 'Claims', 'count'],
+  ['queue.contention', 'Steer next away from hot files', 'On, next starts the least contended ready item of equal priority and makes an item wait when its files are in flight elsewhere; off, next orders ready items as before.', 'Claims', 'on/off'],
+  ['queue.contentionThreshold', 'Contention score that waits', 'With queue.contention on, an item whose score (file conflict rate times changes in flight on it) passes this waits.', 'Claims', 'count'],
   ['claims.perSeat', 'Live claims per seat', 'How many build claims one seat may hold at once; blank lets the board set N = clamp(1, 5, floor(free test-run slots / live seats)), counting local cores when no runner serves.', 'Claims', 'count'],
   ['claims.releaseGone', 'Release claims of gone agents', 'Claims held by agents that have disappeared are released automatically.', 'Claims', 'on/off'],
   ['pin.signed', 'Require a signed tooling pin', 'On, no run uses a tooling pin file that is unsigned or edited after it was signed; off, the pin file is read as written.', 'Checks', 'on/off'],

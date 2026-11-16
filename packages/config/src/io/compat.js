@@ -18,6 +18,7 @@ function schema(base) {
     checks: fields(['provesNothing']),
     withdraw: fields(['review', 'refuseLanded']),
     claims: { ...shape(base.claims), ...fields(['perSeat']) },
+    queue: fields(['contention', 'contentionThreshold']),
     publish: fields(['pullRequest']),
     pushReceiptCheck: fields(['smoke']),
     landing: { ...fields(['publish', 'timeout', 'stall', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'shardProof', 'landedFromMain', 'first', 'auditOnly', 'splitRed', 'trunkRemote']),
