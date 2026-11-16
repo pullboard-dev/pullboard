@@ -398,21 +398,22 @@ function chromeLaunchingTests(repository) {
   const target = (importer, request) => [request, `${request}.js`, `${request}.mjs`]
     .map(candidate => join(dirname(importer), candidate)).find(candidate => modules.has(candidate));
   const launches = path => !['apps/cli/tests/fixtures/chrome.js', 'apps/cli/tests/fixtures/cockpit/harness.js'].includes(path) && launchers.has(path);
-  return [...modules].filter(path => /\.test\.m?js$/u.test(path)).filter(test => {
-    const seen = new Set();
-    const stack = [test];
-    while (stack.length) {
-      const path = stack.pop();
-      if (seen.has(path)) continue;
-      seen.add(path);
-      if (launches(path)) return true;
-      for (const request of requests.get(path) ?? []) {
-        const next = target(path, request);
-        if (next) stack.push(next);
-      }
+  // Walk the import graph once, backwards from every launcher, instead of once per test file: the same files are found in a fraction of the time.
+  const importers = new Map();
+  for (const [importer, list] of requests) {
+    for (const request of list) {
+      const next = target(importer, request);
+      if (next) importers.set(next, [...importers.get(next) ?? [], importer]);
     }
-    return false;
-  }).sort();
+  }
+  const reaching = new Set([...modules].filter(launches));
+  const stack = [...reaching];
+  while (stack.length) {
+    for (const importer of importers.get(stack.pop()) ?? []) {
+      if (!reaching.has(importer)) { reaching.add(importer); stack.push(importer); }
+    }
+  }
+  return [...modules].filter(path => /\.test\.m?js$/u.test(path) && reaching.has(path)).sort();
 }
 
 test('clause 4: every test file that launches Chrome on main carries the browser declaration [C7]', async () => {
