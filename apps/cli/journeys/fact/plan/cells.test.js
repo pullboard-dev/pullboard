@@ -27,7 +27,9 @@ import { stalePlanRows } from '../../../../../packages/codemap/src/io/cells/scri
 import { orphanCutEdges } from '../../../../../packages/codemap/src/io/cells/scripts/plan.js';
 import { importCuts } from '../../../../../packages/codemap/index.js';
 import { writePlan } from '../../../../../packages/codemap/index.js';
-import { runFixtureChild } from '../../../tests/fixtures/child.js';
+import { journeyCall } from '../../../tests/fixtures/e2e.js';
+import { serializeInProcess } from '../../../tests/fixtures/process.js';
+import { main as planMain } from '../../../../../packages/codemap/src/io/cells/scripts/plan.js';
 import { fixture } from '../../../../../packages/landing/tests/fixtures/plan.js';
 import {
   mechanicalConflictFiles,
@@ -39,6 +41,24 @@ import { git } from '../../../../../packages/landing/tests/fixtures/plan.js';
 const ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
 const BIN = fileURLToPath(new URL('../../../../../packages/codemap/src/io/cells/scripts/plan.js', import.meta.url));
 const PLAN = readPlan(ROOT);
+
+/**
+ * One plan.js command in a fixture repo, answered in this process (its main(), with the folder and console swapped for the call) or, under
+ * PULLBOARD_JOURNEY_MODE=process, as the real script, so the gate's parity check can compare the two. A throw answers status 1 with the error
+ * text on stderr, as an uncaught throw does in a real process [C7].
+ */
+function planCommand(root, ...args) {
+  return journeyCall({ dir: root, env: process.env, cwd: root, args, bin: BIN, inProcess: () => serializeInProcess(() => {
+    const [directory, log, error] = [process.cwd(), console.log, console.error];
+    let stdout = '', stderr = '', status = 0;
+    console.log = (...parts) => { stdout += `${parts.join(' ')}\n`; };
+    console.error = (...parts) => { stderr += `${parts.join(' ')}\n`; };
+    try { process.chdir(root); status = planMain(args) ?? 0; } catch (failure) { status = 1; stderr += `${failure.stack ?? failure}\n`; } finally {
+      process.chdir(directory); [console.log, console.error] = [log, error];
+    }
+    return { status, stdout, stderr };
+  }) });
+}
 
 /** Map every file the plan names, at its old path, its target or its committed path-map path, to its cell. */
 function cellIndex(plan, map) {
@@ -146,7 +166,7 @@ test('a plan built from real files orders leaves first, cuts the cycle and place
   assert.ok(dependent && dependent.args[dependent.args.indexOf('--after') + 1].split(',').includes('7001'), 'a later cell waits on the filed id');
 });
 
-test('a move item\'s frozen check passes only when the cell moved behind shims [D3,CD60]', t => {
+test('a move item\'s frozen check passes only when the cell moved behind shims [D3,CD60]', async t => {
   const { root, put } = fixture(t);
   put('package.json', JSON.stringify({ type: 'module', bin: 'bin/tool.js' }));
   const plan = computePlan(root);
@@ -159,9 +179,9 @@ test('a move item\'s frozen check passes only when the cell moved behind shims [
   assert.match(checkMoved(root, plan, 'kernel').join('\n'), /src\/refused\.js still holds code/u, 'code left at the old path fails');
   put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\n");
   assert.deepEqual(checkMoved(root, plan, 'kernel'), [], `${kernel.name} moved behind a shim`);
-  const run = runFixtureChild(process.execPath, [BIN, '--moved', 'kernel'], { cwd: root, encoding: 'utf8' });
+  const run = await planCommand(root, '--moved', 'kernel');
   assert.equal(run.status, 0, run.stderr);
-  const unknown = runFixtureChild(process.execPath, [BIN, '--moved', 'nowhere'], { cwd: root, encoding: 'utf8' });
+  const unknown = await planCommand(root, '--moved', 'nowhere');
   assert.notEqual(unknown.status, 0);
   assert.match(unknown.stderr, /CELLS_PLAN_CELL/u);
 });
@@ -236,7 +256,7 @@ test('codemap providers are required and source advance retains its real raw clo
 });
 
 
-test('cut metadata refresh preserves frozen moves and records only current real source edges [D3,CD64]', t => {
+test('cut metadata refresh preserves frozen moves and records only current real source edges [D3,CD64]', async t => {
   const { root, put } = fixture(t), plan = computePlan(root);
   const early = plan.cells.find(cell => cell.name === 'kernel'), later = plan.cells.find(cell => cell.name === 'stats');
   const before = structuredClone(plan);
@@ -246,7 +266,7 @@ test('cut metadata refresh preserves frozen moves and records only current real 
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'new actual source edge');
   const { edges } = cellInventory(root, { importsIn, commonJsIn });
   const refreshed = refreshPlanCuts(plan, edges, readPathMap(root));
-  const run = runFixtureChild(process.execPath, [BIN, '--refresh-cuts'], { cwd: root, encoding: 'utf8' });
+  const run = await planCommand(root, '--refresh-cuts');
   assert.equal(run.status, 0, run.stderr);
   assert.deepEqual(readPlan(root).cells, refreshed.cells, 'the real generator command writes the exact bounded refresh');
   assert.deepEqual(plan, before, 'the reader does not mutate its input');
@@ -269,14 +289,14 @@ test('cut metadata refresh preserves frozen moves and records only current real 
 });
 
 
-test('cut refresh refuses a newly tracked unplanned endpoint without changing any plan bytes [C7,D3,CD64]', t => {
+test('cut refresh refuses a newly tracked unplanned endpoint without changing any plan bytes [C7,D3,CD64]', async t => {
   const { root, put } = fixture(t), plan = computePlan(root);
   writePlan(root, plan);
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'frozen fixture plan');
   put('src/unplanned-provider.js', 'export const provider = 1;\n');
   put('src/refused.js', "import { provider } from './unplanned-provider.js';\nexport class Refused extends Error {}\n");
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'unplanned real endpoint');
-  const run = runFixtureChild(process.execPath, [BIN, '--refresh-cuts'], { cwd: root, encoding: 'utf8' });
+  const run = await planCommand(root, '--refresh-cuts');
   assert.notEqual(run.status, 0, 'an unowned endpoint cannot silently disappear from refreshed cuts');
   assert.match(run.stderr, /CELLS_PLAN_UNPLANNED.*src\/unplanned-provider\.js/su);
   assert.deepEqual(readPlan(root), plan, 'refusal preserves the exact prior plan');
