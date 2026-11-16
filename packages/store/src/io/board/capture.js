@@ -14,11 +14,13 @@ const CAPTURES = new AsyncLocalStorage();
  *
  * @template T
  * @param {() => Promise<T> | T} work
+ * @param {{ onPrepared?: (changeset: Uint8Array, db: import('node:sqlite').DatabaseSync) => void }} [hooks] - `onPrepared` runs inside each
+ *   transaction once its changeset is read and before COMMIT, so a record of the move commits or rolls back with it.
  * @returns {Promise<{ result: T, changes: Uint8Array[] }>}
  */
-export async function captureBoardChanges(work) {
+export async function captureBoardChanges(work, hooks = {}) {
   const changes = [];
-  const context = { changes, active: true };
+  const context = { changes, active: true, onPrepared: hooks.onPrepared };
   return CAPTURES.run(context, async () => {
     try { return { result: await work(), changes }; }
     finally { context.active = false; } // Detached descendants cannot extend an already returned capture.
@@ -39,7 +41,7 @@ export function beginCapture(db) {
   let prepared;
   return {
     // Serialization can fail: do it while the transaction can still roll back.
-    prepare() { prepared = session.changeset(); },
+    prepare() { prepared = session.changeset(); if (prepared.length) into.onPrepared?.(prepared, db); },
     // Only successful COMMIT publishes bytes; a failed COMMIT cannot leak an undone move.
     commit() { if (prepared.length) into.changes.push(prepared); },
     close() { session.close(); },

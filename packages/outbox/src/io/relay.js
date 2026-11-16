@@ -50,6 +50,14 @@ import {
 } from '../../../kernel/index.js';
 import { captureBoardChanges } from '../../../store/index.js';
 import { undoQueued } from './relay/undo.js';
+import {
+  clearRebuild,
+  markRebuild,
+  readRebuildMark,
+  readRemade,
+  rebuildStep,
+  remadeJournal,
+} from './relay/rebuild-journal.js';
 import { shadowOutbox } from './relay/shadow.js';
 import { liveDecision } from './relay/shadow.js';
 import {
@@ -531,11 +539,15 @@ function encodeChanges(changes) {
 async function reapply(link, outbox, entry) {
   const { root, localRecords } = link;
   const { move } = resolveMove(entry, outbox, { local: true });
+  // A stop after this move was made leaves its rows and result on the board, so a restart takes them instead of making it twice (#6728).
+  const done = localRecords(root, (board) => readRemade(board, move.id));
+  if (done) { entry.changes = done.changes; entry.sequences = done.sequences; return done.result ?? null; }
   entry.sequences = localRecords(root, rowCounters);
+  const made = { result: null };
   const applied = await captureBoardChanges(() => localRecords(root, (board) => {
-    try { return store.atomic(board, () => board.enginePorts.store[move.operation](board, ...executableArgs(move, board))); }
+    try { return store.atomic(board, () => { made.result = board.enginePorts.store[move.operation](board, ...executableArgs(move, board)); return made.result; }); }
     catch (error) { if (!(error instanceof Refused)) throw error; return null; }
-  }));
+  }), remadeJournal(move.id, entry, made));
   entry.changes = encodeChanges(applied.changes);
   return applied.result;
 }
@@ -553,17 +565,33 @@ function takeBack(link, outbox) {
   }
   return localRecords(root, (board) => {
     const cursors = board.db.prepare('SELECT agent_id, agent_last_shout_id FROM agent').all();
-    const problem = undoQueued(board, outbox.moves);
+    const problem = undoQueued(board, outbox.moves, (inside) => markRebuild(inside, outbox));
     if (problem) {
       link.io.err(`pullboard: the queued moves cannot be taken back row for row (${problem}); the board is rebuilt from the relay checkpoint`);
       return false;
     }
     if (appliedSequence(board) !== outbox.baseSequence) {
       link.io.err(`pullboard: taking the queued moves back left the board at relay sequence ${appliedSequence(board)}, not ${outbox.baseSequence}; the board is rebuilt from the relay checkpoint`);
+      clearRebuild(board);
       return false;
     }
     keepNewerCursors(board, cursors);
     return true;
+  });
+}
+
+/**
+ * Reconcile an outbox whose base is behind the receipts its own board holds: a rebuild by an older version stopped after
+ * applying the relay's records. Moves with receipts were ordered, so the settle step answers them; the rest are taken
+ * back if the board still holds them, and left as they are if it does not, then made again like any rebuild's tail.
+ * The undo is all or nothing, so a board that lost them changes nothing; a part-made tail is for the recovery script.
+ */
+function reconcileBehind(link, outbox) {
+  link.localRecords(link.root, (board) => {
+    const cursors = board.db.prepare('SELECT agent_id, agent_last_shout_id FROM agent').all();
+    const tail = outbox.moves.filter((entry) => !engineReceipt(board, entry.move.id) && Array.isArray(entry.changes) && Array.isArray(entry.sequences));
+    if (undoQueued(board, tail, (inside) => markRebuild(inside, outbox)) !== null) markRebuild(board, outbox);
+    keepNewerCursors(board, cursors);
   });
 }
 
@@ -672,6 +700,7 @@ async function rebuild(link, key, pulled) {
   const outbox = await readOutbox(where, key, state.board);
   if (!outbox?.moves.length) {
     removeOutbox(where);
+    localRecords(root, clearRebuild);
     saveOutboxSummary(link, null);
     return false;
   }
@@ -679,10 +708,22 @@ async function rebuild(link, key, pulled) {
   // Nothing new from the relay: the board already shows the base and every queued move on top.
   if (!pulled.checkpoint && !pulled.events.length && outbox.restored !== true) return true;
   // Back to the relay's order: the relay's checkpoint, an older outbox's image, or the queued moves taken back.
-  if (pulled.checkpoint) restoreBase(link, pulled.checkpoint.native, pulled.checkpoint.sequence);
-  else if (outbox.base) restoreBase(link, outbox.base, outbox.baseSequence);
-  else if (!takeBack(link, outbox)) return 'checkpoint';
-  await link.applyRecords(root, key, state, pulled.events);
+  // Each step leaves its record on the board, so a stop at any step resumes where it was (#6728).
+  const mark = localRecords(root, readRebuildMark);
+  const behind = localRecords(root, appliedSequence) > outbox.baseSequence;
+  if (mark && mark.from !== outbox.baseSequence) { // The outbox was rewritten, then the stop came before the marker cleared.
+    localRecords(root, clearRebuild);
+    return true;
+  }
+  if (pulled.checkpoint) { restoreBase(link, pulled.checkpoint.native, pulled.checkpoint.sequence); localRecords(root, clearRebuild); }
+  else if (outbox.base) { restoreBase(link, outbox.base, outbox.baseSequence); localRecords(root, clearRebuild); }
+  // A board whose receipts run past the outbox's base is reconciled from them, not refused (#6728).
+  else if (!mark && behind) reconcileBehind(link, outbox);
+  else if (!mark && !takeBack(link, outbox)) return 'checkpoint';
+  rebuildStep('undo');
+  const applied = localRecords(root, appliedSequence);
+  await link.applyRecords(root, key, state, pulled.events.filter((event) => event.event_id > applied));
+  rebuildStep('apply');
   state.sequence = localRecords(root, appliedSequence);
   outbox.results ??= {};
   const waiting = [];
@@ -694,6 +735,7 @@ async function rebuild(link, key, pulled) {
     settle(link, outbox, entry, receipt);
   }
   outbox.moves = [];
+  rebuildStep('settle');
   for (const entry of waiting) {
     const { lost } = resolveMove(entry, { ...outbox, moves: waiting });
     // A move on an item whose add was refused is refused itself; sent, it would act on another item.
@@ -711,6 +753,7 @@ async function rebuild(link, key, pulled) {
   outbox.restored = false;
   if (!outbox.moves.length) {
     removeOutbox(where);
+    localRecords(root, clearRebuild);
     saveOutboxSummary(link, null);
     saveLink(file, state);
     return false;
@@ -723,8 +766,11 @@ async function rebuild(link, key, pulled) {
     for (const { item: was, resultPath } of shown) {
       noteRenumbered(link, was, entryCreatedItems(entry).find((row) => JSON.stringify(row.resultPath) === JSON.stringify(resultPath))?.item);
     }
+    rebuildStep('reapply');
   }
   await writeOutbox(where, key, state.board, outbox);
+  rebuildStep('write');
+  localRecords(root, clearRebuild);
   saveOutboxSummary(link, outbox);
   saveLink(file, state);
   return true;
