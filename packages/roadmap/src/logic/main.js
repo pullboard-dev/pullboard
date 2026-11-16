@@ -6,6 +6,7 @@ import {
 } from 'node:path';
 import {
   codeIsFromMain,
+  mainLandedReader,
   repoInfo,
   withProjectGitTimeout,
 } from "../../../git/index.js";
@@ -13,6 +14,18 @@ import { workProgress } from './progress.js';
 import { itemProgress } from './progress.js';
 import { isLanded } from './progress.js';
 import { milestoneReferencesToRemove } from "./milestones.js";
+
+/**
+ * The landed-fact reader for this repository: git main when landing.landedFromMain is on, else null (the recorded merge).
+ *
+ * @param {string} root
+ * @param {{ landing?: { landedFromMain?: boolean } }} [config]
+ * @param {{ reader?: (root: string) => ((commit: string) => boolean) | null }} [ports] - the git reader, replaceable in a test.
+ * @returns {((commit: string) => boolean) | null}
+ */
+export function landedOnMain(root, config, { reader = mainLandedReader } = {}) {
+  return config?.landing?.landedFromMain === true ? reader(root) : null;
+}
 
 /** Require explicit board readers before resolving local or foreign roadmap state. */
 function roadmapPorts(ports, names) {
@@ -63,7 +76,7 @@ export async function withdrawWithMilestones(ctx, board, me, id, reason, ordered
 /** Resolve a repo-qualified milestone item against registered boards, optionally within an API scope.
  * @param {string} root
  * @param {any} board
- * @param {{ projects?: () => any[], hideOutOfScope?: boolean }} [options]
+ * @param {{ projects?: () => any[], hideOutOfScope?: boolean, landedFromMain?: boolean }} [options] - landedFromMain: landing.landedFromMain, read the landed fact from git main.
  * @returns {any[]}
  */
 export function milestoneRoadmap(root, board, options = {}) {
@@ -98,7 +111,7 @@ export function milestoneRoadmap(root, board, options = {}) {
     }
   };
   // One landed fact [C7]: a main reader in the ports makes milestone entries and item progress read the commit on main.
-  const onMain = typeof ports.onMain === 'function' ? ports.onMain : null;
+  const onMain = typeof ports.onMain === 'function' ? ports.onMain : options.landedFromMain === true ? mainLandedReader(root) : null;
   const milestones = roadmap(board, resolveExternal, onMain);
   const progressById = workProgress(board, { onMain });
   const items = new Map(listItems(board, { all: true }).map(item => [item.item_id, item]));

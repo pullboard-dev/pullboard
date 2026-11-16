@@ -7,15 +7,20 @@ let decide = null;
 /** The moves.shadow machine setting, handed in with the table because this cell may not read config. */
 let enabled = () => false;
 
+/** The moves.live.outbox machine setting, handed in with the table for the same reason. */
+let liveEnabled = () => false;
+
 /**
- * Provide the outbox table the writer's shadow decides with, once per process.
+ * Provide the outbox table the writer's shadow and live paths decide with, once per process.
  *
  * @param {((snapshot: object, move: object) => { refused?: object, patch?: { outbox: object } }) | null} table
  * @param {() => boolean} [on] - Reads the moves.shadow machine setting; the shadow stays off without it.
+ * @param {() => boolean} [live] - Reads the moves.live.outbox machine setting; the writer keeps its own rules without it.
  */
-export function provideOutboxTable(table, on = () => false) {
+export function provideOutboxTable(table, on = () => false, live = () => false) {
   decide = typeof table === 'function' ? table : null;
   enabled = typeof on === 'function' ? on : () => false;
+  liveEnabled = typeof live === 'function' ? live : () => false;
 }
 
 /** Whether the writer runs the table at all: a provided table and the setting on. Read once per move, so an off machine pays one call. */
@@ -62,4 +67,21 @@ export function shadowOutbox(link, name, before, after, id) {
     const differs = outboxDiffers(answer, outboxCounts(after));
     link.localRecords(link.root, board => recordShadow(board, 'outbox', id, differs));
   } catch { /* A recording fault leaves the move as the writer made it. */ }
+}
+
+/**
+ * What the outbox table decides for a queue or park when moves.live.outbox is on: null when it is off or no table is provided,
+ * else the table's `{ refused }` or the `{ state }` it names. The table reads the outbox as it stood before the move [C7,#8391].
+ *
+ * @param {'queue' | 'park'} name
+ * @param {object | null | undefined} before - The outbox document before the move.
+ * @returns {{ refused: { code: string, message: string, next?: string } } | { state: string } | null}
+ */
+export function liveDecision(name, before) {
+  let on = false;
+  try { on = decide !== null && liveEnabled() === true; } catch { on = false; }
+  if (!on) return null;
+  const base = before?.baseSequence ?? 0;
+  const answer = decide({ outbox: { ...outboxCounts(before), baseSequence: base, sent: 0, receipted: 0, remade: 0 }, board: { sequence: base } }, { name });
+  return answer.refused ? { refused: answer.refused } : { state: answer.patch.outbox.state };
 }

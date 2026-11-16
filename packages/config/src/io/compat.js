@@ -20,7 +20,7 @@ function schema(base) {
     claims: { ...shape(base.claims), ...fields(['perSeat']) },
     publish: fields(['pullRequest']),
     pushReceiptCheck: fields(['smoke']),
-    landing: { ...fields(['publish', 'timeout', 'stall', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'first', 'auditOnly', 'splitRed', 'trunkRemote']),
+    landing: { ...fields(['publish', 'timeout', 'stall', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'shardProof', 'landedFromMain', 'first', 'auditOnly', 'splitRed', 'trunkRemote']),
       environment: fields(['platform', 'arch', 'node']), cadence: fields(['every', 'accepted']) },
     verify: { ...shape(base.verify), ...fields(['unrelatedTrunkMoves', 'composeAtAdmission', 'familyRelaxAt']) },
     ...fields(['project', 'name', 'submitGate', 'submitDeferAbove', 'landingShards', 'positiveControl',

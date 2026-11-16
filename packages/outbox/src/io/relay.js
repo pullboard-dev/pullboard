@@ -51,6 +51,7 @@ import {
 import { captureBoardChanges } from '../../../store/index.js';
 import { undoQueued } from './relay/undo.js';
 import { shadowOutbox } from './relay/shadow.js';
+import { liveDecision } from './relay/shadow.js';
 import {
   requireKnownCoordinatorHold,
   stampCoordinatorHolder,
@@ -415,6 +416,24 @@ export function outboxGeneration(linkFile) {
   try { return Number(readFileSync(generationFile(linkFile), 'utf8')) || 0; } catch { return 0; }
 }
 
+/**
+ * With moves.live.outbox on, let the outbox table decide a queue or park before the writer changes anything: it refuses with the table's
+ * code and next step, or the state it names is the one the outbox document keeps. Off, or with no table provided, it does nothing and returns false.
+ * Why before the write: the table reads the outbox as it stood, so a refused move leaves the document and its file untouched [C7,#8391].
+ *
+ * @param {'queue' | 'park'} name
+ * @param {object | null | undefined} before - The outbox document before the move.
+ * @param {object} document - The document the writer is about to write; the table's state is recorded on it as `state`.
+ * @returns {boolean} Whether the table decided this move.
+ */
+export function liveOutbox(name, before, document) {
+  const decided = liveDecision(name, before);
+  if (!decided) return false;
+  if (decided.refused) throw new Refused(decided.refused.code, decided.refused.message, decided.refused.next);
+  document.state = decided.state;
+  return true;
+}
+
 /** Count one more queued move. */
 function bumpGeneration(linkFile) {
   writeFileSync(generationFile(linkFile), `${outboxGeneration(linkFile) + 1}\n`, { mode: 0o600 });
@@ -449,6 +468,9 @@ export async function queueMove(link, { operation, args, command, move, error, a
   }
   // `after` is the relay sequence this machine had seen: a refusal at replay names the moves ordered since.
   const wasQueued = outbox.moves.map(row => ({ parked: row.parked }));
+  // With moves.live.outbox on, the outbox table decides this queue before anything is written, and its state is the one kept [C7,#8391].
+  const priorState = outbox.state;
+  const live = liveOutbox('queue', { baseSequence: outbox.baseSequence, moves: wasQueued }, outbox);
   const entry = { move, refs: bindRefs(outbox, move), intent: operationIntent(operation, args), queuedAt: new Date().toISOString(),
     after: Math.max(state.sequence, outbox.baseSequence),
     ...(command ? { command, commandIntent: operationIntent('cli:' + command.cliOperation, command) } : {}) };
@@ -471,6 +493,7 @@ export async function queueMove(link, { operation, args, command, move, error, a
     entry.changes = encodeChanges(applied.changes);
   } catch (refusal) {
     outbox.moves.pop();
+    if (live) { if (priorState === undefined) delete outbox.state; else outbox.state = priorState; }
     if (outbox.moves.length) await writeOutbox(where, key, state.board, outbox);
     else removeOutbox(where);
     saveOutboxSummary(link, outbox);
@@ -478,7 +501,7 @@ export async function queueMove(link, { operation, args, command, move, error, a
   }
   rememberCreatedItems(entry, result);
   await writeOutbox(where, key, state.board, outbox);
-  shadowOutbox(link, 'queue', { baseSequence: outbox.baseSequence, moves: wasQueued }, outbox, move.id);
+  if (!live) shadowOutbox(link, 'queue', { baseSequence: outbox.baseSequence, moves: wasQueued }, outbox, move.id);
   if (!quiet && !OUTBOX_NOTICES.has(io)) {
     OUTBOX_NOTICES.add(io);
     io.err(`pullboard: [${safePauseCode(error)}] ${error.transportFailure ? `the relay did not answer (${error.transportFailure})` : safePauseMessage(error)}; the move is saved on this machine and waits in the relay outbox (${outbox.moves.length} pending); it goes up in order when the relay answers, and pullboard status lists it`);
@@ -764,10 +787,11 @@ async function park(link, key, entry, error) {
     const held = outbox?.moves.find((row) => row.move.id === entry.move.id);
     if (!held) return;
     const wasParked = { baseSequence: outbox.baseSequence, moves: outbox.moves.map(row => ({ parked: row.parked })) };
+    const live = liveOutbox('park', wasParked, outbox);
     held.parked = parked;
     await writeOutbox(where, key, state.board, outbox);
     saveOutboxSummary(link, outbox);
-    shadowOutbox(link, 'park', wasParked, outbox, entry.move.id);
+    if (!live) shadowOutbox(link, 'park', wasParked, outbox, entry.move.id);
   });
   entry.parked = parked;
   link.saveLink(file, state);
