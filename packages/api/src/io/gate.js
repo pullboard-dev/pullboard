@@ -61,9 +61,12 @@ const LEDGER_REQUEST_BYTES = 56 * 1024;
 // Budget: one gate's proof splits into at most 32 shard jobs, so one receipt never floods the queue.
 const MAX_SHARDS = 32;
 
-/** The newest gate job offered for an item, so an older candidate's receipt reads as stale. */
-function latestGateJob(db, item) {
-  return db.prepare("SELECT job_id FROM job WHERE job_kind = 'gate' AND job_item = ? ORDER BY job_created DESC, rowid DESC LIMIT 1").get(item)?.job_id ?? null;
+/**
+ * The newest gate job offered for an item, so an older candidate's receipt reads as stale.
+ * runs: the board's runs holder (boardRunsHolder) while runs_store is on, so the job rows are read from the runs file; null reads the board's [B2,P7,#9149].
+ */
+export function latestGateJob(db, item, { runs = null } = {}) {
+  return (runs ? runs.db : db).prepare("SELECT job_id FROM job WHERE job_kind = 'gate' AND job_item = ? ORDER BY job_created DESC, rowid DESC LIMIT 1").get(item)?.job_id ?? null;
 }
 
 /**
@@ -92,8 +95,9 @@ export function pulledGateReds(board, item) {
   return reds;
 }
 
-/** The job's kind, item, candidate, base, frozen check and the submit fields its offer recorded; null when the job is gone. */
-function offeredGate(db, job) {
+/** The job's kind, item, candidate, base, frozen check and the submit fields its offer recorded; null when the job is gone. runs: as latestGateJob [#9149]. */
+export function offeredGate(db, job, { runs = null } = {}) {
+  db = runs ? runs.db : db;
   const row = db.prepare(`SELECT job.job_kind, job.job_item, job.job_candidate, job.job_base, step.job_step_payload FROM job JOIN job_step AS step
     ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0 WHERE job.job_id = ?`).get(job);
   if (!row) return null;
@@ -216,14 +220,16 @@ function recordSubmitAdmission(board, { id, item, candidate, submit }) {
   }
 }
 
-/** The offer a job was made with, its request read back whole, or null. */
-function offeredStep(db, job) {
+/** The offer a job was made with, its request read back whole, or null. runs: as latestGateJob [#9149]. */
+export function offeredStep(db, job, { runs = null } = {}) {
+  db = runs ? runs.db : db;
   const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job);
   return row ? { ...JSON.parse(row.job_step_payload), request: offeredRequest(db, job) } : null;
 }
 
-/** The newest receipt posted for a job, or null. */
-function postedReceipt(db, job) {
+/** The newest receipt posted for a job, or null. runs: as latestGateJob [#9149]. */
+export function postedReceipt(db, job, { runs = null } = {}) {
+  db = runs ? runs.db : db;
   const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'receipt' ORDER BY job_step_seq DESC LIMIT 1").get(job);
   return row ? JSON.parse(row.job_step_payload) : null;
 }
