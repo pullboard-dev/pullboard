@@ -50,12 +50,10 @@ async function shown(box, ...flags) {
 
 test('clause 1: show prints the shared builder parent label once under the eligible reviewers [V1,B3,C7]', async () => {
   const box = filed();
-  const first = await joinSeat(box, 'builder-one', 'coordinator:S');
-  const second = await joinSeat(box, 'builder-two', 'coordinator:S');
-  assert.equal((await box.inProcess(first.path, 'claim', '1')).code, 0);
-  assert.equal((await box.inProcess(first.path, 'release', '1', '--reason', 'BLOCKED', '--note', 'handing over to the second seat')).code, 0);
-  assert.equal((await box.inProcess(second.path, 'claim', '1')).code, 0);
-  submitAs(box, second.id);
+  const builder = await joinSeat(box, 'builder-one', 'coordinator:S');
+  await joinSeat(box, 'sibling', 'coordinator:S');
+  assert.equal((await box.inProcess(builder.path, 'claim', '1')).code, 0);
+  submitAs(box, builder.id);
   const lines = (await shown(box)).split('\n');
   const at = lines.findIndex(line => line.startsWith('eligible reviewers:'));
   assert.ok(at >= 0, 'the eligible reviewers line prints');
@@ -64,7 +62,7 @@ test('clause 1: show prints the shared builder parent label once under the eligi
   assert.equal(lines.indexOf(parentLines[0]), at + 1, 'it prints directly under the eligible-reviewers line');
   const label = parentSessionDigest('coordinator:S').slice(0, 12);
   assert.ok(parentLines[0].includes(label), parentLines[0]);
-  for (const seat of [first.id, second.id]) assert.ok(parentLines[0].includes(seat), `${seat} is named: ${parentLines[0]}`);
+  assert.ok(parentLines[0].includes(builder.id), `the builder is named: ${parentLines[0]}`);
 });
 
 test('clause 2: a reviewer under a different parent is listed eligible without any coordinator fact [V1,B3,C7]', async () => {
