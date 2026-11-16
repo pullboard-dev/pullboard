@@ -1,7 +1,8 @@
-import { ITEM_PATCH_SUBMIT_ENGINE } from './engines/item-patch-submit-engine.js';
 /** A native proof can finish its admitted claim; it never grants new work after expiry [V4,H16]. */
+import { engineNumber } from './engine/number.js';
 import { Refused } from '../../../kernel/browser.js';
-import { SUBMIT_ADMISSION_ENGINE } from './engines/submit-admission-engine.js';
+const ITEM_PATCH_SUBMIT_ENGINE = engineNumber('ITEM_PATCH_SUBMIT_ENGINE');
+const SUBMIT_ADMISSION_ENGINE = engineNumber('SUBMIT_ADMISSION_ENGINE');
 
 /** Validate an admission while its ordinary claim is still live, before recording the renewal. */
 export function submitAdmission(board, itemId, actor, value) {
