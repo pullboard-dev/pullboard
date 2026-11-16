@@ -297,6 +297,9 @@ export function loadMachineSettings() {
   if (value.landing?.strictFullSuite !== undefined && typeof value.landing.strictFullSuite !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.strictFullSuite in ${file} must be true or false`);
   }
+  if (value.spec?.commitOnApply !== undefined && typeof value.spec.commitOnApply !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `spec.commitOnApply in ${file} must be true or false`);
+  }
   if (value.sentinels?.recordWriteHolder !== undefined && typeof value.sentinels.recordWriteHolder !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `sentinels.recordWriteHolder in ${file} must be true or false`);
   }
