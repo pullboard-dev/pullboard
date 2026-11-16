@@ -543,9 +543,6 @@
   "apps/lib/tests/nothing.test.js": {
     "raw-board": 1
   },
-  "apps/cli/journeys/lane/test.test.js": {
-    "tempdir": 1
-  },
   "apps/runner/tests/io/chrome.test.js": {
     "tempdir": 1
   },
@@ -1186,10 +1183,6 @@
   "packages/landing/tests/io/worker.test.js": {
     "tempdir": 2,
     "hand-policy": 1
-  },
-  "apps/cli/journeys/lane/add.test.js": {
-    "tempdir": 2,
-    "env-spread": 1
   },
   "packages/gate/tests/fixtures/watchdog/legacy.js": {
     "tempdir": 1
@@ -2204,7 +2197,10 @@
     "env-spread": 1
   },
   "apps/cli/tests/io/commands/test.test.js": {
-    "tempdir": 8,
+    "tempdir": 5
+  },
+  "apps/cli/tests/io/commands/test-discovery.test.js": {
+    "tempdir": 3,
     "env-spread": 2,
     "hand-policy": 1
   },

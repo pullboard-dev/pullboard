@@ -1,5 +1,6 @@
 /** Machine-wide setting defaults, one key per line in sorted order so parallel items adding settings do not conflict [O5,O6]. */
 export const MACHINE_DEFAULTS = {
+  'add.warnUnnamedTest': false,
   browserSlots: 1,
   'budget.dailyUsd': null,
   'budget.totalUsd': null,
@@ -75,6 +76,7 @@ export const MACHINE_DEFAULTS = {
   'moves.live.submit': false,
   'moves.shadow': false,
   'next.itemNotices': false,
+  'next.readinessCheck': false,
   'push.rerunFailedShardOnce': false,
   'relay.offerAtInit': true,
   'review.releaseReasons': false,
