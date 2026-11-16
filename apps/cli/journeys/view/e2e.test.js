@@ -276,7 +276,9 @@ test('from the view the person adds items, shouts and holds lanes, through the C
     assert.equal(JSON.parse(held.document.event.event_detail).channel, 'view');
     const takeHeld = await box.runLocal(box.web, 'next', '--take', '--json');
     assert.notEqual(takeHeld.code, 0, 'next --take is refused while the lane is held');
-    assert.equal(JSON.parse(takeHeld.out).error.code, 'LANE_HELD');
+    const heldError = JSON.parse(takeHeld.out).error;
+    assert.equal(heldError.code, 'NOTHING_FREE');
+    assert.ok(heldError.message.includes('person holds the web lane') && heldError.message.includes('G1 is changing'), 'the refusal names who holds the lane and why');
     const released = await view.act(box.repo, { verb: 'hold', args: { lane: 'web', off: true } });
     assert.equal(released.status, 200);
     assert.equal(released.document.event.event_kind, 'unhold');
