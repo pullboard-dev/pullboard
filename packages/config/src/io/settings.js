@@ -120,6 +120,11 @@ export function adapterLintClockEnabled() {
   return loadMachineSettings().gate?.adapterLintClock === true;
 }
 
+/** Whether the static check refuses view timers outside the view timer layout: off by default; only an exact `true` turns it on [C7]. */
+export function viewTimerLayoutEnabled() {
+  return loadMachineSettings().gate?.viewTimerLayout === true;
+}
+
 /** Record each move table shadow compare on the board only when this machine opted in [C7,#8376]. */
 export function movesShadowEnabled() {
   return loadMachineSettings().moves?.shadow === true;
