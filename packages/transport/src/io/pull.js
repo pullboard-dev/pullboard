@@ -58,7 +58,7 @@ function signedBy(publicKey, text, signature) {
  *
  * @param {{ trusted: string[] | (() => string[]), lease: { take: (job: string, runner: string) => boolean,
  *   renew: (job: string, runner: string) => boolean }, record: (job: string, shard: string, payload: object) => void,
- *   checkResult: (posted: object) => { valid: boolean, reason?: string, keyId?: string }, bundle: (tree: string) => string,
+ *   checkResult: (posted: object) => { valid: boolean, reason?: string, keyId?: string }, bundle: (tree: string) => string | null | Promise<string | null>,
  *   secret?: Buffer, now?: () => number, tokenMs?: number, skewMs?: number, seenMs?: number,
  *   store?: { load: () => (object | null), save: (state: object) => void }, revokedNames?: () => string[] }} ports
  * @returns {object} The adapter: open and probe for the channel interface, and the runner-facing protocol calls.
