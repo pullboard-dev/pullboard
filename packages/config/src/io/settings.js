@@ -142,6 +142,16 @@ export function censusJobsPerRunner() {
   return Number.isSafeInteger(jobs) && jobs >= 1 ? jobs : null;
 }
 
+/** Whether jobs.avoidRunners is on: off by default; only an exact `true` makes claimJob skip the runners a job's offer names [C7,#9273]. */
+export function jobsAvoidRunnersEnabled() {
+  return loadMachineSettings().jobs?.avoidRunners === true;
+}
+
+/** Whether push.rerunFailedShardOnce is on: off by default; only an exact `true` lets the pre-push gate re-offer a failed shard once [C7,#9274]. */
+export function pushRerunFailedShardOnceEnabled() {
+  return loadMachineSettings().push?.rerunFailedShardOnce === true;
+}
+
 /** Run the full suite after each landed train batch only when this machine opted in. */
 export function postLandSuiteEnabled() {
   return loadMachineSettings().gate?.postLandSuite === true;
@@ -714,4 +724,9 @@ export function boardKey() {
   chmodSync(file, 0o600);
   if (!/^[A-Za-z0-9_-]{24,128}$/u.test(key)) throw new Refused('BAD_BOARD_KEY', `${file} does not hold a board key; delete it and run pullboard serve again to make a new one`);
   return key;
+}
+
+/** Whether landing.reuseGateReceipts is on (#9243): off by default; only an exact `true` turns it on. */
+export function reuseGateReceiptsEnabled() {
+  return loadMachineSettings().landing?.reuseGateReceipts === true;
 }
