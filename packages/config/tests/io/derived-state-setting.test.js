@@ -10,7 +10,7 @@ import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js'
 
 /** Run `read` against a private machine home holding the given settings, restoring the home afterwards. */
 function withSettings(settings, read) {
-  const { root: dir } = privateFixtureFiles('pullboard-derivedState-');
+  const { root: dir } = privateFixtureFiles('pullboard-derived-state-');
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = join(dir, 'machine-home');
   try {
