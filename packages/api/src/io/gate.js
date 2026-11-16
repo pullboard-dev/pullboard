@@ -534,6 +534,12 @@ function folderTicksAt(board, main) {
   try { const shown = tryGit(board.gitRoot, ['show', `${main}:${CONFIG_FILE}`]); return shown.status === 0 && JSON.parse(shown.stdout)?.verify?.folderTicks === true; } catch { return false; }
 }
 
+/** Accepted main's submit.edgeFollowUps (default off), read like folderTicksAt: a settled submit whose diff adds import edges files one follow-up (#8874) [C7]. */
+function edgeFollowUpsAt(board, main) {
+  try { return board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, main).config.submit.edgeFollowUps === true; } catch { /* the committed file below */ }
+  try { const shown = tryGit(board.gitRoot, ['show', `${main}:${CONFIG_FILE}`]); return shown.status === 0 && JSON.parse(shown.stdout)?.submit?.edgeFollowUps === true; } catch { return false; }
+}
+
 /** Accepted main's verify.titleTicks (default off), read like folderTicksAt: a [test] clause naming no file is ticked by the changed tests titled for it (#8880) [C7]. */
 function titleTicksAt(board, main) {
   try { return board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, main).config.verify.titleTicks === true; } catch { /* the committed file below */ }
@@ -710,6 +716,13 @@ function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null
       }
       store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: `Gate job ${job} ${green ? 'green' : owners ? `green over main-owned ${owners.checkOnly ? 'frozen check' : 'test'} cases` : waived ? 'waived, not green,' : `red only in quarantined cases (${excused.map(row => `${row.file} :: ${row.name}, repair #${row.item}`).join('; ').slice(0, 600)})`} at ${candidate.slice(0, 12)} on main ${String(main).slice(0, 12)}; submitted for review.` });
       if (inspectsClauses(board, main)) recordClauseInspection(board, { id, receipt, head: submit.companion?.source ?? candidate, agentId: submit.agentId, green: gateGreen, folderTicks: folderTicksAt(board, main), titleTicks: titleTicksAt(board, main) });
+      if (board.gitRoot && SHA.test(String(main)) && edgeFollowUpsAt(board, main)) try {
+        const base = store.getItem(board, id)?.item_claim_head, head = submit.companion?.source ?? candidate;
+        const edges = base ? board.enginePorts.sandboxPolicyReads.submitImportEdges(board.gitRoot, { submit: { edgeFollowUps: true } }, { base, commit: head }) : [];
+        store.fileEdgeFollowUp(board, id, { agentId: submit.agentId, edges });
+      } catch (error) {
+        store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: `Edge follow-up not filed: ${error?.code ?? 'EDGE_FOLLOW_UP_FAILED'}: ${error?.message ?? String(error)}`.slice(0, 2000) });
+      }
       // Main reds no open repair names go to the coordinator as one decision, once the submission is recorded; nothing is filed here [B3].
       if (owners?.unowned.length) try {
         store.shout(board, { from: submit.agentId, to: 'coordinator', lanes: item.item_lane ? [item.item_lane] : [], decision: true, text: unownedShout(id, owners.unowned, main) });

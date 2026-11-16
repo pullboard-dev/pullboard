@@ -1,5 +1,6 @@
 /** Landing's finish sequence as one exported function the automatic lander and a hand landing both call [C7]. */
 import { postLandSuite } from './post/land.js';
+import { clearStepAside } from '../../../store/index.js';
 import { refreshLandedMain } from './deferred/notices.js';
 import { amendLandingEngines } from './step/merge.js';
 import { moveTrunkRef } from './step/publish.js';
@@ -49,5 +50,7 @@ export async function finishLanding(state, { steps = {}, earlier = [] } = {}) {
       throw error;
     }
   }
+  const head = state.batch?.items?.[0]?.id;
+  if (state.board?.db && head !== undefined) try { clearStepAside(state.board, head); } catch { /* A missing count is already the cleared state. */ }
   return record;
 }
