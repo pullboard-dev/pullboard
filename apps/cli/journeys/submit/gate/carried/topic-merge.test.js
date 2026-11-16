@@ -4,4 +4,4 @@
  */
 import { carriedSourceCase } from '../../../../tests/fixtures/submit/carried-source.js';
 
-carriedSourceCase('merge commit');
+carriedSourceCase('merge commit', (url) => import(url));

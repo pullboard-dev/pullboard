@@ -4,4 +4,4 @@
  */
 import { carriedSourceCase } from '../../../../tests/fixtures/submit/carried-source.js';
 
-carriedSourceCase('topic parent');
+carriedSourceCase('topic parent', (url) => import(url));

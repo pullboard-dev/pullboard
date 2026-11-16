@@ -22,9 +22,10 @@ import {
 
 /**
  * Register the case that submits a source change carried by the given mode ('topic parent' or 'merge commit').
+ * `load` is the caller's dynamic import: the case imports a file of its own disposable repository, so the import stays in the test file.
  * Each caller file registers one mode, so the two real submits run in separate processes.
  */
-export function carriedSourceCase(mode) {
+export function carriedSourceCase(mode, load) {
   test(`affected tests include source changes carried by a ${mode} [V4,C7,V16]`, async (t) => {
     let box = privateRepo(t);
     put(box.root, 'pullboard.json', JSON.stringify({ gate: 'node --test', affectedTests: 'node --test' }));
@@ -55,7 +56,7 @@ export function carriedSourceCase(mode) {
     } else box.git('merge', '--no-ff', '-q', 'topic', '-m', 'feat(core): merge topic source [G1]');
     assert.equal(box.git('rev-list', '--parents', '-n', '1', 'HEAD').split(' ').length, 3, 'the candidate really has two parents');
     // The unchanged importer runs on its own, outside submit: importing it evaluates its assertion against the merged source.
-    await assert.rejects(import(pathToFileURL(join(box.root, 'test/a.test.js')).href), { code: 'ERR_ASSERTION' }, 'the unchanged importer detects the merged source regression');
+    await assert.rejects(load(pathToFileURL(join(box.root, 'test/a.test.js')).href), { code: 'ERR_ASSERTION' }, 'the unchanged importer detects the merged source regression');
     rmSync(marker);
     const refused = await submitSettled(t, box, (...args) => runLocal(box, ...args));
     assert.equal(refused.code, 1, refused.out || refused.err);
