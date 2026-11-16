@@ -72,14 +72,15 @@ function fileAge(file, now) {
 }
 
 /**
- * Whether a waiter is queued behind busy runners: the queue explained its wait and every runner it named is busy. That is
- * a queue wait, and the busy runner's own holders carry the budget, so a full runner fleet is not a gate pool hold (#6857).
+ * Whether a waiter is queued behind runners that each name why they cannot take it: busy, quarantined, kept for timed checks
+ * or overloaded. That is a queue wait; the busy runner's holders and a quarantined runner's own runner-unavailable row carry
+ * the budget (#6857, #8023). Only a runner reported available leaves a wait with no holder and no cause, which stays a hold.
  */
-function queuedForBusyRunner(row) {
+function queuedForNamedRunners(row) {
   if (row.name !== 'gate' || !row.reasons) return false;
   try {
     const runners = JSON.parse(row.reasons);
-    return Array.isArray(runners) && runners.length > 0 && runners.every(runner => String(runner.reason).startsWith('busy'));
+    return Array.isArray(runners) && runners.length > 0 && runners.every(runner => !String(runner.reason).startsWith('available'));
   } catch { return false; }
 }
 
@@ -93,7 +94,7 @@ export function readPools(file, scope, now, census) {
   try {
     const holders = db.prepare('SELECT name, pid, agent, since, item, kind FROM holder ORDER BY since').all();
     const hasReasons = db.prepare("SELECT 1 FROM pragma_table_info('waiter') WHERE name = 'runner_wait_reasons'").get();
-    const waiters = db.prepare(`SELECT name, pid, agent, since, item, kind${hasReasons ? ", runner_wait_reasons AS reasons" : ''} FROM waiter ORDER BY ticket`).all().filter(row => !queuedForBusyRunner(row));
+    const waiters = db.prepare(`SELECT name, pid, agent, since, item, kind${hasReasons ? ", runner_wait_reasons AS reasons" : ''} FROM waiter ORDER BY ticket`).all().filter(row => !queuedForNamedRunners(row));
     const unavailable = scope === 'machine' && db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='runner_unavailable'").get()
       ? db.prepare('SELECT host, since, detail FROM runner_unavailable').all() : [];
     const names = [...new Set([...holders, ...waiters].map(row => row.name))].sort();

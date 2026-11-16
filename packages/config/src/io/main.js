@@ -293,7 +293,7 @@ export function configProblems(config) {
   problems.push(...labelDeclarationProblems(config.labels));
   if (typeof config.staticChecks !== 'string') problems.push('"staticChecks" is an optional project static-check command');
   if (config.landing !== undefined && (notPlain(config.landing)
-    || Object.keys(config.landing).some(key => !['publish', 'environment', 'timeout', 'stall', 'cadence', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'landedFromMain', 'first', 'auditOnly', 'splitRed', 'trunkRemote'].includes(key)) || ![undefined, 'separate'].includes(config.landing.publish))) {
+    || Object.keys(config.landing).some(key => !['publish', 'environment', 'timeout', 'stall', 'cadence', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'shardProof', 'landedFromMain', 'first', 'auditOnly', 'splitRed', 'trunkRemote'].includes(key)) || ![undefined, 'separate'].includes(config.landing.publish))) {
     problems.push('"landing" has optional environment: { platform, arch, node }, "timeout", "stall" (no-progress limit, default 10m) and "cadence" durations, "parallel": true for concurrent candidate gates, "first": item ids to land ahead of the accept order, and "publish": "separate" to land locally and push through pullboard publish');
   } else if (config.landing?.environment !== undefined && environmentProblem(config.landing.environment)) {
     problems.push(`"landing.environment" ${environmentProblem(config.landing.environment)}`);
@@ -301,6 +301,7 @@ export function configProblems(config) {
   if (config.landing?.manualOverride !== undefined && typeof config.landing.manualOverride !== 'boolean') problems.push('"landing.manualOverride" is a person-set boolean; true permits manual landing instead of automatic landing');
   if (config.landing?.landedFromMain !== undefined && typeof config.landing.landedFromMain !== 'boolean') problems.push('"landing.landedFromMain" is a boolean, off by default: on, roadmap, show, the view and withdraw count an item landed when its commit is on main');
   if (config.landing?.perItem !== undefined && typeof config.landing.perItem !== 'boolean') problems.push('"landing.perItem" is a boolean, on by default: a landing takes every verified item that merges cleanly and a red item of one goes back alone; false sizes automatic batches from recorded redness');
+  if (config.landing?.shardProof !== undefined && typeof config.landing.shardProof !== 'boolean') problems.push('"landing.shardProof" is a boolean, off by default; true spreads a landing\'s proof over runner shard jobs');
   if (config.landing?.splitRed !== undefined && typeof config.landing.splitRed !== 'boolean') problems.push('"landing.splitRed" is a boolean; true always splits a red batch into singles, false always bisects; unset, the batch\'s measured gate decides');
   if (config.landing?.parallel !== undefined && typeof config.landing.parallel !== 'boolean') problems.push('"landing.parallel" is a boolean; omit it or use false to keep serial landing');
   if (config.landing?.first !== undefined && (!Array.isArray(config.landing.first) || config.landing.first.some(id => !Number.isSafeInteger(id) || id < 1))) {
@@ -328,6 +329,12 @@ export function configProblems(config) {
   }
   if (config.affectedTests !== undefined && (typeof config.affectedTests !== 'string' || !config.affectedTests.trim())) {
     problems.push('"affectedTests" is a nonempty command prefix used to run selected test files');
+  }
+  if (config.affectedSuites !== undefined && (!config.affectedSuites || typeof config.affectedSuites !== 'object' || Array.isArray(config.affectedSuites)
+    || Object.entries(config.affectedSuites).some(([glob, suite]) => !glob.trim() || typeof suite !== 'string' || !suite.trim()))) {
+    problems.push('"affectedSuites" maps folder globs to suite paths, like {"api/**": "api/tests"}');
+  } else if (config.affectedSuites && Object.keys(config.affectedSuites).length && (typeof config.affectedTests !== 'string' || !config.affectedTests.trim())) {
+    problems.push('"affectedSuites" requires the project "affectedTests" runner');
   }
   const registryProblem = registryGuardsProblem(config.registryGuards);
   if (registryProblem) problems.push(registryProblem);
@@ -415,6 +422,9 @@ export function configProblems(config) {
   }
   if (config.verify?.unrelatedTrunkMoves !== undefined && typeof config.verify.unrelatedTrunkMoves !== 'boolean') {
     problems.push('"verify.unrelatedTrunkMoves" is true or false');
+  }
+  if (config.verify?.landedReviews !== undefined && typeof config.verify.landedReviews !== 'boolean') {
+    problems.push('"verify.landedReviews" is true or false; true makes next --verify offer forced-landed items that have no verdict');
   }
   if (config.map?.slice !== undefined && typeof config.map.slice !== 'boolean') {
     problems.push('"map.slice" is true or false');

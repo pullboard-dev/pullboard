@@ -1365,12 +1365,12 @@ async function main(args) {
       if (runnerOnly && !canShipRunner) throw new Error('Runner-only tests require a committed runner inside the checkout; no local fallback is allowed');
       await withGateSlot(process.cwd(), async (lease) => {
         if (!lease.runner) return run(gateSlotEnvironment(lease));
-        const { runOnRunner } = await services.runners();
+        const { runOnRunnerAsync } = await services.runners();
         /** Quote the unchanged runner arguments for the remote command shell. */
         const word = value => `'${String(value).replaceAll("'", "'\\''")}'`;
         const command = ['node', `./${runnerPath}`, ...actions.args].map(word).join(' ');
         timing.forward(); clock.mark('admission');
-        const result = runOnRunner(process.cwd(), command, { runner: lease.runner, source: lease.source,
+        const result = await runOnRunnerAsync(process.cwd(), command, { runner: lease.runner, source: lease.source,
           browser, metadata: lease.runMetadata }); clock.mark('runner');
         process.stdout.write(result.output);
         process.exitCode = result.exitCode;

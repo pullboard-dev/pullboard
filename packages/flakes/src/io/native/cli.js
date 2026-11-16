@@ -14,7 +14,7 @@ import {
   readGateReceipt,
   receiptStore,
 } from "../../../../gate/index.js";
-import { runProfiledShell } from "../../../../gate/index.js";
+import { runProfiledShellAsync } from "../../../../gate/index.js";
 import { runFrozenProof } from "../../../../gate/index.js";
 import { recordNativeProof } from "../../../../verify/index.js";
 import { proofRunReceipt } from "../../../../store/index.js";
@@ -89,7 +89,7 @@ export function check(ctx, item, command, services) {
     pinRunMain(lease, observe);
     lease.quarantines = await services.withBoard(ctx, quarantineVerdictSnapshot);
     lease.proof = { item: item.item_id, frozenDigest: item.item_frozen_digest ?? null, seat: services.resourceAgent(ctx), kind: 'check' };
-    const run = runProfiledShell(ctx.info.root, command, { waitMs: lease.waitMs, artifactPrefix: `pullboard-check-${item.item_id}`, persistLog: true, gateLease: lease, stages: lease.quarantines.length > 0 });
+    const run = await runProfiledShellAsync(ctx.info.root, command, { waitMs: lease.waitMs, artifactPrefix: `pullboard-check-${item.item_id}`, persistLog: true, gateLease: lease, stages: lease.quarantines.length > 0 });
     await recordNativeProof(ctx, item, run, { ...services, proofRunReceipt });
     await recordRun(observe, run);
     if (!run.isGreen) await observe(run, { command, lease });
