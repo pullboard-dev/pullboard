@@ -16,6 +16,7 @@ import {
 import * as maintenanceSettings from '../logic/maintenance.js';
 import { knownConfigKeys } from './compat.js';
 import { trunkProblems } from '../logic/trunk.js';
+import { tiersProblems } from '../logic/tiers.js';
 import { generatedProblems } from '../logic/generated.js';
 
 import { CONFIG_FILE } from '../../../kernel/browser.js';
@@ -258,6 +259,7 @@ export function configProblems(config) {
       problems.push('"name" cannot contain "#" or ","');
     }
   }
+  problems.push(...tiersProblems(config.tiers));
   problems.push(...generatedProblems(config.generated));
   if (typeof config.spec !== 'string' || !config.spec) problems.push('"spec" names a file');
   if (config.specAgentApproval !== undefined && !['flag', 'allow', 'refuse'].includes(config.specAgentApproval)) problems.push('"spec.agentApproval" is flag, allow or refuse');
