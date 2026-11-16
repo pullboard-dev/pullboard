@@ -46,15 +46,16 @@ function modulesLoaded(box, cwd, hook, extra = []) {
   const loader = join(dir, 'loader.mjs');
   writeFileSync(loader, HOOKS_OF_LOADER);
   writeFileSync(counter, `import { register } from 'node:module';
-import { writeFileSync } from 'node:fs';
+import { appendFileSync } from 'node:fs';
 const shared = new SharedArrayBuffer(4);
 const counts = new Int32Array(shared);
 register(${JSON.stringify(pathToFileURL(loader).href)}, { data: { shared } });
-process.on('exit', () => writeFileSync(${JSON.stringify(out)}, String(Atomics.load(counts, 0))));
+process.on('exit', () => appendFileSync(${JSON.stringify(out)}, Atomics.load(counts, 0) + '\\n'));
 `);
-  const ran = spawnSync(process.execPath, ['--import', counter, BIN, 'hook', hook, ...extra], { cwd, env: { ...box.env, PULLBOARD_HOOK_STATIC: '' }, encoding: 'utf8' });
+  const ran = spawnSync(process.execPath, [BIN, 'hook', hook, ...extra], { cwd, env: { ...box.env, PULLBOARD_HOOK_STATIC: '', NODE_OPTIONS: `${box.env.NODE_OPTIONS ?? ''} --import ${pathToFileURL(counter).href}` }, encoding: 'utf8' });
   assert.ok(existsSync(out), `the ${hook} process wrote no count: status ${ran.status}, signal ${ran.signal}, error ${ran.error}, stderr ${String(ran.stderr).slice(0, 700)}`);
-  return Number(readFileSync(out, 'utf8'));
+  // A hook can start a second Node (the selected tooling's entry), which counts its own graph; the hook's cost is the sum.
+  return readFileSync(out, 'utf8').split('\n').filter(Boolean).reduce((sum, line) => sum + Number(line), 0);
 }
 
 /** The three commit-hook processes counted once in the one project this file builds. */
