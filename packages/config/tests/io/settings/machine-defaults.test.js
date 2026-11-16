@@ -106,6 +106,7 @@ const BEFORE = {
   'submit.proofOnly': false,
   'test.statusOutcomes': false,
   'tests.registryStrict': false,
+  'verify.hunkFreshness': false,
   'view.background': true,
 };
 
