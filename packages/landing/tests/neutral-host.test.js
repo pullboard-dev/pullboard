@@ -14,3 +14,8 @@ test('clause 1: no tracked file under packages/landing contains the old Studio h
   const hits = files.filter(file => readFileSync(`${root}/${file}`, 'utf8').toLowerCase().includes(WORD));
   assert.deepEqual(hits, [], 'use a neutral host name such as studio-host');
 });
+
+test('clause 2: the step failures module whose comment was reworded still loads [C7]', async () => {
+  const mod = await import('../src/io/step/failures.js');
+  assert.ok(Object.keys(mod).length > 0, 'failures.js exports are intact');
+});
