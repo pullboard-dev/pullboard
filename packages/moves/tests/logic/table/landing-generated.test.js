@@ -58,6 +58,7 @@ const SELECT_BREAKS = [
   ['sprint: screen from an older base', sprint(c => { c.s.io.screen.base = 'b0'; }), 'screened', 'SCREEN_PENDING'],
   ['sprint: red screen', sprint(c => { c.s.io.screen.green = false; }), 'screened', 'SCREEN_PENDING'],
   ['sprint: no trusted hook re-check', sprint(c => { c.s.io.screen.checks.hooks = 'red'; }), 'a8-irreversible', 'LAND_UNCHECKED'],
+  ['strict: no full-suite receipt', c => { c.s.pace = 'strict'; Object.assign(c.s.item, { pace: 'strict', status: 'verified', group: 'g1' }); sprintReady(c.s); c.s.io.strictFullSuite = true; }, 'strict-full-suite', 'LAND_SUITE_PENDING'],
   ['held', c => { c.s.item.holdReason = 'coordinator hold'; }, 'not-held', 'ITEM_HELD'],
   ['stale verdict', c => { c.s.io.staleVerdict = { reason: 'main moved' }; }, 'verdict-fresh', 'STALE_VERDICT'],
   ['known red', c => { c.s.batches = [{ id: 'b3', state: 'blocked', base: 'b0', culprits: [entry(ID, 'c1', { reviewedCommit: c.s.item.checked, tests: [{ file: 'a.test.js', name: 't' }] })] }]; c.s.waivers = []; }, 'not-known-red', 'LAND_KNOWN_RED'],
@@ -141,16 +142,25 @@ const RECORD_BREAKS = [
 // Merged: the coordinator records a merge, forced when it names why it went around the gate.
 // ---------------------------------------------------------------------------------------------------------------
 
+/** A verified strict item in group g1 with the suite setting on and a green, trusted, leased receipt at its commit and digest on this base [#9326]. */
+function strictMerge() {
+  const item = { id: ID, status: 'verified', commit: 'c1', digest: 'd1', claimDigest: 'd1', group: 'g1', pace: 'strict' };
+  return { item, base: 'b2', pace: 'strict', io: { strictFullSuite: true, suite: { kind: 'suite', suite: 'full', group: 'g1', green: true, trusted: true, leased: true, commit: 'c1', digest: 'd1', base: 'b2' } } };
+}
+
 /** A merge of a verified item, or a forced one of any item with a reason. */
 function mergedCase(g) {
   const forced = g.pick([undefined, undefined, 'hand landed', '  fixed by hand  ']);
   const status = forced === undefined ? 'verified' : g.pick(['open', 'claimed', 'submitted', 'verified', 'withdrawn']);
   // Under sprint an unforced merge records submitted work too [#8863].
   if (forced === undefined && g.int(5) === 0) return { s: { item: { id: ID, status: g.pick(['submitted', 'verified']) }, pace: 'sprint' }, m: { name: 'merged', actor: 'coordinator', commit: 'f'.repeat(40) }, outcome: 'merge' };
+  // Under strict with the full-suite setting on and a counting receipt, an unforced merge also publishes [#9326].
+  if (forced === undefined && g.int(5) === 0) return { s: strictMerge(), m: { name: 'merged', actor: 'coordinator', commit: 'f'.repeat(40) }, outcome: 'merge-publish' };
   return { s: { item: { id: ID, status } }, m: { name: 'merged', actor: 'coordinator', commit: 'f'.repeat(40), ...(forced === undefined ? {} : { forced }) }, outcome: forced !== undefined && ['open', 'claimed', 'submitted'].includes(status) ? 'forced-unfinished' : 'merge' };
 }
 
 const MERGED_BREAKS = [
+  ['strict: no full-suite receipt', c => { Object.assign(c, { s: strictMerge() }); c.s.io.suite = null; delete c.m.forced; }, 'strict-full-suite', 'LAND_SUITE_PENDING'],
   ['not the coordinator', c => { c.m.actor = 'w1'; }, 'coordinator', 'COORDINATOR_ONLY'],
   ['forced with a blank reason', c => { c.m.forced = '   '; }, 'forced-reason', 'FORCED_REASON'],
   ['forced with an empty reason', c => { c.m.forced = ''; }, 'forced-reason', 'FORCED_REASON'],
@@ -224,7 +234,7 @@ const of = (table, outcome) => accepted.filter(c => c.table === table && (outcom
 test('moves.landing.rows-fire: generated: every guard and outcome row of the five landing tables fires on some seeded case [C7,#8561]', () => {
   const fired = new Set(results.map(c => `${c.table}:${c.result.refused ? c.result.refused.row : c.result.via[0]}`));
   const rows = Object.entries(TABLES).flatMap(([name, table]) => [...table.guards, ...table.outcomes].map(row => `${name}:${row.id}`));
-  assert.equal(rows.length, 44);
+  assert.equal(rows.length, 47);
   assert.deepEqual(rows.filter(row => !fired.has(row)), []);
 });
 
@@ -279,6 +289,7 @@ test('moves.landing.merged-forced: generated: a merge records the commit, and a 
     const reason = typeof c.m.forced === 'string' ? c.m.forced.trim() : '', commit = 'f'.repeat(40);
     if (c.outcome === 'forced-unfinished') assert.deepEqual([c.result.patch, c.result.events], [{ status: 'withdrawn' }, [{ kind: 'withdraw', by: 'coordinator', detail: { reason: `landed by hand at ${commit.slice(0, 12)}: ${reason}` } },
       { kind: 'merged', by: 'coordinator', detail: { commit, forced: true, reason, from: c.s.item.status } }]], `seed ${c.seed}`);
+    else if (c.outcome === 'merge-publish') assert.deepEqual([c.result.patch, c.result.events], [{ mergedCommit: commit }, [{ kind: 'merged', by: 'coordinator', detail: { commit } }, { kind: 'published', by: 'coordinator', detail: { commit } }]], `seed ${c.seed}`);
     else assert.deepEqual([c.result.patch, c.result.events], [{ mergedCommit: commit }, [{ kind: 'merged', by: 'coordinator', detail: { commit, ...(reason ? { forced: true, reason, from: c.s.item.status } : {}) } }]], `seed ${c.seed}`);
   }
 });
