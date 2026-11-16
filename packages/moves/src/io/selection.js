@@ -27,6 +27,7 @@ import { focusReasons } from '../../../roadmap/index.js';
 import { milestoneFocus } from '../../../roadmap/index.js';
 import { laneNames } from '../../../seats/index.js';
 import { COORDINATOR } from '../../../config/index.js';
+import { nextCapBuilders } from '../../../config/index.js';
 import { nextReadinessCheck } from '../../../config/index.js';
 import { headCommit } from '../../../git/index.js';
 import { commandObservation } from '../../../git/index.js';
@@ -379,6 +380,10 @@ function nextPick(ctx, board, values, ports) {
   const focusOffer = focusedReview?.item && focus.ids.has(focusedReview.item.item_id)
     ? { item: focusedReview.item, queue: store.reviewQueue(board), ratio: ctx.config.verify.reviewRatio } : null;
   const selectedOffer = focusOffer ?? offer;
+  // next.capBuilders (off by default): with that many other seats already holding claims, a build seat is offered the waiting review [C7,#8545].
+  const cap = held || values.build ? 0 : nextCapBuilders();
+  if (cap && selectedOffer?.item && new Set(items.filter(entry => entry.item_status === 'claimed' && entry.item_owner && entry.item_owner !== me.id).map(entry => entry.item_owner)).size >= cap)
+    return { item: selectedOffer.item, offer: selectedOffer, build: item ?? null, buildHeld: false, reasons: [`${cap} builder seats already hold claims (next.capBuilders); reviewing instead of building`] };
   if (selectedOffer?.item && !values.build && !(rejectionReturnEnabled(board) && item?.item_verdict === 'REJECT' && item.item_built_by === me.id) && (focusOffer || held || (!focus || focus.ids.has(selectedOffer.item.item_id) || !item || !focus.ids.has(item.item_id)) && (selectedOffer.urgent || focusReviewFirst(board, selectedOffer.item, item, { milestones: store.milestones })))) return { item: selectedOffer.item, offer: selectedOffer, build: item ?? null, buildHeld: held, reasons: focusReasons(board, selectedOffer.item, [], { milestones: store.milestones }) };
   if (!item && reworks.length && !ctx.info.isMain) {
     const [first] = reworks;

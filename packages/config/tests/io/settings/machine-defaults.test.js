@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { MACHINE_DEFAULTS } from '../../../src/io/settings/machine-defaults.js';
+import { SETTING_DESCRIPTIONS } from '../../../src/io/settings/descriptions.js';
 
 const FILE = new URL('../../../src/io/settings/machine-defaults.js', import.meta.url);
 const INVENTORY = new URL('../../../src/io/settings/inventory.js', import.meta.url);
@@ -10,6 +11,7 @@ const INVENTORY = new URL('../../../src/io/settings/inventory.js', import.meta.u
 /** The key/default list as it stood before the move [O5,O6]. */
 const BEFORE = {
   'add.warnUnnamedTest': false,
+  'board.archiveEvents': false,
   'browserSlots': 1,
   'budget.dailyUsd': null,
   'budget.totalUsd': null,
@@ -20,11 +22,14 @@ const BEFORE = {
   'census.rerunNonGreen': false,
   'census.rerunOnSettle': false,
   'census.selfTune': false,
+  'claim.keepWhileRunning': false,
   'claim.refuseOffMainHead': false,
   'freeze.refuseEmptyBar': false,
   'gate.adapterLintClock': false,
+  'gate.adapterLintFs': false,
   'gate.browserByLaunch': false,
   'gate.browserFreeChecks': false,
+  'gate.contractAudit': false,
   'gate.contractWeakening': false,
   'gate.diskFloorMB': 10240,
   'gate.endStaleJobs': false,
@@ -73,6 +78,8 @@ const BEFORE = {
   'items.typedFields': false,
   'jobs.avoidRunners': false,
   'jobs.handBackUnrunnable': false,
+  'landing.asyncFetch': false,
+  'landing.byHand': false,
   'landing.pools': [],
   'landing.reofferTrunkBusy': false,
   'landing.reuseContractResults': false,
@@ -91,12 +98,15 @@ const BEFORE = {
   'moves.live.reopen': false,
   'moves.live.submit': false,
   'moves.shadow': false,
+  'next.capBuilders': 0,
   'next.itemNotices': false,
   'next.readinessCheck': false,
   'push.rerunFailedShardOnce': false,
   'relay.excludeByBoard': false,
   'relay.offerAtInit': true,
   'relay.pruneReceipts': false,
+  'relay.push': false,
+  'review.relaxRequiredFamily': false,
   'review.releaseReasons': false,
   'runner.packCache': false,
   'runnerRates': {},
@@ -109,8 +119,11 @@ const BEFORE = {
   'sentinels.recordWriteHolder': false,
   'serve.address': '127.0.0.1',
   'serve.port': 0,
+  'serve.pullRoute': false,
   'spec.cascadeReject': false,
   'spec.commitOnApply': false,
+  'status.showUsefulBuilders': false,
+  'submit.clauseMarks': false,
   'submit.proofOnly': false,
   'test.statusOutcomes': false,
   'tests.registryStrict': false,
@@ -175,4 +188,14 @@ test('clause 3: removing a BEFORE key or changing its value fails the check [O6]
   const loud = { ...MACHINE_DEFAULTS, 'brand.new': true };
   assert.deepEqual(defaultsProblems(loud), ['brand.new is new and not off']);
   assert.deepEqual(defaultsProblems({ ...MACHINE_DEFAULTS, 'brand.new': false }), []);
+});
+
+test('clause 1: landing.asyncFetch is a machine setting, false by default, with a description [C7]', () => {
+  assert.equal(MACHINE_DEFAULTS['landing.asyncFetch'], false);
+  assert.ok(SETTING_DESCRIPTIONS['landing.asyncFetch']);
+});
+
+test('clause 1: review.relaxRequiredFamily is a machine setting, false by default, with a description [V1]', () => {
+  assert.equal(MACHINE_DEFAULTS['review.relaxRequiredFamily'], false);
+  assert.ok(SETTING_DESCRIPTIONS['review.relaxRequiredFamily']);
 });

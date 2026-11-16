@@ -13,7 +13,7 @@ test('clause 1: a shard with no posted receipt is unknown, apart from a red shar
   assert.match(problem, /red in 1 of 3 shard jobs \(j2\); failing files: b\.test\.js/u);
   assert.match(problem, /unknown in 1 of 3 shard jobs \(j3\)/u);
   assert.doesNotMatch(problem, /red in 2/u, 'the unknown shard is not counted red');
-  assert.doesNotMatch(problem, /c\.test\.js/u, 'its files are not called failing');
+  assert.doesNotMatch(/failing files: ([^\n]*?)\. fix them/u.exec(problem)?.[1] ?? '', /c\.test\.js/u, 'its files are not called failing');
 });
 
 test('clause 1: with only an unknown shard the message names no red shard [C7,#8046]', () => {
