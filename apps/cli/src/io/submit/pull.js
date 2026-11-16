@@ -557,11 +557,15 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   const config = full ? { ...configured, affectedTests: '', submitGate: 'full' } : configured;
   // A repo with no gate command is refused before any job row is written, as the controller path refuses it (NO_GATE).
   if (!config.gate?.trim()) throw missingGate(root);
+  let markAt = Date.now();
+  /** Name the queueing step that just ended on stderr [C7]. */
+  const mark = step => { process.stderr.write(`submit-mark queueing/${step}: ${Date.now() - markAt} ms\n`); markAt = Date.now(); };
   const crossRun = withBoard(ctx, board => {
     board.gitRoot = root;
     return itemCollisionPlan(board, held, listItems(board, { all: true }));
   });
   for (const warning of crossRun.warnings) ctx.io.say(warning);
+  mark('cross-run');
   const doctrine = hasSubmitRules(root, main.commit, main.config.practice) ? { mainCommit: main.commit, commit, practice: main.config.practice,
     timeoutMs: main.config.check?.timeoutMs, ...(submitRulesNarrowable(root, main.commit, main.config.practice) ? { fast: true } : {}) } : null;
   // A file moved since the claim keeps its frozen bar; the runner executes it at its new path, as the controller gate does [C7].
@@ -572,6 +576,7 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
     config, crossRunTests: namedProofTests(root, held, source, { crossRunTests: crossRun.tests }), cutRows: withBoard(ctx, board => landedCutItemRows(board.db)),
     produceInventory: inventoryCommits(root, main.commit, source), doctrine, browserFreeChecks: browserFreeChecksEnabled(), checkTiming: frozenCheckTiming(held),
     authorization: authorize === true ? { item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: held.item_frozen } } : authorize || null });
+  mark('request');
   const pairing = typeof pairPrefix === 'function' ? pairRequest(root, { main, config, source, check }, pairPrefix) : null;
   if (pairing) request.input.data.flakes = pairing;
   // The board applies the receipt as this seat's submit at this bar, tree and change list; a later claim or bar makes it stale [P7].
@@ -581,10 +586,12 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
     ...(companion ? { companion } : {}), ...(infra ? { infra } : {}), ...pulledTooling(root, commit) };
   // The board's proof ledger rides along for the files this gate is known to prove, so a runner with an empty store reuses them [P7,CD2].
   withBoard(ctx, board => gateLedgerHits(board.db, request, [...request.input.data.analysis.crossRunTests ?? [], ...files.filter(file => TEST_FILE.test(file))]));
+  mark('ledger');
   git(root, ['update-ref', `refs/pullboard/gate/${id}`, source]);
   // The same pin the controller path writes, so doctor and review find the work whatever the gate's outcome (#7076).
   git(root, ['update-ref', `refs/pullboard/items/${id}/${commit.slice(0, 12)}`, commit]);
   const job = withBoard(ctx, board => offerGateJob(board.db, { item: id, main: main.commit, source, request, hop: submitGateHop(), queue: queueFor(board, me.id, { file: ctx.file }) }));
+  mark('pins-and-offer');
   noteSubmitSession(ctx.info, id, true);
   // The runner's receipt applies the submit with no agent session, so the usage checkpoint the ordered submit took is taken here, as the gate is offered [N2].
   await withBoard(ctx, board => checkpointAfterMove(ctx, board, { agent: me.id, item: id, operation: 'submit' }, { ordered, worker: usageCheckpointWorkerEntrypoint() }));

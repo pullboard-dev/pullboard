@@ -4,8 +4,14 @@ import { git } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 
-/** Merge an exact main commit only when Git reports no conflict, using the invoking builder’s Git identity. */
-export function mergeSubmissionMain(root, main) {
+/**
+ * Merge an exact main commit only when Git reports no conflict, using the invoking builder’s Git identity.
+ *
+ * With `checkout: false` the merge is written as Git objects only: the builder's checkout, index and HEAD stay put and no
+ * working-tree update or merge hook runs. Why: the checkout was the slowest phase of submit (4.6 s idle, 14-31 s loaded);
+ * the gate only needs the composed commit, which the submit pins for the runner [C7].
+ */
+export function mergeSubmissionMain(root, main, { checkout = true } = {}) {
   if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(main)) throw new Refused('NO_POLICY', 'read an exact accepted main before composing the submission');
   const env = cleanGitEnvironment();
   const source = git(root, ['rev-parse', 'HEAD'], { env });
@@ -22,6 +28,12 @@ export function mergeSubmissionMain(root, main) {
   const identityEnv = { ...env };
   for (const key of ['GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL']) {
     if (process.env[key] !== undefined) identityEnv[key] = process.env[key];
+  }
+  if (!checkout) {
+    const message = `Merge main ${main.slice(0, 12)} into the submitted source`;
+    const written = tryGit(root, ['commit-tree', fields[0], '-p', source, '-p', main, '-m', message], { env: identityEnv });
+    if (written.status !== 0 || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(written.stdout.trim())) throw new Refused('MERGE_CHECK_FAILED', `the clean merge could not be written: ${written.stderr || written.stdout}`);
+    return { source, commit: written.stdout.trim(), merged: true };
   }
   const merged = tryGit(root, ['merge', '--no-ff', '--no-edit', '-m',
     `Merge main ${main.slice(0, 12)} into the submitted source`, main], { env: identityEnv });
