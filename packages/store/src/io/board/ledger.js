@@ -96,26 +96,37 @@ export function testResults(db, { inputKey, receipt } = {}) {
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {string[]} files
- * @param {{ command?: string, perFile?: number, budget?: number }} [options]
+ * @param {{ command?: string, perFile?: number, budget?: number, commits?: string[] | null }} [options] - commits: the items' commits whose own green rows come first
  * @returns {{ contexts: string[], files: Array<[string, string, number]> } | null}
  */
-export function ledgerHits(db, files, { command = 'proof', perFile = 2, budget = 24_000 } = {}) {
+export function ledgerHits(db, files, { command = 'proof', perFile = 2, budget = 24_000, commits = null } = {}) {
   if (missingLedgerTable(db) || !Array.isArray(files) || !files.length) return null;
   const select = db.prepare(`SELECT DISTINCT pass.test_result_input_key AS inputKey, pass.test_result_context AS context FROM test_result pass
     WHERE pass.test_result_file = ? AND pass.test_result_command = ? AND pass.test_result_status = 'pass'
       AND NOT EXISTS (SELECT 1 FROM test_result red WHERE red.test_result_input_key = pass.test_result_input_key AND red.test_result_command = pass.test_result_command
         AND red.test_result_context = pass.test_result_context AND red.test_result_file = pass.test_result_file AND red.test_result_status = 'fail')
     ORDER BY pass.test_result_id DESC LIMIT ?`);
-  const contexts = [], rows = [];
-  let bytes = 0;
-  for (const file of [...new Set(files)].filter(file => FILE.test(String(file)))) {
-    for (const { inputKey, context } of select.all(file, command, perFile)) {
-      const index = contexts.includes(context) ? contexts.indexOf(context) : contexts.push(context) - 1;
-      bytes += file.length + inputKey.length + 12;
-      if (bytes > budget) return rows.length ? { contexts, files: rows } : null;
-      rows.push([file, inputKey, index]);
-    }
-  }
+  // commits: the items' own green gate rows, listed before the newest rows of any origin so the budget never drops them [C7,#9243].
+  const own = Array.isArray(commits) && commits.length ? commits.filter(commit => /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(String(commit))) : [];
+  const selectOwn = own.length ? db.prepare(`SELECT DISTINCT pass.test_result_input_key AS inputKey, pass.test_result_context AS context FROM test_result pass
+    WHERE pass.test_result_file = ? AND pass.test_result_command = ? AND pass.test_result_status = 'pass' AND pass.test_result_commit IN (${own.map(() => '?').join(',')})
+      AND NOT EXISTS (SELECT 1 FROM test_result red WHERE red.test_result_input_key = pass.test_result_input_key AND red.test_result_command = pass.test_result_command
+        AND red.test_result_context = pass.test_result_context AND red.test_result_file = pass.test_result_file AND red.test_result_status = 'fail')
+    ORDER BY pass.test_result_id DESC LIMIT ?`) : null;
+  const contexts = [], rows = [], seen = new Set();
+  let bytes = 0, full = false;
+  const add = (file, { inputKey, context }) => {
+    const mark = `${file}\0${inputKey}\0${context}`;
+    if (full || seen.has(mark)) return;
+    const index = contexts.includes(context) ? contexts.indexOf(context) : contexts.push(context) - 1;
+    bytes += file.length + inputKey.length + 12;
+    if (bytes > budget) { full = true; return; }
+    seen.add(mark);
+    rows.push([file, inputKey, index]);
+  };
+  const named = [...new Set(files)].filter(file => FILE.test(String(file)));
+  if (selectOwn) for (const file of named) for (const row of selectOwn.all(file, command, ...own, perFile)) add(file, row);
+  for (const file of named) for (const row of select.all(file, command, perFile)) add(file, row);
   return rows.length ? { contexts, files: rows } : null;
 }
 
