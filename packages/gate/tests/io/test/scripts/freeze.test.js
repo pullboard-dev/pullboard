@@ -1,4 +1,4 @@
-/** @pullboard-test-input packages/gate/src/io/test/freeze.js packages/gate/src/io/test/scripts/freeze.js packages/gate/src/logic/test/freeze.js */
+/** @pullboard-test-input packages/gate/src/io/test/freeze.js packages/gate/src/io/test/scripts/freeze.js packages/gate/src/io/test/freeze/plan.js */
 /** The freeze script moves, converts or deletes test files from the manifest's tags in one change, and its dry run touches nothing [C7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -7,8 +7,8 @@ import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import { runFreezeCommand } from '../../../../src/io/test/freeze.js';
 import { FREEZE_RECORD_FILE } from '../../../../src/io/test/freeze.js';
-import { planFreeze } from '../../../../src/logic/test/freeze.js';
-import { rebaseSpecifiers } from '../../../../src/logic/test/freeze.js';
+import { planFreeze } from '../../../../src/io/test/freeze/plan.js';
+import { rebaseSpecifiers } from '../../../../src/io/test/freeze/plan.js';
 import { privateFixtureFiles } from '../../../fixtures/child.js';
 import { runFixtureGit } from '../../../fixtures/child.js';
 
