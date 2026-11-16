@@ -318,6 +318,9 @@ export async function verifyHere(ctx, id, { second, values }) {
       throw new Refused('NOT_SUBMITTED', `item #${id} is ${item.item_status}, not submitted`);
     }
     if (item.outside) return outsideVerdict(ctx, board, item, me, decision, values, { checkNeedsBrowser, freezer, ordered, resourceAgent, textArg, withGateSlot, verifyOutsideSandbox, itemPolicy, requireTrunkMerge, executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() } });
+    // Refuse a bad --read before composition, gate admission or any test run: it is pure input, and a full proof that
+    // ends in USAGE wastes minutes and leaves nothing recorded (#3085).
+    const readNote = reviewPacketReadNote(ctx.info.commonDir, item, values.read, decision);
     // Name an unknown implied item before the frozen check runs, not after it.
     if (implies) checkImplies(board, implies);
     const policy = itemPolicy(root, item);
@@ -511,7 +514,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       agentId: me.id,
       decision,
       reason: values.reason,
-      note: (textArg(ctx.io, values, 'note') ?? '') + reviewPacketReadNote(ctx.info.commonDir, item, values.read, decision) + unaffectedMove + knownMainCheckNote(knownMain) + (check?.guardNote ?? '') + (check?.executionNote ?? '') + citedReceiptsNote(cited) + (check?.blockingVerdict ? `\ncomputed quarantine verdict; raw exit ${check.exitCode}; events ${check.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId).join(', ')}` : '') + (approvalNote ? `\n${approvalNote}` : ''),
+      note: (textArg(ctx.io, values, 'note') ?? '') + readNote + unaffectedMove + knownMainCheckNote(knownMain) + (check?.guardNote ?? '') + (check?.executionNote ?? '') + citedReceiptsNote(cited) + (check?.blockingVerdict ? `\ncomputed quarantine verdict; raw exit ${check.exitCode}; events ${check.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId).join(', ')}` : '') + (approvalNote ? `\n${approvalNote}` : ''),
       ...(decision === 'REJECT' && values.cause !== undefined ? { cause: values.cause } : {}),
       ...(decision === 'REJECT' && values.clause !== undefined ? { clause: values.clause } : {}),
       head,
