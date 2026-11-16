@@ -25,8 +25,10 @@ import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
 async function idleFixture(t) {
   const box = machine(), alpha = project(box, 'idle-cost');
   for (const title of ['First idle-cost item', 'Second idle-cost item', 'Third idle-cost item']) {
-    await fileFixtureItem(box, alpha.repo, { lane: 'web', title, criterion: 'The private project configuration exists.', check: 'test -f pullboard.json', args: ['--specs', 'G1'], wait: true,
-      run: async (root, ...args) => ({ code: 0, out: await box.inProcess(root, ...args), err: '' }) });
+    await fileFixtureItem(box, alpha.repo, { lane: 'web', title, criterion: 'The private project configuration exists.', check: 'test -f pullboard.json', args: ['--specs', 'G1', '--accept-green', 'fixture check keeps passing'], wait: true,
+      run: async (root, ...args) => {
+        try { return { code: 0, out: await box.inProcess(root, ...args), err: '' }; }
+        catch (error) { return { code: 1, out: String(error.message), err: '' }; } } });
   }
   const base = Date.now() + 1_000, clock = { at: base };
   // @pullboard-board-file journey: the CLI seeds the persisted Git-local board that serveApi reopens over HTTP.
