@@ -5,7 +5,7 @@ import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
 
 test('a fresh machine sends no relay traffic, says it is local, and shares sealed after sign-in [H5,H17]', async (t) => {
   const box = await relayClientFixture(t);
-  const status = await box.cli('status');
+  const status = await box.cliLocal('status');
   assert.equal(status.code, 0);
   assert.equal(box.calls.length, 0, 'before any sign-in no request reaches the relay');
   assert.equal(status.document.relay?.excluded, undefined);
@@ -17,9 +17,9 @@ test('a fresh machine sends no relay traffic, says it is local, and shares seale
 test('a board the person turned off stays excluded and sends nothing more [H5,B26]', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
-  assert.equal((await box.cli('relay', 'off')).code, 0);
+  assert.equal((await box.cliLocal('relay', 'off')).code, 0);
   const sent = box.calls.length;
-  const status = await box.cli('status');
+  const status = await box.cliLocal('status');
   assert.equal(status.document.relay.excluded, true);
   assert.equal(status.document.relay.exclusion.reason, 'person relay off');
   assert.equal(box.calls.length, sent, 'an excluded board makes no further relay request');
