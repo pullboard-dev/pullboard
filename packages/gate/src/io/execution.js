@@ -383,7 +383,7 @@ function leaveProofReceipt(root, command, run, before, context, lease, observedC
 }
 
 /** Execute a private immutable check before the gate writes its provenance. */
-export async function runFrozenProof(root, item, { gateLease, waitMs = 0, diagnostic = false } = {}, { checkAtCommit }) {
+export async function runFrozenProof(root, item, { gateLease, waitMs = 0, diagnostic = false } = {}, { checkAtCommit, appendFact }) {
   if (diagnostic && (gateLease?.proof?.kind !== 'submit' || !gateLease.proof.diagnosticAdmission || item.item_id !== gateLease.proof.item)) throw new Refused('PROOF_RUN_UNBOUND', 'a diagnostic needs its actual admitted Submit item');
   const context = diagnostic
     ? { item: item.item_id, frozenDigest: null, seat: gateLease.proof.seat, kind: 'check', commit: item.item_commit, submitPhase: 'diagnostic', diagnosticAdmission: gateLease.proof.diagnosticAdmission }
@@ -407,7 +407,19 @@ export async function runFrozenProof(root, item, { gateLease, waitMs = 0, diagno
     sourceClean: cleanProofSource(root, before, result, gateLease, true), privateCommand: result.executionCommand ?? frozenCheck(item), outcomeId,
     source: { head: before.head, tree: before.tree } });
   const id = result.executed ? leaveProofReceipt(root, result.executionCommand ?? frozenCheck(item), result, before, context, gateLease) : null;
+  if (!diagnostic && appendFact) await recordFollowedRenames(item, result.renames, appendFact);
   return { ...result, ...(id ? { proofReceiptId: id } : {}) };
+}
+
+/**
+ * Record each test-file rename a frozen check followed as one fact on its item, never refreezing the criterion.
+ * Why: the item shows which path ran in place of the frozen one while its digest stays what the author froze [C7,#2969].
+ * A fact that cannot be written never changes the verdict.
+ */
+async function recordFollowedRenames(item, renames, appendFact) {
+  for (const { from, to } of renames ?? []) {
+    try { await appendFact(item.item_id, { kind: 'note', text: `The frozen check followed a rename: ${from} is now ${to}.` }); } catch { /* the check result stands without the note */ }
+  }
 }
 
 /** Execute the shared profiled plan synchronously, preserving every existing receipt field. */
