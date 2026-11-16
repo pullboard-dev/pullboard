@@ -146,7 +146,6 @@ function pipelineFailures(components, root, { nativeLeaves, allowCancelled }) {
 export { chromeCloneDirectories } from './src/io/clone.js';
 export { childJournalPreloadSource } from './src/io/journal/preload.js';
 export { exactStart } from './src/io/journal/preload.js';
-export { diskStores } from './src/io/stores.js';
 export { gateStages } from './src/io/stages.js';
 export { stagedScript } from './src/io/stages.js';
 export { readPipes } from './src/io/stages.js';
