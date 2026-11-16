@@ -69,3 +69,7 @@ test('clause 2: the list thin row is 200 ms and the list row stays at its audite
 test('clause 1: list with list.thinRead on holds its 200 ms list thin row, and the list row is unchanged [C7,#9090]', async (t) => {
   await assertStartupBudgets(t);
 });
+
+test('clause 3: list thin is an audited exception at 200 ms over its measured median of 182 ms, run 91c72d73-2ba5-49e3-bff6-359ea1541783 [C7,#9090]', () => {
+  assert.ok(182 < ceilings['list thin'] && ceilings['list thin'] === 200);
+});
