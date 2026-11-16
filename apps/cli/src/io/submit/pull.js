@@ -450,6 +450,16 @@ export function gateJobRequest(pinned) {
 }
 
 /**
+ * The gate a landing's proof shard runs on another runner: the gate job's argv and main's trusted gate entry, which the
+ * land job carries as shardProof when landing.shardProof is on [C7,#8255].
+ *
+ * @returns {{ run: string[], entry: string }}
+ */
+export function landingShardGate() {
+  return { run: gateJobRun(), entry: GATE_JOB_ENTRY };
+}
+
+/**
  * A gate-shard job's request with no gate job behind it: main's trusted gate entry run on one shard of files, the
  * request offerProofShards gives a submit proof's shard. Why: the pre-push full gate offers its files the same way [P7,#7743].
  *
