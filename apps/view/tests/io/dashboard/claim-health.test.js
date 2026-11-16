@@ -46,7 +46,7 @@ test('clause 1: a board with no stalled or waiting claim shows no such tiles [C7
 
 test('clause 3: neither the dashboard nor the agent floor counts the stalled claim as building [C7]', () => {
   const model = board();
-  const floor = agentFloorModel(model, model.events ?? []);
+  const floor = agentFloorModel(model, []);
   const keyOf = id => floor.groups.find(group => group.agents.some(agent => agent.id === id))?.key;
   assert.equal(keyOf('view-1'), 'building');
   assert.equal(keyOf('view-2'), 'stalled', 'the stalled claim sits apart from building');

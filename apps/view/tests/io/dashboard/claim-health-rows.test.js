@@ -6,7 +6,7 @@ import { itemStagePresentation } from '../../../src/logic/pipeline/model.js';
 import { agentFloorHtml } from '../../../src/logic/agent/floor/render.js';
 import { agentFloorModel } from '../../../src/logic/agent/floor/model.js';
 import { dashboardModel } from '../../../src/io/dashboard/model.js';
-import { agentFloorData } from '../fixtures/cockpit/floor.js';
+import { agentFloorData } from '../../fixtures/cockpit/floor.js';
 
 const MINUTE = 60_000;
 
