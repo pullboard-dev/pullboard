@@ -2,6 +2,7 @@
 /** The synchronous write-board lifecycle and compatible public CLI context exports [C7]. */
 import * as store from '../../../../packages/store/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
+import { holdsLiftSettled } from '../../../../packages/config/index.js';
 import { createRequire } from 'node:module';
 import { moveArgs } from '../../../../packages/person/index.js';
 import { receiveCommits } from '../../../../packages/pin/index.js';
@@ -115,6 +116,8 @@ function openAndRun(ctx, work, opened) {
   board.itemsInGate = ctx.config.claims?.itemsInGate === true ? (Number.isSafeInteger(ctx.config.claims.itemsInGateMax) ? ctx.config.claims.itemsInGateMax : 3) : 0;
   // release.liftTwiceHold (off by default): an automatic released-twice hold lifts when main moves or its named blocker lands [C7,#9002].
   board.liftTwiceHold = ctx.config.release?.liftTwiceHold === true;
+  // holds.liftSettled (off by default): a hold whose reason names only landed or withdrawn items, or a parent whose children are done, lifts when main moves [C7,#9699].
+  board.liftSettledHolds = holdsLiftSettled();
   // claims.fileLease (off by default): live claims lease their predicted files, hub files excepted [C7,#8521].
   board.fileLease = ctx.config.claims?.fileLease === true ? { hubs: ctx.config.claims.fileLeaseHubs ?? [] } : null;
   // inbox.keepUntilActed (off by default): shouts record their kind and stay listed until an allowed action is recorded [C7,#8519].
