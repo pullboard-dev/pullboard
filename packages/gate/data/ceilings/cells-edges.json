@@ -5997,9 +5997,6 @@
     "packages/gate/tests/fixtures/resources/runner.js": [
       "apps/cli"
     ],
-    "packages/gate/tests/fixtures/resources/verify.js": [
-      "apps/cli"
-    ],
     "packages/git/tests/fixtures/flakes.js": [
       "apps/cli"
     ],
