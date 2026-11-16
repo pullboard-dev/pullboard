@@ -27,7 +27,7 @@ async function answer({ argv, cwd, env }) {
   for (const api of APIS) {
     const real = childProcess[api];
     childProcess[api] = function counted(...args) {
-      if (program(args) === 'git') started.push((Array.isArray(args[1]) ? args[1] : []).filter(arg => !arg.startsWith('-') && !arg.includes('=')).slice(0, 3).join(' '));
+      if (program(args) === 'git') started.push((Array.isArray(args[1]) ? args[1] : []).slice(0, 8).join(' '));
       return real.apply(this, args);
     };
   }
