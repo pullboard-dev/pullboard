@@ -220,6 +220,14 @@ export function refuseMissingCheckFile() {
 }
 
 /**
+ * Whether an item hold must name an owner and records a deadline (#8539): off by default, so holds are unchanged; only an
+ * exact `true` turns it on.
+ */
+export function holdsRequireOwner() {
+  return loadMachineSettings().holds?.requireOwner === true;
+}
+
+/**
  * Where a queued submit's authorization source checks run when a runner is registered: `runner` (default) puts them in
  * the gate's one runner analysis job beside doctrine, cells, static and selection; `local` keeps them on this machine as
  * before #5674. Anything but an exact `local` is the default, so a damaged value never moves work back here [C7].
