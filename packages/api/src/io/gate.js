@@ -243,10 +243,10 @@ function shellWord(value) {
   return `'${String(value).replaceAll("'", "'\\''")}'`;
 }
 
-/** The shard jobs offered for one gate job, oldest first. */
-function shardJobs(db, job) {
+/** The shard jobs offered for one gate job, oldest first. runs: the board's runs holder (boardRunsHolder) while runs_store is on, so the rows are read from the runs file; null reads the board's [B2,P7,#9151]. */
+export function shardJobs(db, job, { runs = null } = {}) {
   const prefix = `${job}:shard:`;
-  return db.prepare('SELECT job_id, job_step FROM job WHERE job_kind = ? AND substr(job_id, 1, ?) = ? ORDER BY job_created, job_id').all(SHARD_JOB_KIND, prefix.length, prefix);
+  return (runs ? runs.db : db).prepare('SELECT job_id, job_step FROM job WHERE job_kind = ? AND substr(job_id, 1, ?) = ? ORDER BY job_created, job_id').all(SHARD_JOB_KIND, prefix.length, prefix);
 }
 
 /**
@@ -1082,11 +1082,12 @@ export function settleWaitingGates(board, mainTest, { compareWithMain = null, se
   return settled;
 }
 
-/** A sharded gate's combined receipt once every shard job is done, as its last shard applied it; null while any is open. */
-function shardedResult(db, job, gateReceipt) {
-  const shards = shardJobs(db, job);
+/** A sharded gate's combined receipt once every shard job is done, as its last shard applied it; null while any is open. runs: as shardJobs [#9151]. */
+export function shardedResult(db, job, gateReceipt, { runs = null } = {}) {
+  const home = runs ? runs.db : db;
+  const shards = shardJobs(home, job);
   if (!shards.length || shards.some(row => row.job_step !== 'done')) return null;
-  return combinedReceipt(gateReceipt, shards.map(row => ({ job: row.job_id, posted: postedReceipt(db, row.job_id) })), { signatures: true });
+  return combinedReceipt(gateReceipt, shards.map(row => ({ job: row.job_id, posted: postedReceipt(home, row.job_id) })), { signatures: true });
 }
 
 /** Shout the coordinator once that one job was claimed 3 times within 60 s, naming the job and its runners (#7445). */
