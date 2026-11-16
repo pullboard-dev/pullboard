@@ -232,11 +232,11 @@ export function cellProject(t, { gate = PROJECT_GATE, config = {}, spec = CELL_S
  * Register a seat the way `pullboard join` does: the same store register move with the same fields.
  *
  * @param {object} board - A cellBoard.
- * @param {{ lane: string, path: string, route?: string, family?: string, model?: string }} seat
+ * @param {{ lane: string, path: string, route?: string, family?: string, model?: string, reviewLimits?: string[] }} seat
  * @returns {object} The agent row, with `id` and `lane` for cellClaim.
  */
-export function cellSeat(board, { lane, path, route = 'strong', family, model = FIXTURE_MODEL }) {
-  const id = register(board, { lane, path, route, family, model });
+export function cellSeat(board, { lane, path, route = 'strong', family, model = FIXTURE_MODEL, reviewLimits }) {
+  const id = register(board, { lane, path, route, family, model, ...(reviewLimits ? { reviewLimits } : {}) });
   return { ...agentById(board, id), id, lane };
 }
 
