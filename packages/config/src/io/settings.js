@@ -914,6 +914,11 @@ export function reuseContractResultsEnabled() {
   return loadMachineSettings().landing?.reuseContractResults === true;
 }
 
+/** Whether landing.stallStop is on (#8749): off by default; only an exact `true` turns it on. */
+export function stallStopEnabled() {
+  return loadMachineSettings().landing?.stallStop === true;
+}
+
 /** Whether landing.reuseGateReceipts is on (#9243): off by default; only an exact `true` turns it on. */
 export function reuseGateReceiptsEnabled() {
   return loadMachineSettings().landing?.reuseGateReceipts === true;

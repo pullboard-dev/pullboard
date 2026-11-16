@@ -14,8 +14,13 @@ import { itemKeepRef } from '../land/squash.js';
 import { squashOnto } from '../land/squash.js';
 import { amendLandingEngines } from '../derive.js';
 import { amendLandingRegistries } from '../derive.js';
+import { LANDING_STALL_MS } from '../progress.js';
+import { landingStallDescription } from '../progress.js';
+import { landingStallExpired } from '../progress.js';
+import { LAND_PROOF_TIMEOUT } from './deadline.js';
 import { proofLimitMs } from './deadline.js';
 import { timeoutDetail } from './deadline.js';
+import { stopTree } from './deadline.js';
 import { watchDeadline } from './deadline.js';
 
 /** The board's landing job kind, as packages/api offers it. */
@@ -177,7 +182,7 @@ const FAILED_CASE = /^\s*(?:not ok \d+|\u2716 )/u;
  * A `deadline` ({ at, ms }, or null) that passes first stops the command's process tree and returns `timeout: true`, never a red [C7,#7820].
  */
 export function commandCheck(argv, { deadline = null } = {}) {
-  return ({ root }) => new Promise(resolve => {
+  return ({ root, progress = null, signal = null }) => new Promise(resolve => {
     // An enclosing node --test run's context never reaches the project's check, which then reports as its own run.
     const { NODE_TEST_CONTEXT, ...env } = process.env;
     const child = spawn(argv[0], argv.slice(1), { cwd: root, stdio: ['ignore', 'pipe', 'pipe'], env });
@@ -189,7 +194,9 @@ export function commandCheck(argv, { deadline = null } = {}) {
       const result = { ok: false, timeout: true, detail: timeoutDetail(`check ${named}`, limitMs, output) };
       return () => resolve(result);
     });
-    const keep = chunk => { if (output.length < 200_000) output += chunk.toString('utf8'); };
+    const keep = chunk => { progress?.(); if (output.length < 200_000) output += chunk.toString('utf8'); };
+    // landing.stallStop: a stall stops this command's tree; the stalled result is already posted by the job, so this close is ignored [C7,#8749].
+    signal?.addEventListener('abort', () => { settled = true; stopTree(child).then(() => resolve({ ok: false, timeout: true, detail: 'stalled' })); }, { once: true });
     child.stdout.on('data', keep);
     child.stderr.on('data', keep);
     child.on('error', error => { clear(); if (!settled) { settled = true; resolve({ ok: false, detail: `${named}: ${String(error.message).slice(0, 300)}` }); } });
@@ -280,6 +287,30 @@ async function landingCheck(payload, env, phases = null, shards = null) {
     }
     return { ok: true, detail: null, ...(waived ? { waived } : {}), ...(proof ? { proof } : {}), ...(contracts ? { contracts } : {}) };
   };
+}
+
+/**
+ * Run a landing check under landing.stallStop: the check reports progress (`context.progress()`, as a command does for each
+ * byte it prints, and each lease renewal counts), and two minutes (LANDING_STALL_MS) on `clock` without any stops it. The check's process tree is stopped
+ * through `context.signal`, and the result is a timeout carrying landingStallDescription, which the board offers again
+ * rather than returning the items as a red [C7,#8749].
+ */
+async function stallWatched(check, context, { clock, pollMs }) {
+  let last = clock();
+  const progress = () => { last = clock(); };
+  const stop = new AbortController();
+  let timer = null;
+  const stalled = new Promise(resolve => {
+    // Each look re-arms the next: a watch that ends with the check, not a loop that outlives it.
+    const look = () => {
+      if (!landingStallExpired(last, clock(), LANDING_STALL_MS)) { timer = setTimeout(look, pollMs); return; }
+      const detail = `${LAND_PROOF_TIMEOUT}: ${landingStallDescription({ id: `land:${context.items.join(',')}`, state: 'checking' }, 'check')}`;
+      stop.abort();
+      resolve({ ok: false, timeout: true, detail });
+    };
+    timer = setTimeout(look, pollMs);
+  });
+  try { return await Promise.race([check({ ...context, progress, signal: stop.signal, renew: async () => { progress(); return context.renew(); } }), stalled]); } finally { clearTimeout(timer); }
 }
 
 /**
@@ -381,7 +412,7 @@ function firstMerges(root, base, tip, pending, squash = false) {
  *   returned: { id: number, reason: 'red' | 'conflict' | 'hook', detail: string }[] }>} returned: the items the board sends back to their builders, or parks
  *   under separate publish (payload.publish), as 0.9.3's landing did; a red outcome lands nothing.
  */
-export async function runLandingJob(payload, { workdir, checks = null, renew = () => true, attempts = PUSH_ATTEMPTS, pushOptions = () => [], env = process.env, diagnose = null, shards = null }) {
+export async function runLandingJob(payload, { workdir, checks = null, renew = () => true, attempts = PUSH_ATTEMPTS, pushOptions = () => [], env = process.env, diagnose = null, shards = null, clock = Date.now, stallPollMs = 1000 }) {
   const { remote, trunk, expect, items } = payload;
   if (Number.isSafeInteger(payload.shape) && payload.shape > LANDING_PAYLOAD_SHAPE) {
     // A plain coded error: this cell takes no kernel import, and the runner releases the job with this message, which names the code.
@@ -434,7 +465,7 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     // The check proves the tree that lands: engine numbers and derived docs ride inside the last merge [C7].
     const derived = await deriveMerged(root, { base, badges: payload.badges });
     admitTrunk(root, { trunk, base });
-    const result = derived ? { ok: false, detail: derived } : await check({ root, base, items: pending.map(entry => entry.id), renew });
+    const result = derived ? { ok: false, detail: derived } : payload.stallStop === true ? await stallWatched(check, { root, base, items: pending.map(entry => entry.id), renew }, { clock, pollMs: stallPollMs }) : await check({ root, base, items: pending.map(entry => entry.id), renew });
     if (result?.proof) receipt.proof = result.proof;
     if (result?.contracts) receipt.contracts = result.contracts;
     // A proof red only in tests the person waived lands waived, not green; the receipt names each waiver [#655].

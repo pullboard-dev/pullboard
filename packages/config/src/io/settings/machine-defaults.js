@@ -83,6 +83,7 @@ export const MACHINE_DEFAULTS = {
   'landing.reuseContractResults': false,
   'landing.reuseGateReceipts': false,
   'landing.squash': false,
+  'landing.stallStop': false,
   'landing.strictFullSuite': false,
   'list.thinRead': false,
   'machine.loadCeiling': null,
