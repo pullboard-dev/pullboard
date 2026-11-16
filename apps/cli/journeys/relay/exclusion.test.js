@@ -14,11 +14,11 @@ test('a legacy exclusion shows as unknown historical exclusion with a stable fir
   state.excluded = [box.root];
   delete state.exclusionDetails;
   writeFileSync(file, JSON.stringify(state), { mode: 0o600 });
-  const first = (await box.cli('relay', 'status')).document.relay.exclusion;
+  const first = (await box.cli('status')).document.relay.exclusion;
   assert.equal(first.reason, 'unknown historical exclusion');
   assert.equal(first.at, null, 'a missing historical time is never invented');
   assert.ok(Number.isFinite(Date.parse(first.firstSeenAt)), 'the time it was first observed is named');
-  const second = (await box.cli('relay', 'status')).document.relay.exclusion;
+  const second = (await box.cli('status')).document.relay.exclusion;
   assert.equal(second.firstSeenAt, first.firstSeenAt, 'the first-seen time does not move on later reads');
 });
 
