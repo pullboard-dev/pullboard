@@ -22,6 +22,7 @@ test('clause 1: the landing doctrine slot passes item and kind landing [C7]', ()
 
 test('clause 1: the main-red slots and the runner check slot pass an item and a kind [C7]', () => {
   const red = slotCalls('main/red.js');
-  const named = red.filter(call => /kind: 'main-red', item: 'main'/u.test(call) || /diagnostic: true, kind, item,/u.test(call));
+  const named = red.filter(call => /slotOptions\(/u.test(call) || /diagnostic: true, kind, item,/u.test(call));
+  assert.match(readFileSync(join(SOURCE, 'main/red.js'), 'utf8'), /const slotOptions = .*kind: 'main-red', item: 'main'/u);
   assert.equal(named.length, red.length, 'every withGateSlot call in main/red.js is attributed');
 });
