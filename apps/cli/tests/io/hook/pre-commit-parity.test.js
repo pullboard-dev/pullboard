@@ -21,7 +21,7 @@ const BIN = resolve(import.meta.dirname, '../../../pullboard.js');
 function realHooks(box) {
   const dir = join(privateFixtureFiles('pullboard-pre-commit-hooks-').root, 'hooks');
   mkdirSync(dir);
-  writeFileSync(join(dir, 'pre-commit'), `#!/bin/sh\nPULLBOARD_HOOK_STATIC=${PRE_COMMIT_STATIC} exec "${process.execPath}" "${BIN}" hook pre-commit\n`);
+  writeFileSync(join(dir, 'pre-commit'), `#!/bin/sh\nPULLBOARD_HOOK_STATIC= exec "${process.execPath}" "${BIN}" hook pre-commit\n`);
   chmodSync(join(dir, 'pre-commit'), 0o755);
   return dir;
 }
@@ -45,7 +45,7 @@ function clean(box, cwd) {
 /** The in-process answer and the real hook's answer through git commit, for one staged state. */
 async function bothAnswers(box, cwd, state) {
   stage(box, cwd, state);
-  const inProcess = await runPreCommitInProcess(box, cwd);
+  const inProcess = await runPreCommitInProcess(box, cwd, { staticCheck: '' });
   clean(box, cwd);
   stage(box, cwd, state);
   const commit = box.tryGit(cwd, '-c', `core.hooksPath=${realHooks(box)}`, 'commit', '-q', '--allow-empty', '-m', 'feat(web): parity [G1]');
@@ -77,7 +77,7 @@ for (const state of STATES) {
 test('clause 1: runPreCommitInProcess returns the hook status and stderr, and names the same static check as .githooks/pre-commit [C7,#9211]', async () => {
   const box = e2e.project('true');
   stage(box, box.web, { files: { 'api/outside.txt': 'x\n' } });
-  const answer = await runPreCommitInProcess(box, box.web);
+  const answer = await runPreCommitInProcess(box, box.web, { staticCheck: '' });
   assert.deepEqual(Object.keys(answer).sort(), ['status', 'stderr']);
   assert.notEqual(answer.status, 0);
   assert.match(answer.stderr, /pullboard pre-commit/u);
