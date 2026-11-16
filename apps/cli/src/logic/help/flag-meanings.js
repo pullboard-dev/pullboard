@@ -44,6 +44,7 @@ export const FLAG_MEANINGS = Object.freeze({
   '--project': 'limits the view to the registered project for this repository',
   '--port': ['--port <n>', 'the port to listen on; 0 chooses a free port'],
   '--no-open': 'does not open the browser',
+  'route --suggest': 'lists the open strong items whose shape meets the light rule, changing none of them',
   '--lan': 'serves a private link for a phone on the local IPv4 network',
   '--export': 'writes a read-only snapshot with event replay into this folder',
   '--public': 'requires a checked public filter before anything is exported',
