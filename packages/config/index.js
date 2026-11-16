@@ -91,6 +91,7 @@ export {
   derivedStateEnabled,
   recordWriteHolderEnabled,
   adaptiveBatchEnabled,
+  reofferTrunkBusyEnabled,
   memoryFloorMB,
   relayOfferEnabled,
   setRelayCanary,
