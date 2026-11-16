@@ -105,7 +105,6 @@ import { trunkRevisionReader } from '../../../git/index.js';
 import { relayPresentationShout } from '../../../pages/index.js';
 import { createApiHandler } from './http.js';
 import { settingsInventory } from '../../../config/index.js';
-import { jobQueueMode } from '../../../config/index.js';
 import { drainedRunnerHosts } from '../../../config/index.js';
 import { jobReserve } from '../../../config/index.js';
 import { fencedHopEnabled } from '../../../config/index.js';
@@ -1307,7 +1306,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
 async function boardJobsCall({ board, body, now }, isMain, boardOpeners) {
   // On a relay-linked board a receipt's engine moves are ordered through the relay, so every replica sees the gate's result (#7562).
   const ordered = relayLinked(board.root) ? [] : null;
-  const answer = await withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, jobQueueMode), now, drained: drainedRunnerHosts, reserve: jobReserve, hop: gateClaimHop(fencedHopEnabled()), trunk: () => trunkRemote(board.root) ?? board.root, ordered }), isMain, boardOpeners);
+  const answer = await withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, () => 'pull'), now, drained: drainedRunnerHosts, reserve: jobReserve, hop: gateClaimHop(fencedHopEnabled()), trunk: () => trunkRemote(board.root) ?? board.root, ordered }), isMain, boardOpeners);
   if (!ordered) return answer;
   return { ...answer, relayed: await relayReceiptMoves(board.root, ordered, boardOpeners) };
 }
