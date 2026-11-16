@@ -12,6 +12,7 @@ const ROWS = [
   ['browserSlots', 'Browser checks at once', 'How many runs that need a real browser go at the same time on this computer; 0 needs a registered runner.', 'Capacity', 'count'],
   ['gate.browserByLaunch', 'Browser work by real launches', 'Counts a test file as browser work only if it actually launches Chrome, not when it merely looks like a browser test.', 'Capacity', 'on/off'],
   ['gate.browserFreeChecks', 'Browser-free checks skip the browser slot', 'A check that never opens a browser takes an ordinary slot instead of waiting for a browser slot.', 'Capacity', 'on/off'],
+  ['gate.contractWeakening', 'Refuse a weakened contract without the owner', 'Off (default) refuses nothing. On, a change that narrows an export\'s shape (an export removed, a parameter dropped or the return changed) is refused CONTRACT_WEAKENED unless the owning cell\'s approval is recorded.', 'Capacity', 'on/off'],
   ['gate.diskFloorMB', 'Runner disk floor', 'A runner refuses new jobs when less than this much disk is free after its sweep; an absolute amount, never a percentage.', 'Capacity', 'MB'],
   ['gate.loadAwareDispatch', 'Prefer quieter runners', 'On by default once a runner is measured: dispatch skips a runner above 1.5x its cores and picks the most headroom by runner-reported load.', 'Capacity', 'on/off'],
   ['gate.localLoadShare', 'Local runner load share', 'With no registered runners, the local runner takes a job only while this machine\'s one-minute load is under this share of its cores (default 1.0 per core); the job waits in the queue otherwise.', 'Capacity', 'number'],
@@ -210,6 +211,7 @@ const ROWS = [
   ['verify.titleTicks', 'Tick clauses by case title', 'On, a [test] clause that names no test file is ticked by the item\'s changed tests holding a case titled "clause N:" when the gate runs every such case green; off (default) only a clause naming a test file or folder is.', 'Review', 'on/off'],
   ['verify.unrelatedTrunkMoves', 'Keep verdicts through unrelated changes', 'A verdict survives main moving through commits that touch nothing the review read.', 'Review', 'on/off'],
   ['withdraw.refuseLanded', 'Landed work stays landed', 'On, withdraw refuses an item whose commit is on main and names pullboard merged instead; off, withdraw closes it as before.', 'Review', 'on/off'],
+  ['release.liftTwiceHold', 'Lift a released-twice hold', 'On, the hold the release-twice rule places lifts when main moves or when an item a release named as its blocker lands; a hold a person or the coordinator placed stays. Off (default), it stays until someone lifts it.', 'Review', 'on/off'],
   ['withdraw.review', 'Withdrawals need a second seat', 'On, a withdrawal waits as pending until another seat confirms it; off, withdraw closes the item at once.', 'Review', 'on/off'],
   // This repo: Claims
   ['claim.refuseOffMainHead', 'Refuse a claim off main', 'When enabled, claim refuses in a folder whose HEAD is not on main (a commit made before claiming), and names the step that puts the folder back on main; off (default), claim takes the folder as it stands.', 'Claims', 'on/off'],

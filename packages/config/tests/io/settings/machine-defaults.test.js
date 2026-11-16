@@ -26,6 +26,7 @@ const BEFORE = {
   'gate.adapterLintClock': false,
   'gate.browserByLaunch': false,
   'gate.browserFreeChecks': false,
+  'gate.contractWeakening': false,
   'gate.diskFloorMB': 10240,
   'gate.endStaleJobs': false,
   'gate.fencedHop': true,
