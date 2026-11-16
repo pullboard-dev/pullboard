@@ -118,14 +118,20 @@ function projectBatch(batch) {
 }
 
 /**
- * The fixture's event rows, each detail projected, with a batch revision dropped when it repeats its batch's previous kept revision field for field.
+ * The fixture's event rows, each detail projected and each lease token renamed t1, t2, ..., with a batch revision dropped when it repeats its batch's previous kept revision field for field.
  * Why: a batch is rewritten on every gate step; the fold keeps only the latest revision per id and reads a change only in its refusal or culprits, so a repeat decides nothing.
  */
 function fixtureEvents(rows) {
   const last = new Map();
+  const tokens = new Map();
   const events = [];
   for (const row of rows) {
     const detail = project(row.event_kind, detailOf(row.event_detail));
+    // A lease token is only ever compared for equality, so a short stand-in per distinct token decides the same and reads as no credential.
+    if (row.event_kind === 'landing_lease' && detail.token != null) {
+      if (!tokens.has(detail.token)) tokens.set(detail.token, `t${tokens.size + 1}`);
+      detail.token = tokens.get(detail.token);
+    }
     if (row.event_kind === 'landing_batch' && detail.batch?.id !== undefined) {
       const text = JSON.stringify(detail.batch);
       if (last.get(detail.batch.id) === text) continue;
