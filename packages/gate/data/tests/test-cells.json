@@ -1,7 +1,6 @@
 {
   "journeys": {
     "apps/cli/journeys/blueprint/proposal.test.js": "drives the real CLI (blueprint add, init --blueprint, blueprint save and fit) in a fresh repo and checks its JSON output, refusals and board rows end to end",
-    "apps/cli/journeys/doctrine/rulings.test.js": "drives the real CLI (resume, doctrine rulings) across several checkouts and the agent move API, and checks its JSON output and exit codes end to end",
     "apps/cli/journeys/spec/signoff.test.js": "drives the real CLI (init, spec check, spec signers add, spec show, spec signoff) in signed repositories and checks its output, exit codes and refusals end to end",
     "apps/cli/journeys/relay/phases.test.js": "drives the real CLI against a stalled relay, lock and board export and checks the phase it names when it times out",
     "apps/cli/journeys/lanes/main.test.js": "drives the real CLI (hook pre-commit, claim, submit, refreeze, show) in private repositories with installed hooks and checks lane ownership, refusals, frozen policy and exit codes end to end; it also holds the import-only change proof of the commits cell (packages/commits/src/logic/import-only-change.js)",
