@@ -45,6 +45,7 @@ export { readLandingRecords, replayLandingMoves } from "./src/io/table/landing.j
 export { VERIFY_DEFERRED_FIELDS, VERIFY_IO_FIELDS, VERIFY_NEXT, VERIFY_WORDS, stepInMessage, verifyEngine } from "./src/logic/table/verify.table.js";
 export { boardVerifyEngine } from "./src/io/table/board-verify.js";
 export { readVerifyRecords } from "./src/io/table/verify-records.js";
+export { exportTableHistory, recordLanding, scrubHome } from "./src/io/table/history-export.js";
 export { WITHDRAW_NEXT, withdrawEngine } from "./src/logic/table/withdraw.table.js";
 export { REOPEN_NEXT, reopenEngine } from "./src/logic/table/reopen.table.js";
 export { boardReopenEngine, boardWithdrawEngine } from "./src/io/table/board-withdraw.js";
