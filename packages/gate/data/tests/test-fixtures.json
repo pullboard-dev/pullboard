@@ -1647,8 +1647,10 @@
   "apps/cli/journeys/verify/checks-output.test.js": {
     "raw-board": 1
   },
+  "apps/cli/journeys/verify/checks-large-output.test.js": {
+    "raw-board": 1
+  },
   "apps/cli/journeys/verify/checks-timeouts.test.js": {
-    "raw-board": 1,
     "hand-policy": 1
   },
   "apps/cli/journeys/runner/e2e.test.js": {
