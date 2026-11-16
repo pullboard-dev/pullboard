@@ -61,3 +61,20 @@ test('clause 2: cells prints one line per cell naming its state and the breaking
   assert.match(ran.stdout, /^packages\/alpha {2}sealed {2}[0-9a-f]{12} {2}by receipt-packages\/alpha$/mu);
   assert.match(ran.stdout, new RegExp(`^packages/beta  unsealed  [0-9a-f]{12}  broken by ${changed.slice(0, 12)} chore\\(beta\\): change the beta answer$`, 'mu'));
 });
+
+test('clause 1: after an unrelated merge, an unsealed cell names the commit that edited it, not the merge or a side-branch commit [C7,SC1,SC16]', async t => {
+  const { box, changed } = sealedAndEdited(t);
+  const git = (...args) => runFixtureGit(args, { cwd: box.root, env: box.env, stdio: 'pipe', encoding: 'utf8' }).trim();
+  const trunk = git('rev-parse', '--abbrev-ref', 'HEAD');
+  git('checkout', '-q', '-b', 'side', `${changed}~1`);
+  commit(box, { 'side.txt': 'side work\n' }, 'docs(fixture): a side-branch note');
+  git('checkout', '-q', trunk);
+  git('merge', '--no-ff', '-q', '-m', 'chore(fixture): merge the side branch', 'side');
+  const ran = await runCliInProcess(['cells', '--json'], { cwd: box.root, env: box.env });
+  assert.equal(ran.status, 0, ran.stdout + ran.stderr);
+  const report = JSON.parse(ran.stdout);
+  const beta = (report.result ?? report).cells.find(cell => cell.cell === 'packages/beta');
+  assert.equal(beta.state, 'unsealed');
+  assert.equal(beta.changedBy, changed);
+  assert.equal(beta.changedSubject, 'chore(beta): change the beta answer');
+});

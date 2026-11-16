@@ -230,8 +230,8 @@ export function checkSkippedSeals(root, { rev = 'HEAD', skipped, store = sealSto
 
 /**
  * Every package at a revision as sealed or unsealed; an unsealed one names the newest commit that changed its hash.
- * Why scan a window: the breaking change is the first commit, walking back from the revision, whose parent hashed the
- * package differently; a change older than the window is reported as null rather than guessed.
+ * Why scan a window: the breaking change is the first commit, walking the first-parent line back from the revision, whose
+ * first parent hashed the package differently (a side branch's commits are never adjacent pairs, so a merge is judged against its real parent); a change older than the window is reported as null rather than guessed.
  *
  * @param {string} root
  * @param {{ rev?: string, store?: string, depth?: number }} options
@@ -240,7 +240,7 @@ export function checkSkippedSeals(root, { rev = 'HEAD', skipped, store = sealSto
 export function sealedCells(root, { rev = 'HEAD', store = sealStoreFile(root), depth = 40 } = {}) {
   const rows = sealStatus(root, { rev, store });
   if (rows.every(row => row.seal)) return rows.map(row => ({ package: row.package, hash: row.hash, sealed: true, receipts: row.seal.receipts, sealedAt: row.seal.sealedAt, change: null }));
-  const log = git(root, ['log', `--max-count=${depth}`, '--format=%H%x09%s', rev]).toString('utf8').split('\n').filter(Boolean).map(line => line.split('\t'));
+  const log = git(root, ['log', '--first-parent', `--max-count=${depth}`, '--format=%H%x09%s', rev]).toString('utf8').split('\n').filter(Boolean).map(line => line.split('\t'));
   const hashes = packageHashesAt(root, log.map(([commit]) => commit));
   return rows.map(row => {
     if (row.seal) return { package: row.package, hash: row.hash, sealed: true, receipts: row.seal.receipts, sealedAt: row.seal.sealedAt, change: null };
