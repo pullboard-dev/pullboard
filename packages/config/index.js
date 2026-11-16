@@ -88,6 +88,7 @@ export {
   staticCheckSlots,
   staticMemoOn,
   serveListen,
+  servePullRoute,
   mainComparisonMode,
   submitAuthorizationMode,
   refuseMissingCheckFile,
