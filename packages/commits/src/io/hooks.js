@@ -511,11 +511,11 @@ export function secretsIn(added) {
  * @param {string} repo - A checkout root the trusted caller owns.
  * @param {string} base - Exclusive start of the range.
  * @param {string} head - Inclusive end of the range.
- * @param {{ rules?: any }} [options] - `rules` defaults to the repo's `commits` settings.
+ * @param {{ rules?: any }} [options] - `rules` defaults to the repo's `commits` settings, or the built-in ones when it has none.
  * @returns {{ commit: string, kind: 'secret' | 'header', problem: string }[]} Findings, empty when the range is clean.
  */
 export function recheckRange(repo, base, head, { rules } = {}) {
-  const commitRules = rules ?? loadConfig(repo).commits;
+  const commitRules = rules ?? (existsSync(join(repo, CONFIG_FILE)) ? loadConfig(repo) : configFromSource('{}')).commits;
   const listed = tryGit(repo, ['rev-list', '--reverse', `${base}..${head}`]);
   if (listed.status !== 0) throw new Refused('RANGE_UNREADABLE', `cannot list ${base}..${head}: ${listed.stderr}; pass commits this checkout holds`);
   const findings = [];
