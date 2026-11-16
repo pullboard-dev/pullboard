@@ -217,6 +217,7 @@ const ROWS = [
   ['verify.familyRelaxAt', 'Review backlog threshold', 'Allow independent same-family reviews when this many submissions lack an available other-family reviewer; off disables it.', 'Review', 'count'],
   ['verify.folderTicks', 'Tick folder-named test clauses', 'On, a [test] clause that names a folder is ticked by the item\'s changed tests under it when the gate runs them green; off (default) only a clause naming a test file is.', 'Review', 'on/off'],
   ['verify.frozenTests', 'Freeze named test files', 'Submit refuses an item whose bar-named test file changed after claim, unless the person ruled on the new content.', 'Review', 'on/off'],
+  ['verify.hunkFreshness', 'Judge freshness by changed hunks', 'When enabled, a verdict whose item merges onto main without conflict stays fresh while every hunk of the item\'s own patch is unchanged, wherever it moved in the file; off, freshness compares each reviewed path\'s whole patch as before.', 'Review', 'on/off'],
   ['verify.inspectClauses', 'Inspect bar clauses', 'Each bar clause must name its evidence kind, and submit checks every clause against it.', 'Review', 'on/off'],
   ['verify.landedReviews', 'Review forced landings', 'On, next --verify offers an item a forced merge landed with no verdict as a review of its merged commit, after the ordinary submitted reviews; off, only submitted work is offered.', 'Review', 'on/off'],
   ['verify.policy', 'Who may review', 'Any other agent may review, or only the coordinator.', 'Review', 'choice'],

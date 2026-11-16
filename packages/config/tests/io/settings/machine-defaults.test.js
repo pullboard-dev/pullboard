@@ -136,6 +136,7 @@ const BEFORE = {
   'tests.registryStrict': false,
   'tests.requireJourneyPath': false,
   'tests.requireRegistered': false,
+  'verify.hunkFreshness': false,
   'verify.rejectKeepsCheck': false,
   'view.background': true,
 };

@@ -110,6 +110,11 @@ export function registryStrictEnabled() {
   return loadMachineSettings().tests?.registryStrict === true;
 }
 
+/** Whether verdict freshness compares the submit's own hunks: off by default; only an exact `true` turns it on [C7,#9438]. */
+export function hunkFreshnessEnabled() {
+  return loadMachineSettings().verify?.hunkFreshness === true;
+}
+
 /** Whether the static check refuses a change that adds an unregistered test: off by default; only an exact `true` turns it on [C7,#9402]. */
 export function requireRegisteredEnabled() {
   return loadMachineSettings().tests?.requireRegistered === true;
