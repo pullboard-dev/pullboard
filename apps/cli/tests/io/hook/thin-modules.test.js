@@ -17,8 +17,8 @@ after(e2e.cleanup);
 
 const BIN = resolve(import.meta.dirname, '../../../pullboard.js');
 
-/** Modules each commit-hook process loaded before the thin path was cut, counted by this test on a runner at main (run id in the item thread). */
-const BEFORE = { 'pre-commit': 100000, 'commit-msg': 100000, 'post-commit': 100000 };
+/** Modules each commit-hook process loaded before the thin path was cut, counted by this test on a runner at main (run 0d6a4fde-00ca-4714-8179-218363893e7d). */
+const BEFORE = { 'pre-commit': 832, 'commit-msg': 832, 'post-commit': 367 };
 
 /** The most modules the pre-commit and commit-msg processes may load: 25 percent under the count before. */
 const MOST = hook => Math.floor(BEFORE[hook] * 0.75);
