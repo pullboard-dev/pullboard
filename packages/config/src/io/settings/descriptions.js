@@ -138,6 +138,7 @@ const ROWS = [
   ['agents.names', 'Agent name style', 'Whether an agent\'s number comes after its name or before it.', 'Project', 'choice'],
   ['map.slice', 'Code map with assigned work', 'Next and claim print the slice of the code map an item touches.', 'Project', 'on/off'],
   ['slices.enforcePaths', 'Keep slices in their paths', 'Submit refuses a slice that changes a path outside the files it declared.', 'Checks', 'on/off'],
+  ['next.wholeItemsFirst', 'Whole items before slices', 'Off (default) keeps the offer order. On, next offers a whole item of the focused release before an open slice.', 'Claims', 'on/off'],
   ['inbox.tokenBudget', 'Inbox size', 'The most an inbox response may hold, in bytes of text.', 'Project', 'bytes'],
   ['inbox.batchedMarks', 'Batch inbox marks', 'Off (default) writes each inbox delivery mark as the inbox is read. On queues the marks and writes them in one batch.', 'Project', 'on/off'],
   // This repo: Checks
