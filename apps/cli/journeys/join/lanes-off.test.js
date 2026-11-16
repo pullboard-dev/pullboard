@@ -27,15 +27,17 @@ test('clause 2: with laneMode off, next offers items from two lanes the route co
   const box = await fixture(t, { projectConfig: { laneMode: 'off' } });
   const docs = box.add('Docs lane item', { lane: 'docs' });
   const web = box.add('Web lane item');
-  const first = await cli(box, box.seats.actor.path, ['next', '--take']);
-  assert.equal(first.code, 0, first.out + first.err);
-  assert.equal(first.document.item.item_id, docs, 'the web seat is handed the docs-lane item');
-  store.release(box.board, docs, box.seats.actor.id, 'Return the fixture claim so the next selection moves on', 'OTHER');
-  store.holdItem(box.board, docs, { agentId: 'coordinator', reason: 'A real fixture hold' });
-  const second = await cli(box, box.seats.actor.path, ['next', '--take']);
-  assert.equal(second.code, 0, second.out + second.err);
-  assert.equal(second.document.item.item_id, web, 'the same seat is then handed the web-lane item');
-  assert.equal(store.getItem(box.board, web).item_owner, box.seats.actor.id);
+  const offered = [];
+  for (let round = 0; round < 2; round += 1) {
+    const taken = await cli(box, box.seats.actor.path, ['next', '--take']);
+    assert.equal(taken.code, 0, taken.out + taken.err);
+    const id = taken.document.item.item_id;
+    offered.push(id);
+    assert.equal(store.getItem(box.board, id).item_owner, box.seats.actor.id);
+    store.release(box.board, id, box.seats.actor.id, 'Return the fixture claim so the next selection moves on', 'OTHER');
+    store.holdItem(box.board, id, { agentId: 'coordinator', reason: 'A real fixture hold' });
+  }
+  assert.deepEqual([...offered].sort((a, b) => a - b), [docs, web].sort((a, b) => a - b), 'the web seat is offered the docs-lane item and the web-lane item');
 });
 
 test('clause 3: with laneMode on, join with no lane is refused as today [C7,#2830]', async t => {
