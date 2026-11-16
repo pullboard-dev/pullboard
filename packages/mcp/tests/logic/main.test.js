@@ -250,3 +250,13 @@ test('MCP serves messages one at a time in arrival order even when an earlier to
   assert.deepEqual(order, ['show', 'resume']);
   assert.deepEqual(replies.map(reply => reply.id), [1, 2]);
 });
+
+test('clause 1: creating a cloud board refuses with the H15 reason while H29 is unapproved and runs no command [H15,H29]', async () => {
+  const { replies, calls } = await serve(seated(), [call(1, 'create_cloud_board', {}), call(2, 'createBoard', {})]);
+  for (const reply of replies) {
+    const error = reply.result.structuredContent.error;
+    assert.equal(error.code, 'CLOUD_BOARD_UNAPPROVED');
+    assert.match(error.message, /H15.*H29/u);
+  }
+  assert.deepEqual(calls.map(entry => entry.argv[0]), ['whoami'], 'the refusal runs no command beyond identity');
+});
