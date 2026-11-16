@@ -10,13 +10,16 @@ import { unfinishedFolders } from '../item/folder.js';
 import { fileURLToPath } from 'node:url';
 /** The pullboard health command, in its own module so an item adding another command never edits these lines. */
 import { existsSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
 import {
   boardHealth,
   healthLines,
+  slowHoldLines,
 } from '../../../../../packages/health/index.js';
 import {
   context,
 } from '../entry.js';
+import { holdLogRows } from '../../../../../packages/store/index.js';
 import { openBoardReadOnly } from '../../../../../packages/store/index.js';
 import { HEALTH_SENTINEL_ENGINE } from '../../../../../packages/store/index.js';
 import { readBlocks } from '../../../../../packages/items/index.js';
@@ -56,6 +59,7 @@ export async function run(io, { values = {} } = {}) {
     io.say(`maintenance timer: ${timer.state}; key ${timer.key ?? 'unknown'}; pid ${timer.pid ?? 'unknown'}; last run ${timer.lastRun?.completedAt ?? 'unknown'}${timer.cause ? '; ' + timer.cause : ''}`);
   }
   for (const line of healthLines(report)) io.say(line);
+  for (const line of slowHoldLines(holdLogRows(), realBoardFile(ctx.file), { now: ctx.clock.now().getTime() })) io.say(line);
   for (const line of runnerLossLines(report.runnerTransportLosses)) io.say(line);
   if (report.toolBuild.enabled) io.say(report.toolBuild.build
     ? `Pinned tool build ${report.toolBuild.build.commit}; age ${Math.floor(report.toolBuild.ageMs / 1000)}s; running ${report.toolBuild.runningCommit ?? 'live installation'}`
@@ -132,4 +136,9 @@ function automaticQuarantines(file, clock) {
   const db = openBoardReadOnly(file);
   try { return flakeQuarantines({ db, clock }).filter(entry => entry.autoSubmit && entry.status === 'quarantined'); }
   finally { db.close(); }
+}
+
+/** The board file's real path, which is how the hold log names it; the given path when it cannot be resolved. */
+function realBoardFile(file) {
+  try { return realpathSync(file); } catch { return file; }
 }
