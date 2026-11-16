@@ -134,6 +134,7 @@ export {
   codeStampCacheEnabled,
   reuseContractResultsEnabled,
   reuseGateReceiptsEnabled,
+  stallStopEnabled,
   memoryFloorMB,
   relayOfferEnabled,
   setRelayCanary,
