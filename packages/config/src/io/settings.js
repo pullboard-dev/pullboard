@@ -319,7 +319,12 @@ export function refuseTempWorktree() {
   return loadMachineSettings().gate?.refuseTempWorktree === true;
 }
 
-/** Whether claim refuses a folder whose HEAD is not on main (#9104): off by default; only an exact `true` turns it on. */
+/** Whether claim.keepWhileRunning is on: off by default; only an exact `true` keeps a claim whose holder has a test run, test or gate job in flight from being released as idle or stalled [C7,#9498]. */
+export function claimKeepWhileRunning() {
+  return loadMachineSettings().claim?.keepWhileRunning === true;
+}
+
+/** Whether claim.refuseOffMainHead is on: off by default; only an exact `true` makes claim refuse a folder whose HEAD is not on main [C7,#9104]. */
 export function refuseOffMainHead() {
   return loadMachineSettings().claim?.refuseOffMainHead === true;
 }
