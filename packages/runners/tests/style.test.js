@@ -20,6 +20,13 @@ const staticArgs = ['--experimental-vm-modules', '--disable-warning=Experimental
 const nested = 'apps/cli/src/io/nested/import-style-fixture.js';
 const root = mkdtempSync(join(tmpdir(), 'pullboard-static-style-recursive-'));
 
+/** Start both static runs at once: they read separate trees, so the file takes the slower run's time, not the sum. */
+function startRepositoryRun() {
+  const before = performance.now();
+  return runFixtureChildAsync(process.execPath, staticArgs, { cwd: repository, encoding: 'utf8' })
+    .then(child => ({ child, wallMs: performance.now() - before }));
+}
+
 /** Run the checks on a copy that holds one multi-binding import in a nested folder. */
 function startRecursiveRun() {
   copyPackageFiles(repository, root);
@@ -38,23 +45,18 @@ function startRecursiveRun() {
   return runFixtureChildAsync(process.execPath, staticArgs, { cwd: root, encoding: 'utf8' });
 }
 
-// One static run serves both cases: the copy holds the repository plus one planted multi-binding import, so the planted
-// line must be the only finding for the repository itself to be clean (a second full run cost the file 60+ s).
-let shared;
-const staticRun = () => (shared ??= startRecursiveRun());
-const planted = `${nested}:1: one import binding per line`;
-const findings = child => (child.stderr ?? '').split('\n').filter(line => /^\S+:\d+: /.test(line));
+const recursiveRun = startRecursiveRun();
+const repositoryRun = startRepositoryRun();
 
-test('clause 1: the repository static style command enforces its source rules [C7]', async t => {
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  const before = performance.now();
-  const child = await staticRun();
-  console.log(JSON.stringify({ staticProgramWallMs: performance.now() - before, status: child.status }));
-  assert.deepEqual(findings(child).filter(line => !line.startsWith(planted)), [], child.stderr);
+test('clause 1: the repository static style command enforces its source rules [C7]', async () => {
+  const { child, wallMs } = await repositoryRun;
+  console.log(JSON.stringify({ staticProgramWallMs: wallMs, status: child.status }));
+  assert.equal(child.status, 0, child.failure ?? ((child.stdout ?? '') + (child.stderr ?? '')));
 });
 
-test('clause 1: the static checks read every source file for one import binding per line [C7]', async () => {
-  const child = await staticRun();
+test('clause 1: the static checks read every source file for one import binding per line [C7]', async t => {
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const child = await recursiveRun;
   assert.equal(child.status, 1, child.failure ?? ((child.stdout ?? '') + (child.stderr ?? '')));
-  assert.ok(child.stderr.includes(planted), child.stderr);
+  assert.ok(child.stderr.includes(`${nested}:1: one import binding per line`), child.stderr);
 });
