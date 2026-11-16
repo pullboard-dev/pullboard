@@ -2026,13 +2026,6 @@
     "env-spread": 1,
     "hand-policy": 5
   },
-  "apps/cli/journeys/skills/main.test.js": {
-    "tempdir": 2,
-    "env-spread": 1,
-    "hand-policy": 2,
-    "repo-read": 5,
-    "hex64": 4
-  },
   "apps/cli/journeys/spec/approval.test.js": {
     "hand-policy": 1,
     "raw-board": 4,
