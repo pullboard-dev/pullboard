@@ -10,7 +10,7 @@ const LIVE = [{ id: 'C7', text: 'CI runs the gate on every push, Node 22.13 and 
 
 test('clause 1: a cited spec row whose text changed without a recorded rewrite edit refuses, naming the coordinator as the next step [B4,R2]', () => {
   assert.throws(() => requireRewrittenRows([item(7, 'claimed', 'CI runs the gate on every push.')], LIVE, { enabled: true }),
-    error => error.code === 'ROW_REWRITE_MISSING' && /#7 cites C7/u.test(error.message) && /ask the coordinator to rewrite its bar: pullboard edit 7 /u.testerror.next);
+    error => error.code === 'ROW_REWRITE_MISSING' && /#7 cites C7/u.test(error.message) && /ask the coordinator to rewrite its bar: pullboard edit 7 /u.test(error.next));
 });
 
 test('clause 1: a row that still reads as frozen, a closed item and the setting off all pass [B4,R2]', () => {
