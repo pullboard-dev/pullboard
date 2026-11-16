@@ -324,6 +324,11 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     if (!isSubmitHandoffWorker(ctx) && !folder) refuseHeldElsewhere(ctx.info, store.listAgents(board), item, 'submit', agentSessionDigest);
     if (item.item_status !== 'claimed' || item.item_owner !== me.id) throw new Refused('NOT_YOURS', 'claim this item before submitting it');
     if (!isSubmitHandoffWorker(ctx)) heartbeatCommand(ctx.io, { ctx, board });
+    if (ctx.dryRunReview && dryRunReviewEnabled(board)) {
+      // Advisory only: print the verifier checklist before any clause refusal and record that it ran; off prints and records nothing [C7].
+      for (const line of dryRunReviewChecklist({ id, clauses: criterionClauses(item.item_criterion), criterion: item.item_criterion, barNote: barCheckState(board, item).note })) ctx.io.say(line);
+      await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text: 'dry-run review ran: checklist printed to the builder before submit; advisory, not a verdict' }]);
+    }
     const readiness = barReadyProblem(board, item);
     if (readiness) throw readiness;
     const clauseProblem = inspectClauses ? authorizationStep('clause-inspection', () => clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateTestFiles(root, item), head: headCommit(root) })) : null;
@@ -498,16 +503,6 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     return warning;
   }));
   if (barWarning) ctx.io.say(`bar.check warning: ${barWarning}`);
-  if (ctx.dryRunReview) {
-    // Advisory only: with the board setting on, print the verifier checklist and record that it ran; off prints and records nothing [C7].
-    const checklist = await withBoard(ctx, async board => {
-      if (!dryRunReviewEnabled(board)) return null;
-      const lines = dryRunReviewChecklist({ id, clauses: criterionClauses(held.item_criterion), criterion: held.item_criterion, barNote: barCheckState(board, held).note });
-      await ordered(ctx, board, 'appendFact', [id, { agentId: held.item_owner, kind: 'note', text: 'dry-run review ran: checklist printed to the builder before submit; advisory, not a verdict' }]);
-      return lines;
-    });
-    for (const line of checklist ?? []) ctx.io.say(line);
-  }
   // Which seat and model family wrote each named test file this submit adds or changes [C7,V4].
   await withBoard(ctx, async board => {
     const notes = testAuthorNotes(held, store.itemThread(board, id), { atHead: committedReader(root, commit), atMain: committedReader(root, acceptedMain.commit), seat: me.id, family: seatFamily(board, me.id) });
