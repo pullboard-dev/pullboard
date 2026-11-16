@@ -6,6 +6,7 @@ import { BACKBONE_STATES } from '../../../index.js';
 import { BACKBONE_TABLE } from '../../../index.js';
 import { JOB_KINDS } from '../../../index.js';
 import { deriveFact } from '../../../index.js';
+import { runTable } from '../../../index.js';
 import { seeded } from '../../../index.js';
 import { servesRule } from '../../../index.js';
 
@@ -116,4 +117,55 @@ test('moves.backbone.read-is-pure: generated: reading a state never changes it a
     assert.equal(deriveFact(BACKBONE_RULES, servesRule(c.s.job.kind), c.s).holds, c.holds, `seed ${c.seed}`);
     assert.deepEqual(c.s, before, `seed ${c.seed}`);
   }
+});
+
+const NOW = '2026-11-15T12:00:00.000Z';
+const LATER = '2026-11-15T13:00:00.000Z';
+const run = (snapshot, move) => runTable(BACKBONE_TABLE, BACKBONE_RULES, structuredClone(snapshot), structuredClone(move));
+
+/** The few guards the board judges from its own history, each broken by changing that history; every other declared guard is a CLI-side fact, broken by saying it did not hold. */
+const BREAKS = {
+  itemExists: (s) => ({ ...s, item: { ...s.item, created: false } }),
+  inState: (s, m, row) => ({ ...s, item: { ...s.item, status: ['withdrawn', 'open'].find(state => !row.from.includes(state)) } }),
+  coordinatorOnly: (s, m) => [s, { ...m, actor: 'w1' }],
+  isHolder: (s) => ({ ...s, item: { ...s.item, owner: 'w9' } }),
+  holderOrCoordinator: (s, m) => [{ ...s, item: { ...s.item, owner: 'w9' } }, { ...m, actor: 'w1' }],
+  releaseOwnsWork: (s, m) => [{ ...s, item: { ...s.item, owner: 'w9' } }, { ...m, actor: 'w1' }],
+  notBuilder: (s, m) => ({ ...s, item: { ...s.item, builder: m.actor } }),
+  notMerged: (s) => ({ ...s, item: { ...s.item, merged: true } }),
+  itemNotHeld: (s) => ({ ...s, item: { ...s.item, held: true } }),
+  notHeldByAnother: (s, m) => [{ ...s, item: { ...s.item, status: 'claimed', owner: 'w9', leaseUntil: LATER } }, { ...m, actor: 'w1' }],
+  dependenciesVerified: (s) => ({ ...s, item: { ...s.item, after: [7] }, items: new Map([[7, { status: 'claimed' }]]) }),
+};
+const broken = (guard, snapshot, move, row) => {
+  const made = (BREAKS[guard] ?? ((s) => ({ ...s, facts: { [guard]: false } })))(snapshot, move, row);
+  return Array.isArray(made) ? made : [made, move];
+};
+
+/** A snapshot and move for one declared item move that every guard accepts: the holder is the actor, and a coordinator-only move is the coordinator's. The row that runs is the verb's first row holding the status, as the table reads it. */
+function accepted(picked, g) {
+  const status = g.pick(picked.from);
+  const row = BACKBONE_TABLE.items.find(each => each.verb === picked.verb && each.from.includes(status));
+  const who = row.guards.includes('coordinatorOnly') || !row.by.includes('agent') || g.int(2) === 0 ? 'coordinator' : 'w1';
+  const item = { status, owner: who, builder: null, merged: false, held: false, after: [], leaseUntil: LATER };
+  return { row, snapshot: { item, items: new Map(), facts: {} }, move: { name: row.verb, actor: who, at: NOW, detail: {} } };
+}
+
+const GENERATED = 6000;
+const rowResults = Array.from({ length: GENERATED }, (_, seed) => {
+  const g = seeded(seed + 1);
+  const { row, snapshot, move } = accepted(g.pick(BACKBONE_TABLE.items), g);
+  const wrecked = row.guards.length > 0 && g.int(4) !== 0 ? g.pick(row.guards) : undefined;
+  const [s, m] = wrecked === undefined ? [snapshot, move] : broken(wrecked, snapshot, move, row);
+  return { seed: seed + 1, row, wrecked, result: run(s, m) };
+});
+const unknown = run({ item: { status: 'open', owner: null, after: [] }, items: new Map(), facts: {} }, { name: 'nap', actor: 'coordinator', at: NOW });
+
+test('moves.backbone.rows-fire: generated: every guard and outcome row of the backbone table fires on some seeded case [C7,#8558]', () => {
+  const fired = new Set([...rowResults.map(c => (c.result.refused ? c.result.refused.row : c.result.via[0])), unknown.refused.row]);
+  const rows = [...BACKBONE_TABLE.guards.map(row => row.id), ...BACKBONE_TABLE.outcomes.map(row => row.id)];
+  assert.deepEqual(rows.filter(row => !fired.has(row)), []);
+  assert.equal(unknown.refused.code, 'UNKNOWN_MOVE');
+  for (const c of rowResults) assert.equal(c.result.refused?.row, c.wrecked, `seed ${c.seed}: ${c.row.key} broke ${c.wrecked}`);
+  assert.ok(rowResults.filter(c => !c.result.refused).length > GENERATED / 10);
 });

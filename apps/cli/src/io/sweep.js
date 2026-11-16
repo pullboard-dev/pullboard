@@ -7,8 +7,8 @@ import { invalidateGitFacts } from '../../../../packages/git/index.js';
 import { laneOf } from '../../../../packages/seats/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { briefFiles } from '../../../../packages/items/index.js';
-import { parseProblems } from '../logic/sweep.js';
-import { sweepItems } from '../logic/sweep.js';
+import { parseProblems } from './sweep/problems.js';
+import { sweepItems } from './sweep/problems.js';
 import { ordered } from './claim.js';
 
 /** Describe only repairs whose checker rule supplies a concrete, scope-preserving change. */

@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { BACKBONE_TABLE } from '../../../index.js';
 import { OUTBOX_TABLE } from '../../../index.js';
 import { boardClaimEngine } from '../../../index.js';
 import { boardReleaseEngine } from '../../../index.js';
@@ -21,6 +22,7 @@ const submit = boardSubmitEngine().tables;
 
 /** The row ids of every move table the moves cell generates tests for, from each table's own export. */
 const TABLES = {
+  backbone: ids(BACKBONE_TABLE),
   claim: ids(boardClaimEngine().table),
   hop: ids(hopEngine({ leaseMs: 1, leaseLapsed: () => false }).table),
   job: ids(jobEngine({ leaseMs: 1, maxAttempts: 1 }).table),
@@ -54,4 +56,10 @@ test('moves.row-owners.main-whole: clause 3: every row of main\'s move tables ha
   const records = JSON.parse(readFileSync(join(DIR, '../../registry.json'), 'utf8'));
   assert.ok(Object.values(TABLES).every((rows) => rows.length > 0), 'every table has rows');
   assert.deepEqual(moveRowOwnershipProblems(TABLES, records), []);
+});
+
+test('moves.row-owners.backbone: clause 2: the backbone table has rows and exactly one owner for each [C7,#8558]', () => {
+  const records = JSON.parse(readFileSync(join(DIR, '../../registry.json'), 'utf8'));
+  assert.ok(TABLES.backbone.length > 40, 'the backbone has its guard and outcome rows');
+  assert.deepEqual(moveRowOwnershipProblems({ backbone: TABLES.backbone }, records), []);
 });

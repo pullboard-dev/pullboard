@@ -49,7 +49,7 @@ apps/cli/src/core/next-step-words.js	apps/cli/src/logic/step/words.js
 apps/cli/src/core/public-export-guard.js	apps/cli/src/logic/exports.js
 apps/cli/src/core/runner-loss-health.js	apps/cli/src/logic/runner/loss.js
 apps/cli/src/core/static-prose-commands.js	apps/cli/src/logic/prose.js
-apps/cli/src/core/sweep.js	apps/cli/src/logic/sweep.js
+apps/cli/src/core/sweep.js	apps/cli/src/io/sweep/problems.js
 apps/cli/src/core/why-flag.js	apps/cli/src/logic/why.js
 apps/cli/src/shell/cli-board-read.js	apps/cli/src/io/board/read.js
 apps/cli/src/shell/cli-context.js	apps/cli/src/io/context.js
