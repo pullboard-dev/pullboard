@@ -61,3 +61,22 @@ test('a missing store file starts an empty book [C7]', () => {
     assert.doesNotThrow(() => boot(join(dir, 'missing.json'), pub, 1));
   }
 });
+
+/** A revocation made before a board restart still refuses the runner after it [C7]. */
+test('clause 1: a runner revoked before a board restart is still refused its pulls and cannot register again [C7]', () => {
+  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  const pub = publicKey.export({ type: 'spki', format: 'der' }).toString('base64url');
+  const signText = text => sign(null, Buffer.from(text), privateKey).toString('base64url');
+  const path = join(files.root, 'revoked.json');
+  const at = 3_000_000;
+  const first = boot(path, pub, at);
+  first.adapter.register({ runner: 'r1', publicKey: pub, at, signature: signText(pullStatement('register', 'r1', at)) });
+  first.adapter.open({ host: 'pool' }).startShard({ job: 'gate-1', shard: 's1', command: 'sh run.sh', tree: TREE });
+  first.adapter.revoke('r1');
+
+  const second = boot(path, pub, at + 1000);
+  const later = at + 1000;
+  assert.throws(() => second.adapter.take({ runner: 'r1', at: later, nonce: 'revoked-nonce-0001', signature: signText(pullStatement('take', 'r1', later, 'revoked-nonce-0001')) }), { code: 'PULL_RUNNER_REVOKED' });
+  assert.throws(() => second.adapter.register({ runner: 'r1', publicKey: pub, at: later, signature: signText(pullStatement('register', 'r1', later)) }), { code: 'PULL_RUNNER_REVOKED' });
+  assert.deepEqual(second.leases, [], 'no lease was taken for the revoked runner');
+});

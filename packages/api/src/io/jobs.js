@@ -24,6 +24,7 @@ import { firstDifference } from '../../../store/index.js';
 import { touchLive } from '../../../jobs/index.js';
 import { liveSince } from '../../../jobs/index.js';
 import { endJob } from '../../../jobs/index.js';
+import { noteLease } from '../../../jobs/index.js';
 import { setJobRow } from '../../../jobs/index.js';
 import { moveGateClaimHop } from './hop.js';
 
@@ -302,6 +303,7 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = n
       // With gate.fencedHop on, a gate job's runner owns its item's hop row; a hop another live runner holds refuses the claim HOP_FENCED [C7,#8352].
       const held = hop && row.job_kind === 'gate' && row.job_item ? moveGateClaimHop(db, hop, { item: row.job_item, candidate: row.job_candidate, runner, move: 'acquire', job: row.job_id, now, leaseMs }) : null;
       writeStep(db, row.job_id, 'claimed', { runner, ...(held ? { hopEpoch: held.epoch } : {}), capabilities: [...has], ...(Number.isSafeInteger(jobs) && jobs >= 1 ? { jobs } : {}), ...(Number.isSafeInteger(cores) && cores >= 1 ? { cores } : {}), ...(Number.isSafeInteger(ram) && ram >= 1 ? { ram } : {}), token: tokenHash(token) }, { seq: attempt, now });
+      noteLease(db, row.job_id, 'lease.grant', { owner: runner, until: now + leaseMs }, now);
       noteRepeatClaims(db, row, { now, repeated });
       return { job: row.job_id, kind: row.job_kind, needs, run, ...(payload ? { payload } : {}), item: row.job_item, candidate: row.job_candidate, base: row.job_base, attempt, leaseUntil: now + leaseMs, token };
     }

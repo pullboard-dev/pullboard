@@ -21,6 +21,8 @@ import { BROWSER_MARKER } from '../../../../../packages/gate/index.js';
 import { missingGate } from '../../../../../packages/gate/index.js';
 import { git } from '../../../../../packages/git/index.js';
 import { toolingFor } from '../../../../../packages/pin/index.js';
+// A URL-joined seat's submit bundles its clone's commits; moves.js loads it from here only when board.commits is on [P7,C7].
+export { bundleCommits } from '../../../../../packages/pin/index.js';
 import { itemCollisionPlan } from '../../../../../packages/items/index.js';
 import { changedLines } from '../../../../../packages/items/index.js';
 import { frozenCheckTiming } from '../../../../../packages/items/index.js';
@@ -34,6 +36,8 @@ import { whoAmI } from '../entry.js';
 import { deliverSubmitActivity } from '../submit.js';
 import { ANALYSIS_ENTRY } from './gate.js';
 import { BOOTSTRAP } from './gate.js';
+import { submitTableReplay } from './gate.js';
+import { tableReplayEnabled } from '../../../../../packages/config/index.js';
 import { DOCTRINE_ENTRY } from './gate.js';
 import { inventoryCommits } from './remote.js';
 import { ensureLocalRunner } from '../runner/local.js';
@@ -510,12 +514,15 @@ export function pairRequest(root, { main, config, source, check }, pairPrefix) {
  *   item's commits changed since its claim, which the board records when the receipt submits the item. companion: the
  *   attached companions composed onto the builder head, or null. infra: the drafted infra note the receipt records with the submit.
  * @param {{ frozenCheck: Function, policyAt: Function, listItems: Function, pairPrefix?: Function }} ports - The sandbox and store reads the submit command
- *   already holds; pairPrefix names a paired rerun's runner when flakes.rerun is on.
+ *   already holds; pairPrefix names a paired rerun's runner when flakes.rerun is on; tableReplay is the move-table replay hook, which a test hands in its own.
  * @returns {Promise<number>} The exit code.
  */
-export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, claimHead, files, requireComposition, authorize, full, companion = null, infra = null }, { frozenCheck, policyAt, listItems, pairPrefix }) {
+export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, claimHead, files, requireComposition, authorize, full, companion = null, infra = null }, { frozenCheck, policyAt, listItems, pairPrefix, tableReplay = submitTableReplay(ctx.info.root) }) {
   const { root } = ctx.info;
   const id = held.item_id;
+  // With gate.tableReplay on, a submit whose files change a move table is held to what the board recorded before any job row is offered; off, nothing runs [C7,#8121].
+  // The replay loads the table from this checkout and reads the board here, which a runner has no copy of, so the offer is where it can run.
+  if (tableReplayEnabled()) await tableReplay({ root, changed: files });
   // The session ledger notes every submit as it did on the controller path; refuse before any job row when it cannot be written [V1,B3,#7725].
   noteSubmitSession(ctx.info, id, false);
   // The gate judges what would land: the builder head, or the companions composed onto it.

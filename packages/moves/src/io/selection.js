@@ -31,6 +31,7 @@ import { statusPaths } from '../../../git/index.js';
 import { worktreeStatus } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { nextReview } from '../../../verify/index.js';
+import { forcedLandedUnreviewed } from '../../../verify/index.js';
 import { ownSessionReviews } from '../../../verify/index.js';
 import { relayLinked } from '../../../link/index.js';
 import { criterionFreezer } from './freezer.js';
@@ -104,7 +105,7 @@ export async function nextOnce(ctx, values, ports) {
         operation === 'reopen' ? computedReturnArgs(writable, args) : args)),
       nextFor: reviewPreview,
       idArg, trunkMerge, listItems: store.listItems, itemById: store.itemById, getItem: store.getItem,
-      mainRedReviewItems, agentSessionDigest,
+      mainRedReviewItems, agentSessionDigest, landedOffer: (landedBoard, me, skips) => landedReviewFor(landedBoard, me, { ...skips, policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }),
     });
   });
   const looked = withBoardRead(ctx, (board) => nextSelection.pick(ctx, board, values, ports));
@@ -222,6 +223,17 @@ async function reportStalePolicyOnce(ctx, board, item, holder, message, ordered)
  */
 function claimFreezer(ctx, board) {
   return item => criterionFreezer({ root: ctx.info.root, isMain: ctx.info.isMain, config: ctx.config }, { board })(item);
+}
+
+/**
+ * The newest forced-landed item with no verdict that this seat may judge, or null: the builder, a refused route, policy or
+ * family, and an item already under review are skipped with the guards `verify` itself applies to a landed item [C7,#6490].
+ */
+function landedReviewFor(board, me, { omitIds = [], skipIds = [], policy, familyPolicy } = {}) {
+  const skip = new Set([...omitIds, ...skipIds]);
+  const checks = store.reviewerChecks(board, { agentId: me.id, policy, familyPolicy, relaxationFor: () => null });
+  return forcedLandedUnreviewed(store.listItems(board, { all: true }), item => store.events(board, { itemId: item.item_id })).find(item => !skip.has(item.item_id)
+    && item.item_built_by !== me.id && ['notBuilder', 'routeAllows', 'policyAllows', 'requiredReviewFamily', 'familyAllows', 'reviewFree'].every(guard => !checks[guard]?.(item))) ?? null;
 }
 
 /** Preview reviews with current heartbeat observations; the atomic reservation repeats eligibility before writing. */

@@ -9,6 +9,20 @@
       "idsFollowed": true
     },
     {
+      "from": "apps/cli/journeys/verify/reserve.test.js",
+      "to": "apps/cli/tests/journeys/verify/reserve.test.js",
+      "action": "convert",
+      "because": "runs in process, so the journey folder is not needed",
+      "idsFollowed": true
+    },
+    {
+      "from": "apps/cli/journeys/verify/clause-refusal.test.js",
+      "to": "apps/cli/tests/journeys/verify/clause-refusal.test.js",
+      "action": "convert",
+      "because": "runs in process, so the journey folder is not needed",
+      "idsFollowed": true
+    },
+    {
       "from": "apps/cli/journeys/spec/boards.test.js",
       "to": "apps/cli/tests/io/spec/boards.test.js",
       "action": "convert",
@@ -9239,6 +9253,15 @@
       "because": "a rejected head stays unverified after a sibling resubmission until the latest head is accepted, proven in the store cell on a real board; the refusal on that head is proven in apps/cli/tests/io/submit/stack.test.js"
     },
     {
+      "file": "apps/cli/journeys/submit/stacked.test.js",
+      "specs": [
+        "V1",
+        "V17"
+      ],
+      "coveredBy": "apps/cli/tests/io/submit/stack.test.js",
+      "because": "submit and accept both refuse through refuseUnverifiedStack; the cli cell proves it on real git and a board file for a submitted base, an unsubmitted base, the base's own item, an unreadable trunk and a base already merged into trunk"
+    },
+    {
       "file": "apps/cli/journeys/land/cadence.test.js",
       "specs": [
         "E30",
@@ -9277,6 +9300,16 @@
       ],
       "coveredBy": "apps/cli/tests/logic/tour-steps.test.js",
       "because": "a slow tour names its three slowest steps with their times, the slowed git commit among them, proven on the step ranking and labelling in the cli cell instead of a tour with a 15 s sleeping git shim"
+    },
+    {
+      "file": "apps/cli/journeys/submit/foreign-unverified.test.js",
+      "specs": [
+        "C7",
+        "V1",
+        "V17"
+      ],
+      "coveredBy": "apps/cli/tests/io/submit/stack.test.js",
+      "because": "the merge-in refusal and its control run on real git and a board file in the cli cell (stack.test.js); the ITEM_PATCH_SOURCE next step runs in apps/cli/tests/io/commands/patch-source.test.js, without the gated first submission"
     }
   ]
 }
