@@ -1,11 +1,10 @@
 /**
  * End to end on real repos: the CLI runs as its own process, git runs the installed hooks, and
- * worktrees are real worktrees (B1–B3, B6, V3, V4, V7, L3, L4, C3, I1, I2, P2).
+ * worktrees are real worktrees (B1–B3, B6, V3, V7, V9, V19, L3, L4, S8, S9, V15, I1, I2, P2): the verify, race, review and spec cases; the red gate, pre-push and next cases live in submit.test.js.
  */
 import { submitFixture } from '../../../tests/fixtures/board/submit.js';
 import assert from 'node:assert/strict';
 import { startFixtureChild as spawn } from '../../../tests/fixtures/child.js';
-import { existsSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
@@ -13,7 +12,6 @@ import { test } from 'node:test';
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
-import { failingParts } from '../../../../../packages/api/index.js';
 import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
@@ -43,24 +41,6 @@ function race(box, first, second, id) {
     });
   return Promise.all([one(first), one(second)]);
 }
-
-test('a red gate refuses submit [V4]', async t => {
-  const box = project();
-  writeFileSync(join(box.repo, 'RED'), 'red');
-  box.git(box.repo, 'add', 'RED');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: turn the gate red');
-  await fixtureAdd(box.runIn, box.repo, 'web', 'Page', '--specs', 'G1');
-  assert.equal((await box.runIn(box.web, 'claim', '1')).code, 0);
-  const item = `${box.web}-item-1`;
-  assert.equal(commitFile(box, item, 'web/red.html', 'candidate', 'feat(web): red gate witness [G1]').status, 0);
-  // A pulled submit queues its gate; the red receipt keeps the item out of review and is the refusal the builder reads [V4,C7,#7725].
-  const queued = await box.runIn(item, 'submit', '1', '--json');
-  assert.equal(queued.code, 0, queued.err + queued.out);
-  const settled = await settleSubmit(t, { repo: box.repo, env: box.env, run: box.runIn }, JSON.parse(queued.out));
-  assert.equal(settled.gate.green, false);
-  assert.match(failingParts({ status: 1, gate: settled.gate }).join('\n'), /proof (?:failed|exited)|check exited/);
-  assert.equal(JSON.parse((await box.runIn(box.repo, 'show', '1', '--json')).out).item_status, 'claimed');
-});
 
 test('verify runs at the submitted commit, against the criterion frozen at claim [V3, V7, V9, V19]', async t => {
   const box = project();
@@ -102,24 +82,6 @@ test('verify runs at the submitted commit, against the criterion frozen at claim
   assert.match(ledger, /\| 1 \| web \| Page \| G1 \| web-1 \(fixture-model\) \| coordinator \(unknown\) \|/);
 });
 
-test('pre-push runs the gate once per tree and pushes only the checked-out commit [C3]', async () => {
-  const box = project();
-  const remote = join(box.dir, 'remote.git');
-  box.git(box.dir, 'init', '-q', '--bare', remote);
-  box.git(box.repo, 'remote', 'add', 'origin', remote);
-  const first = box.tryGit(box.repo, 'push', '-q', 'origin', 'main');
-  assert.equal(first.status, 0, first.stderr);
-  assert.ok(existsSync(join(box.repo, '.git', 'pullboard-gate-green')));
-  assert.match((await box.runIn(box.repo, 'gate')).out, /this tree already passed/);
-  const elsewhere = box.tryGit(box.repo, 'push', '-q', 'origin', 'web/one:web/one');
-  assert.equal(elsewhere.status, 0, 'web/one is at the same commit as main, so it is what is checked out');
-  assert.match(`${elsewhere.stdout}${elsewhere.stderr}`, /the gate passed on this exact tree; not running it twice/, 'the second push of a passed tree skips the gate');
-  commitFile(box, box.web, 'web/b.html', 'b', 'feat(web): second page [G1]');
-  const notHere = box.tryGit(box.repo, 'push', '-q', 'origin', 'web/one');
-  assert.notEqual(notHere.status, 0);
-  assert.match(notHere.stderr, /is not checked out/);
-});
-
 test('two agents racing for one item: exactly one wins, every time [B2]', async () => {
   const box = project();
   const second = join(box.dir, 'web-2');
@@ -134,33 +96,6 @@ test('two agents racing for one item: exactly one wins, every time [B2]', async 
     assert.match(losers[0].err, /HELD/);
     assert.equal((await box.runIn(winners[0].cwd, 'release', String(round), '--reason', 'BLOCKED')).code, 0);
   }
-});
-
-test('next claims the next free item in its folder; --verify names the next to check [N2,B5]', async () => {
-  const box = project();
-  await fixtureAdd(box.runIn, box.repo, 'web', 'Page', '--specs', 'G1');
-  await fixtureAdd(box.runIn, box.repo, 'web', 'Second page', '--specs', 'G1', '--after', '1');
-  const first = await box.runIn(box.web, 'next');
-  assert.equal(first.code, 0, first.err);
-  assert.match(first.out, /claimed #1: Page/);
-  assert.match(first.out, /G1: The page renders\./);
-  assert.ok(first.out.includes(`item folder: ${box.web}-item-1;`), 'next prints the claimed item\'s folder');
-  assert.match(first.out, new RegExp(`when it is built and committed: cd ${box.web}-item-1 && pullboard submit 1`));
-  assert.match((await box.runIn(box.web, 'next')).out, /you hold #1: Page/);
-  const item = `${box.web}-item-1`;
-  assert.equal(commitFile(box, item, 'web/a.html', 'a', 'feat(web): page [G1]').status, 0);
-  const submitted = await box.runIn(item, 'submit', '1');
-  assert.equal(submitted.code, 0, submitted.err || submitted.out);
-  const blocked = await box.runIn(box.web, 'next', '--take');
-  assert.equal(blocked.code, 1, blocked.err || blocked.out);
-  // Since the idle-seat queue step, the refusal first names the seat's lane and route.
-  assert.match(blocked.err, /NOTHING_FREE\] lane web, route strong: no item is free; nothing submitted that you did not build; #2 waits on #1 \(submitted, web lane\)/);
-  assert.match((await box.runIn(box.repo, 'next', '--verify')).err, /MAIN_IS_COORDINATOR/);
-  const named = (await box.runIn(box.repo, 'next', '--verify', '--as', 'coordinator')).out;
-  assert.match(named, /next to verify: #1 Page, built by web-1/);
-  assert.match(named, new RegExp(`check out exactly that commit, here: cd ${box.repo} && git switch --detach [0-9a-f]{40}`));
-  assert.match(named, /pullboard verify 1 accept --as coordinator --note/);
-  assert.match((await box.runIn(box.web, 'next', '--verify')).err, /NOTHING_FREE/);
 });
 
 test('next --verify can reserve a named submitted review and default to the lowest free one [V15]', async () => {
