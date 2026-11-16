@@ -30,7 +30,7 @@ test('clause 2: with landing.adaptiveBatch on, the size starts at 1 and rises by
   assert.equal(adaptiveBatchSize(Array(9).fill(true), 3), 3);
 });
 
-test('third: with landing.adaptiveBatch on, any stopped batch drops the next size back to 1 [C7,#9017]', () => {
+test('clause 3: with landing.adaptiveBatch on, any stopped batch drops the next size back to 1 [C7,#9017]', () => {
   assert.equal(batchCap(board({ outcomes: [...Array(6).fill('landed'), 'red'] }), { adaptive: true }), 1);
   assert.equal(batchCap(board({ outcomes: [...Array(6).fill('landed'), 'conflict', 'landed', 'landed', 'landed'] }), { adaptive: true }), 2);
 });
