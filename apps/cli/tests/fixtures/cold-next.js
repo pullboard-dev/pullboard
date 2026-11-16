@@ -27,7 +27,10 @@ async function answer({ argv, cwd, env }) {
   for (const api of APIS) {
     const real = childProcess[api];
     childProcess[api] = function counted(...args) {
-      if (program(args) === 'git') started.push((Array.isArray(args[1]) ? args[1] : []).slice(0, 8).join(' '));
+      if (program(args) === 'git') {
+        const cwd = args.find(arg => typeof arg?.cwd === 'string')?.cwd ?? '';
+        started.push(`${(Array.isArray(args[1]) ? args[1] : []).slice(0, 8).join(' ')} (in ${cwd.split('/').slice(-2).join('/')}) ${new Error().stack.split('\n').slice(2, 6).map(line => line.trim().replace(/^at /u, '').replace(/\(.*\/(.+?:\d+):\d+\)/u, '($1)')).join(' < ')}`);
+      }
       return real.apply(this, args);
     };
   }
