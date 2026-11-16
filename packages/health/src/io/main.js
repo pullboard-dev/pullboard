@@ -5,6 +5,7 @@ import { shimLifecycle } from '../../../codemap/index.js';
 import { rankInversionHistory } from './inversion.js';
 import { readWorkFreeReleases } from '../../../stats/index.js';
 import { landingFailureFindings } from './landing.js';
+import { capacityWorsenedFindings } from './capacity.js';
 import { firstRefusal } from '../../../store/index.js';
 import { compositionFamilyFallback } from '../../../verify/index.js';
 import { reviewWait } from '../../../verify/index.js';
@@ -162,6 +163,7 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
   const age = (iso) => at - Date.parse(iso);
   const board = { ...readBoardSnapshot(db, { now: () => now }), familyAliases: familyIndex(config?.families) };
   report.stuck.push(...missedJobFindings(board, at), ...dispatchHealth(board, config).findings);
+  report.waiting.push(...capacityWorsenedFindings(db, at, finding));
   for (const stale of staleRowDecisions(rowDecisions(board), root, config)) {
     report.stuck.push(finding('STALE_ROW_DECISION', null, {
       subject: `${stale.kind}:${stale.id}`, key: `STALE_ROW_DECISION:${stale.kind}:${stale.id}`,
