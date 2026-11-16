@@ -13,6 +13,7 @@ import { orderedReceiptMoves } from './gate/moves.js';
 import { phaseReceiptId } from '../../../jobs/index.js';
 import { jobQueueCall } from './jobs.js';
 import { offerJob } from './jobs.js';
+import { boardRun } from '../../../store/index.js';
 import { offeredRequest } from './jobs.js';
 import { SHARD_JOB_KIND } from './jobs.js';
 import { LANDING_JOB_KIND } from './landing.js';
@@ -957,7 +958,8 @@ export function applyJobReceipt(board, posted, ports = {}) {
     ports.ordered.push(...moves);
     return result;
   }
-  const kind = board.db.prepare('SELECT job_kind FROM job WHERE job_id = ?').get(posted.job)?.job_kind;
+  // With runs_store on the job lives in the runs file, so its kind is the board run row's [B2,P7].
+  const kind = ports.queue ? boardRun(board.db, posted.job)?.run_kind : board.db.prepare('SELECT job_kind FROM job WHERE job_id = ?').get(posted.job)?.job_kind;
   if (kind === 'gate' || kind === SHARD_JOB_KIND) recordReceiptLedger(board, posted, kind === 'gate' ? 'pulled' : 'shard');
   if (kind === 'gate') return applyGateReceipt(board, posted, ports);
   if (kind === SHARD_JOB_KIND) return applyShardReceipt(board, posted, ports);
@@ -1027,20 +1029,25 @@ function returnLandedReds(board, job, named, receipt, separate) {
  * @param {{ compareWithMain?: Parameters<typeof compareGateWithMain>[3], settleOnMainReceipt?: boolean }} ports
  * @returns {string[]} the gate jobs re-applied
  */
-export function settleWaitingGates(board, mainTest, { compareWithMain = null, settleOnMainReceipt = false } = {}) {
+export function settleWaitingGates(board, mainTest, { compareWithMain = null, settleOnMainReceipt = false, queue = null } = {}) {
   const { db } = board;
-  const main = db.prepare('SELECT job_base FROM job WHERE job_id = ?').get(mainTest)?.job_base;
+  // runs_store on: the job rows live in the runs file, so main's base and file and the earlier gates read from the board's run rows and their receipt summaries [B2,P7].
+  const summary = job => JSON.parse(boardRun(db, job)?.run_summary ?? 'null');
+  const main = queue ? boardRun(db, mainTest)?.run_base : db.prepare('SELECT job_base FROM job WHERE job_id = ?').get(mainTest)?.job_base;
   // The keyed main receipt is step 0; a runner's own posts sit above it.
-  const keyed = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'receipt' AND job_step_seq = 0").get(mainTest);
-  const file = keyed ? JSON.parse(keyed.job_step_payload)?.file : null;
+  const keyed = queue ? null : db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'receipt' AND job_step_seq = 0").get(mainTest);
+  const file = queue ? summary(mainTest)?.file : keyed ? JSON.parse(keyed.job_step_payload)?.file : null;
   if (typeof compareWithMain !== 'function' || !SHA.test(String(main ?? '')) || typeof file !== 'string') return [];
   const settled = [];
+  const earlier = queue ? db.prepare("SELECT run_job AS job_id, run_item AS job_item, run_base AS job_base FROM run WHERE run_kind = 'gate' AND run_item IS NOT NULL ORDER BY run_created DESC, rowid DESC LIMIT 300")
+    : db.prepare("SELECT job_id, job_item, job_base FROM job WHERE job_kind = 'gate' AND job_item IS NOT NULL ORDER BY job_created DESC, rowid DESC LIMIT 300");
+  const newest = item => queue ? db.prepare("SELECT run_job FROM run WHERE run_kind = 'gate' AND run_item = ? ORDER BY run_created DESC, rowid DESC LIMIT 1").get(item)?.run_job ?? null : latestGateJob(db, item);
   // Any base: the lookup finds this receipt for a gate on an earlier main where the file is unchanged, and skips the rest (#6333).
-  for (const { job_id: job, job_item: item, job_base } of db.prepare("SELECT job_id, job_item, job_base FROM job WHERE job_kind = 'gate' AND job_item IS NOT NULL ORDER BY job_created DESC, rowid DESC LIMIT 300").all()) {
-    const posted = postedReceipt(db, job)?.receipt;
-    const receipt = settleOnMainReceipt && posted?.gate?.proofPlan ? shardedResult(db, job, posted) : posted;
+  for (const { job_id: job, job_item: item, job_base } of earlier.all()) {
+    const posted = queue ? summary(job) : postedReceipt(db, job)?.receipt;
+    const receipt = settleOnMainReceipt && !queue && posted?.gate?.proofPlan ? shardedResult(db, job, posted) : posted;
     const gate = receipt?.gate;
-    if (!gate || gate.proofPlan || (receipt.status === 0 && gate.green === true) || latestGateJob(db, item) !== job) continue;
+    if (!gate || gate.proofPlan || (receipt.status === 0 && gate.green === true) || newest(item) !== job) continue;
     if (!(gate.phases ?? []).some(phase => phase.status !== 0 && ((phase.failures ?? []).some(row => row?.file === file) || (phase.failedFiles ?? []).includes(file)))) continue;
     if (store.getItem(board, item)?.item_status !== 'claimed') continue;
     const compared = compareGateWithMain(board, receipt, job_base, compareWithMain);

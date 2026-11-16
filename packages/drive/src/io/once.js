@@ -528,12 +528,13 @@ function flakeTargets(step, captured, collected, failures) {
  *   stallMs?: number, stallCheckMs?: number, stalled?: (error: Refused) => object, ran?: { toolsCommit?: string | null }, serving?: () => boolean | null, now?: () => number }} options - A whole gate that
  *   writes no step for stallMs (GATE_STALL_MS) is ended and rerun once, then recorded as stalled(error). `ran.toolsCommit`, the
  *   commit of the tools this driver runs, is recorded on `captured` with the source commit it proves. `serving`, when
- *   given, is asked at the start and every 30 s while a gate runs; false ends the gate stale (GATE_STALE).
+ *   given, is asked at the start and every 30 s while a gate runs; false ends the gate stale (GATE_STALE). `runs`: the board's
+ *   runs holder while runs_store is on (boardRunsHolder); the job's rows are read and written there, not on `db` [P7,#9080].
  * @returns {Promise<{ transition: string | null, phase: string, job: ReturnType<typeof jobView>, owed?: number, code?: string }>}
  */
-export async function driveOnce(db, job, { owner, repo, runner, plan, gate, transport, sections, failures, tooling, source, bundles, stallMs, stallCheckMs, stalled, ran, serving, now = Date.now } = {}) {
+export async function driveOnce(db, job, { owner, repo, runner, plan, gate, transport, sections, failures, tooling, source, bundles, stallMs, stallCheckMs, stalled, ran, serving, runs = null, now = Date.now } = {}) {
   if (!owner) throw new Refused('DRIVE_OWNER', 'driveOnce needs a driver id to hold the lease: pass { owner }.');
-  const rows = isJobRows(db) ? /** @type {JobRows} */ (db) : boardRows(/** @type {any} */ (db));
+  const rows = isJobRows(db) ? /** @type {JobRows} */ (db) : boardRows(/** @type {any} */ (runs?.db ?? db));
   const view = rows.view(job);
   if (!view) throw new Refused('JOB_MISSING', `No job ${job}: create it with createJob first.`);
   const before = phaseOf(view);

@@ -7,6 +7,7 @@ export { offerReleaseShards, releaseParticipationShards } from "./src/io/release
 export { SHARD_JOB_KIND, shardClaimCap, offerJob, offerLandShards, readLandShardReceipts, withdrawLandShards, openJob, jobViews, claimJob, keepJobsAlive, endJobs, PUSH_ALIVE_MS, jobRequest, renewJob, releaseJob, postReceipt, postArtifact, jobArtifacts, jobQueueCall, queueDraining, boardQueueMode, JOB_MAX_ATTEMPTS, provideJobTable } from "./src/io/jobs.js";
 export { LANDING_JOB_KIND, LAND_PAYLOAD_SHAPE, offerLandingJob, reofferLandingJob, openLandingJob } from "./src/io/landing.js";
 export { queueFor, queueOffer } from "./src/io/queue.js";
+export { applyInbox } from "./src/io/inbox.js";
 export { withLandingPermit } from "./src/io/permit.js";
 export { endStaleGateJobs } from "./src/io/stale.js";
 export { endGateHop, gateClaimHop, hopTableOver, provideGateHopTable } from "./src/io/hop.js";

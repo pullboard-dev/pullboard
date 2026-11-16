@@ -72,24 +72,26 @@ async function produceUnderLease(db, view, { key, owner, produce, now, renewMs }
  * @param {import('node:sqlite').DatabaseSync} db - The board's SQLite handle.
  * @param {{ kind: string, key: string, owner: string,
  *   produce: (job: { key: string, job: string, owner: string, saved: Map<string, any>, save: (name: string, payload: any) => any }) => any,
- *   now?: () => number, sleep?: (ms: number) => Promise<unknown>, waitMs?: number, pollMs?: number, renewMs?: number }} options
+ *   now?: () => number, sleep?: (ms: number) => Promise<unknown>, waitMs?: number, pollMs?: number, renewMs?: number,
+ *   runs?: { db: import('node:sqlite').DatabaseSync } | null }} options - runs: the board's runs holder while runs_store is on (boardRunsHolder); the job's rows go to its handle and not to `db` [P7,#9080].
  * @returns {Promise<{ state: 'stored' | 'produced' | 'pending', job: string, key: string, result?: any, owner?: string | null, holder?: string | null }>}
  */
-export async function keyedResult(db, { kind, key, owner, produce, now = Date.now, sleep = pause, waitMs = LEASE_MS + RENEW_MS, pollMs = POLL_MS, renewMs = RENEW_MS } = /** @type {any} */ ({})) {
+export async function keyedResult(db, { kind, key, owner, produce, now = Date.now, sleep = pause, waitMs = LEASE_MS + RENEW_MS, pollMs = POLL_MS, renewMs = RENEW_MS, runs = null } = /** @type {any} */ ({})) {
   if (!kind || !key) throw new Refused('KEYED_RESULT_KEY', 'A keyed result needs a kind and a content key: pass { kind, key }.');
   if (!owner) throw new Refused('KEYED_RESULT_OWNER', 'A keyed result needs a driver id to hold the lease: pass { owner }.');
   if (typeof produce !== 'function') throw new Refused('KEYED_RESULT_PRODUCE', 'A keyed result needs a produce function for when none is stored: pass { produce }.');
   const id = keyedJobId(kind, key);
-  createJob(db, { id, kind, candidate: key, now: now() });
+  const jobs = runs?.db ?? db;
+  createJob(jobs, { id, kind, candidate: key, now: now() });
   const deadline = now() + waitMs;
   for (;;) {
-    const stored = storedResult(jobView(db, id));
+    const stored = storedResult(jobView(jobs, id));
     if (stored) return { state: 'stored', job: id, key, ...stored };
-    const take = takeJob(db, id, owner, { now: now() });
+    const take = takeJob(jobs, id, owner, { now: now() });
     if (take.taken) {
       const raced = storedResult(take.job);
       if (raced) return { state: 'stored', job: id, key, ...raced };
-      return { state: 'produced', job: id, key, ...await produceUnderLease(db, take.job, { key, owner, produce, now, renewMs }) };
+      return { state: 'produced', job: id, key, ...await produceUnderLease(jobs, take.job, { key, owner, produce, now, renewMs }) };
     }
     if (now() >= deadline) return { state: 'pending', job: id, key, holder: take.job.leaseOwner };
     await sleep(pollMs);
