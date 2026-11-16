@@ -213,7 +213,7 @@ test('clause 1: the landing-dimension engine leaf registers one above the previo
   assert.equal(own[0].number ?? LANDING_DIMENSION_ENGINE, previous + 1);
   const root = fixture(t);
   writeFileSync(join(root, E, 'landing-dimension-engine.js'), "import { unassignedEngine } from './engine-next.js';\nexport const LANDING_DIMENSION_ENGINE = unassignedEngine();\n");
-  // Main also carries #8838's readiness leaf unnumbered; one landing merge numbers both, each to its own engine.
+  // Two unlanded leaves in one landing merge each take their own engine.
   writeFileSync(join(root, E, 'readiness-engine.js'), "import { unassignedEngine } from './engine-next.js';\nexport const READINESS_ENGINE = unassignedEngine();\n");
   assert.deepEqual(assignEngineNumbers(root).assigned, [{ name: 'LANDING_DIMENSION_ENGINE', number: 18 }, { name: 'READINESS_ENGINE', number: 19 }],
     'the landing merge registers it one above the highest (17), and no two leaves share a number');
