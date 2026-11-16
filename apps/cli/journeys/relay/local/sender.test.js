@@ -12,14 +12,10 @@ import {
 } from 'node:path';
 import test from 'node:test';
 import { runFixtureGit } from '../../../tests/fixtures/child.js';
-import {
-  relayClientFixture,
-  relayFixtureChild,
-} from '../../../tests/fixtures/relay/client.js';
+import { relayClientFixture } from '../../../tests/fixtures/relay/client.js';
 import { senderProcesses } from '../../../tests/fixtures/relay/sender.js';
 import { runCliInProcess } from '../../../tests/fixtures/process.js';
 import {
-  CLI,
   FIXTURE_MODEL,
   SAMPLE_MS,
   enableOutbox,
@@ -36,7 +32,7 @@ import {
 test('one background sender per machine sends each new move once, asks GitHub once per window, pulls other machines\' moves, and the relay reads none [H21,H5,H15]', async t => {
   const { box, env } = await linkedBoard(t);
   const printed = await box.cliLocal('relay', 'pair');
-  const other = await box.otherDeviceJoin(printed.document.code);
+  const other = await box.otherDeviceJoin(printed.document.code, undefined, { inProcess: true });
   const permission = () => box.providerCalls.filter(call => call.path.endsWith('/permission')).length;
   const asked = permission();
   const acks = box.moveAcks.length;
@@ -59,17 +55,17 @@ test('one background sender per machine sends each new move once, asks GitHub on
   assert.equal(new Set(sent.map(ack => ack.event_id)).size, sent.length, 'no sequence was sent twice');
   assert.ok(permission() - asked <= 1, `the relay asked GitHub at most once for the burst (${permission() - asked})`);
 
-  const there = await relayFixtureChild(other.root, other.env, [CLI, 'export', '--json']);
+  const there = await other.cli('export');
   assert.equal(there.code, 0, there.failure);
   for (const text of texts) assert.equal(shoutTexts(there.document).filter(row => row === text).length, 1, `the other machine holds "${text}" once`);
 
   // An agent seat on the other machine moves; its main checkout does not hold this board's coordinator (E19).
   const otherPath = join(dirname(other.root), 'other-agent');
   runFixtureGit(['worktree', 'add', '-q', '-b', 'agent/other', otherPath], { cwd: other.root, env: other.env });
-  const joined = await other.cliAt(otherPath, 'join', box.lane, '--model', FIXTURE_MODEL);
+  const joined = await other.cliAtLocal(otherPath, 'join', box.lane, '--model', FIXTURE_MODEL);
   assert.equal(joined.code, 0, joined.failure);
   const reply = 'a move from the other machine';
-  const shouted = await other.cliAt(otherPath, 'shout', 'all', reply);
+  const shouted = await other.cliAtLocal(otherPath, 'shout', 'all', reply);
   assert.equal(shouted.code, 0, shouted.failure);
   const otherStatus = await other.cli('status');
   assert.equal(otherStatus.document.relay.outbox, undefined, 'the other machine sent its move');
@@ -99,11 +95,11 @@ test('a conflict found on sync is refused at replay with a code naming the winne
   await box.link();
   const contested = (await box.cliLocal('add', box.lane, 'Claimed on two machines')).document.item.item_id;
   const printed = await box.cliLocal('relay', 'pair');
-  const other = await box.otherDeviceJoin(printed.document.code);
+  const other = await box.otherDeviceJoin(printed.document.code, undefined, { inProcess: true });
   const here = await seat(box, 'here-agent');
   const otherPath = join(dirname(other.root), 'there-agent');
   runFixtureGit(['worktree', 'add', '-q', '-b', 'agent/there', otherPath], { cwd: other.root, env: other.env });
-  const there = await other.cliAt(otherPath, 'join', box.lane, '--model', FIXTURE_MODEL, '--route', 'strong');
+  const there = await other.cliAtLocal(otherPath, 'join', box.lane, '--model', FIXTURE_MODEL, '--route', 'strong');
   assert.equal(there.code, 0, there.failure);
   const winner = there.document.agent;
 
@@ -111,7 +107,7 @@ test('a conflict found on sync is refused at replay with a code naming the winne
   const queued = await box.cliAtLocal(here.path, 'claim', String(contested));
   assert.equal(queued.code, 0, `the claim succeeds here at once, with no up-front coordination: ${queued.failure}; ${JSON.stringify(queued.document?.error ?? queued.document?.refusal ?? null)}`);
   await box.restartRelay();
-  const won = await other.cliAt(otherPath, 'claim', String(contested));
+  const won = await other.cliAtLocal(otherPath, 'claim', String(contested));
   assert.equal(won.code, 0, won.failure);
 
   const synced = await box.cliLocal('status');
