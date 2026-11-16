@@ -66,7 +66,7 @@ test('moves.row-owners.main-whole: clause 3: every row of main\'s move tables ha
 
 test('moves.row-owners.reopen: clause 2: the reopen table has rows and exactly one owner for each [C7,#8559]', () => {
   const records = JSON.parse(readFileSync(join(DIR, '../../registry.json'), 'utf8'));
-  assert.equal(TABLES.reopen.length, 13);
+  assert.equal(TABLES.reopen.length, 14);
   assert.deepEqual(moveRowOwnershipProblems({ reopen: TABLES.reopen }, records), []);
 });
 
@@ -78,7 +78,7 @@ test('moves.row-owners.backbone: clause 2: the backbone table has rows and exact
 
 test('moves.row-owners.landing: clause 2: the five landing tables have rows and every row has exactly one owner [C7,#8561]', () => {
   const records = JSON.parse(readFileSync(join(DIR, '../../registry.json'), 'utf8'));
-  assert.equal(TABLES.landing.length, 38);
+  assert.equal(TABLES.landing.length, 43);
   assert.deepEqual(moveRowOwnershipProblems({ landing: TABLES.landing }, records), []);
 });
 
