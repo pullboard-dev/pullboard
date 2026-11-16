@@ -66,7 +66,7 @@ const VIEWER_ACTIONS = [
   ['tab:shouts', 'shouts', '#feed .sx-th, #feed .sx-dayrule'],
   ['tab:spec', 'spec', '#spec-list .row'],
   ['tab:doctrine', 'doctrine', '#doctrine-list .row'],
-  ['tab:activity', 'activity', '#activity > *'],
+  ['tab:activity', 'activity', '#activity .act-cols'],
   // Release milestones nest their head in the shared release header since 0ab202b994.
   ['tab:roadmap', 'roadmap', '#roadmap-list > [data-key] .milestone-head'],
   ['tab:items', 'items', '#chain .row'],

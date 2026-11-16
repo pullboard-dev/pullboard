@@ -14,7 +14,6 @@ import { existsSync } from 'node:fs';
 import { relayMachineDirectory } from '../../../../../packages/store/index.js';
 import { submitHandoff } from '../../../../../packages/store/index.js';
 import { handoffWorkerAlive } from '../alive.js';
-import { stalledGates } from '../../../../../packages/jobs/light.js';
 import { withBoardRead } from '../board/read.js';
 import { fallbackReclaim } from '../reclaim.js';
 import { diskLines } from '../disk/use.js';
@@ -30,10 +29,7 @@ import { identifyCaller } from '../read.js';
 import { relayStateExists } from '../../../../../packages/store/index.js';
 import { fileURLToPath } from 'node:url';
 import { memoryHeldRuns } from '../../../../../packages/store/index.js';
-import { readRunnerUtilization } from '../../../../../packages/runners/light.js';
 import { longestRecentHolds } from '../../../../../packages/store/index.js';
-import { runnerDeadlineLine } from '../../../../../packages/resources/light.js';
-import { runnerDeadlineRuns } from '../../../../../packages/runners/light.js';
 import {
   productLine,
   productSummaries,
@@ -67,6 +63,8 @@ export async function run(io, { values }) {
   const ctx = context(io);
   const { bindProofRunner, currentProofCounters, proofCounter, ruleProofCounts, reviewQueueLine } = await import('../../../../../packages/verify/index.js');
   const { claimHealthProjection, releaseBlockingItems, staleStateSnapshot } = await import('../../../../../packages/health/index.js');
+  const { stalledGates } = await import('../../../../../packages/jobs/index.js');
+  const { runnerDeadlineLine } = await import('../../../../../packages/resources/index.js');
   // Status does not load the library root that binds the runner; unbound, its coverage fingerprint never matches the writer's.
   bindProofRunner(fileURLToPath(new URL('../run/tests.js', import.meta.url)));
   const hasRelayState = relayStateExists(ctx.info.commonDir);
@@ -109,9 +107,10 @@ export async function run(io, { values }) {
   }
   summary.reclaim = reclaim;
   summary.memoryHeld = memoryHeldRuns();
-  summary.runnerDeadlines = runnerDeadlineRuns();
-  // The receipt reader is loaded here, not through gate/light.js: that door is the runner worker's, and a receipt reader in it widens the worker bundle [C7].
+  // These status readers load here, not through the packages' light doors: those doors are the runner worker's, and a status reader in them widens the worker bundle [C7].
   const { retainedReceipts } = await import('../../../../../packages/gate/index.js');
+  const { readRunnerUtilization, runnerDeadlineRuns } = await import('../../../../../packages/runners/index.js');
+  summary.runnerDeadlines = runnerDeadlineRuns();
   summary.runnerUtilization = readRunnerUtilization(ctx.info.root, retainedReceipts);
   summary.longestHolds = longestRecentHolds();
   summary.disk = refusingBadPolicy(() => cachedDiskUse(join(ctx.info.commonDir, 'pullboard'), { now: ctx.clock.now().getTime(), maxAgeMs: 10 * 60_000 }), Refused);

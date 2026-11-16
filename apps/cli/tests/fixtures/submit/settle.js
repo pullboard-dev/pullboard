@@ -27,9 +27,10 @@ function gateFacts(shown) {
 }
 
 /** True when the thread holds the fact applyGateReceipt writes for a gate job's result; the earlier "offered for" note is not one. */
-function resultFact(thread, jobId) {
+function resultFact(thread, jobId, unknownSettles = false) {
   const text = JSON.stringify(thread ?? []);
-  return Boolean(jobId) && (text.includes(`Gate job ${jobId} red at `) || text.includes(`Gate job ${jobId} passed but not submitted`));
+  return Boolean(jobId) && (text.includes(`Gate job ${jobId} red at `) || text.includes(`Gate job ${jobId} passed but not submitted`)
+    || unknownSettles && text.includes(`Gate job ${jobId} unknown at `));
 }
 
 /**
@@ -40,15 +41,18 @@ function resultFact(thread, jobId) {
  * test that acts on the job row alone (verify accept) races and fails NOT_SUBMITTED on a loaded runner [C7,#7283]. The
  * receipt is applied once the item has left `claimed` (submitted, or stale) or the thread names the job's gate result
  * fact; a job done but not yet applied is read again on the runner's next log line or 5 s heartbeat.
+ * A red the board cannot yet compare with main (main's own run of a file that fails to load names no case, so no receipt
+ * keys) is recorded as "unknown" and never moves on its own; unknownSettles takes that recorded verdict as applied, for a
+ * journey that asserts the gate job's own receipt and not the board's comparison with main [C7].
  *
  * @param {{ repo: string, env: object, run: Function }} box - The fixture project; run(cwd, ...args) returns, or resolves to,
  *   { code, out, err }.
  * @param {number} item - The submitted item.
- * @param {{ deadlineMs?: number, until?: (shown: object) => boolean }} [options] - until: a further condition on the
+ * @param {{ deadlineMs?: number, unknownSettles?: boolean, until?: (shown: object) => boolean }} [options] - until: a further condition on the
  *   shown item once the job is done, such as a red that settles only after main's receipts record.
  * @returns {Promise<{ id: string, step: string, gate: object | null }>} The done gate job as show prints it.
  */
-export function settledGateJob(box, item, { deadlineMs = 180_000, until = () => true } = {}) {
+export function settledGateJob(box, item, { deadlineMs = 180_000, until = () => true, unknownSettles = false } = {}) {
   const machineHome = box.env.PULLBOARD_MACHINE_HOME;
   return new Promise((done, fail) => {
     let watcher = null, last = '', step = 'none', settled = false, reading = false, again = false;
@@ -65,7 +69,7 @@ export function settledGateJob(box, item, { deadlineMs = 180_000, until = () => 
         doc = shown.code === 0 ? JSON.parse(shown.out) : null;
         job = doc?.gateJob ?? null;
         // A red gate leaves the item claimed and records its "Gate job <id> red|passed but not submitted" fact; a green or stale one moves it on.
-        applied = Boolean(doc) && (doc.item_status !== 'claimed' || resultFact(doc.thread, job?.id));
+        applied = Boolean(doc) && (doc.item_status !== 'claimed' || resultFact(doc.thread, job?.id, unknownSettles));
       } catch { /* a partial read; the next change reads again */ } finally { reading = false; }
       step = job?.step ?? 'none';
       if (step === 'done' && applied && until(doc) && !settled) { stop(); done(job); return; }
@@ -85,7 +89,7 @@ export function settledGateJob(box, item, { deadlineMs = 180_000, until = () => 
  * @param {import('node:test').TestContext} t
  * @param {{ repo: string, env: object, run: Function }} box - The fixture project.
  * @param {object} submitted - The submit's parsed --json document.
- * @param {{ deadlineMs?: number }} [options]
+ * @param {{ deadlineMs?: number, unknownSettles?: boolean }} [options]
  * @returns {Promise<object>} The submit document with `gate` from the pulled gate and `gateJob`.
  */
 export async function settleSubmit(t, box, submitted, options) {

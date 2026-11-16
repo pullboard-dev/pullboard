@@ -9,6 +9,8 @@
   "pushGate": { "shardMinutes": 40 },
   "landing": {
     "manualOverride": false,
+    "ledgerMainReds": true,
+    "shardProof": true,
     "publish": "separate",
     "perItem": false,
     "parallel": true,
@@ -143,7 +145,8 @@
     "composeAtAdmission": true,
     "family": "prefer",
     "familyRelaxAt": 5,
-    "folderTicks": true
+    "folderTicks": true,
+    "titleTicks": true
   },
   "check": {
     "timeout": "60m"
