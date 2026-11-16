@@ -696,10 +696,11 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
         }
       }
     }
+    // A reached file whose own reads are unknown still has known importers; the tests that could load it dynamically are
+    // the unknown roots retained below, so reaching it never selects the whole suite [C7].
     for (let at = 0; at < queue.length; at += 1) {
       const path = queue[at];
       for (const graph of [before, after]) {
-        if (graph.unknown.has(path)) return { full: true, reason: `${graph.unknown.get(path)} in reached file ${path}`, files };
         for (const importer of graph.reverse.get(path) ?? []) {
           if (!reached.has(importer)) { reached.add(importer); via.set(importer, path); queue.push(importer); }
         }
