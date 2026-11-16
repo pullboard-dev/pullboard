@@ -223,7 +223,8 @@ function runAsync(command, args, options) {
     let stderr = '';
     child.stdout.on('data', chunk => { stdout += chunk; });
     child.stderr.on('data', chunk => { stderr += chunk; });
-    child.on('close', status => done({ status, stdout, stderr }));
+    const hung = setTimeout(() => { stderr += '\n[fixture] nested runner still running after 90 s; killed'; child.kill('SIGKILL'); }, 90_000);
+    child.on('close', status => { clearTimeout(hung); done({ status, stdout, stderr }); });
   });
 }
 
