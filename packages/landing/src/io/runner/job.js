@@ -252,20 +252,22 @@ async function landingCheck(payload, env, phases = null, shards = null) {
       const here = prove(own, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [], deadline });
       return sharded ? sharded(own, { ...shards, gate: payload.shardProof, deadline }, here) : here;
     };
+    // The proof and the contracts each record the milliseconds they spent, red or not, so a slow land reads its own split [C7,#9245].
+    const phaseOf = (name, part) => context => timed(phases, name, () => part(context));
     const timedGuard = staticGuard && (context => timed(phases, 'static checks', () => staticGuard(context)));
     const guard = timedGuard && carry ? (context => carry(context, timedGuard)) : timedGuard;
     const parts = [['check', landingGuards(payload, phases)], ...(guard ? [['check', guard]] : []), ...payload.items.filter(entry => merged.has(entry.id) && typeof payload.checks?.[entry.id] === 'string').map(entry => ['check', commandCheck(['sh', '-c', payload.checks[entry.id]], { deadline })]),
-      ...(payload.check ? [['proof', commandCheck(payload.check, { deadline })]] : []),
-      ...(prove && files.length ? [['proof', proveFiles({ ...payload.proof, files })]] : [])];
+      ...(payload.check ? [['proof', phaseOf('proof', commandCheck(payload.check, { deadline }))]] : []),
+      ...(prove && files.length ? [['proof', phaseOf('proof', proveFiles({ ...payload.proof, files }))]] : [])];
     // Files an item's submit deferred to this landing run on the merged tree once their item is in it; a red returns the item [C7].
     const deferred = payload.deferred && typeof payload.deferred.runner === 'string' ? payload.deferred : null;
     if (deferred && prove) for (const entry of payload.items.filter(row => merged.has(row.id))) {
       const owed = (deferred.files?.[String(entry.id)] ?? []).filter(file => existsSync(join(context.root, file)));
-      if (owed.length) parts.push(['proof', prove({ runner: deferred.runner, files: owed, ledger: null }, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [], deadline })]);
+      if (owed.length) parts.push(['proof', phaseOf('proof', prove({ runner: deferred.runner, files: owed, ledger: null }, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [], deadline }))]);
     }
     // Affected tests no submit proved (contracts main gained since, deferred journeys) run on the tree being checked [C7,#7378].
     const contractPart = payload.contracts ? (await import('./contracts.js')).contractCheck(payload, env) : null;
-    if (contractPart) parts.push(['proof', contractPart]);
+    if (contractPart) parts.push(['proof', phaseOf('contracts', contractPart)]);
     let proof = null, waived = null, contracts = null;
     for (const [role, part] of parts) {
       const result = await part(context);
