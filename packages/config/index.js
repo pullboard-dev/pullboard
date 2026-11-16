@@ -101,6 +101,7 @@ export {
   addWarnUnnamedTest,
   holdsRequireOwner,
   nextIdleBlockers,
+  nextAdoptPreserved,
   nextItemNotices,
   statsRecordCoordinatorUsage,
   reviewStarveShout,
