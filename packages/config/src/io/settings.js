@@ -90,6 +90,11 @@ export function endStaleJobsEnabled() {
   return loadMachineSettings().gate?.endStaleJobs === true;
 }
 
+/** Offer a gate job once more after an infrastructure end only when this machine opted in [C7,#9633]. */
+export function reofferInfraEndEnabled() {
+  return loadMachineSettings().gate?.reofferInfraEnd === true;
+}
+
 /** Settle a sharded item gate left unknown on a missing main receipt when that receipt records, only when this machine opted in [C7,#9057]. */
 export function settleOnMainReceiptEnabled() {
   return loadMachineSettings().gate?.settleOnMainReceipt === true;
@@ -337,6 +342,11 @@ export function refuseOffMainHead() {
 /** Whether freezing a bar refuses an empty criterion (#9443): off by default; only an exact `true` turns it on. */
 export function refuseEmptyBar() {
   return loadMachineSettings().freeze?.refuseEmptyBar === true;
+}
+
+/** Whether a landed reject's follow-up keeps its parent's check (#9637): off by default; only an exact `true` turns it on. */
+export function rejectKeepsCheck() {
+  return loadMachineSettings().verify?.rejectKeepsCheck === true;
 }
 
 /** Whether a review release must name why it was dropped (#8920): off by default; only an exact `true` turns it on. */
