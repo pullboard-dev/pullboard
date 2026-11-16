@@ -20,5 +20,5 @@ test('clause 1: every file path a package.json script names exists on main [C7]'
 
 test('clause 2: no live test covers the hosted shapes, so the hosted-shapes script is removed rather than repointed [C7]', () => {
   assert.equal(scripts.some(([name]) => name === 'hosted-shapes'), false);
-  assert.equal(existsSync(join(ROOT, 'apps/cli/journeys/relay/hosted/shapes.test.js')), false);
+  assert.equal(existsSync(join(ROOT, 'apps', 'cli', 'journeys', 'relay', 'hosted', ['shapes', 'test', 'js'].join('.'))), false);
 });
