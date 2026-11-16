@@ -370,6 +370,9 @@ export function loadMachineSettings() {
   if (value.sentinels?.recordWriteHolder !== undefined && typeof value.sentinels.recordWriteHolder !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `sentinels.recordWriteHolder in ${file} must be true or false`);
   }
+  if (value.next?.adoptPreserved !== undefined && typeof value.next.adoptPreserved !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `next.adoptPreserved in ${file} must be true or false`);
+  }
   if (value.next?.capBuilders !== undefined && !(Number.isInteger(value.next.capBuilders) && value.next.capBuilders >= 0)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `next.capBuilders in ${file} must be a whole number, 0 or more`);
   }

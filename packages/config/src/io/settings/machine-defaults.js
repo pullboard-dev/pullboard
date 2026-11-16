@@ -95,6 +95,7 @@ export const MACHINE_DEFAULTS = {
   'moves.live.reopen': false,
   'moves.live.submit': false,
   'moves.shadow': false,
+  'next.adoptPreserved': false,
   'next.capBuilders': 0,
   'next.idleBlockers': false,
   'next.itemNotices': false,

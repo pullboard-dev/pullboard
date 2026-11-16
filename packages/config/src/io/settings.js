@@ -466,6 +466,14 @@ export function holdsRequireOwner() {
 }
 
 /**
+ * Whether next --take restores the pinned head of a returned item into the new item folder (#9689): off by default, so
+ * next --take claims exactly as before; only an exact `true` turns it on.
+ */
+export function nextAdoptPreserved() {
+  return loadMachineSettings().next?.adoptPreserved === true;
+}
+
+/**
  * Whether next lists the shouts and rulings that name the item it hands out (#8787): off by default, so next prints exactly
  * what it did before; only an exact `true` turns it on.
  */
