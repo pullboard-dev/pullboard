@@ -51,6 +51,7 @@ export {
   censusBalanceByTimeEnabled,
   censusJobMinutes,
   censusJobsPerRunner,
+  censusJobsPerRunnerQuiet,
   jobsAvoidRunnersEnabled,
   pushRecordTimingEnabled,
   pushRerunFailedShardOnceEnabled,
