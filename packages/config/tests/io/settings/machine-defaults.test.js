@@ -24,6 +24,7 @@ const BEFORE = {
   'claim.refuseOffMainHead': false,
   'freeze.refuseEmptyBar': false,
   'gate.adapterLintClock': false,
+  'gate.adapterLintFs': false,
   'gate.browserByLaunch': false,
   'gate.browserFreeChecks': false,
   'gate.contractWeakening': false,

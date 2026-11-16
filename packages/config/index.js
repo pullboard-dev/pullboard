@@ -69,6 +69,7 @@ export {
   requireRegisteredEnabled,
   requireJourneyPathEnabled,
   adapterLintClockEnabled,
+  adapterLintFsEnabled,
   movesLiveEnabled,
   gateRunnerAdmission,
   setGateRunnersOnly,
