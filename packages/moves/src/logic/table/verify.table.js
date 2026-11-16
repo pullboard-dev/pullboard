@@ -2,37 +2,12 @@
 import { createHash } from 'node:crypto';
 import { Refused } from '../../../../kernel/light.js';
 import { defineRules } from './rules.js';
+import { VERIFY_NEXT } from './next.js';
+export { VERIFY_NEXT } from './next.js';
 
 const ROUTES = Object.freeze(['light', 'mid', 'strong']);
 const SHOUT_LIMIT = 400;
 const SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
-
-/**
- * The next step the verify command prints for each refusal code its table rows share; the live move declaration's next-step map reads these.
- * Why: one sentence per code, so the table and the command can never word the same refusal two ways.
- */
-export const VERIFY_NEXT = Object.freeze({
-  NOT_JOINED: 'join a lane from this worktree: pullboard join <lane> --model "<model name>" (see: pullboard lanes)',
-  NO_ITEM: 'find the item id: pullboard list --all',
-  NOT_SUBMITTED: 'see its state with pullboard show <id>; verify only submitted items: pullboard next --verify',
-  SELF_SESSION_VERIFY: "start the review in a separate process or session: run pullboard next --verify from a different agent session's own worktree",
-  NOT_AT_COMMIT: 'check out the submitted commit shown by pullboard show <id>: git switch --detach <commit>',
-  CRITERIA_CHANGED: 'ask the coordinator to refreeze it: pullboard shout coordinator --kind question "please refreeze #<id>"',
-  NO_POLICY: 'restore and commit pullboard.json, then run the command again',
-  ALREADY_MERGED: 'file the follow-up as a new item: pullboard add <lane> "<title>"',
-  BAD_VERDICT_REVIEW: 'restore the submitted commit and reviewed Git objects, then re-review the clean composition with current Pullboard',
-  SELF_VERIFY: 'ask a different agent to verify it; from main create its worktree with pullboard worktree <lane> --model "<model name>"',
-  ROUTE: 'take an item your route covers: pullboard next',
-  COORDINATOR_VERIFIES: 'leave the review to the coordinator; record readiness on the item: pullboard fact <id> note "ready for coordinator review"',
-  REVIEW_HELD: 'take another review: pullboard next --verify',
-  BAD_REASON: 'accept with --note "how you proved it", or reject with --reason TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HEAD or OTHER',
-  PROOF_REQUIRED: 'say how you proved it: --note "what you broke or which edge you tried, and what happened"',
-  NOTE_REQUIRED: 'add --note "<what happened>"',
-  BAD_CAUSE: 'name the cause as test:<file>::<title>, refusal:<CODE>, row:<id> or doctrine:<id>, or leave --cause out',
-  BAR_CLAUSE_REQUIRED: 'add --clause "exact wording from the frozen criterion or spec row"',
-  BAR_CLAUSE_UNKNOWN: 'read pullboard show <id>, then quote the failing requirement with --clause',
-  VERDICT_ENVIRONMENT: 'run the frozen check with current Pullboard, then have an independent reviewer record a fresh verdict with its actual executor environment',
-});
 
 /** Steps for codes the table refuses with that the live next-step map does not list (the command falls back to the step in the message). */
 const EXTRA_NEXT = Object.freeze({

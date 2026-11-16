@@ -1,8 +1,4 @@
 /** Argument and lane helpers for `pullboard add` and `pullboard edit`. Split from src/cli.js, which re-exports it [C7]. */
-import { dependencyValues } from '../../../../packages/items/index.js';
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { main } from './main.js';
 import { COORDINATOR } from '../../../../packages/config/index.js';
@@ -20,6 +16,9 @@ import { relayLinked } from '../../../../packages/link/index.js';
 import { ensureLocalRunner } from './runner/local.js';
 import { primaryCheckoutRoot } from './worktree.js';
 import { ordered } from './claim.js';
+import { textArg } from './read.js';
+export { editAfter } from './read.js';
+export { textArg } from './read.js';
 
 /** The detached baseline worker, an executable of the lib app; the gate package spawns it by this path. */
 const BASELINE_WORKER = fileURLToPath(new URL('../../../lib/src/io/check/baseline.js', import.meta.url));
@@ -65,35 +64,6 @@ export async function launchBaseline(ctx, board, id, baseline, options = {}) {
     await ordered(ctx, board, 'completeCheckBaseline', [id, { agentId: COORDINATOR, expected: baseline,
       baseline: { command: baseline.command, main: baseline.main, result: 'unavailable', reason: 'background worker could not start; set --check again from the coordinator' } }]);
   }
-}
-/** Parse an edit's dependency replacement, with the explicit word `none` meaning clear all. */
-export function editAfter(text) {
-  if (text === undefined) return undefined;
-  if (text.trim() === 'none') return [];
-  const parts = text.split(',').map((part) => part.trim());
-  if (!text.trim() || parts.some((part) => !part || part === 'none')) {
-    throw new Refused('USAGE', 'use --after <id>[,<id>...] or --after none');
-  }
-  return dependencyValues(parts);
-}
-/**
- * Text a command was given as --<name> "..." or as --<name>-file <file>, or undefined when neither.
- * A file carries text past the shell exactly: backticks, dollar signs and quotes included.
- *
- * @param {any} io
- * @param {any} values
- * @param {string} name
- * @returns {string | undefined}
- */
-export function textArg(io, values, name) {
-  const path = values[`${name}-file`];
-  if (values[name] !== undefined && path !== undefined) {
-    throw new Refused('USAGE', `give the ${name} once: --${name} "..." or --${name}-file <file>`);
-  }
-  if (path === undefined) return values[name];
-  const file = resolve(io.cwd, path);
-  if (!existsSync(file)) throw new Refused('NO_FILE', `no file ${path}`);
-  return readFileSync(file, 'utf8');
 }
 /**
  * The brief a command was given, from --brief or --brief-file.

@@ -24,6 +24,7 @@ import { firstDifference } from '../../../store/index.js';
 import { touchLive } from '../../../jobs/index.js';
 import { liveSince } from '../../../jobs/index.js';
 import { endJob } from '../../../jobs/index.js';
+import { setJobRow } from '../../../jobs/index.js';
 import { moveGateClaimHop } from './hop.js';
 
 /** The job kind of one part of a pulled gate's proof, which the board offers from the gate's plan and any runner pulls [P7]. */
@@ -403,16 +404,20 @@ function jobSnapshot(db, job, now) {
 let jobTable = null;
 /** The moves.shadow machine setting, handed in with the table because the api cell may not read config [C7,#8381]. */
 let shadowEnabled = () => false;
+/** The moves.live.job machine setting, handed in the same way; the writer follows the table only while it reads true [C7,#8387]. */
+let liveEnabled = () => false;
 
 /**
  * Provide the job table the writer's shadow compare decides with, once per serving process or handler worker.
  *
  * @param {((snapshot: object, move: object) => { refused?: object, patch?: { job: object } }) | null} decide
  * @param {() => boolean} [enabled] - Reads the moves.shadow machine setting; the shadow stays off without it.
+ * @param {() => boolean} [live] - Reads the moves.live.job machine setting; the writer's own rules decide without it.
  */
-export function provideJobTable(decide, enabled = () => false) {
+export function provideJobTable(decide, enabled = () => false, live = () => false) {
   jobTable = typeof decide === 'function' ? decide : null;
   shadowEnabled = typeof enabled === 'function' ? enabled : () => false;
+  liveEnabled = typeof live === 'function' ? live : () => false;
 }
 
 /** Where the job table's answer and the writer's row part: the first differing path, or null when they agree. */
@@ -437,6 +442,24 @@ function shadowOf(db) {
 }
 
 /**
+ * With moves.live.job on, the job table decides the move: it refuses before anything is written, and the job row it names is the one left behind.
+ * The writer still records the steps the table does not model; then the row's step, owner and lease are set to the table's answer.
+ * A table that throws never takes the runner's move down: the writer's own rules decide that move [C7,#8387].
+ */
+function followTable(db, move, now, write) {
+  let answer;
+  try { answer = jobTable(jobSnapshot(db, move.job, now), { ...move, token: tokenHash(move.token ?? '') }); } catch { return write(); }
+  if (answer?.refused) throw new Refused(answer.refused.code, answer.refused.message ?? `the job table refused ${move.name} on job ${move.job}`, answer.refused.next);
+  const decided = answer?.patch?.job;
+  if (!decided) return write();
+  return atomically(db, () => {
+    const result = write();
+    setJobRow(db, move.job, decided, { now });
+    return result;
+  });
+}
+
+/**
  * Run a runner's move through the writer and, when a shadow is set, hand it the job table's answer beside the writer's.
  * The shadow brings the table as `decide(snapshot, move)`, the job table run over the row before the move, and gets `seen({ move, job, decided, wrote })`:
  * a test's `jobQueueShadow` on the db, or, with moves.shadow on, the recorder that counts each compare on the board.
@@ -449,6 +472,7 @@ function shadowOf(db) {
  * @param {() => any} write - The writer's own move.
  */
 function shadowed(db, move, now, write) {
+  if (jobTable && (db.movesLive?.job ?? liveEnabled()) === true) return followTable(db, move, now, write);
   const shadow = shadowOf(db);
   if (!shadow) return write();
   const answer = shadow.decide(jobSnapshot(db, move.job, now), { ...move, token: tokenHash(move.token ?? '') });
@@ -478,6 +502,12 @@ export function renewJob(db, { job, runner, token, now = Date.now(), leaseMs = L
 function stepClaimHop(db, hop, { job, runner, epoch, now, leaseMs }) {
   const row = db.prepare('SELECT job_item, job_candidate FROM job WHERE job_id = ?').get(job);
   moveGateClaimHop(db, hop, { item: row.job_item, candidate: row.job_candidate, runner, move: 'step', epoch, now, leaseMs });
+}
+
+/** Finish the item's hop as a gate job's claim at the epoch it took: the receipt is the gate's end, so its hop row reads done, not driven [C7,#8464]. */
+function finishClaimHop(db, hop, { job, runner, epoch, now, leaseMs }) {
+  const row = db.prepare('SELECT job_item, job_candidate FROM job WHERE job_id = ?').get(job);
+  moveGateClaimHop(db, hop, { item: row.job_item, candidate: row.job_candidate, runner, move: 'finish', epoch, now, leaseMs });
 }
 
 /** The writer's renew: the claim's runner extends its lease, and with gate.fencedHop on steps its gate hop at the claim's epoch, so a replaced owner is refused HOP_FENCED [C7,#8352]. */
@@ -625,7 +655,7 @@ export function postReceipt(db, { job, runner, token, receipt, now = Date.now(),
     const held = heldBy(db, job, runner, token);
     const { attempt } = held;
     // With gate.fencedHop on, a gate job lands only while its claim still owns the item's hop: a resubmit ended it, so the old job is refused HOP_FENCED [C7,#8353].
-    if (hop && held.hopEpoch !== undefined) stepClaimHop(db, hop, { job, runner, epoch: held.hopEpoch, now, leaseMs });
+    if (hop && held.hopEpoch !== undefined) finishClaimHop(db, hop, { job, runner, epoch: held.hopEpoch, now, leaseMs });
     const written = writeStep(db, job, 'receipt', { runner, attempt, receipt }, { seq: attempt, now });
     finishJob(db, job, runner, { now });
     return { job, attempt, receipt: written.payload.receipt, recorded: written.written };

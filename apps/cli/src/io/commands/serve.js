@@ -34,6 +34,7 @@ import {
 } from '../main.js';
 import { serveListen } from '../../../../../packages/config/index.js';
 import { movesShadowEnabled } from '../../../../../packages/config/index.js';
+import { movesLiveEnabled } from '../../../../../packages/config/index.js';
 import { mainComparisonMode } from '../../../../../packages/config/index.js';
 import { criterionMainReceipts } from '../submit/receipt.js';
 import { provideMainComparison } from '../../../../../packages/api/index.js';
@@ -116,7 +117,7 @@ export async function serveHere(io, values) {
   // A pulled gate's red cases are read against main's receipts like a submit gate's, unless gate.mainComparison is off [P7].
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
   provideGateHopTable(gateHopTable);
-  provideJobTable(jobShadowTable(), movesShadowEnabled);
+  provideJobTable(jobShadowTable(), movesShadowEnabled, () => movesLiveEnabled('job'));
   provideCompanionInheritance(companionMainFailuresUntouched);
   provideMainTestRecorder(recordMainTestReceipt);
   provideMainRedNotes(MAIN_RED_NOTES);
@@ -211,7 +212,7 @@ export async function loopbackBoardApi(io, { projects, secret }) {
   const ctx = context(io), openers = { ...nativeBoardOpeners(io), launchRelaySender: io.launchRelaySender, trunkPack: servedTrunkPack }, ids = new Map();
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
   provideGateHopTable(gateHopTable);
-  provideJobTable(jobShadowTable(), movesShadowEnabled);
+  provideJobTable(jobShadowTable(), movesShadowEnabled, () => movesLiveEnabled('job'));
   provideCompanionInheritance(companionMainFailuresUntouched);
   provideMainTestRecorder(recordMainTestReceipt);
   provideMainRedNotes(MAIN_RED_NOTES);
@@ -253,7 +254,7 @@ function jobShadowTable() {
 export async function boardHandlerPorts({ isMain } = {}) {
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
   provideGateHopTable(gateHopTable);
-  provideJobTable(jobShadowTable(), movesShadowEnabled);
+  provideJobTable(jobShadowTable(), movesShadowEnabled, () => movesLiveEnabled('job'));
   provideCompanionInheritance(companionMainFailuresUntouched);
   provideMainTestRecorder(recordMainTestReceipt);
   provideMainRedNotes(MAIN_RED_NOTES);
