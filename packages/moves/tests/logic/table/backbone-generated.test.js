@@ -220,7 +220,7 @@ test('moves.backbone.legal-landing-pair: clause 3: every outcome of every move t
   assert.deepEqual(illegal.slice(0, 5), [], `${illegal.length} writes left an illegal pair`);
 });
 
-test('clause 2: every declared job kind is created by code, pull-out by the lander, so none waits for a runner [M2,R3,#9100]', () => {
+test('moves.backbone.job-kinds-created: clause 2: every declared job kind is created by code, pull-out by the lander, so none waits for a runner [M2,R3,#9100]', () => {
   assert.deepEqual(CREATED_JOB_KINDS, KINDS);
   assert.equal(JOB_KINDS.some(job => job.created === false), false);
 });
