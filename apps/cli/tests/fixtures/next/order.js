@@ -28,6 +28,12 @@ export function boardFixture(engine = null) {
   return { board, builder, reviewer };
 }
 
+/** Add one open strong-route core item, ready for next to offer. */
+export function readyItem(board, title, extra = {}) {
+  // fixture-subject: addItem
+  return store.addItem(board, { by: 'coordinator', lane: 'core', title, route: 'strong', ...extra });
+}
+
 /** Add and submit an item through the board's normal claim and submit moves. */
 export function submitted(board, builder, title, route, number) {
   const id = store.addItem(board, {
