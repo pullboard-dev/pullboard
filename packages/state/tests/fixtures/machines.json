@@ -545,6 +545,42 @@
         "note": "a moved request refuses the result (stale); no driver ends the job on an item move"
       },
       "harness": "packages/store/tests/check-baseline-worker.test.js"
+    },
+    {
+      "kind": "screen",
+      "name": "keyed sprint screen",
+      "id": "screen:<commit>:<digest>@<base>",
+      "created": "packages/drive/src/io/screen.js:runScreenJob",
+      "serves": "a submitted sprint item at its commit on the current base: the merge, static checks on its changed files, and secrets and hook rules re-checked by trusted code",
+      "states": [
+        "produce.started",
+        "part.<name>",
+        "result"
+      ],
+      "terminal": [
+        "result"
+      ],
+      "lease": "LEASE_MS 120 s renewed every 5 s until the screen settles, with no stall bound",
+      "transitions": [
+        {
+          "from": "(none)",
+          "to": "produce.started",
+          "trigger": "the first driver to screen a sprint item at this commit, digest and base takes the lease",
+          "at": "packages/drive/src/io/keyed.js:produceUnderLease"
+        },
+        {
+          "from": "produce.started",
+          "to": "result",
+          "trigger": "the scratch-tree merge, static checks and trusted re-check returned one green or red receipt",
+          "at": "packages/drive/src/io/keyed.js:produceUnderLease"
+        }
+      ],
+      "servingCheck": {
+        "status": "n/a",
+        "at": "packages/drive/src/io/screen.js:runScreenJob",
+        "note": "keyed by commit, digest and base, so a moved item or base names a new screen; items not frozen at sprint are never screened"
+      },
+      "harness": "packages/drive/tests/io/screen.test.js"
     }
   ],
   "processes": [

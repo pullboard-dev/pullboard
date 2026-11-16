@@ -24,7 +24,7 @@ test('the backbone item rows are the declared moves, one row each, with no secon
 
 test('every job kind in the state map is one backbone row whose serves fact is a rule, and the words match the map [C7,#8067]', () => {
   assert.deepEqual(CREATED_JOB_KINDS, FIXTURE.jobs.map(job => job.kind), 'the kinds the code creates are exactly the map\'s');
-  assert.deepEqual(BACKBONE_TABLE.jobs.map(row => row.kind), [...FIXTURE.jobs.map(job => job.kind), 'screen'], 'plus the declared screen job, which no runner offers yet');
+  assert.deepEqual(BACKBONE_TABLE.jobs.map(row => row.kind), FIXTURE.jobs.map(job => job.kind), 'the screen job is created by the drive, so the map names it too');
   assert.equal(BACKBONE_TABLE.jobs.length, 15);
   for (const job of FIXTURE.jobs) {
     const row = BACKBONE_TABLE.jobs.find(entry => entry.kind === job.kind);
@@ -45,7 +45,7 @@ test('serves facts derive over a snapshot and trace what they read [C7,#8067]', 
 });
 
 test('tableCoverage over the stored item statuses and job kinds reports no gap, and explain names every kind [C7,#8067]', () => {
-  assert.deepEqual(BACKBONE_STATES, [...MACHINE.states.map(state => state.id), ...FIXTURE.jobs.map(job => job.kind), 'screen']);
+  assert.deepEqual(BACKBONE_STATES, [...MACHINE.states.map(state => state.id), ...FIXTURE.jobs.map(job => job.kind)]);
   assert.equal(MACHINE.states.length, 5);
   assert.deepEqual(tableCoverage(BACKBONE_TABLE, BACKBONE_STATES).gaps, []);
   assert.deepEqual(tableCoverage(BACKBONE_TABLE, [...BACKBONE_STATES, 'invented-kind']).gaps, ['invented-kind']);
