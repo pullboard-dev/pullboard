@@ -1,12 +1,25 @@
+import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 /** Read-only machine settings retain the same validation as admission, without loading writers [C7]. */
 import { validateCostPrices } from './prices.js';
 import { validateRunnerRates } from './runner-rates.js';
 import { Refused } from '../../../kernel/light.js';
-import { machineSettingsFile } from '../../../resources/index.js';
-import { readMachineSettingsFile } from '../../../queue/index.js';
-import { validateGateQueue } from '../../../queue/index.js';
+import { machineSettingsFile } from '../../../resources/light.js';
+import { parseMachineSettings } from '../../../queue/light.js';
+import { validateGateQueue } from '../../../queue/light.js';
 const DEFAULT_GATE_SLOTS = 2;
+
+/**
+ * Read the machine settings file as a plain object, or null when there is none.
+ * Why: the queue light door stays free of file reads, so a logic test never reaches fs through it [C7].
+ *
+ * @param {string} file - The machine settings file the caller resolved.
+ * @returns {object|null}
+ */
+function readMachineSettingsFile(file) {
+  return parseMachineSettings(existsSync(file) ? readFileSync(file, 'utf8') : null, file);
+}
 
 /**
  * The machine settings a person sets that carry a plain value, by the kind of value each takes. Each one is also a
@@ -106,9 +119,11 @@ export function validateServe(serve, file) {
  */
 export function validateBoardRemote(board, file) {
   if (board === undefined) return;
-  if (!board || typeof board !== 'object' || Array.isArray(board) || Object.keys(board).some(key => key !== 'url' && key !== 'token')) {
-    throw new Refused('BAD_MACHINE_SETTINGS', `board in ${file} holds only url and token; remove it to use the local board`);
+  if (!board || typeof board !== 'object' || Array.isArray(board) || Object.keys(board).some(key => !['url', 'token', 'commits'].includes(key))) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `board in ${file} holds only url, token and commits; remove it to use the local board`);
   }
+  // Off by default: with commits set to bundle, a submit by URL carries the clone's commits as one git bundle [P7,C7].
+  if (board.commits !== undefined && board.commits !== 'bundle') throw new Refused('BAD_MACHINE_SETTINGS', `board.commits in ${file} must be bundle; run pullboard settings board.commits bundle, or off to remove it`);
   let url = null;
   try { url = board.url === undefined ? null : new URL(board.url); } catch { /* Refused below. */ }
   if (board.url !== undefined && (!url || !['http:', 'https:'].includes(url.protocol))) {
@@ -174,29 +189,20 @@ export function loadMachineSettings() {
   }
   if (value.gate?.loadAwareDispatch !== undefined && typeof value.gate.loadAwareDispatch !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', 'gate.loadAwareDispatch must be true or false');
   if (value.gate?.runnerBusyCeiling !== undefined && (!Number.isFinite(value.gate.runnerBusyCeiling) || value.gate.runnerBusyCeiling < 1 || value.gate.runnerBusyCeiling > 100)) throw new Refused('BAD_MACHINE_SETTINGS', 'gate.runnerBusyCeiling must be a percentage from 1 through 100');
-  if (value.gate?.runnerDispatch !== undefined && !['controller', 'pull'].includes(value.gate.runnerDispatch)) {
-    throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnerDispatch in ${file} must be "controller" or "pull"`);
-  }
-  if (value.gate?.refuseController !== undefined && typeof value.gate.refuseController !== 'boolean') {
-    throw new Refused('BAD_MACHINE_SETTINGS', `gate.refuseController in ${file} must be true or false`);
+  // The controller value is gone from the schema: every runner job is a row a runner pulls, so "pull" is the only value [P7].
+  if (value.gate?.runnerDispatch !== undefined && value.gate.runnerDispatch !== 'pull') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnerDispatch in ${file} must be "pull"; "controller" is removed because every runner job is a row a runner pulls; next: run pullboard settings gate.runnerDispatch pull`);
   }
   if (value.gate?.requireRunnerAttribution !== undefined && typeof value.gate.requireRunnerAttribution !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.requireRunnerAttribution in ${file} must be true or false`);
   }
-  // Off by default until every fixture and machine has left controller: only then does the old value become a refusal [P7].
-  if (value.gate?.refuseController === true && value.gate.runnerDispatch === 'controller') {
-    throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnerDispatch "controller" in ${file} is removed: every runner job is a row a runner pulls; next: run pullboard settings gate.runnerDispatch pull`);
+  if (value.gate?.refuseMissingCheckFile !== undefined && typeof value.gate.refuseMissingCheckFile !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.refuseMissingCheckFile in ${file} must be true or false`);
   }
   const reserve = value.gate?.jobReserve;
   if (reserve != null && (typeof reserve !== 'object' || Array.isArray(reserve) || Object.values(reserve).some(share => !Number.isFinite(share) || share < 0 || share > 1)
     || Object.values(reserve).reduce((sum, share) => sum + share, 0) > 1)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.jobReserve in ${file} must be { "interactive", "gate", "landing", "background": a share of 0 through 1 }, adding up to at most 1; remove it to keep the plain claim order`);
-  }
-  const pilot = value.gate?.pullPilot;
-  if (pilot !== undefined && (!pilot || typeof pilot !== 'object' || Array.isArray(pilot) || Object.keys(pilot).some(key => !['items', 'share'].includes(key))
-    || (pilot.items !== undefined && (!Array.isArray(pilot.items) || pilot.items.some(id => !Number.isSafeInteger(id) || id < 1)))
-    || (pilot.share !== undefined && (!Number.isFinite(pilot.share) || pilot.share < 0 || pilot.share > 100)))) {
-    throw new Refused('BAD_MACHINE_SETTINGS', `gate.pullPilot in ${file} must be { "items": [item numbers], "share": 0 through 100 }; remove it to send every submit through the controller path`);
   }
   if (value.gate?.localRunner !== undefined && typeof value.gate.localRunner !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `gate.localRunner in ${file} must be true or false`);
   if (value.gate?.localLoadShare !== undefined && (!Number.isFinite(value.gate.localLoadShare) || value.gate.localLoadShare <= 0)) throw new Refused('BAD_MACHINE_SETTINGS', `gate.localLoadShare in ${file} must be a number above 0: the load per core below which the local runner takes a job`);
@@ -381,4 +387,14 @@ export function validRunnerCpuLoad(value) {
   return value !== null && typeof value === 'object' && Number.isFinite(Date.parse(value.at))
     && Number.isFinite(value.busyPercent) && value.busyPercent >= 0 && value.busyPercent <= 100
     && Array.isArray(value.average) && value.average.length === 3 && value.average.every(n => Number.isFinite(n) && n >= 0);
+}
+
+/**
+ * The board this machine's seats read over HTTP, or null for the local board: board.url and board.token [P7].
+ * Why: a seat on another host has no board.sqlite; it reaches the board host's pullboard serve instead.
+ * @returns {{ url: string, token: string, commits?: 'bundle' } | null}
+ */
+export function boardRemote() {
+  const board = loadMachineSettings().board;
+  return board?.url ? { url: board.url, token: board.token ?? '', ...(board.commits ? { commits: board.commits } : {}) } : null;
 }

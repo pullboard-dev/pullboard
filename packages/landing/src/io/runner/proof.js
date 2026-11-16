@@ -1,7 +1,10 @@
 /** The land job's proof: run the items' ledger-proved test files on the merged tree, reusing every ledger hit [P7]. */
 import { spawn } from 'node:child_process';
+import { mkdirSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
+import { join } from 'node:path';
 import { relative } from 'node:path';
 import { timeoutDetail } from './deadline.js';
 import { watchDeadline } from './deadline.js';
@@ -19,6 +22,28 @@ const NOT_OK = /^\s*not ok \d+/u;
 // The run-tests waiver variable (packages/gate LANDING_WAIVERS_ENV): a run keeps going past a failure a live waiver covers.
 const LANDING_WAIVERS_ENV = 'PULLBOARD_LANDING_WAIVERS';
 const CAUSE_LINES = 12, CAUSE_CHARS = 600;
+// The most of a red run's output its log keeps, both streams in arrival order.
+const LOG_CHARS = 4_000_000;
+
+/**
+ * Write a red proof's whole output to a file that outlives the job's checkout, so a cause can be read after the
+ * receipt's short detail: the receipt keeps only a tail, which can start mid-JSON. Null when the file cannot be written.
+ *
+ * @param {string} root - The landing checkout, whose .git folder holds the log when no folder is named.
+ * @param {string} command - The runner command that ran.
+ * @param {string} output - The run's stdout and stderr in arrival order.
+ * @param {NodeJS.ProcessEnv} env - Where PULLBOARD_LAND_LOG_DIR may name the log folder.
+ * @returns {string | null} The log's absolute path.
+ */
+function keepLog(root, command, output, env) {
+  try {
+    const dir = env.PULLBOARD_LAND_LOG_DIR || join(root, '.git', 'land-red-logs');
+    mkdirSync(dir, { recursive: true });
+    const path = join(dir, `proof-${new Date().toISOString().replace(/[:.]/gu, '-')}-${process.pid}-${Math.random().toString(36).slice(2, 8)}.log`);
+    writeFileSync(path, `$ ${command}\n${output}`);
+    return path;
+  } catch { return null; }
+}
 
 /**
  * Read a red run's failing tests from its TAP, strictly: every `not ok` line with the file its YAML block locates, and
@@ -116,6 +141,7 @@ function shellWord(word) {
  * @param {{ env?: NodeJS.ProcessEnv, waivers?: { id: string, kind: string, test: string, until: string }[], now?: () => number, deadline?: () => { at: number, ms: number } | null }} [options] - waivers: the job's payload waivers;
  * deadline: when the landing's checks must be done; a proof still running then has its process tree stopped and returns `timeout: true`, never a red [C7,#7820].
  * failures: a red's failing tests by file, when its TAP accounts for every one (accountedRed), else absent.
+ * failed: a red's failing files and case lines, and the path of the file holding its whole output [#8499].
  * @returns {(context: { root: string }) => Promise<{ ok: boolean, detail: string | null, waived?: { file: string, name: string, waiver: string }[], failures?: { file: string, name: string }[], proof: { files: number, reused: number, ran: number, mainRed?: number } }>}
  */
 export function ledgerProofCheck(proof, { env = process.env, waivers = [], now = Date.now, deadline = null } = {}) {
@@ -129,6 +155,8 @@ export function ledgerProofCheck(proof, { env = process.env, waivers = [], now =
     // The whole TAP (stdout) is kept only when waivers could cover a red, to account every failure.
     let all = '';
     const keepAll = () => all.length < 400_000;
+    let full = '';
+    const record = chunk => { if (full.length < LOG_CHARS) full += chunk.toString('utf8'); };
     let tail = '', reused = 0, mainRed = 0, pending = '', errPending = '';
     // The first refusal wins over any failing test; a failing test keeps its name and the error lines after it.
     let refusal = null, failure = null, closed = false;
@@ -138,6 +166,7 @@ export function ledgerProofCheck(proof, { env = process.env, waivers = [], now =
       else if (!failure && NOT_OK.test(line)) failure = [line];
     };
     const read = chunk => {
+      record(chunk);
       const text = pending + chunk.toString('utf8');
       const lines = text.split('\n');
       pending = lines.pop();
@@ -147,6 +176,7 @@ export function ledgerProofCheck(proof, { env = process.env, waivers = [], now =
     };
     child.stdout.on('data', read);
     child.stderr.on('data', chunk => {
+      record(chunk);
       const lines = (errPending + chunk.toString('utf8')).split('\n');
       errPending = lines.pop();
       for (const line of lines) cause(line);
@@ -159,13 +189,13 @@ export function ledgerProofCheck(proof, { env = process.env, waivers = [], now =
       const result = { ok: false, timeout: true, detail: timeoutDetail(`the landing proof (${proof.files.length} files, ${reused} reused so far)`, limitMs, tail), proof: { files: proof.files.length, reused, ran: proof.files.length - reused } };
       return () => resolve(result);
     });
-    const finish = (ok, detail, waived = null, failures = null) => {
+    const finish = (ok, detail, waived = null, failures = null, failed = null) => {
       clear();
       if (settled) return;
       settled = true;
       if (REUSED.test(pending)) reused++;
       if (MAIN_RED.test(pending)) mainRed++;
-      resolve({ ok, detail, ...(waived ? { waived } : {}), ...(failures ? { failures } : {}), proof: { files: proof.files.length, reused, ran: proof.files.length - reused - mainRed, ...(mainRed ? { mainRed } : {}) } });
+      resolve({ ok, detail, ...(waived ? { waived } : {}), ...(failures ? { failures } : {}), ...(failed ? { failed } : {}), proof: { files: proof.files.length, reused, ran: proof.files.length - reused - mainRed, ...(mainRed ? { mainRed } : {}) } });
     };
     child.on('error', error => finish(false, String(error.message).slice(0, 300)));
     // After stdio closes, so the last refusal or failing line is read before the receipt is written.
@@ -183,7 +213,10 @@ export function ledgerProofCheck(proof, { env = process.env, waivers = [], now =
       const named = red.files.length ? `red in ${red.files.slice(0, 5).join(', ')}${red.files.length > 5 ? ` (+${red.files.length - 5} more)` : ''}; ` : '';
       // Every failure named with its file, or none: what a land job's contracts compare with the base [C7,#7458].
       const failures = code === 1 && !refusal ? accountedRed(all, root) : null;
-      finish(false, `landing proof exited ${code ?? signal}: ${named}${first ? `${first}\n… ` : ''}${tail.slice(-300)}${red.cases.length ? `\nfailing cases:\n${red.cases.join('\n').slice(0, 4000)}` : ''}`, null, failures);
+      const log = keepLog(root, command, full, env);
+      const logLine = log ? `\nfull log: ${log}` : '';
+      const failed = { files: red.files, cases: red.cases.slice(0, 200), ...(log ? { log } : {}) };
+      finish(false, `landing proof exited ${code ?? signal}: ${named}${first ? `${first}\n… ` : ''}${tail.slice(-300)}${red.cases.length ? `\nfailing cases:\n${red.cases.join('\n').slice(0, 4000)}` : ''}${logLine}`, null, failures, failed);
     });
   });
 }

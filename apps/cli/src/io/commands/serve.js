@@ -1,6 +1,7 @@
 import { viewApiPorts } from '../../../../view/index.js';
 import { nativeBoardOpeners } from '../context.js';
 import { moveArgs } from '../../../../../packages/person/index.js';
+import { receiveCommits } from '../../../../../packages/pin/index.js';
 import { withBoardRead } from '../context.js';
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
@@ -269,7 +270,7 @@ export async function boardHandlerPorts({ isMain } = {}) {
   };
   // A receipt on a relay-linked board queues its moves in the relay outbox, so the worker carries the relay ports too (#7562).
   const { loadProcessPorts } = await import('../ports/process.js');
-  const boardOpeners = { ...await loadProcessPorts(), moveArgs, openBoard, openBoardForRead, nativeBoardPorts };
+  const boardOpeners = { ...await loadProcessPorts(), moveArgs, receiveCommits, openBoard, openBoardForRead, nativeBoardPorts };
   return { handlers: poolHandlers({ boardOpeners }, { isMain, runCommand, refusalDocument }) };
 }
 

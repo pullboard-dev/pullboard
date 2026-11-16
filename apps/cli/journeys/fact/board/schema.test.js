@@ -48,6 +48,8 @@ function legacyBoard(t) {
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, 'board.sqlite');
   const board = openBoard(file);
+  // The additive declaration now holds the hop table, so a board these journeys call drifted already has it and main has nothing to add [C7,#8465].
+  store.ensureGateHopTable(board.db);
   try { store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Keep this row' }); }
   finally { store.closeBoard(board); }
   olderDeclaration(file);
@@ -251,6 +253,7 @@ function legacySigningBoard(t, mode) {
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, 'board.sqlite');
   const board = openBoard(file);
+  store.ensureGateHopTable(board.db);
   try {
     store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Keep signed legacy data' });
     board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?)').run('relay_applied_sequence', '0');

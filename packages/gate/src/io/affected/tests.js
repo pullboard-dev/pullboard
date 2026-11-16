@@ -646,6 +646,28 @@ function selectionReason(test, via, changed, isReached, unresolved) {
 }
 
 /**
+ * Select declared suites for a polyglot repo: the suites whose folder globs cover every changed path [C7].
+ * Why conservative: a path no glob covers, or a glob that cannot be read, could affect anything, so it asks for the full gate.
+ *
+ * @param {string[]} changed
+ * @param {Record<string,string>} suites - the repo config key affectedSuites, folder glob to suite path
+ * @returns {{full:boolean, reason:string, files:string[]}}
+ */
+export function selectDeclaredSuites(changed, suites) {
+  const rules = Object.entries(suites).map(([glob, suite]) => ({ glob, suite, pattern: globPattern(glob) }));
+  const unreadable = rules.find(rule => !rule.pattern);
+  if (unreadable) return { full: true, reason: `affectedSuites glob ${unreadable.glob} cannot be read`, files: [] };
+  if (!changed.length) return { full: true, reason: 'no changed path to select suites for', files: [] };
+  const picked = new Set();
+  for (const path of changed) {
+    const covering = rules.filter(rule => rule.pattern.test(path));
+    if (!covering.length) return { full: true, reason: `no affectedSuites glob covers ${path}`, files: [] };
+    for (const rule of covering) picked.add(rule.suite);
+  }
+  return { full: false, reason: '', files: [...picked].sort() };
+}
+
+/**
  * Select changed tests and every transitive importer in the old and new trees. Old edges cover
  * deletions and renames; declared tree readers also cover changed test or source inputs. Other filesystem
  * reads and process launches are not import edges, except literal documentation inputs and modules that
@@ -655,7 +677,7 @@ function selectionReason(test, via, changed, isReached, unresolved) {
  * @param {{base:string|null, trunk?:string, commit?:string, changed?:string[]}} options
  * @returns {{full:boolean, reason:string, files:string[]}}
  */
-export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', changed, probe = null }) {
+export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', changed, probe = null, suites = null }) {
   let files = [];
   try {
     if (!base) return { full: true, reason: 'no claim head recorded; the change cannot be selected', files };
@@ -668,6 +690,8 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
       changed = undefined;
     }
     changed ??= selectionGit(root, ['diff', '--no-renames', '--name-only', '-z', base, commit]).split('\0').filter(Boolean);
+    // A repo that declares affectedSuites selects by folder, never by import graph; without the key nothing changes.
+    if (suites && typeof suites === 'object' && Object.keys(suites).length) return selectDeclaredSuites(changed, suites);
     const changedDocs = changed.filter(path => DOC.test(path));
     const before = graphAt(root, base, changedDocs, null, probe);
     const after = graphAt(root, commit, changedDocs, before, probe);
