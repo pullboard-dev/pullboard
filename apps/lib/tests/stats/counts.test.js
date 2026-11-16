@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { privateFixtureFiles } from '../../../../packages/gate/tests/fixtures/child.js';
 import { submitFixture } from '../../../cli/tests/fixtures/board/submit.js';
+import { repositoryBoardFile } from '../../../cli/tests/fixtures/board/submit.js';
 import { addItem } from '../../../../packages/store/index.js';
 import { atomic } from '../../../../packages/store/index.js';
 import { claim } from '../../../../packages/store/index.js';
@@ -51,7 +52,7 @@ function fixture(t) {
   // A file board, because the derived database attaches beside a board file only.
   const dir = privateFixtureFiles('pullboard-counts-').root;
   // @pullboard-board-file persistence: the derived database attaches beside a board file only
-  const board = openBoard(join(dir, 'board.sqlite'), { now: () => new Date(at) });
+  const board = openBoard(repositoryBoardFile(dir), { now: () => new Date(at) });
   t.after(() => { closeBoard(board); rmSync(dir, { recursive: true, force: true }); });
   /** Advance the deterministic board clock for the next public lifecycle move. */
   const setTime = (value) => { at = new Date(value); };

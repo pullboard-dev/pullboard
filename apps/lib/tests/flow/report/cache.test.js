@@ -66,7 +66,7 @@ test('clause 2: flow report indexed projection matches canonical replay without 
   const history = store.events(board);
   const stats = proofStats(board, { now }, statsReadPorts);
   assert.deepEqual(stats.flow.report, flowStats(history, null, now, stats).report);
-  assert.equal(derivedProofCounter(board, `report-v${FLOW_REPORT_VERSION}:summary`).last, history.at(-1).event_id, 'the derived database holds the report cursor at the latest event');
+  assert.equal(derivedProofCounter(board, 'report-summary').last, history.at(-1).event_id, 'the derived database holds the report cursor at the latest event');
   const prepare = board.db.prepare.bind(board.db);
   const reads = [];
   board.db.prepare = sql => { reads.push(sql); return prepare(sql); };
@@ -312,6 +312,6 @@ test('clause 3: writers alternating between a v2-shaped and the current report v
     assert.deepEqual(proofEvents, [], `round ${round}: ordinary proof statistics are not recounted`);
     assert.deepEqual(legacyRows(), before, `round ${round}: the legacy report keys are exactly as the older writer stored them`);
   }
-  assert.equal(derivedProofCounter(board, `report-v${FLOW_REPORT_VERSION}:summary`).last, store.events(board).at(-1).event_id, 'the derived report cursor ends at the latest event');
+  assert.equal(derivedProofCounter(board, 'report-summary').last, store.events(board).at(-1).event_id, 'the derived report cursor ends at the latest event');
   assert.equal(resets(), 0, 'no write or catch-up zeroed or restarted this version\'s report cursor');
 });
