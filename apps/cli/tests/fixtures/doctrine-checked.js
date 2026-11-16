@@ -14,7 +14,7 @@ export const RULE = '- Q1 [approved, must] Web pages carry no TODO markers. | ga
 /**
  * Bind the check-rule helpers to one file's e2e helpers, so each journey file keeps its own cleanup.
  */
-export function createCheckedHelpers({ project }) {
+export function createCheckedHelpers(project) {
   /**
    * A project whose doctrine has one check rule with the given trailing fields, two problems on
    * main, a web worktree that carries main, and a claimed web item.
