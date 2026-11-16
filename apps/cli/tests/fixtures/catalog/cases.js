@@ -1325,5 +1325,28 @@ catalogCase('[A1,C7] contribute check reports an accepted record through the cat
   assert.deepEqual([report.shape, report.failures], ['Bug', []]);
 });
 
+catalogCase('[A1,C7,#8515] coordinate resumes the coordinator through real CLI JSON and writes nothing', [], async () => {
+  const box = await project();
+  const first = await uncataloguedRootJSON(box, box.repo, 'coordinate');
+  assert.equal(first.version, 1, 'coordinate --json has a version 1 envelope');
+  assert.ok(Array.isArray(first.all), 'coordinate reports the same resume view the coordinator reads');
+  assert.deepEqual(await uncataloguedRootJSON(box, box.repo, 'coordinate'), first, 'running it twice changes nothing');
+});
+
+catalogCase('[A1,C7,#8378] moves reports each move table state through real CLI JSON', [], async () => {
+  const box = await project();
+  const { tables } = await uncataloguedRootJSON(box, box.repo, 'moves');
+  assert.ok(Array.isArray(tables) && tables.length > 0, 'moves lists every move table');
+  for (const row of tables) assert.ok(['live', 'shadow', 'none'].includes(row.state), `table ${row.table} has a known state`);
+  assert.deepEqual(tables.map((row) => row.table), tables.map((row) => row.table).sort(), 'tables come in name order');
+});
+
+catalogCase('[A1,C7,#8916] split files one child per numbered clause through real CLI JSON', [], async () => {
+  const box = await project();
+  const parent = (await json(box, box.repo, 'add', ['coordinator', 'Split parent', '--criterion', '1. The first part holds [test] 2. The second part holds [test]', '--check', 'true', '--accept-green', 'catalog fixture'], 'add')).item;
+  const split = await uncataloguedRootJSON(box, box.repo, 'split', [String(parent.item_id)]);
+  assert.equal(split.parent, parent.item_id);
+  assert.equal(split.children.length, 2, 'one child per numbered clause');
+});
 
 export { catalogCases, covered, coveredRoots };
