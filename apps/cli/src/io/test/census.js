@@ -80,6 +80,9 @@ async function rerunNonGreen({ rows, out, sha, run, base, pulled }) {
   writeFileSync(out, [...rows.values()].map(row => `${JSON.stringify(row)}\n`).join(''));
 }
 
+/** A write that is only a pulled job's `# census-times` line. */
+const CENSUS_TIMES_WRITE = /^# census-times \{.*\}\n?$/u;
+
 /**
  * The job times a shard's log carries (a pulled job writes them as a `# census-times` line), else the local ones: the
  * census start for claim and start, now for the end, and the load when the census began. Why: the rows could not place
@@ -106,11 +109,14 @@ function jobTimes(output, fallbackStart, fallbackLoad) {
  * for ten minutes again [C7,#9283].
  */
 async function rerunOne({ rows, sha, run, base, first, fileLimit }) {
-  let pending = null, again = null;
+  let pending = null, again = null, told = '';
   const began = new Date(), beganLoad = loadavg()[0];
-  const write = (text) => {
-    const header = parseShardHeader(text);
-    if (header) { pending = header; return; }
+  const write = (full) => {
+    const header = parseShardHeader(full);
+    if (header) { pending = header; told = ''; return; }
+    // A pulled job's `# census-times` line arrives as its own write before the body; keep it for the body's rows [C7,#9404].
+    if (pending && CENSUS_TIMES_WRITE.test(full)) { told = full; return; }
+    const text = told + full;
     if (!pending || /^# landing (?:shards?|timing|floor|file|result)\b/u.test(text) || !finalStatus(pending.status)) return;
     [again] = shardRows({ ...pending, output: text, files: [first.file], outcomes: allTestOutcomes(text), times: shardFileTimes(text) }, sha);
     if (again) again = { ...again, ...jobTimes(text, began, beganLoad) };
@@ -205,10 +211,13 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run } 
       if (settleReruns && rerunnable(row) && row.status !== 'hung') settled.push(rerunOne({ rows, sha, run, base, first: row, fileLimit: false }));
     }
   };
-  let pending = null;
-  const write = (text) => {
-    const header = parseShardHeader(text);
-    if (header) { pending = header; return; }
+  let pending = null, told = '';
+  const write = (full) => {
+    const header = parseShardHeader(full);
+    if (header) { pending = header; told = ''; return; }
+    // A pulled job's `# census-times` line arrives as its own write before the body; keep it for the body's rows [C7,#9404].
+    if (pending && CENSUS_TIMES_WRITE.test(full)) { told = full; return; }
+    const text = told + full;
     if (!pending || /^# landing (?:shards?|timing|floor|file|result)\b/u.test(text)) return;
     const shard = plan[Number(pending.label.split('/')[0]) - 1];
     last.set(pending.label, { ...pending, output: text });
