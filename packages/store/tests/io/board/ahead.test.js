@@ -1,6 +1,7 @@
 /** Code older than the shared board refuses before its write lock, so it never crawls newer caches [A5]. */
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
+import { existsSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -11,13 +12,26 @@ import { GATE_HOP_SCHEMA_SQL } from '../../../src/io/board/hop.js';
 import { openKitBoard } from '../../fixtures/cell.js';
 import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
 
-/** Count the evidence a write would change: events and stored proof counters. */
+// The proof counters are read from the derived database beside the board, which the dual write fills when this is on [C7].
+process.env.PULLBOARD_PROOF_DERIVED_DB = '1';
+
+/** The derived database file beside a board file. */
+const derivedFile = file => `${file}.proof-derived.sqlite`;
+
+/** Run `work` against the derived database beside `file`, or return `empty` when none was written. */
+function withDerived(file, work, empty) {
+  if (!existsSync(derivedFile(file))) return empty;
+  const derived = new DatabaseSync(derivedFile(file));
+  try { return work(derived); } finally { derived.close(); }
+}
+
+/** Count the evidence a write would change: events and stored proof counters read from the derived database. */
 function footprint(file) {
   const db = new DatabaseSync(file, { readOnly: true });
   try {
     return {
       events: db.prepare('SELECT count(*) AS n FROM event').get().n,
-      counters: db.prepare("SELECT count(*) AS n, coalesce(group_concat(meta_value, ''), '') AS v FROM board_meta WHERE meta_key LIKE 'local:proof-stats:%'").get(),
+      counters: withDerived(file, derived => derived.prepare("SELECT count(*) AS n, coalesce(group_concat(meta_value, ''), '') AS v FROM proof_counter WHERE meta_key LIKE 'local:proof-stats:%'").get(), { n: 0, v: '' }),
     };
   } finally { db.close(); }
 }
@@ -54,6 +68,7 @@ test('clause 2: the refusal returns in under 1 s while another writer holds the 
   // Make the cache stale, as a newer writer's version would be to old code, so a warm would replay history.
   trunk.exec("DELETE FROM board_meta WHERE meta_key LIKE 'local:proof-stats:%summary'");
   trunk.close();
+  withDerived(file, derived => derived.exec("DELETE FROM proof_counter WHERE meta_key LIKE 'local:proof-stats:%summary'"));
   const before = footprint(file);
   const holder = new DatabaseSync(file);
   holder.exec('BEGIN IMMEDIATE');

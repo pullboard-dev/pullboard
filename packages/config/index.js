@@ -21,6 +21,7 @@ export {
 export { trunkRemote } from './src/io/trunk.js';
 export { hostOf, roleHosts } from './src/logic/hosts.js';
 export { trunkProblems, configTrunkRemote } from './src/logic/trunk.js';
+export { staleGeneratedFiles } from './src/logic/generated.js';
 export { scratchRoot } from './src/logic/scratch.js';
 export { scratchFolder, moveAcross, applyMachineScratch } from './src/logic/scratch/folder.js';
 export {
@@ -50,10 +51,13 @@ export {
   censusBalanceByTimeEnabled,
   censusJobMinutes,
   censusJobsPerRunner,
+  jobsAvoidRunnersEnabled,
+  pushRerunFailedShardOnceEnabled,
   tableReplayEnabled,
   testNiceEnabled,
   fencedHopEnabled,
   endStaleJobsEnabled,
+  recaptureHandoffEnabled,
   redFactLocationEnabled,
   settleOnMainReceiptEnabled,
   movesShadowEnabled,
@@ -89,9 +93,12 @@ export {
   reviewReleaseReasonsRequired,
   lapsedSweepEnabled,
   derivedStateEnabled,
+  testStatusOutcomesEnabled,
   recordWriteHolderEnabled,
   adaptiveBatchEnabled,
+  landingSquashEnabled,
   reofferTrunkBusyEnabled,
+  reuseGateReceiptsEnabled,
   memoryFloorMB,
   relayOfferEnabled,
   setRelayCanary,
