@@ -1,4 +1,5 @@
 import { currentProofCounters } from "../../../../verify/index.js";
+import { ensureProofCounters } from "../../../../verify/index.js";
 import { proofCounter } from "../../../../verify/index.js";
 import { workQueue } from "../../../../items/index.js";
 import { pipelineStats } from "../../../../stats/light.js";
@@ -41,6 +42,22 @@ import {
   dependencyValues,
   hasForeignDependencies,
 } from "../../../../items/index.js";
+
+/**
+ * Proof stats for one state build, taken from the stored counters [C7].
+ *
+ * Why: a board with no current counters made the first build read and fold the whole events table (about 2 s on the live board).
+ * A writable board catches its counters up once here, inside a savepoint, so a refused write leaves the board untouched and the
+ * legacy read of every event is only the last resort.
+ */
+export function stateProofStats(board, now, reads = { events: store.events, counterProofStats }) {
+  if (!currentProofCounters(board)) {
+    board.db.exec('SAVEPOINT state_proof_counters');
+    try { ensureProofCounters(board, { refresh: false }); board.db.exec('RELEASE state_proof_counters'); }
+    catch { board.db.exec('ROLLBACK TO state_proof_counters'); board.db.exec('RELEASE state_proof_counters'); }
+  }
+  return proofStats(board, { now }, reads);
+}
 
 /** How many dirty items make a build wide enough to read the event list once rather than once per item. */
 const WIDE_BUILD_ITEMS = 64;
@@ -122,7 +139,7 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
         ? milestoneRoadmap(root, board, { landedFromMain: config.landing?.landedFromMain === true, ports: { ...store, roadmap, openBoard, workQueue, listApiProjects } })
         : milestoneRoadmap(root, board, { projects, hideOutOfScope: true, landedFromMain: config.landing?.landedFromMain === true, ports: { ...store, roadmap, openBoard, workQueue } }),
       rowDecisions: store.rowDecisions(board),
-      proofStats: viewProofSummary(proofStats(board, { now: observedAt }, { events: store.events, counterProofStats })),
+      proofStats: viewProofSummary(stateProofStats(board, observedAt)),
     };
     state.proofStats = projectData.proofStats;
     state.requests = projectData.requests;
