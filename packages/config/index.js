@@ -91,6 +91,7 @@ export {
   nextReadinessCheck,
   refuseTempWorktree,
   refuseOffMainHead,
+  refuseEmptyBar,
   viewBackgroundEnabled,
   healthSentinelEnabled,
   reviewReleaseReasonsRequired,

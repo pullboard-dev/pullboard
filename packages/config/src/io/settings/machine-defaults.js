@@ -11,6 +11,7 @@ export const MACHINE_DEFAULTS = {
   'census.rerunNonGreen': false,
   'census.rerunOnSettle': false,
   'claim.refuseOffMainHead': false,
+  'freeze.refuseEmptyBar': false,
   'gate.browserByLaunch': false,
   'gate.browserFreeChecks': false,
   'gate.diskFloorMB': 10_240,
