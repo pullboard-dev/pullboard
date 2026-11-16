@@ -15,6 +15,7 @@ import { checkoutBranch } from '../../../../../packages/git/index.js';
 import { heartbeatCommand } from '../presence.js';
 import { mergeSubmissionMain } from '../../../../../packages/merge/index.js';
 import { requireNonEmptySubmit } from '../empty.js';
+import { criterionClauses } from '../../../../../packages/state/index.js';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
 import { clauseReceiptProblem } from '../../../../../packages/state/index.js';
 import { staleHeadLines } from '../../../../../packages/state/index.js';
@@ -52,6 +53,9 @@ import {
   barReadyProblem,
 } from '../../../../../packages/verify/index.js';
 import { barCheckWarning } from '../../../../../packages/verify/index.js';
+import { barCheckState } from '../../../../../packages/verify/index.js';
+import { dryRunReviewChecklist } from '../../../../../packages/verify/index.js';
+import { dryRunReviewEnabled } from '../../../../../packages/verify/index.js';
 /** The pullboard submit command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
@@ -494,6 +498,16 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     return warning;
   }));
   if (barWarning) ctx.io.say(`bar.check warning: ${barWarning}`);
+  if (ctx.dryRunReview) {
+    // Advisory only: with the board setting on, print the verifier checklist and record that it ran; off prints and records nothing [C7].
+    const checklist = await withBoard(ctx, async board => {
+      if (!dryRunReviewEnabled(board)) return null;
+      const lines = dryRunReviewChecklist({ id, clauses: criterionClauses(held.item_criterion), criterion: held.item_criterion, barNote: barCheckState(board, held).note });
+      await ordered(ctx, board, 'appendFact', [id, { agentId: held.item_owner, kind: 'note', text: 'dry-run review ran: checklist printed to the builder before submit; advisory, not a verdict' }]);
+      return lines;
+    });
+    for (const line of checklist ?? []) ctx.io.say(line);
+  }
   // Which seat and model family wrote each named test file this submit adds or changes [C7,V4].
   await withBoard(ctx, async board => {
     const notes = testAuthorNotes(held, store.itemThread(board, id), { atHead: committedReader(root, commit), atMain: committedReader(root, acceptedMain.commit), seat: me.id, family: seatFamily(board, me.id) });
@@ -609,7 +623,7 @@ async function handOffHostedSubmit(ctx, id, runner) {
 
 export async function run(io, { first, values }) {
   const submissionResult = {};
-  let ctx = { ...context(io), submissionResult, precheck: values.precheck === true, json: values.json === true };
+  let ctx = { ...context(io), submissionResult, precheck: values.precheck === true, dryRunReview: values['dry-run-review'] === true, json: values.json === true };
   const id = idArg(first);
   if (values.preflight) return preflightHere(ctx);
   const companionInput = values.companion === undefined ? null : { file: values.companion, key: values.key, author: values.author };
@@ -619,7 +633,7 @@ export async function run(io, { first, values }) {
   const hostRunner = hostedSubmitRunner();
   if (hostRunner) {
     io.cwd = await handOffHostedSubmit(ctx, id, hostRunner);
-    ctx = { ...context(io), submissionResult, precheck: ctx.precheck, json: ctx.json };
+    ctx = { ...context(io), submissionResult, precheck: ctx.precheck, dryRunReview: ctx.dryRunReview, json: ctx.json };
   }
   /** Dispatch before optional verdict waiting, retaining this exact submission document; a pulled one marks the submit queued for --wait [P7]. */
   ctx.afterSubmission = submission => { if (submission?.queued) Object.assign(submissionResult, { queued: true, value: submission }); return completeMoveHandoff(ctx, id, values, submission, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest, topUp: target => topUpClaims(target, {}, { most: 1 }) }); };
