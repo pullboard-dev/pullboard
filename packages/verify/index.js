@@ -17,7 +17,7 @@ export { recordNativeProof } from './src/logic/proof/native.js';
 export { counterCaught, counterProofStats } from './src/io/proof/caught.js';
 export { PROOF_COUNTER_PREFIX, appendProofCounter, clearProofCounters, currentProofCounters, ensureProofCounters, proofCounter, proofCounterRows, rebuildProofCounters } from './src/io/proof/counters.js';
 export { derivedProofCounter, refreshCapacityOutsideWrite } from './src/io/proof/counters.js';
-export { DERIVED_SETTING, deleteDerived } from './src/io/proof/derived.js';
+export { DERIVED_SETTING, deleteDerived, derivedRows } from './src/io/proof/derived.js';
 export { registryFindings, registryOutcome } from './src/logic/registry.js';
 export { registryStrictEnabled as registryStrict } from '../config/index.js';
 export { tier1Shadow, tier1ShadowFields } from './src/logic/shadow.js';
