@@ -686,7 +686,7 @@
     { "case": "gate driver lease lost", "current": "a refused renewal retakes the lease on the next tick", "intended": "same, but only while its item still is in its serving state", "harness": "NONE" },
     { "case": "gate driver killed", "current": "the gate is requeued on the same candidate within seconds, with no builder red", "intended": "same", "harness": "packages/gate/tests/fixtures/pipeline/requeue.js" },
     { "case": "live driver mistaken for dead", "current": "a sweep never declares a live, same-incarnation driver dead for a lapsed lease alone", "intended": "same", "harness": "packages/gate/tests/fixtures/pipeline/driver.js" },
-    { "case": "runner lost mid-shard", "current": "the idle probe stops the orphan worker; the gate requeues with attempt + 1; three infrastructure stops end it", "intended": "same", "harness": "packages/gate/tests/fixtures/pipeline/worker.js" },
+    { "case": "runner lost mid-shard", "current": "the idle probe stops the orphan worker; the gate requeues with attempt + 1; three infrastructure stops end it", "intended": "same", "harness": "apps/runner/tests/io/pipeline/worker.test.js" },
     { "case": "seat runs a stale CLI", "current": "a worktree runs the main checkout's current CLI", "intended": "same", "harness": "apps/cli/journeys/worktree/current.test.js" },
     { "case": "landing crash", "current": "killing the lander at any stage lets the next accept land both items without manual recovery", "intended": "same", "harness": "apps/cli/journeys/land/main.test.js" },
     { "case": "two landers", "current": "the board landing lease admits one; a stalled relay cannot block the holder's heartbeat", "intended": "same", "harness": "apps/lib/tests/landing/lease.test.js" },

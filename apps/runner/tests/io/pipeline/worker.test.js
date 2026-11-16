@@ -29,7 +29,7 @@ import {
   scratch,
   waitUntil,
   within,
-} from './kit.js';
+} from '../../../../../packages/gate/tests/fixtures/pipeline/kit.js';
 
 /** The controller address every worker came from over SSH. */
 const CONTROLLER = '10.20.30.40';
