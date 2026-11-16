@@ -1236,7 +1236,10 @@
       "kind": "table",
       "owner": "packages/store/src/io/board/item/fields.js"
     },
-
+    "table:item_related": {
+      "kind": "table",
+      "owner": "packages/store/src/io/board/item/related.js"
+    },
     "table:job": {
       "kind": "table",
       "owner": "packages/jobs/src/io/lease.js"
