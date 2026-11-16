@@ -120,6 +120,11 @@ export function adapterLintClockEnabled() {
   return loadMachineSettings().gate?.adapterLintClock === true;
 }
 
+/** Whether the static check refuses new direct node:fs imports outside the kernel: off by default; only an exact `true` turns it on [C7,#9449]. */
+export function adapterLintFsEnabled() {
+  return loadMachineSettings().gate?.adapterLintFs === true;
+}
+
 /** Record each move table shadow compare on the board only when this machine opted in [C7,#8376]. */
 export function movesShadowEnabled() {
   return loadMachineSettings().moves?.shadow === true;
@@ -319,7 +324,12 @@ export function refuseTempWorktree() {
   return loadMachineSettings().gate?.refuseTempWorktree === true;
 }
 
-/** Whether claim refuses a folder whose HEAD is not on main (#9104): off by default; only an exact `true` turns it on. */
+/** Whether claim.keepWhileRunning is on: off by default; only an exact `true` keeps a claim whose holder has a test run, test or gate job in flight from being released as idle or stalled [C7,#9498]. */
+export function claimKeepWhileRunning() {
+  return loadMachineSettings().claim?.keepWhileRunning === true;
+}
+
+/** Whether claim.refuseOffMainHead is on: off by default; only an exact `true` makes claim refuse a folder whose HEAD is not on main [C7,#9104]. */
 export function refuseOffMainHead() {
   return loadMachineSettings().claim?.refuseOffMainHead === true;
 }
@@ -409,6 +419,15 @@ export function holdsRequireOwner() {
  */
 export function nextItemNotices() {
   return loadMachineSettings().next?.itemNotices === true;
+}
+
+/**
+ * The builder cap behind next.capBuilders (#8545): the most seats that may hold a claim at once before next offers a review
+ * instead of a build; 0 (default) is off, and anything but a positive whole number is off, so a damaged value never starves builds.
+ */
+export function nextCapBuilders() {
+  const cap = loadMachineSettings().next?.capBuilders;
+  return Number.isInteger(cap) && cap > 0 ? cap : 0;
 }
 
 /**
