@@ -49,7 +49,8 @@ if (!isMainThread && workerData?.kind === 'cold-next') answer(workerData).catch(
  * @returns {Promise<{ status: number, out: string, err: string, idleMs: number, git: string[] }>}
  */
 export async function coldNext(cwd, env, argv = ['next']) {
-  const worker = new Worker(new URL(import.meta.url), { execArgv: [], env: { ...env }, workerData: { kind: 'cold-next', argv, cwd, env } });
+  const plain = Object.fromEntries(Object.entries(env).map(([key, value]) => [key, String(value)])); // A box env may carry non-cloneable members; the worker needs plain strings.
+  const worker = new Worker(new URL(import.meta.url), { execArgv: [], env: plain, workerData: { kind: 'cold-next', argv, cwd, env: plain } });
   try {
     const reply = await new Promise((resolve, reject) => {
       worker.once('message', resolve);
