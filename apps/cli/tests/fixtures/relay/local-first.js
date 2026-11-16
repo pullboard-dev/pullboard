@@ -143,7 +143,9 @@ export async function linkedBoard(t) {
   const sender = {};
   t.after(() => sender.root && stopSender(sender.root));
   const box = await relayClientFixture(t);
+  process.stderr.write(`linked: fixture up ${Date.now()}\n`);
   enableOutbox(box);
+  process.stderr.write(`linked: outbox on ${Date.now()}\n`);
   assert.equal((await box.link()).code, 0, 'the real relay accepts the board first');
   assert.equal(JSON.parse(readFileSync(box.linkFile, 'utf8')).baselineAccepted, true);
   sender.root = box.root;
