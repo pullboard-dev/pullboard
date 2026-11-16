@@ -562,6 +562,9 @@ test('clause 1: a budget at stop refuses a new claim naming the spend, the limit
   assert.match(text, /budget\.totalUsd/u, 'the refusal names the next step');
   // With the limit raised the same claim goes through.
   fixture.limit(500);
+  // The seat holds one claim at a time, so free the first before the second.
+  const freed = await fixture.run(['release', String(fixture.ids[0]), '--reason', 'OTHER', '--note', 'Free the seat for the second budget claim.', '--no-next']);
+  assert.equal(freed.status, 0, freed.stdout + freed.stderr);
   const allowed = await fixture.run(['claim', String(fixture.ids[1])]);
   assert.equal(allowed.status, 0, allowed.stdout + allowed.stderr);
 });
