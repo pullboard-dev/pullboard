@@ -166,6 +166,26 @@ onRemoteSeats(async (seats) => {
   assert.equal(cloneBoard(seats.clone), false, 'a refused move opened no local board');
 }));
 
+test('clause 1: a seat joined by URL claims, commits in its own clone and submits, exiting 0 with the clone as the source [P7,C7]', { timeout: 120_000 }, // budget: hang ceiling for fixture init, a served board, one submit handoff and five CLI calls, not a throughput claim.
+onRemoteSeats(async (seats) => {
+  const id = await seats.add('Remote clone item');
+  const own = (...args) => runCliInProcess(args, { cwd: seats.clone, env: { ...seats.box.env, PULLBOARD_MACHINE_HOME: seats.machine, PULLBOARD_AGENT: '' } });
+  // The commit transport is off by default: this clone opts in, so its submit carries its commits as a bundle [P7,C7].
+  assert.equal((await own('settings', 'board.commits', 'bundle')).status, 0);
+  const joined = await own('join', 'app', '--model', FIXTURE_MODEL, '--route', 'strong', '--json');
+  assert.equal(joined.status, 0, joined.stdout + joined.stderr);
+  const claimed = await own('claim', String(id), '--json');
+  assert.equal(claimed.status, 0, claimed.stdout + claimed.stderr);
+  mkdirSync(join(seats.clone, 'app'), { recursive: true });
+  writeFileSync(join(seats.clone, 'app', `work-${id}.txt`), `work for #${id}\n`);
+  runFixtureGit(['add', '-A'], { cwd: seats.clone, env: seats.box.env, stdio: 'pipe' });
+  runFixtureGit(['commit', '-q', '-m', `feat: fixture work [G1]\n\nPullboard-Item: #${id}`], { cwd: seats.clone, env: seats.box.env, stdio: 'pipe' });
+  const submitted = await own('submit', String(id));
+  assert.equal(submitted.status, 0, submitted.stdout + submitted.stderr);
+  assert.match(submitted.stdout, new RegExp(`^submitted #${id}\\b.* via http://`, 'mu'));
+  assert.equal(cloneBoard(seats.clone), false, 'no move opened a local board');
+}));
+
 test('a claim by a seat joined by URL opens no item folder on the board host [C7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board, one join and one claim, not a throughput claim.
 onRemoteSeats(async (seats) => {
   const id = await seats.add('Remote folderless item');
