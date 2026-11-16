@@ -17,6 +17,7 @@ const BEFORE = {
   'census.jobsPerRunner': null,
   'census.recordFileTimes': false,
   'census.rerunNonGreen': false,
+  'census.rerunOnSettle': false,
   'claim.refuseOffMainHead': false,
   'gate.browserByLaunch': false,
   'gate.browserFreeChecks': false,

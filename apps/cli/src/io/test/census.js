@@ -31,6 +31,7 @@ import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { gateRunnerAdmission } from '../../../../../packages/config/index.js';
 import { censusRecordFileTimesEnabled } from '../../../../../packages/config/index.js';
 import { censusRerunNonGreenEnabled } from '../../../../../packages/config/index.js';
+import { censusRerunOnSettleEnabled } from '../../../../../packages/config/index.js';
 import { censusBalanceByTimeEnabled } from '../../../../../packages/config/index.js';
 import { censusJobMinutes } from '../../../../../packages/config/index.js';
 import { censusJobsPerRunner } from '../../../../../packages/config/index.js';
@@ -73,23 +74,9 @@ const cutPlan = (root, files, count, timed = true) => { const times = readFileTi
  * one-file jobs; any other dispatcher runs them one at a time [C7,#9138].
  */
 async function rerunNonGreen({ rows, out, sha, run, base, pulled }) {
-  const rerun = async (first) => {
-    let pending = null, again = null;
-    const began = new Date(), beganLoad = loadavg()[0];
-    const write = (text) => {
-      const header = parseShardHeader(text);
-      if (header) { pending = header; return; }
-      if (!pending || /^# landing (?:shards?|timing|floor|file|result)\b/u.test(text) || !finalStatus(pending.status)) return;
-      [again] = shardRows({ ...pending, output: text, files: [first.file], outcomes: allTestOutcomes(text), times: shardFileTimes(text) }, sha);
-      if (again) again = { ...again, ...jobTimes(text, began, beganLoad) };
-      pending = null;
-    };
-    try { await run({ ...base, files: [first.file], count: 1, write }); } catch { /* a rerun with no answer leaves the file unrun */ }
-    rows.set(first.file, rerunRow(first, again ?? { file: first.file, status: 'unrun', cases: [], setupSecs: null, secs: null, sha, shard: '1/1', host: 'none' }));
-  };
   const firsts = [...rows.values()].filter(rerunnable);
-  if (pulled) await Promise.all(firsts.map(rerun));
-  else for (const first of firsts) await rerun(first);
+  if (pulled) await Promise.all(firsts.map(first => rerunOne({ rows, sha, run, base, first })));
+  else for (const first of firsts) await rerunOne({ rows, sha, run, base, first });
   writeFileSync(out, [...rows.values()].map(row => `${JSON.stringify(row)}\n`).join(''));
 }
 
@@ -113,6 +100,26 @@ function jobTimes(output, fallbackStart, fallbackLoad) {
   return { claimedAt: iso(told.claimedAt) ?? startedAt, startedAt, endedAt: iso(told.endedAt) ?? now, load1: Number.isFinite(told.load1) ? told.load1 : Math.round(fallbackLoad * 100) / 100 };
 }
 
+/**
+ * Rerun one non-green file alone and put rerunRow's answer in `rows`. `fileLimit: false` asks the dispatcher for the
+ * usual per-file kill instead of the census's no-file-limit hard stop, so a file that hung once cannot hold the census
+ * for ten minutes again [C7,#9283].
+ */
+async function rerunOne({ rows, sha, run, base, first, fileLimit }) {
+  let pending = null, again = null;
+  const began = new Date(), beganLoad = loadavg()[0];
+  const write = (text) => {
+    const header = parseShardHeader(text);
+    if (header) { pending = header; return; }
+    if (!pending || /^# landing (?:shards?|timing|floor|file|result)\b/u.test(text) || !finalStatus(pending.status)) return;
+    [again] = shardRows({ ...pending, output: text, files: [first.file], outcomes: allTestOutcomes(text), times: shardFileTimes(text) }, sha);
+    if (again) again = { ...again, ...jobTimes(text, began, beganLoad) };
+    pending = null;
+  };
+  try { await run({ ...base, files: [first.file], count: 1, write, ...(fileLimit === false ? { fileLimit } : {}) }); } catch { /* a rerun with no answer leaves the file unrun */ }
+  rows.set(first.file, rerunRow(first, again ?? { file: first.file, status: 'unrun', cases: [], setupSecs: null, secs: null, sha, shard: '1/1', host: 'none' }));
+}
+
 /** Quote one shell word for a pulled job's command. */
 const word = value => `'${String(value).replaceAll("'", "'\\''")}'`;
 
@@ -126,7 +133,7 @@ const word = value => `'${String(value).replaceAll("'", "'\\''")}'`;
  * @param {{ err: (line: string) => void }} io
  */
 function pulledCensus(ctx, io, values = {}) {
-  return async ({ root, files, count, write }) => {
+  return async ({ root, files, count, write, fileLimit }) => {
     const command = ctx.config?.affectedTests;
     if (typeof command !== 'string' || !command.trim()) throw new Refused('NO_TEST_RUNNER', 'a pulled census runs each shard with "affectedTests" from pullboard.json, and it is unset', 'set "affectedTests" to the command that runs named test files, then run the census again');
     const { mainPolicy } = await import('../../../../../packages/sandbox/index.js');
@@ -136,7 +143,7 @@ function pulledCensus(ctx, io, values = {}) {
       const label = `${index + 1}/${plan.length}`, started = Date.now();
       const shell = `${LANDING_COLLECT_ALL_ENV}=1 ${LANDING_SHARD_ENV}=${word(label)} ${command.trimEnd()} ${shard.files.map(file => word(`./${file}`)).join(' ')}`;
       try {
-        const ran = await runPulledComparison(ctx, { commit, main, command: shell, files: shard.files, runId: randomUUID(), ...fileBudgetField(values), ...(perRunner ? { censusPerRunner: perRunner } : {}) });
+        const ran = await runPulledComparison(ctx, { commit, main, command: shell, files: shard.files, runId: randomUUID(), ...(fileLimit === false ? {} : fileBudgetField(values)), ...(perRunner ? { censusPerRunner: perRunner } : {}) });
         write(`# landing shard ${label} attempt 1 on ${ran.runner ?? 'pulled'}: ${ran.green ? 'green' : 'red'} in ${Date.now() - started} ms\n`);
         // The receipt's tail is clipped, so each file's own time line comes from the runner's whole-output record [C7,#8576].
         write(`# census-times ${JSON.stringify({ claimedAt: ran.claimedAt, startedAt: ran.startedAt, endedAt: ran.endedAt, load1: ran.loadAtStart })}\n`);
@@ -175,7 +182,9 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run } 
   // A pull board offers each shard as a job; the landing path's in-process controller custody is never taken (#7602).
   const pulled = !run && runnerDispatchMode() === 'pull';
   const dispatch = run ?? (pulled ? pulledCensus(ctx, io, values) : runLandingShards);
-  run = (...args) => withFileLimit(values, () => dispatch(...args));
+  // A settle rerun asks for the usual per-file kill, so the census's no-file-limit flag does not reach it (#9283).
+  const settleReruns = censusRerunOnSettleEnabled() && dispatch !== runLandingShards;
+  run = (...args) => (args[0]?.fileLimit === false ? dispatch(...args) : withFileLimit(values, () => dispatch(...args)));
   const runners = censusShardCount(loadMachineSettings().runners);
   // census.jobMinutes, when set, sizes a pulled census by measured time: the job count is whatever the plan needs (cutPlan ignores `count`).
   const timed = pulled && censusJobMinutes() ? cutPlan(root, files, 1).length : null;
@@ -184,12 +193,17 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run } 
   const plan = cutPlan(root, files, count, pulled);
   const rows = new Map();
   const last = new Map();
+  const settled = [];
   const censusStart = new Date(), startLoad = loadavg()[0];
   const emit = (shard, record) => {
     const text = shardRows({ ...record, files: shard.files.map(file => fileKey(file)), outcomes: allTestOutcomes(record.output), times: shardFileTimes(record.output) }, sha);
     const told = jobTimes(record.output, censusStart, startLoad);
     for (const row0 of text) {
-      const row = { ...row0, ...told }; rows.set(row.file, row); appendFileSync(out, `${JSON.stringify(row)}\n`); }
+      const row = { ...row0, ...told };
+      rows.set(row.file, row); appendFileSync(out, `${JSON.stringify(row)}\n`);
+      // census.rerunOnSettle: this file's job has settled, so its rerun starts now, alongside the jobs still running; a hung file is not rerun [C7,#9283].
+      if (settleReruns && rerunnable(row) && row.status !== 'hung') settled.push(rerunOne({ rows, sha, run, base, first: row, fileLimit: false }));
+    }
   };
   let pending = null;
   const write = (text) => {
@@ -222,8 +236,10 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run } 
         emit(entry, { label, host: last.get(label)?.host ?? 'none', status: 'unrun', output: '' });
       }
     }
+    await Promise.all(settled);
     // Opt-in: each non-green file runs once more, alone, before the census calls it red; this replaces a separate pass 2 [C7,#9138].
-    if (censusRerunNonGreenEnabled()) await rerunNonGreen({ rows, out, sha, run, base, pulled });
+    if (settleReruns) writeFileSync(out, [...rows.values()].map(row => `${JSON.stringify(row)}\n`).join(''));
+    else if (censusRerunNonGreenEnabled()) await rerunNonGreen({ rows, out, sha, run, base, pulled });
   } finally {
     if (env.collect === undefined) delete process.env[LANDING_COLLECT_ALL_ENV]; else process.env[LANDING_COLLECT_ALL_ENV] = env.collect;
     if (env.collection === undefined) delete process.env[COLLECTION_ID_ENV]; else process.env[COLLECTION_ID_ENV] = env.collection;
