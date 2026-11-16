@@ -1,4 +1,5 @@
 import { beginImmediateQueued } from './board/busy.js';
+import { ensureGateHopTable } from "./board/hop.js";
 import { blobDirOf } from "../../../jobs/index.js";
 import { parseStub } from "../../../jobs/index.js";
 import { readBlob } from "../../../jobs/index.js";
@@ -323,6 +324,8 @@ export function restoreRelaySnapshot(board, document, sequence, expectedNativeDi
 /** Restore validated native rows with lifecycle guards suspended only inside the transaction. */
 function restoreDocument(board, document, replace = false, expectedNativeDigest = null) {
   const db = board.db;
+  // The hop table is opt-in: a document that carries its rows gives this board the table first, so the two table sets agree [C7].
+  if (document?.tables && typeof document.tables === 'object' && Object.hasOwn(document.tables, 'gate_hop')) ensureGateHopTable(db);
   const names = tableNames(db);
   validateDocument(db, document, names);
   prepareBoardWriteIdentity();
