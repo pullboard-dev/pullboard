@@ -16,11 +16,11 @@ import { CELL_METRICS } from '../../codemap/index.js';
 import { cellLintBaseline } from '../../codemap/index.js';
 import { cellLintGrowth } from '../../codemap/index.js';
 import { lowerCellLintBaseline } from '../../codemap/index.js';
-import { runFixtureChild } from '../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../gate/tests/fixtures/child.js';
 import { fixture as planFixture } from '../../landing/tests/fixtures/plan.js';
 import { importsIn } from '../../gate/index.js';
 import { commonJsIn } from '../../gate/index.js';
-import { runFixtureGit } from '../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../gate/tests/fixtures/child.js';
 import { mkdtempSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -39,12 +39,17 @@ function fixture(t) {
   git('init', '-q', '-b', 'main');
   /** Write one private source or asset beneath this fixture. */
   function put(file, source) { mkdirSync(dirname(join(root, file)), { recursive: true }); writeFileSync(join(root, file), source); stage(file); }
+  /** Write many private files, then stage them with one Git call: hundreds of single-file stages cost one process each. */
+  function putAll(files) {
+    for (const [file, source] of files) { mkdirSync(dirname(join(root, file)), { recursive: true }); writeFileSync(join(root, file), source); }
+    runFixtureChild('git', ['add', '-A', '--', ...files.map(([file]) => file)], { cwd: root, env, encoding: 'utf8' });
+  }
   /** Remove only the named private fixture entity. */
   function remove(file) { rmSync(join(root, file), { recursive: true, force: true }); stage(file); }
   put('package.json', JSON.stringify({ type: 'module', imports: { '#*': './packages/*/index.js', '#*.js': './packages/*.js' } }));
   put('apps/demo/index.js', "import { value } from '#sample'; console.log(value);\n");
   put('packages/sample/index.js', 'export const value = 1;\n');
-  return { root, put, remove, git, stage, report: () => cellLintReport(root, { importsIn, commonJsIn }) };
+  return { root, put, putAll, remove, git, stage, report: () => cellLintReport(root, { importsIn, commonJsIn }) };
 }
 
 const BIN = fileURLToPath(new URL('../../codemap/src/io/cell/scripts/lints.js', import.meta.url));
@@ -164,7 +169,8 @@ test('report is read-only, initialization is explicit and check/update cannot ra
   box.remove('stray.js'); box.put('another.js', 'void 0;\n');
   assert.ok(cellLintGrowth(box.report(), debt).some(row => row.key === 'another.js'));
   // The committed baseline stays hash-bound: this repository's index binds its shards, and a shard edited without a rebind fails --check [C7,CD64].
-  assert.equal(run('--report', fileURLToPath(new URL('../../../', import.meta.url))).status, 0, 'the real index.json binds boundaries-012 and strays-001');
+  // The binding is read directly: a full report of this repository costs minutes and the landing gate's own cell-lints --check builds it on every landing.
+  assert.doesNotThrow(() => readCellLintBaseline(fileURLToPath(new URL('../../../', import.meta.url))), 'the real index.json binds boundaries-012 and strays-001');
   assert.doesNotMatch(run('--check').stderr, /CELL_BASELINE/u, 'a bound baseline is never refused as unbound');
   const index = JSON.parse(readFileSync(join(box.root, 'packages/codemap/data/baselines/lints/index.json'), 'utf8')), shard = join(box.root, index.metrics.strays.shards[0].file);
   appendFileSync(shard, ' ');
@@ -381,7 +387,7 @@ test('a package containing only tests is distinct package debt while an app-reac
 
 test('bounded hash-bound baseline shards count their own files and refuse missing, partial or failed generations [C7,CD64]', t => {
   const box = fixture(t);
-  for (let index = 0; index < 405; index++) box.put(`stray-${index}.txt`, 'actual private file\n');
+  box.putAll(Array.from({ length: 405 }, (_, index) => [`stray-${index}.txt`, 'actual private file\n']));
   const plan = planCellLintBaseline(box.report()), files = cellLintFiles(plan.baseline);
   assert.ok([...files.keys()].filter(file => file.includes('/strays-')).length > 1);
   for (const bytes of files.values()) assert.ok(bytes.split('\n').length - 1 < 500);

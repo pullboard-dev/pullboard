@@ -7,7 +7,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { cellProject } from '../../../store/tests/fixtures/cell.js';
-import { runFixtureChild } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../fixtures/child.js';
 
 const SOURCE = join(import.meta.dirname, '../../../..');
 const RUNNER = 'only-runner';

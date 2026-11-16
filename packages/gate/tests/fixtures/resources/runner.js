@@ -21,14 +21,14 @@ import {
   resolve,
 } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../child.js';
 import { createE2eHelpers } from '../../../../../apps/cli/tests/fixtures/e2e.js';
 import {
   HOST,
   installSshStandIn,
 } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { fixtureAdd } from '../../../../../apps/cli/tests/fixtures/testkit.js';
-import { fixturePolicy } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureAdd } from '../testkit.js';
+import { fixturePolicy } from '../testkit.js';
 
 const RESOURCES = pathToFileURL(resolve(import.meta.dirname, '../../../../resources/index.js')).href;
 const SETTINGS = pathToFileURL(resolve(import.meta.dirname, '../../../../config/src/io/settings.js')).href;

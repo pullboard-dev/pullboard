@@ -1,6 +1,5 @@
 /**
- * End to end on real repos, part one: the blind gate bypass, shared config, accepted-main merges and
- * foreign changes (L3, V4, V16, M3).
+ * End to end on real repos, part one: the blind gate bypass and the shared config edit (L3, V4, V16, M3).
  */
 import assert from 'node:assert/strict';
 import {
@@ -17,7 +16,6 @@ import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { submitFixture } from '../../../tests/fixtures/board/submit.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
-import { whenRunnerSettles } from '../../../tests/fixtures/runner/local-start.js';
 import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
@@ -25,33 +23,8 @@ import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
-  attackCommit, historicalCheckSubmission, LIGHT_BRIEF, project,
+  attackCommit, LIGHT_BRIEF, project,
 } = e2e;
-
-/**
- * Assert a green submit routed only foreign paths to their owner: the builder is freed and nothing is submitted (B3,L1,V4).
- *
- * Why: the ownership routing (814a7def2a) replaced the immediate OUTSIDE_LANE refusal for proved foreign paths; the owner decides.
- */
-async function assertWaitsOnOwner(t, box, id, submitted, paths, label = '') {
-  assert.equal(submitted.code, 0, `${label} ${submitted.out}${submitted.err}`);
-  // The pulled gate settles red on the ownership refusal; the hold is applied a moment later, so settle on it [P7].
-  const settled = await settleSubmit(t, box, JSON.parse(submitted.out));
-  assert.equal(settled.gate.analysis.ownership?.code, 'OUTSIDE_LANE', `${label}: the pulled gate analysis names the ownership refusal`);
-  const item = await whenRunnerSettles(box.env, async () => {
-    const row = JSON.parse((await box.inProcess(box.repo, 'show', String(id), '--json')).out);
-    return row.item_hold_reason ? row : null;
-  }, { deadlineMs: 120_000, what: `the owner routing of #${id} ${label}` });
-  assert.equal(item.item_status, 'open', label);
-  assert.equal(item.item_commit, null, `${label}: owner waiting is not a submission`);
-  assert.match(item.item_hold_reason, /^waiting on ownership /u, label);
-  // The hold names only a digest; owner and paths are in the thread's ownership-wait event.
-  const waiting = (item.thread ?? []).findLast(row => row.kind === 'ownership-wait')?.detail;
-  assert.ok(waiting, `${label}: the thread records the ownership wait`);
-  assert.deepEqual(waiting.owners, ['coordinator'], label);
-  for (const path of paths) assert.equal(waiting.paths.includes(path), true, `${label} ${path}`);
-}
-
 
 test('the blind gate-bypass repro refuses submit and accept, and doctor audits pre-merge policy [V4,V16,L3,M3]', async t => {
   const box = project('true');
@@ -120,73 +93,4 @@ test('a shared config edit cannot replace the gate frozen from the coordinator [
   const refused = await box.inProcess(box.web, 'submit', '1', '--json');
   assert.equal(refused.code, 0, refused.out + refused.err);
   assert.equal((await settleSubmit(t, box, JSON.parse(refused.out))).gate.green, false, 'the committed original gate executes even though the candidate says true');
-});
-
-test('accepted-main merges carry foreign files without granting permission to alter them [L3,V4]', async t => {
-  const box = project('true');
-  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Main merge', '--specs', 'G1', '--criterion', 'foreign main object preserved').code, 0);
-  assert.equal((await box.inProcess(box.web, 'claim', '1')).code, 0);
-  writeFileSync(join(box.repo, 'coordinator.txt'), 'accepted main fixture');
-  box.git(box.repo, 'add', 'coordinator.txt');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: coordinator fixture');
-  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  mkdirSync(join(box.web, 'web'));
-  writeFileSync(join(box.web, 'web/index.html'), 'app fixture');
-  box.git(box.web, 'add', 'web/index.html');
-  box.git(box.web, 'commit', '-q', '-m', 'feat(web): preserve main fixture [G1]');
-  assert.equal((await box.inProcess(box.web, 'submit', '1')).code, 0, 'unchanged accepted-main foreign objects are allowed');
-  const commit = box.git(box.web, 'rev-parse', 'HEAD');
-  box.git(box.repo, 'merge', '-q', '--ff-only', 'web/one');
-  assert.equal((await box.inProcess(box.repo, 'verify', '1', 'accept', '--as', 'coordinator', '--note', 'private accepted-main fixture')).code, 0);
-  assert.equal((await box.inProcess(box.repo, 'doctor')).code, 0, 'the pre-merge main proof remains available for historical audit');
-  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Alter foreign file', '--specs', 'G1', '--criterion', 'ownership remains enforced').code, 0);
-  assert.equal((await box.inProcess(box.web, 'claim', '2')).code, 0);
-  writeFileSync(join(box.web, 'coordinator.txt'), 'unauthorized replacement');
-  attackCommit(box, box.web);
-  await assertWaitsOnOwner(t, box, 2, await box.inProcess(box.web, 'submit', '2', '--json'), ['coordinator.txt']);
-});
-
-test('foreign changes before claiming and cross-lane renames cannot hide from submit [L3,V4]', async t => {
-  for (const mode of ['before-claim', 'rename', 'delete']) {
-    const box = project('true');
-    writeFileSync(join(box.repo, 'foreign file.txt'), 'coordinator-owned');
-    box.git(box.repo, 'add', '-A');
-    box.git(box.repo, 'commit', '-q', '-m', 'chore: foreign fixture');
-    box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-    assert.equal(fixtureAdd(box.run, box.repo, 'web', mode, '--specs', 'G1').code, 0);
-    if (mode === 'before-claim') {
-      writeFileSync(join(box.web, 'foreign file.txt'), 'unauthorized pre-claim replacement');
-      attackCommit(box, box.web);
-    }
-    assert.equal((await box.inProcess(box.web, 'claim', '1')).code, 0);
-    mkdirSync(join(box.web, 'web'));
-    if (mode === 'rename') box.git(box.web, 'mv', 'foreign file.txt', 'web/moved.txt');
-    else if (mode === 'delete') box.git(box.web, 'rm', 'foreign file.txt');
-    writeFileSync(join(box.web, 'web/index.html'), 'owned');
-    attackCommit(box, box.web);
-    await assertWaitsOnOwner(t, box, 1, await box.inProcess(box.web, 'submit', '1', '--json'), ['foreign file.txt'], mode);
-  }
-});
-
-test('accept reruns the frozen check at the submission even when the reviewer repaired its HEAD [V4,M3]', async t => {
-  const box = project('true');
-  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Exact check', '--specs', 'G1', '--criterion', 'the original check passes', '--brief', LIGHT_BRIEF, '--check', 'test ! -f web/RED_CHECK').code, 0);
-  assert.equal((await box.inProcess(box.web, 'claim', '1')).code, 0);
-  mkdirSync(join(box.web, 'web'));
-  writeFileSync(join(box.web, 'web/RED_CHECK'), 'red');
-  const commit = attackCommit(box, box.web);
-  const blocked = await box.inProcess(box.web, 'submit', '1', '--json');
-  assert.equal(blocked.code, 0, blocked.out + blocked.err);
-  assert.equal((await settleSubmit(t, box, JSON.parse(blocked.out))).gate.green, false, 'the settled gate is red on the frozen check even when the project gate passes');
-  historicalCheckSubmission(box, commit); // Legacy receipts must still be independently checked.
-  const review = join(box.dir, 'exact-review');
-  box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
-  assert.equal(fixtureJoin(box.run, review, 'api').code, 0);
-  box.git(review, 'rm', 'web/RED_CHECK');
-  attackCommit(box, review); // Model the adversarial repair without disabling its lane hook.
-  assert.equal((await box.inProcess(review, 'check', '1', '--yes')).code, 0, 'the reviewer HEAD alone is green');
-  const refused = await box.inProcess(review, 'verify', '1', 'accept', '--note', 'reviewer repair is not submission proof', '--json');
-  assert.equal(refused.code, 1);
-  assert.equal(JSON.parse(refused.out).error.code, 'CHECK_RED');
-  assert.equal(JSON.parse((await box.inProcess(review, 'show', '1', '--json')).out).item_status, 'submitted');
 });

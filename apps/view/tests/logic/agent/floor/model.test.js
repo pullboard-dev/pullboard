@@ -195,3 +195,23 @@ test('the floor keeps its own address and its way back to the Dashboard [N26,N38
     assert.doesNotMatch(embedded.toString(), /\bssh\b|child_process|fetch\(|\bapi\(|import\(/u, `${embedded.name} reads only the Dashboard's model and history`);
   }
 });
+
+test('the floor\'s idle count leaves out a gone seat and an advisor and still counts a live idle builder [C7]', () => {
+  const project = structuredClone(seeded.input.project), events = structuredClone(seeded.input.events);
+  const at = minutes => new Date(seeded.clockBase + minutes * MINUTE).toISOString();
+  for (const [id, lane, presence] of [['gone-1', 'web', 'gone'], ['advisor-1', 'advisor', 'live']]) {
+    events.push({ event_id: events.length + 1, event_kind: 'join', item_id: null, event_by: id, event_at: at(0), event_detail: JSON.stringify({ lane }) },
+      { event_id: events.length + 2, event_kind: 'shout', item_id: null, event_by: id, event_at: at(10), event_detail: JSON.stringify({ to: 'all', text: 'Quiet since.' }) });
+    project.agents.push({ agent_id: id, agent_lane: lane, presence, agent_created_at: at(0) });
+  }
+  project.sequence = events.length;
+  const withSeats = agentFloorModel(dashboardModel(project, events, { now: seeded.now, complete: true }), events);
+  const plain = floorAt(seeded.now).floor;
+  const group = key => withSeats.groups.find(entry => entry.key === key).agents.map(agent => agent.id);
+  assert.deepEqual(group('between items'), ['quiet-1'], 'a live idle builder is still counted as idle');
+  assert.deepEqual(group('apart'), ['advisor-1', 'gone-1'], 'the gone seat and the advisor sit apart');
+  assert.equal(withSeats.numbers.between, plain.numbers.between, 'neither adds to the idle count');
+  assert.equal(withSeats.numbers.live, plain.numbers.live, 'neither is a live seat at work');
+  assert.equal(withSeats.time.idle, plain.time.idle, 'neither adds holding-nothing time');
+  assert.match(agentFloorHtml(withSeats, { back: '/dashboard' }), /Gone or advising · 2/u);
+});

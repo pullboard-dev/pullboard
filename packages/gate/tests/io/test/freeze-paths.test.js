@@ -6,7 +6,7 @@ import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import { runFreezeCommand } from '../../../src/io/test/freeze.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../fixtures/child.js';
 
 const GOOD = 'apps/cli/journeys/add/good.test.js';
 const BAD = 'apps/cli/journeys/add/bad.test.js';

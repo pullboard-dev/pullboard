@@ -12,8 +12,8 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { generateTestTiers } from '../../../../index.js';
 import { writeTestTiers } from '../../../../index.js';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../fixtures/child.js';
+import { runFixtureGit } from '../../../fixtures/child.js';
 import { fileURLToPath } from 'node:url';
 
 const command = fileURLToPath(new URL('../../../../src/io/test/scripts/tiers.js', import.meta.url));

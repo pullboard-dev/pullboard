@@ -10,7 +10,7 @@ import { FREEZE_RECORD_FILE } from '../../../../src/io/test/freeze.js';
 import { planFreeze } from '../../../../src/logic/test/freeze.js';
 import { rebaseSpecifiers } from '../../../../src/logic/test/freeze.js';
 import { privateFixtureFiles } from '../../../fixtures/child.js';
-import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../fixtures/child.js';
 
 const row = (file, kind, specs, extra = {}) => ({ file, kind, specs, unproven: !specs.length, ...extra });
 const ROWS = [
