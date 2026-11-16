@@ -1,7 +1,7 @@
 /** The receipt inbox as the gate reads it while runs_store is on: each receipt in the runs file is applied once per attempt [B2,P7]. */
 import { applyRunReceipt } from '../../../store/index.js';
 import { jobView } from '../../../jobs/index.js';
-import { atomic } from '../../../store/index.js';
+import { boardRun } from '../../../store/index.js';
 import { applyJobReceipt } from './gate.js';
 
 /**
@@ -21,10 +21,11 @@ import { applyJobReceipt } from './gate.js';
 export function applyInbox(board, queue, ports = {}, { limit = 100 } = {}) {
   return queue.port.receiptsSince(0, { limit }).map(({ job, attempt }) => {
     const receipt = jobView(queue.runs.db, job)?.steps.find(row => row.name === 'receipt' && row.seq === attempt)?.payload?.receipt ?? {};
-    const answer = atomic(board, () => {
-      const run = applyRunReceipt(board, { by: queue.by, job, attempt, outcome: String(receipt.outcome ?? receipt.status ?? 'unknown'), summary: receipt });
-      return run.applied ? applyJobReceipt(board, { job, attempt, receipt }, { ...ports, queue }) : { applied: false, outcome: 'already-applied' };
-    });
+    // The appliers do file I/O (landing logs, test records), so they run outside a board write: the run row is checked first, the receipt applied, then the row settles. A crash between leaves the run queued and the repeat applies again, as a posted receipt would.
+    const run = boardRun(board.db, job);
+    const fresh = run?.run_state === 'queued' && attempt > run.run_attempt;
+    const answer = fresh ? applyJobReceipt(board, { job, attempt, receipt }, { ...ports, queue }) : { applied: false, outcome: 'already-applied' };
+    if (fresh) applyRunReceipt(board, { by: queue.by, job, attempt, outcome: String(receipt.outcome ?? receipt.status ?? 'unknown'), summary: receipt });
     queue.port.ack(job, attempt);
     return { job, attempt, applied: answer.applied === true, outcome: answer.outcome };
   });
