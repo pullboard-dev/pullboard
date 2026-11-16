@@ -105,6 +105,7 @@ const BEFORE = {
   'next.capBuilders': 0,
   'next.idleBlockers': false,
   'next.itemNotices': false,
+  'next.readinessCache': false,
   'next.readinessCheck': false,
   'push.rerunFailedShardOnce': false,
   'relay.excludeByBoard': false,

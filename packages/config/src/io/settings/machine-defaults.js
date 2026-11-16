@@ -95,6 +95,7 @@ export const MACHINE_DEFAULTS = {
   'next.capBuilders': 0,
   'next.idleBlockers': false,
   'next.itemNotices': false,
+  'next.readinessCache': false,
   'next.readinessCheck': false,
   'push.recordTiming': false,
   'push.rerunFailedShardOnce': false,
