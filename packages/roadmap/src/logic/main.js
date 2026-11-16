@@ -11,6 +11,7 @@ import {
 } from "../../../git/index.js";
 import { workProgress } from './progress.js';
 import { itemProgress } from './progress.js';
+import { isLanded } from './progress.js';
 import { milestoneReferencesToRemove } from "./milestones.js";
 
 /** Require explicit board readers before resolving local or foreign roadmap state. */
@@ -87,7 +88,7 @@ export function milestoneRoadmap(root, board, options = {}) {
           const item = getItem(other, Number(number));
           externalItems.set(reference, { item, progress: itemProgress(other, item.item_id), held: Boolean(item.item_hold_reason)
             || laneHolds(other).some(hold => hold.hold_lane === item.item_lane) });
-          return { id: reference, title: item.item_title, status: item.item_status, landed: Boolean(item.item_merged_commit) };
+          return { id: reference, title: item.item_title, status: item.item_status, landed: isLanded(item) };
         } finally {
           if (other !== board) closeBoard(other);
         }
@@ -96,8 +97,10 @@ export function milestoneRoadmap(root, board, options = {}) {
       return options.hideOutOfScope ? hidden() : { id: reference, title: `#${number} (${repo})`, status: 'unavailable' };
     }
   };
-  const milestones = roadmap(board, resolveExternal);
-  const progressById = workProgress(board);
+  // One landed fact [C7]: a main reader in the ports makes milestone entries and item progress read the commit on main.
+  const onMain = typeof ports.onMain === 'function' ? ports.onMain : null;
+  const milestones = roadmap(board, resolveExternal, onMain);
+  const progressById = workProgress(board, { onMain });
   const items = new Map(listItems(board, { all: true }).map(item => [item.item_id, item]));
   const holds = new Set(laneHolds(board).map(hold => hold.hold_lane));
   const now = board.clock.now().getTime();
