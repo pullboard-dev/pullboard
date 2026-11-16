@@ -277,7 +277,7 @@ test('clause 3: writers alternating between a v2-shaped and the current report v
   const legacy = JSON.stringify({ data: { version: FLOW_REPORT_VERSION - 1, last: 1, invalid: false }, numbers: [] });
   board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?)').run(LEGACY_REPORT, legacy);
   board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?)').run('local:proof-stats:v2:report-item:1', '{"data":{"id":1},"numbers":[]}');
-  const legacyRows = () => board.db.prepare("SELECT meta_key,meta_value FROM board_meta WHERE meta_key GLOB 'local:proof-stats:v2:report-[!v]*' ORDER BY meta_key").all();
+  const legacyRows = () => board.db.prepare("SELECT meta_key,meta_value FROM board_meta WHERE meta_key GLOB 'local:proof-stats:v2:report-[^v]*' ORDER BY meta_key").all();
   const before = legacyRows();
   assert.equal(before.length, 2, 'the v2-shaped writer left its two legacy keys');
   board.db.exec(`CREATE TABLE temp.report_resets(id INTEGER PRIMARY KEY, why TEXT);

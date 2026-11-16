@@ -16,11 +16,12 @@ function seedReport(board) {
 }
 
 test('clause 2: a versioned report namespace is neither exported nor part of the native digest [R1,R2]', (t) => {
-  const plain = fixtureBoard(t), seeded = fixtureBoard(t);
-  seedReport(seeded);
-  const exported = exportBoard(seeded);
+  const board = fixtureBoard(t);
+  const before = semanticBoardDigest(exportBoard(board));
+  seedReport(board);
+  const exported = exportBoard(board);
   assert.deepEqual(exported.tables.board_meta.filter(row => KEYS.includes(row.meta_key)), [], 'the export filter leaves the namespace out');
-  assert.equal(semanticBoardDigest(exported), semanticBoardDigest(exportBoard(plain)), 'replicas that differ only in report shards share one native digest');
+  assert.equal(semanticBoardDigest(exported), before, 'report shards leave the native digest unchanged, so replicas never diverge');
 });
 
 test('clause 2: an import skips a supplied versioned report namespace instead of refusing or storing it [R1,R2]', (t) => {
