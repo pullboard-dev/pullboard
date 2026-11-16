@@ -127,10 +127,9 @@ describe('a test Chrome never outlives its owner [C7]', { concurrency: true }, (
         };
         if (killed === 'owner') await killVictim();
         else {
-          let failure = null;
-          // The marker phase lends the token only while the exact spawned victim is coordinated; the SIGKILLed victim's own error is expected.
-          await awaitNestedPhase(run, async () => { try { await killVictim(); } catch (error) { failure = error; throw error; } }).catch(() => {});
-          if (failure) throw failure;
+          let killed_ = false;
+          // The marker phase lends the token only while the exact spawned victim is coordinated; the SIGKILLed victim's own error is expected, a refusal to lend is not.
+          await awaitNestedPhase(run, async () => { await killVictim(); killed_ = true; }).catch((error) => { if (!killed_) throw error; });
         }
         const gone = await waitForChromeGone(profile, DEATH_BUDGET_MS); // budget: the item's declared bound on Chrome outliving its dead owner.
         assert.notEqual(gone, null, `Chrome (${before.length} processes, pids ${before.map(row => row.pid).join(',')}) survived its ${killed} for ${DEATH_BUDGET_MS}ms`); // budget: the item's declared 10 s bound.
