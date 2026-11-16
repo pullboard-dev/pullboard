@@ -209,5 +209,6 @@ export const ASK_CLOSE_ENGINE = engineNumber('ASK_CLOSE_ENGINE');
 export const PULLED_RED_COUNT_ENGINE = engineNumber('PULLED_RED_COUNT_ENGINE');
 export const COORDINATOR_USAGE_ENGINE = engineNumber('COORDINATOR_USAGE_ENGINE');
 export const MILESTONE_MODE_ENGINE = engineNumber('MILESTONE_MODE_ENGINE');
+export const READINESS_ENGINE = engineNumber('READINESS_ENGINE');
 export { DEFAULT_NEXT_STEPS } from './src/logic/defaults.js';
 export const INFRA_RELEASE_ENGINE = engineNumber('INFRA_RELEASE_ENGINE');
