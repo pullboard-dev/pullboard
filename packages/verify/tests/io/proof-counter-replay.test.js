@@ -62,7 +62,7 @@ function replay() {
 test('clause 1: a replay of 100,000 proof counter events takes under 5 CPU seconds [C7]', t => {
   const { seconds, wall } = replay();
   t.diagnostic(`replay cpu ${seconds.toFixed(2)} s, wall ${wall.toFixed(2)} s`);
-  assert.ok(seconds < REPLAY_SECONDS, `the replay took ${seconds.toFixed(1)} CPU s; the bar is ${REPLAY_SECONDS} s`); // budget: declared by #8562's frozen bar. // budget: declared by #8562's frozen bar.
+  assert.ok(seconds < REPLAY_SECONDS, `the replay took ${seconds.toFixed(1)} CPU s; the bar is ${REPLAY_SECONDS} s`); // budget: declared by #8562's frozen bar.
 });
 
 test('clause 2: the replayed counters equal the counters the earlier replay stored for the same events [C7]', () => {
