@@ -70,6 +70,8 @@ export function defaults() {
     // Off by default: toolingPin refuses an unsigned or edited pin file only when pin.signed is true [#8038].
     pin: { signed: false },
     review: { starveMinutes: 5, independence: 'off', excludeEarlierHolders: false },
+    // Steady is today's landing: a green gate and an accept before land; sprint and strict are opt-in [O6].
+    pace: 'steady',
     // Vendor spellings: canonical family -> alias names; never inferred [#1762].
     families: {},
     labels: {},
@@ -461,6 +463,9 @@ export function configProblems(config) {
   }
   if (!['off', 'session'].includes(config.review?.independence)) {
     problems.push('"review.independence" is "off" (any other seat may verify, even under the builder\'s session) or "session" (only another agent session may verify)');
+  }
+  if (!['sprint', 'steady', 'strict'].includes(config.pace)) {
+    problems.push('"pace" is "sprint", "steady" (default: land after a green gate and an accept) or "strict"');
   }
   if (typeof config.review?.excludeEarlierHolders !== 'boolean') {
     problems.push('"review.excludeEarlierHolders" is true or false');
