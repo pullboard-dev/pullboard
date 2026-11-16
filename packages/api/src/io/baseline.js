@@ -49,14 +49,14 @@ export function provideBaselineRecorder(record) {
  * that request: a retried add never queues the same measurement twice.
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ item: number, expected: { command: string, main: string, request: string }, command: string, now?: number }} fields - command: the check as a runner runs it at main.
+ * @param {{ item: number, expected: { command: string, main: string, request: string }, command: string, queue?: ReturnType<typeof import('./queue.js').queueFor>, now?: number }} fields - command: the check as a runner runs it at main; queue: the board's queue while runs_store is on, so the offer goes through queueRun and the runs file, and the open job is looked up there [B2,P7].
  * @returns {{ id: string }}
  */
-export function offerCheckBaseline(db, { item, expected, command, now = Date.now() }) {
-  return openJob(db, { kind: CHECK_BASELINE_KIND, item, candidate: expected.main })
+export function offerCheckBaseline(db, { item, expected, command, queue = null, now = Date.now() }) {
+  return openJob(queue ? queue.runs.db : db, { kind: CHECK_BASELINE_KIND, item, candidate: expected.main })
     ?? offerJob(db, { id: `baseline:${item}:${expected.request}`, kind: CHECK_BASELINE_KIND, needs: NEEDS, item, candidate: expected.main, base: expected.main,
       payload: { expected: { command: expected.command, main: expected.main, request: expected.request } },
-      run: ['node', '--input-type=module', '-e', ENTRY, command], now });
+      run: ['node', '--input-type=module', '-e', ENTRY, command], now }, queue);
 }
 
 /**
