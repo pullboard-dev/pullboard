@@ -78,5 +78,5 @@ test('clause 3: maintenance.retireIdleSeats is a described setting, off by defau
   const row = settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'maintenance.retireIdleSeats');
   assert.equal(row.default, false);
   assert.equal(row.value, false);
-  assert.ok(row.label && /idle/iu.test(row.description ?? JSON.stringify(row)), 'the row carries a plain label and description');
+  assert.ok(row.label && /untouched/u.test(row.description ?? JSON.stringify(row)), 'the row carries a plain label and description');
 });
