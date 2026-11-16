@@ -15,6 +15,7 @@ import {
   machine,
   project,
 } from './machine.js';
+import { runTwice } from './machine-twin.js';
 
 const records = privateFixtureFiles('machine-parity-').root;
 after(() => rmSync(records, { recursive: true, force: true }));
@@ -25,8 +26,7 @@ test('clause 1: with PULLBOARD_PARITY_RECORD set, box.run and box.inProcess appe
   const file = join(records, 'on.jsonl');
   process.env.PULLBOARD_PARITY_RECORD = file;
   try {
-    box.run(repo, 'status');
-    await box.inProcess(repo, 'status');
+    await runTwice(box, repo, ['status']);
   } finally { delete process.env.PULLBOARD_PARITY_RECORD; }
   const lines = readFileSync(file, 'utf8').trim().split('\n').map(line => JSON.parse(line));
   assert.equal(lines.length, 2);
@@ -40,7 +40,6 @@ test('clause 2: nothing is written when PULLBOARD_PARITY_RECORD is unset [C7,U14
   const { repo } = project(box, 'demo');
   const file = join(records, 'off.jsonl');
   delete process.env.PULLBOARD_PARITY_RECORD;
-  box.run(repo, 'status');
-  await box.inProcess(repo, 'status');
+  await runTwice(box, repo, ['status']);
   assert.equal(existsSync(file), false);
 });
