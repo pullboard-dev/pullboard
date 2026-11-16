@@ -68,7 +68,9 @@ const ok = results.filter(c => !c.result.refused);
 
 test('moves.reopen.rows-fire: generated: every guard and outcome row of the reopen table fires on some seeded case [C7,#8559]', () => {
   const fired = new Set(results.flatMap(c => (c.result.refused ? [c.result.refused.row] : c.result.via)));
-  const rows = [...TABLE.guards.map(row => row.id), ...TABLE.outcomes.map(row => row.id)];
+  // The seeds run steady, so the rows tagged for other paces are left out here; pull-out.test.js fires those [#8870].
+  const steady = (row) => !row.paces || row.paces.includes('steady');
+  const rows = [...TABLE.guards, ...TABLE.outcomes].filter(steady).map(row => row.id);
   assert.deepEqual(rows.filter(row => !fired.has(row)), []);
   assert.ok(ok.length > CASES / 20, `only ${ok.length} accepted reopens`);
 });

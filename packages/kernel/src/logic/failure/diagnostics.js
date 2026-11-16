@@ -13,7 +13,7 @@ export const MAIN_FAILURE_SIGNATURE_VERSION = 4;
 export function normalizedFailureDiagnostics(lines, root) {
   /** Only native temporary roots and mkdtemp-style directories lose their per-run spelling. */
   const temporaryPath = (value, alias, locations) => {
-    // The runner root is `.pullboard-runner` on the minis and `pullboard-runner` on vanilla [C7].
+    // The runner root is `.pullboard-runner` on the minis and `pullboard-runner` on studio-host [C7].
     const prefix = /^(file:\/\/)?(?:\/.*\/\.?pullboard-runner\/(?:jobs|pull\/env)\/[^/]+\/(?:tmp|temp)\/|\/(?:private\/)?var\/folders\/[^/]+\/[^/]+\/T\/|\/(?:private\/)?tmp\/)/u.exec(value);
     if (!prefix) return value;
     const suffix = value.slice(prefix[0].length);

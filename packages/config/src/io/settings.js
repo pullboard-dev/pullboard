@@ -115,6 +115,11 @@ export function censusRecordFileTimesEnabled() {
   return loadMachineSettings().census?.recordFileTimes === true;
 }
 
+/** Rerun each non-green census file once, alone, before reporting it red, only when this machine opted in; off, rows are the first run's [C7,#9138]. */
+export function censusRerunNonGreenEnabled() {
+  return loadMachineSettings().census?.rerunNonGreen === true;
+}
+
 /** Cut pulled census jobs by measured time, heaviest first, only when this machine opted in; off, they are cut by file count [C7]. */
 export function censusBalanceByTimeEnabled() {
   return loadMachineSettings().census?.balanceByTime === true;
@@ -124,6 +129,12 @@ export function censusBalanceByTimeEnabled() {
 export function censusJobMinutes() {
   const minutes = loadMachineSettings().census?.jobMinutes;
   return typeof minutes === 'number' && Number.isFinite(minutes) && minutes > 0 ? minutes : null;
+}
+
+/** Census test jobs one runner may hold at once; null (the default) leaves census jobs uncapped beyond runner slots [C7,#9136]. */
+export function censusJobsPerRunner() {
+  const jobs = loadMachineSettings().census?.jobsPerRunner;
+  return Number.isSafeInteger(jobs) && jobs >= 1 ? jobs : null;
 }
 
 /** Run the full suite after each landed train batch only when this machine opted in. */
@@ -263,6 +274,11 @@ export function refuseTempWorktree() {
   return loadMachineSettings().gate?.refuseTempWorktree === true;
 }
 
+/** Whether claim refuses a folder whose HEAD is not on main (#9104): off by default; only an exact `true` turns it on. */
+export function refuseOffMainHead() {
+  return loadMachineSettings().claim?.refuseOffMainHead === true;
+}
+
 /** Whether a review release must name why it was dropped (#8920): off by default; only an exact `true` turns it on. */
 export function reviewReleaseReasonsRequired() {
   return loadMachineSettings().review?.releaseReasons === true;
@@ -273,9 +289,19 @@ export function derivedStateEnabled() {
   return loadMachineSettings().health?.derivedState === true;
 }
 
+/** Whether landing.reofferTrunkBusy is on (#9102): off by default; only an exact `true` turns it on. */
+export function reofferTrunkBusyEnabled() {
+  return loadMachineSettings().landing?.reofferTrunkBusy === true;
+}
+
 /** Whether landing.adaptiveBatch is on (#9017): off by default; only an exact `true` turns it on. */
 export function adaptiveBatchEnabled() {
   return loadMachineSettings().landing?.adaptiveBatch === true;
+}
+
+/** Whether the wait audit records who held a slow board write (#9118): off by default; only an exact `true` turns it on. */
+export function recordWriteHolderEnabled() {
+  return loadMachineSettings().sentinels?.recordWriteHolder === true;
 }
 
 /** Whether the sentinel expires lapsed claims every minute (#8923): off by default; only an exact `true` turns it on. */
@@ -449,7 +475,7 @@ export function setLandingPool(board, enabled) {
   const settings = loadMachineSettings();
   const pools = new Set(settings.landing?.pools ?? []);
   if (enabled) pools.add(board); else pools.delete(board);
-  const next = { ...settings, landing: { pools: [...pools].sort() } };
+  const next = { ...settings, landing: { ...settings.landing, pools: [...pools].sort() } };
   writeMachineSettings(next);
   return next;
 }

@@ -6,6 +6,7 @@ import { ITEM_GUARDS } from './item-moves.js';
 import { ITEM_OUTCOMES } from './item-moves.js';
 import { KNOWN_RULES } from './item-moves.js';
 import { LANDINGS } from './rules.js';
+import { landingOf } from './rules.js';
 import { defineRules } from './rules.js';
 
 /**
@@ -27,8 +28,10 @@ export const JOB_KINDS = Object.freeze([
   { kind: 'gate-shard', serves: 'item submitted at the candidate, one slice of its proof files; the gate result applies when the last shard posts' },
   { kind: 'test', serves: 'no item that it ends: the seat waiting on pullboard test; the board records the receipt and applies nothing' },
   { kind: 'check-baseline', serves: "item whose frozen check is measured at main; the receipt is recorded on the item's pending baseline" },
-  // Declared before any runner offers it, so the state map, which lists only the kinds the code creates, does not name it yet [#8864].
-  { kind: 'screen', serves: "a submitted sprint item at its commit on the current base: the merge, static checks on its changed files, and secrets and hook rules re-checked by trusted code", created: false },
+  // Created by runScreenJob in the drive cell, for sprint items only [#8867].
+  { kind: 'screen', serves: "a submitted sprint item at its commit on the current base: the merge, static checks on its changed files, and secrets and hook rules re-checked by trusted code" },
+  // Created by runPullOutJob in the landing cell, for sprint items only: only a sprint item reaches landing pulling [#8870,#9099].
+  { kind: 'pull-out', serves: "an item whose landing is pulling: the lander reverts its landed commit on main and records pulled" },
 ]);
 
 /** The job kinds some code creates today, the ones the state map lists; a kind declared with `created: false` waits for its runner. */
@@ -74,7 +77,7 @@ const pinned = (snapshot) => snapshot.item?.commit === snapshot.job?.commit && s
 const everyItem = (snapshot, ok) => Array.isArray(snapshot.items) && snapshot.items.length > 0 && snapshot.items.every(ok);
 
 /**
- * The backbone's rules over a snapshot `{ item, items, job, base }` (`base` is the current trunk tip): the item's state facts, then one `serves.<kind>` fact per job kind.
+ * The backbone's rules over a snapshot `{ item, items, job, base, history }` (`base` is the current trunk tip, `history` the item's events, for its landing): the item's state facts, then one `serves.<kind>` fact per job kind.
  * Why: the serves facts are U152 rules, so a job's reason to exist is derived the same way as every guard.
  */
 export const BACKBONE_RULES = defineRules({
@@ -101,6 +104,7 @@ export const BACKBONE_RULES = defineRules({
   [servesRule('test')]: { says: JOB_KINDS[12].serves, holds: (s) => s.job?.kind === 'test' && typeof s.job.seat === 'string' },
   [servesRule('screen')]: { says: JOB_KINDS[14].serves, reads: ['submitted'],
     holds: (s, m, fact) => s.job?.kind === 'screen' && fact('submitted') && s.item.pace === 'sprint' && s.item.commit === s.job.commit && Boolean(s.base) && s.job.base === s.base },
+  [servesRule('pull-out')]: { says: JOB_KINDS[15].serves, holds: (s) => s.job?.kind === 'pull-out' && Boolean(s.item) && landingOf(s.item, s.history) === 'pulling' },
   [servesRule('check-baseline')]: { says: JOB_KINDS[13].serves, holds: (s) => s.job?.kind === 'check-baseline' && s.item?.check !== undefined && s.item.check !== null },
 });
 

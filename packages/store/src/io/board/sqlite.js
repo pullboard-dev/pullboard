@@ -179,6 +179,23 @@ export function boardRunsHolder(board, boardFile) {
 }
 
 /**
+ * The holder of a read-only view of the board's runs file, or null while the flag is off: `holder.db` opens the file on first
+ * use and is null when no runs file exists yet. Why: show, trace, stats and the pulled-runner view read runner state without
+ * ever creating or writing the runs file, so a reader never takes its write lock or a board write's place [B2,#9013].
+ *
+ * @param {{ db: import('node:sqlite').DatabaseSync }} board - An open board.
+ * @param {string} boardFile - The board's file path.
+ * @returns {{ readonly db: import('node:sqlite').DatabaseSync | null } | null}
+ */
+export function boardRunsReader(board, boardFile) {
+  if (!runsStoreOn(board.db)) return null;
+  const file = runsFilePath(boardFile);
+  let runs;
+  const open = () => (runs === undefined ? (runs = existsSync(file) ? new DatabaseSync(file, { readOnly: true }) : null) : runs);
+  return { get db() { return open(); } };
+}
+
+/**
  * Refuse a board made before the release this one upgrades from, before any write [R4].
  * A read-only look at PRAGMA user_version, so the file stays byte-identical; 0 is a new, empty file.
  *
