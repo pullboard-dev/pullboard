@@ -1,7 +1,7 @@
 /** @pullboard-test-input source-cell apps/cli packages/runners */
 /** Test the CI-like test runner's discovery and name-pattern selection against a copied runner [C7, S13]. */
 import { copyPackageFiles } from '../../../../../packages/runners/index.js';
-import { runChildTests } from '../../../../../packages/gate/tests/fixtures/child-tests.js';
+import { runDiscoveryChild } from '../../fixtures/discovery-child.js';
 import assert from 'node:assert/strict';
 import {
   runFixtureExecFile as execFileSync,
@@ -150,7 +150,7 @@ test('one discovered test', () => appendFileSync(${JSON.stringify(marker)}, 'x')
 
 /** Run default discovery and require exactly one fixture execution. */
 function runDiscovery({ root, bin, marker }) {
-  const result = runChildTests([], { cwd: root, args: ['--import', join(root, 'apps/cli/src/io/run/tests.js')] });
+  const result = runDiscoveryChild(root, join(root, 'apps/cli/src/io/run/tests.js'));
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   assert.equal(readFileSync(marker, 'utf8'), 'x', 'one test ran exactly once under default discovery');
 }
