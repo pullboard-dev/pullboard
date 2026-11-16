@@ -1,5 +1,6 @@
 import { readMainAudit } from '../../../../../packages/gate/index.js';
 import { writeFileSync } from 'node:fs';
+import { appendFileSync } from 'node:fs';
 import { waitForFixtureProgress } from '../progress.js';
 /** Shared board observations and owned-process helpers for real landing fixtures [B3,R3]. */
 import assert from 'node:assert/strict';
@@ -53,9 +54,23 @@ export function calls(box) {
 }
 
 
+/** Commands that stay a real process: they settle pulled jobs or can outlast the worker thread's 45 s wait, or the call is about start-up. */
+const REAL_PROCESS = new Set(['submit', 'verify', 'land', 'test', 'resume', 'tour', 'version']);
+
+/**
+ * One sync fixture call: answered by the box's warm worker thread, or a real process when the command is in REAL_PROCESS or
+ * PULLBOARD_JOURNEY_MODE=process. Appends a parity record for the call when PULLBOARD_PARITY_RECORD is set [C7,U149].
+ */
+function quick(box, cwd, ...args) {
+  const real = process.env.PULLBOARD_JOURNEY_MODE === 'process' || typeof box.runSync !== 'function' || REAL_PROCESS.has(args[0]);
+  const result = real ? box.run(cwd, ...args) : box.runSync(cwd, ...args);
+  if (process.env.PULLBOARD_PARITY_RECORD) appendFileSync(process.env.PULLBOARD_PARITY_RECORD, `${JSON.stringify(box.parityRecord({ dir: box.dir, env: box.env, cwd, args, result: { ...result, status: result.code, stdout: result.out, stderr: result.err } }))}\n`);
+  return result;
+}
+
 /** Run a successful JSON command, retaining child context if any actual hook or check refuses. */
 export function json(box, cwd, ...args) {
-  const result = box.run(cwd, ...args, '--json');
+  const result = quick(box, cwd, ...args, '--json');
   assert.equal(result.code, 0, `${result.err}\n${result.out}`);
   return JSON.parse(result.out);
 }
@@ -167,7 +182,7 @@ export async function settleRecordedSourceWake(box, helpers) {
 export function recordManualMergedItems(box, entries) {
   for (const entry of entries) {
     box.git(box.repo, 'merge', '-q', '--no-ff', '-m', `chore(merge): land fixture ${entry.item} [G1]`, entry.commit);
-    const merged = box.run(box.repo, 'merged', String(entry.item), box.git(box.repo, 'rev-parse', 'HEAD'));
+    const merged = quick(box, box.repo, 'merged', String(entry.item), box.git(box.repo, 'rev-parse', 'HEAD'));
     assert.equal(merged.code, 0, merged.err);
   }
 }

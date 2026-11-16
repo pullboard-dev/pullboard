@@ -125,6 +125,7 @@ export async function run(io, args) {
     after,
     brief: briefInLane(ctx, first, laneBar.brief),
     reviewFamily: values['review-family'],
+    ...(values.readiness === undefined ? {} : { readinessCommand: values.readiness }),
     ...(values['expected-minutes'] === undefined ? {} : { expectedBuildMinutes: parseExpectedBuildMinutes(values['expected-minutes']) }),
     // Light when the shape is small, proven and briefed, otherwise strong; an explicit --route wins [C7,#3081].
     route: values.route ?? addedRoute(board, shapeRoute({ criterion: values.criterion ?? '', check: values.check,

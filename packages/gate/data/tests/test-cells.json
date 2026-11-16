@@ -9,7 +9,6 @@
     "apps/cli/journeys/agents/session.test.js": "drives the real CLI (claim, shout, takeover, whoami, agents) from several checkout sessions and checks session ownership, refusals and takeover end to end",
     "apps/cli/journeys/spec/changes.test.js": "drives the real CLI in signed repositories and checks approved-row edit refusals, staged receipts and exit codes end to end",
     "apps/cli/journeys/spec/person.test.js": "drives the real CLI (spec, answer, person, shout) on real repositories and checks person identity, channel receipts and exit codes end to end",
-    "apps/cli/journeys/decisions/row.test.js": "drives the real CLI (spec approve, spec apply, join, init) and checks person row decisions, refusals and board rows end to end",
     "apps/cli/journeys/doctor/frozen.test.js": "drives the real CLI in signed repositories and checks the frozen items an approved row edit names, without rewriting receipts, end to end",
     "apps/cli/journeys/intake/main.test.js": "drives the real CLI (intake, claim, verify, accept, land) in a project checkout and checks the person intake flow, output and board rows end to end",
     "apps/cli/journeys/submit/guards.test.js": "drives the real CLI (add, claim, submit, show, export) in private repositories with installed hooks and checks that a submit refuses a move without its registry guard by name, then passes once repaired and keeps the guard in its proof",
