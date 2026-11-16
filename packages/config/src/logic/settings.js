@@ -127,7 +127,7 @@ export function validateBoardRemote(board, file) {
   }
   if (board.archiveEvents !== undefined && typeof board.archiveEvents !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `board.archiveEvents in ${file} must be true or false`);
   // Off by default: with commits set to bundle, a submit by URL carries the clone's commits as one git bundle [P7,C7].
-  if (board.commits !== undefined && board.commits !== 'bundle') throw new Refused('BAD_MACHINE_SETTINGS', `board.commits in ${file} must be bundle; run pullboard settings board.commits bundle, or off to remove it`);
+  if (board.commits !== undefined && !['bundle', 'pushed'].includes(board.commits)) throw new Refused('BAD_MACHINE_SETTINGS', `board.commits in ${file} must be bundle or pushed; run pullboard settings board.commits bundle, or pushed, or off to remove it`);
   let url = null;
   try { url = board.url === undefined ? null : new URL(board.url); } catch { /* Refused below. */ }
   if (board.url !== undefined && (!url || !['http:', 'https:'].includes(url.protocol))) {
