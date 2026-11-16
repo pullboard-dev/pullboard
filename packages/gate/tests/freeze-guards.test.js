@@ -8,15 +8,7 @@ import { planFreeze } from '../src/logic/test/freeze.js';
 
 const ROOT = new URL('../../../', import.meta.url);
 const manifest = JSON.parse(readFileSync(new URL('packages/gate/data/tests/test-manifest.json', ROOT), 'utf8'));
-const GUARDS = [
-  'apps/cli/journeys/imports/closure-budget.test.js',
-  'apps/cli/journeys/imports/ratchet.test.js',
-  'apps/cli/journeys/speed/spawns.test.js',
-  'apps/cli/journeys/release/size.test.js',
-  'apps/cli/journeys/doctrine/checks.test.js',
-  'apps/cli/journeys/next/claims.test.js',
-  'apps/cli/journeys/inbox/growth.test.js',
-];
+const GUARDS = JSON.parse(readFileSync(new URL('packages/gate/data/tests/guards.json', ROOT), 'utf8')).files;
 
 test('clause 2: the restored guard files are on disk, tagged harness, and a freeze plan never deletes them [C7]', () => {
   const plan = planFreeze(manifest.files, { owner: () => null });

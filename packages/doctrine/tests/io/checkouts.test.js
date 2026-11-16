@@ -8,7 +8,7 @@ import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { baseCheckouts } from '../../src/io/checkouts.js';
-import { fixtureCommittedGraph } from '../../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureCommittedGraph } from '../../../gate/tests/fixtures/testkit.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../gate/tests/fixtures/child.js';
 
