@@ -16,7 +16,7 @@ export { DEFERRED_FIELDS, IO_FIELDS, SHELL_INPUTS, SUBMIT_COMMAND_NEXT, SUBMIT_N
 export { BACKBONE_RULES, BACKBONE_STATES, BACKBONE_TABLE, JOB_KINDS, servesRule } from "./src/logic/table/backbone.table.js";
 export { OUTBOX_LEGAL, OUTBOX_MOVES, OUTBOX_RULES, OUTBOX_STATES, OUTBOX_TABLE } from "./src/logic/table/outbox.table.js";
 export { breakOne, seeded, tableCases } from "./src/logic/table/cases.js";
-export { answerFirstReasons, foldedReasons, heldCounted, inboxReasons, ownWaitingLines } from "./src/logic/reasons.js";
+export { answerFirstReasons, foldedReasons, heldCounted, inboxReasons, itemNoticeLines, ownWaitingLines } from "./src/logic/reasons.js";
 export { default as reopen } from "./src/logic/moves/reopen.js";
 export { default as shout } from "./src/logic/moves/shout.js";
 export { default as submit } from "./src/logic/moves/submit.js";
