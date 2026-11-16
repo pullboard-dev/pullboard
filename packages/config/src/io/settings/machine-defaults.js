@@ -74,6 +74,7 @@ export const MACHINE_DEFAULTS = {
   'moves.live.job': false,
   'moves.live.outbox': false,
   'moves.live.outcome': false,
+  'moves.live.reclaim': false,
   'moves.live.reopen': false,
   'moves.live.submit': false,
   'moves.shadow': false,
