@@ -14,6 +14,13 @@ const DAY = 86_400_000;
 /** An ISO time the given days before the fake clock. */
 const ago = days => new Date(NOW.getTime() - days * DAY).toISOString();
 
+/** Run `work` with the board file's machine guards dropped, then put back exactly the SQL they had; the fixture files items no move reached. */
+function unguarded(db, work) {
+  const guards = db.prepare("SELECT name, sql FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'machine%'").all();
+  for (const { name } of guards) db.exec(`DROP TRIGGER "${name}"`);
+  try { work(); } finally { for (const { sql } of guards) db.exec(sql); }
+}
+
 /** A real board holding four items (verified long ago, verified recently, open, landed long ago) with two events each, plus one itemless event. */
 function seededBoard(t) {
   const directory = temporaryDirectory('pullboard-event-archive-move-');
@@ -23,12 +30,14 @@ function seededBoard(t) {
     VALUES ('core', ?, ?, ?, 'coordinator', ?, ?)`);
   const event = board.db.prepare("INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, 'coordinator', 'note', ?, '{}')");
   const ids = {};
-  for (const [name, status, merged, days] of [['oldVerified', 'verified', null, 45], ['recentVerified', 'verified', null, 5], ['open', 'open', null, 60], ['oldLanded', 'withdrawn', 'abc123', 40]]) {
-    ids[name] = Number(item.run(name, status, merged, ago(days + 1), ago(days)).lastInsertRowid);
-    event.run(ago(days + 1), ids[name]);
-    event.run(ago(days), ids[name]);
-  }
-  event.run(ago(90), null);
+  unguarded(board.db, () => {
+    for (const [name, status, merged, days] of [['oldVerified', 'verified', null, 45], ['recentVerified', 'verified', null, 5], ['open', 'open', null, 60], ['oldLanded', 'withdrawn', 'abc123', 40]]) {
+      ids[name] = Number(item.run(name, status, merged, ago(days + 1), ago(days)).lastInsertRowid);
+      event.run(ago(days + 1), ids[name]);
+      event.run(ago(days), ids[name]);
+    }
+    event.run(ago(90), null);
+  });
   return { board, ids };
 }
 
