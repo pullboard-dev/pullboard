@@ -67,7 +67,7 @@ export function createAuthHandler({ auth, publicOrigin }) {
   const secure = origin.protocol === 'https:' ? '; Secure' : '';
   const routes = new Set(['GET /auth/github/start', 'GET /auth/github/callback', 'POST /auth/device/start', 'POST /auth/device/poll', 'POST /auth/device/cancel',
     'GET /auth/device/confirm', 'POST /auth/device/confirmation/open', 'POST /auth/device/confirmation/status', 'POST /auth/device/confirmation',
-    'GET /auth/session', 'GET /auth/boards', 'POST /auth/boards/link', 'POST /auth/machines', 'GET /auth/machines', 'POST /auth/coordinators', 'GET /auth/tokens', 'POST /auth/tokens', 'POST /auth/tokens/revoke']);
+    'GET /auth/session', 'GET /auth/boards', 'POST /auth/boards/link', 'POST /auth/machines', 'GET /auth/machines', 'POST /auth/credentials/renew', 'POST /auth/coordinators', 'GET /auth/tokens', 'POST /auth/tokens', 'POST /auth/tokens/revoke']);
 
   /** Resolve a bearer or cookie credential; cookie writes require an exact trusted Origin. */
   function token(req, write = false) {
@@ -145,6 +145,9 @@ export function createAuthHandler({ auth, publicOrigin }) {
       } else if (route === 'POST /auth/machines') {
         const bearer = token(req, true);
         json(res, 201, await auth.issueMachine(bearer, await body(req)));
+      } else if (route === 'POST /auth/credentials/renew') {
+        const bearer = token(req, true);
+        json(res, 200, await auth.renewCredential(bearer, await body(req)));
       } else if (route === 'POST /auth/coordinators') {
         const bearer = token(req, true);
         json(res, 201, await auth.issueCoordinator(bearer, await body(req)));
