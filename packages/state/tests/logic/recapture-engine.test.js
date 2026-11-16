@@ -39,7 +39,7 @@ test('clause 1: the recapture-submit-handoff leaf declares RECAPTURE_SUBMIT_HAND
 
 test('clause 2: the landing merge numbers the placeholder leaf above SUBMIT_HANDOFF_ENGINE and writes it into the engine table, as the committed table shows [C7,H16]', t => {
   const committed = readFileSync(join(ROOT, TABLE), 'utf8');
-  const submitHandoff = Number(/SUBMIT_HANDOFF_ENGINE: (\d+),/u.exec(committed)[1]);
+  const submitHandoff = Number(/^\s*SUBMIT_HANDOFF_ENGINE: (\d+),/mu.exec(committed)[1]);
   assert.match(committed, /RECAPTURE_SUBMIT_HANDOFF_ENGINE: 263,/u, 'the committed engine table registers the leaf');
   assert.ok(263 > submitHandoff, `263 is above SUBMIT_HANDOFF_ENGINE ${submitHandoff}`);
   // The leaf as it read before landing, numbered again by the real landing code in a private copy.
