@@ -60,9 +60,10 @@ export function backOffLease(db, job, owner, { attempt, reason = 'unspecified', 
   return atomically(db, () => {
     const held = db.prepare('SELECT job_step FROM job WHERE job_id = ? AND job_lease_owner = ?').get(job, owner);
     if (!held) return { released: false, until };
+    // The note goes first so the `released` step stays the job's last row, as its readers expect.
+    noteLease(db, job, 'lease.release', { owner, reason: String(reason).slice(0, 300), until }, now);
     writeStep(db, job, 'released', { runner: owner, attempt, reason: String(reason).slice(0, 300), until }, { seq: attempt, now });
     db.prepare('UPDATE job SET job_step = ?, job_lease_owner = NULL, job_lease_until = ?, job_updated = ? WHERE job_id = ?').run(held.job_step, until, now, job);
-    noteLease(db, job, 'lease.release', { owner, reason: String(reason).slice(0, 300), until }, now);
     return { released: true, until };
   });
 }
