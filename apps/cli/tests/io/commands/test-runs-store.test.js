@@ -14,7 +14,7 @@ import { runsFilePath } from '../../../../../packages/store/index.js';
 import { withFixtureBoard } from '../../fixtures/board.js';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { fileFixtureItem } from '../../fixtures/testkit.js';
-import { fixtureProjectPolicy } from '../../../../../packages/gate/tests/fixtures/testkit.js';
+import { fixtureProjectPolicy } from '../../fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
