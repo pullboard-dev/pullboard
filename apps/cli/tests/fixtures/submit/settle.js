@@ -11,11 +11,22 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { watch } from 'node:fs';
 import { reviveFixtureLocalRunner } from '../runner/local-start.js';
+import { runCliInProcess } from '../process.js';
 
 /** The tail of the machine's local runner log, so a gate that never settles shows what the runner saw. */
 function runnerLog(machineHome) {
   const log = join(machineHome ?? '', 'local-runner', 'runner.log');
   return machineHome && existsSync(log) ? readFileSync(log, 'utf8').slice(-3000) : '(no local runner log)';
+}
+
+/**
+ * Read one item with `show --json` in this process, whatever run the caller passed.
+ * Why: the wait reads show on every runner log line and 5 s heartbeat, so a real process per read cost a Node start-up each time,
+ * and a caller's runIn appended each read to the parity record, so the record's call count followed timing (U149) [C7].
+ */
+async function readShown(box, item) {
+  const shown = await runCliInProcess(['show', String(item), '--json', '--no-next'], { cwd: box.repo, env: box.env });
+  return { code: shown.status, out: shown.stdout, err: shown.stderr };
 }
 
 /** The thread lines a gate receipt wrote, so a verify that never settles shows why the board kept the item claimed. */
@@ -64,7 +75,7 @@ export function settledGateJob(box, item, { deadlineMs = 180_000, until = () => 
       reading = true;
       let job = null, doc = null, applied = false;
       try {
-        const shown = await box.run(box.repo, 'show', String(item), '--json', '--no-next');
+        const shown = await readShown(box, item);
         last = shown.out || shown.err || '';
         doc = shown.code === 0 ? JSON.parse(shown.out) : null;
         job = doc?.gateJob ?? null;
