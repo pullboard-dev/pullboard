@@ -259,6 +259,9 @@ export function loadMachineSettings() {
   for (const [table, live] of Object.entries(value.moves?.live ?? {})) {
     if (typeof live !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `moves.live.${table} in ${file} must be true or false`);
   }
+  if (value.gate?.overlapStaticProof !== undefined && typeof value.gate.overlapStaticProof !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.overlapStaticProof in ${file} must be true or false`);
+  }
   if (value.gate?.tableReplay !== undefined && typeof value.gate.tableReplay !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.tableReplay in ${file} must be true or false`);
   }
@@ -315,6 +318,9 @@ export function loadMachineSettings() {
   }
   if (value.verify?.hunkFreshness !== undefined && typeof value.verify.hunkFreshness !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `verify.hunkFreshness in ${file} must be true or false`);
+  }
+  if (value.review?.starveShout !== undefined && typeof value.review.starveShout !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `review.starveShout in ${file} must be true or false`);
   }
   if (value.review?.releaseReasons !== undefined && typeof value.review.releaseReasons !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `review.releaseReasons in ${file} must be true or false`);

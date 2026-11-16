@@ -75,6 +75,11 @@ export function tableReplayEnabled() {
   return loadMachineSettings().gate?.tableReplay === true;
 }
 
+/** Start the submit proof while the cells step runs only when this machine opted in [C7,#9576]. */
+export function overlapStaticProofEnabled() {
+  return loadMachineSettings().gate?.overlapStaticProof === true;
+}
+
 /** Write gate hops through the fenced, compare-and-set hop row unless this machine turned it off [C7,#8269,#8327]. */
 export function fencedHopEnabled() {
   return loadMachineSettings().gate?.fencedHop !== false;
@@ -369,6 +374,11 @@ export function refuseEmptyBar() {
 /** Whether a landed reject's follow-up keeps its parent's check (#9637): off by default; only an exact `true` turns it on. */
 export function rejectKeepsCheck() {
   return loadMachineSettings().verify?.rejectKeepsCheck === true;
+}
+
+/** Whether a starved green review shouts the coordinator (#9682): off by default; only an exact `true` turns it on. */
+export function reviewStarveShout() {
+  return loadMachineSettings().review?.starveShout === true;
 }
 
 /** Whether a review release must name why it was dropped (#8920): off by default; only an exact `true` turns it on. */
