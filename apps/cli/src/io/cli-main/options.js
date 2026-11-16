@@ -50,6 +50,7 @@ const OPTIONS = {
   note: { type: 'string' },
   infra: { type: 'string' },
   precheck: { type: 'boolean' },
+  'dry-run-review': { type: 'boolean' },
   preflight: { type: 'boolean' },
   companion: { type: 'string' },
   'note-file': { type: 'string' },
