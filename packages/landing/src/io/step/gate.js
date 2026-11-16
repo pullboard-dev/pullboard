@@ -53,6 +53,7 @@ import { knownMainLine } from '../known/main.js';
 import { fileKnownMainReds } from '../known/main.js';
 import { liveWaiverProjection } from './failures.js';
 import { mergeGroup } from './merge.js';
+import { sayGateSplit } from '../timing.js';
 import { timedPhase } from '../timing.js';
 import { landingOperations } from './merge.js';
 
@@ -358,6 +359,8 @@ async function runGateGroup(state, label, options) {
     // never be compared with main and one red test blocked every landing [C7,#3167].
     : runGate(state.batch.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: false, landing: true, collectAll: true, agent: 'coordinator', onWait: state.onWait,
       stages: true, waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext, shard: landingGateShard(state, files) }));
+  // The gate job's marks split the gate phase: submitted is queued, need or ready is the runner's claim, done is the result [C7,B3].
+  sayGateSplit(state.say, { queuedAt: gate.phases?.submitted, claimedAt: gate.phases?.need ?? gate.phases?.ready, resultAt: gate.phases?.done });
   state.say(`gate ${label}: run finished ${gate.isGreen ? 'green' : 'red'}`);
   state.say(`gate ${label}: ${runLedger(gate.log)}`);
   if (testTiers) requireTestTierAccount(gate, files);
