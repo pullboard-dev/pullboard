@@ -288,6 +288,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const submitVerify = (submitHandoffPolicy(ctx) ?? mainPolicy(root)).config.verify;
   const inspectClauses = submitVerify.inspectClauses === true;
   const failBefore = submitVerify.failBefore === true;
+  const folderTicks = submitVerify.folderTicks === true, gateFilesOf = item => gateTestFiles(root, item, { folderTicks }); // verify.folderTicks (#8847) [C7]
   const recovered = relayRecovered(root, {}, ctx.io);
   if (recovered?.operation === 'submit' && recovered.args[0] === id) {
     const preflight = withBoard(ctx, (board) => {
@@ -316,7 +317,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   }
   const preflightStart = performance.now();
   // The fail-before check reads a base run of each [test] clause's file; produce it first, only when that check is on [C7,#8090].
-  if (inspectClauses && failBefore) await authorizationStep('clause-base-runs', () => recordBaseRunsForSubmit(ctx, id, { withBoard, ordered, resourceAgent, store, gateTestFiles, recordMainComparison }));
+  if (inspectClauses && failBefore) await authorizationStep('clause-base-runs', () => recordBaseRunsForSubmit(ctx, id, { withBoard, ordered, resourceAgent, store, gateTestFiles: (_root, item) => gateFilesOf(item), recordMainComparison }));
   const held = await authorizationStep('claim-check', () => withBoard(ctx, async (board) => {
     const me = whoAmI(ctx, board);
     const item = store.getItem(board, id);
@@ -332,10 +333,10 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     }
     const readiness = barReadyProblem(board, item);
     if (readiness) throw readiness;
-    const clauseProblem = inspectClauses ? authorizationStep('clause-inspection', () => clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateTestFiles(root, item), head: headCommit(root) })) : null;
+    const clauseProblem = inspectClauses ? authorizationStep('clause-inspection', () => clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateFilesOf(item), head: headCommit(root), folderTicks })) : null;
     if (clauseProblem) throw clauseProblem;
     // A [test] clause also needs a recorded run that failed on an assertion at the item's base (fail-before, pass-after) [C7].
-    const receiptProblem = inspectClauses && failBefore ? clauseReceiptProblem(item, { gateFiles: gateTestFiles(root, item), baseRows: store.recordedBaseRows(board, item.item_claim_head), baseCommit: item.item_claim_head }) : null;
+    const receiptProblem = inspectClauses && failBefore ? clauseReceiptProblem(item, { gateFiles: gateFilesOf(item), baseRows: store.recordedBaseRows(board, item.item_claim_head), baseCommit: item.item_claim_head }) : null;
     if (receiptProblem) throw new Refused('CLAUSE_UNTICKED', receiptProblem.message, receiptProblem.next);
     // A clause whose only evidence cites an earlier head is named before the gate queues, so the builder refreshes it (#3752).
     if (inspectClauses) for (const line of staleHeadLines(item, store.itemThread(board, id), headCommit(root))) ctx.io.say(line);
@@ -460,7 +461,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const preflightLines = authorizationStep('changed-lines', () => changedLines(root, acceptedMain.commit, commit));
   const preflightSize = preflightLines === null ? undefined : { base: acceptedMain.commit, head: commit, lines: preflightLines, method: SUBMISSION_SIZE_METHOD };
   authorizationStep('preflight-record', () => withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize, inspectClauses,
-    ...(inspectClauses ? { gateFiles: gateTestFiles(root, store.getItem(board, id)) } : {}) }, { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit }, { refuse: (observed, item) => machineVerificationEligible(observed, item, filesSince(root, id, claimHead, commit)) ? null : refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) })));
+    ...(inspectClauses ? { gateFiles: gateFilesOf(store.getItem(board, id)) } : {}) }, { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit }, { refuse: (observed, item) => machineVerificationEligible(observed, item, filesSince(root, id, claimHead, commit)) ? null : refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) })));
   if (ctx.precheck) {
     // The cheap stage ends here: stacked-on-unverified is checked too, and nothing below (cells, static, gate, queue) starts [V4,C7].
     withBoard(ctx, board => refuseUnsubmittableStack(root, board, held, commit, trunk));

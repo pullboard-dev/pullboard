@@ -79,17 +79,21 @@ function statement(db, sql) {
   return prepared;
 }
 
-/** Keys a replay keeps decoded in memory: the report policy grows with the whole board, so decoding and encoding it per event was most of a replay (#8562). */
-const HOT_KEYS = new Set(['report-policy']);
-/** Cursors every event reads and writes: they stay held for the whole replay, while other shards are stored and released in batches. Each read decodes a fresh copy. */
-const HOT_TEXT_KEYS = new Set(['summary', 'report-summary', 'capacity-summary']);
+/** Keys a replay keeps decoded in memory: the report policy grows with the whole board, and the cursors are read and written by every event, so decoding and encoding them per event was most of a replay (#8562, #8818). */
+const HOT_KEYS = new Set(['report-policy', 'summary', 'report-summary', 'capacity-summary']);
+/** Key prefixes held decoded and kept for the whole replay: one actor and one family shard per seat and model, a bounded few that every event reads and writes. */
+const HOT_PREFIXES = ['actor:', 'family:'];
+/** Key prefixes held decoded until the next batch store: an item's shards are read and written by each of its few events, and each reader reads one, folds the event into it and writes it back. */
+const ITEM_PREFIXES = ['item:', 'capacity-item:', 'report-item:'];
 /** How many held shards a replay stores at once, so memory stays bounded however long the history. */
 const HOT_FLUSH = 20_000;
 /** How many rows one store statement carries; SQLite's limit is 32,766 values per statement. */
 const STORE_ROWS = 100;
 
-/** Whether a replay keeps this key's stored text in memory: every shard but the policy, which is kept decoded. */
-function hotText(key) { return !HOT_KEYS.has(key); }
+/** Whether a replay keeps this key decoded for the whole replay. */
+function retained(key) { return HOT_KEYS.has(key) || HOT_PREFIXES.some(prefix => key.startsWith(prefix)); }
+/** Whether a replay keeps this key decoded and hands every reader the one object: each reader folds an event into it and writes it back. */
+function hotDecoded(key) { return retained(key) || ITEM_PREFIXES.some(prefix => key.startsWith(prefix)); }
 /** Per connection, only while a replay runs: each hot key's decoded value (or, for a text key, its stored text) and whether it was stored since. */
 const HOT = new WeakMap();
 
@@ -126,7 +130,12 @@ function dropHeld(board, prefix) {
 /** Read a single small derived record; none of these keys is exported native state. */
 export function proofCounter(board, key) {
   const held = HOT.get(board.db);
-  if (held && hotText(key)) {
+  if (held && hotDecoded(key)) {
+    let entry = held.get(key);
+    if (!entry) { entry = { value: readCounter(board, key), dirty: false }; held.set(key, entry); }
+    return entry.value;
+  }
+  if (held) {
     let entry = held.get(key);
     if (!entry) {
       const row = statement(board.db, 'SELECT meta_value FROM board_meta WHERE meta_key=?').get(stored(key));
@@ -134,11 +143,6 @@ export function proofCounter(board, key) {
       entry = { text: row.meta_value, dirty: false }; held.set(key, entry);
     }
     return decode(entry.text);
-  }
-  if (held && HOT_KEYS.has(key)) {
-    let entry = held.get(key);
-    if (!entry) { entry = { value: readCounter(board, key), dirty: false }; held.set(key, entry); }
-    return entry.value;
   }
   return readCounter(board, key);
 }
@@ -152,13 +156,13 @@ function readCounter(board, key) {
 /** Replace one affected shard without rewriting the board's accumulated history. */
 function put(board, key, value) {
   const held = HOT.get(board.db);
-  if (held && HOT_KEYS.has(key)) { held.set(key, { value, dirty: true }); return; }
-  if (held && hotText(key)) {
+  if (held && hotDecoded(key)) { held.set(key, { value, dirty: true }); return; }
+  if (held) {
     held.set(key, { text: encode(value), dirty: true });
     if (held.size > HOT_FLUSH) {
-      // Store and release the shards read by key only; the policy and the cursors stay held.
+      // Store and release the shards read by key only; the policy, the cursors and the actors stay held.
       storeHeld(board, held);
-      for (const [name, entry] of held) if (!HOT_KEYS.has(name) && !HOT_TEXT_KEYS.has(name)) held.delete(name); else entry.dirty = false;
+      for (const [name, entry] of held) if (!retained(name)) held.delete(name); else entry.dirty = false;
     }
     return;
   }
@@ -173,9 +177,14 @@ function storeRows(board, pairs) {
   const rows = pairs.length / 2;
   for (let at = 0; at < rows; at += STORE_ROWS) {
     const count = Math.min(STORE_ROWS, rows - at);
-    statement(board.db, `INSERT INTO board_meta(meta_key,meta_value) VALUES ${Array(count).fill('(?,?)').join(',')} ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value`)
-      .run(...pairs.slice(at * 2, (at + count) * 2));
+    statement(board.db, storeSql(count)).run(...(rows <= STORE_ROWS ? pairs : pairs.slice(at * 2, (at + count) * 2)));
   }
+}
+
+/** The store statement's text for this many rows, built once: assembling a 100-row statement per call cost as much as running it. */
+const STORE_SQL = [];
+function storeSql(count) {
+  return STORE_SQL[count] ??= `INSERT INTO board_meta(meta_key,meta_value) VALUES ${Array(count).fill('(?,?)').join(',')} ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value`;
 }
 
 /** The kinds whose shards are written once, one per event, and never rewritten: what a reader may keep. */
