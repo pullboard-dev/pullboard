@@ -30,6 +30,7 @@ export {
   boardQueueMode,
   claimJob,
   endJobs,
+  heldShards,
   jobArtifacts,
   jobQueueCall,
   jobRequest,
@@ -37,6 +38,7 @@ export {
   keepJobsAlive,
   offerJob,
   offerLandShards,
+  offeredRequest,
   openJob,
   postArtifact,
   postReceipt,
@@ -87,6 +89,8 @@ export {
   provideMainComparison,
   provideRefusalTrials,
   pulledGateReds,
+  shardJobs,
+  shardedResult,
 } from "./src/io/gate.js";
 export { provideMainRedNotes } from "./src/io/gate/files.js";
 export {
