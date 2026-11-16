@@ -1,5 +1,6 @@
 /** Shared literal schema/version inputs; both openers validate the same declaration [C7]. */
 import { schemaDigest } from "../migrate.js";
+import { EVENT_ARCHIVE_SCHEMA_SQL } from "./archive.js";
 
 /** Version of the persisted append-only event record format; bump for incompatible format changes. */
 export const EVENT_LOG_VERSION = 1;
@@ -98,16 +99,7 @@ export const SCHEMA = `
     event_detail TEXT NOT NULL DEFAULT '{}'
   );
   CREATE INDEX IF NOT EXISTS event_item_id_event_id ON event (item_id, event_id);
-  CREATE TABLE IF NOT EXISTS event_archive (
-    event_id INTEGER PRIMARY KEY,
-    event_at TEXT NOT NULL,
-    event_by TEXT NOT NULL,
-    event_kind TEXT NOT NULL,
-    item_id INTEGER,
-    event_detail TEXT NOT NULL DEFAULT '{}',
-    event_archived_at TEXT NOT NULL
-  );
-  CREATE INDEX IF NOT EXISTS event_archive_item_id_event_id ON event_archive (item_id, event_id);
+  ${EVENT_ARCHIVE_SCHEMA_SQL}
   CREATE TABLE IF NOT EXISTS hold (
     hold_lane TEXT PRIMARY KEY,
     hold_reason TEXT NOT NULL,
