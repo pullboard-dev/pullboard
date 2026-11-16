@@ -597,7 +597,13 @@ function submitOvertaken(board, id, options) {
  * @param {{ compareWithMain?: Parameters<typeof compareGateWithMain>[3] }} [ports] - the main-receipt lookup; absent, a red is not compared.
  * @returns {{ applied: boolean, outcome: 'review' | 'red' | 'stale' | 'not-gate', reason?: string, cases?: object[] }}
  */
-export function applyGateReceipt(board, { job, receipt }, { compareWithMain = null } = {}) {
+export function applyGateReceipt(board, posted, ports = {}) {
+  // Every policy read in the application, not only the submit, meets a detached primary: the receipt often applies while the coordinator verifies [C7,#8011].
+  return withRetainedTrunkPolicy(board, () => applyGateReceiptReads(board, posted, ports));
+}
+
+/** applyGateReceipt's body; its mainPolicy reads fall back to the retained trunk tip while the primary is detached. */
+function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null } = {}) {
   const offered = offeredGate(board.db, job);
   if (!offered || offered.kind !== 'gate' || !Number.isSafeInteger(offered.item)) return { applied: false, outcome: 'not-gate' };
   const { item: id, candidate, main, submit } = offered;
