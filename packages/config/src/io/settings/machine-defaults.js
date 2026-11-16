@@ -76,6 +76,7 @@ export const MACHINE_DEFAULTS = {
   'moves.live.submit': false,
   'moves.shadow': false,
   'next.itemNotices': false,
+  'next.readinessCache': false,
   'next.readinessCheck': false,
   'push.rerunFailedShardOnce': false,
   'relay.offerAtInit': true,

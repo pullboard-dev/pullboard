@@ -89,6 +89,7 @@ export {
   holdsRequireOwner,
   nextItemNotices,
   nextReadinessCheck,
+  nextReadinessCache,
   refuseTempWorktree,
   refuseOffMainHead,
   viewBackgroundEnabled,

@@ -1560,6 +1560,10 @@
     "workers-usage.json": {
       "kind": "json",
       "owner": "apps/cli/src/io/scale.js"
+    },
+    "readiness-cache.json": {
+      "kind": "json",
+      "owner": "packages/moves/src/io/selection.js"
     }
   },
   "exceptions": [],

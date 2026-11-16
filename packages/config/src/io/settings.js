@@ -370,6 +370,14 @@ export function nextReadinessCheck() {
 }
 
 /**
+ * Whether next keeps each readiness result for the main commit it ran on (#8794): off by default, so next reruns the
+ * command on every call; only an exact `true` turns it on.
+ */
+export function nextReadinessCache() {
+  return loadMachineSettings().next?.readinessCache === true;
+}
+
+/**
  * Where a queued submit's authorization source checks run when a runner is registered: `runner` (default) puts them in
  * the gate's one runner analysis job beside doctrine, cells, static and selection; `local` keeps them on this machine as
  * before #5674. Anything but an exact `local` is the default, so a damaged value never moves work back here [C7].
