@@ -39,7 +39,7 @@ const times = { 'a/one.test.js': 12000, 'a/two.test.js': 3000 };
 test('clause 1: shardRows gives setupSecs as the file wall seconds minus the sum of its top-level test duration_ms read from TAP [C7,#9028]', () => {
   assert.deepEqual(tapCaseMs(TAP, outcomes), { 'a/one.test.js': 2000, 'a/two.test.js': 250 });
   const rows = shardRows({ files: FILES, status: 'green', host: 'h', label: '1/1', output: TAP, outcomes, times }, 'sha');
-  assert.deepEqual(rows.map(row => row.setupSecs), [10, 2.7]);
+  assert.deepEqual(rows.map(row => row.setupSecs), [10, 2.8]);
   assert.deepEqual(rows.map(row => row.secs), [12, 3]);
 });
 
