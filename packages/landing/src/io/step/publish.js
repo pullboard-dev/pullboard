@@ -224,9 +224,14 @@ export function requirePublishTurn(state, batch, { batches = () => store.landing
   if (earlier.length) throw new Refused('LAND_MOVED', `batch ${earlier[0].id} started before ${batch.id} and is still in flight; the earlier batch publishes first, then adopt this one`);
 }
 
-/** Push the exact gated tip before recording receipts, then fast-forward only a clean unchanged main. */
-export async function publish(state) {
-  requirePublishTurn(state, state.batch);
+/**
+ * Push the exact gated tip before recording receipts, then fast-forward only a clean unchanged main.
+ *
+ * @param {object} state
+ * @param {{ batches?: () => object[], finish?: Function }} [options] The recorded batches the publish turn reads, and the finish sequence; the board's and finishLanding by default.
+ */
+export async function publish(state, { batches, finish = finishLanding } = {}) {
+  requirePublishTurn(state, state.batch, batches ? { batches } : undefined);
   await finalizeLandingEnvelope(state, save, () => landingRunObserver(state, state.config, headCommit(state.batch.root)));
   let batch = state.batch;
   if (!scanRidesRunner(state)) await requireLandingModuleResolution(batch.root, batch.base, batch.tip);
@@ -254,7 +259,7 @@ export async function publish(state) {
     : await state.write('finishLandingBatch', [{ agentId: 'coordinator', id: state.batch.id, tip: state.batch.tip }]);
   await state.checkLease();
   const main = mainCheckout(state.root);
-  await finishLanding(state, { earlier: AUTOMATIC_EARLIER, steps: { moveMain: () => { if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]); }, refreshMainReds: () => refreshPublishedMainReds(state, batch.base) } });
+  await finish(state, { earlier: AUTOMATIC_EARLIER, steps: { moveMain: () => { if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]); }, refreshMainReds: () => refreshPublishedMainReds(state, batch.base) } });
   state.say(`landed ${state.batch.items.map((entry) => `#${entry.id}`).join(', ')} at ${state.batch.tip}`);
   return state.batch;
 }
