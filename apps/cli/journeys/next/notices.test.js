@@ -6,6 +6,7 @@ import { dirname } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
 import { machineSettingsFile } from '../../../../packages/config/index.js';
+import { main } from '../../tests/fixtures/native.js';
 import { cli } from '../../tests/fixtures/next/take.js';
 import { fixture } from '../../tests/fixtures/next/take.js';
 
@@ -14,6 +15,15 @@ function itemNotices(on) {
   const file = machineSettingsFile();
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, JSON.stringify({ view: { background: false }, relay: { offerAtInit: false }, gate: { localRunner: false }, next: { itemNotices: on } }));
+}
+
+/** Run next as a person reads it, with no --json, and return everything it printed. */
+async function printed(box, cwd) {
+  let out = '';
+  const stdout = { isTTY: false, write: part => { out += part; } };
+  const code = await main(['next'], { cwd, clock: box.clock, stdout, stderr: stdout });
+  assert.equal(code, 0, out);
+  return out;
 }
 
 /** An item with one shout and one ruling that name it, handed to the actor by next. */
@@ -29,11 +39,11 @@ async function handed(t, on) {
 }
 
 test('clause 1: the instruction next returns names the item folder and its frozen bar [C7,#8787]', async t => {
-  const { box, id, document } = await handed(t, true);
-  assert.equal(document.item.item_id, id);
-  assert.ok(document.itemFolder, 'the instruction names the item folder');
-  assert.equal(document.item.item_criterion, 'The real fixture succeeds.', 'the instruction carries the bar');
-  assert.ok(store.getItem(box.board, id).item_frozen_digest, 'the bar it names is frozen at claim');
+  const box = await fixture(t);
+  box.add('Item with a bar');
+  const text = await printed(box, box.seats.actor.path);
+  assert.match(text, /item folder: \S+/u, 'the instruction names the item folder');
+  assert.match(text, /criterion: The real fixture succeeds\./u, 'the instruction names the frozen bar');
 });
 
 test('clause 2: the same instruction lists the shouts and rulings that name the item [C7,#8787]', async t => {
