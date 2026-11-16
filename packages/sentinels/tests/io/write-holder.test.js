@@ -35,7 +35,7 @@ function slowWrite(t, settings) {
   const commonDir = join(root, 'repo.git');
   mkdirSync(join(commonDir, 'pullboard'), { recursive: true });
   const markers = `${boardFile}.write-holders`;
-  mkdirSync(markers);
+  mkdirSync(markers, { recursive: true });
   const live = [5_000, 3_000].map((age, index) => {
     const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 600000)'], { stdio: 'ignore' });
     children.push(child.pid);
