@@ -66,6 +66,7 @@ const BEFORE = {
   'health.sentinel': true,
   'holds.requireOwner': false,
   'inspection.clauses': false,
+  'items.typedFields': false,
   'jobs.avoidRunners': false,
   'jobs.handBackUnrunnable': false,
   'landing.pools': [],
