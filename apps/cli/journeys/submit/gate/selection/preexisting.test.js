@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell apps/cli apps/lib */
 /**
  * An item claimed before the gate existed still submits once the accepted main configures one [C7,B26].
  */
