@@ -212,6 +212,7 @@ const ROWS = [
   ['review.independence', 'Reviewer independence', 'Off lets any seat but the builder verify, even a subagent of the builder\'s session, while session lets only a different agent session verify.', 'Review', 'choice'],
   ['review.relaxRequiredFamily', 'Review family can widen', 'When enabled, an item filed with --review-family may widen its required reviewer family when no reviewer of it is available; off (default), a --review-family item never widens.', 'Review', 'on/off'],
   ['review.starveMinutes', 'Review waiting alarm', 'A submission that has waited this long without a reviewer is marked urgent.', 'Review', 'minutes'],
+  ['review.starveShout', 'A starved review shouts the coordinator', 'When enabled, a green submission with no eligible reviewer past the review waiting alarm sends the coordinator one blocker shout naming the guards that refuse every seat; off (default), no shout is sent.', 'Order', 'on/off'],
   ['verify.composeAtAdmission', 'Compose with main at review', 'A review is judged on the item combined with the current main when it starts.', 'Review', 'on/off'],
   ['verify.failBefore', 'Require a fail-before receipt', 'Submit refuses a [test] clause unless a recorded run at the item base failed on an assertion.', 'Review', 'on/off'],
   ['verify.family', 'Reviewer model family', 'Whether a reviewer must (require) or should (prefer) come from a different model family than the builder; off ignores it.', 'Review', 'choice'],
