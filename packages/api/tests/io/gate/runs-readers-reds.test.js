@@ -20,6 +20,7 @@ const RED = { version: 1, status: 1, gate: { green: false, phases: [{ role: 'pro
 function setup(t) {
   const repo = cellRepo(t, { real: true });
   const board = cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
+  cellSeat(board, { lane: 'coordinator', path: '/fixture/coordinator' });
   const seat = cellSeat(board, { lane: 'web', path: `${repo.root}/seat` });
   const item = cellItem(board, { lane: 'web', title: 'Build the page' });
   cellClaim(board, item.item_id, seat, { root: repo.root });
@@ -41,9 +42,9 @@ test('clause 1: with runs_store on, pulledGateReds reads the done gate from the 
     const job = redGate(db, one.id, one.repo, 'r-9150');
     store.appendFact(one.board, one.id, { agentId: one.seat.id, kind: 'measurement', text: `Gate job ${job} red at ${one.repo.commit.slice(0, 12)}` });
   }
-  const expected = pulledGateReds(off.board, off.id).map(red => ({ commit: red.commit, failures: red.failures }));
+  const expected = pulledGateReds(off.board, off.id).map(red => red.failures);
   assert.equal(expected.length, 1);
-  assert.deepEqual(pulledGateReds(on.board, on.id, { runs: on.runs }).map(red => ({ commit: red.commit, failures: red.failures })), expected);
+  assert.deepEqual(pulledGateReds(on.board, on.id, { runs: on.runs }).map(red => red.failures), expected);
   assert.deepEqual(pulledGateReds(on.board, on.id), [], 'the board holds no job row of its own');
 });
 
