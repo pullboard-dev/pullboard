@@ -100,6 +100,7 @@ export {
   refuseTempWorktree,
   claimKeepWhileRunning,
   refuseOffMainHead,
+  statusShowUsefulBuilders,
   refuseEmptyBar,
   viewBackgroundEnabled,
   healthSentinelEnabled,

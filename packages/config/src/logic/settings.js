@@ -149,7 +149,7 @@ export function loadMachineSettings() {
   }
   if (value.landing !== undefined && (!value.landing || typeof value.landing !== 'object' || Array.isArray(value.landing)
     // The landing switches sit beside pools, so a machine may set one without a pool [C7,#9102].
-    || Object.keys(value.landing).some(key => !['pools', 'adaptiveBatch', 'reofferTrunkBusy', 'squash', 'strictFullSuite', 'reuseGateReceipts', 'reuseContractResults'].includes(key)) || (value.landing.pools !== undefined && !Array.isArray(value.landing.pools))
+    || Object.keys(value.landing).some(key => !['pools', 'adaptiveBatch', 'reofferTrunkBusy', 'squash', 'strictFullSuite', 'reuseGateReceipts', 'reuseContractResults', 'asyncFetch'].includes(key)) || (value.landing.pools !== undefined && !Array.isArray(value.landing.pools))
     || (value.landing.pools ?? []).some(id => typeof id !== 'string' || !/^[a-f0-9]{32}$/u.test(id)))) {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.pools in ${file} lists the board identifiers this machine may land`);
   }
@@ -310,6 +310,9 @@ export function loadMachineSettings() {
   if (value.landing?.reofferTrunkBusy !== undefined && typeof value.landing.reofferTrunkBusy !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.reofferTrunkBusy in ${file} must be true or false`);
   }
+  if (value.landing?.asyncFetch !== undefined && typeof value.landing.asyncFetch !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `landing.asyncFetch in ${file} must be true or false`);
+  }
   if (value.landing?.reuseContractResults !== undefined && typeof value.landing.reuseContractResults !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.reuseContractResults in ${file} must be true or false`);
   }
@@ -324,6 +327,9 @@ export function loadMachineSettings() {
   }
   if (value.landing?.strictFullSuite !== undefined && typeof value.landing.strictFullSuite !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.strictFullSuite in ${file} must be true or false`);
+  }
+  if (value.status?.showUsefulBuilders !== undefined && typeof value.status.showUsefulBuilders !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `status.showUsefulBuilders in ${file} must be true or false`);
   }
   if (value.spec?.commitOnApply !== undefined && typeof value.spec.commitOnApply !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `spec.commitOnApply in ${file} must be true or false`);
