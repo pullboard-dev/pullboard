@@ -36,6 +36,7 @@ export const MACHINE_DEFAULTS = {
   'gate.namedImportSelection': false,
   'gate.overlapStaticProof': false,
   'gate.postLandSuite': false,
+  'gate.pulledProfilePaths': false,
   'gate.queue.agingMinutes': 30,
   'gate.queue.currentReleaseFirst': false,
   'gate.queue.reviewsFirst': false,
