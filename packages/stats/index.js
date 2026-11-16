@@ -1,4 +1,6 @@
+export { rejectReport, rejectLines, classifyReject, REJECT_CLASSES } from './src/logic/review/rejects.js';
 export { settleCapacity, HYSTERESIS_BAND, HYSTERESIS_HOLD_MS } from './src/logic/capacity/hysteresis.js';
+export { maxUsefulBuilders, USEFUL_WINDOW_MS, USEFUL_MIN_MARGINAL } from './src/logic/capacity/useful.js';
 export { carryingCapacity } from './src/logic/carrying.js';
 export { readCarryingCapacity } from './src/io/carrying.js';
 /** Canonical named entry points for the planned cell; implementations retain their current owner [C7]. */
@@ -74,6 +76,7 @@ export {
   eventCounts,
   proofStats,
 } from './src/io/main.js';
+export { capacityWeekRow, isoWeek } from './src/logic/capacity/week.js';
 export {
   CAPACITY_VERSION,
   emptyCapacityCounter,
@@ -202,3 +205,4 @@ export { runnerDemand, demandLines } from './src/logic/runners/demand.js';
 export { readDemandSpans, readDemandEvents } from './src/io/runners/demand.js';
 export { AGENT_FLOW_KINDS, COMMAND_SPAN_MS, agentFlow, agentFlowLines, seatWaits } from './src/logic/agents.js';
 export { readAgentFlowEvents, readSeatActions } from './src/io/agents.js';
+export { reviewRows, reviewRowLines } from './src/logic/review/rows.js';

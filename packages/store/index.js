@@ -4,6 +4,7 @@ export { validateKnownMainAutofile, fileKnownMainAutofile, filePulledMainReds } 
 export { boardNotWritable, requireBoardWriteAccess, boardBusyError } from './src/io/board/access.js';
 export { boardBusyError as board_busy_boardBusyError, boardWriteBusyError, beginImmediateQueued } from './src/io/board/busy.js';
 export { captureBoardChanges, beginCapture } from './src/io/board/capture.js';
+export { recordCapacityWeek, capacityWeeks } from './src/io/board/capacity-week.js';
 export { writeBoardMeta, readBoardMeta, deleteBoardMeta, deleteBoardMetaWithPrefix } from './src/io/board/meta.js';
 export { migrateEventLogVersion } from './src/io/board/event/log/migrate.js';
 export { atomic, logEvent, writeOrigin } from './src/io/board/event/log.js';
@@ -72,7 +73,7 @@ export { provideMoveTables, LANDING_LEASE_MS, renewLocalLanding, assertLandingLe
 export { LANDING_LOCAL_PREFIX, localLandingEntry, rememberLocalLanding, forgetLocalLanding } from './src/logic/board/landing/local.js';
 export { COORDINATION_SHOUT, itemShoutTarget, itemShoutReader, shoutMatchesAudience, UNREAD_SHOUT_SQL, unreadShoutBindings, checkEvidence } from './src/logic/board/audience.js';
 export { workerInboxSeats, workerInboxQuery } from './src/logic/board/worker.js';
-export { holdUntilKind, rememberHoldCondition, forgetHoldMaintenance, liftConditionalHold } from './src/logic/board/holds.js';
+export { holdUntilKind, rememberHoldCondition, rememberHoldOwner, itemHoldOwner, forgetHoldMaintenance, liftConditionalHold } from './src/logic/board/holds.js';
 export { HEALTH_SHOUT_CAP, hasPendingCpuNotices, hasPendingDispatchNotices, normalizedHealthFindings, healthFindingIdentity, healthFindingNotice, healthTargets, deliverHealthNotices } from './src/logic/board/receipts.js';
 export { MISSED_AFTER, cadenceMs, recurringJobs, missedJobFindings } from './src/logic/board/jobs.js';
 export { releaseClaim } from './src/logic/board/claim.js';
