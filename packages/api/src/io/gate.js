@@ -243,10 +243,10 @@ function shellWord(value) {
   return `'${String(value).replaceAll("'", "'\\''")}'`;
 }
 
-/** The shard jobs offered for one gate job, oldest first. */
-function shardJobs(db, job) {
+/** The shard jobs offered for one gate job, oldest first. runs: the board's runs holder (boardRunsHolder) while runs_store is on, so the rows are read from the runs file; null reads the board's [B2,P7,#9151]. */
+export function shardJobs(db, job, { runs = null } = {}) {
   const prefix = `${job}:shard:`;
-  return db.prepare('SELECT job_id, job_step FROM job WHERE job_kind = ? AND substr(job_id, 1, ?) = ? ORDER BY job_created, job_id').all(SHARD_JOB_KIND, prefix.length, prefix);
+  return (runs ? runs.db : db).prepare('SELECT job_id, job_step FROM job WHERE job_kind = ? AND substr(job_id, 1, ?) = ? ORDER BY job_created, job_id').all(SHARD_JOB_KIND, prefix.length, prefix);
 }
 
 /**
@@ -256,7 +256,7 @@ function shardJobs(db, job) {
  *
  * @returns {{ applied: true, outcome: 'sharded', shards: string[] } | null}
  */
-function offerProofShards(board, { job, receipt, offered }) {
+export function offerProofShards(board, { job, receipt, offered }) {
   const gate = receipt?.gate ?? {};
   const plan = gate.proofPlan;
   const files = Array.isArray(plan?.files) ? plan.files : [];
@@ -264,7 +264,9 @@ function offerProofShards(board, { job, receipt, offered }) {
   if (receipt?.status === undefined || gate.error || gate.analysis?.infra || gate.analysis?.refusals?.length || (gate.phases ?? []).some(phase => phase.status !== 0)
     || typeof plan?.runner !== 'string' || !plan.runner.trim() || /[\0\n\r]/u.test(plan.runner) || !cores || files.length <= cores
     || files.some(file => typeof file !== 'string' || !PROJECT_FILE.test(file))) return null;
-  const request = offeredStep(board.db, job);
+  // With runs_store on the gate job and its shards live in the runs file; the ledger stays on the board [B2,P7].
+  const queue = queueFor(board, 'coordinator');
+  const request = offeredStep(queue ? queue.runs.db : board.db, job);
   const gateRequest = request?.request;
   if (!Array.isArray(gateRequest?.run) || typeof gateRequest.input?.entry !== 'string') return null;
   const count = Math.min(MAX_SHARDS, Math.ceil(files.length / cores));
@@ -276,7 +278,7 @@ function offerProofShards(board, { job, receipt, offered }) {
     const ledger = store.ledgerHits(board.db, part, { budget: 16_000 });
     return offerJob(board.db, { id: `${job}:shard:${index + 1}`, kind: SHARD_JOB_KIND, priority: 'gate', needs: request.needs ?? [], item: offered.item, candidate: offered.candidate, base: offered.main,
       request: { run: gateRequest.run, gate: job, commits: gateRequest.commits ?? [],
-        input: { main: offered.main, entry: gateRequest.input.entry, data: { main: offered.main, source: offered.candidate, shard: { index: index + 1, of: count, files: part, command, ...(plan.account === true ? { account: true } : {}), ...(ledger ? { ledger } : {}) } } } } }).id;
+        input: { main: offered.main, entry: gateRequest.input.entry, data: { main: offered.main, source: offered.candidate, shard: { index: index + 1, of: count, files: part, command, ...(plan.account === true ? { account: true } : {}), ...(ledger ? { ledger } : {}) } } } } }, queue).id;
   });
   store.appendFact(board, offered.item, { agentId: offered.submit.agentId, kind: 'note',
     text: `Gate job ${job} passed its checks at ${offered.candidate.slice(0, 12)}; its proof of ${files.length} files is offered as ${count} shard jobs any runner pulls, and the gate result applies when the last one posts.` });
@@ -915,7 +917,7 @@ export function provideMainComparison(lookup) {
 export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, endStale = false, redLocation = false, settleOnMainReceipt = false, reofferTrunkBusy = false, ...options }) {
   // Queued main-test jobs are offered before each claim, so a free runner takes one in the same call (#6063).
   if (body?.action === 'claim' && options.mode === 'pull') offerMainTests(board, { now: options.now });
-  const answer = jobQueueCall(board.db, body, { onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain, ordered, endStale, redLocation, settleOnMainReceipt, reofferTrunkBusy, receiptNow: options.now }) });
+  const answer = jobQueueCall(board.db, body, { queue: body?.action === 'shards' ? queueFor(board, 'coordinator') : null, onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain, ordered, endStale, redLocation, settleOnMainReceipt, reofferTrunkBusy, receiptNow: options.now }) });
   return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
 }
 
@@ -1082,11 +1084,12 @@ export function settleWaitingGates(board, mainTest, { compareWithMain = null, se
   return settled;
 }
 
-/** A sharded gate's combined receipt once every shard job is done, as its last shard applied it; null while any is open. */
-function shardedResult(db, job, gateReceipt) {
-  const shards = shardJobs(db, job);
+/** A sharded gate's combined receipt once every shard job is done, as its last shard applied it; null while any is open. runs: as shardJobs [#9151]. */
+export function shardedResult(db, job, gateReceipt, { runs = null } = {}) {
+  const home = runs ? runs.db : db;
+  const shards = shardJobs(home, job);
   if (!shards.length || shards.some(row => row.job_step !== 'done')) return null;
-  return combinedReceipt(gateReceipt, shards.map(row => ({ job: row.job_id, posted: postedReceipt(db, row.job_id) })), { signatures: true });
+  return combinedReceipt(gateReceipt, shards.map(row => ({ job: row.job_id, posted: postedReceipt(home, row.job_id) })), { signatures: true });
 }
 
 /** Shout the coordinator once that one job was claimed 3 times within 60 s, naming the job and its runners (#7445). */
@@ -1141,7 +1144,8 @@ function retryFailedLanding(board, job, named, receipt, { code, what, next, back
  * @returns {{ applied: boolean, outcome: string, merged?: number[], returned: number[] }}
  */
 export function applyLandingReceipt(board, { job, receipt }, ports = {}) {
-  const offered = JSON.parse(board.db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job)?.job_step_payload ?? '{}');
+  // With runs_store on the job's offered row is in the runs file, which the queue holds [B2,P7,#9114].
+  const offered = JSON.parse((ports.queue ? ports.queue.runs.db : board.db).prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job)?.job_step_payload ?? '{}');
   const named = new Set((offered.payload?.items ?? []).map(entry => entry.id));
   const returned = receipt ? returnLandedReds(board, job, named, receipt, offered.payload?.publish === 'separate') : [];
   // A red's failing cases become observations after the items go back, once per receipt (the job's receipt applies once) [C7,H16].
