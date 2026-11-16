@@ -56,10 +56,12 @@ test('a value past one page splits into bounded leaves under an index and reads 
   const value = { text: 'x'.repeat(PAGE_BYTES * 2 + 50) };
   const reference = await writeSealedValue(value, box.write);
   const objects = [...box.objects.values()];
-  assert.equal(objects.length, 4, 'three leaves and the index over them');
+  const leaves = Math.ceil(JSON.stringify(value).length / PAGE_BYTES);
+  assert.ok(leaves > 1, 'the value needs more than one page');
+  assert.equal(objects.length, leaves + 1, 'one object per leaf plus the index over them');
   assert.ok(objects.every(object => object.bytes.byteLength <= PAGE_CIPHER_BYTES));
   const index = box.objects.get(reference.id);
-  assert.equal(index.children.length, 3);
+  assert.equal(index.children.length, leaves);
   assert.equal(reference.bytes, JSON.stringify(value).length, 'the root names the whole value\'s length');
   const chunks = [];
   for await (const chunk of readSealedBytes(reference, box.read)) chunks.push(chunk.byteLength);
