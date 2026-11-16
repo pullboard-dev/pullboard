@@ -87,6 +87,7 @@ export {
   lapsedSweepEnabled,
   derivedStateEnabled,
   adaptiveBatchEnabled,
+  reofferTrunkBusyEnabled,
   memoryFloorMB,
   relayOfferEnabled,
   setRelayCanary,
