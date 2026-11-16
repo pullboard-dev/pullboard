@@ -65,6 +65,11 @@ export function gateRunnersFirstEnabled() {
   return loadMachineSettings().gate?.runnersFirst === true;
 }
 
+/** Run test processes at a lower scheduling priority than board writers only when this machine opted in [C7,#8509]. */
+export function testNiceEnabled() {
+  return loadMachineSettings().gate?.testNice === true;
+}
+
 /** Replay a changed move table in the submit gate only when this machine opted in [C7,#8073]. */
 export function tableReplayEnabled() {
   return loadMachineSettings().gate?.tableReplay === true;
