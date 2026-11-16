@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { closeBoard } from '../../index.js';
+import { writeBoardMeta } from '../../index.js';
 import { FIXTURE_MODEL } from '../../../../apps/cli/tests/fixtures/child.js';
 // The board composition root through the board package's fixture, which tests already use (#8202).
 import { openKitBoard } from '../../../../apps/cli/tests/fixtures/board.js';
@@ -164,6 +165,20 @@ export function openCellBoard(file, clock, options) {
 }
 
 export { closeBoard as closeCellBoard };
+
+/**
+ * Seed weekly capacity rows on a board file, the way `pullboard capacity` records them: one `capacity.week.<week>` record each.
+ * Why: a test of what health says about a worsened week needs weeks whose measures it chooses, which a real run cannot give it.
+ *
+ * @param {string} file - The board file.
+ * @param {{ week: string, at: string }[]} rows - The weekly rows to record.
+ * @returns {void}
+ */
+export function seedCapacityWeeks(file, rows) {
+  const board = openKitBoard(file);
+  try { for (const row of rows) writeBoardMeta(board.db, `capacity.week.${row.week}`, JSON.stringify({ runs: 1, ...row })); }
+  finally { closeBoard(board); }
+}
 
 /** The e2e project's default gate, so a converted test keeps the gate it ran against. */
 const PROJECT_GATE = 'test ! -f RED';
