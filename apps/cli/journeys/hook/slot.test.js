@@ -43,7 +43,7 @@ function commitAs(box, cwd, session, path, message) {
   } finally { delete box.env.CODEX_SESSION_ID; delete box.env.GIT_TRACE2_PERF; }
 }
 
-test('clause 1; clause 2; clause 3: with every local slot held, a one-line commit passes its hooks without queueing and a lane violation is refused [C7]', { timeout: 60_000 }, async () => {
+test('clause 1; clause 2; clause 3: with every local slot held, a one-line commit passes its hooks without queueing and a lane violation is refused [C7]', { timeout: 60_000 }, async t => {
   const box = helpers.project();
   const session = 'hook-no-slot-2505';
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Hook speed', '--specs', 'G1').code, 0);
@@ -64,6 +64,7 @@ test('clause 1; clause 2; clause 3: with every local slot held, a one-line commi
     const direct = box.run(box.web, 'hook', 'pre-commit');
     const hook = stop();
     assert.equal(direct.code, 0, direct.err);
+    t.diagnostic(`commit ${chargedText(ok.time)} [${ok.hooks}]; pre-commit ${chargedText(hook)}`);
     // Both budgets charge runner load per core like the file budgets (#6525). On a loaded runner the charged time is still
     // over the frozen #2505 2 s and 1 s ceilings, so each holds an audited exception at its measured value, ratchet-only:
     // lower it as work is cut, never raise it. The 0.9.5 remainder of #6525 removes both.
