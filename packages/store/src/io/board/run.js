@@ -10,6 +10,8 @@
 import { atomic } from "./event/log.js";
 import { logEvent } from "./event/log.js";
 import { jobView } from "../../../../jobs/index.js";
+import { shadowSubmitHandoff } from "../../../../jobs/index.js";
+import { runsStoreOn } from "./sqlite.js";
 import { runSummary } from "../../logic/board/runs.js";
 import { RUN_APPLIED_EVENT } from "../../logic/board/runs.js";
 import { RUN_QUEUED_EVENT } from "../../logic/board/runs.js";
@@ -159,4 +161,25 @@ export function settleRunWithoutReceipt(board, { by, job, state, outcome }) {
     logEvent(board, by, RUN_APPLIED_EVENT, run.run_item, { job, attempt: run.run_attempt, outcome, summary: {}, state }, new Date(now));
     return { applied: true };
   });
+}
+
+/**
+ * Save a submit hand-off record: onto the gate job's run row while runs_store is on, else as a step of its job (the jobs
+ * cell's writer, unchanged). The row is created queued on first sight and only its record is replaced afterwards, in the
+ * caller's transaction, so the record commits or rolls back with the move that saved it.
+ * Why: with the flag on the board's run row is the one place a run's record lives, and the runs file keeps the runner traffic [B2,M3].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - The board's handle, inside the move.
+ * @param {number} item - The item the gate runs for.
+ * @param {Record<string, any>} handoff - The hand-off record just saved.
+ * @param {{ now?: number }} [options]
+ * @returns {{ job: string, step: string, seq: number }}
+ */
+export function saveSubmitHandoff(db, item, handoff, { now = Date.now() } = {}) {
+  if (!runsStoreOn(db)) return shadowSubmitHandoff(db, item, handoff, { now });
+  db.prepare(`INSERT INTO run (run_job, run_kind, run_item, run_candidate, run_base, run_state, run_record, run_created, run_updated)
+    VALUES (?, 'gate', ?, ?, ?, 'queued', ?, ?, ?)
+    ON CONFLICT (run_job) DO UPDATE SET run_record = excluded.run_record, run_updated = excluded.run_updated`)
+    .run(handoff.id, item, handoff.commit, handoff.main ?? null, JSON.stringify(handoff), now, now);
+  return { job: handoff.id, step: handoff.state, seq: 0 };
 }
