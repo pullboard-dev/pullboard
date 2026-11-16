@@ -142,6 +142,7 @@ const ROWS = [
   ['resume.adoptOrphans', 'Adopt orphaned claims', 'On, pullboard resume in a fresh worktree adopts the claim an orphaned seat left, restoring its pinned head and crediting it; off, resume only reports.', 'Agents', 'on/off'],
   ['verify.landedReviews', 'Review forced landings', 'On, next --verify offers an item a forced merge landed with no verdict as a review of its merged commit, after the ordinary submitted reviews; off, only submitted work is offered.', 'Review', 'on/off'],
   ['verify.unrelatedTrunkMoves', 'Keep verdicts through unrelated changes', 'A verdict survives main moving through commits that touch nothing the review read.', 'Review', 'on/off'],
+  ['verify.queueAccept', 'Queue the accept check', 'On, verify accept queues the frozen check as a runner job, reserves the review to the accepting seat and returns at once; off (default) runs the check before the accept returns.', 'Review', 'on/off'],
   ['verify.composeAtAdmission', 'Compose with main at review', 'A review is judged on the item combined with the current main when it starts.', 'Review', 'on/off'],
   ['verify.inspectClauses', 'Inspect bar clauses', 'Each bar clause must name its evidence kind, and submit checks every clause against it.', 'Review', 'on/off'],
   ['verify.failBefore', 'Require a fail-before receipt', 'Submit refuses a [test] clause unless a recorded run at the item base failed on an assertion.', 'Review', 'on/off'],
