@@ -2,9 +2,9 @@
 import { spawn } from 'node:child_process';
 import { mkdtemp } from 'node:fs/promises';
 import { rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
+import { scratchBase } from '../../../kernel/light.js';
 import { keyedResult } from './keyed.js';
 import { SCREEN_KIND } from '../logic/screen.js';
 import { screenKey } from '../logic/screen.js';
@@ -61,7 +61,7 @@ async function changedFiles(repo, base, commit) {
  */
 async function runStatic(repo, tree, command, files) {
   if (!command?.trim()) return { status: 'skipped' };
-  const scratch = await mkdtemp(join(tmpdir(), 'pullboard-screen-'));
+  const scratch = await mkdtemp(join(scratchBase(), 'pullboard-screen-'));
   try {
     const env = { ...process.env, GIT_INDEX_FILE: join(scratch, 'index') };
     for (const name of HOOK_GIT_ENV.filter(name => name !== 'GIT_INDEX_FILE')) delete env[name];
