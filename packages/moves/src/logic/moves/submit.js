@@ -17,7 +17,7 @@ import { KNOWN_MAIN_REWORKS_ENGINE } from "../../../../state/light.js";
 import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from "../../../../state/light.js";
 import { KNOWN_MAIN_RECEIPT_ENGINE } from "../../../../state/light.js";
 /** Routing metadata owned by submit, discovered without a shared registry edit [C7,V4,H16]. */
-import { SUBMIT_COMMAND_NEXT } from "../table/submit.table.js";
+import { SUBMIT_COMMAND_NEXT } from "../table/next.js";
 import { BAR_READY_ENGINE } from "../../../../state/light.js";
 import { barReadySetting } from "../bar/ready.js";
 import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";

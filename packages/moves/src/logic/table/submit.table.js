@@ -1,6 +1,9 @@
 /** The submit family as pure move tables: every rule `pullboard submit <id>` meets and every write it makes, ported from the pure-core pilot [C7,#8247]. */
 import { Refused } from '../../../../kernel/light.js';
 import { defineRules } from './rules.js';
+import { SUBMIT_NEXT } from './next.js';
+export { SUBMIT_NEXT } from './next.js';
+export { SUBMIT_COMMAND_NEXT } from './next.js';
 
 const SHA = /^[a-f0-9]{40}$/u;
 const DIGEST = /^[a-f0-9]{64}$/u;
@@ -90,23 +93,6 @@ export function pipelineCause({ code, note = '' }) {
   return { type: 'other', text: String(note).slice(0, 4000) || String(code ?? 'No structured cause was supplied'), ...(code ? { code } : {}) };
 }
 
-
-export const SUBMIT_NEXT = Object.freeze({
-  NOT_JOINED: 'join a lane from this worktree: pullboard join <lane> --model "<model name>" (see: pullboard lanes)',
-  NOT_YOURS: 'shout its holder or the coordinator: pullboard shout coordinator --kind question "<what you need>"',
-  NO_ITEM: 'find the item id: pullboard list --all', USAGE: 'run pullboard help', PENDING_REFREEZE: 'the coordinator runs pullboard refreeze <id>',
-  CHILDREN_OPEN: 'finish the child items (pullboard list --all), or ask the coordinator to withdraw them',
-  HEAD_NOT_NEW: 'commit the rework, then pullboard submit <id>',
-  OUTSIDE_NATIVE_BUILD: 'ask the coordinator to return it, then intake the author\'s new exact head',
-  CRITERIA_CHANGED: 'ask the coordinator to refreeze it: pullboard shout coordinator --kind question "please refreeze #<id>"',
-  BAD_SUBMIT_HANDOFF: 'read the captured candidate and current job with pullboard show <id>, then submit the clean committed source again',
-  SUBMIT_HANDOFF_CHANGED: 'read the current claim and queued result with pullboard show <id>; do not complete an old or foreign job',
-  SUBMIT_HANDOFF_PENDING: 'leave the queued source unchanged; take other work with pullboard next; nothing for this seat: end your turn',
-  SUBMIT_HANDOFF_RESULT: 'retain the normal gate receipts and submission result; a queue record never replaces a proved submit',
-});
-
-/** The next steps the submit command prints for the refusal codes its table rows own; the live command's next-step map reads these. */
-export const SUBMIT_COMMAND_NEXT = Object.freeze(Object.fromEntries(['NOT_YOURS', 'NO_ITEM', 'USAGE', 'PENDING_REFREEZE', 'CHILDREN_OPEN', 'HEAD_NOT_NEW', 'CRITERIA_CHANGED', 'NOT_JOINED'].map(code => [code, SUBMIT_NEXT[code]])));
 
 /**
  * Build the submit rules and the five tables (SUBMIT, COMMIT, OUTCOME, START, COMPLETE) over the board's own retry limit and infrastructure codes.

@@ -1,12 +1,8 @@
+/** @pullboard-module-loads packages/link/index.js */
 /** The synchronous write-board lifecycle and compatible public CLI context exports [C7]. */
 import * as store from '../../../../packages/store/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
-import {
-  DEFAULT_RELAY,
-  relayStatus,
-  syncRelay,
-} from '../../../../packages/link/index.js';
-import { executePersonRequests } from '../../../../packages/link/index.js';
+import { createRequire } from 'node:module';
 import { moveArgs } from '../../../../packages/person/index.js';
 import { refusalDocument } from '../logic/step/words.js';
 import {
@@ -39,6 +35,10 @@ export {
   span,
 };
 
+const requireModule = createRequire(import.meta.url);
+/** The relay package, loaded at the first person-signing call that reaches it: a claim, test or next never pays for its ~80 modules [C7,#7081]. */
+const link = () => requireModule('../../../../packages/link/index.js');
+
 /** Supply canonical connection-local runtime composition after cyclic CLI modules finish loading. */
 export function nativeBoardOpeners(io) {
   const { openBoard, openBoardForRead } = io.nativeBoard;
@@ -54,7 +54,7 @@ export function nativePersonRequestPorts(io) {
 
 /** Bind native request execution at this real CLI composition root. */
 async function executeNativePersonRequests(root, io, runCommand) {
-  return executePersonRequests(root, io, runCommand, nativePersonRequestPorts(io));
+  return link().executePersonRequests(root, io, runCommand, nativePersonRequestPorts(io));
 }
 
 /** Build a CLI context with the signed-person capabilities of its application layer. */
@@ -73,7 +73,8 @@ export function personCommandContext(io, { main, ordered } = {}) {
     outboxFields: io.outboxFields, outboxPolicy: io.outboxPolicy, flushOutbox: io.flushOutbox,
     queueMove: io.queueMove, outboxHasPendingCreatedItem: io.outboxHasPendingCreatedItem,
   }));
-  ctx.personPorts = { DEFAULT_RELAY, relayStatus: root => relayStatus(root, io), syncRelay, executePersonRequests: executeNativePersonRequests, main: run, ordered };
+  ctx.personPorts = { get DEFAULT_RELAY() { return link().DEFAULT_RELAY; }, relayStatus: root => link().relayStatus(root, io), syncRelay: (...args) => link().syncRelay(...args),
+    executePersonRequests: executeNativePersonRequests, main: run, ordered };
   return ctx;
 }
 
