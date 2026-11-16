@@ -79,6 +79,40 @@ export function tapFailures(output, files) {
   return failed;
 }
 
+/** The case-time line a pulled shard's log gets per file, so a clipped receipt tail still gives each file's case time. */
+export const FILE_CASE_LINE = '# landing-file-case-ms ';
+
+/**
+ * Milliseconds each file spent inside its top-level test cases, read from TAP: every case at indent 0 carries a
+ * `duration_ms`, and the case's name finds its file in the outcome rows (a name shared by several files is split evenly).
+ * Why: the file's wall time minus this is its setup (imports, fixtures, git, child starts), the part U149 can cut [C7,#9028].
+ *
+ * @param {string} output
+ * @param {Array<{ file: string, name: string }>} outcomes
+ * @returns {Record<string, number>}
+ */
+export function tapCaseMs(output, outcomes) {
+  const owners = new Map();
+  for (const row of outcomes ?? []) owners.set(row.name, [...new Set([...(owners.get(row.name) ?? []), row.file])]);
+  const out = {};
+  const lines = String(output).split('\n');
+  for (let at = 0; at < lines.length; at += 1) {
+    const head = /^(?:not ok|ok)\s+\d+\s+-\s+(.*)$/u.exec(lines[at]);
+    if (!head) continue;
+    let ms = null;
+    for (let next = at + 1; next < lines.length && /^\s/u.test(lines[next]); next += 1) {
+      // Only this case's own block: stop at a nested case's line, whose duration is its own.
+      if (/^\s+(?:not ok|ok)\s+\d+\s+-/u.test(lines[next])) break;
+      const field = /^ {2}duration_ms:\s*([\d.]+)\s*$/u.exec(lines[next]);
+      if (field) { ms = Number(field[1]); break; }
+    }
+    const files = owners.get(head[1].replace(/\s+#\s*(?:SKIP|TODO)\b.*$/iu, '')) ?? owners.get(head[1]);
+    if (ms === null || !files?.length) continue;
+    for (const file of files) out[file] = (out[file] ?? 0) + ms / files.length;
+  }
+  return out;
+}
+
 /**
  * One result row per planned file from its shard's output.
  * red: a case failed (named in `cases`); hung: its watchdog stopped it; no-result: the shard was red without running
@@ -94,7 +128,7 @@ export function tapFailures(output, files) {
  * @param {Array<{ file: string, name: string, passed: boolean, skipped: boolean }>} shard.outcomes
  * @param {Record<string, number>} shard.times - Wall ms per file from the shard's own lines.
  * @param {string} sha
- * @returns {Array<{ file: string, status: string, cases: string[], secs: number|null, sha: string, shard: string, host: string }>}
+ * @returns {Array<{ file: string, status: string, cases: string[], secs: number|null, setupSecs: number|null, sha: string, shard: string, host: string }>}
  */
 export function shardRows({ files, status, host, label, output, outcomes, times }, sha) {
   const failed = tapFailures(output, files);
@@ -121,6 +155,9 @@ export function shardRows({ files, status, host, label, output, outcomes, times 
   const phase = [...String(output).matchAll(/^run-tests: phases .*?\btests (\d+(?:\.\d+)?)s/gmu)].at(-1);
   const total = files.reduce((sum, file) => sum + (Number.isFinite(times[file]) ? times[file] : 0), 0);
   const scale = phase && total > Number(phase[1]) * 1000 ? (Number(phase[1]) * 1000) / total : 1;
+  // Case time per file: the runner's own record when the receipt tail was clipped, else the shard's TAP [C7,#9028].
+  const caseMs = { ...tapCaseMs(output, outcomes) };
+  for (const [, ms, path] of String(output).matchAll(/^# landing-file-case-ms (\d+(?:\.\d+)?) (.+)$/gmu)) caseMs[path.replace(/^\.\//u, '')] = Number(ms);
   return files.map((file) => {
     const ms = Number.isFinite(times[file]) ? times[file] * scale : times[file], exit = exits.get(file);
     const verdict = status !== 'green' && status !== 'red' ? 'unrun'
@@ -130,7 +167,9 @@ export function shardRows({ files, status, host, label, output, outcomes, times 
           : !ran || (status === 'red' && !passed.has(file)) ? 'no-result'
           : cut && !Number.isFinite(ms) ? 'unrun' : 'green';
     const cases = failed.get(file) ?? (exit > 0 ? [`its test process exited ${exit} with no failing case named`] : []);
-    return { file, status: verdict, cases, secs: Number.isFinite(ms) ? (scale < 1 ? Math.floor(ms / 100) : Math.round(ms / 100)) / 10 : null, sha, shard: label, host };
+    const wall = times[file], cased = caseMs[file];
+    const setupSecs = Number.isFinite(wall) && Number.isFinite(cased) ? Math.round(Math.max(0, wall - cased) * scale / 100) / 10 : null;
+    return { file, status: verdict, cases, setupSecs, secs: Number.isFinite(ms) ? (scale < 1 ? Math.floor(ms / 100) : Math.round(ms / 100)) / 10 : null, sha, shard: label, host };
   });
 }
 
