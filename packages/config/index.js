@@ -51,6 +51,7 @@ export {
   testNiceEnabled,
   fencedHopEnabled,
   endStaleJobsEnabled,
+  settleOnMainReceiptEnabled,
   movesShadowEnabled,
   registryStrictEnabled,
   movesLiveEnabled,
