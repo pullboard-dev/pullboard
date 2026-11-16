@@ -1113,6 +1113,20 @@ catalogCase('[A1,C7] mutate reports caught and missed faults through the catalog
   assert.equal(report.caught + report.missed, report.faults.length, 'every seeded fault is caught or missed');
 });
 
+catalogCase('[A1,C7,#8842] cells lists sealed and unsealed cells through the catalog', async () => {
+  const box = await project();
+  const report = await json(box, box.repo, 'cells');
+  assert.ok(Array.isArray(report.cells), 'cells lists every cell');
+  assert.deepEqual(report.unsealed, report.cells.filter((row) => row.state === 'unsealed').map((row) => row.cell), 'unsealed names the unsealed cells');
+});
+
+catalogCase('[A1,C7,#8842] route suggests light items through the catalog', async () => {
+  const box = await project();
+  const report = await json(box, box.repo, 'route', ['--suggest']);
+  assert.equal(report.suggest, 'light');
+  assert.ok(Array.isArray(report.items), 'route lists the strong items that meet the light shape');
+});
+
 catalogCase('[A1,C7] rules replays the event log through the catalog', async () => {
   const box = await project();
   const report = await json(box, box.repo, 'rules');

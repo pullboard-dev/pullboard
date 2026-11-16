@@ -21,12 +21,12 @@ export async function inProcess(box, cwd, ...args) {
 }
 
 /** A joined builder whose gate, static check and item check each leave their own marker when they run. */
-export async function project(t, { staticFails = false, staticLint = false, staticWaitsForDoctrine = false } = {}) {
+export async function project(t, { staticFails = false, staticLint = false, staticWaitsForDoctrine = false, extra = {} } = {}) {
   const box = privateRepo(t);
   const markers = { gate: join(box.dir, 'gate.log'), staticCheck: join(box.dir, 'static.log'), item: join(box.dir, 'item.log'), doctrine: join(box.dir, 'doctrine.log') };
   put(box.root, 'pullboard.json', JSON.stringify({ gate: MARK(markers.gate), affectedTests: 'node --test', submitGate: 'landing',
     staticChecks: `${MARK(markers.staticCheck)} && ${staticLint ? 'node --experimental-vm-modules tools/style-check.js' : staticFails ? 'node test/static-problem.mjs' : staticWaitsForDoctrine ? `node test/wait-for.mjs ${markers.doctrine} ${join(box.dir, 'machine-home')}` : 'true'}`,
-    shared: ['pullboard.json'] }));
+    shared: ['pullboard.json'], ...extra }));
   if (staticLint) {
     put(box.root, 'packages/gate/data/baselines/test-waits-baseline.json', '{}\n');
     put(box.root, 'tools/style-check.js', `import { readFileSync } from 'node:fs';

@@ -66,8 +66,8 @@ function buildTemplate() {
   writeFileSync(join(executables, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "$(git rev-parse --show-toplevel)/apps/cli/pullboard.js" "$@"\n`);
   chmodSync(join(executables, 'pullboard'), 0o755);
   mkdirSync(root);
-  const source = resolve(import.meta.dirname, '../../..'); // The docs and archived board history are never read here; init reads the view app and skills.
-  copyPackageFiles(source, root, { files: packageFiles(source).filter(file => !/^(?:docs|packages\/state\/data)\//u.test(file)) });
+  const source = resolve(import.meta.dirname, '../../..'); // The docs, archived board history and the project's own tests (over 40% of its files) are never read here; init reads the view app and skills.
+  copyPackageFiles(source, root, { files: packageFiles(source).filter(file => !/^(?:docs|packages\/state\/data|test|packages\/[^/]+\/tests|apps\/[^/]+\/(?:tests|journeys))\//u.test(file)) });
   const env = environment(dir);
   const run = (cwd, program, args) => spawnSync(program, args, { cwd, env, encoding: 'utf8' });
   const git = (cwd, ...args) => { const r = run(cwd, 'git', args); assert.equal(r.status, 0, r.stderr + r.stdout); return r.stdout.trim(); };
@@ -117,7 +117,7 @@ function fixture(t) {
   return { dir, root, lane, env, file, run, cli, git, probe, versions, bump };
 }
 
-test('an event-log-only worktree refuses upgrades and primary source still opens [A5,A6]', t => {
+test('clause 1: an event-log-only worktree refuses upgrades and primary source still opens [A5,A6]', t => {
   const box = fixture(t); const before = box.versions(); box.bump('EVENT_LOG_VERSION', 1, 2);
   const r = box.cli(box.lane, box.root, 'status', '--json');
   assert.equal(r.status, 1, r.stderr + r.stdout); const error = JSON.parse(r.stdout).error;
@@ -132,7 +132,7 @@ test('an event-log-only worktree refuses upgrades and primary source still opens
   assert.deepEqual(box.versions(), before);
 });
 
-test('a broken Git link cannot impersonate an installed release and upgrade a board [A5,A6]', t => {
+test('clause 1: a broken Git link cannot impersonate an installed release and upgrade a board [A5,A6]', t => {
   const box = fixture(t); const before = box.versions(); box.bump('SCHEMA_VERSION', 3, 4);
   const broken = join(box.dir, 'broken'); mkdirSync(broken);
   cloneTree(box.lane, broken); // The newer source with its Git link replaced below.
@@ -142,7 +142,7 @@ test('a broken Git link cannot impersonate an installed release and upgrade a bo
   assert.deepEqual(box.versions(), before);
 });
 
-test('a newer lane can make a real checked commit and doctor gives a working main-checkout step [A5,A6]', t => {
+test('clause 1: a newer lane can make a real checked commit and doctor gives a working main-checkout step [A5,A6]', t => {
   const box = fixture(t); const before = box.versions(); const versionSource = box.bump('SCHEMA_VERSION', 3, 4);
   writeFileSync(join(box.lane, '.githooks/pre-commit'), `#!/bin/sh\nexec "${process.execPath}" "$(git rev-parse --show-toplevel)/apps/cli/pullboard.js" hook pre-commit\n`);
   box.git(box.lane, 'add', versionSource); box.git(box.lane, 'commit', '-q', '-m', 'feat: propose a future schema [G1]');
@@ -153,7 +153,7 @@ test('a newer lane can make a real checked commit and doctor gives a working mai
   assert.doesNotMatch(finding.next, /^run pullboard status/); assert.deepEqual(box.versions(), before);
 });
 
-test('relay snapshot guards its native board open even when presentation is already supplied [A5,A6]', t => {
+test('clause 1: relay snapshot guards its native board open even when presentation is already supplied [A5,A6]', t => {
   const box = fixture(t); const before = box.versions(); box.bump('EVENT_LOG_VERSION', 1, 2);
   const relay = toolSourcePath(box.lane, 'packages/pages/src/io/relay/presentation.js');
   const original = readFileSync(relay, 'utf8');
@@ -165,13 +165,13 @@ test('relay snapshot guards its native board open even when presentation is alre
   assert.equal(result.code, 'UNMERGED_SCHEMA'); assert.deepEqual(box.versions(), before);
 });
 
-test('relay presentation refuses before asking the view projection to open a newer board [A5,A6]', t => {
+test('clause 1: relay presentation refuses before asking the view projection to open a newer board [A5,A6]', t => {
   const box = fixture(t); const before = box.versions(); box.bump('EVENT_LOG_VERSION', 1, 2);
   const result = box.probe(`import { nativeBoardPorts } from './apps/lib/index.js'; import { relayPresentation } from './packages/pages/index.js'; try { relayPresentation(${JSON.stringify(box.root)}, {}, nativeBoardPorts().presentation); console.log(JSON.stringify({code:'OPENED'})); } catch(e) { console.log(JSON.stringify({code:e.code})); }`);
   assert.equal(result.code, 'UNMERGED_SCHEMA'); assert.deepEqual(box.versions(), before);
 });
 
-test('a roadmap external-board open refuses unmerged event-log source [A5,A6]', t => {
+test('clause 1: a roadmap external-board open refuses unmerged event-log source [A5,A6]', t => {
   const box = fixture(t); const before = box.versions(); box.bump('EVENT_LOG_VERSION', 1, 2);
   const result = box.probe(`
     import { closeBoard } from './packages/store/index.js';
@@ -191,7 +191,7 @@ test('a roadmap external-board open refuses unmerged event-log source [A5,A6]', 
 });
 
 
-test('a held item remains readable by newer-source read-only spec citations [A5,A6,S8,S10]', t => {
+test('clause 1: a held item remains readable by newer-source read-only spec citations [A5,A6,S8,S10]', t => {
   const box = fixture(t);
   const added = box.cli(box.root, box.root, 'add', 'core', 'Preserve held citations', '--specs', 'G1');
   assert.equal(added.status, 0, added.stderr + added.stdout);
