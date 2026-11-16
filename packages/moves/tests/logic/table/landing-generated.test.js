@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { LANDING_NEXT } from '../../../index.js';
 import { landingEngine } from '../../../index.js';
+import { PACES } from '../../../index.js';
 import { runTable } from '../../../index.js';
 import { seeded } from '../../../index.js';
 
@@ -34,12 +35,29 @@ function selectCase(g) {
     s.batches = [{ id: 'b2', state: 'blocked', base: 'b1', items: [entry(ID, 'c1', { reviewedCommit: item.checked })], culprits: [entry(ID, 'c1', { reviewedCommit: item.checked, tests: [{ file: 'a.test.js', name: 't' }] })] }];
     s.waivers = [{ test: 'a.test.js', until: ahead(60 * MIN) }];
   }
+  // A sprint item lands submitted work, or work verified before it landed [#8863].
+  if (g.int(6) === 0) Object.assign(item, { pace: 'sprint', status: g.pick(['submitted', 'verified']) }), s.pace = 'sprint', sprintReady(s);
   return { s, m: { name: 'select', id: ID }, outcome: 'ready' };
 }
 
+/** A sprint item's bar unchanged since claim, and a green, trusted screen at its commit on this base that re-checked secrets and hook rules [#8865]. */
+const SCREEN = { kind: 'screen', green: true, trusted: true, leased: true, commit: 'c1', digest: 'd1', base: 'b1', checks: { secrets: 'green', hooks: 'green' } };
+function sprintReady(s) {
+  Object.assign(s.item, { digest: 'd1', claimDigest: 'd1' });
+  s.io.screen = structuredClone(SCREEN);
+}
+/** Spoil a case into a submitted sprint item that is otherwise ready, then apply `spoil`. */
+const sprint = (spoil) => (c) => { c.s.pace = 'sprint'; Object.assign(c.s.item, { pace: 'sprint', status: 'submitted' }); sprintReady(c.s); spoil(c); };
+
 const SELECT_BREAKS = [
-  ['already landed', c => { c.s.item.mergedCommit = 'm9'; }, 'pending', 'NOT_PENDING'],
-  ['not verified', c => { c.s.item.status = 'submitted'; }, 'pending', 'NOT_PENDING'],
+  ['already landed', c => { delete c.s.pace; c.s.item.mergedCommit = 'm9'; }, 'pending', 'NOT_PENDING'],
+  ['not verified', c => { delete c.s.pace; c.s.item.status = 'submitted'; }, 'pending', 'NOT_PENDING'],
+  ['sprint: already landed', c => { c.s.pace = 'sprint'; c.s.item.mergedCommit = 'm9'; }, 'pending-submitted', 'NOT_PENDING'],
+  ['sprint: not submitted', c => { c.s.pace = 'sprint'; c.s.item.status = 'claimed'; }, 'pending-submitted', 'NOT_PENDING'],
+  ['sprint: bar changed since claim', sprint(c => { c.s.item.claimDigest = 'd0'; }), 'a6-bar-frozen', 'CRITERIA_CHANGED'],
+  ['sprint: screen from an older base', sprint(c => { c.s.io.screen.base = 'b0'; }), 'screened', 'SCREEN_PENDING'],
+  ['sprint: red screen', sprint(c => { c.s.io.screen.green = false; }), 'screened', 'SCREEN_PENDING'],
+  ['sprint: no trusted hook re-check', sprint(c => { c.s.io.screen.checks.hooks = 'red'; }), 'a8-irreversible', 'LAND_UNCHECKED'],
   ['held', c => { c.s.item.holdReason = 'coordinator hold'; }, 'not-held', 'ITEM_HELD'],
   ['stale verdict', c => { c.s.io.staleVerdict = { reason: 'main moved' }; }, 'verdict-fresh', 'STALE_VERDICT'],
   ['known red', c => { c.s.batches = [{ id: 'b3', state: 'blocked', base: 'b0', culprits: [entry(ID, 'c1', { reviewedCommit: c.s.item.checked, tests: [{ file: 'a.test.js', name: 't' }] })] }]; c.s.waivers = []; }, 'not-known-red', 'LAND_KNOWN_RED'],
@@ -127,6 +145,8 @@ const RECORD_BREAKS = [
 function mergedCase(g) {
   const forced = g.pick([undefined, undefined, 'hand landed', '  fixed by hand  ']);
   const status = forced === undefined ? 'verified' : g.pick(['open', 'claimed', 'submitted', 'verified', 'withdrawn']);
+  // Under sprint an unforced merge records submitted work too [#8863].
+  if (forced === undefined && g.int(5) === 0) return { s: { item: { id: ID, status: g.pick(['submitted', 'verified']) }, pace: 'sprint' }, m: { name: 'merged', actor: 'coordinator', commit: 'f'.repeat(40) }, outcome: 'merge' };
   return { s: { item: { id: ID, status } }, m: { name: 'merged', actor: 'coordinator', commit: 'f'.repeat(40), ...(forced === undefined ? {} : { forced }) }, outcome: forced !== undefined && ['open', 'claimed', 'submitted'].includes(status) ? 'forced-unfinished' : 'merge' };
 }
 
@@ -135,8 +155,9 @@ const MERGED_BREAKS = [
   ['forced with a blank reason', c => { c.m.forced = '   '; }, 'forced-reason', 'FORCED_REASON'],
   ['forced with an empty reason', c => { c.m.forced = ''; }, 'forced-reason', 'FORCED_REASON'],
   ['forced with a reason that is no text', c => { c.m.forced = 5; }, 'forced-reason', 'FORCED_REASON'],
-  ['unverified, unforced', c => { delete c.m.forced; c.s.item.status = 'claimed'; }, 'verified', 'NOT_VERIFIED'],
-  ['withdrawn, unforced', c => { delete c.m.forced; c.s.item.status = 'withdrawn'; }, 'verified', 'NOT_VERIFIED'],
+  ['unverified, unforced', c => { delete c.m.forced; delete c.s.pace; c.s.item.status = 'claimed'; }, 'verified', 'NOT_VERIFIED'],
+  ['withdrawn, unforced', c => { delete c.m.forced; delete c.s.pace; c.s.item.status = 'withdrawn'; }, 'verified', 'NOT_VERIFIED'],
+  ['sprint: unsubmitted, unforced', c => { delete c.m.forced; c.s.pace = 'sprint'; c.s.item.status = 'claimed'; }, 'submitted', 'NOT_VERIFIED'],
 ];
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -203,7 +224,7 @@ const of = (table, outcome) => accepted.filter(c => c.table === table && (outcom
 test('moves.landing.rows-fire: generated: every guard and outcome row of the five landing tables fires on some seeded case [C7,#8561]', () => {
   const fired = new Set(results.map(c => `${c.table}:${c.result.refused ? c.result.refused.row : c.result.via[0]}`));
   const rows = Object.entries(TABLES).flatMap(([name, table]) => [...table.guards, ...table.outcomes].map(row => `${name}:${row.id}`));
-  assert.equal(rows.length, 39);
+  assert.equal(rows.length, 44);
   assert.deepEqual(rows.filter(row => !fired.has(row)), []);
 });
 
@@ -303,4 +324,15 @@ test('moves.landing.spoiled-fact: metamorphic: spoil any one fact of an accepted
       assert.deepEqual([refused?.row, refused?.code], [row, code], `seed ${c.seed}: ${c.table}: ${name}`);
     }
   }
+});
+
+test('moves.landing.always-rows: clause 3: every landing-select row tagged always appears in the rows of sprint and strict, and steady holds none of them [M2,#8865]', () => {
+  const select = TABLES.select.guards;
+  const tagged = select.filter(row => row.always);
+  assert.deepEqual(tagged.map(row => [row.id, row.always]), [['a6-bar-frozen', 'A6'], ['a8-irreversible', 'A8']]);
+  // Restated: a row with no paces applies under every pace, and a snapshot with no pace runs as steady.
+  const rowsOf = (pace) => select.filter(row => !row.paces || row.paces.includes(pace ?? 'steady')).map(row => row.id);
+  for (const pace of ['sprint', 'strict']) for (const row of tagged) assert.ok(rowsOf(pace).includes(row.id), `${row.id} is a ${pace} row`);
+  assert.deepEqual(rowsOf('steady'), rowsOf(undefined), 'a snapshot with no pace runs as steady');
+  assert.deepEqual(rowsOf('steady').filter(id => tagged.some(row => row.id === id) || id === 'screened'), [], 'steady reads no Always or screen row: verify holds its bar and no receipt exists');
 });

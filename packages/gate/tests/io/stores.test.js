@@ -299,6 +299,14 @@ test('#8752 clause 1: publish.json is off writeOwnerDebt, owned by the landing p
   assert.match(read('packages/github/src/io/publish.js'), /writePublishState\(root/u, 'publish writes through the owner');
 });
 
+test('#8754 clause 1: settled.json is off writeOwnerDebt, owned by the audit state module that holds saveMainAudit, with no store-homes ceiling raised [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const read = file => { try { return readFileSync(new URL(`../../../../${file}`, import.meta.url), 'utf8'); } catch { return undefined; } };
+  assert.equal(registry.writeOwnerDebt.includes('settled.json'), false);
+  assert.deepEqual(storeWriteProblems(registry, read), []);
+  assert.equal(registry.stores['settled.json'].owner, 'packages/gate/src/io/main/audit/state.js');
+});
+
 /** The stemless templated store names under one package: every one must come from the cell's registry const [CD2]. */
 function stemlessIn(cell) {
   return walk(ROOT, /\.js$/u).filter(path => isStoreSource(path) && path.startsWith(cell))

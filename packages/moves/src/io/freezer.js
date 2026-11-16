@@ -29,6 +29,7 @@ import { namedTestHashes } from '../../../verify/index.js';
 import { wording } from '../../../verify/index.js';
 import { machineVerification } from '../../../verify/index.js';
 import { liveCriterionSpec } from '../../../doctrine/index.js';
+import { admittedPace } from '../logic/pace.js';
 import { mainCriterionFacts } from '../../../doctrine/index.js';
 
 /**
@@ -102,8 +103,10 @@ export function criterionFreezer({ root, isMain, config: checkoutConfig }, { cap
     const fresh = captureVerifyPolicy || !prior || wording(prior.criterion) !== wording(JSON.parse(frozen.text).criterion);
     const testHashes = namedTestHashes({ item_frozen: frozen.text }, fresh ? committedReader(root, sourcePolicy?.commit ?? headCommit(root)) : () => null, fresh ? {} : prior.testHashes ?? {});
     const hashed = Object.keys(testHashes).length > 0;
-    if (!legacy && !machine && !coverage && !hashed) return frozen;
-    const text = JSON.stringify({ ...JSON.parse(frozen.text), ...(hashed ? { testHashes } : {}), ...(machine ? { machineVerification: machine } : {}), ...(coverage ? { sourceCheck: item.item_check, check: barCoverageCommand(item.item_check, coverage), barCoverage: coverage, barRevision: signed.revision } : {}), ...(legacy ? { policy: legacy } : {}) });
+    // The pace is read once, at the first claim, and every later freeze keeps it; steady records nothing [V2].
+    const pace = admittedPace(prior, facts?.config ?? checkoutConfig);
+    if (!legacy && !machine && !coverage && !hashed && !pace) return frozen;
+    const text = JSON.stringify({ ...JSON.parse(frozen.text), ...(pace ? { pace } : {}), ...(hashed ? { testHashes } : {}), ...(machine ? { machineVerification: machine } : {}), ...(coverage ? { sourceCheck: item.item_check, check: barCoverageCommand(item.item_check, coverage), barCoverage: coverage, barRevision: signed.revision } : {}), ...(legacy ? { policy: legacy } : {}) });
     return { text, digest: createHash('sha256').update(text).digest('hex') };
   };
 }

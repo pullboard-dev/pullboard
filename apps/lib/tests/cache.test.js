@@ -10,9 +10,15 @@ import { openBoard } from '../index.js';
 import { CAPACITY_VERSION } from '../../../packages/stats/index.js';
 import { readCapacity } from '../../../packages/stats/index.js';
 import { ensureProofCounters } from '../../../packages/verify/index.js';
-import { proofCounter } from '../../../packages/verify/index.js';
+import { DERIVED_SETTING } from '../../../packages/verify/index.js';
+import { deleteDerived } from '../../../packages/verify/index.js';
+import { derivedProofCounter } from '../../../packages/verify/index.js';
+import { derivedRows } from '../../../packages/verify/index.js';
 import { refreshCapacityOutsideWrite } from '../../../packages/verify/index.js';
 import { runFixtureGit } from '../../cli/tests/fixtures/child.js';
+
+// The counters are read from the derived database, which the dual write fills while this setting is on (#8910, #8961).
+process.env[DERIVED_SETTING] = '1';
 
 const PREFIX = 'local:proof-stats:v2:capacity-';
 const BASE = Date.parse('2026-10-25T12:00:00Z');
@@ -30,12 +36,21 @@ function fixture(t) {
   return { board, at: value => { now = value; } };
 }
 
-/** Capture only local capacity shards, including their independent cursor. */
-function shards(board) { return board.db.prepare('SELECT meta_key,meta_value FROM board_meta WHERE meta_key GLOB ? ORDER BY meta_key').all(`${PREFIX}*`); }
+/** Capture only local capacity shards, including their independent cursor, as the derived database holds them. */
+function shards(board) { return derivedRows(board).filter(row => row.meta_key.startsWith(PREFIX)); }
+
+/** The same shards as board_meta holds them, for emulating an older writer that kept only that table. */
+function metaShards(board) { return board.db.prepare('SELECT meta_key,meta_value FROM board_meta WHERE meta_key GLOB ? ORDER BY meta_key').all(`${PREFIX}*`); }
+
+/** Remove every capacity shard from both stores, as a board that never had the capability. */
+function dropShards(board) {
+  board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ?').run(`${PREFIX}*`);
+  deleteDerived(board, `${PREFIX}*`);
+}
 
 test('missing capacity capability is unknown and read-only rather than a measured empty forecast [R1,R2]', t => {
   const { board } = fixture(t);
-  board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ?').run(`${PREFIX}*`);
+  dropShards(board);
   const before = store.events(board);
   const prepare = board.db.prepare.bind(board.db);
   const statements = [];
@@ -55,18 +70,18 @@ test('missing capacity capability is unknown and read-only rather than a measure
   assert.equal(readCapacity(board, BASE).available, true, 'ordinary writer establishes a genuinely measured empty board');
 });
 
-test('an older writer tail is caught up without changing native history [R1,R2]', t => {
+test('clause 2: an older writer tail is caught up without changing native history [R1,R2]', t => {
   const { board, at } = fixture(t);
-  const retained = shards(board);
+  const retained = metaShards(board);
   store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Unmeasured work', brief: 'Files: src/new.js' });
-  board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ?').run(`${PREFIX}*`);
+  dropShards(board);
   for (const row of retained) board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?)').run(row.meta_key, row.meta_value);
   assert.equal(readCapacity(board, BASE).available, false, 'retained version alone cannot certify missed events');
   const before = store.events(board);
   at(BASE + 6 * 60_000);
   ensureProofCounters(board);
-  assert.equal(proofCounter(board, 'capacity-summary').last, before.at(-1).event_id);
-  assert.equal(proofCounter(board, 'capacity-item:1').state, 'open');
+  assert.equal(derivedProofCounter(board, 'capacity-summary').last, before.at(-1).event_id);
+  assert.equal(derivedProofCounter(board, 'capacity-item:1').state, 'open');
   assert.equal(readCapacity(board, BASE + 6 * 60_000).workHours, null, 'missing route measurements remain unknown after migration');
   assert.deepEqual(store.events(board), before);
 });
@@ -149,12 +164,13 @@ test('old capacity observer versions replay typed landing outcomes without chang
   store.logEvent(board, 'reviewer', 'accept', 91, { commit: source });
   store.logEvent(board, 'coordinator', 'merged', 91, { commit: landed });
   const before = store.events(board);
-  const summary = proofCounter(board, 'capacity-summary');
+  const summary = derivedProofCounter(board, 'capacity-summary');
   board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key=?').run(JSON.stringify({ data: { ...summary, version: 1 }, numbers: [] }), `${PREFIX}summary`);
+  deleteDerived(board, `${PREFIX}summary`);
   assert.equal(readCapacity(board, BASE).available, false, 'old observer data is not silently certified');
   at(BASE + 6 * 60_000);
   ensureProofCounters(board);
-  assert.equal(proofCounter(board, 'capacity-summary').version, CAPACITY_VERSION);
+  assert.equal(derivedProofCounter(board, 'capacity-summary').version, CAPACITY_VERSION);
   const outcomes = shards(board).filter(row => row.meta_key.includes('capacity-sample:'))
     .map(row => JSON.parse(row.meta_value).data).filter(row => row.kind === 'landingOutcome');
   assert.deepEqual(outcomes.map(row => [row.sourceCommit, row.failed]), [[source, false]]);

@@ -390,7 +390,7 @@ export { EVIDENCE_KINDS } from "../logic/board/audience.js";
 
 export { openDecisions } from "./board/query.js";
 
-export { inbox } from "../logic/board/inbox.js";
+export { inbox, enqueueInboxMark, flushInboxMarks, takeInboxMarks } from "../logic/board/inbox.js";
 
 export { unreadCount } from "./board/query.js";
 

@@ -64,6 +64,16 @@ async function recordIncluded(ctx, board, agentId, observation, { ordered }) {
 }
 
 /**
+ * Queue the mark for the shouts an inbox read showed instead of writing it, when inbox.batchedMarks is on.
+ *
+ * Why: an inline mark is one board write per read; queued, many reads' marks flush in one batch (#8942).
+ */
+function enqueueShoutMark(board, agentId, through) {
+  const shown = store.inbox(board, agentId, { through, markRead: false }).map(shout => shout.shout_id);
+  if (shown.length) store.enqueueInboxMark(board, agentId, Math.max(...shown));
+}
+
+/**
  * Delivery records included interrupts through caller-owned CLI ports; explicit acknowledgement stays separate.
  *
  * A read with nothing to record runs on a read-only board first, so it never queues behind another seat's write;
@@ -71,9 +81,12 @@ async function recordIncluded(ctx, board, agentId, observation, { ordered }) {
  */
 export async function deliverActivity(ctx, { actedIds = [], afterSubmit = false, directShouts = true } = {}, ports) {
   const { withBoard, withBoardRead, whoAmI, ordered } = ports;
+  const batched = ctx.config.inbox.batchedMarks === true;
   /** Project and, unless `quiet`, record one delivery; a quiet pass returns null where it would have to write. */
   const deliverOn = async (board, quiet) => {
     const me = whoAmI(ctx, board);
+    // Marks queued by an earlier read go out in one batched write before this read selects its shouts (#9116).
+    if (batched && !quiet) store.flushInboxMarks(board);
     if (actedIds.length) await ordered(ctx, board, 'actOnActivity', [{ agentId: me.id, ids: actedIds }]);
     const local = readActivityCursor(ctx.info.root, me.id, store.boardId(board));
     let mainBatch = null;
@@ -126,7 +139,14 @@ export async function deliverActivity(ctx, { actedIds = [], afterSubmit = false,
         bounded = bound();
       }
     }
-    if (directShouts && !['RELAY_KEY_MISSING', 'AUTH_REQUIRED'].includes(activity.receipt?.code)) store.inbox(board, me.id, { through: markThrough() });
+    if (directShouts && !['RELAY_KEY_MISSING', 'AUTH_REQUIRED'].includes(activity.receipt?.code)) {
+      if (batched) {
+        enqueueShoutMark(board, me.id, markThrough());
+        // The command owns the background worker, so a queued mark outlives this process (#9117).
+        ports.handOffMarks?.(ctx, store.takeInboxMarks(board));
+      }
+      else store.inbox(board, me.id, { through: markThrough() });
+    }
     return { ...bounded, local };
   };
   let delivered = null;
