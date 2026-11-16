@@ -87,6 +87,9 @@ test('unchanged companion closure [C7,V4]', () => { console.log('EXECUTED-STABLE
     installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'),
       requests: join(home, 'requests.jsonl'), nodeCommand: process.execPath,
       nodeOptions: '' });
+    // The stand-in runs on the real host, so its disk floor is zero here: the case must not pass or fail with the host's free disk [C7].
+    mkdirSync(join(home, '.pullboard'), { recursive: true });
+    fixtureMachineSettings(join(home, '.pullboard'), { gate: { diskFloorMB: 0 } });
     const command = `node apps/cli/src/io/run/tests.js test/probe.test.js${composition ? ' test/stable.test.js' : ''}`;
     const checkedSource = { commit: git('rev-parse', 'HEAD').trim(), tree: git('rev-parse', 'HEAD^{tree}').trim() };
     const began = Date.now();
