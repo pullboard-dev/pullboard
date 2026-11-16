@@ -36,6 +36,7 @@ import {
   proofReceipts,
 } from "../../board/query.js";
 import { Refused } from "../../../../../kernel/index.js";
+import { TRANSIENT_CODES } from "../../../../../kernel/index.js";
 import { runSubmitTable } from "../../../logic/board/landing/lease.js";
 
 /** Requeues of the same candidate after a spent gate infrastructure retry budget. */
@@ -61,7 +62,7 @@ export const RERUNNABLE_RUNNER_REFUSALS = Object.freeze(['RUNNER_SETUP_REFUSED',
 export const INFRASTRUCTURE_CODES = Object.freeze(new Set([
   'GIT_READ_INFRASTRUCTURE', 'GATE_INFRA_EXHAUSTED',
   'RUNNER_UNAVAILABLE', 'RUNNER_JOB_LOST', 'RUNNER_CLEANUP_TIMEOUT', 'RUNNER_WAIT_DEADLINE', 'RUNNER_INFRA_RETRY_EXHAUSTED',
-  'RUNNER_BUSY', ...RERUNNABLE_RUNNER_REFUSALS, 'TRANSPORT_LOST', 'CLEANUP_TIMEOUT', 'SLOT_DB_LOCKED', 'BOARD_BUSY',
+  'RUNNER_BUSY', ...RERUNNABLE_RUNNER_REFUSALS, 'TRANSPORT_LOST', 'CLEANUP_TIMEOUT', ...TRANSIENT_CODES,
   'MERGE_CHECK_FAILED',
   // The remote analysis step returned nothing, or the resource lease vanished under the gate: machinery, not source (#3303).
   'RUNNER_RESULT_INVALID',
