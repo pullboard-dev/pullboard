@@ -75,9 +75,9 @@ test('clause 1: with the setting off no derived database is made [C7]', t => {
 test('clause 1: writeDerived prepares its upsert once per board connection, not once per call [C7,#9020]', t => {
   const { board } = recorded(t);
   const upserts = [];
-  const counting = { prepare: sql => { if (/INSERT INTO proof_derived/.test(sql)) upserts.push(sql); return board.db.prepare(sql); }, exec: sql => board.db.exec(sql) };
-  const counted = { ...board, db: counting };
-  for (let call = 0; call < 50; call++) writeDerived(counted, [`k:${call}`, 'a', `j:${call}`, 'b']);
+  const real = board.db.prepare.bind(board.db);
+  board.db.prepare = sql => { if (/INSERT INTO proof_derived/.test(sql)) upserts.push(sql); return real(sql); };
+  for (let call = 0; call < 50; call++) writeDerived(board, [`k:${call}`, 'a', `j:${call}`, 'b']);
   assert.equal(upserts.length, 1, 'fifty calls prepared the upsert once');
   assert.equal(derivedRows(board).filter(row => /^[kj]:/.test(row.meta_key)).length, 100, 'every pair was written');
 });
