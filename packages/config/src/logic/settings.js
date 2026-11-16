@@ -214,6 +214,12 @@ export function loadMachineSettings() {
   if (value.review?.releaseReasons !== undefined && typeof value.review.releaseReasons !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `review.releaseReasons in ${file} must be true or false`);
   }
+  if (value.health?.lapsedSweep !== undefined && typeof value.health.lapsedSweep !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `health.lapsedSweep in ${file} must be true or false`);
+  }
+  if (value.health?.derivedState !== undefined && typeof value.health.derivedState !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `health.derivedState in ${file} must be true or false`);
+  }
   if (value.next?.itemNotices !== undefined && typeof value.next.itemNotices !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `next.itemNotices in ${file} must be true or false`);
   }

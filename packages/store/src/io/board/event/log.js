@@ -3,6 +3,7 @@ import { now } from "../query.js";
 import { liftInfraHold } from "../../../logic/board/release.js";
 import { liftConditionalHold } from "../../../logic/board/holds.js";
 import { requireHandoffActive } from "../../../../../state/light.js";
+import { eventKindRefusal } from "../../../../../state/light.js";
 /** Append native events and their rebuildable proof projection in the same transaction [R2]. */
 import { ENGINE_VERSION } from "../../../../../state/index.js";
 import { writeSync } from 'node:fs';
@@ -197,6 +198,9 @@ export function logEvent(board, by, kind, itemId, detail = {}, at) {
   // Standalone native writers take the same actual lock; nested moves retain their existing savepoints.
   if (!(TRANSACTION_DEPTH.get(board) ?? 0)) return atomic(board, () => logEvent(board, by, kind, itemId, detail, at));
   noteBoardWriteItem(board.db, itemId);
+  // A kind a newer engine declares is refused before anything is written, so an older board's history keeps its meaning [M1].
+  const tooNew = eventKindRefusal(board, kind);
+  if (tooNew) throw new Refused(tooNew.code, tooNew.message, tooNew.next);
   // A refused authenticated request remains auditable; it is not an outgoing board move.
   if (kind !== 'relay_refused') requireHandoffActive(board, by, kind, [{ item: kind === 'shout' ? detail.item : undefined }]);
   board.db.exec('SAVEPOINT proof_event_append');

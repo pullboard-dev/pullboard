@@ -79,6 +79,8 @@ export {
   viewBackgroundEnabled,
   healthSentinelEnabled,
   reviewReleaseReasonsRequired,
+  lapsedSweepEnabled,
+  derivedStateEnabled,
   memoryFloorMB,
   relayOfferEnabled,
   setRelayCanary,

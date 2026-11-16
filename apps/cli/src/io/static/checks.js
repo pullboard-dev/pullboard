@@ -36,6 +36,21 @@ export async function staticFailures(classes) {
 /** Report text from clean children, printed only when the whole stage is green [#8469]. */
 const reports = [];
 
+/**
+ * Turn a finished registry child into its finding lines. A clean child's stderr is a report (sizes, never findings): it is held
+ * and printed apart from the findings [#8460,#8469]; a failed child is one finding naming its cause.
+ *
+ * @param {number|null} status - The child's exit status.
+ * @param {string} stdout - Its JSON findings.
+ * @param {string} stderr - Its report text, or its crash output.
+ * @returns {string[]}
+ */
+export function registryFindings(status, stdout, stderr) {
+  if (status !== 0) return [`packages/gate/bin/static.js:1: the static tree registry could not run: ${crashLine(stderr)}`];
+  if (stderr) reports.push(stderr);
+  return JSON.parse(stdout);
+}
+
 /** The static tree registry run as its own process; a crash is one failure line naming its cause [C7]. */
 function treeRegistryFailures(program, root) {
   return new Promise(resolveRun => {
@@ -45,10 +60,23 @@ function treeRegistryFailures(program, root) {
     child.stdout.on('data', chunk => out.push(chunk));
     child.stderr.on('data', chunk => err.push(chunk));
     // Report lines (sizes, never findings) arrive on a clean child's stderr; they are held and printed apart from the findings [#8460,#8469].
-    child.on('close', status => { if (status === 0 && err.length) reports.push(Buffer.concat(err).toString('utf8')); });
     child.on('error', error => resolveRun([`packages/gate/bin/static.js:1: the static tree registry could not run: ${error.message}`]));
-    child.on('close', status => resolveRun(status === 0 ? JSON.parse(Buffer.concat(out).toString('utf8')) : [`packages/gate/bin/static.js:1: the static tree registry could not run: ${crashLine(Buffer.concat(err).toString('utf8'))}`]));
+    child.on('close', status => resolveRun(registryFindings(status, Buffer.concat(out).toString('utf8'), Buffer.concat(err).toString('utf8'))));
   });
+}
+
+/**
+ * Print the findings, then the held reports only when there are no findings, and answer the stage's exit code.
+ * Why: a report is information, so it follows the findings and never reads as the reason for a red [#8469].
+ *
+ * @param {string[]} failures - Every finding line of the stage.
+ * @param {(text: string) => void} [write] - Where the lines go; stderr by default.
+ * @returns {number} 1 when any finding exists, else 0.
+ */
+export function staticExitCode(failures, write = text => process.stderr.write(text)) {
+  for (const row of failures) write(`${row}\n`);
+  if (!failures.length) for (const text of reports) write(text);
+  return failures.length ? 1 : 0;
 }
 
 /**
@@ -80,10 +108,7 @@ const failures = await staticFailures([
   () => treeRegistryFailures(program, root),
   async () => viewPureGate(root).failures.map(row => `${row.path}:${row.line}: ${row.text}`),
 ]);
-for (const row of failures) console.error(row);
-const failed = failures.length > 0;
-// A report is information: printed after the findings and only when there are none, so it never reads as the reason for a red [#8469].
-if (!failed) for (const text of reports) process.stderr.write(text);
+const failed = staticExitCode(failures) !== 0;
 // Report only: a runner trip over its overhead budget is printed with its runner and trip, and never turns this stage red [C7].
 try { for (const line of tripOverheadReport(recentReceipts(root), gateTripOverheadBudgetMs())) console.log(line); } catch { /* No receipt log yet: nothing to report. */ }
 if (!failed) console.log('static style, prose declarations, clock budgets and doctrine hold');

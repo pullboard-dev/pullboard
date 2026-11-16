@@ -242,6 +242,16 @@ export function reviewReleaseReasonsRequired() {
   return loadMachineSettings().review?.releaseReasons === true;
 }
 
+/** Whether health.derivedState is on (#8974): off by default; nothing reads it yet, and only an exact `true` turns it on. */
+export function derivedStateEnabled() {
+  return loadMachineSettings().health?.derivedState === true;
+}
+
+/** Whether the sentinel expires lapsed claims every minute (#8923): off by default; only an exact `true` turns it on. */
+export function lapsedSweepEnabled() {
+  return loadMachineSettings().health?.lapsedSweep === true;
+}
+
 /**
  * Whether an item hold must name an owner and records a deadline (#8539): off by default, so holds are unchanged; only an
  * exact `true` turns it on.
