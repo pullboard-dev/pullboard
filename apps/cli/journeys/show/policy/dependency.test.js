@@ -24,8 +24,21 @@ import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
-  project, commitFile, attackCommit,
+  project, attackCommit,
 } = e2e;
+
+/**
+ * Commit one file with Git plumbing, which runs no hooks: this test proves the dependency chain, not the commit hook, and
+ * each hooked commit starts a node process [C7].
+ */
+function commitFile(box, cwd, path, text, message) {
+  mkdirSync(join(cwd, path, '..'), { recursive: true });
+  writeFileSync(join(cwd, path), text);
+  box.git(cwd, 'add', '-A');
+  const commit = box.git(cwd, 'commit-tree', box.git(cwd, 'write-tree'), '-p', 'HEAD', '-m', message);
+  box.git(cwd, 'update-ref', 'HEAD', commit);
+  return { status: 0 };
+}
 
 // Joins, adds, claims, submits and verifies stay processes: with any of them in-process, a later write by another identity
 // runs the lapsed-claim sweep and returns a claim that waits on an unlanded dependency (NOT_YOURS at submit). Only the
