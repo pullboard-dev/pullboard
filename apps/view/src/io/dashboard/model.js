@@ -1,3 +1,4 @@
+import { itemLanded } from "../../logic/counts.js";
 import { itemStageKey } from "../../logic/pipeline/model.js";
 import { itemStagePresentation } from "../../logic/pipeline/model.js";
 
@@ -17,9 +18,10 @@ export function dashboardModel(project, history, { now, complete = true, working
   const stageCounts = Object.fromEntries(['blocked','ready','building','in-review','verified','landing','merged'].map(key => [key, 0]));
   // The same stage words and keys the Items Pipeline groups by, so the strip and the pipeline agree.
   for (const item of items) {
-    if (item.status === 'withdrawn') continue;
+    if (item.status === 'withdrawn' && !itemLanded(item)) continue;
     const key = itemStageKey(itemStagePresentation(item, { gated: Boolean(item.blockedBy?.length || item.heldReason || item.laneHoldReason), landingBatchAt: item.landingBatchAt }).stage);
-    if (key in stageCounts) stageCounts[key]++;
+    if (itemLanded(item)) stageCounts.merged++;
+    else if (key in stageCounts) stageCounts[key]++;
   }
   // Every landed item is known from its own row; only the last day's landings list their commit, to match merge events (#6666).
   const merged = new Map(items.filter(item => item.merged || item.stage === 'merged').map(item => [item.id, { id: item.id, commit: null }]));
@@ -182,8 +184,8 @@ export function dashboardModel(project, history, { now, complete = true, working
     }
     return peak;
   };
-  const claims = items.filter(item => item.status === 'claimed' && item.owner && Date.parse(item.claim?.until) > now);
-  const reviewing = items.filter(item => item.status === 'submitted');
+  const claims = items.filter(item => item.status === 'claimed' && !itemLanded(item) && item.owner && Date.parse(item.claim?.until) > now);
+  const reviewing = items.filter(item => item.status === 'submitted' && !itemLanded(item));
   // A live hold keeps its own unclipped start, apart from the per-minute union below, so a seat holding a review and
   // a build at once still reports each one's age; null means the history holds no open stay for this holder.
   /** When this holder's still-open stay on the item began, or null. */
