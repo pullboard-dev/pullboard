@@ -419,7 +419,7 @@ export async function verifyHere(ctx, id, { second, values }) {
                 if (checkedCommit !== selected) throw reselection;
               }
               const ran = await flakeVerify(ctx, checkedItem, frozenCheck(item) || supplement, { board, main: trunk.commit, commit: checkedCommit }, { ordered, withBoard, resourceAgent, checkAtCommit: tierCheck })(lease);
-              return ran.state === 'pass' ? { ...ran, guardNote: guardRevertNote(root, checkedItem, lease, { checkAtCommit }) } : ran;
+              return ran.state === 'pass' ? { ...ran, guardNote: await guardRevertNote(root, checkedItem, lease, { checkAtCommit }) } : ran;
             }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui, remote: gateRunnersFirstEnabled(), ...runnerAdmission, agent: me.id, item: String(id), kind: 'review', timing: frozenCheckTiming(item), itemCheck: true, shortEligible, onWait: queuedItemLease(ctx, item, me.id, 'review') });
           } catch (error) {
             if (error === reselection) continue;
