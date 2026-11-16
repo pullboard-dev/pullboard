@@ -26,9 +26,6 @@ test('clause 1: next, claim and inbox print one line naming the commits behind a
   const box = await fixture(t, { files: { 'web/shared.txt': 'base\n' } });
   const id = box.add('Work a lagging seat claims');
   const seat = box.seats.actor.path;
-  const level = await cli(box, seat, ['inbox']);
-  assert.equal(level.code, 0, level.out + level.err);
-  assert.doesNotMatch(level.out + level.err, /behind/u, 'a seat level with main sees no lag line');
 
   landOnMain(box, 3);
   const lag = /this checkout is 3 commits behind main, its base is \d+ (min|h|days) old/u;
@@ -37,5 +34,16 @@ test('clause 1: next, claim and inbox print one line naming the commits behind a
     const text = result.out + result.err;
     assert.match(text, lag, `${args[0]} names the lag: ${text}`);
     assert.equal(text.match(/commits behind/gu).length, 1, `${args[0]} prints the lag once`);
+  }
+});
+
+test('clause 2: a seat level with main prints no lag line [N2,B3]', async t => {
+  const box = await fixture(t, { files: { 'web/shared.txt': 'base\n' } });
+  box.add('Work a level seat claims');
+  const seat = box.seats.actor.path;
+  for (const args of [['inbox'], ['next', '--take']]) {
+    const level = await cli(box, seat, args);
+    assert.equal(level.code, 0, level.out + level.err);
+    assert.doesNotMatch(level.out + level.err, /behind/u, `${args[0]} on a level seat prints no lag line`);
   }
 });
