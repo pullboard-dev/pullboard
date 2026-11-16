@@ -25,7 +25,11 @@ test('catalog keys: every JSON_SHAPES.commands key has a catalog case [A1,C7]', 
 test('clause 1: the union of every catalog case\'s declared roots equals resultCommands() without running a case [A1,C7]', () => {
   for (const { name, roots } of catalogCases) assert.ok(Array.isArray(roots), `case "${name}" declares the root commands its run adds`);
   const declared = [...new Set(catalogCases.flatMap(({ roots }) => roots))].sort();
-  assert.deepEqual(declared, resultCommands(), 'every result-producing root is declared by some catalog case, and no case declares an unknown root');
+  const wanted = resultCommands();
+  const missing = wanted.filter((root) => !declared.includes(root));
+  const unknown = declared.filter((root) => !wanted.includes(root));
+  assert.deepEqual({ missing, unknown }, { missing: [], unknown: [] }, 'every result-producing root is declared by some catalog case, and no case declares an unknown root');
+  assert.deepEqual(declared, wanted);
 });
 
 test('clause 2: a catalog case fails if it adds a root it did not declare [A1,C7]', async () => {

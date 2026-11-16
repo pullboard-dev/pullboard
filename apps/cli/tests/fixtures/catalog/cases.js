@@ -1180,7 +1180,7 @@ catalogCase('[A1] catalog commands keep their real repository exercises', [
   const handoff = await uncataloguedRootJSON(source, handoffPath, 'handoff');
   assert.ok(Number.isSafeInteger(handoff.handoff.item), 'handoff opens a replacement item from the joined worktree');
   assert.equal(handoff.resume.agent, joined.agent);
-}, ['add', 'blueprint', 'check', 'claim', 'companion', 'digest', 'export', 'flakes', 'gate', 'import', 'init', 'join', 'labels', 'land', 'lane', 'lanes', 'loop', 'maintenance', 'milestone', 'queue', 'relay', 'reopen', 'rigor', 'roadmap', 'runner', 'search', 'seats', 'sentinel', 'sentinels', 'spec', 'stats', 'submit', 'takeover', 'tool-build', 'trace', 'verify', 'why']);
+}, ['add', 'bar', 'blueprint', 'check', 'claim', 'companion', 'digest', 'export', 'flakes', 'gate', 'handoff', 'import', 'init', 'join', 'labels', 'land', 'lane', 'lanes', 'loop', 'maintenance', 'milestone', 'publish', 'queue', 'relay', 'reopen', 'rigor', 'roadmap', 'runner', 'search', 'seats', 'sentinel', 'sentinels', 'spec', 'stats', 'submit', 'takeover', 'tool-build', 'trace', 'verify', 'why']);
 
 catalogCase('[A1,R1,R2] flow replay exposes its recorded history and replay through real CLI JSON', ['flow replay', 'init'], async () => {
   const box = await project();
@@ -1270,10 +1270,10 @@ catalogCase('[A1,B26] slice creates a frozen child of a claimed item through rea
   await json(source, source.repo, 'claim', [String(parent.item_id)]);
   const { item } = await uncataloguedRootJSON(source, source.repo, 'slice', [String(parent.item_id), 'Slice part', '--files', 'app/part.js', '--check', 'true']);
   assert.deepEqual([item.item_parent_id, item.item_criterion], [parent.item_id, 'Every slice inherits this bar.'], 'the slice inherits its parent and frozen criterion');
-}, ['add', 'check', 'claim', 'init']);
+}, ['add', 'check', 'claim', 'init', 'slice']);
 
 catalogCase('[A1,C7] additive roots expose a real report and refuse missing native audit evidence', ['init'], () =>
-  exerciseAdditiveRoots({ project, uncataloguedRootJSON, withCatalogChild, coveredRoots: { add: addRoot } }), ['gate-health', 'init', 'push-receipts', 'shadow-batch', 'test-value']);
+  exerciseAdditiveRoots({ project, uncataloguedRootJSON, withCatalogChild, coveredRoots: { add: addRoot } }), ['gate-health', 'init', 'push-receipts', 'shadow-batch', 'test-value', 'waits']);
 
 catalogCase('[A1,C7] red explain reports absent evidence through the catalog', ['init', 'red'], async () => {
   const box = await project();
@@ -1375,6 +1375,6 @@ catalogCase('[A1,C7,#8916] split files one child per numbered clause through rea
   const split = await uncataloguedRootJSON(box, box.repo, 'split', [String(parent.item_id)]);
   assert.equal(split.parent, parent.item_id);
   assert.equal(split.children.length, 2, 'one child per numbered clause');
-}, ['init', 'split']);
+}, ['add', 'init', 'split']);
 
 export { addRoot, catalogCases, covered, coveredRoots, declaredRun };
