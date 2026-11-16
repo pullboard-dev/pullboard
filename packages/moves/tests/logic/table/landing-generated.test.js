@@ -34,12 +34,16 @@ function selectCase(g) {
     s.batches = [{ id: 'b2', state: 'blocked', base: 'b1', items: [entry(ID, 'c1', { reviewedCommit: item.checked })], culprits: [entry(ID, 'c1', { reviewedCommit: item.checked, tests: [{ file: 'a.test.js', name: 't' }] })] }];
     s.waivers = [{ test: 'a.test.js', until: ahead(60 * MIN) }];
   }
+  // A sprint item lands submitted work, or work verified before it landed [#8863].
+  if (g.int(6) === 0) Object.assign(item, { pace: 'sprint', status: g.pick(['submitted', 'verified']) }), s.pace = 'sprint';
   return { s, m: { name: 'select', id: ID }, outcome: 'ready' };
 }
 
 const SELECT_BREAKS = [
-  ['already landed', c => { c.s.item.mergedCommit = 'm9'; }, 'pending', 'NOT_PENDING'],
-  ['not verified', c => { c.s.item.status = 'submitted'; }, 'pending', 'NOT_PENDING'],
+  ['already landed', c => { delete c.s.pace; c.s.item.mergedCommit = 'm9'; }, 'pending', 'NOT_PENDING'],
+  ['not verified', c => { delete c.s.pace; c.s.item.status = 'submitted'; }, 'pending', 'NOT_PENDING'],
+  ['sprint: already landed', c => { c.s.pace = 'sprint'; c.s.item.mergedCommit = 'm9'; }, 'pending-submitted', 'NOT_PENDING'],
+  ['sprint: not submitted', c => { c.s.pace = 'sprint'; c.s.item.status = 'claimed'; }, 'pending-submitted', 'NOT_PENDING'],
   ['held', c => { c.s.item.holdReason = 'coordinator hold'; }, 'not-held', 'ITEM_HELD'],
   ['stale verdict', c => { c.s.io.staleVerdict = { reason: 'main moved' }; }, 'verdict-fresh', 'STALE_VERDICT'],
   ['known red', c => { c.s.batches = [{ id: 'b3', state: 'blocked', base: 'b0', culprits: [entry(ID, 'c1', { reviewedCommit: c.s.item.checked, tests: [{ file: 'a.test.js', name: 't' }] })] }]; c.s.waivers = []; }, 'not-known-red', 'LAND_KNOWN_RED'],
@@ -127,6 +131,8 @@ const RECORD_BREAKS = [
 function mergedCase(g) {
   const forced = g.pick([undefined, undefined, 'hand landed', '  fixed by hand  ']);
   const status = forced === undefined ? 'verified' : g.pick(['open', 'claimed', 'submitted', 'verified', 'withdrawn']);
+  // Under sprint an unforced merge records submitted work too [#8863].
+  if (forced === undefined && g.int(5) === 0) return { s: { item: { id: ID, status: g.pick(['submitted', 'verified']) }, pace: 'sprint' }, m: { name: 'merged', actor: 'coordinator', commit: 'f'.repeat(40) }, outcome: 'merge' };
   return { s: { item: { id: ID, status } }, m: { name: 'merged', actor: 'coordinator', commit: 'f'.repeat(40), ...(forced === undefined ? {} : { forced }) }, outcome: forced !== undefined && ['open', 'claimed', 'submitted'].includes(status) ? 'forced-unfinished' : 'merge' };
 }
 
@@ -135,8 +141,9 @@ const MERGED_BREAKS = [
   ['forced with a blank reason', c => { c.m.forced = '   '; }, 'forced-reason', 'FORCED_REASON'],
   ['forced with an empty reason', c => { c.m.forced = ''; }, 'forced-reason', 'FORCED_REASON'],
   ['forced with a reason that is no text', c => { c.m.forced = 5; }, 'forced-reason', 'FORCED_REASON'],
-  ['unverified, unforced', c => { delete c.m.forced; c.s.item.status = 'claimed'; }, 'verified', 'NOT_VERIFIED'],
-  ['withdrawn, unforced', c => { delete c.m.forced; c.s.item.status = 'withdrawn'; }, 'verified', 'NOT_VERIFIED'],
+  ['unverified, unforced', c => { delete c.m.forced; delete c.s.pace; c.s.item.status = 'claimed'; }, 'verified', 'NOT_VERIFIED'],
+  ['withdrawn, unforced', c => { delete c.m.forced; delete c.s.pace; c.s.item.status = 'withdrawn'; }, 'verified', 'NOT_VERIFIED'],
+  ['sprint: unsubmitted, unforced', c => { delete c.m.forced; c.s.pace = 'sprint'; c.s.item.status = 'claimed'; }, 'submitted', 'NOT_VERIFIED'],
 ];
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -203,7 +210,7 @@ const of = (table, outcome) => accepted.filter(c => c.table === table && (outcom
 test('moves.landing.rows-fire: generated: every guard and outcome row of the five landing tables fires on some seeded case [C7,#8561]', () => {
   const fired = new Set(results.map(c => `${c.table}:${c.result.refused ? c.result.refused.row : c.result.via[0]}`));
   const rows = Object.entries(TABLES).flatMap(([name, table]) => [...table.guards, ...table.outcomes].map(row => `${name}:${row.id}`));
-  assert.equal(rows.length, 39);
+  assert.equal(rows.length, 41);
   assert.deepEqual(rows.filter(row => !fired.has(row)), []);
 });
 
