@@ -687,7 +687,10 @@
   },
   "apps/cli/journeys/spec/cockpit.test.js": {
     "repo-read": 2,
-    "tempdir": 7,
+    "tempdir": 6
+  },
+  "apps/cli/journeys/spec/cockpit/shared.test.js": {
+    "tempdir": 1,
     "raw-cli": 1
   },
   "apps/cli/journeys/spec/cockpit/rows.test.js": {
