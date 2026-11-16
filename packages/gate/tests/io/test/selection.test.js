@@ -175,7 +175,9 @@ test('unresolved data and executable loaders remain named full fallbacks without
   box.put('src/opaque.js', 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); export const value = require(process.env.OTHER);\n');
   const after = box.commit();
   const loader = selectAffectedTests(box.root, { base: before, commit: after });
-  assert.equal(loader.full, true);
+  // A changed opaque loader selects its importers and stays a named unresolved root; it no longer selects every test [C7].
+  assert.equal(loader.full, false, loader.reason);
+  assert.deepEqual(loader.files, ['test/opaque.test.js']);
   assert.match(loader.reason, /CommonJS.*src\/opaque\.js/u);
 });
 
@@ -270,7 +272,9 @@ test('non-loader utility recognition cannot hide mixed, namespace, default or ex
     box.put('src/utility.js', source + '\n');
     const after = box.commit();
     const result = selectAffectedTests(box.root, { base, commit: after });
-    assert.equal(result.full, true, source);
-    assert.match(result.reason, /CommonJS|dynamic import/u);
+    // The changed loader file is an unresolved root retained by name; the unrelated tests stay out [C7].
+    assert.equal(result.full, false, source);
+    assert.deepEqual(result.files, ['test/utility.test.js'], source);
+    assert.match(result.reason, /CommonJS|dynamic import/u, source);
   }
 });
