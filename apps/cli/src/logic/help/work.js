@@ -45,6 +45,7 @@ export const workHelp = `Work
                                         and each item's unblock count, effort and why it sits there
   pullboard moves [--json]              each move table's recorded shadow compares, disagreements and first compare,
                                         and whether it is live, shadow or none; read-only
+  pullboard coordinate                  resume the coordinator and print how to add agents, lane by lane; read-only, safe to run twice
   pullboard roadmap                     ordered milestones, N/M landed, targets, and each item as landed,
                                         accepted or its status
   pullboard milestone add <name> [--note ...] [--items 1,2,3 --reason "<why>"]   create a release catalog entry
