@@ -24,6 +24,7 @@ import { atomic } from '../../../../../packages/store/index.js';
 import { logEvent } from '../../../../../packages/store/index.js';
 import { context } from '../read.js';
 import { withBoard } from '../context.js';
+import { withBoardRead } from '../context.js';
 import { createHostedItemFolder } from '../../../../../packages/runners/index.js';
 import { serveRunner } from '../../../../../packages/drive/index.js';
 import { localRunnerStatus } from '../../../../../packages/drive/index.js';
@@ -39,6 +40,14 @@ import {
   computeRunnerSlots,
   effectiveRunner,
 } from '../../../../../packages/runners/index.js';
+
+/** The runners the board sees live (serves that claimed within minutes), or undefined when it sees none or cannot be read. Why here: it is the board's one reader of pulled capacity [U151]. */
+export function liveRunnerCount(ctx) {
+  try {
+    const { totals } = withBoardRead(ctx, board => readPulledCapacity(board.db));
+    return totals.serves > 0 ? totals.serves : undefined;
+  } catch { return undefined; }
+}
 
 /** Describe one runner's measured size and the slots the gate offers from it. */
 function sizeLine(runner, settings) {
