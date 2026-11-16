@@ -24,3 +24,4 @@ export { restartOnCodeMove, servedClosure, servedModuleMoved } from "./src/io/fr
 export { SERVE_FD_ENV, announceListening, catchListeners, inheritedListener, spawnOnSocket } from "./src/io/handoff.js";
 export { BOARD_HOST, addLocalBoard, localBoards, localRunnerState, localRunnerStatus, processAlive, serveLocalRunner, startLocalRunner } from './src/io/local.js';
 export { startLoopWatchdog } from './src/io/watchdog.js';
+export { startBeat } from './src/io/beat.js';
