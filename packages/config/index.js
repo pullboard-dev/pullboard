@@ -99,6 +99,7 @@ export {
   adaptiveBatchEnabled,
   landingSquashEnabled,
   reofferTrunkBusyEnabled,
+  reuseContractResultsEnabled,
   reuseGateReceiptsEnabled,
   memoryFloorMB,
   relayOfferEnabled,
