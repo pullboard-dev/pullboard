@@ -30,7 +30,7 @@ test('clause 1: pullboard log --json --since --kind streams NDJSON on a board wi
   const answer = await run('log', '--json', '--since', since, '--kind', 'merged');
   assert.equal(answer.status, 0, answer.stderr);
   const rows = answer.stdout.trimEnd().split('\n').map(line => JSON.parse(line));
-  assert.equal(rows.length, EVENTS / 2 / MERGED_EVERY + 1 - 1, 'every merge event from the cut-off on, and only those');
+  assert.equal(rows.length, EVENTS / 2 / MERGED_EVERY + 1, 'every merge event from the cut-off on, and only those');
   assert.ok(rows.every(row => row.event_kind === 'merged' && row.event_at >= since));
 });
 
