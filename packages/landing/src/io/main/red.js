@@ -438,6 +438,15 @@ async function compareMainFailuresNow(root, profile, onWait, output = '', { comm
     }
   }
   const coarse = Object.create(null);
+  // With gate.mainCaseFilter on, a detailed comparison runs main's copy of a file with only the cases the candidate failed
+  // in it. Such a result answers this call alone: it is never read from or written to the whole-file cache [C7,#8761].
+  const caseFilter = detailed && loadMachineSettings().gate?.mainCaseFilter === true;
+  const casesOf = Object.create(null);
+  if (caseFilter) for (const path of files) {
+    const names = [...new Set((profile?.tests ?? []).filter(row => row.passed === false && row.file === path && typeof row.name === 'string' && row.name).map(row => row.name))];
+    if (names.length) casesOf[path] = names;
+  }
+  const filteredOutcome = Object.create(null);
   /** A detailed comparison cannot reuse an old file-only or obsolete-signature cache entry. */
   const usable = outcome => ['red', 'green'].includes(outcome?.result)
     && (!detailed || Array.isArray(outcome.failures) || outcome.result === 'red' && outcome.fileIsolation === true);
@@ -449,11 +458,11 @@ async function compareMainFailuresNow(root, profile, onWait, output = '', { comm
   const inputs = contentCache ? await contentKeys(root, main.commit, files) : new Map();
   const content = pinned ? new Map(files.map(path => [path, pinnedContentKey(inputs.get(path), execution)])) : inputs;
   /** A file's outcome at main: the exact commit's, else the one recorded for the same content key [C7,#3166]. */
-  const outcomeOf = (entries, path) => usable(entries[main.commit]?.[path]) ? entries[main.commit][path]
+  const outcomeOf = (entries, path) => casesOf[path] ? filteredOutcome[path] : usable(entries[main.commit]?.[path]) ? entries[main.commit][path]
     : content.get(path) && usable(entries[content.get(path)]?.[path]) ? entries[content.get(path)][path] : undefined;
   // A content-keyed outcome is already fresh: the same test and covered code at main were measured, so fresh reruns
   // only a file with no content key, and each main red runs at most once per content hash.
-  const rerun = path => fresh && !pinned && !content.get(path);
+  const rerun = path => Boolean(casesOf[path]) || fresh && !pinned && !content.get(path);
   let cache = await snapshot();
   const missing = files.filter(path => !outcomeOf(cache.entries, path) || rerun(path));
   if (pinned && missing.length) {
@@ -490,7 +499,7 @@ async function compareMainFailuresNow(root, profile, onWait, output = '', { comm
         // Another caller may have measured this content while this one waited for the slot: recheck after admission, so concurrent cold readers execute the file at most once [C7,#3166].
         if (!rerun(path) && outcomeOf((await snapshot()).entries, path)) return { reused: true };
         // A cache miss must execute main's file; completed exact-main comparisons remain reusable.
-        const run = await runMainComparison(checkout, path, { detailed, gateLease: lease, waitMs: lease.waitMs, ...(source ? { source } : {}), signatureCapture: { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true, allowCancelled }) } });
+        const run = await runMainComparison(checkout, path, { detailed, ...(casesOf[path] ? { cases: casesOf[path] } : {}), gateLease: lease, waitMs: lease.waitMs, ...(source ? { source } : {}), signatureCapture: { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true, allowCancelled }) } });
         if (pinned && ((executor.kind === 'ssh' ? !(executor.hosts ?? [executor.host]).includes(run.executionRunner) : Boolean(run.executionRunner))
           || !sameEnvironment(run.environment, execution.environment)
           || comparisonBrowser !== null && Boolean(lease.runner?.browser > 0) !== comparisonBrowser)) {
@@ -504,6 +513,8 @@ async function compareMainFailuresNow(root, profile, onWait, output = '', { comm
             if (id && onMeasuredReceipt) await onMeasuredReceipt(id);
           } catch { /* Timing retention never changes the exact-main failure verdict. */ }
         }
+        // A filtered run that ran none of the named cases tested nothing, so its green is never evidence [C7,#8761].
+        if (casesOf[path] && run.isGreen && !(run.profile?.tests ?? []).some(row => row.passed === true && !row.skip)) throw new Error('the filtered main comparison ran none of the named cases, so its green is not evidence');
         // A red that names no failing test or crashed file is a run that never tested main, not main's red (#2950).
         // Named failing cases in the raw output count as well as the profile's rows: either proves main's file ran [C7,#3073].
         if (!run.isGreen && !failingFiles(checkout, run.profile, run.output).length && !failureSignatures(run, checkout, { raw: true, allowCancelled })?.length) throw new Error('the main comparison run named no failing test or crashed file, so its red is not evidence');
@@ -554,6 +565,7 @@ async function compareMainFailuresNow(root, profile, onWait, output = '', { comm
       }
       if (measured.unavailable) throw new Error(measured.unavailable);
       if (measured.reused) return;
+      if (casesOf[path]) { filteredOutcome[path] = measured; return; }
       if (pinned) pinnedEntries[path] = measured;
       await withComparisonCache(root, onWait, () => {
         const current = readCache(file);
@@ -577,7 +589,7 @@ async function compareMainFailuresNow(root, profile, onWait, output = '', { comm
     const current = readCache(file);
     let copied = false;
     for (const path of files) {
-      if (usable(current.entries[main.commit]?.[path]) || !content.get(path)) continue;
+      if (casesOf[path] || usable(current.entries[main.commit]?.[path]) || !content.get(path)) continue;
       const served = current.entries[content.get(path)]?.[path];
       if (usable(served)) { storeOutcome(current, [main.commit], path, served); copied = true; }
     }
