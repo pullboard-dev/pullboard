@@ -253,6 +253,12 @@ export function loadMachineSettings() {
   if (value.list?.thinRead !== undefined && typeof value.list.thinRead !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `list.thinRead in ${file} must be true or false`);
   }
+  if (value.maintenance?.retireIdleSeats !== undefined && typeof value.maintenance.retireIdleSeats !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `maintenance.retireIdleSeats in ${file} must be true or false`);
+  }
+  if (value.maintenance?.retireIdleHours !== undefined && !(Number.isFinite(value.maintenance.retireIdleHours) && value.maintenance.retireIdleHours > 0)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `maintenance.retireIdleHours in ${file} must be a positive number of hours`);
+  }
   const reserve = value.gate?.jobReserve;
   if (reserve != null && (typeof reserve !== 'object' || Array.isArray(reserve) || Object.values(reserve).some(share => !Number.isFinite(share) || share < 0 || share > 1)
     || Object.values(reserve).reduce((sum, share) => sum + share, 0) > 1)) {
@@ -322,6 +328,12 @@ export function loadMachineSettings() {
     throw new Refused('BAD_SHORT_SLOTS', `gate.shortSlots in ${file} must be a whole number, 0 or more; run pullboard settings gate.shortSlots <n>`);
   }
   return { ...value, gateSlots, browserSlots, ...(runners.length ? { runners } : {}) };
+}
+
+/** Hours a seat worktree must sit untouched before maintenance retires it (#9109), or null while maintenance.retireIdleSeats is off (default). */
+export function retireIdleSeatHours() {
+  const settings = loadMachineSettings().maintenance;
+  return settings?.retireIdleSeats === true ? settings.retireIdleHours ?? 3 : null;
 }
 
 /** Whether pullboard list reads through the thin read door (#9089): off by default; only an exact `true` turns it on. */
