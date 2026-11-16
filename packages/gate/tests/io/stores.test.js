@@ -290,13 +290,13 @@ test('#8620 clause 1: code-map.json, last-green.json, models.json, path-map.json
   for (const store of ['models.json', 'path-map.json']) assert.equal(registry.stores[store].kind, 'repo-data', `${store} is only read`);
 });
 
-test('#8752 clause 1: publish.json is off writeOwnerDebt, owned by the publish module that writes it through the shared board-folder path helper, with no store-homes ceiling raised [CD2]', () => {
+test('#8752 clause 1: publish.json is off writeOwnerDebt, owned by the landing pause module that writes it, and publish writes through that owner, with no store-homes ceiling raised [CD2]', () => {
   const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
   const read = file => { try { return readFileSync(new URL(`../../../../${file}`, import.meta.url), 'utf8'); } catch { return undefined; } };
   assert.equal(registry.writeOwnerDebt.includes('publish.json'), false);
   assert.deepEqual(storeWriteProblems(registry, read), []);
-  assert.equal(registry.stores['publish.json'].owner, 'packages/github/src/io/publish.js');
-  assert.match(read('packages/github/src/io/publish.js'), /publishStateFile\(root\)/u, 'the write goes through the shared path helper');
+  assert.equal(registry.stores['publish.json'].owner, 'packages/landing/src/io/pause.js');
+  assert.match(read('packages/github/src/io/publish.js'), /writePublishState\(root/u, 'publish writes through the owner');
 });
 
 /** The stemless templated store names under one package: every one must come from the cell's registry const [CD2]. */

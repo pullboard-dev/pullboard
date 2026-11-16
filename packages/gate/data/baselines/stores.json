@@ -867,7 +867,7 @@
     },
     "publish.json": {
       "kind": "json",
-      "owner": "packages/github/src/io/publish.js"
+      "owner": "packages/landing/src/io/pause.js"
     },
     "pull.json": {
       "kind": "json",
