@@ -1,5 +1,4 @@
 /** Real CLI scenario for a review, submit or check that keeps its item lease while queued [C7,V4]. */
-import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
 import { checkBaseline } from '../../../index.js';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -12,11 +11,9 @@ import { pathToFileURL } from 'node:url';
 import { createInterface } from 'node:readline';
 import { DatabaseSync } from 'node:sqlite';
 import * as store from '../../../../store/index.js';
-import { openBoard } from '../../../../../apps/lib/index.js';
 import { registerProject } from '../../../../seats/index.js';
 import { runFixtureChild } from '../child.js';
 import { fixtureJoinRoute } from '../testkit.js';
-import { settledGateJob } from '../../../../../apps/cli/tests/fixtures/submit/settle.js';
 
 /** Run a scoped view against a private registry and machine home, restoring both on close; the caller supplies the CLI app's view server and command runner. */
 export async function openPrivateScopedView(box, { serveView, runCommand }) {
@@ -79,7 +76,7 @@ function leaseCommand({ helpers, children }, box, cwd, ...args) {
 }
 
 /** Create genuine submitted/claimed items and independent reviewers before advancing any clock. */
-function itemLeaseFixture(t, helpers) {
+function itemLeaseFixture(t, helpers, openBoard) {
   const box = helpers.project('true');
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
@@ -148,7 +145,7 @@ function itemLeaseFixture(t, helpers) {
 }
 
 /** Inherit a genuine private lease and prove awaited admission runs before the nested action. */
-function inheritedAdmissionProof(box) {
+function inheritedAdmissionProof(box, executionServicesSource) {
   const program = `
 import assert from 'node:assert/strict';
 import { takeResource, gateSlotEnvironment } from ${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../../../../resources/index.js')).href)};
@@ -180,11 +177,11 @@ try {
  * live beside it, as the release-first proof does, while the named test stays in that file.
  *
  * @param {import('node:test').TestContext} t
- * @param {{ helpers: any, children: Set<any>, fixture: Function, poolWorker: Function, privateList: Function, privateTake: Function, acquired: Function, release: Function, waitUntil: Function }} deps
+ * @param {{ helpers: any, children: Set<any>, openBoard: Function, settledGateJob: Function, executionServicesSource: Function, fixture: Function, poolWorker: Function, privateList: Function, privateTake: Function, acquired: Function, release: Function, waitUntil: Function }} deps
  */
 export async function queuedLeaseProof(t, deps) {
-  const { fixture, poolWorker, privateList, privateTake, acquired, release, waitUntil } = deps;
-  const box = itemLeaseFixture(t, deps.helpers);
+  const { fixture, poolWorker, privateList, privateTake, acquired, release, waitUntil, openBoard, settledGateJob, executionServicesSource } = deps;
+  const box = itemLeaseFixture(t, deps.helpers, openBoard);
   const [reviewId, deadId, buildId, checkId] = box.ids;
   const [reviewGate, deadGate, buildGate, checkGate] = box.gates;
   const [reviewer, deadReviewer] = box.reviewers;
@@ -317,7 +314,7 @@ export async function queuedLeaseProof(t, deps) {
         assert.deepEqual(pool.holders, [], 'failed renewal never leaves a held resource');
       } finally { result.lease?.release(); }
     });
-    await t.test('an inherited native slot awaits item admission and refuses a lost lease', () => inheritedAdmissionProof(box));
+    await t.test('an inherited native slot awaits item admission and refuses a lost lease', () => inheritedAdmissionProof(box, executionServicesSource));
   } finally {
     for (const gate of box.gates) writeFileSync(gate.release, 'release');
     if (holder && !holder.exitResult) await release(holder);
