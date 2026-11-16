@@ -17,15 +17,17 @@ export function ruleIdentity(rule) {
  * through before any rule is decoded; origin and identity ride on each rule, so import adds nothing of its own [C7].
  * @param {{ bytes: string, digest?: string, signatures?: Array<{ key: string, signature: string }> }} bundle
  * @param {string[]} authorizedKeys - Base64 DER spki public keys the rule board authorized.
- * @returns {{ digest: string, issuer: string, revision: number, rules: Record<string, Record<string, object>> }}
+ * @returns {{ digest: string, issuer: string, revision: number, rules: Record<string, Record<string, object>> }} The rule maps have no prototype, so every accepted origin and id is an own key.
  */
 export function importBundle(bundle, authorizedKeys) {
   const { digest, issuer } = verifyBundle(bundle, authorizedKeys);
   const decoded = decodeBundle(bundle.bytes);
-  const rules = {};
+  // Prototype-free dictionaries: an origin or rule id such as "__proto__" or "constructor" is signed data, so it must become an
+  // own key of the map and never resolve to, or write through, an inherited property of Object.prototype [C7].
+  const rules = Object.create(null);
   for (const rule of decoded.rules) {
     const origin = rule.originBoardId ?? decoded.originBoardId;
-    (rules[origin] ??= {})[rule.id] = { ...rule, originBoardId: origin };
+    (rules[origin] ??= Object.create(null))[rule.id] = { ...rule, originBoardId: origin };
   }
   return { digest, issuer, revision: decoded.revision, rules };
 }
