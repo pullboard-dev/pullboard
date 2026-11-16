@@ -25,7 +25,7 @@ export { eligibilityProblem, reviewEligibility } from './src/logic/review/eligib
 export { earlierHolderProblem, committedItemAuthors, itemReviewPolicy, reviewFamilyProblem, reviewPolicyChange, saveItemReviewPolicy, strictReviewProblem, twoTierReviews } from './src/io/review/independence.js';
 export { aliasEngineOn, anyItemReviewPolicyEngine, familiesDiffer, familyAliasesOf, familyIndex, familyName, itemReviewPolicyEngine } from './src/logic/review/policy.js';
 export { reviewQueueLine } from './src/logic/review/queue.js';
-export { canonicalFamily, overdueReview, prioritizeReviews, requireStrictBuilderFamily, reviewReleaseCooldown, reviewRoutingEnabled, reviewWait, seatFamily, strictReviewProblem as routingStrictReviewProblem, builderFamilyOf } from './src/io/review/routing.js';
+export { canonicalFamily, overdueReview, prioritizeReviews, requireStrictBuilderFamily, reviewReleaseCooldown, reviewRoutingEnabled, reviewWait, seatFamily, strictReviewProblem as routingStrictReviewProblem, builderFamilyOf, declaredLimitProblem } from './src/io/review/routing.js';
 export { ruleProofCounts, ruleProofWindow } from './src/io/rule/proof/counts.js';
 export { bindProofRunner, committedRuleCoverage, proofCoverageFingerprint } from './src/io/rule/proof/coverage.js';
 export { appendRuleProof } from './src/io/rule/proof/append.js';

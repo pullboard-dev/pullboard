@@ -23,6 +23,7 @@ const OPTIONS = {
   parent: { type: 'string' },
   wake: { type: 'string' },
   'lock-lane': { type: 'boolean' },
+  'review-limit': { type: 'string' },
   reason: { type: 'string' },
   revises: { type: 'string' },
   status: { type: 'string' },
