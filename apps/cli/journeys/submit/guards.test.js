@@ -41,5 +41,6 @@ test('submit runs the move registry guard for an item that adds a move and refus
   const exported = (await box.runLocal(box.web, 'export', '--json'));
   assert.equal(exported.code, 0, exported.err);
   const event = JSON.parse(exported.out).tables.event.findLast(row => row.event_kind === 'submit');
+  assert.ok(event, 'the repaired submit recorded its event: ' + repaired.out + JSON.parse(exported.out).tables.event.map(row => row.event_kind).join(','));
   assert.ok(JSON.parse(event.event_detail).submissionProof.files.includes('apps/cli/journeys/relay/credential.test.js'));
 });
