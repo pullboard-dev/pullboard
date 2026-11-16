@@ -15,3 +15,9 @@ test('clause 1: no tracked file under packages/moves contains the Studio host na
   const hits = files.filter((f) => readFileSync(join(ROOT, f), 'utf8').toLowerCase().includes(WORD));
   assert.deepEqual(hits, []);
 });
+
+test('clause 2: the recorded submit history still parses with its events and a neutral runner name [C7]', () => {
+  const history = JSON.parse(readFileSync(join(ROOT, 'packages/moves/tests/fixtures/table/submit-history.json'), 'utf8'));
+  assert.ok(history.events.length > 0);
+  assert.ok(JSON.stringify(history).includes('"runner":"studio-host"'));
+});
