@@ -34,6 +34,7 @@ const BEFORE = {
   'gate.fencedHop': true,
   'gate.handoffWorkers': null,
   'gate.jobReserve': null,
+  'gate.knownMainStatic': false,
   'gate.loadAwareDispatch': true,
   'gate.localLoadShare': 1,
   'gate.localRunner': true,
@@ -189,4 +190,9 @@ test('clause 3: removing a BEFORE key or changing its value fails the check [O6]
 test('clause 1: landing.asyncFetch is a machine setting, false by default, with a description [C7]', () => {
   assert.equal(MACHINE_DEFAULTS['landing.asyncFetch'], false);
   assert.ok(SETTING_DESCRIPTIONS['landing.asyncFetch']);
+});
+
+test('clause 1: gate.knownMainStatic is a machine setting, false by default, with a description [C7]', () => {
+  assert.equal(MACHINE_DEFAULTS['gate.knownMainStatic'], false);
+  assert.ok(SETTING_DESCRIPTIONS['gate.knownMainStatic']);
 });
