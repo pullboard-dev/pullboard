@@ -1,5 +1,6 @@
 /** Shared helpers for the local-first relay journeys: a linked board, the timed real-CLI call and the sender waits [H21,H5,H16]. */
 import assert from 'node:assert/strict';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import {
   existsSync,
   readFileSync,
@@ -18,6 +19,8 @@ import {
   runFixtureChildAsync,
   runFixtureGit,
 } from '../child.js';
+import { main } from '../native.js';
+import { captureCommandInProcess } from '../process.js';
 import { relayClientFixture } from './client.js';
 import { stopSender } from './sender.js';
 
@@ -32,6 +35,8 @@ const IDLE_NODE_START_MS = 40;
 const SENDER_WAIT_MS = 20_000;
 /** How often the burst test lists sender processes; each listing is a `ps` that competes with the commands being timed, and a sender lives far longer than this. */
 export const SAMPLE_MS = 100;
+/** How long one bare-start measurement of the machine's load stays current. */
+const NODE_START_FRESH_MS = 5_000;
 
 /** Turn the board's committed relay.outbox setting on, as its coordinator would. */
 export function enableOutbox(box) {
@@ -66,35 +71,53 @@ export async function eventually(what, ready, detail = () => '') {
   assert.fail(`${what} did not happen within ${SENDER_WAIT_MS} ms${String(await detail()) ? `\n${await detail()}` : ''}`);
 }
 
+/** Network attempts made by the command under measurement; the relay fixture shares this process, so only that command's async context counts. */
+const measured = new AsyncLocalStorage();
+let fetchCounting = false;
+
+/** Count `fetch` calls made inside a measured command, without recording their arguments. */
+function countFetches() {
+  if (fetchCounting) return;
+  fetchCounting = true;
+  const real = globalThis.fetch;
+  globalThis.fetch = (...args) => {
+    const counter = measured.getStore();
+    if (counter) counter.fetches++;
+    return real(...args);
+  };
+}
+
 /**
- * Run the real CLI in `cwd` and measure it apart from any sender it starts: a preload counts every network call this
- * foreground process makes, and the sender, a separate process, is never counted.
+ * Run the production CLI in-process in `cwd` and time only its own dispatch: the clock starts when the command
+ * starts running (not while an earlier in-process call is queued ahead of it), and a fetch made inside it is counted.
+ * The background sender it nudges is a separate process and is never counted.
  */
 export async function local(box, t, cwd, env, name, args, budget) {
   const budgetMs = budget ?? await loadedBudgetMs();
-  const trace = join(dirname(box.root), `${name}-fetches`);
-  const preload = join(dirname(box.root), `${name}-preload.mjs`);
-  writeFileSync(preload, [
-    "import { appendFileSync } from 'node:fs';",
-    'const fetch = globalThis.fetch;',
-    '/** Record only that this foreground process attempted network IO, never its arguments. */',
-    'globalThis.fetch = (...args) => {',
-    `  appendFileSync(${JSON.stringify(trace)}, 'fetch\\n', { mode: 0o600 });`,
-    '  return fetch(...args);',
-    '};',
-  ].join('\n'), { mode: 0o600 });
-  // Process-level: this measures a real process's wall clock from spawn to exit and counts its network calls through a preload.
-  const running = runFixtureChildAsync(process.execPath, ['--import', preload, CLI, ...args, '--json'], { cwd, env });
-  // Budget: well past the one-second bar, so a slow command fails its assertion instead of hanging the file.
-  const timer = setTimeout(() => running.child.kill('SIGKILL'), 10_000);
-  let result;
-  try { result = await running; } finally { clearTimeout(timer); }
-  const fetches = existsSync(trace) ? readFileSync(trace, 'utf8').trim().split('\n').length : 0;
-  t.diagnostic(JSON.stringify({ name, elapsedMs: result.elapsedMs, status: result.status, foregroundFetches: fetches }));
-  assert.equal(result.status, 0, result.context);
-  assert.ok(result.elapsedMs < budgetMs, `${name} took ${result.elapsedMs} ms; a local-first command returns within one second (${budgetMs} ms on this machine's load)`); // budget: declared by #1013's frozen bar: a local move or read returns within one second.
-  assert.equal(fetches, 0, `${name} made no network call`);
+  countFetches();
+  const counter = { fetches: 0 };
+  let started = 0, finished = 0;
+  const result = await measured.run(counter, () => captureCommandInProcess(async (argv, io) => {
+    started = performance.now();
+    try { return await main(argv, io); } finally { finished = performance.now(); }
+  }, [...args, '--json'], { cwd, env }));
+  const elapsedMs = Math.round(finished - started);
+  t.diagnostic(JSON.stringify({ name, elapsedMs, status: result.status, foregroundFetches: counter.fetches }));
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  assert.ok(elapsedMs < budgetMs, `${name} took ${elapsedMs} ms; a local-first command returns within one second (${budgetMs} ms on this machine's load)`); // budget: declared by #1013's frozen bar: a local move or read returns within one second.
+  assert.equal(counter.fetches, 0, `${name} made no network call`);
   return { document: JSON.parse(result.stdout), stderr: result.stderr };
+}
+
+let lastStart = { at: -Infinity, slowest: 0 };
+
+/** How slow a bare node process starts right now; read at most every few seconds, as six spawns per command would be the largest cost of a case. */
+async function slowestNodeStartMs() {
+  if (performance.now() - lastStart.at < NODE_START_FRESH_MS) return lastStart.slowest;
+  // Process-level: this times how slow a bare node process starts right now, so it must be a real spawn.
+  const starts = await Promise.all([1, 2, 3, 4, 5, 6].map(() => runFixtureChildAsync(process.execPath, ['-e', '0'], {})));
+  lastStart = { at: performance.now(), slowest: Math.max(...starts.map(start => start.elapsedMs)) };
+  return lastStart.slowest;
 }
 
 /**
@@ -103,9 +126,7 @@ export async function local(box, t, cwd, env, name, args, budget) {
  * Why: the bar is about the CLI's own work, and a loaded runner made the same command read red in one run and green in the next.
  */
 export async function loadedBudgetMs(concurrent = 0) {
-  // Process-level: this times how slow a bare node process starts right now, so it must be a real spawn.
-  const starts = await Promise.all([1, 2, 3, 4, 5, 6].map(() => runFixtureChildAsync(process.execPath, ['-e', '0'], {})));
-  const slowest = Math.max(...starts.map(start => start.elapsedMs));
+  const slowest = await slowestNodeStartMs();
   // A CLI command is heavier than a bare start and queues on the CPU like any other process, so run-queue pressure counts twice.
   const queued = 2 * (loadavg()[0] + concurrent) / cpus().length;
   return Math.round(LOCAL_MS * Math.max(1, slowest / IDLE_NODE_START_MS, queued));
