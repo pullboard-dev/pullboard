@@ -65,7 +65,7 @@ export function handoffRecords(db, { live = false } = {}) {
   const records = new Map();
   if (!hasJobTables(db)) return records;
   const rows = db.prepare(`SELECT j.job_item AS item, s.job_step_payload AS payload FROM job j
-    JOIN job_step s ON s.job_step_id = (SELECT MAX(job_step_id) FROM job_step WHERE job_step_job = j.job_id)
+    JOIN job_step s ON s.job_step_id = (SELECT MAX(job_step_id) FROM job_step WHERE job_step_job = j.job_id AND job_step_name NOT LIKE 'note:%')
     WHERE j.job_kind = 'gate' AND j.job_item IS NOT NULL${live ? " AND j.job_item IN (SELECT item_id FROM item WHERE item_status NOT IN ('verified', 'withdrawn'))" : ''}
     ORDER BY s.job_step_id DESC`).iterate();
   for (const row of rows) {
