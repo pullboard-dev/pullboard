@@ -24,3 +24,17 @@ export function generatedProblems(generated) {
   });
   return problems;
 }
+
+/**
+ * The declared generated files a change makes stale: each declaration whose input is among the changed paths [C7].
+ * Why: submit must know what to regenerate before it runs any generator, and a pure answer is cheap to prove.
+ *
+ * @param {{ file: string, generator: string, inputs: string[] }[] | undefined} generated the `generated` setting
+ * @param {string[]} changedPaths repo-relative paths the change touches
+ * @returns {{ file: string, generator: string, inputs: string[] }[]} the stale declarations, in declared order
+ */
+export function staleGeneratedFiles(generated, changedPaths) {
+  if (!Array.isArray(generated)) return [];
+  const changed = new Set(changedPaths);
+  return generated.filter(entry => entry.inputs.some(input => changed.has(input)));
+}

@@ -10,6 +10,8 @@ import { repoInfo } from '../../../../../packages/git/index.js';
 import { maintenanceProtectedPath } from './maintenance/protection.js';
 import { retainedMaintenanceHealth } from './maintenance/retention.js';
 import { maintenanceDurations } from '../../../../../packages/config/index.js';
+import { retireIdleSeatHours } from '../../../../../packages/config/index.js';
+import { retireIdleSeats } from './maintenance/idle-seats.js';
 import { classifyMaintenanceTree } from './maintenance/classify.js';
 import { archiveMaintenanceWorktree } from './maintenance/archive.js';
 import { removePartialArchives } from './maintenance/archive.js';
@@ -205,6 +207,10 @@ export async function runWorktreeMaintenance(root, config, ports, { now = Date.n
       entry.action = entry.archive ? 'archived-kept' : 'kept';
     } finally { lease?.release(); }
   }
+  // With maintenance.retireIdleSeats on, clean trees idle past the set hours whose HEAD is already on main go too (#9109).
+  const idleHours = retireIdleSeatHours();
+  if (idleHours !== null) await retireIdleSeats(root, report.entries, { mainRoot, hours: idleHours, now, observed, ports, report, dirtyPaths: maintenanceDirtyPaths });
+  for (const entry of report.entries) if (entry.action === 'retired-idle') delete next.trees[entry.path];
   // A dirty worktree remains a health finding only after repeated observations spanning a day.
   next.lastRun.finishedAt = new Date().toISOString();
   next.lastRun.nextAt = new Date(now + durations.everyMs).toISOString();

@@ -18,6 +18,7 @@ import { listResources } from '../../../../../packages/resources/index.js';
 import { landingGateRuns } from '../../../src/io/live/read.js';
 import { publicLiveRunners } from '../../../src/io/live/read.js';
 import { readLiveRunners } from '../../../src/io/live/read.js';
+import { runsJobs } from '../../../src/io/serve.js';
 import { repoInfo } from '../../../../../packages/git/index.js';
 
 const MINUTE = 60_000;
@@ -135,4 +136,33 @@ test('registeredOnly lists the configured runners, carries each fresh heartbeat 
   const live = publicLiveRunners(common, { resources, configured, openBoardReadOnly: store.openBoardReadOnly, registeredOnly: true });
   assert.deepEqual(live.runners.map(runner => [runner.runner, runner.cpu, runner.jobs.length]), [[1, 42, 1], [2, null, 0], [3, null, 0]],
     'three registered runners; a stale or missing heartbeat has no load; the pull runner works on its host');
+});
+
+test('clause 1: with runs_store on, the live read takes pulled jobs from a read-only runs handle and finished counts from board run rows [B2,#9016]', t => {
+  const { repo, common } = liveFixture(t);
+  const board = cellBoard(t, repo.boardFile, { now: () => new Date() });
+  const boardId = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key = 'board_id'").get().meta_value;
+  const runs = store.openRunsStore(store.runsFilePath(repo.boardFile), { boardId });
+  t.after(() => runs.close());
+  const at = Date.now() - 2 * MINUTE;
+  offerJob(runs, { id: 'gate:77:aa', kind: 'gate', needs: ['node22'], item: 77, candidate: 'd'.repeat(40), base: 'a'.repeat(40), request: { run: ['node', 'run.js'] }, now: at });
+  claimJob(runs, { runner: 'runs-only-runner', capabilities: ['node22'], now: at + 1000, leaseMs: 30 * MINUTE });
+  board.db.prepare("INSERT OR REPLACE INTO board_meta(meta_key, meta_value) VALUES ('runs_store', '1')").run();
+  const now = Date.now();
+  board.db.prepare("INSERT INTO run (run_job, run_kind, run_item, run_state, run_created, run_updated) VALUES ('gate:5:aa', 'gate', 5, 'done', ?, ?)").run(now - MINUTE, now - MINUTE);
+  const sources = readLiveRunners({ roots: [{ commonDir: common }], now, resources: join(process.env.PULLBOARD_MACHINE_HOME, 'resources.sqlite'), openBoardReadOnly: store.openBoardReadOnly, jobsFor: runsJobs });
+  assert.deepEqual(sources.jobs.map(job => [job.kind, job.item, job.runner]), [['gate', 77, 'runs-only-runner']], 'the board job table holds the test job; only the runs file jobs show when on');
+  assert.ok(sources.runners.some(runner => runner.host === 'runs-only-runner'), 'the runner that ran a runs-file job shows');
+});
+
+test('clause 2: with runs_store off, the live read returns the same job rows as before, from the board [B2,#9016]', t => {
+  const { repo, common } = liveFixture(t);
+  const board = cellBoard(t, repo.boardFile, { now: () => new Date() });
+  const boardId = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key = 'board_id'").get().meta_value;
+  const runs = store.openRunsStore(store.runsFilePath(repo.boardFile), { boardId });
+  t.after(() => runs.close());
+  offerJob(runs, { id: 'gate:78:aa', kind: 'gate', needs: ['node22'], item: 78, candidate: 'd'.repeat(40), base: 'a'.repeat(40), request: { run: ['node', 'run.js'] }, now: Date.now() - MINUTE });
+  claimJob(runs, { runner: 'runs-only-runner', capabilities: ['node22'], now: Date.now(), leaseMs: 30 * MINUTE });
+  const sources = readLiveRunners({ roots: [{ commonDir: common }], now: Date.now(), resources: join(process.env.PULLBOARD_MACHINE_HOME, 'resources.sqlite'), openBoardReadOnly: store.openBoardReadOnly, jobsFor: runsJobs });
+  assert.deepEqual(sources.jobs.map(job => [job.kind, job.item, job.runner]), [['test', 5774, 'aux-9']], 'the flag is off: the runs file is not read');
 });

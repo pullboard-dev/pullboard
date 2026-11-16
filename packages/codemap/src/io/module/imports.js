@@ -41,14 +41,22 @@ const PARSER = [
  * @param {string[]} sources
  * @returns {{ compiles: boolean, imports: string[] }[]}
  */
-function compileSources(sources) {
-  if (foreignNodeOptions(process.env.NODE_OPTIONS, process.env)) return compileFresh(sources);
+export function compileSources(sources, spawn = spawnSync) {
+  const fresh = missing => compileFresh(missing, spawn);
+  if (foreignNodeOptions(process.env.NODE_OPTIONS, process.env)) return fresh(sources);
   const epoch = JSON.stringify([process.execPath, process.versions.node, process.env.NODE_OPTIONS ?? null, PARSER]);
-  return storedCompilations(epoch, sources, compileFresh);
+  return storedCompilations(epoch, sources, fresh);
 }
 
-/** Compile in a child Node, with no stored result consulted. */
-function compileFresh(sources) {
+/** The most time one parser child may take; a loaded runner that exceeds it gets a smaller batch, never a longer wait. */
+const PARSER_TIMEOUT_MS = 10_000;
+
+/**
+ * Compile in a child Node, with no stored result consulted. A batch whose child timed out on a loaded machine is split in
+ * halves and each half retried under the same timeout, so the answer is the same for every source; a lone source that
+ * still times out fails as before [C7].
+ */
+function compileFresh(sources, spawn = spawnSync) {
   // The package parser has an observed stdin/EOF hang. Use a private regular file and bound V8 too.
   const cacheDirectory = importParseScopes.getStore()?.directory;
   if (cacheDirectory) mkdirSync(cacheDirectory, { recursive: true, mode: 0o700 });
@@ -56,9 +64,13 @@ function compileFresh(sources) {
   const input = join(directory, 'sources.json');
   try {
     writeFileSync(input, JSON.stringify(sources), { mode: 0o600 });
-    const child = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', '--input-type=module', '-e', PARSER, input], {
-      encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 2 ** 26, timeout: 10_000, killSignal: 'SIGKILL',
+    const child = spawn(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', '--input-type=module', '-e', PARSER, input], {
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 2 ** 26, timeout: PARSER_TIMEOUT_MS, killSignal: 'SIGKILL',
     });
+    if (child.error?.code === 'ETIMEDOUT' && sources.length > 1) {
+      const half = Math.ceil(sources.length / 2);
+      return [...compileFresh(sources.slice(0, half), spawn), ...compileFresh(sources.slice(half), spawn)];
+    }
     if (child.status !== 0) throw new Error('V8 import parser failed: ' + (child.error?.message ?? child.stderr));
     return JSON.parse(child.stdout);
   } finally { rmSync(directory, { recursive: true, force: true }); }

@@ -50,7 +50,11 @@ export async function waitForCondition(check, label, { signal, state, onTimeout 
       if (signal?.aborted) { expired(); return; }
       let ready;
       try { ready = check(); }
-      catch (error) { finish(error); return; }
+      catch (error) {
+        // A read on a board another process is writing is not-yet-true, not a failure; the deadline still ends the wait.
+        if (!/database is locked|SQLITE_BUSY/i.test(`${error?.message ?? ''} ${error?.code ?? ''}`)) { finish(error); return; }
+        ready = false;
+      }
       if (ready) { finish(); return; }
       // budget: preserve the existing fallback only for callers without a test-owned signal.
       if (!signal && performance.now() - started >= 20_000) { expired(); return; }

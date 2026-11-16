@@ -2,10 +2,15 @@
 import { createHash } from 'node:crypto';
 import { Refused } from '../../../../kernel/light.js';
 import { defineRules } from './rules.js';
+import { landingOf } from './rules.js';
 import { VERIFY_NEXT } from './next.js';
 export { VERIFY_NEXT } from './next.js';
 
 const ROUTES = Object.freeze(['light', 'mid', 'strong']);
+/** The paces under which a landed item takes no verdict: steady and strict land only verified work. */
+const VERIFIED_PACES = Object.freeze(['steady', 'strict']);
+/** The pace that lands submitted work before its verdict, so a landed item may still take one [V6]. */
+const SPRINT_PACES = Object.freeze(['sprint']);
 const SHOUT_LIMIT = 400;
 const SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 
@@ -71,6 +76,8 @@ export function stepInMessage(message) {
 }
 
 const isAccept = (m) => m.decision === 'ACCEPT';
+/** The item's landing value from its merged commit and its landing events. */
+const landing = (s) => landingOf(s.item, s.history);
 const noteOf = (m) => String(m.note ?? '');
 const textOf = (value, s, m) => (typeof value === 'function' ? value(s, m) : value);
 const cdTo = (path) => `cd ${/^[\w@%+=:,./-]+$/u.test(path) ? path : `'${path.replace(/'/gu, `'\\''`)}'`} &&`;
@@ -212,7 +219,7 @@ export function verifyEngine(board) {
   const guard = (id, code, says, refuses, message, extra = {}) => {
     rules[id] = { says, holds: (s, m) => !refuses(s, m) };
     guards.push({ id, requires: id, code, message, next: extra.next ?? ((s, m) => stepInMessage(textOf(message, s, m)) ?? VERIFY_NEXT[code] ?? EXTRA_NEXT[code] ?? 'run pullboard help'),
-      ...(extra.codeOf ? { codeOf: extra.codeOf } : {}) });
+      ...(extra.codeOf ? { codeOf: extra.codeOf } : {}), ...(extra.paces ? { paces: extra.paces } : {}) });
   };
   /** A rule the shell decided with its own functions: the guard refuses with the code and words the shell hands in. */
   const fromShell = (id, where, key, says, code, applies = () => true) => guard(id, code, says, (s, m) => applies(m) && Boolean(s[where][key]), (s) => s[where][key].message,
@@ -254,7 +261,12 @@ export function verifyEngine(board) {
   guard('source-advance-current', 'SOURCE_ADVANCE_STALE', 'the verdict binds the effective head its check ran on',
     (s, m) => (s.item.effectiveHead ?? null) !== (m.sourceAdvanceHead ?? null) && (s.item.effectiveHead !== null || m.sourceAdvanceHead !== undefined),
     'read the current effective source and rerun its exact frozen check before recording a verdict');
-  guard('not-merged', 'ALREADY_MERGED', 'a landed item takes no new verdict', (s) => Boolean(s.item.merged), (s, m) => `item #${m.id} already landed; only unlanded acceptances can be re-reviewed`);
+  guard('not-merged', 'ALREADY_MERGED', 'a landed item takes no new verdict', (s) => Boolean(s.item.merged), (s, m) => `item #${m.id} already landed; only unlanded acceptances can be re-reviewed`,
+    { paces: VERIFIED_PACES });
+  // Sprint lands submitted work first, so a landed item still takes its verdict; only a published item, or one verified and landed, is past review [V6,#8868].
+  guard('sprint-not-final', 'ALREADY_MERGED', 'under sprint a landed item takes its verdict until it is published, or verified and landed',
+    (s) => landing(s) === 'published' || (s.item.status === 'verified' && landing(s) === 'landed'),
+    (s, m) => `item #${m.id} is ${landing(s) === 'published' ? 'published' : 'verified and landed'}; only work not yet past review takes a verdict`, { paces: SPRINT_PACES });
   guard('review-recorded', 'BAD_VERDICT_REVIEW', 'the review binds the submitted commit, its checked head, trunk and sorted paths', (s, m) => !reviewValid(m.review, s.item.commit),
     'the review must bind the current submitted commit, its checked commit, reviewed trunk and sorted unique candidate paths; use current Pullboard to review it again');
   fromShell('companion-window', 'deferred', 'companionWindow', 'automatic companions are past their objection window', 'COMPANION_WINDOW');
@@ -293,6 +305,7 @@ export function verifyEngine(board) {
     twoRejects: { says: 'two rejects since the last route change, with no calibration this move',
       holds: (s, m) => !isAccept(m) && !calibrates(s.before, m) && rejectionsSinceRouteChange(withThis(s, m)).length >= 2 },
     impliesFacts: { says: 'the verdict names implied items whose facts it writes', holds: (s) => Boolean(s.deferred.impliedFacts?.length) },
+    rejectsLanded: { says: 'the verdict is a reject of an item that has landed', holds: (s, m) => !isAccept(m) && landing(s.before) === 'landed' },
   });
 
   const table = Object.freeze({
@@ -324,6 +337,11 @@ export function verifyEngine(board) {
             { kind: 'shout', item: null, by: 'sentinel', detail: { to: 'coordinator', lanes: ['coordinator'], text: `#${s.item.id} has two send-backs at the strongest route; ${builder} built it. Rejections: ${rejections.map(r => `#${r.verdictId} (${r.reason})`).join(', ')}.` } }] };
         } },
       { id: 'implied-facts', when: 'impliesFacts', apply: ({ before: s }) => ({ patch: {}, events: s.deferred.impliedFacts }) },
+      // A reject of landed sprint work queues its pull-out; the item reopens for its builder with landing pulling until the revert is recorded [V6,M2,#8868].
+      { id: 'pull-out', when: 'rejectsLanded', paces: SPRINT_PACES,
+        apply: ({ before: s, move: m }) => ({ patch: {}, events: [{ kind: 'pull_out', by: 'coordinator',
+          detail: { commit: s.item.commit, ...(s.item.mergedCommit ? { mergedCommit: s.item.mergedCommit } : {}), builder: s.item.builtBy ?? s.item.owner ?? null,
+            verdict: s.nextVerdictId, reason: m.reason } }] }) },
     ]),
   });
   return Object.freeze({ rules: defineRules(rules), table });

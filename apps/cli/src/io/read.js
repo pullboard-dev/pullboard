@@ -44,7 +44,11 @@ import {
   trunkRef,
 } from '../../../../packages/sandbox/light.js';
 import { familyIndex } from '../../../../packages/verify/read.js';
+import { verdictProjector } from '../../../../packages/verify/read.js';
 import { MAIN_MERGE_LABEL } from '../../../../packages/merge/light.js';
+import { mainMergeFor } from '../../../../packages/merge/light.js';
+/** The two reads the thin list door shares with this module, so the door adds no cell edge of its own [C7,#9091]. */
+export { verdictProjector, mainMergeFor };
 import { sessionRoute } from './route.js';
 
 /**
