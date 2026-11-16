@@ -241,6 +241,7 @@ const ROWS = [
   // This repo: Landing
   ['generated', 'Generated files', 'Each generated file with the command that makes it and the files it reads; a declaration missing its generator is refused; off unless declared.', 'Checks', 'list'],
   ['landing.adaptiveBatch', 'Adaptive landing batch size', 'When enabled, an automatic land offer starts at one item and takes one more after every three clean batches in a row, never more than line.landingBatchSize, and drops back to one after any stopped batch; off (default), an offer takes line.landingBatchSize or everything.', 'Landing', 'on/off'],
+  ['landing.asyncFetch', 'Fetch in the background when landing', 'When enabled, the lander starts its remote fetch without waiting for it; off (default), landing waits for the fetch to finish.', 'Landing', 'on/off'],
   ['landing.auditOnly', 'Audit-only tests', 'Test files the per-item landing gate leaves to the post-landing audit, which files a red there as a main red; off unless listed.', 'Landing', 'list'],
   ['landing.environment', 'Required landing machine', 'The platform, architecture and Node version the landing gate must run on.', 'Landing', 'list'],
   ['landing.first', 'Land these first', 'Item ids the lander takes ahead of the accept order, in the order listed; a listed item that is not verified is skipped.', 'Landing', 'list'],

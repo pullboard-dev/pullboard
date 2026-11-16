@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { MACHINE_DEFAULTS } from '../../../src/io/settings/machine-defaults.js';
+import { SETTING_DESCRIPTIONS } from '../../../src/io/settings/descriptions.js';
 
 const FILE = new URL('../../../src/io/settings/machine-defaults.js', import.meta.url);
 const INVENTORY = new URL('../../../src/io/settings/inventory.js', import.meta.url);
@@ -75,6 +76,7 @@ const BEFORE = {
   'items.typedFields': false,
   'jobs.avoidRunners': false,
   'jobs.handBackUnrunnable': false,
+  'landing.asyncFetch': false,
   'landing.pools': [],
   'landing.reofferTrunkBusy': false,
   'landing.reuseContractResults': false,
@@ -179,4 +181,9 @@ test('clause 3: removing a BEFORE key or changing its value fails the check [O6]
   const loud = { ...MACHINE_DEFAULTS, 'brand.new': true };
   assert.deepEqual(defaultsProblems(loud), ['brand.new is new and not off']);
   assert.deepEqual(defaultsProblems({ ...MACHINE_DEFAULTS, 'brand.new': false }), []);
+});
+
+test('clause 1: landing.asyncFetch is a machine setting, false by default, with a description [C7]', () => {
+  assert.equal(MACHINE_DEFAULTS['landing.asyncFetch'], false);
+  assert.ok(SETTING_DESCRIPTIONS['landing.asyncFetch']);
 });

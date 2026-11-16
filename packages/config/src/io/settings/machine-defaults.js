@@ -66,6 +66,7 @@ export const MACHINE_DEFAULTS = {
   'items.typedFields': false,
   'jobs.avoidRunners': false,
   'jobs.handBackUnrunnable': false,
+  'landing.asyncFetch': false,
   'landing.pools': [],
   'landing.reofferTrunkBusy': false,
   'landing.reuseContractResults': false,
