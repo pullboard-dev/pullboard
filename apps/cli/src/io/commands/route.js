@@ -3,7 +3,7 @@ import { Refused } from '../../../../../packages/kernel/index.js';
 import { shapeRoute } from '../../../../../packages/items/index.js';
 import * as store from '../../../../../packages/store/light.js';
 import { context } from '../entry.js';
-import { withBoardRead } from '../entry.js';
+import { withBoardRead } from '../board/read.js';
 
 /** Query-only dispatch: the command never writes the board. */
 export const nativeBoardRequired = false;
