@@ -10,6 +10,7 @@ import { JOB_SCHEMA_SQL } from "./jobs.js";
 import { RUN_SCHEMA_SQL } from "./jobs.js";
 import { LEDGER_SCHEMA_SQL } from "./ledger.js";
 import { GATE_HOP_SCHEMA_SQL } from "./hop.js";
+import { FIELD_SCHEMA_SQL } from "./item/fields.js";
 import { BOARD_WAL_LIMIT_BYTES } from "./checkpoint.js";
 import { jobBlobsPending } from "./blobs.js";
 import { migrateJobBlobs } from "./blobs.js";
@@ -305,8 +306,9 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
     } else {
       // Read compatibility before any local effect; persistent schema belongs to trunk alone.
       readEventLogVersion(db);
+      // The opt-in item-field tables count as known too, so a board with typed fields is not newer than this code [C7,#9351].
       // The opt-in hop table counts as known: a board whose gate took a fenced hop is not newer than this code [C7,#8327].
-      const expected = expectedBoardSchema(`${SCHEMA}${JOB_SCHEMA_SQL}${RUN_SCHEMA_SQL}${LEDGER_SCHEMA_SQL};${GATE_HOP_SCHEMA_SQL};`, migrate, storeTriggers);
+      const expected = expectedBoardSchema(`${SCHEMA}${JOB_SCHEMA_SQL}${RUN_SCHEMA_SQL}${LEDGER_SCHEMA_SQL};${GATE_HOP_SCHEMA_SQL};${FIELD_SCHEMA_SQL}`, migrate, storeTriggers);
       // Code behind trunk refuses before any write: carrying on replayed newer caches under the lock for minutes (#5899).
       const ahead = sharedColumnsAhead(db, expected);
       if (ahead.length) {
