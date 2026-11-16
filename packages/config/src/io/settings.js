@@ -110,6 +110,11 @@ export function requireRegisteredEnabled() {
   return loadMachineSettings().tests?.requireRegistered === true;
 }
 
+/** Whether the static check refuses new direct clock reads outside the kernel: off by default; only an exact `true` turns it on [C7,#9447]. */
+export function adapterLintClockEnabled() {
+  return loadMachineSettings().gate?.adapterLintClock === true;
+}
+
 /** Record each move table shadow compare on the board only when this machine opted in [C7,#8376]. */
 export function movesShadowEnabled() {
   return loadMachineSettings().moves?.shadow === true;
