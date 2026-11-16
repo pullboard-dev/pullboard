@@ -17,7 +17,7 @@ function fixture(t) {
   return { root, item: { item_id: 1, item_criterion: 'guard: guard.js:2-2' } };
 }
 
-test('guard mutation calls the supplied check port with its actual lease and preserves other source [C7,V4]', t => {
+test('guard mutation calls the supplied check port with its actual lease and preserves other source [C7,V4]', async t => {
   const { root, item } = fixture(t), lease = { token: 'owned-port-fixture' };
   let calls = 0;
   /** Exercise the genuine mutation on an owned source file without executing a substitute gate. */
@@ -31,22 +31,22 @@ test('guard mutation calls the supplied check port with its actual lease and pre
     assert.equal(readFileSync(join(root, 'guard.js'), 'utf8'), 'before\nafter\n');
     return { state: 'red' };
   };
-  assert.equal(guardRevertNote(root, item, lease, { checkAtCommit }), '\nguard guard.js:2-2 reverted: check red; restored: check green');
+  assert.equal(await guardRevertNote(root, item, lease, { checkAtCommit }), '\nguard guard.js:2-2 reverted: check red; restored: check green');
   assert.equal(calls, 1);
 });
 
-test('the check port cannot turn green, unavailable or missing guard evidence into a valid guard [C7,V4]', t => {
+test('the check port cannot turn green, unavailable or missing guard evidence into a valid guard [C7,V4]', async t => {
   const { root, item } = fixture(t);
   for (const [state, code] of [['pass', 'GUARD_CANNOT_FAIL'], ['unverified', 'CHECK_UNVERIFIED']]) {
-    assert.throws(() => guardRevertNote(root, item, {}, { checkAtCommit: () => ({ state, stage: 'check' }) }), { code });
+    await assert.rejects(guardRevertNote(root, item, {}, { checkAtCommit: () => ({ state, stage: 'check' }) }), { code });
   }
   const missing = { ...item, item_criterion: 'guard: absent.js:1-1' };
-  assert.throws(() => guardRevertNote(root, missing, {}, { checkAtCommit: (_root, _item, options) => {
+  await assert.rejects(guardRevertNote(root, missing, {}, { checkAtCommit: (_root, _item, options) => {
     assert.match(options.mutate(root), /absent\.js is not in the submitted commit/u);
     return { state: 'red' };
   } }), { code: 'GUARD_NOT_FOUND' });
   assert.equal(readFileSync(join(root, 'guard.js'), 'utf8'), 'before\nprotected\nafter\n');
-  assert.equal(guardRevertNote(root, { item_criterion: 'No named guard.' }, {}, { checkAtCommit: () => {
+  assert.equal(await guardRevertNote(root, { item_criterion: 'No named guard.' }, {}, { checkAtCommit: () => {
     assert.fail('a guard-free item must not call its check port');
   } }), '');
 });

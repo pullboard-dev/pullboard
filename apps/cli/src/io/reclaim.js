@@ -33,10 +33,15 @@ export async function fallbackReclaim(ctx, command) {
   }
 }
 
+/** The id of the newest gate job offered for an item, or null; an older one's receipt would apply as stale. */
+function newestGateJob(db, item) {
+  return db.prepare("SELECT job_id FROM job WHERE job_kind = 'gate' AND job_item = ? ORDER BY job_created DESC, rowid DESC LIMIT 1").get(item)?.job_id ?? null;
+}
+
 /**
  * Whether a gate job's item is still in the state the job serves; null when the job names no item. A job whose item has
  * a queued or running hand-off serves that hand-off: the item must be claimed by the hand-off's seat at its frozen
- * digest, or be submitted at the head that hand-off submitted. A job with no live hand-off serves a submitted item at that head.
+ * digest, or be submitted at the head that hand-off submitted. A job with no live hand-off serves a submitted item at that head, or a claimed item whose newest gate job it is.
  *
  * Why: during a hand-off gate its item stays claimed, so a submitted-only test would end a live pre-submit gate as
  * stale (#4070, state-machine gap SM4).
@@ -57,6 +62,9 @@ export function servingNow(board, view) {
     // The item can read submitted at the hand-off's head while the hand-off still reads running; that gate is not stale.
     return row.item_status === 'submitted' && Boolean(handoff.commit) && row.item_commit === handoff.commit;
   }
+  // A pulled gate job carries no hand-off record and its item stays claimed until the receipt applies, so the item's
+  // newest gate job serves that claim whether or not the builder seat is still running (#8575 was ended stale mid-gate).
+  if (row.item_status === 'claimed') return view.kind === 'gate' && newestGateJob(board.db, view.item) === view.id;
   if (row.item_status !== 'submitted') return false;
   // Current means submitted at the head the hand-off submitted, never the job's candidate: a gate's candidate is the
   // composed merge with main, which never equals the item's commit (#3749 was ended stale while submitted).
