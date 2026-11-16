@@ -14,7 +14,20 @@ import { releaseFixture } from './release.js';
  * root, with the fixture root's own name standing for any root. If init writes the root path anywhere else, the test
  * below fails and names the file.
  */
-export const ROOT_PATH_FILES = Object.freeze([]);
+export const ROOT_PATH_FILES = Object.freeze([
+  'home/projects.json',
+  'machine-home/board-writes.jsonl',
+  'repo/.claude/settings.json',
+  'repo/.git/pullboard/board.sqlite',
+  'repo/.git/pullboard/setup-written-files.json',
+  'repo/.git/pullboard/trace/2026-11-16.jsonl',
+]);
+
+/**
+ * Files init writes that carry no root path, and the contract says so: the git hooks resolve the root and the CLI at run
+ * time (`git rev-parse`), and the repo git config holds only the relative `core.hooksPath`. A rewrite slice has nothing to do for them.
+ */
+export const ROOT_FREE_FILES = Object.freeze(['repo/.git/config', 'repo/.githooks/commit-msg', 'repo/.githooks/pre-commit', 'repo/.githooks/pre-push']);
 
 /** Every regular file under `folder`, as paths relative to `base`; symlinks are not followed (`cli` is a shared copy). */
 function filesUnder(folder, base, found = []) {
@@ -37,6 +50,15 @@ function rootBearingFiles(root) {
     .filter(file => spellings.some(spelling => readFileSync(join(root, file)).includes(spelling)))
     .sort();
 }
+
+test('clause 1: the git hooks and the repo git config name no root path [C7,#8997]', t => {
+  const { root } = releaseFixture(t);
+  const bearing = rootBearingFiles(root);
+  for (const file of ROOT_FREE_FILES) {
+    assert.ok(filesUnder(root, root).includes(file), `init wrote ${file}`);
+    assert.ok(!bearing.includes(file), `${file} names the root path`);
+  }
+});
 
 test('clause 1: init in two different roots writes the root path into exactly the listed files [C7,#8997]', t => {
   const first = releaseFixture(t), second = releaseFixture(t);
