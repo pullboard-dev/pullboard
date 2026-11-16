@@ -19,7 +19,7 @@ import { existsSync } from 'node:fs';
 import { relayMachineDirectory } from '../../../../../packages/store/index.js';
 import { submitHandoff } from '../../../../../packages/store/index.js';
 import { handoffWorkerAlive } from '../alive.js';
-import { stalledGates } from '../../../../../packages/jobs/index.js';
+import { stalledGates } from '../../../../../packages/jobs/light.js';
 import { withBoardRead } from '../board/read.js';
 import { fallbackReclaim } from '../reclaim.js';
 import { diskLines } from '../disk/use.js';
@@ -39,11 +39,11 @@ import { ruleProofCounts } from '../../../../../packages/verify/index.js';
 import { bindProofRunner } from '../../../../../packages/verify/index.js';
 import { fileURLToPath } from 'node:url';
 import { memoryHeldRuns } from '../../../../../packages/store/index.js';
-import { retainedReceipts } from '../../../../../packages/gate/index.js';
-import { readRunnerUtilization } from '../../../../../packages/runners/index.js';
+import { retainedReceipts } from '../../../../../packages/gate/light.js';
+import { readRunnerUtilization } from '../../../../../packages/runners/light.js';
 import { longestRecentHolds } from '../../../../../packages/store/index.js';
-import { runnerDeadlineLine } from '../../../../../packages/resources/index.js';
-import { runnerDeadlineRuns } from '../../../../../packages/runners/index.js';
+import { runnerDeadlineLine } from '../../../../../packages/resources/light.js';
+import { runnerDeadlineRuns } from '../../../../../packages/runners/light.js';
 import { reviewQueueLine } from '../../../../../packages/verify/index.js';
 import {
   productLine,
