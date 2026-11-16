@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { exportTableHistory } from '../../../index.js';
 import { readLandingMoveRecords } from '../../../index.js';
 import { readVerifyRecords } from '../../../index.js';
