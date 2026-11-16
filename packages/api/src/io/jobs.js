@@ -47,9 +47,9 @@ export function shardClaimCap(cores) {
   return Math.max(1, Math.floor(cores / CORES_PER_SHARD));
 }
 
-/** How many gate-shard jobs this runner holds a live lease on now. */
-function heldShards(db, runner, now) {
-  return db.prepare("SELECT COUNT(*) AS held FROM job WHERE job_kind = ? AND job_lease_owner = ? AND job_lease_until >= ? AND job_step IN ('offered', 'claimed')").get(SHARD_JOB_KIND, runner, now).held;
+/** How many gate-shard jobs this runner holds a live lease on now. runs: the board's runs holder while runs_store is on, so the rows are read from the runs file; null reads the board's [B2,P7,#9151]. */
+export function heldShards(db, runner, now, { runs = null } = {}) {
+  return (runs ? runs.db : db).prepare("SELECT COUNT(*) AS held FROM job WHERE job_kind = ? AND job_lease_owner = ? AND job_lease_until >= ? AND job_step IN ('offered', 'claimed')").get(SHARD_JOB_KIND, runner, now).held;
 }
 
 /**
@@ -215,9 +215,11 @@ function namesParts(value) {
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {string} job
+ * @param {{ runs?: { db: import('node:sqlite').DatabaseSync } | null }} [options] - runs: the board's runs holder while runs_store is on, so the offered and kept steps are read from the runs file [#9151].
  * @returns {Record<string, unknown> | null}
  */
-export function offeredRequest(db, job) {
+export function offeredRequest(db, job, { runs = null } = {}) {
+  if (runs) db = runs.db;
   const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job);
   const request = row ? JSON.parse(row.job_step_payload).request ?? null : null;
   if (!namesParts(request)) return request;
@@ -233,9 +235,11 @@ export function offeredRequest(db, job) {
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {{ kind: string, item: number, candidate: string }} fields
+ * @param {{ runs?: { db: import('node:sqlite').DatabaseSync } | null }} [options] - runs: the board's runs holder while runs_store is on, so the job is read from the runs file [#9151].
  * @returns {ReturnType<typeof jobView> | null}
  */
-export function openJob(db, { kind, item, candidate }) {
+export function openJob(db, { kind, item, candidate }, { runs = null } = {}) {
+  if (runs) db = runs.db;
   const row = db.prepare(`SELECT job.job_id FROM job JOIN job_step AS step ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0
     WHERE job.job_kind = ? AND job.job_item = ? AND job.job_candidate = ? AND job.job_step <> 'done' ORDER BY job.job_created DESC LIMIT 1`).get(kind, item, candidate);
   return row ? jobView(db, row.job_id) : null;
