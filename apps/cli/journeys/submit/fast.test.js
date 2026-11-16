@@ -16,7 +16,7 @@ import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
 async function readySubmit(t) {
   const box = await pullProject(t, 1);
   const [id] = box.ids;
-  const claimed = box.run(box.web, 'claim', String(id), '--json');
+  const claimed = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, claimed.err);
   const folder = JSON.parse(claimed.out).itemFolder ?? box.web;
   assert.equal(box.helpers.commitFile(box, folder, `web/${id}.txt`, `gate ${id}\n`, `feat(web): fast submit ${id} [G1]`).status, 0);
@@ -27,7 +27,7 @@ async function readySubmit(t) {
 test('clause 1: submit on a clean committed item returns within 5 seconds and prints the queued gate id [C7]', async t => {
   const { box, id, folder } = await readySubmit(t);
   const start = Date.now();
-  const submitted = box.run(folder, 'submit', String(id));
+  const submitted = await box.runLocal(folder, 'submit', String(id));
   const elapsed = Date.now() - start;
   assert.equal(submitted.code, 0, `${submitted.err}\n${submitted.out}`);
   assert.ok(elapsed < 5000, `submit took ${elapsed} ms\n${submitted.err}`); // budget: declared bar of item 2966, 5 s for submit to return.
@@ -40,11 +40,11 @@ test('clause 1: submit on a clean committed item returns within 5 seconds and pr
 
 test('clause 3: join, submit and claim never print next --wait as the next step [C7]', async t => {
   const { box, id, folder, claim } = await readySubmit(t);
-  const submitted = box.run(folder, 'submit', String(id));
+  const submitted = await box.runLocal(folder, 'submit', String(id));
   assert.equal(submitted.code, 0, `${submitted.err}\n${submitted.out}`);
   assert.doesNotMatch(submitted.out, /next --wait/u);
   assert.doesNotMatch(claim.out + claim.err, /next --wait/u);
-  const joined = joinFixtureSeat(box, box.repo, 'web');
+  const joined = await joinFixtureSeat(box, box.repo, 'web', { run: box.runLocal });
   assert.doesNotMatch(joined.out + joined.err, /next --wait/u);
 });
 
@@ -61,7 +61,7 @@ test('clause 2: submit leaves the builder checkout, index and HEAD where they we
   }
   git('config', 'core.hooksPath', hooks);
   const before = { head: git('rev-parse', 'HEAD'), index: git('write-tree'), status: git('status', '--porcelain', '--untracked-files=all') };
-  const submitted = box.run(folder, 'submit', String(id));
+  const submitted = await box.runLocal(folder, 'submit', String(id));
   assert.equal(submitted.code, 0, `${submitted.err}\n${submitted.out}`);
   assert.equal(git('rev-parse', 'HEAD'), before.head, 'HEAD did not move');
   assert.equal(git('write-tree'), before.index, 'the index did not change');
