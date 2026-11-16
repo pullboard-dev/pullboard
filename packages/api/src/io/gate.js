@@ -27,6 +27,7 @@ import { CHECK_BASELINE_KIND } from './baseline.js';
 import { MAIN_TEST_KIND } from './recheck.js';
 import { MAIN_CASE_NAME_UNITS } from './recheck.js';
 import { offerMainTests } from './recheck.js';
+import { endStaleGateJobs } from './stale.js';
 import { landingGuardKey } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { plainTrunkRef } from '../../../git/index.js';
@@ -40,6 +41,7 @@ import { routePulledOwnership } from './owner.js';
 import { compareFilesWithMain } from './gate/files.js';
 import { fileMainLines } from './gate/files.js';
 import { applyTestReceipt } from './test/receipt.js';
+import { settleQueuedAccept } from './test/accept.js';
 import { caseReworkLines } from './gate/files.js';
 import { ledgerInputKeys } from './gate/files.js';
 import { companionInherits } from './gate/companion.js';
@@ -526,17 +528,35 @@ function inspectsClauses(board, main) {
   try { const shown = tryGit(board.gitRoot, ['show', `${main}:${CONFIG_FILE}`]); return shown.status === 0 && JSON.parse(shown.stdout)?.verify?.inspectClauses !== false; } catch { return false; }
 }
 
+/** Accepted main's verify.folderTicks (default off), read like inspectsClauses: a folder-named [test] clause is ticked by the gate-run tests under it (#8847) [C7]. */
+function folderTicksAt(board, main) {
+  try { return board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, main).config.verify.folderTicks === true; } catch { /* the committed file below */ }
+  try { const shown = tryGit(board.gitRoot, ['show', `${main}:${CONFIG_FILE}`]); return shown.status === 0 && JSON.parse(shown.stdout)?.verify?.folderTicks === true; } catch { return false; }
+}
+
+/** Accepted main's submit.edgeFollowUps (default off), read like folderTicksAt: a settled submit whose diff adds import edges files one follow-up (#8874) [C7]. */
+function edgeFollowUpsAt(board, main) {
+  try { return board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, main).config.submit.edgeFollowUps === true; } catch { /* the committed file below */ }
+  try { const shown = tryGit(board.gitRoot, ['show', `${main}:${CONFIG_FILE}`]); return shown.status === 0 && JSON.parse(shown.stdout)?.submit?.edgeFollowUps === true; } catch { return false; }
+}
+
+/** Accepted main's verify.titleTicks (default off), read like folderTicksAt: a [test] clause naming no file is ticked by the changed tests titled for it (#8880) [C7]. */
+function titleTicksAt(board, main) {
+  try { return board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, main).config.verify.titleTicks === true; } catch { /* the committed file below */ }
+  try { const shown = tryGit(board.gitRoot, ['show', `${main}:${CONFIG_FILE}`]); return shown.status === 0 && JSON.parse(shown.stdout)?.verify?.titleTicks === true; } catch { return false; }
+}
+
 /**
  * Record a settled pulled submission's clause checklist, as the inline submit did: a green gate's tick notes for each
  * [test] clause naming a file it ran green, then the "inspection, clause by clause:" summary for the reviewer [C7,V4].
  * The files are only those the gate's own phases ran, its proof files and every file an outcome names, so no clause is
  * ticked by a file the gate did not run.
  */
-function recordClauseInspection(board, { id, receipt, head, agentId, green }) {
+function recordClauseInspection(board, { id, receipt, head, agentId, green, folderTicks = false, titleTicks = false }) {
   const outcomes = (receipt?.gate?.phases ?? []).filter(phase => phase.status === 0).flatMap(phase => Array.isArray(phase.testOutcomes) ? phase.testOutcomes : [])
     .filter(row => row && typeof row.file === 'string' && typeof row.name === 'string');
   const gateFiles = new Set([...pulledProofFiles(receipt), ...outcomes.map(row => row.file)].filter(file => PROJECT_FILE.test(file)));
-  store.clauseInspectionNotes(board, id, { gateFiles, outcomes, head, green }, text => store.appendFact(board, id, { agentId, kind: 'note', text }));
+  store.clauseInspectionNotes(board, id, { gateFiles, outcomes, head, green, folderTicks, titleTicks }, text => store.appendFact(board, id, { agentId, kind: 'note', text }));
 }
 
 /** Budget: how many times a pulled gate's submission is prepared again after another board write overtook it. */
@@ -596,7 +616,13 @@ function submitOvertaken(board, id, options) {
  * @param {{ compareWithMain?: Parameters<typeof compareGateWithMain>[3] }} [ports] - the main-receipt lookup; absent, a red is not compared.
  * @returns {{ applied: boolean, outcome: 'review' | 'red' | 'stale' | 'not-gate', reason?: string, cases?: object[] }}
  */
-export function applyGateReceipt(board, { job, receipt }, { compareWithMain = null } = {}) {
+export function applyGateReceipt(board, posted, ports = {}) {
+  // Every policy read in the application, not only the submit, meets a detached primary: the receipt often applies while the coordinator verifies [C7,#8011].
+  return withRetainedTrunkPolicy(board, () => applyGateReceiptReads(board, posted, ports));
+}
+
+/** applyGateReceipt's body; its mainPolicy reads fall back to the retained trunk tip while the primary is detached. */
+function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null } = {}) {
   const offered = offeredGate(board.db, job);
   if (!offered || offered.kind !== 'gate' || !Number.isSafeInteger(offered.item)) return { applied: false, outcome: 'not-gate' };
   const { item: id, candidate, main, submit } = offered;
@@ -689,7 +715,14 @@ export function applyGateReceipt(board, { job, receipt }, { compareWithMain = nu
         store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} red at ${candidate.slice(0, 12)} only in cases that also fail on main ${String(main).slice(0, 12)} (not this item's; accepted):\n${[...caseLines(compared), ...lines, ...caseReworkLines(board, main, compared, { accepted: true })].join('\n')}\nReviewers: these main reds are listed, not blocking; no new failure is accepted.` });
       }
       store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: `Gate job ${job} ${green ? 'green' : owners ? `green over main-owned ${owners.checkOnly ? 'frozen check' : 'test'} cases` : waived ? 'waived, not green,' : `red only in quarantined cases (${excused.map(row => `${row.file} :: ${row.name}, repair #${row.item}`).join('; ').slice(0, 600)})`} at ${candidate.slice(0, 12)} on main ${String(main).slice(0, 12)}; submitted for review.` });
-      if (inspectsClauses(board, main)) recordClauseInspection(board, { id, receipt, head: submit.companion?.source ?? candidate, agentId: submit.agentId, green: gateGreen });
+      if (inspectsClauses(board, main)) recordClauseInspection(board, { id, receipt, head: submit.companion?.source ?? candidate, agentId: submit.agentId, green: gateGreen, folderTicks: folderTicksAt(board, main), titleTicks: titleTicksAt(board, main) });
+      if (board.gitRoot && SHA.test(String(main)) && edgeFollowUpsAt(board, main)) try {
+        const base = store.getItem(board, id)?.item_claim_head, head = submit.companion?.source ?? candidate;
+        const edges = base ? board.enginePorts.sandboxPolicyReads.submitImportEdges(board.gitRoot, { submit: { edgeFollowUps: true } }, { base, commit: head }) : [];
+        store.fileEdgeFollowUp(board, id, { agentId: submit.agentId, edges });
+      } catch (error) {
+        store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: `Edge follow-up not filed: ${error?.code ?? 'EDGE_FOLLOW_UP_FAILED'}: ${error?.message ?? String(error)}`.slice(0, 2000) });
+      }
       // Main reds no open repair names go to the coordinator as one decision, once the submission is recorded; nothing is filed here [B3].
       if (owners?.unowned.length) try {
         store.shout(board, { from: submit.agentId, to: 'coordinator', lanes: item.item_lane ? [item.item_lane] : [], decision: true, text: unownedShout(id, owners.unowned, main) });
@@ -852,16 +885,16 @@ export function provideMainComparison(lookup) {
  *
  * @param {any} board - The open board, gitRoot set to the board host's repository.
  * @param {Record<string, any>} body
- * @param {Parameters<typeof jobQueueCall>[2] & { compareWithMain?: Parameters<typeof compareGateWithMain>[3], landingKey?: () => string | null, ordered?: { operation: string, args: any[] }[] | null }} options - compareWithMain:
+ * @param {Parameters<typeof jobQueueCall>[2] & { compareWithMain?: Parameters<typeof compareGateWithMain>[3], landingKey?: () => string | null, ordered?: { operation: string, args: any[] }[] | null, endStale?: boolean }} options - endStale: gate.endStaleJobs, ends a landed item's open gate jobs (#8816); compareWithMain:
  *   main's receipt lookup for a red gate's cases; the one provided to this process by default. landingKey: the board's
  *   landing key, which signs a land job's permit for the trunk guard (#5848); the board host's key file by default.
  *   ordered: on a relay-linked board, the list a receipt's engine moves go onto instead of this replica's store, for
  *   the caller to order through the relay (#7562); null applies them here, as on a local board.
  */
-export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, ...options }) {
+export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, endStale = false, ...options }) {
   // Queued main-test jobs are offered before each claim, so a free runner takes one in the same call (#6063).
   if (body?.action === 'claim' && options.mode === 'pull') offerMainTests(board, { now: options.now });
-  const answer = jobQueueCall(board.db, body, { onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain, ordered }) });
+  const answer = jobQueueCall(board.db, body, { onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain, ordered, endStale }) });
   return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
 }
 
@@ -919,9 +952,12 @@ export function applyJobReceipt(board, posted, ports = {}) {
   if (kind === 'gate' || kind === SHARD_JOB_KIND) recordReceiptLedger(board, posted, kind === 'gate' ? 'pulled' : 'shard');
   if (kind === 'gate') return applyGateReceipt(board, posted, ports);
   if (kind === SHARD_JOB_KIND) return applyShardReceipt(board, posted, ports);
-  if (kind === LANDING_JOB_KIND) return applyLandingReceipt(board, posted);
+  if (kind === LANDING_JOB_KIND) return applyLandingReceipt(board, posted, ports);
   if (kind === CHECK_BASELINE_KIND) return applyCheckBaselineReceipt(board, posted);
-  if (kind === 'test') return applyTestReceipt(board, posted);
+  if (kind === 'test') {
+    const accept = settleQueuedAccept(board, posted);
+    return accept.applied ? accept : applyTestReceipt(board, posted);
+  }
   if (kind === MAIN_TEST_KIND) {
     const applied = applyMainTestReceipt(board, posted);
     if (applied.applied) settleWaitingGates(board, posted.job, ports);
@@ -1057,7 +1093,7 @@ function retryFailedLanding(board, job, named, receipt, { code, what, next }) {
  * @param {{ job: string, receipt: Record<string, any> }} posted
  * @returns {{ applied: boolean, outcome: string, merged?: number[], returned: number[] }}
  */
-export function applyLandingReceipt(board, { job, receipt }) {
+export function applyLandingReceipt(board, { job, receipt }, ports = {}) {
   const offered = JSON.parse(board.db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job)?.job_step_payload ?? '{}');
   const named = new Set((offered.payload?.items ?? []).map(entry => entry.id));
   const returned = receipt ? returnLandedReds(board, job, named, receipt, offered.payload?.publish === 'separate') : [];
@@ -1080,6 +1116,8 @@ export function applyLandingReceipt(board, { job, receipt }) {
     const commit = SHA.test(receipt.merges?.[id] ?? '') ? receipt.merges[id] : receipt.trunk;
     store.merged(board, id, { agentId: 'coordinator', commit, note: `landed by runner job ${job}` });
     merged.push(id);
+    // With gate.endStaleJobs on, the landed item's open gate jobs end, so no runner spends time on them [C7,#8816].
+    endStaleGateJobs(board.db, { item: id, enabled: ports.endStale === true });
     // A landing proof red only in waived tests is recorded on each item it landed, as the controller's waived landing gate was [#655].
     if (waived.length) store.appendFact(board, id, { agentId: 'coordinator', kind: 'measurement', text: `Land job ${job} landing gate waived, not green, at ${receipt.trunk.slice(0, 12)}:\n${waived.join('\n')}`.slice(0, 2000) });
   }

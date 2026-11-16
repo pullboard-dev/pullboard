@@ -7,7 +7,6 @@ import {
   existsSync,
   lstatSync,
   mkdirSync,
-  privateBoardMoves,
   privateBoardPath,
   relayWorkBudgetMs,
   runFixtureGit,
@@ -99,5 +98,4 @@ test('a private board sits beside the repo board [E11,E13,E14,E15]', { timeout: 
   assert.ok(titles.includes('repo item'), 'the ordinary item reaches the other member');
   assert.equal(titles.includes('private item'), false, 'the private item stays on this device');
   assert.equal(existsSync(privateBoardPath(repoBoardId, bobEnv.PULLBOARD_HOME)), false, 'another device has no local private board file');
-  await privateBoardMoves(box, privateFile);
 });

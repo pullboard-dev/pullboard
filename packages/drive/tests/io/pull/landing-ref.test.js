@@ -8,7 +8,7 @@ import { serveRunner } from '../../../index.js';
 import { checkoutCandidate } from '../../../index.js';
 import { runTestGit } from '../../fixtures/git.js';
 import { testGit } from '../../fixtures/git.js';
-import { temporaryDirectory } from '../../../../../apps/cli/tests/fixtures/board.js';
+import { temporaryDirectory } from '../../../../board/tests/fixtures/board.js';
 
 const BOARD = 'http://board.invalid/api/v1/boards/b?k=x';
 const REF = 'refs/pullboard/landing/land-1-abcd';

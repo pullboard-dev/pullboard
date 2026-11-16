@@ -23,6 +23,7 @@ import {
 import { relayPresentation } from '../../../../../packages/pages/index.js';
 import { snapshotState } from '../../../../relay/index.js';
 import { assertReaderParity } from '../../../tests/fixtures/relay/parity/reader.js';
+import { LOCAL_PARITY_FIELDS } from '../../../tests/fixtures/relay/parity/reader.js';
 import { relayClientFixture } from '../../../tests/fixtures/relay/client.js';
 import { submitFixture } from '../../../tests/fixtures/board/submit.js';
 
@@ -30,6 +31,8 @@ import { submitFixture } from '../../../tests/fixtures/board/submit.js';
 const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
 const HOUR = 3_600_000;
+/** The API state read keeps spec and doctrine row ages for a later refresh (5bf1070838), so its first read has none where a relay reader walks history [C7]. */
+const CLOCK_PARITY = [...LOCAL_PARITY_FIELDS, { path: 'rowAgesAt', reason: 'The API state read answers at once and refreshes row ages later; the relay reader computes them in line.' }];
 
 /** Expose a real initialized SQLite board through HTTP with only the existing internal constructor clock port. */
 async function clockFixture(t) {
@@ -67,13 +70,13 @@ test('native and relay readers expire a person block at the same observedAt with
   box.clock.value = box.base + 24 * HOUR - 1;
   const before = await box.read();
   assert.equal(before.native.blocks.length, 1, 'the real recorded person block is still within its window');
-  assertReaderParity(before.native, before.relay);
+  assertReaderParity(before.native, before.relay, CLOCK_PARITY);
   const inputs = exportBoard(box.board);
   box.clock.value += 2;
   const after = await box.read();
   assert.deepEqual(exportBoard(box.board), inputs, 'clock advancement makes no native mutation');
   assert.equal(after.relay.blocks.length, 0, 'the fresh production reader expires the recorded block');
-  assertReaderParity(after.native, after.relay);
+  assertReaderParity(after.native, after.relay, CLOCK_PARITY);
 });
 
 /** Seed real lifecycle events with synthetic acceptance metadata; this is not gate, CI or outside-review assurance. */
@@ -102,13 +105,13 @@ test('native and relay readers cross a landing pace window at the same observedA
   box.clock.value = box.base + 2 * HOUR - 1;
   const before = await box.read();
   assert.equal(before.native.milestones.find(row => row.name === 'Clock pace').summary.pace.last2h, 3);
-  assertReaderParity(before.native, before.relay);
+  assertReaderParity(before.native, before.relay, CLOCK_PARITY);
   const inputs = exportBoard(box.board);
   box.clock.value += 2;
   const after = await box.read();
   assert.deepEqual(exportBoard(box.board), inputs, 'clock advancement makes no native mutation');
   assert.equal(after.relay.milestones.find(row => row.name === 'Clock pace').summary.pace.last2h, 0);
-  assertReaderParity(after.native, after.relay);
+  assertReaderParity(after.native, after.relay, CLOCK_PARITY);
 });
 
 
@@ -122,7 +125,7 @@ test('clock windows retain cached reads and refresh exact boundaries and backwar
   async function observe(offset, expectedBuilds) {
     box.clock.value = box.base + offset;
     const states = await box.read();
-    assertReaderParity(states.native, states.relay);
+    assertReaderParity(states.native, states.relay, CLOCK_PARITY);
     assert.equal(box.builds(), expectedBuilds, 'cache survives stable intervals and refreshes progress or pace boundaries [B35]');
     return states.native;
   }
