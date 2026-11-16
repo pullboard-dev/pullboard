@@ -74,6 +74,7 @@ export {
   requireJourneyPathEnabled,
   adapterLintClockEnabled,
   adapterLintFsEnabled,
+  idiomSpreadEnabled,
   movesLiveEnabled,
   gateRunnerAdmission,
   setGateRunnersOnly,
