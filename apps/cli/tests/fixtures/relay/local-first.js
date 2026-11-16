@@ -93,9 +93,7 @@ function countFetches() {
  * The background sender it nudges is a separate process and is never counted.
  */
 export async function local(box, t, cwd, env, name, args, budget) {
-  process.stderr.write(`local: ${name} begin ${Date.now()}\n`);
   const budgetMs = budget ?? await loadedBudgetMs();
-  process.stderr.write(`local: ${name} budget ${budgetMs} ${Date.now()}\n`);
   countFetches();
   const counter = { fetches: 0 };
   let started = 0, finished = 0;
@@ -145,9 +143,7 @@ export async function linkedBoard(t) {
   const sender = {};
   t.after(() => sender.root && stopSender(sender.root));
   const box = await relayClientFixture(t);
-  process.stderr.write(`linked: fixture up ${Date.now()}\n`);
   enableOutbox(box);
-  process.stderr.write(`linked: outbox on ${Date.now()}\n`);
   assert.equal((await box.link()).code, 0, 'the real relay accepts the board first');
   assert.equal(JSON.parse(readFileSync(box.linkFile, 'utf8')).baselineAccepted, true);
   sender.root = box.root;
