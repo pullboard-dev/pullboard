@@ -75,6 +75,11 @@ export function tableReplayEnabled() {
   return loadMachineSettings().gate?.tableReplay === true;
 }
 
+/** Start the submit proof while the cells step runs only when this machine opted in [C7,#9576]. */
+export function overlapStaticProofEnabled() {
+  return loadMachineSettings().gate?.overlapStaticProof === true;
+}
+
 /** Write gate hops through the fenced, compare-and-set hop row unless this machine turned it off [C7,#8269,#8327]. */
 export function fencedHopEnabled() {
   return loadMachineSettings().gate?.fencedHop !== false;
@@ -133,6 +138,11 @@ export function adapterLintClockEnabled() {
 /** Whether the static check refuses new direct node:fs imports outside the kernel: off by default; only an exact `true` turns it on [C7,#9449]. */
 export function adapterLintFsEnabled() {
   return loadMachineSettings().gate?.adapterLintFs === true;
+}
+
+/** Whether the static check refuses a statement shape copied into 3 or more files: off by default; only an exact `true` turns it on [C7,#9521]. */
+export function idiomSpreadEnabled() {
+  return loadMachineSettings().gate?.idiomSpread === true;
 }
 
 /** Record each move table shadow compare on the board only when this machine opted in [C7,#8376]. */
@@ -451,6 +461,14 @@ export function holdsRequireOwner() {
  */
 export function nextItemNotices() {
   return loadMachineSettings().next?.itemNotices === true;
+}
+
+/**
+ * Whether an idle next lists the waiting items and what each waits on (#2958): off by default, so an idle answer prints
+ * exactly what it did before; only an exact `true` turns it on.
+ */
+export function nextIdleBlockers() {
+  return loadMachineSettings().next?.idleBlockers === true;
 }
 
 /**

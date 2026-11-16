@@ -12,8 +12,8 @@ import { blockingFailures } from '../../../../verify/index.js';
 import { completeGate } from '../completion.js';
 import { runnerExecutionServices } from '../../../../runners/index.js';
 import { landingExecutionServices } from '../shards.js';
-import { runLocalLandingGuard } from '../../logic/land/guard.js';
-import { requireNoRunnerRefusalOnlyRed } from '../../logic/land/guard.js';
+import { runLocalLandingGuard } from '../land/guard.js';
+import { requireNoRunnerRefusalOnlyRed } from '../land/guard.js';
 import { createHash } from 'node:crypto';
 import { copyFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
@@ -64,7 +64,7 @@ import { timedPhase } from '../timing.js';
 import { landingOperations } from './merge.js';
 
 /** The gate functions the local landing guard calls, passed to it so its logic file never imports the gate door [C7,#8567]. */
-const GUARD_PORTS = Object.freeze({ runProfiledShellAsync, pinRunMain, withLandingGateSlot, landingControllerPlacement, testsNeedBrowser, testsNeedGui });
+const GUARD_PORTS = Object.freeze({ runProfiledShellAsync, pinRunMain, withLandingGateSlot, landingControllerPlacement, testsNeedBrowser, testsNeedGui, runnerExecutionServices, landingExecutionServices });
 
 /** Quote a command argument without allowing shell interpolation. */
 export function quote(value) { return `'${String(value).replaceAll("'", "'\\''")}'`; }
