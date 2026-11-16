@@ -12,7 +12,7 @@ import { register } from '../../../../../store/index.js';
 import { privateFixtureFiles } from '../../../../../gate/tests/fixtures/child.js';
 import { fixtureBoard } from '../../../../../board/tests/fixtures/board.js';
 import { captureLapsedClaims } from '../../../../index.js';
-import { MACHINE_DEFAULTS } from '../../../../../config/src/io/settings/machine-defaults.js';
+import { MACHINE_DEFAULTS } from '../../../../../config/index.js';
 
 const MINUTE = 60_000;
 
