@@ -25,9 +25,9 @@ test('clause 2: a table that disagreed 2 hours ago is not ready though first com
 
 test('clause 3: each moves row carries windowStart, windowHours and ready beside the old keys [C7]', () => {
   const shadows = { claim: { compared: 4, disagreed: 1, since: ago(72), lastDisagreedAt: ago(30), last: [] } };
-  const row = movesReport(shadows, ['claim', 'release'], {}, new Date(NOW)).find(entry => entry.table === 'claim');
+  const row = movesReport(shadows, ['claim', 'release'], {}, undefined, new Date(NOW)).find(entry => entry.table === 'claim');
   for (const key of ['table', 'state', 'liveSwitch', 'compared', 'disagreed', 'firstCompareAt', 'lastDisagreedAt', 'lastDisagreements']) assert.ok(key in row, `old key ${key} stays`);
   assert.deepEqual([row.windowStart, row.windowHours, row.ready], [ago(30), 30, true]);
-  const none = movesReport({}, ['release'], {}, new Date(NOW))[0];
+  const none = movesReport({}, ['release'], {}, undefined, new Date(NOW))[0];
   assert.deepEqual([none.windowStart, none.windowHours, none.ready], [null, 0, false]);
 });

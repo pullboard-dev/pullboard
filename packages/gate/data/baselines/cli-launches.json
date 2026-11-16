@@ -204,7 +204,10 @@
     "launch": 1
   },
   "apps/cli/journeys/gate/main.test.js": {
-    "launch": 6
+    "launch": 4
+  },
+  "apps/cli/journeys/gate/main-refusals.test.js": {
+    "launch": 2
   },
   "apps/cli/journeys/rigor/checks.test.js": {
     "launch": 1
@@ -377,6 +380,9 @@
   "apps/cli/journeys/stats/cost.test.js": {
     "launch": 1
   },
+  "apps/cli/journeys/stats/cost-sessions.test.js": {
+    "launch": 1
+  },
   "packages/gate/tests/parser.test.js": {
     "launch": 4
   },
@@ -540,7 +546,10 @@
     "launch": 1
   },
   "apps/cli/journeys/spec/cockpit.test.js": {
-    "launch": 2
+    "launch": 1
+  },
+  "apps/cli/journeys/spec/cockpit/shared.test.js": {
+    "launch": 1
   },
   "apps/cli/journeys/spec/cockpit/pointer.test.js": {
     "launch": 1
@@ -561,7 +570,10 @@
     "launch": 1
   },
   "packages/runners/tests/io/package/files.test.js": {
-    "launch": 2
+    "launch": 1
+  },
+  "packages/runners/tests/io/package/files-closure.test.js": {
+    "launch": 1
   },
   "packages/runners/tests/io/package/compiler.test.js": {
     "launch": 5
@@ -691,9 +703,6 @@
   },
   "apps/cli/journeys/version/node.test.js": {
     "launch": 7
-  },
-  "apps/cli/journeys/imports/cross-lane-edits.test.js": {
-    "launch": 1
   },
   "apps/cli/journeys/submit/empty.test.js": {
     "launch": 1
@@ -887,9 +896,6 @@
   "packages/gate/tests/io/requeue/retry.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/inbox/budget.test.js": {
-    "launch": 1
-  },
   "packages/resources/tests/io/runner/heal/drain.test.js": {
     "launch": 1
   },
@@ -1066,9 +1072,6 @@
   },
   "apps/cli/journeys/init/empty.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/hook/slot.test.js": {
-    "launch": 2
   },
   "apps/cli/journeys/submit/pull.test.js": {
     "launch": 1
