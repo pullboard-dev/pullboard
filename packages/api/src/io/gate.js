@@ -1134,6 +1134,8 @@ export function applyLandingReceipt(board, { job, receipt }, ports = {}) {
     const waiver = waivers.get(row?.waiver);
     return `waived: ${row?.name} (${row?.file}) by person waiver ${row?.waiver}${waiver ? ` for ${waiver.kind} ${waiver.test}: ${waiver.reason}; expires ${waiver.until}` : ''}`;
   });
+  // The receipt's timed phases (merge, static checks, cli smoke, the gate's runner wait and tests, push), kept on each landed item for show --json [C7,#8960].
+  const phases = (Array.isArray(receipt.phases) ? receipt.phases : []).filter(row => typeof row?.phase === 'string' && Number.isSafeInteger(row.ms)).map(({ phase, ms }) => ({ phase, ms }));
   const merged = [];
   for (const id of [...(receipt.landed ?? []), ...(receipt.already ?? [])]) {
     if (!named.has(id)) continue;
@@ -1143,6 +1145,7 @@ export function applyLandingReceipt(board, { job, receipt }, ports = {}) {
     const commit = SHA.test(receipt.merges?.[id] ?? '') ? receipt.merges[id] : receipt.trunk;
     store.merged(board, id, { agentId: 'coordinator', commit, note: `landed by runner job ${job}` });
     merged.push(id);
+    if (phases.length) store.writeBoardMeta(board.db, `landing_phases:${id}`, JSON.stringify(phases));
     // With gate.endStaleJobs on, the landed item's open gate jobs end, so no runner spends time on them [C7,#8816].
     endStaleGateJobs(board.db, { item: id, enabled: ports.endStale === true });
     // A landing proof red only in waived tests is recorded on each item it landed, as the controller's waived landing gate was [#655].
