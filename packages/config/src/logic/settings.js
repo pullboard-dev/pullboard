@@ -145,7 +145,7 @@ export function loadMachineSettings() {
   }
   if (value.landing !== undefined && (!value.landing || typeof value.landing !== 'object' || Array.isArray(value.landing)
     // The landing switches sit beside pools, so a machine may set one without a pool [C7,#9102].
-    || Object.keys(value.landing).some(key => !['pools', 'adaptiveBatch', 'reofferTrunkBusy', 'squash', 'reuseGateReceipts', 'reuseContractResults'].includes(key)) || (value.landing.pools !== undefined && !Array.isArray(value.landing.pools))
+    || Object.keys(value.landing).some(key => !['pools', 'adaptiveBatch', 'reofferTrunkBusy', 'squash', 'strictFullSuite', 'reuseGateReceipts', 'reuseContractResults'].includes(key)) || (value.landing.pools !== undefined && !Array.isArray(value.landing.pools))
     || (value.landing.pools ?? []).some(id => typeof id !== 'string' || !/^[a-f0-9]{32}$/u.test(id)))) {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.pools in ${file} lists the board identifiers this machine may land`);
   }
@@ -184,6 +184,9 @@ export function loadMachineSettings() {
   }
   if (value.gate?.redFactLocation !== undefined && typeof value.gate.redFactLocation !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.redFactLocation in ${file} must be true or false`);
+  }
+  if (value.items?.typedFields !== undefined && typeof value.items.typedFields !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `items.typedFields in ${file} must be true or false`);
   }
   const testGroup = value.test;
   if (testGroup?.statusOutcomes !== undefined && typeof testGroup.statusOutcomes !== 'boolean') {
@@ -294,6 +297,12 @@ export function loadMachineSettings() {
   if (value.landing?.squash !== undefined && typeof value.landing.squash !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.squash in ${file} must be true or false`);
   }
+  if (value.landing?.strictFullSuite !== undefined && typeof value.landing.strictFullSuite !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `landing.strictFullSuite in ${file} must be true or false`);
+  }
+  if (value.spec?.commitOnApply !== undefined && typeof value.spec.commitOnApply !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `spec.commitOnApply in ${file} must be true or false`);
+  }
   if (value.sentinels?.recordWriteHolder !== undefined && typeof value.sentinels.recordWriteHolder !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `sentinels.recordWriteHolder in ${file} must be true or false`);
   }
@@ -354,6 +363,9 @@ export function loadMachineSettings() {
   if (value.relay?.offerAtInit !== undefined && typeof value.relay.offerAtInit !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `relay.offerAtInit in ${file} must be true or false`);
   }
+  if (value.relay?.pruneReceipts !== undefined && typeof value.relay.pruneReceipts !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `relay.pruneReceipts in ${file} must be true or false`);
+  }
   const canaryProblem = relayCanaryProblem(value.relay?.canary);
   if (canaryProblem) throw new Refused('BAD_MACHINE_SETTINGS', `relay.canary in ${file} is invalid: ${canaryProblem}`);
   const workerBudget = value.workers?.budget;
@@ -400,6 +412,11 @@ export function retireIdleSeatHours() {
 /** Free gigabytes below which pullboard health warns (#9110); 0, the default, never warns. */
 export function healthDiskFloorGb() {
   return loadMachineSettings().health?.diskFloorGb ?? 0;
+}
+
+/** Whether old relay request receipts are dropped (#9337): off by default; only an exact `true` turns it on. */
+export function relayPruneReceipts() {
+  return loadMachineSettings().relay?.pruneReceipts === true;
 }
 
 /** Whether pullboard list reads through the thin read door (#9089): off by default; only an exact `true` turns it on. */

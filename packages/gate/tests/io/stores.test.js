@@ -251,7 +251,7 @@ test('#6742 clause 1: every store owner in the registry holds a write call, is r
   const read = file => { try { return readFileSync(new URL(`../../../../${file}`, import.meta.url), 'utf8'); } catch { return undefined; } };
   assert.deepEqual(storeWriteProblems(registry, read), []);
   assert.ok(Object.values(registry.stores).filter(row => row.kind === 'repo-data').length >= 19, 'read-only data files are marked repo-data');
-  assert.ok(registry.writeOwnerDebt.length <= 10, 'the debt list only shrinks');
+  assert.ok(registry.writeOwnerDebt.length <= 4, 'the debt list only shrinks');
 });
 
 test('#6742 clause 1: a new store whose owner writes nothing is refused, and a repaired debt row must leave the list [CD2]', () => {
@@ -288,6 +288,17 @@ test('#8620 clause 1: code-map.json, last-green.json, models.json, path-map.json
   assert.equal(registry.stores['last-green.json'].owner, 'packages/gate/src/io/main/audit/state.js');
   assert.equal(registry.stores['post-land-suite.json'].owner, 'packages/landing/src/io/post/land.js');
   for (const store of ['models.json', 'path-map.json']) assert.equal(registry.stores[store].kind, 'repo-data', `${store} is only read`);
+});
+
+test('#8622 clause 1: pullboard-item.json, pullboard-runner-policy.json, recovery.json and relay-health.sqlite are off writeOwnerDebt, each owned by its writer, with no store-homes ceiling raised [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const read = file => { try { return readFileSync(new URL(`../../../../${file}`, import.meta.url), 'utf8'); } catch { return undefined; } };
+  const settled = ['pullboard-item.json', 'pullboard-runner-policy.json', 'recovery.json', 'relay-health.sqlite'];
+  assert.deepEqual(settled.filter(store => registry.writeOwnerDebt.includes(store)), []);
+  assert.deepEqual(storeWriteProblems(registry, read), []);
+  assert.equal(registry.stores['pullboard-item.json'].owner, 'packages/items/src/io/claim.js');
+  assert.equal(registry.stores['recovery.json'].owner, 'packages/sync/src/io/git/repair.js');
+  assert.equal(registry.stores['relay-health.sqlite'].owner, 'packages/link/src/io/relay/canary/health.js');
 });
 
 test('#8752 clause 1: publish.json is off writeOwnerDebt, owned by the landing pause module that writes it, and publish writes through that owner, with no store-homes ceiling raised [CD2]', () => {

@@ -4,7 +4,7 @@ export { beginCommandPhase, commandPhaseSnapshot } from './src/io/command.js';
 export { approvalContext, createApprovalReply, openApproval, restoreLinkReply, sealApproval, signApprovalIntent, verifyApprovalIntent } from './src/logic/relay/approval.js';
 export { nameBoardInConfig, namedBoard, onlyNamedBoardChanged, writeNamedBoard } from './src/io/relay/config.js';
 export { run } from './src/io/relay/canary/command.js';
-export { claimRelayCanaryTick, markCanaryNoticeRecorded, observeRelayHealth, observeRelayHealthFile, pendingRelayCanaryNotices, readRelayHealth, readRelayHealthFile, recordClientHealth } from './src/io/relay/canary/health.js';
+export { RELAY_HEALTH_FILE, claimRelayCanaryTick, markCanaryNoticeRecorded, observeRelayHealth, observeRelayHealthFile, pendingRelayCanaryNotices, readRelayHealth, readRelayHealthFile, recordClientHealth } from './src/io/relay/canary/health.js';
 export { relayCanaryNeeds } from './src/io/relay/canary/needs.js';
 export { probeRelayCanary } from './src/io/relay/canary/probe.js';
 export { RELAY_CANARY_INTERVAL_MS, runRelayCanary, startRelayCanaryWatch } from './src/io/relay/canary/watch.js';
