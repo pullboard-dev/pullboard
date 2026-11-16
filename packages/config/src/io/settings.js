@@ -155,8 +155,8 @@ export function setWorkerBudget(budget) {
 
 
 /**
- * Set board.url or board.token; the value off removes it, so seats use the local board again [P7].
- * @param {'url' | 'token'} key
+ * Set board.url, board.token or board.commits; the value off removes it, so seats use the local board again [P7].
+ * @param {'url' | 'token' | 'commits'} key
  * @param {string} value
  */
 export function setBoardRemote(key, value) {
@@ -252,6 +252,15 @@ export function localRunnerEnabled() {
 export function localLoadShare() {
   const share = loadMachineSettings().gate?.localLoadShare;
   return Number.isFinite(share) && share > 0 ? share : 1;
+}
+
+/**
+ * How many local `pullboard gate --static` runs this machine admits at once: gate.staticSlots, default 2. Why: each run
+ * is about a minute of full-CPU tree work, and 14 at once drove a Mac to load 104; a waiting run queues instead [C7,#8501].
+ */
+export function staticCheckSlots() {
+  const slots = loadMachineSettings().gate?.staticSlots;
+  return Number.isSafeInteger(slots) && slots > 0 ? slots : 2;
 }
 
 /**
