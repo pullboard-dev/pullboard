@@ -47,7 +47,7 @@ async function landOne(t, squash) {
   };
   const result = await mergeGroup(state, [{ id: item.item_id, commit: tip }]);
   const parents = git(root, 'rev-list', '--parents', '-n', '1', 'HEAD').split(' ').slice(1);
-  return { root, id: item.item_id, tip, trunk, result, parents, head: git(root, 'rev-parse', 'HEAD'), message: git(root, 'log', '-1', '--format=%B'), kept: runFixtureGit(['rev-parse', '--verify', '-q', `refs/pullboard/items/${item.item_id}`], { cwd: root, allowFailure: true }) };
+  return { root, id: item.item_id, tip, trunk, result, parents, head: git(root, 'rev-parse', 'HEAD'), message: git(root, 'log', '-1', '--format=%B') };
 }
 
 test('clause 1: with landing.squash on, the land step merges an item as one single-parent commit with the landing message and an item ref [C7,#9220]', async t => {
