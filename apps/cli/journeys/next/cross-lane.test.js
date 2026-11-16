@@ -30,11 +30,15 @@ test('clause 2: with laneMode on, the same seat is offered only its own lane ite
   const box = await fixture(t, { route: 'light', projectConfig: { laneMode: 'on' } });
   const docs = box.add('Light docs-lane work', { lane: 'docs', route: 'light' });
   const decision = await picked(t, box);
-  assert.notEqual(decision.claim, true, JSON.stringify(decision));
-  assert.notEqual(decision.item?.item_id, docs, 'another lane\'s item is never offered for a claim');
-  assert.equal(store.getItem(box.board, docs).item_status, 'open');
+  assert.equal(decision.claim, undefined, 'another lane\'s item is never offered for a claim where the seat stands: ' + JSON.stringify(decision));
+  assert.deepEqual(decision.move && { lane: decision.move.lane, item: decision.move.item }, { lane: 'docs', item: docs }, 'it moves the seat to that lane instead');
+});
+
+test('clause 2: with laneMode on, a seat with work in its own lane is offered that item [C7]', async t => {
+  const box = await fixture(t, { route: 'light', projectConfig: { laneMode: 'on' } });
+  box.add('Light docs-lane work', { lane: 'docs', route: 'light' });
   const own = box.add('Light web-lane work', { route: 'light' });
-  const again = await picked(t, box);
-  assert.equal(again.claim, true, JSON.stringify(again));
-  assert.equal(again.item.item_id, own, 'its own lane item is the offer');
+  const decision = await picked(t, box);
+  assert.equal(decision.claim, true, JSON.stringify(decision));
+  assert.equal(decision.item.item_id, own, 'its own lane item is the offer');
 });
