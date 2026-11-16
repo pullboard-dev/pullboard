@@ -24,7 +24,7 @@ export function run(io, { first, second, rest, values = {} }) {
     const owner = previousOwner ? store.agentById(board, previousOwner) : null;
     let reason = [second, ...rest].filter(Boolean).join(' ') || (typeof values.note === 'string' ? values.note.trim() : '');
     // withdraw.refuseLanded: an item whose commit is on main is landed, never withdrawn [C7].
-    refuseLandedWithdraw(ctx.config, ctx.info.root, store.getItem(board, item));
+    refuseLandedWithdraw(ctx.config, ctx.info.root, store.getItem(board, item), roadmapView);
     const pending = pendingWithdrawal(board, item);
     if (values.confirm === true || values.reject === true) {
       // withdraw.review: only a seat other than the one that asked closes the item, or declines the request [C7].

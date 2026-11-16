@@ -166,6 +166,7 @@ const ROWS = [
   ['submitDeferAbove', 'Defer large selections', 'A submit whose selection names more test files than this runs only its check and invariants, and landing runs the rest.', 'Landing', 'count'],
   ['landingShards', 'Landing test shards', 'How many shards the landing gate splits its test files into.', 'Landing', 'count'],
   ['landing.publish', 'Publish separately', 'Landing happens locally and the push goes out through pullboard publish.', 'Landing', 'choice'],
+  ['landing.landedFromMain', 'Landed means on main', 'On, roadmap, show, the view and withdraw count an item landed when its commit is on main, whether or not a merge was recorded; off, they read the recorded merge.', 'Landing', 'on/off'],
   ['landing.perItem', 'Per-item landing', 'A landing takes every verified item that merges cleanly; a red batch bisects to its culprit and lands the rest, and a red batch of one goes back to open alone.', 'Landing', 'on/off'],
   ['landing.manualOverride', 'Manual landing override', 'A person can permit coordinator landing commands instead of automatic landing after acceptance.', 'Landing', 'on/off'],
   ['landing.first', 'Land these first', 'Item ids the lander takes ahead of the accept order, in the order listed; a listed item that is not verified is skipped.', 'Landing', 'list'],
