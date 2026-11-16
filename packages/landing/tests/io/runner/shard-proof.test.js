@@ -97,3 +97,16 @@ test('clause 2: with landing.shardProof off, or a proof within one runner\'s cor
     assert.deepEqual(receipt.proof, { files: 3, reused: 0, ran: 3 }, `${name}: the single-runner proof ran`);
   }
 });
+
+test('clause 1: a land job whose proof names more than one shard offers every shard as a shard job and lands only when every shard is green [test] [C7,#7818]', async t => {
+  const { payload, workdir, at, expect } = landing(t);
+  const offered = [], trunkWhileWaiting = [];
+  const [a, b] = [`${JOB}:shard:a`, `${JOB}:shard:b`];
+  const shards = shardsOf(offered, [{ [a]: green }, { [a]: green, [b]: green }], { wait: async () => { trunkWhileWaiting.push(at('refs/heads/main')); } });
+  const receipt = await runLandingJob(payload, { workdir, shards });
+  assert.equal(offered.length, 1, 'the whole proof is offered once, as shard jobs');
+  assert.equal(receipt.proof.shards, 2, 'both shards are the proof');
+  assert.deepEqual(trunkWhileWaiting, [expect], 'trunk stays put while one shard is green and the other has not posted');
+  assert.equal(receipt.outcome, 'landed', receipt.detail);
+  assert.equal(at('refs/heads/main'), receipt.trunk, 'trunk moves once every shard is green');
+});
