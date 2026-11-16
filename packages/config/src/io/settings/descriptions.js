@@ -207,6 +207,7 @@ const ROWS = [
   ['verify.titleTicks', 'Tick clauses by case title', 'On, a [test] clause that names no test file is ticked by the item\'s changed tests holding a case titled "clause N:" when the gate runs every such case green; off (default) only a clause naming a test file or folder is.', 'Review', 'on/off'],
   ['verify.unrelatedTrunkMoves', 'Keep verdicts through unrelated changes', 'A verdict survives main moving through commits that touch nothing the review read.', 'Review', 'on/off'],
   ['withdraw.refuseLanded', 'Landed work stays landed', 'On, withdraw refuses an item whose commit is on main and names pullboard merged instead; off, withdraw closes it as before.', 'Review', 'on/off'],
+  ['release.liftTwiceHold', 'Lift a released-twice hold', 'On, the hold the release-twice rule places lifts when main moves or when an item a release named as its blocker lands; a hold a person or the coordinator placed stays. Off (default), it stays until someone lifts it.', 'Review', 'on/off'],
   ['withdraw.review', 'Withdrawals need a second seat', 'On, a withdrawal waits as pending until another seat confirms it; off, withdraw closes the item at once.', 'Review', 'on/off'],
   // This repo: Claims
   ['claim.refuseOffMainHead', 'Refuse a claim off main', 'When enabled, claim refuses in a folder whose HEAD is not on main (a commit made before claiming), and names the step that puts the folder back on main; off (default), claim takes the folder as it stands.', 'Claims', 'on/off'],
