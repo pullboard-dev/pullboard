@@ -22,7 +22,7 @@ import { outsideSource } from "../../../../items/browser.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
 import { ITEM_FOLDER_ENGINE } from "../../../../state/light.js";
 import { REWORK_SAME_FAMILY_ENGINE } from "../../../../state/light.js";
-import { CLAIM_NEXT } from "../table/claim.table.js";
+import { CLAIM_NEXT } from "../table/next.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function existingEngine(args, board, at) {

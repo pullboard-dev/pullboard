@@ -55,7 +55,8 @@ let reopenBuilt = null;
  * Why here: this file is the store's one reader of the moves tables, so the reopen writer reaches the table without a second cross-cell edge [C7,#8388].
  */
 export function runReopenTable(snapshot, move) {
-  reopenBuilt ??= moveTables().reopenEngine({ causeProblem, states: MOVES.find(entry => entry.verb === 'reopen').from });
+  const { reopenEngine } = moveTables();
+  if (reopenBuilt?.engine !== reopenEngine) reopenBuilt = { engine: reopenEngine, ...reopenEngine({ causeProblem, states: MOVES.find(entry => entry.verb === 'reopen').from }) };
   return moveTables().runTable(reopenBuilt.table, reopenBuilt.rules, snapshot, move);
 }
 export const LANDING_LEASE_MS = 120_000; // 30 s died under a 22 s board write; a dead holder is still reclaimed at expiry [C7].

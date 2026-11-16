@@ -1,38 +1,13 @@
 /** The claim and renew move as one pure table: every rule the board and CLI enforce when a seat claims or renews an item, ported from the pure-core pilot [C7,#8241]. */
 import { Refused } from '../../../../kernel/light.js';
 import { defineRules } from './rules.js';
+import { CLAIM_NEXT } from './next.js';
+export { CLAIM_NEXT } from './next.js';
 
 const ROUTES = Object.freeze(['light', 'mid', 'strong']);
 /** Live claims one seat may hold at all, whatever N the board sizes for top-level item-folder claims. */
 const LIVE_CLAIM_CAP = 10;
 
-/**
- * The next step the claim command prints for each refusal code its table rows share; the live command's next-step map reads these.
- * Why: one sentence per code, so the table and the command can never word the same refusal two ways.
- */
-export const CLAIM_NEXT = Object.freeze({
-  LINE_WIP_LIMIT: 'review the oldest eligible waiting submission: pullboard next --verify; if none is eligible, ask the coordinator to arrange a reviewer',
-  A5_GRAMMAR_VERSION: 'upgrade Pullboard: npm install -g pullboard@latest',
-  AGENT_APPROVAL_REQUIRED: 'ask the person to confirm or decline the named row through pullboard view or their own terminal',
-  BAD_CONFIG: 'fix pullboard.json as the message says, then commit it: git commit -m "chore: fix pullboard config" pullboard.json',
-  BAR_NOT_READY: 'read pullboard bar <id>; ask its author to complete the named red baseline and measurement/edge notes, then have an outside parent session sign the current bar',
-  BLOCKED: 'take another item with pullboard next, or shout the lane it waits on: pullboard shout <lane> "<text>"',
-  CRITERION_PROVES_NOTHING: 'set a check that fails before the work: pullboard edit <id> --check "<command>", or ask the person to accept this one: pullboard check accept <id>',
-  HELD: 'take another item: pullboard next',
-  ITEM_HELD: 'take another item with pullboard next while the coordinator holds this one',
-  LANE_HELD: 'take other work with pullboard next; nothing for this seat: end your turn',
-  NOT_CLAIMABLE: 'take open work: pullboard next',
-  NOT_JOINED: 'join a lane from this worktree: pullboard join <lane> --model "<model name>" (see: pullboard lanes)',
-  NO_ITEM: 'find the item id: pullboard list --all',
-  NO_POLICY: 'restore and commit pullboard.json, then run the command again',
-  ONE_CLAIM: 'submit or release the item you hold: pullboard release <id> --reason <code> --note "why"',
-  PENDING_REFREEZE: 'the coordinator runs pullboard refreeze <id>',
-  REOPEN_HELD_FOR_BUILDER: 'ask the builder to run pullboard release <id> --reason ROUTED_ELSEWHERE, then take other work with pullboard next',
-  ROUTE: 'take an item your route covers: pullboard next',
-  SESSION_LEDGER: 'make the agent-session ledger named in the message writable by this user, then run the command again',
-  UNKNOWN_SPEC: 'ask the coordinator to restore the named spec rows or withdraw the item: pullboard shout coordinator --kind question "please fix the rows cited by #<id>"',
-  WRONG_LANE: 'create a worktree in the required lane with pullboard worktree <lane> --model "<model name>", or take an item in your lane with pullboard next',
-});
 const help = (code) => CLAIM_NEXT[code] ?? 'run pullboard help';
 
 /**

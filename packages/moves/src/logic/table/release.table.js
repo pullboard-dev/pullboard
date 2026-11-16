@@ -1,22 +1,13 @@
 /** The release move as one pure table: every rule the board enforces when a seat hands back a claim or a review, ported from the pure-core pilot [C7,#8240]. */
 import { Refused } from '../../../../kernel/light.js';
 import { defineRules } from './rules.js';
+import { RELEASE_NEXT } from './next.js';
+export { RELEASE_NEXT } from './next.js';
 
 /** Reasons a holder's release counts toward the release-twice rule. */
 const QUALITY = Object.freeze(['BLOCKED', 'BUDGET', 'INELIGIBLE']);
 const ROUTES = Object.freeze(['light', 'mid', 'strong']);
 
-/**
- * The next step the release command prints for each refusal code its table rows share; the live command's next-step map reads these.
- * Why: one sentence per code, so the table and the command can never word the same refusal two ways.
- */
-export const RELEASE_NEXT = Object.freeze({
-  RELEASE_REASON: 'name why with --reason INELIGIBLE|ROUTED_ELSEWHERE|BLOCKED|BUDGET|TAKEN_OVER|DIAGNOSIS_WRONG|OTHER (OTHER also needs --note)',
-  NOTE_REQUIRED: 'add --note "<what happened>"',
-  NOT_JOINED: 'join a lane from this worktree: pullboard join <lane> --model "<model name>" (see: pullboard lanes)',
-  NOT_YOURS: 'shout its holder or the coordinator: pullboard shout coordinator --kind question "<what you need>"',
-  NO_ITEM: 'find the item id: pullboard list --all',
-});
 const SHOUT = RELEASE_NEXT.NOT_YOURS;
 const REASON_NEXT = RELEASE_NEXT.RELEASE_REASON;
 const DIAGNOSIS_NEXT = 'claim the diagnosed item, then release it with --reason DIAGNOSIS_WRONG --note "<what was wrong>"';

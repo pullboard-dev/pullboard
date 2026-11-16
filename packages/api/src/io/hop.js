@@ -45,13 +45,13 @@ export function gateClaimHop(enabled) {
 }
 
 /**
- * Move the item's hop row for one gate job claim: `acquire` on a claim (creating the queued hop first when none exists), `step` on a renew at the claim's epoch.
+ * Move the item's hop row for one gate job claim: `acquire` on a claim (creating the queued hop first when none exists), `step` on a renew at the claim's epoch, `finish` when its receipt is posted.
  * Why the candidate stands for the item's commit and digest: the claim reads only the job row, and a gate job proves exactly its candidate, so the hop is per candidate.
  * A hop held by another live runner, or a renew at an epoch another runner replaced, is refused HOP_FENCED naming the owner.
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {{ table: NonNullable<typeof hopTable> }} hop - From gateClaimHop.
- * @param {{ item: number, candidate: string, runner: string, move: 'acquire' | 'step', epoch?: number, job?: string, now: number, leaseMs: number }} claim - job: the gate job an acquire claims.
+ * @param {{ item: number, candidate: string, runner: string, move: 'acquire' | 'step' | 'finish', epoch?: number, job?: string, now: number, leaseMs: number }} claim - job: the gate job an acquire claims.
  * @returns {{ owner: string | null, epoch: number }}
  */
 export function moveGateClaimHop(db, hop, { item, candidate, runner, move, epoch, job, now, leaseMs }) {
@@ -66,6 +66,12 @@ export function moveGateClaimHop(db, hop, { item, candidate, runner, move, epoch
   } }).hop;
   try {
     if (move === 'step') return write('step');
+    // A gate whose receipt is posted finishes its hop; a retried post finds the hop already done at this claim's epoch and leaves it [C7,#8464].
+    if (move === 'finish') {
+      const row = readGateHop(db, item);
+      if (row?.state === 'done' && row.commit === candidate && row.epoch === epoch) return { owner: null, epoch };
+      return write('finish');
+    }
     // A first claim finds no row: the table creates the queued hop, then the same claim acquires it.
     ensureGateHopTable(db);
     const row = readGateHop(db, item);

@@ -1,6 +1,6 @@
 /** The reason lines `pullboard next` prints beside a claim or an idle answer: folded, counted and read from the board [N2,C7]. */
 import * as store from '../../../store/index.js';
-import { REVIEW_COVER_PAUSE_TAIL } from '../../../health/index.js';
+import { REVIEW_COVER_PAUSE_TAIL } from '../../../health/light.js';
 
 /**
  * Preview governing messages without acknowledging them or changing explicit watch audiences [B7,N2].
