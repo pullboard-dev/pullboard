@@ -1,5 +1,4 @@
 /** Seed single-line faults into a throwaway copy of a cell and run the cell's own tests against each, report only; the adapter that runs tests for the mutation check [C7]. */
-import { execFile } from 'node:child_process';
 import { cpSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -12,6 +11,7 @@ import { join } from 'node:path';
 import { relative } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
 import { scratchBase } from '../../../kernel/light.js';
+import { spawnCaptured } from './captured.js';
 
 /** Hang ceiling for one test file run against one fault; a fault that makes a test loop forever is a caught fault. */
 const RUN_TIMEOUT_MS = 60_000;
@@ -56,18 +56,39 @@ export function childEnv(from = process.env) {
   return env;
 }
 
-/** Run one child to its end; resolves with its exit code (null when it timed out and was killed), its output and its error text. */
-function finish(command, args, options) {
-  return new Promise((resolve) => {
-    execFile(command, args, { encoding: 'utf8', killSignal: 'SIGKILL', maxBuffer: 64 * 1024 * 1024, ...options }, (error, stdout, stderr) => {
-      resolve({ status: error ? (typeof error.code === 'number' ? error.code : null) : 0, stdout, stderr });
-    });
-  });
+/** Process groups of the children running now, so an exit or a stop can end every one of them and the grandchildren `node --test` starts [#8500]. */
+const live = new Set();
+let exitHook = false;
+
+/** Kill one child's whole process group; a group that is already gone is fine. */
+function killGroup(pid) {
+  try { process.kill(-pid, 'SIGKILL'); } catch { /* already gone */ }
+}
+
+/** Kill every child still running. Why groups: `node --test` runs each file in a child of its own, and killing only the first leaves that one orphaned (parent pid 1). */
+export function reapChildren() {
+  for (const pid of live) killGroup(pid);
+  live.clear();
+}
+
+/**
+ * Run one child to its end; resolves with its exit code (null when it timed out, was stopped or was killed), its output and its error text.
+ * The child leads its own process group (spawnCaptured), and that group is killed when the child ends, times out, is stopped by `signal`, or this process exits.
+ */
+async function finish(command, args, { timeout = 0, signal, encoding, ...options } = {}) {
+  if (!exitHook) { exitHook = true; process.on('exit', reapChildren); }
+  let pid = 0;
+  try {
+    const ran = await spawnCaptured(command, args, { ...options, timeout, signal, maxBuffer: 64 * 1024 * 1024, killSignal: 'SIGKILL', onSpawn: (child) => { pid = child.pid; live.add(pid); } });
+    return { status: ran.error || ran.status === null ? null : ran.status, stdout: ran.stdout, stderr: ran.stderr };
+  } catch { return { status: null, stdout: '', stderr: '' }; } finally {
+    if (pid) { killGroup(pid); live.delete(pid); }
+  }
 }
 
 /** Run one test file in the copy; true when it passed. The child has ended before this resolves, so none is left alive. */
-async function passes(dir, file) {
-  return (await finish(process.execPath, ['--test', file], { cwd: dir, env: childEnv(), timeout: RUN_TIMEOUT_MS })).status === 0;
+async function passes(dir, file, signal = null) {
+  return (await finish(process.execPath, ['--test', file], { cwd: dir, env: childEnv(), timeout: RUN_TIMEOUT_MS, signal })).status === 0;
 }
 
 /**
@@ -112,7 +133,8 @@ function spread(list, count) {
  * @param {{all?: boolean, base?: string, extra?: string[], sample?: number, reach?: Record<string, string[]>}} [options] all seeds every line; base is the ref changed lines are read against;
  *   extra are root-relative test files outside the cell (such as a journey) run against each fault too; sample caps the faults seeded per source file, spread evenly;
  *   reach maps a root-relative test file to the root-relative files its imports reach, and a fault then runs only the tests that reach the seeded file;
- *   note gets a line per phase and per test run with its seconds, for a run that must be watched;
+ *   signal is an AbortSignal: when it aborts, every running test child is killed and the run refuses STOPPED, with the copy removed;
+   note gets a line per phase and per test run with its seconds, for a run that must be watched;
  *   deadline is an epoch time checked before every test run: no new fault is started after it, and a fault it cuts short is dropped and counted in `skipped`, never as caught or missed;
  *   maxTests caps the cell tests run against one fault (those named for the seeded file first, then those reaching the fewest files); a fault that still escapes them is run by the journey, which can only lower a cell's score without it, so a cap never turns a convert into a hold; such faults are counted in `capped`;
  *   extraLast runs the extra files only against a fault no reaching cell test caught, and re-runs the cell's other tests on a fault only an extra file caught,
@@ -120,7 +142,7 @@ function spread(list, count) {
  * @param {{faults: Function, changedLines: Function}} seams the pure fault and diff readers, passed in because a package never imports an app
  * @returns {Promise<{cell: string, base: string, all: boolean, redBefore: string[], tests: {file: string, caught: number, total: number}[], faults: object[], caught: number, missed: number}>}
  */
-export async function mutateCell(root, cell, { all = false, base = 'main', extra = [], sample = Infinity, reach = null, extraLast = false, note = () => {}, deadline = null, maxTests = Infinity } = {}, { faults, changedLines }) {
+export async function mutateCell(root, cell, { all = false, base = 'main', extra = [], sample = Infinity, reach = null, extraLast = false, note = () => {}, deadline = null, maxTests = Infinity, signal = null } = {}, { faults, changedLines }) {
   const name = String(cell).replace(/\\/gu, '/').replace(/^\.\//u, '').replace(/\/+$/u, '');
   const source = join(root, name);
   let stat = null;
@@ -162,7 +184,7 @@ export async function mutateCell(root, cell, { all = false, base = 'main', extra
       if (!baselines.has(file)) {
         baselines.set(file, (async () => {
           const at = Date.now();
-          const ok = await passes(dirOf(file), file);
+          const ok = await passes(dirOf(file), file, signal);
           note(`  ${ok ? 'passed' : 'failed'} unmutated ${file} in ${((Date.now() - at) / 1000).toFixed(1)}s`);
           if (!ok) redBefore.push(file);
           return ok;
@@ -180,8 +202,9 @@ export async function mutateCell(root, cell, { all = false, base = 'main', extra
       try {
         for (const test of list) {
           if (deadline && Date.now() > deadline) return null;
+          if (signal?.aborted) throw new Refused('STOPPED', 'the mutation run was stopped', 'run pullboard mutate again when ready');
           const at = Date.now();
-          const ok = await passes(dirOf(test), test);
+          const ok = await passes(dirOf(test), test, signal);
           tally[test].total += 1;
           note(`  ${name} ${ok ? 'passed' : 'failed'} ${test} in ${((Date.now() - at) / 1000).toFixed(1)}s`);
           if (!ok) failed.push(test);
