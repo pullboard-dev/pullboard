@@ -454,6 +454,14 @@ export function nextItemNotices() {
 }
 
 /**
+ * Whether an idle next lists the waiting items and what each waits on (#2958): off by default, so an idle answer prints
+ * exactly what it did before; only an exact `true` turns it on.
+ */
+export function nextIdleBlockers() {
+  return loadMachineSettings().next?.idleBlockers === true;
+}
+
+/**
  * The builder cap behind next.capBuilders (#8545): the most seats that may hold a claim at once before next offers a review
  * instead of a build; 0 (default) is off, and anything but a positive whole number is off, so a damaged value never starves builds.
  */
