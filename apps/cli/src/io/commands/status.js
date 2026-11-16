@@ -1,4 +1,3 @@
-import { claimHealthProjection } from '../../../../../packages/health/light.js';
 import { localDependencyIds } from '../../../../../packages/items/light.js';
 import { dependencyLabel } from '../../../../../packages/items/light.js';
 import { itemFileCollisions } from '../../../../../packages/items/light.js';
@@ -6,8 +5,6 @@ import { allItemsNeedingRescope } from '../../../../../packages/store/index.js';
 import { withLocalSeatPresence } from '../../../../../packages/store/index.js';
 import { readCapacity } from '../../../../../packages/stats/light.js';
 import { capacityLines } from '../../../../../packages/stats/light.js';
-import { releaseBlockingItems } from '../../../../../packages/health/light.js';
-import { staleStateSnapshot } from '../../../../../packages/health/light.js';
 import { staleStateLine } from '../../../../../packages/store/index.js';
 import { lineSettings } from '../../../../../packages/state/index.js';
 import { routingCapacity } from '../../../../../packages/queue/light.js';
@@ -70,6 +67,7 @@ export const nativeBoardRequired = false;
 export async function run(io, { values }) {
   const ctx = context(io);
   const { bindProofRunner, currentProofCounters, proofCounter, ruleProofCounts, reviewQueueLine } = await import('../../../../../packages/verify/index.js');
+  const { claimHealthProjection, releaseBlockingItems, staleStateSnapshot } = await import('../../../../../packages/health/index.js');
   // Status does not load the library root that binds the runner; unbound, its coverage fingerprint never matches the writer's.
   bindProofRunner(fileURLToPath(new URL('../run/tests.js', import.meta.url)));
   const hasRelayState = relayStateExists(ctx.info.commonDir);
