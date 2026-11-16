@@ -9,7 +9,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../../gate/tests/fixtures/child.js';
 import { DEFAULT_TEST_FILE_BUDGET_MS } from '../../../../../gate/index.js';
 import { readTestFileBudgets } from '../../../../../gate/index.js';
 import { requireTestFileRatchet } from '../../../../../gate/index.js';
@@ -45,7 +45,7 @@ function fixture(t) {
   git(main, 'add', '-A'); git(main, 'commit', '-qm', 'fixture main');
   git(main, 'worktree', 'add', '-qb', 'candidate', candidate);
   const run = (cwd = candidate, files = ['slow.test.js', 'later.test.js'], flags = []) => runFixtureChild(process.execPath, [runner, ...flags, ...files], {
-    cwd, env: { ...process.env, PULLBOARD_MACHINE_HOME: join(directory, 'machine') }, encoding: 'utf8', detached: true,
+    cwd, env: { ...process.env, PULLBOARD_MACHINE_HOME: join(directory, 'machine'), PULLBOARD_TEST_NO_FILE_LIMIT: '' }, encoding: 'utf8', detached: true,
   });
   return { main, candidate, git, path, run };
 }

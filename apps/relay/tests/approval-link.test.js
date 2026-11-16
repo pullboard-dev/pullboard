@@ -19,6 +19,7 @@ import { CELL_CONFIG } from '../../../packages/store/tests/fixtures/cell.js';
 import { cellItem } from '../../../packages/store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../packages/store/tests/fixtures/cell.js';
 import { openCellBoard } from '../../../packages/store/tests/fixtures/cell.js';
+import { pressTab } from '../../cli/tests/fixtures/cockpit/stable.js';
 import { runFixtureGit } from '../../cli/tests/fixtures/child.js';
 import { findChromeExecutable } from '../../cli/tests/fixtures/relay/browser.js';
 
@@ -78,7 +79,7 @@ async function approvedLinkScenario(t) {
   const released = new Promise(resolveRelease => { release = resolveRelease; });
   box.server.beforeNextSnapshot(async () => { held = true; await released; });
   await chrome.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
-  await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
+  await pressTab(chrome, 'shouts');
   await chrome.waitFor(`view.tab === "shouts" && document.querySelector('[data-pane="items"]').hidden`);
   const documentOrigin = await chrome.stable('performance.timeOrigin');
   const authorizeBefore = box.server.calls.filter(call => call.path.endsWith('/authorize')).length;

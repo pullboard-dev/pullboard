@@ -31,6 +31,7 @@ import {
   resolve,
 } from 'node:path';
 import { tmpdir } from 'node:os';
+import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
 import { test } from 'node:test';
 import { main } from '../../tests/fixtures/native.js';
 import { headCommit } from '../../../../packages/git/index.js';
@@ -39,8 +40,9 @@ import { serveApi } from '../../../../packages/api/index.js';
 import { refusalDocument } from '../../index.js';
 import { pathToFileURL } from 'node:url';
 import { fetchFresh } from '../../tests/fixtures/http.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
-import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
+import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const RUN_MODULE = pathToFileURL(resolve(import.meta.dirname, '../../../../packages/runners/index.js')).href;
@@ -56,9 +58,12 @@ function realGitPath() {
 }
 
 /** Build a private real repo and linked agent worktree with an instrumented Git executable. */
-function fixture(t, { ruleProof = false } = {}) {
+async function fixture(t, { ruleProof = false } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-git-calls-'));
-  t.after(() => rmSync(dir, { recursive: true, force: true, maxRetries: 50, retryDelay: 200 })); // a submitted run may still be writing [C7]
+  t.after(() => {
+    stopFixtureLocalRunner(join(dir, 'home', '.pullboard-machine')); // a pulled gate starts the loopback runner, which heartbeats into the fixture [C7]
+    rmSync(dir, { recursive: true, force: true, maxRetries: 50, retryDelay: 200 }); // a submitted run may still be writing [C7]
+  });
   const repo = join(dir, 'repo');
   const worker = join(dir, 'worker');
   const home = join(dir, 'home');
@@ -119,12 +124,18 @@ function fixture(t, { ruleProof = false } = {}) {
     assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
     return result;
   };
+  /** Run one setup command through production dispatch in this process; the measured commands stay real children [C7]. */
+  const setup = async (cwd, ...args) => {
+    const result = await runCliInProcess(args, { cwd, env });
+    assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  };
   git(repo, 'init', '-q', '-b', 'main');
-  ok(repo, 'init');
+  await setup(repo, 'init');
+  // Git plumbing, which runs no hook: this commit is setup, and the pre-commit and commit-msg hooks each launched a Node child (#8362).
   git(repo, 'add', '-A');
-  git(repo, 'commit', '-q', '-m', 'chore(repo): initialize Git-call fixture');
+  git(repo, 'update-ref', 'HEAD', git(repo, 'commit-tree', git(repo, 'write-tree'), '-m', 'chore(repo): initialize Git-call fixture'));
   git(repo, 'worktree', 'add', '-q', '-b', 'core/worker', worker);
-  ok(worker, 'join', 'core', '--route', 'light', '--family', 'codex');
+  await setup(worker, 'join', 'core', '--route', 'light', '--family', 'codex');
   return { dir, repo, worker, calls, readCalls, env, git, run, ok };
 }
 
@@ -152,8 +163,8 @@ function readFactScenario(box, root, body) {
   return JSON.parse(result.stdout.trim());
 }
 
-test('help starts no Git and linked-worktree status spawns at most four Git processes [C7]', (t) => {
-  const box = fixture(t);
+test('help starts no Git and linked-worktree status spawns at most four Git processes [C7]', async (t) => {
+  const box = await fixture(t);
   const version = resetAndCount(box, box.dir, '--version');
   assert.equal(version.count, 0, '--version has no repository work to do');
   const help = resetAndCount(box, box.dir, 'help');
@@ -165,8 +176,8 @@ test('help starts no Git and linked-worktree status spawns at most four Git proc
 });
 
 /** Keep the ordinary work card on indexed reads and four fresh Git children, with diagnostics explicit. */
-test('ordinary resume reads its indexed work card with at most four Git processes [N19,N26,C7]', t => {
-  const box = fixture(t);
+test('ordinary resume reads its indexed work card with at most four Git processes [N19,N26,C7]', async (t) => {
+  const box = await fixture(t);
   const resumed = resetAndCount(box, box.worker, 'resume', '--json');
   assert.ok(resumed.count <= 4, `linked-worktree resume started ${resumed.count} Git processes: ${box.readCalls()}`);
   const card = JSON.parse(resumed.result.stdout);
@@ -203,8 +214,8 @@ test('ordinary resume reads its indexed work card with at most four Git processe
 });
 
 /** Unrelated reads retain the original one-process repository miss and never request resume-only blobs. */
-test('ordinary Git scopes skip resume blobs and empty repository failures do not retry [C7,N19]', t => {
-  const box = fixture(t);
+test('ordinary Git scopes skip resume blobs and empty repository failures do not retry [C7,N19]', async (t) => {
+  const box = await fixture(t);
   const standard = readFactScenario(box, box.worker, `const { repoInfo, mainSourceBlobs } = await import(${JSON.stringify(GIT_MODULE)});
     console.log(JSON.stringify(await withGitFacts(() => { const info = repoInfo(process.argv[1]);
       return { head: headCommit(info.root), blobs: mainSourceBlobs(info.root) }; })));`);
@@ -220,8 +231,8 @@ test('ordinary Git scopes skip resume blobs and empty repository failures do not
 });
 
 /** Optional committed-source facts never replace Git's repository or detached-HEAD semantics. */
-test('combined Git source facts retain repository identity when optional doctrine is missing [C7,N19]', t => {
-  const box = fixture(t);
+test('combined Git source facts retain repository identity when optional doctrine is missing [C7,N19]', async (t) => {
+  const box = await fixture(t);
   const script = `const { repoInfo, mainSourceBlobs, mainCheckout } = await import(${JSON.stringify(GIT_MODULE)});
     console.log(JSON.stringify(await withGitFacts(() => { const info = repoInfo(process.argv[1]);
       return { info, head: headCommit(info.root), main: mainCheckout(info.root), blobs: mainSourceBlobs(info.root) }; }, { resumeSources: true })));`;
@@ -270,8 +281,8 @@ function seedRuleBudgetRun(box, { green = true, days = 0, tree, command, failure
   finally { store.closeBoard(board); }
 }
 
-test('populated rule receipt history preserves the linked status Git budget and current proof [C7,S1,A1]', (t) => {
-  const box = fixture(t, { ruleProof: true });
+test('populated rule receipt history preserves the linked status Git budget and current proof [C7,S1,A1]', async (t) => {
+  const box = await fixture(t, { ruleProof: true });
   seedRuleBudgetRun(box, { green: false, days: 8, failures: [{ file: 'test/proven.test.js', name: 'expired red' }] });
   seedRuleBudgetRun(box, { green: false, days: 2, failures: [{ file: 'test/red.test.js', name: 'recent red' }] });
   seedRuleBudgetRun(box, { tree: 'f'.repeat(40) });
@@ -295,8 +306,8 @@ test('populated rule receipt history preserves the linked status Git budget and 
     'old green, wrong tree and wrong command prove nothing on the new tip; recent red is independent');
 });
 
-test('a runner sees the new HEAD after it commits its item [C7]', (t) => {
-  const box = fixture(t);
+test('a runner sees the new HEAD after it commits its item [C7]', async (t) => {
+  const box = await fixture(t);
   fileFixtureItem(box, box.repo, { lane: 'core', title: 'Refresh cached HEAD', route: 'mid',
     criterion: 'the runner reads the commit it just made', check: 'test -f src/result.txt',
     brief: 'Files: src/result.txt\nChange: create the runner result file.\nTest: the runner reads the commit it just made.',
@@ -306,13 +317,13 @@ test('a runner sees the new HEAD after it commits its item [C7]', (t) => {
   writeFileSync(agent, '#!/bin/sh\nmkdir -p src\nprintf result > src/result.txt\n');
   chmodSync(agent, 0o700);
   // No detached review comparison: it keeps writing into the fixture, and the cleanup then retries past the file budget [C7].
-  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { mainComparison: 'off' } });
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { gate: { mainComparison: 'off' } });
   const run = box.ok(box.worker, 'run', '--agent-light', `sh ${agent}`, '--items', '1', '--attempts', '1', '--minutes', '1');
-  assert.match(run.stdout, /submitted #1/u);
+  assert.match(run.stdout, /#1 is in the gate as job /u);
   const current = box.git(box.worker, 'rev-parse', 'HEAD');
+  // A pull submit offers its gate at the commit the run made, and names it in the job id, so the offered job proves the runner's new HEAD [C7].
   const shown = JSON.parse(box.ok(box.repo, 'show', '1', '--json').stdout);
-  assert.equal(shown.item_commit, current, 'submit records the HEAD created by this command');
+  assert.equal(shown.gateJob?.id.split(':')[2], current.slice(0, 12), 'submit offers the HEAD created by this command');
 });
 
 /** Create a promise gate for a deterministic overlap between command fact scopes. */
@@ -349,7 +360,7 @@ async function readServedBranchCode(api, branch) {
 }
 
 test('a live serve request sees a commit made while the server stays open [C7]', async (t) => {
-  const box = fixture(t);
+  const box = await fixture(t);
   const branch = 'a1b2c3d4e5f6';
   box.git(box.repo, 'branch', '-m', branch);
   const original = box.git(box.repo, 'rev-parse', 'HEAD');
@@ -367,8 +378,8 @@ test('a live serve request sees a commit made while the server stays open [C7]',
   });
 });
 
-test('the runner invalidates cached HEAD immediately after its own commit [C7]', (t) => {
-  const box = fixture(t);
+test('the runner invalidates cached HEAD immediately after its own commit [C7]', async (t) => {
+  const box = await fixture(t);
   const before = box.git(box.worker, 'rev-parse', 'HEAD');
   mkdirSync(join(box.worker, 'src'));
   writeFileSync(join(box.worker, 'src/runner-result.txt'), 'built\n');
@@ -390,7 +401,7 @@ console.log(JSON.stringify(result));`;
 });
 
 test('settled and concurrent commands do not share Git-fact caches [C7]', async (t) => {
-  const box = fixture(t);
+  const box = await fixture(t);
   const settledRead = deferred();
   const releaseSettled = deferred();
   const settledAgain = deferred();
@@ -440,8 +451,8 @@ test('settled and concurrent commands do not share Git-fact caches [C7]', async 
   assert.equal(headCommit(box.repo), fourthCommit, 'outside a command scope Git facts are read directly');
 });
 
-test('API read facts persist across request scopes and refresh after ref changes [A2,N26,C7]', (t) => {
-  const box = fixture(t);
+test('API read facts persist across request scopes and refresh after ref changes [A2,N26,C7]', async (t) => {
+  const box = await fixture(t);
   const result = readFactScenario(box, box.repo, `
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -474,8 +485,8 @@ console.log(JSON.stringify({ initial, repeated, repeatedCalls, mutation }));
   assert.equal(result.mutation.after, result.mutation.next, 'the next API read sees and refreshes the changed ref');
 });
 
-test('an installed-source provenance miss is reused outside Git [A2,N26,C7]', (t) => {
-  const box = fixture(t);
+test('an installed-source provenance miss is reused outside Git [A2,N26,C7]', async (t) => {
+  const box = await fixture(t);
   const result = readFactScenario(box, box.dir, `
 import { readFileSync, writeFileSync } from 'node:fs';
 const root = process.argv[1];
@@ -491,8 +502,8 @@ console.log(JSON.stringify({ first, repeated, repeatedCalls }));
   assert.equal(result.repeatedCalls, 0, 'a repeated installed-source read does not retry Git discovery');
 });
 
-test('API HEAD facts remain null outside Git [A2,N26,C7]', (t) => {
-  const box = fixture(t);
+test('API HEAD facts remain null outside Git [A2,N26,C7]', async (t) => {
+  const box = await fixture(t);
   const result = readFactScenario(box, box.dir, `
 import { headTree } from ${JSON.stringify(GIT_MODULE)};
 const root = process.argv[1];
@@ -511,8 +522,8 @@ console.log(JSON.stringify(facts));
 });
 
 /** Exercise real Git batch framing, pinned bytes and refusal cleanup rather than mocking the stream. */
-test('committed resume files use one framed Git child and retain pinned Unicode bytes [N19,D1,C7]', t => {
-  const box = fixture(t);
+test('committed resume files use one framed Git child and retain pinned Unicode bytes [N19,D1,C7]', async (t) => {
+  const box = await fixture(t);
   const file = 'rules with spaces.md';
   const source = '# Rules\n\nλ 🙂 café\n';
   writeFileSync(join(box.repo, file), source);

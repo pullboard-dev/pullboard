@@ -20,6 +20,10 @@ const LOG_TAIL_BYTES = 1024 * 1024;
 const LANDING_RECORDS = 40;
 // Budget: a gating record older than a day is a batch that stopped without saying so, never a running gate.
 const GATING_STALE_MS = 24 * 3_600_000;
+// A runner that ran a job in the last day is a runner of this board, idle or not.
+const RUNNER_SEEN_MS = 24 * 3_600_000;
+// A registered runner whose last load reading is older than this has stopped reporting: the Dashboard reads it offline (#8060).
+const HEARTBEAT_FRESH_MS = 10 * 60_000;
 
 /** The last bytes of a file as text, or '' when it cannot be read. */
 export function readTail(file, bytes = LOG_TAIL_BYTES) {
@@ -39,12 +43,15 @@ export function readTail(file, bytes = LOG_TAIL_BYTES) {
  * The controller-pushed runs: every configured runner, and each runner lease the machine's resource database holds.
  *
  * @param {string} file - The machine's resources.sqlite.
- * @param {{ host: string }[]} configured - The machine settings' runners.
- * @returns {{ host: string, unavailable: boolean, holders: object[] }[]}
+ * @param {{ host: string, cpuLoad?: { at: string, busyPercent: number, average: number[] } }[]} configured - The machine settings' runners;
+ *   a runner's `cpuLoad` is its latest heartbeat, carried as its load while it is fresh.
+ * @param {number} [now]
+ * @returns {{ host: string, unavailable: boolean, holders: object[], load?: object }[]}
  */
-export function readPushedRunners(file, configured = []) {
+export function readPushedRunners(file, configured = [], now = Date.now()) {
+  const fresh = load => load && Date.parse(load.at) > now - HEARTBEAT_FRESH_MS && Date.parse(load.at) <= now + 60_000 ? { load } : {};
   const runners = new Map((Array.isArray(configured) ? configured : []).filter(runner => typeof runner?.host === 'string')
-    .map(runner => [runner.host, { host: runner.host, unavailable: false, holders: [] }]));
+    .map(runner => [runner.host, { host: runner.host, unavailable: false, holders: [], ...fresh(runner.cpuLoad) }]));
   if (!existsSync(file)) return [...runners.values()];
   let db;
   try {
@@ -62,6 +69,29 @@ export function readPushedRunners(file, configured = []) {
 /** Parse a JSON column, or null when it is not JSON. */
 function parsed(text) {
   try { return JSON.parse(text); } catch { return null; }
+}
+
+/**
+ * The runners that ran this board's pulled jobs in the last day, by name without the per-session suffix: the local runner
+ * that ran every gate shows on the runner card even while it holds no lease and no job is live, though a finished job clears
+ * its lease owner (#7763).
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - A board, read-only.
+ * @param {number} now
+ * @returns {string[]}
+ */
+export function readRecentJobRunners(db, now) {
+  const kinds = PULLED_KINDS.map(() => '?').join(', ');
+  const names = new Set(db.prepare(`SELECT DISTINCT job_lease_owner AS owner FROM job WHERE job_kind IN (${kinds}) AND job_lease_owner IS NOT NULL AND job_updated > ?`)
+    .all(...PULLED_KINDS, now - RUNNER_SEEN_MS).map(row => String(row.owner).replace(/-[0-9a-f]{6}$/u, '')));
+  // A finished job clears its lease owner; the runner that claimed it stays named in its claimed step.
+  for (const row of db.prepare(`SELECT job_step.job_step_payload AS payload FROM job JOIN job_step ON job_step.job_step_job = job.job_id AND job_step.job_step_name = 'claimed'
+    WHERE job.job_kind IN (${kinds}) AND job.job_updated > ?`).all(...PULLED_KINDS, now - RUNNER_SEEN_MS)) {
+    const runner = parsed(row.payload)?.runner;
+    if (typeof runner === 'string' && runner) names.add(runner.replace(/-(?:[0-9a-f]{6}|\d{4,})$/u, ''));
+  }
+  // The per-session suffix is a random word or the runner's process id.
+  return [...names];
 }
 
 /**
@@ -169,10 +199,11 @@ export function readFileTimes(commonDir) {
  * Everything the page's model takes, for the given boards.
  *
  * @param {{ roots: { commonDir: string }[], now: number, resources: string, configured?: { host: string }[],
- *   openBoardReadOnly: (file: string) => import('node:sqlite').DatabaseSync }} sources - openBoardReadOnly: the store's read-only board open.
+ *   openBoardReadOnly: (file: string) => import('node:sqlite').DatabaseSync, registeredOnly?: boolean }} sources - openBoardReadOnly: the store's read-only board open;
+ *   registeredOnly: list only the configured runners when any are configured, never one a job's lease owner names (#8060).
  */
-export function readLiveRunners({ roots, now, resources, configured = [], openBoardReadOnly }) {
-  const runners = readPushedRunners(resources, configured);
+export function readLiveRunners({ roots, now, resources, configured = [], openBoardReadOnly, registeredOnly = false }) {
+  const runners = readPushedRunners(resources, configured, now);
   const busyBatches = new Set(runners.flatMap(runner => runner.holders.map(holder => /\/landings\/([0-9a-f-]{36})\//u.exec(String(holder.repo ?? ''))?.[1]).filter(Boolean)));
   const jobs = [], landings = [];
   let fileTimes = {};
@@ -183,13 +214,16 @@ export function readLiveRunners({ roots, now, resources, configured = [], openBo
     try {
       db = openBoardReadOnly(file);
       const hasJobs = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'job'").get();
-      if (hasJobs) jobs.push(...readPulledJobs(db, now));
+      if (hasJobs) {
+        jobs.push(...readPulledJobs(db, now));
+        for (const host of readRecentJobRunners(db, now)) if (!(registeredOnly && configured.length) && !runners.some(runner => runner.host === host)) runners.push({ host, unavailable: false, holders: [] });
+      }
       const log = readTail(join(commonDir, 'pullboard', 'automatic-landing', 'worker.log'));
       if (hasJobs) landings.push(...readGatingLandings(db, { now, log, busyBatches }));
       fileTimes = { ...readFileTimes(commonDir), ...fileTimes };
     } catch { /* A board that cannot be read now shows on the next read. */ } finally { db?.close(); }
   }
-  return { now, runners, configured, jobs, landings, fileTimes };
+  return { now, runners, configured, jobs, landings, fileTimes, registeredOnly };
 }
 
 /**
@@ -198,10 +232,10 @@ export function readLiveRunners({ roots, now, resources, configured = [], openBo
  *
  * @param {string} commonDir - The board's git common folder.
  * @param {{ resources: string, configured?: { host: string }[], openBoardReadOnly: (file: string) => import('node:sqlite').DatabaseSync,
- *   now?: number, privateBoard?: boolean }} machine - The machine's runner lease database, settings runners and read-only board open.
+ *   now?: number, privateBoard?: boolean, registeredOnly?: boolean }} machine - The machine's runner lease database, settings runners and read-only board open.
  * @returns {{ runners: object[], runs: object[] }}
  */
-export function publicLiveRunners(commonDir, { resources, configured = [], openBoardReadOnly, now = Date.now(), privateBoard = false }) {
-  const sources = readLiveRunners({ roots: [{ commonDir }], now, resources, configured, openBoardReadOnly });
+export function publicLiveRunners(commonDir, { resources, configured = [], openBoardReadOnly, now = Date.now(), privateBoard = false, registeredOnly = false }) {
+  const sources = readLiveRunners({ roots: [{ commonDir }], now, resources, configured, openBoardReadOnly, registeredOnly });
   return publicSnapshot({ live: sources }, { privateBoard }).live;
 }

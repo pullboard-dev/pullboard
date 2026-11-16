@@ -59,6 +59,7 @@ import { n as beta } from '../packages/beta/index.js';
 test('both packages preserve the positive journey [G1]', () => { appendFileSync(${JSON.stringify(join(box.dir, 'journey.log'))}, 'journey\\n'); console.log('T3_JOURNEY'); assert.ok(alpha > 0 && beta > 0); });
 `);
   writeFileSync(join(box.repo, 'check.cjs'), `const fs = require('node:fs'); const assert = require('node:assert/strict'); assert.ok(fs.existsSync('packages/' + process.argv[2] + '/index.js')); console.log('FROZEN_' + process.argv[2]);\n`);
+  box.git(box.repo, 'add', '-A'); // The tier manifest reads tracked files only.
   const manifest = writeTestTiers(box.repo).manifest;
   assert.deepEqual(manifest.files.map(row => [row.file, row.tier]), [['test/alpha.test.js', 'T1'], ['test/beta.test.js', 'T1'], ['test/journey.test.js', 'T3']]);
   const base = commit(box, box.repo, 'test: configure immutable testing tiers [G1]');

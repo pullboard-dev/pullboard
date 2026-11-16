@@ -21,8 +21,8 @@ import { relative } from 'node:path';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 import { readTestOutcomes } from '../../../../gate/index.js';
 import { requireTestTierAccount } from '../../../../gate/index.js';
 import { suiteProven } from '../../../../gate/index.js';
@@ -111,7 +111,9 @@ function makeFixture(t) {
   mkdirSync(join(root, 'apps/example'), { recursive: true });
   writeFileSync(join(root, 'apps/example/probe.js'), "// A probe source file.\nexport const probe = 1;\n");
   const capture = join(root, 'machine', 'ran.txt');
-  const env = { ...process.env, PULLBOARD_MACHINE_HOME: join(root, 'machine'), PULLBOARD_ACTION_CAPTURE: capture, PULLBOARD_LANDING_RUN: '0',
+  // The fixture runs as its own machine: the enclosing runner's PULLBOARD_* variables and NODE_OPTIONS preload would key every result per run.
+  const inherited = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('PULLBOARD_') && name !== 'NODE_OPTIONS'));
+  const env = { ...inherited, PULLBOARD_MACHINE_HOME: join(root, 'machine'), PULLBOARD_ACTION_CAPTURE: capture, PULLBOARD_LANDING_RUN: '0',
     GIT_AUTHOR_NAME: 'Action Fixture', GIT_AUTHOR_EMAIL: 'action@example.test', GIT_COMMITTER_NAME: 'Action Fixture', GIT_COMMITTER_EMAIL: 'action@example.test' };
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD', 'PULLBOARD_TEST_STAGE', 'PULLBOARD_TEST_ACTIONS', 'PULLBOARD_TEST_REUSE', 'PULLBOARD_TEST_RESULT_STORE', 'PULLBOARD_TEST_RESULT_ORIGIN', 'PULLBOARD_TEST_CACHE_TOOLING']) delete env[key];
   mkdirSync(join(root, 'machine'));

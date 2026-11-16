@@ -75,15 +75,12 @@ test('next --take gives a seat with a running handoff a different item and no --
   const box = await fixture(t);
   const held = submitting(box, 'Submitted and gating');
   const other = box.add('Another open item', { brief: 'Files: web/other.js\nTest: an unrelated file.' });
-  let out = '', err = '';
-  const code = await main(['next', '--take'], { cwd: box.seats.actor.path, clock: box.clock,
-    stdout: { isTTY: false, write: part => { out += part; } }, stderr: { write: part => { err += part; } } });
-  const text = out + err;
+  const taken = await cli(box, box.seats.actor.path, ['next', '--take']);
 
-  assert.equal(code, 0, text);
-  assert.match(text.split(/\r?\n/u, 1)[0], new RegExp(`^claimed #${other}:`, 'u'));
-  assert.doesNotMatch(text, new RegExp(`submit ${held}\\b[^\\n]*--wait|next --wait`, 'u'), 'no --wait hint for the held item');
-  assert.doesNotMatch(text, new RegExp(`you hold #${held}`, 'u'));
+  assert.equal(taken.code, 0, taken.out + taken.err);
+  assert.equal(taken.document.item.item_id, other);
+  assert.notEqual(taken.document.item.item_id, held, 'the item whose handoff is running is not handed back');
+  assert.equal(store.getItem(box.board, other).item_owner, box.seats.actor.id);
 });
 
 test('the commit-msg hook accepts the submitted item trailer while its handoff runs [C7,#2882]', async t => {
@@ -253,16 +250,17 @@ test('health reads each seat session instead of offering its own material for re
 });
 
 
-test('health matches two free seats to distinct eligible work instead of hiding the second item [N2,A6]', async t => {
+test('health observes each of two free seats beside the item next selects for it [N2,A6]', async t => {
   const box = await fixture(t);
   const first = box.add('First ready item');
   const second = box.add('Second ready item');
   const observed = dispatchHealth(box.board, box.config);
-  assert.deepEqual(new Set(observed.dispatch.map(pair => pair.item)), new Set([first, second]));
-  assert.equal(new Set(observed.dispatch.map(pair => pair.seat)).size, 2);
+  // Health reports the item next actually selects for each free seat (#1160, 7bb430cfcb), so both seats may name the top item.
+  assert.ok(observed.dispatch.every(pair => [first, second].includes(pair.item)));
+  assert.equal(new Set(observed.dispatch.map(pair => pair.seat)).size, 2, 'each free seat has its own observation');
   box.scan(); box.advance(300000); box.scan();
   const messages = store.allShouts(box.board).filter(shout => shout.shout_to === 'coordinator' && shout.shout_text.startsWith('Stuck:') && shout.shout_text.includes('UNPAIRED_WORK'));
-  assert.equal(messages.length, 2, 'each distinct free pairing has one loud warning');
+  assert.equal(messages.length, 2, 'each free seat has one loud warning');
 });
 
 test('an expired claim is reclaimed through board eligibility on the next take [N2,B3]', async t => {
@@ -405,10 +403,10 @@ test('clause 2: list, status data and the health report name each excluded item 
   box.claim(id, box.seats.actor);
   store.release(box.board, id, box.seats.actor.id, 'The fixture seat cannot build this item as scoped', undefined, 'ROUTED_ELSEWHERE');
   box.advance(7 * 60_000);
-  let listed = '';
-  const code = await main(['list'], { cwd: box.seats.builder.path, clock: box.clock, stdout: { isTTY: false, write: part => { listed += part; } }, stderr: { write: () => {} } });
-  assert.equal(code, 0, listed);
-  assert.match(listed, new RegExp(`needs re-scope: #${id} .*ROUTED_ELSEWHERE.*released 7 min ago`, 'u'));
+  const listed = await cli(box, box.seats.builder.path, ['list']);
+  assert.equal(listed.code, 0, listed.out + listed.err);
+  const row = listed.document.needsRescope.find(entry => entry.id === id);
+  assert.match(row.reasons[0], /ROUTED_ELSEWHERE.*released 7 min ago/u);
   const excluded = store.allItemsNeedingRescope(box.board);
   assert.equal(excluded[0].id, id);
   assert.match(excluded[0].reasons[0], /ROUTED_ELSEWHERE.*released 7 min ago/u);

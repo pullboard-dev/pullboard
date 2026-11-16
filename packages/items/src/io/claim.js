@@ -5,11 +5,11 @@ import { writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
-import { gitPath } from '../../../git/index.js';
-import { repoInfo } from '../../../git/index.js';
-import { sameCommonDir } from '../../../git/index.js';
-import { tryGit } from '../../../git/index.js';
-import { Refused } from '../../../kernel/index.js';
+import { gitPath } from '../../../git/light.js';
+import { repoInfo } from '../../../git/light.js';
+import { sameCommonDir } from '../../../git/light.js';
+import { tryGit } from '../../../git/light.js';
+import { Refused } from '../../../kernel/light.js';
 
 /** The registered seat identity and routing attributes used by an item folder. */
 function agentRow(board, id) {

@@ -14,6 +14,9 @@ const WAIT_BUDGET_DEFAULTS = Object.freeze({
   file: true,
   leaseMs: 120_000,
   waiterMs: 120_000,
+  // Board writes answer to the two second database budget again: the native move was made fast enough (#8147), and the
+  // measured p99 is held under it by the scale test. Ratchet-only; it may tighten and never loosen.
+  boardWriteMs: 2_000,
   gateProgressMs: 300_000,
   runnerJobMs: 1_200_000,
   orphanMs: 300_000,
@@ -29,7 +32,7 @@ const SURFACE_BUDGET = Object.freeze({
   'checkout-writer': 'leaseMs',
   'runner-unavailable': 'waiterMs',
   'handoff-queue': 'waiterMs',
-  'board-write': 'databaseMs',
+  'board-write': 'boardWriteMs',
   'resource-write': 'databaseMs',
   gate: 'gateProgressMs',
   'landing-run': 'landingRunMs',
@@ -101,9 +104,19 @@ export function judgeWaits(rows, budgets) {
   });
 }
 
-/** The deduplication key of a breach: its surface and holder, never a pid, so a recurring cause files one item. */
+/** An absolute path cut to its repo-relative tail: from its `.git` folder when it has one, else its last two parts. */
+function relativeTail(path) {
+  const parts = path.split('/').filter(Boolean);
+  const git = parts.indexOf('.git');
+  return parts.slice(git >= 0 ? git : Math.max(0, parts.length - 2)).join('/');
+}
+
+/**
+ * The deduplication key of a breach: its surface and holder, never a pid, so a recurring cause files one item.
+ * Paths are repo-relative so the key survives a checkout under a folder with a space, which a bar cannot carry [C7,#6763].
+ */
 export function waitKey(row) {
-  return `${row.surface}:${row.key ?? row.holder}`.replace(/\bpid[- ]?\d+(?:-[a-z0-9]+)*/giu, 'pid').replace(/\s+/gu, ' ').slice(0, 200);
+  return `${row.surface}:${row.key ?? row.holder}`.replace(/(?<![\w.])(?:\/[^/:]+){2,}/gu, relativeTail).replace(/\bpid[- ]?\d+(?:-[a-z0-9]+)*/giu, 'pid').replace(/\s+/gu, ' ').slice(0, 200);
 }
 
 /** The code behind each surface: where a builder starts reading when the holder's own source is not known. */
@@ -115,10 +128,10 @@ const SURFACE_FILE = Object.freeze({
   'handoff-queue': 'packages/resources/src/io/handoff/worker/cap.js',
   'board-write': 'packages/store/src/io/board/write/lock.js',
   'resource-write': 'packages/resources/src/io/write/queue.js',
-  gate: 'apps/cli/src/io/gate/drive.js',
+  gate: 'apps/cli/src/io/submit/pull.js',
   'landing-run': 'apps/cli/src/io/landing/automatic.js',
   'runner-job': 'apps/runner/src/io/scripts/worker.js',
-  orphan: 'packages/resources/src/io/handoff/recovery.js',
+  orphan: 'packages/sentinels/src/io/surfaces.js',
   'heartbeat-loop': 'apps/cli/src/io/commands/heartbeat.js',
   'heartbeat-claim': 'apps/cli/src/io/commands/heartbeat.js',
 });

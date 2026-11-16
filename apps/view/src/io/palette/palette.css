@@ -2,20 +2,22 @@
 .top-find input { border-color: transparent; background-color: transparent; cursor: pointer; }
 .top-find input:hover { background-color: var(--surface-2); }
 .top-find input:focus { background-color: var(--surface); }
-.pal-hint { position: absolute; right: var(--space-3); top: 50%; transform: translateY(-50%); pointer-events: none; font: 11px/1 var(--mono); color: var(--ink-muted); border: 1px solid var(--line); border-radius: 5px; padding: 2px 5px; background: var(--surface); }
+.pal-hint { position: absolute; right: var(--space-3); top: 50%; transform: translateY(-50%); pointer-events: none; font: 11px/1 var(--mono); color: var(--ink-muted); border: var(--border); border-radius: var(--radius-chip); padding: 2px 5px; background: var(--surface); }
 .top-find input:focus ~ .pal-hint { display: none; }
-.pal-veil { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-start; justify-content: center; padding-top: 12vh; background: rgba(18, 26, 23, .28); }
-.pal-box { width: 560px; max-width: 92vw; overflow: hidden; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 18px 48px rgba(0, 0, 0, .18); }
-.pal-box input { width: 100%; box-sizing: border-box; padding: 14px 16px; border: 0; border-bottom: 1px solid var(--line); outline: 0; background: var(--surface); color: var(--ink); font: 15px var(--sans); }
+.pal-veil { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-start; justify-content: center; padding-top: 12vh; background: var(--scrim-soft); }
+.pal-box { width: 560px; max-width: 92vw; overflow: hidden; background: var(--surface); color: var(--ink); border: var(--border); border-radius: var(--radius-float); box-shadow: var(--shadow-float); }
+.pal-box input { width: 100%; box-sizing: border-box; padding: 14px 16px; border: 0; border-bottom: var(--border); outline: 0; background: var(--surface); color: var(--ink); font: 15px var(--sans); }
 .pal-res { max-height: 340px; overflow: auto; padding: 6px; }
-.pal-r { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.pal-r { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: var(--radius-card); background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
 .pal-r.on { background: var(--surface-2); }
-.pal-r span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pal-r small { color: var(--ink-faint); white-space: nowrap; }
-.pal-r kbd, .pal-help kbd { margin-left: auto; font: 11px/1 var(--mono); color: var(--ink-muted); border: 1px solid var(--line); border-radius: 5px; padding: 2px 5px; background: var(--surface); }
+.pal-r > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pal-r small { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink-faint); white-space: nowrap; }
+.pal-r > span:first-child { flex: none; max-width: 60%; }
+.pal-end { display: flex; align-items: center; gap: 8px; margin-left: auto; padding-left: 10px; flex: none; }
+.pal-end em { font: normal 12px/1 var(--sans); font-variant-numeric: tabular-nums; color: var(--ink-muted); }
+.pal-r kbd, .pal-help kbd { margin-left: auto; font: 11px/1 var(--mono); color: var(--ink-muted); border: var(--border); border-radius: var(--radius-chip); padding: 2px 5px; background: var(--surface); }
 .pal-sec { padding: 10px 10px 4px; color: var(--ink-faint); font: 600 11px/1 var(--sans); letter-spacing: .07em; text-transform: uppercase; }
-.pal-help { width: 420px; max-width: 92vw; box-sizing: border-box; padding: 16px 18px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 18px 48px rgba(0, 0, 0, .18); }
+.pal-help { width: 420px; max-width: 92vw; box-sizing: border-box; padding: 16px 18px; background: var(--surface); color: var(--ink); border: var(--border); border-radius: var(--radius-float); box-shadow: var(--shadow-float); }
 .pal-help h2 { margin: 0 0 10px; font-size: 15px; }
-.pal-help div { display: flex; justify-content: space-between; padding: 5px 0; border-top: 1px solid var(--line); }
+.pal-help div { display: flex; justify-content: space-between; padding: 5px 0; border-top: var(--border); }
 .pal-help h2 + div { border-top: 0; }
-@media (width < 480px) { .pal-hint { display: none; } }

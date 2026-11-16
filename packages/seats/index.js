@@ -7,6 +7,8 @@ export {
   timingSeat,
   appendSeatTiming,
   beginSeatTiming,
+} from './light.js';
+export {
   laneLeads,
   routeLaneMessage,
   leadOwnsDecision,
@@ -14,7 +16,7 @@ export {
   laneAnswerFloor,
   laneMessageFloor,
   flowWindowBounds,
-} from './light.js';
+} from './browser.js';
 export {
   work,
 } from './src/logic/agent/steps.js';
@@ -59,6 +61,7 @@ export {
   stampCoordinatorHolder,
   coordinatorHolder,
   requireCoordinatorHold,
+  requireKnownCoordinatorHold,
   takeCoordinator,
 } from './src/io/hold.js';
 export {
@@ -89,7 +92,6 @@ export {
   waitedOnItems,
   reviewerScarcity,
   lineBuildOrder,
-  barReadyForOrder,
 } from './src/io/order.js';
 export {
   lineSettingsCommand,
@@ -161,7 +163,7 @@ export {
   validateNativeDependencies,
   dependencyReferences,
   localDependencyIds,
-} from './light.js';
+} from './browser.js';
 export {
   reviewRoutingEnabled,
 } from './src/logic/review/routing.js';

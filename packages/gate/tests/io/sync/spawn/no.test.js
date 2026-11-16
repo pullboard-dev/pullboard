@@ -4,11 +4,11 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../fixtures/child.js';
 import { syncCallsIn } from '../../../../../codemap/index.js';
 import { syncSpawnProblems } from '../../../../../codemap/index.js';
 import { syncSpawnReport } from '../../../../../codemap/index.js';
-import { STATIC_CHECKS } from '../../../../index.js';
+import { STATIC_CHECKS } from '../../../../heavy.js';
 
 const REPO = join(import.meta.dirname, '../../../../../..');
 const made = [];

@@ -332,6 +332,13 @@ export function gitReadSignature(root, files, { attribution = false, directories
   return createHash('sha256').update(JSON.stringify([context, repository, inputs])).digest('hex');
 }
 
+/**
+ * Signature options for the API's repository facts: the root and Git directory stats move with every lock file another
+ * command makes, so keying on them missed the cache every few seconds and ran a blocking git rev-parse on the board
+ * API's request thread (12 Nov POST /jobs stalls). The `.git` marker, config, HEAD and ref files keep their markers.
+ */
+const STABLE_DIRECTORIES = Object.freeze({ directories: false });
+
 /** Return a validated cached read fact, refreshing it when its filesystem signature changes. */
 function readFact(key, signature, read) {
   if (currentGitAdapter() !== realGitAdapter) return read();
@@ -374,14 +381,7 @@ function fact(key, read) {
   return value;
 }
 
-/**
- * Reuse one Git-derived observation for the rest of this command, as the built-in facts are reused. A Git write through
- * git() or tryGit() clears it, and outside a command scope it is computed every time.
- *
- * @param {string} key
- * @param {() => any} read
- * @returns {any}
- */
+/** Reuse one Git-derived observation for the rest of this command; a git()/tryGit() write clears it, and outside a command scope it is recomputed. */
 export function commandFact(key, read) {
   return fact(`command:${key}`, read);
 }
@@ -875,14 +875,7 @@ export function gitShowText(cwd, revision, file) {
 /** The files a commit hook reads at HEAD and in the index, fetched together with the first one asked for. */
 const HOOK_SHOWN_FILES = ['SPEC.md', 'DOCTRINE.md', 'PRACTICE.md'];
 
-/**
- * One `git cat-file --batch` answer for the hook's usual `HEAD:` and index file reads, kept in the hook's memory.
- * Why: eight `git show` children for four files cost more than the checks that read them [C7].
- *
- * @param {string} cwd
- * @param {string} spec the `revision:file` the caller asked for
- * @returns {string | null | undefined} undefined when the batch cannot answer; null when the file is absent.
- */
+/** One `git cat-file --batch` answer for a hook's `HEAD:` or index file read, kept in the hook's memory; eight `git show` children cost more than the checks [C7]. Undefined when the batch cannot answer; null when the file is absent. */
 function prefetchedShow(cwd, spec) {
   if (!/^(?:HEAD)?:[^:\0\n]+$/u.test(spec)) return undefined;
   const file = spec.slice(spec.indexOf(':') + 1);
@@ -1014,7 +1007,7 @@ function boundedRepoInfo(cwd, { env } = {}) {
   if (env) return readRepoInfo(cwd, env);
   const key = `repoInfo:${resolve(cwd)}`;
   if (gitReadFacts.getStore() === true) {
-    return readFact(key, () => repositorySignature(cwd), () => readRepoInfo(cwd));
+    return readFact(key, () => repositorySignature(cwd, null, false, STABLE_DIRECTORIES), () => readRepoInfo(cwd));
   }
   return fact(key, () => readRepoInfo(cwd));
 }
@@ -1104,7 +1097,7 @@ function readRepoInfo(cwd, env) {
 export function codeIsFromMain(root = CODE_ROOT) {
   const key = `codeIsFromMain:${resolve(root)}`;
   if (gitReadFacts.getStore() === true) {
-    return readFact(key, () => repositorySignature(root), () => readCodeIsFromMain(root));
+    return readFact(key, () => repositorySignature(root, null, false, STABLE_DIRECTORIES), () => readCodeIsFromMain(root));
   }
   return fact(key, () => readCodeIsFromMain(root));
 }
@@ -1211,6 +1204,15 @@ export function resolveCommit(root, ref) {
   });
 }
 
+/** HEAD's commit and tree from one git process, kept until a git write clears it, so a submit spawns one rev-parse, not two [C7]. */
+function headPair(root) {
+  return fact(`headPair:${resolve(root)}`, () => {
+    const result = tryGit(root, ['rev-parse', '--quiet', 'HEAD^{commit}', 'HEAD^{tree}']);
+    const [commit, tree] = result.status === 0 ? result.stdout.split('\n') : [];
+    return commit && tree ? { commit, tree } : { commit: null, tree: null };
+  });
+}
+
 /**
  * The commit HEAD points at, or null in a repo with no commits yet.
  *
@@ -1219,12 +1221,9 @@ export function resolveCommit(root, ref) {
  */
 export function headCommit(root) {
   const key = `headCommit:${resolve(root)}`;
-  const read = () => {
-    const result = tryGit(root, ['rev-parse', '--verify', '--quiet', 'HEAD^{commit}']);
-    return result.status === 0 ? result.stdout : null;
-  };
+  const read = () => headPair(root).commit;
   if (gitReadFacts.getStore() === true) {
-    return readFact(key, () => repositorySignature(root, null, true), read);
+    return readFact(key, () => repositorySignature(root, null, true, STABLE_DIRECTORIES), read);
   }
   return fact(key, read);
 }
@@ -1237,12 +1236,9 @@ export function headCommit(root) {
  */
 export function headTree(root) {
   const key = `headTree:${resolve(root)}`;
-  const read = () => {
-    const result = tryGit(root, ['rev-parse', '--verify', '--quiet', 'HEAD^{tree}']);
-    return result.status === 0 ? result.stdout : null;
-  };
+  const read = () => headPair(root).tree;
   if (gitReadFacts.getStore() === true) {
-    return readFact(key, () => repositorySignature(root, null, true), read);
+    return readFact(key, () => repositorySignature(root, null, true, STABLE_DIRECTORIES), read);
   }
   return fact(key, read);
 }

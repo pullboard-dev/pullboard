@@ -4,6 +4,8 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { installRemoteNohup } from './agent-host.js';
+import { startAgentHost } from './agent-host.js';
 
 export const SECRET = ['fixture', 'runner', 'secret', 'must', 'stay', 'local'].join('-');
 export const HOST = 'fixture-host';
@@ -21,10 +23,12 @@ export function shellQuote(value) {
  * `stderrLog` also copies the worker's stderr, so a test can read its result receipt, and `nodeOptions` reaches the
  * worker's own Node process, so a test can force an ordering inside it.
  */
-export function installSshStandIn({ bin, worker, home, machineHome, requests, starts, nodeCommand = 'node', dropFirst = false, healthDown = false, registrationDown = false, workerHealthDown = false, dropAfterMarker, hold = '', stderrLog, nodeOptions = '', registrationNodeOptions = '', invalidSpec = false, healthFailures = 0, deferFirstWorker = '', deferredFrame = '' }) {
+export function installSshStandIn({ bin, worker, home, machineHome, requests, starts, nodeCommand = 'node', dropFirst = false, healthDown = false, registrationDown = false, workerHealthDown = false, dropAfterMarker, hold = '', stderrLog, nodeOptions = '', registrationNodeOptions = '', invalidSpec = false, healthFailures = 0, deferFirstWorker = '', deferredFrame = '', hosts = [HOST, `${HOST}-drop`, `${HOST}-setup`] }) {
   const ssh = join(bin, 'ssh');
+  const agentHost = startAgentHost(bin), remoteBin = installRemoteNohup(bin);
   const source = `#!/usr/bin/env node
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { handAgentStart } from ${JSON.stringify(new URL('./agent-host.js', import.meta.url).href)};
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 const argv = process.argv.slice(2);
@@ -77,7 +81,7 @@ const waitForMarker = path => {
   return { promise, cancel: () => cancel() };
 };
 let cancelDropWait = () => {};
-if (host !== ${JSON.stringify(HOST)} && host !== ${JSON.stringify(`${HOST}-drop`)} && host !== ${JSON.stringify(`${HOST}-setup`)}) {
+if (!${JSON.stringify(hosts)}.includes(host)) {
   record({ refused: true, stdinBytes }); process.exit(255);
 }
 // Registration may discover an absolute Node path through a login shell; only generic health probes fail here.
@@ -126,6 +130,11 @@ const withoutAgent = command => {
   const start = command.indexOf('\\n( nohup'), marker = '\\n) </dev/null >/dev/null 2>&1 &', end = command.indexOf(marker + '\\necho "queued');
   return start >= 0 && end > start ? command.slice(0, start) + command.slice(end + marker.length) : command;
 };
+/** The enqueue's agent start line, without its trailing '&', for the box's agent host to run as its child. */
+const agentLine = command => {
+  const start = command.indexOf('\\n( nohup'), marker = '\\n) </dev/null >/dev/null 2>&1 &', end = command.indexOf(marker + '\\necho "queued');
+  return start >= 0 && end > start ? command.slice(start + 3, end).replace(/\\s*&\\s*$/u, '') : '';
+};
 if (hold === 'dispatch') await holdHere();
 appendFileSync(phases, 'dispatched\\n');
 if (hold === 'run') await holdHere();
@@ -135,12 +144,18 @@ ${dropFirst ? `if (!registrationGuiProbe && !workerHealthProbe && !pullAux && ho
   });
   process.stdin.resume();
 } else` : ''} {
-  const env = { PATH: process.env.PATH, HOME: home, TMPDIR: process.env.TMPDIR,
-    PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome, PULLBOARD_AGENT_IDLE_SECONDS: '30', LANG: 'C', LC_ALL: 'C', TZ: 'UTC',
+  const env = { PATH: ${JSON.stringify(remoteBin)} + ':' + process.env.PATH, HOME: home, TMPDIR: process.env.TMPDIR,
+    PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome, PULLBOARD_AGENT_IDLE_SECONDS: '30', PULLBOARD_AGENT_CORES: '4096', LANG: 'C', LC_ALL: 'C', TZ: 'UTC',
     ...((registrationGuiProbe || workerHealthProbe ? ${JSON.stringify(registrationNodeOptions)} : ${JSON.stringify(nodeOptions)})
       ? { NODE_OPTIONS: registrationGuiProbe || workerHealthProbe ? ${JSON.stringify(registrationNodeOptions)} : ${JSON.stringify(nodeOptions)} } : {}) };
   // Replace the marker-driven shell so the injected HUP reaches the actual worker process.
-  const child = spawn('/bin/sh', ['-c', skipAgent ? withoutAgent(remoteCommand) : remoteCommand], { cwd: worker, env,
+  // A real ssh -T remote has no controlling terminal; detached gives the shell its own session, or the runner's tty makes BSD nohup refuse to start the agent (#6734).
+  // PATH starts with a remote-style nohup: macOS nohup fails in a LaunchDaemon, as on a pull runner (#6917).
+  // PULLBOARD_AGENT_CORES: the agent holds jobs while load >= cores, which at runner load 18-50 never claims a stand-in job.
+  // An enqueue's backgrounded agent would outlive this shell and leave the test's process tree; on pull runners that
+  // orphan died at once and its job sat queued (#6917). Enqueue without it, then hand its line to the box's agent host.
+  const agent = pullEnqueue && !skipAgent ? agentLine(remoteCommand) : '';
+  const child = spawn('/bin/sh', ['-c', pullEnqueue ? withoutAgent(remoteCommand) : remoteCommand], { cwd: worker, env, detached: true,
     stdio: ['pipe', 'pipe', 'pipe'] });
   child.stdout.pipe(process.stdout);
   // READY and ordinary results stream; only a held-return fault withholds its receipt.
@@ -183,7 +198,7 @@ ${stderrLog ? `  child.stderr.on('data', part => { if (!registrationGuiProbe && 
     }, error => { record({ setupMarkerError: error.message }); child.kill('SIGKILL'); });
   }
   child.once('error', error => { record({ spawnError: error.code ?? error.name, stdinBytes }); process.exitCode = 255; });
-  child.once('close', (code, signal) => {
+  child.once('close', async (code, signal) => {
     process.stdin.destroy(); child.stdin.destroy(); // a real ssh ends when its remote command does, even if the controller's pipe stays open
     appendFileSync(phases, 'returned\\n');
     if (hold === 'return') setInterval(() => {}, 60_000);
@@ -197,6 +212,10 @@ ${stderrLog ? `  child.stderr.on('data', part => { if (!registrationGuiProbe && 
       localMachineHomeInSshEnv: Object.hasOwn(process.env, 'PULLBOARD_MACHINE_HOME') });
     if (pendingStderr) process.stderr.write(pendingStderr);
     if (hold !== 'return' && receipt) process.stderr.write(receipt);
+    if (agent && code === 0 && !signal && !await handAgentStart(${JSON.stringify(agentHost)}, { command: agent, cwd: worker, env })) {
+      // No host took it: start it as the enqueue did, backgrounded.
+      await new Promise(resolve => spawn('/bin/sh', ['-c', agent + ' &'], { cwd: worker, env, detached: true, stdio: 'ignore' }).once('close', resolve).once('error', resolve));
+    }
     process.exitCode = signal ? 128 : (code ?? 255);
   });
 }

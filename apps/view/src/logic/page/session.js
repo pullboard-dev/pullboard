@@ -77,13 +77,13 @@ const routed = ${JSON.stringify(Boolean(paths) && !snapshot)};
 /** Resolve a routed tab, legacy Home address, or embedded/export fragment before remembered state. */
 function addressTab() {
   if (typeof location === 'undefined') return null;
-  const tabs = ['dashboard', 'home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings', ...(privateCost ? ['cost'] : [])];
+  const tabs = ['progress', 'dashboard', 'home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'pipeline', 'roadmap', 'settings', ...(privateCost ? ['cost'] : [])];
   const read = value => {
     let parts;
-    try { parts = value.split('/').filter(Boolean).map(decodeURIComponent); }
+    try { parts = value.split('?')[0].split('/').filter(Boolean).map(decodeURIComponent); }
     catch { return null; }
     const tab = tabs.includes(parts[0]) ? parts[0] : null;
-    return tab === 'home' ? 'dashboard' : tab;
+    return tab === 'home' || tab === 'progress' ? 'dashboard' : tab;
   };
   if (snapshot) {
     return read((location.hash || '').slice(1));
@@ -109,13 +109,20 @@ let startupTabMigration = null;
 /** Use Dashboard for a fresh page and migrate saved Home selections; preserve other remembered destinations. */
 function landingTab() {
   const kept = keep('pb.tab');
+  if (kept === 'progress') { keep('pb.tab', 'dashboard'); return 'dashboard'; }
   if (kept === 'home') { startupTabMigration = 'dashboard'; keep('pb.tab', 'dashboard'); return 'dashboard'; }
   if (kept === 'cost' && !privateCost) { keep('pb.tab', 'dashboard'); return 'dashboard'; }
   return kept || 'dashboard';
 }
 
-const view = { roadmapOpen: new Map(), root: keep('pb.project'), tab: addressTab() || landingTab(), itemsView: typeof location !== 'undefined' && location.hash === '#items/pipeline' ? 'pipeline' : 'list', filterOpen: false, seen: {}, code: {}, item: null, adding: false, declining: null, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null }, agent: null, shoutFilter: 'all', shoutThread: null, allAgents: false, agentsHidden: keep('pb.agents') === 'hidden', statsOpen: false, costOpen: null, open: {}, addressDetail: null, shout: null, scrollPlace: false };
+const view = { roadmapOpen: new Map(), roadmapPage: null, root: keep('pb.project'), tab: addressTab() || landingTab(), itemsView: typeof location !== 'undefined' && location.hash === '#items/pipeline' ? 'pipeline' : 'list', filterOpen: false, seen: {}, code: {}, item: null, adding: false, declining: null, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null }, agent: null, shoutFilter: 'all', shoutThread: null, allAgents: false, agentsHidden: keep('pb.agents') === 'hidden', statsOpen: false, costOpen: null, open: {}, addressDetail: null, shout: null, scrollPlace: false };
 let switchGeneration = 0;
+// Shouts: the open thread and each thread's newest shout as the last draw saw them, each thread's unsent reply, and this viewer's read marks per board.
+let shoutOpenKey = null;
+let shoutThreadIds = new Map();
+let shoutsWasShown = false;
+const shoutDrafts = new Map();
+const shoutMarks = new Map();
 // Each board read in the order it started, and the newest one drawn: an answer older than that one is stale.
 let refreshStarted = 0;
 let refreshDrawn = { generation: 0, full: true };

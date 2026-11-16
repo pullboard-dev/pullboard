@@ -9,13 +9,13 @@ import {
   mkdirSync,
   privateBoardMoves,
   privateBoardPath,
-  relayFixtureChild,
   relayWorkBudgetMs,
   runFixtureGit,
   store,
   teamBoard,
   test,
 } from '../../../tests/fixtures/scenarios/team.js';
+import { relayFixtureCommand } from '../../../tests/fixtures/relay/client.js';
 import { settleRelayCalls } from '../../../tests/fixtures/move.js';
 import { checkoutSessionFile } from '../../../../../packages/seats/index.js';
 import { repoInfo } from '../../../../../packages/git/index.js';
@@ -49,18 +49,18 @@ test('a private board sits beside the repo board [E11,E13,E14,E15]', { timeout: 
   const sessionEnv = { ...box.env, CODEX_SHELL: '1', CODEX_THREAD_ID: 'private-board-binding-fixture' };
   const decoy = join(box.root, '..', 'private-decoy');
   runFixtureGit(['worktree', 'add', '-q', '--detach', decoy, 'HEAD'], { cwd: box.root, env: box.env });
-  const decoyJoined = await relayFixtureChild(decoy, sessionEnv, [...fixtureJoinArgv(CLI), box.lane, '--model', 'fixture-model', '--json']);
+  const decoyJoined = await relayFixtureCommand(decoy, sessionEnv, [...fixtureJoinArgv(CLI), box.lane, '--model', 'fixture-model', '--json']);
   assert.equal(decoyJoined.code, 0, `a first worktree takes the first repository lane ID: ${JSON.stringify(decoyJoined.document?.error ?? null)}`);
-  const decoySeat = (await relayFixtureChild(decoy, sessionEnv, [CLI, 'whoami', '--json'])).document;
+  const decoySeat = (await relayFixtureCommand(decoy, sessionEnv, [CLI, 'whoami', '--json'])).document;
   const worker = join(box.root, '..', 'private-worker');
   runFixtureGit(['worktree', 'add', '-q', '--detach', worker, 'HEAD'], { cwd: box.root, env: box.env });
-  const joined = await relayFixtureChild(worker, sessionEnv, [...fixtureJoinArgv(CLI), box.lane, '--model', 'fixture-model', '--json']);
+  const joined = await relayFixtureCommand(worker, sessionEnv, [...fixtureJoinArgv(CLI), box.lane, '--model', 'fixture-model', '--json']);
   assert.equal(joined.code, 0, `another worktree joins the same repo board: ${JSON.stringify(joined.document?.error ?? null)}`);
-  const repoSeat = (await relayFixtureChild(worker, sessionEnv, [CLI, 'whoami', '--json'])).document;
+  const repoSeat = (await relayFixtureCommand(worker, sessionEnv, [CLI, 'whoami', '--json'])).document;
   assert.notEqual(repoSeat.id, decoySeat.id, 'the worker has a later ID on the repository board');
   const sessionFile = checkoutSessionFile(repoInfo(worker, { env: sessionEnv }));
   const checkoutBindingBefore = readFileSync(sessionFile, 'utf8');
-  const reopened = await relayFixtureChild(worker, sessionEnv, [...fixtureAddArgv(CLI), box.lane, 'private item from another worktree', '--private', '--json']);
+  const reopened = await relayFixtureCommand(worker, sessionEnv, [...fixtureAddArgv(CLI), box.lane, 'private item from another worktree', '--private', '--json']);
   assert.equal(reopened.code, 0, `another process opens the same repo’s private board: ${JSON.stringify(reopened.document?.error ?? null)}`);
   assert.equal(readFileSync(sessionFile, 'utf8'), checkoutBindingBefore, 'private-board identity does not rewrite the checkout’s repository-session binding');
   // @pullboard-board-file persistence: reopen the private board written by independent CLI processes.
@@ -90,10 +90,10 @@ test('a private board sits beside the repo board [E11,E13,E14,E15]', { timeout: 
   mkdirSync(join(bobEnv.PULLBOARD_HOME, 'relay-keys'), { recursive: true, mode: 0o700 });
   box.copyOwnKey(bobEnv.PULLBOARD_HOME, repoBoardId);
   box.providerState.signer = 'bob';
-  const linked = await relayFixtureChild(bobRoot, bobEnv, [CLI, 'relay', 'on', '--url', box.origin, '--json']);
+  const linked = await relayFixtureCommand(bobRoot, bobEnv, [CLI, 'relay', 'on', '--url', box.origin, '--json']);
   box.providerState.signer = 'alice';
   assert.equal(linked.code, 0, `another team member links their own device: ${JSON.stringify(linked.document?.error ?? null)}`);
-  const bobItems = await relayFixtureChild(bobRoot, bobEnv, [CLI, 'list', '--all', '--json']);
+  const bobItems = await relayFixtureCommand(bobRoot, bobEnv, [CLI, 'list', '--all', '--json']);
   assert.equal(bobItems.code, 0, `another member reads the shared board: ${JSON.stringify(bobItems.document?.error ?? null)}`);
   const titles = (bobItems.document?.items ?? []).map(item => item.title ?? item.item_title);
   assert.ok(titles.includes('repo item'), 'the ordinary item reaches the other member');

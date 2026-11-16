@@ -77,7 +77,7 @@ function observations(root, file) {
  * @param {string} root
  * @param {string} file - Repository-relative test file.
  * @param {{ green: string, red: string, probe: (commit: string) => boolean, closureReader?: Function }} range - probe returns true when the file passes at that commit.
- * @returns {{ file: string, commit: string, item: string|null, candidates: number, probes: string[] }}
+ * @returns {{ file: string, commit: string, item: string|null, candidates: number, probes: string[] } | Promise<object>} A promise when `probe` answers with one.
  */
 export function bisectRed(root, file, { green, red, probe, closureReader = testClosures }) {
   const found = closureReader(root, red).closures.get(file);
@@ -87,17 +87,38 @@ export function bisectRed(root, file, { green, red, probe, closureReader = testC
   const candidates = between.split('\n').filter(Boolean).filter(commit =>
     (git(root, 'diff-tree', '--no-commit-id', '--name-only', '-r', '--first-parent', commit) ?? '').split('\n').some(path => found.files.includes(path)));
   if (!candidates.length) throw new Error('no commit between the green and the red touches the test closure');
-  // candidates[hi] is known red; everything before index lo is known green.
-  let lo = -1, hi = candidates.length - 1;
   const probes = [];
-  while (hi - lo > 1) {
-    const mid = Math.floor((lo + hi) / 2);
-    probes.push(candidates[mid]);
-    if (probe(candidates[mid])) lo = mid; else hi = mid;
-  }
-  const commit = candidates[hi];
-  const item = /(?:^|\s)#(\d+)\b|Pullboard-Item: #(\d+)/u.exec(git(root, 'show', '-s', '--format=%s%n%b', commit) ?? '');
-  return { file, commit, item: item?.[1] ?? item?.[2] ?? null, candidates: candidates.length, probes };
+  const finish = hi => {
+    const commit = candidates[hi];
+    const item = /(?:^|\s)#(\d+)\b|Pullboard-Item: #(\d+)/u.exec(git(root, 'show', '-s', '--format=%s%n%b', commit) ?? '');
+    return { file, commit, item: item?.[1] ?? item?.[2] ?? null, candidates: candidates.length, probes };
+  };
+  // candidates[hi] is known red; everything before index lo is known green. A probe that answers with a promise (a
+  // runner job) makes the halving continue when it settles, so the whole result is then a promise [C7,#7575].
+  const halve = (lo, hi) => {
+    while (hi - lo > 1) {
+      const mid = Math.floor((lo + hi) / 2);
+      probes.push(candidates[mid]);
+      const passed = probe(candidates[mid]);
+      if (typeof passed?.then === 'function') return passed.then(ok => (ok ? halve(mid, hi) : halve(lo, mid)));
+      if (passed) lo = mid; else hi = mid;
+    }
+    return finish(hi);
+  };
+  return halve(-1, candidates.length - 1);
+}
+
+/**
+ * A probe that runs the file at one commit as a pulled test job and answers whether it passed, or null when the board
+ * has no pull runner: pull dispatch off, or no registered runner and the local runner off.
+ * Why the pull path: a probe is a `pullboard test` job, offered the way gate and test jobs are, so any runner takes it [P7,C7,#7575].
+ */
+async function runnerProbe(io, root, file) {
+  const [{ runnerDispatchMode, localRunnerEnabled, loadMachineSettings }, { probeTestAt }] = await Promise.all([
+    import('../../../../../packages/config/index.js'), import('../test/pull.js')]);
+  if (runnerDispatchMode() !== 'pull' || (!(loadMachineSettings().runners ?? []).length && !localRunnerEnabled())) return null;
+  const ctx = context(io);
+  return commit => probeTestAt(ctx, { commit, file, say: line => io.err(line) });
 }
 
 /** Report recorded red history and the source commits that touch the test closure. */
@@ -108,8 +129,9 @@ export async function run(io, { first, second }) {
     try {
       const known = explainObservations(root, second, observations(root, second));
       if (!known.green || !known.red) throw new Error(`bisect needs a recorded green and red for ${second}: ${known.unavailable ?? 'none recorded'}`);
-      if (typeof io.redProbe !== 'function') throw new Error('RED_NO_PROBE: red bisect needs a runner prober (a pullboard test job per probed commit); none is wired yet, so use red explain to list the suspects');
-      const found = bisectRed(root, second, { green: known.green, red: known.red, probe: io.redProbe });
+      const probe = typeof io.redProbe === 'function' ? io.redProbe : await runnerProbe(io, root, second);
+      if (!probe) throw new Error('RED_NO_PROBE: red bisect needs a pull runner to run the file at each probed commit, and this board has none; start one with pullboard runner local, or use red explain to list the suspects');
+      const found = await bisectRed(root, second, { green: known.green, red: known.red, probe });
       io.result?.(found);
       io.say(`Breaking commit: ${found.commit}${found.item ? ` #${found.item}` : ''} (${found.probes.length} probes over ${found.candidates} closure commits)`);
       return 0;

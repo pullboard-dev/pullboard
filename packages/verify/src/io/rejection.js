@@ -17,11 +17,23 @@ import { validateKnownLineSetting } from '../../../queue/index.js';
 /** A shout carries at most 400 characters (proof-receipts.js refuses longer). */
 const SHOUT_LIMIT = 400;
 
+/**
+ * The frozen requirements a reject may quote, one per line, each as a paste-ready --clause argument.
+ * Why: a reviewer refused for a missing --clause had to read show and retype exact wording (UX 12 Nov, F7); a bare
+ * "1." sentence fragment is joined to its clause so every line is a real requirement.
+ */
+function pasteClauses(bar) {
+  const sentences = text => String(text ?? '').split(/(?<=[.!?])\s+/u).reduce((out, part) =>
+    /^\d+\.$/u.test(out.at(-1) ?? '') ? [...out.slice(0, -1), `${out.at(-1)} ${part}`] : [...out, part], []);
+  const clauses = [...new Set([...sentences(bar.criterion), ...bar.rows.map(row => row.text)].filter(Boolean))];
+  return clauses.slice(0, 8).map(clause => `  --clause "${clause.replaceAll('"', '\\"')}"`).join('\n');
+}
+
 /** A current reject must quote actual frozen criterion or row wording before any verdict is appended. */
 export function rejectionClauseProblem(item, clause, engine) {
   if (engine < REJECT_CLAUSE_ENGINE) return null;
   if (typeof clause !== 'string' || !clause.trim()) return new Refused('BAR_CLAUSE_REQUIRED',
-    'a reject names the failing frozen bar clause', 'add --clause "exact wording from the frozen criterion or spec row"');
+    'a reject names the failing frozen bar clause', `add one of these, whole, to your verify command:\n${pasteClauses(frozenBar(item, engine >= REVIEW_REQUEST_ENGINE))}`);
   const quote = wording(clause);
   const bar = frozenBar(item, engine >= REVIEW_REQUEST_ENGINE);
   if (quote.length > 4096 || !namedClause(bar, quote, engine >= REVIEW_REQUEST_ENGINE)) {

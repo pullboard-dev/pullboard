@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
-import { createGitMemo } from '../../light.js';
+import { createGitMemo } from '../../src/io/memo.js';
 import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 
 /** A real repository with one commit, and a memo whose runner counts the git processes it spawns. */

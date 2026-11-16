@@ -19,6 +19,8 @@ import { loadConfig } from "../../../../config/index.js";
 import { repoInfo } from "../../../../git/index.js";
 import { listApiProjects } from "../../../../seats/index.js";
 import { nativeStateClockWindow } from "../../logic/clock.js";
+import { stageLimits } from "../../logic/clock.js";
+import { landedOnMain } from '../../../../roadmap/index.js';
 import { workProgress } from '../../../../roadmap/index.js';
 import { milestoneRoadmap } from "../../../../roadmap/index.js";
 import { proofStats } from "../../../../stats/light.js";
@@ -79,7 +81,10 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
     }
 
     const config = loadConfig(root);
-    const freshness = freshnessReader ?? verdictProjector(root, board, { main: trunkRevisionReader(repoInfo(root))() }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem }).state;
+    const projector = freshnessReader ? null : verdictProjector(root, board, { main: trunkRevisionReader(repoInfo(root))() ?? undefined }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem });
+    const freshness = freshnessReader ?? projector.state;
+    // One cat-file answers every verified item's commit, rather than one Git process per item [C7].
+    projector?.prime(currentItems.filter(item => dirtyIds.has(item.item_id) || refreshVerdicts));
     const state = projectState(root, { seen: null, board, itemProjector: (item, context) => {
       if (dirtyIds.has(item.item_id)) {
         const projected = context.project();
@@ -92,13 +97,15 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
       const verdictState = freshness(item);
       return verdictState ? { ...kept, verdictState } : kept;
     } });
-    const progressById = workProgress(board);
+    const progressById = workProgress(board, { onMain: landedOnMain(root, config) });
     const healthById = claimHealthSnapshot(board, config, new Date(observedAt));
     state.items = state.items.map(item => ({ ...item, progress: withoutClockReading(progressById.get(item.id)),
       claimHealth: claimHealthWithoutClock(healthById.get(item.id)) }));
     const allAgents = state.agents;
     state.agents = activeViewAgents(state.agents, observedAt).map((agent) => ({ ...agent, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, config.agents.names) }));
     state.board = boardId;
+    // Minutes each stage may last, from the settings that govern it; a stage with no setting is absent [#6940].
+    state.stageLimits = stageLimits(config);
     state.observedAt = new Date(observedAt).toISOString();
     state.decisionQueue = store.openDecisions(board, COORDINATOR);
     // The browser's state carries each lane hold and each item's own hold with its reason; the native projection says the same so their hashes match (#1256).
@@ -108,8 +115,8 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
       requests: store.openRequests(board),
       personRequests: personRequestStatuses(board),
       milestones: scopeCommonDir === null
-        ? milestoneRoadmap(root, board, { ports: { ...store, roadmap, openBoard, workQueue, listApiProjects } })
-        : milestoneRoadmap(root, board, { projects, hideOutOfScope: true, ports: { ...store, roadmap, openBoard, workQueue } }),
+        ? milestoneRoadmap(root, board, { landedFromMain: config.landing?.landedFromMain === true, ports: { ...store, roadmap, openBoard, workQueue, listApiProjects } })
+        : milestoneRoadmap(root, board, { projects, hideOutOfScope: true, landedFromMain: config.landing?.landedFromMain === true, ports: { ...store, roadmap, openBoard, workQueue } }),
       rowDecisions: store.rowDecisions(board),
       proofStats: viewProofSummary(proofStats(board, { now: observedAt }, { events: store.events, counterProofStats })),
     };

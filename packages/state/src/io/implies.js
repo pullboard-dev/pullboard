@@ -20,9 +20,9 @@ import { renameSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
-import { COORDINATOR } from '../../../config/index.js';
+import { COORDINATOR } from '../../../config/light.js';
 import { ENGINE_VERSION } from './engine/metadata.js';
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/light.js';
 
 
 

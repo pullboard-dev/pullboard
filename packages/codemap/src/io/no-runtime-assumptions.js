@@ -97,14 +97,17 @@ function assumptionReport(root, { files = walk(root, SOURCE), read = path => rea
  * One problem per site of each kind a file names more often than its baseline allows.
  *
  * @param {string} root
- * @param {{ files?: string[], read?: (path: string) => string }} [options]
+ * @param {{ files?: string[], only?: string[], read?: (path: string) => string }} [options] only: the changed files to judge instead of the tree
  * @returns {{ path: string, line: number, text: string }[]}
  */
 export function assumptionProblems(root, options = {}) {
   const read = options.read ?? (path => readText(root, path));
   const { baseline } = assumptionConfig(read);
   const problems = [];
-  for (const [path, sites] of Object.entries(assumptionReport(root, { ...options, read }))) {
+  // A commit or submit passes its changed files: a file's problems depend on its own text and the config alone, so an
+  // unchanged file keeps main's clean result and the whole tree is read only when the config itself changed (the gate still judges the whole tree) [#8152].
+  const scoped = options.only && !options.only.includes(CONFIG) ? { files: options.only } : {};
+  for (const [path, sites] of Object.entries(assumptionReport(root, { ...options, ...scoped, read }))) {
     for (const [kind, { name }] of Object.entries(ASSUMPTIONS)) {
       const own = sites.filter(site => site.kind === kind);
       const allowed = baseline[path]?.[kind] ?? 0;

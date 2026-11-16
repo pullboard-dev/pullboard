@@ -5,6 +5,9 @@
  */
 import { COORDINATOR } from "../../../../config/index.js";
 import { Refused } from "../../../../kernel/light.js";
+import { CAUSE } from "./rigor/provenance.js";
+import { CAUSE_FORMS } from "./rigor/provenance.js";
+export { CAUSE_FORMS } from "./rigor/provenance.js";
 import { HEALTH_SENTINEL_ENGINE } from "./receipts.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
 import { NATIVE_FLAKE_ENGINE } from "../../../../state/light.js";
@@ -16,11 +19,6 @@ import {
   conflictCause,
   reopenConflictEvidence,
 } from "../../../../items/light.js";
-
-/** The kinds of cause key and their shapes, in the order help and refusals name them. */
-export const CAUSE_FORMS = Object.freeze(['test:<file>::<title>', 'refusal:<CODE>', 'row:<id>', 'doctrine:<id>', 'sentinel:<name>', 'conflict:<file>', 'instruction:<kind>']);
-
-const CAUSE = /^(?:test:(?<file>[^\s:][^\r\n:]*)::(?<title>\S[^\r\n]*)|refusal:(?<code>[A-Z][A-Z0-9_]*)|row:(?<row>[A-Z][A-Za-z0-9.]*)|doctrine:(?<doctrine>[A-Z][A-Za-z0-9.]*)|sentinel:(?<sentinel>[a-z0-9][a-z0-9._-]{0,63})|conflict:(?<conflict>[^\r\n\0]+)|instruction:(?:assignment|focus|freeze|merge-main|refreeze|routing))$/u;
 
 /** Refusal codes that name a merge conflict: a collision between branches, never a repeated error. */
 const CONFLICT_CODES = new Set(['MERGE_CONFLICT']);

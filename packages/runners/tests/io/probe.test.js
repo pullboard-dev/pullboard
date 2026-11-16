@@ -8,7 +8,7 @@ import { writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { refreshRunnerMeasurements } from '../../src/io/slots.js';
 
 const SLOTS = new URL('../../src/io/slots.js', import.meta.url).href;

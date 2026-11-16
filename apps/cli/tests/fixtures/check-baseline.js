@@ -20,10 +20,9 @@ import { closeBoard } from '../../../lib/index.js';
 import { openBoard } from '../../../lib/index.js';
 import { FIXTURE_MODEL } from './e2e.js';
 import { fixtureSettledMachine } from './testkit.js';
-import {
-  HOST,
-  installSshStandIn,
-} from './runner/ssh.js';
+import { fixtureRunnerFolder } from './runner/local-start.js';
+import { startFixtureLocalRunner } from './runner/local-start.js';
+import { stopFixtureLocalRunner } from './runner/local-stop.js';
 
 export const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 export const BOARD_FILE = '.git/pullboard/board.sqlite';
@@ -31,7 +30,7 @@ const TEMP_DIRS = [];
 const SPEC = `# Check baseline fixture\n\n## G · Goals\n- G1 [approved, must] The fixture keeps its board. | gate: true\n`;
 /** Remove each private fixture after node:test has stopped its child processes. */
 export function cleanupFixtures() {
-  for (const dir of TEMP_DIRS) rmSync(dir, { recursive: true, force: true });
+  for (const dir of TEMP_DIRS) { stopFixtureLocalRunner(join(dir, 'machine-home')); rmSync(dir, { recursive: true, force: true }); }
 }
 
 /** Quote one shell word without allowing fixture paths or source to become syntax. */
@@ -52,7 +51,7 @@ export function sandbox() {
   Object.assign(env, {
     PATH: `${bin}:${process.env.PATH}`,
     HOME: join(dir, 'home'),
-    PULLBOARD_HOME: join(dir, 'pullboard-home'),
+    PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(dir, 'pullboard-home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1',
@@ -61,7 +60,7 @@ export function sandbox() {
     GIT_COMMITTER_NAME: 'Check baseline fixture',
     GIT_COMMITTER_EMAIL: 'check-baseline@example.invalid',
   });
-  // The detached baseline worker measures on the SSH stand-in, which only controller dispatch drives; under the pull default it waits for a pull runner no fixture serves [P7].
+  // A baseline is a pulled job on the machine's loopback local runner (registerRunner) [P7,#6560].
   fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
   /** Run Git with only this fixture's config and identity. */
   function git(cwd, ...args) {
@@ -81,38 +80,20 @@ export function sandbox() {
   return { dir, env, git, run, runLocal };
 }
 
-/** Set the machine's gate.runnerDispatch in its settings file, keeping every other setting; 'pull' is the default and removes the field. */
-function setDispatch(box, mode) {
-  const file = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
-  const settings = JSON.parse(readFileSync(file, 'utf8'));
-  const { runnerDispatch, ...gate } = settings.gate ?? {};
-  writeFileSync(file, JSON.stringify({ ...settings, gate: mode === 'pull' ? gate : { ...gate, runnerDispatch: mode } }));
-}
-
-/** Leave the box with no registered runner and the pull queue, so its baselines are pulled jobs on this machine's local runner [#6560]. */
+/** Leave the box with no registered runner, so its baselines are pulled jobs on this machine's local runner [#6560]; that is every box now. */
 export async function useLocalRunner(box) {
-  assert.equal((await box.runLocal(box.repo, ['runner', 'remove', HOST, '--json'])).status, 0, 'the fixture runner is removed');
-  setDispatch(box, 'pull');
+  assert.deepEqual(JSON.parse(readFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8')).runners ?? [], [], 'the box registers no runner');
 }
 
 /**
- * Register the SSH stand-in as the box's one runner, so the background baseline has a runner to run on.
- * Why: a check baseline runs only on a registered runner (#2520); without one add leaves it pending forever.
+ * Give the box its runner for background baselines: the machine's loopback local runner, which pulls each baseline job
+ * and runs it in a checkout under its own folder; returns that folder, so a journey can assert where a baseline ran.
+ * Why not the SSH stand-in it registered before: a push runner is driven only by controller dispatch, which is going (#5821).
  */
 export function registerRunner(box) {
-  const bin = join(box.dir, 'ssh-bin');
-  const worker = join(box.dir, 'worker');
-  const remoteHome = join(box.dir, 'worker-home');
-  const remoteMachineHome = join(remoteHome, '.pullboard');
-  for (const folder of [bin, worker, remoteHome, remoteMachineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(folder, { recursive: true });
-  installSshStandIn({ bin, worker, home: remoteHome, machineHome: remoteMachineHome, requests: join(box.dir, 'ssh-requests.jsonl') });
-  box.env.PATH = bin + ':' + box.env.PATH;
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete box.env[key];
-  assert.equal(box.run(box.repo, ['runner', 'add', HOST, '--slots', '1', '--browser', '1', '--json']).status, 0);
-  assert.equal(box.run(box.repo, ['settings', 'gate.loadAwareDispatch', 'off', '--json']).status, 0);
-  // The stand-in is a push runner; its baselines go through the controller's gate slot, not the pull queue (#6249).
-  setDispatch(box, 'controller');
-  return worker;
+  startFixtureLocalRunner(box.env, box.repo);
+  return fixtureRunnerFolder(box.env);
 }
 
 /**

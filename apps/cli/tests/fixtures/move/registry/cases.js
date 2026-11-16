@@ -1,6 +1,7 @@
 /** Independent feature branches must own independent registry contracts [C7,V4]. */
 import assert from 'node:assert/strict';
 import {
+  cpSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -15,6 +16,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../child.js';
 import { runFixtureChild } from '../../child.js';
+import { runFixtureChildAsync } from '../../child.js';
 import { unpackRelease } from '../../release/archive.js';
 import { historyProblems } from './history.js';
 import {
@@ -51,6 +53,14 @@ export default { operation: '${name}', engine: ${symbol}, minimumEngine, actor,
 itemIdFirstArgument: true, nextSteps: { ${name.toUpperCase()}: 'repair the independent ${name} move' } };
 `);
 
+}
+
+/** The registry suite as a child in `root`, with the merge case switched off so the child cannot recurse; settles to the child's result. */
+function registryChild(root) {
+  const env = { ...process.env, PULLBOARD_REGISTRY_MERGE_CHILD: '1' };
+  delete env.NODE_TEST_CONTEXT;
+  return runFixtureChildAsync(process.execPath, ['--test', '--test-reporter=tap', 'apps/cli/journeys/move/registry.test.js'],
+    { cwd: root, env, maxBuffer: 32 * 1024 * 1024 });
 }
 
 /** Register the same-base merge proof without recursively running itself in its fixture. */
@@ -111,69 +121,84 @@ export function installRegistryMergeCase() {
     assert.equal(existsSync(join(root, 'src/move-history/11.json')), false, 'the old folder is never written');
   });
 
-  test('two move items from one main merge without a snapshot conflict [C7,V4]', t => {
+  // The merge proof starts when the file loads, so its child suites run while this file's other cases do; the case below only awaits it [C7].
+  const mergeProof = (async () => {
     const directory = mkdtempSync(join(tmpdir(), 'pullboard-registry-merge-'));
-    t.after(() => rmSync(directory, { recursive: true, force: true }));
-    const root = join(directory, 'repo');
-    mkdirSync(root);
-    unpackRelease('HEAD', root);
-    run(root, 'git', ['init', '-b', 'main']);
-    // The base is a landed snapshot: seal its existing placeholders before the two independent feature moves.
-    run(root, process.execPath, ['--input-type=module', '-e',
-      "import {assignEngineNumbers} from './packages/state/src/io/engine/numbers.js'; assignEngineNumbers(process.cwd());"]);
-    commit(root, 'fixture base');
-    run(root, 'git', ['checkout', '-b', 'alpha']);
-    addFeature(root, 'seedMergeAlpha', 'SEED_MERGE_ALPHA_ENGINE');
-    commit(root, 'first independent move');
-    run(root, 'git', ['checkout', '-b', 'beta', 'main']);
-    addFeature(root, 'seedMergeBeta', 'SEED_MERGE_BETA_ENGINE');
-    commit(root, 'second independent move');
-    run(root, 'git', ['-c', 'user.name=Registry Fixture', '-c', 'user.email=registry@example.test', 'merge', '--no-edit', 'alpha']);
-    assert.equal(run(root, 'git', ['diff', '--name-only', '--diff-filter=U']), '', 'the two feature contracts merge without hand editing');
-    const shared = ['packages/state/src/io/engine.js', 'packages/store/src/io/board/ports.js', 'apps/cli/src/logic/step/words.js', 'apps/cli/tests/fixtures/move/registry/baseline.json', 'packages/state/data/history'];
-    assert.equal(run(root, 'git', ['diff', 'main', '--', ...shared]), '', 'neither move edits a consumer or the legacy golden');
-    const output = run(root, process.execPath, ['--test', '--test-reporter=tap', 'apps/cli/journeys/move/registry.test.js'], { PULLBOARD_REGISTRY_MERGE_CHILD: '1' });
-    assert.match(output, /# fail 0\b/u, 'the merged tree passes every nonrecursive registry oracle');
-    // Allocation is the normal landing producer, not a hand-written record in either feature.
-    const allocation = JSON.parse(run(root, process.execPath, ['--input-type=module', '-e',
-      "import {assignEngineNumbers} from './packages/state/src/io/engine/numbers.js'; console.log(JSON.stringify(assignEngineNumbers(process.cwd())));"]));
-    assert.equal(allocation.assigned.length, 2);
-    const numbers = allocation.assigned.map(entry => entry.number);
-    assert.equal(numbers[1], numbers[0] + 1, 'independent placeholders take distinct consecutive landing allocations');
-    for (const number of numbers) assert.ok(allocation.files.includes(`packages/state/data/history/${number}.json`));
-    run(root, 'git', ['add', '.']);
-    run(root, 'git', ['-c', 'user.name=Registry Fixture', '-c', 'user.email=registry@example.test', 'commit', '--amend', '--no-edit']);
-    assert.equal(run(root, 'git', ['rev-list', '--parents', '-n', '1', 'HEAD']).trim().split(' ').length, 3, 'allocated records belong to the real merge commit, as at landing');
-    const allocatedOutput = run(root, process.execPath, ['--test', '--test-reporter=tap', 'apps/cli/journeys/move/registry.test.js'], { PULLBOARD_REGISTRY_MERGE_CHILD: '1' });
-    assert.match(allocatedOutput, /# fail 0\b/u, 'the allocated merged tree passes every registry oracle too');
-    const leaves = readEngineLeaves(join(root, 'packages/state/src/logic/engines'));
-    const git = (...args) => run(root, 'git', args);
-    const frozen = `packages/state/data/history/${numbers[0]}.json`;
-    const bytes = readFileSync(join(root, frozen), 'utf8');
-    writeFileSync(join(root, frozen), `${bytes} `);
-    assert.ok(historyProblems(root, leaves, git).includes(`frozen engine record changed: ${frozen}`), 'editing a shipped record fails even when its JSON meaning is unchanged');
-    const env = { ...process.env, PULLBOARD_REGISTRY_MERGE_CHILD: '1' };
-    delete env.NODE_TEST_CONTEXT;
-    const negative = runFixtureChild(process.execPath, ['--test', '--test-reporter=tap', 'apps/cli/journeys/move/registry.test.js'],
-      { cwd: root, env, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
-    assert.equal(negative.status, 1, `${negative.stdout}\n${negative.stderr}`);
-    assert.match(negative.stdout, /frozen engine record changed/u, 'the real registry check rejects the edited record');
-    assert.match(negative.stdout, /# fail 1\b/u, 'only the immutable-history guard is red');
+    try {
+      const root = join(directory, 'repo');
+      mkdirSync(root);
+      unpackRelease('HEAD', root);
+      run(root, 'git', ['init', '-b', 'main']);
+      // The base is a landed snapshot: seal its existing placeholders before the two independent feature moves.
+      run(root, process.execPath, ['--input-type=module', '-e',
+        "import {assignEngineNumbers} from './packages/state/src/io/engine/numbers.js'; assignEngineNumbers(process.cwd());"]);
+      commit(root, 'fixture base');
+      run(root, 'git', ['checkout', '-b', 'alpha']);
+      addFeature(root, 'seedMergeAlpha', 'SEED_MERGE_ALPHA_ENGINE');
+      commit(root, 'first independent move');
+      run(root, 'git', ['checkout', '-b', 'beta', 'main']);
+      addFeature(root, 'seedMergeBeta', 'SEED_MERGE_BETA_ENGINE');
+      commit(root, 'second independent move');
+      run(root, 'git', ['-c', 'user.name=Registry Fixture', '-c', 'user.email=registry@example.test', 'merge', '--no-edit', 'alpha']);
+      assert.equal(run(root, 'git', ['diff', '--name-only', '--diff-filter=U']), '', 'the two feature contracts merge without hand editing');
+      const shared = ['packages/state/src/io/engine.js', 'packages/store/src/io/board/ports.js', 'apps/cli/src/logic/step/words.js', 'apps/cli/tests/fixtures/move/registry/baseline.json', 'packages/state/data/history'];
+      assert.equal(run(root, 'git', ['diff', 'main', '--', ...shared]), '', 'neither move edits a consumer or the legacy golden');
+      // The three registry-suite runs (merged, allocated, edited record) each judge their own copy of the tree, so they run side by side instead of one after another [C7].
+      const mergedCopy = join(directory, 'merged');
+      cpSync(root, mergedCopy, { recursive: true });
+      const mergedRun = registryChild(mergedCopy);
+      // Allocation is the normal landing producer, not a hand-written record in either feature.
+      const allocation = JSON.parse(run(root, process.execPath, ['--input-type=module', '-e',
+        "import {assignEngineNumbers} from './packages/state/src/io/engine/numbers.js'; console.log(JSON.stringify(assignEngineNumbers(process.cwd())));"]));
+      assert.equal(allocation.assigned.length, 2);
+      const numbers = allocation.assigned.map(entry => entry.number);
+      assert.equal(numbers[1], numbers[0] + 1, 'independent placeholders take distinct consecutive landing allocations');
+      for (const number of numbers) assert.ok(allocation.files.includes(`packages/state/data/history/${number}.json`));
+      run(root, 'git', ['add', '.']);
+      run(root, 'git', ['-c', 'user.name=Registry Fixture', '-c', 'user.email=registry@example.test', 'commit', '--amend', '--no-edit']);
+      assert.equal(run(root, 'git', ['rev-list', '--parents', '-n', '1', 'HEAD']).trim().split(' ').length, 3, 'allocated records belong to the real merge commit, as at landing');
+      const allocatedCopy = join(directory, 'allocated');
+      cpSync(root, allocatedCopy, { recursive: true });
+      const allocatedRun = registryChild(allocatedCopy);
+      const leaves = readEngineLeaves(join(root, 'packages/state/src/logic/engines'));
+      const git = (...args) => run(root, 'git', args);
+      const frozen = `packages/state/data/history/${numbers[0]}.json`;
+      const bytes = readFileSync(join(root, frozen), 'utf8');
+      writeFileSync(join(root, frozen), `${bytes} `);
+      assert.ok(historyProblems(root, leaves, git).includes(`frozen engine record changed: ${frozen}`), 'editing a shipped record fails even when its JSON meaning is unchanged');
+      const editedCopy = join(directory, 'edited');
+      cpSync(root, editedCopy, { recursive: true });
+      const negativeRun = registryChild(editedCopy);
 
-    writeFileSync(join(root, frozen), bytes);
-    assert.deepEqual(historyProblems(root, leaves, git), [], 'restoring the exact bytes restores the guard');
-    const legacy = 'packages/state/data/history/legacy.json';
-    const legacyBytes = readFileSync(join(root, legacy), 'utf8');
-    const historical = JSON.parse(legacyBytes).engines.slice(0, 2);
-    const originalLeaves = historical.map(entry => readFileSync(repoPath(root, `${ENGINE_FOLDER}/${entry.file}`), 'utf8'));
-    for (const [index, entry] of historical.entries()) writeFileSync(repoPath(root, `${ENGINE_FOLDER}/${entry.file}`),
-      originalLeaves[index].replace(`= ${entry.number};`, `= ${historical[1 - index].number};`));
-    assert.ok(historyProblems(root, readEngineLeaves(join(root, ENGINE_FOLDER)), git).some(problem => problem.startsWith('historical engine identity changed:')), 'swapping distinct legacy numbers fails despite retaining uniqueness');
-    for (const [index, entry] of historical.entries()) writeFileSync(repoPath(root, `${ENGINE_FOLDER}/${entry.file}`), originalLeaves[index]);
-    assert.deepEqual(historyProblems(root, readEngineLeaves(join(root, ENGINE_FOLDER)), git), []);
+      writeFileSync(join(root, frozen), bytes);
+      assert.deepEqual(historyProblems(root, leaves, git), [], 'restoring the exact bytes restores the guard');
+      const legacy = 'packages/state/data/history/legacy.json';
+      const legacyBytes = readFileSync(join(root, legacy), 'utf8');
+      const historical = JSON.parse(legacyBytes).engines.slice(0, 2);
+      const originalLeaves = historical.map(entry => readFileSync(repoPath(root, `${ENGINE_FOLDER}/${entry.file}`), 'utf8'));
+      for (const [index, entry] of historical.entries()) writeFileSync(repoPath(root, `${ENGINE_FOLDER}/${entry.file}`),
+        originalLeaves[index].replace(`= ${entry.number};`, `= ${historical[1 - index].number};`));
+      assert.ok(historyProblems(root, readEngineLeaves(join(root, ENGINE_FOLDER)), git).some(problem => problem.startsWith('historical engine identity changed:')), 'swapping distinct legacy numbers fails despite retaining uniqueness');
+      for (const [index, entry] of historical.entries()) writeFileSync(repoPath(root, `${ENGINE_FOLDER}/${entry.file}`), originalLeaves[index]);
+      assert.deepEqual(historyProblems(root, readEngineLeaves(join(root, ENGINE_FOLDER)), git), []);
 
-    writeFileSync(join(root, legacy), `${legacyBytes} `);
-    assert.ok(historyProblems(root, leaves, git).includes(`frozen engine record changed: ${legacy}`), 'the one legacy record is frozen too');
+      writeFileSync(join(root, legacy), `${legacyBytes} `);
+      assert.ok(historyProblems(root, leaves, git).includes(`frozen engine record changed: ${legacy}`), 'the one legacy record is frozen too');
 
+      const [merged, allocated, negative] = await Promise.all([mergedRun, allocatedRun, negativeRun]);
+      assert.equal(merged.status, 0, `${merged.stdout}\n${merged.stderr}`);
+      assert.match(merged.stdout, /# fail 0\b/u, 'the merged tree passes every nonrecursive registry oracle');
+      assert.equal(allocated.status, 0, `${allocated.stdout}\n${allocated.stderr}`);
+      assert.match(allocated.stdout, /# fail 0\b/u, 'the allocated merged tree passes every registry oracle too');
+      assert.equal(negative.status, 1, `${negative.stdout}\n${negative.stderr}`);
+      assert.match(negative.stdout, /frozen engine record changed/u, 'the real registry check rejects the edited record');
+      assert.match(negative.stdout, /# fail 1\b/u, 'only the immutable-history guard is red');
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  })();
+  mergeProof.catch(() => {});
+  test('two move items from one main merge without a snapshot conflict [C7,V4]', async () => {
+    await mergeProof;
   });
 }

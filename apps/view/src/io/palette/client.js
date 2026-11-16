@@ -8,11 +8,11 @@
  */
 function pbPalette(env) {
   const doc = env.document;
-  const KEYS = { progress: 'p', items: 'i', shouts: 's', roadmap: 'r', spec: 'e', doctrine: 'o', dashboard: 'd', activity: 'a', cost: 'c' };
+  const KEYS = { items: 'i', shouts: 's', roadmap: 'r', spec: 'e', doctrine: 'o', dashboard: 'd', activity: 'a', cost: 'c', pipeline: 'p' };
   const WHAT = {
-    progress: 'What is happening, in plain words', items: 'Every piece of work', shouts: 'Agents talking to the coordinator',
+    items: 'Every piece of work', shouts: 'Agents talking to the coordinator',
     roadmap: 'What ships next, in order', spec: 'What the product must do', doctrine: 'How the work must be done',
-    dashboard: 'Every number on the board', activity: 'What happened, in order', cost: 'Time and tokens per item', settings: 'This view and your account',
+    dashboard: 'Every number on the board', activity: 'What happened, in order', cost: 'Time and tokens per item', pipeline: 'Why work isn\'t moving', settings: 'This view and your account',
   };
   const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const mod = env.mac ? '⌘' : 'Ctrl ';
@@ -21,14 +21,14 @@ function pbPalette(env) {
   overlay.id = 'pal-overlay';
   doc.body.appendChild(overlay);
 
-  /** The pages the navigation holds now, each with its letter and what it is. */
+  /** The pages the navigation holds now, each with its letter, what it is and its count (the page's own fact). */
   const pages = () => env.pages().map((p) => ({ ...p, key: KEYS[p.id] || null, what: WHAT[p.id] || '' }));
 
   /** What a query finds: pages, then items by id or title, then actions; an empty query lists the pages and the actions. */
   function results(query) {
     const q = String(query || '').trim().toLowerCase();
     const out = [];
-    for (const p of pages()) if (!q || p.name.toLowerCase().includes(q)) out.push({ kind: 'Go to', label: p.name, sub: p.what, key: p.key ? 'g ' + p.key : '', run: () => env.go('tab:' + p.id) });
+    for (const p of pages()) if (!q || p.name.toLowerCase().includes(q)) out.push({ kind: 'Go to', label: p.name, sub: p.what, count: p.count || '', key: p.key ? 'g ' + p.key : '', run: () => env.go('tab:' + p.id) });
     if (q) {
       const bare = q.replace(/^#/, '');
       const hits = env.items().filter((i) => String(i.title || '').toLowerCase().includes(q) || (bare && String(i.id).includes(bare)))
@@ -51,7 +51,7 @@ function pbPalette(env) {
       const head = r.kind !== last ? '<div class="pal-sec">' + esc(r.kind) + '</div>' : '';
       last = r.kind;
       return head + '<button class="pal-r' + (i === sel ? ' on' : '') + '" type="button" role="option" aria-selected="' + (i === sel) + '" data-res="' + i + '"><span>' + esc(r.label) + '</span><small>' + esc(r.sub) + '</small>'
-        + (r.key ? '<kbd>' + esc(r.key) + '</kbd>' : '') + '</button>';
+        + (r.count || r.key ? '<span class="pal-end">' + (r.count ? '<em>' + esc(r.count) + '</em>' : '') + (r.key ? '<kbd>' + esc(r.key) + '</kbd>' : '') + '</span>' : '') + '</button>';
     }).join('') || '<div class="pal-sec">No matches</div>';
   };
 
@@ -65,13 +65,13 @@ function pbPalette(env) {
   function draw() {
     if (help) {
       overlay.innerHTML = '<div class="pal-veil" data-close="1"><div class="pal-help" role="dialog" aria-label="Keyboard shortcuts"><h2>Keyboard shortcuts</h2>'
-        + '<div><span>Search or jump anywhere</span><kbd>' + mod + 'K</kbd></div><div><span>Search</span><kbd>/</kbd></div>'
+        + '<div><span>Search anywhere</span><kbd>' + mod + 'K</kbd></div><div><span>Search</span><kbd>/</kbd></div>'
         + pages().filter((p) => p.key).map((p) => '<div><span>Go to ' + esc(p.name) + '</span><kbd>g ' + p.key + '</kbd></div>').join('')
         + '<div><span>Move the navigation</span><kbd>\\</kbd></div><div><span>Show these shortcuts</span><kbd>?</kbd></div><div><span>Close</span><kbd>Esc</kbd></div></div></div>';
       return;
     }
     if (!pal) { overlay.innerHTML = ''; return; }
-    overlay.innerHTML = '<div class="pal-veil" data-close="1"><div class="pal-box" role="dialog" aria-label="Search or jump to"><input id="pal-q" role="combobox" aria-expanded="true" aria-controls="pal-res" autocomplete="off" spellcheck="false" placeholder="Search items, or jump to a page…" value="' + esc(pal.q) + '"><div class="pal-res" id="pal-res" role="listbox"></div></div></div>';
+    overlay.innerHTML = '<div class="pal-veil" data-close="1"><div class="pal-box" role="dialog" aria-label="Search"><input id="pal-q" role="combobox" aria-expanded="true" aria-controls="pal-res" autocomplete="off" spellcheck="false" placeholder="Search" value="' + esc(pal.q) + '"><div class="pal-res" id="pal-res" role="listbox"></div></div></div>';
     drawResults();
     const input = overlay.querySelector('#pal-q');
     input.focus();
@@ -139,7 +139,8 @@ function pbPalette(env) {
     if (gAt) {
       const live = Date.now() - gAt < 900;
       gAt = 0;
-      const p = live && pages().find((x) => x.key === e.key);
+      // g p still goes where Progress was: Dashboard.
+      const p = live && pages().find((x) => x.key === (e.key === 'p' ? 'd' : e.key));
       if (p) { e.preventDefault(); env.go('tab:' + p.id); }
       return;
     }
@@ -150,10 +151,10 @@ function pbPalette(env) {
   }
   doc.addEventListener('keydown', onKey, true);
 
-  // The visible search box: a borderless "Search or jump to…" with its shortcut beside it; a press opens the palette.
+  // The visible search box: a borderless "Search" with its shortcut beside it; a press opens the palette.
   const box = env.box;
   if (box) {
-    box.placeholder = 'Search or jump to…';
+    box.placeholder = 'Search';
     const hint = doc.createElement('kbd');
     hint.className = 'pal-hint';
     hint.setAttribute('aria-hidden', 'true');

@@ -58,7 +58,7 @@ test('moved store tests retain exact board-file ceilings and refuse one extra op
     'landing-noop': ['apps/cli/journeys/land/landing/noop.test.js', 1],
     'shout-readable': ['apps/cli/journeys/shout/readable.test.js', 1],
     'stacked-submit': ['apps/cli/journeys/submit/stacked.test.js', 2],
-    'verdict-check': ['apps/cli/journeys/verify/check.test.js', 2],
+    'verdict-check': ['apps/cli/journeys/verify/check.test.js', 1],
     verify: ['apps/cli/journeys/verify/main.test.js', 1],
   };
   for (const [name, [path, ceiling]] of Object.entries(moved)) {

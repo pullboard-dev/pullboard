@@ -7,7 +7,6 @@ import {
   test,
 } from 'node:test';
 import {
-  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -34,7 +33,7 @@ import {
 } from '../../../../packages/merge/index.js';
 import { resolveMechanicalMerge } from '../../../../packages/merge/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { json } from '../../tests/fixtures/land/board.js';
+import { makeMergeBoard } from '../../tests/fixtures/land/merge-board.js';
 import {
   createHash,
   randomUUID,
@@ -61,6 +60,7 @@ const directories = [];
 after(() => directories.forEach(root => rmSync(root, { recursive: true, force: true })));
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
+const { boardFixture, accepted, generatedApi } = makeMergeBoard(e2e);
 
 /** Build divergent real commits without inherited Git identity or repository selectors. */
 function fixture(path, base, left, right, extra = {}) {
@@ -94,12 +94,12 @@ function fixture(path, base, left, right, extra = {}) {
 }
 
 /** Pin the actual checkout/index before all read-only conflict entry points. */
-function inspect(box, expected) {
+function inspect(box, expected, recorded = expected) {
   const status = box.git('status', '--porcelain=v1', '-z');
   const index = readFileSync(join(box.root, '.git', 'index'));
   assert.deepEqual(conflictFiles(box.root, box.trunk, box.head), expected);
   assert.deepEqual(trunkMerge(box.root, box.head).files, expected.length ? expected : null);
-  assert.deepEqual(recordedTrunkMerge(join(box.root, '.git'), box.head, box.trunk), expected.length ? expected : null);
+  assert.deepEqual(recordedTrunkMerge(join(box.root, '.git'), box.head, box.trunk), recorded.length ? recorded : null);
   assert.equal(box.git('status', '--porcelain=v1', '-z'), status);
   assert.deepEqual(readFileSync(join(box.root, '.git', 'index')), index);
   assert.equal(box.git('rev-parse', 'HEAD'), box.trunk);
@@ -141,12 +141,14 @@ test('a valid JavaScript union is checked without executing its top-level body [
   land(box, "throw new Error('inspection must not execute this');\nexport const added = true;\nexport {};\n");
 });
 
-test('generated lifecycle is classified without executing item code and regenerated only by landing [B3,R3,C7]', () => {
-  const box = fixture('docs/lifecycle.md', 'old\n', 'left\n', 'right\n', {
+test('a generated doc is classified without executing item code and regenerated only by landing [B3,R3,C7]', () => {
+  // The lifecycle doc is no longer generated (#5309); docs/api.md is, by docs/tools/update-docs.js --print <path>.
+  const box = fixture('docs/api.md', generatedApi('old'), generatedApi('left'), generatedApi('right'), {
     'package.json': '{"type":"module"}\n',
-    'apps/cli/pullboard.js': "import {writeFileSync} from 'node:fs'; writeFileSync('executed', 'yes'); console.log('regenerated');\n",
+    'docs/tools/update-docs.js': "import {writeFileSync} from 'node:fs'; writeFileSync('executed', 'yes'); process.stdout.write('regenerated\\n');\n",
   });
-  inspect(box, []);
+  // A version-two receipt keeps its recorded meaning, which predates generated-doc resolution.
+  inspect(box, [], ['docs/api.md']);
   assert.equal(box.git('status', '--porcelain'), '', 'inspection never runs the candidate generator');
   land(box, 'regenerated\n');
   assert.equal(readFileSync(join(box.root, 'executed'), 'utf8'), 'yes');
@@ -174,67 +176,6 @@ for (const [name, path, base, left, right] of [
     assert.deepEqual(box.read(path), before, 'a refused resolution leaves the merge for normal conflict handling');
   });
 }
-
-/** Configure an ordinary private board and actual publication remote for public landing controls. */
-function boardFixture() {
-  const box = e2e.project('true');
-  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  config.lanes.web.owns.push('docs/', 'test/');
-  // The board's model table determines fixture seat routes since b95e1aa538.
-  config.modelTiers = [{ contains: box.env.PULLBOARD_MODEL, route: 'strong' }];
-  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2));
-  mkdirSync(join(box.repo, 'docs'), { recursive: true });
-  mkdirSync(join(box.repo, 'test'), { recursive: true });
-  writeFileSync(join(box.repo, 'docs/api.md'), '# API\n\nEnd.\n');
-  writeFileSync(join(box.repo, 'test/snapshot.json'), '{"base":true}\n');
-  box.git(box.repo, 'add', '-A');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: configure mechanical landing fixture');
-  const remote = join(box.dir, 'origin.git');
-  box.git(box.dir, 'init', '-q', '--bare', remote);
-  box.git(box.repo, 'remote', 'add', 'origin', remote);
-  box.git(box.repo, 'push', '-q', '-u', 'origin', 'main');
-  return { ...box, remote };
-}
-
-/** Obtain a genuine independently verified submission with ordinary fixture authority and immutable Git bytes. */
-function accepted(box, number, files, { verify = true } = {}) {
-  const builder = join(box.dir, `builder-${number}`);
-  box.git(box.repo, 'worktree', 'add', '-q', '--detach', builder, 'main');
-  json(box, builder, 'join', 'web');
-  const id = json(box, box.repo, 'add', 'web', `Mechanical contribution ${number}`, '--specs', 'G1',
-    '--criterion', 'retain the actual contributed file contents', '--check', 'true').item.item_id;
-  json(box, builder, 'claim', String(id));
-  for (const [path, source] of Object.entries(files)) writeFileSync(join(builder, path), source);
-  box.git(builder, 'add', '-A');
-  const commit = e2e.commitFile(box, builder, Object.keys(files)[0], Object.values(files)[0], `feat(web): contribution ${number} [G1]`);
-  assert.equal(commit.status, 0, commit.stderr);
-  const head = box.git(builder, 'rev-parse', 'HEAD');
-  json(box, builder, 'submit', String(id));
-  if (!verify) return id;
-  box.git(box.repo, 'checkout', '-q', '--detach', head);
-  try { json(box, box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'checked the private fixture contribution'); }
-  finally { box.git(box.repo, 'checkout', '-q', 'main'); }
-  return id;
-}
-
-test('public land retains JSON and Markdown additions, while a same-line edit really reopens [B3,R3,C7]', () => {
-  const box = boardFixture();
-  const left = accepted(box, 1, { 'test/snapshot.json': '{"base":true,"left":true}\n', 'docs/api.md': '# API\n\nLeft.\nEnd.\n' });
-  const right = accepted(box, 2, { 'test/snapshot.json': '{"base":true,"right":true}\n', 'docs/api.md': '# API\n\nRight.\nEnd.\n' });
-  const landed = json(box, box.repo, 'land', '--max', '2');
-  assert.deepEqual(landed.landed, [left, right]);
-  assert.deepEqual(landed.conflicts, []);
-  assert.deepEqual(JSON.parse(box.git(box.repo, 'show', 'main:test/snapshot.json')), { base: true, left: true, right: true });
-  assert.match(box.git(box.repo, 'show', 'main:docs/api.md'), /Left\.\nRight\./u);
-  assert.equal(box.git(box.remote, 'rev-parse', 'main'), box.git(box.repo, 'rev-parse', 'main'));
-  const competing = accepted(box, 3, { 'docs/api.md': '# Edited by first item\n\nLeft.\nRight.\nEnd.\n' });
-  const conflict = accepted(box, 4, { 'docs/api.md': '# Edited by second item\n\nLeft.\nRight.\nEnd.\n' });
-  const returned = json(box, box.repo, 'land', '--max', '2');
-  assert.deepEqual(returned.landed, [competing], 'both accepts are fresh against the batch base; their actual composition exposes the conflict');
-  assert.deepEqual(returned.conflicts.map(entry => entry.id), [conflict]);
-  const item = json(box, box.repo, 'show', String(conflict));
-  assert.equal(item.item_status, 'open', 'a real conflicting accepted submission returns to its builder');
-});
 
 test('version-one conflict replay keeps its original Git meaning while fresh mechanical returns require their engine [H16,V4]', t => {
   const box = boardFixture();
@@ -267,30 +208,4 @@ test('version-one conflict replay keeps its original Git meaning while fresh mec
   withRecordedConflictContext(board, move, { sequence: appliedSequence(board) + 1, at: fields.at }, () => store.reopen(board, id, options));
   assert.equal(store.getItem(board, id).item_status, 'open', 'a validated historical replay retains its recorded outcome');
   assert.deepEqual(JSON.parse(store.events(board, { itemId: id }).at(-1).event_detail).computedConflict, historical);
-});
-
-test('a failing lifecycle generator blocks landing without reopening accepted work [B3,R3,C7]', async () => {
-  const box = boardFixture();
-  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  config.lanes.web.owns.push('apps/');
-  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2));
-  // Landing runs docs/tools/update-docs.js only where the generated-docs boundary exists.
-  mkdirSync(join(box.repo, 'apps/cli/src/io/generated'), { recursive: true });
-  mkdirSync(join(box.repo, 'docs/tools'), { recursive: true });
-  writeFileSync(join(box.repo, 'apps/cli/src/io/generated/docs.js'), '// generated-docs boundary\n');
-  writeFileSync(join(box.repo, 'docs/tools/update-docs.js'), 'process.exit(7);\n');
-  writeFileSync(join(box.repo, 'docs/lifecycle.md'), 'base\n');
-  box.git(box.repo, 'add', '-A');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: configure failing private generator');
-  const left = accepted(box, 1, { 'docs/lifecycle.md': 'left\n' });
-  const right = accepted(box, 2, { 'docs/lifecycle.md': 'right\n' });
-  const before = box.git(box.repo, 'rev-parse', 'main');
-  const result = await box.runLocal(box.repo, 'land', '--max', '2', '--json');
-  assert.equal(result.code, 1, `${result.out}\n${result.err}`);
-  const error = JSON.parse(result.out).error;
-  assert.equal(error.code, 'LAND_MERGE');
-  // The generator refusal names the generator command; it is the one landing step that runs it (packages/landing/src/io/docs.js).
-  assert.match(error.message, /node docs\/tools\/update-docs\.js failed in the merged tree/u);
-  for (const id of [left, right]) assert.equal(json(box, box.repo, 'show', String(id)).item_status, 'verified');
-  assert.equal(box.git(box.repo, 'rev-parse', 'main'), before, 'generator failure publishes nothing');
 });

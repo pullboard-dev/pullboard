@@ -6,8 +6,8 @@ import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../fixtures/child.js';
+import { runFixtureGit } from '../../fixtures/child.js';
 import { selectAffectedTests } from '../../../index.js';
 import { selectionFanOut } from '../../../src/io/affected/fanout.js';
 
@@ -56,4 +56,26 @@ test('a Markdown-only change selects only the tests that read it, with no retain
 test('the fan-out lists changed files, the selected count and the top reasons by count [C7,V4]', () => {
   const fan = selectionFanOut({ files: ['a', 'b', 'c'], reasons: { a: 'x.js -> a', b: 'x.js -> b', c: 'unresolved closure: loader' } }, ['x.js']);
   assert.deepEqual(fan, { changed: ['x.js'], selected: 3, top: [{ reason: 'reached from x.js', count: 2 }, { reason: 'unresolved closure: loader', count: 1 }] });
+});
+
+test('clause 1: a full-gate fallback names no root package.json, a nested package.json, or the unplaceable changed file [C7]', t => {
+  const { root, base } = repository(t);
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com',
+    GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com' };
+  const run = (...args) => runFixtureGit(args, { cwd: root, env });
+  const unplaced = selectAffectedTests(root, { base, commit: base, changed: ['api/Handler.php'] });
+  assert.equal(unplaced.full, true);
+  assert.match(unplaced.reason, /cannot compute the effect of api\/Handler\.php/);
+  writeFileSync(join(root, 'src/x.js'), 'export {};\n');
+  mkdirSync(join(root, 'web'), { recursive: true });
+  writeFileSync(join(root, 'web', 'package.json'), '{}\n');
+  run('add', '-A'); run('commit', '-qm', 'chore: nested');
+  const nested = selectAffectedTests(root, { base, commit: 'HEAD', changed: ['src/x.js'] });
+  assert.match(nested.reason, /web\/package\.json is a nested package scope/);
+  run('rm', '-q', 'package.json', 'web/package.json'); run('commit', '-qm', 'chore: no root');
+  const none = selectAffectedTests(root, { base, commit: 'HEAD', changed: ['src/x.js'] });
+  assert.match(none.reason, /no root package\.json declaring "type": "module"/);
+  const broken = selectAffectedTests(root, { base, commit: 'deadbeef', changed: ['src/x.js'] });
+  assert.match(broken.reason, /git (ls-tree|rev-parse|show|cat-file) failed.*so the committed import graph could not be read/);
 });

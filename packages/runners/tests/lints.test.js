@@ -16,11 +16,11 @@ import { CELL_METRICS } from '../../codemap/index.js';
 import { cellLintBaseline } from '../../codemap/index.js';
 import { cellLintGrowth } from '../../codemap/index.js';
 import { lowerCellLintBaseline } from '../../codemap/index.js';
-import { runFixtureChild } from '../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../gate/tests/fixtures/child.js';
 import { fixture as planFixture } from '../../landing/tests/fixtures/plan.js';
 import { importsIn } from '../../gate/index.js';
 import { commonJsIn } from '../../gate/index.js';
-import { runFixtureGit } from '../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../gate/tests/fixtures/child.js';
 import { mkdtempSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -32,20 +32,29 @@ import { cellLintReport } from '../../codemap/index.js';
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-cell-lints-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const git = (...args) => runFixtureGit(args, { cwd: root, env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Cell fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid', GIT_COMMITTER_NAME: 'Cell fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' } });
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Cell fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid', GIT_COMMITTER_NAME: 'Cell fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
+  const git = (...args) => runFixtureGit(args, { cwd: root, env });
+  /** The cell inventory reads tracked files only, so each fixture change is staged; a git-ignored path stays untracked on purpose. */
+  const stage = file => runFixtureChild('git', ['add', '-A', '--', file], { cwd: root, env, encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
   /** Write one private source or asset beneath this fixture. */
-  function put(file, source) { mkdirSync(dirname(join(root, file)), { recursive: true }); writeFileSync(join(root, file), source); }
+  function put(file, source) { mkdirSync(dirname(join(root, file)), { recursive: true }); writeFileSync(join(root, file), source); stage(file); }
+  /** Write many private files, then stage them with one Git call: hundreds of single-file stages cost one process each. */
+  function putAll(files) {
+    for (const [file, source] of files) { mkdirSync(dirname(join(root, file)), { recursive: true }); writeFileSync(join(root, file), source); }
+    runFixtureChild('git', ['add', '-A', '--', ...files.map(([file]) => file)], { cwd: root, env, encoding: 'utf8' });
+  }
   /** Remove only the named private fixture entity. */
-  function remove(file) { rmSync(join(root, file), { recursive: true, force: true }); }
+  function remove(file) { rmSync(join(root, file), { recursive: true, force: true }); stage(file); }
   put('package.json', JSON.stringify({ type: 'module', imports: { '#*': './packages/*/index.js', '#*.js': './packages/*.js' } }));
   put('apps/demo/index.js', "import { value } from '#sample'; console.log(value);\n");
   put('packages/sample/index.js', 'export const value = 1;\n');
-  return { root, put, remove, git, report: () => cellLintReport(root, { importsIn, commonJsIn }) };
+  return { root, put, putAll, remove, git, stage, report: () => cellLintReport(root, { importsIn, commonJsIn }) };
 }
 
 const BIN = fileURLToPath(new URL('../../codemap/src/io/cell/scripts/lints.js', import.meta.url));
 const PLAN_BIN = fileURLToPath(new URL('../../codemap/src/io/cells/scripts/plan.js', import.meta.url));
+const BASELINE_DIRECTORY = 'packages/codemap/data/baselines/lints';
 const TRANSITION_FILE = 'packages/codemap/data/plan/transition.json';
 /** Build a report-shaped value for exact identity-collision controls without filesystem side effects. */
 function identityReport(pathMap, { boundaries = [], unreachableExports = [] } = {}) {
@@ -160,7 +169,8 @@ test('report is read-only, initialization is explicit and check/update cannot ra
   box.remove('stray.js'); box.put('another.js', 'void 0;\n');
   assert.ok(cellLintGrowth(box.report(), debt).some(row => row.key === 'another.js'));
   // The committed baseline stays hash-bound: this repository's index binds its shards, and a shard edited without a rebind fails --check [C7,CD64].
-  assert.equal(run('--report', fileURLToPath(new URL('../../../', import.meta.url))).status, 0, 'the real index.json binds boundaries-012 and strays-001');
+  // The binding is read directly: a full report of this repository costs minutes and the landing gate's own cell-lints --check builds it on every landing.
+  assert.doesNotThrow(() => readCellLintBaseline(fileURLToPath(new URL('../../../', import.meta.url))), 'the real index.json binds boundaries-012 and strays-001');
   assert.doesNotMatch(run('--check').stderr, /CELL_BASELINE/u, 'a bound baseline is never refused as unbound');
   const index = JSON.parse(readFileSync(join(box.root, 'packages/codemap/data/baselines/lints/index.json'), 'utf8')), shard = join(box.root, index.metrics.strays.shards[0].file);
   appendFileSync(shard, ' ');
@@ -260,7 +270,7 @@ test('sharded committed path maps activate ratchets while absent maps remain adv
   const strictPlan = planCellLintBaseline(moved), strictBaseline = strictPlan.baseline;
   writeCellLintBaseline(box.root, strictBaseline, {
     initialize: true,
-    verify: () => JSON.stringify(cellLintBaseline(box.report())) === JSON.stringify(strictBaseline),
+    verify: () => { box.stage(BASELINE_DIRECTORY); return JSON.stringify(cellLintBaseline(box.report())) === JSON.stringify(strictBaseline); },
   });
   assert.deepEqual(cellLintGrowth(moved, strictBaseline), [], 'a same-generation snapshot does not remap its own debt twice');
   box.put('src/strict-rise.js', 'export const value = 2;\n');
@@ -276,7 +286,7 @@ test('a committed #1781 marker makes new debt advisory until #1770 deletes it, b
   const baseline = planCellLintBaseline(box.report()).baseline;
   writeCellLintBaseline(box.root, baseline, {
     initialize: true,
-    verify: () => JSON.stringify(cellLintBaseline(box.report())) === JSON.stringify(baseline),
+    verify: () => { box.stage(BASELINE_DIRECTORY); return JSON.stringify(cellLintBaseline(box.report())) === JSON.stringify(baseline); },
   });
   assert.equal(box.report().transition.active, false, 'the committed package map has already closed the earlier transition');
   box.put(TRANSITION_FILE, '{"version":1,"deleteItem":1770}\n');
@@ -377,11 +387,11 @@ test('a package containing only tests is distinct package debt while an app-reac
 
 test('bounded hash-bound baseline shards count their own files and refuse missing, partial or failed generations [C7,CD64]', t => {
   const box = fixture(t);
-  for (let index = 0; index < 405; index++) box.put(`stray-${index}.txt`, 'actual private file\n');
+  box.putAll(Array.from({ length: 405 }, (_, index) => [`stray-${index}.txt`, 'actual private file\n']));
   const plan = planCellLintBaseline(box.report()), files = cellLintFiles(plan.baseline);
   assert.ok([...files.keys()].filter(file => file.includes('/strays-')).length > 1);
   for (const bytes of files.values()) assert.ok(bytes.split('\n').length - 1 < 500);
-  writeCellLintBaseline(box.root, plan.baseline, { initialize: true, verify: () => JSON.stringify(cellLintBaseline(box.report())) === JSON.stringify(plan.baseline) });
+  writeCellLintBaseline(box.root, plan.baseline, { initialize: true, verify: () => { box.stage(BASELINE_DIRECTORY); return JSON.stringify(cellLintBaseline(box.report())) === JSON.stringify(plan.baseline); } });
   assert.deepEqual(JSON.parse(JSON.stringify(readCellLintBaseline(box.root))), JSON.parse(JSON.stringify(plan.baseline)));
   for (const file of files.keys()) {
     assert.ok(plan.baseline.metrics.strays.allowances[file], 'metadata is ordinary stray debt, never exempt');
@@ -502,7 +512,7 @@ test('the pre-cell transition reports size, files and edges while keeping baseli
   box.put('path-map.json', JSON.stringify({ 'src/previous.js': 'packages/sample/index.js' }));
   assert.equal(box.report().transition.active, true, 'an uncommitted path map is not accepted source evidence');
   // Main accepts only the map; the helper change stays the uncommitted candidate --check compares with main [C7].
-  box.git('add', 'path-map.json'); box.git('commit', '-qm', 'test: accepted first package migration');
+  box.git('add', 'path-map.json'); box.git('commit', '-qm', 'test: accepted first package migration', '--', 'path-map.json');
   const after = box.report();
   assert.equal(after.transition.active, false, 'the exact committed package migration closes the transition');
   assert.deepEqual(after.transition.witness, ['src/previous.js', 'packages/sample/index.js']);

@@ -18,8 +18,8 @@ import { readPathMap } from '../../../../codemap/index.js';
 import { tryGit } from '../../../../git/index.js';
 import { importCuts } from '../../../../codemap/index.js';
 import { cellLintReport } from '../../../../codemap/index.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../fixtures/child.js';
+import { runFixtureGit } from '../../fixtures/child.js';
 
 /** Compute the plan with the plain Git reader; a fixture repository needs no snapshot-aware reads. */
 const computePlan = root => modelComputePlan(root, { tryGit });
@@ -30,10 +30,12 @@ const writePlan = (root, plan) => modelWritePlan(root, plan, { readPathMap, tryG
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-temporary-edges-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  /** Write actual source and policy bytes in the private checkout. */
+  let committed = false;
+  /** Write actual source and policy bytes in the private checkout; once the fixture is committed, commit each change so the cut check reads it from the tracked snapshot. */
   function put(file, text) {
     mkdirSync(dirname(join(root, file)), { recursive: true });
     writeFileSync(join(root, file), text);
+    if (committed) for (const args of [['add', '-A'], ['commit', '-qm', `fixture ${file}`]]) runFixtureGit(args, { cwd: root, env, encoding: 'utf8' });
   }
   put('package.json', JSON.stringify({ type: 'module', bin: { fixture: 'src/board.js' } }));
   put('src/board.js', "import { claims } from './claims.js'; export const board = () => claims;\n");
@@ -45,6 +47,8 @@ function fixture(t) {
   for (const args of [['init', '-q'], ['add', '-A'], ['commit', '-qm', 'fixture']]) runFixtureGit(args, { cwd: root, env, encoding: 'utf8' });
   const plan = computePlan(root), group = importCuts(plan)[0];
   writePlan(root, plan);
+  for (const args of [['add', '-A'], ['commit', '-qm', 'fixture plan']]) runFixtureGit(args, { cwd: root, env, encoding: 'utf8' });
+  committed = true;
   const edge = group.edges[0];
   const declaration = { importer: edge.from, target: edge.to, contractItem: 1737,
     expires: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10) };

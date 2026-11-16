@@ -5,7 +5,7 @@
  * Why its own module: the end-to-end harness and the repro harnesses all need the same queued-gate project, and none
  * may touch the main checkout, so the project is built once here inside an e2e sandbox the kit watches.
  */
-/** @pullboard-module-loads apps/cli/tests/fixtures/e2e.js apps/cli/tests/fixtures/testkit.js packages/store/index.js packages/drive/index.js */
+/** @pullboard-module-loads apps/cli/tests/fixtures/e2e.js packages/board/tests/fixtures/board.js packages/gate/tests/fixtures/testkit.js packages/store/index.js packages/drive/index.js */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
@@ -52,7 +52,8 @@ export function json(result) {
 export async function projectKit(root) {
   const load = path => import(pathToFileURL(join(root, path)).href);
   const { createE2eHelpers } = await load('apps/cli/tests/fixtures/e2e.js');
-  const { fixtureAdd, createFixtureWorktree, fixtureCommittedPolicy, fixtureMachineSettings, withFixtureBoard } = await load('apps/cli/tests/fixtures/testkit.js');
+  const { fixtureAdd, createFixtureWorktree, fixtureCommittedPolicy, fixtureMachineSettings } = await load('packages/gate/tests/fixtures/testkit.js');
+  const { withFixtureBoard } = await load('packages/board/tests/fixtures/board.js');
   const store = await load('packages/store/index.js');
   const drive = await load('packages/drive/index.js');
 
@@ -137,7 +138,7 @@ export function dispatchers(home) {
 
 /**
  * The tooling digest a shared tools snapshot is named by: the git ids of bin, apps, packages, src and package.json at
- * the tool root's HEAD, as `toolingDigest` in apps/cli/src/io/submit/handoff.js computes it. Null outside git.
+ * the tool root's HEAD, as `toolingDigest` in apps/cli/src/io/toolsnapshot.js computes it. Null outside git.
  *
  * @param {string} root
  * @returns {string | null}

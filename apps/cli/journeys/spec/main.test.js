@@ -105,24 +105,24 @@ test('real spec check refuses future grammar in either configured file [A5]', as
   assert.equal((await box.spec('check')).status, 0);
 });
 
-test('spec check names both locations when ids repeat within or across configured files [A5]', (t) => {
+test('spec check names both locations when ids repeat within or across configured files [A5]', async (t) => {
   const practiceRow = '# Practice\n\n## P\n- P1 [draft] A local rule.\n';
   const crossFile = specBox(t, { practice: practiceRow });
   writeFileSync(join(crossFile.root, crossFile.practiceName), practiceRow.replace('P1', 'G1'));
-  const cross = crossFile.run('check');
+  const cross = await crossFile.spec('check');
   assert.equal(cross.status, 1);
   assert.match(cross.stdout, /SPEC\.md:6 G1 error: duplicate id; also appears at PRACTICE\.md:4/u);
   assert.match(cross.stdout, /PRACTICE\.md:4 G1 error: duplicate id; also appears at SPEC\.md:6/u);
 
   const duplicateSpec = specBox(t);
   writeFileSync(join(duplicateSpec.root, 'SPEC.md'), SPEC.replace('- G1.2 [draft, aim]', '- G1 [draft, aim]'));
-  const duplicateSpecResult = duplicateSpec.run('check');
+  const duplicateSpecResult = await duplicateSpec.spec('check');
   assert.equal(duplicateSpecResult.status, 1);
   assert.match(duplicateSpecResult.stdout, /SPEC\.md:7 G1 error: duplicate id; also appears at SPEC\.md:6/u);
 
   const duplicatePractice = specBox(t, { practice: practiceRow });
   writeFileSync(join(duplicatePractice.root, 'PRACTICE.md'), practiceRow.replace('- P1 [draft] A local rule.', '- P1 [draft] First.\n- P1 [draft] Second.'));
-  const duplicatePracticeResult = duplicatePractice.run('check');
+  const duplicatePracticeResult = await duplicatePractice.spec('check');
   assert.equal(duplicatePracticeResult.status, 1);
   assert.match(duplicatePracticeResult.stdout, /PRACTICE\.md:5 P1 error: duplicate id; also appears at PRACTICE\.md:4/u);
 });
@@ -264,7 +264,7 @@ test('doctrine ids use their own namespace when an id also exists in SPEC.md [A5
   ] };
   assert.deepEqual(idProblems(spec, ['G1', 'doctrine:G1', 'doctrine:PB1'], doctrine), []);
   assert.deepEqual(idProblems(spec, ['doctrine:PB9'], doctrine), ['doctrine:PB9 is not in doctrine']);
-  assert.deepEqual(idProblems(spec, ['other:G1'], doctrine), ['other:G1 uses an unknown namespace; use doctrine:<id> for a doctrine row']);
+  assert.deepEqual(idProblems(spec, ['other:G1'], doctrine), ['other:G1 uses an unknown namespace; use doctrine:<id> for a doctrine row, or <board>:<id> for a board named in pullboard.json specBoards']);
   const frozen = frozenCriterion(spec, {
     item_title: 'Use the house rule', item_criterion: 'follow it', item_spec_ids: 'doctrine:G1',
   }, doctrine);

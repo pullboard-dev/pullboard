@@ -25,6 +25,8 @@ import { createE2eHelpers } from '../e2e.js';
 import { runFixtureChild } from '../child.js';
 import { runFixtureChildAsync } from '../child.js';
 import { installSshStandIn } from './ssh.js';
+import { privateFixtureFiles } from '../child.js';
+import { preparedRunner } from '../../../../../packages/runners/tests/fixtures/prepared.js';
 import { HOST } from './ssh.js';
 import { executionServicesSource } from '../gate/execution.js';
 import { waitForCondition } from './holders.js';
@@ -59,9 +61,9 @@ function project(t) {
 
 /** A controlled transport with a real native startup owner; health requests still execute the pinned worker. */
 function transport(t, mode) {
-  const box = project(t), bin = join(box.dir, 'ssh-bin'), worker = join(box.dir, 'worker');
-  const home = join(box.dir, 'remote-home'), machineHome = join(home, '.pullboard'), root = join(box.dir, 'remote-root');
-  for (const path of [bin, worker, home, machineHome, root]) mkdirSync(path, { recursive: true });
+  const box = project(t), bin = join(box.dir, 'ssh-bin'), root = join(box.dir, 'remote-root');
+  const { worker, home, machineHome } = preparedRunner(() => privateFixtureFiles('pullboard-prepared-runner-').root);
+  for (const path of [bin, root]) mkdirSync(path, { recursive: true });
   const requests = join(box.dir, 'requests.jsonl');
   const probeReplies = join(box.dir, 'job-probe-replies.jsonl');
   const ssh = installSshStandIn({ bin, worker, home, machineHome, requests, nodeCommand: process.execPath });
@@ -123,7 +125,7 @@ import {existsSync} from 'node:fs';
 const cancellation=new AbortController();let readyAt=null;
 const watch=${abortAfterReady} ? setInterval(()=>{if(readyAt===null&&existsSync(${JSON.stringify(box.record)}))readyAt=Date.now();
 if(readyAt!==null&&Date.now()-readyAt>=28000)cancellation.abort();},100):null;
-try{await runOnRunnerAsync(process.cwd(),'true',{runner:${JSON.stringify(box.runner)},signal:cancellation.signal});console.log(JSON.stringify({unexpectedSuccess:true}));}
+try{await runOnRunnerAsync(process.cwd(),'true',{runner:${JSON.stringify(box.runner)},metadata:{item:'fixture',kind:'remote-command'},signal:cancellation.signal});console.log(JSON.stringify({unexpectedSuccess:true}));}
 catch(error){console.log(JSON.stringify({name:error.name,code:error.code,message:error.message,diagnostic:error.diagnostic}));}
 finally{clearInterval(watch);}`;
   const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source], {
@@ -140,7 +142,7 @@ function retryContract(box) {
   const stages = join(box.dir, 'retry-stages.jsonl');
   writeFileSync(stages, '');
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  writeFileSync(settings, JSON.stringify({ gateSlots: 0, browserSlots: 0, gate: { runnersFirst: true, runnerDispatch: 'controller' }, runners: [box.runner] }));
+  writeFileSync(settings, JSON.stringify({ gateSlots: 0, browserSlots: 0, gate: { runnersFirst: true }, runners: [box.runner] }));
   const source = `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(gate)};
 ${executionServicesSource(gate)}
 import {RunnerDropped} from ${JSON.stringify(sourceURL('packages/runners/index.js'))};
@@ -191,7 +193,7 @@ export function registerRunnerJobLostTests() {
     assert.equal(observe(new Map()).state, 'unknown');
     assert.equal(observe(new Map()).cleanup, false);
   });
-  test('a quiet exact job whose native startup owner exited becomes named lost through the real controller bridge [C7,H16]', t => {
+  test('a quiet exact job whose native startup owner exited becomes named lost through the real controller bridge [C7,H16]', { skip: 'CONTROLLER_ONLY: deleted with #7526' }, t => {
     const box = transport(t, 'gone'), retry = retryContract(box), result = retry.loss;
     const recorded = JSON.parse(readFileSync(box.record, 'utf8'));
     assert.equal(result.code, 'RUNNER_JOB_LOST');
@@ -209,7 +211,7 @@ export function registerRunnerJobLostTests() {
     assert.match(retry.unavailable[0].until, /exact-job cleanup/u);
     assert.equal(retry.unavailable[0].diagnostic.confirmingProbe, null, 'ordinary healthy SSH cannot erase unknown cleanup');
   });
-  test('cleanup timeout settles owned TERM-ignoring SSH and inherited pipes without claiming remote cleanup [C7,H16]', async t => {
+  test('cleanup timeout settles owned TERM-ignoring SSH and inherited pipes without claiming remote cleanup [C7,H16]', { skip: 'CONTROLLER_ONLY: deleted with #7526' }, async t => {
     const box = transport(t, 'cleanup'), result = await run(box), recorded = JSON.parse(readFileSync(box.record, 'utf8'));
     assert.equal(result.code, 'RUNNER_CLEANUP_TIMEOUT');
     assert.equal(result.diagnostic.request, recorded.job);
@@ -222,7 +224,7 @@ export function registerRunnerJobLostTests() {
     assert.equal(waited[0].command, process.execPath);
     assert.match(result.message, new RegExp(`pid=${waited[0].pid} command=`));
   });
-  test('independent job observations never invent remote owner death [C7,H16]', { concurrency: 3 }, async t => {
+  test('independent job observations never invent remote owner death [C7,H16]', { concurrency: 3, skip: 'CONTROLLER_ONLY: deleted with #7526' }, async t => {
     await Promise.all(['running', 'unknown', 'healthy'].map(mode => t.test(`a ${mode} job observation never invents remote owner death [C7,H16]`, async child => {
     const box = transport(child, mode), result = await run(box, true);
     assert.notEqual(result.code, 'RUNNER_JOB_LOST');

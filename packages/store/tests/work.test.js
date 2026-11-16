@@ -4,8 +4,8 @@ import { test } from 'node:test';
 import { recordSubmitHandoff } from '../../jobs/index.js';
 import * as store from '../index.js';
 import { register } from '../index.js';
-import { fixtureBoard } from '../../../apps/cli/tests/fixtures/board.js';
-import { submitFixture } from '../../../apps/cli/tests/fixtures/board/submit.js';
+import { fixtureBoard } from '../../board/tests/fixtures/board.js';
+import { submitFixture } from './fixtures/submit.js';
 import { cellItem } from './fixtures/cell.js';
 
 const HOUR = 60 * 60 * 1000;

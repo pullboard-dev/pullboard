@@ -36,8 +36,8 @@ function succeeded(result) {
 }
 
 /** File a real build with a frozen check that fails only when the fixture arms its gate. */
-function addBuild(box, repo, title, check) {
-  const result = succeeded(fixtureAdd(box.run, repo, 'web', title, '--specs', 'G1',
+async function addBuild(box, repo, title, check) {
+  const result = succeeded(await fixtureAdd(box.runLocal, repo, 'web', title, '--specs', 'G1',
     '--criterion', 'the real fixture gate passes', '--check', check,
     '--route', 'strong', '--wait', '--json'));
   return JSON.parse(result.out).item.item_id;
@@ -96,11 +96,11 @@ test('clause 2: every refusal names a next step that works [P4,I1,I2]', async ()
 
   const box = e2e.sandbox();
   box.env.PULLBOARD_MODEL = 'Refusal Fixture Model';
-  const gateFile = join(box.dir, 'fixture-gate.cjs');
-  writeFileSync(gateFile, "if (require('node:fs').existsSync('web/RED')) { console.log('GATE_FAILURE_MARKER'); process.exit(1); }\n");
-  const gate = `'${process.execPath.replaceAll("'", "'\\''")}' '${gateFile.replaceAll("'", "'\\''")}'`;
+  // One inline script with no sandbox path in it, so every sandbox shares one project shape and copies the template [C7].
+  const script = 'if (require("node:fs").existsSync("web/RED")) { console.log("GATE_FAILURE_MARKER"); process.exit(1); }';
+  const gate = `'${process.execPath.replaceAll("'", "'\\''")}' -e '${script}'`;
   const { repo, web } = e2e.project(gate, box);
-  const id = addBuild(box, repo, 'Independent review recovery', gate);
+  const id = await addBuild(box, repo, 'Independent review recovery', gate);
   succeeded(await box.runLocal(web, 'claim', String(id)));
   mkdirSync(join(web, 'web'), { recursive: true });
   writeFileSync(join(web, 'web', 'receipt.txt'), 'a real build\n');
@@ -112,39 +112,42 @@ test('clause 2: every refusal names a next step that works [P4,I1,I2]', async ()
   assert.equal(mainRefusal.code, 1, `${mainRefusal.out}\n${mainRefusal.err}`);
   const mainError = JSON.parse(mainRefusal.out).error;
   assert.equal(mainError.code, 'MAIN_IS_COORDINATOR');
-  assert.match(mainError.next, /git worktree add --detach/u);
+  assert.match(mainError.next, /pullboard worktree \w+ --model/u);
+  assert.doesNotMatch(mainError.next, /git worktree add/u, 'a pullboard command makes the review seat (#7925)');
   assert.match(mainError.next, /reviewer.*(?:did not|not).*build/iu, 'the step requires an independent reviewer');
   const reviewer = join(repo, '.claude', 'worktrees', 'reviewer');
   box.git(repo, 'worktree', 'add', '-q', '--detach', reviewer, 'HEAD');
   // Item #1 was filed on the strong route, so its reviewer joins strong to be offered the review [V4].
-  succeeded(fixtureJoin(box.run, reviewer, 'web', '--model', 'Independent Reviewer Model', '--route', 'strong'));
+  succeeded(await fixtureJoin(box.runLocal, reviewer, 'web', '--model', 'Independent Reviewer Model', '--route', 'strong'));
   const selected = succeeded(await box.runLocal(reviewer, 'next', '--verify', String(id), '--json'));
   assert.equal(JSON.parse(selected.out).item.item_id, id, 'the recovery reaches review without SELF_VERIFY');
 
   const gateBox = e2e.sandbox();
   gateBox.env.PULLBOARD_MODEL = 'Gate Fixture Model';
   const { repo: gateRepo, web: gateWeb } = e2e.project(gate, gateBox);
-  const redId = addBuild(gateBox, gateRepo, 'Gate failure recovery', gate);
-  succeeded(gateBox.run(gateWeb, 'claim', String(redId)));
+  const redId = await addBuild(gateBox, gateRepo, 'Gate failure recovery', gate);
+  succeeded(await gateBox.runLocal(gateWeb, 'claim', String(redId)));
   mkdirSync(join(gateWeb, 'web'), { recursive: true });
   writeFileSync(join(gateWeb, 'web', 'receipt.txt'), 'a real build\n');
   writeFileSync(join(gateWeb, 'web', 'RED'), 'armed\n');
   gateBox.git(gateWeb, 'add', '-A');
   gateBox.git(gateWeb, 'commit', '-q', '-m', 'test: arm gate fixture [G1]');
-  const red = gateBox.run(gateWeb, 'submit', String(redId));
-  assert.equal(red.code, 1, `${red.out}\n${red.err}`);
-  assert.equal((red.err.match(/\[GATE_RED\]/gu) ?? []).length, 1, `${red.out}\n${red.err}`);
-  assert.equal((red.err.match(/GATE_FAILURE_MARKER/gu) ?? []).length, 1, `the failure report appears once\n${red.out}\n${red.err}`);
-  assert.match(red.err, /next: .*fix.*commit.*submit/iu);
-  assert.equal((red.err.match(/^next: /gmu) ?? []).length, 1, 'plain refusals print one recovery footer');
+  // A pulled submit queues its gate and returns; the fixture command returns once the local runner settled it, so show reads the red verdict [C7].
+  const queued = await gateBox.runLocal(gateWeb, 'submit', String(redId));
+  assert.equal(queued.code, 0, `${queued.out}\n${queued.err}`);
+  const red = await gateBox.runLocal(gateWeb, 'show', String(redId), '--json', '--no-next');
+  assert.equal(red.code, 0, `${red.out}\n${red.err}`);
+  const redJob = JSON.parse(red.out).gateJob;
+  assert.equal(redJob?.gate?.green, false, `the pulled gate is red: ${red.out}`);
+  assert.equal((JSON.stringify(redJob).match(/GATE_FAILURE_MARKER/gu) ?? []).length >= 1, true, `the failure report names the marker\n${red.out}`);
   rmSync(join(gateWeb, 'web', 'RED'));
   gateBox.git(gateWeb, 'add', '-u');
   gateBox.git(gateWeb, 'commit', '-q', '-m', 'test: fix gate fixture [G1]');
-  succeeded(gateBox.run(gateWeb, 'submit', String(redId)));
+  succeeded(await gateBox.runLocal(gateWeb, 'submit', String(redId)));
 
   box.env.CODEX_THREAD_ID = 'main-owner-session';
   // The coordinator is always strong; join refuses BAD_ROUTE when its model maps to no tier and the route defaults to mid.
-  succeeded(fixtureJoin(box.run, repo, 'coordinator', '--model', 'Coordinator Fixture Model', '--route', 'strong'));
+  succeeded(await fixtureJoin(box.runLocal, repo, 'coordinator', '--model', 'Coordinator Fixture Model', '--route', 'strong'));
   const bindingPath = join(repo, '.git', 'pullboard-checkout-session.json');
   const binding = readFileSync(bindingPath, 'utf8');
   box.env.CODEX_THREAD_ID = 'new-agent-session';
@@ -155,7 +158,7 @@ test('clause 2: every refusal names a next step that works [P4,I1,I2]', async ()
   assert.match(foreignError.next, /git worktree add --detach/u, 'recovery does not call Pullboard from the blocked checkout');
   const recovery = join(repo, '.claude', 'worktrees', 'new-agent');
   box.git(repo, 'worktree', 'add', '-q', '--detach', recovery, 'HEAD');
-  succeeded(fixtureJoin(box.run, recovery, 'web', '--model', 'New Agent Fixture Model'));
+  succeeded(await fixtureJoin(box.runLocal, recovery, 'web', '--model', 'New Agent Fixture Model'));
   succeeded(await box.runLocal(recovery, 'whoami', '--json'));
   assert.equal(readFileSync(bindingPath, 'utf8'), binding, 'recovery leaves the main owner binding unchanged');
 });

@@ -18,8 +18,12 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { withFileLock } from './guard.js';
-import { outboxWaiting } from '../relay.js';
 import {
+  outboxParkedOnly,
+  outboxWaiting,
+} from '../relay.js';
+import {
+  recordSenderEngine,
   senderFiles,
   senderHolding,
 } from '../../../../link/index.js';
@@ -64,6 +68,7 @@ async function claim() {
   return withFileLock(join(files.directory, 'claim.sqlite'), () => {
     const holder = senderHolding();
     if (holder && holder !== process.pid) return false;
+    recordSenderEngine(process.pid); // Before the claim, so no reader sees this claim without its engine (#7938).
     writeFileSync(files.pid, `${process.pid}\n`, { mode: 0o600 });
     rmSync(files.starting, { force: true }); // Started: the next nudge sees this claim instead.
     writeFileSync(files.log, '', { mode: 0o600 }); // Each sender keeps only its own short story.
@@ -120,7 +125,7 @@ async function serveUntilIdle(serve) {
       const board = boards.get(note.file) ?? { served: 0, failures: 0, retryAt: 0 };
       boards.set(note.file, board);
       const nudged = note.due > board.served;
-      if (now < board.retryAt || !(nudged || now - board.served >= PULL_MS)) { waiting ||= outboxWaiting(note.file); continue; }
+      if (now < board.retryAt || !(nudged || now - board.served >= PULL_MS)) { waiting ||= outboxWaiting(note.file) && !outboxParkedOnly(note.file); continue; }
       board.served = Date.now();
       let settled = false;
       io.say(`serving ${note.root}`);
@@ -131,7 +136,7 @@ async function serveUntilIdle(serve) {
       else {
         board.failures += 1;
         board.retryAt = Date.now() + Math.min(BACKOFF_MAX_MS, 1000 * 2 ** Math.min(board.failures - 1, 5));
-        waiting = true;
+        waiting ||= !outboxParkedOnly(note.file);
       }
     }
     if (!waiting && Date.now() - newest >= IDLE_MS) return newest;

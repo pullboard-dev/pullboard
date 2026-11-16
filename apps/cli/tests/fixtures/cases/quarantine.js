@@ -159,38 +159,47 @@ console.log(JSON.stringify({quarantineCore:true,runs:state.runs.length,rawRed:re
 await (process.argv.includes('--legacy')?legacyCase():nativeCase());
 `;
 
-test('native same-tree test verdicts file once, still report raw red, and release after 20 executed passes [C7,H16]', async t => {
-  const box = quarantineProject(t);
-  const result = await runFixtureChildAsync(process.execPath, ['quarantine-driver.mjs'], { cwd: box.repo, env: box.env, encoding: 'utf8' });
-  assert.equal(result.status, 0, result.stderr + result.stdout);
-  const report = JSON.parse(result.stdout.trim().split('\n').at(-1));
-  assert.equal(report.quarantineCore, true);
-  assert.equal(report.rawRed, false);
-  assert.equal(report.release.cleanRuns, 20);
-});
+/** The native same-tree case: one driver child, the slow one. Exported, not registered at import, so each journey file runs only its own case [C7,H16]. */
+export function defineNativeQuarantineCase() {
+  test('native same-tree test verdicts file once, still report raw red, and release after 20 executed passes [C7,H16]', async t => {
+    const box = quarantineProject(t);
+    const result = await runFixtureChildAsync(process.execPath, ['quarantine-driver.mjs'], { cwd: box.repo, env: box.env, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr + result.stdout);
+    const report = JSON.parse(result.stdout.trim().split('\n').at(-1));
+    assert.equal(report.quarantineCore, true);
+    assert.equal(report.rawRed, false);
+    assert.equal(report.release.cleanRuns, 20);
+  });
+}
 
-test('native-core verdicts preserve an active legacy quarantine, its waiver and withdrawal lifecycle [C7,H16]', async t => {
-  const box = quarantineProject(t, { legacy: true });
-  const result = await runFixtureChildAsync(process.execPath, ['quarantine-driver.mjs', '--legacy'], { cwd: box.repo, env: box.env, encoding: 'utf8' });
-  assert.equal(result.status, 0, result.stderr + result.stdout);
-  assert.equal(JSON.parse(result.stdout.trim().split('\n').at(-1)).legacyPreserved, true);
-});
+/** The legacy-quarantine case: a second driver child. Exported, not registered at import, so each journey file runs only its own case [C7,H16]. */
+export function defineLegacyQuarantineCase() {
+  test('native-core verdicts preserve an active legacy quarantine, its waiver and withdrawal lifecycle [C7,H16]', async t => {
+    const box = quarantineProject(t, { legacy: true });
+    const result = await runFixtureChildAsync(process.execPath, ['quarantine-driver.mjs', '--legacy'], { cwd: box.repo, env: box.env, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr + result.stdout);
+    assert.equal(JSON.parse(result.stdout.trim().split('\n').at(-1)).legacyPreserved, true);
+  });
+}
 
-test('structured native outcomes reject duplicates, reporter text and incomplete or cancelled evidence [C7,H16]', () => {
-  const row = { file: FILE, name: TARGET, passed: true, skipped: false };
-  const id = randomUUID();
-  assert.deepEqual(readTestOutcomes(formatTestOutcomes(id, [row]), id), [row]);
-  assert.equal(readTestOutcomes(formatTestOutcomes(id, [row]), randomUUID()), null);
-  assert.equal(readTestOutcomes('ok 1 - invented pass', id), null);
-  assert.equal(readTestOutcomes(formatTestOutcomes(id, [row]).repeat(2), id), null);
-  for (const file of ['../control.js', '/control.js', 'C:/control.js']) assert.equal(testOutcomeFields([{ ...row, file }]), null);
-  assert.equal(testOutcomeFields([row, row]), null);
-  const collector = testOutcomeCollector('/private/repo');
-  collector.observe({ type: 'test:stdout', data: { message: formatTestOutcomes(id, [row]) } });
-  assert.equal(collector.finish(true, 1), null, 'test stdout never becomes a structured result');
-  collector.observe({ type: 'test:pass', data: { file: '/private/repo/' + FILE, name: TARGET, details: { type: 'test' } } });
-  assert.equal(collector.finish(false, 1), null);
-  assert.deepEqual(collector.finish(true, 1), [row]);
-  collector.observe({ type: 'test:fail', data: { file: '/private/repo/' + FILE, name: 'cancelled', details: { error: { failureType: 'cancelledByParent' } } } });
-  assert.equal(collector.finish(true, 2), null);
-});
+/** The pure structured-outcome case: no child process. Exported, not registered at import, so each journey file runs only its own case [C7,H16]. */
+export function defineOutcomeCases() {
+  test('structured native outcomes reject duplicates, reporter text and incomplete or cancelled evidence [C7,H16]', () => {
+    const row = { file: FILE, name: TARGET, passed: true, skipped: false };
+    const id = randomUUID();
+    assert.deepEqual(readTestOutcomes(formatTestOutcomes(id, [row]), id), [row]);
+    assert.equal(readTestOutcomes(formatTestOutcomes(id, [row]), randomUUID()), null);
+    assert.equal(readTestOutcomes('ok 1 - invented pass', id), null);
+    assert.equal(readTestOutcomes(formatTestOutcomes(id, [row]).repeat(2), id), null);
+    for (const file of ['../control.js', '/control.js', 'C:/control.js']) assert.equal(testOutcomeFields([{ ...row, file }]), null);
+    assert.equal(testOutcomeFields([row, row]), null);
+    const collector = testOutcomeCollector('/private/repo');
+    collector.observe({ type: 'test:stdout', data: { message: formatTestOutcomes(id, [row]) } });
+    assert.equal(collector.finish(true, 1), null, 'test stdout never becomes a structured result');
+    collector.observe({ type: 'test:pass', data: { file: '/private/repo/' + FILE, name: TARGET, details: { type: 'test' } } });
+    assert.equal(collector.finish(false, 1), null);
+    assert.deepEqual(collector.finish(true, 1), [row]);
+    collector.observe({ type: 'test:fail', data: { file: '/private/repo/' + FILE, name: 'cancelled', details: { error: { failureType: 'cancelledByParent' } } } });
+    assert.equal(collector.finish(true, 2), null);
+  });
+}

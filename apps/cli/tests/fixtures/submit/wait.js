@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { openBoard } from '../../../../lib/index.js';
 import { createE2eHelpers } from '../e2e.js';
 import { fixtureAdd } from '../testkit.js';
+import { settledGateJob } from './settle.js';
 
 /** Bind the kit to the caller's store module so this fixture stays free of package imports. */
 export function waitKit(store) {
@@ -32,16 +33,14 @@ export function waitKit(store) {
       if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
       await child.closed;
     });
+    // A pulled gate runs on the local runner after submit returns queued; its job's receipt is what moves the item to submitted.
+    await settledGateJob(box, 1);
     await helpers.waitFor(() => child.exitCode !== null || onBoard(box, board => store.getItem(board, 1).item_status === 'submitted'), 'a public submission or its actionable refusal', 30_000); // budget: detached submit completion ceiling under concurrent gate load.
     assert.equal(onBoard(box, board => store.getItem(board, 1).item_status), 'submitted', child.stderrText);
     await helpers.waitFor(() => child.exitCode !== null, 'the final gate to end submit before any verdict', 30_000); // budget: detached submit completion ceiling under concurrent gate load.
     await child.closed;
     assert.equal(child.exitCode, 0, child.stdoutText + child.stderrText);
     assert.equal(onBoard(box, board => store.verdictsFor(board, 1).length), 0, 'gate completion requires no review');
-    // A green submit starts a detached review comparison that records two facts (pending, then its result) on its own clock;
-    // a verdict or health scan made before the second would be raced by it and read as a board change mid-scan.
-    await helpers.waitFor(() => onBoard(box, board => board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE event_kind = 'fact' AND event_detail LIKE '%Review comparison%'").get().n >= 2),
-      'the background review comparison to record its result');
     const note = decision === 'ACCEPT' ? 'The submitted fixture meets its bar.' : 'The fixture deliberately rejects this concrete clause.';
     if (builderHeartbeatOffsetMs) {
       onBoard(box, board => store.heartbeatSeat(board, store.getItem(board, 1).item_built_by),
@@ -56,10 +55,10 @@ export function waitKit(store) {
     assert.equal(child.exitCode, 0, 'a later independent verdict does not change the completed gate result');
     if (json) {
       const document = JSON.parse(child.stdoutText);
-      assert.equal(document.id, 1);
+      assert.equal(document.item, 1);
       assert.ok(document.commit);
-      assert.ok(document.pin);
-      assert.ok(document.gate);
+      assert.ok(document.gateJob, 'a pulled submit names its gate job instead of a hand-off pin');
+      assert.ok((await settledGateJob(box, 1)).gate, 'the settled job receipt carries the gate result');
       assert.equal(document.verdict, undefined, 'submit reports its gate independently of a later review');
     }
     assert.ok(onBoard(box, board => store.verdictsFor(board, 1)).some(row => row.verdict_decision === decision

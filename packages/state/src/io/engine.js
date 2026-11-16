@@ -1,4 +1,4 @@
-import { EXIT_RULES_ENGINE } from '../logic/engines/exit-rules-engine.js';
+import { engineNumber } from '../logic/engine/number.js';
 import { registrationProblem } from '../logic/engine/move/register.js';
 import { recordReviewPolicyActivation } from '../../index.js';
 import { agentGrantMinimum } from '../logic/grant.js';
@@ -9,11 +9,12 @@ import { requireHandoffActive } from '../../index.js';
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import { recordedRefusal } from '../logic/recorded/refusal.js';
-import { PEOPLE_ENGINE } from '../logic/engines/people-engine.js';
 import { ENGINE_VERSION } from './machine.js';
 import { VERIFIER_STANDING_ENGINE } from './machine.js';
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from '../../../kernel/light.js';
 import { ENGINE_MOVE_STEPS } from './engine/move/steps.js';
+const EXIT_RULES_ENGINE = engineNumber('EXIT_RULES_ENGINE');
+const PEOPLE_ENGINE = engineNumber('PEOPLE_ENGINE');
 
 /** Require the explicit runtime ports supplied by the board owner, never a receiver-local loader. */
 function enginePorts(board) {
@@ -46,19 +47,41 @@ export function checkpointSequence(board, sequence) {
   });
 }
 
-/** Start an explicitly relinked remote epoch while keeping all local board rows and history. */
+/** Delete every recorded relay receipt and refusal: a new epoch starts with none, and a restored one replaces them. */
+function clearRelayRows(board) {
+  board.db.prepare("DELETE FROM board_meta WHERE meta_key LIKE 'relay_receipt_%' OR meta_key LIKE 'relay_refusal_%'").run();
+}
+
+/**
+ * Start an explicitly relinked remote epoch while keeping all local board rows and history. Returns the rows it
+ * replaced, for restoreRelayEpoch to put back if the link that epoch belongs to is never written (#7772).
+ */
 export function startRelayEpoch(board, boardId) {
   const ports = enginePorts(board);
   const store = ports.store;
+  let saved;
   store.atomic(board, () => {
+    saved = board.db.prepare("SELECT meta_key, meta_value FROM board_meta WHERE meta_key = 'board_id' OR meta_key = 'relay_applied_sequence' OR meta_key = 'relay_engine_version' OR meta_key LIKE 'relay_receipt_%' OR meta_key LIKE 'relay_refusal_%'").all();
     if (boardId !== undefined) {
       if (!/^[0-9a-f]{32}$/u.test(boardId)) throw new Refused('RELAY_STORAGE', 'restore a valid native board identity before starting its relay epoch');
       metadata(board, 'board_id', boardId);
     }
-    board.db.prepare("DELETE FROM board_meta WHERE meta_key LIKE 'relay_receipt_%'").run();
-    board.db.prepare("DELETE FROM board_meta WHERE meta_key LIKE 'relay_refusal_%'").run();
+    clearRelayRows(board);
     metadata(board, 'relay_applied_sequence', '0');
     metadata(board, 'relay_engine_version', String(ENGINE_VERSION));
+  });
+  return saved;
+}
+
+/**
+ * Put back the rows startRelayEpoch replaced, in one transaction: the board id, applied sequence, engine version and
+ * every receipt and refusal. Why: a relay on that fails after the epoch starts must leave the board id unchanged (#7772).
+ */
+export function restoreRelayEpoch(board, saved) {
+  const store = enginePorts(board).store;
+  store.atomic(board, () => {
+    clearRelayRows(board);
+    for (const row of saved) metadata(board, row.meta_key, row.meta_value);
   });
 }
 

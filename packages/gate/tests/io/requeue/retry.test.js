@@ -9,7 +9,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { cellProject } from '../../../../store/tests/fixtures/cell.js';
 import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../fixtures/child.js';
 import { HOST } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
 import { deadlineRetrySource } from '../../fixtures/retry.js';
@@ -17,7 +17,7 @@ import { lateTransportRetrySource } from '../../fixtures/retry.js';
 
 /** Build a private runner pool with no configured host or relay connection. */
 function fixture(t) {
-  const box = cellProject(t, { gate: 'true' });
+  const box = cellProject(t, { real: true, gate: 'true' });
   const bin = join(box.dir, 'infra-retry-bin'), worker = join(box.dir, 'infra-retry-worker');
   const home = join(box.dir, 'infra-retry-home'), machineHome = join(home, '.pullboard');
   for (const folder of [bin, worker, home, machineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(folder, { recursive: true });

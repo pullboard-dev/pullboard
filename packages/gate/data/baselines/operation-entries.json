@@ -8,13 +8,14 @@
     "packages/rigor/src/io/quality.js"
   ],
   "dispatch-gates": [
+    "packages/transport/src/io/gate.js"
+  ],
+  "execute-gate": [
     "apps/cli/src/io/submit/gate.js",
     "apps/cli/src/io/tool/build.js",
-    "packages/gate/src/io/execution.js",
     "packages/gate/src/io/release.js",
     "packages/gate/src/io/submit.js",
-    "packages/gate/src/logic/stages.js",
-    "packages/transport/src/io/gate.js"
+    "packages/gate/src/logic/stages.js"
   ],
   "landing": [
     "apps/cli/src/io/commands/land.js",
@@ -23,11 +24,9 @@
     "packages/blueprints/src/io/main.js",
     "packages/blueprints/src/io/set.js",
     "packages/land/src/io/runs.js",
-    "packages/landing/src/io/candidates.js",
     "packages/landing/src/io/runner/job.js",
     "packages/landing/src/io/shards.js",
     "packages/landing/src/io/smoke.js",
-    "packages/landing/src/io/step/batch.js",
     "packages/landing/src/io/step/gate.js",
     "packages/landing/src/io/step/trunk.js",
     "packages/landing/src/logic/land/why.js",
@@ -71,7 +70,6 @@
   ],
   "fetch-runner-code": [
     "apps/runner/src/io/worker/git.js",
-    "packages/drive/src/io/pull.js",
     "packages/gate/src/io/board/write.js",
     "packages/github/src/io/intake.js",
     "packages/github/src/io/pr/publish.js",
@@ -80,5 +78,72 @@
     "packages/sandbox/src/io/regeneration.js",
     "packages/sandbox/src/io/verify.js",
     "packages/sync/src/io/main.js"
-  ]
+  ],
+  "create-worktree": [
+    "apps/cli/src/io/commands/shadow-batch.js",
+    "apps/cli/src/io/commands/submit.js",
+    "apps/cli/src/io/commands/worktree.js",
+    "apps/cli/src/io/item/folder.js",
+    "apps/cli/src/io/item/folder/scripts/spare.js",
+    "apps/cli/src/io/landing/budget.js",
+    "apps/runner/src/io/worker/handoff.js",
+    "packages/drive/src/io/pull.js",
+    "packages/gate/src/io/main/audit/worker.js",
+    "packages/github/src/io/pr/publish.js",
+    "packages/github/src/io/publish.js",
+    "packages/items/src/io/patch/submit.js",
+    "packages/landing/src/io/smoke.js",
+    "packages/landing/src/io/step/gate.js",
+    "packages/merge/src/io/compose.js",
+    "packages/rigor/src/io/proof.js"
+  ],
+  "stop-process-tree": [
+    "apps/cli/src/io/scale.js",
+    "apps/runner/src/io/private/check/worker.js",
+    "apps/runner/src/io/private/privacy.js",
+    "apps/runner/src/io/worker/process.js",
+    "packages/drive/src/io/pull.js",
+    "packages/landing/src/io/shards.js",
+    "packages/landing/src/io/worker.js",
+    "packages/rigor/src/io/proof.js",
+    "packages/runners/src/io/run.js",
+    "packages/sandbox/src/io/captured.js",
+    "packages/seats/src/io/agent/hook.js"
+  ],
+  "sync-sleep": [
+    "apps/cli/src/io/tour.js",
+    "apps/lib/src/io/submit/requeue.js",
+    "apps/runner/src/io/worker/health.js",
+    "packages/codemap/src/io/cell/parser.js",
+    "packages/gate/src/io/test/cleanup.js",
+    "packages/gate/src/io/test/file/pool.js",
+    "packages/resources/src/io/lock.js",
+    "packages/resources/src/io/main.js",
+    "packages/resources/src/io/write/lock.js",
+    "packages/resources/src/io/write/queue.js",
+    "packages/runners/src/io/module/parser.js",
+    "packages/runners/src/io/source/scan.js",
+    "packages/runners/src/io/tooling/remote.js",
+    "packages/store/src/io/board.js",
+    "packages/store/src/io/board/busy.js",
+    "packages/store/src/io/board/claim.js",
+    "packages/store/src/io/board/read/light.js",
+    "packages/store/src/io/board/write.js",
+    "packages/store/src/logic/board/landing/local.js"
+  ],
+  "move-trunk": [
+    "apps/cli/src/io/landing/pull.js",
+    "apps/runner/src/io/private/privacy.js",
+    "apps/runner/src/io/worker/checkout.js",
+    "packages/drive/src/io/pull.js",
+    "packages/gate/src/io/test/run.js",
+    "packages/landing/src/io/runner/job.js",
+    "packages/sandbox/src/io/regeneration.js"
+  ],
+  "forwards": {
+    "run-tests": [
+      "apps/cli/src/io/run/tests.js",
+      "packages/gate/bin/run-tests.js"
+    ]
+  }
 }

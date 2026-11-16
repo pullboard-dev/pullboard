@@ -25,6 +25,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { requireSessionIndependence } from '../../tests/fixtures/testkit.js';
 
 const LEASE = 3_600_000;
@@ -160,7 +161,9 @@ test('CLI next and verify reject the original building session through its real 
   const commit = helpers.commitFile(box, built, 'web/session.txt', 'built by the original session\n',
     'test(web): build the private session fixture [G1]');
   assert.equal(commit.status, 0, commit.stdout + commit.stderr);
-  box.json(await box.runAsLocal(original, built, 'submit', String(id), '--no-next', '--json'));
+  const submitted = box.json(await box.runAsLocal(original, built, 'submit', String(id), '--no-next', '--json'));
+  // A pulled submit queues; the item-session ledger records the submit once the machine's runner settles its gate job [P7,C7,#7725].
+  await settleSubmit(t, { repo: box.repo, env: box.env, run: box.runLocal }, submitted);
   const review = join(box.dir, 'original-session-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, box.git(built, 'rev-parse', 'HEAD'));
   requireSessionIndependence(review);

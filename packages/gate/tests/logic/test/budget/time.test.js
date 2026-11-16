@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../fixtures/child.js';
 import { recordTimeCheckpoint } from '../../../../../stats/index.js';
 import { retainedReceipts } from '../../../../index.js';
 import { events } from '../../../../../store/index.js';

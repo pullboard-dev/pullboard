@@ -1,6 +1,6 @@
 /** Return the original prose section of the self-contained cockpit document. */
 export function cockpitProse(sections) {
-  const { releaseNotice, snapshot, pageRenderScript, settingsPageScript, agentApprovalScript, pageScriptPart4, pageScope, historyLoadingScript, paletteScript } = sections;
+  const { releaseNotice, snapshot, pageRenderScript, settingsPageScript, agentApprovalScript, pageScriptPart4, pageScope, historyLoadingScript, paletteScript, accountScript, shoutsScript, menuScript } = sections;
   return `/** Tags that flow inside a line of text, so a reference's line belongs to the nearest block around it. */
 const INLINE_TAGS = new Set(['SPAN', 'B', 'I', 'EM', 'STRONG', 'CODE', 'S', 'SMALL', 'TIME', 'MARK', 'U', 'SUB', 'SUP', 'ABBR', 'KBD', 'Q', 'LABEL']);
 const CONTROLS = 'button, a[href], select, input, textarea, [role=button]';
@@ -14,7 +14,8 @@ function markAlone(refs) {
   const blocks = new Map();
   for (const ref of refs) {
     let block = ref.parentElement;
-    while (block.parentElement && INLINE_TAGS.has(block.tagName)) block = block.parentElement;
+    // A span the page lays out as a block (a shout's text in its row, 154e174c55) is the block around its references.
+    while (block.parentElement && INLINE_TAGS.has(block.tagName) && !(typeof getComputedStyle === 'function' && !getComputedStyle(block).display.startsWith('inline'))) block = block.parentElement;
     if (blocks.has(block)) blocks.get(block).push(ref); else blocks.set(block, [ref]);
   }
   for (const [block, inside] of blocks) {
@@ -64,7 +65,7 @@ ${pageRenderScript(pageScope.privateCost)}
  * it, so it stays closed across reloads, and across restarts of the view, which serves from the
  * same address again, until they open it. While hidden it is not drawn.
  */
-${settingsPageScript()}${agentApprovalScript()}${pageScriptPart4(pageScope)}${historyLoadingScript()}${paletteScript()}</script>
+${settingsPageScript()}${agentApprovalScript()}${pageScriptPart4(pageScope)}${accountScript()}${shoutsScript()}${menuScript()}${historyLoadingScript()}${paletteScript()}</script>
 </body>
 </html>`;
 }

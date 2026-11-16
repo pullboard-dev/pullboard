@@ -2,17 +2,15 @@
 import { spawnSync } from 'node:child_process';
 import {
   existsSync,
-  mkdtempSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import {
-  homedir,
-  tmpdir,
-} from 'node:os';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Refused } from '../../../../kernel/light.js';
+import { mkdtempSync } from 'node:fs';
+import { scratchBase } from '../../../../kernel/light.js';
 
 /** Run ssh-keygen in a private scratch folder, refusing plainly when OpenSSH is not installed. */
 function sshKeygen(args, input) {
@@ -23,7 +21,7 @@ function sshKeygen(args, input) {
 
 /** Work with files in a fresh owner-only folder that is always removed. */
 function scratch(work) {
-  const folder = mkdtempSync(join(tmpdir(), 'pullboard-vouch-'));
+  const folder = mkdtempSync(join(scratchBase(), 'pullboard-vouch-'));
   try { return work(folder); } finally { rmSync(folder, { recursive: true, force: true }); }
 }
 

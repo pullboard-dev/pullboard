@@ -63,6 +63,8 @@ async function refresh(fresh = null, attempt = 1) {
   if (!next.project && !next.group && next.projects.some((p) => p.ok)) {
     view.root = next.projects.find((p) => p.ok).root;
     keep('pb.project', view.root);
+    // The switcher names the chosen board now, while its state is on its way (#6715).
+    renderSide();
     return refresh();
   }
   // The project this board is, so a switch still loading never reads it as the next one's.
@@ -86,6 +88,16 @@ async function refresh(fresh = null, attempt = 1) {
     data = store.set(next, true);
     syncBoardMode(view.root);
     itemSearches.clear();
+    // Reading the board, reading its counts and drawing it run as three tasks, so a live update never blocks the page for
+    // them all at once (#6851). The board is held before the first wait, so a read answered meanwhile builds on it, and
+    // the draw shows whatever the page holds by then. The next task comes from a message, never the page's timers.
+    if (typeof MessageChannel === 'function' && data.project) {
+      const nextTask = () => new Promise((later) => { const channel = new MessageChannel(); channel.port1.onmessage = () => { channel.port1.close(); later(); }; channel.port2.postMessage(null); });
+      await nextTask();
+      // The chrome's counts and the person's rulings are read first, none shown until the draw that finds them read (#7604).
+      if (data.project) { writeChrome(false); personalNeedsOf(data.project); }
+      await nextTask();
+    }
     const reading = detailRead;
     render();
     if (detailRead !== reading) await detailRead;
@@ -135,12 +147,27 @@ const canStream = () => typeof AbortController === 'function' && typeof Readable
 /** The latest event a board state already shows; its events are newest first. */
 const latestEvent = (state) => Number(state?.events?.[0]?.event_id ?? 0);
 
+/**
+ * Refresh after the page's own move, reading again until the shown board holds that move's event. Why: a page read
+ * answers from the last build and the stream announces the next (82da0e6b69, #6850), so a page with no stream, as one
+ * served on another origin, would otherwise show its own new item only at the next FALLBACK_MS read.
+ * @param {number} eventId The event the move's reply names.
+ * @param {number} [tries] Reads left before the fallback refresh takes over.
+ */
+async function refreshThrough(eventId, tries = 20) {
+  const root = view.root;
+  await refresh();
+  if (!Number.isSafeInteger(eventId) || tries <= 1 || root !== view.root || !data?.project || latestEvent(data.project) >= eventId) return;
+  await new Promise((later) => { setTimeout(later, 500); });
+  return refreshThrough(eventId, tries - 1);
+}
+
 /** Whether the page's stream is up or opening, so nothing needs a timed read. */
 const connected = () => Boolean(stream) && stream.status !== 'down';
 
 /** Say nothing while the page's stream is up, and why the page is not live while it is down. */
 function liveLine() {
-  if (!stream || stream.status !== 'down') return '';
+  if (!stream || stream.status !== 'down') return stateWorkerStopped ? 'the state worker stopped: serving from the request thread' : '';
   if (stream.offline) return 'offline: is pullboard view still running?';
   return (canStream() ? 'reconnecting' : 'no live stream in this browser') + ': refreshing every ' + FALLBACK_MS / 1000 + 's';
 }
@@ -305,6 +332,13 @@ function catchUp() {
   });
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && catchWhenShown) { catchWhenShown = false; catchUp(); } });
+// A page the browser keeps in its back-forward cache keeps its open fetches, and each held stream takes one of the six
+// connections a host gets: six pages left behind took them all, and the next page never loaded. A page leaving closes
+// its stream, and one shown again from the cache follows its boards anew and reads what changed meanwhile.
+if (typeof addEventListener === 'function') {
+  addEventListener('pagehide', () => unfollow());
+  addEventListener('pageshow', (event) => { if (event.persisted && data && !snapshot) { catchEvery = true; follow(); } });
+}
 
 `;
 }

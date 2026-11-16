@@ -39,7 +39,7 @@ export function cacheWipeBoard() {
   writeFileSync(join(box.repo, TEST_FILE), "import { test } from 'node:test';\ntest('the fixture proves one case [G1]', () => {});\n");
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: add the cache fixture');
-  const item = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Cache wipe fixture item' });
+  const item = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Cache wipe fixture item', wait: true });
   const runnerRoot = join(box.dir, 'runner-root');
   const machineHome = box.env.PULLBOARD_MACHINE_HOME;
   for (const folder of [join(machineHome, 'cache'), join(machineHome, 'main-facts'), join(runnerRoot, 'repos'), join(runnerRoot, 'cache', 'resource-pool')]) {
@@ -58,13 +58,24 @@ async function gateSelection(board, head) {
   return { inputKey: keys.get(board.testFile)?.inputKey ?? null, reused: [...reuse.reused.keys()], run: reuse.run };
 }
 
+/**
+ * A `show --json` answer without the filing baseline check, which a runner settles later (pending, then green) and which
+ * no cache holds: only the answer that stays still while caches change is compared.
+ */
+function steady(out) {
+  /** Drop the baseline check's field and its recorded move wherever they sit in the answer. */
+  const strip = value => Array.isArray(value) ? value.filter(row => row?.kind !== 'check-baseline').map(strip)
+    : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).filter(([key]) => !/^(?:item_check_baseline|checkBaseline)$/u.test(key)).map(([key, row]) => [key, strip(row)])) : value;
+  try { return JSON.stringify(strip(JSON.parse(out))); } catch { return out; }
+}
+
 /** The three answers a board gives that must not depend on any cache: show, gate selection and main-red status. */
 export async function boardAnswers(board) {
   const shown = board.run(board.repo, 'show', String(board.item.item_id), '--json');
   const explained = board.run(board.repo, 'red', 'explain', board.testFile, '--json');
   const head = board.git(board.repo, 'rev-parse', 'HEAD').trim();
   return {
-    show: { code: shown.code, out: shown.out },
+    show: { code: shown.code, out: steady(shown.out) },
     selection: await gateSelection(board, head),
     mainRed: { explain: { code: explained.code, out: explained.out }, comparison: cachedMainComparison(board.repo, head, [board.testFile]) },
   };

@@ -183,11 +183,21 @@ export function handAnsweredQuestions(before, after, readDecisions) {
 /** Remove local index metadata while retaining the one canonical person receipt verbatim. */
 function decisionReceipt({ event, at, applied, appliedAt, ...record }) { return record; }
 
-/** Preflight every file and signature before an apply writes even its first byte. */
-export function planRowApply(root, config, records, { passkeyDecision = () => false } = {}, { loadDoctrine }) {
-  const pending = records.filter((record) => !record.applied);
+/**
+ * Preflight every file and signature before an apply writes even its first byte. With holdStale, a
+ * decision whose row changed after it was made is held, with its next step, while fresh decisions
+ * still apply, so one stale row never blocks the approved ones [B2].
+ */
+export function planRowApply(root, config, records, { passkeyDecision = () => false, holdStale = false } = {}, { loadDoctrine }) {
+  const candidates = records.filter((record) => !record.applied);
   const files = new Map();
-  for (const record of pending) {
+  const pending = [];
+  const held = [];
+  const context = holdStale ? rowDecisionContext(root, config) : null;
+  for (const record of candidates) {
+    const stale = context && staleRowDecision(record, context);
+    if (stale) { held.push({ id: record.id, kind: record.kind, event: record.event, why: stale.why, next: stale.next }); continue; }
+    pending.push(record);
     const verifiedPasskey = passkeyDecision(record);
     if (verifiedPasskey) verifySignedRecords(root, readRawRecords(root));
     else verifyRowDecision(root, record);
@@ -211,7 +221,7 @@ export function planRowApply(root, config, records, { passkeyDecision = () => fa
   const previous = before?.split('\n').filter(Boolean).map(JSON.parse) ?? [];
   const receipts = pending.filter((record) => record.signature).map(decisionReceipt)
     .filter((record) => !previous.some((old) => old.signature === record.signature));
-  return { records: pending, files: [...files.values()].filter((file) => file.after !== file.before), signoffs: { before, receipts } };
+  return { records: pending, held, files: [...files.values()].filter((file) => file.after !== file.before), signoffs: { before, receipts } };
 }
 
 /** Apply preflighted file changes, restoring earlier writes if a later filesystem write fails. */

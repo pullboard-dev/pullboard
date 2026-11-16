@@ -1,6 +1,6 @@
 /** @pullboard-test-input skills/pullboard-release/SKILL.md */
 /** @pullboard-world-pin: reads the shipped skill file and pins its approved digest so the text cannot drift. */
-/** The shipped release skill is byte-identical to the approved Studio text [C7]. */
+/** The shipped release skill is byte-identical to the approved text [C7]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';

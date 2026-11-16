@@ -20,7 +20,7 @@ import { within } from './kit.js';
 const gate = await from('apps/cli/src/io/submit/gate.js');
 const { remoteSubmitAnalysis } = gate;
 const { sharedRemoteAnalysis } = gate;
-const { policyRepository } = await from('apps/cli/tests/fixtures/board/submit.js');
+const { policyRepository } = await from('../../../../store/tests/fixtures/submit.js');
 const { runFixtureGit } = await from('apps/cli/tests/fixtures/child.js');
 
 const RESULT = 'PULLBOARD_TRUSTED_RESULT ';

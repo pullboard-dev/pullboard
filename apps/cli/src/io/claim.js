@@ -1,10 +1,10 @@
+/** @pullboard-module-loads packages/health/src/io/stale/state/capture.js packages/moves/index.js */
 import { seatAt } from './item/folder/identity.js';
 import { claimWorktreeSnapshot } from '../../../../packages/seats/index.js';
 import {
   submitHandoffActor,
   isSubmitHandoffWorker,
 } from '../../../../packages/sandbox/index.js';
-import { captureLapsedClaims } from '../../../../packages/health/index.js';
 /** Helpers for `pullboard claim`: ordered moves and the criterion freeze. Split from src/cli.js, which re-exports it [C7]. */
 import { writeBoardCommand } from '../../../../packages/store/index.js';
 import { laneSeatContext } from '../../../../packages/seats/index.js';
@@ -57,7 +57,7 @@ import { isReturnedRework } from '../../../../packages/store/index.js';
 import { sealReworkRoutingPolicy } from '../../../../packages/store/index.js';
 import { SEAT_LIVE_WINDOW_MS } from '../../../../packages/store/index.js';
 import { maintenanceDurations } from '../../../../packages/config/index.js';
-import { criterionFreezer } from '../../../../packages/moves/index.js';
+import { createRequire } from 'node:module';
 import { sessionRoute } from './route.js';
 
 /** Capture accepted coordinator retirement grace beside the native line takeover window. */
@@ -78,6 +78,9 @@ async function withItemSession(info, operation, args, move) { const noted = oper
 export { relayOutboxSetting } from './relay-outbox.js';
 import { relayOutboxSetting } from './relay-outbox.js';
 
+/** The lapsed-claim capture and the criterion freezer load at the claim that runs them, never with the command [C7,#7081]. */
+const requireModule = createRequire(import.meta.url);
+
 const LAPSE_MAINTENANCE = new WeakSet();
 
 /**
@@ -91,6 +94,7 @@ async function maintainLapsedBeforeWrite(ctx, board, operation, args, actor) {
   if (relayRecovered(ctx.info.root, { includePending: true }, ctx.io)) return;
   LAPSE_MAINTENANCE.add(board);
   try {
+    const { captureLapsedClaims } = requireModule('../../../../packages/health/src/io/stale/state/capture.js');
     const snapshot = captureLapsedClaims(ctx, board, actor, { lapsedOnly: true });
     if (!snapshot) return;
     const io = { ...ctx.io, personRequest: undefined, personRequestMoveId: undefined, relayCommand: undefined, requestedCommand: undefined };
@@ -205,6 +209,13 @@ export async function ordered(ctx, board, operation, args, { prepareInWriter } =
 }
 
 /**
+ * Note a pulled submit in the agent-session ledger as the board move did: check the ledger is writable first, record once the gate job is offered.
+ *
+ * Why: the pulled submit queues its gate and the runner's receipt applies the move, so no session wrote the ledger row that `verify` reads to refuse the builder's own session [V1,B3,#7725].
+ */
+export function noteSubmitSession(info, id, record) { return record ? itemSessions.recordItemSession(info, id, 'submit', agentSessionDigest()) : itemSessions.requireLedger(info, agentSessionDigest()); }
+
+/**
  * Whether a fresh claim drops a legacy pinned policy from this item's frozen bar, re-freezing it bar-only [B4,R2].
  *
  * Why: a bar frozen by the previous release pins a whole pullboard.json commit, and every later policy commit made that
@@ -239,7 +250,7 @@ export async function claimOrdered(ctx, board, args) {
   const exitRules = accepted.exitRules;
   const held = store.getItem(board, args[0]);
   if (exitRules?.enabled && !(held.item_status === 'claimed' && held.item_owner === args[1].agentId)) {
-    const refusal = (await import('./exit/rules.js')).contextCeilingRefusal(exitRules);
+    const refusal = (await (await import('./exit/rules.js')).loadExitRules()).contextCeilingRefusal(exitRules);
     if (refusal) throw refusal;
   }
   const estimate = held.item_expected_build_minutes;
@@ -253,8 +264,10 @@ export async function claimOrdered(ctx, board, args) {
     ...(refreshPolicy && !adoptCorrection ? { refreshPolicy: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     ...(routingPolicy ? { reworkRoutingPolicy: routingPolicy } : {}),
     ...(routeCap ? { routeCap } : {}), ...(Number.isSafeInteger(ctx.config.claims?.perSeat) ? { perSeat: ctx.config.claims.perSeat } : {}),
+    // The gate waits and N this computer reads travel in the move, so a replay after an outage decides alike (#7775).
+    ...store.claimAdmission(board, args[0], args[1].agentId, Number.isSafeInteger(ctx.config.claims?.perSeat) ? ctx.config.claims.perSeat : null),
     reviewPolicy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }]);
-  if (!result.renewed && exitRules?.enabled) (await import('./exit/rules.js')).captureExitAnchor(ctx, board, args[0], args[1].agentId);
+  if (!result.renewed && exitRules?.enabled) (await (await import('./exit/rules.js')).loadExitRules()).captureExitAnchor(ctx, board, args[0], args[1].agentId);
   return result;
 }
 
@@ -266,7 +279,7 @@ export async function claimOrdered(ctx, board, args) {
  * @returns {(item: any) => { text: string, digest: string }}
  */
 export function freezer(ctx, options = {}) {
-  return criterionFreezer({ root: ctx.info.root, isMain: ctx.info.isMain, config: ctx.config }, options);
+  return requireModule('../../../../packages/moves/index.js').criterionFreezer({ root: ctx.info.root, isMain: ctx.info.isMain, config: ctx.config }, options);
 }
 
 /** Carry a safe main fast-forward out of the board transaction so claim can retry at the new HEAD. */

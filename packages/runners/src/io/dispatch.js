@@ -1,4 +1,5 @@
 import { committedRunnerController } from './tooling/committed.js';
+import { runnerControllerEntry } from './tooling/committed.js';
 
 /** How often a waiting controller re-reads its runner's lease before the job is READY. */
 const LEASE_WATCH_MS = 5_000;
@@ -11,6 +12,7 @@ import { requestFor } from './request.js';
 import { forgetRuntimeHeld } from './runtime.js';
 import { recordRuntimeHeld } from './runtime.js';
 import { spawnSsh } from '../../../transport/index.js';
+import { recordRunnerTime } from '../../../resources/index.js';
 import { recordRunnerDispatch } from '../../../resources/index.js';
 import { resultFrom } from './result.js';
 import { runnerFailure } from './result.js';
@@ -84,8 +86,8 @@ export function runOnRunner(root, command, options) {
   const request = { root, command, options, parentPid: process.pid, parentPipe: PARENT_PIPE_FD };
   const installation = committedRunnerController(fileURLToPath(new URL('../../../../', import.meta.url)), { shared: true });
   try {
-  const child = spawnSync(process.execPath, [installation?.entry ?? fileURLToPath(new URL('../../../../apps/runner/src/io/controller.js', import.meta.url)), '--pullboard-runner-controller'], {
-    cwd: root, input: JSON.stringify(request), encoding: 'utf8', maxBuffer: MAX_OUTPUT_BYTES * 6 + 1024 ** 2,
+  const child = spawnSync(process.execPath, [installation?.entry ?? runnerControllerEntry(fileURLToPath(new URL('../../../../', import.meta.url))), '--pullboard-runner-controller'], {
+    cwd: root, env: { ...process.env }, input: JSON.stringify(request), encoding: 'utf8', maxBuffer: MAX_OUTPUT_BYTES * 6 + 1024 ** 2,
     stdio: ['pipe', 'pipe', 'pipe', 'pipe'],
   });
   return bridgeResult(request, child, 'sync-bridge');
@@ -104,8 +106,8 @@ export async function runOnRunnerAsync(root, command, options) {
   const { signal, ...plainOptions } = options;
   const request = { root, command, options: plainOptions, parentPid: process.pid, parentPipe: PARENT_PIPE_FD };
   const input = JSON.stringify(request);
-  const child = spawn(process.execPath, [installation?.entry ?? fileURLToPath(new URL('../../../../apps/runner/src/io/controller.js', import.meta.url)), '--pullboard-runner-controller'], {
-    cwd: root, stdio: ['pipe', 'pipe', 'pipe', 'pipe'],
+  const child = spawn(process.execPath, [installation?.entry ?? runnerControllerEntry(fileURLToPath(new URL('../../../../', import.meta.url))), '--pullboard-runner-controller'], {
+    cwd: root, env: { ...process.env }, stdio: ['pipe', 'pipe', 'pipe', 'pipe'],
   });
   const output = [], diagnostics = [];
   let bytes = 0, error;
@@ -134,9 +136,11 @@ export async function runOnRunnerAsync(root, command, options) {
   try {
     const { status, signal: stopped } = await new Promise(resolve => child.once('close', (status, signal) => resolve({ status, signal })));
     const result = bridgeResult(request, { status, signal: stopped, error, stdout: Buffer.concat(output).toString('utf8'), stderr: Buffer.concat(diagnostics).toString('utf8') }, 'async-bridge');
+    recordRunnerTime(root, { ...span, item: options.metadata?.item, endedAt: Date.now() });
     recordRunnerDispatch({ ...span, endedAt: Date.now(), phases: result?.phases ? { ...result.phases, spawn: spawned } : null });
     return result;
   } catch (failure) {
+    recordRunnerTime(root, { ...span, item: options.metadata?.item, endedAt: Date.now(), error: failure });
     recordRunnerDispatch({ ...span, endedAt: Date.now(), error: failure });
     throw failure;
   } finally { signal?.removeEventListener('abort', abort); }

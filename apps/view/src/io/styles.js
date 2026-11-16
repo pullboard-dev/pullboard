@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/dashboard.css apps/view/src/io/item/rows.css apps/view/src/io/stage.css apps/view/src/io/project-menu.css apps/view/src/io/palette/palette.css */
+/** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/dashboard.css apps/view/src/io/activity.css apps/view/src/io/item/rows.css apps/view/src/io/stage.css apps/view/src/io/project-menu.css apps/view/src/io/palette/palette.css apps/view/src/io/nav.css apps/view/src/io/shouts.css */
 /** The view's one stylesheet composer: view.css with every @pullboard-*-styles marker filled [N26,C7]. */
 import { readFileSync } from 'node:fs';
 
@@ -7,8 +7,12 @@ const VIEW_STYLESHEETS = new Map([
   ['items-row', './item/rows.css'],
   ['stage', './stage.css'],
   ['dashboard', './dashboard.css'],
+  ['activity', './activity.css'],
   ['project-menu', './project-menu.css'],
   ['palette', './palette/palette.css'],
+  ['nav', './nav.css'],
+  ['shouts', './shouts.css'],
+  ['notch', './notch.css'],
 ]);
 
 /**

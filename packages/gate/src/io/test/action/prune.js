@@ -112,6 +112,34 @@ export function prunePartsStore(store, { capBytes = PARTS_CAP_BYTES, maxAgeMs = 
   return { removedParts, removedLists, bytes };
 }
 
+const WRITE_CHECK_MS = 30_000;
+const lastWriteCheck = new Map();
+
+/**
+ * Hold the size cap under continuous writes: called after a record is written, it sums the store's part and list sizes
+ * (cheap: no record is read) at most every 30 seconds per store and prunes only when the sum is over the cap. Why not
+ * only the ten-minute upkeep: a busy machine writes gigabytes of lists between two upkeeps.
+ *
+ * @param {string} store the test-action store
+ * @param {NodeJS.ProcessEnv} [env]
+ * @param {number} [now]
+ * @returns {{ removedParts: number, removedLists: number, bytes: number } | null} null when checked recently, under the cap or on failure
+ */
+export function enforcePartsCap(store, env = process.env, now = Date.now()) {
+  try {
+    if (now - (lastWriteCheck.get(store) ?? 0) < WRITE_CHECK_MS) return null;
+    lastWriteCheck.set(store, now);
+    const number = Number(env.PULLBOARD_TEST_PARTS_CAP_BYTES);
+    const capBytes = Number.isFinite(number) && number > 0 ? number : PARTS_CAP_BYTES;
+    let bytes = 0;
+    for (const folder of ['parts', REFERENCE_PARTS, 'lists']) {
+      for (const file of names(join(store, folder))) { try { bytes += statSync(join(store, folder, file)).size; } catch { /* Gone. */ } }
+    }
+    if (bytes <= capBytes) return null;
+    return prunePartsStore(store, { capBytes, maxAgeMs: Number(env.PULLBOARD_TEST_PARTS_MAX_AGE_MS) > 0 ? Number(env.PULLBOARD_TEST_PARTS_MAX_AGE_MS) : PARTS_MAX_AGE_MS, now });
+  } catch { return null; }
+}
+
 /**
  * Routine maintenance entry: prune at most once per ten minutes per store, under a configurable size cap
  * (PULLBOARD_TEST_PARTS_CAP_BYTES, default 10 GB) and age cap (PULLBOARD_TEST_PARTS_MAX_AGE_MS, default 24 hours).

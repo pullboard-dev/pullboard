@@ -5,9 +5,9 @@ import { existsSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { temporaryRepository } from '../../../../apps/cli/tests/fixtures/board/submit.js';
-import { temporaryDirectory } from '../../../../apps/cli/tests/fixtures/board.js';
-import { runFixtureChildAsync } from '../../../../apps/cli/tests/fixtures/child.js';
+import { temporaryRepository } from '../../../store/tests/fixtures/submit.js';
+import { temporaryDirectory } from '../../../board/tests/fixtures/board.js';
+import { runFixtureChildAsync } from '../../../gate/tests/fixtures/child.js';
 import { cachedTrunkPack } from '../../src/io/worktree.js';
 
 const IDENTITY = ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test'];

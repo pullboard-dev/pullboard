@@ -1,9 +1,11 @@
 /** Shared wire-proof validation for preparation and ordered replay [C7,V4,H16]. */
+import { engineNumber } from '../engine/number.js';
 import { Refused } from '../../../../kernel/browser.js';
-import { MAIN_RED_FAILURE_LINES_ENGINE } from '../engines/main-red-failure-lines-engine.js';
-import { KNOWN_MAIN_FAILURES_ENGINE } from '../engines/known-main-failures-engine.js';
-import { KNOWN_MAIN_REWORKS_ENGINE } from '../engines/known-main-reworks-engine.js';
-import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from '../engines/known-main-running-file-engine.js';
+const MAIN_RED_FAILURE_LINES_ENGINE = engineNumber('MAIN_RED_FAILURE_LINES_ENGINE');
+const KNOWN_MAIN_FAILURES_ENGINE = engineNumber('KNOWN_MAIN_FAILURES_ENGINE');
+const KNOWN_MAIN_REWORKS_ENGINE = engineNumber('KNOWN_MAIN_REWORKS_ENGINE');
+const KNOWN_MAIN_RUNNING_FILE_ENGINE = engineNumber('KNOWN_MAIN_RUNNING_FILE_ENGINE');
+const KNOWN_MAIN_RECEIPT_ENGINE = engineNumber('KNOWN_MAIN_RECEIPT_ENGINE');
 
 const COMMIT = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 
@@ -12,6 +14,11 @@ function projectFile(value) {
   return typeof value === 'string' && value.length > 0 && value.length <= 4096
     && !/[:\\\p{Cc}\p{Zl}\p{Zp}]/u.test(value)
     && value.split('/').every(part => part && part !== '.' && part !== '..');
+}
+
+/** A main receipt id a known main failure cites: one bounded single line (a run id or a main-test job id). */
+function receiptId(value) {
+  return typeof value === 'string' && value.length > 0 && value.length <= 4096 && !/[\p{Cc}\p{Zl}\p{Zp}]/u.test(value);
 }
 
 /** The failure details a known main failure keeps beside its signature (first error line, stable signature and asserted values), each a bounded single line. */
@@ -42,16 +49,26 @@ export function submissionProof(value, engine = KNOWN_MAIN_REWORKS_ENGINE) {
   if (known !== undefined && (engine < KNOWN_MAIN_FAILURES_ENGINE || !known || !COMMIT.test(known.main ?? '')
     || !Array.isArray(known.failures) || !known.failures.length || known.failures.some(row => !projectFile(row?.file)
       || typeof row.name !== 'string' || !row.name || row.name.length > 8192 || !/^[a-f0-9]{64}$/u.test(row.signature ?? '')
-      || row.ran !== undefined && (engine < KNOWN_MAIN_RUNNING_FILE_ENGINE || !projectFile(row.ran))))) {
+      || row.ran !== undefined && (engine < KNOWN_MAIN_RUNNING_FILE_ENGINE || !projectFile(row.ran))
+      || row.receipt !== undefined && (engine < KNOWN_MAIN_RECEIPT_ENGINE || !receiptId(row.receipt))))) {
     throw new Refused('SUBMISSION_PROOF', 'known main failures need their exact main commit, project test files, names and failure signatures on a supporting engine');
   }
   if (known && known.failures.some(row => engine >= KNOWN_MAIN_REWORKS_ENGINE
     ? !Number.isSafeInteger(row.item) || row.item < 1 : row.item !== undefined)) {
     throw new Refused('SUBMISSION_PROOF', 'known main failure repair links need positive item ids on a supporting engine; historical receipts keep their original format');
   }
+  // Cases red on main with several candidate repairs never fail the gate; the proof names each with its candidates (#2528, #7373).
+  const ambiguous = value.knownMainAmbiguous;
+  if (ambiguous !== undefined && (engine < KNOWN_MAIN_REWORKS_ENGINE || !Array.isArray(ambiguous) || !ambiguous.length || ambiguous.some(row => !projectFile(row?.file)
+    || typeof row.name !== 'string' || !row.name || row.name.length > 8192 || !Array.isArray(row.candidates) || row.candidates.length < 2
+    || row.candidates.some(item => !Number.isSafeInteger(item) || item < 1)))) {
+    throw new Refused('SUBMISSION_PROOF', 'known main cases with several candidate repairs need their project test file, name and two or more positive repair ids on a supporting engine');
+  }
   return { version: 1, files: [...new Set(value.files)].sort(), full: value.full,
     deferred: value.deferred, reason: value.reason, ...(value.deferredFiles ? { deferredFiles: [...new Set(value.deferredFiles)].sort() } : {}),
-    ...(known ? { knownMainFailures: { main: known.main, failures: known.failures.map(({ file, name, signature, item, ran, firstError, stable, stableData }) => ({ file, name, signature,
-      ...failureDetails({ firstError, stable, stableData }, engine), ...(item === undefined ? {} : { item }), ...(ran !== undefined && engine >= KNOWN_MAIN_RUNNING_FILE_ENGINE ? { ran } : {}) })) } } : {}) };
+    ...(known ? { knownMainFailures: { main: known.main, failures: known.failures.map(({ file, name, signature, item, ran, receipt, firstError, stable, stableData }) => ({ file, name, signature,
+      ...failureDetails({ firstError, stable, stableData }, engine), ...(item === undefined ? {} : { item }), ...(ran !== undefined && engine >= KNOWN_MAIN_RUNNING_FILE_ENGINE ? { ran } : {}),
+      ...(receipt !== undefined && engine >= KNOWN_MAIN_RECEIPT_ENGINE ? { receipt } : {}) })) } } : {}),
+    ...(ambiguous ? { knownMainAmbiguous: ambiguous.map(({ file, name, candidates }) => ({ file, name, candidates: [...candidates] })) } : {}) };
 }
 

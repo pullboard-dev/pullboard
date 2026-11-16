@@ -8,7 +8,7 @@ import { runFixtureChildAsync } from '../../../../apps/cli/tests/fixtures/child.
 import { runFixtureExecFile } from '../../../../apps/cli/tests/fixtures/child.js';
 import { startFixtureChild } from '../../../../apps/cli/tests/fixtures/child.js';
 import { createTransport } from '../../index.js';
-import { runGate } from '../../index.js';
+import { dispatchGate } from '../../index.js';
 import { shellWord } from '../../index.js';
 import { fetchResult } from '../../index.js';
 import { startShard } from '../../index.js';
@@ -35,7 +35,7 @@ test('clause 1: the per-gate runner-controller is replaced by the shared channel
   try {
     const runners = [{ host: 'runner-a', root: `${files.root}/roots/a` }, { host: 'runner-b', root: `${files.root}/roots/b` }];
     const release = `${files.root}/release`;
-    const gates = Array.from({ length: 6 }, (_, index) => runGate({
+    const gates = Array.from({ length: 6 }, (_, index) => dispatchGate({
       transport, runner: runners[index % 2], job: `gate-${index}`, owner: 'driver-a', intervalMs: 50,
       shards: ['s0', 's1'].map(shard => ({ shard, command: `while [ ! -f ${shellWord(release)} ]; do sleep 0.05; done; printf '${index}-${shard}'` })),
     }));

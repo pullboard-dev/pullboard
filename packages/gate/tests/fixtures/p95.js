@@ -7,10 +7,12 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { dirname } from 'node:path';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
-import { runFixtureChild } from '../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChildAsync } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from './child.js';
+import { runFixtureChildAsync } from './child.js';
 import { awaitNestedRun } from '../../index.js';
 import { TEST_FILE_CORES_ENV } from '../../index.js';
 import { TEST_FILE_POOL_ENV } from '../../index.js';
@@ -20,9 +22,17 @@ import { GATE_SLOT_TOKEN_ENV } from '../../../resources/index.js';
 import { BROWSER_SLOT_HELD_ENV } from '../../../resources/index.js';
 import { testsNeedBrowser } from '../../index.js';
 
-const runner = fileURLToPath(new URL('../../../../apps/cli/src/io/run/tests.js', import.meta.url));
+const root = fileURLToPath(new URL('../../../../', import.meta.url));
+/**
+ * The launcher the shim at gate/src/io/run/tests.js forwards to, found from the root package's `bin` so this fixture names no app path.
+ * Why: a gate lease is held by the launcher's own pid, one hop below the shim, so the run's parent pid must be the launcher's for the lease count to see it.
+ */
+const runner = resolve(root, dirname(JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).bin.pullboard), 'src/io/run/tests.js');
 
-/** Make a real test file; its exit record includes startup and any post-spawn pool wait, never dispatcher queue time. */
+/**
+ * Make a real test file; its exit record includes startup and any post-spawn pool wait, never dispatcher queue time.
+ * The CPU step runs about 0.4 s, so a scheduler hiccup on a shared runner is a small share of a lifetime rather than a doubling.
+ */
 function workload(file) {
   return `import assert from 'node:assert/strict';
 import { pbkdf2Sync } from 'node:crypto';
@@ -44,7 +54,7 @@ test('a real Git and SQLite workload [C7]', () => {
     db.exec('COMMIT');
     assert.equal(db.prepare('SELECT sum(n) AS total FROM value').get().total, 4950);
   } finally { db.close(); }
-  assert.equal(pbkdf2Sync('private-pool-workload', 'fixed-fixture-input', 200000, 32, 'sha256').length, 32);
+  assert.equal(pbkdf2Sync('private-pool-workload', 'fixed-fixture-input', 800000, 32, 'sha256').length, 32);
 });
 `;
 }
@@ -82,16 +92,21 @@ export async function measureFileInflation(t, mode) {
   const files = Array.from({ length: 8 }, (_, n) => 'work-' + n + '.test.js');
   for (const file of files) writeFileSync(join(root, file), workload(file));
   assert.equal(await testsNeedBrowser(root, files), false, 'these Git-only files declare no browser');
-  const standalone = [];
-  for (const file of files) {
-    const result = await awaitNestedRun(runFixtureChildAsync(process.execPath, [runner, file], {
-      cwd: root, env: { ...env, FIXTURE_RUN: 'alone' },
-    }));
-    assert.equal(result.status, 0, result.failure ?? result.stdout);
-    standalone.push({ file, status: result.status, elapsedMs: result.elapsedMs, stdout: result.stdout, stderr: result.stderr });
-  }
-  const alone = new Map(observations(times).map(row => [row.file, row.lifetimeMs]));
-  assert.equal(alone.size, 8, 'all eight standalone file processes exited and recorded their real lifetimes');
+  /** Run each file alone under a run label; the label keeps these rows apart from the concurrent rows. */
+  const runAlone = async label => {
+    const rows = [];
+    for (const file of files) {
+      const result = await awaitNestedRun(runFixtureChildAsync(process.execPath, [runner, file], {
+        cwd: root, env: { ...env, FIXTURE_RUN: label },
+      }));
+      assert.equal(result.status, 0, result.failure ?? result.stdout);
+      rows.push({ file, status: result.status, elapsedMs: result.elapsedMs, stdout: result.stdout, stderr: result.stderr });
+    }
+    return rows;
+  };
+  const standalone = await runAlone('alone');
+  const aloneBefore = new Map(observations(times).filter(row => row.run === 'alone').map(row => [row.file, row.lifetimeMs]));
+  assert.equal(aloneBefore.size, 8, 'all eight standalone file processes exited and recorded their real lifetimes');
   const runs = Array.from({ length: 4 }, (_, n) => runFixtureChildAsync(process.execPath, [runner, ...files], {
     cwd: root, env: { ...env, FIXTURE_RUN: 'concurrent-' + n },
   }));
@@ -124,11 +139,19 @@ export async function measureFileInflation(t, mode) {
   }
   if (sampleError) throw sampleError;
   for (const result of results) assert.equal(result.status, 0, result.failure ?? result.stdout);
+  // Other tests share a loaded runner, so the same files run alone again right after the concurrent phase.
+  // The baseline is the slower of the two same-run standalone lifetimes, so ambient load that changes between
+  // the phases cannot inflate the ratio. Overspawn is still refused by the process-count check, never by this baseline.
+  const standaloneAfter = await runAlone('alone-after');
+  const aloneAfter = new Map(observations(times).filter(row => row.run === 'alone-after').map(row => [row.file, row.lifetimeMs]));
+  assert.equal(aloneAfter.size, 8, 'all eight bracketing standalone file processes recorded their real lifetimes');
+  const alone = new Map(files.map(file => [file, Math.max(aloneBefore.get(file), aloneAfter.get(file))]));
   const concurrent = observations(times).filter(row => row.run.startsWith('concurrent-'));
   assert.equal(concurrent.length, 32, 'four runs of all eight real files completed without action reuse');
   const samples = concurrent.map(row => ({ ...row, standaloneMs: alone.get(row.file), ratio: row.lifetimeMs / alone.get(row.file) }));
   const ordered = samples.map(row => row.ratio).sort((a, b) => a - b);
-  return { mode, cores: 2, peakFileProcesses, peakConcurrentRuns, standalone, standaloneFileLifetimes: Object.fromEntries(alone), samples,
+  return { mode, cores: 2, peakFileProcesses, peakConcurrentRuns, standalone, standaloneAfter, standaloneFileLifetimes: Object.fromEntries(alone),
+    standaloneBefore: Object.fromEntries(aloneBefore), standaloneAfterLifetimes: Object.fromEntries(aloneAfter), samples,
     percentile: 'nearest rank: ceil(0.95 * 32)-1', p95: ordered[Math.ceil(0.95 * ordered.length) - 1],
     runs: results.map(result => ({ status: result.status, signal: result.signal, elapsedMs: result.elapsedMs,
       stdout: result.stdout, stderr: result.stderr })) };

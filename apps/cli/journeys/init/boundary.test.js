@@ -61,10 +61,12 @@ test('clause 1: only explicit relay commands open outbound connections; the view
     // isIP only parses an address string for an explicit LAN view [H19]; it opens nothing.
     (file === 'apps/view/src/io/address.js' && line.trim() === "import { isIP } from 'node:net';") ||
     (file === 'packages/sync/src/io/local.js' && line.trim() === "import { request as httpRequest } from 'node:http';") ||
-    // The runner pull transport is the named opt-in door: runners or pullboard serve dial it only when the person turns them on (on one machine it is localhost) [P7].
-    (file === 'packages/transport/src/io/pull/http.js' && /node:https?\b/u.test(line)) ||
+    // The transport cell's one wire door: the pull server and runner reach HTTP only through it, and only when the person turns them on (on one machine it is localhost) [P7].
+    (file === 'packages/transport/src/io/wire.js' && /^import \{ (?:createServer|request as https?Request) \} from 'node:https?';$/u.test(line.trim())) ||
     // The remote-board client is an I/O adapter behind the board.url opt-in: the person sets board.url, so it may import node:http(s) [P7].
     (file === 'apps/cli/src/io/remote/board.js' && /^import \{ request as https?Request \} from 'node:https?';$/u.test(line.trim())) ||
+    // The serve handoff only calls Server.prototype.close on the listening server it was handed, to stop it accepting; it opens nothing [C7].
+    (file === 'packages/drive/src/io/handoff.js' && line.trim() === "import { Server } from 'node:net';") ||
     // Scanners that name network calls in order to refuse them.
     (file === 'apps/view/src/io/coverage.js' && /^const BROWSER_CALLS = \/\\b\(\?:/u.test(line.trim())) ||
     (file === 'packages/gate/src/io/board/write.js' && line.trim() === "if (['fetch', 'WebSocket', 'EventSource', 'globalThis.fetch', 'globalThis.WebSocket', 'globalThis.EventSource'].includes(name)) {") ||

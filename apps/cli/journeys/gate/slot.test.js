@@ -13,13 +13,17 @@ import {
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
 const { BIN, sandbox, project, holdingGate, launch, waitFor, gateEvents, commitFile } = e2e;
 
-test('submit needs a clean tree, nothing untracked, and the gate green at HEAD [V4, B9]', async () => {
+// Real processes on purpose: every launch() below is a live gate or git push that holds the machine gate slot, and the test
+// proves the slot, its queue order and the children's exit. Only the short CLI calls beside them (settings, resources, claim) run through runIn (#8266).
+
+test('submit needs a clean tree, nothing untracked, and the gate green at HEAD [V4, B9]', async (t) => {
   const box = project();
   fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1');
   assert.match((await box.runLocal(box.web, 'claim', '1')).out, /claimed #1/);
@@ -30,22 +34,22 @@ test('submit needs a clean tree, nothing untracked, and the gate green at HEAD [
   writeFileSync(join(box.web, 'web', 'stray.txt'), 'x');
   assert.match((await box.runLocal(box.web, 'submit', '1')).err, /UNTRACKED/);
   rmSync(join(box.web, 'web', 'stray.txt'));
-  const submitted = (await box.runLocal(box.web, 'submit', '1'));
-  assert.equal(submitted.code, 0, submitted.err);
-  assert.match(submitted.out, /submitted #1 at [0-9a-f]{12}; no item check; full gate: affected-test selection is not enabled for this project/u);
-  assert.match(submitted.out, /test counts unavailable/u, 'a shell gate does not report test-case counts');
-  assert.match(submitted.out, /pinned as refs\/pullboard\/items\/1\/[0-9a-f]{12}/u);
+  const sent = await box.runLocal(box.web, 'submit', '1', '--json');
+  assert.equal(sent.code, 0, sent.err);
+  // A pulled submit queues the whole gate; the local runner's receipt settles it and the pin follows [P7,V4].
+  const submitted = await settleSubmit(t, { repo: box.repo, env: box.env, run: (cwd, ...args) => box.runLocal(cwd, ...args) }, JSON.parse(sent.out));
+  assert.equal(submitted.gateJob.step, 'done');
   const head = box.git(box.web, 'rev-parse', 'HEAD');
   assert.equal(box.git(box.repo, 'rev-parse', `refs/pullboard/items/1/${head.slice(0, 12)}`), head, 'submit pins the commit');
 });
 
-test('submit keeps its machine gate slot until the submitted check finishes [V4,Q4]', async () => {
+test('submit keeps its machine gate slot until the submitted check finishes [V4,Q4]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async () => {
   const box = sandbox();
   const gate = holdingGate(box);
   const projectBox = project(gate.command, box);
-  assert.equal(projectBox.run(projectBox.repo, 'settings', 'gateSlots', '1').code, 0);
+  assert.equal((await projectBox.runIn(projectBox.repo, 'settings', 'gateSlots', '1')).code, 0);
   fixtureAdd(projectBox.run, projectBox.repo, 'web', 'Page', '--specs', 'G1');
-  assert.match(projectBox.run(projectBox.web, 'claim', '1').out, /claimed #1/);
+  assert.match((await projectBox.runIn(projectBox.web, 'claim', '1')).out, /claimed #1/);
   assert.equal(commitFile(projectBox, projectBox.web, 'web/page.html', 'page', 'feat(web): page [G1]').status, 0);
   writeFileSync(gate.mode, 'armed');
   const children = [];
@@ -76,7 +80,7 @@ test('pre-push keeps its machine gate slot until the hook check finishes [C3,Q4]
   const remote = join(box.dir, 'remote.git');
   projectBox.git(box.dir, 'init', '-q', '--bare', remote);
   projectBox.git(projectBox.repo, 'remote', 'add', 'origin', remote);
-  assert.equal(projectBox.run(projectBox.repo, 'settings', 'gateSlots', '1').code, 0);
+  assert.equal((await projectBox.runIn(projectBox.repo, 'settings', 'gateSlots', '1')).code, 0);
   writeFileSync(gate.mode, 'armed');
   const children = [];
   try {
@@ -102,7 +106,7 @@ test('explicit and trunk pre-push landings jump the machine gate line and show i
   const box = sandbox();
   const gate = holdingGate(box);
   const projectBox = project(gate.command, box);
-  assert.equal(projectBox.run(projectBox.repo, 'settings', 'gateSlots', '1').code, 0);
+  assert.equal((await projectBox.runIn(projectBox.repo, 'settings', 'gateSlots', '1')).code, 0);
   writeFileSync(gate.mode, 'armed');
 
   const ordinary = launch(projectBox, projectBox.repo, process.execPath, [BIN, 'gate']);
@@ -113,8 +117,8 @@ test('explicit and trunk pre-push landings jump the machine gate line and show i
     explicitLanding = launch(projectBox, projectBox.web, process.execPath, [BIN, 'gate', '--landing']);
     children.push(explicitLanding);
     let latestResources = '';
-    await waitFor(() => {
-      const result = projectBox.run(projectBox.repo, 'resources', '--json');
+    await waitFor(async () => {
+      const result = await projectBox.runIn(projectBox.repo, 'resources', '--json');
       assert.equal(result.code, 0, result.err);
       latestResources = result.out;
       const resource = JSON.parse(result.out).resources.find((entry) => entry.scope === 'machine' && entry.name === 'gate');
@@ -122,11 +126,11 @@ test('explicit and trunk pre-push landings jump the machine gate line and show i
     }, 'explicit gate run to appear in the resource listing').catch((error) => {
       throw new Error(`${error.message}\nresources: ${latestResources}\nlanding stdout: ${explicitLanding.stdoutText}\nlanding stderr: ${explicitLanding.stderrText}\nevents: ${gateEvents(gate).join(',')}`);
     });
-    const json = projectBox.run(projectBox.repo, 'resources', '--json');
+    const json = await projectBox.runIn(projectBox.repo, 'resources', '--json');
     assert.equal(json.code, 0, json.err);
     const queued = JSON.parse(json.out).resources.find((resource) => resource.scope === 'machine' && resource.name === 'gate');
     assert.deepEqual(queued.line.map(({ landing }) => landing), [true]);
-    const humanQueue = projectBox.run(projectBox.repo, 'resources');
+    const humanQueue = await projectBox.runIn(projectBox.repo, 'resources');
     assert.equal(humanQueue.code, 0, humanQueue.err);
     assert.match(humanQueue.out, /waiting: .* \(landing\)/u);
     writeFileSync(gate.release, 'released');
@@ -144,7 +148,7 @@ test('explicit and trunk pre-push landings jump the machine gate line and show i
   const remote = join(pushBox.dir, 'remote.git');
   pushProject.git(pushBox.dir, 'init', '-q', '--bare', remote);
   pushProject.git(pushProject.repo, 'remote', 'add', 'origin', remote);
-  assert.equal(pushProject.run(pushProject.repo, 'settings', 'gateSlots', '1').code, 0);
+  assert.equal((await pushProject.runIn(pushProject.repo, 'settings', 'gateSlots', '1')).code, 0);
   writeFileSync(pushGate.mode, 'armed');
   const holder = launch(pushProject, pushProject.web, process.execPath, [BIN, 'gate']);
   const pushChildren = [holder];
@@ -154,8 +158,8 @@ test('explicit and trunk pre-push landings jump the machine gate line and show i
     push = launch(pushProject, pushProject.repo, 'git', ['push', '-q', 'origin', 'main']);
     pushChildren.push(push);
     let latestPushResources = '';
-    await waitFor(() => {
-      const result = pushProject.run(pushProject.repo, 'resources', '--json');
+    await waitFor(async () => {
+      const result = await pushProject.runIn(pushProject.repo, 'resources', '--json');
       assert.equal(result.code, 0, result.err);
       latestPushResources = result.out;
       const resource = JSON.parse(result.out).resources.find((entry) => entry.scope === 'machine' && entry.name === 'gate');
@@ -163,11 +167,11 @@ test('explicit and trunk pre-push landings jump the machine gate line and show i
     }, 'trunk pre-push gate to appear in the resource listing').catch((error) => {
       throw new Error(`${error.message}\nresources: ${latestPushResources}\npush stdout: ${push.stdoutText}\npush stderr: ${push.stderrText}\nevents: ${gateEvents(pushGate).join(',')}`);
     });
-    const json = pushProject.run(pushProject.repo, 'resources', '--json');
+    const json = await pushProject.runIn(pushProject.repo, 'resources', '--json');
     assert.equal(json.code, 0, json.err);
     const queued = JSON.parse(json.out).resources.find((resource) => resource.scope === 'machine' && resource.name === 'gate');
     assert.deepEqual(queued.line.map(({ landing }) => landing), [true], 'the hook marks its trunk update as a landing');
-    const humanQueue = pushProject.run(pushProject.repo, 'resources');
+    const humanQueue = await pushProject.runIn(pushProject.repo, 'resources');
     assert.equal(humanQueue.code, 0, humanQueue.err);
     assert.match(humanQueue.out, /waiting: .* \(landing\)/u);
     writeFileSync(pushGate.release, 'released');

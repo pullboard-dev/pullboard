@@ -42,7 +42,17 @@ import {
 } from '../../../../../sandbox/light.js';
 
 /** The hard stop for an audit file, which runs outside the interactive budget but never without a bound. */
-const AUDIT_FILE_KILL_MS = 600_000;
+export const AUDIT_FILE_KILL_MS = 600_000;
+/** Set by `pullboard test --no-file-limit` on its own job: every file in the run is judged as an audit file, with the same hard stop. */
+const NO_FILE_LIMIT_ENV = 'PULLBOARD_TEST_NO_FILE_LIMIT';
+
+/**
+ * The per-file kill a budget row asks the watchdog for: an audit row (or --no-file-limit) lifts it to the hard stop, any other row sets its own ms.
+ * Pulled out of fileRun so the lift can be tested without launching a file.
+ */
+export function rowFileKillMs(row, env = {}) {
+  return row?.audit || env[NO_FILE_LIMIT_ENV] === '1' ? AUDIT_FILE_KILL_MS : row?.ms;
+}
 
 /** One parent FIFO reservation at a time; transferred actual workers may remain live concurrently. */
 function acquisitionQueue() {
@@ -172,7 +182,7 @@ export function dispatchTestFiles(options, env) {
       if (preload < 0 || !execArgv[preload + 1]) throw new Error('test-file dispatch requires its ordinary runner preload');
       // An audit row lifts the watchdog's 180 s kill (the wall and idle limits still bound a stuck file); any other row sets it.
       const row = budgets.get(testFileRelative(budgetRoot, resolve(cwd, file)));
-      const rowBudget = row?.audit ? AUDIT_FILE_KILL_MS : row?.ms;
+      const rowBudget = rowFileKillMs(row, env);
       execArgv[preload + 1] = admissionImport(token.value, browser, execArgv[preload + 1], outputMarker, rowBudget);
       fileExited = fileExitObserver(execArgv[preload + 1], file);
       const source = run({ ...options, files: [file], shard: undefined, concurrency: 1, signal,
@@ -198,7 +208,7 @@ export function dispatchTestFiles(options, env) {
         const actualWorkers = await fileExited();
         if (summary.success && actualWorkers !== 1) throw new Error(`test file has no actual worker exit receipt: ${file}`);
         const portableFile = testFileRelative(budgetRoot, resolve(cwd, file));
-        const budget = budgets.get(portableFile);
+        const budget = env[NO_FILE_LIMIT_ENV] === '1' ? { ...budgets.get(portableFile), audit: true } : budgets.get(portableFile);
         // Both limits charge the file for its own work: wall time divided by the runner's measured load per core (#4944).
         const scale = testFileLoadScale([...loads, sampleLoad()], availableParallelism());
         const over = testFileBudgetFailure(portableFile, summary.duration_ms, budget.ms, budget.audit, scale)

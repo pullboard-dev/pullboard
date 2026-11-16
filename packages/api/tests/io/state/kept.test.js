@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell api */
 /**
  * A big board's state loads in seconds: a read of an unchanged board is served from the record kept for it with no
  * build, a first page load may take the kept record while the next build runs, and the reply is gzip-encoded when the
@@ -26,14 +26,22 @@ const BUILD_MS = 400;
  * The real materializer beside a stub worker that answers each build after BUILD_MS with a record at the revision it was
  * asked for and the build's number as its sequence. Why a copy: the materializer starts the worker beside itself.
  */
-async function stubbedMaterializer(t) {
+async function stubbedMaterializer(t, { restored = false } = {}) {
   const files = privateFixtureFiles('pullboard-kept-');
   t.after(() => rmSync(files.root, { recursive: true, force: true }));
   files.write('materializer.js', readFileSync(MATERIALIZER));
   files.write('materializer/worker.js', `import { parentPort } from 'node:worker_threads';
 let built = 0;
+let restored = ${restored};
 parentPort.on('message', (message) => {
   if (message.type === 'close') return process.exit(0);
+  if (restored) {
+    restored = false;
+    const parts = ['{"sequence":0,"observedAt":"' + new Date().toISOString() + '","unseen":', '}'];
+    const variant = { json: parts, validator: parts };
+    parentPort.postMessage({ type: 'record', key: message.key, board: message.board, restored: true, record: { revision: 'saved', sequence: 0, observedAt: Date.now(),
+      eventLogVersion: 1, summary: variant, compact: variant, full: null, deltas: {}, shouts: [], search: [], reportValidator: null } });
+  }
   built += 1;
   const sequence = built;
   parentPort.postMessage({ type: 'build', board: message.board, full: false });
@@ -51,8 +59,8 @@ parentPort.on('message', (message) => {
 }
 
 /** A materializer over one stub board whose revision the test sets, counting the builds it starts. */
-async function stubBoard(t) {
-  const startStateMaterializer = await stubbedMaterializer(t);
+async function stubBoard(t, options = {}) {
+  const startStateMaterializer = await stubbedMaterializer(t, options);
   const board = { id: 'kept', root: '/kept' };
   const builds = [];
   const heard = new Set();
@@ -74,7 +82,7 @@ async function stubBoard(t) {
    * order, so the count after it shows whether any read before it started a build of its own.
    */
   const probe = async (revision) => { watched.revision = revision; const before = builds.length; const sent = await read(); return { ...sent, started: builds.length - before - 1 }; };
-  return { builds, watched, read, built, probe };
+  return { materializer, board, builds, watched, read, built, probe };
 }
 
 test('clause 1: a second state read with no board change is served from the kept record without a build [A2,C7]', async (t) => {
@@ -147,4 +155,55 @@ test('clause 2: the state reply is gzip-encoded when the request accepts gzip, w
   assert.equal(unchanged.body.length, 0);
   const refused = await rawRead(port, { 'accept-encoding': 'gzip;q=0, identity' });
   assert.equal(refused.headers['content-encoding'], undefined, 'gzip;q=0 refuses gzip');
+});
+
+/** One timed delta read from `since`, with the sequence it answers at. */
+async function timedDelta(materializer, board, since) {
+  const started = performance.now();
+  const answer = await materializer.delta(board, null, { since }, (error) => ({ error: { code: String(error.message) } }));
+  return { sequence: answer.sequence, ms: performance.now() - started };
+}
+
+test('#6850 clause 1: a delta read after a change answers at once from the last build and starts the build that catches up [A2,C7]', async (t) => {
+  const { materializer, board, watched, read } = await stubBoard(t);
+  const first = await read();
+  watched.revision = 'r2';
+  const delta = await timedDelta(materializer, board, first.sequence);
+  assert.equal(delta.sequence, first.sequence, 'the delta answers at the last build, before the change');
+  assert.ok(delta.ms < BUILD_MS / 2, `the delta read took ${delta.ms.toFixed(1)} ms, not a build's ${BUILD_MS} ms`);
+  const landed = materializer.landed(board);
+  await new Promise((done) => { const check = () => (landed.count() >= 1 ? done() : setTimeout(check, 10)); check(); });
+  const later = await timedDelta(materializer, board, first.sequence);
+  assert.ok(later.sequence > first.sequence, 'the build the change started catches the next delta up');
+});
+
+test('#6850 clause 1: on a restarted server a restored snapshot answers the waiting kept read, though the board moved after it was saved [A2,C7]', async (t) => {
+  const { read } = await stubBoard(t, { restored: true });
+  const kept = await read({ kept: true });
+  assert.equal(kept.sequence, 0, 'the kept read takes the restored record, saved at an older revision');
+  assert.ok(kept.ms < BUILD_MS / 2, `the kept read took ${kept.ms.toFixed(1)} ms, not the first build's ${BUILD_MS} ms`);
+  const plain = await read();
+  assert.ok(plain.sequence > 0, 'a plain read still waits for a build of the board as it is');
+});
+
+test('#6850 clause 2: the build that lands after a read answered from an older one is announced once, and a plain read still returns the write it follows [A2,C7]', async (t) => {
+  const { materializer, board, watched, read } = await stubBoard(t);
+  const first = await read();
+  const landed = materializer.landed(board);
+  let heard = 0;
+  const stop = landed.subscribe(() => { heard += 1; });
+  t.after(stop);
+  await read();
+  await read({ kept: true });
+  assert.equal(heard, 0, 'reads of an unchanged board announce nothing');
+  watched.revision = 'r2';
+  const behind = await read({ kept: true });
+  assert.equal(behind.sequence, first.sequence, 'the kept read answers from the build before the change');
+  await new Promise((done) => { const check = () => (landed.count() >= 1 ? done() : setTimeout(check, 10)); check(); });
+  assert.equal(heard, 1, 'the landing build is announced once');
+  assert.equal(landed.count(), 1);
+  watched.revision = 'r3';
+  const plain = await read();
+  assert.ok(plain.sequence > behind.sequence + 1, 'a plain read after a change waits for the build that has it');
+  assert.equal(heard, 1, 'a plain read is never answered from an older build, so its build is not announced');
 });

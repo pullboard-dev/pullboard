@@ -1,7 +1,7 @@
 /** Deterministic, receiver-safe payloads for items affected by an approved spec-row correction [V2,H16]. */
 import { createHash } from 'node:crypto';
 import { parseSpec } from './main.js';
-import { rowDecisions } from '../logic/row/query.js';
+import { rowDecisions } from '../logic/row/draft.js';
 import { Refused } from '../../../kernel/index.js';
 
 /** Parse the exact source and replacement captured in one approved person decision. */

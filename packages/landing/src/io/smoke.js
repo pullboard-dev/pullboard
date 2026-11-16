@@ -2,11 +2,9 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
 import { gitSpawnSync } from '../../../git/index.js';
@@ -14,6 +12,7 @@ import { gateRunnerAdmission } from '../../../config/index.js';
 import { runCheckOnRunner } from './main/red.js';
 import { runTail } from './main/red.js';
 import { withMainCheckout } from './main/red.js';
+import { scratchFolder } from '../../../config/index.js';
 
 /** Each command gets this long; the whole smoke is about 15 s, so a hung command is a failure, not a wait. */
 const COMMAND_MS = 30_000;
@@ -116,7 +115,7 @@ function runChains(entry, env, chains) {
 export function runLandingCliSmoke(candidate, { record = false, git: launch = gitSpawnSync } = {}) {
   const entry = join(candidate, 'apps/cli/pullboard.js');
   if (!existsSync(entry)) return { ran: [] };
-  const home = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-landing-smoke-')));
+  const home = realpathSync(scratchFolder('pullboard-landing-smoke-'));
   try {
     mkdirSync(join(home, 'machine-home'));
     // A background view would outlive the smoke; the scratch machine keeps it off.
@@ -178,7 +177,7 @@ export function runCommitCliSmoke(root, commit, { git = gitSpawnSync } = {}) {
   if (smokeReceiptExists(root, commit, git)) return { ran: [], reused: true };
   const exists = git(['cat-file', '-e', `${commit}:apps/cli/pullboard.js`], { cwd: root });
   if (exists.status !== 0) return { ran: [] };
-  const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-landing-tree-')));
+  const directory = realpathSync(scratchFolder('pullboard-landing-tree-'));
   try {
     const archive = git(['archive', '--format=tar', commit], { cwd: root, maxBuffer: 1024 ** 3 });
     const unpacked = archive.status === 0 ? spawnSync('tar', ['-x', '-C', directory], { input: archive.stdout }) : archive;
@@ -207,7 +206,7 @@ const RUNNER_SMOKE = `node --input-type=module -e "const { runLandingCliSmoke } 
 export async function smokeCandidate(candidate, { admission = gateRunnerAdmission(), record = false } = {}) {
   if (admission.runnerOnly !== true) return runLandingCliSmoke(candidate, { record });
   if (!existsSync(join(candidate, 'apps/cli/pullboard.js'))) return { ran: [] };
-  const run = await runCheckOnRunner(candidate, RUNNER_SMOKE, { kind: 'landing-smoke', admission });
+  const run = await runCheckOnRunner(candidate, RUNNER_SMOKE, { kind: 'landing-smoke', item: 'landing batch', admission });
   if (!run.isGreen) throw new Refused('LAND_CLI_SMOKE', `the candidate's CLI smoke failed on runner ${run.executionRunner ?? 'unknown'}: ${runTail(run)}; fix it before landing`);
   if (record) recordSmokeReceipt(candidate);
   return { ran: ['runner'], runner: run.executionRunner };

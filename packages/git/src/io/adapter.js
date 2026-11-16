@@ -18,6 +18,8 @@ export function withProjectGitTimeout(root, work, { timeoutMs = PROJECT_GIT_TIME
   if (typeof root !== 'string' || !root || !Number.isSafeInteger(timeoutMs) || timeoutMs < 1) throw new TypeError('project Git reads need a root and positive timeout');
   const parent = projectReads.getStore();
   const bound = Math.min(timeoutMs, parent?.timeoutMs ?? timeoutMs);
+  // A nested read of the same root belongs to the outer retry; retrying inside it multiplied the attempts (3 x 3 x 5 s) past the discovery bound [C7].
+  if (parent?.root === root) return projectReads.run({ root, timeoutMs: bound, last: parent.last }, work);
   // A read that timed out under load (an API restart, a busy disk) tries again before the project is skipped; the last try says so [C7].
   for (let attempt = 1; ; attempt += 1) {
     try { return projectReads.run({ root, timeoutMs: bound, last: attempt >= PROJECT_GIT_ATTEMPTS }, work); }
@@ -59,20 +61,22 @@ export function currentGitAdapter() {
   return adapters.getStore() ?? realGitAdapter;
 }
 
+export function needAdapter(adapter) {
+  const method = ['spawnSync', 'execFileSync', 'spawn'].find(name => typeof adapter?.[name] !== 'function');
+  if (method) throw new TypeError(`Git adapter needs ${method}`);
+}
+export { adapters, selections };
+
 /** Select an implementation for one call chain; concurrent and nested work cannot change its peers. */
 export function withGitAdapter(adapter, work) {
-  for (const method of ['spawnSync', 'execFileSync', 'spawn']) {
-    if (typeof adapter?.[method] !== 'function') throw new TypeError(`Git adapter needs ${method}`);
-  }
+  needAdapter(adapter);
   const forced = selections.getStore()?.audit || process.env.PULLBOARD_ADAPTER_AUDIT === '1';
   return adapters.run(forced ? realGitAdapter : adapter, work);
 }
 
 /** Contract suites explicitly exercise both implementations even during an audit. */
 export function withGitContractAdapter(adapter, work) {
-  for (const method of ['spawnSync', 'execFileSync', 'spawn']) {
-    if (typeof adapter?.[method] !== 'function') throw new TypeError(`Git adapter needs ${method}`);
-  }
+  needAdapter(adapter);
   return adapters.run(adapter, work);
 }
 

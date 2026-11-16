@@ -123,7 +123,7 @@ h1 { margin: 0 0 4px; font-size: 1.7rem; } h3 { margin: 22px 0 8px; font-size: 1
 .summary div { display: grid; } .summary b { font-size: 1.25rem; font-variant-numeric: tabular-nums; } .summary span { color: var(--muted); font-size: .85rem; }
 .tabs > input { position: absolute; opacity: 0; pointer-events: none; }
 .tabs nav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
-.tabs nav label { padding: 6px 12px; border: 1px solid var(--rule); border-radius: 999px; cursor: pointer; background: var(--card); }
+.tabs nav label { padding: 6px 12px; border: 1px solid var(--rule); border-radius: 4px; cursor: pointer; background: var(--card); }
 #t-spec:checked ~ nav label[for=t-spec], #t-questions:checked ~ nav label[for=t-questions],
 #t-signoff:checked ~ nav label[for=t-signoff], #t-practice:checked ~ nav label[for=t-practice] { border-color: var(--ink); font-weight: 600; }
 #t-spec:focus-visible ~ nav label[for=t-spec], #t-questions:focus-visible ~ nav label[for=t-questions],
@@ -185,7 +185,7 @@ ${summaryHtml(spec, by)}
 <input type="radio" name="tab" id="t-spec" checked><input type="radio" name="tab" id="t-questions"><input type="radio" name="tab" id="t-signoff"><input type="radio" name="tab" id="t-practice">
 <nav><label for="t-spec">Spec</label><label for="t-questions">Open questions (${pending.length})</label><label for="t-signoff">Sign-off</label><label for="t-practice">Doctrine</label></nav>
 <section class="panel" id="p-spec">${search}${sectionsHtml(spec, by, true)}</section>
-<section class="panel" id="p-questions">${pending.length ? tableHtml('Waiting on the person', pending, by, false) : '<p class="empty">No open questions.</p>'}</section>
+<section class="panel" id="p-questions">${pending.length ? tableHtml('Rulings', pending, by, false) : '<p class="empty">No open questions.</p>'}</section>
 <section class="panel" id="p-signoff">${search}${approved.length ? tableHtml('Approved rows, unsigned first', bySignoff, by, true) : '<p class="empty">No approved rows yet.</p>'}</section>
 <section class="panel" id="p-practice">${search}${practicePanel}</section>
 </div>

@@ -16,6 +16,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { storeName } from '../store-names.js';
 
 export const REFERENCE_PARTS = 'parts-ref';
 const FRAME = '# pullboard test cache ';
@@ -47,7 +48,7 @@ function load(path) {
 export function recordList(store, list) {
   const id = name(JSON.stringify(list));
   const directory = join(store, 'lists');
-  const path = join(directory, `${id}.json`);
+  const path = join(directory, storeName(id));
   try { statSync(path); return id; } catch { /* Not recorded yet. */ }
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   publish(path, list);
@@ -56,13 +57,13 @@ export function recordList(store, list) {
 
 /** A part by input key: the by-reference record, or an inline one an older writer left under `parts`. */
 function loadPart(store, inputKey) {
-  return load(join(store, REFERENCE_PARTS, `${inputKey}.json`)) ?? load(join(store, 'parts', `${inputKey}.json`));
+  return load(join(store, REFERENCE_PARTS, storeName(inputKey))) ?? load(join(store, 'parts', storeName(inputKey)));
 }
 
 /** A part's list: the list itself in an older part, or the shared record a newer part names. Null when unreadable. */
 function listOf(store, value) {
   if (Array.isArray(value)) return value;
-  return typeof value === 'string' && /^[0-9a-f]{64}$/u.test(value) ? load(join(store, 'lists', `${value}.json`)) : null;
+  return typeof value === 'string' && /^[0-9a-f]{64}$/u.test(value) ? load(join(store, 'lists', storeName(value))) : null;
 }
 
 /**
@@ -77,7 +78,7 @@ export function recordInputParts(store, inputKey, parts) {
   try {
     // By-reference parts live in their own folder: a reader built before shared lists reads only `parts` and expects inline arrays.
     const directory = join(store, REFERENCE_PARTS);
-    const path = join(directory, `${inputKey}.json`);
+    const path = join(directory, storeName(inputKey));
     try { statSync(path); return; } catch { /* Not recorded yet. */ }
     const record = { ...parts, files: recordList(store, parts.files), runner: recordList(store, parts.runner) };
     mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -86,13 +87,13 @@ export function recordInputParts(store, inputKey, parts) {
 }
 
 /** The latest key record of a test file, or null when it never had one. */
-export function latestKey(store, file) { return load(join(store, 'last', `${name(file)}.json`)); }
+export function latestKey(store, file) { return load(join(store, 'last', storeName(name(file)))); }
 
 /** Remember a file's current key as its latest. */
 export function rememberLatest(store, file, record) {
   try {
     mkdirSync(join(store, 'last'), { recursive: true, mode: 0o700 });
-    publish(join(store, 'last', `${name(file)}.json`), record);
+    publish(join(store, 'last', storeName(name(file))), record);
   } catch { /* Advisory, as above. */ }
 }
 

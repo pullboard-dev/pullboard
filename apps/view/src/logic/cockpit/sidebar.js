@@ -47,6 +47,8 @@ function renderSide() {
   const selectedGroup = data.groups.find((group) => group.key === view.root);
   const selectedRepo = data.projects.find((x) => x.root === view.root);
   $('proj-name').textContent = selectedGroup?.name || selectedRepo?.name || (p ? p.root.split('/').pop() : 'No project');
+  if ($('proj-title')) $('proj-title').textContent = $('proj-name').textContent;
+  if ($('mdrawer-proj-name')) $('mdrawer-proj-name').textContent = $('proj-name').textContent;
 }
 
 /** The Spec rows that need the person, read once per board from the store (#6613). */
@@ -56,15 +58,11 @@ function specDecisions(p) {
 }
 
 /**
- * The status bar: what the board is doing, along the foot of the window. Each number is the length of the list its
- * click opens (the Active and To verify filters, the gated rows, the agents panel's rows), and a part with none hides.
- * The unread shouts fill their slot from writeChrome.
+ * The agents at work: whoever holds a claim, reviews a submission or is fixing a sent-back item, and moved in the last hour
+ * (or every one, when the agents panel shows all). The notch counts them.
  */
-function statusBarHtml(p) {
+function workingAgents(p) {
   const items = p.items.filter((i) => i.status !== 'withdrawn');
-  const active = items.filter((i) => stateOf(i) !== 'verified');
-  const heldLanes = new Set(p.holds.map((hold) => hold.hold_lane));
-  const gated = (item) => item.status === 'open' && (item.blockedBy.length > 0 || heldLanes.has(item.lane) || (p.itemHolds || []).some((hold) => hold.item === item.id));
   const workingActors = new Set(), recentActors = new Set();
   for (const item of items) {
     if (item.status === 'claimed') {
@@ -77,12 +75,34 @@ function statusBarHtml(p) {
   }
   const footerBusy = p.agents.filter(agent => workingActors.has(agent.agent_id)
     && (view.allAgents || recentActors.has(agent.agent_id) || agent.lastMoveAt && Date.now() - Date.parse(agent.lastMoveAt) < 36e5));
+  return footerBusy;
+}
+
+/** The navigation's board numbers from one board: agents at work, the active items, and those building and in review. */
+function navNumbers(p) {
+  // The state's shared count is the notch's, the Dashboard's and Activity's one number (#7310); a state without it counts here.
+  const shared = Array.isArray(p.counts?.agentIds) ? new Set(p.counts.agentIds) : null;
+  const busy = shared ? p.agents.filter((agent) => shared.has(agent.agent_id)) : workingAgents(p), active = p.items.filter((i) => i.status !== 'withdrawn' && stateOf(i) !== 'verified');
+  return { agents: busy.length, agentIds: busy.map((a) => a.agent_id), agentNames: busy.map((a) => agentName(a.agent_id)), active: active.length,
+    building: active.filter((i) => stateOf(i) === 'building').length, review: active.filter((i) => stateOf(i) === 'verify').length };
+}
+
+/**
+ * The status bar: what the board is doing, along the foot of the window. Each number is the length of the list its
+ * click opens (the Active and To verify filters, the gated rows), and a part with none hides. Agents at work are in the
+ * notch, which holds what matters now; the notch and this bar never repeat (#6614).
+ * The unread shouts fill their slot from writeChrome.
+ */
+function statusBarHtml(p) {
+  const items = p.items.filter((i) => i.status !== 'withdrawn');
+  const active = items.filter((i) => stateOf(i) !== 'verified');
+  const heldLanes = new Set(p.holds.map((hold) => hold.hold_lane));
+  const gated = (item) => item.status === 'open' && (item.blockedBy.length > 0 || heldLanes.has(item.lane) || (p.itemHolds || []).some((hold) => hold.item === item.id));
   const release = nextMilestone(p), last = p.events[0];
   const part = (to, n, words, title) => n ? '<button type="button" data-status="' + to + '" title="' + esc(title) + '"><b>' + n + '</b> ' + words + '</button>' : '';
   return part('items', active.length, 'items', 'Show the active items') + '<button type="button" id="status-unread" data-status="unread" title="Show the shouts you have not read" hidden></button>'
-    + part('agents', footerBusy.length, footerBusy.length === 1 ? 'agent' : 'agents', 'Open the agent floor: ' + footerBusy.map((a) => agentName(a.agent_id)).join(', '))
     + part('verify', active.filter((i) => stateOf(i) === 'verify').length, 'to verify', 'Show the items waiting on a verdict')
-    + part('gated', active.filter(gated).length, 'gated', 'Show the open items waiting on another item or a held lane')
+    + part('gated', active.filter(gated).length, 'blocked', 'Show the open items blocked by another item or a held lane')
     + (release ? '<button type="button" data-status="release" title="' + esc('Show this release on the Roadmap: ' + (release.note || release.name)) + '">' + esc(release.name) + ' <b>' + release.done + '/' + release.total + '</b></button>' : '')
     + (last ? '<button type="button" class="end" data-status="' + (last.item_id ? 'item:' + last.item_id : 'activity') + '" title="' + esc(last.event_at) + '">' + esc(agentName(last.event_by)) + ' ' + esc(eventWords(last.event_kind)) + (last.item_id ? ' #' + last.item_id : '') + ' · ' + age(last.event_at) + '</button>' : '');
 }
@@ -91,31 +111,38 @@ function statusBarHtml(p) {
  * The page's chrome has one writer (#3200, #6613): the tab title, the Spec tab's count, the status bar and its unread
  * shouts. Each is built from the store's board the same way on every tab and written only when it differs, so a
  * refresh that changes nothing leaves all of them alone. Roadmap's title counts the releases it shows; other tabs
- * keep the machine-wide call count.
+ * keep the machine-wide call count. Called with paint false it only reads the counts into the store's memo and touches
+ * no node, so a live update can read ahead of its draw without the title or status bar showing a board the lists do not (#7604).
  */
-function writeChrome() {
+function writeChrome(paint = true) {
   if (!data) return;
   const p = data.project, selectedGroup = data.groups.find((group) => group.key === view.root);
   const roadmap = view.tab === 'roadmap' && p && !selectedGroup;
   const next = tabTitle({ shown: Boolean(p || selectedGroup), name: $('proj-name').textContent, tab: view.tab, group: Boolean(selectedGroup),
     needs: data.projects.reduce((n, x) => n + needCount(x), 0), remaining: roadmap ? store.select('roadmap-remaining', [p, data.projects, view.roadmapOnly], (project) => roadmapRemainingCount(roadmapReads(project))) : null,
     cost: privateCost && !snapshot && !hosted.local && !readOnly && !data.group });
+  const shown = p && data.root === view.root ? p : null;
+  if (!paint) {
+    if (shown) { store.select('status-bar', [shown, view.allAgents, Math.floor(Date.now() / 60_000)], statusBarHtml); store.select('nav-numbers', [shown, view.allAgents, Math.floor(Date.now() / 60_000)], navNumbers); }
+    return;
+  }
   if (document.title !== next) document.title = next;
   // While a switch loads, the board on hand is the last project's: its counts are never shown as the new one's.
-  const shown = p && data.root === view.root ? p : null;
   store.paint($('status-board'), shown ? store.select('status-bar', [shown, view.allAgents, Math.floor(Date.now() / 60_000)], statusBarHtml) : '');
   if (!shown) return;
+  // The navigation's numbers: the notch, the switcher's rulings, each page's one fact (#6614).
+  drawNav(shown, store.select('nav-numbers', [shown, view.allAgents, Math.floor(Date.now() / 60_000)], navNumbers));
   const spec = $('tabs').querySelector?.('[data-tab=spec]');
   if (spec) {
-    const rows = specDecisions(shown), label = 'Spec <b>' + rows.counts.decide + '</b>';
+    const rows = specDecisions(shown);
     if (spec.title !== rows.decisionTitle) spec.title = rows.decisionTitle;
-    if (spec.innerHTML !== label) spec.innerHTML = label;
   }
   const slot = $('status-unread');
   if (slot) {
     const unread = unseenShouts(shown), html = '<b>' + unread + '</b> unread';
     if (slot.innerHTML !== html) slot.innerHTML = html;
     if (slot.hidden !== !unread) slot.hidden = !unread;
+    document.querySelectorAll?.('[data-nav-fact="shouts"]').forEach((node) => { const text = unread ? String(unread) : ''; if (node.textContent !== text) node.textContent = text; });
   }
 }
 

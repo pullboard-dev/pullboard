@@ -11,10 +11,17 @@ import { itemWorkInFlight } from '../../../logic/red/return.js';
 import { itemStage } from '../../../logic/item/stage.js';
 import { handoffRecords } from '../../submit/handoff/records.js';
 import { pulledGateRecords } from '../../submit/handoff/records.js';
-import { boardDataVersion } from '../version.js';
 import { withSeatPresence } from '../../presence.js';
 import { withDerivedFamily } from '../../../../../items/light.js';
 import { agentParent } from '../../../../../seats/light.js';
+
+/**
+ * A value that changes whenever the board's data may have, for per-revision read caches [H24]: another connection's commit moves
+ * SQLite's data_version, and this connection's own writes move its total_changes. It lives here so the light read loads one module less [C7].
+ */
+export function boardDataVersion(board) {
+  return `${board.db.prepare('PRAGMA data_version').get().data_version}:${board.db.prepare('SELECT total_changes() AS n').get().n}`;
+}
 
 /** Maximum time a board connection waits for another process to release SQLite's lock. */
 export const BOARD_BUSY_TIMEOUT_MS = 10_000;
@@ -106,13 +113,23 @@ export function listItems(board, { lane, all = false } = {}) {
   if (remembered && remembered.version === version && remembered.at <= at && !(remembered.expires <= at)) {
     return remembered.items.map(item => ({ ...item }));
   }
+  // The open list is the all-items list without its closed items: read from a fresh remembered all-items list, not the tables again (#8432).
+  if (!all) {
+    const everything = LISTED.get(board.db)?.get(`${hasLane ? lane : ''}\0true\0${board.executionEngineVersion ?? ENGINE_VERSION}`);
+    if (everything && everything.version === version && everything.at <= at && !(everything.expires <= at)) {
+      const open = everything.items.filter(item => item.item_status !== 'verified' && item.item_status !== 'withdrawn');
+      if (!LISTED.has(board.db)) LISTED.set(board.db, new Map());
+      LISTED.get(board.db).set(key, { at, version, expires: everything.expires, items: open.map(item => ({ ...item })) });
+      return open.map(item => ({ ...item }));
+    }
+  }
   const rows = board.db.prepare(listItemsSql({ all, hasLane })).all(...(hasLane ? [lane] : []));
   // One copy per row, as current() would make it: a thousand-item board lists its items many times per command.
   const expectedBuilds = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE;
   // Copying named columns is several times faster than rest-destructuring SQLite's null-prototype rows (#2511).
   const columns = rows.length ? Object.keys(rows[0]).filter(key => !['imported_rehome', 'review_family', 'expected_build', 'landed'].includes(key)) : [];
   // Every item's hand-off record in one read of the job tables, where the record lives [C7].
-  const records = handoffRecords(board.db);
+  const records = handoffRecords(board.db, { live: true });
   const pulled = pulledGateRecords(board.db, null, Date.parse(at));
   const items = rows.map((row) => {
     const item = {}, imported = row.imported_rehome, family = row.review_family, expected = row.expected_build;

@@ -27,6 +27,6 @@ test('clause 2: Items draws only the rows near the screen, and scrolling the lis
 
 test('clause 2: the list keeps its whole height: rows are one fixed height, and the rows above and below are padding [N26]', () => {
   const css = composeViewStyles();
-  assert.match(css, /#chain \{ --item-row-h: 74px;/u, 'the row height is one number the page reads');
+  assert.match(css, /#chain \{ --item-row-h: 55px;/u, 'the row height is one number the page reads');
   assert.match(css, /#chain > li\.row \{ height: var\(--item-row-h\);/u, 'every row is that height');
 });

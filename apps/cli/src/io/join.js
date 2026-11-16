@@ -65,7 +65,7 @@ export async function bindWriteSession(io, positionals, values) {
   let agent = info.isMain ? COORDINATOR : null;
   if (!info.isMain) {
     const ctx = context(io);
-    const ownsLandingRoot = command === 'hook' ? (await import('../../../../packages/landing/index.js')).landingBatchOwnsRoot : () => false;
+    const ownsLandingRoot = command === 'hook' ? (await import('../../../../packages/landing/light.js')).landingBatchOwnsRoot : () => false;
     agent = withBoardRead(ctx, (board) => seatAt(board, info.root)?.agent_id
       ?? (command === 'hook' && (isPublishWorktree(info) || store.landingBatches(board).some((batch) => ownsLandingRoot(batch, info.root))) ? COORDINATOR : null));
     if (!agent && command !== 'join') throw withBoardRead(ctx, (board) =>

@@ -97,6 +97,23 @@ function tellConflicts(io, link) {
   for (const line of takeConflictNotices(link.file, link.root)) io.err(`pullboard: ${line}`);
 }
 
+/** How long a command waits on a relay that does not answer while this board's baseline is paused (#7779). */
+const PAUSED_BASELINE_WAIT_MS = 250;
+
+/** The paused-baseline wait: 250 ms for people; a fixture board may widen it, since its loopback relay shares a loaded event loop. */
+function pausedBaselineWaitMs() {
+  const widened = Number(process.env.PULLBOARD_FIXTURE_PAUSED_WAIT_MS);
+  return process.env.PULLBOARD_FIXTURE_BOARD === '1' && widened > 0 ? widened : PAUSED_BASELINE_WAIT_MS;
+}
+
+/** Whether this checkout's relay link holds a paused baseline upload: its saved pause, read from one small local file. */
+function pausedBaseline(io) {
+  try {
+    const state = JSON.parse(readFileSync(relayLinkFile(repoInfo(io.cwd).commonDir), 'utf8'));
+    return Boolean(state?.baselinePause) && state.mode === 'ordered' && !state.environment;
+  } catch { return false; }
+}
+
 /** A network refusal preserves offline reads; linked mutation dispatch requires an acknowledgement. */
 export async function retrySync(io) {
   const local = senderInBackground() ? localFirstLink(io) : null;
@@ -107,6 +124,8 @@ export async function retrySync(io) {
     try { await retryCheckBaselines(io.cwd, io, { openBoard: nativeBoardOpeners(io).openBoard }); } catch (error) { await reportQuietly(io, error); }
     return;
   }
+  // A paused baseline waits for the relay in the background; a relay that does not answer costs this command one short wait.
+  if (pausedBaseline(io)) io.relayDeadlineAt = Date.now() + pausedBaselineWaitMs();
   try {
     if (io.relayCommand?.cliOperation !== 'sync' && gitSyncLinked(io.cwd)) {
       const ctx = context(io);
@@ -120,6 +139,7 @@ export async function retrySync(io) {
     await retryCheckBaselines(io.cwd, io, { openBoard: nativeBoardOpeners(io).openBoard });
   }
   catch (error) { await reportQuietly(io, error); }
+  finally { delete io.relayDeadlineAt; }
 }
 
 /** Before a command: link this project when the machine links new ones, sync, then run the person's waiting requests. */

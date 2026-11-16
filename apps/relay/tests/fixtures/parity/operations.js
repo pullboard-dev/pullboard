@@ -3,6 +3,7 @@ import { seedStaleState } from '../../../../../packages/health/tests/fixtures/st
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import * as rawStore from '../../../../../packages/store/index.js';
 import {
   openBoard,
@@ -33,6 +34,7 @@ import {
 } from '../../../../cli/tests/fixtures/relay/parity/reader.js';
 import {
   createStudyExercise,
+  seedIdentity,
   seedStudyState,
   seedRehome,
   seedHandoff,
@@ -51,6 +53,7 @@ import {
   seedPersonSigning,
   seedUsage,
 } from '../../../../../packages/gate/tests/fixtures/seeds.js';
+import { FIXTURE_MODEL } from '../../../../cli/tests/fixtures/testkit.js';
 import { seedTypedRequests } from './requests.js';
 import { seedSourceAdvance } from '../../../../../packages/landing/tests/fixtures/relay/parity/advance.js';
 import { seedNativeTrain } from '../../../../../packages/landing/tests/fixtures/relay/parity/train.js';
@@ -62,6 +65,9 @@ import {
 } from '../../../../../packages/store/tests/fixtures/relay/parity/reland.js';
 import { syntheticFlakeObservation } from '../../../../cli/tests/fixtures/observation.js';
 
+/** The CLI file the train fixture's `pullboard` shim runs. */
+const CLI_ENTRY = fileURLToPath(new URL('../../../../cli/pullboard.js', import.meta.url));
+
 /** The fixture root supplies canonical native operations to the unchanged lower recipes. */
 const store = Object.freeze({ ...rawStore, ensureCoordinator: rawStore.board_ensureCoordinator, recordNextIdle: rawStore.board_recordNextIdle,
   openBoard, draftSpecRow, recordRowVerification, decideSpecRevisions });
@@ -69,7 +75,7 @@ const store = Object.freeze({ ...rawStore, ensureCoordinator: rawStore.board_ens
 const milestones = Object.freeze({ addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, shipMilestone, roadmap });
 
 /** Run inside the existing private fixture's genuine environment, retaining one HTTP server and person session. */
-export async function exerciseOperationParity({ root, origin, token, boardId, lane, keyFile }) {
+export async function exerciseOperationParity({ root, origin, token, boardId, lane, keyFile, part }) {
   const key = decodeBoardKey(readFileSync(keyFile, 'utf8').trim());
   const reader = await createParityReader({ root, origin, token, boardId, key });
   const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: root });
@@ -99,35 +105,54 @@ export async function exerciseOperationParity({ root, origin, token, boardId, la
       await tracking.exercise('recordSpecApprovalBaseline', () => store.recordSpecApprovalBaseline(board, {
         agentId: 'coordinator', baseline: captureSpecApprovalBaseline(root, loadConfig(root)) }));
     }
-    await seedStudyState(context);
-    await seedItemPatches(context);
-    process.stderr.write('parity phase seedSourceAdvance begin\n');
-    await seedSourceAdvance(context);
-    process.stderr.write('parity phase seedSourceAdvance complete\n');
-    await seedSubmitHandoff(context);
-    await seedOutside(context);
-    await seedLandingObservations(context);
-    await seedMembership(context);
-    await seedAdministrative(context);
-    await seedTypedRequests(context);
-    await seedStaleState(context);
-    await seedBatch(context);
-    process.stderr.write('parity phase seedNativeTrain begin\n');
-    await seedNativeTrain(context);
-    process.stderr.write('parity phase seedNativeTrain complete\n');
-    await seedSpecOutcomes(context);
-    await seedCurrentOperations(context);
-    await seedSelectorGap(context);
-    await seedAcceptedReland(context);
-    await seedBarSignature(context);
-    await seedCoordinatorAuthority(context);
-    await seedRehome(context);
-    await seedUsage(context);
-    await seedHandoff(context);
-    await seedPersonSigning(context);
-    const missing = tracking.missing(MOVE_OPERATIONS);
-    assert.deepEqual(missing, [], `every declared native operation must pass the complete oracle; setup refusals=${JSON.stringify(tracking.setupRefusals)}`);
-    return { covered: [...tracking.covered].sort(), declared: [...MOVE_OPERATIONS].sort() };
+    /** Rebuild the seat, reviewer, item and claim the later recipes read, as the study lifecycle leaves them. */
+    async function seedSeats() {
+      await seedIdentity(context);
+      context.claim = { agentId: context.agent, lane, leaseMs: 3600000,
+        freeze: () => ({ text: '{"rows":[],"criterion":"A seeded lifecycle."}', digest: 'study-frozen' }) };
+    }
+    /** The phases of each part: together they are the original single sequence, on separate boards. */
+    const phases = {
+      study: [() => seedStudyState(context)],
+      rest: [seedSeats,
+        () => seedItemPatches(context),
+        async () => {
+          process.stderr.write('parity phase seedSourceAdvance begin\n');
+          await seedSourceAdvance(context);
+          process.stderr.write('parity phase seedSourceAdvance complete\n');
+        },
+        () => seedSubmitHandoff(context),
+        () => seedOutside(context),
+        () => seedLandingObservations(context),
+        () => seedMembership(context),
+        () => seedAdministrative(context),
+        () => seedTypedRequests(context),
+        () => seedStaleState(context),
+        () => seedBatch(context),
+        async () => {
+          process.stderr.write('parity phase seedNativeTrain begin\n');
+          await seedNativeTrain(context, { cli: CLI_ENTRY });
+          process.stderr.write('parity phase seedNativeTrain complete\n');
+        },
+        () => seedSpecOutcomes(context),
+        () => seedCurrentOperations(context),
+        () => seedSelectorGap(context),
+        () => seedAcceptedReland(context),
+        () => seedBarSignature(context),
+        () => seedCoordinatorAuthority(context),
+        () => seedRehome(context),
+        () => context.store.claim(board, context.item, context.claim), // the usage recipes record against an item this seat claimed
+        () => seedUsage(context),
+        // The coordinator usage move names no item; its receipt is the native event the oracle compares.
+        () => tracking.exercise('recordCoordinatorUsage', () => store.recordCoordinatorUsage(board, { agentId: 'coordinator', session: 'parity-coordinator-session',
+          observedAt: board.clock.now().getTime(), records: [{ model: FIXTURE_MODEL, inputTokens: null, outputTokens: null, wallMs: 0,
+            knownInputTokens: 0, knownOutputTokens: 0, unknownReasons: ['native-session-unavailable'] }] })),
+        () => seedHandoff(context),
+        () => seedPersonSigning(context)],
+    };
+    if (!phases[part]) throw new TypeError(`unknown operation part ${part}`);
+    for (const phase of phases[part]) await phase();
+    return { covered: [...tracking.covered].sort(), declared: [...MOVE_OPERATIONS].sort(), setupRefusals: tracking.setupRefusals };
   } catch (error) {
     error.message = `while observing ${observing}: ${error.message}; covered=${JSON.stringify([...tracking.covered])}; setupRefusals=${JSON.stringify(tracking.setupRefusals)}`;
     throw error;

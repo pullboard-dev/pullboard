@@ -122,6 +122,20 @@ export function finishJob(db, job, owner, { now = Date.now() } = {}) {
 }
 
 /**
+ * Set a job row's step, attempt, owner and lease to what the job move table decided [C7,#8387].
+ * Why here: the table answers with the whole row, and this file is the one writer of those columns, so the api's live writer hands the answer to it.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {{ step: string, attempt: number, owner?: string | null, leaseUntil?: number | null }} row
+ * @param {{now?: number}} [options]
+ */
+export function setJobRow(db, job, { step, attempt, owner = null, leaseUntil = null }, { now = Date.now() } = {}) {
+  db.prepare('UPDATE job SET job_step = ?, job_attempt = ?, job_lease_owner = ?, job_lease_until = ?, job_updated = ? WHERE job_id = ?')
+    .run(step, attempt, owner, leaseUntil, now, String(job));
+}
+
+/**
  * Point a queued job at the commit it runs at, as its candidate and base, before it is offered to runners.
  *
  * Why: a main-test job is queued by main's tree id, which a runner cannot check out; the board names the main commit
@@ -136,3 +150,41 @@ export function finishJob(db, job, owner, { now = Date.now() } = {}) {
 export function pinQueuedJob(db, job, commit, { now = Date.now() } = {}) {
   return db.prepare("UPDATE job SET job_candidate = ?, job_base = ?, job_updated = ? WHERE job_id = ? AND job_step = 'queued'").run(commit, commit, now, job).changes === 1;
 }
+
+/**
+ * Mark a job's receipt as applied by the board: the runs file's inbox mark. Only the first mark lands, so a repeated
+ * ack changes nothing.
+ *
+ * Why: the board applies a receipt in its own move, then acks it here; the reconciler re-applies any job whose receipt
+ * is still unmarked, so the mark must be written once and only after the board committed (runner-store split, S5).
+ * The job_applied column exists only in the runs file.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - The runs file.
+ * @param {string} job
+ * @param {{now?: number}} [options]
+ * @returns {boolean} True when this call set the mark.
+ */
+export function markApplied(db, job, { now = Date.now() } = {}) {
+  return db.prepare('UPDATE job SET job_applied = ?, job_updated = ? WHERE job_id = ? AND job_applied IS NULL').run(now, now, job).changes === 1;
+}
+/**
+ * End a job that has not finished, whoever holds its lease: a step naming why, then done. False when it is gone or already done.
+ * Why: a withdrawn or abandoned job must stop even while a runner holds a live lease; that runner's next renewal then finds it done.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {string} name - The step that says why it ended, such as `withdrawn` or `abandoned`.
+ * @param {Record<string, unknown>} [payload]
+ * @param {{now?: number}} [options]
+ * @returns {boolean}
+ */
+export function endJob(db, job, name, payload = {}, { now = Date.now() } = {}) {
+  return atomically(db, () => {
+    const row = db.prepare('SELECT job_attempt, job_step FROM job WHERE job_id = ?').get(job);
+    if (!row || row.job_step === 'done') return false;
+    writeStep(db, job, name, payload, { seq: row.job_attempt, now });
+    db.prepare("UPDATE job SET job_step = 'done', job_lease_owner = NULL, job_lease_until = 0, job_updated = ? WHERE job_id = ?").run(now, job);
+    return true;
+  });
+}
+

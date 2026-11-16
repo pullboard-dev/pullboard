@@ -18,7 +18,8 @@ import { createE2eHelpers } from '../e2e.js';
 import { runFixtureChild } from '../child.js';
 import { HOST } from './ssh.js';
 import { installSshStandIn } from './ssh.js';
-import { fixtureMachineSettings } from '../testkit.js';
+import { privateFixtureFiles } from '../child.js';
+import { preparedRunner } from '../../../../../packages/runners/tests/fixtures/prepared.js';
 import { initializeRunnerRecovery } from '../../../../../packages/resources/index.js';
 import { recordRunnerFailure } from '../../../../../packages/resources/index.js';
 import {
@@ -37,31 +38,20 @@ function queue(t) {
   return db;
 }
 
-/** Pin the dispatch mode a case runs under: the journey's own (pull when its pull file set it), so both modes stay covered [C7,#5537]. */
-function pinDispatch(box, mode = process.env.PULLBOARD_FIXTURE_DISPATCH ?? 'controller') {
-  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: mode } });
-}
-
-/** These cases exercise the controller's own worker launch and its delayed installer, so they keep controller dispatch whatever the default becomes [C7,#5535]. */
-function pinControllerDispatch(box) {
-  pinDispatch(box, 'controller');
-}
-
 /** A synthetic identity exercises queue concurrency only, never authorizes an actual worker reply. */
 function identity(request = randomUUID()) {
   return { version: 1, launchFence: 1, request, nonce: randomUUID(), tooling: 'a'.repeat(64) };
 }
 
-/** Register real worker recovery cases under the existing frozen whole-runner check. */
-export function runnerRecoveryTests() {
-  for (const failures of [1, 99]) {
+/** Register the real pinned-worker probe cases: one failed probe recovers, endless failures stay unavailable [C7]. */
+export function runnerProbeRecoveryTests(failureCounts = [1, 99]) {
+  for (const failures of failureCounts) {
     test(`a real pinned worker ${failures === 1 ? 'recovers after one failed probe' : 'stays unavailable naming its failed step'} [C7]`, t => {
       const e2e = createE2eHelpers(); t.after(e2e.cleanup);
       const box = e2e.project('true');
-      const bin = join(box.dir, 'health-bin'), worker = join(box.dir, 'worker');
-      const home = join(box.dir, 'remote-home'), machineHome = join(home, '.pullboard');
-      for (const directory of [bin, worker, home, machineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(directory, { recursive: true });
-      pinDispatch(box);
+      const bin = join(box.dir, 'health-bin');
+      const { worker, home, machineHome } = preparedRunner(() => privateFixtureFiles('pullboard-prepared-runner-').root);
+      for (const directory of [bin, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(directory, { recursive: true });
       const requests = join(box.dir, 'requests.jsonl');
       installSshStandIn({ bin, worker, home, machineHome, requests, nodeCommand: process.execPath, healthFailures: failures });
       const runner = { host: HOST, node: process.execPath, slots: 1, browser: 0 };
@@ -73,7 +63,7 @@ export function runnerRecoveryTests() {
 import {initializeRunnerRecovery,recordRunnerFailure,recoverUnavailableRunners} from ${JSON.stringify(recovery)};
 import {DatabaseSync} from 'node:sqlite';import {readdirSync,readFileSync} from 'node:fs';import {join} from 'node:path';
 const runner=${JSON.stringify(runner)};
-const actual=await runOnRunnerAsync(process.cwd(),'true',{runner});
+const actual=await runOnRunnerAsync(process.cwd(),'true',{runner,metadata:{item:'fixture',kind:'remote-command'}});
 const directory=${JSON.stringify(join(home, '.pullboard-runner', 'recovery'))};
 const names=readdirSync(directory);if(names.length!==1)throw new Error('expected one actual completed job');
 const proof=JSON.parse(readFileSync(join(directory,names[0]),'utf8'));
@@ -104,6 +94,82 @@ console.log(JSON.stringify({wrong,actual:actual.isGreen,first,beforeBackoff,firs
       assert.equal(probes.length, failures === 1 ? 3 : 2, 'backoff prevents another SSH call before its due time');
     });
   }
+}
+
+/** Register the delayed-installer cases and the drained-custody case, each a real worker launch [C7]. */
+export function runnerInstallerRecoveryTests({ workerFirstCases = [false, true], custody = true } = {}) {
+  if (custody) test('drained custody requires exact job-directory absence and refuses unknown filesystem states [C7]', t => {
+    const e2e = createE2eHelpers(); t.after(e2e.cleanup);
+    const box = e2e.project('true'), root = join(box.dir, 'owned-runner');
+    const previous = identity(), job = previous.request + '-ABC123';
+    mkdirSync(join(root, 'jobs', job), { recursive: true });
+    assert.equal(claimRunnerLaunch(root, previous), true);
+    recordRunnerCompletion(root, previous, job);
+    const request = { nonce: randomUUID(), previous };
+    assert.equal(runnerHealthReply(root, request).cleanup, false, 'a marker alone cannot bless files that remain');
+    renameSync(join(root, 'jobs'), join(root, 'jobs-held'));
+    writeFileSync(join(root, 'jobs'), 'not a directory');
+    assert.equal(runnerHealthReply(root, request).cleanup, false, 'ENOTDIR is unknown, not ENOENT');
+    rmSync(join(root, 'jobs')); renameSync(join(root, 'jobs-held'), join(root, 'jobs'));
+    rmSync(join(root, 'jobs', job), { recursive: true });
+    assert.equal(runnerHealthReply(root, request).cleanup, true);
+    const file = join(root, 'recovery', previous.request + '.json');
+    const actual = JSON.parse(readFileSync(file, 'utf8'));
+    writeFileSync(file, JSON.stringify({ ...actual, job: '../foreign-job' }));
+    assert.equal(runnerHealthReply(root, request).cleanup, false, 'foreign path bindings never establish cleanup');
+    const legacy = { ...identity(), launchFence: undefined };
+    assert.equal(runnerHealthReply(root, { nonce: randomUUID(), previous: legacy }).cleanup, false);
+    assert.equal(existsSync(join(root, 'recovery-launches', legacy.request)), false, 'an old request cannot be guessed never-started');
+  });
+  for (const workerFirst of workerFirstCases) {
+    // Both installer cases drive runOnRunnerAsync over the SSH stand-in, a launch only the controller path has; #7526 deletes it with the SSH transport.
+    const skip = 'CONTROLLER_ONLY: deleted with #7526';
+    test(`an actual delayed installer ${workerFirst ? 'wins its claim and needs completion' : 'is fenced before launch after cancellation'} [C7]`, { skip }, t => {
+      const e2e = createE2eHelpers(); t.after(e2e.cleanup);
+      const box = e2e.project('true');
+      const bin = join(box.dir, 'launch-bin'), deferred = join(box.dir, 'deferred-command'), frame = join(box.dir, 'deferred-frame');
+      const { worker, home, machineHome } = preparedRunner(() => privateFixtureFiles('pullboard-prepared-runner-').root);
+      for (const directory of [bin, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(directory, { recursive: true });
+      installSshStandIn({ bin, worker, home, machineHome, requests: join(box.dir, 'requests.jsonl'), nodeCommand: process.execPath, deferFirstWorker: deferred, deferredFrame: frame });
+      const runner = { host: HOST, slots: 1, browser: 0, node: process.execPath };
+      const url = pathToFileURL(join(import.meta.dirname, '../../../../../packages/runners/index.js')).href;
+      // Cancellation fences the installer before extraction, so the direct control uses the same source being pinned.
+      const directWorker = join(import.meta.dirname, '../../../../../apps/runner/src/io/scripts/worker.js');
+      const source = `import {runOnRunnerAsync,probeRunnerHealth} from ${JSON.stringify(url)};
+import {readFileSync,existsSync} from 'node:fs';import {spawnSync} from 'node:child_process';
+const runner=${JSON.stringify(runner)};let failure;
+try{await runOnRunnerAsync(process.cwd(),'true',{runner,metadata:{item:'fixture',kind:'remote-command'}});throw new Error('deferred request unexpectedly ran');}catch(error){if(error.name!=='RunnerDropped')throw error;failure=error.diagnostic;}
+const remoteEnv={PATH:process.env.PATH,HOME:${JSON.stringify(home)},PULLBOARD_FIXTURE_BOARD:'1',PULLBOARD_HOME:${JSON.stringify(home)},PULLBOARD_MACHINE_HOME:${JSON.stringify(machineHome)},LANG:'C',LC_ALL:'C',TZ:'UTC',TMPDIR:process.env.TMPDIR};
+const deferred=readFileSync(${JSON.stringify(deferred)},'utf8');
+const capsule=readFileSync(${JSON.stringify(deferred)}+'.capsule');
+const runDeferred=()=>{const value=spawnSync('/bin/sh',['-c',deferred],{env:remoteEnv,input:capsule,encoding:'utf8',timeout:10000});return {code:value.status,stderr:value.stderr};};
+const first=${workerFirst}?runDeferred():null;
+const health=await probeRunnerHealth(runner,[failure.recovery]);
+const delayed=runDeferred();
+const direct=${workerFirst}?null:spawnSync(process.execPath,[${JSON.stringify(directWorker)}],{env:remoteEnv,input:readFileSync(${JSON.stringify(frame)}),encoding:'utf8',timeout:10000});
+console.log(JSON.stringify({direct:direct?{code:direct.status,stderr:direct.stderr}:null,first,health,delayed,jobDirectory:existsSync(${JSON.stringify(join(home, '.pullboard-runner', 'jobs'))})}));`;
+      const env = { ...box.env, PATH: `${bin}:${box.env.PATH}` }; delete env.NODE_TEST_CONTEXT;
+      const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env, encoding: 'utf8', timeout: 30_000 });
+      assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
+      const actual = JSON.parse(result.stdout);
+      assert.equal(actual.health.healthy, !workerFirst);
+      assert.equal(actual.health.step, 'cleanup');
+      if (workerFirst) assert.match(actual.first.stderr, /PULLBOARD_RUNNER_SPEC_REFUSED/u, 'the first installer really reached the worker');
+      assert.notEqual(actual.delayed.code, 0);
+      assert.match(actual.delayed.stderr, /PULLBOARD_RUNNER_LAUNCH_FENCED/u);
+      assert.doesNotMatch(actual.delayed.stderr, /PULLBOARD_RUNNER_(?:READY|NEED|SPEC_REFUSED)/u, 'a fenced installer never enters the worker');
+      if (!workerFirst) {
+        assert.notEqual(actual.direct.code, 0);
+        assert.match(actual.direct.stderr, /PULLBOARD_RUNNER_SPEC_REFUSED/u);
+        assert.doesNotMatch(actual.direct.stderr, /PULLBOARD_RUNNER_(?:READY|NEED)/u);
+      }
+      assert.equal(actual.jobDirectory, false, 'neither a job lease nor project execution was started');
+    });
+  }
+}
+
+/** Register the alternate-runner admission case and the in-memory hold cases [C7]. */
+export function runnerHoldRecoveryTests() {
   test('a free alternate runner admits while another host health probe is pending [C7]', t => {
     const e2e = createE2eHelpers(); t.after(e2e.cleanup);
     const box = e2e.project('true');
@@ -138,73 +204,6 @@ console.log(JSON.stringify({aged,admittedAgain,admitted,probesAtAdmission,probes
     assert.equal(actual.admittedAgain, 'free-alternate', 'admission also excludes the aged legacy host');
     assert.deepEqual(actual.events.map(event => event.kind), ['unavailable', 'available']);
   });
-  test('drained custody requires exact job-directory absence and refuses unknown filesystem states [C7]', t => {
-    const e2e = createE2eHelpers(); t.after(e2e.cleanup);
-    const box = e2e.project('true'), root = join(box.dir, 'owned-runner');
-    const previous = identity(), job = previous.request + '-ABC123';
-    mkdirSync(join(root, 'jobs', job), { recursive: true });
-    assert.equal(claimRunnerLaunch(root, previous), true);
-    recordRunnerCompletion(root, previous, job);
-    const request = { nonce: randomUUID(), previous };
-    assert.equal(runnerHealthReply(root, request).cleanup, false, 'a marker alone cannot bless files that remain');
-    renameSync(join(root, 'jobs'), join(root, 'jobs-held'));
-    writeFileSync(join(root, 'jobs'), 'not a directory');
-    assert.equal(runnerHealthReply(root, request).cleanup, false, 'ENOTDIR is unknown, not ENOENT');
-    rmSync(join(root, 'jobs')); renameSync(join(root, 'jobs-held'), join(root, 'jobs'));
-    rmSync(join(root, 'jobs', job), { recursive: true });
-    assert.equal(runnerHealthReply(root, request).cleanup, true);
-    const file = join(root, 'recovery', previous.request + '.json');
-    const actual = JSON.parse(readFileSync(file, 'utf8'));
-    writeFileSync(file, JSON.stringify({ ...actual, job: '../foreign-job' }));
-    assert.equal(runnerHealthReply(root, request).cleanup, false, 'foreign path bindings never establish cleanup');
-    const legacy = { ...identity(), launchFence: undefined };
-    assert.equal(runnerHealthReply(root, { nonce: randomUUID(), previous: legacy }).cleanup, false);
-    assert.equal(existsSync(join(root, 'recovery-launches', legacy.request)), false, 'an old request cannot be guessed never-started');
-  });
-  for (const workerFirst of [false, true]) {
-    test(`an actual delayed installer ${workerFirst ? 'wins its claim and needs completion' : 'is fenced before launch after cancellation'} [C7]`, t => {
-      const e2e = createE2eHelpers(); t.after(e2e.cleanup);
-      const box = e2e.project('true');
-      const bin = join(box.dir, 'launch-bin'), worker = join(box.dir, 'worker'), home = join(box.dir, 'remote-home');
-      const machineHome = join(home, '.pullboard'), deferred = join(box.dir, 'deferred-command'), frame = join(box.dir, 'deferred-frame');
-      for (const directory of [bin, worker, home, machineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(directory, { recursive: true });
-      pinControllerDispatch(box);
-      installSshStandIn({ bin, worker, home, machineHome, requests: join(box.dir, 'requests.jsonl'), nodeCommand: process.execPath, deferFirstWorker: deferred, deferredFrame: frame });
-      const runner = { host: HOST, slots: 1, browser: 0, node: process.execPath };
-      const url = pathToFileURL(join(import.meta.dirname, '../../../../../packages/runners/index.js')).href;
-      // Cancellation fences the installer before extraction, so the direct control uses the same source being pinned.
-      const directWorker = join(import.meta.dirname, '../../../../../apps/runner/src/io/scripts/worker.js');
-      const source = `import {runOnRunnerAsync,probeRunnerHealth} from ${JSON.stringify(url)};
-import {readFileSync,existsSync} from 'node:fs';import {spawnSync} from 'node:child_process';
-const runner=${JSON.stringify(runner)};let failure;
-try{await runOnRunnerAsync(process.cwd(),'true',{runner});throw new Error('deferred request unexpectedly ran');}catch(error){if(error.name!=='RunnerDropped')throw error;failure=error.diagnostic;}
-const remoteEnv={PATH:process.env.PATH,HOME:${JSON.stringify(home)},PULLBOARD_HOME:${JSON.stringify(home)},PULLBOARD_MACHINE_HOME:${JSON.stringify(machineHome)},LANG:'C',LC_ALL:'C',TZ:'UTC',TMPDIR:process.env.TMPDIR};
-const deferred=readFileSync(${JSON.stringify(deferred)},'utf8');
-const capsule=readFileSync(${JSON.stringify(deferred)}+'.capsule');
-const runDeferred=()=>{const value=spawnSync('/bin/sh',['-c',deferred],{env:remoteEnv,input:capsule,encoding:'utf8',timeout:10000});return {code:value.status,stderr:value.stderr};};
-const first=${workerFirst}?runDeferred():null;
-const health=await probeRunnerHealth(runner,[failure.recovery]);
-const delayed=runDeferred();
-const direct=${workerFirst}?null:spawnSync(process.execPath,[${JSON.stringify(directWorker)}],{env:remoteEnv,input:readFileSync(${JSON.stringify(frame)}),encoding:'utf8',timeout:10000});
-console.log(JSON.stringify({direct:direct?{code:direct.status,stderr:direct.stderr}:null,first,health,delayed,jobDirectory:existsSync(${JSON.stringify(join(home, '.pullboard-runner', 'jobs'))})}));`;
-      const env = { ...box.env, PATH: `${bin}:${box.env.PATH}` }; delete env.NODE_TEST_CONTEXT;
-      const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env, encoding: 'utf8', timeout: 30_000 });
-      assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
-      const actual = JSON.parse(result.stdout);
-      assert.equal(actual.health.healthy, !workerFirst);
-      assert.equal(actual.health.step, 'cleanup');
-      if (workerFirst) assert.match(actual.first.stderr, /PULLBOARD_RUNNER_SPEC_REFUSED/u, 'the first installer really reached the worker');
-      assert.notEqual(actual.delayed.code, 0);
-      assert.match(actual.delayed.stderr, /PULLBOARD_RUNNER_LAUNCH_FENCED/u);
-      assert.doesNotMatch(actual.delayed.stderr, /PULLBOARD_RUNNER_(?:READY|NEED|SPEC_REFUSED)/u, 'a fenced installer never enters the worker');
-      if (!workerFirst) {
-        assert.notEqual(actual.direct.code, 0);
-        assert.match(actual.direct.stderr, /PULLBOARD_RUNNER_SPEC_REFUSED/u);
-        assert.doesNotMatch(actual.direct.stderr, /PULLBOARD_RUNNER_(?:READY|NEED)/u);
-      }
-      assert.equal(actual.jobDirectory, false, 'neither a job lease nor project execution was started');
-    });
-  }
   test('the old Node-only recovery predicate cannot clear new proof-required transport holds [C7]', t => {
     const db = queue(t), runner = { host: 'private-protocol-upgrade', slots: 1, browser: 0 };
     recordRunnerFailure(db, runner.host, 'transport-lost', { recovery: identity() });

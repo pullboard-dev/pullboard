@@ -12,18 +12,32 @@ import {
   from,
   guardProcesses,
   hopCheck,
+  settleProcesses,
+  survivors,
   track,
 } from './kit.js';
 
 const { createE2eHelpers } = await from('apps/cli/tests/fixtures/e2e.js');
 const { makeLandProjectFixtures } = await from('apps/cli/tests/fixtures/land/project.js');
-const { withFixtureBoard, joinFixtureSeat } = await from('apps/cli/tests/fixtures/testkit.js');
+const { joinFixtureSeat } = await from('packages/gate/tests/fixtures/testkit.js');
+const { withFixtureBoard } = await from('packages/board/tests/fixtures/board.js');
 const { reviewJobId, jobView } = await from('packages/jobs/index.js');
 const { getItem } = await from('packages/store/index.js');
+const { stopFixtureLocalRunner } = await from('apps/cli/tests/fixtures/runner/local-stop.js');
 
 const helpers = createE2eHelpers();
 const { landProject, itemWorktree, submitItem } = makeLandProjectFixtures(helpers);
-guardProcesses({});
+const boxes = [];
+// The submits start a dispatcher, gate drivers and a local runner per box; stop them so the file exits at once, not after the 30 s grace.
+guardProcesses({
+  before: async () => {
+    for (const box of boxes) stopFixtureLocalRunner(join(box.dir, 'machine-home'));
+    for (const { pid } of survivors(boxes.map(box => box.dir))) {
+      try { process.kill(pid, 'SIGTERM'); } catch (error) { if (error.code !== 'ESRCH') throw error; }
+    }
+    await settleProcesses(boxes.map(box => box.dir), 5_000);
+  },
+});
 
 /**
  * Submit one item and have a reviewer reserve its review through the real `next --verify`.
@@ -34,6 +48,7 @@ guardProcesses({});
 function reservedReview(number) {
   const box = landProject();
   track(box.dir);
+  boxes.push(box);
   const entry = submitItem(box, itemWorktree(box, number));
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, entry.commit);

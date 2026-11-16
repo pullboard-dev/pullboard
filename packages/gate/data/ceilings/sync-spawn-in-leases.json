@@ -37,7 +37,6 @@
     "packages/items/src/io/sources.js": 1,
     "packages/items/src/io/submit/recovery.js": 1,
     "packages/keys/src/io/relay.js": 5,
-    "packages/landing/src/io/automatic/scheduler.js": 1,
     "packages/landing/src/io/smoke.js": 2,
     "packages/landing/src/io/docs.js": 1,
     "packages/landing/src/io/shards.js": 2,

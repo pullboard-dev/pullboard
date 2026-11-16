@@ -7,7 +7,7 @@
  * @param {any} board - An open board; only its event table is read.
  * @param {Map<number, { item_merged_commit?: string | null }>} items - Every item on the board, by id.
  * @param {number} now - The snapshot clock in milliseconds.
- * @returns {{ landed: number, passed: number, sentBack: number, shouts: number, since: number, until: number }}
+ * @returns {{ landed: number, passed: number, accepted: number, sentBack: number, shouts: number, since: number, until: number }}
  */
 export function dashboardRecent(board, items, now) {
   const since = now - 4 * 3_600_000;
@@ -36,7 +36,8 @@ export function dashboardRecent(board, items, now) {
   }
   return {
     landed: landed.size,
-    passed: within('accept').length,
+    passed: new Set([...within('accept').map(row => row.item_id), ...landed]).size,
+    accepted: within('accept').length,
     sentBack: within('reject').length + within('reopen').length,
     shouts: within('shout').filter(row => detail(row).to === 'person').length,
     since, until: now,

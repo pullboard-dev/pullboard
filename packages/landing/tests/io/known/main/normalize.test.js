@@ -13,8 +13,8 @@ import { test } from 'node:test';
 import { failureSignatures } from '../../../../index.js';
 import { matchingMainFailures } from '../../../../index.js';
 import { normalizedFailureDiagnostics } from '../../../../index.js';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../../gate/tests/fixtures/child.js';
 
 /** Commit a real private test, then retain the actual failing TAP with that repository's source identity. */
 function failure(t, { message = 'same assertion', expected = 2, leaf = 'state.json' } = {}) {
@@ -104,4 +104,16 @@ test('original paired waiver-summary failure matches source identities without d
   assert.ok(matches(candidate, baseline));
   const different = retained(fixture.runs[1], fixture.runs[1].block.replace('the submission names the waiver, its reason and its expiry', 'a different missing authorization assertion'));
   assert.equal(matches(different, baseline), null, 'a substantive diagnostic difference remains blocking');
+});
+
+test('#4349 clause 1: runs failing alike with different uuids and runner temp paths compare as one failure [V4,B3,C7]', () => {
+  const line = (uuid, run, dir) => 'error: same assertion; packet ' + uuid + ' at /Users/user/.pullboard-runner/pull/env/test-' + run + '-1/tmp/pullboard-test-run-' + dir + '/pullboard-fixture-AbC123/state.json';
+  const a = normalizedFailureDiagnostics([line('11111111-2222-3333-4444-555555555555', 'a1b2c3d4e5f6', '2D5XkT')], '/root');
+  const b = normalizedFailureDiagnostics([line('66666666-7777-8888-9999-000000000000', '0f9e8d7c6b5a', 'Zq9PLm')], '/root');
+  assert.deepEqual(a, b);
+});
+
+test('#4349 clause 2: a different assertion still compares as a different failure [V4,B3,C7]', () => {
+  const line = text => 'error: ' + text + ' at /Users/user/.pullboard-runner/pull/env/test-a1b2c3d4e5f6-1/tmp/pullboard-test-run-2D5XkT/state.json';
+  assert.notDeepEqual(normalizedFailureDiagnostics([line('expected 2')], '/root'), normalizedFailureDiagnostics([line('expected 3')], '/root'));
 });

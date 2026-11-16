@@ -4,12 +4,12 @@ import { refuseUnreviewable } from '../../../../../verify/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../../../../index.js';
-import { fixtureBoard } from '../../../../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../../../../board/tests/fixtures/board.js';
 import { heartbeatSeat } from '../../../../index.js';
 import { refuseLiveAttach } from '../../../../../items/index.js';
 import { reviewEligibility } from '../../../../../verify/index.js';
 import { submitPreflight } from '../../../../../items/index.js';
-import { submitFixture } from '../../../../../../apps/cli/tests/fixtures/board/submit.js';
+import { submitFixture } from '../../../fixtures/submit.js';
 import { exportBoard } from '../../../../index.js';
 
 const COMMIT = 'a'.repeat(40), TREE = 'b'.repeat(40);

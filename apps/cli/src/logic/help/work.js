@@ -6,6 +6,7 @@ export const workHelp = `Work
     [--expected-minutes <minutes|unknown>]  authored build time; above itemBuildBudgetMinutes (default 30), cut into children
     [--force-size "reason"]             override the one-cell/three-clause size hint; records a fact
     [--accept-green "reason"]           keep a check that already passes on main, saying why (add and edit)
+    [--not-duplicate-of "<id> why"]     file an item that reads like an open one, saying why it differs
     [--split-coordinator]               a bar naming coordinator-owned paths: file the lane part, then the coordinator piece --after it
                                         --sensitive or --review-family <family> selects Strict review; edit can set them while open
                 [--brief "..." | --brief-file <file>] [--route light|mid] [--review-family <family>]
@@ -42,6 +43,8 @@ export const workHelp = `Work
   pullboard list [lane] [--all] [--route light|mid|strong]   open and active items; --all adds closed ones
   pullboard queue                       the work queue in pull order: releases, then route, lane, holder, waits,
                                         and each item's unblock count, effort and why it sits there
+  pullboard moves [--json]              each move table's recorded shadow compares, disagreements and first compare,
+                                        and whether it is live, shadow or none; read-only
   pullboard roadmap                     ordered milestones, N/M landed, targets, and each item as landed,
                                         accepted or its status
   pullboard milestone add <name> [--note ...] [--items 1,2,3 --reason "<why>"]   create a release catalog entry
@@ -107,6 +110,7 @@ export const workHelp = `Work
                                         changes included; a red file is compared with main and named known or new
                                         one file skips the main comparison; --compare-main runs it
                                         --diagnose prioritizes one file and prints full failure output
+                                        --no-file-limit lets slow files run to the 10-minute hard stop and prints their seconds
                                         --affected selects the change and its accepted registry guards; no files needed
                                         with no runner registered it starts here only under one load per core, and says so
                                         in an agent seat it queues on the board and returns at once with a run id;
@@ -131,7 +135,7 @@ export const workHelp = `Work
   pullboard ship [id] [--note text]       commit staged work, merge main, submit and wait up to 30 minutes for the verdict; hooks and gates remain mandatory
   pullboard submit <id> [--companion <patch> --key <key> --author <seat>] [--wait] [--no-next]  needs a clean tree; companions auto-attach with an owner objection window (alias: done)
                                         --precheck: run cheap submit checks only, without cells or gate
-    submit.handoff: true in pullboard.json queues that exact source and returns before the gate (default off).
+    submit.handoff: true in pullboard.json is a deprecated no-op; submit always settles through the pull gate.
     The builder may move HEAD and claim another item; show <id> retains the queued result and original refusal.
                                         --infra "<why>": required when the change edits an existing test or gate file; the reviewer reads it in show
   pullboard verify <id> --compare       rerun unit-test comparison; show and next print the automatic result\n  pullboard verify <id> accept [--no-next] [--read <clauses>] --note "what you broke or which edge you tried, and what happened"

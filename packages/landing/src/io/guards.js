@@ -18,7 +18,8 @@ import { saveKeyedResult } from '../../../pin/index.js';
 import { getItem } from '../../../store/index.js';
 import { itemPatches } from '../../../store/index.js';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { scratchRoot } from '../../../config/index.js';
+import { storeName } from './store-names.js';
 
 const graphs = new Map();
 /** Imports of each source; a source that does not compile imports nothing provable, as the seal graph also treats it (#2438). */
@@ -91,7 +92,7 @@ function treeGraph(root, tree) {
   }
   const files = new Map([...entries].filter(([, entry]) => entry.mode === '100644' || entry.mode === '100755').map(([path, entry]) => [path, wanted.has(path) ? bytes.get(entry.sha) : Buffer.alloc(0)]));
   // A virtual folder that is never created: every read of it is answered from the snapshot, none from a disk.
-  const snapshot = { root: join(tmpdir(), `pullboard-landing-graph-${tree}`), entries, files };
+  const snapshot = { root: join(scratchRoot(), `pullboard-landing-graph-${tree}`), entries, files };
   const { edges, unknown } = withCellSourceSnapshots(snapshot, () => cellInventory(snapshot.root, parsers));
   return { edges, unknown };
 }
@@ -257,7 +258,7 @@ function recordedMoves(root, commit) {
 function shardFor(to) {
   const parts = to.split('/');
   const name = (parts[0] === 'packages' || parts[0] === 'apps') && parts[1] ? parts[1] : 'untangle';
-  return `${SHARDS}${name}.json`;
+  return SHARDS + storeName(name);
 }
 
 /**

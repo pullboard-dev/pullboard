@@ -138,11 +138,14 @@ export function createRelayPageCache(state) {
     db.prepare('UPDATE job SET upload=? WHERE source=?').run(id, source);
   }
 
-  /** Stream only objects not yet acknowledged by this relay, without an aggregate request body. */
+  /**
+   * Stream only objects not yet acknowledged by this relay, without an aggregate request body. The ids are read first:
+   * an iterator kept open across the caller's upload holds a WAL read snapshot, so the acknowledge write after another
+   * process's commit failed SQLITE_BUSY_SNAPSHOT ("database is locked"), which busy_timeout never retries [H16].
+   */
   function* pending(source) {
-    // Node 22.13 may finalize an unreferenced statement while its iterator is suspended across a yield.
-    const statement = db.prepare('SELECT object.id FROM object JOIN job_object USING(id) WHERE source=? AND ack=0 ORDER BY object.rowid');
-    for (const row of statement.iterate(source)) yield object(row.id);
+    const ids = db.prepare('SELECT object.id FROM object JOIN job_object USING(id) WHERE source=? AND ack=0 ORDER BY object.rowid').all(source);
+    for (const row of ids) yield object(row.id);
   }
 
   /** A lost ACK safely retries the same immutable object; only an actual ACK marks it done. */

@@ -8,10 +8,10 @@ import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { historyPack } from '../../../src/io/pack.js';
 import { MAX_BLOB_BYTES } from '../../../src/io/source/scan.js';
-import { fixtureCommittedGraph } from '../../../../../apps/cli/tests/fixtures/testkit.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { fixtureCommittedGraph } from '../../../../gate/tests/fixtures/testkit.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 
 /** Files enough that `rev-list --objects` prints more than 8 MiB of object lines. */
 const FILES = 36_000;

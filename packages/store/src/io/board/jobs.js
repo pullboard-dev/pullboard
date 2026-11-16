@@ -31,7 +31,43 @@ export const JOB_SCHEMA_SQL = `
     UNIQUE (job_step_job, job_step_name, job_step_seq)
   );
   CREATE INDEX IF NOT EXISTS job_kind_item ON job (job_kind, job_item);
+  CREATE INDEX IF NOT EXISTS job_step_lease ON job (job_step, job_lease_until);
+  CREATE INDEX IF NOT EXISTS job_lease_live ON job (job_lease_until) WHERE job_lease_owner IS NOT NULL;
+  CREATE INDEX IF NOT EXISTS job_step_name_seq ON job_step (job_step_name, job_step_seq);
+  CREATE INDEX IF NOT EXISTS job_step_name_at ON job_step (job_step_name, job_step_at);
 `;
+
+/**
+ * The board's one row per runner job a move decides on: its id, kind, item, state, outcome, receipt summary and
+ * hand-off record [B2,R2]. Additive like the job tables; run ids are never reused. Runner traffic itself lives in the
+ * runs file (~/pbseat/coord/runner-store-design.md, section 1), so this table stays small.
+ */
+export const RUN_SCHEMA_SQL = `
+  CREATE TABLE IF NOT EXISTS run (
+    run_job TEXT PRIMARY KEY,
+    run_kind TEXT NOT NULL,
+    run_item INTEGER,
+    run_candidate TEXT,
+    run_base TEXT,
+    run_state TEXT NOT NULL,
+    run_attempt INTEGER NOT NULL DEFAULT 0,
+    run_outcome TEXT,
+    run_summary TEXT,
+    run_record TEXT,
+    run_lease_owner TEXT,
+    run_lease_until INTEGER NOT NULL DEFAULT 0,
+    run_created INTEGER NOT NULL,
+    run_updated INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS run_item_kind ON run (run_item, run_kind);
+  CREATE INDEX IF NOT EXISTS run_open ON run (run_state) WHERE run_state IN ('queued', 'awaiting');
+`;
+
+/** The run table and its indexes; a board missing any of them gains them on its next owning open [B2]. */
+export const RUN_OBJECT_NAMES = ['run', 'run_item_kind', 'run_open'];
+
+/** The job indexes the board API's queries rely on; a board missing any of them upgrades on its next open [C7,#6722]. */
+export const JOB_INDEX_NAMES = ['job_kind_item', 'job_step_lease', 'job_lease_live', 'job_step_name_seq', 'job_step_name_at'];
 
 /**
  * True when either job table is not installed yet.
@@ -42,7 +78,8 @@ export const JOB_SCHEMA_SQL = `
 export function missingJobTables(db) {
   const have = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('job', 'job_step')").all();
   // The item index serves every per-item hand-off read (claim, next, list), so a board without it upgrades too [C7].
-  return have.length < 2 || !db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name='job_kind_item'").get()
+  return have.length < 2 || !JOB_INDEX_NAMES.every(name => db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name=?").get(name))
+    || !RUN_OBJECT_NAMES.every(name => db.prepare('SELECT 1 FROM sqlite_master WHERE name = ?').get(name))
     || legacyHandoffsWaiting(db);
 }
 
@@ -99,11 +136,12 @@ export function adoptLegacyHandoffs(db, { now = Date.now() } = {}) {
 }
 
 /**
- * Install the job tables.
+ * Install the job tables and the board's run table.
  *
  * @param {import('node:sqlite').DatabaseSync} db
  */
 export function ensureJobTables(db) {
   db.exec(JOB_SCHEMA_SQL);
+  db.exec(RUN_SCHEMA_SQL);
   adoptLegacyHandoffs(db);
 }

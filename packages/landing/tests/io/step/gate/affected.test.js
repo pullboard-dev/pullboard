@@ -10,7 +10,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { cellProject } from '../../../../../store/tests/fixtures/cell.js';
-import { runFixtureChild } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../../gate/tests/fixtures/child.js';
 import { batchGatePlan } from '../../../../src/io/step/gate.js';
 
 const cleanups = [];
@@ -20,7 +20,7 @@ const owner = { after: cleanup => cleanups.push(cleanup) };
 
 /** Build a real committed test graph and run the actual planned command against a recording runner. */
 function plannedFiles(changed, { tiers = false, proof = null, mandatory = [], stale = false, full = false, moved = false } = {}) {
-  const box = cellProject(owner, { gate: 'true' });
+  const box = cellProject(owner, { real: true, gate: 'true' });
   const packageFile = join(box.repo, 'package.json');
   const packageData = existsSync(packageFile) ? JSON.parse(readFileSync(packageFile, 'utf8')) : {};
   writeFileSync(packageFile, JSON.stringify({ ...packageData, type: 'module' }));
@@ -52,7 +52,7 @@ function plannedFiles(changed, { tiers = false, proof = null, mandatory = [], st
   writeFileSync(runner, `require('node:fs').writeFileSync(${JSON.stringify(calls)}, JSON.stringify(process.argv.slice(2)));\n`);
   const commit = box.git(box.repo, 'rev-parse', 'HEAD');
   const state = { batch: { root: box.repo, base, items: proof === null ? [] : [{ id: 1, commit }] }, board: {}, config: {
-    gate: 'exit 91', affectedTests: `node ${JSON.stringify(runner)}`, submitInvariants: mandatory, registryGuards: [], landing: { perItem: false },
+    gate: 'exit 91', affectedTests: `node ${JSON.stringify(runner)}`, submitInvariants: mandatory, registryGuards: [], landing: { perItem: false, publish: 'separate' },
   } };
   const frozen = JSON.stringify({ check: 'node --test test/a.test.js' });
   const digest = createHash('sha256').update(frozen).digest('hex');

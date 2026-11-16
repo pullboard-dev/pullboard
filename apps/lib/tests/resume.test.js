@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict';
 import {
   mkdirSync,
+  watch,
   writeFileSync,
 } from 'node:fs';
 import {
@@ -35,32 +36,43 @@ function commit(box, cwd, subject) {
 }
 
 /** Create one cited row item and claim it from the already joined builder worktree. */
-function addAndClaim(box, title) {
+async function addAndClaim(box, title) {
   const brief = 'Files:\n- web/shared.txt\nTest:\n- inspect the reviewed composition\n';
-  const added = fixtureAdd(box.run, box.repo, 'web', title, '--route', 'strong', '--specs', 'G1',
+  const added = await fixtureAdd(box.runLocal, box.repo, 'web', title, '--route', 'strong', '--specs', 'G1',
     '--criterion', 'the cited row holds', '--check', 'true', '--brief', brief);
   assert.equal(added.code, 0, added.err || added.out);
   const itemId = Number(/#(\d+)/u.exec(added.out)?.[1]);
   assert.ok(itemId > 0, added.out);
-  const claimed = box.run(box.web, 'claim', String(itemId));
+  const claimed = await box.runLocal(box.web, 'claim', String(itemId));
   assert.equal(claimed.code, 0, claimed.err || claimed.out);
   return itemId;
 }
 
 /** Submit a committed shared-file edit and return its immutable submitted head. */
-function submitShared(box, itemId) {
+async function submitShared(box, itemId) {
   writeFileSync(join(box.web, 'web/shared.txt'), 'submitted side\n');
   const submitted = commit(box, box.web, 'feat(web): submit shared change [G1]');
-  const result = box.run(box.web, 'submit', String(itemId));
+  const result = await box.runLocal(box.web, 'submit', String(itemId));
   assert.equal(result.code, 0, result.err || result.out);
   return submitted;
 }
 
 /** Accept the exact submitted commit through the public CLI, then restore the main checkout. */
-function acceptSubmitted(box, itemId, submitted) {
+async function acceptSubmitted(box, itemId, submitted) {
   box.git(box.repo, 'switch', '-q', '--detach', submitted);
-  const accepted = box.run(box.repo, 'verify', String(itemId), 'accept', '--as', 'coordinator',
-    '--note', 'The submitted change passed its frozen check.');
+  // Under pull the gate settles on the runner, so verify first fails NOT_SUBMITTED; retry on each change in the local runner's folder
+  // (a log line per claim and receipt, a heartbeat every 5 s) until the board has applied the receipt [C7,#7283].
+  const deadline = Date.now() + 110_000;
+  let accepted;
+  for (;;) {
+    accepted = await box.runLocal(box.repo, 'verify', String(itemId), 'accept', '--as', 'coordinator',
+      '--note', 'The submitted change passed its frozen check.');
+    if (accepted.code === 0 || !/NOT_SUBMITTED/u.test(accepted.err ?? '') || Date.now() > deadline) break;
+    await new Promise(resolve => {
+      const watcher = watch(join(box.env.PULLBOARD_MACHINE_HOME, 'local-runner'), () => { watcher.close(); resolve(); });
+      setTimeout(() => { watcher.close(); resolve(); }, 6000).unref();
+    });
+  }
   assert.equal(accepted.code, 0, accepted.err || accepted.out);
   box.git(box.repo, 'switch', '-q', 'main');
 }
@@ -74,16 +86,16 @@ test('coordinator resume guides and groups the checked composition after stale r
     commit(box, box.repo, 'chore(web): create shared-file base [G1]');
     box.git(box.web, 'merge', '-q', '--ff-only', 'main');
 
-    const itemId = addAndClaim(box, 'Fresh composition');
-    const submitted = submitShared(box, itemId);
-    acceptSubmitted(box, itemId, submitted);
+    const itemId = await addAndClaim(box, 'Fresh composition');
+    const submitted = await submitShared(box, itemId);
+    await acceptSubmitted(box, itemId, submitted);
 
     writeFileSync(join(box.repo, 'web/shared.txt'), 'main side\n');
     commit(box, box.repo, 'feat(web): update the same line on main [G1]');
 
     const reviewer = join(box.dir, 'composition-reviewer');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, submitted);
-    const joined = fixtureJoin(box.run, reviewer, 'web', '--route', 'strong');
+    const joined = await fixtureJoin(box.runLocal, reviewer, 'web', '--route', 'strong');
     assert.equal(joined.code, 0, joined.err || joined.out);
 
     const conflict = box.tryGit(reviewer, 'merge', '-q', '--no-edit', 'main');
@@ -95,7 +107,7 @@ test('coordinator resume guides and groups the checked composition after stale r
 
     assert.notEqual(checked, submitted, 'the resolution is a separate checked composition');
     assert.equal(box.tryGit(reviewer, 'merge-base', '--is-ancestor', 'main', checked).status, 0, 'the checked resolution contains current main');
-    const reReview = box.run(reviewer, 'verify', String(itemId), 'accept', '--note',
+    const reReview = await box.runLocal(reviewer, 'verify', String(itemId), 'accept', '--note',
       'The exact resolution against current main passed the frozen check.');
     assert.equal(reReview.code, 0, reReview.err || reReview.out);
 
@@ -103,7 +115,7 @@ test('coordinator resume guides and groups the checked composition after stale r
     const view = await helpers.startView(box, box.repo);
     await view.stop();
 
-    const resumed = box.run(box.repo, 'resume', '--diagnostics', '--json');
+    const resumed = await box.runLocal(box.repo, 'resume', '--diagnostics', '--json');
     assert.equal(resumed.code, 0, resumed.err || resumed.out);
     const document = JSON.parse(resumed.out);
     assert.equal(document.setup, null, 'the actual view bind completed setup before merge guidance is judged');

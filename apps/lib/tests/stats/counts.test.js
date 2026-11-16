@@ -100,7 +100,8 @@ function rejectedThenMerged(t) {
   f.setTime('2026-01-07T10:00:00.000Z');
   merged(f.board, id, { agentId: 'coordinator', commit: MAIN_MERGE });
   f.setTime('2026-01-08T10:00:00.000Z');
-  merged(f.board, id, { agentId: 'coordinator', commit: 'b'.repeat(40) });
+  // merge() now refuses a second merge (ALREADY_MERGED), so the historical repeat is written as the event it left
+  logEvent(f.board, 'coordinator', 'merged', id, { commit: 'b'.repeat(40) });
   return { ...f, id };
 }
 

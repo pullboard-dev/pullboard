@@ -7,6 +7,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { storeName } from '../../store-names.js';
 
 const RECEIPT_ID = /^[a-f0-9-]{36}$/u;
 const MAX_FILES = 20_000;
@@ -37,7 +38,7 @@ function measuredTest(value) {
 export function readTestValueTimings(store, id) {
   try {
     if (typeof store !== 'string' || !RECEIPT_ID.test(id ?? '')) return null;
-    const file = join(store, 'test-value', `${id}.json`);
+    const file = join(store, 'test-value', storeName(id));
     if (statSync(file).size > MAX_BYTES) return null;
     const bytes = readFileSync(file);
     if (bytes.length > MAX_BYTES) return null;
@@ -66,7 +67,7 @@ export function retainTestValueTimings(store, id, profile) {
     if (Buffer.byteLength(body) > MAX_BYTES) return false;
     const directory = join(store, 'test-value');
     mkdirSync(directory, { recursive: true, mode: 0o700 });
-    writeFileSync(join(directory, `${id}.json`), body, { flag: 'wx', mode: 0o600 });
+    writeFileSync(join(directory, storeName(id)), body, { flag: 'wx', mode: 0o600 });
     return true;
   } catch { return false; }
 }

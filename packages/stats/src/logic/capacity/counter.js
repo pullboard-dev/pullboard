@@ -30,6 +30,8 @@ function returnKind(kind, detail) {
   if (kind === 'release') return 'release';
   if (kind === 'reopen' && detail.conflict) return 'conflict';
   if (kind === 'reopen' && detail.landingFailure) return 'landing-test';
+  // A coordinator reopen after accept, typed by category (verdict stale: a file changed on main).
+  if (kind === 'reopen' && detail.causeDerivation?.kind === 'reopen-category') return 'stale';
   return 'unknown';
 }
 
@@ -81,7 +83,7 @@ function landingOutcome(event, detail, at, item, before, write) {
   const cause = merged ? 'merged' : matchingReturn ? returnKind(event.event_kind, detail) : 'unknown';
   sample(event, at, 'landingOutcome', { item: event.item_id, route: episode.route,
     sourceCommit: episode.commit, acceptEvent: episode.acceptEvent,
-    failed: merged ? false : ['conflict', 'landing-test'].includes(cause) ? true : null,
+    failed: merged ? false : ['conflict', 'landing-test', 'stale'].includes(cause) ? true : null,
     cause, size: episode.size }, write);
   item.landingEpisode = null;
 }

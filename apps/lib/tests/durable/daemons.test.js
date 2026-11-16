@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/src/io/submit/handoff/worker.js packages/gate/data/baselines/test-waits-baseline.json packages/gate/src/io/changed/scripts/static.js packages/gate/src/logic/load/bearing.js packages/resources/src/io/handoff/worker/cap.js */
+/** @pullboard-test-input packages/gate/data/baselines/test-waits-baseline.json packages/gate/src/io/changed/scripts/static.js packages/gate/src/logic/load/bearing.js packages/resources/src/io/handoff/worker/cap.js */
 /** No process is load-bearing: the changed-file static check refuses new daemons and state files outside the drive, transport, jobs and pin cells [C7]. */
 import assert from 'node:assert/strict';
 import {
@@ -120,6 +120,6 @@ test('clause 1: existing sites sit in a ceiling that only falls, and the shared 
 test('clause 1: the repository ceilings list every existing site, so main passes its own check [C7]', () => {
   const root = join(import.meta.dirname, '../../../..');
   const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', CHECKER,
-    LOAD_BEARING_CEILINGS, 'apps/cli/src/io/submit/handoff/worker.js', 'packages/resources/src/io/handoff/worker/cap.js', 'packages/gate/src/logic/load/bearing.js'], { cwd: root, encoding: 'utf8' });
+    LOAD_BEARING_CEILINGS, 'packages/resources/src/io/handoff/worker/cap.js', 'packages/gate/src/logic/load/bearing.js'], { cwd: root, encoding: 'utf8' });
   assert.doesNotMatch(`${run.stderr}`, /load-bearing/u, run.stderr);
 });
