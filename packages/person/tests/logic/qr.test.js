@@ -75,7 +75,14 @@ test('a pairing QR matches the independent complete symbol and prints its quiet 
   }
   assert.equal(modules[SIZE - 8][8], true, 'the fixed dark module is set');
   assert.equal(formatData(modules) >> 3, 0b01, 'error correction level LOW');
-  const bits = dataBits(modules);
+  const codewords = [];
+  const raw = dataBits(modules);
+  for (let at = 0; at + 8 <= raw.length; at += 8) codewords.push(raw.slice(at, at + 8).reduce((value, bit) => value * 2 + bit, 0));
+  // Version 6 LOW holds two equal blocks whose data and check codewords are interleaved; a scanner splits them before reading the message.
+  const BLOCK_DATA = 68;
+  const blocks = [[], []];
+  for (let index = 0; index < 2 * BLOCK_DATA; index += 1) blocks[index % 2].push(codewords[index]);
+  const bits = [...blocks[0], ...blocks[1]].flatMap(value => Array.from({ length: 8 }, (_, shift) => (value >> (7 - shift)) & 1));
   const read = (from, count) => bits.slice(from, from + count).reduce((value, bit) => value * 2 + bit, 0);
   assert.equal(read(0, 4), 0b0100, 'byte mode');
   assert.equal(read(4, 8), Buffer.byteLength(link), 'the length field counts the link bytes');
