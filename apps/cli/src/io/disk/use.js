@@ -1,7 +1,6 @@
 /** @pullboard-module-loads apps/cli/src/io/disk/use/worker.js */
 /** What Pullboard keeps under .git/pullboard: its size per store, a warning threshold, and a retention policy for bulky raw material [C7]. */
-import { startDetachedCheck } from '../../../../../packages/drive/index.js';
-import { diskStores } from '../../../../../packages/gate/index.js';
+import { startDetachedCheck } from '../../../../../packages/drive/light.js';
 import { appendFileSync } from 'node:fs';
 import { closeSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
@@ -24,7 +23,7 @@ export const MEASURE_LOCK = 'disk-use.measuring';
 const LOG_FILE = 'retention-log.jsonl';
 
 /** The stores the board writes, by the top-level names they live under; any other name is counted as "other". */
-export const DISK_STORES = diskStores();
+export const DISK_STORES = (await import('../../../../../packages/gate/index.js')).diskStores();
 
 /** Removal failures that mean the entry changed or is held while being removed, so the prune keeps it and goes on. */
 const REMOVAL_RACES = new Set(['ENOTEMPTY', 'ENOENT', 'EBUSY', 'EPERM', 'EACCES']);
