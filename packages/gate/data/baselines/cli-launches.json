@@ -1043,9 +1043,6 @@
   "apps/cli/journeys/show/rows.test.js": {
     "launch": 5
   },
-  "apps/cli/journeys/verify/checks.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/verify/checks-timeouts.test.js": {
     "launch": 1
   },
@@ -1632,6 +1629,9 @@
     "launch": 1
   },
   "apps/cli/journeys/shout/http/state.test.js": {
+    "launch": 1
+  },
+  "apps/cli/journeys/verify/checks-heavy.test.js": {
     "launch": 1
   }
 }
