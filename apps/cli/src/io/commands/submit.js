@@ -114,6 +114,7 @@ import { withBoardRead } from '../entry.js';
 import { context } from '../entry.js';
 import { filesSince } from '../entry.js';
 import { gateTestFiles } from '../entry.js';
+import { titleCases } from '../submit.js';
 import { freezer } from '../entry.js';
 import { idArg } from '../entry.js';
 import { ordered } from '../entry.js';
@@ -288,7 +289,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const submitVerify = (submitHandoffPolicy(ctx) ?? mainPolicy(root)).config.verify;
   const inspectClauses = submitVerify.inspectClauses === true;
   const failBefore = submitVerify.failBefore === true;
-  const folderTicks = submitVerify.folderTicks === true, gateFilesOf = item => gateTestFiles(root, item, { folderTicks }); // verify.folderTicks (#8847) [C7]
+  const folderTicks = submitVerify.folderTicks === true, titleTicks = submitVerify.titleTicks === true, gateFilesOf = item => gateTestFiles(root, item, { folderTicks, titleTicks }); // verify.folderTicks (#8847), verify.titleTicks (#8880) [C7]
   const recovered = relayRecovered(root, {}, ctx.io);
   if (recovered?.operation === 'submit' && recovered.args[0] === id) {
     const preflight = withBoard(ctx, (board) => {
@@ -333,7 +334,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     }
     const readiness = barReadyProblem(board, item);
     if (readiness) throw readiness;
-    const clauseProblem = inspectClauses ? authorizationStep('clause-inspection', () => clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateFilesOf(item), head: headCommit(root), folderTicks })) : null;
+    const clauseProblem = inspectClauses ? authorizationStep('clause-inspection', () => clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateFilesOf(item), head: headCommit(root), folderTicks, titleTicks, cases: titleTicks ? titleCases(root, gateFilesOf(item)) : [] })) : null;
     if (clauseProblem) throw clauseProblem;
     // A [test] clause also needs a recorded run that failed on an assertion at the item's base (fail-before, pass-after) [C7].
     const receiptProblem = inspectClauses && failBefore ? clauseReceiptProblem(item, { gateFiles: gateFilesOf(item), baseRows: store.recordedBaseRows(board, item.item_claim_head), baseCommit: item.item_claim_head }) : null;

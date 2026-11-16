@@ -154,6 +154,7 @@ const ROWS = [
   ['verify.failBefore', 'Require a fail-before receipt', 'Submit refuses a [test] clause unless a recorded run at the item base failed on an assertion.', 'Review', 'on/off'],
   ['verify.frozenTests', 'Freeze named test files', 'Submit refuses an item whose bar-named test file changed after claim, unless the person ruled on the new content.', 'Review', 'on/off'],
   ['verify.folderTicks', 'Tick folder-named test clauses', 'On, a [test] clause that names a folder is ticked by the item\'s changed tests under it when the gate runs them green; off (default) only a clause naming a test file is.', 'Review', 'on/off'],
+  ['verify.titleTicks', 'Tick clauses by case title', 'On, a [test] clause that names no test file is ticked by the item\'s changed tests holding a case titled "clause N:" when the gate runs every such case green; off (default) only a clause naming a test file or folder is.', 'Review', 'on/off'],
   ['verify.testAuthorSplit', 'Separate test author', 'Submit refuses an item whose own seat wrote a bar-named test file; another seat must be the recorded author.', 'Review', 'on/off'],
   ['labels', 'Label bounds', 'How many items may carry each label at once, as a minimum and a maximum per label name.', 'Order', 'list'],
   ['families', 'Model family names', 'Which vendor names count as the same model family.', 'Review', 'list'],
