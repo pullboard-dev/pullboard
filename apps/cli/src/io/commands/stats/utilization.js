@@ -1,4 +1,5 @@
 /** pullboard stats runners --utilization: busy slots over total slots, from the board's job history, read only [C7,#6032]. */
+import { boardRunsReader } from '../../../../../../packages/store/index.js';
 import { runnerUtilization } from '../../../../../../packages/stats/index.js';
 import { utilizationLines } from '../../../../../../packages/stats/index.js';
 import { readJobSpans } from '../../../../../../packages/stats/index.js';
@@ -13,7 +14,7 @@ export function runUtilization(io, { second, rest, values }) {
   const ctx = context(io);
   const now = ctx.clock.now().getTime();
   const windowMinutes = flowWindowMinutes(values.window ?? '24h');
-  const report = withBoard(ctx, board => runnerUtilization(readJobSpans(board.db, { since: now - windowMinutes * 60_000, now }).spans, { now, windowMinutes }));
+  const report = withBoard(ctx, board => runnerUtilization(readJobSpans(board.db, { since: now - windowMinutes * 60_000, now, runs: boardRunsReader(board, ctx.file) }).spans, { now, windowMinutes }));
   io.result?.({ runnersUtilization: report });
   for (const line of utilizationLines(report)) io.say(line);
   return 0;

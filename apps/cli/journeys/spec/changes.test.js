@@ -218,15 +218,20 @@ test('[C7] cleanup diagnostics capture a forced late writer without hiding ENOTE
     await waitForOutput('writer-ready');
     let report = '';
     let failure;
+    let lateWrite = false;
     try {
       removeFixtureDirectory(target, {
         remove: () => {
           try { rmdirSync(target); } catch (error) { failure = error; }
           assert.equal(failure?.code, 'ENOTEMPTY', 'the control uses a real filesystem cleanup failure');
-          writer.stdin.write('write\n');
-          const deadline = Date.now() + 5_000;
-          // Publish the completed write by rename so its mtime cannot change after this handshake.
-          while (!existsSync(lateFile) && Date.now() < deadline) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
+          // The cleanup retries ENOTEMPTY (#8889) and calls this again; one late write only, or a rewrite lands after the report.
+          if (!lateWrite) {
+            lateWrite = true;
+            writer.stdin.write('write\n');
+            const deadline = Date.now() + 5_000;
+            // Publish the completed write by rename so its mtime cannot change after this handshake.
+            while (!existsSync(lateFile) && Date.now() < deadline) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
+          }
           assert.ok(existsSync(lateFile), 'the child made a real late file after cleanup failed');
           throw failure;
         },

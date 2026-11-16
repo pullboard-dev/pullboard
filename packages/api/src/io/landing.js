@@ -14,6 +14,7 @@ import { PERSON } from '../../../store/index.js';
 import { runsStoreOn } from '../../../store/index.js';
 import { offerJob } from './jobs.js';
 import { offeredRequest } from './jobs.js';
+import { holdJob } from '../../../jobs/index.js';
 
 /** The job kind a runner asks for to take landings; packages/landing's runner side takes this kind. */
 export const LANDING_JOB_KIND = 'land';
@@ -93,10 +94,11 @@ function landingItems(items) {
  *   reason a forced landing names, carried on the job and its key, and its job runs no check; mode is no longer read, since landing
  *   pulls in any mode. config.landing.publish "separate" rides on the job, so a red item parks and the clean ones land.
  *   queue: the board's queue (queueFor) while runs_store is on, so the offer goes through queueRun and the runs file [B2,P7]; null writes the board's job rows as before.
+ *   reofferTrunkBusy: landing.reofferTrunkBusy, on the job so its runner carries a green static check to a tip whose new commits miss the batch's files (#9103).
  *   mainReds: the `[file, commit]` pairs the board's red-now ledger records red (landing.ledgerMainReds); they ride with the contracts, so the runner counts a red in such a file as main's [C7,U152].
  * @returns {ReturnType<typeof offerJob>}
  */
-export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads/main', check = null, needs = [], checkout = false, upstream = null, forced = null, badges = [], deferred = null, flakes = null, hops = [], shardGate = null, mainReds = [], queue = null, now = Date.now() }) {
+export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads/main', check = null, needs = [], checkout = false, upstream = null, forced = null, badges = [], deferred = null, flakes = null, hops = [], shardGate = null, mainReds = [], queue = null, reofferTrunkBusy = false, now = Date.now() }) {
   // trunk.remote, else its old name landing.trunkRemote: config's configTrunkRemote order, kept here since the cell ratchet allows no new api->config import.
   const remote = config?.trunk?.remote || config?.landing?.trunkRemote;
   if (typeof remote !== 'string' || !remote || remote.startsWith('-')) throw new Refused('LANDING_TRUNK_REMOTE', 'a runner landing pushes the trunk remote of record; set trunk.remote in pullboard.json to its git URL');
@@ -135,7 +137,9 @@ export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads
   if (shardOn && (!Array.isArray(shardGate?.run) || !shardGate.run.length || typeof shardGate.entry !== 'string')) throw new Refused('LANDING_SHARD_GATE', 'landing.shardProof is on, so the offer names the gate a proof shard runs: { run, entry }');
   const shardProof = shardOn ? { run: shardGate.run, entry: shardGate.entry } : null;
   const payload = { shape: fenced.length ? LAND_HOPS_SHAPE : LAND_PAYLOAD_SHAPE, remote, trunk, expect, items: landed, ...(fenced.length ? { hops: fenced } : {}), ...(check ?? own?.gate ?? deferGate ? { check: check ?? own?.gate ?? deferGate } : {}), ...(own?.checks ? { checks: own.checks } : {}), ...(proof ? { proof } : {}), ...(shardProof ? { shardProof } : {}), ...(defer ? { deferred: defer } : {}), ...(contracts ? { contracts } : {}), ...(contracts && Array.isArray(mainReds) && mainReds.length ? { mainReds } : {}), ...(staticChecks ? { staticChecks } : {}), ...(waivers.length ? { waivers } : {}),
-    ...(separate ? { publish: 'separate' } : {}), ...(batchOnly ? { perItem: false } : {}), ...(proofMinutes ? { proofMinutes } : {}), ...(badges.length ? { badges } : {}), ...(checkout ? { checkout: true } : {}), ...(upstream ? { upstream } : {}), ...(flakes ? { flakes: { rerun: flakes.rerun, prefixes: { check: flakes.prefixes?.check ?? null, proof: flakes.prefixes?.proof ?? null } } } : {}), ...(forced ? { forced: forced.trim() } : {}) };
+    ...(separate ? { publish: 'separate' } : {}), ...(batchOnly ? { perItem: false } : {}), ...(proofMinutes ? { proofMinutes } : {}), ...(badges.length ? { badges } : {}), ...(checkout ? { checkout: true } : {}), ...(upstream ? { upstream } : {}), ...(flakes ? { flakes: { rerun: flakes.rerun, prefixes: { check: flakes.prefixes?.check ?? null, proof: flakes.prefixes?.proof ?? null } } } : {}), ...(forced ? { forced: forced.trim() } : {}),
+    // landing.reofferTrunkBusy rides on the job only when on, so its runner may carry a green static check to a new tip [C7,#9103].
+    ...(reofferTrunkBusy === true && !forced ? { reofferTrunkBusy: true } : {}) };
   const spilled = spillLargeInputs(payload);
   return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, priority: 'landing', needs, now, payload: spilled.payload, ...(spilled.request ? { request: spilled.request } : {}) }, queue);
 }
@@ -267,10 +271,10 @@ export function keepLandingLog(board, job, receipt) {
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {string} job - The failed land job's id.
- * @param {{ now?: number }} [options]
+ * @param {{ now?: number, holdMs?: number }} [options] - holdMs: no runner may claim the new job for this long, a backoff (#9102).
  * @returns {{ id: string, retry: number } | null} The new job, or null when the job has no offered payload.
  */
-export function reofferLandingJob(db, job, { now = Date.now(), queue = null } = {}) {
+export function reofferLandingJob(db, job, { now = Date.now(), queue = null, holdMs = 0 } = {}) {
   // With runs_store on the failed job's offered row lives in the runs file, not on the board [B2,P7].
   const home = queue ? queue.runs.db : db;
   const row = home.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job);
@@ -280,7 +284,9 @@ export function reofferLandingJob(db, job, { now = Date.now(), queue = null } = 
   const next = Number(retry ?? 0) + 1;
   const id = `${first}~r${next}`;
   offerJob(db, { id, kind: LANDING_JOB_KIND, priority: 'landing', needs: offered.needs ?? [], now, payload: offered.payload ?? null, request: offeredRequest(home, job) }, queue);
-  return { id, retry: next };
+  // A claim takes only a job whose lease_until has passed, so an unowned lease_until in the future is the backoff [C7,#9102].
+  if (holdMs > 0) holdJob(home, id, now + holdMs, { now });
+  return { id, retry: next, ...(holdMs > 0 ? { until: now + holdMs } : {}) };
 }
 
 /** How many times a land job id has been offered again: 0 for the first offer. */
