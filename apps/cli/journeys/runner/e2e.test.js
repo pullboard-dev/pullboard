@@ -44,9 +44,17 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
   BIN, cockpitSource, sandboxes, sandbox, CONFIG, SPEC, project, holdingGate,
-  launch, waitFor, gateEvents, commitFile, attackCommit, privateCheckSubmission,
+  launch, waitFor, gateEvents, attackCommit, privateCheckSubmission,
   startView, LIGHT_BRIEF,
 } = e2e;
+
+/** Commit one file as fixture setup: git plumbing without the repository's hooks, which each cost a Node launch; no case here is about a hook except the pre-commit case, which commits through tryGit [C7]. */
+function commitFile(box, cwd, path, text, message) {
+  mkdirSync(join(cwd, path, '..'), { recursive: true });
+  writeFileSync(join(cwd, path), text);
+  box.git(cwd, 'add', '-A');
+  return box.git(cwd, 'commit', '-q', '-m', message);
+}
 
 /** File light work at mid, then route it through the coordinator's diagnosis. */
 async function addDiagnosedLight(box, ...args) {
@@ -54,7 +62,7 @@ async function addDiagnosedLight(box, ...args) {
   assert.equal(args[route + 1], 'light');
   const brief = args.includes('--brief-file') ? readFileSync(args[args.indexOf('--brief-file') + 1], 'utf8') : args[args.indexOf('--brief') + 1];
   args[route + 1] = 'mid';
-  const added = fixtureAdd(box.run, box.repo, ...args);
+  const added = await fixtureAdd(box.runLocal, box.repo, ...args);
   assert.equal(added.code, 0, added.err || added.out);
   const id = added.out.match(/^#(\d+)/m)?.[1];
   assert.ok(id, added.out);
@@ -79,10 +87,10 @@ test('an item carries a brief to whoever claims it; a light agent sees only its 
   }
 
   writeFileSync(join(box.dir, 'brief.md'), LIGHT_BRIEF);
-  assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Design', 'the', 'page', '--specs', 'G1').code, 0);
-  assert.match(fixtureAdd(box.run, box.repo, 'web', 'Copy', '--route', 'mid', '--brief-file', join(box.dir, 'brief.md')).err, /NO_BRIEF.*--criterion.*--check/);
-  assert.match(fixtureAdd(box.run, box.repo, 'web', 'Copy', '--brief', 'x', '--brief-file', 'y').err, /USAGE.*give the brief once/);
-  const foreign = fixtureAdd(box.run, box.repo, 'web', 'Copy', '--route', 'mid', '--criterion', 'c', '--check', 'true', '--brief', LIGHT_BRIEF.replace('web/page.js', 'api/server.js'));
+  assert.equal((await fixtureAdd(box.runLocal, box.repo, 'web', 'Design', 'the', 'page', '--specs', 'G1')).code, 0);
+  assert.match((await fixtureAdd(box.runLocal, box.repo, 'web', 'Copy', '--route', 'mid', '--brief-file', join(box.dir, 'brief.md'))).err, /NO_BRIEF.*--criterion.*--check/);
+  assert.match((await fixtureAdd(box.runLocal, box.repo, 'web', 'Copy', '--brief', 'x', '--brief-file', 'y')).err, /USAGE.*give the brief once/);
+  const foreign = await fixtureAdd(box.runLocal, box.repo, 'web', 'Copy', '--route', 'mid', '--criterion', 'c', '--check', 'true', '--brief', LIGHT_BRIEF.replace('web/page.js', 'api/server.js'));
   assert.match(foreign.err, /BRIEF_LANE.*api\/server.js \(api's\)/);
   const added = await addDiagnosedLight(box, 'web', 'Copy', 'the', 'header', '--route', 'light', '--criterion', 'the page shows the header', '--check', 'test -f web/page.js', '--brief-file', join(box.dir, 'brief.md'), '--wait');
   assert.equal(added.code, 0, added.err);
@@ -291,7 +299,7 @@ test('resume puts an agent back to work from the board: its claim, its branch, w
   box.env.PULLBOARD_VIEW_FOREGROUND = '1';
   const view = await e2e.startView(box, box.repo);
   await view.stop();
-  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1', '--brief', 'Files: web/page.html');
+  await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1', '--brief', 'Files: web/page.html');
   const fresh = (await box.runLocal(box.web, 'resume'));
   assert.equal(fresh.code, 0, fresh.err);
   assert.match(fresh.out, /^resume: web-1 \(fixture-model\), web lane, at /);
@@ -328,8 +336,8 @@ test('resume puts an agent back to work from the board: its claim, its branch, w
 
 test('next takes work near your recent files; submit records them; show names related verified work [N20, N21]', async () => {
   const box = project();
-  fixtureAdd(box.run, box.repo, 'web', 'Footer', '--specs', 'G1', '--brief', 'Files: web/footer.html');
-  fixtureAdd(box.run, box.repo, 'web', 'Header', '--specs', 'G1', '--brief', 'Files: web/header.html');
+  await fixtureAdd(box.runLocal, box.repo, 'web', 'Footer', '--specs', 'G1', '--brief', 'Files: web/footer.html');
+  await fixtureAdd(box.runLocal, box.repo, 'web', 'Header', '--specs', 'G1', '--brief', 'Files: web/header.html');
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web', 'header.html'), '<header>');
   const next = (await box.runLocal(box.web, 'next'));
@@ -349,7 +357,7 @@ test('next takes work near your recent files; submit records them; show names re
   const verifiedCommit = JSON.parse((await box.runLocal(box.repo, 'show', '2', '--json')).out).item_commit;
   box.git(box.repo, 'merge', '--no-ff', verifiedCommit, '-m', 'chore(merge): land #2 [G1]');
   assert.equal((await box.runLocal(box.repo, 'merged', '2', 'HEAD')).code, 0);
-  fixtureAdd(box.run, box.repo, 'web', 'Menu', '--specs', 'G1', '--brief', 'Files: web/nav.html, web/menu.html');
+  await fixtureAdd(box.runLocal, box.repo, 'web', 'Menu', '--specs', 'G1', '--brief', 'Files: web/nav.html, web/menu.html');
   assert.match((await box.runLocal(box.repo, 'show', '3')).out, /related: #2 Header: web\/nav\.html \(git log -p -1 [0-9a-f]{12} -- web\/nav\.html\)/);
   const warm = (await box.runLocal(box.web, 'next'));
   assert.match(warm.out, /claimed #3: Menu/, 'a clean tree: the files of the items it built last are what is warm');
@@ -358,7 +366,7 @@ test('next takes work near your recent files; submit records them; show names re
 
 test('hold pauses a lane: next names who held it and why; --off lets it go [N22]', async () => {
   const box = project();
-  fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1');
+  await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1');
   assert.match((await box.runLocal(box.web, 'hold', 'web', '--reason', 'mine')).err, /COORDINATOR_ONLY/);
   assert.match((await box.runLocal(box.repo, 'hold', 'nowhere', '--reason', 'x')).err, /NO_LANE/);
   assert.match((await box.runLocal(box.repo, 'hold', 'web', '--reason', 'G1 is being rewritten')).out, /holding the web lane: G1 is being rewritten/);
