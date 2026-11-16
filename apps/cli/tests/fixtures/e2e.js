@@ -35,6 +35,7 @@ import { fetchFresh } from './http.js';
 import { stopFixtureLocalRunners } from './runner/local-stop.js';
 import { stopComparisonWorkers } from './runner/comparisons.js';
 import { reviveFixtureLocalRunner } from './runner/local-start.js';
+import { CLI_ENTRY } from './runner/entry.js';
 import { runnerSwitchedEnv } from './runner/switches.js';
 import { runCliInProcess } from './process.js';
 import { runCliSync } from './sync/cli.js';
@@ -66,10 +67,14 @@ export function parityText(text, dir) {
     .replace(/(gate:\d+:<hex>):[0-9a-z]+/gu, '$1:<job>')
     .replace(/(gate-\d+-<hex>)-[0-9a-z]+-\d+/gu, '$1-<job>')
     .replace(/\b(local-[a-z]+-\d+-[a-z]+)-\d{3,}\b/gu, '$1-<pid>')
+    .replace(/\b(local-[a-z]+\.local)-\d+\b/gu, '$1-<pid>') // the local runner's name carries its process id
     // The detached comparison worker records its result at no fixed moment, so a call sees it pending, complete or unavailable: a background-measured value.
     .replace(/^comparison (?:pending for #\d+|unavailable: .*|#\d+.*(?:\n(?:head |base |new red:|fixed:|No new red).*)*)$/gmu, '<comparison>')
     .replace(/"steps":\{[^}]*\}/gu, '"steps":"<steps>"')
     .replace(/\(pid \d+\)/gu, '(pid <pid>)')
+    // The detached comparison worker also writes its own thread facts at no fixed moment, so the lines and the digest's fact count follow timing, not the runtime.
+    .replace(/^ +<time> +.*fact measurement <uuid>: Review comparison: .*\n/gmu, '')
+    .replace(/\b\d+ fact activities\b/gu, '<n> fact activities')
     .replace(/"pid":\d+/gu, '"pid":"<pid>"')
     // Whether init's background view starts or finds port 4890 taken depends on what else runs on the machine, not on the runtime.
     .replace(/Pullboard view is running; open [^"\\]*|Port \d+ is in use; the background view did not start\./gu, '<view state>');
@@ -101,11 +106,14 @@ export function parityRecord({ dir, env, cwd, args, result }) {
   // at no fixed moment, so whether a call sees "measuring" or a total, and the byte counts, depend on timing, not on the runtime.
   const DISK_MEASURED = ['total', 'stores', 'measuredAt', 'measuring', 'warning'];
   const mask = (value, key) => key === 'comparison' ? '<comparison>'
+    : key === 'pid' && typeof value === 'number' ? '<pid>' // a runner's process id
+    : value?.kind === 'fact' && typeof value.count === 'number' ? mask({ ...value, count: '<n>' }) // the digest counts the late comparison fact
     : key === 'steps' && value && typeof value === 'object' && Object.values(value).every(Number.isFinite) ? '<steps>' // gate step timings, in milliseconds
     : typeof value === 'number' && /Ms$/u.test(key ?? '') ? '<ms>' // a measured duration
+    : typeof value === 'number' && key === 'pid' ? '<pid>' // a process id of a gate's test runtime
     : typeof value === 'string' ? parityText(value, dir).replace(/^disk use under \.git\/pullboard: .*$/gmu, 'disk use under .git/pullboard: <measured>')
     // The late comparison fact is itself a background-measured value; it also moves every later event id by one.
-    : key === 'eventId' && typeof value === 'number' ? '<event>'
+    : (key === 'eventId' || key === 'cursor') && typeof value === 'number' ? '<event>' // a cursor counts the late comparison fact too
     : Array.isArray(value) ? value.filter(inner => !(inner?.type === 'fact' && /^Review comparison: /u.test(inner.text ?? ''))).map(inner => mask(inner))
     : value && typeof value === 'object' ? Object.fromEntries([...Object.entries(value).filter(([name]) => key !== 'disk' || !DISK_MEASURED.includes(name)).map(([name, inner]) => [name, mask(inner, name)]),
       ...(key === 'disk' ? [['measurement', '<measured>']] : [])]) : value;
@@ -174,7 +182,7 @@ export function settlePulledJobs(cwd, args, env) {
       const db = new DatabaseSync(file, { readOnly: true });
       try { open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_step <> 'done' LIMIT 1").get()); } finally { db.close(); }
     } catch (error) { if (!/database is locked/u.test(String(error?.message))) return; open = true; }
-    if (!open || Date.now() >= deadline) return; reviveFixtureLocalRunner(cwd, env); // A gate switch stopped it (runnerSwitchedEnv).
+    if (!open || Date.now() >= deadline) return; reviveFixtureLocalRunner(cwd, env, { entry: CLI_ENTRY }); // A gate switch stopped it (runnerSwitchedEnv).
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
   }
 }
@@ -220,7 +228,7 @@ export async function settlePulledJobsAsync(cwd, args, env) {
       const db = new DatabaseSync(file, { readOnly: true });
       try { open = Boolean(db.prepare("SELECT 1 FROM job WHERE job_step <> 'done' LIMIT 1").get()); } finally { db.close(); }
     } catch (error) { if (!/database is locked/u.test(String(error?.message))) return; open = true; }
-    if (!open || Date.now() >= deadline) return; reviveFixtureLocalRunner(cwd, env); // A gate switch stopped it (runnerSwitchedEnv).
+    if (!open || Date.now() >= deadline) return; reviveFixtureLocalRunner(cwd, env, { entry: CLI_ENTRY }); // A gate switch stopped it (runnerSwitchedEnv).
     await runnerFolderChange(env);
   }
 }
@@ -367,7 +375,9 @@ function sandbox({ declareFamilies = false } = {}) {
     if (process.env.PULLBOARD_PARITY_RECORD) appendFileSync(process.env.PULLBOARD_PARITY_RECORD, `${JSON.stringify(parityRecord({ dir, env, cwd, args: called, result: answer }))}\n`);
     return answer;
   };
-  return { dir, env, git, tryGit, run, runAsync, inProcess, runLocal: runIn, runIn, runSync, declareFamilies, declareFamily };
+  /** A read of the board that is not the journey's subject, such as the settle wait's poll: in this process, whatever the mode, and recorded nowhere, so the parity call count follows no timing (U149) [C7]. */
+  runIn.read = inProcess;
+  return { dir, env, git, tryGit, run, runAsync, inProcess, runLocal: runIn, runIn, runSync, parityRecord, declareFamilies, declareFamily };
 }
 
 const CONFIG = {

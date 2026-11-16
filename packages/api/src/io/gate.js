@@ -15,6 +15,7 @@ import { releaseBackoffMs } from '../../../jobs/index.js';
 import { jobQueueCall } from './jobs.js';
 import { offerJob } from './jobs.js';
 import { boardRun } from '../../../store/index.js';
+import { applyRunReceipt } from '../../../store/index.js';
 import { offeredRequest } from './jobs.js';
 import { SHARD_JOB_KIND } from './jobs.js';
 import { LANDING_JOB_KIND } from './landing.js';
@@ -78,16 +79,18 @@ export function latestGateJob(db, item, { runs = null } = {}) {
  *
  * @param {{ db: import('node:sqlite').DatabaseSync }} board
  * @param {number} item
+ * @param {{ runs?: { db: import('node:sqlite').DatabaseSync } | null }} [options] - runs: the board's runs holder (boardRunsHolder) while runs_store is on, so the gate's job rows are read from the runs file; null reads the board's [B2,P7,#9150].
  * @returns {{ eventId: number, commit: string, failures: { file?: string, name?: string }[] }[]}
  */
-export function pulledGateReds(board, item) {
+export function pulledGateReds(board, item, { runs = null } = {}) {
+  const home = runs ? runs.db : board.db;
   let jobs;
-  try { jobs = board.db.prepare("SELECT job_id, job_candidate FROM job WHERE job_kind = 'gate' AND job_item = ? AND job_step = 'done' ORDER BY job_created, rowid").all(item); }
+  try { jobs = home.prepare("SELECT job_id, job_candidate FROM job WHERE job_kind = 'gate' AND job_item = ? AND job_step = 'done' ORDER BY job_created, rowid").all(item); }
   catch (error) { if (/no such table/u.test(error.message)) return []; throw error; }
   const redFact = board.db.prepare("SELECT MAX(event_id) AS id FROM event WHERE item_id = ? AND event_kind = 'fact' AND json_extract(event_detail, '$.text') LIKE ?");
   const reds = [];
   for (const job of jobs) {
-    const receipt = postedReceipt(board.db, job.job_id)?.receipt;
+    const receipt = postedReceipt(home, job.job_id)?.receipt;
     // Only a test phase that ran and failed is a red loop; an analysis refusal or an infrastructure stop is not the item's code.
     const failed = (receipt?.gate?.phases ?? []).filter(phase => phase.status !== 0);
     const fact = job.job_candidate && failed.length ? redFact.get(item, `Gate job ${job.job_id} red at %`)?.id : null;
@@ -150,14 +153,16 @@ function recordTimedSubmitReceipt(board, { job, receipt, runner }) {
  * is the run's own report; the board stamps the item, seat and bar the job was offered for [P7]. A companion submit's
  * receipts name its composed tree, the source the gate judged.
  *
+ * runs: the board's runs holder while runs_store is on, so the posting runner is read from the runs file [B2,P7,#9150].
+ *
  * @returns {{ id: string, role: string, command: string }[]} the receipts recorded, in phase order: id, submit phase and command digest
  */
-function recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit, check, admission = null }) {
+export function recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit, check, admission = null, runs = null }) {
   const { boardReceiptStore, receiptBody } = board.runtimePorts?.sourceAdvanceReceipts ?? {};
   const folder = typeof boardReceiptStore === 'function' ? boardReceiptStore(board) : null;
   if (!folder) return [];
   const gate = receipt.gate ?? {};
-  const runner = board.db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'receipt' ORDER BY job_step_seq DESC LIMIT 1").get(job);
+  const runner = (runs ? runs.db : board.db).prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'receipt' ORDER BY job_step_seq DESC LIMIT 1").get(job);
   const runnerName = runner ? JSON.parse(runner.job_step_payload).runner ?? null : null;
   const environment = gate.environment && ['node', 'platform', 'arch'].every(key => typeof gate.environment[key] === 'string' && gate.environment[key])
     ? { node: gate.environment.node, platform: gate.environment.platform, arch: gate.environment.arch } : null;
@@ -362,7 +367,9 @@ export function failingParts(receipt) {
   const gate = receipt?.gate ?? {};
   const clip = text => String(text ?? '').replace(/\s+/gu, ' ').trim().slice(-PART_TEXT);
   const parts = [];
-  if (gate.error) parts.push(`gate: ${clip(gate.error)}`);
+  // The job's own error leads with its reason and first failing cases, so a long file list loses its tail, never its head (#9429).
+  const flat = text => String(text ?? '').replace(/\s+/gu, ' ').trim();
+  if (gate.error) parts.push(`gate: ${flat(gate.error).length > PART_TEXT ? `${flat(gate.error).slice(0, PART_TEXT)} ...` : flat(gate.error)}`);
   if (gate.analysis?.infra) parts.push(`infrastructure: ${clip(typeof gate.analysis.infra === 'string' ? gate.analysis.infra : JSON.stringify(gate.analysis.infra))}`);
   for (const refusal of gate.analysis?.refusals ?? []) parts.push(`${refusal.part} ${refusal.code ?? 'REFUSED'}: ${clip(refusal.message)}`);
   if (gate.analysis?.ownership) parts.push(`authorization OUTSIDE_LANE: ${clip(gate.analysis.ownership.message)}`);
@@ -636,7 +643,30 @@ function submitOvertaken(board, id, options) {
  */
 export function applyGateReceipt(board, posted, ports = {}) {
   // Every policy read in the application, not only the submit, meets a detached primary: the receipt often applies while the coordinator verifies [C7,#8011].
-  return withRetainedTrunkPolicy(board, () => applyGateReceiptReads(board, posted, ports));
+  const applied = withRetainedTrunkPolicy(board, () => applyGateReceiptReads(board, posted, ports));
+  // A settled gate carries the timing profiles its runner kept, as the inline submit's gate does [C7,#9615].
+  const gate = applied.outcome === 'stale' || applied.outcome === 'not-gate' ? null : pulledProfilePaths(posted?.receipt);
+  return gate ? { ...applied, gate } : applied;
+}
+
+/**
+ * The kept timing profile files a pulled receipt names: its check and proof phase rows each carry `profileKept`, one plain
+ * file name in the job's kept `output.folder`. Anything else (no folder, a path, `.`, `..`) is ignored, so a receipt can never
+ * point the board outside the folder its runner kept.
+ * Why: only the inline submit's gate exposed check.profilePath and proofProfilePath before [C7,#9615].
+ *
+ * @param {Record<string, any> | undefined} receipt
+ * @returns {{ check?: { profilePath: string }, proofProfilePath?: string } | null} null when no phase names a kept profile.
+ */
+function pulledProfilePaths(receipt) {
+  const folder = typeof receipt?.output?.folder === 'string' && receipt.output.folder ? receipt.output.folder : null;
+  if (!folder) return null;
+  const pathOf = role => {
+    const name = (receipt.gate?.phases ?? []).find(row => row?.role === role)?.profileKept;
+    return typeof name === 'string' && /^[\w.-]+$/u.test(name) && name !== '.' && name !== '..' ? join(folder, name) : null;
+  };
+  const check = pathOf('check'), proof = pathOf('proof');
+  return check || proof ? { ...(check ? { check: { profilePath: check } } : {}), ...(proof ? { proofProfilePath: proof } : {}) } : null;
 }
 
 /** applyGateReceipt's body; its mainPolicy reads fall back to the retained trunk tip while the primary is detached. */
@@ -917,7 +947,10 @@ export function provideMainComparison(lookup) {
 export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, endStale = false, redLocation = false, settleOnMainReceipt = false, reofferTrunkBusy = false, ...options }) {
   // Queued main-test jobs are offered before each claim, so a free runner takes one in the same call (#6063).
   if (body?.action === 'claim' && options.mode === 'pull') offerMainTests(board, { now: options.now });
-  const answer = jobQueueCall(board.db, body, { queue: body?.action === 'shards' ? queueFor(board, 'coordinator') : null, onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain, ordered, endStale, redLocation, settleOnMainReceipt, reofferTrunkBusy, receiptNow: options.now }) });
+  // With runs_store on, a shard offer or a receipt goes through the runs queue; off, queueFor is null and nothing changes [B2,P7].
+  const queue = ['shards', 'receipt'].includes(body?.action) ? queueFor(board, 'coordinator') : null;
+  const ports = { compareWithMain, ordered, endStale, redLocation, settleOnMainReceipt, reofferTrunkBusy, receiptNow: options.now };
+  const answer = jobQueueCall(board.db, body, { queue, onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => queue ? applyQueuedReceipt(board, queue, posted, ports) : applyJobReceipt(board, posted, ports) });
   return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
 }
 
@@ -959,6 +992,27 @@ export function gateLedgerHits(db, request, files) {
   const hits = budget > 0 ? store.ledgerHits(db, files, { budget }) : null;
   if (hits) request.input.data.ledger = hits;
   return request;
+}
+
+/**
+ * Apply one receipt from the runs inbox while runs_store is on: when the board's run row is still queued for an older
+ * attempt, run the receipt applier and settle the row (outcome, summary, event); then ack the receipt in the runs file.
+ * A receipt already applied, or for an older attempt, changes nothing but its ack, so a crash between the move and the
+ * ack repeats as a no-op. The applier does file I/O, so it runs outside a board write [B2,P7].
+ *
+ * @param {any} board
+ * @param {NonNullable<ReturnType<typeof queueFor>>} queue
+ * @param {{ job: string, attempt: number, receipt: Record<string, any> }} posted
+ * @param {Parameters<typeof applyJobReceipt>[2]} [ports]
+ * @returns {{ applied: boolean, outcome?: string }}
+ */
+export function applyQueuedReceipt(board, queue, { job, attempt, receipt }, ports = {}) {
+  const run = boardRun(board.db, job);
+  const fresh = run?.run_state === 'queued' && attempt > run.run_attempt;
+  const answer = fresh ? applyJobReceipt(board, { job, attempt, receipt }, { ...ports, queue }) : { applied: false, outcome: 'already-applied' };
+  if (fresh) applyRunReceipt(board, { by: queue.by, job, attempt, outcome: String(receipt.outcome ?? receipt.status ?? 'unknown'), summary: receipt });
+  queue.port.ack(job, attempt);
+  return answer;
 }
 
 /**
@@ -1102,9 +1156,9 @@ export function reportRepeatClaims(board, { job, kind, claims, runners }) {
  * with why it still waits. The items stay accepted: the next landing offers them again, so nothing is withdrawn for a
  * runner's trouble (#7386).
  */
-export function reportRunaway(board, { job, kind, attempts, detail }) {
+export function reportRunaway(board, { job, kind, attempts, detail, runs = null }) {
   const named = kind === LANDING_JOB_KIND
-    ? JSON.parse(board.db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job)?.job_step_payload ?? '{}').payload?.items?.map(entry => entry.id) ?? []
+    ? JSON.parse((runs ? runs.db : board.db).prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job)?.job_step_payload ?? '{}').payload?.items?.map(entry => entry.id) ?? []
     : [];
   const waiting = named.filter(id => { const item = store.getItem(board, id); return item && !item.item_merged_commit; });
   for (const id of waiting) store.appendFact(board, id, { agentId: 'coordinator', kind: 'note', text: `Land job ${job} was released to the lane: ${detail}`.slice(0, 900) });

@@ -2,8 +2,9 @@
 export { createTransport, sharedTransport, connect, probe, startShard, fetchResult } from './src/io/main.js';
 export { dispatchGate } from './src/io/gate.js';
 export { sshAdapter, spawnSsh, sshControlPath } from './src/io/ssh.js';
-export { pullAdapter, pullStatement, saveKeyedResult } from './src/io/pull.js';
-export { pullServer, pullRunner } from './src/io/pull/http.js';
+export { loadKeyedResult, pullAdapter, pullStatement, saveKeyedResult } from './src/io/pull.js';
+export { pullServer, pullHandler, pullRunner } from './src/io/pull/http.js';
+export { makeTreeBundlePort } from './src/io/pull/bundle-port.js';
 export { fileStore } from './src/io/pull/store.js';
 export { boardPullAdapter, PULL_STORE_FILE } from './src/io/pull/board.js';
 export { issueRunnerKey, revokeRunnerKey, trustedRunnerKeys, revokedRunnerNames, RUNNER_KEYS_FILE } from './src/io/pull/keys.js';

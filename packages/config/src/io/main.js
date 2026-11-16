@@ -84,6 +84,8 @@ export function defaults() {
     map: { slice: false },
     // Off by default: slices.enforcePaths makes submit refuse a slice that changes a path outside its declared set [C7].
     slices: { enforcePaths: false },
+    // Off by default: next.wholeItemsFirst makes next offer a whole item of the focused release before an open slice [C7].
+    next: { wholeItemsFirst: false },
     // Off by default: cells checks replay a saved answer for an unchanged tree [#2076].
     cells: { cache: false, shimMaxAgeDays: 7 },
     agents: { names: 'suffix' },
@@ -416,6 +418,9 @@ export function configProblems(config) {
     || Object.keys(config.checks).some((key) => key !== 'provesNothing') || !['hold', 'warn'].includes(config.checks.provesNothing))) {
     problems.push('"checks" is { "provesNothing": "hold" or "warn" }: "hold" refuses claim and submit while an item\'s check already passes on main');
   }
+  if (config.release !== undefined && (notPlain(config.release) || Object.keys(config.release).some(key => key !== 'liftTwiceHold') || typeof config.release.liftTwiceHold !== 'boolean')) {
+    problems.push('"release" is { "liftTwiceHold": true or false }, false by default: true lifts an automatic released-twice hold when main moves or its named blocker lands');
+  }
   if (config.withdraw !== undefined && (notPlain(config.withdraw)
     || Object.keys(config.withdraw).some(key => !['review', 'refuseLanded'].includes(key))
     || Object.values(config.withdraw).some(value => typeof value !== 'boolean'))) {
@@ -470,6 +475,9 @@ export function configProblems(config) {
   }
   if (config.map?.slice !== undefined && typeof config.map.slice !== 'boolean') {
     problems.push('"map.slice" is true or false');
+  }
+  if (config.next?.wholeItemsFirst !== undefined && typeof config.next.wholeItemsFirst !== 'boolean') {
+    problems.push('"next.wholeItemsFirst" is true or false');
   }
   if (config.slices?.enforcePaths !== undefined && typeof config.slices.enforcePaths !== 'boolean') {
     problems.push('"slices.enforcePaths" is true or false');
