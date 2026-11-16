@@ -219,7 +219,7 @@ await withBoard(ctx,async board=>{
 }
 if(P('guard')){ran.push('guard');
 const guards=await runLocalLandingGuard(root,config,{files:['test/control.test.js'],directory:root+'/../logs',label:'guard',onFailure:observer,
- quarantines,proofContext:{...proofContext,kind:'land'}},{runProfiledShellAsync,pinRunMain,withLandingGateSlot,landingControllerPlacement,testsNeedBrowser,testsNeedGui,landingExecutionServices});
+ quarantines,proofContext:{...proofContext,kind:'land'}},{runProfiledShellAsync,pinRunMain,withLandingGateSlot,landingControllerPlacement,testsNeedBrowser,testsNeedGui,runnerExecutionServices,landingExecutionServices});
 assert.equal(guards.isGreen,true);assert.equal(guards.exitCode,1);
 assert.ok(guards.proofReceiptId,'a selective landing exception keeps its own actual native receipt');
 const deferred=await runDeferredAffectedTests(root,{...config,affectedTests:'node tooling/apps/cli/src/io/run/tests.js'},['test/control.test.js'],

@@ -16,7 +16,7 @@ test('clause 1: the landing guard imports nothing from the gate door and its exp
   assert.doesNotMatch(SOURCE, /gate\/index\.js/u);
   assert.match(SOURCE, /export async function runLocalLandingGuard\(root, config, \{[^}]*\}, ports\)/u);
   const taken = SOURCE.match(/const \{([^}]*)\} = ports;/u)?.[1] ?? '';
-  for (const name of ['runProfiledShellAsync', 'pinRunMain', 'withLandingGateSlot', 'landingControllerPlacement', 'testsNeedBrowser', 'testsNeedGui', 'landingExecutionServices']) {
+  for (const name of ['runProfiledShellAsync', 'pinRunMain', 'withLandingGateSlot', 'landingControllerPlacement', 'testsNeedBrowser', 'testsNeedGui', 'runnerExecutionServices', 'landingExecutionServices']) {
     assert.match(taken, new RegExp(`\\b${name}\\b`, 'u'), `${name} comes from ports`);
   }
 });

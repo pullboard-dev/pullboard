@@ -1,5 +1,4 @@
 /** Run a named local-trunk floor without reading or writing a full-gate tree stamp [B3,R3,C7]. */
-import { runnerExecutionServices } from '../../../../runners/index.js';
 import { browserFreeChecksEnabled } from '../../../../config/light.js';
 
 import { readFileSync } from 'node:fs';
@@ -8,11 +7,11 @@ import { Refused } from '../../../../kernel/index.js';
 /**
  * Retain native admission, complete stage output and failure observation under the actual run's lease.
  *
- * @param {object} ports - The gate functions the guard calls: runProfiledShellAsync, pinRunMain, withLandingGateSlot, landingControllerPlacement, testsNeedBrowser, testsNeedGui and landingExecutionServices.
+ * @param {object} ports - The gate functions the guard calls: runProfiledShellAsync, pinRunMain, withLandingGateSlot, landingControllerPlacement, testsNeedBrowser, testsNeedGui, runnerExecutionServices and landingExecutionServices.
  * Why ports: the guard's logic file then imports nothing from the gate door; the step that runs it passes the real ones [C7,#8567].
  */
 export async function runLocalLandingGuard(root, config, { files, directory, label, onWait, waivers, onFailure, quarantines = [], proofContext }, ports) {
-  const { runProfiledShellAsync, pinRunMain, withLandingGateSlot, landingControllerPlacement, testsNeedBrowser, testsNeedGui, landingExecutionServices } = ports;
+  const { runProfiledShellAsync, pinRunMain, withLandingGateSlot, landingControllerPlacement, testsNeedBrowser, testsNeedGui, runnerExecutionServices, landingExecutionServices } = ports;
   const browser = !browserFreeChecksEnabled() || await testsNeedBrowser(root, files);
   return withLandingGateSlot(root, async lease => {
     pinRunMain(lease, onFailure);
