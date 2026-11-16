@@ -376,6 +376,11 @@ export function rejectKeepsCheck() {
   return loadMachineSettings().verify?.rejectKeepsCheck === true;
 }
 
+/** Whether a joining seat's family label is canonicalised (#9681): off by default; only an exact `true` turns it on. */
+export function reviewCanonicalFamilies() {
+  return loadMachineSettings().review?.canonicalFamilies === true;
+}
+
 /** Whether a coordinator move records its own session usage (#9685): off by default; only an exact `true` turns it on. */
 export function statsRecordCoordinatorUsage() {
   return loadMachineSettings().stats?.recordCoordinatorUsage === true;

@@ -103,6 +103,7 @@ export {
   nextIdleBlockers,
   nextAdoptPreserved,
   nextItemNotices,
+  reviewCanonicalFamilies,
   statsRecordCoordinatorUsage,
   reviewStarveShout,
   nextCapBuilders,
