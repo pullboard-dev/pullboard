@@ -42,7 +42,7 @@ function linkedInSection(section, file, phrases) {
 }
 
 test('the README links the desktop board and timed tour with descriptive alt text [I11,I13]', () => {
-  linkedInSection('Pullboard View', 'desktop-light.png', ['open', 'claimed', 'submitted', 'accepted']);
+  linkedInSection('Pullboard View', 'desktop-light.png', ['one line each', 'who holds them', 'review that passed it', 'bar proven', 'sent back']);
   linkedInSection('Installation', 'tour.svg', ['submitted', 'rejected', 'fixed', 'accepted']);
 });
 
@@ -59,8 +59,8 @@ test('the README board shots show the stats line [I11,I13]', () => {
   assert.match(exported, /proof-stats-summary-text/, 'the exported demo renders a compact summary');
   assert.match(exported, /stats\.merged \+ ' merged · ' \+ percentage \+ ' sent back'/, 'the summary is derived from exported stats');
   assert.match(exported, /Bottleneck: ' \+ \(stage \|\| bottleneck\.message\)/, 'the summary includes the measured bottleneck');
-  linkedInSection('Pullboard View', 'desktop-light.png', ['stats line', 'merged work', 'sent-back share', 'bottleneck recommendation']);
-  linkedInSection('Pullboard View', 'phone-light.png', ['stats line', 'merged work', 'sent-back share', 'bottleneck recommendation']);
+  linkedInSection('Pullboard View', 'desktop-light.png', ['one line each', 'who holds them', 'review that passed it', 'bar proven', 'sent back']);
+  linkedInSection('Pullboard View', 'phone-light.png', ['item list', 'opened item', 'passing review', 'proven bar']);
 });
 
 test('the demo board stages a Shouts conversation [I11,I13]', () => {
