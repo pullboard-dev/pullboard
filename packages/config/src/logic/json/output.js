@@ -258,7 +258,9 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
       const focusedIdle = guidanceCommand === 'next' && result?.idleReason === 'focus'
         && result.reasons?.length === 1 && result.reasons[0].endsWith('overflow is off.');
       const cleanDoctor = command === 'doctor' && lastLine === 'board is clean' && !withheld;
-      if (!code && !refusal && finalAction && !focusedIdle && !cleanDoctor) {
+      // An empty inbox is one line: the footer would repeat the only thing a reader with no mail can do [C7,#8520].
+      const emptyInbox = command === 'inbox' && lastLine === 'no new shouts or activity' && !withheld;
+      if (!code && !refusal && finalAction && !focusedIdle && !cleanDoctor && !emptyInbox) {
         const action = explicitNext ?? withheldNext?.replace(/^next:[ \t]*/u, '') ?? successfulNext(guidanceCommand, result);
         const footer = cutLine(`next: ${action.replace(/[\r\n]+/gu, ' ')}`);
         if (lastLine?.toLowerCase() !== footer.toLowerCase()
