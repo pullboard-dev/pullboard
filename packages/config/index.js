@@ -99,6 +99,7 @@ export {
   submitAuthorizationMode,
   refuseMissingCheckFile,
   addWarnUnnamedTest,
+  docsRegenerateOnCommit,
   holdsRequireOwner,
   nextIdleBlockers,
   nextAdoptPreserved,

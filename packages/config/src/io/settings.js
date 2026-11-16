@@ -457,6 +457,11 @@ export function lapsedSweepEnabled() {
   return loadMachineSettings().health?.lapsedSweep === true;
 }
 
+/** Whether docs.regenerateOnCommit is on (#9664): off by default; only an exact `true` turns it on. */
+export function docsRegenerateOnCommit() {
+  return loadMachineSettings().docs?.regenerateOnCommit === true;
+}
+
 /** Whether add.warnUnnamedTest is on (#9303): off by default; only an exact `true` turns it on. */
 export function addWarnUnnamedTest() {
   return loadMachineSettings().add?.warnUnnamedTest === true;

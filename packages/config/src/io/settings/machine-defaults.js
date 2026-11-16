@@ -17,6 +17,7 @@ export const MACHINE_DEFAULTS = {
   'census.soloFileSeconds': null,
   'claim.keepWhileRunning': false,
   'claim.refuseOffMainHead': false,
+  'docs.regenerateOnCommit': false,
   'freeze.refuseEmptyBar': false,
   'gate.adapterLintClock': false,
   'gate.adapterLintFs': false,

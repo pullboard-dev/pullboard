@@ -316,6 +316,12 @@ export function loadMachineSettings() {
   if (value.verify?.rejectKeepsCheck !== undefined && typeof value.verify.rejectKeepsCheck !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `verify.rejectKeepsCheck in ${file} must be true or false`);
   }
+  if (value.docs !== undefined && (!value.docs || typeof value.docs !== 'object' || Array.isArray(value.docs) || Object.keys(value.docs).some(key => key !== 'regenerateOnCommit'))) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `docs in ${file} holds only regenerateOnCommit; remove other keys`);
+  }
+  if (value.docs?.regenerateOnCommit !== undefined && typeof value.docs.regenerateOnCommit !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `docs.regenerateOnCommit in ${file} must be true or false`);
+  }
   if (value.freeze?.refuseEmptyBar !== undefined && typeof value.freeze.refuseEmptyBar !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `freeze.refuseEmptyBar in ${file} must be true or false`);
   }
