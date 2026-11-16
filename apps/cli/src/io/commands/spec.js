@@ -7,6 +7,7 @@ import { verifiedPasskeyRowDecision } from '../../../../../packages/person/index
 import {
   planRowVerificationApply,
   rowVerificationFindings,
+  needsReviewFindings,
 } from '../../../../../packages/spec/index.js';
 import { planAutomaticRigorApply } from '../../../../../packages/rigor/index.js';
 import {
@@ -150,6 +151,12 @@ function verifierFindings(ctx, parsed) {
   const source = readFileSync(parsed.file, 'utf8');
   return hookRead(ctx, board => rowVerificationFindings(board, parsed, source, { rowDrafts }))
     ?? rowVerificationFindings(null, parsed, source, { rowDrafts });
+}
+
+/** Needs-review warnings for the spec file while spec.cascadeReject is on (#9343); a check never initializes a board. */
+function reviewFindings(ctx, parsed) {
+  const enabled = cascadeRejectEnabled();
+  return enabled ? hookRead(ctx, board => needsReviewFindings(board, parsed, { enabled })) ?? [] : [];
 }
 
 /**
@@ -464,6 +471,7 @@ export async function specCommand(io, { first, second, rest, values }) {
         ...lintSpec(parsed).filter((finding) => !finding.message.startsWith('duplicate id;')),
         ...(name === ctx.config.spec && parsed.rows.some(row => row.verify !== undefined)
           ? verifierFindings(ctx, parsed) : []),
+        ...(name === ctx.config.spec ? reviewFindings(ctx, parsed) : []),
         ...(name !== ctx.config.spec ? parsed.rows.filter(row => row.verify !== undefined).map(row => ({ level: 'error', line: row.line, id: row.id,
           message: 'ROW_VERIFY_PROVENANCE: verifier annotations currently require an exact board-drafted SPEC row' })) : []),
         ...missingGateFindings(parsed, ctx.info.root),
