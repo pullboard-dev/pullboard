@@ -78,3 +78,17 @@ test('clause 1: a first trip reads reached modules from the clean checkout, and 
   assert.deepEqual(dirty.closures.get('test/chain.test.js').files, ['src/leaf.js', 'src/mid.js', 'test/chain.test.js'], 'the committed import list is used, not the edited file');
   assert.equal(dirty.modules.get('src/mid.js'), "export { leaf } from './leaf.js';\n");
 });
+
+test('clause 2: measurement: the first test-result preparation of this one-file test on the real tree prints its milliseconds [C7,#8140]', async t => {
+  const root = fileURLToPath(new URL('../../../../../', import.meta.url));
+  const home = privateFixtureFiles('pullboard-scoped-first-').root;
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const env = { ...process.env, PULLBOARD_MACHINE_HOME: join(home, 'm'), PULLBOARD_ACCOUNT_HOME: join(home, 'a'), [TEST_RESULT_STORE_ENV]: join(home, 'store') };
+  const file = 'packages/gate/tests/io/affected/scoped.test.js';
+  const started = performance.now();
+  const keys = await testActionKeys(root, { env, files: [file], maintain: false });
+  const ms = Math.round(performance.now() - started);
+  assert.ok(keys.get(file)?.inputKey, 'the one test got a result key');
+  // The 1 s bar is read from this line in the runner's log, never asserted: a loaded runner would make a wall-clock assertion flake [#8751].
+  console.log(`# first-preparation-ms ${ms} ${file}`);
+});
