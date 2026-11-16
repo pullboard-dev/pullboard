@@ -116,8 +116,10 @@ describe('submit gate cases that need no shared state run together [V4,C7,V16]',
     put(esm.root, 'src/a.js', "import { createRequire } from 'node:module'; export const load = createRequire(import.meta.url);\n");
     const esmCommit = commitAll(esm, 'feat(core): create a CommonJS loader [G1]', true);
     const loader = selectAffectedTests(esm.root, { base: esmBase, commit: esmCommit });
-    assert.equal(loader.full, true, 'a reached CommonJS loader also makes the ESM import graph incomplete');
-    assert.match(loader.reason, /CommonJS/u);
+    // 17f76d43ff (#3170): a reached file with unknown reads selects its importers, not the whole suite.
+    assert.equal(loader.full, false, 'a reached CommonJS loader selects its importers, not the whole suite');
+    assert.ok(loader.files.includes('test/a.test.js'), 'the importer chain test/a.test.js -> entry -> middle -> the loader is selected');
+    assert.ok(!loader.files.includes('test/b.test.js') && !loader.files.includes('test/c.test.js'), 'tests that never reach the loader stay out');
   });
 
 
