@@ -524,15 +524,26 @@ function shadowed(db, move, now, write) {
   if (jobTable && (db.movesLive?.job ?? liveEnabled()) === true) return followTable(db, move, now, write);
   const shadow = shadowOf(db);
   if (!shadow) return write();
-  const answer = shadow.decide(jobSnapshot(db, move.job, now), { ...move, token: tokenHash(move.token ?? '') });
-  const decided = answer.threw ? { threw: answer.threw } : answer.refused ? { refused: answer.refused.code } : { job: answer.patch?.job };
-  let result;
-  try { result = write(); } catch (error) {
-    shadow.seen({ move: move.name, job: move.job, decided, wrote: { refused: error.code } });
+  // The table reads the row, the writer moves it and the compare reads it back in one write transaction: a runner's receipt landing
+  // from another process between the table's read and the write would otherwise leave the table on `claimed` and the row on `done` [C7,#9360].
+  let seen;
+  try {
+    return atomically(db, () => {
+      const answer = shadow.decide(jobSnapshot(db, move.job, now), { ...move, token: tokenHash(move.token ?? '') });
+      const decided = answer.threw ? { threw: answer.threw } : answer.refused ? { refused: answer.refused.code } : { job: answer.patch?.job };
+      let result;
+      try { result = write(); } catch (error) {
+        seen = { move: move.name, job: move.job, decided, wrote: { refused: error.code } };
+        throw error;
+      }
+      shadow.seen({ move: move.name, job: move.job, decided, wrote: { job: jobSnapshot(db, move.job, now).job } });
+      return result;
+    });
+  } catch (error) {
+    // A refused move rolls its transaction back, so its compare is recorded after it, as before.
+    if (seen) shadow.seen(seen);
     throw error;
   }
-  shadow.seen({ move: move.name, job: move.job, decided, wrote: { job: jobSnapshot(db, move.job, now).job } });
-  return result;
 }
 
 /**

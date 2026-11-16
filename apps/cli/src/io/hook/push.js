@@ -131,6 +131,33 @@ export function pushPlanLimitMs(shards, config, env = process.env) {
 }
 
 /**
+ * Why the push gate keeps the one-command gate, in one line, or null when a shard plan exists. A pure function of the facts
+ * pushShardPlan tests, one distinct reason per case it answers null for: dispatch is not pull, uncommitted changes,
+ * untracked files, fewer than two test files, or a gate command that cannot name its files. Why: the hook fell back to
+ * the 3-hour gate without saying so [C7,#9368].
+ *
+ * @param {{ pull: boolean, clean: boolean, untracked: number, files: number, nameable: boolean }} facts
+ * @returns {string | null}
+ */
+export function pushShardSkipReason({ pull, clean, untracked: loose, files, nameable }) {
+  if (!pull) return 'gate.runnerDispatch is not pull, so there are no runners to shard over';
+  if (!clean) return 'the checkout has uncommitted changes, and a runner fetches committed source only; commit or stash them';
+  if (loose > 0) return 'the checkout has untracked files, and a runner fetches committed source only; commit or remove them';
+  if (files < 2) return `the gate has ${files} test file${files === 1 ? '' : 's'}, and sharding needs at least two`;
+  if (!nameable) return 'the gate command cannot name its test files, so it cannot be split into shards';
+  return null;
+}
+
+/** Read the facts pushShardSkipReason takes from the checkout; the same tests pushShardPlan makes, so the reason matches its null. */
+async function pushShardFacts(root, config) {
+  const pull = runnerDispatchMode() === 'pull', clean = isClean(root), loose = untracked(root).length;
+  if (!pull || !clean || loose) return { pull, clean, untracked: loose, files: 0, nameable: true };
+  const { trackedDefaultTestFiles, valueGateCommand } = await import('../../../../../packages/gate/index.js');
+  const files = trackedDefaultTestFiles(root, process.env);
+  return { pull, clean, untracked: loose, files: files.length, nameable: files.length < 2 || Boolean(valueGateCommand(root, config.gate, files)) };
+}
+
+/**
  * The push gate's shard plan, or null when it keeps the one-command gate: dispatch is not pull, the checkout has
  * uncommitted work (a runner fetches committed source only), the gate's tests are fewer than two files, or the gate
  * command cannot name its test files (valueGateCommand refuses it).
@@ -311,7 +338,11 @@ export async function pushShardGate(ctx, { say, wait, pollMs } = {}) {
   const root = ctx.info.root;
   const runners = ctx.config?.pushGate?.sizeFromBoard === true ? await import('../commands/runner.js').then(module => module.liveRunnerCount(ctx)) : undefined;
   const plan = await pushShardPlan(root, ctx.config, { runners });
-  if (!plan) return null;
+  if (!plan) {
+    const reason = await pushShardFacts(root, ctx.config).then(pushShardSkipReason, () => null);
+    if (reason) say?.(`pre-push: running the one-command gate instead of shard jobs: ${reason}`);
+    return null;
+  }
   const { jobs, ref, reoffer } = await offerPushShards(ctx, plan);
   const files = plan.shards.reduce((sum, shard) => sum + shard.files.length, 0);
   say?.(`pre-push: the full gate's ${files} test files are offered as ${jobs.length} shard jobs at ${plan.source.slice(0, 12)}; every free runner pulls them`);
