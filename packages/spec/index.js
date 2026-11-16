@@ -12,6 +12,7 @@ export { checkReleaseReferences } from "./src/io/reference/release.js";
 export { rowDecisionContext, staleRowDecision, staleRowDecisions } from "./src/io/row/stale.js";
 export { rowDecisionReplacement, personNeeds } from "./light.js";
 export { rowDecisions } from "./src/logic/row/draft.js";
+export { commitAppliedRows } from "./src/io/row/commit.js";
 export { shownDecisionRows, prepareRowDecisions, pendingAnswers, pendingRowDecision, decisionAnswer, decisionProjection, projectRowDecisions, rowDecisionView, handAnsweredQuestions, planRowApply, writeRowApply, restoreRowApply } from "./src/io/row/decisions.js";
 export { recordRowDraft } from "./src/logic/row/draft.js";
 export { draftSpecRow, trunkRowIds, pendingRowDrafts, clashingRowDrafts, withRowDrafts } from "./src/io/row/drafts.js";
