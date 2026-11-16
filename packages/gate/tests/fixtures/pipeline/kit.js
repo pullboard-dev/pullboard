@@ -89,6 +89,18 @@ export const ROOT = process.env.PULLBOARD_HOP_ROOT ? resolve(process.env.PULLBOA
   : process.env.PULLBOARD_HOP_AGAINST ? await olderTree(process.env.PULLBOARD_HOP_AGAINST) : CHECKOUT;
 
 /**
+ * Run an inline ES module source in its own node process and return the spawn result; the one place a harness test starts a node child.
+ *
+ * @param {string} source - Module text for `node -e`.
+ * @param {string[]} args - Arguments the source reads from process.argv.
+ * @param {import('node:child_process').SpawnSyncOptions} options
+ * @returns {import('node:child_process').SpawnSyncReturns<string>}
+ */
+export function runModuleSource(source, args, options) {
+  return spawnSync(process.execPath, ['--no-warnings', '--input-type=module', '-e', source, ...args], options);
+}
+
+/**
  * Import one module of the tree under test by its repo-relative path.
  *
  * @param {string} path - Repo-relative module path, such as `packages/drive/index.js`.
