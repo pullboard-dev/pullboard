@@ -172,7 +172,8 @@ after(async () => {
   await Promise.all(serverChildren.values());
   await cleanupFixtureChildren();
   for (const pid of LOCAL_RUNNERS) { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } }
-  for (const dir of TEMP_DIRS) rmSync(dir, { recursive: true, force: true });
+  // A killed local runner may still be writing into a case's folder for a moment; the run's sandbox removes what is left.
+  for (const dir of TEMP_DIRS) { try { rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); } catch { /* a dying child still holds it */ } }
 });
 
 const SPEC = `# API fixture
@@ -1377,4 +1378,50 @@ catalogCase('[A1,C7,#8916] split files one child per numbered clause through rea
   assert.equal(split.children.length, 2, 'one child per numbered clause');
 }, ['add', 'init', 'split']);
 
-export { addRoot, catalogCases, covered, coveredRoots, declaredRun };
+/**
+ * The four run files' cases, by case name: each case is in exactly one group, and a run file runs its group alone [A1,C7,#9675].
+ * Why: one file ran all 28 cases in one process, so the slowest chain set the file's time; four files run on four runners.
+ */
+const CATALOG_GROUPS = {
+  results: [
+    '[A1] command results match the catalog across roots and subcommands',
+  ],
+  lanes: [
+    '[A1,B21,B27] a lane decision is answered by its agent through CLI JSON',
+    '[A1,B21,B27] decisions shows an agent its direct and lane asks only',
+    '[A1] refusals are one JSON document with exact public error fields',
+    '[A1] long-running servers flush one JSON document before shutdown',
+    '[A1,A2] watch --json prints one catalog document per event line',
+    '[A1,A10] view exports a static folder through its JSON variant',
+    '[A1,E13,E14,E15] move returns its real CLI result across local boards',
+  ],
+  exercises: [
+    '[A1] catalog commands keep their real repository exercises',
+  ],
+  commands: [
+    '[A1,R1,R2] flow replay exposes its recorded history and replay through real CLI JSON',
+    '[A1,C7] map exposes its main stamp and every rendered view through real CLI JSON',
+    '[A1] intake records a real outside pull request through the CLI',
+    '[A1,C7] test runs named test files as a pulled job and reports the runner',
+    '[A1,H11] sync shares a board through a real Git remote without an account',
+    '[A1,B26] slice creates a frozen child of a claimed item through real CLI JSON',
+    '[A1,C7] additive roots expose a real report and refuse missing native audit evidence',
+    '[A1,C7] red explain reports absent evidence through the catalog',
+    '[A1,C7] mutate reports caught and missed faults through the catalog',
+    '[A1,C7,#8842] cells lists sealed and unsealed cells through the catalog',
+    '[A1,C7,#8842] route suggests light items through the catalog',
+    '[A1,C7] rules replays the event log through the catalog',
+    '[A1,C7] compact reports a dry run through the catalog',
+    '[A1,C7,#8071] replay reports a table through the catalog',
+    '[A1,C7,#8072] explain reports a table through the catalog',
+    '[A1,C7] contribute check reports an accepted record through the catalog',
+    '[A1,C7,#8515] coordinate resumes the coordinator through real CLI JSON and writes nothing',
+    '[A1,C7,#8378] moves reports each move table state through real CLI JSON',
+    '[A1,C7,#8916] split files one child per numbered clause through real CLI JSON',
+  ],
+};
+
+/** The catalog cases of each run file, keyed by group name, in registration order. */
+const catalogGroups = Object.fromEntries(Object.entries(CATALOG_GROUPS).map(([group, wanted]) => [group, catalogCases.filter(({ name }) => wanted.includes(name))]));
+
+export { addRoot, catalogCases, catalogGroups, covered, coveredRoots, declaredRun };
