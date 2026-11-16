@@ -69,8 +69,8 @@ export function settingsCommand(io, { first, second, rest, values }) {
     io.say(`this board's landing pool: ${second}`);
     return 0;
   }
-  if (first === 'board.url' || first === 'board.token') {
-    if (!second || rest.length) throw new Refused('USAGE', `pullboard settings ${first} <${first === 'board.url' ? 'url' : 'key'}>|off`);
+  if (first === 'board.url' || first === 'board.token' || first === 'board.commits') {
+    if (!second || rest.length) throw new Refused('USAGE', `pullboard settings ${first} <${{ 'board.url': 'url', 'board.token': 'key', 'board.commits': 'bundle' }[first]}>|off`);
     setBoardRemote(first.slice(6), second);
     io.result?.({ setting: first, set: second !== 'off' });
     io.say(second === 'off' ? `${first} removed` : `${first} set${first === 'board.url' ? ` to ${second}` : ''}`);
