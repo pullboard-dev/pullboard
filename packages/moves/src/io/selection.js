@@ -161,8 +161,9 @@ export async function nextOnce(ctx, values, ports) {
           { blockedOn: unmet, worktreeSnapshot: claimWorktreeSnapshot(target.info.root) }, 'BLOCKED']);
         return { retry: true, retryDetail: { phase: 'parked claim', item: item.item_id, code: 'WAITING', message: `#${item.item_id} waits on ${unmet.map(id => `#${id}`).join(', ')}` } };
       }
+      // A held claim is the seat's own work in progress: its folder holds its edits, so next reads no status of it (a renewed open) [C7,#8574].
       let itemFolder;
-      try { itemFolder = await openNextFolder(target, board, holder, item.item_id, {}, ports); }
+      try { itemFolder = await openNextFolder(target, board, holder, item.item_id, { renewed: true }, ports); }
       catch (error) {
         // A held claim whose folder another live session holds can be built neither there nor in the seat checkout:
         // this seat hands the claim back and selects again, so it is never sent to build in its seat checkout (#3691).
