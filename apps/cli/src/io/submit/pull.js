@@ -1,5 +1,5 @@
 /**
- * Under gate.runnerDispatch pull, or for an item the gate.pullPilot setting picks, a submit offers its whole gate as one
+ * A submit offers its whole gate as one
  * runner job row and returns: authorization, doctrine, static checks, cells, test selection and the tests all run inside
  * that job on a runner, which posts one receipt. The submitting host starts no dispatcher, driver or worker process [P7].
  */
@@ -10,7 +10,6 @@ import { endGateHop } from '../../../../../packages/api/index.js';
 import { submitGateHop } from './hop.js';
 import { pulledGateReds } from '../../../../../packages/api/index.js';
 import { mappedCheck } from '../../../../../packages/codemap/index.js';
-import { pullGateFor } from '../../../../../packages/config/index.js';
 import { browserFreeChecksEnabled } from '../../../../../packages/config/index.js';
 import { hasSubmitRules } from '../../../../../packages/doctrine/index.js';
 import { submitRulesNarrowable } from '../../../../../packages/doctrine/index.js';
@@ -412,12 +411,10 @@ export function itemPulledReds(board, id) {
 }
 
 /**
- * True when this item's submit offers its gate as a row instead of driving it: under gate.runnerDispatch pull, or when
- * the gate.pullPilot setting names the item or takes it in its share; everything else stays on the controller path [P7].
- * @param {number} item
+ * True when this item's submit offers its gate as a row instead of driving it: always, since every runner job is a row [P7].
  */
-export function pullGateWanted(item) {
-  return pullGateFor(item);
+export function pullGateWanted() {
+  return true;
 }
 
 /**
