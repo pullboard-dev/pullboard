@@ -28,7 +28,7 @@ export function capacityWorsenedFindings(db, now, finding) {
   return [finding('CAPACITY_WORSENED', null, {
     subject: `capacity ${latest.week}`, key: `CAPACITY_WORSENED:week:${latest.week}`, since: latest.at, now,
     title: `capacity worsened in ${latest.week}`,
-    why: `${rose.map(([key, label]) => `${label} rose from ${previous[key]} to ${latest[key]}`).join('; ')} against ${previous.week}${files.length ? `; driven by ${files.join(', ')}` : ''}`,
+    why: `${latest.week}: ${rose.map(([key, label]) => `${label} rose from ${previous[key]} to ${latest[key]}`).join('; ')} against ${previous.week}${files.length ? `; driven by ${files.join(', ')}` : ''}`,
     next: files.length ? `split or decouple ${files[0]}, the file with the most pressure, then rerun pullboard capacity` : 'read pullboard capacity --detail for what drove the week',
     owner: { role: 'coordinator', who: 'coordinator' },
     detail: { week: latest.week, previousWeek: previous.week, rose: rose.map(([key]) => ({ measure: key, from: previous[key], to: latest[key] })), files: latest.files ?? [] },
