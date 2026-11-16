@@ -55,8 +55,9 @@ function replay() {
   return (replayed = { seconds, digest: digest.digest('hex').slice(0, 16), kinds: [...kinds.keys()].sort() });
 }
 
-test('clause 1: a replay of 100,000 proof counter events takes under 5 seconds [C7]', () => {
+test('clause 1: a replay of 100,000 proof counter events takes under 5 seconds [C7]', t => {
   const { seconds } = replay();
+  t.diagnostic(`replay seconds ${seconds.toFixed(2)}`);
   assert.ok(seconds < REPLAY_SECONDS, `the replay took ${seconds.toFixed(1)} s; the bar is ${REPLAY_SECONDS} s`); // budget: declared by #8562's frozen bar.
 });
 

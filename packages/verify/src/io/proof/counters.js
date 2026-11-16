@@ -74,15 +74,15 @@ function statement(db, sql) {
 
 /** Keys a replay keeps decoded in memory: the report policy grows with the whole board, so decoding and encoding it per event was most of a replay (#8562). */
 const HOT_KEYS = new Set(['report-policy']);
-/** Cursors every event reads and writes: a replay keeps their stored text in memory, and each read still decodes a fresh copy. */
+/** Cursors every event reads and writes: they stay held for the whole replay, while other shards are stored and released in batches. Each read decodes a fresh copy. */
 const HOT_TEXT_KEYS = new Set(['summary', 'report-summary', 'capacity-summary']);
-/** Per-item, per-seat and per-family shards, rewritten many times within a replay and read by key only: a replay keeps their stored text too. */
-const HOT_TEXT_PREFIX = /^(?:item|report-item|capacity-item|actor|family):/u;
 /** How many held shards a replay stores at once, so memory stays bounded however long the history. */
 const HOT_FLUSH = 20_000;
+/** How many rows one store statement carries; SQLite's limit is 32,766 values per statement. */
+const STORE_ROWS = 100;
 
-/** Whether a replay keeps this key's stored text in memory. */
-function hotText(key) { return HOT_TEXT_KEYS.has(key) || HOT_TEXT_PREFIX.test(key); }
+/** Whether a replay keeps this key's stored text in memory: every shard but the policy, which is kept decoded. */
+function hotText(key) { return !HOT_KEYS.has(key); }
 /** Per connection, only while a replay runs: each hot key's decoded value (or, for a text key, its stored text) and whether it was stored since. */
 const HOT = new WeakMap();
 
@@ -105,7 +105,15 @@ function replayHot(board, work) {
 
 /** Store every changed held shard, in the order each was first held, so new rows keep their order of arrival. */
 function storeHeld(board, held) {
-  for (const [key, entry] of held) if (entry.dirty) storeText(board, key, entry.text ?? encode(entry.value));
+  const changed = [];
+  for (const [key, entry] of held) if (entry.dirty) changed.push(PREFIX + key, entry.text ?? encode(entry.value));
+  storeRows(board, changed);
+}
+
+/** Drop held shards whose key starts with this prefix, because the caller just deleted their rows. */
+function dropHeld(board, prefix) {
+  const held = HOT.get(board.db);
+  if (held) for (const key of [...held.keys()]) if (key.startsWith(prefix)) held.delete(key);
 }
 
 /** Read a single small derived record; none of these keys is exported native state. */
@@ -151,9 +159,16 @@ function put(board, key, value) {
 }
 
 /** Store one shard's encoded text now. */
-function storeText(board, key, text) {
-  statement(board.db, 'INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
-    .run(PREFIX + key, text);
+function storeText(board, key, text) { storeRows(board, [PREFIX + key, text]); }
+
+/** Store rows given as flat key, text pairs, many per statement: most of a replay's store time was the call into SQLite for each row. */
+function storeRows(board, pairs) {
+  const rows = pairs.length / 2;
+  for (let at = 0; at < rows; at += STORE_ROWS) {
+    const count = Math.min(STORE_ROWS, rows - at);
+    statement(board.db, `INSERT INTO board_meta(meta_key,meta_value) VALUES ${Array(count).fill('(?,?)').join(',')} ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value`)
+      .run(...pairs.slice(at * 2, (at + count) * 2));
+  }
 }
 
 /** The kinds whose shards are written once, one per event, and never rewritten: what a reader may keep. */
@@ -332,6 +347,7 @@ function ensureCapacityCounters(board, until) {
   let summary = proofCounter(board, 'capacity-summary');
   if (!summary || summary.version !== CAPACITY_VERSION) {
     board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ?').run(`${PREFIX}capacity-*`);
+    dropHeld(board, 'capacity-');
     summary = emptyCapacityCounter(); put(board, 'capacity-summary', summary);
   }
   if (summary.last >= until || summary.invalid) return;
@@ -370,6 +386,7 @@ function replayProofTail(board, cursor) {
 /** Reset only the optional report when its representation changes; preserve established proof shards. */
 function resetReportCounters(board) {
   board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ?').run(`${PREFIX}report-*`);
+  dropHeld(board, 'report-');
   put(board, 'report-summary', emptyReportCounter());
   put(board, 'report-policy', newReportPolicy());
 }
