@@ -23,8 +23,23 @@ function stored(key) {
 }
 const REPLAYING = new WeakSet();
 
+/**
+ * Whether a shard is plain JSON data with only finite numbers: such a shard encodes with one stringify and no copy [C7].
+ * A non-finite number or an object with its own JSON form (a date) takes the copying path.
+ */
+function plain(field) {
+  if (typeof field === 'number') return Number.isFinite(field);
+  if (field === null || typeof field !== 'object') return true;
+  if (Array.isArray(field)) { for (const child of field) if (!plain(child)) return false; return true; }
+  const proto = Object.getPrototypeOf(field);
+  if (proto !== Object.prototype && proto !== null || typeof field.toJSON === 'function') return false;
+  for (const key in field) if (!plain(field[key])) return false;
+  return true;
+}
+
 /** Encode non-finite timestamps with external paths, so user detail objects cannot collide with markers. */
 function encode(value) {
+  if (value !== undefined && plain(value)) return `{"data":${JSON.stringify(value)},"numbers":[]}`;
   const numbers = [];
   /** Copy a small shard while recording only non-JSON numeric values. */
   const visit = (field, path) => {
@@ -64,16 +79,103 @@ function statement(db, sql) {
   return prepared;
 }
 
+/** Keys a replay keeps decoded in memory: the report policy grows with the whole board, so decoding and encoding it per event was most of a replay (#8562). */
+const HOT_KEYS = new Set(['report-policy']);
+/** Cursors every event reads and writes: they stay held for the whole replay, while other shards are stored and released in batches. Each read decodes a fresh copy. */
+const HOT_TEXT_KEYS = new Set(['summary', 'report-summary', 'capacity-summary']);
+/** How many held shards a replay stores at once, so memory stays bounded however long the history. */
+const HOT_FLUSH = 20_000;
+/** How many rows one store statement carries; SQLite's limit is 32,766 values per statement. */
+const STORE_ROWS = 100;
+
+/** Whether a replay keeps this key's stored text in memory: every shard but the policy, which is kept decoded. */
+function hotText(key) { return !HOT_KEYS.has(key); }
+/** Per connection, only while a replay runs: each hot key's decoded value (or, for a text key, its stored text) and whether it was stored since. */
+const HOT = new WeakMap();
+
+/**
+ * Run a replay with the hot keys held in memory, storing each once when the outermost replay ends [C7].
+ * Why: the stored text is the last value written, so one store at the end leaves the same rows as one per event.
+ * The store runs even when the replay fails, so the report cursor never gets ahead of the policy it was folded with.
+ */
+function replayHot(board, work) {
+  const db = board.db;
+  if (HOT.has(db)) return work();
+  HOT.set(db, new Map());
+  let failure;
+  try { return work(); } catch (error) { failure = { error }; throw error; } finally {
+    const held = HOT.get(db);
+    HOT.delete(db);
+    try { storeHeld(board, held); } catch (error) { if (!failure) throw error; }
+  }
+}
+
+/** Store every changed held shard, in the order each was first held, so new rows keep their order of arrival. */
+function storeHeld(board, held) {
+  const changed = [];
+  for (const [key, entry] of held) if (entry.dirty) changed.push(stored(key), entry.text ?? encode(entry.value));
+  storeRows(board, changed);
+}
+
+/** Drop held shards whose key starts with this prefix, because the caller just deleted their rows. */
+function dropHeld(board, prefix) {
+  const held = HOT.get(board.db);
+  if (held) for (const key of [...held.keys()]) if (key.startsWith(prefix)) held.delete(key);
+}
+
 /** Read a single small derived record; none of these keys is exported native state. */
 export function proofCounter(board, key) {
+  const held = HOT.get(board.db);
+  if (held && hotText(key)) {
+    let entry = held.get(key);
+    if (!entry) {
+      const row = statement(board.db, 'SELECT meta_value FROM board_meta WHERE meta_key=?').get(stored(key));
+      if (!row) return null;
+      entry = { text: row.meta_value, dirty: false }; held.set(key, entry);
+    }
+    return decode(entry.text);
+  }
+  if (held && HOT_KEYS.has(key)) {
+    let entry = held.get(key);
+    if (!entry) { entry = { value: readCounter(board, key), dirty: false }; held.set(key, entry); }
+    return entry.value;
+  }
+  return readCounter(board, key);
+}
+
+/** Read and decode one stored record. */
+function readCounter(board, key) {
   const row = statement(board.db, 'SELECT meta_value FROM board_meta WHERE meta_key=?').get(stored(key));
   return row ? decode(row.meta_value) : null;
 }
 
 /** Replace one affected shard without rewriting the board's accumulated history. */
 function put(board, key, value) {
-  statement(board.db, 'INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
-    .run(stored(key), encode(value));
+  const held = HOT.get(board.db);
+  if (held && HOT_KEYS.has(key)) { held.set(key, { value, dirty: true }); return; }
+  if (held && hotText(key)) {
+    held.set(key, { text: encode(value), dirty: true });
+    if (held.size > HOT_FLUSH) {
+      // Store and release the shards read by key only; the policy and the cursors stay held.
+      storeHeld(board, held);
+      for (const [name, entry] of held) if (!HOT_KEYS.has(name) && !HOT_TEXT_KEYS.has(name)) held.delete(name); else entry.dirty = false;
+    }
+    return;
+  }
+  storeText(board, key, encode(value));
+}
+
+/** Store one shard's encoded text now. */
+function storeText(board, key, text) { storeRows(board, [stored(key), text]); }
+
+/** Store rows given as flat key, text pairs, many per statement: most of a replay's store time was the call into SQLite for each row. */
+function storeRows(board, pairs) {
+  const rows = pairs.length / 2;
+  for (let at = 0; at < rows; at += STORE_ROWS) {
+    const count = Math.min(STORE_ROWS, rows - at);
+    statement(board.db, `INSERT INTO board_meta(meta_key,meta_value) VALUES ${Array(count).fill('(?,?)').join(',')} ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value`)
+      .run(...pairs.slice(at * 2, (at + count) * 2));
+  }
 }
 
 /** The kinds whose shards are written once, one per event, and never rewritten: what a reader may keep. */
@@ -247,6 +349,7 @@ function ensureCapacityCounters(board, until) {
   let summary = proofCounter(board, 'capacity-summary');
   if (!summary || summary.version !== CAPACITY_VERSION) {
     board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ?').run(`${PREFIX}capacity-*`);
+    dropHeld(board, 'capacity-');
     summary = emptyCapacityCounter(); put(board, 'capacity-summary', summary);
   }
   if (summary.last >= until || summary.invalid) return;
@@ -272,17 +375,20 @@ function replayProofTail(board, cursor) {
   REPLAYING.add(board);
   try {
     const read = board.db.prepare('SELECT * FROM event WHERE event_id>? ORDER BY event_id LIMIT 256');
-    while (true) {
-      const batch = read.all(cursor);
-      if (!batch.length) break;
-      for (const event of batch) { appendProofCounter(board, event); cursor = event.event_id; }
-    }
+    replayHot(board, () => {
+      while (true) {
+        const batch = read.all(cursor);
+        if (!batch.length) break;
+        for (const event of batch) { appendProofCounter(board, event); cursor = event.event_id; }
+      }
+    });
   } finally { if (!nested) REPLAYING.delete(board); }
 }
 
 /** Reset only this version's report folder; preserve established proof shards and every other version's report. */
 function resetReportCounters(board) {
   board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ?').run(`${PREFIX}${REPORT_FOLDER}*`);
+  dropHeld(board, 'report-');
   put(board, 'report-summary', emptyReportCounter());
   put(board, 'report-policy', newReportPolicy());
 }
@@ -301,22 +407,24 @@ function ensureReportCounters(board, until) {
   if (summary.last >= until || summary.invalid) return true;
   const read = board.db.prepare('SELECT * FROM event WHERE event_id>? AND event_id<=? ORDER BY event_id LIMIT 256');
   let cursor = summary.last;
-  while (true) {
-    const batch = read.all(cursor, until);
-    if (!batch.length) return true;
-    for (const event of batch) {
-      let detail;
-      try { detail = JSON.parse(event.event_detail); } catch { detail = null; }
-      const at = Date.parse(event.event_at);
-      if (detail === null || !Number.isFinite(at)) {
-        put(board, 'report-summary', { ...summary, invalid: true });
-        return true;
+  return replayHot(board, () => {
+    while (true) {
+      const batch = read.all(cursor, until);
+      if (!batch.length) return true;
+      for (const event of batch) {
+        let detail;
+        try { detail = JSON.parse(event.event_detail); } catch { detail = null; }
+        const at = Date.parse(event.event_at);
+        if (detail === null || !Number.isFinite(at)) {
+          put(board, 'report-summary', { ...summary, invalid: true });
+          return true;
+        }
+        board.onFlowReportEvent?.(event);
+        appendReportCounter(event, detail, at, key => proofCounter(board, key), (key, value) => put(board, key, value));
+        cursor = event.event_id;
       }
-      board.onFlowReportEvent?.(event);
-      appendReportCounter(event, detail, at, key => proofCounter(board, key), (key, value) => put(board, key, value));
-      cursor = event.event_id;
     }
-  }
+  });
 }
 
 /**
