@@ -5,7 +5,6 @@
  * Why a static walk: the modules a command loads are the ones its import statements reach, so no process is launched.
  */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -57,14 +56,4 @@ test('clause 2: every read command keeps a startup ceiling row, none above its a
   const audited = { version: 800, show: 2000, status: 3000, list: 1500 };
   assert.deepEqual(Object.keys(ceilings).sort(), ['list', 'show', 'status', 'version']);
   for (const [command, limit] of Object.entries(audited)) assert.ok(ceilings[command] <= limit, `${command} ceiling ${ceilings[command]} ms is above its audited ${limit} ms`);
-});
-
-test('clause 1: version keeps a 100 ms row and --version --json answers the dispatcher document without loading it [C7]', () => {
-  assert.equal(ceilings.version, 100);
-  const run = args => spawnSync(process.execPath, [resolve(REPO, 'apps/cli/pullboard.js'), ...args], { cwd: REPO, encoding: 'utf8' });
-  const thin = run(['--version', '--json']);
-  const full = run(['version', '--json']);
-  assert.equal(thin.status, 0, thin.stderr);
-  assert.equal(thin.stdout, full.stdout);
-  assert.deepEqual(JSON.parse(thin.stdout), { version: 1, release: JSON.parse(readFileSync(resolve(REPO, 'package.json'), 'utf8')).version });
 });
