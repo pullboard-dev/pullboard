@@ -55,6 +55,7 @@ export {
   testNiceEnabled,
   fencedHopEnabled,
   endStaleJobsEnabled,
+  recaptureHandoffEnabled,
   redFactLocationEnabled,
   settleOnMainReceiptEnabled,
   movesShadowEnabled,
