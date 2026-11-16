@@ -34,6 +34,7 @@ export const MACHINE_DEFAULTS = {
   'gate.measuredSlots': false,
   'gate.memoryFloorMB': null,
   'gate.namedImportSelection': false,
+  'gate.overlapStaticProof': false,
   'gate.postLandSuite': false,
   'gate.queue.agingMinutes': 30,
   'gate.queue.currentReleaseFirst': false,
@@ -42,6 +43,7 @@ export const MACHINE_DEFAULTS = {
   'gate.redFactLocation': false,
   'gate.refuseMissingCheckFile': false,
   'gate.refuseTempWorktree': false,
+  'gate.reofferInfraEnd': false,
   'gate.requireRunnerAttribution': false,
   'gate.runnerBusyCeiling': 90,
   'gate.runnerDispatch': 'pull',
@@ -120,5 +122,6 @@ export const MACHINE_DEFAULTS = {
   'tests.registryStrict': false,
   'tests.requireJourneyPath': false,
   'tests.requireRegistered': false,
+  'verify.rejectKeepsCheck': false,
   'view.background': true,
 };
