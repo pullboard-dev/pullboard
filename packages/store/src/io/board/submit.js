@@ -16,6 +16,7 @@ import { clauseInspectionProblem } from '../../../../state/index.js';
 import { clauseInspectionSummary } from '../../../../state/index.js';
 import { clauseReceiptNotes } from '../../../../state/index.js';
 import { gateClauseTickNotes } from '../../../../state/index.js';
+import { testCaseTitles } from '../../../../state/index.js';
 import { itemThread } from './query.js';
 import { proofReceipts } from './query.js';
 import { reviewPatchAuthors } from "../../../../verify/index.js";
@@ -135,15 +136,15 @@ export function prepareSubmit(board, id, options) {
 export function submit(board, id, options) {
   options = prepareSubmit(board, id, options);
   requireBoardWriteSnapshot(board, PREPARED_SUBMITS.get(options).snapshot, 'submit');
-  const { strictRenames, agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, inspectClauses, folderTicks: sealedFolderTicks, clausePolicyCommit, infra = null, gateGreen, companion, pulledPlan = null, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry, tooling = null } = options;
+  const { strictRenames, agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, inspectClauses, folderTicks: sealedFolderTicks, titleTicks: sealedTitleTicks, clausePolicyCommit, infra = null, gateGreen, companion, pulledPlan = null, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry, tooling = null } = options;
   const familyPolicyCommit = policyCommit ?? clausePolicyCommit;
   const familyPolicy = (board.executionEngineVersion ?? ENGINE_VERSION) >= BUILDER_FAMILY_REQUIRED_ENGINE && board.gitRoot && familyPolicyCommit
     ? board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, familyPolicyCommit).config.verify.family : 'off';
-  let inspect = inspectClauses === true, folderTicks = sealedFolderTicks === true;
+  let inspect = inspectClauses === true, folderTicks = sealedFolderTicks === true, titleTicks = sealedTitleTicks === true;
   if (board.executionEngineVersion !== undefined && board.executionEngineVersion >= CLAUSE_INSPECTION_ENGINE && board.gitRoot) {
     if (!clausePolicyCommit || clausePolicyCommit !== policyCommit) throw new Refused('NO_POLICY', 'the sealed inspection policy must match the submission policy');
     const policy = board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, clausePolicyCommit);
-    inspect = policy.config.verify.inspectClauses === true; folderTicks = policy.config.verify.folderTicks === true;
+    inspect = policy.config.verify.inspectClauses === true; folderTicks = policy.config.verify.folderTicks === true; titleTicks = policy.config.verify.titleTicks === true;
     if (inspect !== (inspectClauses === true)) throw new Refused('NO_POLICY', 'the sealed inspection setting does not match its accepted policy');
   }
 
@@ -196,7 +197,7 @@ export function submit(board, id, options) {
         isHolder: (found) => outsideBuildProblem(board, found) ?? (found.item_owner === agentId ? null : notYours()),
         correctionRefrozen: () => pendingRefreezeProblem(board, id),
         clausesInspected: found => (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAUSE_INSPECTION_ENGINE && inspect
-          ? clauseInspectionProblem(found, itemThread(board, id), { head: commit, greenFiles: greenProofFiles(board, id, commit), gateFiles: new Set((Array.isArray(proof?.files) ? proof.files : []).filter(file => /\.test\.js$/u.test(file))), folderTicks }) : null,
+          ? clauseInspectionProblem(found, itemThread(board, id), { head: commit, greenFiles: greenProofFiles(board, id, commit), gateFiles: new Set((Array.isArray(proof?.files) ? proof.files : []).filter(file => /\.test\.js$/u.test(file))), folderTicks, titleTicks, cases: titleTicks ? committedTitleCases(board, commit, proof?.files) : [] }) : null,
         criterionUnchanged: null,
         treeClean: null,
         nothingUntracked: null,
@@ -268,6 +269,12 @@ function greenProofFiles(board, id, commit) {
     .flatMap(receipt => (receipt.testRuntimes ?? []).map(row => row?.file).filter(Boolean)));
 }
 
+/** The case titles the proof's test files declare at the submitted commit, for verify.titleTicks (#8880) [C7]. */
+function committedTitleCases(board, commit, files) {
+  return (Array.isArray(files) ? files : [])
+    .flatMap(file => { const shown = tryGit(board.gitRoot, ['show', `${commit}:${file}`]); return shown.status === 0 ? testCaseTitles(file, shown.stdout) : []; });
+}
+
 /**
  * The clause checklist notes a settled submission earns, as the inline submit appended them: a green gate's tick note
  * for each [test] clause naming a file it ran green, then the "inspection, clause by clause:" summary. Why here: the
@@ -275,15 +282,15 @@ function greenProofFiles(board, id, commit) {
  *
  * @param {object} board - The open board.
  * @param {number} id - The submitted item.
- * @param {{ gateFiles: Set<string>, outcomes: object[], head: string, green: boolean, folderTicks?: boolean }} run - Files the gate ran, their per-case outcomes, the head proved, whether the gate was green, and main's verify.folderTicks (#8847).
+ * @param {{ gateFiles: Set<string>, outcomes: object[], head: string, green: boolean, folderTicks?: boolean, titleTicks?: boolean }} run - Files the gate ran, their per-case outcomes, the head proved, whether the gate was green, and main's verify.folderTicks (#8847).
  * @param {(text: string) => void} append - Appends one note, so each tick is on the thread before the summary reads it.
  */
-export function clauseInspectionNotes(board, id, { gateFiles, outcomes, head, green, folderTicks = false }, append) {
-  if (green) for (const text of gateClauseTickNotes(getItem(board, id), itemThread(board, id), { gateFiles, outcomes, head, folderTicks })) append(text);
+export function clauseInspectionNotes(board, id, { gateFiles, outcomes, head, green, folderTicks = false, titleTicks = false }, append) {
+  if (green) for (const text of gateClauseTickNotes(getItem(board, id), itemThread(board, id), { gateFiles, outcomes, head, folderTicks, titleTicks })) append(text);
   // The fail-before, pass-after receipt, stored once: the gate's green head rows against the recorded runs of the base commit [C7].
   const base = getItem(board, id).item_claim_head;
   if (green) for (const text of clauseReceiptNotes(getItem(board, id), itemThread(board, id), { gateFiles, baseRows: recordedBaseRows(board, base), outcomes, head, baseCommit: base })) append(text);
-  const summary = clauseInspectionSummary(getItem(board, id), itemThread(board, id), { gateFiles, head, folderTicks });
+  const summary = clauseInspectionSummary(getItem(board, id), itemThread(board, id), { gateFiles, head, folderTicks, titleTicks, cases: outcomes });
   if (summary) append(summary);
 }
 
