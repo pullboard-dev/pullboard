@@ -89,6 +89,8 @@ export {
   provideMainComparison,
   provideRefusalTrials,
   pulledGateReds,
+  recordPhaseReceipts,
+  reportRunaway,
   shardJobs,
   shardedResult,
 } from "./src/io/gate.js";

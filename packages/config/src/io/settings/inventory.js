@@ -25,21 +25,9 @@ import {
 } from '../settings.js';
 import { Refused } from '../../../../kernel/index.js';
 import { describeSetting } from './descriptions.js';
+import { MACHINE_DEFAULTS } from './machine-defaults.js';
 import { environmentProblem } from '../main.js';
 
-const MACHINE_DEFAULTS = {
-  gateSlots: 2, browserSlots: 1, 'gate.shortSlots': 0, 'gate.runnerWaitMs': 300_000, 'gate.tripOverheadBudgetMs': 10_000,
-  'gate.queue.reviewsFirst': false, 'gate.queue.currentReleaseFirst': false, 'gate.queue.agingMinutes': 30,
-  'gate.memoryFloorMB': null, 'gate.diskFloorMB': 10_240, 'gate.browserFreeChecks': false, 'gate.browserByLaunch': false, 'gate.runnersFirst': false, 'gate.runnersOnly': false, 'gate.refuseMissingCheckFile': false, 'gate.refuseTempWorktree': false, 'gate.runnerDispatch': 'pull', 'gate.requireRunnerAttribution': false, 'gate.jobReserve': null, 'gate.localRunner': true, 'gate.localLoadShare': 1, 'gate.staticSlots': 2, 'gate.staticMemo': false, 'gate.namedImportSelection': false, 'gate.mainComparison': 'on-red', 'gate.submitAuthorization': 'runner', 'gate.handoffWorkers': null, 'budget.dailyUsd': null, 'budget.totalUsd': null, 'gate.measuredSlots': false, 'gate.loadAwareDispatch': true, 'gate.runnerBusyCeiling': 90, 'gate.timingRunner': 'auto', 'gate.postLandSuite': false, 'gate.tableReplay': false, 'gate.fencedHop': true, 'gate.testNice': false, 'gate.sampleDiskIo': false, 'gate.endStaleJobs': false, 'gate.redFactLocation': false, 'gate.recaptureHandoff': false, 'gate.settleOnMainReceipt': false, 'inspection.clauses': false, 'holds.requireOwner': false, 'review.releaseReasons': false, 'health.lapsedSweep': false, 'health.derivedState': false, 'sentinels.recordWriteHolder': false, 'next.itemNotices': false, 'list.thinRead': false,
-  'maintenance.retireIdleSeats': false, 'maintenance.retireIdleHours': 3,
-  'health.diskFloorGb': 0,
-  'health.sentinel': true, 'view.background': true, 'relay.offerAtInit': true, runners: [], runnerRates: {}, 'landing.pools': [], 'landing.reofferTrunkBusy': false, 'landing.squash': false, 'landing.reuseGateReceipts': false,
-  'jobs.recordLapse': false, 'runners.fetchFailFast': false, 'runners.drainOnFetchFailure': false,
-  'submit.proofOnly': false, 'census.rerunNonGreen': false,
-  'serve.address': '127.0.0.1', 'serve.port': 0, scratch: null, 'moves.shadow': false, 'tests.registryStrict': false, 'test.statusOutcomes': false, 'census.balanceByTime': false, 'census.recordFileTimes': false, 'moves.live.claim': false, 'moves.live.outbox': false, 'moves.live.handoff': false, 'moves.live.submit': false, 'moves.live.outcome': false, 'moves.live.job': false, 'moves.live.reopen': false,
-  'census.jobMinutes': null, 'census.jobsPerRunner': null, 'claim.refuseOffMainHead': false,
-  'runners.yieldWhilePruning': false, 'runners.postedLineNamesCase': false,
-};
 const OPTIONAL_REPO_DEFAULTS = {
   'submit.handoff': false, 'withdraw.review': false, 'withdraw.refuseLanded': false,
   project: null, name: null, generated: null, tiers: null, laneMode: 'on', 'checks.provesNothing': 'warn', 'verify.unrelatedTrunkMoves': false, 'verify.landedReviews': false, 'verify.queueAccept': false, 'verify.requireRowRewrite': false, 'resume.adoptOrphans': false, 'verify.composeAtAdmission': false, 'verify.familyRelaxAt': null,

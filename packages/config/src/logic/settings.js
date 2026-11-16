@@ -170,10 +170,13 @@ export function loadMachineSettings() {
   if (value.gate?.recaptureHandoff !== undefined && typeof value.gate.recaptureHandoff !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.recaptureHandoff in ${file} must be true or false`);
   }
+  if (value.gate?.mainCaseFilter !== undefined && typeof value.gate.mainCaseFilter !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.mainCaseFilter in ${file} must be true or false`);
+  }
   if (value.gate?.endStaleJobs !== undefined && typeof value.gate.endStaleJobs !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.endStaleJobs in ${file} must be true or false`);
   }
-  for (const key of ['jobs.recordLapse', 'runners.fetchFailFast', 'runners.drainOnFetchFailure', 'runners.postedLineNamesCase']) {
+  for (const key of ['jobs.recordLapse', 'jobs.handBackUnrunnable', 'runners.fetchFailFast', 'runners.drainOnFetchFailure', 'runners.postedLineNamesCase']) {
     if (value[key] !== undefined && typeof value[key] !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `${key} in ${file} must be true or false`);
   }
   if (value.gate?.settleOnMainReceipt !== undefined && typeof value.gate.settleOnMainReceipt !== 'boolean') {
@@ -195,6 +198,9 @@ export function loadMachineSettings() {
   if (value.census?.rerunNonGreen !== undefined && typeof value.census.rerunNonGreen !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `census.rerunNonGreen in ${file} must be true or false`);
   }
+  if (value.census?.rerunOnSettle !== undefined && typeof value.census.rerunOnSettle !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `census.rerunOnSettle in ${file} must be true or false`);
+  }
   if (value['runners.yieldWhilePruning'] !== undefined && typeof value['runners.yieldWhilePruning'] !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `runners.yieldWhilePruning in ${file} must be true or false`);
   }
@@ -203,6 +209,12 @@ export function loadMachineSettings() {
   }
   if (value.census?.jobMinutes !== undefined && value.census.jobMinutes !== null && !(typeof value.census.jobMinutes === 'number' && Number.isFinite(value.census.jobMinutes) && value.census.jobMinutes > 0)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `census.jobMinutes in ${file} must be a number of minutes above 0, or null`);
+  }
+  if (value.jobs?.avoidRunners !== undefined && typeof value.jobs.avoidRunners !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `jobs.avoidRunners in ${file} must be true or false`);
+  }
+  if (value.push?.rerunFailedShardOnce !== undefined && typeof value.push.rerunFailedShardOnce !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `push.rerunFailedShardOnce in ${file} must be true or false`);
   }
   if (value.census?.jobsPerRunner !== undefined && value.census.jobsPerRunner !== null && !(Number.isSafeInteger(value.census.jobsPerRunner) && value.census.jobsPerRunner >= 1)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `census.jobsPerRunner in ${file} must be a whole number of jobs, 1 or more, or null`);

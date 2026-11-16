@@ -137,16 +137,18 @@ function runnerId(runner) {
  * The run is the argv a runner executes at the candidate commit [P7]. A payload, when given, is a small JSON object
  * the claiming runner gets back with its claim: what to work on, such as a landing's items and expected trunk sha.
  * The priority is the job's class, set here by the command that enqueues it and never by a runner (JOB_CLASSES).
+ * An avoid list names runners that must not take the job; claimJob honours it only behind jobs.avoidRunners [C7,#9273].
  * A request is the job's own larger input, read back by the runner holding it with jobRequest: for a gate, the argv to
  * run and the data it reads on stdin [P7].
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ id: string, kind: string, needs?: string[], run?: string[], payload?: Record<string, unknown> | null, item?: number | null, candidate?: string | null, base?: string | null, request?: Record<string, unknown> | null, priority?: string | null, now?: number }} fields
+ * @param {{ id: string, kind: string, needs?: string[], run?: string[], payload?: Record<string, unknown> | null, item?: number | null, candidate?: string | null, base?: string | null, request?: Record<string, unknown> | null, priority?: string | null, avoid?: string[], now?: number }} fields
  * @returns {ReturnType<typeof jobView>}
  */
-export function offerJob(db, { id, kind, needs = [], run = [], payload = null, item = null, candidate = null, base = null, request = null, priority = null, censusPerRunner = null, now = Date.now() }, queue = null) {
+export function offerJob(db, { id, kind, needs = [], run = [], payload = null, item = null, candidate = null, base = null, request = null, priority = null, censusPerRunner = null, avoid = [], now = Date.now() }, queue = null) {
   if (censusPerRunner !== null && !(Number.isSafeInteger(censusPerRunner) && censusPerRunner >= 1)) throw new Refused('JOB_CENSUS_CAP', 'a census job\'s censusPerRunner is a whole number of jobs, 1 or more', 'offer it with census.jobsPerRunner as set, or none');
   const wanted = names(needs, 'needs');
+  const avoided = names(avoid, 'avoid');
   const rank = jobClass(priority);
   const argv = runArgv(run);
   if (payload !== null && (typeof payload !== 'object' || Array.isArray(payload))) throw new Refused('JOB_PAYLOAD', 'a job payload is a JSON object; offer { payload: { ... } } or none');
@@ -158,7 +160,7 @@ export function offerJob(db, { id, kind, needs = [], run = [], payload = null, i
   if (offered && Buffer.byteLength(JSON.stringify(offered)) > REQUEST_BYTES) {
     throw new Refused('JOB_REQUEST', `a job request's offered row is a JSON object of at most ${REQUEST_BYTES} bytes once its parts of ${PART_BYTES} bytes or more are named; keep large inputs in git and name them`);
   }
-  const row = { needs: wanted, ...(rank ? { priority: rank } : {}), ...(argv.length ? { run: argv } : {}), ...(payload === null ? {} : { payload }), ...(offered ? { request: offered } : {}), ...(censusPerRunner ? { censusPerRunner } : {}) };
+  const row = { needs: wanted, ...(rank ? { priority: rank } : {}), ...(argv.length ? { run: argv } : {}), ...(payload === null ? {} : { payload }), ...(offered ? { request: offered } : {}), ...(censusPerRunner ? { censusPerRunner } : {}), ...(avoided.length ? { avoid: avoided } : {}) };
   // With runs_store on the offer goes through queueRun: the runs file holds the job, the board one queued run row [B2,P7].
   if (queue) return queueOffer(queue, { id, kind, item, candidate, base, request, offered: row });
   return atomically(db, () => {
@@ -297,7 +299,7 @@ export function boardQueueMode(db, wanted) {
  * @returns {{ job: string, kind: string, needs: string[], run: string[], payload?: Record<string, unknown>, item: number | null, candidate: string | null, base: string | null, attempt: number, leaseUntil: number, token: string } | null}
  *   null when no open job matches. The candidate and run tell a runner what to fetch and execute [P7]; payload only when the offer carried one.
  */
-export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null, maxAttempts = JOB_MAX_ATTEMPTS, onRunaway = null, onRepeatClaim = null, hop = null, recordLapse = false }) {
+export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null, maxAttempts = JOB_MAX_ATTEMPTS, onRunaway = null, onRepeatClaim = null, hop = null, avoidRunners = false, recordLapse = false }) {
   runnerId(runner);
   // A drained runner (`pullboard runner drain`) finishes the jobs it holds and is offered no new one.
   if (drained.includes(runner)) return null;
@@ -312,7 +314,7 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = n
     let census = null;
     const censusFull = offer => offer.censusPerRunner && (census ??= heldCensus(db, runner, now)) >= offer.censusPerRunner;
     const ordered = claimableJobs(db, { runner, now, limit: SCAN_ROWS, reserve, slots: jobs,
-      runnable: (row, offer) => (!only || only.has(row.job_kind)) && !(shardsFull && row.job_kind === SHARD_JOB_KIND) && !censusFull(offer) && (offer.needs ?? []).every(need => has.has(need)) });
+      runnable: (row, offer) => (!only || only.has(row.job_kind)) && !(shardsFull && row.job_kind === SHARD_JOB_KIND) && !censusFull(offer) && !(avoidRunners === true && (offer.avoid ?? []).includes(runner)) && (offer.needs ?? []).every(need => has.has(need)) });
     for (const { row, offer } of ordered) {
       const { needs = [], run = [], payload = null } = offer;
       // A push shard whose pushing gate stopped renewing it is no one's work: it ends here, never rerun (#7805).
@@ -815,11 +817,11 @@ export function jobArtifacts(db, job) {
  * @param {{ mode: string, now?: number, trunk?: () => string | null, reserve?: () => Record<string, number> | null, onReceipt?: ((posted: { job: string, attempt: number, receipt: Record<string, unknown> }) => object) | null }} options - mode is the machine's gate.runnerDispatch.
  * @returns {object}
  */
-export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, onReceipt = null, drained = () => [], reserve = () => null, onRunaway = null, onRepeatClaim = null, hop = null, queue = null, recordLapse = false }) {
+export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, onReceipt = null, drained = () => [], reserve = () => null, onRunaway = null, onRepeatClaim = null, hop = null, queue = null, avoidRunners = false, recordLapse = false }) {
   if (mode !== 'pull') throw new Refused('JOBS_NOT_PULL', 'this board serves its runner job queue only when gate.runnerDispatch is pull; set it with pullboard settings');
   const { action, runner, capabilities, kinds, jobs, cores, ram, job, token, receipt, progress, reason, backoff } = body ?? {};
   if (action === 'claim') {
-    const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), onRunaway, onRepeatClaim, hop, recordLapse });
+    const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), onRunaway, onRepeatClaim, hop, avoidRunners, recordLapse });
     return { claim, ...(claim ? { trunk: trunk() } : {}) };
   }
   if (action === 'request') return jobRequest(db, { job, runner, token });

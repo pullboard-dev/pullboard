@@ -130,6 +130,11 @@ export function censusRerunNonGreenEnabled() {
   return loadMachineSettings().census?.rerunNonGreen === true;
 }
 
+/** Rerun a non-green census file the moment its job settles, under the 3-minute file kill, only when this machine opted in; off, reruns wait for the whole pass [C7,#9283]. */
+export function censusRerunOnSettleEnabled() {
+  return loadMachineSettings().census?.rerunOnSettle === true;
+}
+
 /** Cut pulled census jobs by measured time, heaviest first, only when this machine opted in; off, they are cut by file count [C7]. */
 export function censusBalanceByTimeEnabled() {
   return loadMachineSettings().census?.balanceByTime === true;
@@ -145,6 +150,16 @@ export function censusJobMinutes() {
 export function censusJobsPerRunner() {
   const jobs = loadMachineSettings().census?.jobsPerRunner;
   return Number.isSafeInteger(jobs) && jobs >= 1 ? jobs : null;
+}
+
+/** Whether jobs.avoidRunners is on: off by default; only an exact `true` makes claimJob skip the runners a job's offer names [C7,#9273]. */
+export function jobsAvoidRunnersEnabled() {
+  return loadMachineSettings().jobs?.avoidRunners === true;
+}
+
+/** Whether push.rerunFailedShardOnce is on: off by default; only an exact `true` lets the pre-push gate re-offer a failed shard once [C7,#9274]. */
+export function pushRerunFailedShardOnceEnabled() {
+  return loadMachineSettings().push?.rerunFailedShardOnce === true;
 }
 
 /** Run the full suite after each landed train batch only when this machine opted in. */
