@@ -24,3 +24,11 @@ test('clause 2: a seat in another lane is never offered the slice [C7,#8810]', a
   const { box, slice } = await sliced(t, 'review');
   assert.notEqual(store.nextFor(box.board, { agentId: box.seats.actor.id, lane: 'web' }).item?.item_id, slice);
 });
+
+test('clause 1: a free seat is offered a whole item of the focused release before an open slice [C7,#8811]', async t => {
+  const { box, slice } = await sliced(t, 'review');
+  const whole = box.add('Whole item of the focused release');
+  store.addMilestone(box.board, { agentId: 'coordinator', reason: 'Focus the release for the fixture', name: 'focused', items: [whole] });
+  assert.equal(store.nextFor(box.board, { agentId: box.seats.sibling.id, lane: 'review' }).item?.item_id, whole);
+  assert.notEqual(store.nextFor(box.board, { agentId: box.seats.sibling.id, lane: 'review' }).item?.item_id, slice);
+});
