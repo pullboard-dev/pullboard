@@ -104,7 +104,7 @@ export function validateItemAddition(board, { by, lane, title, criterion = '', p
     validateReferences(brief, { actor: proof?.actor ?? by,
       authors: proof?.authors ?? referenceAuthors, authority: proof?.authority ?? referenceAuthority });
   }
-  const diagnosisProblem = lightDiagnosisProblem(board, { item_route: route });
+  const diagnosisProblem = lightDiagnosisProblem(board, { item_route: route, item_brief: brief });
   if (diagnosisProblem) throw diagnosisProblem;
   const normalizedBrief = checkRouted({ brief: brief.trim(), route, criterion, check: command }, engine);
   if (parentId !== null) {
