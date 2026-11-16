@@ -93,7 +93,7 @@ export { testTimeBudget, testTimeBudgetLines } from './src/logic/test/budget/tim
 
 export { runGateStages } from "./src/logic/stages.js";
 export { GATE_PROGRESS_MS, withGateProgress, reportGateProgress, progressingWait, whileGateRuns } from "./src/io/progress.js";
-export { packageHashesAt, unsealedPackages, sealStoreFile, recordSeal, sealOf, sealStatus, checkSkippedSeals } from './src/io/seals.js';
+export { packageHashesAt, unsealedPackages, sealStoreFile, recordSeal, sealOf, sealStatus, sealedCells, checkSkippedSeals } from './src/io/seals.js';
 
 export { privateCheckAdmission } from './src/io/admission/private/check.js';
 export {
