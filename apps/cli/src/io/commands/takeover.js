@@ -2,6 +2,7 @@
 import * as store from '../../../../../packages/store/index.js';
 import {
   context,
+  optionalModel,
   ordered,
   whoAmI,
   withBoard,
@@ -23,6 +24,22 @@ function takeArgs(root) {
 }
 
 /**
+ * Record the model of the session taking the main checkout over, so answers and shouts name the model that holds
+ * the seat and not the previous holder's. Why: a takeover rebinds the session but kept the old declaration. A coordinator
+ * on another checkout keeps its own declaration, and a session that declares no model changes nothing.
+ *
+ * @param {any} ctx
+ * @param {any} board
+ * @param {{ root: string }} info
+ */
+async function declareSessionModel(ctx, board, info) {
+  const model = optionalModel(undefined);
+  const coordinator = store.listAgents(board).find((agent) => agent.agent_id === COORDINATOR);
+  if (model === undefined || !coordinator || coordinator.agent_path !== info.root || coordinator.agent_model === model) return;
+  await ordered(ctx, board, 'register', [{ lane: COORDINATOR, path: info.root, route: coordinator.agent_route ?? 'strong', model }]);
+}
+
+/**
  * Record that a new agent session took this checkout over. In a linked main checkout the board's coordinator is
  * taken first, as an ordered move, so the receipt shout that follows is the holder's own and the hold the session
  * is taking never refuses it; a takeover never stops at the step the refusal tells it to run (#347).
@@ -33,12 +50,13 @@ function takeArgs(root) {
 export async function recordCheckoutTakeover(io, info) {
   const ctx = context(io);
   await withBoard(ctx, async (board) => {
-    const me = whoAmI(ctx, board);
     const linked = relayLinked(info.root);
     if (info.isMain && linked) {
       const args = takeArgs(info.root);
       TAKEN.set(io, await relayOperation(info.root, 'takeCoordinator', args, io, undefined, () => store.takeCoordinator(board, ...args)));
     }
+    if (info.isMain) await declareSessionModel(ctx, board, info);
+    const me = whoAmI(ctx, board);
     const message = { from: me.id, to: info.isMain ? 'person' : COORDINATOR,
       text: `${me.displayName} took over this checkout in a new agent session.`, lanes: laneNames(ctx.config) };
     if (linked) await relayOperation(info.root, 'shout', [message], io, undefined, () => store.shout(board, message));
