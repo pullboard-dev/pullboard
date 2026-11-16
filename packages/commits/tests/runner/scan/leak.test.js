@@ -88,7 +88,7 @@ fs.writeFileSync(${JSON.stringify(marker)}, cp.execFileSync('git', ['rev-parse',
     const command = `node -e ${shellQuote(commandScript)}`;
     const runner = pathToFileURL(new URL('../../../../runners/src/io/main.js', import.meta.url).pathname).href;
     const script = `import { runOnRunnerAsync } from ${JSON.stringify(runner)};
-try { const run = await runOnRunnerAsync(process.argv[1], ${JSON.stringify(command)}, { runner: { host: ${JSON.stringify(HOST)}, slots: 1, browser: 0 } });
+try { const run = await runOnRunnerAsync(process.argv[1], ${JSON.stringify(command)}, { runner: { host: ${JSON.stringify(HOST)}, slots: 1, browser: 0 }, metadata: { item: 'fixture', kind: 'remote-command' } });
 process.stdout.write(JSON.stringify({ code: 'COMPLETED', exitCode: run.exitCode, commit: run.executionSource.commit })); }
 catch (error) { process.stdout.write(JSON.stringify({ code: error.code ?? error.name })); }`;
     const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script, root], {

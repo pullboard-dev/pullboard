@@ -68,11 +68,11 @@ test('cleanup ownership probes request nonblocking lsof and retain scoped holder
 
 test('literal process-directory and cleanup helper probes all retain the nonblocking flag [C7]', () => {
   const sources = [['packages/resources/src/io/admission/memory.js', readFileSync(toolSourcePath(join(import.meta.dirname, '../../..'), 'packages/resources/src/io/admission/memory.js'), 'utf8')]];
-  for (const path of ['packages/gate/tests/fixtures/diagnostics.js', 'apps/cli/journeys/view/port.test.js']) sources.push(['./' + path, readFileSync(new URL('../../../' + path, import.meta.url), 'utf8')]);
+  for (const path of ['packages/gate/tests/fixtures/diagnostics.js', 'packages/sentinels/src/io/cpu.js']) sources.push(['./' + path, readFileSync(new URL('../../../' + path, import.meta.url), 'utf8')]);
   let calls = 0;
   for (const [path, source] of sources) {
     const probes = source.matchAll(/(?:spawnSync|run|runFixtureProcessTool)\(\s*(['"])(?:\/usr\/(?:sbin|bin)\/)?lsof\1\s*,\s*\[([^\]]*)\]/gu);
     for (const probe of probes) { calls++; assert.match(probe[2], /['"]-b['"]/u, path + ' uses nonblocking lsof'); }
   }
-  assert.ok(calls >= 4, 'the census covers memory, cleanup and both fixture identity probes');
+  assert.ok(calls >= 3, 'the census covers the memory, fixture cleanup and cpu sentinel probes');
 });

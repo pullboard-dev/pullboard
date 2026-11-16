@@ -18,6 +18,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { pullboardHome } from '../../../../store/index.js';
+import { ENGINE_VERSION } from '../../../../state/light.js';
 
 /** Set to 0 to send inside each command instead, as before #1013; the test runner sets it, like the view. */
 export const SENDER_BACKGROUND_ENV = 'PULLBOARD_RELAY_SENDER_BACKGROUND';
@@ -36,12 +37,12 @@ export function senderInBackground(env = process.env) {
  * The machine sender's files: its claim, its short log, one note per board it serves, and the marker of a sender
  * being started.
  *
- * @returns {{ directory: string, pid: string, log: string, boards: string, starting: string }}
+ * @returns {{ directory: string, pid: string, log: string, boards: string, starting: string, engine: string }}
  */
 export function senderFiles() {
   const directory = join(pullboardHome(), 'relay-sender');
   return { directory, pid: join(directory, 'sender.pid'), log: join(directory, 'sender.log'), boards: join(directory, 'boards'),
-    starting: join(directory, 'sender.starting') };
+    starting: join(directory, 'sender.starting'), engine: join(directory, 'sender.engine') };
 }
 
 // Budget: a sender refreshes its claim every few seconds while it runs; a claim this old belongs to a process that
@@ -67,6 +68,70 @@ export function senderHolding() {
     const holder = Number(readFileSync(pid, 'utf8'));
     return alive(holder) ? holder : 0;
   } catch { return 0; }
+}
+
+/**
+ * Record the engine this sender runs, before its claim, so a later pullboard can tell a sender it outgrew (#7938).
+ * Why: a sender from before an upgrade replays the new engine's moves with old code and refuses each one
+ * ENGINE_VERSION, and while moves wait it never goes idle, so it would hold the machine's place forever.
+ *
+ * @param {number} pid - The claiming sender's process.
+ */
+export function recordSenderEngine(pid) {
+  writeFileSync(senderFiles().engine, `${pid} ${ENGINE_VERSION}\n`, { mode: 0o600 });
+}
+
+/**
+ * The live sender that an older pullboard started, or null: its claim has no engine record (0.9.3 wrote none), or
+ * one for another process, or an engine older than this pullboard's.
+ *
+ * @returns {{ pid: number, engine: number | null, current: number } | null}
+ */
+export function outdatedSender() {
+  const pid = senderHolding();
+  if (!pid) return null;
+  let engine = null;
+  try {
+    const [owner, version] = readFileSync(senderFiles().engine, 'utf8').trim().split(' ').map(Number);
+    if (owner === pid && Number.isSafeInteger(version)) engine = version;
+  } catch { /* No record: a sender from before records were kept. */ }
+  return engine !== null && engine >= ENGINE_VERSION ? null : { pid, engine, current: ENGINE_VERSION };
+}
+
+/** One line naming an outdated sender, for doctor and relay recover. */
+export function outdatedSenderLine(outdated) {
+  return `the relay sender (process ${outdated.pid}) was started by an older pullboard (${outdated.engine === null ? 'no engine recorded' : `engine ${outdated.engine}`}; this one is engine ${outdated.current}), so it refuses this version's moves and the outbox waits`;
+}
+
+/**
+ * Stop a sender an older pullboard started and give up its claim, so this version's sender takes the machine's
+ * place. Returns the stopped sender, or null when the running one is current.
+ */
+export function stopOutdatedSender() {
+  const outdated = outdatedSender();
+  if (!outdated) return null;
+  try { process.kill(outdated.pid, 'SIGTERM'); } catch { /* Already gone. */ }
+  // The claim is freed now, not when the old process gets round to exiting; it never removes a successor's claim.
+  try { if (Number(readFileSync(senderFiles().pid, 'utf8')) === outdated.pid) rmSync(senderFiles().pid, { force: true }); } catch { /* Gone. */ }
+  rmSync(senderFiles().starting, { force: true });
+  return outdated;
+}
+
+/**
+ * Replace an outdated sender with this version's (#7938): stop it, then start a sender that serves every board it
+ * was serving. Returns the stopped sender, or null when nothing needed replacing.
+ *
+ * @param {string} root - A board checkout to start the new sender in.
+ * @param {(root: string, env: NodeJS.ProcessEnv) => void} launchSender
+ */
+export function replaceOutdatedSender(root, launchSender) {
+  const stopped = stopOutdatedSender();
+  if (stopped && typeof launchSender === 'function' && senderInBackground() && !senderHolding() && startingSender()) {
+    const env = { ...process.env };
+    delete env.PULLBOARD_RELAY_TOKEN;
+    launchSender(root, env);
+  }
+  return stopped;
 }
 
 // Budget: a sender starts and claims its place well within this; an older start marker belongs to one that died.
@@ -108,6 +173,7 @@ export function nudgeRelaySender(root, file, launchSender) {
       writeFileSync(temporary, JSON.stringify({ root, file, due: Date.now() }) + '\n', { flag: 'wx', mode: 0o600 });
       renameSync(temporary, note);
     } finally { rmSync(temporary, { force: true }); }
+    stopOutdatedSender(); // A sender from before an upgrade refuses every new move; this version's takes over.
     if (senderHolding() || !startingSender()) return;
     const env = { ...process.env };
     delete env.PULLBOARD_RELAY_TOKEN; // The sender works only with this machine's own saved credentials.

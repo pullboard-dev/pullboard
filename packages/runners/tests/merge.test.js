@@ -20,7 +20,7 @@ import { pathToFileURL } from 'node:url';
 import {
   runFixtureChild,
   runFixtureGit,
-} from '../../../apps/cli/tests/fixtures/child.js';
+} from '../../gate/tests/fixtures/child.js';
 import { copyPackageSubset } from '../../../apps/cli/tests/fixtures/copy.js';
 import { copyPackageFiles } from '../index.js';
 import { repoPath } from '../../kernel/light.js';

@@ -25,6 +25,7 @@ import {
 
 const CALL = /(?<![\w$.])(?:test|it|describe|suite)(?:\s*\.\s*(?:only|skip|todo))?\s*\(\s*/gu;
 const ROW_ID = /\[[^\]]*\b[A-Z]+\d+(?:\.\d+)*\b[^\]]*\]/u;
+const EACH_ID = /\b[A-Z]+\d+(?:\.\d+)*\b/gu;
 
 /**
  * One problem per literal test name without a spec row id, in every test file.
@@ -55,6 +56,24 @@ export function testNameSites(source, path) {
     problems.push({ path, line: lineAt(source, name.start), text: `test name has no spec row id: ${shown.length > 80 ? `${shown.slice(0, 77)}...` : shown}` });
   }
   return problems;
+}
+
+/**
+ * The spec row ids one test file's literal test names cite, sorted and without repeats.
+ * Why: the manifest records what each file proves with the same reading of names the rigor check uses [C7].
+ *
+ * @param {string} source - Test file text.
+ * @returns {string[]} ids such as `C7` or `G1.2`
+ */
+export function testNameIds(source) {
+  const ids = new Set();
+  const { code, strings } = lex(source);
+  const starts = new Map(strings.map((literal) => [literal.start, literal]));
+  for (const call of code.matchAll(CALL)) {
+    const name = starts.get(call.index + call[0].length);
+    for (const bracket of name?.text.match(/\[[^\]]*\]/gu) ?? []) for (const id of bracket.match(EACH_ID) ?? []) ids.add(id);
+  }
+  return [...ids].sort();
 }
 
 runCheck(import.meta, testNameProblems);

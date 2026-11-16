@@ -22,7 +22,7 @@ import {
 } from './kit.js';
 
 const { createE2eHelpers } = await from('apps/cli/tests/fixtures/e2e.js');
-const { fixtureMachineSettings } = await from('apps/cli/tests/fixtures/testkit.js');
+const { fixtureMachineSettings } = await from('packages/gate/tests/fixtures/testkit.js');
 const { HOST, installSshStandIn } = await from('apps/cli/tests/fixtures/runner/ssh.js');
 const { runFixtureChild } = await from('apps/cli/tests/fixtures/child.js');
 const { executionServicesSource } = await from('apps/cli/tests/fixtures/gate/execution.js');

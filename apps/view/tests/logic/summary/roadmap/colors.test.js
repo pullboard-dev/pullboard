@@ -62,14 +62,14 @@ test('every stage color in the view resolves to its token, never a literal or a 
     [/\.roadmap-state\.building\b[^{]*\{[^}]*\}/, 'stage-building'], [/\.roadmap-state\.gated\b[^{]*\{[^}]*\}/, 'stage-gated'],
     [/\.roadmap-state\.accepted\b[^{]*\{[^}]*\}/, 'stage-merged'],
     [/\.item-stage\[data-stage=in-review\][^{]*\{[^}]*\}/, 'stage-review'], [/\.item-stage\[data-stage=building\][^{]*\{[^}]*\}/, 'stage-building'],
-    [/\.item-stage\[data-stage=ready\][^{]*\{[^}]*\}/, 'stage-ready'], [/\.item-stage\[data-stage=gated\][^{]*\{[^}]*\}/, 'stage-gated'],
+    [/\.item-stage\[data-stage=ready\][^{]*\{[^}]*\}/, 'stage-ready'], [/\.item-stage\[data-stage=blocked\][^{]*\{[^}]*\}/, 'stage-gated'],
     [/\.item-stage\[data-stage=merged\][^{]*\{[^}]*\}/, 'stage-merged'],
     [/\.chip\.busy\s*\{[^}]*\}/, 'stage-building'], [/\.chip\.free\s*\{[^}]*\}/, 'stage-ready'], [/\.chip\.warn\s*\{[^}]*\}/, 'stage-review'],
     [/\.chip\.ok\s*\{[^}]*\}/, 'stage-merged'], [/\.chip\.no\s*\{[^}]*\}/, 'mark-back'],
     [/\.dot\.building\b[^{]*\{[^}]*\}/, 'stage-building'], [/\.dot\.verify\b[^{]*\{[^}]*\}/, 'stage-review'],
     [/\.dot\.verified\b[^{]*\{[^}]*\}/, 'stage-merged'], [/\.dot\.back\b[^{]*\{[^}]*\}/, 'mark-back'],
     [/\.roadmap-step\.busy\s*\{[^}]*\}/, 'stage-building'], [/\.roadmap-step\.free\s*\{[^}]*\}/, 'stage-ready'],
-    [/\.dash-agent rect\.review\b[^{]*\{[^}]*\}/, 'stage-review'], [/\.cost-split > \.back[^{]*\{[^}]*\}/, 'mark-back'],
+    [/\.dash-lane rect\.review\b[^{]*\{[^}]*\}/, 'stage-review'], [/\.cost-split > \.back[^{]*\{[^}]*\}/, 'mark-back'],
     [/\.floor rect\.build\b[^{]*\{[^}]*\}/, 'stage-building'], [/\.floor rect\.review\b[^{]*\{[^}]*\}/, 'stage-review'],
     [/\.floor-chip\.build\s*\{[^}]*\}/, 'stage-building'], [/\.floor-chip\.review\s*\{[^}]*\}/, 'stage-review'],
     [/\.window-stage-build\s*\{[^}]*\}/, 'stage-building'], [/\.window-stage-review\s*\{[^}]*\}/, 'stage-review'], [/\.window-stage-land\s*\{[^}]*\}/, 'stage-merged'],
@@ -82,11 +82,11 @@ test('every stage color in the view resolves to its token, never a literal or a 
     assert.ok(!/var\(--(blue|violet|warn|accent|reject|ink-faint)(-soft|-strong)?\)|#[0-9a-f]{3,6}\b/.test(rule), `${rule.slice(0, 60)} carries no literal or screen-own color`);
   }
   assert.ok(!/\.roadmap-(stage-swatch|summary) ?\.waiting\b[^}]*--stage-ready/.test(all), 'waiting work is Gated grey, never Ready purple');
-  assert.match(all, /\.roadmap-stage-swatch\.held\b[^}]*dashed var\(--mark-held\)/, 'Held is a dashed outline, not a color');
-  assert.match(all, /\.roadmap-summary-swatch\.held\b[^}]*dashed var\(--mark-held\)/, 'the Roadmap legend draws Held as a dashed ring');
+  assert.match(all, /--border-held: [^;]*dashed var\(--mark-held\)/, 'the held border token is a dashed outline in the held mark colour');
+  assert.match(all, /\.roadmap-stage-swatch\.held\b[^}]*var\(--border-held\)/, 'Held is a dashed outline, not a color');
+  assert.match(all, /\.roadmap-summary-swatch\.held\b[^}]*var\(--border-held[a-z-]*\)/, 'the Roadmap legend draws Held as a dashed ring');
   assert.ok(!/\.roadmap-(stage-swatch|summary)[^{]*\.held\b[^}]*var\(--warn\)/.test(all), 'Held is no longer brown');
   assert.match(all, /\.stage-mark\.gate \{[^}]*background: none;[^}]*dashed/, 'the Held mark is dashed, with no fill');
-  assert.match(all, /\.roadmap-summary-needs \{[^}]*color: var\(--ink\)/, 'Needs you is ink, not a color');
 });
 
 test('stage chip text on its tint is at least 4.5:1 in light and dark (clause 3) [N26]', () => {

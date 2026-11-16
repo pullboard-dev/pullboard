@@ -16,6 +16,31 @@ import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
 const SUFFIX = '.result';
+const PARTIAL = /\.(\d+)\.partial$/u;
+
+/** Whether a process id is gone: signal 0 finds no such process (a process we may not signal still lives). */
+function writerIsDead(pid) {
+  try { process.kill(pid, 0); return false; } catch (error) { return error.code === 'ESRCH'; }
+}
+
+/**
+ * Remove each temporary file in a folder whose writer process is dead: a killed writer never reached its rename or its
+ * cleanup, and its half file would otherwise stay for good [C7].
+ *
+ * @param {string} folder
+ * @returns {number} how many were removed
+ */
+export function removeDeadPartials(folder) {
+  let removed = 0;
+  let names;
+  try { names = readdirSync(folder); } catch { return 0; }
+  for (const name of names) {
+    const match = PARTIAL.exec(name);
+    if (!match || Number(match[1]) === process.pid || !writerIsDead(Number(match[1]))) continue;
+    try { rmSync(join(folder, name), { force: true }); removed += 1; } catch { /* Gone already. */ }
+  }
+  return removed;
+}
 
 /**
  * The file a key's result lives in: a digest of the key, so any key names a safe file.
@@ -37,6 +62,7 @@ export function keyedResultPath(folder, key) {
  */
 export function saveKeyedResult(folder, key, bytes) {
   mkdirSync(folder, { recursive: true });
+  removeDeadPartials(folder);
   const path = keyedResultPath(folder, key);
   const temporary = `${path}.${process.pid}.partial`;
   try {

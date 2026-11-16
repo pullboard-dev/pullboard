@@ -17,7 +17,7 @@ import { copyPackageFiles } from '../../../src/io/package/files.js';
 import { toolSourcePath } from '../../../src/io/package/files.js';
 import { captureRunnerTooling } from '../../../src/io/tooling/snapshot.js';
 import { currentRunnerTooling } from '../../../src/io/tooling/snapshot.js';
-import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../../gate/tests/fixtures/child.js';
 
 const ROOT = resolve(import.meta.dirname, '../../../../..');
 

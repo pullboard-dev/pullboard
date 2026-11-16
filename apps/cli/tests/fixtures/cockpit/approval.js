@@ -28,7 +28,7 @@ export async function approvalAgentApi(box, root) {
       child.once('exit', code => { clearTimeout(timer); reject(new Error('private agent API exited ' + code)); });
       child.stdout.on('data', chunk => {
         output += chunk;
-        const found = /Pullboard API v1: (http:\/\/127\.0\.0\.1:\d+\/api\/v1\/boards\?k=\S+)/u.exec(output);
+        const found = /Pullboard API v1(?: \([^)]*\))?: (http:\/\/127\.0\.0\.1:\d+\/api\/v1\/boards\?k=\S+)/u.exec(output);
         if (found) { clearTimeout(timer); resolve(new URL(found[1])); }
       });
     });

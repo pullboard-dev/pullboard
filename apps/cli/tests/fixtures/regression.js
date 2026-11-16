@@ -46,7 +46,7 @@ export function assertDirectOpenBoardIsolation(t, sourceRoot) {
   const env = {
     ...process.env,
     HOME: join(directory, 'home'),
-    PULLBOARD_HOME: join(directory, 'pullboard-home'),
+    PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(directory, 'pullboard-home'),
     PULLBOARD_MACHINE_HOME: join(directory, 'machine-home'),
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1',
@@ -169,7 +169,7 @@ export function assertDirectOpenBoardIsolation(t, sourceRoot) {
 
   // A private database migrates only when its user_version is behind (#1047), as an older board's is.
   const lowered = new DatabaseSync(privateFile);
-  try { lowered.exec('PRAGMA user_version = 1'); } finally { lowered.close(); }
+  try { lowered.exec('PRAGMA user_version = 0'); } finally { lowered.close(); }
   const privateProbe = run(process.execPath, ['--input-type=module', '-e', `
     import { closeBoard } from './packages/store/index.js';
     import { openBoard } from './apps/lib/index.js';

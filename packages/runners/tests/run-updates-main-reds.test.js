@@ -11,7 +11,7 @@ const red = (id, file, status = 'open') => ({ item_id: id, item_title: `Main red
 
 /** A real repository with main at one commit and an item commit on top that edits only b.test.js. */
 function repo(t) {
-  const box = cellRepo(t), sandbox = cellSandbox(t);
+  const box = cellRepo(t, { real: true }), sandbox = cellSandbox(t);
   box.put('t/a.test.js', '// a\n'); box.put('t/b.test.js', '// b\n');
   const main = box.commitAll();
   box.put('t/b.test.js', '// b changed\n');

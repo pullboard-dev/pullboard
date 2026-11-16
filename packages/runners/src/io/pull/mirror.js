@@ -14,6 +14,7 @@ import { statusScript } from './scripts.js';
 import { pullJobId } from './scripts.js';
 import { runRunnerScript } from './ssh.js';
 import { runnerStatusDir } from './ssh.js';
+import { storeName } from '../store-names.js';
 
 export const MIRROR_INTERVAL_MS = 3_000;
 export const MIRROR_LOCK_STALE_MS = 15_000;
@@ -27,7 +28,7 @@ function hostFile(host) {
 }
 
 /** The mirror file for one runner host. */
-export function mirrorFile(host, dir = runnerStatusDir()) { return join(dir, `${hostFile(host)}.json`); }
+export function mirrorFile(host, dir = runnerStatusDir()) { return join(dir, storeName(hostFile(host))); }
 
 /** The folder of per-job markers (`<id>.wanted`, `<id>.cancel`, `<id>.ack`) the next refresh sends to the runner. */
 function markerDir(host, dir) { return join(dir, `${hostFile(host)}.jobs`); }

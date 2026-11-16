@@ -3,6 +3,7 @@
  "name": "merge",
  "kind": "package",
  "pureFrontDoor": "packages/merge/light.js",
+ "pureDoor": "packages/merge/browser.js",
  "root": "packages/merge",
  "frontDoor": "packages/merge/index.js",
  "paths": [

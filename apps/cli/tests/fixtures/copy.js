@@ -98,7 +98,7 @@ export function fixtureCopierProblems(source, file = 'fixture.js') {
     if (seen.size > 128) { problems.push(`${file}: opaque fixture source alias chain`); return true; }
     // Shipped tool source: root src and bin, any cell src, and packages outside their own tests folders.
     if (strings.some(row => row.start >= start && row.end <= finish
-      && /^(?:\.\.\/|\.\/)*(?:(?:src|bin)(?:\/|$)|packages(?:$|\/(?![\w-]+\/tests\/))|[\w-]+\/src\/)|^package\.json$/u.test(row.text))) return true;
+      && /^(?:\.\.\/|\.\/)*(?:(?:src|bin)(?:\/|$)|packages(?:$|\/(?![\w-]+\/tests\/))|(?:apps\/)?[\w-]+\/src\/)|^package\.json$/u.test(row.text))) return true;
     for (const match of code.slice(start, finish).matchAll(/\b[\w$]+\b/gu)) {
       if (seen.has(match[0])) continue;
       const next = new Set([...seen, match[0]]);

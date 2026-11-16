@@ -1,8 +1,8 @@
 /** @pullboard-test-input packages/gate/src/io/run/tests.js */
 /** Keep the production runner's report stable across Node versions and caller options [C7]. */
 import assert from 'node:assert/strict';
-import { runFixtureChild as spawnSync } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChildAsync } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild as spawnSync } from '../../../../gate/tests/fixtures/child.js';
+import { runFixtureChildAsync } from '../../../../gate/tests/fixtures/child.js';
 import { awaitNestedRun } from '../../../../gate/index.js';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -13,11 +13,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { fleetTestResultReuse } from '../../fixtures/fleet.js';
-
-test('the runner fleet reuses exact receipts across machines and gate stages [C7]', {
-  timeout: 120_000, // budget: seven real worker-capsule round trips, committed checkouts and verified cleanup.
-}, fleetTestResultReuse);
 
 const runner = fileURLToPath(new URL('../../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 

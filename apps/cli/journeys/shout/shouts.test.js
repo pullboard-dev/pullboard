@@ -32,6 +32,18 @@ import { nativeBoardPorts } from '../../../lib/index.js';
 
 const { relaySenderProblem } = nativeBoardPorts().enginePorts;
 
+/**
+ * Read the board again until the page shows what a move just wrote. Why: a page read answers from the last build and the
+ * stream announces the next [A2,C7,#6850]; these pages have no stream, so they catch up as the stream does, bounded, and
+ * the assertion after it still fails if the move never shows.
+ */
+async function catchUp(page, shown) {
+  for (let reads = 0; reads < 100; reads += 1) {
+    await page.run('refresh()');
+    if (shown()) return;
+  }
+}
+
 test('the shouts tab counts shouts you have not seen [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
@@ -47,18 +59,23 @@ test('the shouts tab counts shouts you have not seen [N26]', async () => {
     assert.equal(count(page), '', 'the shouts there before the first look count as seen, not as 2');
 
     box.run(alpha.web, 'shout', 'all', 'web-1 is on it');
-    await page.run('refresh()');
+    await catchUp(page, () => count(page) === '1');
     assert.equal(count(page), '1', 'a shout since then counts');
     await page.click({ tab: 'shouts' });
     assert.equal(count(page), '', 'opening Shouts sees it');
     box.run(alpha.web, 'shout', 'all', 'and done');
-    await page.run('refresh()');
+    // The mark moves to the newest shout the open Shouts tab shows, so read until the feed shows this one [C7].
+    await catchUp(page, () => page.show('feed').includes('and done'));
+    assert.ok(page.show('feed').includes('and done'), 'the open Shouts tab shows the shout that just arrived');
     assert.equal(count(page), '', 'a shout that arrives while Shouts is open is seen');
     await page.click({ tab: 'items' });
 
     // A shout lands while the page is closed: the reload counts it, and only it.
     box.run(alpha.web, 'shout', 'all', 'while you were away');
     const reloaded = await openPage(view, { store });
+    // The first read of a page takes the state the server keeps, from before this shout [A2,C7]; the live page's stream
+    // then catches up by a delta. This page has no stream, so catch up as it does.
+    await catchUp(reloaded, () => count(reloaded) === '1');
     assert.equal(count(reloaded), '1', 'what was seen is remembered across a reload');
     await reloaded.click({ tab: 'shouts' });
     assert.equal(count(reloaded), '');
@@ -68,9 +85,10 @@ test('the shouts tab counts shouts you have not seen [N26]', async () => {
     earlier(alpha.repo, Date.now(), (board) => {
       for (let n = 1; n <= 41; n += 1) shoutOnBoard(board, { from: 'web-1', to: 'all', text: `burst ${n}`, lanes: ['web'] });
     });
-    await reloaded.run('refresh()');
+    await catchUp(reloaded, () => count(reloaded) === '41');
     assert.equal(count(reloaded), '41', 'every arrival counts, not just the forty loaded');
     const again = await openPage(view, { store });
+    await again.run('refresh()'); // the stream's opening catch-up, as above
     assert.equal(count(again), '41');
 
     // Each project keeps its own mark: a first look at beta sees its shouts, and alpha still counts.
@@ -91,7 +109,7 @@ test('the shouts tab counts shouts you have not seen [N26]', async () => {
     await racing.run('refresh()');
     assert.equal(racing.element('proj-name').textContent, 'beta');
     box.run(beta.repo, 'shout', 'web', 'beta moves on');
-    await racing.run('refresh()');
+    await catchUp(racing, () => count(racing) === '1');
     assert.equal(count(racing), '1', 'the shout that came after counts');
   } finally {
     await view.stop();
@@ -105,16 +123,16 @@ test('an empty feed says so on one line [N26]', async () => {
   try {
     const page = await openPage(view);
     page.run("openTab('shouts'); render();");
-    assert.equal(page.show('feed'), '<div class="empty">No shouts yet.</div>', 'one line, with no bar while the feed shows everything');
-    assert.match(page.html, /<div class="card-panel shouts-card">[^]*<div class="feed" id="feed"><\/div><\/div>/, 'the shouts feed, in the Shouts card');
-    assert.match(page.html, /<div class="card-panel feed" id="activity"><\/div>/, 'and the activity feed are both feeds');
+    assert.match(page.show('feed'), /<p class="sx-empty">No shouts yet\.<\/p>/, 'one line, with no bar while the feed shows everything');
+    assert.doesNotMatch(page.show('feed'), /feed-bar|class="sx-th/, 'no bar and no rows when nothing was said');
+    assert.match(page.html, /<div class="feed" id="feed"><\/div>/, 'the shouts feed');
     const style = await styleOf(view);
     assert.match(style, /\n\.feed > div \{ display: grid; grid-template-columns: 4\.6em minmax\(0, 1fr\);[^\n]*\n\.feed > \.empty \{ display: block; \}\n/, 'a feed row has a time column; its empty note takes the whole width');
   } finally {
     await view.stop();
   }
 });
-test('a shout shows the evidence it carries [B22]', async () => {
+test('clause 2: a shout shows the evidence it carries [B22]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
   box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
@@ -129,13 +147,14 @@ test('a shout shows the evidence it carries [B22]', async () => {
     page.run("openTab('shouts'); view.shoutThread = 'item:1'; render();");
     const feed = page.show('feed');
     const card = (kind, outcome) => `<div class="receipt"><div><span class="badge">${kind}</span> <span class="outcome">${outcome}</span></div><div class="receipt-foot"><a class="ref" href="/items/1" data-go="item:1" title="Greeting">#1</a> · web-1 (${MACHINE_MODEL}) · <button class="hash-copy" type="button" title="${head}" aria-label="Copy full hash ${head}" data-copy="${head}"><code class="inline sha" title="${head}">${head.slice(0, 12)}</code></button></div></div>`;
-    const after = (text) => feed.slice(feed.indexOf(text + '</div>') + text.length + 6).replace(/^<button class="more" data-more type="button" aria-expanded="false">Show all<\/button>/, '');
+    // The row's preview repeats the newest words, so read what follows the last place a message's words appear.
+    const after = (text) => feed.slice(feed.lastIndexOf(text) + text.length);
     assert.ok(after('the page loads in 80ms').startsWith(card('receipt', 'measured &lt;fast&gt;')), `what was measured, for which item, by whom, at which commit: ${after('the page loads in 80ms').slice(0, 400)}`);
     assert.ok(after('tried a cache').startsWith(card('attempt', 'failed')), 'and what was tried');
-    assert.match(feed, /<b>#1 Greeting<\/b>/, 'the opened conversation names the real item above its messages');
+    assert.match(feed, /<b class="sx-id">#1<\/b><b class="sx-tt">Greeting<\/b>/, 'the opened conversation names the real item above its messages');
     page.run("view.shoutThread = 'none'; render();");
     const plain = page.show('feed');
-    assert.ok(plain.includes('nothing to show</div>'), 'the No item conversation retains its native words');
+    assert.ok(plain.includes('nothing to show</span>'), 'the No item conversation retains its native words');
     assert.doesNotMatch(plain, /class="receipt"/, 'a shout with no evidence has no receipt');
   } finally {
     await view.stop();
@@ -161,14 +180,13 @@ test('a shout from the view shows the person as its author [N26,A9]', { timeout:
     page.element('shout-to').value = 'web';
     page.element('shout-text').value = 'Web, keep it short';
     await page.fire('shout-form', 'submit');
-    await page.run('refresh()');
-    page.run("view.shoutThread = 'none'; render();");
-    const cards = () => [...page.show('feed').matchAll(/<b class="who"[^>]* title="([^"]*)">([^<]*)<\/b><span class="to">→ (?:<span[^>]*>)?([^<]*)(?:<\/span>)?<\/span>[^]*?<div class="text">([^<]*)<\/div>/g)].map((m) => m.slice(1));
+    await catchUp(page, () => { page.run("view.shoutThread = 'none'; render();"); return page.show('feed').includes('Web, keep it short'); });
+    const cards = () => [...page.show('feed').matchAll(/<span class="sx-snd [a-z]+" title="([^"]*)"><i[^>]*><\/i><span class="sx-sn">([^<]*)<\/span><\/span><span class="sx-tx">(?:<span class="sx-mk[^>]*>[^<]*<\/span>)?([^<]*)<\/span>/g)].map((m) => m.slice(1));
     assert.deepEqual(cards(), [
-      [MACHINE_MODEL, 'web-1', 'coordinator and you', 'web-1 is on the greeting'],
-      ['unknown', 'you', 'coordinator', 'Hello from the person'],
-      ['unknown', 'you', 'web', 'Web, keep it short'],
-    ], 'the conversation keeps native author and recipient order, naming the model only on hover');
+      [`web-1 (${MACHINE_MODEL}) to coordinator and you`, 'web-1', 'web-1 is on the greeting'],
+      ['you to coordinator', 'you', 'Hello from the person'],
+      ['you to web', 'you', 'Web, keep it short'],
+    ], 'the conversation keeps native author and recipient order, naming the model and recipient only on hover');
 
     const said = (events) => events.filter((event) => event.event_kind === 'shout').map((event) => event.event_by);
     assert.deepEqual(said(JSON.parse(box.run(alpha.repo, 'log', '--json')).events), ['web-1', 'person', 'person'], 'pullboard log --json records the person as the author');

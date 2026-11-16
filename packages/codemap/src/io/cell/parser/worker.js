@@ -12,12 +12,13 @@ import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import vm from 'node:vm';
 
-const [directory, parentText, mode, sequenceText] = process.argv.slice(2);
+const [directory, parentText, mode, sequenceText, budgetText] = process.argv.slice(2);
 const parent = Number(parentText), MAX_BYTES = 2 ** 26;
 // Bound retained V8 module records by source volume and count, then retire the entire compiler isolate.
 const SOURCE_BUDGET = 4 * 1024 * 1024, MODULE_BUDGET = 128;
 // Keep each supervisor's recorded child-spawn journal comfortably below its bounded runner limit.
-const SUPERVISOR_BUDGET = 256;
+// A caller may pass a smaller budget so a test reaches the rotation in a few batches; the default is the production bound.
+const SUPERVISOR_BUDGET = Math.min(256, Number.isSafeInteger(Number(budgetText)) && Number(budgetText) > 0 ? Number(budgetText) : 256);
 let sequence = Number(sequenceText ?? 0), watcher = null, timer = null, sourceBytes = 0, modules = 0;
 
 /** End this owned worker when its parent or transport disappears. */

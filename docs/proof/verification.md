@@ -24,7 +24,7 @@ Re-run it with `node docs/proof/verification-mutants.mjs`. It copies the repo to
 | V16 | Submit runs the gate itself on the exact tree it submits; no stamp from an earlier run stands in. | submit trusts a stamp written by hand | submit runs the gate itself: a stamp written by hand never stands in for a red gate | red |
 | V16 | | submit trusts an earlier run's stamp | submit runs the gate even on a tree an earlier run passed, which a plain gate run may skip | red |
 | V16 | | the gate trusts the stamp whatever submit asks | submit runs the gate itself: a stamp written by hand never stands in for a red gate | red |
-| V16 | | submit does not look whether the tree moved; it misses a new commit; it misses an edited tracked file (three changes) | submit refuses a tree its gate left changed: a new commit, or an edited tracked file | red, all three |
+| V16 | | submit does not look whether the tree moved; it misses a new commit; it misses an edited tracked file (three changes) | a pulled gate whose script commits or edits a tracked file in its runner checkout posts a receipt that is not green | red, all three |
 
 ## What the audit changed
 

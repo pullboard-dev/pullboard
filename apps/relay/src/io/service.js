@@ -42,6 +42,8 @@ import { createUploadStatusHandler } from '../logic/status.js';
 import { createRelayBoardLinks } from './board/links.js';
 
 const SNAPSHOT_BODY = SNAPSHOT_BODY_BYTES;
+/** A sealed move is base64 text, so a 136 KB move needs about 180 KB; the hosted relay takes up to 10 MB, while the local API keeps its 100 KB default (GitHub #14, #6707). */
+export const RELAY_MOVE_BODY_BYTES = 10_000_000;
 const STORED_BYTES = SEALED_SNAPSHOT_BYTES;
 
 /** Validate a board identity before deriving its private, internal database path. */
@@ -123,7 +125,7 @@ function seatReceipt(body, who) {
 }
 
 /** Give a snapshot its coverage cursor; clients unseal it and replay the following sealed events. */
-function state(row) { return { sequence: row.sequence, receivedAt: row.receivedAt, sender: row.sender, sealed: row.bytes.toString('base64url') }; }
+function state(row) { return { sequence: row.sequence, receivedAt: row.receivedAt, sender: row.sender, ...(row.epoch ? { epoch: row.epoch } : {}), sealed: row.bytes.toString('base64url') }; }
 
 /**
  * Project a freshly authenticated credential to public sender metadata, never taking body fields. Every record names
@@ -145,7 +147,7 @@ function sender(who, personOnly = false) {
 }
 
 /** Create a private relay handler; the caller owns sign-in lifecycle and service shutdown. */
-export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin, now = Date.now, backupsDirectory, maintenanceMs = 60_000, accountStorageBytes, boardLinkAuthority }) {
+export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin, now = Date.now, backupsDirectory, maintenanceMs = 60_000, accountStorageBytes, boardLinkAuthority, moveBodyBytes = RELAY_MOVE_BODY_BYTES }) {
   const origin = trustedOrigin(publicOrigin);
   if (typeof directory !== 'string' || !directory.trim() || !auth) throw new Refused('RELAY_CONFIG', 'configure a private relay directory and sign-in component');
   const root = resolve(directory);
@@ -375,12 +377,14 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
       if (snapshot && after < snapshot.sequence) throw new Refused('SNAPSHOT_REQUIRED', 'fetch the latest sealed state, then resume after its sequence');
       return journal.after(after).map(event);
     }, false, board.engineVersion),
+    // The epoch of the board's checkpoint: a recovery raises it so a computer already at that sequence fetches it (#7776).
+    checkpointEpoch: (board) => withJournal(board.id, (journal) => journal.snapshot()?.epoch ?? 0, false, board.engineVersion),
     warning: (board) => retention.notice(board.id),
     // A waiting key request rides on the member's ordinary event read, so handing a key over costs no extra call [E17].
     warnings: (board) => [quota?.notice(board.id), keyRequestStore.count(board.id) ? { code: 'KEY_REQUESTS', count: keyRequestStore.count(board.id) } : null].filter(Boolean),
     move: append,
     request: async (board, body, who) => (await append(board, body, who, 'request')).body,
-  }, { pollMs });
+  }, { pollMs, bodyBytes: { moves: moveBodyBytes, requests: moveBodyBytes } });
 
   const uploadStatus = createUploadStatusHandler({ authorize: authorizedRequest, withJournal, sender });
   let boardLinks = null;
@@ -448,7 +452,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
         const principal = sender(who, 'snapshot');
         const saved = withJournal(id, (journal) => {
           if (journal.snapshot()?.apiVersion === 2) throw new Refused('RELAY_API_VERSION', 'This board requires relay API version 2. Upgrade with npm i -g pullboard@latest.');
-          const row = storing(id, principal, journal.snapshotDelta(body.sequence, bytes), () => journal.saveSnapshot(body.sequence, bytes, principal, { initialOnly: req.headers['if-none-match'] === '*' }));
+          const row = storing(id, principal, journal.snapshotDelta(body.sequence, bytes), () => journal.saveSnapshot(body.sequence, bytes, principal, { initialOnly: req.headers['if-none-match'] === '*', recovery: body.recovery === true }));
           quota?.clear(id);
           return row;
         }, true, who.engineVersion);
@@ -483,8 +487,8 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
 }
 
 /** Start the opt-in service on a configured address; tests use loopback and an ephemeral port. */
-export function serveRelay({ directory, auth, port = 0, host = '127.0.0.1', pollMs = 200, publicOrigin, now, backupsDirectory, maintenanceMs, accountStorageBytes, boardLinkAuthority }) {
-  const handler = createRelayHandler({ directory, auth, pollMs, publicOrigin, now, backupsDirectory, maintenanceMs, accountStorageBytes, boardLinkAuthority });
+export function serveRelay({ directory, auth, port = 0, host = '127.0.0.1', pollMs = 200, publicOrigin, now, backupsDirectory, maintenanceMs, accountStorageBytes, boardLinkAuthority, moveBodyBytes }) {
+  const handler = createRelayHandler({ directory, auth, pollMs, publicOrigin, now, backupsDirectory, maintenanceMs, accountStorageBytes, boardLinkAuthority, moveBodyBytes });
   const server = createServer(handler);
   server.requestTimeout = 15_000;
   return new Promise((ready, fail) => {

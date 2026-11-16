@@ -5,7 +5,6 @@ import {
   cpSync,
   constants,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   existsSync,
   readdirSync,
@@ -21,10 +20,11 @@ import {
   dirname,
   join,
 } from 'node:path';
-import { tmpdir } from 'node:os';
 import { sameCommonDir } from '../../../../git/index.js';
 import { Refused } from '../../../../kernel/index.js';
 import { handoffQueueDirectory } from '../../../../resources/index.js';
+import { scratchFolder } from '../../../../config/index.js';
+import { scratchRoot } from '../../../../config/index.js';
 
 /** The shared snapshot's folder name: one clone per Pullboard commit, named by its 40-hex hash [C7]. */
 const SHARED_TOOLS = /^pullboard-handoff-tools-[0-9a-f]{40}$/u;
@@ -39,7 +39,7 @@ const SHARED_TOOLS = /^pullboard-handoff-tools-[0-9a-f]{40}$/u;
  */
 export function removeJobToolSnapshot(request, tools) {
   if (basename(tools).startsWith(`pullboard-handoff-tools-${request.job}-`)
-    && dirname(realpathSync(tools)) === realpathSync(tmpdir())
+    && dirname(realpathSync(tools)) === realpathSync(scratchRoot())
     && request.tools && realpathSync(request.tools) === realpathSync(tools)) {
     rmSync(tools, { recursive: true, force: true });
   }
@@ -156,7 +156,7 @@ export function touchToolTree(path) {
  * @param {{ temp?: string, now?: number, maxAgeMs?: number, queue?: string, commonDirs?: string[], live?: (path: string) => boolean }} [options] - Test seams.
  * @returns {string[]} The folders removed.
  */
-export function sweepToolTrees({ temp = tmpdir(), now = Date.now(), maxAgeMs = TOOL_TREE_MAX_AGE_MS, queue, commonDirs = [], live } = {}) {
+export function sweepToolTrees({ temp = scratchRoot(), now = Date.now(), maxAgeMs = TOOL_TREE_MAX_AGE_MS, queue, commonDirs = [], live } = {}) {
   const removed = [];
   const queued = live ? new Set() : queuedToolOwners({ queue, commonDirs, now });
   const owned = live ?? (path => queued.has(path) || toolTreeHasLiveOwner(path));
@@ -178,7 +178,7 @@ export function sweepToolTrees({ temp = tmpdir(), now = Date.now(), maxAgeMs = T
  *
  * @param {{ temp?: string, commonDirs?: string[], minFree?: number }} [options] - The repositories whose queued requests own tools.
  */
-export function assertToolTreeRoom({ temp = tmpdir(), commonDirs = [], minFree = Number(process.env.PULLBOARD_TOOLS_MIN_FREE_BYTES ?? TOOL_TREE_MIN_FREE_BYTES) } = {}) {
+export function assertToolTreeRoom({ temp = scratchRoot(), commonDirs = [], minFree = Number(process.env.PULLBOARD_TOOLS_MIN_FREE_BYTES ?? TOOL_TREE_MIN_FREE_BYTES) } = {}) {
   sweepToolTrees({ temp, commonDirs });
   let free;
   try { const stat = statfsSync(temp); free = stat.bavail * stat.bsize; } catch { return; }
@@ -194,7 +194,7 @@ export function prepareDeadHandoffRetry(commonDir, item, job, directory, { limit
   if (request.job !== job.id || request.item !== item || request.commit !== job.commit || !sameCommonDir(request.commonDir, commonDir)
     || (request.companion?.commit ?? job.commit) !== job.executionCommit || (request.companion?.tree ?? job.tree) !== job.executionTree
     || !handoffToolsAllowed(request.tools, job.id)
-    || dirname(realpathSync(request.tools)) !== realpathSync(tmpdir())) {
+    || dirname(realpathSync(request.tools)) !== realpathSync(scratchRoot())) {
     throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'retain the stopped job: its captured tools or source identity cannot be proved');
   }
   const id = randomUUID();
@@ -203,7 +203,7 @@ export function prepareDeadHandoffRetry(commonDir, item, job, directory, { limit
   const shared = sharedHandoffTools(fresh?.tools ?? request.tools);
   if (fresh) { if (shared) touchToolTree(fresh.tools); }
   else if (shared) touchToolTree(request.tools); else assertToolTreeRoom({ commonDirs: [commonDir] });
-  const tools = fresh?.tools ?? (shared ? request.tools : mkdtempSync(join(tmpdir(), `pullboard-handoff-tools-${id}-`)));
+  const tools = fresh?.tools ?? (shared ? request.tools : scratchFolder(`pullboard-handoff-tools-${id}-`));
   const target = join(dirname(directory), id);
   try {
     if (!fresh && !shared) cpSync(request.tools, tools, { recursive: true, mode: constants.COPYFILE_FICLONE });
@@ -232,5 +232,5 @@ function freshRetryTools(refresh, id, request) {
   let fresh;
   try { fresh = refresh(id, request); } catch { return null; }
   if (!fresh || typeof fresh.tools !== 'string' || !/^[0-9a-f]{40}$/u.test(fresh.toolsCommit ?? '') || !handoffToolsAllowed(fresh.tools, id)) return null;
-  try { return dirname(realpathSync(fresh.tools)) === realpathSync(tmpdir()) ? fresh : null; } catch { return null; }
+  try { return dirname(realpathSync(fresh.tools)) === realpathSync(scratchRoot()) ? fresh : null; } catch { return null; }
 }

@@ -46,7 +46,8 @@ export function settingsPageScript() {
   return settingsReaderScript() + `
 /** Settings controls only change the selected scope or issue another read. */
 document.addEventListener('click', event => {
-  if (event.target.closest('[data-tab]') || event.target.closest('[data-root]')) settingsAllBoards = false;
+  // The page element itself carries data-tab (the current tab), so only a control inside it counts.
+  if (event.target.closest('[data-tab]:not(html)') || event.target.closest('[data-root]')) settingsAllBoards = false;
   const open = event.target.closest('[data-settings-open]');
   if (open) {
     // The scope's own All local boards button toggles; the boardless sidebar entry only opens.

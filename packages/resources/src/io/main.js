@@ -1,4 +1,5 @@
 import { recordGateSpan } from './spans/gate.js';
+import { withEnvironment } from './environment.js';
 import { repoRoot } from './admission/testseats.js';
 import { holdingTestSeats } from './admission/testseats.js';
 import { isSeatTest } from './admission/testseats.js';
@@ -94,9 +95,8 @@ export { QUEUE_CLASSES, QUEUE_AGE_MS, queueClass } from '../../../queue/light.js
 
 const LEASE_MS = 20_000;
 /**
- * The startup budget of a lease admitted after its queue deadline, in ms. Why a fixed budget: the queue wait setting
- * (30 min for a submit, 30 s for a proof batch lane) says how long to wait for a slot, not how long a loaded
- * coordinator needs to reach a runner; reusing it gave 34 admission deadline misses and 95 dropped batches in 3 h (#3832, 8 Nov).
+ * The startup budget of a lease admitted after its queue deadline, in ms. Fixed because the queue wait setting says how
+ * long to wait for a slot, not how long a loaded coordinator needs to reach a runner: 34 deadline misses, 95 dropped batches (#3832).
  */
 export const LATE_STARTUP_MS = 90_000;
 const GATE_WAITER_HEARTBEAT_MS = 120_000;
@@ -107,9 +107,9 @@ const queueFiles = new WeakMap(); // Each open queue database's file: every writ
 const SLOT_DB_BUSY_MS = 2_000; // the longest one SQLite lock wait; a turn itself takes milliseconds [C7]
 /** How long a queued run keeps retrying a locked slot database before it stops, never having run. */
 export const SLOT_DB_LOCK_DEADLINE_MS = 5_000; // was 300 s: a runner controller sat 5 min on one write (9 Nov) [C7]
-/** The longest one attempt waits for its queue turn; a step retries with backoff until the deadline. */
+/** The longest one attempt waits for its queue turn; a step retries until the deadline. */
 const SLOT_DB_ATTEMPT_MS = 2_000;
-/** Overrides that deadline in milliseconds; tests use it to reach the deadline quickly. */
+/** Overrides that deadline in milliseconds, for tests. */
 export const SLOT_DB_LOCK_ENV = 'PULLBOARD_SLOT_DB_LOCK_MS';
 /** The exit status of a run that never started because the slot database stayed locked (EX_TEMPFAIL). */
 export const NEVER_RAN_EXIT_CODE = 75;
@@ -138,7 +138,7 @@ export function gateSlotEnvironment(lease) {
   };
 }
 /** Resolve the local database for the requested scope. */
-function databaseFile(scope, root) {
+export function databaseFile(scope, root) {
   if (scope === 'board') throw new Refused('BOARD_SCOPE_UNAVAILABLE', 'board-scoped resources need the relay; run pullboard relay on');
   if (scope === 'machine') return machineResourceFile();
   if (scope === 'repo') return join(repoInfo(root).commonDir, 'pullboard', 'resources.sqlite');
@@ -213,7 +213,9 @@ function openQueue(file) {
   queueFiles.set(db, file);
   let transaction = false, leave;
   try {
-    db.exec(`PRAGMA journal_mode = WAL; PRAGMA busy_timeout = ${Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs())}`); // WAL: readers never wait on the census writer; inside the try so a lock here closes the handle [C7,#3338].
+    db.exec(`PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = ${Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs())}`); // WAL: readers never wait on the census writer; inside the try so a lock here closes the handle [C7,#3338].
+    // NORMAL: a commit appends to the WAL without an fsync; only a checkpoint syncs. Why: on a loaded runner one commit's
+    // fsync stalled a slot take 20-65 ms, past the 50 ms p99 (#8699). WAL stays consistent; a power cut can lose the last leases, which liveness re-takes [C7].
     if (db.prepare('PRAGMA user_version').get().user_version === resourceSchemaVersion()) return db; // current schema: an open takes no write turn
     leave = enterResourceQueue(file, { apply: queuedWrites(db), deadlineMs: slotAttemptMs() });
     beginResourceWrite(db, { file, timeoutMs: Math.min(SLOT_DB_BUSY_MS, slotLockDeadlineMs()) });
@@ -392,7 +394,7 @@ function custodyProcessMatches(pid, started) {
 
 /** Run a short database update as this file's single queued writer, so no caller contends for the SQLite lock [C7,#3084]. */
 function update(db, action, sweep = true) {
-  if (sweep && !openWrites) refreshIdentities(livenessPids(db)); // one batched ps before the turn, so the sweep inside it reads only the cache
+  if (sweep && !openWrites) refreshIdentities(livenessPids(db), db); // one batched ps before the turn, and a fresh read of each suspect holder, so the sweep inside it spawns nothing
   const started = Date.now();
   for (let backoff = 50; ; backoff = Math.min(backoff * 2, 400)) {
     // Each attempt waits at most about 2 s; a busy machine gets retries with backoff until the deadline, never minutes.
@@ -446,18 +448,21 @@ function livenessPids(db) {
   catch { /* An older table or damaged identity only leaves that PID to the cache. */ }
   return pids;
 }
-/** Remove a view-port definition only after its last lease has left the resource queue. */
+/** Resource definitions that exist only for one lease or loan, so they leave with their last holder. */
+const TRANSIENT_RESOURCE_PREFIXES = ['view-port-', 'test-file-loan:'];
+
+/** Remove a transient definition (a view port or a per-file test loan) only after its last lease has left the queue. */
 function removeEmptyViewPortResource(db, name) {
-  if (!name.startsWith('view-port-')) return;
+  if (!TRANSIENT_RESOURCE_PREFIXES.some(prefix => name.startsWith(prefix))) return;
   db.prepare(`DELETE FROM resource WHERE name = ?
     AND NOT EXISTS (SELECT 1 FROM holder WHERE name = ?)
     AND NOT EXISTS (SELECT 1 FROM waiter WHERE name = ?)`)
     .run(name, name, name);
 }
 
-/** Sweep only empty view-port definitions after callers have pruned dead lease rows. */
+/** Sweep only empty transient definitions after callers have pruned dead lease rows, so expired loans leave too. */
 function removeEmptyViewPortResources(db) {
-  db.exec(`DELETE FROM resource WHERE name GLOB 'view-port-*'
+  db.exec(`DELETE FROM resource WHERE (name GLOB 'view-port-*' OR name GLOB 'test-file-loan:*')
     AND NOT EXISTS (SELECT 1 FROM holder WHERE holder.name = resource.name)
     AND NOT EXISTS (SELECT 1 FROM waiter WHERE waiter.name = resource.name)`);
 }
@@ -838,9 +843,13 @@ function unavailableRunnerHosts(db, now, runners = []) {
 
 /** Capability/availability permits a remote executor even when every compatible slot is currently busy. */
 function runnerCompatible(db, runner, waiter, unavailable) {
-  const observed = db.prepare('SELECT gui FROM runner_gui WHERE host = ?').get(runner.host);
-  const gui = observed ? observed.gui === 1 : runner.gui === true;
-  return !unavailable.has(runner.host) && (waiter.browser !== 1 || runner.browser >= 1) && (waiter.gui !== 1 || gui);
+  return !unavailable.has(runner.host) && (waiter.browser !== 1 || runner.browser >= 1) && (waiter.gui !== 1 || runnerHasGui(db, runner));
+}
+
+/** A runner's GUI session: the observed fact if recorded, else its setting [#6875]. */
+function runnerHasGui(db, runner) {
+  const seen = db.prepare('SELECT gui FROM runner_gui WHERE host = ?').get(runner.host);
+  return seen ? seen.gui === 1 : runner.gui === true;
 }
 
 /** List configured runners with active slot usage from the same local admission database. */
@@ -871,6 +880,7 @@ export function runnerResourceStatus(runners) {
   } finally { db.close(); }
 }
 
+export const recoverIdleRunners = async (r, o = {}) => { const db = open(o.file ?? machineResourceFile()); return recoverUnavailableRunners(db, validatedRunners(r), o).finally(() => db.close()); };
 /** Persist a configured host's authenticated GUI observation; unknown replaces stale positive capability. */
 export function recordRunnerGui(host, gui) {
   if (typeof host !== 'string' || !host.trim() || ![true, false, null].includes(gui)) throw new Refused('BAD_RUNNER_POOL', 'runner GUI observations require a host and true, false, or unknown');
@@ -937,13 +947,18 @@ export function requiredExecutorOf(value) {
 /**
  * Join the queue in its admission class (landing, review, submit, other), aging up over time; FIFO by ticket within a class.
  *
- * @param {{ name: string, capacity: number, loopHeartbeat?: boolean, capacityProvider?: () => number, shortCapacityProvider?: () => number, browserCapacityProvider?: () => number, scope?: 'machine'|'repo'|'board', root?: string, agent?: string, repo?: string, landing?: boolean, itemCheck?: boolean, shortEligible?: boolean, diagnostic?: boolean, browser?: boolean, remote?: boolean, requiredExecutor?: {kind:'local'}|{kind:'ssh',host:string,hosts?:string[]}, runnerOnly?: boolean, runnerDeadlineAt?: number, runnerExecution?: boolean, timing?: boolean, capturedRequest?: {argv: string[], cwd?: string}, runnerProvider?: () => Array<{host:string,slots:number,browser:number}>, item?: string, kind?: string, onWait?: (state: object) => any | Promise<any>, allowIdleCapacityUpdate?: boolean, memory?: () => Promise<{ checked: boolean, held: boolean, line: string, warning?: string }>, infrastructureRetry?: boolean, _resume?: object }} options - Resource identity, queue class, short-slot eligibility, optional remote executor pool and memory check. An awaited wait callback may return {leaseUntil} and then receives a final {admitted:true} callback before work starts.
+ * @param {{ env?: Record<string,string>, name: string, capacity: number, scope?: 'machine'|'repo'|'board', root?: string, agent?: string, requiredExecutor?: {kind:'local'}|{kind:'ssh',host:string,hosts?:string[]}, onWait?: (state: object) => any }} options - Resource identity and queue class flags; env stands in for process.env. An awaited wait callback may return {leaseUntil} and then receives a final {admitted:true} callback before work starts.
  *   memory, when given, is read before each admission: a held verdict blocks ordinary and short local
  *   executors while compatible remote slots remain eligible; an unchecked one is passed to onWait once
  *   so the caller can warn.
- * @returns {Promise<{ name: string, scope: string, token: string, pool: string, browser: boolean, slotClass: 'gate'|'short', runner?: {host:string,slots:number,browser:number}, waitMs: number, release: () => void, renew: () => void, handOver: (pid: number) => boolean, requeueRunner?: (reason?: string, options?: { local?: boolean }) => Promise<object> }>}
+ * @returns {Promise<{ name: string, scope: string, token: string, pool: string, browser: boolean, slotClass: 'gate'|'short', runner?: object, waitMs: number, release: () => void, renew: () => void, handOver: (pid: number) => boolean, requeueRunner?: Function }>}
  */
 export async function takeResource(options) {
+  return withEnvironment(options.env, () => takeResourceIn(options));
+}
+
+/** The admission under its environment. */
+async function takeResourceIn(options) {
   const { name, capacity, scope = 'machine', root = process.cwd(), allowIdleCapacityUpdate = false, allowCapacityGrowth = false, allowCapacityShrink = false, loopHeartbeat = false } = options;
   if (typeof name !== 'string' || !name.trim() || name.trim() !== name) throw new Refused('BAD_RESOURCE_NAME', 'resource name must be nonempty trimmed text');
   if (name.startsWith('runner:')) throw new Refused('RESERVED_RUNNER_RESOURCE', 'runner resource rows are managed by the machine gate; request name "gate"');
@@ -1053,7 +1068,7 @@ export async function takeResource(options) {
       if (row && row.capacity !== currentCapacity) {
         const state = snapshot(db, name);
         const activeHolders = name === 'gate' ? state.holders.filter(holder => !holder.runner).length : state.holders.length;
-        // Growing a pool never strands a holder, so a caller that allows growth may raise it while held (3 Nov: handoff workers grew from 4 to 10 with jobs running).
+        // Growing a pool never strands a holder, so a caller that allows growth may raise it while held.
         const grows = allowCapacityGrowth && currentCapacity > row.capacity;
         // A pool whose target fell (fewer runners) may shrink: holders above it finish, new takes wait [C7,#2944].
         const shrinks = allowCapacityShrink && currentCapacity < row.capacity;
@@ -1139,7 +1154,7 @@ export async function takeResource(options) {
         if (runnerDeadlineAt && (runnerDeadlinePassed || !waiter.runnerWaitBranch)) {
           const state = snapshot(db, name, order, now);
           const diagnosticRunners = restriction?.kind === 'ssh' ? runners.filter(runner => runnerAllowedNow({ requiredExecutor: restriction }, runner, runners, unavailable)) : runners;
-          runnerDeadline = { at: runnerDeadlineAt, runners: runnerWaitReasons(db, diagnosticRunners, { ...waiter, timing: Number(timing) }, unavailable),
+          runnerDeadline = { at: runnerDeadlineAt, runners: runnerWaitReasons(db, diagnosticRunners, { ...waiter, timing: Number(timing) }, unavailable, { policy: options.runnerLoadPolicyProvider?.(), now }),
             branch: localWaitBranch({ capacity: limit, browserCapacity: options.browserCapacityProvider?.() ?? 1,
               runnerOnly, browser, timing, memoryHeld: memory?.held === true, holders: state.holders }) };
           db.prepare('UPDATE waiter SET runner_wait_branch = ?, runner_wait_reasons = ? WHERE token = ?')
@@ -1165,6 +1180,9 @@ export async function takeResource(options) {
             throw refused;
           }
         }
+        if (!executor && runnerOnly && gui && runners.length && !runners.some(runner => runnerAllowed(waiter, runner) && runnerHasGui(db, runner))) {
+          throw new Refused('RUNNER_WAIT_DEADLINE', `no registered runner has a GUI session (${runners.map(runner => runner.host).join(', ')}); log one in or register one, then retry`);
+        }
         if (executor) {
           const lateDispatch = runnerDeadlinePassed && executor.host ? { host: executor.host,
             queueDeadlineAt: runnerDeadlineAt, admittedAt: now, budgetMs: options.runnerStartupMs ?? LATE_STARTUP_MS,
@@ -1180,7 +1198,7 @@ export async function takeResource(options) {
         let runnerWait;
         if (name === 'gate' && waiter.remote === 1) {
           const diagnosticRunners = restriction?.kind === 'ssh' ? runners.filter(runner => runnerAllowedNow({ requiredExecutor: restriction }, runner, runners, unavailable)) : runners;
-          runnerWait = { browser, gui, timing, runners: runnerWaitReasons(db, diagnosticRunners, { ...waiter, timing: Number(timing) }, unavailable) };
+          runnerWait = { browser, gui, timing, runners: runnerWaitReasons(db, diagnosticRunners, { ...waiter, timing: Number(timing) }, unavailable, { policy: options.runnerLoadPolicyProvider?.(), now }) };
           db.prepare('UPDATE waiter SET runner_wait_reasons = ? WHERE token = ?').run(JSON.stringify(runnerWait.runners), token);
         }
         const runnerHolders = name === 'gate' ? db.prepare("SELECT name, repo FROM holder WHERE name GLOB 'runner:*' ORDER BY since, token").all().map(({ name, repo }) => ({ host: name.slice('runner:'.length), repo })) : [];

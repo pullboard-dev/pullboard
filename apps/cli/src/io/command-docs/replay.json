@@ -1,0 +1,12 @@
+{
+  "name": "replay",
+  "help": "  pullboard replay <table> [--days N]  how often a move table agrees with the moves the board recorded, with each disagreement's event id; read-only\n",
+  "required": {
+    "table": "string",
+    "days": "number",
+    "agreed": "number",
+    "disagreed": "number",
+    "beforeCut": "number",
+    "disagreements": "array"
+  }
+}

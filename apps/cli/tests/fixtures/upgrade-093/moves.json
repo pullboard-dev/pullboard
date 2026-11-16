@@ -1,0 +1,1379 @@
+{
+ "release": "0.9.3",
+ "moves": [
+  {
+   "label": "add api item",
+   "op": "addItem",
+   "move": {
+    "version": 1,
+    "engine": 136,
+    "id": "fx-1-addItem",
+    "operation": "addItem",
+    "args": [
+     {
+      "by": "coordinator",
+      "lane": "api",
+      "title": "Replay api item",
+      "criterion": "src/api/index.js exports ping()"
+     }
+    ],
+    "actor": "coordinator"
+   },
+   "order": {
+    "sequence": 1,
+    "at": "2026-11-14T07:00:01.000Z",
+    "kind": "move",
+    "sender": {
+     "kind": "agent",
+     "userId": "fixture-user",
+     "agent": "coordinator"
+    }
+   },
+   "recorded": {
+    "result": 5,
+    "events": [
+     {
+      "event_id": 38,
+      "event_at": "2026-11-14T07:00:01.000Z",
+      "event_by": "coordinator",
+      "event_kind": "add",
+      "item_id": 5,
+      "event_detail": "{\"lane\":\"api\",\"specIds\":[],\"after\":[],\"route\":\"strong\",\"model\":\"claude-sonnet-5\"}"
+     }
+    ]
+   }
+  },
+  {
+   "label": "add web item",
+   "op": "addItem",
+   "move": {
+    "version": 1,
+    "engine": 136,
+    "id": "fx-2-addItem",
+    "operation": "addItem",
+    "args": [
+     {
+      "by": "coordinator",
+      "lane": "web",
+      "title": "Replay web item",
+      "criterion": "src/web/index.js exports footer()"
+     }
+    ],
+    "actor": "coordinator"
+   },
+   "order": {
+    "sequence": 2,
+    "at": "2026-11-14T07:00:02.000Z",
+    "kind": "move",
+    "sender": {
+     "kind": "agent",
+     "userId": "fixture-user",
+     "agent": "coordinator"
+    }
+   },
+   "recorded": {
+    "result": 6,
+    "events": [
+     {
+      "event_id": 39,
+      "event_at": "2026-11-14T07:00:02.000Z",
+      "event_by": "coordinator",
+      "event_kind": "add",
+      "item_id": 6,
+      "event_detail": "{\"lane\":\"web\",\"specIds\":[],\"after\":[],\"route\":\"strong\",\"model\":\"claude-sonnet-5\"}"
+     }
+    ]
+   }
+  },
+  {
+   "label": "claim",
+   "op": "claim",
+   "move": {
+    "version": 1,
+    "engine": 136,
+    "id": "fx-3-claim",
+    "operation": "claim",
+    "args": [
+     5,
+     {
+      "agentId": "api-1",
+      "lane": "api",
+      "leaseMs": 3600000,
+      "frozen": {
+       "text": "src/api/index.js exports ping()",
+       "digest": "f08c4de516bbe71aaa9f6b68cb25c392b46e8dd9419695f830df3bd985ab9bfc"
+      }
+     }
+    ],
+    "actor": "api-1"
+   },
+   "order": {
+    "sequence": 3,
+    "at": "2026-11-14T07:00:03.000Z",
+    "kind": "move",
+    "sender": {
+     "kind": "agent",
+     "userId": "fixture-user",
+     "agent": "api-1"
+    }
+   },
+   "recorded": {
+    "result": {
+     "leaseUntil": "2026-11-14T08:00:03.000Z",
+     "digest": "f08c4de516bbe71aaa9f6b68cb25c392b46e8dd9419695f830df3bd985ab9bfc",
+     "renewed": false
+    },
+    "events": [
+     {
+      "event_id": 40,
+      "event_at": "2026-11-14T07:00:03.000Z",
+      "event_by": "api-1",
+      "event_kind": "claim",
+      "item_id": 5,
+      "event_detail": "{\"leaseUntil\":\"2026-11-14T08:00:03.000Z\",\"digest\":\"f08c4de516bbe71aaa9f6b68cb25c392b46e8dd9419695f830df3bd985ab9bfc\",\"grantEngine\":127,\"model\":\"claude-sonnet-5\"}"
+     }
+    ]
+   }
+  },
+  {
+   "label": "release",
+   "op": "release",
+   "move": {
+    "version": 1,
+    "engine": 136,
+    "id": "fx-4-release",
+    "operation": "release",
+    "args": [
+     5,
+     "api-1",
+     "fixture release"
+    ],
+    "actor": "api-1"
+   },
+   "order": {
+    "sequence": 4,
+    "at": "2026-11-14T07:00:04.000Z",
+    "kind": "move",
+    "sender": {
+     "kind": "agent",
+     "userId": "fixture-user",
+     "agent": "api-1"
+    }
+   },
+   "recorded": {
+    "result": false,
+    "events": [
+     {
+      "event_id": 41,
+      "event_at": "2026-11-14T07:00:04.000Z",
+      "event_by": "api-1",
+      "event_kind": "release",
+      "item_id": 5,
+      "event_detail": "{\"model\":\"claude-sonnet-5\"}"
+     }
+    ]
+   }
+  },
+  {
+   "label": "claim again",
+   "op": "claim",
+   "move": {
+    "version": 1,
+    "engine": 136,
+    "id": "fx-5-claim",
+    "operation": "claim",
+    "args": [
+     5,
+     {
+      "agentId": "api-1",
+      "lane": "api",
+      "leaseMs": 3600000,
+      "frozen": {
+       "text": "src/api/index.js exports ping()",
+       "digest": "f08c4de516bbe71aaa9f6b68cb25c392b46e8dd9419695f830df3bd985ab9bfc"
+      }
+     }
+    ],
+    "actor": "api-1"
+   },
+   "order": {
+    "sequence": 5,
+    "at": "2026-11-14T07:00:05.000Z",
+    "kind": "move",
+    "sender": {
+     "kind": "agent",
+     "userId": "fixture-user",
+     "agent": "api-1"
+    }
+   },
+   "recorded": {
+    "result": {
+     "leaseUntil": "2026-11-14T08:00:05.000Z",
+     "digest": "f08c4de516bbe71aaa9f6b68cb25c392b46e8dd9419695f830df3bd985ab9bfc",
+     "renewed": false
+    },
+    "events": [
+     {
+      "event_id": 42,
+      "event_at": "2026-11-14T07:00:05.000Z",
+      "event_by": "api-1",
+      "event_kind": "claim",
+      "item_id": 5,
+      "event_detail": "{\"leaseUntil\":\"2026-11-14T08:00:05.000Z\",\"digest\":\"f08c4de516bbe71aaa9f6b68cb25c392b46e8dd9419695f830df3bd985ab9bfc\",\"grantEngine\":127,\"model\":\"claude-sonnet-5\"}"
+     }
+    ]
+   }
+  },
+  {
+   "label": "claim in the wrong lane (refused)",
+   "op": "claim",
+   "move": {
+    "version": 1,
+    "engine": 136,
+    "id": "fx-6-claim",
+    "operation": "claim",
+    "args": [
+     6,
+     {
+      "agentId": "api-1",
+      "lane": "api",
+      "leaseMs": 3600000,
+      "frozen": {
+       "text": "x",
+       "digest": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881"
+      }
+     }
+    ],
+    "actor": "api-1"
+   },
+   "order": {
+    "sequence": 6,
+    "at": "2026-11-14T07:00:06.000Z",
+    "kind": "move",
+    "sender": {
+     "kind": "agent",
+     "userId": "fixture-user",
+     "agent": "api-1"
+    }
+   },
+   "recorded": {
+    "error": {
+     "code": "WRONG_LANE",
+     "message": "item #6 is in the web lane; you are in api",
+     "next": "Run pullboard help, correct the reported problem, and retry the command."
+    }
+   }
+  },
+  {
+   "label": "shout",
+   "op": "shout",
+   "move": {
+    "version": 1,
+    "engine": 136,
+    "id": "fx-7-shout",
+    "operation": "shout",
+    "args": [
+     {
+      "from": "coordinator",
+      "to": "api",
+      "text": "replayed shout",
+      "lanes": [
+       "api"
+      ]
+     }
+    ],
+    "actor": "coordinator"
+   },
+   "order": {
+    "sequence": 7,
+    "at": "2026-11-14T07:00:07.000Z",
+    "kind": "move",
+    "sender": {
+     "kind": "agent",
+     "userId": "fixture-user",
+     "agent": "coordinator"
+    }
+   },
+   "recorded": {
+    "result": 2,
+    "events": [
+     {
+      "event_id": 43,
+      "event_at": "2026-11-14T07:00:07.000Z",
+      "event_by": "coordinator",
+      "event_kind": "shout",
+      "item_id": null,
+      "event_detail": "{\"shout\":2,\"to\":\"api\",\"decision\":false,\"request\":false,\"answers\":null,\"model\":\"claude-sonnet-5\"}"
+     }
+    ]
+   }
+  },
+  {
+   "label": "fact",
+   "op": "appendFact",
+   "move": {
+    "version": 1,
+    "engine": 136,
+    "id": "fx-8-appendFact",
+    "operation": "appendFact",
+    "args": [
+     3,
+     {
+      "agentId": "coordinator",
+      "kind": "note",
+      "text": "replayed fact"
+     }
+    ],
+    "actor": "coordinator"
+   },
+   "order": {
+    "sequence": 8,
+    "at": "2026-11-14T07:00:08.000Z",
+    "kind": "move",
+    "sender": {
+     "kind": "agent",
+     "userId": "fixture-user",
+     "agent": "coordinator"
+    }
+   },
+   "recorded": {
+    "result": {
+     "id": "fx-8-appendFact",
+     "eventId": 44,
+     "kind": "note",
+     "text": "replayed fact",
+     "by": "coordinator",
+     "at": "2026-11-14T07:00:08.000Z",
+     "ref": null,
+     "supersedes": null
+    },
+    "events": [
+     {
+      "event_id": 44,
+      "event_at": "2026-11-14T07:00:08.000Z",
+      "event_by": "coordinator",
+      "event_kind": "fact",
+      "item_id": 3,
+      "event_detail": "{\"id\":\"fx-8-appendFact\",\"kind\":\"note\",\"text\":\"replayed fact\",\"ref\":null,\"supersedes\":null,\"model\":\"claude-sonnet-5\"}"
+     }
+    ]
+   }
+  },
+  {
+   "label": "lift the hold",
+   "op": "releaseItemHold",
+   "move": {
+    "version": 1,
+    "engine": 136,
+    "id": "fx-9-releaseItemHold",
+    "operation": "releaseItemHold",
+    "args": [
+     4,
+     {
+      "agentId": "coordinator"
+     }
+    ],
+    "actor": "coordinator"
+   },
+   "order": {
+    "sequence": 9,
+    "at": "2026-11-14T07:00:09.000Z",
+    "kind": "move",
+    "sender": {
+     "kind": "agent",
+     "userId": "fixture-user",
+     "agent": "coordinator"
+    }
+   },
+   "recorded": {
+    "result": null,
+    "events": [
+     {
+      "event_id": 45,
+      "event_at": "2026-11-14T07:00:09.000Z",
+      "event_by": "coordinator",
+      "event_kind": "unhold_item",
+      "item_id": 4,
+      "event_detail": "{\"reason\":\"fixture hold on later item\",\"model\":\"claude-sonnet-5\"}"
+     }
+    ]
+   }
+  },
+  {
+   "label": "hold again",
+   "op": "holdItem",
+   "move": {
+    "version": 1,
+    "engine": 136,
+    "id": "fx-10-holdItem",
+    "operation": "holdItem",
+    "args": [
+     4,
+     {
+      "agentId": "coordinator",
+      "reason": "replayed hold"
+     }
+    ],
+    "actor": "coordinator"
+   },
+   "order": {
+    "sequence": 10,
+    "at": "2026-11-14T07:00:10.000Z",
+    "kind": "move",
+    "sender": {
+     "kind": "agent",
+     "userId": "fixture-user",
+     "agent": "coordinator"
+    }
+   },
+   "recorded": {
+    "result": {
+     "item_id": 4,
+     "item_hold_reason": "replayed hold",
+     "item_hold_by": "coordinator",
+     "item_hold_at": "2026-11-14T07:00:10.000Z"
+    },
+    "events": [
+     {
+      "event_id": 46,
+      "event_at": "2026-11-14T07:00:10.000Z",
+      "event_by": "coordinator",
+      "event_kind": "hold_item",
+      "item_id": 4,
+      "event_detail": "{\"reason\":\"replayed hold\",\"model\":\"claude-sonnet-5\"}"
+     }
+    ]
+   }
+  },
+  {
+   "label": "edit item",
+   "op": "editItem",
+   "move": {
+    "version": 1,
+    "engine": 136,
+    "id": "fx-11-editItem",
+    "operation": "editItem",
+    "args": [
+     6,
+     {
+      "agentId": "coordinator",
+      "brief": "replayed brief"
+     }
+    ],
+    "actor": "coordinator"
+   },
+   "order": {
+    "sequence": 11,
+    "at": "2026-11-14T07:00:11.000Z",
+    "kind": "move",
+    "sender": {
+     "kind": "agent",
+     "userId": "fixture-user",
+     "agent": "coordinator"
+    }
+   },
+   "recorded": {
+    "result": null,
+    "events": [
+     {
+      "event_id": 47,
+      "event_at": "2026-11-14T07:00:11.000Z",
+      "event_by": "coordinator",
+      "event_kind": "edit",
+      "item_id": 6,
+      "event_detail": "{\"brief\":\"14 characters\",\"model\":\"claude-sonnet-5\"}"
+     }
+    ]
+   }
+  },
+  {
+   "label": "withdraw",
+   "op": "withdraw",
+   "move": {
+    "version": 1,
+    "engine": 136,
+    "id": "fx-12-withdraw",
+    "operation": "withdraw",
+    "args": [
+     6,
+     {
+      "agentId": "coordinator",
+      "reason": "replayed withdraw"
+     }
+    ],
+    "actor": "coordinator"
+   },
+   "order": {
+    "sequence": 12,
+    "at": "2026-11-14T07:00:12.000Z",
+    "kind": "move",
+    "sender": {
+     "kind": "agent",
+     "userId": "fixture-user",
+     "agent": "coordinator"
+    }
+   },
+   "recorded": {
+    "result": null,
+    "events": [
+     {
+      "event_id": 48,
+      "event_at": "2026-11-14T07:00:12.000Z",
+      "event_by": "coordinator",
+      "event_kind": "withdraw",
+      "item_id": 6,
+      "event_detail": "{\"reason\":\"replayed withdraw\",\"model\":\"claude-sonnet-5\"}"
+     }
+    ]
+   }
+  },
+  {
+   "label": "withdraw again (refused)",
+   "op": "withdraw",
+   "move": {
+    "version": 1,
+    "engine": 136,
+    "id": "fx-13-withdraw",
+    "operation": "withdraw",
+    "args": [
+     6,
+     {
+      "agentId": "coordinator",
+      "reason": "again"
+     }
+    ],
+    "actor": "coordinator"
+   },
+   "order": {
+    "sequence": 13,
+    "at": "2026-11-14T07:00:13.000Z",
+    "kind": "move",
+    "sender": {
+     "kind": "agent",
+     "userId": "fixture-user",
+     "agent": "coordinator"
+    }
+   },
+   "recorded": {
+    "error": {
+     "code": "CLOSED",
+     "message": "item #6 is withdrawn",
+     "next": "Run pullboard help, correct the reported problem, and retry the command."
+    }
+   }
+  },
+  {
+   "label": "reopen the landed item",
+   "op": "reopen",
+   "move": {
+    "version": 1,
+    "engine": 136,
+    "id": "fx-14-reopen",
+    "operation": "reopen",
+    "args": [
+     1,
+     {
+      "agentId": "coordinator",
+      "note": "fixture reopen"
+     }
+    ],
+    "actor": "coordinator"
+   },
+   "order": {
+    "sequence": 14,
+    "at": "2026-11-14T07:00:14.000Z",
+    "kind": "move",
+    "sender": {
+     "kind": "agent",
+     "userId": "fixture-user",
+     "agent": "coordinator"
+    }
+   },
+   "recorded": {
+    "error": {
+     "code": "ALREADY_MERGED",
+     "message": "item #1 was merged as bd5dc82befead840a45f96c4206c626b24ba6601; merged items cannot be reopened",
+     "next": "Run pullboard help, correct the reported problem, and retry the command."
+    }
+   }
+  }
+ ],
+ "final": {
+  "agent": [
+   {
+    "agent_id": "coordinator",
+    "agent_lane": "coordinator",
+    "agent_path": "/private/tmp/pbfx/repo",
+    "agent_last_shout_id": 0,
+    "agent_route": "strong",
+    "agent_family": null,
+    "agent_created_at": "2026-11-14T07:07:11.384Z"
+   },
+   {
+    "agent_id": "api-1",
+    "agent_lane": "api",
+    "agent_path": "/private/tmp/pbfx/repo/.claude/worktrees/api-t",
+    "agent_last_shout_id": 0,
+    "agent_route": "strong",
+    "agent_family": null,
+    "agent_created_at": "2026-11-14T07:07:17.413Z"
+   },
+   {
+    "agent_id": "web-1",
+    "agent_lane": "web",
+    "agent_path": "/private/tmp/pbfx/repo/.claude/worktrees/web-t",
+    "agent_last_shout_id": 0,
+    "agent_route": "strong",
+    "agent_family": null,
+    "agent_created_at": "2026-11-14T07:07:17.741Z"
+   },
+   {
+    "agent_id": "review-1",
+    "agent_lane": "review",
+    "agent_path": "/private/tmp/pbfx/repo/.claude/worktrees/review-t",
+    "agent_last_shout_id": 0,
+    "agent_route": "strong",
+    "agent_family": null,
+    "agent_created_at": "2026-11-14T07:07:18.096Z"
+   }
+  ],
+  "board_meta": [
+   {
+    "meta_key": "event_log_version",
+    "meta_value": "1"
+   },
+   {
+    "meta_key": "board_id",
+    "meta_value": "91f1815178ca72d9d566a9d6c68fbb1c"
+   },
+   {
+    "meta_key": "agent_model:coordinator",
+    "meta_value": "claude-sonnet-5"
+   },
+   {
+    "meta_key": "spec_approval_baseline",
+    "meta_value": "{\"version\":1,\"file\":\"SPEC.md\",\"anchor\":\"df2e74c2c86d241615a493e1b3b52f8e70a8ad3f\",\"rows\":[]}"
+   },
+   {
+    "meta_key": "row_drafts",
+    "meta_value": "[{\"id\":\"G1\",\"text\":\"An API returns a greeting\",\"gate\":\"review\",\"tier\":\"must\",\"section\":\"G · Goals: what the client asked for\",\"target\":\"spec\",\"written\":true,\"by\":\"coordinator\",\"event\":3,\"at\":\"2026-11-14T07:07:14.396Z\"}]"
+   },
+   {
+    "meta_key": "row_decisions",
+    "meta_value": "[{\"version\":1,\"type\":\"row-decision\",\"kind\":\"spec\",\"file\":\"SPEC.md\",\"id\":\"G1\",\"source\":\"- G1 [draft, must] An API returns a greeting | gate: review\",\"replacement\":\"- G1 [approved, must] An API returns a greeting | gate: review\",\"text\":\"An API returns a greeting\",\"decision\":\"approve\",\"reason\":\"\",\"by\":\"person\",\"on\":\"2026-11-14T07:07:14.616Z\",\"commit\":\"8f9056116b4c8121d672b8c22bf650127f7adf10\",\"note\":\"\",\"event\":4,\"at\":\"2026-11-14T07:07:14.618Z\",\"applied\":true,\"appliedAt\":\"2026-11-14T07:07:14.835Z\"}]"
+   },
+   {
+    "meta_key": "agent_session:api-1",
+    "meta_value": "68707503cc3fb254ab4f9a6e8a43a8b2dabe1b0ccae2a675b7db494be6c183df"
+   },
+   {
+    "meta_key": "agent_model:api-1",
+    "meta_value": "claude-sonnet-5"
+   },
+   {
+    "meta_key": "agent_creator:api-1",
+    "meta_value": "machine"
+   },
+   {
+    "meta_key": "agent_session:web-1",
+    "meta_value": "a98ac84b194e011e056977570588d5134ee4013aba2c8d3cf0ca441703a029f6"
+   },
+   {
+    "meta_key": "agent_model:web-1",
+    "meta_value": "claude-sonnet-5"
+   },
+   {
+    "meta_key": "agent_creator:web-1",
+    "meta_value": "machine"
+   },
+   {
+    "meta_key": "agent_session:review-1",
+    "meta_value": "ded7f13500dd5fd92b37cf0d11b4f71e79e7bc807e6574e3e5416c4fa5e7fa0d"
+   },
+   {
+    "meta_key": "agent_model:review-1",
+    "meta_value": "claude-sonnet-5"
+   },
+   {
+    "meta_key": "agent_creator:review-1",
+    "meta_value": "machine"
+   },
+   {
+    "meta_key": "activity:api-1:cursor:",
+    "meta_value": "{\"through\":35,\"digestThrough\":35}"
+   },
+   {
+    "meta_key": "verdict_assurance:1",
+    "meta_value": "procedural"
+   },
+   {
+    "meta_key": "landing_lease",
+    "meta_value": "{\"generation\":1,\"holder\":null,\"line\":[]}"
+   }
+  ],
+  "event": [
+   {
+    "event_id": 1,
+    "event_at": "2026-11-14T07:07:11.384Z",
+    "event_by": "coordinator",
+    "event_kind": "join",
+    "item_id": null,
+    "event_detail": "{\"lane\":\"coordinator\",\"grantEngine\":127,\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 2,
+    "event_at": "2026-11-14T07:07:11.407Z",
+    "event_by": "coordinator",
+    "event_kind": "spec_approval_baseline",
+    "item_id": null,
+    "event_detail": "{\"version\":1,\"file\":\"SPEC.md\",\"anchor\":\"df2e74c2c86d241615a493e1b3b52f8e70a8ad3f\",\"rows\":[],\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 3,
+    "event_at": "2026-11-14T07:07:14.396Z",
+    "event_by": "coordinator",
+    "event_kind": "row_draft",
+    "item_id": null,
+    "event_detail": "{\"row\":{\"id\":\"G1\",\"status\":\"draft\",\"tier\":\"must\",\"text\":\"An API returns a greeting\",\"gate\":\"review\",\"section\":\"G · Goals: what the client asked for\",\"prefix\":\"G\"},\"written\":true,\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 4,
+    "event_at": "2026-11-14T07:07:14.618Z",
+    "event_by": "person",
+    "event_kind": "row_decision",
+    "item_id": null,
+    "event_detail": "{\"record\":{\"version\":1,\"type\":\"row-decision\",\"kind\":\"spec\",\"file\":\"SPEC.md\",\"id\":\"G1\",\"source\":\"- G1 [draft, must] An API returns a greeting | gate: review\",\"replacement\":\"- G1 [approved, must] An API returns a greeting | gate: review\",\"text\":\"An API returns a greeting\",\"decision\":\"approve\",\"reason\":\"\",\"by\":\"person\",\"on\":\"2026-11-14T07:07:14.616Z\",\"commit\":\"8f9056116b4c8121d672b8c22bf650127f7adf10\",\"note\":\"\"},\"channel\":\"terminal\"}"
+   },
+   {
+    "event_id": 5,
+    "event_at": "2026-11-14T07:07:14.835Z",
+    "event_by": "coordinator",
+    "event_kind": "row_apply",
+    "item_id": null,
+    "event_detail": "{\"events\":[4],\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 6,
+    "event_at": "2026-11-14T07:07:16.169Z",
+    "event_by": "coordinator",
+    "event_kind": "add",
+    "item_id": 1,
+    "event_detail": "{\"lane\":\"api\",\"specIds\":[\"G1\"],\"after\":[],\"route\":\"strong\",\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 7,
+    "event_at": "2026-11-14T07:07:16.511Z",
+    "event_by": "coordinator",
+    "event_kind": "add",
+    "item_id": 2,
+    "event_detail": "{\"lane\":\"web\",\"specIds\":[\"G1\"],\"after\":[],\"route\":\"strong\",\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 8,
+    "event_at": "2026-11-14T07:07:16.793Z",
+    "event_by": "coordinator",
+    "event_kind": "add",
+    "item_id": 3,
+    "event_detail": "{\"lane\":\"api\",\"specIds\":[\"G1\"],\"after\":[],\"route\":\"strong\",\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 9,
+    "event_at": "2026-11-14T07:07:17.066Z",
+    "event_by": "coordinator",
+    "event_kind": "add",
+    "item_id": 4,
+    "event_detail": "{\"lane\":\"api\",\"specIds\":[\"G1\"],\"after\":[1],\"route\":\"strong\",\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 10,
+    "event_at": "2026-11-14T07:07:17.413Z",
+    "event_by": "api-1",
+    "event_kind": "join",
+    "item_id": null,
+    "event_detail": "{\"lane\":\"api\",\"grantEngine\":127,\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 11,
+    "event_at": "2026-11-14T07:07:17.741Z",
+    "event_by": "web-1",
+    "event_kind": "join",
+    "item_id": null,
+    "event_detail": "{\"lane\":\"web\",\"grantEngine\":127,\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 12,
+    "event_at": "2026-11-14T07:07:18.096Z",
+    "event_by": "review-1",
+    "event_kind": "join",
+    "item_id": null,
+    "event_detail": "{\"lane\":\"review\",\"grantEngine\":127,\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 13,
+    "event_at": "2026-11-14T07:07:18.398Z",
+    "event_by": "api-1",
+    "event_kind": "claim",
+    "item_id": 1,
+    "event_detail": "{\"leaseUntil\":\"2026-11-14T09:07:18.331Z\",\"digest\":\"dc7a65c80a22c66e6534871285b9f82b18e8bd13c9045acdc36a199235e4791b\",\"grantEngine\":127,\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 14,
+    "event_at": "2026-11-14T07:07:20.491Z",
+    "event_by": "api-1",
+    "event_kind": "proof-run",
+    "item_id": 1,
+    "event_detail": "{\"engine\":122,\"receipt\":{\"id\":\"369f2c2e-2ca6-48d4-892c-750b2e5ba3a4\",\"kind\":\"submit\",\"item\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\",\"tree\":\"f62c09eadad8f68a3b1618f4701577682f51abf3\",\"frozenDigest\":\"dc7a65c80a22c66e6534871285b9f82b18e8bd13c9045acdc36a199235e4791b\",\"environment\":{\"node\":\"22.22.2\",\"platform\":\"darwin\",\"arch\":\"arm64\"},\"runner\":\"local:builder-one.local\",\"seat\":\"api-1\",\"parentSession\":null,\"exitCode\":0,\"counts\":{\"passed\":0,\"failed\":0,\"skipped\":0},\"durationMs\":68,\"sourceClean\":true,\"at\":\"2026-11-14T07:07:20.388Z\",\"testRuntimes\":[{\"pid\":37835,\"environment\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"},\"file\":null}]},\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 15,
+    "event_at": "2026-11-14T07:07:20.561Z",
+    "event_by": "api-1",
+    "event_kind": "submit",
+    "item_id": 1,
+    "event_detail": "{\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\",\"tree\":\"f62c09eadad8f68a3b1618f4701577682f51abf3\",\"policyCommit\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"criterionDigest\":\"dc7a65c80a22c66e6534871285b9f82b18e8bd13c9045acdc36a199235e4791b\",\"submissionProof\":{\"version\":1,\"files\":[],\"full\":true,\"deferred\":false,\"reason\":\"affected-test selection is not enabled for this project\"},\"gateGreen\":true,\"submissionSize\":{\"base\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"head\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\",\"lines\":1,\"method\":\"added-plus-deleted-no-renames\"},\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 16,
+    "event_at": "2026-11-14T07:07:20.604Z",
+    "event_by": "api-1",
+    "event_kind": "activity-delivered",
+    "item_id": null,
+    "event_detail": "{\"interrupts\":[],\"through\":15,\"observedThrough\":15,\"digestThrough\":15,\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 17,
+    "event_at": "2026-11-14T07:07:21.324Z",
+    "event_by": "review-1",
+    "event_kind": "accept",
+    "item_id": 1,
+    "event_detail": "{\"reason\":\"CRITERION_MET\",\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\",\"note\":\"read the diff; criterion met; gate receipt green\",\"check\":\"none\",\"environment\":null,\"review\":{\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\",\"head\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\",\"trunk\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"paths\":[\"src/api/index.js\"]},\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 18,
+    "event_at": "2026-11-14T07:07:21.750Z",
+    "event_by": "coordinator",
+    "event_kind": "landing_lease",
+    "item_id": null,
+    "event_detail": "{\"action\":\"request\",\"token\":\"fixture.lease.token.not.real.0000000\",\"holder\":\"coordinator landing d78df246\",\"generation\":1,\"queued\":0,\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 19,
+    "event_at": "2026-11-14T07:07:22.046Z",
+    "event_by": "coordinator",
+    "event_kind": "landing_batch",
+    "item_id": null,
+    "event_detail": "{\"batch\":{\"version\":1,\"id\":\"4405abec-f537-4d94-aa49-64f255f11ecc\",\"startedAt\":\"2026-11-14T07:07:22.041Z\",\"base\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"tip\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"branch\":\"refs/heads/main\",\"root\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/worktree\",\"candidates\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\"}],\"items\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\"}],\"conflicts\":[],\"blocked\":[],\"state\":\"merging\",\"owner\":\"fcffb11828fd105c0eda0ee47bdaad460d0102133eeb41c5279f77a90694e658\",\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/logs/batch.log\",\"revision\":1,\"updatedAt\":\"2026-11-14T07:07:22.046Z\"},\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 20,
+    "event_at": "2026-11-14T07:07:22.080Z",
+    "event_by": "coordinator",
+    "event_kind": "landing_batch",
+    "item_id": null,
+    "event_detail": "{\"batch\":{\"version\":1,\"id\":\"4405abec-f537-4d94-aa49-64f255f11ecc\",\"startedAt\":\"2026-11-14T07:07:22.041Z\",\"base\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"tip\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"branch\":\"refs/heads/main\",\"root\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/worktree\",\"candidates\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\"}],\"items\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\"}],\"conflicts\":[],\"blocked\":[],\"state\":\"merging\",\"owner\":\"fcffb11828fd105c0eda0ee47bdaad460d0102133eeb41c5279f77a90694e658\",\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/logs/batch.log\",\"revision\":2,\"updatedAt\":\"2026-11-14T07:07:22.080Z\",\"resolutions\":[]},\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 21,
+    "event_at": "2026-11-14T07:07:24.183Z",
+    "event_by": "coordinator",
+    "event_kind": "landing_batch",
+    "item_id": null,
+    "event_detail": "{\"batch\":{\"version\":1,\"id\":\"4405abec-f537-4d94-aa49-64f255f11ecc\",\"startedAt\":\"2026-11-14T07:07:22.041Z\",\"base\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"tip\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"branch\":\"refs/heads/main\",\"root\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/worktree\",\"candidates\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\"}],\"items\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\",\"merge\":\"bd5dc82befead840a45f96c4206c626b24ba6601\"}],\"conflicts\":[],\"blocked\":[],\"state\":\"merging\",\"owner\":\"fcffb11828fd105c0eda0ee47bdaad460d0102133eeb41c5279f77a90694e658\",\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/logs/batch.log\",\"revision\":3,\"updatedAt\":\"2026-11-14T07:07:24.183Z\",\"resolutions\":[],\"doctrineCounts\":[]},\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 22,
+    "event_at": "2026-11-14T07:07:24.201Z",
+    "event_by": "coordinator",
+    "event_kind": "landing_batch",
+    "item_id": null,
+    "event_detail": "{\"batch\":{\"version\":1,\"id\":\"4405abec-f537-4d94-aa49-64f255f11ecc\",\"startedAt\":\"2026-11-14T07:07:22.041Z\",\"base\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"tip\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"branch\":\"refs/heads/main\",\"root\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/worktree\",\"candidates\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\"}],\"items\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\",\"merge\":\"bd5dc82befead840a45f96c4206c626b24ba6601\"}],\"conflicts\":[],\"blocked\":[],\"state\":\"gating\",\"owner\":\"fcffb11828fd105c0eda0ee47bdaad460d0102133eeb41c5279f77a90694e658\",\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/logs/batch.log\",\"revision\":4,\"updatedAt\":\"2026-11-14T07:07:24.201Z\",\"resolutions\":[],\"doctrineCounts\":[]},\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 23,
+    "event_at": "2026-11-14T07:07:24.268Z",
+    "event_by": "coordinator",
+    "event_kind": "landing_batch",
+    "item_id": null,
+    "event_detail": "{\"batch\":{\"version\":1,\"id\":\"4405abec-f537-4d94-aa49-64f255f11ecc\",\"startedAt\":\"2026-11-14T07:07:22.041Z\",\"base\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"tip\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"branch\":\"refs/heads/main\",\"root\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/worktree\",\"candidates\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\"}],\"items\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\",\"merge\":\"bd5dc82befead840a45f96c4206c626b24ba6601\"}],\"conflicts\":[],\"blocked\":[],\"state\":\"gating\",\"owner\":\"fcffb11828fd105c0eda0ee47bdaad460d0102133eeb41c5279f77a90694e658\",\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/logs/affected-4.log\",\"revision\":5,\"updatedAt\":\"2026-11-14T07:07:24.268Z\",\"resolutions\":[],\"doctrineCounts\":[]},\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 24,
+    "event_at": "2026-11-14T07:07:24.692Z",
+    "event_by": "coordinator",
+    "event_kind": "gate-run",
+    "item_id": null,
+    "event_detail": "{\"engine\":85,\"run\":{\"version\":1,\"id\":\"9dd37230-7a24-4cc8-8a55-acf10a1cacf3\",\"kind\":\"land\",\"tree\":\"1fd370266cea4170be19ef978c7606ee5bc6aa7d\",\"head\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"main\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"command\":\"f90321a3f3beab5b298ce4c7878f7c4db1e376ad5b15295a0dc01c36f1722446\",\"green\":true,\"failures\":[],\"load\":{\"average\":[10.486328125,11.35595703125,11.53759765625],\"cpus\":14,\"freeMB\":6531},\"at\":\"2026-11-14T07:07:24.636Z\",\"environment\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"}},\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 25,
+    "event_at": "2026-11-14T07:07:24.736Z",
+    "event_by": "coordinator",
+    "event_kind": "landing_batch",
+    "item_id": null,
+    "event_detail": "{\"batch\":{\"version\":1,\"id\":\"4405abec-f537-4d94-aa49-64f255f11ecc\",\"startedAt\":\"2026-11-14T07:07:22.041Z\",\"base\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"tip\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"branch\":\"refs/heads/main\",\"root\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/worktree\",\"candidates\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\"}],\"items\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\",\"merge\":\"bd5dc82befead840a45f96c4206c626b24ba6601\"}],\"conflicts\":[],\"blocked\":[],\"state\":\"gating\",\"owner\":\"fcffb11828fd105c0eda0ee47bdaad460d0102133eeb41c5279f77a90694e658\",\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/logs/affected-4.log\",\"revision\":6,\"updatedAt\":\"2026-11-14T07:07:24.736Z\",\"resolutions\":[],\"doctrineCounts\":[],\"environmentWarnings\":[{\"item\":1,\"recorded\":null,\"landing\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"}}],\"gateResults\":[{\"tree\":\"1fd370266cea4170be19ef978c7606ee5bc6aa7d\",\"isGreen\":true,\"failures\":[],\"accounted\":null,\"complete\":false,\"requiresGreen\":false,\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/logs/affected-4.log\",\"affectedGate\":\"f90321a3f3beab5b298ce4c7878f7c4db1e376ad5b15295a0dc01c36f1722446\",\"environment\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"}}],\"invariantEvidence\":{\"version\":1,\"gates\":[{\"commit\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"isGreen\":false,\"submissions\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\"}],\"failures\":[],\"fileTimes\":[]}],\"diagnostics\":[]}},\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 26,
+    "event_at": "2026-11-14T07:07:24.772Z",
+    "event_by": "coordinator",
+    "event_kind": "landing_batch",
+    "item_id": null,
+    "event_detail": "{\"batch\":{\"version\":1,\"id\":\"4405abec-f537-4d94-aa49-64f255f11ecc\",\"startedAt\":\"2026-11-14T07:07:22.041Z\",\"base\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"tip\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"branch\":\"refs/heads/main\",\"root\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/worktree\",\"candidates\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\"}],\"items\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\",\"merge\":\"bd5dc82befead840a45f96c4206c626b24ba6601\"}],\"conflicts\":[],\"blocked\":[],\"state\":\"trunk\",\"owner\":\"fcffb11828fd105c0eda0ee47bdaad460d0102133eeb41c5279f77a90694e658\",\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/logs/affected-4.log\",\"revision\":7,\"updatedAt\":\"2026-11-14T07:07:24.772Z\",\"resolutions\":[],\"doctrineCounts\":[],\"environmentWarnings\":[{\"item\":1,\"recorded\":null,\"landing\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"}}],\"gateResults\":[{\"tree\":\"1fd370266cea4170be19ef978c7606ee5bc6aa7d\",\"isGreen\":true,\"failures\":[],\"accounted\":null,\"complete\":false,\"requiresGreen\":false,\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/logs/affected-4.log\",\"affectedGate\":\"f90321a3f3beab5b298ce4c7878f7c4db1e376ad5b15295a0dc01c36f1722446\",\"environment\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"}}],\"proof\":{\"tree\":\"1fd370266cea4170be19ef978c7606ee5bc6aa7d\",\"failures\":[],\"logPath\":null},\"invariantEvidence\":{\"version\":1,\"gates\":[{\"commit\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"isGreen\":false,\"submissions\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\"}],\"failures\":[],\"fileTimes\":[]}],\"diagnostics\":[]}},\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 27,
+    "event_at": "2026-11-14T07:07:24.777Z",
+    "event_by": "coordinator",
+    "event_kind": "merged",
+    "item_id": 1,
+    "event_detail": "{\"commit\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 28,
+    "event_at": "2026-11-14T07:07:24.778Z",
+    "event_by": "coordinator",
+    "event_kind": "main-moved",
+    "item_id": null,
+    "event_detail": "{\"sha\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"batch\":\"4405abec-f537-4d94-aa49-64f255f11ecc\",\"items\":[1],\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 29,
+    "event_at": "2026-11-14T07:07:24.779Z",
+    "event_by": "coordinator",
+    "event_kind": "landing_batch",
+    "item_id": null,
+    "event_detail": "{\"batch\":{\"version\":1,\"id\":\"4405abec-f537-4d94-aa49-64f255f11ecc\",\"startedAt\":\"2026-11-14T07:07:22.041Z\",\"base\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"tip\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"branch\":\"refs/heads/main\",\"root\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/worktree\",\"candidates\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\"}],\"items\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\",\"merge\":\"bd5dc82befead840a45f96c4206c626b24ba6601\"}],\"conflicts\":[],\"blocked\":[],\"state\":\"landed\",\"owner\":\"fcffb11828fd105c0eda0ee47bdaad460d0102133eeb41c5279f77a90694e658\",\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/logs/affected-4.log\",\"revision\":8,\"updatedAt\":\"2026-11-14T07:07:24.779Z\",\"resolutions\":[],\"doctrineCounts\":[],\"environmentWarnings\":[{\"item\":1,\"recorded\":null,\"landing\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"}}],\"gateResults\":[{\"tree\":\"1fd370266cea4170be19ef978c7606ee5bc6aa7d\",\"isGreen\":true,\"failures\":[],\"accounted\":null,\"complete\":false,\"requiresGreen\":false,\"logPath\":\"/private/tmp/pbfx/repo/.git/pullboard/landings/4405abec-f537-4d94-aa49-64f255f11ecc/logs/affected-4.log\",\"affectedGate\":\"f90321a3f3beab5b298ce4c7878f7c4db1e376ad5b15295a0dc01c36f1722446\",\"environment\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"}}],\"proof\":{\"tree\":\"1fd370266cea4170be19ef978c7606ee5bc6aa7d\",\"failures\":[],\"logPath\":null},\"invariantEvidence\":{\"version\":1,\"gates\":[{\"commit\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"isGreen\":false,\"submissions\":[{\"id\":1,\"commit\":\"83cc21a52e7d9ace9bb911a89adc55438158b262\"}],\"failures\":[],\"fileTimes\":[]}],\"diagnostics\":[]}},\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 30,
+    "event_at": "2026-11-14T07:07:25.066Z",
+    "event_by": "coordinator",
+    "event_kind": "landing_lease",
+    "item_id": null,
+    "event_detail": "{\"action\":\"release\",\"token\":\"fixture.lease.token.not.real.0000000\",\"holder\":null,\"generation\":1,\"queued\":0,\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 31,
+    "event_at": "2026-11-14T07:07:25.275Z",
+    "event_by": "coordinator",
+    "event_kind": "shout",
+    "item_id": null,
+    "event_detail": "{\"shout\":1,\"to\":\"api\",\"decision\":false,\"request\":false,\"answers\":null,\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 32,
+    "event_at": "2026-11-14T07:07:25.563Z",
+    "event_by": "web-1",
+    "event_kind": "claim",
+    "item_id": 2,
+    "event_detail": "{\"leaseUntil\":\"2026-11-14T09:07:25.496Z\",\"digest\":\"1b7776f4733dbe726c5a1744d158b1b3c5ea74fa55daf4f96fa2c449cc8ca04b\",\"grantEngine\":127,\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 33,
+    "event_at": "2026-11-14T07:07:25.873Z",
+    "event_by": "api-1",
+    "event_kind": "claim",
+    "item_id": 3,
+    "event_detail": "{\"leaseUntil\":\"2026-11-14T09:07:25.804Z\",\"digest\":\"c4e611324765937160b52a71343cf771e4eabe4d04915857d546515a720e4c8f\",\"grantEngine\":127,\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 34,
+    "event_at": "2026-11-14T07:07:27.442Z",
+    "event_by": "api-1",
+    "event_kind": "proof-run",
+    "item_id": 3,
+    "event_detail": "{\"engine\":122,\"receipt\":{\"id\":\"f8fb8634-a5d8-4787-9a60-ed4912edffbf\",\"kind\":\"submit\",\"item\":3,\"commit\":\"df88a7f9cf5305bc0fa5b2c74435fcb322b0d8f6\",\"tree\":\"4f1e75721362e6c888522648d168d3c41639a505\",\"frozenDigest\":\"c4e611324765937160b52a71343cf771e4eabe4d04915857d546515a720e4c8f\",\"environment\":{\"node\":\"22.22.2\",\"platform\":\"darwin\",\"arch\":\"arm64\"},\"runner\":\"local:builder-one.local\",\"seat\":\"api-1\",\"parentSession\":null,\"exitCode\":0,\"counts\":{\"passed\":0,\"failed\":0,\"skipped\":0},\"durationMs\":53,\"sourceClean\":true,\"at\":\"2026-11-14T07:07:27.356Z\",\"testRuntimes\":[{\"pid\":42848,\"environment\":{\"platform\":\"darwin\",\"arch\":\"arm64\",\"node\":\"22.22.2\"},\"file\":null}]},\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 35,
+    "event_at": "2026-11-14T07:07:27.511Z",
+    "event_by": "api-1",
+    "event_kind": "submit",
+    "item_id": 3,
+    "event_detail": "{\"commit\":\"df88a7f9cf5305bc0fa5b2c74435fcb322b0d8f6\",\"tree\":\"4f1e75721362e6c888522648d168d3c41639a505\",\"policyCommit\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"criterionDigest\":\"c4e611324765937160b52a71343cf771e4eabe4d04915857d546515a720e4c8f\",\"submissionProof\":{\"version\":1,\"files\":[],\"full\":true,\"deferred\":false,\"reason\":\"affected-test selection is not enabled for this project\"},\"gateGreen\":true,\"submissionSize\":{\"base\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"head\":\"df88a7f9cf5305bc0fa5b2c74435fcb322b0d8f6\",\"lines\":1,\"method\":\"added-plus-deleted-no-renames\"},\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 36,
+    "event_at": "2026-11-14T07:07:27.559Z",
+    "event_by": "api-1",
+    "event_kind": "activity-delivered",
+    "item_id": null,
+    "event_detail": "{\"interrupts\":[],\"through\":35,\"observedThrough\":35,\"digestThrough\":35,\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 37,
+    "event_at": "2026-11-14T07:07:27.861Z",
+    "event_by": "coordinator",
+    "event_kind": "hold_item",
+    "item_id": 4,
+    "event_detail": "{\"reason\":\"fixture hold on later item\",\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 38,
+    "event_at": "2026-11-14T07:00:01.000Z",
+    "event_by": "coordinator",
+    "event_kind": "add",
+    "item_id": 5,
+    "event_detail": "{\"lane\":\"api\",\"specIds\":[],\"after\":[],\"route\":\"strong\",\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 39,
+    "event_at": "2026-11-14T07:00:02.000Z",
+    "event_by": "coordinator",
+    "event_kind": "add",
+    "item_id": 6,
+    "event_detail": "{\"lane\":\"web\",\"specIds\":[],\"after\":[],\"route\":\"strong\",\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 40,
+    "event_at": "2026-11-14T07:00:03.000Z",
+    "event_by": "api-1",
+    "event_kind": "claim",
+    "item_id": 5,
+    "event_detail": "{\"leaseUntil\":\"2026-11-14T08:00:03.000Z\",\"digest\":\"f08c4de516bbe71aaa9f6b68cb25c392b46e8dd9419695f830df3bd985ab9bfc\",\"grantEngine\":127,\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 41,
+    "event_at": "2026-11-14T07:00:04.000Z",
+    "event_by": "api-1",
+    "event_kind": "release",
+    "item_id": 5,
+    "event_detail": "{\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 42,
+    "event_at": "2026-11-14T07:00:05.000Z",
+    "event_by": "api-1",
+    "event_kind": "claim",
+    "item_id": 5,
+    "event_detail": "{\"leaseUntil\":\"2026-11-14T08:00:05.000Z\",\"digest\":\"f08c4de516bbe71aaa9f6b68cb25c392b46e8dd9419695f830df3bd985ab9bfc\",\"grantEngine\":127,\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 43,
+    "event_at": "2026-11-14T07:00:07.000Z",
+    "event_by": "coordinator",
+    "event_kind": "shout",
+    "item_id": null,
+    "event_detail": "{\"shout\":2,\"to\":\"api\",\"decision\":false,\"request\":false,\"answers\":null,\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 44,
+    "event_at": "2026-11-14T07:00:08.000Z",
+    "event_by": "coordinator",
+    "event_kind": "fact",
+    "item_id": 3,
+    "event_detail": "{\"id\":\"fx-8-appendFact\",\"kind\":\"note\",\"text\":\"replayed fact\",\"ref\":null,\"supersedes\":null,\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 45,
+    "event_at": "2026-11-14T07:00:09.000Z",
+    "event_by": "coordinator",
+    "event_kind": "unhold_item",
+    "item_id": 4,
+    "event_detail": "{\"reason\":\"fixture hold on later item\",\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 46,
+    "event_at": "2026-11-14T07:00:10.000Z",
+    "event_by": "coordinator",
+    "event_kind": "hold_item",
+    "item_id": 4,
+    "event_detail": "{\"reason\":\"replayed hold\",\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 47,
+    "event_at": "2026-11-14T07:00:11.000Z",
+    "event_by": "coordinator",
+    "event_kind": "edit",
+    "item_id": 6,
+    "event_detail": "{\"brief\":\"14 characters\",\"model\":\"claude-sonnet-5\"}"
+   },
+   {
+    "event_id": 48,
+    "event_at": "2026-11-14T07:00:12.000Z",
+    "event_by": "coordinator",
+    "event_kind": "withdraw",
+    "item_id": 6,
+    "event_detail": "{\"reason\":\"replayed withdraw\",\"model\":\"claude-sonnet-5\"}"
+   }
+  ],
+  "hold": [],
+  "item": [
+   {
+    "item_id": 1,
+    "item_parent_id": null,
+    "item_lane": "api",
+    "item_title": "Greeting endpoint",
+    "item_criterion": "src/api/index.js exports greet() returning 'hello'",
+    "item_spec_ids": "G1",
+    "item_after": "",
+    "item_brief": "",
+    "item_route": "strong",
+    "item_check": "",
+    "item_status": "verified",
+    "item_owner": "api-1",
+    "item_lease_until": null,
+    "item_frozen": "{\"title\":\"Greeting endpoint\",\"criterion\":\"src/api/index.js exports greet() returning 'hello'\",\"rows\":[{\"id\":\"G1\",\"text\":\"An API returns a greeting\",\"gate\":\"review\"}],\"policy\":{\"version\":1,\"commit\":\"22829dfef4cfc579174b43199afce4d649dc74d8\",\"verify\":{\"policy\":\"any\",\"family\":\"off\"}}}",
+    "item_frozen_digest": "dc7a65c80a22c66e6534871285b9f82b18e8bd13c9045acdc36a199235e4791b",
+    "item_built_by": "api-1",
+    "item_builder_family": null,
+    "item_commit": "83cc21a52e7d9ace9bb911a89adc55438158b262",
+    "item_tree": "f62c09eadad8f68a3b1618f4701577682f51abf3",
+    "item_verdict": "ACCEPT",
+    "item_verified_by": "review-1",
+    "item_merged_commit": "bd5dc82befead840a45f96c4206c626b24ba6601",
+    "item_withdrawn_reason": null,
+    "item_hold_reason": null,
+    "item_hold_by": null,
+    "item_hold_at": null,
+    "item_created_by": "coordinator",
+    "item_created_at": "2026-11-14T07:07:16.169Z",
+    "item_updated_at": "2026-11-14T07:07:24.777Z",
+    "item_claim_head": "22829dfef4cfc579174b43199afce4d649dc74d8",
+    "item_files": "src/api/index.js",
+    "item_review_by": null,
+    "item_review_until": null
+   },
+   {
+    "item_id": 2,
+    "item_parent_id": null,
+    "item_lane": "web",
+    "item_title": "Show greeting",
+    "item_criterion": "src/web/index.js exports page() containing the greeting",
+    "item_spec_ids": "G1",
+    "item_after": "",
+    "item_brief": "",
+    "item_route": "strong",
+    "item_check": "",
+    "item_status": "claimed",
+    "item_owner": "web-1",
+    "item_lease_until": "2026-11-14T09:07:25.496Z",
+    "item_frozen": "{\"title\":\"Show greeting\",\"criterion\":\"src/web/index.js exports page() containing the greeting\",\"rows\":[{\"id\":\"G1\",\"text\":\"An API returns a greeting\",\"gate\":\"review\"}],\"policy\":{\"version\":1,\"commit\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"verify\":{\"policy\":\"any\",\"family\":\"off\"}}}",
+    "item_frozen_digest": "1b7776f4733dbe726c5a1744d158b1b3c5ea74fa55daf4f96fa2c449cc8ca04b",
+    "item_built_by": null,
+    "item_builder_family": null,
+    "item_commit": null,
+    "item_tree": null,
+    "item_verdict": null,
+    "item_verified_by": null,
+    "item_merged_commit": null,
+    "item_withdrawn_reason": null,
+    "item_hold_reason": null,
+    "item_hold_by": null,
+    "item_hold_at": null,
+    "item_created_by": "coordinator",
+    "item_created_at": "2026-11-14T07:07:16.511Z",
+    "item_updated_at": "2026-11-14T07:07:25.563Z",
+    "item_claim_head": "bd5dc82befead840a45f96c4206c626b24ba6601",
+    "item_files": "",
+    "item_review_by": null,
+    "item_review_until": null
+   },
+   {
+    "item_id": 3,
+    "item_parent_id": null,
+    "item_lane": "api",
+    "item_title": "Bye endpoint",
+    "item_criterion": "src/api/index.js exports bye()",
+    "item_spec_ids": "G1",
+    "item_after": "",
+    "item_brief": "",
+    "item_route": "strong",
+    "item_check": "",
+    "item_status": "submitted",
+    "item_owner": "api-1",
+    "item_lease_until": null,
+    "item_frozen": "{\"title\":\"Bye endpoint\",\"criterion\":\"src/api/index.js exports bye()\",\"rows\":[{\"id\":\"G1\",\"text\":\"An API returns a greeting\",\"gate\":\"review\"}],\"policy\":{\"version\":1,\"commit\":\"bd5dc82befead840a45f96c4206c626b24ba6601\",\"verify\":{\"policy\":\"any\",\"family\":\"off\"}}}",
+    "item_frozen_digest": "c4e611324765937160b52a71343cf771e4eabe4d04915857d546515a720e4c8f",
+    "item_built_by": "api-1",
+    "item_builder_family": null,
+    "item_commit": "df88a7f9cf5305bc0fa5b2c74435fcb322b0d8f6",
+    "item_tree": "4f1e75721362e6c888522648d168d3c41639a505",
+    "item_verdict": null,
+    "item_verified_by": null,
+    "item_merged_commit": null,
+    "item_withdrawn_reason": null,
+    "item_hold_reason": null,
+    "item_hold_by": null,
+    "item_hold_at": null,
+    "item_created_by": "coordinator",
+    "item_created_at": "2026-11-14T07:07:16.793Z",
+    "item_updated_at": "2026-11-14T07:07:27.511Z",
+    "item_claim_head": "bd5dc82befead840a45f96c4206c626b24ba6601",
+    "item_files": "src/api/index.js",
+    "item_review_by": null,
+    "item_review_until": null
+   },
+   {
+    "item_id": 4,
+    "item_parent_id": null,
+    "item_lane": "api",
+    "item_title": "Later item",
+    "item_criterion": "src/api/index.js exports greetName(n)",
+    "item_spec_ids": "G1",
+    "item_after": "1",
+    "item_brief": "",
+    "item_route": "strong",
+    "item_check": "",
+    "item_status": "open",
+    "item_owner": null,
+    "item_lease_until": null,
+    "item_frozen": null,
+    "item_frozen_digest": null,
+    "item_built_by": null,
+    "item_builder_family": null,
+    "item_commit": null,
+    "item_tree": null,
+    "item_verdict": null,
+    "item_verified_by": null,
+    "item_merged_commit": null,
+    "item_withdrawn_reason": null,
+    "item_hold_reason": "replayed hold",
+    "item_hold_by": "coordinator",
+    "item_hold_at": "2026-11-14T07:00:10.000Z",
+    "item_created_by": "coordinator",
+    "item_created_at": "2026-11-14T07:07:17.065Z",
+    "item_updated_at": "2026-11-14T07:00:10.000Z",
+    "item_claim_head": null,
+    "item_files": "",
+    "item_review_by": null,
+    "item_review_until": null
+   },
+   {
+    "item_id": 5,
+    "item_parent_id": null,
+    "item_lane": "api",
+    "item_title": "Replay api item",
+    "item_criterion": "src/api/index.js exports ping()",
+    "item_spec_ids": "",
+    "item_after": "",
+    "item_brief": "",
+    "item_route": "strong",
+    "item_check": "",
+    "item_status": "claimed",
+    "item_owner": "api-1",
+    "item_lease_until": "2026-11-14T08:00:05.000Z",
+    "item_frozen": "src/api/index.js exports ping()",
+    "item_frozen_digest": "f08c4de516bbe71aaa9f6b68cb25c392b46e8dd9419695f830df3bd985ab9bfc",
+    "item_built_by": null,
+    "item_builder_family": null,
+    "item_commit": null,
+    "item_tree": null,
+    "item_verdict": null,
+    "item_verified_by": null,
+    "item_merged_commit": null,
+    "item_withdrawn_reason": null,
+    "item_hold_reason": null,
+    "item_hold_by": null,
+    "item_hold_at": null,
+    "item_created_by": "coordinator",
+    "item_created_at": "2026-11-14T07:00:01.000Z",
+    "item_updated_at": "2026-11-14T07:00:05.000Z",
+    "item_claim_head": null,
+    "item_files": "",
+    "item_review_by": null,
+    "item_review_until": null
+   },
+   {
+    "item_id": 6,
+    "item_parent_id": null,
+    "item_lane": "web",
+    "item_title": "Replay web item",
+    "item_criterion": "src/web/index.js exports footer()",
+    "item_spec_ids": "",
+    "item_after": "",
+    "item_brief": "replayed brief",
+    "item_route": "strong",
+    "item_check": "",
+    "item_status": "withdrawn",
+    "item_owner": null,
+    "item_lease_until": null,
+    "item_frozen": null,
+    "item_frozen_digest": null,
+    "item_built_by": null,
+    "item_builder_family": null,
+    "item_commit": null,
+    "item_tree": null,
+    "item_verdict": null,
+    "item_verified_by": null,
+    "item_merged_commit": null,
+    "item_withdrawn_reason": "replayed withdraw",
+    "item_hold_reason": null,
+    "item_hold_by": null,
+    "item_hold_at": null,
+    "item_created_by": "coordinator",
+    "item_created_at": "2026-11-14T07:00:02.000Z",
+    "item_updated_at": "2026-11-14T07:00:12.000Z",
+    "item_claim_head": null,
+    "item_files": "",
+    "item_review_by": null,
+    "item_review_until": null
+   }
+  ],
+  "shout": [
+   {
+    "shout_id": 1,
+    "shout_from": "coordinator",
+    "shout_to": "api",
+    "shout_text": "fixture shout: please add a test for #3",
+    "shout_at": "2026-11-14T07:07:25.275Z",
+    "shout_decision": 0,
+    "shout_answers": null,
+    "shout_evidence_kind": null,
+    "shout_evidence_outcome": null,
+    "shout_evidence_item": null,
+    "shout_evidence_commit": null,
+    "shout_request": 0,
+    "shout_request_outcome": ""
+   },
+   {
+    "shout_id": 2,
+    "shout_from": "coordinator",
+    "shout_to": "api",
+    "shout_text": "replayed shout",
+    "shout_at": "2026-11-14T07:00:07.000Z",
+    "shout_decision": 0,
+    "shout_answers": null,
+    "shout_evidence_kind": null,
+    "shout_evidence_outcome": null,
+    "shout_evidence_item": null,
+    "shout_evidence_commit": null,
+    "shout_request": 0,
+    "shout_request_outcome": ""
+   }
+  ],
+  "verdict": [
+   {
+    "verdict_id": 1,
+    "item_id": 1,
+    "verdict_by": "review-1",
+    "verdict_verifier_family": null,
+    "verdict_decision": "ACCEPT",
+    "verdict_reason": "CRITERION_MET",
+    "verdict_note": "read the diff; criterion met; gate receipt green",
+    "verdict_commit": "83cc21a52e7d9ace9bb911a89adc55438158b262",
+    "verdict_digest": "dc7a65c80a22c66e6534871285b9f82b18e8bd13c9045acdc36a199235e4791b",
+    "verdict_head": "83cc21a52e7d9ace9bb911a89adc55438158b262",
+    "verdict_at": "2026-11-14T07:07:21.324Z"
+   }
+  ],
+  "sqlite_sequence": [
+   {
+    "name": "event",
+    "seq": 48
+   },
+   {
+    "name": "item",
+    "seq": 6
+   },
+   {
+    "name": "shout",
+    "seq": 2
+   },
+   {
+    "name": "verdict",
+    "seq": 1
+   }
+  ]
+ }
+}

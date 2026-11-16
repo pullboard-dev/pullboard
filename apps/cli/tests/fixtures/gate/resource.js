@@ -75,9 +75,10 @@ export function fixture() {
     GIT_AUTHOR_EMAIL: 'queue@example.invalid',
     GIT_COMMITTER_NAME: 'Queue Test',
     GIT_COMMITTER_EMAIL: 'queue@example.invalid',
-    PULLBOARD_HOME: join(dir, 'home'),
+    PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(dir, 'home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'home'),
   };
+  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
   delete env[GATE_SLOT_HELD_ENV];
   // The runner this file runs on holds a token of its own run's file pool; whole-suite fixture runs need a pool of their own.
   delete env[TEST_FILE_POOL_ENV];

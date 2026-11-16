@@ -4,11 +4,7 @@
 const RUNNER_OVERLOAD_FACTOR = 1.5;
 /** A reading this recent ranks runners by headroom. */
 const RUNNER_READING_FRESH_MS = 30_000;
-/**
- * An overloaded reading keeps its runner skipped this long even after it goes stale.
- * Why: an overloaded runner is the one whose probe is likeliest to time out, and a
- * missing reading must never make it look idle again.
- */
+/** An overloaded reading keeps its runner skipped this long when stale: a timed-out probe must not make it look idle. */
 const RUNNER_OVERLOAD_HOLD_MS = 5 * 60_000;
 
 /** Age of a runner-reported reading in ms, or null when it is missing, malformed or future-dated. */
@@ -17,14 +13,7 @@ function readingAge(sample, now) {
   return sample && Number.isFinite(age) && age >= 0 ? age : null;
 }
 
-/**
- * Describe one runner's live load from its own reading: its 1-minute load, its cores, the jobs
- * admitted since the reading (which the load average cannot show yet), and its headroom in cores.
- * @param {{cores?:number,cpuLoad?:{at:string,busyPercent:number,average:number[]}}} runner
- * @param {number} admittedSince - Jobs this pool admitted to the runner after the reading.
- * @param {number} now
- * @param {number} factor - The overload multiple of cores.
- */
+/** One runner's live load from its own reading: 1-minute load, cores, headroom after jobs admitted since the reading, factor x cores overload. */
 function runnerLoad(runner, admittedSince, now, factor = RUNNER_OVERLOAD_FACTOR) {
   const sample = runner.cpuLoad, age = readingAge(sample, now);
   const load = sample?.average?.[0];
@@ -36,15 +25,15 @@ function runnerLoad(runner, admittedSince, now, factor = RUNNER_OVERLOAD_FACTOR)
   return { fresh: age <= RUNNER_READING_FRESH_MS, overloaded, load, cores: runner.cores, headroom: runner.cores - effective, age };
 }
 
+/** The load facts of a runner skipped as overloaded now, or null; names the cause in wait lines [C7,#8351]. */
+export function runnerOverload(runner, policy, now) {
+  const factor = policy?.factor > 0 ? policy.factor : RUNNER_OVERLOAD_FACTOR, state = runnerLoad(runner, 0, now, factor);
+  return state.overloaded ? { ...state, factor } : null;
+}
+
 /**
- * Pick among runners with a free compatible slot. Overloaded runners are skipped; the runner with the
- * most headroom wins; runners without a fresh reading come after every fresh one with headroom left.
- * Returns null with a reason when every free runner is overloaded, so the job queues instead of failing.
- * Readings without cores keep the earlier busy-share rule, so an unmeasured pool behaves as before.
- * @param {Array<object>} compatible - Free compatible runners in queue order.
- * @param {(host:string) => {slots:number, admittedSince:number}} usage
- * @param {{ceiling?:number, factor?:number}} policy
- * @param {number} now
+ * Pick among free compatible runners: skip overloaded ones, take the most headroom, unmeasured ones after fresh ones.
+ * Null with a reason when every one is overloaded, so the job queues. Readings without cores keep the busy-share rule.
  * @returns {{selected: object|null, dispatch: object}}
  */
 function pickRunnerByLoad(compatible, usage, policy, now) {

@@ -6,12 +6,14 @@ import { readdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { repoInfo } from '../../../../git/index.js';
+import { releaseReceiptFile } from '../release.js';
 import { openBoardForRead } from '../../../../store/index.js';
 import { closeBoard } from '../../../../store/index.js';
 import { Refused } from '../../../../kernel/index.js';
 import { previousCoordinatorMilestone } from '../../../../stats/index.js';
 import { coordinatorActions } from '../../../../stats/index.js';
 import { coordinatorActionRise } from '../../../../stats/index.js';
+import { storeName } from '../store-names.js';
 
 /** Keep audit files tied to actual privately stored release envelopes. */
 function directory(root) { return join(repoInfo(root).commonDir, 'pullboard', 'release-coordinator-actions'); }
@@ -19,7 +21,7 @@ function directory(root) { return join(repoInfo(root).commonDir, 'pullboard', 'r
 /** Read a recorded release's gauge and person override; missing custody never authorizes publication. */
 export function readCoordinatorRelease(root, id) {
   if (!/^[a-f0-9-]{36}$/u.test(id ?? '')) return null;
-  const file = join(directory(root), `${id}.json`);
+  const file = join(directory(root), storeName(id));
   return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null;
 }
 
@@ -29,7 +31,7 @@ function releaseAudits(root) {
   if (!existsSync(folder)) return [];
   return readdirSync(folder).filter(file => /^[a-f0-9-]{36}\.json$/u.test(file))
     .map(file => JSON.parse(readFileSync(join(folder, file), 'utf8')))
-    .filter(row => existsSync(join(repoInfo(root).commonDir, 'pullboard', 'release-receipts', `${row.id}.json`)));
+    .filter(row => existsSync(releaseReceiptFile(root, row.id)));
 }
 
 /** Keep release order independent of clock ties or rollback; unmeasured releases retain the measured ratchet. */
@@ -74,6 +76,6 @@ export function recordCoordinatorRelease(root, id, head, report, at = new Date()
   mkdirSync(folder, { recursive: true, mode: 0o700 });
   const sequence = Math.max(0, ...releaseAudits(root).map(row => row.sequence ?? 0)) + 1;
   const record = { version: 1, id, head, sequence, at: at.toISOString(), ...report };
-  writeFileSync(join(folder, `${id}.json`), JSON.stringify(record) + '\n', { flag: 'wx', mode: 0o600 });
+  writeFileSync(join(folder, storeName(id)), JSON.stringify(record) + '\n', { flag: 'wx', mode: 0o600 });
   return record;
 }

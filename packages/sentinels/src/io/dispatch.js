@@ -17,10 +17,10 @@ export function normalizedDispatch(value) {
   return value.map(entry => {
     if (!entry || typeof entry.seat !== 'string' || !entry.seat || entry.seat.length > 256
       || !Number.isSafeInteger(entry.item) || entry.item < 1 || typeof entry.review !== 'boolean'
-      || !Number.isFinite(Date.parse(entry.since)) || seen.has(entry.item)) {
-      throw new Refused('HEALTH_FINDINGS', 'dispatch observations need a unique item, native seat and start time; run the sentinel again');
+      || !Number.isFinite(Date.parse(entry.since)) || seen.has(`${entry.seat}\0${entry.item}`)) {
+      throw new Refused('HEALTH_FINDINGS', 'dispatch observations need a native seat, an item unique within that seat, and a start time; run the sentinel again');
     }
-    seen.add(entry.item);
+    seen.add(`${entry.seat}\0${entry.item}`);
     return { seat: entry.seat, item: entry.item, review: entry.review, since: new Date(entry.since).toISOString() };
   });
 }
@@ -29,9 +29,12 @@ export function normalizedDispatch(value) {
 export function dispatchHealth(board, config = {}) {
   const row = board.db.prepare("SELECT event_detail FROM event WHERE event_kind='health-scan' ORDER BY event_id DESC LIMIT 1").get();
   const previous = row ? JSON.parse(row.event_detail).dispatch ?? [] : [];
+  const active = row ? JSON.parse(row.event_detail).active ?? [] : [];
   const at = board.clock.now();
-  const dispatch = [], findings = [], items = new Set();
+  const dispatch = [], findings = [];
   const agents = store.listAgents(board);
+  const roadmap = store.roadmap(board);
+  const current = roadmap.find(milestone => !milestone.shipped && milestone.items.some(item => item.status !== 'verified'));
   const seats = lineSettings(board)['route.liveOnly'] ? withLocalSeatPresence(board, agents) : agents;
   for (const seat of seats) {
     if (seat.agent_id === 'coordinator' || seat.presence !== 'live' || !existsSync(join(seat.agent_path, '.git'))) continue;
@@ -43,19 +46,30 @@ export function dispatchHealth(board, config = {}) {
       if (error instanceof Refused) continue; // An unresolvable local seat cannot take work yet.
       throw error;
     }
-    const selected = dispatchWork(board, seat, { policy: config.verify?.policy, familyPolicy: config.verify?.family, skipIds, assignedIds: [...items] });
-    if (!selected.item || selected.held || items.has(selected.item.item_id)) continue;
+    const selected = dispatchWork(board, seat, { policy: config.verify?.policy, familyPolicy: config.verify?.family, skipIds });
+    if (!selected.item || selected.held) continue;
     const item = selected.item.item_id;
-    items.add(item);
+    if (current && !current.items.some(entry => entry.id === item)) continue;
     const before = previous.find(entry => entry.seat === seat.agent_id && entry.item === item && entry.review === selected.review);
     const lastChange = board.db.prepare("SELECT MAX(event_at) AS at FROM event WHERE (item_id=? AND event_kind IN ('add','claim','release','submit','accept','reject','reopen','refreeze','escalate','withdraw','edit','hold_item','unhold_item','reserve')) OR (event_by=? AND event_kind IN ('claim','reserve','release','submit'))").get(item, seat.agent_id)?.at;
-    const observedSince = new Date(Math.min(at.getTime(), Math.max(...[lastChange, seat.agent_created_at, seat.heartbeatAt].filter(Boolean).map(Date.parse)))).toISOString();
+    const lastWork = board.db.prepare("SELECT MAX(event_at) AS at FROM event WHERE event_by=? AND event_kind IN ('claim','reserve','release','submit')").get(seat.agent_id)?.at ?? seat.agent_created_at;
+    const idleMinutes = Math.floor(Math.max(0, at.getTime() - Date.parse(lastWork)) / 60000);
+    const observedSince = new Date(Math.min(at.getTime(), Date.parse(lastWork))).toISOString();
     const since = before && (!lastChange || lastChange <= before.since) ? before.since : observedSince;
     dispatch.push({ seat: seat.agent_id, item, review: selected.review, since });
     if (at.getTime() - Date.parse(since) < 300000) continue;
-    findings.push({ key: `UNPAIRED_WORK:${seat.agent_id}:${item}`, cause: 'UNPAIRED_WORK', item,
+    const key = `UNPAIRED_WORK:${seat.agent_id}:${item}`;
+    const retained = active.some(finding => finding.key === key && finding.since === since);
+    // A delivered warning belongs to the seat's idle spell, even if next later chooses a different item.
+    const warned = board.db.prepare(`SELECT 1 FROM event e JOIN shout s ON s.shout_id=json_extract(e.event_detail,'$.shout')
+      WHERE e.event_kind='shout' AND e.event_by='sentinel' AND s.shout_to='coordinator'
+        AND instr(s.shout_text, ?) = 1 AND instr(s.shout_text, '[UNPAIRED_WORK]') > 0
+        AND e.event_id > COALESCE((SELECT MAX(event_id) FROM event WHERE event_by=? AND event_kind IN ('claim','reserve')), 0) LIMIT 1`)
+      .get(`Stuck: ${seat.agent_id} beside #`, seat.agent_id);
+    if (warned && !retained) continue;
+    findings.push({ key, cause: 'UNPAIRED_WORK', item,
       subject: `${seat.agent_id} beside #${item}`, title: 'ready work has waited five minutes for a free seat', since,
-      why: `${seat.agent_id} is live and free while eligible ${selected.review ? 'review' : 'build'} #${item} remains unreserved`,
+      why: `${seat.agent_id} is live and free for ${idleMinutes} min while eligible ${selected.review ? 'review' : 'build'} #${item} remains unreserved`,
       next: `run pullboard next --take in ${seat.agent_path}`, owner: { role: 'coordinator', who: 'coordinator' } });
   }
   return { dispatch, findings };

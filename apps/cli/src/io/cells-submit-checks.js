@@ -32,12 +32,7 @@ import { cellLintGrowth } from '../../../../packages/codemap/index.js';
 import { cellLintBaseline } from '../../../../packages/codemap/index.js';
 import { cellReadPathMap as readPathMap } from '../../../../packages/codemap/index.js';
 import { mappedPath } from '../../../../packages/codemap/index.js';
-import { checkCuts } from '../../../../packages/codemap/index.js';
-import { entryPlacementProblems } from '../../../../packages/codemap/index.js';
-import { processEntry } from '../../../../packages/codemap/index.js';
-import { cutTitle } from '../../../../packages/codemap/index.js';
 import {
-  frontDoorBypasses,
   onlyForwards,
   withDeclaredLoads,
 } from '../../../../packages/codemap/index.js';
@@ -49,10 +44,10 @@ import { readPlan } from '../../../../packages/codemap/index.js';
 import { shardFile } from '../../../../packages/codemap/index.js';
 import { unplanned } from '../../../../packages/codemap/index.js';
 import { stalePlanRows } from '../../../../packages/codemap/index.js';
-import { engineStayTransition } from '../../../../packages/codemap/index.js';
 import { scriptMentions } from '../../../../packages/codemap/index.js';
 import { testFile } from '../../../../packages/codemap/index.js';
 import { posix } from 'node:path';
+import { cellOfFolder } from '../logic/cell-of-folder.js';
 import { cellsReorgReason } from './cells-reorg.js';
 import { warning } from './cells-reorg.js';
 import { fixtureFinding } from './cells-reorg.js';
@@ -84,27 +79,11 @@ function mappedBypassKey(map, key) {
   return to !== undefined && extra === undefined ? `${mappedPath(map, from)}->${mappedPath(map, to)}` : key;
 }
 
-/** Read only landed core cut items (titles cutTitle names), so the runner request carries a few rows, not the board [C7]. */
+/** Read only landed core cut items (titles `Cells import cuts: <cell> ...`), so the runner request carries a few rows, not the board [C7]. */
 export function landedCutItemRows(db) {
   return db.prepare(`SELECT item_id, item_lane, item_title, item_status, item_merged_commit FROM item
     WHERE item_lane='core' AND item_status='verified' AND item_merged_commit IS NOT NULL AND item_title LIKE 'Cells import cuts: % removes imports into later cells'
     AND NOT EXISTS (SELECT 1 FROM board_meta WHERE meta_key='item_redirect:' || item_id)`).all();
-}
-
-/** Read cut authority only from the trusted controller's board snapshot and pinned accepted ancestry. */
-function landedCutCells(root, acceptedMain, plan, readCutItems) {
-  if (typeof readCutItems !== 'function') throw new Refused('CELLS_SUBMIT', 'trusted board cut-item reader is required');
-  const items = readCutItems(acceptedMain, root);
-  if (!Array.isArray(items)) throw new Refused('CELLS_SUBMIT', 'trusted board cut-item reader must return actual item rows');
-  const titles = new Map(plan.cells.map(cell => [cutTitle(cell.name), cell.name]));
-  const landed = new Set();
-  for (const item of items) {
-    const cell = titles.get(item.item_title);
-    if (!cell || item.item_lane !== 'core' || item.item_status !== 'verified'
-      || !/^[a-f0-9]{40,64}$/u.test(item.item_merged_commit ?? '')) continue;
-    if (tryGit(root, ['merge-base', '--is-ancestor', item.item_merged_commit, acceptedMain]).status === 0) landed.add(cell);
-  }
-  return landed;
 }
 
 /** A malformed analysis is a refusal, never an empty set of findings. */
@@ -112,49 +91,10 @@ function refuse(problems) {
   if (problems.length) throw new Refused('CELLS_SUBMIT', problems.join('; '));
 }
 
-/**
- * An accepted row may leave its cell as a plan stay only when the item's frozen criterion, written by the coordinator,
- * names it exactly as `plan stay <path>`, the file still sits at its old path and nothing occupies its old target.
- * The candidate's own stays list never authorizes itself (#2446).
- */
-function approvedStay(after, row, candidateRoot, criterion) {
-  const [from, to] = row;
-  // The path ends at whitespace, the text end, or one of , ; . before them: apps/relay/src/io/deploy/x.js.map, x.js+copy and x.jsé never approve apps/relay/src/io/deploy/x.js.
-  const named = new RegExp(`(?:^|[^\\w./-])plan stay ${from.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}(?=$|\\s|[.,;](?:\\s|$))`, 'u');
-  if (!named.test(criterion) || !(after.stays ?? []).some(stay => stay.path === from)) return false;
-  try { if (!lstatSync(join(candidateRoot, from)).isFile()) return false; } catch { return false; }
-  return !existsSync(join(candidateRoot, to));
-}
-
-/**
- * An accepted process entry may leave the plan's entries only when the item's frozen criterion, written by the coordinator,
- * names it exactly as `plan retire entry <path>` and its file is absent (ENOENT) or readable and no longer runs as a process (#3519).
- * The candidate's own plan never authorizes itself; a file that still runs as a process keeps its ownership.
- */
-function approvedEntryRetirement(entry, candidateRoot, criterion, map) {
-  const named = new RegExp(`(?:^|[^\\w./-])plan retire entry ${entry.path.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}(?=$|\\s|[.,;](?:\\s|$))`, 'u');
-  if (!named.test(criterion)) return false;
-  const file = join(candidateRoot, mappedPath(map, entry.path));
-  // Only a path that is genuinely absent (ENOENT) or readable source that no longer runs as a process retires; any other failure refuses.
-  try {
-    if (!lstatSync(file).isFile()) return false;
-    return !processEntry(entry.path, readFileSync(file, 'utf8'));
-  } catch (error) { return error?.code === 'ENOENT'; }
-}
-
-/** Preserve accepted ownership; candidate metadata may not hide an existing implementation in a stay or later cell. */
+/** Cell identity, order and door rules; stays, entries and row ownership are no longer read from the plan [C7]. */
 export function policyProblems(before, after, beforeMap, afterMap, candidateRoot, mainRoot, criterion = '') {
   const problems = [], cells = new Map(after.cells.map(cell => [cell.name, cell]));
-  const engineStays = engineStayTransition({ beforeRoot: mainRoot, afterRoot: candidateRoot, before, after, afterMap });
-  problems.push(...engineStays.problems);
-  const entryProblems = entryPlacementProblems(candidateRoot, after);
-  problems.push(...entryProblems);
-  const afterEntries = Array.isArray(after.entries) ? after.entries : [];
-  const entries = new Set(entryProblems.length ? [] : afterEntries.map(row => row.path));
-  for (const entry of before.entries ?? []) {
-    if (!afterEntries.some(row => row.path === entry.path && row.cell === entry.cell) && !(!afterEntries.some(row => row.path === entry.path) && approvedEntryRetirement(entry, candidateRoot, criterion, afterMap))) problems.push(`accepted process entry ownership changed: ${entry.path}`);
-  }
-  const rows = new Map(), targets = new Set(), orders = new Set(), roots = new Set();
+  const orders = new Set(), roots = new Set();
   const relative = value => typeof value === 'string' && value.length > 0 && !/[\\:\x00-\x1f]/u.test(value)
     && value.split('/').every(part => part && part !== '.' && part !== '..');
   for (const cell of after.cells) {
@@ -163,12 +103,6 @@ export function policyProblems(before, after, beforeMap, afterMap, candidateRoot
     if (!relative(cell.root) || !relative(cell.frontDoor) || !cell.frontDoor.startsWith(cell.root + '/')) problems.push(`invalid cell root/front door: ${cell.name}`);
     if ([...roots].some(root => root === cell.root || root.startsWith(cell.root + '/') || cell.root.startsWith(root + '/'))) problems.push(`overlapping cell root: ${cell.root}`);
     roots.add(cell.root);
-  }
-  for (const cell of after.cells) for (const row of cell.paths) {
-    if (!Array.isArray(row) || row.length !== 3 || !relative(row[0]) || !relative(row[1]) || !row[1].startsWith(cell.root + '/') || targets.has(row[1])) problems.push(`invalid or duplicate placement target in ${cell.name}: ${row?.[1]}`);
-    targets.add(row[1]);
-    if (rows.has(row[0])) problems.push(`plan repeats ${row[0]}`);
-    rows.set(row[0], { cell, row });
   }
   for (const cell of before.cells) {
     const next = cells.get(cell.name);
@@ -188,20 +122,6 @@ export function policyProblems(before, after, beforeMap, afterMap, candidateRoot
     if (cell.pureDoor === undefined && next.pureDoor !== undefined) {
       problems.push(...pureDoorProblems(candidateRoot, next).map(problem => `${cell.name}: ${problem}`));
     }
-    for (const row of cell.paths) {
-      const current = rows.get(row[0]);
-      const retired = after.retired?.some(entry => entry.cell === cell.name && JSON.stringify(entry.row) === JSON.stringify(row));
-      if (!current && !retired && !engineStays.rows.has(row[0]) && !approvedStay(after, row, candidateRoot, criterion)) problems.push(`${cell.name}: accepted row ${row[0]} disappeared without exact retirement`);
-      if (current && current.cell.order > cell.order && !entries.has(row[0])) problems.push(`${cell.name}: ${row[0]} was relabeled as later ${current.cell.name}`);
-    }
-  }
-  for (const entry of before.retired ?? []) if (!after.retired?.some(row => JSON.stringify(row) === JSON.stringify(entry))) {
-    problems.push(`accepted retired provenance changed: ${entry.row[0]}`);
-  }
-  for (const [from, to] of afterMap) {
-    if (beforeMap.get(from) === to) continue;
-    const row = rows.get(from);
-    if (!row || row.row[1] !== to) problems.push(`path map ${from} -> ${to} has no exact declared move row`);
   }
   for (const [from, to] of beforeMap) if (!afterMap.has(from)) problems.push(`accepted path map disappeared: ${from} -> ${to}`);
   return problems;
@@ -251,6 +171,19 @@ function allCellsReason(files, plans) {
   return policyScope(files, plans).all;
 }
 
+/**
+ * Whether the cell owns a path the move maps carry, found from the target's folder, never from the plan's path rows [C7,#8742].
+ *
+ * Why: the plan rows are being retired, and a folder already names the cell.
+ *
+ * @param {string} name cell name
+ * @param {Array<Map<string, string>>} maps path maps (from to target), one per side
+ * @returns {boolean}
+ */
+export function cellHasMovedPaths(name, maps) {
+  return maps.some(map => [...map.values()].some(to => cellOfFolder(to) === name));
+}
+
 /** Attribute changed cells and their direct importers against both immutable graphs. */
 export function touchedCells(files, before, after, inventories) {
   const plans = [before, after];
@@ -259,12 +192,11 @@ export function touchedCells(files, before, after, inventories) {
   if (scope.all) {
     return after.cells.map(cell => cell.name);
   }
+  const known = new Set(plans.flatMap(plan => plan.cells.map(cell => cell.name)));
   const byPath = new Map();
-  /** A source alias and a moved target both belong to their declared cell. */
+  /** A path's cell comes from its folder, never from the plan's rows; only a cell the plans name counts [#8555]. */
   const owners = file => {
-    if (!byPath.has(file)) byPath.set(file, plans.flatMap(plan => plan.cells.filter(cell => file === cell.frontDoor
-      || file === cell.pureFrontDoor || file === cell.lightFrontDoor || file === cell.pureDoor || file.startsWith(cell.root + '/')
-      || cell.paths.some(row => row[0] === file || row[1] === file)).map(cell => cell.name)));
+    if (!byPath.has(file)) { const name = cellOfFolder(file); byPath.set(file, name !== null && known.has(name) ? [name] : []); }
     return byPath.get(file);
   };
   const touched = new Set([...files.flatMap(owners), ...scope.cells]);
@@ -387,7 +319,13 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   const fallback = allCellsReason(changed, [before, after]);
   if (fallback) onAllCells(fallback);
   const direct = touchedCells(changed, before, after, []);
-  if (!direct.length) return { cells: [], problems: policy, warnings, reorg, ...(collectMachinery ? { machinery } : {}) };
+  // A file that newly only forwards is a shim even outside any planned cell's folder, so the shim count still runs for it [C7].
+  const addsShim = changed.some(file => {
+    const text = shimSnapshotFile(candidateRoot, file);
+    const was = shimSnapshotFile(mainRoot, file);
+    return text !== undefined && onlyForwards(text, false) && !(was !== undefined && onlyForwards(was, false));
+  });
+  if (!direct.length && !addsShim) return { cells: [], problems: policy, warnings, reorg, ...(collectMachinery ? { machinery } : {}) };
   const oldReport = inventories?.report?.(mainRoot, acceptedMain) ?? cellLintReport(mainRoot, parsers, { inventory: oldInventory });
   const newReport = cellLintReport(candidateRoot, parsers, { inventory: newInventory });
   // Advisory transition authority comes only from the immutable accepted snapshot.
@@ -400,8 +338,7 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   problems.push(...shimCountProblems({ before: oldReport, after: newReport, beforeInventory: oldInventory, afterInventory: newInventory }));
   for (const name of cells) {
     const previous = before.cells.some(cell => cell.name === name);
-    const moved = [before, after].some((plan, index) => plan.cells.find(cell => cell.name === name)?.paths
-      .some(([from, to]) => [mainMap, candidateMap][index].get(from) === to));
+    const moved = cellHasMovedPaths(name, [mainMap, candidateMap]);
     if (!moved) continue;
     const oldMoved = previous ? checkMoved(mainRoot, before, name, { acceptedBase: acceptedMain, lintReport: oldReport, lintBaseline: baseline, inventory: oldInventory }) : [];
     const newMoved = checkMoved(candidateRoot, after, name, { acceptedBase: acceptedMain, lintReport: newReport, lintBaseline: baseline, inventory: newInventory });
@@ -411,75 +348,6 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
     }
   }
   return { cells, problems, warnings, reorg, allCellsReason: fallback ?? null, ...(collectMachinery ? { machinery } : {}) };
-}
-
-/**
- * Run one side's cut check, turning a plan the cut tooling cannot read into a CELLS_SUBMIT refusal that names the side
- * and the error. Why: on 9 Nov #3689 renumbered the cell order and importCuts threw "cut links must name an earlier
- * importing cell"; the uncaught throw killed the remote analysis and every section came back RUNNER_RESULT_INVALID, a
- * machine fault, when the candidate's own plan was the problem.
- *
- * @template T
- * @param {'candidate' | 'accepted main'} side
- * @param {string} cell
- * @param {() => T} check
- * @returns {T}
- */
-export function readableCuts(side, cell, check) {
-  try { return check(); }
-  catch (error) {
-    if (error instanceof Refused) throw error;
-    throw new Refused('CELLS_SUBMIT', `the ${side} cells plan cannot be cut-checked for ${cell}: ${error?.message ?? error}; ${side === 'candidate'
-      ? 'make every cut link in packages/codemap/data/plan name an importing cell ordered before its target (renumber the cuts with the cells), then commit the plan'
-      : 'accepted main\'s cells plan is inconsistent; tell the coordinator, who repairs main\'s plan'}`);
-  }
-}
-
-/** Compare only the candidate's own graph delta with its actual merge base, using trusted landed authority. */
-function cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers, inventories, observations, cacheEligible, onCellObservation = () => {}, collectBacklog = false }) {
-  if (!existsSync(join(baseRoot, 'packages/codemap/data/plan/cells.json'))) return { problems: [], existingCuts: [], later: [] };
-  const before = readPlan(baseRoot), after = candidatePlan(sourceRoot);
-  const changed = git(sourceRoot, ['diff', '--name-only', '--no-renames', '-z', cutBase, 'HEAD']).split('\0').filter(Boolean);
-  const oldInventory = inventories ? inventories.base(baseRoot, cutBase) : cellInventory(baseRoot, parsers);
-  const newInventory = inventories ? inventories.candidate(sourceRoot, oldInventory, changed) : cellInventory(sourceRoot, parsers);
-  const cells = touchedCells(changed, before, after, [oldInventory, newInventory]);
-  const problems = [], existingCuts = [], later = [];
-  const candidateMap = readPathMap(sourceRoot);
-  for (const name of cells) {
-    if (!collectBacklog && !landedCells.has(name)) continue;
-    const previous = before.cells.some(cell => cell.name === name);
-    const cacheKey = `cell-base-cuts:${cutBase}:${name}`;
-    const cached = previous && cacheEligible?.() ? observations?.get(cacheKey)?.value : null;
-    let oldCuts;
-    if (Array.isArray(cached) && cached.every(value => typeof value === 'string')) {
-      oldCuts = [...cached];
-      onCellObservation('base-reused', name);
-    } else {
-      oldCuts = previous ? readableCuts('accepted main', name, () => checkCuts(baseRoot, before, name, { allLaterCells: true, temporaryExceptions: false, inventory: oldInventory, acceptedInventory: oldInventory })) : [];
-      if (previous && cacheEligible?.() && observations instanceof Map && observations.size < 32768) {
-        const bytes = Buffer.byteLength(cacheKey) + Buffer.byteLength(JSON.stringify(oldCuts));
-        if (bytes <= 1024 * 1024) observations.set(cacheKey, { value: [...oldCuts], bytes });
-      }
-      onCellObservation('base-checked', name);
-    }
-    // The full accepted cut backlog belongs to the main audit, not every submit.
-    if (collectBacklog) existingCuts.push(...oldCuts.map(problem => `${name} --cuts: ${problem}`));
-    if (!landedCells.has(name) || !after.cells.some(cell => cell.name === name)) continue;
-    const newCuts = readableCuts('candidate', name, () => checkCuts(sourceRoot, after, name, { allLaterCells: true, temporaryExceptions: false, inventory: newInventory, acceptedInventory: oldInventory }));
-    for (const problem of additions(oldCuts.map(problem => mappedCutDiagnostic(candidateMap, problem)),
-      newCuts.map(problem => mappedCutDiagnostic(candidateMap, problem)))) {
-      const edge = / still imports later [\w:-]+: ([^:\r\n]+) -> ([^:\r\n]+)$/u.exec(problem);
-      if (edge) later.push({ text: `${name} --cuts: ${problem}; import a lower cell or take a port`,
-        warning: warning(edge[1], importLine(sourceRoot, edge[1], edge[2]), `${name} --cuts: ${problem}`, 'import a lower cell or take a port') });
-      else problems.push(`${name} --cuts: ${problem}; import a lower cell or take a port`);
-    }
-    const oldDoors = previous ? readableCuts('accepted main', name, () => frontDoorBypasses(baseRoot, before, name, { inventory: oldInventory, acceptedInventory: oldInventory })) : new Map();
-    const oldDoorKeys = new Set([...oldDoors.keys()].map(key => mappedBypassKey(candidateMap, key)));
-    for (const [key, text] of readableCuts('candidate', name, () => frontDoorBypasses(sourceRoot, after, name, { inventory: newInventory, acceptedInventory: oldInventory }))) {
-      if (!oldDoorKeys.has(mappedBypassKey(candidateMap, key))) problems.push(`${name} --cuts: ${text}; import the lower cell's front door or take a port`);
-    }
-  }
-  return { problems, existingCuts, later };
 }
 
 /** Immutable snapshot callbacks may not leave changed files or a moved checkout behind. */
@@ -569,29 +437,17 @@ async function inspectSubmitCells(root, acceptedMain, commit, item, services) {
   const snapshots = cellsObjectSnapshots(root, acceptedMain, [commit, cutBase, source], artifact, services.onSnapshotRead);
   const result = await withCellSourceSnapshots([...snapshots.values()], async () => {
     const mainRoot = snapshots.get(acceptedMain).root, candidateRoot = snapshots.get(commit).root;
-    const landedCells = existsSync(join(mainRoot, 'packages/codemap/data/plan/cells.json'))
-      ? landedCutCells(root, acceptedMain, readPlan(mainRoot), () => cutRows) : new Set();
     const result = withSubmitCellParser(() => cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion, title, parsers, withImportParseCache, cacheEligible: samePreloads, inventories, observations: observations.values, warmAll: false, collectMachinery: services.collectMachinery === true, onBindingProbe: services.onBindingProbe, onAllCells: services.onAllCells, runtimeIdentity: artifact.runtimeIdentity }));
-    /** Keep comparison code trusted and raw source separate from the union used for accepted-policy checks. */
-    const inspect = (baseRoot, sourceRoot) => {
-      const cuts = withSubmitCellParser(() => withImportParseCache(() => cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers, inventories, observations: observations.values, cacheEligible: samePreloads, onCellObservation: services.onCellObservation })));
-      unchangedSnapshot(baseRoot, cutBase);
-      unchangedSnapshot(sourceRoot, source);
-      return cuts;
-    };
-    const cuts = inspect(snapshots.get(cutBase).root, snapshots.get(source).root);
     unchangedSnapshot(mainRoot, acceptedMain);
     unchangedSnapshot(candidateRoot, commit);
     observations.commit();
-    if (cuts?.unavailable) throw new Refused('CELLS_SUBMIT', cuts.unavailable);
-    // Later-cell imports refuse only Cells reorg work; every other item proceeds with them as warnings (#2473).
-    const problems = [...result.problems, ...cuts.problems, ...result.reorg ? cuts.later.map(row => row.text) : []];
+    const problems = [...result.problems];
     const machinery = [...result.machinery ?? []];
     if (services.collectMachinery && problems.length) machinery.push({ kind: 'plan', code: 'CELLS_SUBMIT', message: problems.join('; '), rule: receiptDigest(readFileSync(fileURLToPath(import.meta.url), 'utf8')) });
     else refuse(problems);
-    const warnings = [...result.warnings, ...result.reorg ? [] : cuts.later.map(row => row.warning)];
+    const warnings = [...result.warnings];
     const policy = services.collectMachinery && existsSync(join(mainRoot, 'packages/codemap/data/plan/cells.json')) ? readPlan(mainRoot) : null;
-    return { ...result, warnings, existingCuts: cuts.existingCuts, acceptedMain, cutBase, commit, source,
+    return { ...result, warnings, existingCuts: [], acceptedMain, cutBase, commit, source,
       ...(services.collectMachinery ? { machinery: machinery.map(row => ({ ...row, rule: receiptDigest([row.rule, policy, cutRows]) })) } : {}) };
   });
   if (result?.unavailable) throw new Refused('CELLS_SUBMIT', result.unavailable);

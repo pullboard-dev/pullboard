@@ -16,14 +16,14 @@ export function roadmapBlock(item, context = {}) {
   // The item's own hold, held apart from its lane's (#1256).
   const own = (Array.isArray(context.itemHolds) ? context.itemHolds : []).find(h => h.item === item.id);
   const blocked = item.status === 'open' && Boolean(waits.length || hold || own);
-  const label = blocked ? 'Blocked: ' + [waits.length ? 'waits on ' + waits.map(w => '#' + w.id + ' (' + w.status + ')').join(', ') : '',own ? 'held: ' + own.reason : '',hold ? 'lane ' + item.lane + ' held' : ''].filter(Boolean).join('; ') : '';
+  const label = blocked ? (waits.length ? 'Blocked by ' : 'Blocked: ') + [waits.length ? waits.map(w => '#' + w.id + ' (' + w.status + ')').join(', ') : '',own ? 'held: ' + own.reason : '',hold ? 'lane ' + item.lane + ' held' : ''].filter(Boolean).join('; ') : '';
   const dot = blocked ? '<span class="block-dot" role="img" aria-label="'+escape(label)+'" title="'+escape(label)+'"></span>' : '';
   // A collapsed row needs its real blocked state, while full detail is rendered on explicit expansion.
   if (context.summaryOnly === true) return { label, dot, detail: '' };
   const paths = {
     Criterion:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><path d="M12 9v6m-3-3h6"/>',
     Agents:'<circle cx="9" cy="7" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3m1-17a3 3 0 0 1 0 6m2 4a5 5 0 0 1 3 4v3"/>',
-    'Waits on':'<path d="M6 3h12M6 21h12M7 3v4l10 10v4M17 3v4L7 17v4"/>',
+    'Blocked by':'<path d="M6 3h12M6 21h12M7 3v4l10 10v4M17 3v4L7 17v4"/>',
     Blocks:'<path d="M5 4v8a5 5 0 0 0 5 5h9m-5-5 5 5-5 5"/>',
     'Sent back':'<path d="m9 4-5 5 5 5M4 9h10a6 6 0 0 1 0 12h-3"/>',
     History:'<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="10" cy="18" r="2"/>',
@@ -73,7 +73,7 @@ export function roadmapBlock(item, context = {}) {
   const releases = (context.releases || []).map(release => '<b>'+escape(release)+'</b>').join(', ');
   const specs = (item.specs || []).map(escape).join(', ');
   const rows = field('Criterion',criterion?'<b>'+escape(criterion)+'</b>':'','roadmap-criterion')+field('Agents',agents.join(' · '))
-    +field('Waits on',waiting.join('<br>'))+field('Blocks',downstream.map(ref).join(' '))
+    +field('Blocked by',waiting.join('<br>'))+field('Blocks',downstream.map(ref).join(' '))
     +field('Sent back',returned,'roadmap-return')+field('History',history,'roadmap-history')
     +field('Release',[releases,specs?'spec '+specs:''].filter(Boolean).join(' · '));
   const address = context.address ?? '#items/'+item.id;

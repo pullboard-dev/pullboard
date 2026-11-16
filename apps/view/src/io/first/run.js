@@ -55,9 +55,11 @@ export function firstRunKit({ coordinate = false } = {}) {
    * five architecture tiles, read from the setup facts the board started with.
    */
   function model(project, events = []) {
-    const kinds = new Set(events.map(event => event.event_kind));
+    // The page keeps a running tally ({ kinds, merged }) so a live update never rescans the history; a list of events counts the same.
+    const tally = Array.isArray(events) ? { kinds: new Set(events.map(event => event.event_kind)), merged: events.filter(event => event.event_kind === 'merged').length } : events;
+    const { kinds } = tally;
     const items = project.items ?? [];
-    const landings = Math.max((project.dashboardLanded ?? []).length, events.filter(event => event.event_kind === 'merged').length);
+    const landings = Math.max((project.dashboardLanded ?? []).length, project.counts?.landed?.total ?? 0, items.filter(item => item.merged || item.stage === 'merged').length, tally.merged);
     const ticks = [
       (project.agents ?? []).some(coordinatorPresent),
       (project.spec ?? []).some(row => row.status === 'approved'),

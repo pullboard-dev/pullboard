@@ -31,6 +31,8 @@ function median(values) {
   const n = sorted.length;
   return n ? Math.round((sorted[Math.floor((n - 1) / 2)] + sorted[Math.floor(n / 2)]) / 2) : null;
 }
+/** A landing or review move needs no parse here: its item is its own column, and only its model is read, later, when named. */
+const NO_DETAIL = Object.freeze({});
 function detail(event) {
   try { return JSON.parse(event.event_detail); } catch { return {}; }
 }
@@ -68,7 +70,7 @@ function* projectCost({ items, agents, events, window = '30d', now = new Date(),
   let seen = 0;
   for (const event of ordered) {
     if (++seen % 2000 === 0) yield;
-    const info = detail(event), id = event.item_id ?? info.item;
+    const info = event.item_id !== null && event.item_id !== undefined && !['usage', 'shared-usage'].includes(event.event_kind) ? NO_DETAIL : detail(event), id = event.item_id ?? info.item;
     if (id) { if (!histories.has(id)) histories.set(id, []); histories.get(id).push(event); }
     if (event.event_kind === 'usage') {
       if (info.shared) shared.add(info.item);
@@ -115,15 +117,29 @@ function* projectCost({ items, agents, events, window = '30d', now = new Date(),
     }
     const sessions = [...grouped.values()];
     const agentMs = shared.has(id) || !sessions.length ? null : sum(sessions.map(row => row.agentMs));
-    projected.push({ id, title: item.item_title ?? item.title, landedAt: landing.event_at, date: dateInZone(new Date(at), timeZone), agentMs,
+    projected.push({ id, title: item.item_title ?? item.title, lane: item.item_lane ?? item.lane ?? null, landedAt: landing.event_at, date: dateInZone(new Date(at), timeZone), agentMs,
       sentBack: returns.length, builder, verifier, accepts, history, sessions: shared.has(id) ? [] : sessions });
   }
   const totalMs = projected.length ? knownSum(projected.map(row => row.agentMs)) : 0;
   const sent = projected.filter(row => row.sentBack), sentMs = sent.length ? knownSum(sent.map(row => row.agentMs)) : 0;
   const days = [...new Set(projected.map(row => row.date))].sort().map(day => {
     const rows = projected.filter(row => row.date === day), first = rows.filter(row => !row.sentBack), returned = rows.filter(row => row.sentBack);
-    return { date: day, firstTimeMs: first.length ? knownSum(first.map(row => row.agentMs)) : 0, sentBackMs: returned.length ? knownSum(returned.map(row => row.agentMs)) : 0, items: rows.length };
+    return { date: day, firstTimeMs: first.length ? knownSum(first.map(row => row.agentMs)) : 0, sentBackMs: returned.length ? knownSum(returned.map(row => row.agentMs)) : 0, items: rows.length,
+      timedItems: rows.filter(row => row.agentMs !== null).length, untimedItems: rows.filter(row => row.agentMs === null).length };
   });
+  /** Agent time per model and per lane: hours, share of the total and the part sent back [N26]. */
+  const spread = (entries) => [...entries.values()].filter(row => row.agentMs > 0).sort((x, y) => y.agentMs - x.agentMs || String(x.key).localeCompare(String(y.key)))
+    .map(row => ({ ...row, share: totalMs > 0 ? row.agentMs / totalMs : null, sentBackShare: row.agentMs > 0 ? row.sentBackMs / row.agentMs : null }));
+  const byModel = new Map(), byLane = new Map();
+  for (const row of projected) {
+    if (row.agentMs === null) continue;
+    for (const session of row.sessions) {
+      const entry = byModel.get(session.model) ?? { key: session.model, label: session.label, agentMs: 0, sentBackMs: 0, items: 0 };
+      entry.agentMs += session.agentMs ?? 0; entry.items++; if (row.sentBack) entry.sentBackMs += session.agentMs ?? 0; byModel.set(session.model, entry);
+    }
+    const lane = row.lane ?? 'unassigned', entry = byLane.get(lane) ?? { key: lane, label: lane, agentMs: 0, sentBackMs: 0, items: 0 };
+    entry.agentMs += row.agentMs; entry.items++; if (row.sentBack) entry.sentBackMs += row.agentMs; byLane.set(lane, entry);
+  }
   const builders = new Map(), verifiers = new Map();
   for (const row of projected) {
     if (row.builder) { const b = builders.get(row.builder.key) ?? { model: row.builder.key, label: row.builder.name, vendor: row.builder.vendor, built: 0, passedFirst: 0, times: [] }; b.built++; if (!row.sentBack) b.passedFirst++; b.times.push(row.agentMs); builders.set(b.model, b); }
@@ -135,8 +151,8 @@ function* projectCost({ items, agents, events, window = '30d', now = new Date(),
   }
   const builderRows = [...builders.values()].map(({ times, ...row }) => ({ ...row, rate: row.passedFirst / row.built, ...(row.built < 5 ? { low: null, high: null } : wilson(row.passedFirst, row.built)), typicalItemMs: median(times), judged: row.built >= 30, tooFew: row.built < 5 }));
   const verifierRows = [...verifiers.values()].map(row => ({ ...row, rate: row.accepts ? (row.accepts - row.reopenedLater) / row.accepts : null, ...(row.accepts < 5 ? { low: null, high: null } : wilson(row.accepts - row.reopenedLater, row.accepts)), judged: row.accepts >= 30, tooFew: row.accepts < 5 }));
-  const longest = [...projected].filter(row => row.agentMs !== null).sort((a, b) => b.agentMs - a.agentMs || a.id - b.id).slice(0, 5).map(row => ({ id: row.id, title: row.title, agentMs: row.agentMs, sentBack: row.sentBack, verifiedBy: row.verifier?.name ?? null, landedAt: row.landedAt, sessions: row.sessions }));
-  return { version: 1, window, from: from.toISOString(), to: to.toISOString(), totals: { agentMs: totalMs, itemCount: projected.length, medianItemMs: median(projected.map(row => row.agentMs)), sentBack: { items: sent.length, itemShare: projected.length ? sent.length / projected.length : 0, agentMs: sentMs, agentMsShare: totalMs > 0 && sentMs !== null ? sentMs / totalMs : totalMs === 0 ? 0 : null } }, days, builders: comparison(builderRows), verifiers: comparison(verifierRows), unknownBuilderModelShare: projected.length ? projected.filter(row => !row.builder).length / projected.length : 0, longest, allItems: projected.length };
+  const longest = [...projected].filter(row => row.agentMs !== null).sort((a, b) => b.agentMs - a.agentMs || a.id - b.id).slice(0, 10).map(row => ({ id: row.id, title: row.title, agentMs: row.agentMs, sentBack: row.sentBack, verifiedBy: row.verifier?.name ?? null, landedAt: row.landedAt, sessions: row.sessions }));
+  return { version: 1, window, from: from.toISOString(), to: to.toISOString(), totals: { agentMs: totalMs, itemCount: projected.length, medianItemMs: median(projected.map(row => row.agentMs)), sentBack: { items: sent.length, itemShare: projected.length ? sent.length / projected.length : 0, agentMs: sentMs, agentMsShare: totalMs > 0 && sentMs !== null ? sentMs / totalMs : totalMs === 0 ? 0 : null } }, days, byModel: spread(byModel), byLane: spread(byLane), builders: comparison(builderRows), verifiers: comparison(verifierRows), unknownBuilderModelShare: projected.length ? projected.filter(row => !row.builder).length / projected.length : 0, longest, allItems: projected.length };
 }
 
 /** Project a selected landing cohort in one go. */

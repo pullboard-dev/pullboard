@@ -15,9 +15,10 @@ import {
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import {
+  parseCommandDocument,
   relayClientFixture,
-  relayFixtureChild,
 } from '../relay/client.js';
+import { captureCommandInProcess } from '../process.js';
 import {
   runFixtureChild,
   runFixtureGit,
@@ -38,7 +39,11 @@ export async function personSigningCase(t, { CLI, TRUSTED_CLI, helpers, passkeyR
   // no environment variable or global can make the real CLI trust it (#408 rulings 38756cb3 and 28611).
   const trusted = [TRUSTED_CLI, box.origin];
   /** Run the command in the main checkout with a chosen environment, trusting only this fixture relay. */
-  const cli = (env, ...args) => relayFixtureChild(box.root, env, [...trusted, ...args, '--json']);
+  // In this process, with the same explicit trusted relay trusted.js hands the command: a real process per call cost a Node start each (#8441).
+  const cli = async (env, ...args) => {
+    const run = await captureCommandInProcess((argv, io) => main(argv, { ...io, trustedRelayOrigin: box.origin }), [...args, '--json'], { cwd: box.root, env });
+    return { code: run.code, document: parseCommandDocument(run.stdout) };
+  };
   // S10a: an agent that cleared AI_AGENT and CLAUDECODE has exactly the person's shell markers.
   const cleared = { ...box.env };
   const marked = { ...box.env, AI_AGENT: '1', CLAUDECODE: '1' };

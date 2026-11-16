@@ -14,8 +14,6 @@ import { readSync } from 'node:fs';
 import { openSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
-import { resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { AGENT_SHELL_MARKERS } from '../../../kernel/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { LEASE_MS } from '../../../jobs/index.js';
@@ -39,6 +37,9 @@ export const START_BOUND_MS = LEASE_MS;
 /** The step that ends a run whose worker is gone: it frees the job's lease and reads as lost. */
 export const LOST = 'lost';
 
+/** The step a pulled run's worker writes once it offered its runner job: the job id and how long it may wait unclaimed. */
+export const PULLED = 'pulled';
+
 /** The step `pullboard test --cancel` writes: it ends a queued or running run and frees its slot. */
 export const CANCELLED = 'cancelled';
 
@@ -47,9 +48,6 @@ const FINAL_LINE = /^pullboard test: (red|green) on (\S+) in (\d+(?:\.\d+)?)s/mu
 
 /** How often a worker renews its lease: well inside the 2-minute liveness window. */
 const RENEW_MS = 30_000;
-
-/** The CLI entry a worker runs, the same build that queued it. */
-const BIN = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../apps/cli/pullboard.js');
 
 /**
  * True when this `pullboard test` call belongs to an agent seat and so queues instead of blocking: a joined seat
@@ -137,23 +135,25 @@ export function testRunItem({ named, folder = null, claims = [] }) {
  *
  * @param {any} ctx
  * @param {(work: (board: any) => any) => any} withBoard - Runs `work` on a writable board handle.
- * @param {{ agent: string, item?: number, items?: number[], named?: boolean, head?: string, files: string[], affected?: boolean, compareMain?: boolean }} run
- * @param {{ launch?: typeof spawn, now?: number }} [options]
+ * @param {{ agent: string, item?: number, items?: number[], named?: boolean, head?: string, files: string[], affected?: boolean, compareMain?: boolean, noFileLimit?: boolean }} run
+ * @param {{ launch?: typeof spawn, now?: number, bin?: string, runs?: { db: import('node:sqlite').DatabaseSync } | null }} [options] - runs: the board's runs holder while runs_store is on (boardRunsHolder); the run's job rows go to its handle and not to the board [P7,#9080]. `bin`: the CLI entry the worker runs, the build
+ *   that queued it; the caller names it so this package names no app [C7].
  * @returns {{ id: string, status: 'queued', log: string, files: string[] }}
  */
-export function queueTestRun(ctx, withBoard, run, { launch = spawn, now = Date.now() } = {}) {
+export function queueTestRun(ctx, withBoard, run, { launch = spawn, now = Date.now(), bin, runs = null } = {}) {
+  if (launch === spawn && (typeof bin !== 'string' || !bin)) throw new Refused('NO_CLI_ENTRY', 'name the CLI entry the run worker launches: queueTestRun(..., { bin: <path to the pullboard entry> })');
   const id = randomUUID();
   const log = workerLog(ctx, id);
   withBoard(board => {
-    createJob(board.db, { id, kind: TEST_RUN_KIND, item: run.item ?? null, now });
-    writeStep(board.db, id, 'queued', { agent: run.agent, items: run.items ?? [], head: run.head ?? null, files: run.files, affected: run.affected === true,
-      compareMain: run.compareMain === true, root: ctx.info.root, log }, { now });
+    createJob(runs?.db ?? board.db, { id, kind: TEST_RUN_KIND, item: run.item ?? null, now });
+    writeStep(runs?.db ?? board.db, id, 'queued', { agent: run.agent, items: run.items ?? [], head: run.head ?? null, files: run.files, affected: run.affected === true,
+      compareMain: run.compareMain === true, noFileLimit: run.noFileLimit === true, root: ctx.info.root, log }, { now });
   });
   mkdirSync(dirname(log), { recursive: true, mode: 0o700 });
   const out = openSync(log, 'a', 0o600);
   try {
-    const args = [BIN, 'test', '--test-run', id, ...run.files, ...(run.named && run.item !== undefined ? ['--item', String(run.item)] : []),
-      ...(run.affected ? ['--affected'] : []), ...(run.compareMain ? ['--compare-main'] : [])];
+    const args = [bin, 'test', '--test-run', id, ...run.files, ...(run.named && run.item !== undefined ? ['--item', String(run.item)] : []),
+      ...(run.affected ? ['--affected'] : []), ...(run.compareMain ? ['--compare-main'] : []), ...(run.noFileLimit ? ['--no-file-limit'] : [])];
     const child = launch(process.execPath, args, { cwd: ctx.info.root, detached: true, stdio: ['ignore', out, out],
       // The worker runs the build that queued it, never a main-checkout hand-off that may predate --test-run.
       env: { ...process.env, PULLBOARD_TEST_WAIT: '1', PULLBOARD_OWN_CLI: '1' } });
@@ -173,21 +173,22 @@ export function queueTestRun(ctx, withBoard, run, { launch = spawn, now = Date.n
  * its own machine runs no test process; the stale sweep would otherwise free the claim after 2 quiet minutes [B28].
  * The caller injects it because the drive cell does not import the store.
  *
- * @param {{ renewMs?: number, beatSeat?: (board: any) => void }} [options]
+ * @param {{ renewMs?: number, beatSeat?: (board: any) => void, runs?: { db: import('node:sqlite').DatabaseSync } | null }} [options] - runs: the board's runs holder while runs_store is on (boardRunsHolder); the run's job rows go to its handle and not to the board [P7,#9080].
  * @returns {Promise<object>} The recorded result.
  */
-export async function workTestRun(withBoard, id, work, { renewMs = RENEW_MS, beatSeat = null } = {}) {
+export async function workTestRun(withBoard, id, work, { renewMs = RENEW_MS, beatSeat = null, runs = null } = {}) {
   const owner = `test-run:${process.pid}`;
-  if (withBoard(board => jobView(board.db, id))?.steps.some(row => row.name === CANCELLED)) throw new Refused('TEST_RUN_CANCELLED', `test run ${id} was cancelled; queue it again with pullboard test`);
-  const taken = withBoard(board => takeJob(board.db, id, owner, { leaseMs: LEASE_MS }));
+  const held = board => runs?.db ?? board.db;
+  if (withBoard(board => jobView(held(board), id))?.steps.some(row => row.name === CANCELLED)) throw new Refused('TEST_RUN_CANCELLED', `test run ${id} was cancelled; queue it again with pullboard test`);
+  const taken = withBoard(board => takeJob(held(board), id, owner, { leaseMs: LEASE_MS }));
   if (!taken.taken) throw new Refused('TEST_RUN_TAKEN', `test run ${id} already has a live worker; read it with pullboard test --status ${id}`);
-  withBoard(board => { writeStep(board.db, id, 'running', { pid: process.pid }); beatSeat?.(board); });
-  const beat = setInterval(() => { try { withBoard(board => { renewLease(board.db, id, owner); beatSeat?.(board); }); } catch { /* the next beat retries */ } }, renewMs);
+  withBoard(board => { writeStep(held(board), id, 'running', { pid: process.pid }); beatSeat?.(board); });
+  const beat = setInterval(() => { try { withBoard(board => { renewLease(held(board), id, owner); beatSeat?.(board); }); } catch { /* the next beat retries */ } }, renewMs);
   let result;
   try { result = await work(); }
   catch (error) { result = { green: false, error: { code: error?.code ?? 'TEST_RUN_FAILED', message: String(error?.message ?? error) } }; }
   finally { clearInterval(beat); }
-  withBoard(board => { writeStep(board.db, id, 'result', result); finishJob(board.db, id, owner); });
+  withBoard(board => { writeStep(held(board), id, 'result', result); finishJob(held(board), id, owner); });
   return result;
 }
 
@@ -198,7 +199,7 @@ export async function workTestRun(withBoard, id, work, { renewMs = RENEW_MS, bea
  * @param {number} [now]
  * @returns {{ id: string, status: string, agent: string|null, files: string[], log: string|null, result: any, refusal: {code: string, message: string}|null, delivered: boolean } | null}
  */
-export function testRunState(view, now = Date.now(), { finalLine = null } = {}) {
+export function testRunState(view, now = Date.now(), { finalLine = null, pulled = null } = {}) {
   if (!view || view.kind !== TEST_RUN_KIND) return null;
   const step = name => view.steps.find(row => row.name === name)?.payload;
   const queued = step('queued') ?? {};
@@ -207,10 +208,16 @@ export function testRunState(view, now = Date.now(), { finalLine = null } = {}) 
   // A worker prints its verdict to the log before it records the result; when the record never lands the log still ends the run.
   if (!result && finalLine) result = { green: finalLine.green, runner: finalLine.runner, seconds: finalLine.seconds, counts: null,
     failures: [], logPath: queued.log ?? null, files: queued.files ?? [], notices: ['result read from the log: the worker did not record it on the board'] };
+  // A pulled run's runner receipt outlives its worker: it wins over a lost worker (#7574).
+  if (!result && pulled?.receipt) {
+    const recording = Boolean(view.leaseOwner) && view.leaseUntil >= now;
+    result = pulledResult(pulled, queued, { recording });
+  }
   let status;
   let refusal = null;
   if (view.steps.some(row => row.name === CANCELLED)) status = 'cancelled';
   else if (result) status = result.green ? 'green' : 'red';
+  else if (pulled?.pending) status = 'running';
   else if (view.steps.some(row => row.name === LOST)) status = 'lost';
   else if (view.leaseOwner) status = view.leaseUntil < now ? 'lost' : 'running';
   else if (view.created + START_BOUND_MS < now) {
@@ -219,6 +226,44 @@ export function testRunState(view, now = Date.now(), { finalLine = null } = {}) 
   } else status = 'queued';
   return { id: view.id, status, agent: queued.agent ?? null, item: view.item, files: queued.files ?? [],
     log: result?.logPath ?? queued.log ?? null, result, refusal, delivered };
+}
+
+/**
+ * The runner job a pulled run's worker offered, read from the board: its posted receipt, or pending while a runner
+ * holds it or it may still be claimed; null for a run with no pulled job, or one that ended with no receipt.
+ *
+ * Why: a worker that stops (its starting client's session ended) leaves the runner job running; the run is the
+ * runner's to settle, not lost (#7574).
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {ReturnType<typeof jobView>} view - The test run's job view.
+ * @param {number} [now]
+ * @returns {{ job: string, receipt?: object, runner?: string | null, pending?: true } | null}
+ */
+export function pulledJobState(db, view, now = Date.now()) {
+  const offered = view?.steps.findLast(row => row.name === PULLED)?.payload;
+  if (typeof offered?.job !== 'string') return null;
+  const job = jobView(db, offered.job);
+  if (!job) return null;
+  const posted = job.steps.findLast(row => row.name === 'receipt')?.payload;
+  if (posted) return { job: job.id, receipt: posted.receipt ?? {}, runner: posted.runner ?? null };
+  if (job.step === 'done') return null;
+  const held = Boolean(job.leaseOwner) && job.leaseUntil >= now;
+  return held || now < Number(offered.until ?? 0) ? { job: job.id, pending: true } : null;
+}
+
+/**
+ * A pulled job's receipt as a run result, read the way the worker reads it: green only when every layer says so.
+ * `recording` is true while the run's worker still holds a live lease: it is comparing with main, not stopped (#8851).
+ */
+function pulledResult(pulled, queued, { recording = false } = {}) {
+  const { receipt } = pulled;
+  const gate = receipt.gate ?? {};
+  const phase = gate.phases?.[0] ?? null;
+  return { green: receipt.status === 0 && gate.green === true && phase?.status === 0, runner: pulled.runner ?? 'a pulled runner',
+    seconds: Number.isFinite(receipt.durationMs) ? Math.round(receipt.durationMs / 1000) : null, counts: null,
+    failures: Array.isArray(phase?.failures) ? phase.failures : [], logPath: queued.log ?? null, files: queued.files ?? [],
+    notices: [`result read from the runner receipt of test job ${pulled.job}: ${recording ? 'the worker is still recording it' : 'the worker stopped before recording it'}`] };
 }
 
 /**
@@ -248,20 +293,29 @@ export function readFinalLine(path) {
  * hours; the liveness rule is that every hold heartbeats or is reclaimed within 2 minutes (`waits record` runs this each minute).
  *
  * @param {import('node:sqlite').DatabaseSync} db - A board handle opened for writing.
- * @param {{ now?: number, alive?: (pid: number) => boolean }} [options]
+ * @param {{ now?: number, alive?: (pid: number) => boolean, runs?: { db: import('node:sqlite').DatabaseSync } | null }} [options] - runs: the board's runs holder while runs_store is on (boardRunsHolder); the run's job rows go to its handle and not to the board [P7,#9080].
  * @returns {{ id: string, lapsedMs: number, pid: number | null }[]} The runs ended.
  */
-export function endLostTestRuns(db, { now = Date.now(), alive = pidAlive } = {}) {
+export function endLostTestRuns(db, { now = Date.now(), alive = pidAlive, runs = null } = {}) {
+  const jobs = runs?.db ?? db;
   const ended = [];
-  for (const job of reclaimLapsed(db, { now })) {
+  for (const job of reclaimLapsed(jobs, { now })) {
     if (job.kind !== TEST_RUN_KIND) continue;
-    const view = jobView(db, job.id);
+    const view = jobView(jobs, job.id);
     if (!view || view.steps.some(row => row.name === 'result' || row.name === LOST)) continue;
     const pid = Number(/^test-run:(\d+)$/u.exec(job.leaseOwner)?.[1]);
     const known = Number.isSafeInteger(pid) && pid > 0 ? pid : null;
     if (known !== null && alive(known)) continue;
-    writeStep(db, job.id, LOST, { pid: known, lapsedMs: job.lapsedMs }, { now });
-    finishJob(db, job.id, job.leaseOwner, { now });
+    // A runner still holds or may claim the run's pulled job, or posted it: the receipt settles the run, never lost (#7574).
+    const pulled = pulledJobState(jobs, view, now);
+    if (pulled?.pending) continue;
+    if (pulled?.receipt) {
+      writeStep(jobs, job.id, 'result', pulledResult(pulled, view.steps.find(row => row.name === 'queued')?.payload ?? {}), { now });
+      finishJob(jobs, job.id, job.leaseOwner, { now });
+      continue;
+    }
+    writeStep(jobs, job.id, LOST, { pid: known, lapsedMs: job.lapsedMs }, { now });
+    finishJob(jobs, job.id, job.leaseOwner, { now });
     ended.push({ id: job.id, lapsedMs: job.lapsedMs, pid: known });
   }
   return ended;
@@ -272,12 +326,14 @@ export function endLostTestRuns(db, { now = Date.now(), alive = pidAlive } = {})
  *
  * @param {any} board
  * @param {string} id
+ * @param {{ runs?: { db: import('node:sqlite').DatabaseSync } | null }} [options] - runs: the board's runs holder while runs_store is on; the run is read from its handle [P7,#9080].
  * @returns {ReturnType<typeof testRunState>}
  */
-export function readTestRun(board, id) {
-  const rows = board.db.prepare('SELECT job_id FROM job WHERE job_kind = ? AND job_id LIKE ? LIMIT 2').all(TEST_RUN_KIND, `${String(id).replace(/[%_]/gu, '')}%`);
+export function readTestRun(board, id, { runs = null } = {}) {
+  const jobs = runs?.db ?? board.db;
+  const rows = jobs.prepare('SELECT job_id FROM job WHERE job_kind = ? AND job_id LIKE ? LIMIT 2').all(TEST_RUN_KIND, `${String(id).replace(/[%_]/gu, '')}%`);
   if (rows.length !== 1) throw new Refused('NO_TEST_RUN', `${rows.length ? 'more than one' : 'no'} test run matches ${id}; pass the full run id that pullboard test printed`);
-  return viewState(jobView(board.db, rows[0].job_id), board.clock?.now?.().getTime?.() ?? Date.now());
+  return viewState(jobs, jobView(jobs, rows[0].job_id), board.clock?.now?.().getTime?.() ?? Date.now());
 }
 
 /**
@@ -289,26 +345,27 @@ export function readTestRun(board, id) {
  * @param {any} board - A writable board handle.
  * @param {string} id - A run id or unique prefix.
  * @param {string} agent - The calling seat; only the run's owner may cancel it.
- * @param {{ kill?: (pid: number, signal: string) => void }} [options]
+ * @param {{ kill?: (pid: number, signal: string) => void, runs?: { db: import('node:sqlite').DatabaseSync } | null }} [options] - runs: the board's runs holder while runs_store is on [P7,#9080].
  * @returns {NonNullable<ReturnType<typeof testRunState>>} The run, now cancelled.
  */
-export function cancelTestRun(board, id, agent, { kill = process.kill } = {}) {
-  const run = readTestRun(board, id);
+export function cancelTestRun(board, id, agent, { kill = process.kill, runs = null } = {}) {
+  const jobs = runs?.db ?? board.db;
+  const run = readTestRun(board, id, { runs });
   if (run.agent !== agent) throw new Refused('NOT_YOURS', `test run ${run.id} belongs to ${run.agent ?? 'another seat'}; only its owner cancels it; read it with pullboard test --status ${run.id}`);
   if (!['queued', 'running'].includes(run.status)) throw new Refused('TEST_RUN_FINISHED', `test run ${run.id} already ${run.status}; nothing to cancel; queue a new one with pullboard test`);
-  const view = jobView(board.db, run.id);
+  const view = jobView(jobs, run.id);
   const pid = view.steps.find(row => row.name === 'running')?.payload?.pid;
-  writeStep(board.db, run.id, CANCELLED, { pid: Number.isSafeInteger(pid) ? pid : null });
-  finishJob(board.db, run.id, view.leaseOwner);
+  writeStep(jobs, run.id, CANCELLED, { pid: Number.isSafeInteger(pid) ? pid : null });
+  finishJob(jobs, run.id, view.leaseOwner);
   if (Number.isSafeInteger(pid) && pid > 1) for (const target of [-pid, pid]) { try { kill(target, 'SIGTERM'); break; } catch { /* the worker is already gone */ } }
-  return readTestRun(board, run.id);
+  return readTestRun(board, run.id, { runs });
 }
 
-/** A job view as a run state, reading the worker's log only for a run that has no recorded result. */
-function viewState(view, now) {
+/** A job view as a run state, reading the worker's log and its pulled job only for a run that has no recorded result. */
+function viewState(db, view, now) {
   const unfinished = view?.kind === TEST_RUN_KIND && !view.steps.some(row => row.name === 'result');
   const log = unfinished ? view.steps.find(row => row.name === 'queued')?.payload?.log : null;
-  return testRunState(view, now, { finalLine: readFinalLine(log) });
+  return testRunState(view, now, { finalLine: readFinalLine(log), pulled: unfinished ? pulledJobState(db, view, now) : null });
 }
 
 /**
@@ -317,16 +374,18 @@ function viewState(view, now) {
  * @param {any} board
  * @param {string} agent
  * @param {number} [now]
+ * @param {{ runs?: { db: import('node:sqlite').DatabaseSync } | null }} [options] - runs: the board's runs holder while runs_store is on [P7,#9080].
  * @returns {NonNullable<ReturnType<typeof testRunState>>[]}
  */
-export function ownTestRuns(board, agent, now = Date.now()) {
-  return board.db.prepare('SELECT job_id FROM job WHERE job_kind = ? AND job_step <> ? ORDER BY job_created, job_id').all(TEST_RUN_KIND, DELIVERED)
-    .map(row => viewState(jobView(board.db, row.job_id), now)).filter(run => run && run.agent === agent);
+export function ownTestRuns(board, agent, now = Date.now(), { runs = null } = {}) {
+  const jobs = runs?.db ?? board.db;
+  return jobs.prepare('SELECT job_id FROM job WHERE job_kind = ? AND job_step <> ? ORDER BY job_created, job_id').all(TEST_RUN_KIND, DELIVERED)
+    .map(row => viewState(jobs, jobView(jobs, row.job_id), now)).filter(run => run && run.agent === agent);
 }
 
 /** Mark a run handed back, so `next` tells its seat once. */
-export function deliverTestRun(board, id) {
-  writeStep(board.db, id, DELIVERED, {});
+export function deliverTestRun(board, id, { runs = null } = {}) {
+  writeStep(runs?.db ?? board.db, id, DELIVERED, {});
 }
 
 /**

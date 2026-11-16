@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { cellOf } from '../edges.js';
 import { fileEdges } from '../edges.js';
 import { machineHome } from '../../../../resources/index.js';
+import { storeName } from '../store-names.js';
 
 /** Git's blob object id of some text, computed in process so no git call is needed per file. */
 export function blobOid(text) {
@@ -40,7 +41,7 @@ export function toolingKey(sources) {
  */
 export function fileCache({ name, version, tooling, home = undefined }) {
   const dir = home === null ? null : join(home ?? join(machineHome(), 'static-cache'));
-  const path = dir ? join(dir, `${name}.json`) : null;
+  const path = dir ? join(dir, storeName(name)) : null;
   let entries = {};
   if (path) {
     try {

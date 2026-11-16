@@ -69,7 +69,7 @@ async function withNoBrowserRunner(t, { cli, git }, body, browserSlots = 0) {
   for (const folder of [repo, worker, bin, machineHome, remoteMachineHome, join(repo, 'test')]) mkdirSync(folder, { recursive: true });
   // The runner machine has no settings file at all, as on a fresh host.
   writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 1 }));
-  const env = { ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
+  const env = { ...process.env, HOME: home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
     PATH: `${bin}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Runner Fixture', GIT_AUTHOR_EMAIL: 'runner-fixture@example.invalid',
     GIT_COMMITTER_NAME: 'Runner Fixture', GIT_COMMITTER_EMAIL: 'runner-fixture@example.invalid' };
@@ -116,9 +116,9 @@ async function withNoBrowserRunner(t, { cli, git }, body, browserSlots = 0) {
 /** Run one command through the repo's own gate API, as an item check does, with no browser slot asked. */
 function gateRun({ repo, env }, command, runnerOnly = false) {
   const gateUrl = pathToFileURL(join(repo, 'packages', 'gate', 'index.js')).href;
-  const script = `const { runProfiledShell, withGateSlot } = await import(${JSON.stringify(gateUrl)});
+  const script = `const { runProfiledShellAsync, withGateSlot } = await import(${JSON.stringify(gateUrl)});
 ${executionServicesSource(gateUrl)}
-const result = await withGateSlot(${JSON.stringify(repo)}, lease => runProfiledShell(${JSON.stringify(repo)}, ${JSON.stringify(command)}, { gateLease: lease }),
+const result = await withGateSlot(${JSON.stringify(repo)}, lease => runProfiledShellAsync(${JSON.stringify(repo)}, ${JSON.stringify(command)}, { gateLease: lease }),
   { executionServices, browser: false, runnerOnly: ${runnerOnly}, item: '1043', kind: 'check', itemCheck: true, agent: 'browser-free-fixture' });
 process.stdout.write(result.output);
 process.stdout.write('PULLBOARD_RUN_RESULT ' + JSON.stringify({ isGreen: result.isGreen, runner: result.profile.executionRunner ?? null, runnerAttempt: result.runnerAttempt ?? null }) + '\\n');

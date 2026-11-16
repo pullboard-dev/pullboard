@@ -27,13 +27,13 @@ test('clause 1: refreshLandedCodeMap returns while the refresh is still running 
 });
 
 test('clause 1: the refresh the detached process runs still writes the code map [C7,#5829]', async t => {
-  const { root } = cellRepo(t);
+  const { root } = cellRepo(t, { real: true });
   await writeCodeMap(root);
   assert.ok(existsSync(join(root, '.git', 'pullboard', 'code-map.json')));
 });
 
 test('clause 1: startCodeMapRefresh returns a started process at once [C7,#5829]', async t => {
-  const { root } = cellRepo(t);
+  const { root } = cellRepo(t, { real: true });
   const { pid } = await startCodeMapRefresh(root);
   assert.ok(pid > 0);
 });

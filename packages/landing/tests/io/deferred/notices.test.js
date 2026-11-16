@@ -16,7 +16,7 @@ import { replayDeferredNotices } from '../../../src/io/deferred/notices.js';
  * @returns {string}
  */
 function scratch(t) {
-  return cellRepo(t).root;
+  return cellRepo(t, { real: true }).root;
 }
 
 /**

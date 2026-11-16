@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const runner = fileURLToPath(new URL('../../../../../apps/cli/src/io/run/tests.js', import.meta.url));
+const runner = fileURLToPath(new URL('../../../src/io/run/tests.js', import.meta.url));
 
 /** Real native CLI workers run together: noisy inherited child output must not mask the quiet sibling. */
 export async function runLegacy(t, mode, duration = 8000) {

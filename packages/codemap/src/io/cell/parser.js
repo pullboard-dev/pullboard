@@ -11,11 +11,11 @@ import { readFileSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { loadavg } from 'node:os';
 import { availableParallelism } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { scratchBase } from '../../../../kernel/light.js';
 
 const parsers = new AsyncLocalStorage();
 const MAX_BYTES = 2 ** 26;
@@ -77,8 +77,17 @@ function replyAt(file, id, count) {
   return reply.results;
 }
 
-/** Run synchronous cell analysis with one lazy, owned parser; cached checks need no process at all. */
-export function withCellLintParser(work, { directory: cacheDirectory } = {}) {
+/**
+ * Run synchronous cell analysis with one lazy, owned parser; cached checks need no process at all.
+ *
+ * @param {(parse: Function) => *} work - The analysis, given the session compiler.
+ * @param {object} [options] - Private directory and, for tests only, the batch waits.
+ * @param {string} [options.directory] - Where the parser keeps its private transport.
+ * @param {{baseMs: number, extensionMs: number}} [options.waits] - Replaces the production batch waits so a test can prove the timeout in milliseconds; absent, the load-scaled production waits apply.
+ * @param {number} [options.supervisorBudget] - A smaller number of compiler rotations per supervisor, so a test reaches a supervisor rotation in a few batches; never larger than the production bound.
+ * @returns {*} What the analysis returns.
+ */
+export function withCellLintParser(work, { directory: cacheDirectory, waits, supervisorBudget } = {}) {
   if (parsers.getStore()) return work(parsers.getStore());
   let child = null, directory = null, sequence = 0, failed = null, closed = false;
   const sleeper = new Int32Array(new SharedArrayBuffer(4));
@@ -113,7 +122,7 @@ export function withCellLintParser(work, { directory: cacheDirectory } = {}) {
   /** Start an owned supervisor at the last completed sequence, never before a rotation witness. */
   function startSupervisor(previous) {
     child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning',
-      fileURLToPath(new URL('./parser/worker.js', import.meta.url)), directory, String(process.pid), '--supervise', String(previous)],
+      fileURLToPath(new URL('./parser/worker.js', import.meta.url)), directory, String(process.pid), '--supervise', String(previous), ...(supervisorBudget ? [String(supervisorBudget)] : [])],
     { stdio: 'ignore' });
     child.on('error', error => { failed ??= error; });
     child.unref();
@@ -139,14 +148,15 @@ export function withCellLintParser(work, { directory: cacheDirectory } = {}) {
     if (Buffer.byteLength(input) > MAX_BYTES) throw failure();
     if (!child) {
       if (cacheDirectory) mkdirSync(cacheDirectory, { recursive: true, mode: 0o700 });
-      directory = mkdtempSync(join(cacheDirectory ?? tmpdir(), 'pullboard-cell-parser-'));
+      directory = mkdtempSync(join(cacheDirectory ?? scratchBase(), 'pullboard-cell-parser-'));
       startSupervisor(id - 1);
     }
     const request = join(directory, `request-${id}.json`), reply = join(directory, `reply-${id}.json`);
     const temporary = request + '.tmp';
     const load = loadavg()[0], cores = availableParallelism();
-    const extension = Math.min(120_000, Math.max(30_000, Math.ceil(10_000 * (1 + load / cores))));
-    const deadline = process.hrtime.bigint() + BigInt(10_000 + extension) * 1_000_000n;
+    const base = waits?.baseMs ?? 10_000;
+    const extension = waits?.extensionMs ?? Math.min(120_000, Math.max(30_000, Math.ceil(10_000 * (1 + load / cores))));
+    const deadline = process.hrtime.bigint() + BigInt(base + extension) * 1_000_000n;
     try {
       writeFileSync(temporary, input, { flag: 'wx', mode: 0o600 });
       renameSync(temporary, request);
@@ -159,7 +169,7 @@ export function withCellLintParser(work, { directory: cacheDirectory } = {}) {
         // Budget: poll only this private reply; the bounded extension accommodates a loaded machine.
         Atomics.wait(sleeper, 0, 0, 2);
       }
-      throw Object.assign(new Error(`cell binding compiler timeout after extended batch wait (${10_000 + extension} ms; load ${load.toFixed(2)}, ${cores} cores)`), { code: 'CELL_BINDING_TIMEOUT' });
+      throw Object.assign(new Error(`cell binding compiler timeout after extended batch wait (${base + extension} ms; load ${load.toFixed(2)}, ${cores} cores)`), { code: 'CELL_BINDING_TIMEOUT' });
     } catch (error) { failed = error; throw error; }
     finally { rmSync(request, { force: true }); rmSync(reply, { force: true }); }
   }

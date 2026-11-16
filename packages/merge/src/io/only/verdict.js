@@ -1,7 +1,7 @@
 /** Immutable acceptance provenance for a narrowly proved trunk merge [V1,V4,H16]. */
 import { createHash } from 'node:crypto';
 import { captureMergeOnly } from './source.js';
-import { Refused } from '../../../../kernel/index.js';
+import { Refused } from '../../../../kernel/light.js';
 
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 

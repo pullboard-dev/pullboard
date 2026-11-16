@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "about": "Test files only the pre-push full gate runs. An item's submit, review and landing gates leave a listed file to the audit unless that item changes the file itself; the full gate plans every tracked test file, so it still runs them [R4,C7].",
+  "files": [
+    "apps/cli/journeys/upgrade/previous-release.test.js"
+  ]
+}

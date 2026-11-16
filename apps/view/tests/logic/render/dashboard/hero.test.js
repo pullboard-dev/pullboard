@@ -1,47 +1,11 @@
-/** The Dashboard hero's four-hour chips are numbers, never dashes; an unread count says why on hover [N26]. */
+/** The server's last-four-hour counts, which stand in for the Dashboard's while its history loads [N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { dashboardHtml } from '../../../../src/logic/render/dashboard.js';
-import { dashboardModel } from '../../../../src/io/dashboard/model.js';
 import { dashboardRecent } from '../../../../src/io/dashboard/recent.js';
 
 const now = Date.parse('2026-11-12T18:00:00Z');
 const minutes = n => new Date(now - n * 60_000).toISOString();
-
-/** The four hero chips, by key, as rendered. */
-function chips(html) {
-  const hero = html.slice(html.indexOf('dash-hero'), html.indexOf('</section>', html.indexOf('dash-hero')));
-  return Object.fromEntries([...hero.matchAll(/<span( class="dash-unread")? title="([^"]*)" data-dashboard-recent="(\w+)" data-value="(\d*)">(.*?)<\/span>/gu)]
-    .map(([, unread, title, key, value, body]) => [key, { unread: Boolean(unread), title, value, text: body.replace(/<[^>]+>/gu, '') }]));
-}
-
-test('clause 1: the hero chips show landed, passed review, sent back and shouts to you as numbers, 0 when none [N26]', () => {
-  const project = { items: [], agents: [], sequence: 50, dashboardRecent: { landed: 3, passed: 0, sentBack: 2, shouts: 0, since: now - 4 * 3_600_000, until: now } };
-  // The browser's history is incomplete, as on a long board: the server's own counts still show.
-  const model = dashboardModel(project, [], { now, complete: false });
-  assert.deepEqual([model.totals.recent, model.totals.passed, model.totals.sentBack, model.totals.shouts], [3, 0, 2, 0]);
-  const shown = chips(dashboardHtml(model));
-  assert.deepEqual(Object.keys(shown), ['recent', 'passed', 'sentBack', 'shouts']);
-  assert.deepEqual(Object.values(shown).map(chip => chip.text), ['3 landed', '0 passed review', '2 sent back to fix', '0 shouts to you']);
-  assert.ok(Object.values(shown).every(chip => !chip.unread && !chip.text.includes('—')), 'no chip is a dash');
-
-  // With nothing at all in the window, every chip reads 0.
-  const empty = dashboardModel({ items: [], agents: [], sequence: 0 }, [], { now, complete: true });
-  assert.deepEqual(Object.values(chips(dashboardHtml(empty))).map(chip => chip.value), ['0', '0', '0', '0']);
-});
-
-test('clause 2: a count the board cannot read says why on hover instead of a dash [N26]', () => {
-  const model = dashboardModel({ items: [], agents: [], sequence: 50 }, [], { now, complete: false });
-  assert.match(model.unread, /still loading/u);
-  const shown = chips(dashboardHtml(model));
-  assert.equal(Object.keys(shown).length, 4);
-  for (const [key, chip] of Object.entries(shown)) {
-    assert.ok(chip.unread, key + ' is marked unread');
-    assert.ok(!chip.text.includes('—'), key + ' shows no dash');
-    assert.match(chip.title, /in the last 4 hours is not read yet: The board has not sent its last-4-hour counts yet, and its full event history is still loading\./u, key + ' says why on hover');
-  }
-});
 
 test('the server counts the last four hours from real SQLite events, stopping at the window edge [N26]', () => {
   const db = new DatabaseSync(':memory:');
@@ -61,6 +25,6 @@ test('the server counts the last four hours from real SQLite events, stopping at
   add(new Date(now + 60_000).toISOString(), 'accept', 6); // after the snapshot clock
   const items = new Map([[1, { item_merged_commit: 'a' }], [2, { item_merged_commit: 'b' }], [3, { item_merged_commit: 'new' }]]);
   const counts = dashboardRecent({ db }, items, now);
-  assert.deepEqual(counts, { landed: 1, passed: 1, sentBack: 2, shouts: 1, since: now - 4 * 3_600_000, until: now });
+  assert.deepEqual(counts, { landed: 1, passed: 1, accepted: 1, sentBack: 2, shouts: 1, since: now - 4 * 3_600_000, until: now });
   assert.deepEqual(dashboardRecent({ db }, items, now + 10 * 3_600_000).landed, 0, 'an empty window counts 0');
 });

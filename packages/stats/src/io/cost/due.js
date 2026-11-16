@@ -16,6 +16,7 @@ import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 import { AGENT_SHELL_MARKERS } from '../../../../kernel/index.js';
 import { AGENT_TRANSCRIPT_ENV } from './session.js';
+import { storeName } from '../store-names.js';
 
 /** `inline` runs the checkpoint inside the command, as before #2504; any other value defers it to the worker. */
 export const USAGE_CHECKPOINT_ENV = 'PULLBOARD_USAGE_CHECKPOINT';
@@ -91,7 +92,7 @@ export function queueUsageCheckpoint(info, board, { agent, item, operation }, { 
   const lastEventId = board.db.prepare('SELECT max(event_id) AS id FROM event').get()?.id ?? 0;
   const session = Object.fromEntries(SESSION_ENV.filter((name) => typeof environment[name] === 'string').map((name) => [name, environment[name]]));
   const request = { version: 1, root: info.root, agent, item, operation, now, lastEventId, environment: session };
-  const name = `${String(now).padStart(15, '0')}-${String(lastEventId).padStart(12, '0')}-${process.pid}-${randomUUID()}.json`;
+  const name = `${String(now).padStart(15, '0')}-${String(lastEventId).padStart(12, '0')}-${process.pid}-${storeName(randomUUID())}`;
   const temporary = join(directory, `.${name}.tmp`);
   writeFileSync(temporary, JSON.stringify(request), { mode: 0o600 });
   renameSync(temporary, join(directory, name));

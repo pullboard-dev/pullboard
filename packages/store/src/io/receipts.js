@@ -20,6 +20,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { storeName } from './store-names.js';
 
 /** Read the native gate's file before sealing a replayable move; caller-supplied fields are not evidence. */
 export function boundProofReceipt(board, request) {
@@ -116,7 +117,7 @@ export function storeTestReceipt(board, run) {
   const text = receiptBody(body);
   if (!text) return null;
   mkdirSync(folder, { recursive: true, mode: 0o700 });
-  writeFileSync(join(folder, `${body.id}.json`), text, { mode: 0o600, flag: 'wx' });
+  writeFileSync(join(folder, `${storeName(body.id)}`), text, { mode: 0o600, flag: 'wx' });
   return body.id;
 }
 

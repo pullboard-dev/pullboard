@@ -15,11 +15,6 @@ import { toolingFor } from '../../../pin/index.js';
 import { treeOf } from '../../../pin/index.js';
 import { receiptKey } from '../../../receipt/index.js';
 import { settle } from '../../../receipt/index.js';
-import { ensureSource } from '../../../transport/index.js';
-import { ensureTooling } from '../../../transport/index.js';
-import { fetchResult } from '../../../transport/index.js';
-import { sharedTransport } from '../../../transport/index.js';
-import { startShard } from '../../../transport/index.js';
 import { doneShards } from '../logic/phase.js';
 import { gateSections } from '../logic/phase.js';
 import { owedShards } from '../logic/phase.js';
@@ -27,6 +22,9 @@ import { phaseOf } from '../logic/phase.js';
 import { shardSections } from '../logic/phase.js';
 import { stepPayload } from '../logic/phase.js';
 import { queueFlakeDiagnoses } from './diagnose.js';
+
+/** The transport cell, loaded at a drive's first step: show and test --status never drive, so its modules stay unloaded for them [C7]. */
+const transportCell = () => import('../../../transport/index.js');
 
 /** Where tooling tar bundles are written before they are sent; keyed by tree id, so every gate reuses one. */
 const BUNDLE_FOLDER = join(tmpdir(), 'pullboard-tooling-bundles');
@@ -226,8 +224,11 @@ function capture(rows, view, repo, now, ran = null) {
  */
 async function startOwed(rows, view, channel, owner, now) {
   const { runner } = stepPayload(view, 'running');
+  const { tree, base, tooling } = stepPayload(view, 'captured');
+  // Why: a pull runner signs these into its result, so the offer must carry the gate's own base, tooling pin and attempt [C7].
+  const bound = { tree, base: base ?? '', tooling: tooling ?? '', attempt: String(view.attempt) };
   for (const shard of owedShards(view)) {
-    await startShard(channel, { job: view.id, shard: shard.shard, command: shard.command, owner });
+    await (await transportCell()).startShard(channel, { job: view.id, shard: shard.shard, command: shard.command, owner, ...bound });
     rows.step(view.id, 'shard.started', { shard: shard.shard, runner: runner.host }, { seq: shard.seq, now });
   }
 }
@@ -257,10 +258,10 @@ async function send(rows, view, { runner, plan, transport, owner, now, gate, rep
   const captured = stepPayload(view, 'captured');
   let pinned;
   if (repo && tooling !== false && captured.tooling) {
-    pinned = await ensureTooling(transport.connect(where), { tree: captured.tooling, bundle: bundleFor(repo, captured.tooling, bundles).path });
+    pinned = await (await transportCell()).ensureTooling(transport.connect(where), { tree: captured.tooling, bundle: bundleFor(repo, captured.tooling, bundles).path });
   }
   let sourced;
-  if (repo && source !== false && captured.tree) sourced = await ensureSource(transport.connect(where), { tree: captured.tree, objects: () => listTreeObjects(repo, captured.tree), pack: ids => packObjects(repo, ids) });
+  if (repo && source !== false && captured.tree) sourced = await (await transportCell()).ensureSource(transport.connect(where), { tree: captured.tree, objects: () => listTreeObjects(repo, captured.tree), pack: ids => packObjects(repo, ids) });
   const planned = { ...captured, ...(pinned ? { toolingPath: pinned.path } : {}), ...(sourced ? { sourcePath: sourced.path } : {}) };
   const shards = typeof plan === 'function' ? plan(planned) : plan;
   if (!Array.isArray(shards) || !shards.length || shards.some(s => typeof s?.shard !== 'string' || typeof s?.command !== 'string')) {
@@ -286,7 +287,7 @@ async function collect(rows, view, { transport, owner, now }) {
   const channel = transport.connect(stepPayload(view, 'running').runner);
   let invalid = view.steps.filter(step => step.name === 'shard.invalid').length;
   for (const shard of owedShards(view)) {
-    const result = await fetchResult(channel, { job: view.id, shard: shard.shard });
+    const result = await (await transportCell()).fetchResult(channel, { job: view.id, shard: shard.shard });
     if (result.state === 'done') {
       rows.step(view.id, 'shard.done', { shard: shard.shard, status: result.status, digest: result.digest }, { seq: shard.seq, now });
     } else if (result.state === 'import.invalid') {
@@ -481,7 +482,7 @@ async function runGate(rows, view, { gate, owner, now, stallMs = GATE_STALL_MS, 
 function decide(rows, view, { sections, failures, owner, now }) {
   const captured = stepPayload(view, 'captured');
   const collected = stepPayload(view, 'collected');
-  const receipt = receiptKey(captured.tree, captured.base ?? captured.tree);
+  const receipt = receiptKey(captured.tree, captured.base ?? captured.tree, captured.tooling ?? captured.tree);
   settle((sections ?? (collected.gate ? gateSections : shardSections))(collected), receipt, {
     record: step => rows.verdict(view.id, step, owner, now, flakeTargets(step, captured, collected, failures)),
   });
@@ -527,12 +528,13 @@ function flakeTargets(step, captured, collected, failures) {
  *   stallMs?: number, stallCheckMs?: number, stalled?: (error: Refused) => object, ran?: { toolsCommit?: string | null }, serving?: () => boolean | null, now?: () => number }} options - A whole gate that
  *   writes no step for stallMs (GATE_STALL_MS) is ended and rerun once, then recorded as stalled(error). `ran.toolsCommit`, the
  *   commit of the tools this driver runs, is recorded on `captured` with the source commit it proves. `serving`, when
- *   given, is asked at the start and every 30 s while a gate runs; false ends the gate stale (GATE_STALE).
+ *   given, is asked at the start and every 30 s while a gate runs; false ends the gate stale (GATE_STALE). `runs`: the board's
+ *   runs holder while runs_store is on (boardRunsHolder); the job's rows are read and written there, not on `db` [P7,#9080].
  * @returns {Promise<{ transition: string | null, phase: string, job: ReturnType<typeof jobView>, owed?: number, code?: string }>}
  */
-export async function driveOnce(db, job, { owner, repo, runner, plan, gate, transport, sections, failures, tooling, source, bundles, stallMs, stallCheckMs, stalled, ran, serving, now = Date.now } = {}) {
+export async function driveOnce(db, job, { owner, repo, runner, plan, gate, transport, sections, failures, tooling, source, bundles, stallMs, stallCheckMs, stalled, ran, serving, runs = null, now = Date.now } = {}) {
   if (!owner) throw new Refused('DRIVE_OWNER', 'driveOnce needs a driver id to hold the lease: pass { owner }.');
-  const rows = isJobRows(db) ? /** @type {JobRows} */ (db) : boardRows(/** @type {any} */ (db));
+  const rows = isJobRows(db) ? /** @type {JobRows} */ (db) : boardRows(/** @type {any} */ (runs?.db ?? db));
   const view = rows.view(job);
   if (!view) throw new Refused('JOB_MISSING', `No job ${job}: create it with createJob first.`);
   const before = phaseOf(view);
@@ -544,7 +546,7 @@ export async function driveOnce(db, job, { owner, repo, runner, plan, gate, tran
     endStale(rows, view, owner, at, view.steps.at(-1)?.name ?? null);
     return { transition: null, phase: before, job: rows.view(job), code: 'GATE_STALE' };
   }
-  const channels = transport ?? sharedTransport();
+  const channels = transport ?? (await transportCell()).sharedTransport();
   let owed;
   if (before === 'queued') capture(rows, view, repo, at, ran);
   else if (before === 'captured') await send(rows, view, { runner, plan, transport: channels, owner, now: at, gate, repo, tooling, source, bundles });

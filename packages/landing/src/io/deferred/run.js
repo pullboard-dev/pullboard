@@ -1,4 +1,5 @@
 import { getItem } from '../../../../store/index.js';
+import { affectedCommand } from '../../../../gate/index.js';
 import { readGateReceipt } from '../../../../gate/index.js';
 import { receiptStore } from '../../../../gate/index.js';
 import {
@@ -23,8 +24,6 @@ import { testsNeedGui } from '../../../../gate/index.js';
 import { browserFreeChecksEnabled } from '../../../../config/index.js';
 import { Refused } from '../../../../kernel/index.js';
 
-/** Quote one selected path as a single shell argument. */
-function quote(value) { return `'${String(value).replaceAll("'", "'\\''")}'`; }
 
 /** Read bounded whole or pretty native documents without mistaking surrounding diagnostics for JSON. */
 function nativeDocuments(output) {
@@ -62,10 +61,10 @@ export async function runDeferredAffectedTests(root, config, files, { directory,
     if (quarantines.length) lease.proof = proofContext;
     // Awaited, so the landing lease keeps its heartbeat during the runner run [C7].
     return runProfiledShellAsync(root,
-    `${config.affectedTests} ${files.map(quote).join(' ')}`, { waitMs: lease.waitMs, gateLease: lease,
+    affectedCommand(config, files), { waitMs: lease.waitMs, gateLease: lease,
       stages: true, landing: true, persistLog: true, artifactDirectory: directory, artifactPrefix: 'deferred', timeoutMs: config.landing?.timeoutMs });
   },
-  { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', kind: 'gate', landing: true, browser, gui: testsNeedGui(root, files), onWait });
+  { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: 'coordinator', kind: 'gate', item: 'landing batch', landing: true, browser, gui: testsNeedGui(root, files), onWait });
   refuseSandboxBlocked(run);
   if (run.timedOut) throw new Refused('LAND_GATE_TIMEOUT', `the deferred landing command timed out; no file is blamed; inspect ${run.logPath}`);
   if (!run.isGreen) {

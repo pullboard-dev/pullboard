@@ -33,7 +33,7 @@ function pause(ms, signal) {
  *   tooling?: { tree: string, bundle: string }, log?: (line: string) => void }} gate
  * @returns {Promise<{ shard: string, status: number, output: Buffer, digest: string }[]>}
  */
-export async function runGate({ runner, job, owner, shards, transport = sharedTransport(), intervalMs = COLLECT_INTERVAL_MS, signal, tooling, log }) {
+export async function dispatchGate({ runner, job, owner, shards, transport = sharedTransport(), intervalMs = COLLECT_INTERVAL_MS, signal, tooling, log }) {
   if (!Array.isArray(shards) || !shards.length) throw new Refused('TRANSPORT_GATE_SHARDS', `gate ${job} names no shards; plan at least one before running it`);
   const channel = transport.connect(runner);
   if (tooling) await ensureTooling(channel, tooling, log);

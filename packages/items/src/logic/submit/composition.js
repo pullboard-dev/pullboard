@@ -1,6 +1,7 @@
 /** Opted-in submission proofs run a committed composition with the pinned current trunk [M1,V4]. */
 import { contains } from "../../../../git/index.js";
 import { git } from "../../../../git/index.js";
+import { headCommitOf } from "../../io/submit/revs.js";
 import { Refused } from "../../../../kernel/index.js";
 
 /** Refuse before execution, and again after it, if the exact main snapshot was not proved. */
@@ -48,7 +49,7 @@ export async function composeAfterProof(root, { id, proofCommit, proved, item, c
       try { git(root, ['merge', '--abort']); } catch { /* Nothing was left to abort; the refusal below names the failed merge. */ }
       throw new Refused('MAIN_NOT_COMPOSED', `main moved to ${trunk.commit.slice(0, 12)} during the submission proof and merging it failed (${String(error.stderr || error.message).trim().split('\n')[0]}); merge main into this worktree, commit the composition, then run pullboard submit <id> again`);
     }
-    head = git(root, ['rev-parse', 'HEAD']);
+    head = headCommitOf(root);
     const now = readTrunk();
     if (now.commit === trunk.commit) {
       return { commit: head, evidence: { proofCommit, merge: head, from: proved, to: trunk.commit, moved } };

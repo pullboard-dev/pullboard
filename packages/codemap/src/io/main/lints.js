@@ -1,11 +1,18 @@
-import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { readCellLintBaseline } from '../cell/lint/store.js';
+import { CELL_BASELINE_DESCRIPTOR } from '../cell/lint/store.js';
 import { cellLintReport } from '../cell/lints.js';
 import { cellLintBaseline } from '../cell/lint/ratchet.js';
+import { cellLintGrowth } from '../cell/lint/ratchet.js';
+import { cachedCellsRun } from '../cells/cache.js';
+import { strayNextStep } from '../../logic/allowlist.js';
+import { fileURLToPath } from 'node:url';
 import { Refused } from '../../../../kernel/index.js';
 import { gitSpawnSync } from '../../../../git/index.js';
+import { mkdtempSync } from 'node:fs';
+import { scratchBase } from '../../../../kernel/light.js';
 
 const MAIN_REFS = ['refs/heads/main', 'refs/remotes/origin/main'];
 
@@ -26,20 +33,41 @@ export function mainCommit(root) {
 
 /**
  * Count current main's cell debt now, from a clean temporary checkout of its exact commit [C7].
- * Ratchets compare a candidate with this computed baseline instead of a committed snapshot, so a snapshot
- * that drifted after landings can never refuse an unrelated item. Returns null when there is no main.
+ * When main commits a baseline, that committed snapshot is the allowance, so a landing that skipped the check
+ * cannot raise it; counted debt stands in only when main has none. Returns null when there is no main.
  */
 export function mainCellLintReport(root, parsers, commit = mainCommit(root)) {
   if (!commit) return null;
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-main-lints-'));
+  const directory = mkdtempSync(join(scratchBase(), 'pullboard-main-lints-'));
   try {
     const checkout = join(directory, 'main');
     const cloned = gitRun(root, ['clone', '--quiet', '--shared', '--no-checkout', '--', root, checkout]);
     const selected = cloned.status === 0 ? gitRun(checkout, ['checkout', '--quiet', '--force', '--detach', commit]) : cloned;
     if (selected.status !== 0) throw new Refused('CELL_BASELINE', `main ${commit.slice(0, 12)} could not be checked out to count its cell debt; run git fetch, then the check again`);
     const report = cellLintReport(checkout, parsers);
-    return { commit, report, baseline: cellLintBaseline(report) };
+    // The committed snapshot is the authority when main has one; main's counted debt only stands in when it has none [C7,CD23].
+    const committed = existsSync(join(checkout, CELL_BASELINE_DESCRIPTOR)) ? readCellLintBaseline(checkout) : null;
+    return { commit, report, baseline: committed ?? cellLintBaseline(report), committed: Boolean(committed) };
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+}
+
+/**
+ * Check root against main's committed cell baseline and report each rise through emit; returns the exit code [C7,CD23].
+ * It lives here so the script and its test share one body; code names the files whose change voids the cached answer.
+ */
+export function checkCellLints(root, parsers, emit, { code = [], build = () => cellLintReport(root, parsers) } = {}) {
+  const main = mainCommit(root);
+  return cachedCellsRun(root, ['cell-lints', '--check', main ?? 'no-main'], () => {
+    // A committed baseline must stay hash-bound to its shards: an edit without a rebind refuses here, not only in --report [C7].
+    if (existsSync(join(root, CELL_BASELINE_DESCRIPTOR))) { try { readCellLintBaseline(root); } catch (error) { emit(error.message); return 1; } }
+    const current = build(), base = mainCellLintReport(root, parsers, main);
+    if (!base) { emit('no main branch to compare with; nothing can rise'); return 0; }
+    // Advisory transition authority comes only from main, as in the submit check.
+    current.transition = base.report.transition;
+    const problems = cellLintGrowth(current, base.baseline);
+    for (const row of problems) emit(`${row.advisory ? `advisory item #${row.item} until #${row.until}: ` : ''}${row.metric}:${row.key}: ${row.actual} exceeds ${row.allowed} on main ${base.commit.slice(0, 12)}${row.metric === 'strays' ? `; next: ${strayNextStep(row.key)}` : ''}`);
+    return problems.some(row => !row.advisory) ? 1 : 0;
+  }, { code: [fileURLToPath(import.meta.url), ...code] });
 }

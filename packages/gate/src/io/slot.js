@@ -6,6 +6,7 @@ import { Refused } from '../../../kernel/index.js';
 import { recordRunnerMeasurement } from '../../../config/index.js';
 import { declaredMachineSlots } from '../../../config/index.js';
 import { machineHome } from '../../../resources/index.js';
+import { withEnvironment } from '../../../resources/index.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { DatabaseSync } from 'node:sqlite';
 import { existsSync } from 'node:fs';
@@ -33,6 +34,7 @@ import {
 import {
   recordReceipt,
   receiptOf,
+  tripOverheadMs,
   slotOf,
   startReceipt,
 } from './receipt.js';
@@ -116,7 +118,7 @@ export function rotateRunners(runners, avoided, tried) {
 
 /** Snapshot required canonical operations before admission; functions remain private process-local lease state. */
 export function requireGateExecutionServices(value) {
-  const runners = ['sampleRunnerLoad', 'localRunnerDescriptor', 'carriedRunnerTrunk', 'probeRunnerTransport', 'probeRunnerHealth', 'runOnRunner', 'runOnRunnerAsync', 'effectiveRunners', 'refreshRunnerMeasurements'];
+  const runners = ['sampleRunnerLoad', 'localRunnerDescriptor', 'carriedRunnerTrunk', 'probeRunnerTransport', 'probeRunnerHealth', 'runOnRunnerAsync', 'effectiveRunners', 'refreshRunnerMeasurements'];
   const landing = ['captureReleaseQueue', 'constrainedLandingHost', 'releaseExecutors'];
   if (!runners.every(name => typeof value?.runners?.[name] === 'function')
     || !landing.every(name => typeof value?.landing?.[name] === 'function')) {
@@ -182,6 +184,9 @@ export function settleReceipt(lease) {
     ...(lease.infrastructureAttempts?.length ? { infrastructureAttempts: [...lease.infrastructureAttempts] } : {}),
     ...(local ? lease.timingEvidence?.() ?? { exclusive: false, unfencedClients: [] }
       : { exclusive: executor?.exclusive === true, unfencedClients: executor?.unfencedClients ?? [] }) };
+  // The trip's time outside tests, so the static stage and U151's capacity model read one number per receipt [C7].
+  const overheadMs = tripOverheadMs(lease.receipt);
+  if (overheadMs !== null) lease.receipt.tripOverheadMs = overheadMs;
   return lease.receipt;
 }
 
@@ -204,10 +209,16 @@ function machineRunnersOnly() {
  * hold (gate.memoryFloorMB) holds short slots too, since a short run uses the same machine memory.
  *
  * @param {(lease: { waitMs: number, token?: string, pool?: string, browser?: boolean, slotClass?: 'gate'|'short', release: () => void }) => any | Promise<any>} action - Work to perform while holding a slot.
- * @param {{ landing?: boolean, itemCheck?: boolean, shortEligible?: boolean, diagnostic?: boolean, browser?: boolean, gui?: boolean, remote?: boolean, requiredExecutor?: {kind:'local'}|{kind:'ssh',host:string,hosts?:string[]}, runnerOnly?: boolean, runnerWaitMs?: number, runnerDeadlineAt?: number, timing?: boolean, agent?: string, item?: string|number, kind?: string, onWait?: (state: object) => void, onReceipt?: (receipt: object) => void, readMemory?: typeof readMachineMemory, pinnedSource?: {commit:string, tree:string, trunk:{ref:string, commit:string}} }} [options] - Queue class, short-slot eligibility, remote eligibility, progress reporter, the run's receipt once its slot is released (#836), for tests the machine memory reader, and an exact commit a runner takes from the object store in place of the checkout's HEAD (a main comparison, #3323).
+ * @param {{ env?: Record<string,string>, landing?: boolean, itemCheck?: boolean, shortEligible?: boolean, diagnostic?: boolean, browser?: boolean, gui?: boolean, remote?: boolean, requiredExecutor?: {kind:'local'}|{kind:'ssh',host:string,hosts?:string[]}, runnerOnly?: boolean, runnerWaitMs?: number, runnerDeadlineAt?: number, timing?: boolean, agent?: string, item?: string|number, kind?: string, onWait?: (state: object) => void, onReceipt?: (receipt: object) => void, readMemory?: typeof readMachineMemory, pinnedSource?: {commit:string, tree:string, trunk:{ref:string, commit:string}} }} [options] - Queue class, short-slot eligibility, remote eligibility, progress reporter, the run's receipt once its slot is released (#836), for tests the machine memory reader, and an exact commit a runner takes from the object store in place of the checkout's HEAD (a main comparison, #3323).
  * @returns {Promise<any>} The action's result after releasing its lease.
  */
 export async function withGateSlot(root, action, options = {}) {
+  // options.env, when given, is process.env for the whole admission and the action; absent, nothing changes.
+  return withEnvironment(options.env, () => withGateSlotIn(root, action, options));
+}
+
+/** withGateSlot under its environment. */
+async function withGateSlotIn(root, action, options) {
   const remoteCheck = gateRunnersFirstEnabled() && (options.itemCheck === true || options.kind === 'review');
   options = { ...options, runnerOnly: options.runnerOnly === true || remoteCheck,
     executionServices: requireGateExecutionServices(options.executionServices) };

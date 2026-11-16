@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { runFixtureGit } from '../../fixtures/child.js';
-import { temporaryRepository } from '../../../../../apps/cli/tests/fixtures/board/submit.js';
+import { temporaryRepository } from '../../../../store/tests/fixtures/submit.js';
 import { keylessRows } from '../../../index.js';
 import { testClosures } from '../../../index.js';
 import { STATIC_TREE_CHECKS } from '../../../src/io/static/registry.js';

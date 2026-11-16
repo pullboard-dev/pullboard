@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { temporaryRepository } from '../../../../../../apps/cli/tests/fixtures/board/submit.js';
+import { temporaryRepository } from '../../../../../store/tests/fixtures/submit.js';
 import { verdictProjector } from '../../../../src/io/verdict/freshness.js';
 
 /** Run git in a directory and return trimmed output. */
@@ -38,7 +38,7 @@ function ancestorState(t, mainFile) {
   return projector.state(item);
 }
 
-test('clause 2: a verified item whose reviewed trunk is an ancestor of main is fresh, not STALE_VERDICT [C7]', t => {
+test('verify.freshness.ancestor-fresh: clause 2: a verified item whose reviewed trunk is an ancestor of main is fresh, not STALE_VERDICT [C7]', t => {
   assert.equal(ancestorState(t, 'x.txt'), null, 'main moving on an unreviewed file leaves the accept fresh');
   const overlap = ancestorState(t, 'y.txt');
   assert.equal(overlap.code, 'STALE_VERDICT');
@@ -46,7 +46,7 @@ test('clause 2: a verified item whose reviewed trunk is an ancestor of main is f
   assert.equal(overlap.reason, undefined);
 });
 
-test('clause 1: the ancestor check runs through the Git adapter, so a trunk on main raises no ReferenceError [C7]', t => {
+test('verify.freshness.ancestor-adapter: clause 1: the ancestor check runs through the Git adapter, so a trunk on main raises no ReferenceError [C7]', t => {
   const state = ancestorState(t, 'x.txt');
   assert.equal(state, null, 'an undefined spawnSync would surface as a history-unavailable stale state');
 });

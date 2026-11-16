@@ -1,16 +1,22 @@
 /** One private compile-only VM child per derived runner closure [C7,P3]. */
 import { spawn } from 'node:child_process';
 import { lstatSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Refused } from '../../../../kernel/index.js';
+import { mkdirSync } from 'node:fs';
+import { statSync } from 'node:fs';
+import { scratchFolder } from '../../../../config/index.js';
+import { scratchRoot } from '../../../../config/index.js';
+import { loadKeyedResult } from '../keyed.js';
+import { saveKeyedResult } from '../keyed.js';
+import { sweepKeyedFolders } from '../keyed.js';
+import { sharedCacheFolder } from '../keyed.js';
 
 const MAX_BYTES = 2 ** 26;
 const TIMEOUT_MS = 10_000;
@@ -26,6 +32,67 @@ let sourcesCompiled = 0;
 /** Count of sources sent to a compiler child in this process, so callers can prove a cache hit parsed nothing. */
 export function runnerModuleParserCompileCount() {
   return sourcesCompiled;
+}
+
+// This user's results kept across processes, unused ones swept after a week; off until keepParserResults, then null
+// until first use, false when unusable.
+let storeWanted = false;
+let storeFolder = null;
+let storeSwept = false;
+const STORE_MAX_AGE_MS = 7 * 24 * 3_600_000;
+
+/**
+ * The folder holding compiler results across processes, when only this user can write it; else null.
+ * Why: every short runner controller is a fresh process, and each compiled the same controller closure again, about
+ * 6 s of every pulled trip beside four other jobs (#8145). A row is a function of the compiler and source bytes alone.
+ */
+function resultStore() {
+  if (!storeWanted) return null;
+  if (storeFolder === null) {
+    storeFolder = false;
+    // A runner job's shared cache first: its own TMPDIR is new each job (#8233).
+    const shared = sharedCacheFolder('runner-parse-cache');
+    if (shared) return (storeFolder = shared);
+    try {
+      const folder = join(scratchRoot(), 'pullboard-runner-parse-cache');
+      mkdirSync(folder, { recursive: true, mode: 0o700 });
+      const state = statSync(folder);
+      if (state.isDirectory() && state.uid === process.getuid?.() && (state.mode & 0o077) === 0) storeFolder = folder;
+    } catch { /* No store: every miss compiles, as before. */ }
+  }
+  return storeFolder || null;
+}
+
+/**
+ * Keep compiler results across processes from now on; a short runner controller turns this on as it starts.
+ * Why opt-in: a long process already keeps its own results, and only the brief controllers start cold every time.
+ */
+export function keepParserResults() { storeWanted = true; }
+
+/** The store key of one source: the loaded compiler's bytes, this Node and the source's bytes. */
+function storeKey(source) {
+  return createHash('sha256').update(LOADED_COMPILER.parser).update('\0').update(LOADED_COMPILER.worker)
+    .update('\0').update(process.version).update('\0').update(source).digest('hex');
+}
+
+/** One stored row, checked as strictly as a fresh reply; null when absent or malformed. */
+function storedResult(source) {
+  const folder = resultStore();
+  if (!folder) return null;
+  try {
+    const bytes = loadKeyedResult(folder, storeKey(source));
+    return bytes ? checkedResults({ version: 1, id: 0, results: [JSON.parse(bytes.toString('utf8'))] }, 0, 1)[0] : null;
+  } catch { return null; }
+}
+
+/** Keep fresh rows for later processes, sweeping week-old rows once per process; a failed write only costs a later compile. */
+function storeResults(rows) {
+  const folder = resultStore();
+  if (!folder) return;
+  try {
+    if (!storeSwept) { storeSwept = true; sweepKeyedFolders(folder, { matches: name => name.endsWith('.result'), maxAgeMs: STORE_MAX_AGE_MS }); }
+    for (const [source, row] of rows) saveKeyedResult(folder, storeKey(source), Buffer.from(JSON.stringify(row)));
+  } catch { /* A later process compiles it again. */ }
 }
 
 /** Path plus content hash that keys the process cache, so a changed file is a different entry and is re-parsed. */
@@ -146,7 +213,7 @@ export function createRunnerModuleParser() {
   /** Start the trusted parser entry without source input or repository evaluation. */
   function start() {
     if (child) return;
-    directory = mkdtempSync(join(tmpdir(), 'pullboard-runner-parser-'));
+    directory = scratchFolder('pullboard-runner-parser-');
     // Execute the module-load snapshot, never a path that can change after its freshness check.
     const worker = join(directory, 'compiler-worker.mjs');
     writeFileSync(worker, LOADED_COMPILER.worker, { mode: 0o400, flag: 'wx' });
@@ -167,8 +234,12 @@ export function createRunnerModuleParser() {
       assertRunnerModuleParserCurrent();
       if (closed || childFailed || !Array.isArray(sources) || sources.some(source => typeof source !== 'string')) throw parserFailure();
       if (!Array.isArray(paths) || paths.some(path => path !== undefined && typeof path !== 'string')) throw parserFailure();
-      const missing = [...new Set(sources.filter((source, index) => !PROCESS_CACHE.has(sourceKey(source, paths[index]))))];
-      if (!missing.length) return orderedResults(sources, new Map(), paths);
+      const uncached = [...new Set(sources.filter((source, index) => !PROCESS_CACHE.has(sourceKey(source, paths[index]))))];
+      const stored = new Map();
+      for (const source of uncached) { const row = storedResult(source); if (row) stored.set(source, row); }
+      sources.forEach((source, index) => { if (stored.has(source)) remember(source, stored.get(source), paths[index]); });
+      const missing = uncached.filter(source => !stored.has(source));
+      if (!missing.length) return orderedResults(sources, stored, paths);
       sourcesCompiled += missing.length;
       const id = ++sequence;
       if (!Number.isSafeInteger(id)) throw parserFailure();
@@ -190,7 +261,8 @@ export function createRunnerModuleParser() {
           assertRunnerModuleParserCurrent();
           const fresh = new Map(missing.map((source, index) => [source, rows[index]]));
           sources.forEach((source, index) => { if (fresh.has(source)) remember(source, fresh.get(source), paths[index]); });
-          return orderedResults(sources, fresh, paths);
+          storeResults(fresh);
+          return orderedResults(sources, new Map([...stored, ...fresh]), paths);
         }
         const remaining = Number(deadline - process.hrtime.bigint()) / 1e6;
         if (remaining <= 0) throw parserFailure();

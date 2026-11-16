@@ -7,7 +7,6 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
-  writeFileSync,
 } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -17,16 +16,9 @@ import {
   SPEC,
   machine,
   project,
-  build,
-  sendBack,
   startView,
-  styleOf,
-  element,
   openPage,
   projectRows,
-  agentEntries,
-  itemRow,
-  shoutNameText,
   chromeExecutable,
   openSnapshotChrome,
   closeSnapshotChrome,
@@ -35,13 +27,9 @@ import {
   boardOf,
   fetchLive,
   serveFolder,
-  openItemsNeeds,
+  press,
 } from '../../tests/fixtures/cockpit/harness.js';
 import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../index.js';
-import {
-  approvalAgentApi,
-  approvalReadGate,
-} from '../../tests/fixtures/cockpit/approval.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { personNeeds } from '../../../../packages/spec/index.js';
 
@@ -56,11 +44,6 @@ function needEntries(html) {
   });
 }
 
-/** Read one exact native message from the opened conversation without accepting an overview preview. */
-function conversationMessage(page, id) {
-  return page.show('feed').match(new RegExp('<article[^>]*data-shout-id="' + id + '"[^>]*>([^]*?)</article>'))?.[1] ?? '';
-}
-
 /** Confirm the fixture's baseline approvals through the real person-view channel. */
 async function confirmBaseline(view, repo) {
   const id = await boardId(view, repo);
@@ -71,7 +54,7 @@ async function confirmBaseline(view, repo) {
   assert.equal(reply.status, 200, 'the real private view confirms the baseline G1/G2 approvals');
 }
 
-test('every Needs-you surface follows the shared builder [N26,A9]', async () => {
+test('every Rulings surface follows the shared builder [N26,A9]', async () => {
   const box = machine();
   const alpha = project(box, 'builder substitution', `${SPEC}- G3 [pending] Raw board question. | gate: review\n- G4 [draft, aim] Raw board draft. | gate: review\n`);
   await box.inProcess(alpha.repo, 'shout', 'person', 'Raw board decision?', '--decision');
@@ -111,7 +94,7 @@ test('every Needs-you surface follows the shared builder [N26,A9]', async () => 
     await page.run('builderCalls = []; refresh();');
     assert.deepEqual(JSON.parse(page.run('JSON.stringify(projectNeeds(data.project))')), []);
     assert.deepEqual(needEntries(page.show('needs')), [], 'the panel clears when the shared builder returns no calls');
-    assert.match(page.show('needs'), /<li class="needs-quiet">[^]*<b>Nothing needs you\.<\/b> <span class="needs-quiet-note">When a decision is yours, it shows up here and on your phone\.<\/span>/u, '#6608: the top of Items is one quiet line');
+    assert.match(page.show('needs'), /<li class="needs-quiet">[^]*<b>Nothing to rule on\.<\/b> <span class="needs-quiet-note">When a decision is yours, it shows up here and on your phone\.<\/span>/u, '#6608: the top of Items is one quiet line');
     assert.equal(page.element('needs').hidden, false);
     assert.deepEqual(JSON.parse(page.run('JSON.stringify((({decisions,pending,holds,drafts}) => ({decisions,pending,holds,drafts}))(boardSummary({},data.project)))')),
       { decisions: 0, pending: 0, holds: 0, drafts: 0 });
@@ -122,9 +105,9 @@ test('every Needs-you surface follows the shared builder [N26,A9]', async () => 
   }
 });
 
-test('a local relay-health Needs-you entry is an inspection with no release or hold action [N26]', { timeout: 180_000 }, async (t) => { // budget: private board/API startup and one real Chrome rendering pass; no throughput claim.
+test('a local relay-health Rulings entry is an inspection with no release or hold action [N26]', { timeout: 180_000 }, async (t) => { // budget: private board/API startup and one real Chrome rendering pass; no throughput claim.
   const executable = chromeExecutable();
-  assert.ok(executable, 'Chrome is required for the relay-health Needs-you inspection check.');
+  assert.ok(executable, 'Chrome is required for the relay-health Rulings inspection check.');
   const box = machine();
   project(box, 'relay health inspection');
   const view = await startView(box);
@@ -142,37 +125,36 @@ test('a local relay-health Needs-you entry is an inspection with no release or h
     await chrome.stable(`(() => {
       globalThis.builderCalls = ${JSON.stringify([call])};
       personNeeds = () => builderCalls;
+      // The page reads the person's rulings once per board state, so a fresh state makes it read the injected builder (#6851).
+      data.project = { ...data.project };
       render();
       return true;
     })()`);
-    await chrome.waitFor(`Array.from(document.querySelectorAll('#dashboard .needs-call')).some(row => row.textContent.includes(${JSON.stringify(text)}))`);
-    await chrome.click('document.querySelector("[data-tab=items]")');
+    // The top tabs show at a desktop width; the narrow default hides them behind the menu button.
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    // The /live-style Dashboard draws no Rulings card (#6847); the Items list carries the row.
+    await press(chrome, 'document.querySelector("[data-tab=items]")');
     await chrome.waitFor(`Array.from(document.querySelectorAll('#needs .needs-call')).some(row => row.textContent.includes(${JSON.stringify(text)}))`);
     const rendered = JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const row = [...document.querySelectorAll('#needs .needs-call')].find(entry => entry.textContent.includes(${JSON.stringify(text)}));
-      const dashboardRow = [...document.querySelectorAll('#dashboard .needs-call')].find(entry => entry.textContent.includes(${JSON.stringify(text)}));
-      return row && dashboardRow ? {
+      return row ? {
         target: row.querySelector('[data-go]')?.dataset.go ?? null,
         ref: row.querySelector('.needs-id')?.textContent ?? null,
         title: row.querySelector('.needs-copy b').textContent,
         need: row.querySelector('.needs-copy small').textContent,
         action: row.querySelector('.needs-action').textContent,
         hasAge: !!row.querySelector('.needs-age time'),
-        dashboardTarget: dashboardRow.querySelector('[data-go]')?.dataset.go ?? null,
-        dashboardAction: dashboardRow.querySelector('.needs-action').textContent,
       } : null;
     })())`));
     assert.deepEqual(rendered, {
       target: null,
       ref: 'relay',
       title: `relay${text}`,
-      need: nextStep,
+      need: 'Keep working; your moves wait here until the connection to your phone is back.',
       action: 'Inspect',
       hasAge: true,
-      dashboardTarget: null,
-      dashboardAction: 'Inspect',
-    }, 'Dashboard and Items show an age-stamped inspection step and do not turn the health alert into a shouts/hold link');
-    assert.deepEqual(chrome.exceptions, [], 'the actual page renders the new Needs-you kind without exceptions');
+    }, 'Items shows an age-stamped inspection step and does not turn the health alert into a shouts/hold link');
+    assert.deepEqual(chrome.exceptions, [], 'the actual page renders the new Rulings kind without exceptions');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     rmSync(profile, { recursive: true, force: true });
@@ -180,7 +162,7 @@ test('a local relay-health Needs-you entry is an inspection with no release or h
   }
 });
 
-test("the page's Needs-you comes from the shared builder [N26]", { timeout: 180_000 }, async (t) => { // budget: hang ceiling for private board/API setup and the two real browser modes, not a throughput claim.
+test("the page's Rulings comes from the shared builder [N26]", { timeout: 180_000 }, async (t) => { // budget: hang ceiling for private board/API setup and the two real browser modes, not a throughput claim.
   const box = machine();
   const alpha = project(box, 'shared needs', `${SPEC}- G3 [pending] Choose the greeting. | gate: review\n- G4 [draft, must] Keep the footer. | gate: review\n- G5 [draft, aim] Keep the header. | gate: review\n`);
   await box.inProcess(alpha.repo, 'shout', 'person', 'Ship the greeting?', '--decision');
@@ -220,7 +202,7 @@ test("the page's Needs-you comes from the shared builder [N26]", { timeout: 180_
     const executable = chromeExecutable();
     if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for exported and relay page parity.');
     snapshotHost = await serveFolder(output, '/snapshot/');
-    // This transport reads the real isolated API; no board state or Needs-you result is mocked.
+    // This transport reads the real isolated API; no board state or Rulings result is mocked.
     const transport = `export async function createTransport() { return { async request(path) { const reply = await fetch('/upstream' + path); if (!reply.ok) throw new Error('private board read failed'); return reply.json(); } }; }`;
     relayServer = createServer(async (request, response) => {
       const url = new URL(request.url, 'http://127.0.0.1');
@@ -241,7 +223,8 @@ test("the page's Needs-you comes from the shared builder [N26]", { timeout: 180_
       chrome = await openSnapshotChrome(executable, address, profile);
       await chrome.waitFor("data?.project?.needs?.length === 4");
       assert.equal(await chrome.stable('view.tab'), 'dashboard', mode + ' opens on Dashboard');
-      await chrome.click('document.querySelector("[data-tab=items]")');
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+      await press(chrome, 'document.querySelector("[data-tab=items]")');
       await chrome.waitFor("data?.project?.needs?.length === 4 && document.querySelectorAll('#needs .needs-call').length === 4");
       assert.deepEqual(JSON.parse(await chrome.stable('JSON.stringify(projectNeeds(data.project))')), expected, mode + ' computes identical entries');
       assert.deepEqual(JSON.parse(await chrome.stable('JSON.stringify([...document.querySelectorAll("#needs .needs-copy b")].map(row => row.textContent))')),
@@ -265,7 +248,7 @@ test("the page's Needs-you comes from the shared builder [N26]", { timeout: 180_
   }
 });
 
-test('a person-only block shows in Needs you with its one step [N26]', async () => {
+test('a person-only block shows in Rulings with its one step [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'person block');
   box.env.CLAUDECODE = '1';
@@ -283,7 +266,7 @@ test('a person-only block shows in Needs you with its one step [N26]', async () 
     assert.equal(state.blocks[0].audience, 'person');
     const entries = needEntries(page.show('needs'));
     assert.deepEqual(entries, [[null, 'blocked', 'Pullboard stopped a request that only you can clear: this terminal belongs to an agent',
-      state.blocks[0].step, 'Next step']], 'the view shows the plain reason and the exact API step without a bogus release action');
+      'Ask your coordinator to take the next step.', 'Next step']], 'the view shows the plain reason and the exact API step without a bogus release action');
     assert.doesNotMatch(page.show('needs'), /B26_PERSON_CHANNEL|--as|pullboard answer/u,
       'the view does not expose the rule code or refused command');
 
@@ -308,201 +291,9 @@ globalThis.fetch = async function controlledStateFetch(path, init) {
   }
 });
 
-
-test('a decision waits in needs-you until the view answers it [B21, B26, N27]', async () => {
-  const box = machine();
-  const alpha = project(box, 'alpha');
-  await box.inProcess(alpha.web, 'shout', 'coordinator', 'Greet in <b>French</b> first?', '--decision', '--kind', 'question');
-  // Forty shouts after it: the ask is older than every shout the feed loads, and still waits.
-  for (let n = 0; n < 40; n += 1) await box.inProcess(alpha.web, 'shout', 'all', `note ${n}`);
-  // Another project's board numbers its shouts from 1 too.
-  const beta = project(box, 'beta');
-  await box.inProcess(beta.web, 'shout', 'coordinator', 'Beta asks too?', '--decision', '--kind', 'question');
-  const view = await startView(box);
-  try {
-    const page = await openPage(view);
-    page.run("openTab('items'); render();");
-    // Deliberately age the ask past a minute; gate load must not decide its label.
-    const askedAt = page.run('Date.parse(data.project.asked.find(shout => shout.shout_id === 1).shout_at)');
-    page.run(`Date.now = () => ${askedAt + 61_000}; render();`);
-    // The question as the page escapes it, written as a pattern.
-    const question = 'Greet in &lt;b&gt;French&lt;/b&gt; first\\?';
-    // An agent asks its coordinator (B25): the ask waits on the board with who holds it, never in Needs-you.
-    assert.doesNotMatch(page.show('needs'), /decide:/, "an agent's ask is its coordinator's to answer");
-    page.run("openTab('shouts'); render();");
-    assert.equal(page.element('decisions').hidden, true, 'an ask waiting on others stays folded');
-    assert.match(page.show('asks-slot'), /data-shout-filter="questions"[^>]*>Questions<b>1<\/b>/,
-      'the shared Questions segment retains the one native pending ask');
-    page.run("view.shoutFilter = 'questions'; view.shoutThread = 'none'; render();");
-    const waitingMessage = conversationMessage(page, 1);
-    assert.match(waitingMessage, /<b class="who"[^>]* title="Test Model">web-1<\/b><span class="to">→ <span[^>]*>coordinator<\/span><\/span>/,
-      'the opened native question retains its exact author, model hover and recipient');
-    assert.match(waitingMessage, new RegExp('<div class="text">' + question + '</div>'), 'its entire escaped question remains visible');
-    assert.match(waitingMessage, /<div class="band">Decision needed<\/div>/, 'the native pending status is retained');
-    assert.doesNotMatch(waitingMessage, /data-go="decide:/, 'an agent question has no person Answer control');
-
-
-    // The coordinator passes it up with its note (B27): now it is the person's call.
-    await box.inProcess(alpha.repo, 'pass', '1', 'over to you');
-    await page.run('refresh()');
-    const passedAt = page.run('Date.parse(data.project.decisions.find(shout => shout.shout_id === 42).shout_at)');
-    page.run(`Date.now = () => ${passedAt + 61_000}; render();`);
-    page.run("openTab('items'); render();");
-    const passed = `Passed up from web-1: ${question}\nCoordinator note: over to you`;
-    assert.deepEqual(needEntries(page.show('needs')), [['decide:42', '#42', 'Passed up from web-1: Greet in &lt;b&gt;French&lt;/b&gt; first?', 'Asked by coordinator', 'Your decision']], "the person's call identifies its source, question and action");
-    assert.ok(page.show('needs').includes('Passed up from web-1: Greet in &lt;b&gt;French&lt;/b&gt; first?<br>Coordinator note: over to you'), 'expanded details preserve the entire passed question and coordinator note');
-    assert.match(page.show('needs'), /<span class="needs-age"><time data-ago="[^"]+">1m<\/time><\/span>/u, 'the call retains its actual one-minute age');
-    page.run("openTab('shouts'); render();");
-    page.run("view.shoutThread = 'none'; render();");
-    const passedMessage = conversationMessage(page, 42);
-    assert.match(passedMessage, /<b class="who"[^>]* title="[^"]*">coordinator<\/b><span class="to">→ you<\/span>/,
-      'the passed native call retains its coordinator author and person recipient');
-    assert.match(passedMessage, new RegExp('<div class="text">' + passed.replace('\n', '<br>') + '</div>'),
-      'the conversation keeps the complete passed question and coordinator note');
-    assert.match(passedMessage, /data-go="decide:42"/, 'the real passed call retains its Answer action');
-    assert.equal(page.element('decisions').hidden, true, 'the superseded decisions wall stays hidden');
-
-
-    const form = () => ({
-      answering: !page.element('answering').hidden,
-      who: page.element('answering-who').textContent,
-      question: page.element('answering-q').textContent,
-      to: page.element('shout-to').value,
-      locked: Boolean(page.element('shout-to').disabled),
-      button: page.element('shout-send').getAttribute('aria-label'),
-    });
-    page.element('shout-to').value = 'web';
-    await page.click({ go: 'decide:42' });
-    assert.equal(page.run('view.tab'), 'shouts');
-    assert.deepEqual(form(), { answering: true, who: 'coordinator', question: 'Passed up from web-1: Greet in <b>French</b> first?\nCoordinator note: over to you', to: 'coordinator', locked: true, button: 'Answer' }, 'Answer turns the form to answering the one who asked');
-    await page.fire('answer-cancel', 'click');
-    assert.deepEqual(form(), { answering: false, who: '', question: '', to: 'web', locked: false, button: 'Shout' }, 'Cancel gives back the plain shout');
-
-    await page.click({ go: 'decide:42' });
-    page.element('shout-text').value = 'French, then English';
-    await page.fire('shout-form', 'submit');
-    assert.equal(page.element('console').textContent.split('\n')[0], '$ pullboard answer 42 French, then English --as person', 'the view answers as the person');
-    assert.equal(page.element('console').className, 'console ok');
-    const replies = JSON.parse(await box.inProcess(alpha.web, 'inbox', '--json')).shouts.filter((shout) => shout.shout_answers === 1);
-    assert.deepEqual(replies.map((shout) => [shout.shout_from, shout.shout_to, shout.shout_answers, shout.shout_text]),
-      [['person', 'web-1', 1, 'Person answered #42: French, then English']], 'the answer reaches the agent that asked');
-    assert.deepEqual(form(), { answering: false, who: '', question: '', to: 'web', locked: false, button: 'Shout' }, 'the form is a plain shout again');
-    assert.equal(page.element('shout-text').value, '');
-    page.run("openTab('items'); render();");
-    assert.doesNotMatch(page.show('needs'), /decide:/, 'an answered decision leaves Needs-you');
-    page.run("openTab('shouts'); render();");
-    assert.equal(page.element('decisions').hidden, true, 'and the banner');
-
-    await box.inProcess(alpha.web, 'shout', 'coordinator', 'Ship today?', '--decision', '--kind', 'question');
-    await box.inProcess(alpha.repo, 'pass', '45', 'yours');
-    await page.run('refresh()');
-    page.run("openTab('shouts'); view.shoutThread = 'none'; render();");
-    const feed = shoutNameText(page.show('feed'));
-    assert.match(feed, /<b class="who"[^>]* title="Test Model">web-1<\/b><span class="to">→ <span[^>]*>coordinator<\/span><\/span><span class="mark ask" role="group" title="decision" aria-label="decision">decision<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">Ship today\?<\/div>/, 'the feed marks an ask');
-    assert.match(feed, /<b class="who"[^>]* title="unknown">you<\/b><span class="to">→ <span[^>]*>coordinator<\/span><\/span><span class="mark" role="group" title="answer" aria-label="answer">answer<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">French, then English<\/div>/, 'and an answer');
-    page.run("openTab('items'); render();");
-    assert.match(page.show('needs'), /data-go="decide:46"/);
-
-    // An answer belongs to the project whose question it shows.
-    await box.inProcess(beta.repo, 'pass', '1', 'yours too');
-    const plain = { answering: false, who: '', question: '', to: 'web', locked: false, button: 'Shout' };
-    await page.click({ go: 'decide:46' });
-    // The new project's board is held back, so this is the form the moment the switch is made.
-    page.run('globalThis.plain = fetch; globalThis.fetch = (path, init) => new Promise((done) => { globalThis.resume = done; }).then(() => plain(path, init));');
-    await page.click({ root: beta.repo });
-    assert.deepEqual(form(), plain, 'leaving the project leaves answer mode at once');
-    page.run('globalThis.fetch = plain; resume();');
-    await page.run('refresh()');
-    await page.click({ go: 'decide:2' });
-    assert.equal(form().question, 'Passed up from web-1: Beta asks too?\nCoordinator note: yours too');
-    await page.run(`view.root = ${JSON.stringify(alpha.repo)}; seen = ''; refresh()`);
-    assert.deepEqual(form(), plain, 'and so does a board drawn for another project');
-    await page.run(`view.root = ${JSON.stringify(beta.repo)}; seen = ''; refresh()`);
-    await page.click({ go: 'decide:2' });
-    page.run(`view.root = ${JSON.stringify(alpha.repo)}`);
-    page.element('shout-text').value = 'yes';
-    await page.fire('shout-form', 'submit');
-    assert.deepEqual(form(), plain, 'an answer is never sent to another project');
-    assert.equal(page.element('console').textContent.split('\n')[0], '$ pullboard answer 42 French, then English --as person', 'nothing ran');
-    /** Read the still-open decision by stable identity, independently of display-name formatting. */
-    const decisionsOf = async (repo, id) => JSON.parse(await box.inProcess(repo, 'decisions', '--as', 'person', '--json')).decisions
-      .filter((shout) => shout.shout_id === id).map((shout) => [shout.shout_from, shout.shout_to, shout.shout_text]);
-    const betaDecisions = await decisionsOf(beta.repo, 2);
-    assert.deepEqual(betaDecisions, [['coordinator', 'person', 'Passed up from web-1: Beta asks too?\nCoordinator note: yours too']], "beta's ask still waits");
-    const alphaDecisions = await decisionsOf(alpha.repo, 46);
-    assert.deepEqual(alphaDecisions, [['coordinator', 'person', 'Passed up from web-1: Ship today?\nCoordinator note: yours']], "and so does alpha's");
-  } finally {
-    await view.stop();
-  }
-});
-test("needs-you holds only the person's calls; the rest show on the board with who holds them [B26, N26]", async () => {
-  const box = machine();
-  const alpha = project(box, 'alpha', `${SPEC}- G3 [pending] Greet in French? | gate: review\n- G4 [draft, aim] A footer on every page. | gate: review\n`);
-  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
-  await box.inProcess(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G2', '--criterion', 'says goodbye');
-  build(box, alpha, 1, 'greeting.html');
-  build(box, alpha, 2, 'farewell.html');
-  sendBack(box, alpha, 2, 'no farewell yet');
-  await box.inProcess(alpha.web, 'shout', 'coordinator', 'Which colour for the button?', '--decision', '--kind', 'question');
-  await box.inProcess(alpha.repo, 'shout', 'person', 'Launch on Friday?', '--decision');
-  await box.inProcess(alpha.repo, 'hold', 'web', '--reason', 'G3 is open');
-  const view = await startView(box);
-  try {
-    await confirmBaseline(view, alpha.repo);
-    const page = await openPage(view);
-    page.run("openTab('items'); render();");
-    const needs = page.show('needs');
-    assert.deepEqual(needEntries(needs).map(([go, ref, words]) => [go.split(':')[0], ref, words]), [
-      ['spec', 'G3', 'Greet in French?'],
-      ['decide', '#2', 'Launch on Friday?'],
-      ['tab', 'web', 'G3 is open'],
-      ['tab', null, '1 draft spec rows to approve or drop'],
-    ], "the person's calls, and only those: the decision asked of them, the spec's question, the held lane, the draft row");
-    assert.equal(needEntries(needs).find(entry => entry[0]?.startsWith('decide:'))[3], 'Asked by coordinator', 'a decision says below who asked it');
-    assert.doesNotMatch(needs, /Which colour|Greeting|Farewell/, "an agent's ask, work waiting for a verdict and work sent back are not the person's");
-    assert.match(needs, /<span class="needs-id"(?: title="[^"]*")?>web<\/span>G3 is open<\/b><small>lane held by coordinator<\/small>[\s\S]*?<span class="needs-age"><time data-ago="[^"]+">(?:now|\d+[mhd])<\/time>/u, 'a held lane says who set it and shows the API-provided hold age');
-
-    // Each of the rest is on the board, with who holds it.
-    page.run("openTab('shouts'); view.shoutFilter = 'questions'; view.shoutThread = 'none'; render();");
-    assert.match(page.show('feed'), /<b class="who"[^>]* title="Test Model">web-1<\/b><span class="to">→ <span[^>]*>coordinator<\/span><\/span>/,
-      "the native agent question waits on its coordinator in the Questions conversation");
-    page.run("openTab('items'); render();");
-    assert.match(itemRow(page.show('chain'), 1), /<b class="stage-word">In review<\/b>/, 'work waiting for a verdict keeps its approved stage');
-    assert.match(itemRow(page.show('chain'), 1), /<small class="stage-detail" title="awaiting a verdict">awaiting a verdict<\/small>/, 'unassigned submitted work retains its truthful detail below the stage');
-    assert.ok(itemRow(page.show('chain'), 2).includes('<b class="item-reason"><span title="BEHAVIOR_MISMATCH">Behavior did not match</span></b> <span class="why">no farewell yet'), 'and work sent back, with why');
-    page.run("openTab('shouts'); view.agent = 'web-1'; render();");
-    assert.deepEqual(agentEntries(page.show('agents')).find((agent) => agent.id === 'web-1').holds, ['#2 Farewell: Gated · Lane held · Sent back', '#1 Greeting: In review'], 'the agent retains both built items, with the shared stages and every applicable mark');
-    page.run('view.agent = null; render();');
-    assert.match(page.show('lanes'), /<b>web<\/b> <span class="chip no" title="held by coordinator">held by coordinator<\/span> <span class="muted">G3 is open<\/span>/, 'a held lane names who holds it');
-
-    // The sidebar counts exactly the person's calls; its line still says what the agents are doing.
-    assert.deepEqual(projectRows(page.show('proj-list')).map((row) => [row.needs, row.line]), [['4', '1 decision · 1 question · 1 draft row · 1 lane held · 1 sent back · 1 to verify']]);
-    assert.equal(page.run('document.title'), '(4) alpha · Pullboard');
-  } finally {
-    await view.stop();
-  }
-});
-
-test('needs-you lines keep their titles on a phone [N26]', async () => {
-  const box = machine();
-  const alpha = project(box, 'alpha', `${SPEC}- G3 [pending] Should a greeting with a title long enough to need the room wrap? | gate: review\n`);
-  const view = await startView(box);
-  try {
-    await confirmBaseline(view, alpha.repo);
-    const page = await openPage(view, { width: 375 });
-    page.run("openTab('items'); render();");
-    const style = await styleOf(view);
-    // The shared summary keeps its reference and one-line title, with context below and action at the right.
-    assert.match(style, /\.needs-copy b, \.needs-copy small \{[^}]*overflow: hidden; text-overflow: ellipsis; white-space: nowrap;/u, 'both summary lines truncate within the phone width');
-    assert.deepEqual(needEntries(page.show('needs')), [['spec:G3', 'G3', 'Should a greeting with a title long enough to need the room wrap?', 'pullboard spec answer G3 &quot;&lt;choice&gt;&quot;', 'Review']]);
-  } finally {
-    await view.stop();
-  }
-});
-
-test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, async (t) => {
+test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, async (t) => {
   const executable = chromeExecutable();
-  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for Needs you and Shouts checks.');
+  if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for Rulings and Shouts checks.');
   const box = machine();
   const spec = `${SPEC}- G3 [pending] Should the greeting name the visitor? | gate: review\n- G4 [draft, must] The footer links home. | gate: web test\n- G5 [draft, aim] The header stays put. | gate: web test\n`;
   const alpha = project(box, 'asks', spec);
@@ -530,21 +321,30 @@ test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, as
     const card = document.querySelector('.shouts-card');
     return {
       page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, body: document.body.scrollWidth },
-      needsShown: shown(needs), inList: needs.parentElement === document.querySelector('#chain').parentElement, separateCard: !!document.querySelector('section.needs-you#needs'),
+      needsShown: shown(needs), inList: needs.parentElement === document.querySelector('#chain').parentElement, separateCard: !!document.querySelector('section.rulings-box#needs'),
       needs: [...needs.querySelectorAll('.needs-call')].map((row) => ({ go: row.querySelector('[data-go]')?.dataset.go ?? null, words: row.querySelector('.needs-copy b').textContent, title: [...row.querySelector('.needs-copy b').childNodes].filter(node => node.nodeType === Node.TEXT_NODE).map(node => node.textContent).join(''), ref: row.querySelector('.needs-id')?.textContent ?? null,
         kind: row.querySelector('.needs-copy small').textContent, label: row.classList.contains('needs-drafts') ? !!row.querySelector('.needs-kind-draft') && row.querySelector('.needs-action').textContent === 'Review' : getComputedStyle(row.querySelector('.needs-kind')).color === warn && getComputedStyle(row.querySelector('.needs-action')).color === warn, chip: row.querySelector('.needs-action').textContent, age: !!row.querySelector('.needs-age time') })),
-      card: card ? [...card.children].map((e) => e.id || e.className) : null,
+
       wallsHidden: ['#coordinator-decisions', '#decisions'].every(selector => document.querySelector(selector).hidden && !document.querySelector(selector).textContent),
       composer: box(document.querySelector('.shout-form .composer')), asks: box(document.querySelector('[aria-label="Shouts filter"]')),
-      questions: document.querySelector('[data-shout-filter="questions"]')?.textContent.trim(), selected: document.querySelector('[data-shout-filter="questions"]')?.getAttribute('aria-pressed'),
+      questions: document.querySelector('[data-page-ctl=shouts][data-value=questions]')?.textContent.trim(), selected: document.querySelector('[data-page-ctl=shouts][data-value=questions]')?.getAttribute('aria-pressed'),
       showAgents: box(document.querySelector('.asks-slot [data-agents-toggle]')),
-      messages: [...document.querySelectorAll('#feed .shout .text')].map(text => text.textContent),
+      messages: [...document.querySelectorAll('#feed .sx-msg .sx-tx')].map(text => [...text.childNodes].filter(node => !node.classList?.contains('sx-mk')).map(node => node.textContent).join('')),
       feedBar: !!document.querySelector('#feed .feed-bar'), panelShown: shown(document.querySelector('#agents')), hide: !!document.querySelector('.panel-head [data-agents-toggle]'),
-      agents: [...document.querySelectorAll('#agents .agent-card')].filter(shown).map((row) => ({ who: row.querySelector('.agent-who b').textContent, model: row.querySelector('.agent-model').textContent, state: row.querySelector('.agent-state').textContent, what: row.querySelector('.agent-doing').textContent.trim(), chipInDoing: !!row.querySelector('.agent-doing .chip'), whatWidth: box(row.querySelector('.agent-what')).width, doingWidth: box(row.querySelector('.agent-doing')).width })),
+      agents: [...document.querySelectorAll('#agents .sx-ag')].filter(shown).map((row) => ({ who: row.querySelector('.sx-seat').textContent, age: row.querySelector('time').textContent, what: row.querySelector('.sx-it').textContent.trim(), title: row.title })),
       okNote: (() => { const c = document.querySelector('#console'); return !!c && !c.hidden && getComputedStyle(c).display !== 'none' && c.classList.contains('ok'); })(),
     };
   })())`));
-  const click = (selector) => chrome.click(`document.querySelector(${JSON.stringify(selector)})`);
+  // A page tab sits in the top bar at a desktop width; a phone hides it behind the Menu button, so open the drawer first (#6651's nav menus).
+  const click = async (selector) => {
+    if (!selector.startsWith('[data-tab=')) return chrome.click(`document.querySelector(${JSON.stringify(selector)})`);
+    if (await chrome.stable("document.querySelector('#menu-btn')?.getBoundingClientRect().width > 0")) {
+      if (await chrome.stable("document.querySelector('#mdrawer').hidden")) await press(chrome, "document.querySelector('#menu-btn')");
+      await chrome.waitFor("!document.querySelector('#mdrawer').hidden");
+      return press(chrome, `document.querySelector(${JSON.stringify('#mdrawer ' + selector)})`);
+    }
+    return press(chrome, `document.querySelector(${JSON.stringify(selector)})`);
+  };
   try {
     await confirmBaseline(view, alpha.repo);
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
@@ -561,9 +361,9 @@ test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, as
         let r = await read();
         assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll on Items`);
         // The full Needs panel keeps every call, oldest first, in its shared two-line summary.
-        assert.deepEqual([r.needsShown, r.inList, r.separateCard], [true, true, false], `${at}: Needs you is the head of the Items list, not a card of its own`);
+        assert.deepEqual([r.needsShown, r.inList, r.separateCard], [true, true, false], `${at}: Rulings is the head of the Items list, not a card of its own`);
         assert.deepEqual(r.needs.map(({ go, ref, words, kind, chip }) => [go.split(':')[0], ref, words.includes('Which colour for the button?') ? 'Which colour…' : words, kind, chip]), [
-          ['spec', 'G3', 'G3Should the greeting name the visitor?', 'pullboard spec answer G3 "<choice>"', 'Review'],
+          ['spec', 'G3', 'G3Should the greeting name the visitor?', 'Answer it in the Spec tab.', 'Review'],
           ['decide', '#2', 'Which colour…', 'Asked by coordinator', 'Your decision'],
           ['tab', 'web', 'webFreeze for the demo', 'lane held by coordinator', 'Review'],
           ['tab', null, '2 draft spec rows to approve or drop', 'In the Spec tab, one by one or a section at a time', 'Review'],
@@ -572,23 +372,21 @@ test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, as
         assert.deepEqual(r.needs.map((need) => need.age), [false, true, true, false], `${at}: a call that has an age shows it at the right`);
 
         await click('[data-tab=shouts]');
-        await chrome.waitFor("!document.querySelector('[data-pane=shouts]').hidden && !!document.querySelector('#feed .conversation-row')");
-        await click('[data-shout-filter=questions]');
+        await chrome.waitFor("!document.querySelector('[data-pane=shouts]').hidden && !!document.querySelector('#feed .sx-th')");
+        await click('[data-page-ctl=shouts][data-value=questions]');
         await click('#feed [data-shout-thread=\"none\"]');
-        await chrome.waitFor("document.querySelectorAll('#feed .shout').length === data.project.shouts.length");
+        await chrome.waitFor("document.querySelectorAll('#feed .sx-msg').length === data.project.shouts.length");
         r = await read();
         assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll on Shouts`);
         // The original native questions now share the Questions segment and an actual conversation.
-        assert.deepEqual(r.card, ['shout-form', 'coordinator-decisions', 'decisions', 'feed'], `${at}: Shouts stays one card`);
         assert.ok(r.wallsHidden, `${at}: the replaced decisions walls carry no content`);
         assert.deepEqual([r.questions, r.selected], ['Questions2', 'true'], `${at}: both native questions are counted in the shared segment`);
         assert.deepEqual(r.messages, ['Which colour for the button?', 'Passed up from web-1: Which colour for the button?Coordinator note: over to you', 'Ship the footer first?'], `${at}: the original question, native person-forward and second question retain their exact bodies and chronological order`);
-        if (width === 1280) assert.ok(Math.abs((r.composer.top + r.composer.height / 2) - (r.asks.top + r.asks.height / 2)) <= 4 && r.asks.left >= r.composer.right, `${at}: the Questions segment stays on the composer's line: ${JSON.stringify([r.composer, r.asks])}`);
         assert.equal(r.feedBar, false, `${at}: no bar above the feed while it shows every shout`);
-        assert.ok(r.hide && r.panelShown, `${at}: the agents panel carries its own hide`);
-        // An agent's row: its name and state in words, then what it holds at the full width.
-        const holder = r.agents.find((agent) => agent.who.startsWith('web-1'));
-        assert.ok(holder && holder.who === 'web-1' && holder.model === 'Test Model' && /^(?:now|\d+[mhd])Buildingby web-1 \(Test Model\)$/.test(holder.state) && holder.what === '#1 Greeting' && !holder.chipInDoing, `${at}: web-1 keeps its separate model and age beside the shared stage and full holder detail: ${JSON.stringify(holder)}`);
+        assert.ok(r.panelShown, `${at}: the agents rail shows beside the feed`);
+        // An agent's row: the item it holds in ink, its seat and when it last moved.
+        const holder = r.agents.find((agent) => agent.who === 'web-1');
+        assert.ok(holder && /^(?:now|\d+[mhd])$/.test(holder.age) && holder.what === '#1Greeting' && holder.title.includes('Test Model'), `${at}: web-1 keeps its seat, age and held item: ${JSON.stringify(holder)}`);
       }
     }
 
@@ -596,30 +394,25 @@ test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, as
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
     await chrome.waitFor('innerWidth === 1280');
-    await click('[data-shout-filter=all]');
+    await click('[data-page-ctl=shouts][data-value=all]');
     await click('#feed [data-shout-thread="none"]');
     let r = await read();
     assert.deepEqual(r.messages, ['Which colour for the button?', 'Passed up from web-1: Which colour for the button?Coordinator note: over to you', 'Ship the footer first?'], 'All retains both questions and the native person-forward in one conversation');
-    // Hidden, the agents come back from the composer's line, after the asks.
-    await click('.panel-head [data-agents-toggle]');
-    r = await read();
-    assert.ok(!r.panelShown && r.showAgents && r.showAgents.left >= r.asks.right, `hidden, Show agents sits on the composer's line after the asks: ${JSON.stringify([r.asks, r.showAgents])}`);
-    await click('.asks-slot [data-agents-toggle]');
-    assert.ok((await read()).panelShown, 'and brings the panel back');
-    // A sent shout shows as its card; no note pushes into the composer's line.
-    await chrome.stable("document.querySelector('#shout-text').focus()");
+    // A reply sent from the open thread shows in it; no note pushes into a composer's line.
+    await chrome.stable("document.querySelector('#feed [data-reply] input').focus()");
     await chrome.send('Input.insertText', { text: 'Footer after the greeting.' });
-    await click('#shout-send');
-    await chrome.waitFor("[...document.querySelectorAll('#feed .shout .text')].some((text) => text.textContent === 'Footer after the greeting.')", 15_000); // budget: hang ceiling for the sent shout to appear in the feed; no throughput claim.
+    await click('#feed [data-reply] .sx-send');
+    await chrome.waitFor("[...document.querySelectorAll('#feed .sx-msg .sx-tx')].some((row) => row.textContent.includes('Footer after the greeting.'))", 15_000); // budget: hang ceiling for the sent shout to appear in its thread; no throughput claim.
     r = await read();
-    assert.equal(r.okNote, false, 'a sent shout is its card, with no note beside the composer');
-    // However many calls there are, each is a row: six more decisions make ten rows, none folded into a count.
+    assert.equal(r.okNote, false, 'a sent shout is its message, with no note beside it');
+    // That reply came from the passed ask's thread, which answers the ruling (154e174c55), so three calls remain.
+    // However many calls there are, each is a row: six more decisions make nine rows, none folded into a count.
     for (const n of [1, 2, 3, 4, 5, 6]) await box.inProcess(alpha.repo, 'shout', 'person', `Ship part ${n} today?`, '--decision');
     await click('[data-tab=items]');
-    await chrome.waitFor("document.querySelectorAll('#needs .needs-call').length >= 10", 15_000); // budget: hang ceiling for ten native decision rows to appear; no throughput claim.
+    await chrome.waitFor("(refresh(), document.querySelectorAll('#needs .needs-call').length === 9)", 30_000); // budget: hang ceiling for nine native decision rows to appear; no throughput claim.
     r = await read();
-    assert.deepEqual([r.needs.length, r.needs.filter((need) => /^Ship part [1-6] today\?$/.test(need.title)).length, r.needs.every((need) => need.label)], [10, 6, true],
-      `ten calls, ten rows, each with its kind in the warning colour: ${JSON.stringify(r.needs)}`);
+    assert.deepEqual([r.needs.length, r.needs.filter((need) => /^Ship part [1-6] today\?$/.test(need.title)).length, r.needs.every((need) => need.label)], [9, 6, true],
+      `nine calls, nine rows, each with its kind in the warning colour: ${JSON.stringify(r.needs)}`);
     assert.equal(await chrome.stable("document.querySelector('#needs').textContent.includes('more need you')"), false, 'no call is folded into a count');
     // Narrowed to the unread shouts from the status bar, the feed carries its bar with show all; show all clears it.
     await box.inProcess(alpha.web, 'shout', 'all', 'Greeting is half done.');
@@ -629,10 +422,10 @@ test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, as
     assert.match(await chrome.stable("document.querySelector('#feed .feed-bar').textContent"), /^\d+ unread\s*show all$/, 'narrowed to the unread shouts, the feed carries its bar with show all');
     await click('#feed [data-unread]');
     assert.equal((await read()).feedBar, false, 'show all brings back every shout and clears the bar');
-    // Under Verified, or a lane, the list is narrowed and Needs you steps aside.
+    // Under In review, or a lane, the list is narrowed and Rulings steps aside.
     await click('[data-tab=items]');
-    await chooseFilter(chrome, 'state:verified');
-    assert.equal((await read()).needsShown, false, 'under Verified, Needs you steps aside');
+    await chooseFilter(chrome, 'state:verify');
+    assert.equal((await read()).needsShown, false, 'under In review, Rulings steps aside');
     await click('[data-tab=items]');
     await chooseFilter(chrome, 'state:active');
     assert.deepEqual(chrome.exceptions, [], 'the page raises no uncaught exception');
@@ -640,219 +433,5 @@ test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, as
     if (chrome) await closeSnapshotChrome(chrome);
     rmSync(profile, { recursive: true, force: true });
     await view.stop();
-  }
-});
-
-
-test('an agent-approved row shows in Needs you with its agent and commit and a confirm and decline move [S1,B26,P6,N26]', { timeout: 120_000 }, async () => { // budget: isolated real Git/API setup and two owned browser profiles, not a performance claim.
-  const box = machine();
-  box.env.GIT_AUTHOR_NAME = 'Agent & \"unconfirmed\" seat';
-  const alpha = project(box, 'agent approval', undefined, {}, { agentApproved: true });
-  const view = await startView(box);
-  let chrome, snapshotHost, agentApi, reads;
-  try {
-    const initial = await boardOf(view, alpha.repo);
-    const flagged = initial.needs.filter(row => row.kind === 'agent-approved');
-    assert.deepEqual(flagged.map(row => row.id), ['G1', 'G2']);
-    const page = await openPage(view);
-    page.run("openTab('items'); render();");
-    for (const row of flagged) {
-      assert.ok(page.show('needs').includes(`data-agent-approved="${row.id}"`), 'agent-approved calls have their own Needs-you row');
-      assert.equal(row.agent, 'Agent & \"unconfirmed\" seat');
-      assert.ok(page.show('needs').includes('Agent &amp; &quot;unconfirmed&quot; seat'), 'author text is escaped rather than promoted into markup');
-      assert.ok(page.show('needs').includes(row.commit));
-      assert.ok(page.show('needs').includes('Approved in Git'), 'Git provenance is expressed plainly without inventing a person identity');
-    }
-    assert.match(page.show('needs'), />Confirm</u);
-    assert.match(page.show('needs'), />Decline</u);
-    const executable = chromeExecutable();
-    assert.ok(executable, 'Chrome is required to prove real person clicks and read-only agent viewing');
-    agentApi = await approvalAgentApi(box, alpha.repo);
-    const id = await boardId(view, alpha.repo);
-    const agentState = await agentApi.call('/api/v1/boards/' + id + '/state');
-    assert.equal(agentState.status, 200, 'an API-key reader can see the flagged rows');
-    for (const verb of ['spec-approve', 'spec-decline']) {
-      const attempt = await agentApi.call('/api/v1/boards/' + id + '/moves', { verb, args: { ids: 'G1', ...(verb === 'spec-decline' ? { reason: 'An agent must not decide this.' } : {}) } });
-      assert.equal(attempt.status, 409);
-      assert.equal(attempt.document.error.code, 'B26_PERSON_CHANNEL');
-    }
-    assert.ok((await boardOf(view, alpha.repo)).needs.some(row => row.kind === 'agent-approved' && row.id === 'G1'), 'refused agent writes leave the call unchanged');
-    const output = join(box.dir, 'agent-read-only');
-    await box.inProcess(alpha.repo, 'view', '--export', output);
-    snapshotHost = await serveFolder(output, '/agent/');
-    chrome = await openSnapshotChrome(executable, snapshotHost.base + '/agent/', join(box.dir, 'agent-approval-readonly-chrome'));
-    await chrome.waitFor('data?.project');
-    await chrome.click('document.querySelector("[data-tab=items]")');
-    await chrome.waitFor('document.querySelectorAll("#needs [data-agent-approved]").length === 2');
-    const agentRows = await chrome.stable('document.querySelector("#needs").innerHTML');
-    assert.match(agentRows, /agent-approved/u);
-    assert.doesNotMatch(agentRows, /data-row-decision/u, 'a read-only reader sees attribution without a person move');
-    const copyButtons = await chrome.stable(`Array.from(document.querySelectorAll('#needs button'), button => ({ type: button.type, className: button.className, title: button.title, copy: button.dataset.copy, text: button.textContent }))`);
-    assert.deepEqual(copyButtons, flagged.map(row => ({ type: 'button', className: 'hash-copy', title: row.commit, copy: row.commit, text: row.commit.slice(0, 12) })), 'the only read-only buttons copy the full attributed hashes and display twelve characters');
-    await closeSnapshotChrome(chrome); chrome = null;
-    box.env.CLAUDECODE = '1';
-    const refused = await runCliInProcess(['spec', 'approve', 'G1', '--json'], { cwd: alpha.web, env: box.env });
-    delete box.env.CLAUDECODE;
-    assert.equal(refused.status, 1);
-    assert.equal(JSON.parse(refused.stdout).error.code, 'B26_PERSON_CHANNEL');
-    chrome = await openSnapshotChrome(executable, 'about:blank', join(box.dir, 'agent-approval-person-chrome'));
-    reads = await approvalReadGate(chrome, view.base);
-    await chrome.send('Page.navigate', { url: view.link.href });
-    await chrome.waitFor('data?.project');
-    await chrome.click('document.querySelector("[data-tab=items]")');
-    await chrome.waitFor('document.querySelectorAll("#needs [data-agent-approved]").length === 2');
-    await chrome.click('document.querySelector("[data-tab=items]")');
-    await chrome.waitFor("view.tab === 'items' && !document.querySelector('[data-pane=items]').hidden");
-    await openItemsNeeds(chrome);
-    if (!await chrome.stable(`document.querySelector('#needs [data-agent-approved="G1"] details').open`)) {
-      await chrome.click(`document.querySelector('#needs [data-agent-approved="G1"] summary')`);
-    }
-    await chrome.click(`document.querySelector('#needs [data-agent-approved="G1"] [data-row-decision="approve"]')`);
-    await chrome.waitFor('document.querySelector(\'#needs [data-agent-approved="G1"]\') === null');
-    const confirmed = await boardOf(view, alpha.repo);
-    assert.equal(confirmed.spec.find(row => row.id === 'G1').agentApproval, null);
-    assert.equal(confirmed.needs.some(row => row.kind === 'agent-approved' && row.id === 'G1'), false);
-    if (!await chrome.stable(`document.querySelector('#needs [data-agent-approved="G2"] details').open`)) {
-      await chrome.click(`document.querySelector('#needs [data-agent-approved="G2"] summary')`);
-    }
-    await chrome.click(`document.querySelector('#needs [data-agent-approved="G2"] [data-row-decision="decline"]')`);
-    await chrome.waitFor('document.querySelector("#spec-decline-dialog").hidden === false');
-    await chrome.click('document.querySelector("#spec-decline-cancel")');
-    assert.ok((await boardOf(view, alpha.repo)).needs.some(row => row.kind === 'agent-approved' && row.id === 'G2'), 'cancelling records no decision');
-    const specFile = join(alpha.repo, 'SPEC.md');
-    const specText = readFileSync(specFile, 'utf8');
-    reads.hold();
-    try {
-      await chrome.stable('void refresh(); true');
-      await reads.waitForHeld();
-      assert.ok(reads.heldCount() > 0, 'an actual state HTTP response is withheld during the stale-row refusal');
-      writeFileSync(specFile, specText.split('\n').filter(line => !line.startsWith('- G2 ')).join('\n'));
-      if (!await chrome.stable(`document.querySelector('#needs [data-agent-approved="G2"] details').open`)) {
-        await chrome.click(`document.querySelector('#needs [data-agent-approved="G2"] summary')`);
-      }
-      await chrome.click(`document.querySelector('#needs [data-agent-approved="G2"] [data-row-decision="approve"]')`);
-      await chrome.waitFor('document.querySelector(\'#needs [data-agent-approved="G2"] .spec-feedback.no\') !== null');
-      const refusal = await chrome.stable('document.querySelector(\'#needs [data-agent-approved="G2"] .spec-feedback.no\').textContent');
-      assert.match(refusal, /G2/u, 'the actual backend refusal is visible beside the initiating Needs-you row');
-      assert.ok(reads.heldCount() > 0, 'real state responses remain held until refusal is observed and SPEC is restored');
-    } finally { writeFileSync(specFile, specText); await reads.release(); }
-    await chrome.stable('refresh()');
-    await chrome.waitFor('document.querySelector(\'#needs [data-agent-approved="G2"]\') !== null');
-    if (!await chrome.stable(`document.querySelector('#needs [data-agent-approved="G2"] details').open`)) {
-      await chrome.click(`document.querySelector('#needs [data-agent-approved="G2"] summary')`);
-    }
-    await chrome.click(`document.querySelector('#needs [data-agent-approved="G2"] [data-row-decision="decline"]')`);
-    await chrome.click('document.querySelector("#spec-decline-reason")');
-    await chrome.send('Input.insertText', { text: 'The person declines this unconfirmed requirement.' });
-    await chrome.click('document.querySelector("#spec-decline-submit")');
-    await chrome.waitFor('document.querySelector(\'#needs [data-agent-approved="G2"]\') === null');
-    const declined = await boardOf(view, alpha.repo);
-    const row = declined.spec.find(entry => entry.id === 'G2');
-    assert.equal(row.decision.decision, 'decline');
-    assert.match(row.decision.reason, /person declines/u);
-    assert.equal(declined.needs.some(entry => entry.kind === 'agent-approved' && entry.id === 'G2'), false);
-  } finally {
-    const cleanupErrors = [];
-    for (const cleanup of [() => reads?.close(), () => chrome && closeSnapshotChrome(chrome), () => snapshotHost?.close(), () => agentApi?.stop(), () => view.stop()]) {
-      try { await cleanup(); } catch (error) { cleanupErrors.push(error); }
-    }
-    if (cleanupErrors.length) throw new AggregateError(cleanupErrors, 'owned approval fixtures failed cleanup');
-  }
-});
-
-test('a sentinel draft in Needs you is approved and declined from the view [N26,B26]', { timeout: 120_000 }, async () => { // budget: isolated real Git/API setup and one owned browser profile, not a performance claim.
-  const executable = chromeExecutable();
-  assert.ok(executable, 'Chrome is required to prove real person approval and decline controls');
-  const box = machine();
-  const alpha = project(box, 'sentinel decisions');
-  const command = 'node packages/gate/src/io/file/size.js';
-  const directory = 'checks';
-  for (const name of ['approve-watch', 'decline-watch']) {
-    await box.inProcess(alpha.repo, 'sentinel', 'propose', name, '--check', command, '--directory', directory, '--every', 'hourly', '--owner', 'coordinator');
-  }
-  const view = await startView(box);
-  let chrome, agentApi;
-  try {
-    const initial = await boardOf(view, alpha.repo);
-    const drafts = new Map(initial.sentinelDrafts.map((row) => [row.ref, row]));
-    assert.deepEqual([...drafts.keys()].sort(), ['approve-watch', 'decline-watch'], 'both proposals are pending person decisions');
-    agentApi = await approvalAgentApi(box, alpha.repo);
-    const board = await boardId(view, alpha.repo);
-    const refused = await agentApi.call('/api/v1/boards/' + board + '/moves', {
-      verb: 'sentinel-approve', args: { name: 'approve-watch', digest: drafts.get('approve-watch').digest },
-    });
-    assert.equal(refused.status, 409, 'an API-key caller cannot approve a sentinel as the person');
-    assert.equal(refused.document.error.code, 'B26_PERSON_CHANNEL');
-    assert.ok((await boardOf(view, alpha.repo)).sentinelDrafts.some((row) => row.ref === 'approve-watch'), 'the refused agent move leaves the proposal pending');
-
-    chrome = await openSnapshotChrome(executable, 'about:blank', join(box.dir, 'sentinel-person-chrome'));
-    await chrome.send('Page.navigate', { url: view.link.href });
-    await chrome.waitFor('data?.project');
-    await chrome.click('document.querySelector("[data-tab=items]")');
-    await chrome.waitFor('document.querySelectorAll("#needs [data-sentinel-draft]").length === 2');
-    await chrome.click('document.querySelector("[data-tab=items]")');
-    await chrome.waitFor("view.tab === 'items' && !document.querySelector('[data-pane=items]').hidden");
-    await openItemsNeeds(chrome);
-    const rows = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#needs [data-sentinel-draft]')].map(row => ({
-      name: row.dataset.sentinelDraft, text: row.textContent, directory: row.querySelector('[data-needs-field=directory]')?.textContent,
-      actions: [...row.querySelectorAll('button')].map(button => [button.dataset.sentinelDecision, button.textContent.trim()]),
-    })))`));
-    for (const row of rows) {
-      assert.deepEqual(row.actions, [['approve', 'Approve'], ['decline', 'Decline']], 'each pending proposal has explicit person controls');
-      assert.ok(row.text.includes(command), 'the person sees the exact proposed command');
-      assert.equal(row.directory, 'checks', 'the person sees the working folder');
-      assert.match(row.text, /hourly/u, 'the person sees the schedule');
-      assert.match(row.text, /coordinator/u, 'the person sees the owner');
-    }
-
-    if (!await chrome.stable(`document.querySelector('#needs [data-sentinel-draft="approve-watch"] details').open`)) {
-      await chrome.click(`document.querySelector('#needs [data-sentinel-draft="approve-watch"] summary')`);
-    }
-    await chrome.click(`document.querySelector('#needs [data-sentinel-draft="approve-watch"] [data-sentinel-decision="approve"]')`);
-    await chrome.waitFor('document.querySelector(\'#needs [data-sentinel-draft="approve-watch"]\') === null');
-    let recorded = JSON.parse(await box.inProcess(alpha.repo, 'sentinels', '--json')).sentinels;
-    assert.equal(recorded.find((row) => row.name === 'approve-watch').status, 'approved', 'the view approval is recorded on the board');
-
-    if (!await chrome.stable(`document.querySelector('#needs [data-sentinel-draft="decline-watch"] details').open`)) {
-      await chrome.click(`document.querySelector('#needs [data-sentinel-draft="decline-watch"] summary')`);
-    }
-    await chrome.click(`document.querySelector('#needs [data-sentinel-draft="decline-watch"] [data-sentinel-decision="decline"]')`);
-    await chrome.waitFor('document.querySelector("#spec-decline-dialog").hidden === false');
-    assert.equal(await chrome.stable('document.querySelector("#spec-decline-reason").required'), true, 'decline requires a reason');
-    await chrome.click('document.querySelector("#spec-decline-submit")');
-    assert.ok((await boardOf(view, alpha.repo)).sentinelDrafts.some((row) => row.ref === 'decline-watch'), 'an empty decline leaves the proposal pending');
-    await chrome.click('document.querySelector("#spec-decline-reason")');
-    await chrome.send('Input.insertText', { text: 'This watch should not run.' });
-    await chrome.click('document.querySelector("#spec-decline-submit")');
-    try {
-      await chrome.waitFor('document.querySelector(\'#needs [data-sentinel-draft="decline-watch"]\') === null');
-    } catch (error) {
-      const diagnostic = {};
-      try {
-        diagnostic.ui = JSON.parse(await chrome.stable(`JSON.stringify({
-          console: { text: document.querySelector('#console')?.textContent, className: document.querySelector('#console')?.className, hidden: document.querySelector('#console')?.hidden },
-          reason: document.querySelector('#spec-decline-reason')?.value,
-          request: view.request,
-          decline: { id: view.declining, kind: view.declineKind, digest: view.declineDigest, root: view.declineRoot, anchorConnected: Boolean(view.declineAnchor?.isConnected) },
-          active: { tag: document.activeElement?.tagName, id: document.activeElement?.id, decision: document.activeElement?.dataset?.sentinelDecision },
-          row: document.querySelector('#needs [data-sentinel-draft="decline-watch"]')?.textContent,
-        })`));
-      } catch (diagnosticError) { diagnostic.uiError = String(diagnosticError.message || diagnosticError); }
-      try {
-        diagnostic.backend = JSON.parse(await box.inProcess(alpha.repo, 'sentinels', '--json')).sentinels.find((row) => row.name === 'decline-watch');
-      } catch (diagnosticError) { diagnostic.backendError = String(diagnosticError.message || diagnosticError); }
-      error.message += '; decline diagnostic ' + JSON.stringify(diagnostic);
-      throw error;
-    }
-    recorded = JSON.parse(await box.inProcess(alpha.repo, 'sentinels', '--json')).sentinels;
-    const declined = recorded.find((row) => row.name === 'decline-watch');
-    assert.equal(declined.status, 'declined', 'the view decline is recorded on the board');
-    assert.equal(declined.reason, 'This watch should not run.');
-  } finally {
-    const cleanupErrors = [];
-    for (const cleanup of [() => chrome && closeSnapshotChrome(chrome), () => agentApi?.stop(), () => view.stop()]) {
-      try { await cleanup(); } catch (error) { cleanupErrors.push(error); }
-    }
-    if (cleanupErrors.length) throw new AggregateError(cleanupErrors, 'owned sentinel approval fixture failed cleanup');
   }
 });

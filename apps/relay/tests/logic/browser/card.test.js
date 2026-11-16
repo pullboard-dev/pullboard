@@ -41,7 +41,8 @@ test('the HTTP-served browser module import closure includes the SSE transport a
     assert.equal(response.status, 200, path + ' resolves through the real browser asset handler');
     assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
     assert.match(response.headers.get('content-security-policy') ?? '', /default-src 'none'/u);
-    assert.match(response.headers.get('content-type') ?? '', /javascript/u);
+    // A JSON module (an import with { type: 'json' }) is served as JSON; every other module as JavaScript [H5,H15].
+    assert.match(response.headers.get('content-type') ?? '', path.endsWith('.json') ? /application\/json/u : /javascript/u);
     const source = await response.text();
     for (const match of source.matchAll(/\b(?:import\s+(?:[^'";]+?\s+from\s+)?|export\s+(?:\*|\{[^}]*\})\s+from\s*)['"]([^'"]+)['"]/gu)) {
       const specifier = match[1];

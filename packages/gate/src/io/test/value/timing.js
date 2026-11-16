@@ -7,6 +7,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { storeName } from '../../store-names.js';
 
 const RECEIPT_ID = /^[a-f0-9-]{36}$/u;
 const MAX_FILES = 20_000;
@@ -37,7 +38,7 @@ function measuredTest(value) {
 export function readTestValueTimings(store, id) {
   try {
     if (typeof store !== 'string' || !RECEIPT_ID.test(id ?? '')) return null;
-    const file = join(store, 'test-value', `${id}.json`);
+    const file = join(store, 'test-value', storeName(id));
     if (statSync(file).size > MAX_BYTES) return null;
     const bytes = readFileSync(file);
     if (bytes.length > MAX_BYTES) return null;
@@ -66,7 +67,7 @@ export function retainTestValueTimings(store, id, profile) {
     if (Buffer.byteLength(body) > MAX_BYTES) return false;
     const directory = join(store, 'test-value');
     mkdirSync(directory, { recursive: true, mode: 0o700 });
-    writeFileSync(join(directory, `${id}.json`), body, { flag: 'wx', mode: 0o600 });
+    writeFileSync(join(directory, storeName(id)), body, { flag: 'wx', mode: 0o600 });
     return true;
   } catch { return false; }
 }
@@ -85,3 +86,33 @@ export function readFileTimes(root) {
   } catch { return {}; }
 }
 
+
+/** Each file's last measured samples, oldest first, as a census write kept them; none when the record holds none [C7]. */
+export function readFileSamples(root) {
+  try {
+    const value = JSON.parse(readFileSync(fileTimesPath(root), 'utf8'));
+    return Object.fromEntries(Object.entries(value?.samples ?? {}).filter(([, list]) => Array.isArray(list) && list.length && list.every(ms => Number.isFinite(ms) && ms >= 0)));
+  } catch { return {}; }
+}
+
+/**
+ * The record a census writes: only files in `keep` (the tracked test list), each measured file keeping its last two
+ * samples and planned by the lower one. Why: per-file times swing 4-16x with runner load, so one loaded sample would
+ * swell a job, and files gone from main would hold hundreds of planned minutes forever [C7].
+ *
+ * @param {Record<string, number>} files - The record's current plan weights.
+ * @param {Record<string, number[]>} samples - The record's current samples, oldest first.
+ * @param {Record<string, number>} measured - This census's per-file times.
+ * @param {Iterable<string>} keep - Every file the census may keep.
+ * @returns {{ version: 1, files: Record<string, number>, samples: Record<string, number[]> }}
+ */
+export function censusFileTimes(files, samples, measured, keep) {
+  const record = { version: 1, files: {}, samples: {} };
+  for (const file of new Set(keep)) {
+    const ms = measured[file], prior = samples[file]?.at(-1) ?? files[file];
+    const pair = Number.isFinite(ms) ? (Number.isFinite(prior) ? [prior, ms] : [ms]) : samples[file];
+    if (pair) { record.samples[file] = pair; record.files[file] = Math.min(...pair); }
+    else if (Number.isFinite(files[file])) record.files[file] = files[file];
+  }
+  return record;
+}

@@ -155,6 +155,23 @@ test('spec check fails when an approved row names a missing gate [S4]', async (t
   assert.match(text.stdout + text.stderr, /G9 error: gate file test\/proof-gone\.test\.js was removed from the repository/u);
 });
 
+test('approving a row with a missing gate file is refused [S4]', async (t) => {
+  // A gate committed and then removed has a last known home; approving its row would break spec check for every agent (#1276).
+  const box = specBox(t, { specSource: SETUP_SPEC });
+  mkdirSync(join(box.root, 'test'));
+  writeFileSync(join(box.root, 'test/proof-gone.test.js'), 'export {};\n');
+  box.git('add', '-A');
+  box.git('commit', '-q', '-m', 'test: the proof');
+  box.git('rm', '-q', 'test/proof-gone.test.js');
+  box.git('commit', '-q', '-m', 'test: remove the proof');
+  writeFileSync(join(box.root, box.specName), `${SETUP_SPEC}- A3 [draft, must] A rule keeps its proof. | gate: test/proof-gone.test.js\n`);
+  const refused = await box.spec('approve', 'A3');
+  assert.notEqual(refused.status, 0, refused.stdout + refused.stderr);
+  assert.match(refused.stdout + refused.stderr, /GATE_FILE_MISSING.*A3: gate file test\/proof-gone\.test\.js was removed from the repository \(last in /u);
+  // A gate that was never written still approves, so a new project can draft, approve, then write its test.
+  assert.equal((await box.spec('approve', 'A1')).status, 0);
+});
+
 test('a gate test that was never written only warns, so a new project passes [S4]', async (t) => {
   // A gate file that was never committed is a test not written yet: a warning, so the README's example still fits (#809).
   const source = `${SPEC}- G9 [approved, must] A rule keeps its proof. | gate: test/never-written.test.js\n`;

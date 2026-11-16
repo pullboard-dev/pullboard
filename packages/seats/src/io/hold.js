@@ -72,6 +72,23 @@ export function requireCoordinatorHold(board, move, lineage, at) {
 }
 
 /**
+ * Refuse, before a move is queued, a coordinator move this board already knows another computer's hold forbids.
+ * Why: a local-first move applies at once, so without this a shout from a computer that does not hold the coordinator
+ * printed "shouted to all" and was refused only later, at replay, where nobody was looking.
+ *
+ * @param {any} board
+ * @param {{ operation: string, engine: number, holder?: unknown }} move a prepared move, stamped with its sending machine
+ */
+export function requireKnownCoordinatorHold(board, move) {
+  if (!move.holder || !(move.engine >= COORDINATOR_HOLD_ENGINE) || UNHELD_OPERATIONS.has(move.operation)) return;
+  const holder = coordinatorHolder(board);
+  const machine = machineOf(move.holder);
+  if (!holder || !holder.machine || !machine || machine === holder.machine) return;
+  throw new Refused('COORDINATOR_HELD',
+    `this board's coordinator is held by ${holder.label}, so this main checkout cannot act as coordinator; to coordinate from here, run pullboard takeover in this main checkout`);
+}
+
+/**
  * Take this board's coordinator for the linked main checkout that sent the move, recording who held it before.
  * Only a relay-ordered move under a linked main checkout's own coordinator credential can take it.
  *

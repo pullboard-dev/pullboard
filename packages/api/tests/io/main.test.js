@@ -51,11 +51,11 @@ test('clause 1 [P7]: a served board keeps answering after a commit lands that ch
   const { Worker } = await import('node:worker_threads');
   const cell = await import('../../../store/tests/fixtures/cell.js');
   const store = await import('../../../store/index.js');
-  const project = cell.cellProject(t);
+  const project = cell.cellProject(t, { real: true });
   const opened = cell.openCellBoard(project.boardFile);
   let id;
   try { id = store.boardId(opened); } finally { cell.closeCellBoard(opened); }
-  const code = cell.cellRepo(t);
+  const code = cell.cellRepo(t, { real: true });
   code.put('shared.cjs', 'exports.one = () => 1;\n');
   code.put('reader.cjs', "module.exports.check = () => require('./shared.cjs').one();\n");
   code.put('server.mjs', MOVING_SERVER);
@@ -137,7 +137,7 @@ function fixtureBoardId(project) {
 }
 
 test('clause 1 [P7]: a registered board that cannot be read is logged with its code, message and board id, and the refusal names the read failure instead of NO_BOARD (#6158)', async (t) => {
-  const project = cellProject(t);
+  const project = cellProject(t, { real: true });
   const id = fixtureBoardId(project);
   writeFileSync(project.boardFile, 'this is not a SQLite database, so every read of the board fails\n'.repeat(64));
   const logged = [];
@@ -155,7 +155,7 @@ test('clause 1 [P7]: a registered board that cannot be read is logged with its c
 });
 
 test('clause 1 [P7]: a board id no registered board carries still answers NO_BOARD when every board reads (#6158)', async (t) => {
-  const project = cellProject(t);
+  const project = cellProject(t, { real: true });
   fixtureBoardId(project);
   const logged = [];
   t.mock.method(process.stderr, 'write', (chunk) => { logged.push(String(chunk)); return true; });
@@ -170,7 +170,7 @@ test('clause 1 [P7]: a landing that touches only docs or unrelated cells keeps t
   const { join } = await import('node:path');
   const { restartOnCodeMove, servedModuleMoved } = await import('../../../drive/index.js');
   const cell = await import('../../../store/tests/fixtures/cell.js');
-  const code = cell.cellRepo(t);
+  const code = cell.cellRepo(t, { real: true });
   code.put('entry.mjs', "import './served.mjs';\nawait import('./lazy.mjs');\n");
   code.put('served.mjs', 'export const one = 1;\n');
   code.put('lazy.mjs', 'export const lazy = 1;\n');

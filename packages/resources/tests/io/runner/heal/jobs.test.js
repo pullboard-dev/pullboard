@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { temporaryDirectory } from '../../../../../../apps/cli/tests/fixtures/board.js';
+import { temporaryDirectory } from '../../../../../board/tests/fixtures/board.js';
 import { DatabaseSync } from 'node:sqlite';
 import { healLeakedRunner } from '../../../../src/io/runner/heal.js';
 

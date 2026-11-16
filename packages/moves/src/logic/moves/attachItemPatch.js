@@ -1,7 +1,7 @@
 import { itemReviewPolicyEngine } from "../../../../verify/browser.js";
 import { ITEM_PATCH_SUBMIT_ENGINE } from "../../../../state/light.js";
 import { PATCH_FOLLOW_ENGINE } from "../../../../state/light.js";
-import { itemPatchRecords } from "../../../../items/light.js";
+import { itemPatchRecords } from "../../../../items/browser.js";
 /** Native coordinator patch inputs preserve source and author authority [V4,H16]. */
 import { ITEM_PATCH_ENGINE } from "../../../../state/light.js";
 import { ITEM_PATCH_AUTO_ENGINE } from "../../../../state/light.js";

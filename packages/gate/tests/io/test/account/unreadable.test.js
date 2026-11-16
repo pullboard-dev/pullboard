@@ -1,7 +1,7 @@
 /** A test-cache part with unreadable lists never crashes the account [C7]. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { privateFixtureFiles } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../fixtures/child.js';
 import { firstChangedInput } from '../../../../src/io/test/account.js';
 
 test('clause 1: a test-cache part whose files field is not an array reads as an unknown input and never throws [C7]', () => {

@@ -15,22 +15,25 @@ import { itemFileCollisions } from '../../../../../packages/items/index.js';
 import { outsideBuildProblem } from '../../../../../packages/items/index.js';
 import { sayMapSlice } from '../../../../../packages/codemap/index.js';
 import { primaryCheckoutRoot } from '../worktree.js';
-import { requireNoCoordinatorPath } from './add.js';
+import { onTrunk } from '../item/bar.js';
 import { refuseClaimMissingPaths } from '../item/bar.js';
+import { requireNoCoordinatorPath } from '../item/bar.js';
 import { cleanItemFolders } from '../item/folder.js';
 import { claimFolderRefusal } from '../item/folder.js';
 import { claimedFolderProblem } from '../item/folder.js';
 import { openItemFolder } from '../item/folder.js';
+import { trunkBranch } from '../item/folder.js';
+import { offMainHeadRefusal } from '../../../../../packages/moves/index.js';
+import { actOn } from '../board/access.js';
 import {
   MainSpecMerged,
-  actOn,
   claimFreezer,
   claimOrdered,
-  idArg,
   ordered,
-  whoAmI,
   wrongLaneGuidance,
-} from '../entry.js';
+} from '../claim.js';
+import { idArg } from '../context.js';
+import { whoAmI } from '../join.js';
 
 /** Run `pullboard claim` and return its exit code. */
 export async function run(io, { first }) {
@@ -44,13 +47,16 @@ export async function run(io, { first }) {
   // A path missing from main is named before ownership: no lane can build a path that no longer exists (#5709).
   if (filed && !outsideBuildProblem(board, filed)) await refuseClaimMissingPaths(ctx, board, id);
   if (filed && !outsideBuildProblem(board, filed)) requireNoCoordinatorPath(ctx.config, me, { lane: filed.item_lane, title: filed.item_title, criterion: filed.item_criterion,
-    check: filed.item_check, brief: filed.item_brief });
+    check: filed.item_check, brief: filed.item_brief }, { present: onTrunk(ctx.info.root) });
   // A folder problem refuses here, before the move; another seat's live claim is left for the move to refuse (#5766).
   const heldElsewhere = filed && filed.item_owner !== me.id && isHeld(board, filed);
   if (filed && filed.item_lane === me.lane && !heldElsewhere) {
     const folder = await claimFolderRefusal(ctx, board, me, id, { renewing: filed.item_owner === me.id && isHeld(board, filed) });
     if (folder) throw folder;
   }
+  // With claim.refuseOffMainHead on, a new claim in a folder whose HEAD is not on main refuses before the move [C7,#9104].
+  const offMain = filed && !(filed.item_owner === me.id && isHeld(board, filed)) ? offMainHeadRefusal(ctx.info.root, { trunk: trunkBranch(ctx.info.root) }) : null;
+  if (offMain) throw offMain;
   let result;
   for (;;) {
     try {

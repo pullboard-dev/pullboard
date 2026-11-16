@@ -60,9 +60,13 @@ materializer.close();`;
 test('clause 1: the 2 s grace timer is cleared when the worker exits, so no timer outlives an idle worker [A2,C7]', async () => {
   // The child prints `closing` only when, after the worker has exited, no timer is left holding the process.
   const source = `const { startStateMaterializer } = await import(${JSON.stringify(new URL('../../../src/io/state/materializer.js', import.meta.url).href)});
+const { BroadcastChannel } = await import('node:worker_threads');
+const channel = new BroadcastChannel('materializer-idle');
+const up = new Promise((resolve) => { channel.onmessage = () => resolve(); });
 const materializer = startStateMaterializer({ portsModule: ${JSON.stringify(busyPorts('materializer-idle', 0))}, projects: () => [], isMain: true,
   openRevision: () => ({ revision: () => 'r1' }), Refused: class extends Error {} });
-await new Promise((resolve) => setTimeout(resolve, 500));
+await up; // the worker is running: a fresh one needs longer than a fixed sleep to start on a loaded runner
+channel.close();
 materializer.close();
 await new Promise((resolve) => setTimeout(resolve, 500));
 await new Promise((resolve) => setImmediate(resolve));

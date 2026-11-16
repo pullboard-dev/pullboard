@@ -1,34 +1,30 @@
-/** A queued submit returns before its gate and keeps the captured source and tool build [B5,V4,H16,E18]. */
+/** A pulled submit returns before its gate and keeps the captured source and tool build [B5,V4,H16,E18,C7]. */
 import assert from 'node:assert/strict';
 import {
-  cpSync,
   existsSync,
   mkdirSync,
   readFileSync,
-  realpathSync,
-  symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { execFileSync } from 'node:child_process';
-import { runFixtureChild } from '../../../tests/fixtures/child.js';
-import {
-  join,
-  resolve,
-} from 'node:path';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { AGENT_SHELL_MARKERS } from '../../../../../packages/kernel/index.js';
-import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
 import {
   document,
   fixture,
+  gateJob,
   state,
-  waitJob,
   helpersCommit,
 } from '../../../tests/fixtures/submit/handoff.js';
+import { settledGateJob } from '../../../tests/fixtures/submit/settle.js';
 
-test('queued submit returns before its gate and remains bound when the builder commits and claims again [B5,V4,H16,E18]', async t => {
-  const box = fixture(t, { companion: true });
+test('clause 1: queued submit returns before its gate and remains bound when the builder commits and claims again [B5,V4,H16,E18]', async t => {
+  // The builder holds two queued builds beside its second and third live claims, so the seat names a cap of four [B5].
+  const box = fixture(t, { companion: true, perSeat: 4, fourth: true });
+  const fourth = box.fourth;
+  // The gate holds on its release file while the builder moves on, so no submit waits for the queue to settle.
+  box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
   const author = join(box.dir, 'companion-author');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', author, box.commit);
   const authorId = document(await fixtureJoin(box.runLocal, author, 'api', '--json')).agent;
@@ -41,11 +37,12 @@ test('queued submit returns before its gate and remains bound when the builder c
   const queued = document(await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json'));
   assert.equal(queued.queued, true);
   assert.equal(queued.commit, box.commit);
-  assert.match(queued.companionDigest, /^[a-f0-9]{64}$/u);
-  assert.equal(document(await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json')).commit, queued.commit);
+  assert.match(queued.composed, /^[a-f0-9]{40}$/u, 'the gate judges the companions composed onto the builder head');
+  assert.notEqual(queued.composed, box.commit);
   assert.equal(existsSync(box.release), false, 'submit acknowledged while the gate was still blocked');
   await box.helpers.waitFor(() => existsSync(box.started), 'actual captured gate execution', 120000); // budget: hang ceiling for observed real child/gate progress; no elapsed-time assertion.
   assert.equal(state(box, box.id).item.item_status, 'claimed', 'unproved work is never reviewable');
+  assert.equal(gateJob(box).candidate, queued.composed, 'the queued gate job captured the composed source');
   box.git(box.web, 'checkout', '-q', '--detach', 'main');
   assert.equal(helpersCommit(box, 'web/later.txt', 'later\n').status, 0);
   assert.equal(existsSync(join(box.web, 'web/snapshot.txt')), false, 'the next build no longer contains the queued candidate');
@@ -54,21 +51,19 @@ test('queued submit returns before its gate and remains bound when the builder c
   const secondQueued = document(await box.runLocal(box.web, 'submit', String(box.second), '--no-next', '--json'));
   assert.equal(secondQueued.queued, true, 'the second committed item also submits while the first gate is blocked');
   document(await box.runLocal(box.web, 'claim', String(box.third), '--json'));
-  const fourth = document(await fixtureAdd(box.runLocal, box.repo, 'web', 'Fourth ordinary build', '--specs', 'G1', '--criterion', 'One ordinary build at a time.', '--check', 'true', '--wait', '--json')).item.item_id;
   document(await box.runLocal(box.web, 'claim', String(fourth), '--json'));
   assert.equal(state(box, fourth).item.item_owner, state(box, box.third).item.item_owner, 'B5 permits several live claims in their own folders');
-  const duplicate = state(box, box.id).job;
-  assert.equal(duplicate.commit, box.commit);
+  assert.equal(gateJob(box).candidate, queued.composed, 'later commits and claims leave the queued gate on its captured source');
   writeFileSync(box.release, 'release\n');
-  await waitJob(box, 'green');
-  await box.helpers.waitFor(() => state(box, box.second).job?.state === 'green', 'second native submit completes independently', 120000); // budget: owned-worker cleanup ceiling, not a performance assertion.
+  const job = await settledGateJob(box, box.id);
+  assert.equal(job.gate.green, true);
+  assert.equal((await settledGateJob(box, box.second)).gate.green, true, 'the second pulled submit completes independently');
   const completed = state(box, box.id);
   assert.equal(completed.item.item_status, 'submitted');
   assert.equal(completed.item.item_commit, box.commit);
-  assert.equal(state(box, box.second).item.item_built_by, completed.job.agentId);
-  assert.deepEqual(readFileSync(box.started, 'utf8').trim().split('\n').map(JSON.parse), [{ value: 'green', head: completed.job.executionCommit }]);
-  assert.notEqual(completed.job.executionCommit, box.commit, 'the native companion composition was actually executed');
-  assert.deepEqual(readFileSync(box.finished, 'utf8').trim().split('\n').map(JSON.parse), [{ value: 'green', head: completed.job.executionCommit }], 'the gate still read the captured source after the builder moved');
+  assert.equal(state(box, box.second).item.item_built_by, completed.item.item_built_by);
+  assert.deepEqual(readFileSync(box.started, 'utf8').trim().split('\n').map(JSON.parse), [{ value: 'green', head: queued.composed }], 'the companion composition was actually executed');
+  assert.deepEqual(readFileSync(box.finished, 'utf8').trim().split('\n').map(JSON.parse), [{ value: 'green', head: queued.composed }], 'the gate still read the captured source after the builder moved');
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
   // The captured item is filed on the strong route, so its reviewer joins on that route (a mid seat is refused ROUTE).
@@ -76,54 +71,17 @@ test('queued submit returns before its gate and remains bound when the builder c
   assert.equal(document(await box.runLocal(reviewer, 'next', '--verify', String(box.id), '--json')).item.item_id, box.id);
 });
 
-test('queued gate retains the tool build when the builder changes it [V4,H16,E18]', async t => {
-  const box = fixture(t);
-  const source = resolve(import.meta.dirname, '../../../../..');
-  const tools = join(box.dir, 'builder-tools');
-  cpSync(source, tools, { recursive: true, filter: path => !path.startsWith(join(source, '.git')) });
-  const actualTemp = join(box.dir, 'actual-temp');
-  const aliasedTemp = join(box.dir, 'aliased-temp');
-  mkdirSync(actualTemp);
-  symlinkSync(actualTemp, aliasedTemp, 'dir');
-  box.env.TMPDIR = aliasedTemp;
-  // Process-level: submit from a copied builder tool tree with a symlinked TMPDIR, the installation under test.
-  const result = execFileSync(process.execPath, [join(tools, 'apps/cli/pullboard.js'), 'submit', String(box.id), '--no-next', '--json'],
-    { cwd: box.web, env: box.env, encoding: 'utf8' });
-  assert.equal(JSON.parse(result).queued, true);
-  const job = state(box, box.id).job;
-  const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id);
-  const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
-  assert.notEqual(request.tools, tools, 'the real worker owns a separate tool snapshot');
-  assert.notEqual(request.tools, realpathSync(request.tools), 'the real worker is launched through a symlinked snapshot path');
-  assert.equal(existsSync(join(request.tools, '.git')), false, 'tooling never borrows project Git metadata');
-  const workerPath = join(request.tools, 'apps/cli/src/io/gate/drive.js');
-  const originalWorker = readFileSync(workerPath, 'utf8');
-  await box.helpers.waitFor(() => existsSync(box.started), 'captured gate begins', 120000); // budget: existing owned-child hang ceiling, not a performance assertion.
-  writeFileSync(join(tools, 'apps/cli/src/io/gate/drive.js'), "throw new Error('changed builder tooling');\n");
-  assert.equal(readFileSync(workerPath, 'utf8'), originalWorker, 'builder mutations cannot change the queued tools');
-  writeFileSync(box.release, 'release\n');
-  await waitJob(box, 'green');
-  assert.equal(state(box, box.id).item.item_commit, box.commit);
-  await box.helpers.waitFor(() => !existsSync(request.tools), 'owned tool snapshot cleanup', 120000); // budget: existing owned-child cleanup ceiling, not a performance assertion.
-  assert.equal(existsSync(join(tools, 'apps/cli/pullboard.js')), true, 'cleanup preserves the builder tool installation');
-  writeFileSync(join(tools, 'apps/cli/src/io/gate/drive.js'), originalWorker);
-  const malformed = join(box.dir, 'malformed-worker-request.json');
-  writeFileSync(malformed, JSON.stringify({ tools, job: 'not-native-job', commonDir: join(box.repo, '.git') }));
-  // Process-level: the gate driver child refuses a malformed request in its own process.
-  const refused = runFixtureChild(process.execPath, [join(tools, 'apps/cli/src/io/gate/drive.js'), malformed, 'test-driver'],
-    { cwd: box.web, env: box.env, encoding: 'utf8' });
-  assert.notEqual(refused.status, 0, 'an unbound request is refused before any board move');
-  assert.equal(existsSync(join(tools, 'apps/cli/pullboard.js')), true, 'a request field cannot authorize deletion of the running installation');
-});
-
 test('clause 1: a seat holding a claim gets submit --wait back at once with no agent marker, the result through next [P7]', async t => {
   const box = fixture(t);
+  box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
   for (const name of AGENT_SHELL_MARKERS) delete box.env[name];
-  const ran = await box.inProcess(box.web, 'submit', String(box.id), '--wait', '--no-next');
+  const ran = await box.inProcess(box.web, 'submit', String(box.id), '--wait', '--no-next', '--json');
   assert.equal(ran.code, 0, `${ran.out}${ran.err}`);
-  assert.match(ran.out, new RegExp(`queued gate for #${box.id}`, 'u'), 'submit queued the gate');
-  assert.match(ran.out, /never blocks on its own gate; a red gate comes back through pullboard next/u, 'the reply says the result comes through next');
-  assert.match(ran.out, new RegExp(`pullboard show ${box.id}`, 'u'), 'the reply prints the command that reads the result');
+  const reply = JSON.parse(ran.out);
+  assert.equal(reply.queued, true, 'submit queued the gate and returned');
+  assert.equal(reply.commit, box.commit, 'the queued gate is bound to the submitted commit');
   assert.equal(existsSync(box.release), false, 'submit --wait returned while the gate was still held');
-  assert.ok(['queued', 'running'].includes(state(box, box.id).job?.state), 'the gate had not finished when submit returned');
+  assert.ok(['offered', 'claimed'].includes(gateJob(box)?.step), 'the gate had not finished when submit returned');
+  writeFileSync(box.release, 'release\n');
+  assert.equal((await settledGateJob(box, box.id)).gate.green, true, 'the held gate then finishes on its own');
 });

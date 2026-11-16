@@ -38,7 +38,7 @@ export function personNeedsSummaryWith(root, { board, config, agents, doctrine }
   return { ...projected, relayHealthAlerts, needs: [...projected.needs, ...relayHealthAlerts] };
 }
 
-/** The person's blocks from the last day, by the board's clock, for Needs you [C6]. */
+/** The person's blocks from the last day, by the board's clock, for Rulings [C6]. */
 export function recentBlocks(commonDir, board) {
   return personBlockWords(commonDir, (board?.clock ?? store.systemClock).now());
 }

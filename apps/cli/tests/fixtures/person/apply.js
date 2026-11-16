@@ -137,7 +137,8 @@ export async function optionalPasskeyApply(t, { throughCli = false, fabricatedMe
     // An unlinked CLI has no relay to vouch for the stamp, so the decision this process attested does not apply there:
     // only the relay's own answer counts, never a key stored on the board (#408). The linked apply is in team.test.js.
     const before = readFileSync(specFile, 'utf8');
-    const applied = await box.cli('spec', 'apply');
+    // A real child process, never the in-process runner: it would share this test's attested-authority memory and vouch for the stamp.
+    const applied = await box.cliWithSnapshotTrace(1, 'spec', 'apply');
     assert.equal(applied.code, 1, JSON.stringify(applied.document));
     assert.equal(applied.document.error.code, 'MISSING_SIGNATURE', 'the unverified passkey approval is not applied');
     assert.equal(readFileSync(specFile, 'utf8'), before, 'the row stays a draft');

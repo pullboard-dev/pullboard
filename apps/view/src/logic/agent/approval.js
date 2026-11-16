@@ -2,7 +2,7 @@ import { agentApprovalActionsHtml } from "../needs/actions.js";
 import { specRevisionScript } from "../revision.js";
 /** Render core-projected agent approval calls without inferring who approved a row [S1,B26,P6,N26]. */
 
-/** Embed a Needs-you row renderer that reuses the existing person decision pipeline. */
+/** Embed a Rulings row renderer that reuses the existing person decision pipeline. */
 export function agentApprovalScript() {
   return `
 const agentApprovalActionsHtml = (${agentApprovalActionsHtml.toString()});
@@ -26,7 +26,7 @@ function agentApprovalRow(row) {
     + '<p class="approval-gate">Gate: ' + esc(source?.gate || 'No gate recorded') + '</p>' + agentApprovalAttribution(approval)
     + '<p>Commit: ' + (commit ? '<button class="hash-copy" type="button" title="' + esc(commit) + '" aria-label="Copy full hash ' + esc(commit) + '" data-copy="' + esc(commit) + '"><code class="inline sha" title="' + esc(commit) + '">' + esc(commit.slice(0, 12)) + '</code></button>' : '<code>unavailable</code>') + '</p>'
     + (feedback ? specFeedback(feedback) : '')
-    + '<div class="meta"><span class="why"><b>NEEDS YOU</b> agent-approved; confirm or decline this row</span></div>' + agentApprovalActions(row) + '</div></li>';
+    + '<div class="meta"><span class="why"><b>RULING</b> agent-approved; confirm or decline this row</span></div>' + agentApprovalActions(row) + '</div></li>';
 }
 ${specRevisionScript()}
 `;

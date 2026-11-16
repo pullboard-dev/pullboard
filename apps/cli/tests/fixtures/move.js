@@ -285,6 +285,17 @@ async function privateHandleCollision(box, root, bobRoot, teamFile, localFile, o
   assertMoveReplay(bobTeamFile, record, record.destinationItemId);
 }
 
+/** Add one ordinary and one private item to a fresh team board and return the private board's file, so the move scenario starts from the same state board.test.js leaves it in [E11,E13,E14,E15]. */
+export async function seedPrivateBoard(box) {
+  const shared = await box.cli('add', box.lane, 'repo item');
+  assert.equal(shared.code, 0, 'ordinary add stays on the linked repo board');
+  const repoBoardId = box.before.tables.board_meta.find(row => row.meta_key === 'board_id').meta_value;
+  await settleRelayCalls(box); // the shared add's background sender may still be talking to the relay
+  const local = await box.cli('add', box.lane, 'private item', '--private');
+  assert.equal(local.code, 0, `private add stays available beside a linked team board: ${JSON.stringify(local.document?.error ?? null)}`);
+  return privateBoardPath(repoBoardId, box.env.PULLBOARD_HOME);
+}
+
 /** Exercise real CLI handles and both move directions beside the original linked-device privacy controls. */
 export async function privateBoardMoves(box, privateFile) {
   Object.assign(box.providerState, {
@@ -303,7 +314,7 @@ export async function privateBoardMoves(box, privateFile) {
   const signedIn = await box.cli('relay', 'on', '--all', '--url', box.origin);
   assert.equal(signedIn.code, 0, 'the real machine sign-in writer records its GitHub login: ' + JSON.stringify(signedIn.document?.error));
   assert.equal(signedIn.document.paired, true, 'existing authenticated protocol enrollment avoids waiting for a new browser pairing');
-  const owner = await box.script(`
+  const owner = await box.scriptLocal(`
     import { relayMachineOwner } from ${JSON.stringify(new URL('../../../../packages/link/index.js', import.meta.url).href)};
     const owner = relayMachineOwner();
     process.stdout.write(JSON.stringify({ account: owner.account, login: owner.login }));

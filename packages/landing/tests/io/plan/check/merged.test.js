@@ -3,18 +3,18 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
+import { privateFixtureFiles } from '../../../../../gate/tests/fixtures/child.js';
 import { cleanGitEnvironment } from '../../../../../git/index.js';
 import { requireLandingPlanCheck } from '../../../../index.js';
 
 const roots = [];
+const INIT = ['init', '-q', '-b', 'main'];
 after(() => { for (const root of roots) rmSync(root, { recursive: true, force: true }); });
 
 /** Run Git in a fixture repository and return the trimmed output. */
@@ -37,9 +37,9 @@ function commit(root, files, message) {
 
 /** An empty repository with one base commit and no cells plan. */
 function fixture() {
-  const root = mkdtempSync(join(tmpdir(), 'merged-engine-check-'));
+  const { root } = privateFixtureFiles('merged-engine-check-');
   roots.push(root);
-  git(root, 'init', '-q', '-b', 'main');
+  git(root, ...INIT);
   commit(root, { 'package.json': '{"type":"module"}\n' }, 'base');
   return root;
 }
@@ -67,9 +67,9 @@ test('landing checks read the recorded numbered leaf despite dirty working bytes
 });
 
 test('an unnumbered engine is refused even without a placement plan [C7]', () => {
-  const root = mkdtempSync(join(tmpdir(), 'merged-engine-no-plan-'));
+  const { root } = privateFixtureFiles('merged-engine-no-plan-');
   roots.push(root);
-  git(root, 'init', '-q', '-b', 'main');
+  git(root, ...INIT);
   const bad = commit(root, {
     'packages/state/src/logic/engines/new-rule-engine.js': "import { unassignedEngine } from './engine-next.js';\nexport const NEW_RULE_ENGINE = unassignedEngine();\n",
   }, 'unnumbered with no plan');

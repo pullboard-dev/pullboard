@@ -15,6 +15,17 @@ import {
 import { findChromeExecutable } from '../../cli/tests/fixtures/relay/browser.js';
 import { ENGINE_VERSION } from '../../../packages/state/index.js';
 
+/**
+ * Move this process's wall clock forward by `ms` for the rest of the test, so native and relay both see that much
+ * elapsed work with no real wait; the clock keeps running and the shift is undone when the test ends.
+ * Why: the claim is that the relay clock follows elapsed time, which a 31 s sleep proved only by being slow.
+ */
+function elapseClock(t, ms) {
+  const realNow = Date.now;
+  Date.now = () => realNow() + ms;
+  t.after(() => { Date.now = realNow; });
+}
+
 /** Issue a real board-scoped token through the fixture's persistent relay-auth database. */
 async function issueToken(box, label) {
   const link = box.readLink();
@@ -476,7 +487,7 @@ test('elapsed fixture wall time never manufactures an approval expiry refusal [H
   const native = nativeRevocations(box, t);
   const token = await issueToken(box, 'approval-elapsed-clock');
   // The old frozen relay clock refuses a real native expiry after thirty seconds of elapsed work.
-  await new Promise(resolveWait => setTimeout(resolveWait, 31_000));
+  elapseClock(t, 31_000);
   const request = await startRevocation(box, native, token.id);
   const posted = box.server.transit.find(record => record.method === 'POST' && record.path === '/api/v1/devices/approvals'
     && JSON.parse(record.request.toString('utf8')).context.id === request.context.id);

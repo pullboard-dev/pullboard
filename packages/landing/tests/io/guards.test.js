@@ -12,15 +12,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { accountedFailures } from '../../index.js';
-import { land } from '../../index.js';
 import { landingWaivers } from '../../index.js';
 import { requireLandingModuleResolution } from '../../index.js';
 import { requireLandingSecretFree } from '../../index.js';
 import { scanLanding } from '../../src/io/scan.js';
-import { landingPorts } from '../../../../apps/cli/tests/fixtures/landing/ports.js';
 import { runShell } from '../../../gate/index.js';
-import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../gate/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 
 /** Build two genuine shell children with distinct TAP accounts and observable working directories. */
 function fixture(t) {
@@ -110,14 +108,10 @@ test('an exit in the configured phase cannot skip the affected phase or earn a w
   assert.equal(accountedFailures(run, root), null);
 });
 
-/** Required provider checks precede real Git, lease, process and board work in each public component entry. */
+/** Required provider checks precede real Git, lease, process and board work in each public component entry; the land entry is gone with the batch step (9069644c61). */
 test('missing landing providers refuse before admission or work can begin [B3,R3,Q1,Q3,C7]', async () => {
   let called = false;
   const untouched = new Proxy({}, { get() { called = true; throw new Error('provider refusal read the board'); } });
-  for (const ports of [undefined, ...['flakeLedger', 'quarantineWaivers', 'observeNativeFailure', 'quarantineVerdictSnapshot',
-    'validateQuarantineGate', 'validateQuarantineLandingProof', 'gateRuns'].map(name => ({ ...landingPorts, [name]: undefined }))]) {
-    await assert.rejects(land({ root: '/missing-landing-provider', board: untouched, landingPorts: ports }), /explicit canonical operation ports/u);
-  }
   assert.throws(() => landingWaivers(untouched), /explicit quarantine reader/u);
   assert.equal(called, false, 'missing providers never read the board or enter the lease callback');
 });

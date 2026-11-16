@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 import { cellLintFiles } from '../../../index.js';
 import { initializeCellLintCellShards } from '../../../index.js';
 import { readCellLintBaseline } from '../../../index.js';

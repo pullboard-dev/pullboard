@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { healDelay } from './runner/heal.js';
 import { healLeakedRunner } from './runner/heal.js';
 import { liveJobIds } from './runner/heal.js';
-import { probeStanding } from '../../../transport/index.js';
+import { probeStanding } from '../../../transport/light.js';
 
 /** Doubts about a runner that only its transport probe settles: one good probe lifts them, two failures 30 s apart quarantine. */
 export const PROBE_DOUBTS = ['CLEANUP_UNVERIFIED', 'TRANSPORT_UNVERIFIED'];

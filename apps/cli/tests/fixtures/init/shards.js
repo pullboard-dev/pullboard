@@ -62,7 +62,7 @@ if (!remoteCommand) process.exit(0);
 const dropFlag = ${JSON.stringify(dropOnce ?? '')};
 const drop = Boolean(dropFlag);
 const env = { PATH: process.env.PATH, HOME: ${JSON.stringify(home)}, TMPDIR: process.env.TMPDIR,
-  PULLBOARD_HOME: ${JSON.stringify(home)}, PULLBOARD_MACHINE_HOME: ${JSON.stringify(machineHome)}, LANG: 'C', LC_ALL: 'C', TZ: 'UTC' };
+  PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: ${JSON.stringify(home)}, PULLBOARD_MACHINE_HOME: ${JSON.stringify(machineHome)}, LANG: 'C', LC_ALL: 'C', TZ: 'UTC' };
 const child = spawn('/bin/sh', ['-c', remoteCommand], { cwd: ${JSON.stringify(worker)}, env, detached: true, stdio: ['pipe', 'pipe', 'pipe'] });
 child.stdout.pipe(process.stdout);
 child.stderr.pipe(process.stderr);
@@ -132,7 +132,7 @@ export function fixture({ runner = true, repoNames = ['repo'] } = {}) {
   for (const folder of [home, machineHome, remoteHome, remoteMachineHome, worker, bin, markers, ...repos.map(path => join(path, 'test'))]) mkdirSync(folder, { recursive: true });
   writeFileSync(join(machineHome, 'settings.json'), JSON.stringify({ gateSlots: 2, browserSlots: 2 }));
   const env = {
-    ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
+    ...process.env, HOME: home, PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: machineHome,
     PATH: `${bin}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Landing Shards Fixture', GIT_AUTHOR_EMAIL: 'landing-shards@example.invalid',
     GIT_COMMITTER_NAME: 'Landing Shards Fixture', GIT_COMMITTER_EMAIL: 'landing-shards@example.invalid',

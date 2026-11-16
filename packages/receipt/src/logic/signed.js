@@ -7,16 +7,18 @@ const KEY = /^[A-Za-z0-9_-]{59}$/u;
 const SIGNATURE = /^[A-Za-z0-9_-]{86}$/u;
 
 /**
- * The exact text a runner signs for one result file: the job, the shard, the tree it ran and the file's digest.
+ * The exact text a runner signs for one result file: the job, shard, tree, digest, base, tooling pin, command and attempt.
  *
- * Why: signing the names with the digest stops a good result for one job, shard or tree being posted as another.
+ * Why: every field is length-prefixed (`<bytes>:<value>`), so no two field lists concatenate to the same text, and the
+ * base, tooling, command and attempt stop a good result being replayed for another attempt, base, pin or command.
  * Any runner can build it with sha256 and an Ed25519 signer; the reference pull runner in transport builds the same.
  *
- * @param {{ job: string, shard: string, tree: string, digest: string }} fields
+ * @param {{ job: string, shard: string, tree: string, digest: string, base?: string, tooling?: string, command?: string, attempt?: string | number }} fields
  * @returns {string}
  */
-export function resultStatement({ job, shard, tree, digest }) {
-  return `PBSIGNED 1 ${job} ${shard} ${tree} ${digest}`;
+export function resultStatement({ job, shard, tree, digest, base = '', tooling = '', command = '', attempt = '' }) {
+  const field = value => `${Buffer.byteLength(String(value))}:${value}`;
+  return ['PBSIGNED 2', job, shard, tree, digest, base, tooling, command, attempt].map(field).join('\n');
 }
 
 /**
@@ -35,10 +37,10 @@ export function runnerKeyId(publicKey) {
  * Why (DJ31): the board trusts a verdict from a sandbox it does not trust only through the runner's key, so an
  * unsigned, wrongly signed or key-less result is an infrastructure outcome to rerun, never a red.
  *
- * @param {{ bytes: Buffer, signature?: string, publicKey?: string, job: string, shard: string, tree: string }} posted
+ * @param {{ bytes: Buffer, signature?: string, publicKey?: string, job: string, shard: string, tree: string, base?: string, tooling?: string, command?: string, attempt?: string | number }} posted
  * @returns {{ valid: true, digest: string, keyId: string } | { valid: false, outcome: 'infra', code: 'import.invalid', reason: string }}
  */
-export function checkSignedResult({ bytes, signature, publicKey, job, shard, tree }) {
+export function checkSignedResult({ bytes, signature, publicKey, job, shard, tree, base, tooling, command, attempt }) {
   const invalid = reason => ({ valid: false, outcome: 'infra', code: 'import.invalid', reason });
   if (!Buffer.isBuffer(bytes)) return invalid('the result file is missing');
   if (typeof publicKey !== 'string' || !KEY.test(publicKey)) return invalid('the board holds no registered key for this runner');
@@ -49,7 +51,7 @@ export function checkSignedResult({ bytes, signature, publicKey, job, shard, tre
   try { key = createPublicKey({ key: Buffer.from(publicKey, 'base64url'), format: 'der', type: 'spki' }); }
   catch { return invalid('the registered runner key does not parse'); }
   if (key.asymmetricKeyType !== 'ed25519') return invalid('the registered runner key is not Ed25519');
-  const statement = Buffer.from(resultStatement({ job, shard, tree, digest }));
+  const statement = Buffer.from(resultStatement({ job, shard, tree, digest, base, tooling, command, attempt }));
   if (!verify(null, statement, key, Buffer.from(signature, 'base64url'))) return invalid('the result signature does not match the registered runner key');
   return { valid: true, digest, keyId: runnerKeyId(publicKey) };
 }

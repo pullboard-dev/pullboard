@@ -2,6 +2,7 @@ import { activeViewAgents } from "../logic/summary/state.js";
 import { viewProofSummary } from "../logic/summary/state.js";
 import { compactItemSummaries } from "../logic/summary/state.js";
 import { viewFlowSummary } from "../logic/summary/state.js";
+import { projectSummary } from "../logic/summary/project.js";
 import { modelPresentation } from "./cost/tab.js";
 import { noLinkPage } from "./no-link.js";
 import { NO_LINK_CSS } from "./no-link.js";
@@ -10,6 +11,10 @@ import { projectItemState } from "../../../../packages/api/index.js";
 import { performanceCores } from "../../../../packages/gate/index.js";
 import { landingPace } from "../../../../packages/roadmap/index.js";
 import { dashboardRecent } from "./dashboard/recent.js";
+import { boardCounts } from "../logic/counts.js";
+import { firstLandings } from "../logic/counts.js";
+import { withReadySplit } from "../logic/counts.js";
+import { machineRead } from "./pipeline/machine.js";
 import { milestoneFocus } from "../../../../packages/roadmap/index.js";
 /** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/stage.css apps/view/src/io/dashboard.css apps/view/src/io/cost.css apps/view/src/io/doctrine.css apps/view/src/io/item/panel.css apps/view/src/io/item/rows.css */
 /**
@@ -90,6 +95,7 @@ import {
 import { fetchLocal } from "../../../../packages/sync/index.js";
 import { Refused } from "../../../../packages/kernel/index.js";
 import { relayLinkAvailability } from "../../../../packages/link/index.js";
+import { relayMachineContext } from "../../../../packages/link/index.js";
 import { personNeeds } from "../../../../packages/spec/index.js";
 import { rigorDraftNeeds } from "../../../../packages/rigor/index.js";
 import { sentinelDraftNeeds } from "../../../../packages/sentinels/index.js";
@@ -200,7 +206,7 @@ export async function exportView(root, directory, { fetchApi = fetchLocal, publi
     try { privateBoard = Boolean(board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key = ?').get('private_repo_board_id')); } finally { store.closeBoard(board); }
   }
   const { serveApi } = source ? {} : await import("../../../../packages/api/index.js");
-  const api = source ? { url: 'http://stand-in.invalid/?k=stand-in', close: async () => {} } : await serveApi({ viewPorts: { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary }, port: 0, projects: () => [registered], runCommand, refusalDocument, boardOpeners });
+  const api = source ? { url: 'http://stand-in.invalid/?k=stand-in', close: async () => {} } : await serveApi({ viewPorts: { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary, projectSummary }, port: 0, projects: () => [registered], runCommand, refusalDocument, boardOpeners });
   let wrote = false;
   try {
     const address = new URL(api.url);
@@ -294,22 +300,98 @@ export async function exportView(root, directory, { fetchApi = fetchLocal, publi
   }
   return { path: output };
 }
+/** The machine's runner and gate lease records, beside its settings file: one place names it, for the Dashboard's runners and the Pipeline page. */
+function machineResourcesFile() { return join(dirname(machineSettingsFile()), 'resources.sqlite'); }
+
 /**
  * The anonymous runner progress /live/data.json carries for this repo's board: Runner 1..N, kinds, item ids, counts,
  * per-file state and minutes left, from this machine's runner leases and settings; nothing that names the machine [N26].
  *
  * @param {string} root
- * @param {{ now?: number }} [options]
+ * @param {{ now?: number, registeredOnly?: boolean }} [options] - registeredOnly: the Dashboard's own read, which lists the registered runners only (#8060).
  */
-export function publicLiveSnapshot(root, { now = Date.now() } = {}) {
+export function publicLiveSnapshot(root, { now = Date.now(), registeredOnly = false } = {}) {
   const { commonDir } = repoInfo(root);
   const board = openBoardForRead(join(commonDir, 'pullboard', 'board.sqlite'));
   if (!board) throw new Refused('NO_BOARD', 'no readable board to export; run pullboard init in this repo');
   let privateBoard;
   try { privateBoard = Boolean(board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key = ?').get('private_repo_board_id')); } finally { store.closeBoard(board); }
   // The machine's runner leases sit beside its settings file, in the machine home.
-  return publicLiveRunners(commonDir, { resources: join(dirname(machineSettingsFile()), 'resources.sqlite'), configured: loadMachineSettings().runners ?? [],
-    openBoardReadOnly: store.openBoardReadOnly, now, privateBoard });
+  return publicLiveRunners(commonDir, { resources: machineResourcesFile(), configured: loadMachineSettings().runners ?? [],
+    openBoardReadOnly: store.openBoardReadOnly, now, privateBoard, registeredOnly, jobsFor: runsJobs });
+}
+
+/**
+ * The handle that holds a board's job rows for a read: a read-only runs handle when the board's runs_store flag is on and its
+ * runs file exists, else the board itself [B2,P7]. Why: with the split on, runner traffic no longer writes the board's job table (#9016).
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - A board, read-only.
+ * @param {string} boardFile
+ * @returns {{ jobs: import('node:sqlite').DatabaseSync, close: () => void }}
+ */
+export function runsJobs(db, boardFile) {
+  let on = false;
+  try { on = store.runsStoreOn(db); } catch { /* A board with no board_meta reads off. */ }
+  const file = store.runsFilePath(boardFile);
+  if (!on || !existsSync(file)) return { jobs: db, close() {} };
+  const runs = store.openBoardReadOnly(file);
+  return { jobs: runs, close() { try { runs.close(); } catch { /* Already closed. */ } } };
+}
+
+/**
+ * How many pulled jobs finished on this board in the last four hours, by what the Dashboard's runner card names them:
+ * gates, landings and tests. Why: the card lists runs in flight, so an idle runner that just ran nine jobs read "No runs" (#7945).
+ *
+ * @param {string} commonDir - The board's git common folder.
+ * @param {number} now - The snapshot clock in milliseconds.
+ * @returns {{ gate: number, landing: number, test: number }}
+ */
+export function finishedRuns(commonDir, now) {
+  const count = { gate: 0, landing: 0, test: 0 };
+  const file = store.boardFilePath(commonDir);
+  let db = null;
+  try {
+    if (!existsSync(file)) return count;
+    db = store.openBoardReadOnly(file);
+    // With runs_store on, outcomes are the board's run rows; the job tables are in the runs file (#9016).
+    const split = (() => { try { return store.runsStoreOn(db); } catch { return false; } })();
+    const rows = split
+      ? db.prepare("SELECT run_kind AS kind, COUNT(*) AS n FROM run WHERE run_state = 'done' AND run_updated > ? GROUP BY run_kind").all(now - 4 * 3_600_000)
+      : db.prepare("SELECT job_kind AS kind, COUNT(*) AS n FROM job WHERE job_step = 'done' AND job_updated > ? GROUP BY job_kind").all(now - 4 * 3_600_000);
+    for (const { kind, n } of rows) {
+      const key = { gate: 'gate', 'gate-shard': 'gate', land: 'landing', landing: 'landing', test: 'test', 'main-test': 'test' }[kind];
+      if (key) count[key] += Number(n);
+    }
+  } catch { /* A board with no job table or no readable file has finished nothing to show. */ } finally { try { db?.close(); } catch { /* Already closed. */ } }
+  return count;
+}
+
+/** The last runner read per board, so a burst of state reads opens the machine's lease records once. */
+const runnerReads = new Map();
+
+/**
+ * The Dashboard's runner card (#6847): the same anonymous runner progress /live/data.json carries, read at most once
+ * every fifteen seconds per board. A machine with no runner records, or one that cannot be read now, shows none.
+ *
+ * @param {string} root - The board's checkout root.
+ * @param {string} commonDir - The board's git common folder, which keys the kept read.
+ * @param {number} now - The snapshot clock in milliseconds.
+ * @returns {{ runners: object[], runs: object[] } | null}
+ */
+function dashboardRunners(root, commonDir, now) {
+  const kept = runnerReads.get(commonDir);
+  if (kept && now >= kept.at && now - kept.at < 15_000) return kept.value;
+  let value = null;
+  try { value = publicLiveSnapshot(root, { now, registeredOnly: true }); } catch { value = null; }
+  // The person's own page names each registered runner (the host without its user) and marks one with no fresh heartbeat offline (#8060).
+  if (value) {
+    const names = [...new Set((loadMachineSettings().runners ?? []).map(runner => runner?.host).filter(host => typeof host === 'string'))].map(host => host.replace(/^.*@/u, ''));
+    value = { ...value, runners: value.runners.map(runner => ({ ...runner, name: names[runner.runner - 1] ?? null, offline: runner.cpu === null && runner.ram === null })) };
+  }
+  // The runs already done sit beside those in flight, so a runner that ran jobs never reads as one that ran none (#7945).
+  if (value) value = { ...value, finished: finishedRuns(commonDir, now) };
+  runnerReads.set(commonDir, { at: now, value });
+  return value;
 }
 
 /** The CLI may offer --public only when this implementation checks every retained export value. */
@@ -424,6 +506,7 @@ function computeRowAges(root, file, head, kind) {
 /**
  * Compute the ages in a worker thread running this module, so the walk never blocks the view's requests.
  * A failed worker resolves to null and the caller keeps what it had.
+ * Why execArgv is empty: a worker inherits the parent's flags, and under `node --input-type=module -e` those cannot start a file worker.
  *
  * @param {string} root
  * @param {string} file
@@ -434,7 +517,7 @@ function computeRowAges(root, file, head, kind) {
 function rowAgesInWorker(root, file, head, kind) {
   return new Promise(done => {
     let worker;
-    try { worker = new Worker(new URL(import.meta.url), { workerData: { rowAges: { root, file, head, kind } } }); }
+    try { worker = new Worker(new URL(import.meta.url), { execArgv: [], workerData: { rowAges: { root, file, head, kind } } }); }
     catch { done(null); return; }
     worker.once('message', rows => done(new Map(rows)));
     worker.once('error', () => done(null));
@@ -532,6 +615,8 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
       // The hero's four-hour counts, so a board whose full history the browser never finishes reading still shows numbers.
       dashboardRecent: dashboardRecent(board, new Map(all.map(item => [item.item_id, item])), now),
       dashboardLanded: fields.dashboardLanded,
+      // The Dashboard's Runners card: this machine's runners, numbered and anonymous as on /live (#6847).
+      dashboardRunners: dashboardRunners(info.root, info.commonDir, now),
       landingBatches: fields.landingBatches,
       agents: store.listAgents(board).map((agent) => ({ ...agent, family: agent.family, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, config.agents.names), lastMoveAt: lastMove.get(agent.agent_id) ?? null })),
       holds: fields.holds,
@@ -542,8 +627,26 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
       products: fields.products,
     });
     const projected = projectSpecRevisions({ ...state, ...derived.late }, derived.rowDrafts, derived.rowDecisions);
-    return { ...projected, needs: personNeeds(projected) };
+    const read = { ...projected, needs: personNeeds(projected) };
+    // One number in one place: every page reads these counts, never its own (#7310).
+    const counts = boardCounts(read, now);
+    // Release and Roadmap read the same ready definition NOW does (#7763).
+    return withReadySplit({ ...read, counts });
   }, providedBoard, boardOpeners);
+}
+
+/**
+ * The items whose current merge was recorded in the last 24 hours, each with its commit: what the Dashboard's landing
+ * bars and lists match against its events. The older landings are not listed; the page counts them from its items.
+ *
+ * @param {any} board
+ * @param {any[]} all Every item row.
+ * @param {number} now
+ * @returns {{ id: number, commit: string, at: number }[]}
+ */
+function recentLandings(board, all, now) {
+  const landed = new Map(all.filter(item => item.item_merged_commit).map(item => [item.item_id, item.item_merged_commit]));
+  return firstLandings(landed, store.eventsOfKinds(board, ['merged'])).filter(entry => entry.at > now - 24 * 3_600_000);
 }
 
 /**
@@ -559,7 +662,7 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
  */
 function derivedState(board, info, config, { all, head, doctrine, specAges, doctrineAges, now }) {
   const rows = (file, ages) => loadSpec(info.root, { ...config, spec: file }).rows.map(({ id, status: state, tier, text, gate, serves, section }) => ({
-    id, status: state, tier, text, gate, serves, section, added: ages.get(id) ?? 0,
+    id, status: state, tier, text: store.readableRigorText(text), gate, serves, section, added: ages.get(id) ?? 0,
     gateFiles: gate ? gate.split(',').map(value => value.trim()).filter(Boolean).map(name => {
       const path = resolve(info.root, name);
       const inside = !isAbsolute(name) && !relative(info.root, path).split(/[\\/]/u).includes('..');
@@ -585,8 +688,8 @@ function derivedState(board, info, config, { all, head, doctrine, specAges, doct
     asked: store.openDecisions(board).filter((ask) => ask.shout_to !== store.PERSON),
     events: store.recentEvents(board, 80),
     dashboardNext: [...all].filter(item => item.item_status === 'open').sort(store.buildOrder(board)).map(item => item.item_id),
-    dashboardLanded: all.filter(item => item.item_merged_commit)
-      .map(item => ({ id: item.item_id, commit: item.item_merged_commit, reviewer: item.item_verified_by })),
+    // Only the landings the Dashboard draws (the last 24 hours): every older landing is an item whose stage the page already holds (#6666).
+    dashboardLanded: recentLandings(board, all, now),
     landingBatches: store.landingBatches(board).filter(batch => !['landed', 'blocked'].includes(batch.state))
       .map(batch => ({ startedAt: batch.startedAt, items: (batch.items || []).map(entry => ({ id: entry.id })) })),
     holds: store.laneHolds(board),
@@ -643,7 +746,7 @@ const derivedKept = new Map();
  * @param {object} [options]
  * @returns {any}
  */
-function liveProjectState(root, options = {}) {
+export function liveProjectState(root, options = {}) {
   return projectState(root, { ...options, rowAgesLater: true });
 }
 
@@ -730,7 +833,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
   const { startViewSignIn, viewSignInStatus, viewSignInPairingNavigation, cancelViewSignIn } = await import("../../../../packages/link/index.js");
   const signIns = new Set();
   const signInLifetime = new AbortController();
-  const apiHandler = createLocalApiHandler({ viewPorts: { projectState: liveProjectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary }, statePorts, secret, getPort: () => bound, runCommand, stateDetail: 'summary', refusalDocument, costModelPresentation: modelPresentation, boardOpeners, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT },
+  const apiHandler = createLocalApiHandler({ viewPorts: { projectState: liveProjectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary, projectSummary }, statePorts, secret, getPort: () => bound, runCommand, stateDetail: 'summary', refusalDocument, costModelPresentation: modelPresentation, boardOpeners, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT },
     allowedOrigins: lan ? [] : [HOSTED_ORIGIN], allowedHosts: lan ? [address] : [],
     sessionCookie: { name: cookieName, value: session }, ...(projectRoot === undefined ? {} : { scope: { projectRoot } }) });
   const reply = (res, code, type, body, headers = {}) => {
@@ -849,6 +952,21 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
     }
   }
 
+  /** This machine's CPU by part, gate workers, queues and runner slots for the Pipeline page, behind the same key as the rest of the API. */
+  async function machineRequest(req, res, url) {
+    const given = Buffer.from(String(req.headers['x-pullboard-key'] ?? ''));
+    if ((!credentialMatches(given, key) && !cookieMatches(req)) || url.search || req.headers.authorization !== undefined) {
+      return json(res, 403, refusalDocument(new Refused('VIEW_SIGN_IN_AUTH', 'open this view and send its session key in the x-pullboard-key header only')));
+    }
+    if (req.method !== 'GET') return json(res, 405, refusalDocument(new Refused('BAD_REQUEST', 'read this machine with a GET')));
+    const home = dirname(machineSettingsFile());
+    try {
+      return json(res, 200, { version: 1, machine: await machineRead({ resourcesFile: machineResourcesFile(), queueDirectory: join(home, 'handoff-queue'), repoRoot: home }) });
+    } catch {
+      return json(res, 200, { version: 1, machine: null });
+    }
+  }
+
   /** Run only the existing person-channel adapter, with per-view intent ownership and header authentication. */
   async function sharingRequest(req, res, url) {
     const given = Buffer.from(String(req.headers['x-pullboard-key'] ?? ''));
@@ -856,7 +974,12 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
       return json(res, 403, refusalDocument(new Refused('VIEW_SIGN_IN_AUTH', 'open the view link and send its session key in the x-pullboard-key header only')));
     }
     try {
-      if (req.method === 'GET') return json(res, 200, { version: 1, available: sharingAvailable() });
+      if (req.method === 'GET') {
+        // Whether any board is linked, and as whom: the account control's initial and menu. The login is display text only.
+        const linked = listApiProjects().filter(project => relayLinkAvailability(project.root).linked);
+        const login = linked.map(project => relayMachineContext(project.root)?.login).find(name => typeof name === 'string' && name) || '';
+        return json(res, 200, { version: 1, available: sharingAvailable(), linked: linked.length > 0, login });
+      }
       if (req.method !== 'POST') return json(res, 405, refusalDocument(new Refused('VIEW_SIGN_IN_METHOD', 'use GET for the invitation or a JSON POST for sign-in')));
       if (projectRoot !== undefined) throw new Refused('VIEW_SIGN_IN_SCOPE', 'open the full machine view to link every registered board');
       const body = await sharingBody(req);
@@ -942,6 +1065,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
         return json(res, 403, { error: 'from https://app.pullboard.dev, send the session secret in the x-pullboard-key header only' });
       }
       if (url.pathname === '/api/v1/view-link') return sharingRequest(req, res, url);
+      if (url.pathname === '/api/v1/machine') return machineRequest(req, res, url);
       if (projectRoot === undefined && url.pathname === '/api/v1/projects/forget-unreadable') return forgetUnreadableRequest(req, res, url);
       return apiHandler(req, res);
     }
@@ -969,7 +1093,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
     }
     try {
       // The board, and the Roadmap at its own address (N38), are the one page.
-      if (req.method === 'GET' && (url.pathname === '/' || /^\/(?:[^/]+\/)?(?:dashboard|home|items|shouts|spec|doctrine|activity|roadmap|cost|settings)(?:\/[^/]+)?$/.test(url.pathname))) return asset(req, res, 'text/html; charset=utf-8', renderPage('', { paths: true, apiHeaders: {}, stylesheet: '/view.css', costPrices: loadMachineSettings().costPrices ?? null }));
+      if (req.method === 'GET' && (url.pathname === '/' || /^\/(?:[^/]+\/)?(?:progress|dashboard|home|items|shouts|spec|doctrine|activity|pipeline|roadmap|cost|settings)(?:\/[^/]+)?$/.test(url.pathname))) return asset(req, res, 'text/html; charset=utf-8', renderPage('', { paths: true, apiHeaders: {}, stylesheet: '/view.css', costPrices: loadMachineSettings().costPrices ?? null }));
       if (req.method === 'GET' && url.pathname === '/view.css') return asset(req, res, 'text/css; charset=utf-8', VIEW_CSS);
       return json(res, 404, { error: 'no such page' });
     } catch (error) {

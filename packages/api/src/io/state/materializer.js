@@ -3,8 +3,10 @@
  * from the board's new events, while the request thread serves the latest materialized text [A2,C7]. Why a
  * thread: a build on a large board takes seconds, and on the request thread every read behind it waited. Each
  * record carries the board's cheap state revision from before its build. A read whose board still has that revision
- * joins the materialized JSON around its own unread count and starts nothing, with the clock readings restamped from the held text; a read after a change waits for the build that
- * extends the last one with it, so a read never serves state from before a write it follows [A2,C7].
+ * joins the materialized JSON around its own unread count and starts nothing, with the clock readings restamped from the held text; a plain read after a change waits for the build that
+ * extends the last one with it, so it never serves state from before a write it follows [A2,C7]. A page's reads, its
+ * kept first load and its deltas, never wait once the board has a record: they take the last one, and the page hears
+ * when the build that catches up lands (#6850).
  */
 import { Worker } from 'node:worker_threads';
 
@@ -16,7 +18,7 @@ const CLOSE_GRACE_MS = 2_000;
 const HELD_SEQUENCES = 24;
 
 /** The error a worker reported, as a Refused when it was one, so a refusal still reaches the caller by name. */
-function workerError(error, Refused) {
+export function workerError(error, Refused) {
   if (error?.name === 'Refused' && typeof error.code === 'string') {
     const prefix = `[${error.code}] `;
     return new Refused(error.code, String(error.message).startsWith(prefix) ? String(error.message).slice(prefix.length) : String(error.message), error.next);
@@ -103,7 +105,7 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
   function boardEntry(board) {
     const key = board.id + '\0' + board.root;
     let entry = boards.get(key);
-    if (!entry) boards.set(key, entry = { key, board: { id: board.id, root: board.root }, record: null, inflight: null, again: false, full: false, waiters: [], held: new Map(), timer: null, watcher: null, wanted: null });
+    if (!entry) boards.set(key, entry = { key, board: { id: board.id, root: board.root }, record: null, inflight: null, again: false, full: false, waiters: [], held: new Map(), timer: null, watcher: null, wanted: null, behind: false, notices: 0, listeners: new Set() });
     return entry;
   }
   /** The board's state revision now, or null when it cannot be read: a null never matches, so the read waits for a build. */
@@ -131,13 +133,14 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
   }
   /**
    * Settle every waiting read the record satisfies: one built from a request sent after the read, so it saw what the
-   * read saw, or a restored one saved at the very revision the read found.
+   * read saw, or a restored one saved at the very revision the read found. A kept read takes any record, a restored one
+   * too: it only waited because the board had none (#6850).
    */
   function settle(entry, id) {
     const waiting = entry.waiters;
     entry.waiters = [];
     for (const waiter of waiting) {
-      const fresh = id === undefined ? waiter.revision !== null && entry.record.revision === waiter.revision : id > waiter.after;
+      const fresh = waiter.kept || (id === undefined ? waiter.revision !== null && entry.record.revision === waiter.revision : id > waiter.after);
       if (fresh && (!waiter.full || entry.record.full)) waiter.ok(entry.record);
       else entry.waiters.push(waiter);
     }
@@ -151,6 +154,12 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
       if (!message.restored && message.id === entry.inflight) entry.inflight = null;
       settle(entry, message.restored ? undefined : message.id);
       onRecord?.({ board: entry.board.id, restored: Boolean(message.restored), sequence: message.record.sequence });
+      // A read was answered from an older build: tell the board's followers this one landed, so the page reads its delta.
+      if (entry.behind && !message.restored) {
+        entry.behind = false;
+        entry.notices += 1;
+        for (const listener of [...entry.listeners]) { try { listener(); } catch { /* One follower's failure never stops the others hearing. */ } }
+      }
     } else if (message.type === 'error') {
       if (message.id === entry.inflight) entry.inflight = null;
       const waiting = entry.waiters;
@@ -161,12 +170,12 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
       entry.timer = setTimeout(() => { entry.timer = null; request(entry); }, entry.waiters.length ? 0 : BUILD_GAP_MS);
     }
   });
-  /** Stop serving from the worker for good: every waiting read fails over to the request thread's own build. */
+  /** Stop serving from the worker for good: every waiting read is refused STATE_WORKER_STOPPED by name, as a read after it is, never built on the request thread and never a generic service error [A2,C7]. */
   function stopped(error) {
     if (failure || closing) return;
     failure = error;
     onFailure?.(error);
-    for (const entry of boards.values()) { for (const waiter of entry.waiters) waiter.fail(error); entry.waiters = []; }
+    for (const entry of boards.values()) { for (const waiter of entry.waiters) waiter.fail(new Refused('STATE_WORKER_STOPPED', 'the state worker stopped, so this read is refused rather than built on the request thread; restart pullboard serve')); entry.waiters = []; }
   }
   worker.on('error', stopped);
   worker.on('exit', (code) => stopped(new Error(`the state worker exited with code ${code}`)));
@@ -175,9 +184,11 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
    * A board's record as of this read: the held one while the board's revision is unchanged, its clock readings restamped to
    * this read with no build started; otherwise the next build, which extends the last one with the change.
    *
-   * A kept read (a page's first load, which then catches up through deltas) takes the held record even after a change,
-   * and starts the build that catches up on it unless one is already on its way. Why: on a board agents write every few
-   * seconds, nearly every first load waited 10-60 s for a build; a kept read follows no write of its reader [A2,C7].
+   * A kept read (a page's first load or delta, which then catches up through the stream) takes the held record even after
+   * a change, and starts the build that catches up on it, or asks for one more after the build already on its way. Only a
+   * board with no record yet waits, and a restored record answers that wait. Why: on a board agents write every few
+   * seconds, every page read waited 15-60 s for a build; the page hears when the catching-up build lands, so it is at
+   * most one build behind [A2,C7].
    */
   function latest(board, { full = false, kept = false } = {}) {
     const entry = boardEntry(board);
@@ -188,10 +199,12 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
     if (usable && kept) {
       if (!full) hold(board, entry.record.sequence);
       entry.wanted = revision;
-      if (entry.inflight === null) request(entry);
+      // An unreadable revision never marks the read behind: its builds never catch up, and each notice would start another.
+      if (revision !== null) entry.behind = true;
+      request(entry);
       return restamped(entry.record, Date.now());
     }
-    const waiting = new Promise((ok, fail) => entry.waiters.push({ ok, fail, full, revision, after: nextId }));
+    const waiting = new Promise((ok, fail) => entry.waiters.push({ ok, fail, full, kept: kept && !full, revision, after: nextId }));
     entry.wanted = revision;
     request(entry);
     return waiting;
@@ -217,13 +230,23 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
       if (!full) hold(board, record.sequence);
       return { json: joined(variant.json, unseen), validator: joined(variant.validator, unseen), reportValidator: record.reportValidator };
     },
+    /**
+     * A board's summary text from the last build, answered at once: a change after that build starts the catching-up build
+     * but this read never waits for it, except before the board's first build. Why: the sidebar asks for every listed board.
+     */
+    async summaryJson(board) {
+      const record = await latest(board, { kept: true });
+      if (typeof record.summaryText === 'string') return record.summaryText;
+      return (await latest(board)).summaryText;
+    },
     /** The finished items of the latest build, as the JSON text GET /boards/:id/finished serves; a read of an unchanged board starts no build. */
     async finishedJson(board) {
       return (await latest(board)).finished;
     },
     /** A delta read: the change since a held sequence, or a reset naming why there is none. */
     async delta(board, seen, { since, eventLogVersion = null }, refusalDocument) {
-      const record = await latest(board);
+      // A delta is a page catching up: it takes the held record like a kept read, and hears when the next build lands (#6850).
+      const record = await latest(board, { kept: true });
       const answer = { since, sequence: record.sequence, eventLogVersion: record.eventLogVersion };
       const path = '/api/v1/boards/' + board.id + '/state';
       const reset = (code, message) => Object.defineProperty({ ...answer, delta: null, reset: refusalDocument(new Refused(code, message)).error }, 'reportValidator', { value: record.reportValidator });
@@ -252,6 +275,14 @@ export function startStateMaterializer({ portsModule, projects, scope, isMain, o
         if (revision === null || record.revision !== revision) { entry.wanted = revision; if (entry.inflight === null) request(entry); }
       } else record = await latest(board);
       return record.search.filter(([, searched]) => !words || searched.includes(words)).map(([id]) => id);
+    },
+    /**
+     * Follow when a build lands after a read was answered from an older one: count() moves with each landing and subscribe
+     * calls back on each, so a board's event stream can tell the page to read its delta again (#6850).
+     */
+    landed(board) {
+      const entry = boardEntry(board);
+      return { count: () => entry.notices, subscribe: (listener) => { entry.listeners.add(listener); return () => entry.listeners.delete(listener); } };
     },
     /**
      * Save each board's latest build and stop the worker, ending it after CLOSE_GRACE_MS if it has not exited. Why: the

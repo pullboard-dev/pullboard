@@ -1,0 +1,177 @@
+/* The navigation, top layout (#6614, the approved nav-switch prototype, 12 Nov). A 40px top tier (the mark, the
+ * project switcher with its amber rulings, the layout pin, "/ Page", the notch, the search, the account slot), then a
+ * 34px strip of plain-text tabs with the Rules and Insights menus, the page's own controls at its right. The active
+ * page is ink and bold with a small green dot; hover darkens the text only: never a fill, an underline or a pill.
+ * Neutral greys in light; the dark theme keeps its own. Every rule here is scoped to data-nav="top", so the sidebar
+ * layout (#6615) can set its own. */
+:root[data-nav] {
+  --top: 74px;
+  --ground: light-dark(#f2f2f2, #0c110f); --surface: light-dark(#ffffff, #121815); --surface-2: light-dark(#f5f5f5, #171f1b);
+  --line: light-dark(#e5e5e5, #232e29); --line-soft: light-dark(#ececec, #1b2420); --line-strong: light-dark(#d4d4d4, #34423b);
+  --ink: light-dark(#1a1a1a, #e7ece9); --ink-muted: light-dark(#555555, #9caba3); --ink-faint: light-dark(#8a8a8a, #6a776f);
+  --notch: light-dark(#ececec, #1c2621); --notch-dot: light-dark(#b4b4b8, #4b5a52);
+}
+:root[data-nav="top"] .shell, :root[data-nav="top"] .body { display: block; }
+:root[data-nav] header.top { position: sticky; top: 0; z-index: 20; display: block; min-height: 0; padding: 0; background: var(--surface); border-bottom: 0; container-type: normal; }
+:root[data-nav] .top-tier { position: relative; display: flex; align-items: center; gap: var(--space-3); height: 40px; padding: 0 var(--space-4) 0 var(--space-5); border-bottom: var(--border); }
+:root[data-nav][data-side="collapsed"] .side-top { display: flex; flex: none; align-items: center; gap: var(--space-3); height: 100%; min-width: 0; margin: 0; padding: 0; border: 0; }
+:root[data-nav][data-side="collapsed"] .brand { display: grid; place-items: center; width: 20px; height: 20px; margin: 0; padding: 0; border: 0; background: none; cursor: default; }
+:root[data-nav] .brand svg { width: 20px; height: 20px; }
+:root[data-nav] .brand span { display: none; }
+:root[data-nav][data-side="collapsed"] .switch-btn { display: flex; align-items: center; gap: var(--space-2); height: 30px; max-width: 16rem; margin: 0 0 0 calc(var(--space-1) * -1); padding: 0 var(--space-2); border: 0; border-radius: var(--radius-xs); background: none; color: var(--ink); font-size: var(--text-md); font-weight: 700; cursor: pointer; }
+:root[data-nav][data-side="collapsed"] .switch-btn:hover { background: var(--surface-2); }
+:root[data-nav] .switch-btn small { color: var(--ink-faint); }
+:root[data-nav] .switch-btn .badge { flex: none; font: 600 var(--text-2xs)/1 var(--mono); color: var(--warn); }
+:root[data-nav] .switch-btn .badge:empty { display: none; }
+:root[data-nav] .pin { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 26px; height: 26px; color: var(--ink-faint); }
+:root[data-nav] .crumb { color: var(--ink-faint); white-space: nowrap; }
+:root[data-nav] .crumb b { color: var(--ink); font-weight: 600; }
+/* The notch: what matters now, the same on every page. Steady while live: tabular figures, so updates never shift it. */
+:root[data-nav] .notch { position: absolute; top: 0; left: 50%; z-index: 4; display: flex; align-items: stretch; height: 26px; transform: translateX(-50%); color: var(--ink-muted); font-size: var(--text-xs); white-space: nowrap; }
+:root[data-nav] .notch .sh { display: block; flex: none; width: 50px; height: 26px; fill: var(--notch); }
+:root[data-nav] .notch .sh:first-child { margin-right: -1px; }
+:root[data-nav] .notch .sh:last-child { margin-left: -1px; }
+:root[data-nav] .notch-body { display: flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-3) 1px; background: var(--notch); }
+:root[data-nav] .notch-it { display: inline-flex; align-items: center; gap: var(--space-1); height: 20px; padding: 0 var(--space-3); border: 0; border-radius: var(--radius-sm); background: none; color: inherit; font: inherit; font-variant-numeric: tabular-nums; cursor: pointer; }
+:root[data-nav] .notch-it:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
+:root[data-nav] .notch b { color: var(--ink); font-weight: 600; }
+:root[data-nav] .notch b.g { color: var(--accent); }
+:root[data-nav] .notch b.a { color: var(--warn); }
+:root[data-nav] .notch-sp { flex: none; width: 3px; height: 3px; border-radius: var(--radius-dot); background: var(--notch-dot); }
+/* Right of the notch: the search, then the account slot. */
+:root[data-nav] .top-right { position: absolute; top: 0; right: 14px; bottom: 1px; left: calc(50% + 170px); display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); min-width: 0; }
+:root[data-nav] .top-find { position: relative; order: 0; flex: 1 1 auto; min-width: 0; max-width: none; margin: 0; align-self: center; }
+:root[data-nav] .top-find input { width: 100%; text-overflow: ellipsis; height: 28px; padding: 0 var(--space-9) 0 var(--space-3); border: var(--border-clear); border-radius: var(--radius-sm); background: transparent; color: var(--ink); font-size: var(--text-sm); }
+:root[data-nav] .top-find input::placeholder { color: var(--ink-faint); }
+:root[data-nav] .top-find input:hover { background: var(--surface-2); }
+:root[data-nav] .top-find input:focus { outline: 0; border-color: var(--line-strong); background: var(--surface); }
+:root[data-nav] .top-find kbd { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); padding: var(--space-0) var(--space-1); border: var(--border); border-radius: var(--radius-xs); background: var(--surface); color: var(--ink-muted); font: var(--text-2xs)/1 var(--mono); pointer-events: none; }
+:root[data-nav] .top-find input:focus ~ kbd, :root[data-nav] .top-find input:not(:placeholder-shown) ~ kbd { display: none; }
+:root[data-nav] .account-slot { position: relative; display: flex; flex: none; align-items: center; }
+:root[data-nav] .acct { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: var(--radius-dot); background: var(--ink); color: var(--surface); font: 600 var(--text-xs) var(--sans); cursor: pointer; }
+:root[data-nav] .signin { height: 26px; padding: 0 var(--space-3); border: 0; border-radius: var(--radius-sm); background: none; color: var(--ink); font: 600 var(--text-sm) var(--sans); white-space: nowrap; cursor: pointer; }
+:root[data-nav] .signin:hover { background: var(--surface-2); }
+:root[data-nav] .acct-menu { position: absolute; top: 34px; right: -2px; z-index: 28; width: 240px; padding: var(--space-2); border: var(--border); border-radius: var(--radius-float); background: var(--surface); box-shadow: var(--shadow-float); font-size: var(--text-sm); }
+:root[data-nav] .acct-menu[hidden] { display: none; }
+:root[data-nav] .acct-menu .who { margin-bottom: var(--space-1); padding: var(--space-3) var(--space-4) var(--space-4); border-bottom: var(--border); }
+:root[data-nav] .acct-menu .who b { display: block; color: var(--ink); }
+:root[data-nav] .acct-menu .who small { color: var(--ink-faint); }
+:root[data-nav] .acct-menu button { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: var(--tap); padding: var(--space-3) var(--space-4); border: 0; border-radius: var(--radius-sm); background: none; color: var(--ink-muted); font: inherit; text-align: left; cursor: pointer; }
+:root[data-nav] .acct-menu button:hover { background: var(--surface-2); color: var(--ink); }
+:root[data-nav] .acct-menu button span, :root[data-nav] .acct-menu button i { color: var(--ink-faint); font-size: var(--text-xs); font-style: normal; }
+/* The strip. */
+:root[data-nav="top"] .strip { display: flex; align-items: center; gap: var(--space-6); height: 34px; padding: 0 var(--space-5); background: var(--surface); border-bottom: var(--border); font-size: var(--text-sm); }
+:root[data-nav="top"] .tabs { display: flex; flex: none; flex-wrap: nowrap; align-items: center; gap: var(--space-6); min-width: 0; }
+:root[data-nav="top"] .tabs > .tab, :root[data-nav="top"] .tab-group-btn { display: inline-flex; align-items: center; align-self: center; gap: var(--space-1); height: auto; padding: 0; border: 0; border-radius: 0; background: none; color: var(--ink-muted); font: inherit; text-decoration: none; white-space: nowrap; cursor: pointer; }
+:root[data-nav="top"] .tabs > .tab:hover, :root[data-nav="top"] .tab-group-btn:hover { background: none; color: var(--ink); }
+:root[data-nav="top"] .tabs > .tab.on, :root[data-nav="top"] .tab-group-btn.on { background: none; color: var(--ink); font-weight: 600; }
+:root[data-nav="top"] .tabs > .tab.on::before, :root[data-nav="top"] .tab-group-btn.on::before { content: ""; flex: none; width: 5px; height: 5px; border-radius: var(--radius-dot); background: var(--accent); }
+:root[data-nav="top"] .tab-group-btn .chev { color: var(--ink-faint); font-size: var(--text-2xs); }
+:root[data-nav="top"] .tab-sep { align-self: center; width: 1px; height: 14px; margin: 0 calc(var(--space-1) * -1); background: var(--line); }
+:root[data-nav="top"] .tab-group { position: relative; display: flex; }
+:root[data-nav="top"] .tab-menu { position: absolute; top: 26px; left: 0; z-index: 25; display: grid; width: 230px; padding: var(--space-2); border: var(--border); border-radius: var(--radius-float); background: var(--surface); box-shadow: var(--shadow-float); }
+:root[data-nav="top"] .tab-menu .tab { display: flex; align-items: baseline; gap: var(--space-4); width: 100%; padding: var(--space-3) var(--space-3); border: 0; border-radius: var(--radius-sm); background: none; color: var(--ink); font: inherit; text-align: left; white-space: normal; cursor: pointer; }
+:root[data-nav="top"] .tab-menu .tab:hover { background: var(--surface-2); }
+/* The entry you are on takes no fill, only the ink and the green dot (design sheet). */
+:root[data-nav="top"] .tab-menu .tab.on { background: none; }
+:root[data-nav="top"] .tab-name { display: block; flex: 1; min-width: 0; }
+:root[data-nav="top"] .tab-name b { display: block; font-weight: 600; }
+:root[data-nav="top"] .tab-name small { color: var(--ink-faint); font-size: var(--text-xs); }
+:root[data-nav="top"] .tab-menu .f { color: var(--ink-faint); font: var(--text-2xs) var(--mono); white-space: nowrap; }
+/* The page's own controls: the right of the strip, or the right of the title row in the sidebar layout. */
+:root[data-nav] .pagectl { display: flex; align-items: center; gap: var(--space-4); margin-left: auto; color: var(--ink-faint); font-size: var(--text-xs); white-space: nowrap; }
+:root[data-nav] .pagectl:empty { display: none; }
+:root[data-nav] .pagectl .ctl-seg { display: flex; gap: var(--space-4); }
+:root[data-nav] .pagectl button, :root[data-nav] .pagectl select { padding: 0; border: 0; border-radius: 0; background: none; color: var(--ink-faint); font: inherit; cursor: pointer; }
+:root[data-nav] .pagectl button:hover, :root[data-nav] .pagectl select:hover { background: none; color: var(--ink); }
+:root[data-nav] .pagectl .ctl-seg button.on { color: var(--ink); font-weight: 600; }
+:root[data-nav] .pagectl .sel { color: var(--ink-muted); }
+:root[data-nav] .pagectl .new { color: var(--accent); font-weight: 600; }
+:root[data-nav] .pagectl .new:hover { color: var(--accent); }
+:root[data-nav] .pagectl select { appearance: none; padding-right: var(--space-4); background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5l3 3 3-3' fill='none' stroke='%238a8a8a' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right center / 10px; }
+:root[data-nav] .pagectl select:hover { background-color: transparent; }
+:root[data-nav] .pagectl select::-ms-expand { display: none; }
+:root[data-nav] .pagectl select option { color: var(--ink); background: var(--surface); }
+/* The page's title row: only in the sidebar layout, where the strip is gone. */
+:root[data-nav="top"] .page-title { display: none; }
+:root[data-nav="side"] .page-title { display: flex; align-items: center; gap: var(--space-5); min-height: 34px; margin: calc(var(--space-5) * -1) calc(var(--space-6) * -1) var(--space-5); padding: 0 var(--space-6); border-bottom: var(--border); background: var(--surface); }
+:root[data-nav="side"] .page-title h2 { margin: 0; font-size: var(--text-lg); font-weight: 600; }
+/* The project switcher's list drops from it, the project tools above the boards. */
+:root[data-nav][data-side="collapsed"] .side { position: fixed; top: 44px; left: 12px; z-index: 30; width: 0; height: 0; padding: 0; border: 0; background: none; overflow: visible; }
+:root[data-nav][data-side="collapsed"] .side .side-body, :root[data-nav][data-side="collapsed"] .side .side-footer { display: none; }
+:root[data-nav][data-side="collapsed"] .side.open { display: flex; flex-direction: column; width: 300px; height: auto; max-height: calc(100vh - 60px); overflow-y: auto; border: var(--border); border-radius: var(--radius-float); background: var(--surface); box-shadow: var(--shadow-float); }
+:root[data-nav][data-side="collapsed"] .side.open .side-footer { order: -1; position: static; display: flex; width: auto; margin: 0; padding: var(--space-2); border: 0; border-bottom: var(--border); border-radius: 0; box-shadow: none; }
+:root[data-nav][data-side="collapsed"] .side.open .side-body { position: static; display: grid; width: auto; max-height: none; padding: var(--space-2); border: 0; border-radius: 0; box-shadow: none; overflow: visible; }
+/* The status bar: the system's own state, along the foot. */
+:root[data-nav] .status { height: 26px; border-top: var(--border); }
+/* Narrow screens (#6725, the approved compact mockup): a plain Menu button opens a drawer from the left; the notch,
+ * the crumb, the pin and the strip give way. The top bar reads Menu with its rulings, the project name, Search, the account. */
+.menubtn, .ptitle, .mveil, .mdrawer { display: none; }
+@media (max-width: 900px) {
+  :root[data-nav] { --top: 48px; }
+  :root[data-nav] .top-tier { gap: var(--space-4); height: 48px; padding: 0 var(--space-5); }
+  :root[data-nav] .menubtn { display: inline-flex; flex: none; align-items: center; gap: var(--space-4); height: 32px; margin-left: calc(var(--space-2) * -1); padding: 0 var(--space-4) 0 var(--space-3); border: 0; border-radius: var(--radius-xs); background: none; color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; }
+  :root[data-nav] .menubtn:hover { background: var(--surface-2); }
+  :root[data-nav] .menubtn .bars { display: flex; flex-direction: column; justify-content: space-between; width: 16px; height: 12px; margin: 0 2px; }
+  :root[data-nav] .menubtn .bars i { height: 2px; border-radius: var(--radius-hair); background: var(--ink); }
+  :root[data-nav] .menubtn .badge { font: 600 var(--text-xs)/1 var(--mono); color: var(--warn); }
+  :root[data-nav] .menubtn .badge:empty { display: none; }
+  :root[data-nav] .ptitle { display: block; min-width: 0; overflow: hidden; color: var(--ink-muted); text-overflow: ellipsis; white-space: nowrap; }
+  :root[data-nav] .notch, :root[data-nav] .crumb, :root[data-nav] .pin, :root[data-nav][data-side] .side-top, :root[data-nav="top"] .strip { display: none; }
+  :root[data-nav] .top-right { position: static; flex: none; margin-left: auto; gap: var(--space-4); }
+  :root[data-nav] .top-find { flex: none; min-width: 0; }
+  :root[data-nav] .top-find input { width: clamp(72px, calc(40vw - 28px), 120px); text-overflow: ellipsis; height: 32px; padding: 0 var(--space-9) 0 var(--space-3); background: var(--surface-2); }
+  /* The page's title with its controls under it: the strip is gone, so the controls take their own line. */
+  :root[data-nav="top"] .page-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-5); margin: 0 0 var(--space-4); }
+  :root[data-nav="top"] .page-title h2 { margin: 0; font-size: var(--text-lg); font-weight: 600; }
+  :root[data-nav="top"] .page-title .pagectl { width: 100%; margin-left: 0; overflow-x: auto; }
+  /* The drawer: the project and the numbers, Rulings, then every page with its fact in 40px rows, over a dimmed page. */
+  :root[data-nav] .mveil { position: fixed; inset: 0; z-index: 30; display: block; background: var(--scrim-soft); animation: mfade .18s ease; }
+  :root[data-nav] .mdrawer { position: fixed; top: 0; bottom: 0; left: 0; z-index: 31; display: flex; flex-direction: column; width: min(300px, 86vw); overflow-y: auto; border-right: var(--border); background: var(--surface); animation: mslide .22s cubic-bezier(.2, .8, .2, 1); }
+  :root[data-nav] .mveil[hidden], :root[data-nav] .mdrawer[hidden] { display: none; }
+  :root[data-nav] .mdrawer .mh { padding: var(--space-4) var(--space-4) var(--space-3); border-bottom: var(--border); }
+  :root[data-nav] .mdrawer .mh .switch-btn { display: flex; margin: 0 0 var(--space-2) calc(var(--space-1) * -1); }
+  :root[data-nav] .mdrawer .stats { display: flex; gap: var(--space-5); padding: 0 var(--space-2); color: var(--ink-faint); font-size: var(--text-xs); }
+  :root[data-nav] .mdrawer .stats b { color: var(--ink); font: 600 var(--text-xs) var(--mono); }
+  :root[data-nav] .mdrawer .stats b.g { color: var(--accent); }
+  :root[data-nav] .mdrawer .rul { display: flex; flex: none; align-items: center; gap: var(--space-3); min-height: 40px; height: 40px; margin: var(--space-3) var(--space-3) 0; padding: 0 var(--space-3); border: 0; border-radius: var(--radius-xs); background: none; color: var(--ink); font: inherit; font-size: var(--text-md); font-weight: 600; text-align: left; cursor: pointer; }
+  :root[data-nav] .mdrawer .rul:hover { background: var(--surface-2); }
+  :root[data-nav] .mdrawer .rul i { width: 7px; height: 7px; border-radius: var(--radius-dot); background: var(--warn); }
+  :root[data-nav] .mdrawer .rul em { margin-left: auto; color: var(--warn); font: 600 var(--text-xs) var(--mono); font-style: normal; }
+  :root[data-nav] .mdrawer .mnav { display: flex; flex: 1; flex-direction: column; padding: var(--space-1) var(--space-3) var(--space-4); }
+  :root[data-nav] .mdrawer .side-h { margin: 14px var(--space-3) var(--space-1); color: var(--side-heading); font: 500 10px/1 var(--sans); letter-spacing: .08em; text-transform: uppercase; }
+  :root[data-nav] .mdrawer .side-row { display: flex; flex: none; align-items: center; gap: var(--space-3); width: 100%; min-height: 40px; height: 40px; padding: 0 var(--space-3); border: 0; border-radius: var(--radius-xs); background: none; color: var(--ink-muted); font: inherit; font-size: var(--text-md); text-align: left; white-space: nowrap; cursor: pointer; }
+  :root[data-nav] .mdrawer .side-row:hover { background: none; color: var(--ink); }
+  :root[data-nav] .mdrawer .side-row.on { padding-left: 2px; color: var(--ink); font-weight: 600; }
+  :root[data-nav] .mdrawer .side-row.on::before { content: ""; flex: none; width: 5px; height: 5px; border-radius: var(--radius-dot); background: var(--accent); }
+  :root[data-nav] .mdrawer .side-row .f { margin-left: auto; color: var(--ink-faint); font: 11.5px var(--mono); font-weight: 400; }
+  :root[data-nav] .mdrawer .side-row.on .f { color: var(--accent); }
+  :root[data-nav] .mdrawer .side-row .f.a { color: var(--warn); font-weight: 600; }
+  :root[data-nav] .mdrawer .side-row .f:empty { display: none; }
+}
+@keyframes mslide { from { transform: translateX(-100%); } to { transform: none; } }
+@keyframes mfade { from { opacity: 0; } to { opacity: 1; } }
+/* The pin: the layout switch, a glyph that turns a quarter when the navigation is in the sidebar. */
+:root[data-nav] .pin { border: 0; border-radius: var(--radius-xs); background: none; font: inherit; cursor: pointer; }
+:root[data-nav] .pin:hover { background: var(--surface-2); color: var(--ink); }
+:root[data-nav] .pin .pg { display: inline-block; line-height: 1; }
+:root[data-nav] .pin .pg.up { transform: rotate(90deg); }
+/* The sidebar layout (#6615): the top tier spans the page, the page list sits under it in 28px rows, the status bar stays along the foot. */
+:root[data-nav="top"] .sidenav { display: none; }
+:root[data-nav="side"] { --top: 40px; }
+:root[data-nav="side"] .shell { display: grid; grid-template-columns: 208px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); min-height: 100vh; }
+:root[data-nav="side"] .body { display: contents; }
+:root[data-nav="side"] header.top { grid-column: 1 / -1; grid-row: 1; }
+:root[data-nav="side"] .strip { display: none; }
+:root[data-nav="side"] .sidenav { grid-column: 1; grid-row: 2; position: sticky; top: 40px; align-self: start; display: flex; flex-direction: column; height: calc(100vh - 66px); padding: var(--space-1) var(--space-3) var(--space-4); overflow-y: auto; background: var(--surface); border-right: var(--border); }
+:root[data-nav="side"] main { grid-column: 2; grid-row: 2; min-width: 0; }
+:root[data-nav="side"] .side-h { margin: 14px var(--space-3) var(--space-1); color: var(--side-heading); font: 500 10px/1 var(--sans); letter-spacing: .08em; text-transform: uppercase; }
+:root[data-nav="side"] .side-row { display: flex; flex: none; align-items: center; gap: var(--space-3); width: 100%; height: 28px; padding: 0 var(--space-3); border: 0; border-radius: var(--radius-xs); background: none; color: var(--ink-muted); font: inherit; font-size: var(--text-sm); text-align: left; white-space: nowrap; cursor: pointer; }
+:root[data-nav="side"] .side-row:hover { background: none; color: var(--ink); }
+:root[data-nav="side"] .side-row.on { padding-left: 2px; background: none; color: var(--ink); font-weight: 600; }
+:root[data-nav="side"] .side-row.on::before { content: ""; flex: none; width: 5px; height: 5px; border-radius: var(--radius-dot); background: var(--accent); }
+:root[data-nav="side"] .side-row .f { margin-left: auto; color: var(--ink-faint); font: 11.5px var(--mono); font-weight: 400; }
+:root[data-nav="side"] .side-row.on .f { color: var(--accent); }
+:root[data-nav="side"] .side-row .f.a { color: var(--warn); font-weight: 600; }
+:root[data-nav="side"] .side-row .f:empty { display: none; }
+:root[data-nav="side"] .sidenav[hidden] { display: none; }

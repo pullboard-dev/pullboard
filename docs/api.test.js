@@ -82,7 +82,7 @@ function routedV1Paths() {
   }
   for (const match of sources[1].matchAll(/const\s+\w+\s*=\s*(\/[^\r\n]*\/[a-z]*)\.exec\(url\.pathname\)/gu)) {
     let pattern = match[1].slice(1, match[1].lastIndexOf('/'));
-    pattern = pattern.replace(/^\^/u, '').replace(/\$$/u, '').replaceAll('\\/', '/');
+    pattern = pattern.replace(/^\^/u, '').replace(/\$$/u, '').replaceAll('\\/', '/').replaceAll('\\.', '.');
     pattern = pattern.replace('/boards/([^/]+)', '/boards/:board').replaceAll('([^/]+)', ':id');
     for (const path of expandRouteAlternatives(pattern)) {
       const normalized = path;

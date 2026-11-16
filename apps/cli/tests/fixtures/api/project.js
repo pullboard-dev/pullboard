@@ -50,7 +50,7 @@ export function sandbox() {
     GIT_AUTHOR_EMAIL: 'api@example.invalid',
     GIT_COMMITTER_NAME: 'API Test',
     GIT_COMMITTER_EMAIL: 'api@example.invalid',
-    PULLBOARD_HOME: join(dir, 'home'),
+    PULLBOARD_FIXTURE_BOARD: '1', PULLBOARD_HOME: join(dir, 'home'),
     HOME: join(dir, 'private-home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'home'),
   };

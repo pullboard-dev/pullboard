@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../fixtures/child.js';
-import { withFixtureBoard } from '../../fixtures/testkit.js';
+import { withFixtureBoard } from '../../fixtures/board.js';
 import { createJob } from '../../../../../packages/jobs/index.js';
 import { jobView } from '../../../../../packages/jobs/index.js';
 import { takeJob } from '../../../../../packages/jobs/index.js';

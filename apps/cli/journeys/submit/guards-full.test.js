@@ -21,8 +21,11 @@ test('full fallback and candidate policy edits cannot omit an accepted registry 
   config.affectedTests = 'true';
   put(box.web, 'pullboard.json', JSON.stringify(config));
   commit(box, box.web, 'feat(core): add a move with candidate policy edits [G1]');
+  // A pulled submit queues its gate; the fixture command returns once the local runner settled it, so show reads the red verdict [C7].
   const submitted = (await box.runLocal(box.web, 'submit', String(box.id)));
-  assert.equal(submitted.code, 1, submitted.out);
-  assert.match(submitted.err, /registry guards: apps\/cli\/journeys\/relay\/credential\.test\.js/u);
-  assert.match(submitted.err, /missing actor credential for newMove\.js/u);
+  assert.equal(submitted.code, 0, submitted.err + submitted.out);
+  const red = JSON.parse((await box.runLocal(box.web, 'show', String(box.id), '--json', '--no-next')).out).gateJob;
+  assert.equal(red?.gate?.green, false, JSON.stringify(red));
+  assert.match(JSON.stringify(red), /apps\/cli\/journeys\/relay\/credential\.test\.js/u);
+  assert.match(JSON.stringify(red), /missing actor credential for newMove\.js/u);
 });

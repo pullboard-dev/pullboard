@@ -15,10 +15,9 @@ import { fileURLToPath } from 'node:url';
 const CLI_NAME = 'pullboard';
 
 /**
- * Put the job checkout's own CLI first on PATH as `pullboard`, so a fixture hook or script that finds the command by
- * name never runs an older global install in the runner's nvm bin (11 Nov: vanilla's 0.9.2 failed every fixture commit).
- * The job's directory holds `checkout` and `tmp` side by side; the link points into the checkout and resolves once
- * the history is received. Any other temporary folder (not a job's) leaves PATH alone.
+ * Put the job checkout's CLI first on PATH as `pullboard`, so a fixture never runs an older global install (11 Nov),
+ * and name the runner's shared cache, which every job's keyed caches outlive a job in (#8233). The job's folder holds
+ * `checkout` and `tmp`; the link resolves once the history is received. Any other temporary folder is left alone.
  */
 function withCheckoutCli(env, temporary) {
   const jobDirectory = dirname(temporary);
@@ -27,7 +26,9 @@ function withCheckoutCli(env, temporary) {
   const bin = join(jobDirectory, 'cli-bin');
   mkdirSync(bin, { recursive: true, mode: 0o700 });
   symlinkSync(join(checkout, 'apps/cli/pullboard.js'), join(bin, CLI_NAME));
-  return { ...env, PATH: [bin, env.PATH].filter(Boolean).join(delimiter) };
+  const cache = join(jobDirectory, '../../shared-cache');
+  mkdirSync(cache, { recursive: true, mode: 0o700 });
+  return { ...env, PULLBOARD_RUNNER_SHARED_CACHE: cache, PATH: [bin, env.PATH].filter(Boolean).join(delimiter) };
 }
 
 /** Add this worker's remote gate lease so nested test runners reuse the remote slot instead of deadlocking. */

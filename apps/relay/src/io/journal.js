@@ -87,7 +87,7 @@ export function createRelayJournal({ directory, boardId, maxBytes = DEFAULT_BYTE
         DROP TABLE journal_snapshot_v2;
         UPDATE journal_meta SET value='3' WHERE key='format';`);
     }
-    for (const [column, type] of [['api_version', 'INTEGER NOT NULL DEFAULT 1'], ['page_bytes', 'INTEGER']]) {
+    for (const [column, type] of [['api_version', 'INTEGER NOT NULL DEFAULT 1'], ['page_bytes', 'INTEGER'], ['epoch', 'INTEGER NOT NULL DEFAULT 0']]) {
       if (!db.prepare('PRAGMA table_info(journal_snapshot)').all().some(row => row.name === column)) db.exec(`ALTER TABLE journal_snapshot ADD COLUMN ${column} ${type}`);
     }
     db.prepare('UPDATE journal_meta SET value=? WHERE key=?').run(String(FORMAT), 'format');
@@ -153,7 +153,7 @@ export function createRelayJournal({ directory, boardId, maxBytes = DEFAULT_BYTE
         ...(row.sender_login ? { login: row.sender_login } : {}), ...(row.sender_approver === null || row.sender_approver === undefined ? {} : { approver: row.sender_approver === 1 }),
         ...(row.sender_engine ? { engine: row.sender_engine } : {}), ...(row.sender_presence ? { presence: JSON.parse(row.sender_presence) } : {}) },
       ...(row.registration ? { registration: JSON.parse(row.registration) } : {}),
-      ...(row.api_version === 2 ? { apiVersion: 2, pageBytes: row.page_bytes } : {}), bytes: Buffer.from(row.payload) };
+      ...(row.api_version === 2 ? { apiVersion: 2, pageBytes: row.page_bytes } : {}), ...(row.epoch ? { epoch: row.epoch } : {}), bytes: Buffer.from(row.payload) };
   }
 
   /** Require server-derived attribution, copying only its public identity and never a credential. */
@@ -295,8 +295,12 @@ export function createRelayJournal({ directory, boardId, maxBytes = DEFAULT_BYTE
     return db.prepare('SELECT payload FROM journal_upload_status WHERE slot=1').get()?.payload ?? null;
   }
 
-  /** Replace a covered snapshot and compact only its acknowledged prefix, keeping the head. */
-  function saveSnapshot(sequence, bytes, principal, { initialOnly = false, apiVersion = 1, pageBytes = null } = {}) {
+  /**
+   * Replace a covered snapshot and compact only its acknowledged prefix, keeping the head. A `recovery` checkpoint
+   * replaces what the log says at the same sequence, so it raises the snapshot's epoch: a computer that read the log
+   * up to that sequence cannot see the change any other way (#7776).
+   */
+  function saveSnapshot(sequence, bytes, principal, { initialOnly = false, apiVersion = 1, pageBytes = null, recovery = false } = {}) {
     open();
     if (!Number.isSafeInteger(sequence) || sequence < 0) throw new Refused('BAD_SEQUENCE', 'name the nonnegative sequence this snapshot covers');
     if (![1, 2].includes(apiVersion) || apiVersion === 2 && (!Number.isSafeInteger(pageBytes) || pageBytes < 1)) throw new Refused('SNAPSHOT_VERSION', 'Publish a supported snapshot transport version and its sealed root length.');
@@ -309,7 +313,7 @@ export function createRelayJournal({ directory, boardId, maxBytes = DEFAULT_BYTE
       if (previous && sequence < previous.sequence) throw new Refused('SNAPSHOT_STALE', 'use the latest stored snapshot and seal a snapshot that covers at least its sequence');
       const at = now();
       if (!(at instanceof Date) || !Number.isFinite(at.getTime())) throw new Refused('RELAY_CONFIG', 'the journal clock must return a valid Date');
-      db.prepare('INSERT INTO journal_snapshot (slot,sequence,received_at,payload,sender_kind,sender_user,sender_agent,api_version,page_bytes) VALUES (1,?,?,?,?,?,?,?,?) ON CONFLICT(slot) DO UPDATE SET sequence=excluded.sequence,received_at=excluded.received_at,payload=excluded.payload,sender_kind=excluded.sender_kind,sender_user=excluded.sender_user,sender_agent=excluded.sender_agent,api_version=excluded.api_version,page_bytes=excluded.page_bytes').run(sequence, at.toISOString(), sealed, who.kind, who.userId, who.agent, apiVersion, apiVersion === 2 ? pageBytes : null);
+      db.prepare('INSERT INTO journal_snapshot (slot,sequence,received_at,payload,sender_kind,sender_user,sender_agent,api_version,page_bytes,epoch) VALUES (1,?,?,?,?,?,?,?,?,?) ON CONFLICT(slot) DO UPDATE SET sequence=excluded.sequence,received_at=excluded.received_at,payload=excluded.payload,sender_kind=excluded.sender_kind,sender_user=excluded.sender_user,sender_agent=excluded.sender_agent,api_version=excluded.api_version,page_bytes=excluded.page_bytes,epoch=excluded.epoch').run(sequence, at.toISOString(), sealed, who.kind, who.userId, who.agent, apiVersion, apiVersion === 2 ? pageBytes : null, (previous?.epoch ?? 0) + (recovery ? 1 : 0));
       db.prepare('DELETE FROM journal_record WHERE sequence <= ?').run(sequence);
       db.prepare('DELETE FROM journal_upload_status').run();
       const result = snapshot();

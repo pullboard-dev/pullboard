@@ -18,6 +18,8 @@ function pauseFix(state) {
   if (pause.size || /(?:exceeds?|over|larger than|too large).{0,40}(?:bytes|snapshot|limit)|(?:snapshot|limit).{0,40}(?:exceeds?|over|too large)/iu.test(pause.message)) {
     return 'upgrade the configured relay to API version 2 for bounded snapshots, then it resumes automatically';
   }
+  // Removing a relay copy is a phone approval that relay off requests; the next command here sees the space and resumes the upload.
+  if (pause.code === 'ACCOUNT_STORAGE_LIMIT') return 'free space: run pullboard relay off in a project whose relay copy you no longer need, approve its deletion on your phone, then run pullboard status here and the upload resumes';
   if ([401, 403].includes(pause.status) || pause.code === 'AUTH_REQUIRED') return 'run pullboard relay on to sign in again';
   return 'upgrade Pullboard or run pullboard relay on again, then report the refusal if it persists';
 }

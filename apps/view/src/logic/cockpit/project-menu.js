@@ -47,10 +47,6 @@ export function cockpitProjectMenu() {
   return `const projectMenuRows = ${projectMenuRows.toString()};
 const projectMenuHtml = ${projectMenuHtml.toString()};
 const projectMenu = { adding: false, node: null };
-/** Whether the switcher shows this menu: the docked sidebar of a wide page, where its list is already in view. Narrow and collapsed pages keep their folding list. */
-function projectMenuHere() {
-  return !matchMedia('(max-width: 900px)').matches && document.documentElement.dataset.side !== 'collapsed';
-}
 /** Take the menu away. */
 function projectMenuClose() {
   projectMenu.node?.remove();
@@ -66,20 +62,19 @@ function projectMenuDraw() {
   document.body.insertAdjacentHTML('beforeend', projectMenuHtml(rows, esc, projectMenu.adding));
   const box = switcher.getBoundingClientRect();
   const menu = projectMenu.node = document.getElementById('proj-menu');
-  menu.style.top = Math.round(box.bottom + 4) + 'px';
-  menu.style.left = Math.round(box.left) + 'px';
+  menu.dataset.geo = 'project-menu';
+  geometry('project-menu', { top: Math.round(box.bottom + 4) + 'px', left: Math.round(box.left) + 'px' });
   switcher.setAttribute('aria-expanded', 'true');
 }
-/** The switcher's hook: open or close the menu, and say whether this page uses it. */
+/** The switcher's hook: open or close the menu, in the top and the sidebar layout alike; it always answers the press. */
 function projectMenuToggle() {
-  if (!projectMenuHere()) return false;
   if (projectMenu.node) projectMenuClose(); else projectMenuDraw();
   return true;
 }
 document.addEventListener('click', (event) => {
   if (!projectMenu.node) return;
   if (event.target.closest('[data-proj-add]')) { projectMenu.adding = !projectMenu.adding; projectMenuDraw(); return; }
-  if (event.target.closest('[data-proj-all]')) { projectMenuClose(); $('proj-list').scrollIntoView?.({ block: 'start' }); return; }
+  if (event.target.closest('[data-proj-all]')) { projectMenuClose(); fold(true); return; }
   if (event.target.closest('#proj-switch')) return;
   if (event.target.closest('#proj-menu') && !event.target.closest('[data-root]')) return;
   projectMenuClose();

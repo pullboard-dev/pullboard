@@ -23,12 +23,11 @@ import { sourceObjects } from './source/scan.js';
 import { readAnalysisArtifact } from '../../../resources/index.js';
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
+import { scratchFolder } from '../../../config/index.js';
 
 /**
  * Name the runtime by digest and file names; its bytes already travel gzipped in the stdin capsule.
@@ -67,9 +66,26 @@ export function queuedSource(root, source) {
 /** The test-result store a request's exchange wrote to, rebuilt by the later short process that finishes a pulled job [C7,#5465]. */
 export async function exchangeStore(root) { return (await import('../../../gate/index.js')).testResultStore(root); }
 
+/**
+ * Refuse a request whose metadata names no item or no kind, when gate.requireRunnerAttribution is on; off by default,
+ * so a caller that names neither still runs. Why: runner time with no item and purpose cannot be charged to anything,
+ * and the refusal waits behind a setting until every caller names both (#4000) [C7].
+ *
+ * @param {{ item?: unknown, kind?: unknown } | null | undefined} metadata
+ */
+function requireAttribution(metadata) {
+  if (readMachineSettingsFile(machineSettingsFile())?.gate?.requireRunnerAttribution !== true) return;
+  for (const field of ['item', 'kind']) {
+    if (String(metadata?.[field] ?? '').trim() === '') {
+      throw new Refused('RUNNER_UNATTRIBUTED', `the runner request names no ${field} in its metadata; pass metadata.${field} naming the work it runs for, or turn gate.requireRunnerAttribution off`);
+    }
+  }
+}
+
 /** Prepare the pinned request before negotiating history; cleanup owns only its scratch directory. */
 export async function requestFor(root, command, { runner, source, browser = false, byLaunch, pipefail = false, stages = false, waivers = [], metadata = {}, privateCheck, checkedSource, rawOutputPath, analysisArtifact }, { privateCheckEnvelope }) {
   runner = validateRunner(runner);
+  requireAttribution(metadata);
   // A pinned source runs an exact commit from this repository's objects whatever its checkout holds; the cache id below
   // is still this repository's, so the runner reuses the cache its submits fill [C7,#3323].
   const current = queuedSource(root, source);
@@ -103,7 +119,7 @@ export async function requestFor(root, command, { runner, source, browser = fals
   const originBase = origin ? originAncestor(root, selected) : undefined;
   const tags = candidateTags(root, selected);
   const repoId = createHash('sha256').update(realpathSync(repoInfo(root).commonDir)).digest('hex');
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-runner-send-'));
+  const directory = scratchFolder('pullboard-runner-send-');
   try {
     // A caller that opted out of reuse (a test's own fixture runner) sends no exchange, so its worker runs every file.
     // A pinned main comparison never reuses or exports results, as it did from its throwaway clone's empty store.

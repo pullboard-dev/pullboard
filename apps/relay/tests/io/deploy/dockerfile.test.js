@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', '..');
 /** @pullboard-world-pin: the test reads the shipped Dockerfile and checks its COPY sources against the tree. */
-const DOCKERFILE = join(ROOT, 'apps', 'relay', 'src', 'io', 'deploy', 'Dockerfile');
+const DOCKERFILE = join(ROOT, 'apps', 'relay/src/io/deploy/Dockerfile');
 
 /** Read each COPY instruction as its source paths, ignoring flags and the destination. */
 function copySources() {
