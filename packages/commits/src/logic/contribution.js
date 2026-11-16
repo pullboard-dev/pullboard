@@ -10,6 +10,8 @@ import { Refused } from '../../../kernel/index.js';
 export const CONTRIBUTION_SHAPES = Object.freeze(['Bug', 'Ask', 'Flaky', 'Performance', 'Fix', 'Proposal', 'Security']);
 export const MAX_RECORD_BYTES = 16 * 1024;
 export const MAX_CLAUSES = 50;
+/** The most characters a record summary holds: RFC 0009 asks for 2-3 sentences of at most 20 words [CR1]. */
+export const MAX_SUMMARY_CHARS = 600;
 
 const ALL_BUT_ASK = ['Bug', 'Flaky', 'Performance', 'Fix', 'Proposal', 'Security'];
 const FACTS = ['Bug', 'Security', 'Flaky', 'Performance'];
@@ -61,6 +63,14 @@ const REQUIRED = Object.freeze({
 const HIDDEN = /[­͏؜ᅟᅠ឴឵᠋-᠎​-‏‪-‮⁠-⁯ㅤ︀-️﻿ﾠ]/u;
 const KEY = /^[a-z][a-z_]*$/u;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/u;
+
+/**
+ * The refusal for one secret-looking line found by the scan, shaped like the parser refusals.
+ * Why: the check lists a secret beside the parser failures, and the fix table keeps one row per code.
+ */
+export function contributionSecretRefusal(line, kind) {
+  return refuse('CONTRIB_SECRET', `line ${line}`, `a record holds no secret-looking value (${kind})`, 'delete the value from the record and rotate it if it was real');
+}
 
 /** Refuse with the field, the rule broken and the fix in one message. */
 function refuse(code, field, rule, fix) {
@@ -225,6 +235,7 @@ export const CONTRIBUTION_FIXES = Object.freeze({
   CONTRIB_TAB: Object.freeze({ rule: 'indent with spaces, never tabs', fix: 'indent with two spaces', command: CONTRIBUTION_CHECK_COMMAND }),
   CONTRIB_INDENT: Object.freeze({ rule: 'an indented line belongs under a key, in two-space steps', fix: 'start each field at the left edge and indent children by two spaces', command: CONTRIBUTION_CHECK_COMMAND }),
   CONTRIB_LINE: Object.freeze({ rule: 'a line is key: value or key: with indented items', fix: 'write one field per line as key: value', command: CONTRIBUTION_CHECK_COMMAND }),
+  CONTRIB_SECRET: Object.freeze({ rule: 'a record holds no secret-looking value', fix: 'delete the key or token from the record and rotate it if it was real', command: CONTRIBUTION_CHECK_COMMAND }),
   CONTRIB_KEY: Object.freeze({ rule: 'keys come from the closed field list for the shape', fix: 'delete the key, or move its content into a listed field or the summary', command: CONTRIBUTION_CHECK_COMMAND }),
   CONTRIB_DUPLICATE: Object.freeze({ rule: 'a key appears once', fix: 'keep one copy of the key', command: CONTRIBUTION_CHECK_COMMAND }),
   CONTRIB_REQUIRED: Object.freeze({ rule: 'each shape carries its required fields, and every bar clause its check', fix: 'add the missing field or check line', command: CONTRIBUTION_CHECK_COMMAND }),
