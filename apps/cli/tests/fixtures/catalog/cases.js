@@ -14,6 +14,7 @@ import {
   safeFixtureDiagnostic,
   privateFixtureFiles,
 } from '../child.js';
+import { stopFixtureLocalRunners } from '../runner/local-stop.js';
 import { performance } from 'node:perf_hooks';
 import {
   appendFileSync,
@@ -80,8 +81,6 @@ const BIN = resolve(import.meta.dirname, '../../../pullboard.js');
 const TEMP_DIRS = [];
 // The light-route model the hand-off case joins with.
 const LIGHT_MODEL = 'gpt-6-luna';
-// Local runners that pull submits started on a case's machine; killed when the file ends.
-const LOCAL_RUNNERS = [];
 const COMPILE_CACHE = privateFixtureFiles('pullboard-api-compile-cache-').root;
 TEMP_DIRS.push(COMPILE_CACHE);
 const covered = new Set();
@@ -171,9 +170,10 @@ after(async () => {
   for (const child of serverChildren.keys()) child.kill('SIGKILL');
   await Promise.all(serverChildren.values());
   await cleanupFixtureChildren();
-  for (const pid of LOCAL_RUNNERS) { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } }
+  // A queued submit starts a loopback local runner in each case's machine home; stop them and wait for the exits, or one still writes into the folder being removed [C7,#9714].
+  stopFixtureLocalRunners(TEMP_DIRS.map((dir) => join(dir, 'home')));
   // A killed local runner may still be writing into a case's folder for a moment; the run's sandbox removes what is left.
-  for (const dir of TEMP_DIRS) { try { rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); } catch { /* a dying child still holds it */ } }
+  for (const dir of TEMP_DIRS) { try { rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); } catch (error) { console.warn(`catalog cleanup: a child process still held ${dir} (${error.code}); the run's sandbox removes it`); } }
 });
 
 const SPEC = `# API fixture
@@ -329,7 +329,6 @@ async function json(box, cwd, command, args = [], subcommand) {
   if ((command === 'submit' || command === 'done') && document.queued) {
     shapeFor(command, subcommand); // marks the command as exercised; its inline-result fields (id, pin, gate) come from the settled receipt below
     assertRequiredShape(document, { item: 'number', commit: 'string', gateJob: 'string', queued: 'boolean' }, `queued ${command}`);
-    if (document.localRunner?.pid) LOCAL_RUNNERS.push(document.localRunner.pid);
     const settled = await whenRunnerSettles(box.env, async () => {
       const shown = await box.runLocal(cwd, 'show', String(document.item), '--json', '--no-next');
       const read = shown.status === 0 ? JSON.parse(shown.stdout) : null;
