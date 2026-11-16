@@ -116,6 +116,7 @@ export {
   strictFullSuiteEnabled,
   commitOnApplyEnabled,
   reofferTrunkBusyEnabled,
+  archiveEventsEnabled,
   reuseContractResultsEnabled,
   reuseGateReceiptsEnabled,
   memoryFloorMB,
