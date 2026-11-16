@@ -144,9 +144,9 @@ function markerCheck(filename) {
   return `${shellWord(process.execPath)} -e ${shellWord(source)}`;
 }
 
-/** Add a check-bearing item as the coordinator and return its persisted id. */
+/** Add a check-bearing item as the coordinator and return its persisted id. The pulled baseline is not waited for: no case here reads it, and a waited add held 120 s for the stand-in runner. */
 async function addCheckedItem(box, title, command) {
-  const result = await box.runLocal(box.repo, ['add', 'coordinator', title, '--check', command, '--wait', '--json']);
+  const result = await box.runLocal(box.repo, ['add', 'coordinator', title, '--check', command, '--json']);
   assert.equal(result.status, 0, result.stderr);
   return JSON.parse(result.stdout).item.item_id;
 }
@@ -242,7 +242,7 @@ test('[V2,N23] only the coordinator sets checks and agents confirm them before e
 
   const interactiveCommand = markerCheck('check-ran-interactive.txt');
   const interactiveId = ordinaryId;
-  const authored = await box.runLocal(box.repo, ['edit', String(interactiveId), '--check', interactiveCommand, '--wait', '--json']);
+  const authored = await box.runLocal(box.repo, ['edit', String(interactiveId), '--check', interactiveCommand, '--json']);
   assert.equal(authored.status, 0, authored.stdout + authored.stderr);
   assert.equal(queryBoard(box, 'SELECT item_created_by FROM item WHERE item_id = ?', interactiveId).item_created_by, 'web-1',
     'the check setter is derived from the edit, independently of the item creator');
