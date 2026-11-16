@@ -1,5 +1,4 @@
 // pullboard: browser
-/** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** Cockpit spec row layout checks, split from cockpit.test.js [N26,C7]. */
 import assert from 'node:assert/strict';

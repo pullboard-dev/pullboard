@@ -275,6 +275,12 @@ export function loadMachineSettings() {
   if (value.list?.thinRead !== undefined && typeof value.list.thinRead !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `list.thinRead in ${file} must be true or false`);
   }
+  if (value.maintenance?.retireIdleSeats !== undefined && typeof value.maintenance.retireIdleSeats !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `maintenance.retireIdleSeats in ${file} must be true or false`);
+  }
+  if (value.maintenance?.retireIdleHours !== undefined && !(Number.isFinite(value.maintenance.retireIdleHours) && value.maintenance.retireIdleHours > 0)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `maintenance.retireIdleHours in ${file} must be a positive number of hours`);
+  }
   if (value.health?.diskFloorGb !== undefined && !(Number.isFinite(value.health.diskFloorGb) && value.health.diskFloorGb >= 0)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `health.diskFloorGb in ${file} must be a number of gigabytes, 0 or more`);
   }
@@ -349,6 +355,11 @@ export function loadMachineSettings() {
   return { ...value, gateSlots, browserSlots, ...(runners.length ? { runners } : {}) };
 }
 
+/** Hours a seat worktree must sit untouched before maintenance retires it (#9109), or null while maintenance.retireIdleSeats is off (default). */
+export function retireIdleSeatHours() {
+  const settings = loadMachineSettings().maintenance;
+  return settings?.retireIdleSeats === true ? settings.retireIdleHours ?? 3 : null;
+  }
 /** Free gigabytes below which pullboard health warns (#9110); 0, the default, never warns. */
 export function healthDiskFloorGb() {
   return loadMachineSettings().health?.diskFloorGb ?? 0;
