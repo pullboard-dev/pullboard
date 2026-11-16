@@ -125,6 +125,11 @@ export function censusRerunNonGreenEnabled() {
   return loadMachineSettings().census?.rerunNonGreen === true;
 }
 
+/** Rerun a non-green census file the moment its job settles, under the 3-minute file kill, only when this machine opted in; off, reruns wait for the whole pass [C7,#9283]. */
+export function censusRerunOnSettleEnabled() {
+  return loadMachineSettings().census?.rerunOnSettle === true;
+}
+
 /** Cut pulled census jobs by measured time, heaviest first, only when this machine opted in; off, they are cut by file count [C7]. */
 export function censusBalanceByTimeEnabled() {
   return loadMachineSettings().census?.balanceByTime === true;
