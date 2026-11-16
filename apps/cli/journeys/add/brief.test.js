@@ -20,7 +20,20 @@ async function addWith(t, check) {
   const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'Small correction', '--criterion', 'the handler returns the canonical result [test]', '--check', check, '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const id = JSON.parse(added.out).item.item_id;
-  return onBoard(box, board => store.getItem(board, id));
+  return { ...(await onBoard(box, board => store.getItem(board, id))), box };
+}
+
+/** The brief's labelled sections from `show --json` item_brief: each label to its non-empty lines, bullets stripped. */
+function briefSections(brief) {
+  const sections = {};
+  let current = '';
+  for (const raw of brief.split('\n')) {
+    const line = raw.trim();
+    const label = /^(files|change|test|out of scope)\s*:\s*(.*)$/iu.exec(line);
+    if (label) { current = label[1].toLowerCase(); sections[current] = label[2].trim() ? [label[2].trim()] : []; }
+    else if (current && line) sections[current].push(line.replace(/^[-*]\s+/u, ''));
+  }
+  return sections;
 }
 
 test('clause 1: add with no route, no brief and a check naming no test file succeeds on the strong route [V4]', async t => {
@@ -31,8 +44,10 @@ test('clause 1: add with no route, no brief and a check naming no test file succ
 test('clause 2: add with no route whose check names a test file lands mid with Files and Test filled from the check [V4]', async t => {
   const item = await addWith(t, 'node --test web/handler.test.js');
   assert.equal(item.item_route, 'mid');
-  assert.match(item.item_brief, /Files:\s*\n- web\/handler\.test\.js/u);
-  assert.match(item.item_brief, /Test: web\/handler\.test\.js/u);
+  const shown = JSON.parse((await item.box.runLocal(item.box.repo, 'show', String(item.item_id), '--json')).out);
+  const sections = briefSections(shown.item_brief);
+  assert.deepEqual(sections.files, ['web/handler.test.js']);
+  assert.deepEqual(sections.test, ['web/handler.test.js']);
 });
 
 /** Run the real CLI and require its successful versioned JSON result. */
@@ -68,8 +83,9 @@ test('add accepts one cell, refuses three cells and records an explicit size ove
   const shown = await json(box, 'show', String(forced.item_id));
   const note = shown.thread.find(entry => entry.type === 'fact' && entry.text?.startsWith('Criterion size override:'));
   assert.ok(note, 'override must be a native item fact');
-  assert.match(note.text, /one compatibility transaction/u);
-  assert.match(note.text, /"cells":\["alpha","beta","gamma"\]/u);
+  const [reasonLine, sizeLine] = note.text.slice('Criterion size override:'.length).trim().split('\n');
+  assert.equal(reasonLine, 'one compatibility transaction');
+  assert.deepEqual(JSON.parse(sizeLine).cells, ['alpha', 'beta', 'gamma']);
   const blank = await fixtureAdd(box.runLocal, box.repo, 'web', 'Blank override', '--specs', 'G1', '--criterion', criterion, '--force-size', ' ', '--as', 'person', '--json');
   assert.equal(JSON.parse(blank.out).error.code, 'ITEM_SIZE_REASON');
 });

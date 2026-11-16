@@ -71,24 +71,36 @@ function writeGateSentinel(file, marker) {
   chmodSync(file, 0o755);
 }
 
+/**
+ * The gate-availability notes of an `init --json` result, as fields: the command, the places searched and the recipe.
+ * Reading the note string is the one place the sentence is taken apart; every case compares fields.
+ */
+function gateWarnings(run) {
+  assert.equal(run.code, 0, run.err || run.out);
+  return JSON.parse(run.out).notes.flatMap((note) => {
+    const found = /^gate command "([^"]+)" is not available on (.+?); (.+) before running it$/u.exec(note);
+    return found ? [{ command: found[1], searched: found[2].split(', '), recipe: found[3] }] : [];
+  });
+}
+
 test('init says when its gate command cannot run [I1, I2]', async () => {
   const box = e2e.sandbox();
   for (const name of ['UV_PROJECT_ENVIRONMENT', 'POETRY_ACTIVE', 'POETRY_VIRTUALENVS_PATH', 'VIRTUAL_ENV']) delete box.env[name];
   const path = isolatedPath(box);
 
   const missingRoot = pythonRepo(box, 'missing-gate');
-  const missing = await box.runLocal(missingRoot, 'init', '--verbose');
+  const missing = await box.runLocal(missingRoot, 'init', '--json');
   assert.equal(missing.code, 0, missing.err || missing.out);
-  const warnings = missing.out.split(/\r?\n/u).filter((line) => line.includes('gate command "pytest" is not available'));
-  assert.equal(warnings.length, 1, 'a missing gate gets one actionable line');
-  assert.match(warnings[0], /install pytest or activate the project `\.venv`/u);
+  const warnings = gateWarnings(missing);
+  assert.equal(warnings.length, 1, 'a missing gate gets one actionable note in init --json');
+  assert.deepEqual(warnings[0], { command: 'pytest', searched: ['PATH', 'project `.venv`'], recipe: 'install pytest or activate the project `.venv`' });
 
   const pathRoot = pythonRepo(box, 'path-gate');
   const pathMarker = join(box.dir, 'path-gate-ran');
   writeGateSentinel(join(path, process.platform === 'win32' ? 'pytest.cmd' : 'pytest'), pathMarker);
-  const onPath = await box.runLocal(pathRoot, 'init', '--verbose');
+  const onPath = await box.runLocal(pathRoot, 'init', '--json');
   assert.equal(onPath.code, 0, onPath.err || onPath.out);
-  assert.doesNotMatch(onPath.out, /gate command "pytest" is not available/u);
+  assert.deepEqual(gateWarnings(onPath), []);
   assert.equal(existsSync(pathMarker), false, 'init checks the executable without running the gate');
   rmSync(join(path, process.platform === 'win32' ? 'pytest.cmd' : 'pytest'));
 
@@ -97,9 +109,9 @@ test('init says when its gate command cannot run [I1, I2]', async () => {
   const environmentBin = join(environmentRoot, '.venv', process.platform === 'win32' ? 'Scripts' : 'bin');
   mkdirSync(environmentBin, { recursive: true });
   writeGateSentinel(join(environmentBin, process.platform === 'win32' ? 'pytest.cmd' : 'pytest'), environmentMarker);
-  const inEnvironment = await box.runLocal(environmentRoot, 'init', '--verbose');
+  const inEnvironment = await box.runLocal(environmentRoot, 'init', '--json');
   assert.equal(inEnvironment.code, 0, inEnvironment.err || inEnvironment.out);
-  assert.doesNotMatch(inEnvironment.out, /gate command "pytest" is not available/u);
+  assert.deepEqual(gateWarnings(inEnvironment), []);
   assert.equal(existsSync(environmentMarker), false, 'init does not execute a gate found in .venv');
 
   const uvRoot = pythonRepo(box, 'uv-gate');
@@ -108,9 +120,9 @@ test('init says when its gate command cannot run [I1, I2]', async () => {
   mkdirSync(join(uvEnvironment, process.platform === 'win32' ? 'Scripts' : 'bin'), { recursive: true });
   writeGateSentinel(join(uvEnvironment, process.platform === 'win32' ? 'Scripts/pytest.cmd' : 'bin/pytest'), uvMarker);
   box.env.UV_PROJECT_ENVIRONMENT = uvEnvironment;
-  const inUvEnvironment = await box.runLocal(uvRoot, 'init', '--verbose');
+  const inUvEnvironment = await box.runLocal(uvRoot, 'init', '--json');
   assert.equal(inUvEnvironment.code, 0, inUvEnvironment.err || inUvEnvironment.out);
-  assert.doesNotMatch(inUvEnvironment.out, /gate command "pytest" is not available/u);
+  assert.deepEqual(gateWarnings(inUvEnvironment), []);
   assert.equal(existsSync(uvMarker), false, 'init does not execute a gate found in the configured uv environment');
   delete box.env.UV_PROJECT_ENVIRONMENT;
 
@@ -122,11 +134,10 @@ test('init says when its gate command cannot run [I1, I2]', async () => {
   mkdirSync(join(decoyEnvironment, process.platform === 'win32' ? 'Scripts' : 'bin'), { recursive: true });
   writeGateSentinel(join(decoyEnvironment, process.platform === 'win32' ? 'Scripts/pytest.cmd' : 'bin/pytest'), poetryMarker);
   box.env.POETRY_VIRTUALENVS_PATH = poetryCache;
-  const decoy = await box.runLocal(poetryRoot, 'init', '--verbose');
+  const decoy = await box.runLocal(poetryRoot, 'init', '--json');
   assert.equal(decoy.code, 0, decoy.err || decoy.out);
-  assert.match(decoy.out, /gate command "pytest" is not available on PATH, project `\.venv`/u,
+  assert.deepEqual(gateWarnings(decoy), [{ command: 'pytest', searched: ['PATH', 'project `.venv`'], recipe: 'run `poetry install` and activate that environment' }],
     'a same-name Poetry cache entry is not assumed to belong to this repo');
-  assert.match(decoy.out, /run `poetry install` and activate that environment/u);
   assert.equal(existsSync(poetryMarker), false, 'init does not execute a same-name Poetry cache entry');
 
   delete box.env.POETRY_VIRTUALENVS_PATH;
@@ -135,16 +146,20 @@ test('init says when its gate command cannot run [I1, I2]', async () => {
   writeGateSentinel(join(activePoetry, process.platform === 'win32' ? 'Scripts/pytest.cmd' : 'bin/pytest'), poetryMarker);
   box.env.POETRY_ACTIVE = '1';
   box.env.VIRTUAL_ENV = activePoetry;
-  const inPoetryEnvironment = await box.runLocal(poetryRoot, 'init', '--verbose');
+  const inPoetryEnvironment = await box.runLocal(poetryRoot, 'init', '--json');
   assert.equal(inPoetryEnvironment.code, 0, inPoetryEnvironment.err || inPoetryEnvironment.out);
-  assert.doesNotMatch(inPoetryEnvironment.out, /gate command "pytest" is not available/u,
+  assert.deepEqual(gateWarnings(inPoetryEnvironment), [],
     'an explicitly active Poetry environment is checked');
   assert.equal(existsSync(poetryMarker), false, 'init does not execute a gate found in the active Poetry environment');
   delete box.env.POETRY_ACTIVE;
   delete box.env.VIRTUAL_ENV;
   const defaultMissing = await box.runLocal(pythonRepo(box, 'default-missing-gate'), 'init');
-  assert.match(defaultMissing.out, /gate command "pytest" is not available/u, 'the short summary preserves a real missing-executable warning');
-  assert.doesNotMatch(defaultMissing.out, /install pytest|pullboard gate set/u, 'detailed recipes stay behind verbose');
+  // The short-versus-verbose split is a rendering of the same note: init --json carries the whole note either way,
+  // so the split is proved on the two text renderings of one note (the summary keeps the warning clause, verbose adds the recipe).
+  const shortNote = gateWarnings(await box.runLocal(pythonRepo(box, 'json-missing-gate'), 'init', '--json'))[0];
+  assert.equal(shortNote.recipe, 'install pytest or activate the project `.venv`', 'init --json holds the recipe as its own field');
+  assert.ok(defaultMissing.out.includes('gate command "pytest" is not available'), 'the short summary preserves a real missing-executable warning');
+  assert.ok(!defaultMissing.out.includes(shortNote.recipe), 'detailed recipes stay behind verbose');
 });
 
 test('a repo without package.json is told a gate that fits it [C7,B26]', async () => {
