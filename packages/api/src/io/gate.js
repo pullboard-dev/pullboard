@@ -527,17 +527,23 @@ function inspectsClauses(board, main) {
   try { const shown = tryGit(board.gitRoot, ['show', `${main}:${CONFIG_FILE}`]); return shown.status === 0 && JSON.parse(shown.stdout)?.verify?.inspectClauses !== false; } catch { return false; }
 }
 
+/** Accepted main's verify.folderTicks (default off), read like inspectsClauses: a folder-named [test] clause is ticked by the gate-run tests under it (#8847) [C7]. */
+function folderTicksAt(board, main) {
+  try { return board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, main).config.verify.folderTicks === true; } catch { /* the committed file below */ }
+  try { const shown = tryGit(board.gitRoot, ['show', `${main}:${CONFIG_FILE}`]); return shown.status === 0 && JSON.parse(shown.stdout)?.verify?.folderTicks === true; } catch { return false; }
+}
+
 /**
  * Record a settled pulled submission's clause checklist, as the inline submit did: a green gate's tick notes for each
  * [test] clause naming a file it ran green, then the "inspection, clause by clause:" summary for the reviewer [C7,V4].
  * The files are only those the gate's own phases ran, its proof files and every file an outcome names, so no clause is
  * ticked by a file the gate did not run.
  */
-function recordClauseInspection(board, { id, receipt, head, agentId, green }) {
+function recordClauseInspection(board, { id, receipt, head, agentId, green, folderTicks = false }) {
   const outcomes = (receipt?.gate?.phases ?? []).filter(phase => phase.status === 0).flatMap(phase => Array.isArray(phase.testOutcomes) ? phase.testOutcomes : [])
     .filter(row => row && typeof row.file === 'string' && typeof row.name === 'string');
   const gateFiles = new Set([...pulledProofFiles(receipt), ...outcomes.map(row => row.file)].filter(file => PROJECT_FILE.test(file)));
-  store.clauseInspectionNotes(board, id, { gateFiles, outcomes, head, green }, text => store.appendFact(board, id, { agentId, kind: 'note', text }));
+  store.clauseInspectionNotes(board, id, { gateFiles, outcomes, head, green, folderTicks }, text => store.appendFact(board, id, { agentId, kind: 'note', text }));
 }
 
 /** Budget: how many times a pulled gate's submission is prepared again after another board write overtook it. */
@@ -696,7 +702,7 @@ function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null
         store.appendFact(board, id, { agentId: submit.agentId, kind: 'measurement', text: `Gate job ${job} red at ${candidate.slice(0, 12)} only in cases that also fail on main ${String(main).slice(0, 12)} (not this item's; accepted):\n${[...caseLines(compared), ...lines, ...caseReworkLines(board, main, compared, { accepted: true })].join('\n')}\nReviewers: these main reds are listed, not blocking; no new failure is accepted.` });
       }
       store.appendFact(board, id, { agentId: submit.agentId, kind: 'note', text: `Gate job ${job} ${green ? 'green' : owners ? `green over main-owned ${owners.checkOnly ? 'frozen check' : 'test'} cases` : waived ? 'waived, not green,' : `red only in quarantined cases (${excused.map(row => `${row.file} :: ${row.name}, repair #${row.item}`).join('; ').slice(0, 600)})`} at ${candidate.slice(0, 12)} on main ${String(main).slice(0, 12)}; submitted for review.` });
-      if (inspectsClauses(board, main)) recordClauseInspection(board, { id, receipt, head: submit.companion?.source ?? candidate, agentId: submit.agentId, green: gateGreen });
+      if (inspectsClauses(board, main)) recordClauseInspection(board, { id, receipt, head: submit.companion?.source ?? candidate, agentId: submit.agentId, green: gateGreen, folderTicks: folderTicksAt(board, main) });
       // Main reds no open repair names go to the coordinator as one decision, once the submission is recorded; nothing is filed here [B3].
       if (owners?.unowned.length) try {
         store.shout(board, { from: submit.agentId, to: 'coordinator', lanes: item.item_lane ? [item.item_lane] : [], decision: true, text: unownedShout(id, owners.unowned, main) });
