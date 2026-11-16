@@ -215,6 +215,7 @@ const ROWS = [
   ['line.wipPerReviewer', 'Work per reviewer', 'How many items may be in progress for each active reviewer.', 'Line', 'ratio'],
   ['line.barReady', 'Criterion must be ready', 'A new criterion needs its baseline, notes and a second signature before it can be claimed.', 'Line', 'on/off'],
   ['line.bar.check', 'Criterion needs a check', 'A criterion must name an executable check.', 'Line', 'on/off'],
+  ['line.bar.dryRunReview', 'Dry-run review checklist', 'submit --dry-run-review prints the verifier checklist (each bar clause, the bar-check edge cases, a test that fails without the fix) and records that it ran; advisory, never a verdict.', 'Line', 'on/off'],
   ['line.bar.sharpenToPerson', 'Send vague criteria to the person', 'A rejected criterion that is unclear goes to the person to sharpen.', 'Line', 'on/off'],
   ['line.takeoverMinutes', 'Takeover wait', 'How long an inactive claim waits before another builder may take it over.', 'Line', 'minutes'],
   ['line.collisionFreeBatch', 'Collision-free landing batches', 'Items that change the same files are kept out of the same landing batch.', 'Line', 'on/off'],
