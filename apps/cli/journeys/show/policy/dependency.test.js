@@ -43,7 +43,7 @@ function commitFile(box, cwd, path, text, message) {
 // Joins, adds, claims, submits and verifies stay processes: with any of them in-process, a later write by another identity
 // runs the lapsed-claim sweep and returns a claim that waits on an unlanded dependency (NOT_YOURS at submit). Only the
 // read-only show calls run in-process (#6003).
-test("a dependency's own verified dependency admits its files [N16,V4]", async () => {
+test("clause 2: a dependency's own verified dependency admits its files [N16,V4]", async () => {
   const box = project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.lanes.design = { owns: ['design/'], specs: ['G1'] };
