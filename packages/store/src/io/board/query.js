@@ -31,7 +31,7 @@ import { workerInboxQuery } from "../../logic/board/worker.js";
 /** Canonical board queries shared by reads and the synchronous write store [C7]. */
 import { verdictWithdrawals } from "../../../../verify/read.js";
 import { reopenCauseCorrection } from "../../../../items/light.js";
-import { COORDINATOR } from "../../../../config/light.js";
+import { COORDINATOR } from "../../../../queue/light.js";
 import { itemFiles } from "../../../../items/light.js";
 import { parseSpec } from "../../../../spec/light.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";

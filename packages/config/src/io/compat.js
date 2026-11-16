@@ -28,7 +28,7 @@ function schema(base) {
     verify: { ...shape(base.verify), ...fields(['unrelatedTrunkMoves', 'composeAtAdmission', 'familyRelaxAt', 'landedReviews', 'queueAccept', 'requireRowRewrite']) },
     resume: fields(['adoptOrphans']),
     ...fields(['project', 'name', 'submitGate', 'submitDeferAbove', 'landingShards', 'positiveControl',
-      'affectedTests', 'affectedSuites', 'approvers', 'maintainers', 'sandbox', 'intake', 'testConcurrency', 'health', 'specBoards']),
+      'affectedTests', 'affectedSuites', 'approvers', 'maintainers', 'sandbox', 'intake', 'testConcurrency', 'health', 'specBoards', 'generated']),
     testConcurrency: fields(['files', 'browser']),
     health: fields(['sentinel', 'stuck', 'holds', 'release', 'dependencyIdle']),
   };
