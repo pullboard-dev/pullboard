@@ -178,3 +178,16 @@ export function longestRecentHolds({ now = Date.now(), limit = 5, windowMs = 3_6
   }
   return rows.sort((a, b) => b.heldMs - a.heldMs).slice(0, limit);
 }
+
+/**
+ * Every retained hold-log row, parsed and unfiltered, for readers that judge them by board file and age.
+ *
+ * @returns {object[]} Version-1 rows; empty when the machine log is unavailable.
+ */
+export function holdLogRows() {
+  const rows = [];
+  for (const line of retainedHolds().text.split('\n').filter(Boolean)) {
+    try { const row = JSON.parse(line); if (row?.version === 1) rows.push(row); } catch { /* A torn line is not a row. */ }
+  }
+  return rows;
+}
