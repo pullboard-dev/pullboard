@@ -310,6 +310,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "RELAY_CONFIG": "ask the relay operator to repair the named service setting and restart; retain the local board and pending upload",
   "RELAY_PAGE_CACHE": "close other local Pullboard commands, then restore the private relay-pages cache permissions or remove only that device cache and retry; keep the board, relay link and key",
   "SHORT_SLOT_FULL_SUITE": "run the whole suite outside the short check, where it queues for an ordinary gate slot; short slots are only for runs that name their test files",
+  "CLOUD_BOARD_UNAPPROVED": "keep the board in its git repository with pullboard init; a cloud board waits for the person to approve spec row H29",
   "HUMAN_REQUIRED": "send it from the paired phone, or run pullboard relay on --all from the person's terminal",
   "IMPORT_FORMAT": "make an export with pullboard export > board.json, then import that file",
   "IMPORT_NOT_EMPTY": "import into a fresh repo whose board is empty: git init <dir> && cd <dir> && pullboard init",

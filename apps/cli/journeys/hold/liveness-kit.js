@@ -30,6 +30,20 @@ async function readItem(box, id) {
   return shown.document;
 }
 
+/** Whether the board moved a job off the runner that held it: another runner holds it, or it ended. The board's lease expiry does this alone, with no person acting [C7]. */
+function jobMoved(box, job, runner) {
+  const row = box.board.db.prepare('SELECT job_lease_owner AS owner, job_step AS step FROM job WHERE job_id = ?').get(job);
+  return !row || !['offered', 'claimed'].includes(row.step) || (row.owner !== runner && row.step === 'claimed');
+}
+
+/** A live fixture runner polling for the job each tick, as a real runner does; it takes the job once the dead holder's lease has lapsed. */
+function livePoll(box, id, kind) {
+  return async () => {
+    const taken = claimJob(box.board.db, { runner: `runner-live-${id}`, kinds: [kind], now: box.clock.now().getTime() });
+    return { code: taken ? 0 : 1, out: taken ? `took ${taken.job}` : 'no job free yet', err: '' };
+  };
+}
+
 /**
  * The flow steps the kit can break. Each runs the real CLI up to its step and returns the item and the holder it left.
  * Children for land add their step here.
@@ -68,7 +82,22 @@ const STEPS = {
     const runner = `runner-fixture-${id}`;
     const claim = claimJob(box.board.db, { runner, kinds: ['gate'], now });
     if (claim?.job !== job) throw new Refused('LIVENESS_STEP_FAILED', `the fixture runner could not take gate job ${job}`);
-    return { holder: { id: runner, path, lane: 'runner' }, job, done: item => item.item_status !== 'submitted' };
+    return { holder: { id: runner, path, lane: 'runner' }, job, done: item => item.item_status !== 'submitted' || jobMoved(box, job, runner), recover: livePoll(box, id, 'gate') };
+  },
+  async land(box, id) {
+    box.submit(id); // an accepted item is the land job's input: the real submit comes first, then the one land job the board offers for it
+    const head = box.git(box.seats.builder.path, 'rev-parse', 'HEAD');
+    const job = `land-${id}`;
+    const now = box.clock.now().getTime();
+    offerJob(box.board.db, { id: job, kind: 'land', item: id, candidate: head, now });
+    // A fixture lander: its checkout is a folder a kill removes; a cut link only stops it renewing the lease it holds on the land job.
+    const path = join(box.root, '..', `lander-${id}`);
+    mkdirSync(path, { recursive: true });
+    const runner = `lander-fixture-${id}`;
+    const claim = claimJob(box.board.db, { runner, kinds: ['land'], now });
+    if (claim?.job !== job) throw new Refused('LIVENESS_STEP_FAILED', `the fixture lander could not take land job ${job}`);
+    // Done: the item landed, or the board freed the job so a live lander took it over. The item itself never waits on a dead lander.
+    return { holder: { id: runner, path, lane: 'runner' }, job, done: item => ['verified', 'withdrawn', 'open'].includes(item.item_status) || jobMoved(box, job, runner), recover: livePoll(box, id, 'land') };
   },
 };
 

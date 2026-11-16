@@ -4,8 +4,9 @@ export { validateKnownMainAutofile, fileKnownMainAutofile, filePulledMainReds } 
 export { boardNotWritable, requireBoardWriteAccess, boardBusyError } from './src/io/board/access.js';
 export { boardBusyError as board_busy_boardBusyError, boardWriteBusyError, beginImmediateQueued } from './src/io/board/busy.js';
 export { captureBoardChanges, beginCapture } from './src/io/board/capture.js';
+export { writeBoardMeta, readBoardMeta, deleteBoardMeta, deleteBoardMetaWithPrefix } from './src/io/board/meta.js';
 export { migrateEventLogVersion } from './src/io/board/event/log/migrate.js';
-export { atomic, logEvent } from './src/io/board/event/log.js';
+export { atomic, logEvent, writeOrigin } from './src/io/board/event/log.js';
 export { applyHealthFindings } from './src/io/board/health.js';
 export { jobBlobsPending, migrateJobBlobs, compactBoard } from './src/io/board/blobs.js';
 export { compactJobSteps, jobHistory, stepArchivePath, COMPACT_AFTER_DAYS, STEP_ARCHIVE_NAME } from './src/io/board/compact.js';
