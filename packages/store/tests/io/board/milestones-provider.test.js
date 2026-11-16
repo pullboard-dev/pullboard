@@ -28,7 +28,7 @@ test('clause 2: with no provider set the module still answers through its curren
   assert.equal(recorded.previous, null);
 });
 
-test('clause 1: a provided release is the one shipMilestone calls, and clearing the provider restores the import [C7,H16]', t => {
+test('clause 1: a provided release is the one shipMilestone calls and its answer is what the ship event records [C7,H16]', t => {
   const box = fixture(t);
   const calls = [];
   provideCoordinatorMilestoneRelease((board, options) => { calls.push(options); return { gauge: { provided: true }, previous: null, problem: null }; });
@@ -36,6 +36,4 @@ test('clause 1: a provided release is the one shipMilestone calls, and clearing 
   assert.equal(calls.length, 1, 'the provided function ran once');
   assert.deepEqual(calls[0].plannedMoves, ['milestone_ship'], 'it received the release options');
   assert.deepEqual(box.shipped().coordinatorActions.gauge, { provided: true }, 'its answer is what the ship event records');
-  provideCoordinatorMilestoneRelease(null);
-  assert.equal(typeof calls.length, 'number');
 });
