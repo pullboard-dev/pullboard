@@ -391,8 +391,8 @@ async function nextWithProgress(io, values, progress) {
       found.reasons = [...(found.reasons ?? []), ...withBoardRead(ctx, board => reasons().inboxReasons(board, whoAmI(ctx, board)))];
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
       const seat = withBoardRead(ctx, (board) => whoAmI(ctx, board));
-      const reasons = reasons().answerFirstReasons(found.reasons);
-      return refuseNextIdle(io, reasons, reasons().foldedReasons(reasons.map((reason) => displayedWait(reason, agents, ctx.config)), `pullboard list ${seat.lane}`), { minutes, verify: values.verify, laneWork: found.laneWork, lane: seat.lane, route: seat.route });
+      const waits = reasons().answerFirstReasons(found.reasons);
+      return refuseNextIdle(io, waits, reasons().foldedReasons(waits.map((reason) => displayedWait(reason, agents, ctx.config)), `pullboard list ${seat.lane}`), { minutes, verify: values.verify, laneWork: found.laneWork, lane: seat.lane, route: seat.route });
     }
     // An item whose folder another live session holds stays out of this next's selection (#3688).
     if (found.skipItem && ['ITEM_FOLDER_UNFINISHED', 'ITEM_FOLDER_PROTECTED', 'NO_POLICY'].includes(found.retryDetail?.code)) io.say(`skipped #${found.skipItem}: ${found.retryDetail.message}`);
