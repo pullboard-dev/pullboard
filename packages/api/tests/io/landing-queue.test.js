@@ -17,7 +17,7 @@ const item = id => ({ id, commit: COMMIT, ref: `refs/pullboard/land/${id}` });
 
 /** A file board with the runs_store flag set as asked. */
 function boardWith(t, flag) {
-  const board = cellBoard(t, join(cellSandbox(t).dir, 'board.sqlite'));
+  const board = cellBoard(t, join(cellSandbox(t).dir, 'board.sqlite'), undefined, { real: true });
   if (flag) board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(RUNS_STORE_KEY, '1');
   return board;
 }
