@@ -16,6 +16,7 @@ import {
   activityEventDetail,
   activityInterests,
   isActivityNews,
+  archivedItemEvents,
   itemActivity,
   projectAgentActivity,
 } from "../../logic/board/activity/feed.js";
@@ -253,8 +254,15 @@ export function events(board, { itemId, since, kinds, last } = {}) {
   if (since) { where.push('event_at >= ?'); bindings.push(since); }
   if (kinds?.length) { where.push(`event_kind IN (${kinds.map(() => '?').join(', ')})`); bindings.push(...kinds); }
   const filtered = `FROM event${where.length ? ` WHERE ${where.join(' AND ')}` : ''}`;
-  if (Number.isInteger(last) && last > 0) return board.db.prepare(`SELECT * FROM (SELECT * ${filtered} ORDER BY event_id DESC LIMIT ?) ORDER BY event_id`).all(...bindings, last);
-  return board.db.prepare(`SELECT * ${filtered} ORDER BY event_id`).all(...bindings);
+  // An item's archived events (#9334) read as if they never moved: hot then archive, merged in event order [#9335].
+  const archived = itemId !== undefined && itemId !== null
+    ? archivedItemEvents(board, itemId).filter(event => (!since || event.event_at >= since) && (!kinds?.length || kinds.includes(event.event_kind))) : [];
+  const withArchive = rows => archived.length ? [...archived, ...rows].sort((a, b) => a.event_id - b.event_id) : rows;
+  if (Number.isInteger(last) && last > 0) {
+    const rows = board.db.prepare(`SELECT * FROM (SELECT * ${filtered} ORDER BY event_id DESC LIMIT ?) ORDER BY event_id`).all(...bindings, last);
+    return withArchive(rows).slice(-last);
+  }
+  return withArchive(board.db.prepare(`SELECT * ${filtered} ORDER BY event_id`).all(...bindings));
 }
 
 /** One event of an item's thread, as itemThread lists it; `withdrawals` maps an accept event to the withdrawal that undid it. */
