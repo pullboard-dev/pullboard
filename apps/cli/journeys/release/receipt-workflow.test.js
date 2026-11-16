@@ -25,7 +25,7 @@ const WORKFLOW = '.github/workflows/release-gate.yml';
 /** A real one-commit repository whose committed policy names the gate command the receipt must bind. */
 function repository(t) {
   const root = temporaryRepository(t, 'pullboard-release-receipt-');
-  const git = (...args) => runFixtureGit(args, { cwd: root, encoding: 'utf8' }).stdout.trim();
+  const git = (...args) => runFixtureGit(args, { cwd: root });
   const head = git('rev-parse', 'HEAD');
   return { root, head, tree: git('rev-parse', 'HEAD^{tree}'), gate: policyAt(root, head).config.gate };
 }
