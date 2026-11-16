@@ -86,7 +86,7 @@ async function worker(state) {
   };
 }
 
-test('clause 2: the service worker shows a one-line notice from a sealed wake-up and never from plaintext [C7]', async () => {
+test('clause 3: the service worker shows a one-line notice from a sealed wake-up and never from plaintext [C7]', async () => {
   const { shown, push } = await worker({ key: Array.from(deviceKey), kinds: ['alerts'] });
   await push(sealedWakeup(1, 'Item 12 needs you\nsecond line is dropped'));
   assert.deepEqual(shown.map(entry => entry.title), ['Item 12 needs you']);
@@ -97,7 +97,7 @@ test('clause 2: the service worker shows a one-line notice from a sealed wake-up
   assert.equal(shown.length, 1, 'a kind not chosen, plaintext, a wrong seal and an empty push show nothing');
 });
 
-test('clause 2: without an opt-in the worker shows nothing for a sealed wake-up [C7]', async () => {
+test('clause 3: without an opt-in the worker shows nothing for a sealed wake-up [C7]', async () => {
   const { shown, push } = await worker(null);
   await push(sealedWakeup(1, 'Item 12 needs you'));
   assert.equal(shown.length, 0);
