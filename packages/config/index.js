@@ -58,6 +58,7 @@ export {
   testNiceEnabled,
   fencedHopEnabled,
   endStaleJobsEnabled,
+  reofferInfraEndEnabled,
   recaptureHandoffEnabled,
   redFactLocationEnabled,
   settleOnMainReceiptEnabled,
