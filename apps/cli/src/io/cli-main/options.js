@@ -12,6 +12,7 @@ const OPTIONS = {
   'accept-green': { type: 'string' },
   'split-coordinator': { type: 'boolean' },
   'expected-minutes': { type: 'string' },
+  readiness: { type: 'string' },
   sensitive: { type: 'boolean' },
   'machine-verified': { type: 'string' },
   'machine-commands-file': { type: 'string' },
