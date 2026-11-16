@@ -20,6 +20,7 @@ const BEFORE = {
   'census.rerunNonGreen': false,
   'census.rerunOnSettle': false,
   'census.selfTune': false,
+  'claim.keepWhileRunning': false,
   'claim.refuseOffMainHead': false,
   'freeze.refuseEmptyBar': false,
   'gate.adapterLintClock': false,
