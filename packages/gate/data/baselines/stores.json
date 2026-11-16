@@ -636,6 +636,10 @@
       "kind": "json",
       "owner": "packages/codemap/src/io/map.js"
     },
+    "app-harnesses.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/matrix.js"
+    },
     "compiler.json": {
       "kind": "json",
       "owner": "packages/codemap/src/io/cell/parser/worker.js"
@@ -744,6 +748,10 @@
     "identity.json": {
       "kind": "json",
       "owner": "packages/runners/src/io/transport.js"
+    },
+    "idiom-spread.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/idiom-spread.js"
     },
     "index.json": {
       "kind": "json",
@@ -1494,7 +1502,7 @@
       "owner": "apps/relay/src/io/store/device.js"
     },
     "temporary-edges.json": {
-      "kind": "json",
+      "kind": "repo-data",
       "owner": "packages/codemap/src/io/cells/scripts/cache.js"
     },
     "test-cells.json": {
@@ -1588,6 +1596,10 @@
     "workers-usage.json": {
       "kind": "json",
       "owner": "apps/cli/src/io/scale.js"
+    },
+    "readiness-cache.json": {
+      "kind": "json",
+      "owner": "packages/moves/src/io/selection.js"
     },
     "push.sqlite": {
       "kind": "sqlite",

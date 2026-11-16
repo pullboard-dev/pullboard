@@ -32,6 +32,7 @@ export const JOB_SCHEMA_SQL = `
   );
   CREATE INDEX IF NOT EXISTS job_kind_item ON job (job_kind, job_item);
   CREATE INDEX IF NOT EXISTS job_step_lease ON job (job_step, job_lease_until);
+  CREATE INDEX IF NOT EXISTS job_step_updated ON job (job_step, job_updated, job_kind);
   CREATE INDEX IF NOT EXISTS job_lease_live ON job (job_lease_until) WHERE job_lease_owner IS NOT NULL;
   CREATE INDEX IF NOT EXISTS job_step_name_seq ON job_step (job_step_name, job_step_seq);
   CREATE INDEX IF NOT EXISTS job_step_name_at ON job_step (job_step_name, job_step_at);
@@ -67,7 +68,7 @@ export const RUN_SCHEMA_SQL = `
 export const RUN_OBJECT_NAMES = ['run', 'run_item_kind', 'run_open'];
 
 /** The job indexes the board API's queries rely on; a board missing any of them upgrades on its next open [C7,#6722]. */
-export const JOB_INDEX_NAMES = ['job_kind_item', 'job_step_lease', 'job_lease_live', 'job_step_name_seq', 'job_step_name_at'];
+export const JOB_INDEX_NAMES = ['job_kind_item', 'job_step_lease', 'job_step_updated', 'job_lease_live', 'job_step_name_seq', 'job_step_name_at'];
 
 /**
  * True when either job table is not installed yet.
