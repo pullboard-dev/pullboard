@@ -52,7 +52,7 @@ test('clause 1: landOneByHand merges the accepted item onto main and records the
 test('clause 2: the landed record carries the reason and names the bypassed hold [C7,#3775]', t => {
   const { board, repo, id } = acceptedItem(t);
   landOneByHand(board, id, { root: repo.root, reason: 'trunk defect #9001 is unrelated to this item', held: HELD, agentId: COORDINATOR_ID });
-  const event = board.db.prepare("SELECT event_detail FROM event WHERE event_kind='merged' AND event_item=? ORDER BY event_id DESC").get(id);
+  const event = board.db.prepare("SELECT event_detail FROM event WHERE event_kind='merged' AND item_id=? ORDER BY event_id DESC").get(id);
   const note = JSON.parse(event.event_detail).note;
   assert.match(note, /trunk defect #9001 is unrelated to this item/u);
   assert.match(note, /bypassed hold: this trunk is held by #9001 \(open; packages\/x\/tests\/a\.test\.js\)/u);
