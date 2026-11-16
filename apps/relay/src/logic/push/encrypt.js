@@ -6,8 +6,8 @@ import { randomBytes } from 'node:crypto';
 /** Bytes of the record size field's default: one record holds a whole notification payload [C7]. */
 const RECORD_SIZE = 4096;
 
-/** Web Push (RFC 8291) caps a payload at 3993 bytes; this refuses anything longer than one record can carry. */
-const MAX_PAYLOAD = RECORD_SIZE - 16 - 1;
+/** Web Push (RFC 8291 section 4) caps a payload at 3993 bytes so the whole request body fits push services' 4096-byte limit. */
+const MAX_PAYLOAD = 3993;
 
 /** Decode a base64url string to bytes. */
 function fromBase64Url(text) {

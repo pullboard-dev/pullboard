@@ -50,9 +50,9 @@ test('clause 1: a fixed salt and sender key give the same bytes, and an empty an
   const salt = randomBytes(16);
   assert.deepEqual(encryptPush('x', sub.keys, { salt, senderKey }), encryptPush('x', sub.keys, { salt, senderKey }));
   assert.equal(decryptPush(encryptPush('', sub.keys), sub).length, 0);
-  const big = randomBytes(3979);
+  const big = randomBytes(3993);
   assert.deepEqual(decryptPush(encryptPush(big, sub.keys), sub), big);
-  assert.throws(() => encryptPush(randomBytes(3980), sub.keys), RangeError);
+  assert.throws(() => encryptPush(randomBytes(3994), sub.keys), RangeError);
 });
 
 test('clause 1: a changed byte anywhere in the record fails to decrypt, and another subscriber cannot read it [C7]', () => {
@@ -70,6 +70,6 @@ test('clause 1: a changed byte anywhere in the record fails to decrypt, and anot
 test('clause 1: a malformed subscription key or auth secret is refused before encrypting [C7]', () => {
   const sub = subscriber();
   assert.throws(() => encryptPush('x', { ...sub.keys, auth: randomBytes(15).toString('base64url') }), TypeError);
-  assert.throws(() => encryptPush('x', { ...sub.keys, p256dh: randomBytes(65).toString('base64url') }), TypeError);
+  assert.throws(() => encryptPush('x', { ...sub.keys, p256dh: Buffer.concat([Buffer.from([3]), randomBytes(64)]).toString('base64url') }), TypeError);
   assert.throws(() => encryptPush('x', {}), TypeError);
 });
