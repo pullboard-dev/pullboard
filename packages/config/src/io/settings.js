@@ -376,6 +376,11 @@ export function rejectKeepsCheck() {
   return loadMachineSettings().verify?.rejectKeepsCheck === true;
 }
 
+/** Whether a joining seat's family label is canonicalised (#9681): off by default; only an exact `true` turns it on. */
+export function reviewCanonicalFamilies() {
+  return loadMachineSettings().review?.canonicalFamilies === true;
+}
+
 /** Whether a coordinator move records its own session usage (#9685): off by default; only an exact `true` turns it on. */
 export function statsRecordCoordinatorUsage() {
   return loadMachineSettings().stats?.recordCoordinatorUsage === true;
@@ -463,6 +468,14 @@ export function addWarnUnnamedTest() {
  */
 export function holdsRequireOwner() {
   return loadMachineSettings().holds?.requireOwner === true;
+}
+
+/**
+ * Whether next --take restores the pinned head of a returned item into the new item folder (#9689): off by default, so
+ * next --take claims exactly as before; only an exact `true` turns it on.
+ */
+export function nextAdoptPreserved() {
+  return loadMachineSettings().next?.adoptPreserved === true;
 }
 
 /**
