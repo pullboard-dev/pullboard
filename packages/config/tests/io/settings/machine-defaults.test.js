@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell config */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -89,6 +89,7 @@ const BEFORE = {
   'serve.address': '127.0.0.1',
   'serve.port': 0,
   'submit.proofOnly': false,
+  'test.statusOutcomes': false,
   'tests.registryStrict': false,
   'view.background': true,
 };
