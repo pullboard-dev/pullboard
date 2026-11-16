@@ -15,8 +15,7 @@
     "apps/cli/journeys/fact/item/notes.test.js": "drives the real CLI in a project checkout and checks its item notes, board rows and exit codes end to end",
     "apps/cli/journeys/land/landing/noop.test.js": "drives the real CLI in a project checkout and checks its land output, leases and board events end to end",
     "apps/cli/journeys/verify/check.test.js": "drives the real CLI in a project checkout and checks its verdict check output, exit codes and board rows end to end",
-    "apps/cli/journeys/verify/main.test.js": "drives the real CLI in a project checkout and checks its verify output, refusals and board rows end to end",
-    "apps/cli/journeys/imports/cross-lane-edits.test.js": "drives the real CLI to submit cross-lane edits whose only changed tokens are imports and checks the verdicts end to end"
+    "apps/cli/journeys/verify/main.test.js": "drives the real CLI in a project checkout and checks its verify output, refusals and board rows end to end"
   },
   "pureHelpers": {
     "apps/cli/src/io/runner/git.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
