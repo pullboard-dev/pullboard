@@ -80,16 +80,22 @@ async function queuedBehindRemoteWork(t) {
   return { box, other };
 }
 
-/** Item titles on a machine, in item order; `local` reads without catching up, so a stopped rebuild stays stopped. */
-async function titles(machine, local = false) {
-  return (await (local ? machine.cliLocal('export') : machine.cli('export'))).document.tables.item.map((row) => row.item_title);
+/** Item titles read straight from the board file: a command, even a local one, would finish the stopped rebuild. */
+function boardTitles(box) {
+  const board = new DatabaseSync(join(box.root, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
+  try { return board.prepare('SELECT item_title FROM item ORDER BY item_id').all().map((row) => row.item_title); } finally { board.close(); }
+}
+
+/** Item titles on a machine, in item order. */
+async function titles(machine) {
+  return (await machine.cli('export')).document.tables.item.map((row) => row.item_title);
 }
 
 test('clause 1: the outbox rebuild resumes from its last step after a stop at each step [B26,H16,H17]', { timeout: 280_000 }, async (t) => {
   const { box, other } = await queuedBehindRemoteWork(t);
   for (const step of ['undo', 'apply', 'settle', 'reapply', 'write']) {
     assert.equal(await stopAfter(box, step), true, `the rebuild reached ${step}`);
-    const shown = await titles(box, true);
+    const shown = boardTitles(box);
     // However far it got, this machine keeps showing its own queued moves once, never twice and never lost.
     assert.equal(shown.filter((title) => title === 'First item added here offline').length <= 1, true, `no row is undone twice after ${step}`);
   }
