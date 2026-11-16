@@ -59,7 +59,7 @@ test('pre-push runs the gate once per tree and pushes only the checked-out commi
   assert.match(notHere.stderr, /is not checked out/);
 });
 
-test('next claims the next free item in its folder; --verify names the next to check [N2,B5]', async () => {
+test('next claims the next free item in its folder; --verify names the next to check [N2,B5]', async t => {
   const box = project();
   await fixtureAdd(box.runIn, box.repo, 'web', 'Page', '--specs', 'G1');
   await fixtureAdd(box.runIn, box.repo, 'web', 'Second page', '--specs', 'G1', '--after', '1');
@@ -72,8 +72,10 @@ test('next claims the next free item in its folder; --verify names the next to c
   assert.match((await box.runIn(box.web, 'next')).out, /you hold #1: Page/);
   const item = `${box.web}-item-1`;
   assert.equal(commitFile(box, item, 'web/a.html', 'a', 'feat(web): page [G1]').status, 0);
-  const submitted = await box.runIn(item, 'submit', '1');
+  // A pulled submit only queues its gate; the item stays claimed until the receipt applies, so wait for it before asking next.
+  const submitted = await box.runIn(item, 'submit', '1', '--json');
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
+  assert.equal((await settleSubmit(t, { repo: box.repo, env: box.env, run: box.runIn }, JSON.parse(submitted.out))).gate.green, true);
   const blocked = await box.runIn(box.web, 'next', '--take');
   assert.equal(blocked.code, 1, blocked.err || blocked.out);
   // Since the idle-seat queue step, the refusal first names the seat's lane and route.

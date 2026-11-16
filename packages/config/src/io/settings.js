@@ -110,6 +110,11 @@ export function movesLiveEnabled(table) {
   return loadMachineSettings().moves?.live?.[table] === true;
 }
 
+/** Write each pulled census's per-file times back for the next census plan only when this machine opted in; off, the census writes none [C7]. */
+export function censusRecordFileTimesEnabled() {
+  return loadMachineSettings().census?.recordFileTimes === true;
+}
+
 /** Cut pulled census jobs by measured time, heaviest first, only when this machine opted in; off, they are cut by file count [C7]. */
 export function censusBalanceByTimeEnabled() {
   return loadMachineSettings().census?.balanceByTime === true;

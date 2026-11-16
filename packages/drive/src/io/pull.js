@@ -42,6 +42,7 @@ import { pruneRunnerStoresYielding } from './prune.js';
 import { claimSlotPrefix } from './prune.js';
 import { pruneStaleSlots } from './prune.js';
 import { storeName } from './store-names.js';
+import { firstFailingCase } from './posted-case.js';
 
 // Budget: the lease the board grants is 2 minutes; renewing every 30 s survives three lost renewals in a row.
 const RENEW_MS = 30_000;
@@ -630,7 +631,7 @@ export function localLoadAdmits({ load, cores, share, running = 1 }) {
  * @returns {Promise<{ jobs: Array<{ job: string, outcome: 'posted' | 'released' | 'lost', receipt?: object }>, waits: number[], slots: number }>}
  */
 export async function serveRunner({ board, key, runner, capabilities = hostCapabilities(), cache = join(homedir(), '.pullboard-runner', 'pull'),
-  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = null, say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, fetchFailFast = false, drainOnFetchFailure = false, pruneYields = false, prune: pruneStores = pruneRunnerStores, pruneYielding = pruneRunnerStoresYielding, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
+  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = null, say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, fetchFailFast = false, drainOnFetchFailure = false, postedLineNamesCase = false, pruneYields = false, prune: pruneStores = pruneRunnerStores, pruneYielding = pruneRunnerStoresYielding, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
   const endpoint = boardEndpoint(board, key);
   const pack = trunkPack ?? boardTrunkPack(endpoint, fetchImpl, join(cache, 'packs'));
   const host = hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner';
@@ -880,12 +881,14 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     // Exclusivity evidence: this serve took no other job from admission to finish, so the run's whole span was the runner's alone.
     const finishedAt = Date.now();
     const exclusiveEvidence = timed ? { timing: true, exclusive: true, unfencedClients: [], occupiedSlots: slots, admittedAt: new Date(started).toISOString(), finishedAt: new Date(finishedAt).toISOString() } : {};
+    // With runners.postedLineNamesCase on, a red job's posted line ends naming its first failing case, so serve.log shows it without the board [#9084].
+    const postedCase = outcome => { const named = postedLineNamesCase && outcome.status !== 0 ? firstFailingCase(outcome.tail) : ''; return named ? `; ${named}` : ''; };
     const receipt = { ...exclusiveEvidence, ...(gate ? gateReceipt(result, claim.candidate, Date.now() - started)
       : { status: result.status, signal: result.signal, commit: claim.candidate, run, outputSha256: result.outputSha256,
         outputBytes: result.outputBytes, tail: result.tail, durationMs: Date.now() - started }), startup, ...(kept ? { output: { runner: id, folder: kept } } : {}) };
     try {
       const answer = await reliably({ action: 'receipt', ...held, receipt });
-      say(`posted ${claim.job}: exit ${result.status}${gate ? `, gate ${receipt.gate.green ? 'green' : 'red'}` : ''}${answer?.relayed ? `; ${answer.relayed.moves} board moves sent to the relay` : ''}${answer?.applied?.outcome ? `; board: ${answer.applied.outcome}${answer.applied.reason ? ` (${answer.applied.reason})` : ''}` : ''}`);
+      say(`posted ${claim.job}: exit ${result.status}${gate ? `, gate ${receipt.gate.green ? 'green' : 'red'}` : ''}${answer?.relayed ? `; ${answer.relayed.moves} board moves sent to the relay` : ''}${answer?.applied?.outcome ? `; board: ${answer.applied.outcome}${answer.applied.reason ? ` (${answer.applied.reason})` : ''}` : ''}${postedCase(result)}`);
       // A relay-linked board orders the receipt's moves through the relay; one it refused is named here, never lost (#7562).
       for (const why of answer?.relayed?.refused ?? []) say(`${claim.job}: the relay refused a receipt move: ${why}`);
       return { job: claim.job, outcome: 'posted', receipt };

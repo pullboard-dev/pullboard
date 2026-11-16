@@ -204,6 +204,19 @@ export function verdictOutcomes(verdicts) {
 }
 
 /**
+ * The per-file times a census measured, in the milliseconds the plan reads: one entry for every green or red row that
+ * has secs. Why those rows only: an unrun, hung or no-result file has no time worth planning by [C7].
+ *
+ * @param {Iterable<{ file: string, status: string, secs: number|null }>} rows
+ * @returns {Record<string, number>}
+ */
+export function rowFileTimes(rows) {
+  const measured = {};
+  for (const { file, status, secs } of rows) if ((status === 'green' || status === 'red') && Number.isFinite(secs) && secs >= 0) measured[file] = Math.round(secs * 1000);
+  return measured;
+}
+
+/**
  * Cut a census into `count` jobs of near-equal measured time, heaviest first. Each file, heaviest first, goes to the
  * lightest job so far, so the heaviest and lightest job differ by at most one file's time; a file with no time weighs the
  * known average, and with no times at all every file weighs one. The jobs come back heaviest first, so a runner that pulls
