@@ -2,20 +2,8 @@
 import { createHash } from 'node:crypto';
 import { Refused } from '../../../../kernel/light.js';
 import { defineRules } from './rules.js';
-
-/**
- * The next step the withdraw command prints for each refusal code; the live command's next-step map reads these.
- * Why: one sentence per code, so the table and the command can never word the same refusal two ways.
- */
-export const WITHDRAW_NEXT = Object.freeze({
-  STALE_MAIN_RED: 'rerun the native main audit against the current frozen item',
-  CLOSED: 'read its state with pullboard show <id>, then take open work: pullboard next',
-  COORDINATOR_ONLY: 'ask the coordinator to do it: pullboard shout coordinator --kind question "<what you need>"',
-  NOTE_REQUIRED: 'add --note "<what happened>"',
-  NOT_JOINED: 'join a lane from this worktree: pullboard join <lane> --model "<model name>" (see: pullboard lanes)',
-  NO_ITEM: 'find the item id: pullboard list --all',
-  SESSION_LEDGER: 'make the agent-session ledger named in the message writable by this user, then run the command again',
-});
+import { WITHDRAW_NEXT } from './next.js';
+export { WITHDRAW_NEXT } from './next.js';
 
 const sha256 = (text) => createHash('sha256').update(text).digest('hex');
 const blank = (text) => !(typeof text === 'string' && text.trim());

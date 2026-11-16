@@ -15,23 +15,23 @@ import { itemFileCollisions } from '../../../../../packages/items/index.js';
 import { outsideBuildProblem } from '../../../../../packages/items/index.js';
 import { sayMapSlice } from '../../../../../packages/codemap/index.js';
 import { primaryCheckoutRoot } from '../worktree.js';
-import { requireNoCoordinatorPath } from './add.js';
 import { onTrunk } from '../item/bar.js';
 import { refuseClaimMissingPaths } from '../item/bar.js';
+import { requireNoCoordinatorPath } from '../item/bar.js';
 import { cleanItemFolders } from '../item/folder.js';
 import { claimFolderRefusal } from '../item/folder.js';
 import { claimedFolderProblem } from '../item/folder.js';
 import { openItemFolder } from '../item/folder.js';
+import { actOn } from '../board/access.js';
 import {
   MainSpecMerged,
-  actOn,
   claimFreezer,
   claimOrdered,
-  idArg,
   ordered,
-  whoAmI,
   wrongLaneGuidance,
-} from '../entry.js';
+} from '../claim.js';
+import { idArg } from '../context.js';
+import { whoAmI } from '../join.js';
 
 /** Run `pullboard claim` and return its exit code. */
 export async function run(io, { first }) {
