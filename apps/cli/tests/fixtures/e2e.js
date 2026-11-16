@@ -103,6 +103,7 @@ export function parityRecord({ dir, env, cwd, args, result }) {
   const mask = (value, key) => key === 'comparison' ? '<comparison>'
     : key === 'steps' && value && typeof value === 'object' && Object.values(value).every(Number.isFinite) ? '<steps>' // gate step timings, in milliseconds
     : typeof value === 'number' && /Ms$/u.test(key ?? '') ? '<ms>' // a measured duration
+    : typeof value === 'number' && key === 'pid' ? '<pid>' // a process id of a gate's test runtime
     : typeof value === 'string' ? parityText(value, dir).replace(/^disk use under \.git\/pullboard: .*$/gmu, 'disk use under .git/pullboard: <measured>')
     // The late comparison fact is itself a background-measured value; it also moves every later event id by one.
     : key === 'eventId' && typeof value === 'number' ? '<event>'
@@ -367,7 +368,7 @@ function sandbox({ declareFamilies = false } = {}) {
     if (process.env.PULLBOARD_PARITY_RECORD) appendFileSync(process.env.PULLBOARD_PARITY_RECORD, `${JSON.stringify(parityRecord({ dir, env, cwd, args: called, result: answer }))}\n`);
     return answer;
   };
-  return { dir, env, git, tryGit, run, runAsync, inProcess, runLocal: runIn, runIn, runSync, declareFamilies, declareFamily };
+  return { dir, env, git, tryGit, run, runAsync, inProcess, runLocal: runIn, runIn, runSync, parityRecord, declareFamilies, declareFamily };
 }
 
 const CONFIG = {
