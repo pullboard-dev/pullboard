@@ -13,6 +13,11 @@ import { mergeSubmissionMain } from '../../../../packages/merge/index.js';
 /** A private repo with independent builder and main changes, plus a pre-merge-commit hook that refuses until a flag file exists. */
 function project(t) {
   const box = privateRepo(t);
+  // The submit merge copies the committer identity from this process, so give it the fixture's for the test.
+  const keys = ['GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL'];
+  const saved = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  for (const key of keys) process.env[key] = box.env[key];
+  t.after(() => { for (const key of keys) { if (saved[key] === undefined) delete process.env[key]; else process.env[key] = saved[key]; } });
   const quiet = ['-c', 'core.hooksPath=/dev/null'];
   const main = box.root, work = join(box.dir, 'work');
   box.git(...quiet, 'add', '-A'); box.git(...quiet, 'commit', '-q', '-m', 'base');
