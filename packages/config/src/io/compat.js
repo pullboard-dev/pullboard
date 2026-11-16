@@ -23,6 +23,7 @@ function schema(base) {
     landing: { ...fields(['publish', 'timeout', 'stall', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'shardProof', 'landedFromMain', 'first', 'auditOnly', 'splitRed', 'trunkRemote']),
       environment: fields(['platform', 'arch', 'node']), cadence: fields(['every', 'accepted']) },
     verify: { ...shape(base.verify), ...fields(['unrelatedTrunkMoves', 'composeAtAdmission', 'familyRelaxAt', 'landedReviews']) },
+    resume: fields(['adoptOrphans']),
     ...fields(['project', 'name', 'submitGate', 'submitDeferAbove', 'landingShards', 'positiveControl',
       'affectedTests', 'affectedSuites', 'approvers', 'maintainers', 'sandbox', 'intake', 'testConcurrency', 'health', 'specBoards']),
     testConcurrency: fields(['files', 'browser']),
