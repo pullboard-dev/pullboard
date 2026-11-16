@@ -113,6 +113,7 @@ test('a private board sits beside the repo board [E11,E13,E14,E15]', { timeout: 
   assert.equal(existsSync(privateBoardPath(repoBoardId, bobEnv.PULLBOARD_HOME)), false, 'another device has no local private board file');
   mark('j');
   mark('k');
+  for (const name of ['cli', 'cliAt', 'scriptLocal', 'stopRelay', 'restartRelay']) { const original = box[name]; if (typeof original === 'function') box[name] = async (...a) => { const t = Date.now(); try { return await original.apply(box, a); } finally { mark(`${name} ${a.filter(x => typeof x === 'string').slice(0, 3).join(' ').slice(0, 50)} ${Date.now() - t}ms`); } }; }
   await privateBoardMoves(box, privateFile);
   mark('end');
 });
