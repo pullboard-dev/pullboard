@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { CONTRIBUTION_SHAPES } from '../../../../../packages/commits/index.js';
 import { MAX_SUMMARY_CHARS } from '../../../../../packages/commits/index.js';
 import { contributionSecrets } from '../../../../../packages/commits/index.js';
+import { contributionSecretRefusal } from '../../../../../packages/commits/index.js';
 import { contributionFix } from '../../../../../packages/commits/index.js';
 import { parseContributionRecord } from '../../../../../packages/commits/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
@@ -35,9 +36,7 @@ function summaryOf(text) {
 
 /** One failure per secret-looking line, shaped like the parser failures so they print the same way. */
 function secretFailures(text, file) {
-  const row = contributionFix('CONTRIB_SECRET');
-  return contributionSecrets(text).map(({ line, kind }) => ({ field: `line ${line}`, code: 'CONTRIB_SECRET', where: `line ${line}`,
-    rule: `${row.rule} (${kind})`, fix: row.fix, command: row.command.replace('<file>', file) }));
+  return contributionSecrets(text).map(({ line, kind }) => failure(contributionSecretRefusal(line, kind), file, 0));
 }
 
 /** The record shape: the shape the person passed after the file, or the issue form's own name line, which is the shape name. */

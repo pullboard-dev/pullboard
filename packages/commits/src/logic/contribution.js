@@ -64,6 +64,14 @@ const HIDDEN = /[­͏؜ᅟᅠ឴឵᠋-᠎​-‏‪-‮⁠-⁯ㅤ︀-️﻿ﾠ]
 const KEY = /^[a-z][a-z_]*$/u;
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/u;
 
+/**
+ * The refusal for one secret-looking line found by the scan, shaped like the parser refusals.
+ * Why: the check lists a secret beside the parser failures, and the fix table keeps one row per code.
+ */
+export function contributionSecretRefusal(line, kind) {
+  return refuse('CONTRIB_SECRET', `line ${line}`, `a record holds no secret-looking value (${kind})`, 'delete the value from the record and rotate it if it was real');
+}
+
 /** Refuse with the field, the rule broken and the fix in one message. */
 function refuse(code, field, rule, fix) {
   return new Refused(code, `field "${field}": ${rule}; fix: ${fix}`, fix);
