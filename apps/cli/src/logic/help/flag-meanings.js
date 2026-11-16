@@ -55,6 +55,7 @@ export const FLAG_MEANINGS = Object.freeze({
   '--by': 'the principal that signs; defaults to Git user.email',
   'settings line --window': 'a JSON window for the setting, such as {"windowMinutes":60}',
   'stats --window': 'landed-item stage times over this window, such as 6h, 30m or 1d',
+  'field --choices': ['--choices <a,b>', 'the allowed values of a choice field, comma-separated'],
   'replay --days': ['--days <N>', 'how many days of recorded moves to replay, default 7'],
   'capacity --window': ['--window <duration>', 'how far back to measure, such as 14d'],
   'sentinel propose --every': ['--every <10m|hourly|daily>', 'how often the watch runs'],
