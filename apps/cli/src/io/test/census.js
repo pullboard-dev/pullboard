@@ -36,6 +36,7 @@ import { censusRecordFileTimesEnabled } from '../../../../../packages/config/ind
 import { censusRerunNonGreenEnabled } from '../../../../../packages/config/index.js';
 import { censusRerunOnSettleEnabled } from '../../../../../packages/config/index.js';
 import { censusBalanceByTimeEnabled } from '../../../../../packages/config/index.js';
+import { censusSoloFileSeconds } from '../../../../../packages/config/index.js';
 import { censusJobMinutes } from '../../../../../packages/config/index.js';
 import { censusSelfTuneEnabled } from '../../../../../packages/config/index.js';
 import { censusJobsPerRunner } from '../../../../../packages/config/index.js';
@@ -72,7 +73,7 @@ function cleanHead(root) {
 }
 
 /** The census plan, cut by measured time behind census.balanceByTime and by the landing planner otherwise; the dispatcher and the row writer both cut it here so a label names the same files [C7]. */
-const cutPlan = (root, files, count, timed = true) => { const times = readFileTimes(root); return censusPlan(files, count, times, censusBalanceByTimeEnabled(), () => planLandingShards(files, count, times, root), timed ? jobMinutesFor(root) : null); };
+const cutPlan = (root, files, count, timed = true) => { const times = readFileTimes(root); return censusPlan(files, count, times, censusBalanceByTimeEnabled(), (list = files) => planLandingShards(list, count, times, root), timed ? jobMinutesFor(root) : null, censusSoloFileSeconds()); };
 
 /** The job length a self-tuning census chose for each checkout, so the dispatcher and the row writer cut the same plan [C7,U151]. */
 const TUNED = new Map();

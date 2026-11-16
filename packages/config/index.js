@@ -50,6 +50,7 @@ export {
   censusRecordFileTimesEnabled,
   censusBalanceByTimeEnabled,
   censusJobMinutes,
+  censusSoloFileSeconds,
   censusJobsPerRunner,
   jobsAvoidRunnersEnabled,
   pushRecordTimingEnabled,
