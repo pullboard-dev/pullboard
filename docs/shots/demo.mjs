@@ -49,9 +49,12 @@ function command(file, args, cwd, env) {
  */
 async function settleSubmitted(pb, cwd, id) {
   const deadline = Date.now() + 180_000;
+  // Back off from 0.5 s to 3 s: each poll launches the CLI, and on a loaded runner those launches are most of the wait.
+  let pause = 500;
   while (!/^#\d+ +submitted\b/u.test(pb(cwd, 'show', id))) {
     if (Date.now() > deadline) throw new Error(`#${id} did not settle its gate within 180 s`);
-    await new Promise((resolveWait) => setTimeout(resolveWait, 500));
+    await new Promise((resolveWait) => setTimeout(resolveWait, pause));
+    pause = Math.min(pause * 2, 3000);
   }
 }
 

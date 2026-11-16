@@ -240,9 +240,9 @@ test('the README capture leaves no view running [I11,I13]', { timeout: 240_000 }
 });
 
 test('the README shows the Shouts capture [I11,I13]', () => {
-  linkedInSection('Pullboard View', 'shouts-light.png', ['shouts', 'answered', 'heard', 'receipt', 'code reference']);
-  linkedInSection('Pullboard View', 'desktop-light.png', ['needs you', 'search', 'status bar']);
-  linkedInSection('Pullboard View', 'phone-light.png', ['phone', 'active work', 'needs you', 'search']);
+  linkedInSection('Pullboard View', 'shouts-light.png', ['shouts', 'by item', 'answer', 'stale claim', 'coordinator']);
+  linkedInSection('Pullboard View', 'desktop-light.png', ['desktop board', 'one line each', 'stage']);
+  linkedInSection('Pullboard View', 'phone-light.png', ['phone board', 'item list', 'opened item']);
   const section = README.slice(README.indexOf('## Pullboard View'), README.indexOf('## Get started'));
   assert.match(section, /desktop-light\.png"[^]*shouts-light\.png"/, 'desktop and Shouts captures are together');
   const png = readFileSync(shots('shouts-light.png'));
