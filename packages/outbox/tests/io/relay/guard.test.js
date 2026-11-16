@@ -12,6 +12,7 @@ import {
 } from 'node:os';
 import { join } from 'node:path';
 import { setImmediate } from 'node:timers/promises';
+import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { withFileLock } from '../../../src/io/relay/guard.js';
 
@@ -93,4 +94,23 @@ test('a detached descendant cannot reuse an expired guard context while another 
     await Promise.all([nextOwner, descendant]);
   }
   assert.equal(entered, true, 'the detached caller enters after the current owner releases the guard');
+});
+
+test('clause 1: a guard held by another connection is awaited without freezing this process event loop [H21,H16]', async t => {
+  const file = fixture(t);
+  // Process-level stand-in: a second SQLite connection is exactly what another process holding the guard looks like.
+  const holder = new DatabaseSync(file);
+  holder.exec('BEGIN EXCLUSIVE');
+  let entered = false;
+  const waiting = withFileLock(file, () => { entered = true; });
+  try {
+    // Each turn of the event loop is observable progress: a guard wait that slept synchronously would never return here.
+    for (let turn = 0; turn < 20; turn++) await setImmediate();
+    assert.equal(entered, false, 'the waiter does not enter while the other connection holds the guard');
+  } finally {
+    holder.exec('COMMIT');
+    holder.close();
+  }
+  await waiting;
+  assert.equal(entered, true, 'the waiter enters once the other connection releases');
 });
