@@ -1,5 +1,5 @@
-/** @pullboard-world-pin: clause 1 reads the lane and commit mutant list and the repository files its edits quote, which are the files a moved line breaks. */
-/** Every edit in the lane and commit mutant list quotes text that is in its named file on main, so a moved line cannot leave a mutant that changes nothing [C7,#8568]. */
+/** @pullboard-world-pin: clauses 1 and 3 read the proof mutant lists and the repository files their edits quote, which are the files a moved line breaks. */
+/** Every edit in the proof mutant lists quotes text that is in its named file on main, so a moved line cannot leave a mutant that changes nothing [C7,#8568,#8572]. */
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -51,4 +51,14 @@ test('clause 2: an edit naming a missing file or text its file lacks is reported
   assert.equal(problems.length, 2);
   assert.match(problems[0], /a\/none\.js does not exist/u);
   assert.match(problems[1], /a\/one\.js no longer holds "moved"/u);
+});
+
+const OTHER_LISTS = ['spec', 'board', 'run', 'verification', 'shouts', 'readme'];
+
+test('clause 3: every edit of the spec, board, run, verification, shouts and readme mutant lists quotes text present in its named file on main [C7,#8572]', async () => {
+  for (const name of OTHER_LISTS) {
+    const mutants = await mutantsOf(readFileSync(join(ROOT, 'docs', 'proof', `${name}-mutants.mjs`), 'utf8'));
+    assert.ok(mutants.length > 5, `${name}-mutants.mjs names its mutants`);
+    assert.deepEqual(stale(mutants, readRepo), [], `${name}-mutants.mjs has an edit that quotes code that moved or is gone`);
+  }
 });
