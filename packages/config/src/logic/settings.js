@@ -250,6 +250,9 @@ export function loadMachineSettings() {
   if (value.next?.itemNotices !== undefined && typeof value.next.itemNotices !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `next.itemNotices in ${file} must be true or false`);
   }
+  if (value.submit?.proofOnly !== undefined && typeof value.submit.proofOnly !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `submit.proofOnly in ${file} must be true or false`);
+  }
   if (value.list?.thinRead !== undefined && typeof value.list.thinRead !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `list.thinRead in ${file} must be true or false`);
   }
@@ -327,6 +330,12 @@ export function loadMachineSettings() {
 /** Whether pullboard list reads through the thin read door (#9089): off by default; only an exact `true` turns it on. */
 export function listThinRead() {
   return loadMachineSettings().list?.thinRead === true;
+}
+
+
+/** Whether a submit with no change may pass for an item that is all ticked proof clauses (#9105): off by default; only an exact `true` turns it on. */
+export function submitProofOnly() {
+  return loadMachineSettings().submit?.proofOnly === true;
 }
 
 

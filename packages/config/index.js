@@ -177,6 +177,7 @@ export {
   maintenanceDurations,
 } from './src/logic/maintenance.js';
 
+export { submitProofOnly } from './src/logic/settings.js';
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';
 export { listThinRead } from './src/logic/settings.js';
 export { boardKey, boardKeyFile } from './src/io/settings.js';
