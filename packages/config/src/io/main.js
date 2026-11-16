@@ -84,6 +84,8 @@ export function defaults() {
     map: { slice: false },
     // Off by default: slices.enforcePaths makes submit refuse a slice that changes a path outside its declared set [C7].
     slices: { enforcePaths: false },
+    // Off by default: next.wholeItemsFirst makes next offer a whole item of the focused release before an open slice [C7].
+    next: { wholeItemsFirst: false },
     // Off by default: cells checks replay a saved answer for an unchanged tree [#2076].
     cells: { cache: false, shimMaxAgeDays: 7 },
     agents: { names: 'suffix' },
@@ -470,6 +472,9 @@ export function configProblems(config) {
   }
   if (config.map?.slice !== undefined && typeof config.map.slice !== 'boolean') {
     problems.push('"map.slice" is true or false');
+  }
+  if (config.next?.wholeItemsFirst !== undefined && typeof config.next.wholeItemsFirst !== 'boolean') {
+    problems.push('"next.wholeItemsFirst" is true or false');
   }
   if (config.slices?.enforcePaths !== undefined && typeof config.slices.enforcePaths !== 'boolean') {
     problems.push('"slices.enforcePaths" is true or false');
