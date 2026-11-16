@@ -28,8 +28,8 @@ export const JOB_KINDS = Object.freeze([
   { kind: 'gate-shard', serves: 'item submitted at the candidate, one slice of its proof files; the gate result applies when the last shard posts' },
   { kind: 'test', serves: 'no item that it ends: the seat waiting on pullboard test; the board records the receipt and applies nothing' },
   { kind: 'check-baseline', serves: "item whose frozen check is measured at main; the receipt is recorded on the item's pending baseline" },
-  // Declared before any runner offers it, so the state map, which lists only the kinds the code creates, does not name it yet [#8864].
-  { kind: 'screen', serves: "a submitted sprint item at its commit on the current base: the merge, static checks on its changed files, and secrets and hook rules re-checked by trusted code", created: false },
+  // Created by runScreenJob in the drive cell, for sprint items only [#8867].
+  { kind: 'screen', serves: "a submitted sprint item at its commit on the current base: the merge, static checks on its changed files, and secrets and hook rules re-checked by trusted code" },
   // Declared before the lander offers it, so the state map does not name it yet [#8870]; the lander's revert is the next slice.
   { kind: 'pull-out', serves: "an item whose landing is pulling: the lander reverts its landed commit on main and records pulled", created: false },
 ]);
