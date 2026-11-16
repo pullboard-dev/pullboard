@@ -211,3 +211,4 @@ export { AGENT_FLOW_KINDS, COMMAND_SPAN_MS, agentFlow, agentFlowLines, seatWaits
 export { readAgentFlowEvents, readSeatActions } from './src/io/agents.js';
 export { reviewRows, reviewRowLines } from './src/logic/review/rows.js';
 export { itemRunnerCost } from './src/io/cost/runner.js';
+export { readMaxAgentsSeries, maxAgentsLines } from './src/io/max-agents.js';
