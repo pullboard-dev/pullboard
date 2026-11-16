@@ -1,6 +1,7 @@
 /** A pull runner whose trunk fetch fails hands the job back fast and can stop claiming, each behind its own setting, both off by default (#9024) [C7]. */
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
+import { mkdir } from 'node:fs/promises';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -62,7 +63,11 @@ test('clause 1: with runners.fetchFailFast on, a trunk fetch still running at th
   const stop = new AbortController();
   const board = stubBoard(['test:hung'], { stop, done: b => b.releases.length === 1 });
   const git = gitWith(() => new Promise(() => {}));
-  await serveRunner({ git, board: BOARD, runner: 'r-hung', capabilities: [], cache: runnerCache(t), jobs: 1, cores: 2, signal: stop.signal, fetchImpl: board.fetchImpl,
+  // The object store exists already, so the deadline can only fall in the fetch.
+  const cache = runnerCache(t);
+  await mkdir(cache, { recursive: true });
+  await runTestGit(cache, ['init', '-q', '--bare', join(cache, 'git')]);
+  await serveRunner({ git, board: BOARD, runner: 'r-hung', capabilities: [], cache, jobs: 1, cores: 2, signal: stop.signal, fetchImpl: board.fetchImpl,
     sleep: async () => {}, timing: { idleMs: 1, fetchFailMs: 40 }, trunkPack: async () => null, fetchFailFast: true });
   assert.equal(board.releases.length, 1);
   assert.match(board.releases[0].reason, /trunk fetch did not end within 0 s of the claim/u);
@@ -71,7 +76,7 @@ test('clause 1: with runners.fetchFailFast on, a trunk fetch still running at th
 test('clause 2: with runners.drainOnFetchFailure on, a runner claims no job after 3 trunk fetch failures in a row until a fetch succeeds (#9024) [C7]', async t => {
   const stop = new AbortController();
   // Five jobs wait; the runner may claim only the first three, then probes the trunk until it answers.
-  const board = stubBoard(['test:1', 'test:2', 'test:3', 'test:4', 'test:5'], { stop, done: b => b.claims.length >= 4 });
+  const board = stubBoard(['test:1', 'test:2', 'test:3', 'test:4', 'test:5'], { stop, done: b => b.releases.length === 4 });
   let probes = 0, up = false;
   const git = { run: (cwd, args, input) => (args[0] === 'ls-remote' ? (probes += 1, Promise.resolve(probes >= 2 ? (up = true, { status: 0, stdout: '', stderr: '' }) : { status: 2, stdout: '', stderr: SSH_DOWN })) : runTestGit(cwd, args, input)),
     fetchTrunk: async () => ({ status: 128, stdout: '', stderr: SSH_DOWN }) };
@@ -83,7 +88,7 @@ test('clause 2: with runners.drainOnFetchFailure on, a runner claims no job afte
     sleep: async () => {}, say: line => lines.push(line), timing: { idleMs: 1, drainProbeMs: 0 }, trunkPack: async () => null, drainOnFetchFailure: true });
   assert.equal(claimsAtFirstProbe, 3, 'no job was claimed after the third failed fetch until the trunk was probed');
   assert.ok(probes >= 2 && up, 'the trunk was probed until it answered');
-  assert.equal(board.claims.length, 4, 'claiming resumed once the probe answered');
+  assert.equal(board.claims.length, 4, 'claiming resumed once the probe answered, and not before');
   assert.ok(lines.some(line => /not claiming: 3 trunk fetches failed in a row/u.test(line)));
 });
 
