@@ -179,7 +179,7 @@ export {
 export {
   originRepository,
 } from './src/logic/github/origin.js';
-export { MODEL_TIERS, modelTier } from './src/logic/tier.js';
+export { ESCALATE_AFTER_BOUNCES, MODEL_TIERS, modelTier, routeByTier } from './src/logic/tier.js';
 export {
   WATCHDOG_GRACE_MS,
   planClaimWatchdog,

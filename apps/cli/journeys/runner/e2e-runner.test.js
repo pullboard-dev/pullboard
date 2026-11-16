@@ -1,12 +1,11 @@
 /**
- * End to end on real repos: runner tiers, dependency conflicts and hold (N16, B8, V1, R1, N22).
+ * End to end on real repos: runner tiers (N16). Dependency conflicts live in e2e-runner-dependent, hold in e2e-runner-hold.
  */
 /** @pullboard-test-input source-cell apps/cli apps/lib store */
 
 import assert from 'node:assert/strict';
 import {
   existsSync,
-  mkdirSync,
   readFileSync,
   writeFileSync,
 } from 'node:fs';
@@ -18,7 +17,7 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { addDiagnosedLight } from '../../tests/fixtures/runner/diagnosed-light.js';
 import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 
 const e2e = createE2eHelpers();
@@ -26,21 +25,6 @@ after(e2e.cleanup);
 const {
   project, LIGHT_BRIEF,
 } = e2e;
-
-/** File light work at mid, then route it through the coordinator's diagnosis. */
-async function addDiagnosedLight(box, ...args) {
-  const route = args.indexOf('--route');
-  assert.equal(args[route + 1], 'light');
-  const brief = args.includes('--brief-file') ? readFileSync(args[args.indexOf('--brief-file') + 1], 'utf8') : args[args.indexOf('--brief') + 1];
-  args[route + 1] = 'mid';
-  const added = await fixtureAdd(box.runLocal, box.repo, ...args);
-  assert.equal(added.code, 0, added.err || added.out);
-  const id = added.out.match(/^#(\d+)/m)?.[1];
-  assert.ok(id, added.out);
-  const diagnosis = (await box.runLocal(box.repo, 'fact', id, 'diagnosis', brief));
-  assert.equal(diagnosis.code, 0, diagnosis.err || diagnosis.out);
-  return added;
-}
 
 test('one runner climbs the tiers: an escalated item goes to the next command, with the earlier tries; it merges the verified work an item waits on [N16]', async () => {
   const box = project();
@@ -69,48 +53,4 @@ test('one runner climbs the tiers: an escalated item goes to the next command, w
   const packs = join(box.dir, 'repo', '.git', 'worktrees', apiRunner.split('/').at(-1), 'pullboard', 'packs');
   assert.match(readFileSync(join(packs, '2-mid-1.md'), 'utf8'), /## Earlier tries by a lighter model\n- 2 attempts stayed red/);
   assert.equal(existsSync(join(packs, '2-light-1.md')), true);
-});
-
-test('the runner returns a claimed dependent item when its verified dependency conflicts [B8,V1,R1]', async () => {
-  const box = project();
-  const localRunner = (await box.runLocal(box.repo, 'worktree', 'api', '--route', 'light')).out.match(/^made (\S+) /)[1];
-  const dependencyRunner = (await box.runLocal(box.repo, 'worktree', 'api', '--route', 'light')).out.match(/^made (\S+) /)[1];
-  mkdirSync(join(localRunner, 'api'));
-  writeFileSync(join(localRunner, 'api', 'server.js'), "export const source = 'local';\n");
-  box.git(localRunner, 'add', 'api/server.js');
-  box.git(localRunner, 'commit', '-q', '-m', 'feat(api): local server variant [G2]');
-
-  const brief = LIGHT_BRIEF.replace('web/page.js', 'api/server.js');
-  await addDiagnosedLight(box, 'api', 'Upstream API', '--route', 'light', '--specs', 'G2', '--criterion', 'serves the upstream API',
-    '--check', 'grep -q upstream api/server.js', '--brief', brief);
-  const upstreamAgent = `sh ${join(box.dir, 'upstream.sh')}`;
-  writeFileSync(join(box.dir, 'upstream.sh'), '#!/bin/sh\nmkdir -p api\nprintf "export const source = upstream;\\n" > api/server.js\n');
-  assert.match((await box.runLocal(dependencyRunner, 'run', '--agent-light', upstreamAgent, '--attempts', '1')).out, /#1 is in the gate as job /);
-  await settledGateJob(box, 1); // the pulled gate posts its receipt after the run returns [C7]
-  const dependencyCommit = JSON.parse((await box.runLocal(box.repo, 'show', '1', '--json')).out).item_commit;
-  box.git(box.web, 'merge', '-q', '--ff-only', dependencyCommit);
-  assert.match((await box.runLocal(box.web, 'verify', '1', 'accept', '--note', 'The exact upstream API check passed.')).out, /verified #1/);
-
-  const dependentBrief = LIGHT_BRIEF.replace('web/page.js', 'api/client.js');
-  await addDiagnosedLight(box, 'api', 'Dependent API', '--after', '1', '--route', 'light', '--specs', 'G2', '--criterion', 'integrates upstream API',
-    '--check', 'test -f api/client.js && grep -q upstream api/server.js', '--brief', dependentBrief);
-  const blocked = await box.runLocal(localRunner, 'run', '--agent-light', 'true', '--attempts', '1');
-  assert.notEqual(blocked.code, 0, blocked.out);
-  assert.match(blocked.err, /MERGE_CONFLICT/);
-  assert.equal(JSON.parse((await box.runLocal(box.repo, 'show', '2', '--json')).out).item_status, 'open', 'the automatic claimed-item release remains unchanged');
-});
-
-test('hold pauses a lane: next names who held it and why; --off lets it go [N22]', async () => {
-  const box = project();
-  await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1');
-  assert.match((await box.runLocal(box.web, 'hold', 'web', '--reason', 'mine')).err, /COORDINATOR_ONLY/);
-  assert.match((await box.runLocal(box.repo, 'hold', 'nowhere', '--reason', 'x')).err, /NO_LANE/);
-  assert.match((await box.runLocal(box.repo, 'hold', 'web', '--reason', 'G1 is being rewritten')).out, /holding the web lane: G1 is being rewritten/);
-  const held = (await box.runLocal(box.web, 'next', '--take'));
-  assert.equal(held.code, 1);
-  assert.match(held.err, /coordinator \(unknown\) holds the web lane: G1 is being rewritten/);
-  assert.match((await box.runLocal(box.web, 'claim', '1')).err, /LANE_HELD/);
-  assert.match((await box.runLocal(box.web, 'resume')).out, /the web lane is held by coordinator \(unknown\): G1 is being rewritten/);
-  assert.match((await box.runLocal(box.repo, 'hold', 'web', '--off')).out, /released the web lane/);
-  assert.match((await box.runLocal(box.web, 'next')).out, /claimed #1: Page/);
 });
