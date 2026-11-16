@@ -47,6 +47,7 @@ export {
   gateRunnersFirstEnabled,
   postLandSuiteEnabled,
   tableReplayEnabled,
+  testNiceEnabled,
   fencedHopEnabled,
   movesShadowEnabled,
   registryStrictEnabled,
