@@ -67,6 +67,7 @@ export {
   censusRerunOnSettleEnabled,
   registryStrictEnabled,
   requireRegisteredEnabled,
+  adapterLintFsEnabled,
   movesLiveEnabled,
   gateRunnerAdmission,
   setGateRunnersOnly,

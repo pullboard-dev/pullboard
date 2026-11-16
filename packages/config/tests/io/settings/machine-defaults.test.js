@@ -22,6 +22,7 @@ const BEFORE = {
   'census.selfTune': false,
   'claim.refuseOffMainHead': false,
   'freeze.refuseEmptyBar': false,
+  'gate.adapterLintFs': false,
   'gate.browserByLaunch': false,
   'gate.browserFreeChecks': false,
   'gate.diskFloorMB': 10240,
