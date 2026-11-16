@@ -6,6 +6,7 @@ import { MACHINE } from '../../../../state/light.js';
 import { BACKBONE_RULES } from '../../../src/logic/table/backbone.table.js';
 import { BACKBONE_STATES } from '../../../src/logic/table/backbone.table.js';
 import { BACKBONE_TABLE } from '../../../src/logic/table/backbone.table.js';
+import { CREATED_JOB_KINDS } from '../../../src/logic/table/backbone.table.js';
 import { JOB_KINDS } from '../../../src/logic/table/backbone.table.js';
 import { servesRule } from '../../../src/logic/table/backbone.table.js';
 import { deriveFact } from '../../../index.js';
@@ -22,8 +23,9 @@ test('the backbone item rows are the declared moves, one row each, with no secon
 });
 
 test('every job kind in the state map is one backbone row whose serves fact is a rule, and the words match the map [C7,#8067]', () => {
-  assert.deepEqual(BACKBONE_TABLE.jobs.map(row => row.kind), FIXTURE.jobs.map(job => job.kind));
-  assert.equal(BACKBONE_TABLE.jobs.length, 14);
+  assert.deepEqual(CREATED_JOB_KINDS, FIXTURE.jobs.map(job => job.kind), 'the kinds the code creates are exactly the map\'s');
+  assert.deepEqual(BACKBONE_TABLE.jobs.map(row => row.kind), [...FIXTURE.jobs.map(job => job.kind), 'screen'], 'plus the declared screen job, which no runner offers yet');
+  assert.equal(BACKBONE_TABLE.jobs.length, 15);
   for (const job of FIXTURE.jobs) {
     const row = BACKBONE_TABLE.jobs.find(entry => entry.kind === job.kind);
     assert.equal(row.serves, servesRule(job.kind));
@@ -43,9 +45,24 @@ test('serves facts derive over a snapshot and trace what they read [C7,#8067]', 
 });
 
 test('tableCoverage over the stored item statuses and job kinds reports no gap, and explain names every kind [C7,#8067]', () => {
-  assert.deepEqual(BACKBONE_STATES, [...MACHINE.states.map(state => state.id), ...FIXTURE.jobs.map(job => job.kind)]);
+  assert.deepEqual(BACKBONE_STATES, [...MACHINE.states.map(state => state.id), ...FIXTURE.jobs.map(job => job.kind), 'screen']);
   assert.equal(MACHINE.states.length, 5);
   assert.deepEqual(tableCoverage(BACKBONE_TABLE, BACKBONE_STATES).gaps, []);
   assert.deepEqual(tableCoverage(BACKBONE_TABLE, [...BACKBONE_STATES, 'invented-kind']).gaps, ['invented-kind']);
   assert.equal(explainTable(BACKBONE_TABLE, BACKBONE_RULES).table, 'backbone');
+});
+
+test('clause 1: the job kinds list screen, with a serves rule naming a submitted sprint item at its commit and base [M1]', () => {
+  const row = BACKBONE_TABLE.jobs.find(entry => entry.kind === 'screen');
+  assert.deepEqual(row, { kind: 'screen', serves: 'serves.screen' });
+  assert.match(BACKBONE_RULES[row.serves].says, /submitted sprint item at its commit on the current base/u);
+  const item = { status: 'submitted', pace: 'sprint', commit: 'c1', digest: 'd1' };
+  const job = { kind: 'screen', commit: 'c1', base: 'b1' };
+  const serves = (snapshot) => deriveFact(BACKBONE_RULES, servesRule('screen'), snapshot).holds;
+  assert.equal(serves({ item, job, base: 'b1' }), true);
+  assert.deepEqual(deriveFact(BACKBONE_RULES, servesRule('screen'), { item, job, base: 'b1' }).trace.map(step => step.fact), ['submitted', 'serves.screen']);
+  assert.equal(serves({ item: { ...item, pace: 'steady' }, job, base: 'b1' }), false, 'a steady item is never screened');
+  assert.equal(serves({ item: { ...item, status: 'verified' }, job, base: 'b1' }), false, 'only submitted work');
+  assert.equal(serves({ item: { ...item, commit: 'c2' }, job, base: 'b1' }), false, "only at the job's commit");
+  assert.equal(serves({ item, job, base: 'b2' }), false, 'only on the current base');
 });
