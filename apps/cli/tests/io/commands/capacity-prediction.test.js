@@ -7,7 +7,7 @@ import {
 } from 'node:test';
 import { join } from 'node:path';
 import * as store from '../../../../../packages/store/index.js';
-import { openBoard } from '../../../../lib/index.js';
+import { withFixtureBoard } from '../../fixtures/board.js';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 
 const e2e = createE2eHelpers();
@@ -15,14 +15,14 @@ after(e2e.cleanup);
 
 /** Seed submitted items with a brief naming files, and file_miss events for some, on the project's real board file. */
 function seed(box, rows) {
-  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
-  try {
+  // @pullboard-board-file journey: the real CLI then reads these rows from the board file it wrote
+  withFixtureBoard(join(box.repo, '.git/pullboard/board.sqlite'), (board) => {
     for (const { files, miss } of rows) {
       const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: `Predicts ${files}`, brief: `Files: ${files}` });
       store.logEvent(board, 'web-1', 'submit', id, { commit: 'a'.repeat(40), tree: 'b'.repeat(40) });
       if (miss) store.logEvent(board, 'web-1', 'file_miss', id, miss);
     }
-  } finally { store.closeBoard(board); }
+  });
 }
 
 test('clause 1: pullboard capacity prints prediction accuracy from recorded misses [C7,#8523]', async () => {
