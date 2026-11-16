@@ -316,6 +316,13 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `event` | `event_kind` | `TEXT` | `NOT NULL` |
 | `event` | `item_id` | `INTEGER` | `nullable` |
 | `event` | `event_detail` | `TEXT` | `NOT NULL`; `DEFAULT '{}'` |
+| `event_archive` | `event_id` | `INTEGER` | `PRIMARY KEY` |
+| `event_archive` | `event_at` | `TEXT` | `NOT NULL` |
+| `event_archive` | `event_by` | `TEXT` | `NOT NULL` |
+| `event_archive` | `event_kind` | `TEXT` | `NOT NULL` |
+| `event_archive` | `item_id` | `INTEGER` | `nullable` |
+| `event_archive` | `event_detail` | `TEXT` | `NOT NULL`; `DEFAULT '{}'` |
+| `event_archive` | `event_archived_at` | `TEXT` | `NOT NULL` |
 | `hold` | `hold_lane` | `TEXT` | `PRIMARY KEY` |
 | `hold` | `hold_reason` | `TEXT` | `NOT NULL` |
 | `hold` | `hold_by` | `TEXT` | `NOT NULL` |
@@ -426,6 +433,10 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `board_meta_agent_session_value_v1` | `board_meta` | `meta_value` | no |
 | `board_meta_grant_activation_unsafe_v1` | `board_meta` | `meta_key` | no |
 | `board_meta_grant_activation_v2` | `board_meta` | `(expression)` | no |
+| `event_archive_fact_identity_v2` | `event_archive` | `(expression)`, `event_id` | no |
+| `event_archive_fact_malformed_v2` | `event_archive` | `event_id` | no |
+| `event_archive_fact_unknown_v2` | `event_archive` | `event_id` | no |
+| `event_archive_item_id_event_id` | `event_archive` | `item_id`, `event_id` | no |
 | `event_by_at` | `event` | `event_by`, `event_at` | no |
 | `event_fact_identity_v2` | `event` | `(expression)`, `event_id` | no |
 | `event_fact_malformed_v2` | `event` | `event_id` | no |

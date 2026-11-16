@@ -55,6 +55,7 @@ import { reviewReleaseCooldown } from "../board.js";
 import { parkedClaims } from "../cooldown.js";
 import { reviewerChecks } from "../board.js";
 import { reviewFamilyRelaxation } from './review/family.js';
+import { refusesFamilyRelaxation } from './next-refused-pairings.js';
 import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../state/light.js';
 import { buildOrder } from "./order.js";
 import { CLAIM_IDLE_ENGINE } from "../../../../state/light.js";
@@ -191,7 +192,7 @@ export function nextFor(board, options) {
     const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
     // One selection shares its queue reads; authoritative reservations derive their witness afresh.
     const relaxationCache = new Map();
-    const checks = reviewerChecks(board, { agentId, policy, familyPolicy, reviewHeartbeats, ...(enabled ? { relaxationFor: item => reviewFamilyRelaxation(board, item, agentId, familyRelaxAt, policy, familyPolicy, relaxationCache, reviewHeartbeats) } : {}) });
+    const checks = reviewerChecks(board, { agentId, policy, familyPolicy, reviewHeartbeats, ...(enabled ? { relaxationFor: refusesFamilyRelaxation(board, agentId) ? () => null : item => reviewFamilyRelaxation(board, item, agentId, familyRelaxAt, policy, familyPolicy, relaxationCache, reviewHeartbeats) } : {}) });
     /** Use the native reservation/verdict guard order, preserving its first refusal and short circuit. */
     function failure(entry) {
       for (const [guard, check] of Object.entries(checks)) {
