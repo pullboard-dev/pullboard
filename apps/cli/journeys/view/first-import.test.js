@@ -1,8 +1,8 @@
 /** Keep either front door importable first without a setupHelp ReferenceError [C7]. */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { runFixtureExecFile } from '../../../../packages/gate/tests/fixtures/child.js';
 
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
 
@@ -13,7 +13,7 @@ const root = fileURLToPath(new URL('../../../../', import.meta.url));
  */
 function importInOrder(first, second) {
   const script = `await import('./${first}'); await import('./${second}'); console.log('loaded');`;
-  return execFileSync(process.execPath, ['--no-warnings', '--input-type=module', '-e', script], {
+  return runFixtureExecFile(process.execPath, ['--no-warnings', '--input-type=module', '-e', script], {
     cwd: root,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
