@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { BACKBONE_TABLE } from '../../../index.js';
+import { boardLandingEngine } from '../../../index.js';
 import { OUTBOX_TABLE } from '../../../index.js';
 import { boardClaimEngine } from '../../../index.js';
 import { boardReleaseEngine } from '../../../index.js';
@@ -27,6 +28,7 @@ const TABLES = {
   claim: ids(boardClaimEngine().table),
   hop: ids(hopEngine({ leaseMs: 1, leaseLapsed: () => false }).table),
   job: ids(jobEngine({ leaseMs: 1, maxAttempts: 1 }).table),
+  landing: [...new Set(Object.values(boardLandingEngine().tables).flatMap(ids))],
   lease: ids(leaseEngine({ leaseMs: 1, valid: () => true }).table),
   outbox: ids(OUTBOX_TABLE),
   release: ids(boardReleaseEngine().table),
@@ -70,4 +72,10 @@ test('moves.row-owners.backbone: clause 2: the backbone table has rows and exact
   const records = JSON.parse(readFileSync(join(DIR, '../../registry.json'), 'utf8'));
   assert.ok(TABLES.backbone.length > 40, 'the backbone has its guard and outcome rows');
   assert.deepEqual(moveRowOwnershipProblems({ backbone: TABLES.backbone }, records), []);
+});
+
+test('moves.row-owners.landing: clause 2: the five landing tables have rows and every row has exactly one owner [C7,#8561]', () => {
+  const records = JSON.parse(readFileSync(join(DIR, '../../registry.json'), 'utf8'));
+  assert.equal(TABLES.landing.length, 38);
+  assert.deepEqual(moveRowOwnershipProblems({ landing: TABLES.landing }, records), []);
 });
