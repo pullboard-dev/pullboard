@@ -28,7 +28,7 @@ import { privateFixtureFiles } from '../../tests/fixtures/child.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { runFixtureSetupGit } from '../../tests/fixtures/child.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
-import { withFixtureBoard } from '../../tests/fixtures/testkit.js';
+import { withFixtureBoard } from '../../tests/fixtures/board.js';
 
 const FIXTURE = join(import.meta.dirname, '../../tests/fixtures/upgrade-093');
 const BIN = join(import.meta.dirname, '../../pullboard.js');
