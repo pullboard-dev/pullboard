@@ -370,6 +370,41 @@ function cpuBindings(source, moduleExports, callable = false, literalCache) {
 }
 
 /** Extract registration calls, including subtests only from a real callback's own context. */
+/** True when a parameter or catch binding of an enclosing function hides `name` at `index`; masked code only [C7]. */
+function bindingShadows(code, index, name) {
+  const mention = new RegExp(`(?<![\\w$])${name.replace(/\$/gu, '\\$')}(?![\\w$])`, 'gu');
+  const binds = text => [...text.matchAll(mention)].some(hit => {
+    const before = text.slice(0, hit.index).trimEnd();
+    if (before.endsWith('=') || (before.endsWith('.') && !before.endsWith('...'))) return false;
+    return !text.slice(hit.index + name.length).trimStart().startsWith(':');
+  });
+  const openOf = close => {
+    let depth = 0;
+    for (let at = close; at >= 0; at--) {
+      if (code[at] === ')') depth++;
+      else if (code[at] === '(' && --depth === 0) return at;
+    }
+    return -1;
+  };
+  let depth = 0;
+  for (let at = index - 1; at >= 0; at--) {
+    if (code[at] === '}') { depth++; continue; }
+    if (code[at] !== '{') continue;
+    if (depth > 0) { depth--; continue; }
+    let head = code.slice(0, at).trimEnd();
+    const arrow = head.endsWith('=>');
+    if (arrow) head = head.slice(0, -2).trimEnd();
+    if (head.endsWith(')')) {
+      const open = openOf(head.length - 1);
+      if (open < 0) continue;
+      const keyword = /([A-Za-z_$][\w$]*)\s*$/u.exec(head.slice(0, open))?.[1];
+      if (!arrow && ['if', 'for', 'while', 'switch', 'with'].includes(keyword)) continue;
+      if (binds(head.slice(open + 1, -1))) return true;
+    } else if (arrow && binds(/([A-Za-z_$][\w$]*)$/u.exec(head)?.[1] ?? '')) return true;
+  }
+  return false;
+}
+
 function cpuCalls(source, bindings) {
   const { code, names } = bindings;
   const contexts = new Set(bindings.namespaces);
@@ -380,6 +415,7 @@ function cpuCalls(source, bindings) {
       const name = match[1];
       if (!names.has(name) && !contexts.has(name)) continue;
       if (code.slice(0, match.index).trimEnd().endsWith('.')) continue;
+      if (names.has(name) && !contexts.has(name) && bindingShadows(code, match.index, name)) continue;
       let at = match.index + name.length;
       while (/\s/u.test(code[at] ?? '') && at < code.length) at++;
       if (code[at] === '.') {

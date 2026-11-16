@@ -208,7 +208,10 @@ export function testRunState(view, now = Date.now(), { finalLine = null, pulled 
   if (!result && finalLine) result = { green: finalLine.green, runner: finalLine.runner, seconds: finalLine.seconds, counts: null,
     failures: [], logPath: queued.log ?? null, files: queued.files ?? [], notices: ['result read from the log: the worker did not record it on the board'] };
   // A pulled run's runner receipt outlives its worker: it wins over a lost worker (#7574).
-  if (!result && pulled?.receipt) result = pulledResult(pulled, queued);
+  if (!result && pulled?.receipt) {
+    const recording = Boolean(view.leaseOwner) && view.leaseUntil >= now;
+    result = pulledResult(pulled, queued, { recording });
+  }
   let status;
   let refusal = null;
   if (view.steps.some(row => row.name === CANCELLED)) status = 'cancelled';
@@ -248,15 +251,18 @@ export function pulledJobState(db, view, now = Date.now()) {
   return held || now < Number(offered.until ?? 0) ? { job: job.id, pending: true } : null;
 }
 
-/** A pulled job's receipt as a run result, read the way the worker reads it: green only when every layer says so. */
-function pulledResult(pulled, queued) {
+/**
+ * A pulled job's receipt as a run result, read the way the worker reads it: green only when every layer says so.
+ * `recording` is true while the run's worker still holds a live lease: it is comparing with main, not stopped (#8851).
+ */
+function pulledResult(pulled, queued, { recording = false } = {}) {
   const { receipt } = pulled;
   const gate = receipt.gate ?? {};
   const phase = gate.phases?.[0] ?? null;
   return { green: receipt.status === 0 && gate.green === true && phase?.status === 0, runner: pulled.runner ?? 'a pulled runner',
     seconds: Number.isFinite(receipt.durationMs) ? Math.round(receipt.durationMs / 1000) : null, counts: null,
     failures: Array.isArray(phase?.failures) ? phase.failures : [], logPath: queued.log ?? null, files: queued.files ?? [],
-    notices: [`result read from the runner receipt of test job ${pulled.job}: the worker stopped before recording it`] };
+    notices: [`result read from the runner receipt of test job ${pulled.job}: ${recording ? 'the worker is still recording it' : 'the worker stopped before recording it'}`] };
 }
 
 /**
