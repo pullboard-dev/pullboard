@@ -10,14 +10,14 @@ import { openCellBoard as openBoard } from '../../fixtures/cell.js';
 const commit = 'a'.repeat(40);
 const SNAPSHOT = Object.freeze({ head: 'b'.repeat(40), digest: 'c'.repeat(64) });
 
-/** A light item whose one strong seat claimed it straight from next and handed it back untouched with `first`, then claimed it again the same way. */
+/** A mid item whose one strong seat claimed it straight from next and handed it back untouched with `first`, then claimed it again the same way. */
 function handedBack(t, { first, reroute }) {
   const board = openBoard(':memory:');
   t.after(() => store.closeBoard(board));
   if (reroute !== undefined) board.rerouteUntouched = reroute;
   store.register(board, { lane: 'coordinator', path: '/repo' });
   const seat = store.register(board, { lane: 'core', path: '/one', route: 'strong' });
-  const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'work', criterion: 'prove it', route: 'light' });
+  const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'work', criterion: 'prove it', route: 'mid' });
   const claim = () => store.claim(board, id, { agentId: seat, lane: 'core', leaseMs: 7200000, head: SNAPSHOT.head, autoNext: true, autoNextSnapshot: SNAPSHOT,
     freeze: item => ({ text: JSON.stringify({ criterion: item.item_criterion, policy: { version: 1, commit, verify: { policy: 'any', family: 'off' } } }), digest: 'digest' }) });
   const release = reason => store.release(board, id, seat, '', { worktreeSnapshot: { ...SNAPSHOT } }, reason);
@@ -32,7 +32,7 @@ test('clause 1: with release.rerouteUntouched on, a second untouched INELIGIBLE 
     for (const second of ['INELIGIBLE', 'ROUTED_ELSEWHERE']) {
       const f = handedBack(t, { first, reroute: true });
       f.release(second);
-      assert.equal(routeOf(f), 'mid', `${first} then ${second}`);
+      assert.equal(routeOf(f), 'strong', `${first} then ${second}`);
     }
   }
 });
@@ -41,6 +41,6 @@ test('clause 1: with release.rerouteUntouched off or unset, untouched releases l
   for (const reroute of [false, undefined]) {
     const f = handedBack(t, { first: 'INELIGIBLE', reroute });
     f.release('INELIGIBLE');
-    assert.equal(routeOf(f), 'light', `reroute ${reroute}`);
+    assert.equal(routeOf(f), 'mid', `reroute ${reroute}`);
   }
 });
