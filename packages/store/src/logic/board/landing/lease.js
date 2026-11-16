@@ -21,10 +21,10 @@ import {
 const KEY = 'landing_lease';
 let provided = null;
 /**
- * Hand the store the move-table engines it runs: leaseEngine, releaseEngine, withdrawEngine, claimEngine, submitEngine, reopenEngine and runTable.
+ * Hand the store the move-table engines it runs: leaseEngine, releaseEngine, withdrawEngine, claimEngine, submitEngine, reopenEngine, verifyEngine and runTable.
  * Why injection: the moves cell already reads the store, so the store importing moves would close a cell cycle; the board composition root, which sees both, calls this once [C7].
  *
- * @param {{ leaseEngine: Function, releaseEngine: Function, withdrawEngine: Function, claimEngine: Function, submitEngine: Function, reopenEngine?: Function, runTable: Function }} engines
+ * @param {{ leaseEngine: Function, releaseEngine: Function, withdrawEngine: Function, claimEngine: Function, submitEngine: Function, reopenEngine?: Function, verifyEngine?: Function, runTable: Function }} engines
  */
 export function provideMoveTables(engines) { provided = Object.freeze({ ...engines }); }
 /** The injected engines; a store used without its composition root refuses by name. */
@@ -48,6 +48,15 @@ let claimTable = null;
 export function runClaimTable(snapshot, move) {
   claimTable ??= moveTables().claimEngine({ grantEngine: AGENT_GRANT_ENGINE });
   return moveTables().runTable(claimTable.table, claimTable.rules, snapshot, move);
+}
+let verifyBuilt = null;
+/**
+ * Run the verify move table over a snapshot and move; `build` yields the engine's inputs and is called once, at first use.
+ * Why here: this file is the store's one reader of the moves tables, so the verify writer reaches the table without a second cross-cell edge [C7,#8272].
+ */
+export function runVerifyTable(build, snapshot, move) {
+  verifyBuilt ??= moveTables().verifyEngine(build());
+  return moveTables().runTable(verifyBuilt.table, verifyBuilt.rules, snapshot, move);
 }
 let reopenBuilt = null;
 /**
