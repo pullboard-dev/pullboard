@@ -15,6 +15,7 @@ function fixture(t) {
   const graph = fixtureCommittedGraph('pullboard-recheck-');
   t.after(() => rmSync(graph.root, { recursive: true, force: true }));
   const git = (...args) => runFixtureSetupGit(args, { cwd: graph.root, env: { ...process.env, ...IDENTITY } });
+  graph.put('readme.txt', 'base\n');
   const base = graph.commit();
   return {
     root: graph.root, base,
