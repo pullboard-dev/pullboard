@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
+import { assertStartupBudgets } from '../../fixtures/budget.js';
 
 const REPO = resolve(import.meta.dirname, '../../../../..');
 /** Modules a read must never load beyond its audited row: the gate runner, the relay client and the landing machinery. */
@@ -53,7 +54,16 @@ test('clause 1: list loads none of the heavy set, and a row names only modules t
 });
 
 test('clause 2: every read command keeps a startup ceiling row, none above its audited value [C7]', () => {
-  const audited = { version: 800, show: 2000, status: 3000, list: 1500 };
-  assert.deepEqual(Object.keys(ceilings).sort(), ['list', 'show', 'status', 'version']);
+  const audited = { version: 800, show: 2000, status: 3000, list: 1500, 'list thin': 100 };
+  assert.deepEqual(Object.keys(ceilings).sort(), ['list', 'list thin', 'show', 'status', 'version']);
   for (const [command, limit] of Object.entries(audited)) assert.ok(ceilings[command] <= limit, `${command} ceiling ${ceilings[command]} ms is above its audited ${limit} ms`);
+});
+
+test('clause 2: the list thin row is 100 ms and the list row stays at its audited 1500 ms [C7,#9090]', () => {
+  assert.equal(ceilings['list thin'], 100);
+  assert.equal(ceilings.list, 1500);
+});
+
+test('clause 1: list with list.thinRead on holds its 100 ms list thin row, and the list row is unchanged [C7,#9090]', async (t) => {
+  await assertStartupBudgets(t);
 });
