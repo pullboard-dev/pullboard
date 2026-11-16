@@ -17,6 +17,7 @@ export const MACHINE_DEFAULTS = {
   'gate.adapterLintFs': false,
   'gate.browserByLaunch': false,
   'gate.browserFreeChecks': false,
+  'gate.contractWeakening': false,
   'gate.diskFloorMB': 10_240,
   'gate.endStaleJobs': false,
   'gate.fencedHop': true,
