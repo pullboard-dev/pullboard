@@ -1177,6 +1177,10 @@
       "kind": "table",
       "owner": "packages/store/src/io/board/event/log.js"
     },
+    "table:event_archive": {
+      "kind": "table",
+      "owner": "packages/store/src/io/board/event/log.js"
+    },
     "table:excluded_inventory": {
       "kind": "table",
       "owner": "apps/relay/src/io/store/excluded.js"
